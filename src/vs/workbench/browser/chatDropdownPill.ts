@@ -22,6 +22,22 @@ import { ChatResourcePillActionViewItem } from './chatResourcePill.js';
 import type { ResourceLabels } from './labels.js';
 import type { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
 
+/**
+ * How a pill holding exactly one entry renders. Several entries always collapse
+ * into the summary and its dropdown.
+ */
+export const enum ChatPillSingleEntry {
+	/** The entry itself — its own icon and label — activated directly. */
+	Inline = 'inline',
+	/**
+	 * The entry itself only when it is a resource, so a file keeps its name and
+	 * themed icon; anything else summarizes.
+	 */
+	InlineResource = 'inlineResource',
+	/** The summary and its dropdown, as for several entries. */
+	Summary = 'summary',
+}
+
 /** Presentation of a {@link ChatDropdownPillActionViewItem}. */
 export interface IChatDropdownPillOptions {
 	/** Identifies the pill's dropdown to the action widget service. */
@@ -34,11 +50,26 @@ export interface IChatDropdownPillOptions {
 	readonly summaryLabel: (count: number) => string;
 	/** Accessible summary label, e.g. `Show 3 artifacts`. */
 	readonly summaryAriaLabel: (count: number) => string;
-	/**
-	 * Keeps the summary and dropdown even for a single entry, instead of
-	 * collapsing to that entry's own icon and label.
-	 */
-	readonly alwaysSummarize?: boolean;
+	/** How a lone entry renders. Defaults to {@link ChatPillSingleEntry.Inline}. */
+	readonly singleEntry?: ChatPillSingleEntry;
+}
+
+/**
+ * The entry a pill shows in place of its summary, or `undefined` when it
+ * summarizes. The single place {@link IChatDropdownPillOptions.singleEntry} is
+ * interpreted, shared by the factory that picks the rendering and the view item
+ * that picks the label.
+ */
+function getInlineEntry(entries: readonly IChatPillEntry[], options: IChatDropdownPillOptions): IChatPillEntry | undefined {
+	if (entries.length !== 1) {
+		return undefined;
+	}
+	const entry = entries[0];
+	switch (options.singleEntry ?? ChatPillSingleEntry.Inline) {
+		case ChatPillSingleEntry.Inline: return entry;
+		case ChatPillSingleEntry.InlineResource: return entry.resource ? entry : undefined;
+		case ChatPillSingleEntry.Summary: return undefined;
+	}
 }
 
 /**
@@ -95,8 +126,8 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 
 	/** Whether the pill stands for its entries rather than showing a single one. */
 	protected get isSummarized(): boolean {
-		const count = this.entries.length;
-		return count > 1 || (count > 0 && !!this._pillOptions.alwaysSummarize);
+		const entries = this.entries;
+		return entries.length > 0 && !getInlineEntry(entries, this._pillOptions);
 	}
 
 	protected get entries(): readonly IChatPillEntry[] {
@@ -226,7 +257,8 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 /**
  * Builds the pill for a set of sections, choosing the rendering that fits the
  * data: a lone resource entry renders as a resource pill, everything else as
- * the dropdown pill (which itself collapses to `icon + label` for one entry).
+ * the dropdown pill (which itself collapses to `icon + label` for one entry,
+ * unless its {@link IChatDropdownPillOptions.singleEntry} policy says otherwise).
  *
  * The descriptor identity only changes when the rendering has to change, so the
  * toolbar rebuilds the view item on a shape flip and updates in place otherwise.
@@ -239,11 +271,8 @@ export function createChatSectionPill(
 	instantiationService: IInstantiationService,
 ): IObservable<IChatPill> {
 	const singleResourceEntry = derived<IChatPillEntry | undefined>(reader => {
-		if (options.alwaysSummarize) {
-			return undefined;
-		}
-		const entries = getChatPillEntries(sections.read(reader));
-		return entries.length === 1 && entries[0].resource ? entries[0] : undefined;
+		const entry = getInlineEntry(getChatPillEntries(sections.read(reader)), options);
+		return entry?.resource ? entry : undefined;
 	});
 	const isResource = derived(reader => !!singleResourceEntry.read(reader));
 

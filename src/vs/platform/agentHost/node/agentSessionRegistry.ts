@@ -15,6 +15,8 @@ export interface IRegisteredSession {
 	readonly provider: AgentProvider;
 	/** Session creation time (ms since epoch) as first observed by the orchestrator. */
 	readonly startTime: number;
+	/** Most recent provider modification time observed by the orchestrator. */
+	readonly modifiedTime: number;
 	/** Whether the session was first discovered from the provider's native catalog. */
 	readonly external: boolean;
 	/** Durable registration source used to protect external provenance. */
@@ -85,6 +87,11 @@ export class AgentSessionRegistry extends Disposable {
 		await this._database.tombstoneAndUnregisterSession(session.toString());
 	}
 
+	/** Advances the durable last-observed provider modification time. */
+	updateModifiedTime(session: URI, modifiedTime: number): Promise<boolean> {
+		return this._database.updateSessionModifiedTime(session.toString(), modifiedTime);
+	}
+
 	/** Every registered session URI key without running legacy metadata migration. */
 	async listSessionKeys(): Promise<ReadonlySet<string>> {
 		return new Set((await this._database.listSessions()).map(entry => entry.session));
@@ -99,6 +106,7 @@ export class AgentSessionRegistry extends Disposable {
 			session: URI.parse(entry.session),
 			provider: entry.provider,
 			startTime: entry.startTime,
+			modifiedTime: entry.modifiedTime,
 			external: entry.external,
 			source: entry.source,
 		}));
@@ -140,6 +148,7 @@ export class AgentSessionRegistry extends Disposable {
 			session: URI.parse(stored.session),
 			provider: stored.provider,
 			startTime: stored.startTime,
+			modifiedTime: stored.modifiedTime,
 			external: stored.external,
 			source: stored.source,
 		};

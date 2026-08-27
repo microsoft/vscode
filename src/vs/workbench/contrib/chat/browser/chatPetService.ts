@@ -81,6 +81,7 @@ export interface IChatPetService {
 	setVariant(variant: ChatPetVariant): void;
 	setOnTheRun(onTheRun: boolean): void;
 	setScale(scale: number): void;
+	resetScale(): void;
 	unlockAchievement(id: ChatPetAchievementId): boolean;
 	markAchievementSeen(id: ChatPetAchievementId): boolean;
 	setAccessory(id: ChatPetAccessoryId | undefined): void;
@@ -208,6 +209,11 @@ export class ChatPetService extends Disposable implements IChatPetService {
 	setScale(scale: number): void {
 		this._scale.set(scale, undefined);
 		this.storageService.store(CHAT_PET_SCALE_STORAGE_KEY, scale, StorageScope.APPLICATION, StorageTarget.USER);
+	}
+
+	resetScale(): void {
+		this._scale.set(CHAT_PET_DEFAULT_SCALE, undefined);
+		this.storageService.remove(CHAT_PET_SCALE_STORAGE_KEY, StorageScope.APPLICATION);
 	}
 
 	setHorizontalPosition(position: number): void {

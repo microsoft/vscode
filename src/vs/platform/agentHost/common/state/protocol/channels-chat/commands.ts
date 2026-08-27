@@ -14,6 +14,7 @@ import type { Message, SideChatSelection } from './state.js';
 
 /**
  * How a new chat uses its source chat and turn.
+ * @nonexhaustive
  */
 export const enum ChatSourceKind {
 	/** Copy source history through the referenced turn into the new chat. */

@@ -7,7 +7,7 @@ import assert from 'assert';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { collectManagedSettingsDefinitions, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_MODEL_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, hasManagedSettingsDefinitions, managedModelValue, managedSettingValue, projectManagedSettings, pickManagedSettings, shouldForceRemoteSettingsRefresh } from '../../common/copilotManagedSettings.js';
+import { collectManagedSettingsDefinitions, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_MODEL_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, hasManagedSettingsDefinitions, managedModelValue, managedSettingValue, projectManagedSettings, pickManagedSettings, resolveForceRemoteSettingsRefresh } from '../../common/copilotManagedSettings.js';
 import { PolicyDefinition } from '../../common/policy.js';
 
 suite('Copilot managed settings projection', () => {
@@ -106,19 +106,26 @@ suite('Copilot managed settings projection', () => {
 		assert.strictEqual(managedModelValue(), managedModelValue());
 	});
 
-	test('forceRemoteSettingsRefresh uses native MDM over the cached server value', () => {
+	test('forceRemoteSettingsRefresh resolves across all channels and reports the winning source', () => {
+		const key = COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY;
 		assert.deepStrictEqual({
-			serverTrue: shouldForceRemoteSettingsRefresh(undefined, { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true }),
-			nativeTrue: shouldForceRemoteSettingsRefresh({ [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true }, { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: false }),
-			nativeFalse: shouldForceRemoteSettingsRefresh({ [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: false }, { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true }),
-			malformedNative: shouldForceRemoteSettingsRefresh({ [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: 'true' }, { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true }),
-			unset: shouldForceRemoteSettingsRefresh(undefined, undefined),
+			serverTrue: resolveForceRemoteSettingsRefresh(undefined, { [key]: true }, undefined),
+			nativeTrue: resolveForceRemoteSettingsRefresh({ [key]: true }, { [key]: false }, undefined),
+			nativeFalse: resolveForceRemoteSettingsRefresh({ [key]: false }, { [key]: true }, undefined),
+			malformedNative: resolveForceRemoteSettingsRefresh({ [key]: 'true' }, { [key]: true }, undefined),
+			fileTrue: resolveForceRemoteSettingsRefresh(undefined, undefined, { [key]: true }),
+			serverBeatsFile: resolveForceRemoteSettingsRefresh(undefined, { [key]: false }, { [key]: true }),
+			unset: resolveForceRemoteSettingsRefresh(undefined, undefined, undefined),
 		}, {
-			serverTrue: true,
-			nativeTrue: true,
-			nativeFalse: false,
-			malformedNative: true,
-			unset: false,
+			serverTrue: { effective: true, source: 'server' },
+			nativeTrue: { effective: true, source: 'nativeMdm' },
+			nativeFalse: { effective: false },
+			// A malformed value is treated as absent so it cannot mask a lower-precedence channel.
+			malformedNative: { effective: true, source: 'server' },
+			// The file channel participates; a native/server-only resolver ignored it.
+			fileTrue: { effective: true, source: 'file' },
+			serverBeatsFile: { effective: false },
+			unset: { effective: false },
 		});
 	});
 

@@ -65,6 +65,33 @@ suite('ChatRequestOriginPart', () => {
 		});
 	});
 
+	test('distinguishes delegation from another chat in the same session', () => {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(IChatRequestOriginService, disposables.add(new ChatRequestOriginService()));
+		instantiationService.stub(IChatSideChatService, disposables.add(new ChatSideChatService()));
+		instantiationService.stub(IChatService, new class extends mock<IChatService>() { });
+		instantiationService.stub(IChatWidgetService, new class extends mock<IChatWidgetService>() { });
+
+		const part = disposables.add(instantiationService.createInstance(
+			ChatRequestOriginPart,
+			URI.parse('agent-host-copilot:/session#target'),
+			{
+				kind: ChatRequestOriginKind.Delegation,
+				sourceSessionResource: URI.parse('agent-host-session://copilot/session?chat=source&turn=turn-1'),
+				delegationScope: 'chat',
+			},
+		));
+
+		assert.deepStrictEqual({
+			text: part.domNode.textContent,
+			ariaLabel: part.domNode.getAttribute('aria-label'),
+		}, {
+			text: 'Sent from another chat',
+			ariaLabel: 'Sent from another chat. Select to open the source.',
+		});
+	});
+
 	test('preserves side chat source presentation and navigation', async () => {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);

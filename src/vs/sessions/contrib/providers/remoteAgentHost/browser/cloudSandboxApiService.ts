@@ -70,8 +70,20 @@ const REQUEST_TIMEOUT_MS = 10_000;
 /** Per-request timeout (ms) for discovery, whose task list is far larger than a credential mint. */
 const DISCOVERY_TIMEOUT_MS = 30_000;
 
+/**
+ * Per-request timeout (ms) for task creation, which waits on a sandbox VM being allocated rather
+ * than on a record being written.
+ */
+const CREATE_TIMEOUT_MS = 60_000;
+
 /** Default Retry-After (seconds) when a 202 "waking" response omits the header. */
 const DEFAULT_WAKING_RETRY_AFTER_SECONDS = 5;
+
+/**
+ * Response headers worth logging when a request fails, lowercased to match the response map.
+ * `x-github-request-id` is what a support escalation is keyed on.
+ */
+const DIAGNOSTIC_RESPONSE_HEADERS = ['x-github-request-id', 'x-request-id', 'x-sweagentd-retry', 'retry-after'] as const;
 
 /** How many recent tasks to scan for sandbox sessions during discovery, per page. */
 const DISCOVERY_TASK_SCAN_LIMIT = 100;
@@ -229,14 +241,26 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		const context = await this._request(`${this._tasksBaseUrl()}/tasks`, 'mc.taskClient.create', 'createTask', {
 			'Accept': 'application/json',
 			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
-		}, token, REQUEST_TIMEOUT_MS, {
+		}, token, CREATE_TIMEOUT_MS, {
 			environment_id: CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID,
 			// Persisted for display, so replayed history shows the prompt no run was started for.
 			prompt: request.prompt,
 			...(repository && { repositories: [repository] }),
 		});
 		if (!isSuccess(context)) {
-			await this._throwForStatus('task create', context);
+			// Read once: the body carries both the id to clean up and the failure message.
+			const failureBody = await asText(context).catch(() => '') ?? '';
+
+			// The generic failure message masks its cause; the request id is the only handle.
+			this._logService.error(`${LOG_PREFIX} Task create failed. ${this._describeResponse(context, failureBody)}`);
+
+			const orphanedTaskId = this._taskIdFromFailure(failureBody);
+			if (orphanedTaskId) {
+				await this._deleteTaskBestEffort(orphanedTaskId);
+			} else {
+				this._logService.warn(`${LOG_PREFIX} Task create failed (HTTP ${context.res.statusCode ?? 'unknown'}) without reporting a task id. Mission Control may have recorded a task before failing; such a task is orphaned and can only be removed server-side.`);
+			}
+			await this._throwForStatus('task create', context, failureBody);
 		}
 		const task = await this._readJson<ITaskDetail>(context);
 		const taskId = task?.id;
@@ -258,9 +282,10 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	 * Delete a task we created but cannot use. Best-effort: the caller is already failing, and a
 	 * failed cleanup must not replace the error that explains why.
 	 *
-	 * Only covers tasks Mission Control actually returned to us. A create that is rejected *after*
-	 * the task record exists (HTTP 403 from the sandbox authorization check) reports no id, so
-	 * that orphan can only be cleaned up server-side.
+	 * Only covers tasks whose id we learned. Mission Control writes the task record before it
+	 * provisions compute, so any failure after that point (an authorization rejection, or a
+	 * provisioning error such as HTTP 500 `failed to create agent compute`) leaves a task behind.
+	 * When the failure response omits the id, that orphan can only be cleaned up server-side.
 	 */
 	private async _deleteTaskBestEffort(taskId: string): Promise<void> {
 		try {
@@ -268,6 +293,11 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				'Accept': 'application/json',
 				'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
 			}, CancellationToken.None, REQUEST_TIMEOUT_MS, undefined, 'DELETE');
+			// A rejected delete resolves rather than throwing, so the status decides.
+			if (!isSuccess(context)) {
+				this._logService.warn(`${LOG_PREFIX} Could not clean up sandbox task ${taskId}: HTTP ${context.res.statusCode ?? 'none'}. It remains and can only be removed server-side.`);
+				return;
+			}
 			this._logService.info(`${LOG_PREFIX} Cleaned up unusable sandbox task ${taskId}: HTTP ${context.res.statusCode ?? 'none'}`);
 		} catch (error) {
 			this._logService.warn(`${LOG_PREFIX} Could not clean up sandbox task ${taskId}: ${toErrorMessage(error)}`);
@@ -397,11 +427,17 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			throw new CloudSandboxAuthenticationRequiredError();
 		}
 		const started = Date.now();
+		const requestMethod = method ?? (body === undefined ? 'GET' : 'POST');
 		try {
 			const context = await this._requestService.request({
-				type: method ?? (body === undefined ? 'GET' : 'POST'),
+				type: requestMethod,
 				url,
-				headers: { ...headers, ['Authorization']: `Bearer ${accessToken}` },
+				headers: {
+					...headers,
+					// `fetch` labels a string body `text/plain` unless told otherwise.
+					...(body === undefined ? undefined : { ['Content-Type']: 'application/json' }),
+					['Authorization']: `Bearer ${accessToken}`
+				},
 				...(body === undefined ? undefined : { data: JSON.stringify(body) }),
 				timeout,
 				callSite,
@@ -418,7 +454,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			}
 			// Elapsed at the budget means our own timeout fired; shorter means something else did.
 			this._logService.trace(`${LOG_PREFIX} ${action} -> failed after ${Date.now() - started}ms (budget ${timeout}ms)`);
-			this._logService.error(`${LOG_PREFIX} GET ${url} failed: ${toErrorMessage(error)}`);
+			this._logService.error(`${LOG_PREFIX} ${requestMethod} ${url} failed: ${toErrorMessage(error)}`);
 			throw error;
 		}
 	}
@@ -443,14 +479,52 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		}
 	}
 
-	/** Throw a diagnosable error for a non-success response, including the body when readable. */
-	private async _throwForStatus(action: string, context: IRequestContext): Promise<never> {
-		const body = await asText(context).catch(() => '');
+	/**
+	 * Throw a diagnosable error for a non-success response. Pass `prereadBody` when the caller has
+	 * already consumed the stream, since reading it twice yields nothing.
+	 */
+	private async _throwForStatus(action: string, context: IRequestContext, prereadBody?: string): Promise<never> {
+		const body = prereadBody ?? await asText(context).catch(() => '');
 		const status = context.res.statusCode;
 		throw new CloudSandboxRequestError(
 			status,
 			`Mission Control ${action} failed: HTTP ${status ?? 'unknown'} - ${(body ?? '').slice(0, 200)}`,
 		);
+	}
+
+	/**
+	 * Describe a response verbatim for a support escalation: status, the server-side request id,
+	 * and the body as received.
+	 */
+	private _describeResponse(context: IRequestContext, body: string): string {
+		const headers = context.res.headers ?? {};
+		const parts = [`HTTP ${context.res.statusCode ?? 'none'}`];
+		for (const name of DIAGNOSTIC_RESPONSE_HEADERS) {
+			const value = headers[name];
+			if (value !== undefined) {
+				parts.push(`${name}: ${Array.isArray(value) ? value.join(', ') : value}`);
+			}
+		}
+		parts.push(`body: ${body || '<empty>'}`);
+		return parts.join(' | ');
+	}
+
+	/** The task id from a failed create, when the response names the task it already recorded. */
+	private _taskIdFromFailure(body: string): string | undefined {
+		if (!body) {
+			return undefined;
+		}
+		try {
+			const parsed = JSON.parse(body) as { id?: unknown; task_id?: unknown };
+			for (const candidate of [parsed?.id, parsed?.task_id]) {
+				if (typeof candidate === 'string' && candidate.length > 0) {
+					return candidate;
+				}
+			}
+		} catch {
+			// A non-JSON error body names no task.
+		}
+		return undefined;
 	}
 
 	/** A GitHub session carrying at least the configured chat provider scopes. */

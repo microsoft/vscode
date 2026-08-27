@@ -5,11 +5,21 @@
 
 export const enum AgentSystemNotificationKind {
 	WorktreeCreationFailure = 'worktreeCreationFailure',
+	/** Agent Merge started monitoring the session's branch. */
+	AgentMergeEnabled = 'agentMergeEnabled',
+	/** Agent Merge stopped monitoring the session, usually on its own. */
+	AgentMergeDisabled = 'agentMergeDisabled',
 }
 
 export const enum AgentSystemNotificationSeverity {
 	Warning = 'warning',
 }
+
+const knownKinds: ReadonlySet<string> = new Set<string>([
+	AgentSystemNotificationKind.WorktreeCreationFailure,
+	AgentSystemNotificationKind.AgentMergeEnabled,
+	AgentSystemNotificationKind.AgentMergeDisabled,
+]);
 
 interface IHasSystemNotificationMeta {
 	readonly _meta?: Record<string, unknown>;
@@ -26,8 +36,9 @@ export function readAgentSystemNotificationMeta(source: IHasSystemNotificationMe
 	if (!meta) {
 		return {};
 	}
+	const kind = meta['kind'];
 	return {
-		kind: meta['kind'] === AgentSystemNotificationKind.WorktreeCreationFailure ? meta['kind'] : undefined,
+		kind: typeof kind === 'string' && knownKinds.has(kind) ? kind as AgentSystemNotificationKind : undefined,
 		severity: meta['severity'] === AgentSystemNotificationSeverity.Warning ? meta['severity'] : undefined,
 	};
 }

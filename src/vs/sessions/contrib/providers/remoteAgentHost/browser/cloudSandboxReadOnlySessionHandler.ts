@@ -121,7 +121,7 @@ export class CloudSandboxReadOnlySessionHandler extends Disposable implements IC
 		// interleave unrelated conversations rather than show more history.
 		const chat = session.chats.get(session.defaultChat) ?? [...session.chats.values()][0];
 		const history: IChatSessionHistoryItem[] = chat
-			? turnsToHistory(URI.parse(session.session), chat.turns, this._config.agentId, this._config.connectionAuthority)
+			? turnsToHistory(URI.parse(session.session), chat.turns, this._config.agentId, this._config.connectionAuthority, undefined, undefined, undefined, undefined, this._config.agentId)
 			: [];
 
 		// The compute most likely died mid-turn, so the unfinished exchange is exactly the one the
@@ -135,7 +135,7 @@ export class CloudSandboxReadOnlySessionHandler extends Disposable implements IC
 				prompt: active.message.text,
 				participant: this._config.agentId,
 				variableData: messageToVariableData(active.message, this._config.connectionAuthority),
-				origin: messageToRequestOrigin(URI.parse(session.session), active.message, this._config.agentId),
+				origin: messageToRequestOrigin(URI.parse(session.session), active.message, this._config.agentId, this._config.agentId),
 			});
 			history.push({
 				type: 'response',

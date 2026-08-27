@@ -17,6 +17,7 @@ $repo = ''
 $cloneExtensions = $false
 $full = $false
 $skipPreLaunch = $false
+$disableWorkspaceTrust = $false
 if ($null -eq $cliArgs) {
 	$cliArgs = @()
 }
@@ -136,6 +137,8 @@ function Test-ExcludedPath([string]$relativePath) {
 		'/logs',
 		'/Cache', '/Code Cache', '/CachedData', '/component_crx_cache',
 		'/GPUCache', '/ShaderCache', '/Dawn*Cache',
+		'Partitions/vscode-browser/Cache', 'Partitions/vscode-browser/Code Cache',
+		'Partitions/vscode-browser/GPUCache', 'Partitions/vscode-browser/Dawn*Cache',
 		'/Backups', '/blob_storage', '/BrowserMetrics', '/Crashpad',
 		'/Session Storage',
 		'/Singleton*',
@@ -469,6 +472,10 @@ for ($index = 0; $index -lt $cliArgs.Count; $index++) {
 			$skipPreLaunch = $true
 			continue
 		}
+		'--disable-workspace-trust' {
+			$disableWorkspaceTrust = $true
+			continue
+		}
 		'--' {
 			for ($forwardIndex = $index + 1; $forwardIndex -lt $cliArgs.Count; $forwardIndex++) {
 				$extraArgs.Add($cliArgs[$forwardIndex])
@@ -582,6 +589,9 @@ try {
 	$launchArgs.Add("--inspect-extensions=$extHostPort")
 	$launchArgs.Add("--inspect=$mainPort")
 	$launchArgs.Add("--inspect-agenthost=$agentHostPort")
+	if ($disableWorkspaceTrust) {
+		$launchArgs.Add('--disable-workspace-trust')
+	}
 	foreach ($argument in $extraArgs) {
 		$launchArgs.Add($argument)
 	}

@@ -21,7 +21,7 @@ import { IProxyModelsService } from '../../proxyModels/common/proxyModelsService
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { WireTypes } from '../common/dataTypes/inlineEditsModelsTypes';
-import { isPromptingStrategy, MODEL_CONFIGURATION_VALIDATOR, ModelConfiguration, PromptingStrategy } from '../common/dataTypes/xtabPromptOptions';
+import { applyStrategyConfig, isPromptingStrategy, MODEL_CONFIGURATION_VALIDATOR, ModelConfiguration, PromptingStrategy } from '../common/dataTypes/xtabPromptOptions';
 import { IInlineEditsModelService, IUndesiredModelsManager } from '../common/inlineEditsModelService';
 
 const enum ModelSource {
@@ -284,7 +284,7 @@ export class InlineEditsModelService extends Disposable implements IInlineEditsM
 	}
 
 	public selectedModelConfiguration(): ModelConfiguration {
-		return toModelConfiguration(this._currentModelObs.get());
+		return applyStrategyConfig(toModelConfiguration(this._currentModelObs.get()));
 	}
 
 	public defaultModelConfiguration(): ModelConfiguration {

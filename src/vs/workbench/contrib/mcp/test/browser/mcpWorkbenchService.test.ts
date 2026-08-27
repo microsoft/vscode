@@ -34,6 +34,7 @@ import { IWorkbenchLocalMcpServer, IWorkbenchMcpManagementService, IWorkbenchMcp
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { TestProductService } from '../../../../test/common/workbenchTestServices.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
+import { McpServerEditorInput } from '../../browser/mcpServerEditorInput.js';
 import { McpWorkbenchService } from '../../browser/mcpWorkbenchService.js';
 import { IMcpService } from '../../common/mcpTypes.js';
 
@@ -222,7 +223,7 @@ function notFound(): IMcpGalleryServerResolveResult {
 	return { status: McpGalleryResolveStatus.NotFound };
 }
 
-suite('McpWorkbenchService - registry-only enforcement', () => {
+suite('McpWorkbenchService', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -233,11 +234,19 @@ suite('McpWorkbenchService - registry-only enforcement', () => {
 		managementService.installed = [...installed];
 		const configurationService = new TestConfigurationService({ [mcpAccessConfig]: accessValue });
 		const allowedMcpServersEmitter = store.add(new Emitter<void>());
+		const openedEditors: McpServerEditorInput[] = [];
 		const services = new ServiceCollection(
 			[IMcpGalleryManifestService, manifestService],
 			[IMcpGalleryService, galleryService],
 			[IWorkbenchMcpManagementService, managementService],
-			[IEditorService, upcastPartial<IEditorService>({})],
+			[IEditorService, upcastPartial<IEditorService>({
+				openEditor: async editor => {
+					if (editor instanceof McpServerEditorInput) {
+						openedEditors.push(store.add(editor));
+					}
+					return undefined;
+				}
+			})],
 			[IUserDataProfilesService, upcastPartial<IUserDataProfilesService>({ profiles: [] })],
 			[IUriIdentityService, upcastPartial<IUriIdentityService>({})],
 			[IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({})],
@@ -257,7 +266,7 @@ suite('McpWorkbenchService - registry-only enforcement', () => {
 		const instantiationService = store.add(new TestInstantiationService(services));
 		const service = store.add(instantiationService.createInstance(McpWorkbenchService));
 		await Event.toPromise(service.onChange);
-		return { service, galleryService, manifestService, managementService, allowedMcpServersEmitter };
+		return { service, galleryService, manifestService, managementService, allowedMcpServersEmitter, openedEditors };
 	}
 
 	async function complete(request: IResolveRequest, result: Map<string, IMcpGalleryServerResolveResult>): Promise<void> {
@@ -265,6 +274,59 @@ suite('McpWorkbenchService - registry-only enforcement', () => {
 		await timeout(0);
 		await timeout(0);
 	}
+
+	test('sanitizes local MCP server configurations from install URIs', async () => {
+		const { service, openedEditors } = await createFixture([]);
+		const uri = URI.parse(`vscode:mcp/install?${encodeURIComponent(JSON.stringify({
+			name: 'local-server',
+			type: 'invalid',
+			command: '/bin/sh',
+			args: ['-c', 'open -a Calculator'],
+			unknown: 'value',
+			url: 'https://example.com/mcp',
+		}))}`);
+
+		const handled = await service.handleURL(uri);
+
+		assert.deepStrictEqual({
+			handled,
+			config: openedEditors[0]?.mcpServer.config,
+		}, {
+			handled: true,
+			config: {
+				type: McpServerType.LOCAL,
+				command: '/bin/sh',
+				args: ['-c', 'open -a Calculator'],
+			},
+		});
+	});
+
+	test('strips local and unknown properties from remote MCP server install URIs', async () => {
+		const { service, openedEditors } = await createFixture([]);
+		const uri = URI.parse(`vscode:mcp/install?${encodeURIComponent(JSON.stringify({
+			name: 'remote-server',
+			type: McpServerType.REMOTE,
+			url: 'https://example.com/mcp',
+			headers: { Authorization: 'Bearer token' },
+			command: '/bin/sh',
+			args: ['-c', 'open -a Calculator'],
+			unknown: 'value',
+		}))}`);
+
+		const handled = await service.handleURL(uri);
+
+		assert.deepStrictEqual({
+			handled,
+			config: openedEditors[0]?.mcpServer.config,
+		}, {
+			handled: true,
+			config: {
+				type: McpServerType.REMOTE,
+				url: 'https://example.com/mcp',
+				headers: { Authorization: 'Bearer token' },
+			},
+		});
+	});
 
 	test('enables only manually configured servers found in the registry', async () => {
 		const foundLocal = createLocal('found');

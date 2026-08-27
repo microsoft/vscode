@@ -1,0 +1,97 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.session-summary-hover {
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	max-width: 460px;
+	color: var(--vscode-editorHoverWidget-foreground);
+	font-size: var(--vscode-fontSize-body1);
+	/* Absolute so it inherits unchanged onto rows; the icon rule below matches
+	it, keeping every icon box exactly one text line tall. */
+	line-height: 18px;
+}
+
+.session-summary-hover-title {
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+	font-weight: var(--vscode-fontWeight-semiBold, 600);
+	overflow-wrap: anywhere;
+}
+
+/* Sections are separated by a rule only when both sides are present, so a
+session with no pull requests shows one rule and a quick chat none. */
+.session-summary-hover-section {
+	display: flex;
+	flex-direction: column;
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-editorHoverWidget-border);
+}
+
+/* The location block continues the title rather than starting a new one. */
+.session-summary-hover-title + .session-summary-hover-location {
+	padding-top: 0;
+	border-top: none;
+}
+
+.session-summary-hover-section.hidden {
+	display: none;
+}
+
+.session-summary-hover-provider {
+	color: var(--vscode-descriptionForeground);
+}
+
+.session-summary-hover-row {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size60);
+	min-width: 0;
+}
+
+.session-summary-hover-link {
+	width: 100%;
+	padding: 0;
+	border: none;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.session-summary-hover-link:hover {
+	color: var(--vscode-textLink-foreground);
+}
+
+.session-summary-hover-link:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
+}
+
+.session-summary-hover-text {
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+/* Aligned to the first line rather than centred across the wrapped block, so a
+wrapping row reads as a hanging indent under its icon. The line-height also
+overrides the `font` shorthand in codicon.css, whose `/1` would otherwise make
+the glyph box shorter than the text line it sits against. */
+.session-summary-hover-icon.codicon {
+	flex-shrink: 0;
+	font-size: var(--vscode-codiconFontSize);
+	line-height: 18px;
+}
+
+.session-summary-hover-separator,
+.session-summary-hover-detail {
+	color: var(--vscode-descriptionForeground);
+}
+
+.session-summary-hover-insertions,
+.session-summary-hover-deletions {
+	margin-left: var(--vscode-spacing-size40);
+}

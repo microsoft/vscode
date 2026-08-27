@@ -9,7 +9,7 @@ import { localize } from '../../../../nls.js';
 import type { IAgentModelCallCompletedSignal } from '../../common/agent.js';
 import { toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { ActionType, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState, type ErrorInfo } from '../../common/state/sessionState.js';
+import { createErrorResponsePart, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState, type ErrorInfo } from '../../common/state/sessionState.js';
 import { extractForwardedErrorInfo } from '../shared/proxyChatError.js';
 import { getServerToolDisplay } from '../shared/serverToolGroups.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
@@ -1239,7 +1239,7 @@ export function mapTurnCompleted(
 				type: ActionType.ChatError,
 				turnId,
 				duration,
-				error: mapCodexTurnError(params.turn.error),
+				part: createErrorResponsePart(mapCodexTurnError(params.turn.error)),
 			},
 			{
 				type: ActionType.ChatTurnComplete,

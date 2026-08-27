@@ -41,7 +41,6 @@ import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSepara
 import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { spinningLoading } from '../../../../platform/theme/common/iconRegistry.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from '../../../browser/actions/workspaceCommands.js';
 import { ActiveEditorContext, RemoteNameContext, ResourceContextKey, WorkbenchStateContext, WorkspaceFolderCountContext } from '../../../common/contextkeys.js';
@@ -53,8 +52,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IRemoteUserDataProfilesService } from '../../../services/userDataProfile/common/remoteUserDataProfiles.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { CHAT_CONFIG_MENU_ID } from '../../chat/browser/actions/chatActions.js';
-import { ChatViewId, IChatWidgetService } from '../../chat/browser/chat.js';
+import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { IAgentHostCustomizationService } from '../../chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { setAgentHostPluginEnablement } from '../../chat/browser/agentPluginActions.js';
 import { IAICustomizationWorkspaceService } from '../../chat/common/aiCustomizationWorkspaceService.js';
@@ -955,13 +953,13 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 						stateIndicator.className = 'chat-mcp-state-indicator';
 						if (state === DisplayedState.NewTools) {
 							stateIndicator.style.display = 'block';
-							stateIndicator.classList.add('chat-mcp-state-new', ...ThemeIcon.asClassNameArray(Codicon.refresh));
+							stateIndicator.classList.add('chat-mcp-state-new', ...ThemeIcon.asClassNameArray(Codicon.refreshCompact));
 						} else if (state === DisplayedState.Error) {
 							stateIndicator.style.display = 'block';
-							stateIndicator.classList.add('chat-mcp-state-error', ...ThemeIcon.asClassNameArray(Codicon.warning));
+							stateIndicator.classList.add('chat-mcp-state-error', ...ThemeIcon.asClassNameArray(Codicon.warningCompact));
 						} else if (state === DisplayedState.Refreshing) {
 							stateIndicator.style.display = 'block';
-							stateIndicator.classList.add('chat-mcp-state-refreshing', ...ThemeIcon.asClassNameArray(spinningLoading));
+							stateIndicator.classList.add('chat-mcp-state-refreshing', ...ThemeIcon.asClassNameArray(ThemeIcon.modify(Codicon.loadingCompact, 'spin')));
 						} else {
 							stateIndicator.style.display = 'none';
 						}
@@ -1497,16 +1495,6 @@ export class ShowInstalledMcpServersCommand extends Action2 {
 		}
 	}
 }
-
-MenuRegistry.appendMenuItem(CHAT_CONFIG_MENU_ID, {
-	command: {
-		id: McpCommandIds.ShowInstalled,
-		title: localize2('mcp.servers', "MCP Servers")
-	},
-	when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
-	order: 10,
-	group: '2_level'
-});
 
 abstract class OpenMcpResourceCommand extends Action2 {
 	protected abstract getURI(accessor: ServicesAccessor): Promise<URI>;

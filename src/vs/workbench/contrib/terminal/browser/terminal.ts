@@ -123,10 +123,13 @@ export interface IAhpTerminalCommandSource extends IDisposable {
 export interface IChatTerminalToolProgressPart {
 	readonly elementIndex: number;
 	readonly contentIndex: number;
+	readonly terminalToolSessionId: string | undefined;
 	focusTerminal(): Promise<void>;
 	toggleOutputFromKeyboard(): Promise<void>;
 	toggleOutputFromAction(): Promise<void>;
 	continueInBackground(): void;
+	didRegisterOutputSource(terminalToolSessionId: string): void;
+	markContinuedInBackground(): void;
 	focusOutput(): void;
 	getCommandAndOutputAsText(): string | undefined;
 }
@@ -152,7 +155,6 @@ export interface ITerminalChatService {
 	 * the chat UI first renders, enabling late binding of the focus action.
 	 */
 	readonly onDidRegisterTerminalInstanceWithToolSession: Event<ITerminalInstance>;
-	readonly onDidRegisterOutputSource: Event<string>;
 
 	/**
 	 * Associate a tool session id with a terminal instance. The association is automatically

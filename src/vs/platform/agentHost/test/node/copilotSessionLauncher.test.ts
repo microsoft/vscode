@@ -34,6 +34,7 @@ import { ByokLmProxyService, IByokLmProxyService, type IByokLmProxyHandle } from
 import { resolveCopilotMcpServerInfo, type ICopilotPluginInfo } from '../../node/copilot/copilotAgent.js';
 import { CopilotSessionLauncher, filterClientToolNames, getCopilotReasoningEffort, isCopilotReasoningEffort, resolveByokSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { buildDefaultChatUri } from '../../common/state/sessionState.js';
+import type { IAgentHostSessionOpenTelemetry } from '../../node/agentHostSessionOpenTelemetry.js';
 
 const testRuntime: ICopilotSessionRuntime = {
 	chatUri: URI.parse(buildDefaultChatUri('copilot:/sess-1')),
@@ -64,7 +65,19 @@ class CapturingLogService extends NullLogService {
 	}
 }
 
-function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettingsPermissions, rootValues: Partial<Record<CopilotCliConfigKey, unknown>> = {}, logService: ILogService = new NullLogService()): CopilotSessionLauncher {
+const noopSessionOpenTelemetry: IAgentHostSessionOpenTelemetry = {
+	_serviceBrand: undefined,
+	withSubscription: async (_resource, operation) => operation({
+		servedFromMemory: undefined,
+		setServedFromMemory: () => { },
+		restoreStarted: () => { },
+		restoreCompleted: () => { },
+	}),
+	withSdkResume: async (_session, operation) => operation(),
+	sdkResumeFallbackCreated: () => { },
+};
+
+function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettingsPermissions, rootValues: Partial<Record<CopilotCliConfigKey, unknown>> = {}, logService: ILogService = new NullLogService(), sessionOpenTelemetry: IAgentHostSessionOpenTelemetry = noopSessionOpenTelemetry): CopilotSessionLauncher {
 	const configurationService = {
 		getRootValue: (_schema: unknown, key: CopilotCliConfigKey) => rootValues[key],
 	} as Partial<IAgentConfigurationService> as IAgentConfigurationService;
@@ -82,6 +95,7 @@ function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettin
 			releaseSessionTraceContext: () => { },
 			withTraceContext: <T>(_context: undefined, fn: () => T): T => fn(),
 		} as unknown as IAgentHostOTelService,
+		sessionOpenTelemetry,
 	);
 }
 
@@ -631,7 +645,7 @@ suite('CopilotSessionLauncher resume fallback', () => {
 		}
 	}
 
-	function createResumeFailingLaunch(message: string, code = -32603): { readonly launcher: CopilotSessionLauncher; readonly plan: CopilotSessionLaunchPlan; readonly getCreateSessionCalls: () => number } {
+	function createResumeFailingLaunch(message: string, code = -32603, sessionOpenTelemetry: IAgentHostSessionOpenTelemetry = noopSessionOpenTelemetry): { readonly launcher: CopilotSessionLauncher; readonly plan: CopilotSessionLaunchPlan; readonly getCreateSessionCalls: () => number } {
 		let createSessionCalls = 0;
 		const session = {
 			sessionId: 'session-1',
@@ -648,7 +662,7 @@ suite('CopilotSessionLauncher resume fallback', () => {
 			},
 		};
 		return {
-			launcher: createTestLauncher(),
+			launcher: createTestLauncher(undefined, {}, new NullLogService(), sessionOpenTelemetry),
 			plan: {
 				client,
 				sessionId: 'session-1',
@@ -672,6 +686,39 @@ suite('CopilotSessionLauncher resume fallback', () => {
 		try {
 			sessions.add(await launcher.launch(plan, testRuntime));
 			assert.strictEqual(getCreateSessionCalls(), 1);
+		} finally {
+			sessions.dispose();
+			await launcher.disposeByokProxyHandle();
+		}
+	});
+
+	test('reports SDK resume failure and fallback creation milestones', async () => {
+		const milestones: string[] = [];
+		const sessionOpenTelemetry: IAgentHostSessionOpenTelemetry = {
+			...noopSessionOpenTelemetry,
+			withSdkResume: async (session, operation) => {
+				milestones.push(`start:${session.scheme}`);
+				try {
+					const result = await operation();
+					milestones.push('complete:success');
+					return result;
+				} catch (error) {
+					milestones.push('complete:failure');
+					throw error;
+				}
+			},
+			sdkResumeFallbackCreated: () => milestones.push('complete:fallbackCreate'),
+		};
+		const { launcher, plan } = createResumeFailingLaunch(`Request session.resume failed with message: LocalRpcSession: 'session.getMessages' returned no events for session session-1`, -32603, sessionOpenTelemetry);
+
+		const sessions = new DisposableStore();
+		try {
+			sessions.add(await launcher.launch(plan, testRuntime));
+			assert.deepStrictEqual(milestones, [
+				'start:copilotcli',
+				'complete:failure',
+				'complete:fallbackCreate',
+			]);
 		} finally {
 			sessions.dispose();
 			await launcher.disposeByokProxyHandle();

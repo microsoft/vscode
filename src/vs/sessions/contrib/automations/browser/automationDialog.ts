@@ -444,6 +444,10 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 		});
 	}
 
+	showPicker(anchor: HTMLElement): void {
+		this.branchPicker.showPicker(anchor);
+	}
+
 	private refreshTargetCapability(): void {
 		const folderUri = this.isolationModel.folderUri;
 		const sessionTypeId = this.state.sessionTypeId;
@@ -1000,6 +1004,8 @@ export function renderForm(
 		listForeground: 'var(--vscode-foreground)',
 		listBackground: 'var(--vscode-input-background)',
 	};
+	let automationIsolationAction: IAction | undefined;
+	const overflowIsolationItem = disposables.add(new MutableDisposable<AutomationIsolationGroupActionViewItem>());
 
 	const chatInputOptions: IChatInputPartOptions = {
 		renderFollowups: false,
@@ -1025,6 +1031,34 @@ export function renderForm(
 		// leaving its scrollbar floating ~24px in from the right wall.
 		inputPartHorizontalPadding: 0,
 		sessionTypePickerDelegate: sessionTypeDelegate,
+		secondaryToolbarOverflowActionHandler: (actionId, anchor) => {
+			if (actionId === AUTOMATIONS_HARNESS_CHIP_ACTION_ID) {
+				sessionTypePicker.showPicker(anchor);
+				return true;
+			}
+			if (actionId === AUTOMATIONS_WORKSPACE_PICKER_ACTION_ID) {
+				workspacePicker.showPicker(false, anchor);
+				return true;
+			}
+			if (actionId === AUTOMATIONS_ISOLATION_GROUP_ACTION_ID && automationIsolationAction) {
+				const item = instantiationService.createInstance(
+					AutomationIsolationGroupActionViewItem,
+					automationIsolationAction,
+					state,
+					isolationModel,
+					isolationModel.folderUriObs,
+					onDidChangeSessionTarget.event,
+					revalidate,
+					undefined,
+					workspaceControlsVisible,
+				);
+				overflowIsolationItem.value = item;
+				item.render(DOM.$('.automation-overflow-isolation-picker'));
+				item.showPicker(anchor);
+				return true;
+			}
+			return false;
+		},
 		secondaryToolbarActionViewItemProvider: (action, itemOptions) => {
 			if (action.id === AUTOMATIONS_HARNESS_CHIP_ACTION_ID) {
 				return new AutomationPickerActionViewItem(action, container => sessionTypePicker.render(container), undefined, itemOptions);
@@ -1036,6 +1070,7 @@ export function renderForm(
 				}, undefined, itemOptions);
 			}
 			if (action.id === AUTOMATIONS_ISOLATION_GROUP_ACTION_ID) {
+				automationIsolationAction = action;
 				const item = instantiationService.createInstance(
 					AutomationIsolationGroupActionViewItem,
 					action,

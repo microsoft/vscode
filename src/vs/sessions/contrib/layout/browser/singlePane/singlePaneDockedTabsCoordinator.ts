@@ -42,8 +42,8 @@ const FILES_TAB_OPTIONS: IEditorOptions = { pinned: true, inactive: true, preser
 
 /**
  * What the active session wants from its managed docked tabs.
- *  - `changesSessionResource`: set for a created workspace session (the Changes multi-diff tab). `undefined` otherwise.
- *  - `wantsChangesTab`: `true` for a created workspace session.
+ *  - `changesSessionResource`: set for any workspace session (the Changes multi-diff tab). `undefined` otherwise.
+ *  - `wantsChangesTab`: `true` for any workspace session.
  *  - `wantsFilesTab`: `true` for any workspace, non-quick-chat session (the empty Files placeholder tab).
  */
 export interface IManagedTabsTarget {
@@ -147,14 +147,17 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 
 		// [Ambient trigger] Session switch / created transition, kind-agnostic (fires for New,
 		// Existing, and Quick Chat alike — a quick chat's target wants neither tab, so this
-		// reconciles any stray managed tabs away). The New/Existing-specific "ensure the
-		// Changes tab" nuances are supplied by those strategies via `queueReconcile`.
+		// reconciles any stray managed tabs away).
+		let previousChangesSessionResource: URI | undefined;
 		this._register(autorun(reader => {
 			const target = this._readTarget(reader);
+			const ensureChanges = !!target.changesSessionResource
+				&& (!previousChangesSessionResource || !isEqual(previousChangesSessionResource, target.changesSessionResource));
+			previousChangesSessionResource = target.changesSessionResource;
 			if (!target.wantsChangesTab) {
 				this._filesTabDismissed = false;
 			}
-			this.queueReconcile(target, { openDefaultsIfEmpty: true });
+			this.queueReconcile(target, { openDefaultsIfEmpty: true, ensureChanges });
 		}));
 
 		// [Ambient trigger] The user opened the side pane.
@@ -302,8 +305,7 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 		if (!session || isQuickChat || !workspace) {
 			return { changesSessionResource: undefined, workspace: undefined, wantsChangesTab: false, wantsFilesTab: false };
 		}
-		const isCreated = read(session.isCreated);
-		return { changesSessionResource: isCreated ? session.resource : undefined, workspace, wantsChangesTab: isCreated, wantsFilesTab: true };
+		return { changesSessionResource: session.resource, workspace, wantsChangesTab: true, wantsFilesTab: true };
 	}
 
 	// --- Reconcile --------------------------------------------------------

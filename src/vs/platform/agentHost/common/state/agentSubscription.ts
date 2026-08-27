@@ -16,6 +16,7 @@ import type { RootAction, SessionAction as IProtocolSessionAction, ChatAction as
 import type { AnnotationsState, ChangesetState, ChatState, RootState, SessionState, TerminalState } from './protocol/state.js';
 import type { IStateSnapshot } from './sessionProtocol.js';
 import { isAhpRootChannel, ROOT_STATE_URI, StateComponents } from './sessionState.js';
+import { normalizeLegacyChatStateErrors } from './legacyProtocolCompatibility.js';
 
 // --- Public API --------------------------------------------------------------
 
@@ -424,6 +425,10 @@ export class ChatStateSubscription extends BaseAgentSubscription<ChatState> {
 		super(clientId, log);
 		this._chatUri = chatUri;
 		this._seqAllocator = seqAllocator;
+	}
+
+	override handleSnapshot(state: ChatState, fromSeq: number): void {
+		super.handleSnapshot(normalizeLegacyChatStateErrors(state), fromSeq);
 	}
 
 	/**

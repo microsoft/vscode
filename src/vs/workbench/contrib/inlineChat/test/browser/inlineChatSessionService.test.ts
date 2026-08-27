@@ -74,7 +74,7 @@ class TestInlineChatSessionResolver extends mock<IInlineChatSessionResolver>() {
 	lockToAgent: ResolvedChatSessionsExtensionPoint | undefined;
 	resolveCalls = 0;
 
-	override async resolve(_token: CancellationToken, _languageId: string | undefined): Promise<IInlineChatSessionResolution> {
+	override async resolve(_token: CancellationToken, _languageId: string | undefined, _targetUri: URI): Promise<IInlineChatSessionResolution> {
 		this.resolveCalls++;
 		return {
 			modelRef: this.chatService.startNewLocalSession(ChatAgentLocation.EditorInline, { canUseTools: false }),

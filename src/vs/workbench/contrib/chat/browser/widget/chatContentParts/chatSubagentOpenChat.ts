@@ -35,6 +35,7 @@ import { IChatWidgetService } from '../../chat.js';
 import { getChatMarkdownRenderOptions } from '../chatContentMarkdownRenderer.js';
 import { renderFileWidgets } from './chatInlineAnchorWidget.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
+import { getCompactCodicon } from '../../chatIcons.js';
 
 export interface IOpenSubagentChatContext {
 	readonly chatResource: string;
@@ -580,7 +581,7 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		}
 		this._activeToolIconElement.className = 'chat-subagent-pill-active-tool-icon';
 		if (icon) {
-			this._activeToolIconElement.classList.add(...ThemeIcon.asClassNameArray(icon));
+			this._activeToolIconElement.classList.add(...ThemeIcon.asClassNameArray(getCompactCodicon(icon)));
 		}
 	}
 

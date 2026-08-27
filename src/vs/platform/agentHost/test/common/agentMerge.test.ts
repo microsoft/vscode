@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AgentMergeConfiguration, evaluateAgentMerge, readAgentMergeSessionState } from '../../common/agentMerge.js';
+import { AgentMergeConfiguration, evaluateAgentMerge, getNonMergeSessionConfigValues, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { PullRequestSnapshot } from '../../../github/common/githubPullRequestService.js';
 
@@ -190,6 +190,48 @@ suite('Agent Merge gate', () => {
 			},
 			lastPromptFingerprint: 'fingerprint',
 		});
+	});
+
+	test('returns pre-merge picker values when merge-injected values are active', () => {
+		const values = {
+			[SessionConfigKey.AgentMerge]: { enabled: true },
+			[SessionConfigKey.AgentMergeController]: {
+				injectedConfiguration: {
+					previous: {
+						autoApprove: 'default',
+						mode: 'interactive',
+						permissionMode: 'acceptEdits',
+					},
+					applied: {
+						autoApprove: 'assisted',
+						mode: 'autopilot',
+						permissionMode: 'auto',
+					},
+				},
+			},
+			autoApprove: 'assisted',
+			mode: 'autopilot',
+			permissionMode: 'auto',
+			permissions: { allow: ['shell'] },
+		};
+		assert.deepStrictEqual(getNonMergeSessionConfigValues(values), {
+			[SessionConfigKey.AgentMerge]: { enabled: true },
+			[SessionConfigKey.AgentMergeController]: values[SessionConfigKey.AgentMergeController],
+			autoApprove: 'default',
+			mode: 'interactive',
+			permissionMode: 'acceptEdits',
+			permissions: { allow: ['shell'] },
+		});
+	});
+
+	test('leaves session config unchanged when merge is disabled', () => {
+		const values = {
+			[SessionConfigKey.AgentMerge]: { enabled: false },
+			autoApprove: 'autoApprove',
+			mode: 'plan',
+			permissionMode: 'plan',
+		};
+		assert.deepStrictEqual(getNonMergeSessionConfigValues(values), values);
 	});
 });
 

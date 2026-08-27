@@ -16,7 +16,7 @@ import type { BaseParams } from '../common/commands.js';
  *
  * The receiver allocates an `ahp-resource-watch:/<id>` channel URI and
  * returns it on {@link CreateResourceWatchResult.channel}. The caller then
- * [`subscribe`](./subscriptions)s to that channel to receive
+ * [`subscribe`](/specification/subscriptions#subscribe-request)s to that channel to receive
  * `resourceWatch/changed` actions over the standard action envelope.
  *
  * The watch lifecycle is tied to subscription: when every subscriber has

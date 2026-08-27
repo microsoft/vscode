@@ -56,7 +56,7 @@ export class ClientToolSetsContribution extends Disposable implements IWorkbench
 			this._register(this._registerDynamicToolSet(toolsService, {
 				id: 'vscode-automations',
 				referenceName: 'vscodeAutomations',
-				icon: Codicon.watch,
+				icon: Codicon.calendar,
 				description: localize('clientToolSet.automations.description', "Automations"),
 				detail: localize('clientToolSet.automations.detail', "List, configure, run, and delete scheduled agent automations."),
 				members: [

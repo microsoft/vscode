@@ -827,68 +827,24 @@ suite('ChatQuotaNotificationContribution', () => {
 		});
 	});
 
-	// --- BYOK model suppression ---------------------------------------------
+	// --- BYOK model gating ---------------------------------------------------
 
-	suite('BYOK model suppression', () => {
-		test('defers notifications when BYOK model is selected', () => {
+	// Rendering is decided per chat input; see `chatInputNotificationWidget.test.ts`.
+	suite('BYOK model gating', () => {
+		test('marks quota notifications as hidden for BYOK models', () => {
+			const { notificationMock } = createContribution({
+				quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0) },
+			});
+
+			assert.strictEqual(notificationMock.getNotification()?.hideForByokModels, true);
+		});
+
+		test('publishes quota notifications regardless of the globally persisted model', () => {
+			// A BYOK pick in the panel must not withhold banners from Copilot-served inputs.
 			const { notificationMock } = createContribution(
 				{ quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0) } },
 				{ vendor: 'customendpoint' },
 			);
-
-			assert.strictEqual(notificationMock.getNotification(), undefined);
-		});
-
-		test('shows notification when Copilot model is selected', () => {
-			const { notificationMock } = createContribution(
-				{ quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0) } },
-				{ vendor: 'copilot' },
-			);
-
-			assert.ok(notificationMock.getNotification());
-			assert.strictEqual(notificationMock.getNotification()?.message, 'Credit Limit Reached');
-		});
-
-		test('shows notification when switching from BYOK to Copilot model', () => {
-			const entitlementMock = createMockEntitlementService({
-				quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0) },
-			});
-			const notificationMock = createMockNotificationService();
-			const assignmentMock = createMockAssignmentService();
-			const contextKeyService = store.add(new MockContextKeyService());
-			const storageService = store.add(new InMemoryStorageService());
-			// Start with BYOK model
-			storageService.store('chat.currentLanguageModel.panel', 'customendpoint/ANT/claude-sonnet-4-6', StorageScope.PROFILE, StorageTarget.USER);
-			// Registry returns undefined — vendor detection relies on prefix extraction
-			const languageModelsService = {
-				_serviceBrand: undefined,
-				onDidChangeLanguageModelVendors: Event.None,
-				onDidChangeLanguageModels: Event.None,
-				getLanguageModelIds: () => [],
-				getVendors: () => [],
-				lookupLanguageModel: (): ILanguageModelChatMetadata | undefined => undefined,
-				lookupLanguageModelByQualifiedName: () => undefined,
-			} as unknown as ILanguageModelsService;
-
-			store.add(entitlementMock.onDidChangeQuotaRemaining);
-			store.add(entitlementMock.onDidChangeQuotaExceeded);
-			store.add(entitlementMock.onDidChangeEntitlement);
-
-			store.add(new ChatQuotaNotificationContribution(
-				entitlementMock.service,
-				notificationMock.service,
-				contextKeyService as IContextKeyService,
-				languageModelsService,
-				storageService,
-				assignmentMock.service,
-				new NullLogService(),
-			));
-
-			// Initially deferred — BYOK model
-			assert.strictEqual(notificationMock.getNotification(), undefined);
-
-			// Switch to Copilot model via storage — triggers storage listener
-			storageService.store('chat.currentLanguageModel.panel', 'copilot/gpt-4.1', StorageScope.PROFILE, StorageTarget.USER);
 
 			assert.strictEqual(notificationMock.getNotification()?.message, 'Credit Limit Reached');
 		});

@@ -26,7 +26,7 @@ const uriPatternLengthLimit = 1_024;
 export interface ILinkPresentationProviderContribution {
 	readonly id: string;
 	readonly uriPattern: string;
-	readonly initialKind: LinkPresentationKind;
+	readonly kind: LinkPresentationKind;
 	readonly enablement?: string;
 }
 
@@ -49,7 +49,7 @@ interface ICoreLinkPresentationProvider {
 interface ISelectedLinkPresentationProvider {
 	readonly id: string;
 	readonly regexp: RegExp;
-	readonly initialKind: LinkPresentationKind;
+	readonly kind: LinkPresentationKind;
 	readonly enablement?: string;
 	readonly coreProvider?: ILinkPresentationProvider;
 	readonly extensionId?: string;
@@ -60,7 +60,7 @@ interface ICachedLinkPresentation {
 	readonly presentation: ILinkPresentation;
 }
 
-export const linkPresentationProviderInitialKinds: LinkPresentationKind[] = [
+export const linkPresentationProviderKinds: LinkPresentationKind[] = [
 	'resource',
 	'issue',
 	'pullRequest',
@@ -81,7 +81,7 @@ const linkPresentationProviderExtensionPoint = ExtensionsRegistry.registerExtens
 		items: {
 			type: 'object',
 			additionalProperties: false,
-			required: ['id', 'uriPattern', 'initialKind'],
+			required: ['id', 'uriPattern', 'kind'],
 			properties: {
 				id: {
 					type: 'string',
@@ -91,10 +91,10 @@ const linkPresentationProviderExtensionPoint = ExtensionsRegistry.registerExtens
 					type: 'string',
 					description: localize('linkPresentationProvider.uriPattern', "Anchored regular expression matched against the canonical URI string before the extension is activated."),
 				},
-				initialKind: {
+				kind: {
 					type: 'string',
-					enum: linkPresentationProviderInitialKinds,
-					description: localize('linkPresentationProvider.initialKind', "The initial semantic kind shown while the provider resolves its first presentation."),
+					enum: linkPresentationProviderKinds,
+					description: localize('linkPresentationProvider.kind', "The semantic kind produced by this provider."),
 				},
 				enablement: {
 					type: 'string',
@@ -151,11 +151,11 @@ export class LinkPresentationService extends Disposable implements ILinkPresenta
 	get linkPresentationRules(): readonly ILinkPresentationRule[] {
 		return [
 			...Array.from(this._coreProviders.values())
-				.filter(provider => this._isEnabled(provider.registration.enablement))
-				.map(provider => ({ id: provider.registration.id, uriPattern: provider.regexp, initialKind: provider.registration.initialKind })),
+				.filter(provider => this._isProviderEnabled(provider.registration.kind, provider.registration.enablement))
+				.map(provider => ({ id: provider.registration.id, uriPattern: provider.regexp, kind: provider.registration.kind })),
 			...Array.from(this._declaredExtensionProviders.values())
-				.filter(provider => this._isEnabled(provider.enablement))
-				.map(provider => ({ id: provider.id, uriPattern: provider.regexp, initialKind: provider.initialKind })),
+				.filter(provider => this._isProviderEnabled(provider.kind, provider.enablement))
+				.map(provider => ({ id: provider.id, uriPattern: provider.regexp, kind: provider.kind })),
 		].map(rule => ({ ...rule, uriPattern: normalizeUriPattern(rule.uriPattern) }));
 	}
 
@@ -285,7 +285,7 @@ export class LinkPresentationService extends Disposable implements ILinkPresenta
 
 	getLinkPresentationRule(resource: URI): ILinkPresentationRule | undefined {
 		const provider = this._selectProvider(resource);
-		return provider ? { id: provider.id, uriPattern: provider.regexp, initialKind: provider.initialKind } : undefined;
+		return provider ? { id: provider.id, uriPattern: provider.regexp, kind: provider.kind } : undefined;
 	}
 
 	createLinkPresentationWatcher(providerId: string, resource: URI): ILinkPresentationWatcher | undefined {
@@ -326,13 +326,13 @@ export class LinkPresentationService extends Disposable implements ILinkPresenta
 			return;
 		}
 
-		const cached = this._getCachedPresentation(entry.key, provider.id);
+		const cached = this._getCachedPresentation(entry.key, provider.id, provider.kind);
 		entry.setPresentation(cached ? { ...cached, isLoading: true } : undefined);
 		if (provider.coreProvider) {
 			try {
-				this._attachProviderWatcher(entry, provider.coreProvider.createLinkPresentationWatcher(entry.resource), generation);
+				this._attachProviderWatcher(entry, provider, provider.coreProvider.createLinkPresentationWatcher(entry.resource), generation);
 			} catch (error) {
-				this._handleProviderError(entry, generation, error);
+				this._handleProviderError(entry, generation, provider.kind, error);
 			}
 			return;
 		}
@@ -346,13 +346,13 @@ export class LinkPresentationService extends Disposable implements ILinkPresenta
 			if (!registration || !provider.extensionId || !ExtensionIdentifier.equals(registration.extensionId, provider.extensionId)) {
 				throw new Error(`Extension '${provider.extensionId}' did not register link presentation provider '${provider.id}'.`);
 			}
-			this._attachProviderWatcher(entry, registration.provider.createLinkPresentationWatcher(entry.resource), generation);
+			this._attachProviderWatcher(entry, provider, registration.provider.createLinkPresentationWatcher(entry.resource), generation);
 		} catch (error) {
-			this._handleProviderError(entry, generation, error);
+			this._handleProviderError(entry, generation, provider.kind, error);
 		}
 	}
 
-	private _attachProviderWatcher(entry: SharedLinkPresentationEntry, watcher: ILinkPresentationWatcher, generation: number): void {
+	private _attachProviderWatcher(entry: SharedLinkPresentationEntry, provider: ISelectedLinkPresentationProvider, watcher: ILinkPresentationWatcher, generation: number): void {
 		if (!entry.isCurrent(generation)) {
 			watcher.dispose();
 			return;
@@ -362,6 +362,19 @@ export class LinkPresentationService extends Disposable implements ILinkPresenta
 		store.add(autorun(reader => {
 			const presentation = watcher.presentation.read(reader);
 			if (presentation && entry.isCurrent(generation) && entry.providerId) {
+				if (presentation.kind !== provider.kind) {
+					entry.setPresentation(undefined);
+					if (this._cache.delete(entry.key)) {
+						this._persistCache();
+					}
+					this._handleProviderError(
+						entry,
+						generation,
+						provider.kind,
+						new Error(`Link presentation provider '${provider.id}' produced kind '${presentation.kind}', but registered kind '${provider.kind}'.`),
+					);
+					return;
+				}
 				entry.setPresentation(presentation);
 				this._cachePresentation(entry.key, entry.providerId, presentation);
 			}
@@ -369,14 +382,14 @@ export class LinkPresentationService extends Disposable implements ILinkPresenta
 		entry.attach(store, generation);
 	}
 
-	private _handleProviderError(entry: SharedLinkPresentationEntry, generation: number, error: unknown): void {
+	private _handleProviderError(entry: SharedLinkPresentationEntry, generation: number, kind: LinkPresentationKind, error: unknown): void {
 		if (!entry.isCurrent(generation)) {
 			return;
 		}
 		this._logService.error(`Failed to create a link presentation watcher for '${entry.resource.toString(true)}'.`, error);
 		if (!entry.presentation.get()) {
 			entry.setPresentation({
-				kind: 'resource',
+				kind,
 				status: { kind: 'error', label: localize('linkPresentation.unavailable', "Not available") },
 				tooltip: localize('linkPresentation.unavailableTooltip', "The link presentation provider failed to load."),
 				ariaLabel: localize('linkPresentation.unavailableAriaLabel', "Link presentation is not available"),
@@ -390,11 +403,11 @@ export class LinkPresentationService extends Disposable implements ILinkPresenta
 			if (providerId !== undefined && candidate.registration.id !== providerId) {
 				continue;
 			}
-			if (this._isEnabled(candidate.registration.enablement) && matchesUriPattern(candidate.regexp, value)) {
+			if (this._isProviderEnabled(candidate.registration.kind, candidate.registration.enablement) && matchesUriPattern(candidate.regexp, value)) {
 				return {
 					id: candidate.registration.id,
 					regexp: candidate.regexp,
-					initialKind: candidate.registration.initialKind,
+					kind: candidate.registration.kind,
 					enablement: candidate.registration.enablement,
 					coreProvider: candidate.provider,
 				};
@@ -404,11 +417,11 @@ export class LinkPresentationService extends Disposable implements ILinkPresenta
 			if (providerId !== undefined && candidate.id !== providerId) {
 				continue;
 			}
-			if (this._isEnabled(candidate.enablement) && matchesUriPattern(candidate.regexp, value)) {
+			if (this._isProviderEnabled(candidate.kind, candidate.enablement) && matchesUriPattern(candidate.regexp, value)) {
 				return {
 					id: candidate.id,
 					regexp: candidate.regexp,
-					initialKind: candidate.initialKind,
+					kind: candidate.kind,
 					enablement: candidate.enablement,
 					extensionId: candidate.extensionId,
 				};
@@ -421,9 +434,19 @@ export class LinkPresentationService extends Disposable implements ILinkPresenta
 		return !enablement || this._configurationService.getValue<boolean>(enablement) === true;
 	}
 
-	private _getCachedPresentation(key: string, providerId: string): ILinkPresentation | undefined {
+	private _isProviderEnabled(kind: LinkPresentationKind, enablement: string | undefined): boolean {
+		// File presentations are temporarily disabled until they have a dedicated setting.
+		return kind !== 'file' && this._isEnabled(enablement);
+	}
+
+	private _getCachedPresentation(key: string, providerId: string, kind: LinkPresentationKind): ILinkPresentation | undefined {
 		const cached = this._cache.get(key);
 		if (!cached || cached.providerId !== providerId) {
+			return undefined;
+		}
+		if (cached.presentation.kind !== kind) {
+			this._cache.delete(key);
+			this._persistCache();
 			return undefined;
 		}
 		this._cache.delete(key);
@@ -511,7 +534,7 @@ class SharedLinkPresentationEntry extends Disposable {
 				}
 				disposed = true;
 				this._references--;
-				if (this._references === 0) {
+				if (this._references === 0 && !this._store.isDisposed) {
 					this._releaseTimer.value = disposableTimeout(this._onDidBecomeUnused, watcherReleaseDelay);
 				}
 			},

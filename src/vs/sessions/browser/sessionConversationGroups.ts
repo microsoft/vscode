@@ -37,6 +37,9 @@ export function getSessionConversationStatusAriaLabel(status: SessionStatus): st
 
 /** Returns the contributed menu group for a chat in the scoped session. */
 export function getSessionConversationGroupId(chat: IChat, activeChat: IChat, extUri: IExtUri): string | undefined {
+	if (chat.origin?.kind === ChatOriginKind.SideChat) {
+		return undefined;
+	}
 	if (chat.origin?.kind === ChatOriginKind.Tool) {
 		const activeChatScope = activeChat.origin?.kind === ChatOriginKind.Tool && activeChat.origin.parentChat
 			? activeChat.origin.parentChat

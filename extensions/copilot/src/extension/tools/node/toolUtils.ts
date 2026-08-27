@@ -205,13 +205,13 @@ function getInstructionsIndexFile(buildPromptContext: IBuildPromptContext, custo
 
 }
 
-export async function assertFileNotContentExcluded(accessor: ServicesAccessor, uri: URI, realPath?: URI): Promise<void> {
+export async function assertFileNotContentExcluded(accessor: ServicesAccessor, uri: URI, realPath?: URI, contents?: string): Promise<void> {
 	const ignoreService = accessor.get(IIgnoreService);
 	const promptPathRepresentationService = accessor.get(IPromptPathRepresentationService);
-	if (await ignoreService.isCopilotIgnored(uri)) {
+	if (await ignoreService.isCopilotIgnored(uri, undefined, contents)) {
 		throw new Error(`File ${promptPathRepresentationService.getFilePath(uri)} is configured to be ignored by Copilot`);
 	}
-	if (realPath && !extUriBiasedIgnorePathCase.isEqual(realPath, uri) && await ignoreService.isCopilotIgnored(realPath)) {
+	if (realPath && !extUriBiasedIgnorePathCase.isEqual(realPath, uri) && await ignoreService.isCopilotIgnored(realPath, undefined, contents)) {
 		throw new Error(`File ${promptPathRepresentationService.getFilePath(realPath)} is configured to be ignored by Copilot`);
 	}
 }

@@ -21,7 +21,7 @@ import { ISessionsService } from '../../services/sessions/browser/sessionsServic
 import { IChat, ISessionCapabilities, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
 
-function createHarness(disposables: Pick<DisposableStore, 'add'>) {
+function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: ISessionCapabilities = { supportsMultipleChats: false }) {
 	const store = disposables.add(new DisposableStore());
 	const instantiationService = workbenchInstantiationService(undefined, store);
 
@@ -60,7 +60,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>) {
 		override readonly closedChats: IObservable<readonly IChat[]> = constObservable([]);
 		override readonly visibleChatTabs: IObservable<readonly IChat[]> = constObservable([mainChat]);
 		override readonly shouldShowChatTabs: IObservable<boolean> = constObservable(false);
-		override readonly capabilities: IObservable<ISessionCapabilities> = constObservable({ supportsMultipleChats: false });
+		override readonly capabilities: IObservable<ISessionCapabilities> = constObservable(capabilities);
 	}();
 
 	const header = store.add(instantiationService.createInstance(SessionHeader));
@@ -119,6 +119,31 @@ suite('Sessions - SessionHeader', () => {
 			hiddenDisplay: 'none',
 			restoredDisplay: '',
 			hasMetadataRow: false,
+		});
+	});
+
+	test('reports whether the inline rename could be started', () => {
+		const renameable = createHarness(disposables, { supportsMultipleChats: false, supportsRename: true });
+		const notRenameable = createHarness(disposables);
+
+		const startedWhenVisible = renameable.header.startTitleEditing();
+		const hasInput = renameable.header.element.querySelector('.chat-composite-bar-session-title-input') !== null;
+		// The header is hidden while the single-group tabs row replaces it, so
+		// there is no title to rename inline.
+		renameable.header.setVisible(false);
+
+		assert.deepStrictEqual({
+			startedWhenVisible,
+			hasInput,
+			startedWhenHidden: renameable.header.startTitleEditing(),
+			startedWhenNotRenameable: notRenameable.header.startTitleEditing(),
+			hasInputWhenNotRenameable: notRenameable.header.element.querySelector('.chat-composite-bar-session-title-input') !== null,
+		}, {
+			startedWhenVisible: true,
+			hasInput: true,
+			startedWhenHidden: false,
+			startedWhenNotRenameable: false,
+			hasInputWhenNotRenameable: false,
 		});
 	});
 });

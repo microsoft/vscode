@@ -18,6 +18,7 @@ export class SessionsChatPetAchievementContribution extends Disposable implement
 		@IChatPetService chatPetService: IChatPetService,
 	) {
 		super();
+		chatPetService.unlockAchievement(ChatPetAchievementIds.AgentsWindowOpened);
 		this._register(sessionsManagementService.onDidSendRequest(event => {
 			chatPetService.unlockAchievement(ChatPetAchievementIds.FirstChatMessage);
 			if (hasChatPetImageAttachment(event.options.attachedContext ?? [])) {

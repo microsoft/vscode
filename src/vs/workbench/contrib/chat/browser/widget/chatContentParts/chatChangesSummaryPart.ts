@@ -207,7 +207,7 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 		const disposables = new DisposableStore();
 		disposables.add(this.renderViewAllFileChangesButton(container));
 		const chevron = container.appendChild($('span.chat-file-changes-chevron.chat-collapsible-hover-chevron', { 'aria-hidden': 'true' }));
-		chevron.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRight));
+		chevron.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRightCompact));
 
 		this._register(autorun(r => {
 			const diffs = this.fileChangesDiffsObservable.read(r);

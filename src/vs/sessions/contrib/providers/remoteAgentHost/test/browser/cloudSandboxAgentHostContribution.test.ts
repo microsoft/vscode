@@ -37,10 +37,13 @@ import { ISessionsProvider } from '../../../../../services/sessions/common/sessi
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { CloudSandboxAgentHostContribution } from '../../browser/cloudSandboxAgentHostContribution.js';
 import { IRemoteAgentHostConnectionCustomizationService } from '../../browser/remoteAgentHostConnectionCustomization.js';
-import { IRemoteAgentHostSessionsProviderConfig, RemoteAgentHostSessionsProvider } from '../../browser/remoteAgentHostSessionsProvider.js';
+import { IRemoteAgentHostSessionsProviderConfig } from '../../browser/remoteAgentHostSessionsProvider.js';
+import { CloudSandboxSessionsProvider } from '../../browser/cloudSandboxSessionsProvider.js';
 
-class StubProvider extends mock<RemoteAgentHostSessionsProvider>() {
+class StubProvider extends mock<CloudSandboxSessionsProvider>() {
 	readonly seeded: IAgentSessionMetadata[] = [];
+	/** Raw ids seeded as provisional, mirroring the real provider's listing gate. */
+	readonly withheld = new Set<string>();
 	disposed = false;
 
 	override readonly id: string;
@@ -63,11 +66,35 @@ class StubProvider extends mock<RemoteAgentHostSessionsProvider>() {
 		}
 	}
 
+	override seedProvisionalSession(meta: IAgentSessionMetadata): void {
+		if (this.seeded.some(seen => seen.session.toString() === meta.session.toString())) {
+			return;
+		}
+		this.seeded.push(meta);
+		this.withheld.add(AgentSession.id(meta.session));
+	}
+
 	/** Surfaces each seed under the UI resource scheme, which is what keys the raw session id. */
 	override getSessions(): ISession[] {
-		return this.seeded.map(meta => upcastPartial<ISession>({
+		return this.seeded
+			.filter(meta => !this.withheld.has(AgentSession.id(meta.session)))
+			.map(meta => this._toSession(meta));
+	}
+
+	/** Reaches withheld seeds too, which is the whole point of the cache accessor. */
+	override getCachedSession(rawId: string): ISession | undefined {
+		const meta = this.seeded.find(seen => AgentSession.id(seen.session) === rawId);
+		return meta ? this._toSession(meta) : undefined;
+	}
+
+	override publishWithheldSession(rawId: string): void {
+		this.withheld.delete(rawId);
+	}
+
+	private _toSession(meta: IAgentSessionMetadata): ISession {
+		return upcastPartial<ISession>({
 			resource: URI.from({ scheme: 'agent-host-copilot', path: `/${AgentSession.id(meta.session)}` }),
-		}));
+		});
 	}
 
 	override setConnectionStatus(): void { }
@@ -82,10 +109,10 @@ class StubProvider extends mock<RemoteAgentHostSessionsProvider>() {
 class TestCloudSandboxContribution extends CloudSandboxAgentHostContribution {
 	readonly stubProviders = new Map<string, StubProvider>();
 
-	protected override _instantiateProvider(config: IRemoteAgentHostSessionsProviderConfig): RemoteAgentHostSessionsProvider {
+	protected override _instantiateProvider(config: IRemoteAgentHostSessionsProviderConfig): CloudSandboxSessionsProvider {
 		const stub = new StubProvider(config);
 		this.stubProviders.set(config.address, stub);
-		return stub as unknown as RemoteAgentHostSessionsProvider;
+		return stub as unknown as CloudSandboxSessionsProvider;
 	}
 }
 
@@ -279,6 +306,26 @@ suite('CloudSandboxAgentHostContribution provisioning', () => {
 		}, {
 			disposed: false,
 			returnedLiveProvider: true,
+		});
+	});
+
+	test('publishes the seeded session when connecting fails, so it is not withheld forever', async () => {
+		// The task exists remotely once `createSession` returns, and nothing else clears a
+		// withheld seed.
+		const harness = await createContribution(store, []);
+		harness.onConnect = async () => {
+			throw new Error('relay unavailable');
+		};
+
+		await assert.rejects(() => harness.contribution.provisionSession({ prompt: 'fix it' }, CancellationToken.None));
+
+		const provider = harness.contribution.stubProviders.get(cloudSandboxAddress('env-new'));
+		assert.deepStrictEqual({
+			withheld: [...(provider?.withheld ?? [])],
+			listed: provider?.getSessions().map(s => AgentSession.id(s.resource)),
+		}, {
+			withheld: [],
+			listed: ['sess-new'],
 		});
 	});
 

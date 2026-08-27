@@ -67,6 +67,8 @@ const responsePartSchema = Adapt.v<PersistedResponsePart, SerializedChatResponse
 				case 'mcpServersStarting':
 				case 'thinking':
 				case 'planReview':
+				// Flips from routing to routed once the router answers.
+				case 'autoModeResolution':
 					return objectsEqual(a, b);
 
 				// Static types that won't change after being pushed can use strict equality.
@@ -90,7 +92,6 @@ const responsePartSchema = Adapt.v<PersistedResponsePart, SerializedChatResponse
 				case 'workspaceEdit':
 				case 'externalEdit':
 				case 'disabledClaudeHooks':
-				case 'autoModeResolution':
 					return a.kind === b.kind;
 
 				default: {

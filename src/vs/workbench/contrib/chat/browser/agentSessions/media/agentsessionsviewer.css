@@ -95,7 +95,7 @@
 		align-items: center;
 		margin-left: 4px;
 		color: var(--vscode-charts-blue);
-		font-size: 12px;
+		font-size: var(--vscode-codiconFontSize-compact);
 		pointer-events: none;
 
 		&.visible {

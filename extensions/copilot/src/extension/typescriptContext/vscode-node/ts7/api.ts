@@ -187,7 +187,7 @@ export async function nesRename<FromLSP extends boolean>(api: API<FromLSP>, snap
 			return;
 		}
 		const symbols = new Symbols(updatedProject, token);
-		const referencedSymbols = await updatedProject.checker.getReferencedSymbolsForNode(renameTarget.node, renameTarget.position);
+		const referencedSymbols = await updatedProject.languageService.getReferencedSymbolsForNode(renameTarget.node, renameTarget.position);
 		for (const referencedSymbol of referencedSymbols) {
 			const definition = await referencedSymbol.definition.resolve(updatedProject);
 			if (definition === undefined || await symbols.isSourceFileFromLibrary(definition.getSourceFile())) {

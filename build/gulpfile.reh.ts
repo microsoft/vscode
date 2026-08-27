@@ -573,6 +573,8 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 			promisify(glob)('**/*.node', { cwd }),
 			promisify(glob)('**/rg.exe', { cwd }),
 			promisify(glob)('**/tgrep.exe', { cwd }),
+			// TODO@anthonykim1 Remove once @github/copilot ships OneAuthInterop.dll with complete version information.
+			promisify(glob)('**/OneAuthInterop.dll', { cwd }),
 		])).flatMap(o => o);
 		const packageJsonContents = JSON.parse(await fs.promises.readFile(path.join(cwd, 'package.json'), 'utf8'));
 		const productContents = JSON.parse(await fs.promises.readFile(path.join(cwd, 'product.json'), 'utf8'));

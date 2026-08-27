@@ -16,6 +16,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { AgentSession } from '../../../../../platform/agentHost/common/agent.js';
 import { getAgentSessionPullRequestUri, IAgentSession } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { getRepositoryName } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsViewer.js';
 import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
@@ -55,7 +56,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { isCloudSandboxEnabled } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { getWorkbenchContribution } from '../../../../../workbench/common/contributions.js';
-import { CloudSandboxAgentHostContribution } from '../../remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
+import { CloudSandboxAgentHostContribution, type ICloudSandboxProvisionedSession } from '../../remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
 
 /** Copilot Cloud session type - cloud-hosted agent. */
 export const CopilotCloudSessionType: ISessionType = {
@@ -2103,11 +2104,11 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		const placeholder = this._chatToSession(session);
 		this._onDidChangeSessions.fire({ added: [placeholder], removed: [], changed: [] });
 
+		let provisioned: ICloudSandboxProvisionedSession | undefined;
 		try {
-			const provisioned = await this._getCloudSandboxContribution().provisionSession({
+			provisioned = await this._getCloudSandboxContribution().provisionSession({
 				repoNwo,
-				// No `baseRef`: cloud sessions have no branch picker, so Mission Control picks the
-				// repository's default branch — the same branch the server-run cloud agent uses.
+				// No `baseRef`: cloud sessions have no branch picker; Mission Control chooses.
 				prompt: options.query,
 			}, CancellationToken.None);
 
@@ -2116,14 +2117,16 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			const chat = provisioned.session.mainChat.get();
 			const committed = await provisioned.provider.sendRequest(provisioned.session.sessionId, chat.resource, options);
 
-			this._sessionCache.delete(session.resource.toString());
-			this._invalidateGroupingCaches();
-			this._sessionGroupCache.delete(session.sessionId);
-			this._clearCurrentNewSessionIfMatch(session);
-			this._onDidReplaceSession.fire({ from: placeholder, to: committed });
+			// Retire only once the turn is dispatched; swapping earlier bounces the view home.
+			this._publishSandboxSession(provisioned, { announce: false });
+			this._retirePlaceholder(session, placeholder, committed);
 			return committed;
 		} catch (error) {
 			this.logService.error(`[CopilotChatSessionsProvider] Failed to start cloud sandbox session for ${repoNwo}:`, error);
+			// The sandbox outlives a failed first turn, so list it rather than leaving it invisible.
+			if (provisioned) {
+				this._publishSandboxSession(provisioned);
+			}
 			this._sessionCache.delete(session.resource.toString());
 			this._invalidateGroupingCaches();
 			this._sessionGroupCache.delete(session.sessionId);
@@ -2132,6 +2135,20 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			session.dispose();
 			throw error;
 		}
+	}
+
+	/** Reveal the sandbox session that {@link CloudSandboxAgentHostContribution.provisionSession} withheld from listings. */
+	private _publishSandboxSession(provisioned: ICloudSandboxProvisionedSession, options?: { announce?: boolean }): void {
+		provisioned.provider.publishWithheldSession(AgentSession.id(provisioned.session.resource), options);
+	}
+
+	/** Retire the optimistic placeholder in favour of the session that now exists. */
+	private _retirePlaceholder(session: RemoteNewSession, placeholder: ISession, committed: ISession): void {
+		this._sessionCache.delete(session.resource.toString());
+		this._invalidateGroupingCaches();
+		this._sessionGroupCache.delete(session.sessionId);
+		this._clearCurrentNewSessionIfMatch(session);
+		this._onDidReplaceSession.fire({ from: placeholder, to: committed });
 	}
 
 	async sendRequest(sessionId: string, chatResource: URI, options: ISendRequestOptions): Promise<ISession> {

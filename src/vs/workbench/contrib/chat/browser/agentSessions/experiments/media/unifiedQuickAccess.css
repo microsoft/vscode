@@ -79,7 +79,7 @@
 }
 
 .unified-send-button .codicon {
-	font-size: 14px !important;
+	font-size: var(--vscode-codiconFontSize-compact) !important;
 	color: var(--vscode-button-foreground) !important;
 }
 
@@ -149,7 +149,7 @@
 }
 
 .unified-quick-access-pr-badge .codicon {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 /* Action text styling (e.g., "Run 'zsh' command?") */

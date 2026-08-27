@@ -21,7 +21,7 @@ function createChat(id: string, origin?: IChatOrigin): IChat {
 suite('Sessions - Session conversation groups', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('keeps side chats top-level and separates subagents', () => {
+	test('omits side chats and separates active-chat subagents', () => {
 		const activeChat = createChat('active');
 		assert.deepStrictEqual([
 			getSessionConversationGroupId(createChat('regular'), activeChat, extUri),
@@ -30,7 +30,7 @@ suite('Sessions - Session conversation groups', () => {
 			getSessionConversationGroupId(createChat('other-subagent', { kind: ChatOriginKind.Tool, parentChat: URI.parse('test-chat:/other') }), activeChat, extUri),
 		], [
 			SESSION_CONVERSATION_CHATS_GROUP,
-			SESSION_CONVERSATION_CHATS_GROUP,
+			undefined,
 			SESSION_CONVERSATION_SUBAGENTS_GROUP,
 			undefined,
 		]);

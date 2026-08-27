@@ -124,7 +124,7 @@ export class ChatPetWidgetCoordinator extends Disposable {
 		entry.active.set(true, undefined);
 		this.windows.set(entry.windowId, {
 			pet,
-			dormantHost: this.createDormantHost(entry.host),
+			dormantHost: this.createDormantHost(),
 			activeHost: entry,
 		});
 	}
@@ -151,8 +151,10 @@ export class ChatPetWidgetCoordinator extends Disposable {
 		}
 	}
 
-	private createDormantHost(host: IChatPetWidgetHost): IChatPetWidgetHost {
-		const parent = host.parent.ownerDocument.createElement('div');
+	private createDormantHost(): IChatPetWidgetHost {
+		// Auxiliary windows forbid `createElement` on their own document, so the
+		// parked host is created in the main window realm.
+		const parent = dom.$('div');
 		return {
 			parent,
 			dragBounds: parent,
@@ -218,7 +220,7 @@ export class ChatPetWidgetService extends Disposable implements IChatPetWidgetSe
 	) {
 		super();
 		this.coordinator = this._register(new ChatPetWidgetCoordinator(
-			host => instantiationService.createInstance(ChatPetWidget, host),
+			host => instantiationService.createInstance(ChatPetWidget, host, undefined),
 			chatWidgetService,
 			Event.map(dom.onWillUnregisterWindow, window => dom.getWindowId(window)),
 		));

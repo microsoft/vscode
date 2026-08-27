@@ -454,15 +454,15 @@ export function isTaskCompleteTool(toolName: string): boolean {
 }
 
 /**
- * Extracts the user-facing Autopilot completion summary from the tool output,
- * falling back to the original `summary` argument for older/incomplete events.
+ * Extracts the user-facing Autopilot completion summary from the original
+ * `summary` argument, falling back to the tool output for incomplete events.
  */
 export function getTaskCompleteSummary(parameters: Record<string, unknown> | undefined, toolOutput: string | undefined): string | undefined {
-	if (toolOutput && toolOutput.trim().length > 0) {
-		return toolOutput;
-	}
 	const summary = parameters?.summary;
-	return typeof summary === 'string' && summary.trim().length > 0 ? summary : undefined;
+	if (typeof summary === 'string' && summary.trim().length > 0) {
+		return summary;
+	}
+	return toolOutput && toolOutput.trim().length > 0 ? toolOutput : undefined;
 }
 
 /**

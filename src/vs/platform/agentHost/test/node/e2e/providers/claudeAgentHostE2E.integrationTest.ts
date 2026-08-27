@@ -83,6 +83,7 @@ const CLAUDE_CONFIG: IAgentHostE2EProviderConfig = {
 	supportsHostTerminalTool: false,
 	supportsSubagents: true,
 	supportsSideChats: true,
+	supportsSideChatsE2E: true,
 	// Claude rebuilds a reopened subagent transcript from the SDK's on-disk
 	// `subagents/agent-*.jsonl`, not reliably visible on Windows (see PR #325284).
 	subagentReplayUnstableOnWindows: true,

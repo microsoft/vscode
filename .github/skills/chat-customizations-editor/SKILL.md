@@ -11,9 +11,7 @@ Split-view management pane for AI customization items across workspace, user, ex
 
 ## Spec
 
-**`src/vs/sessions/AI_CUSTOMIZATIONS.md`** — read for ownership and interface
-contracts. Update it only when those contracts change; behavior and regressions
-belong in focused tests.
+**`src/vs/sessions/AI_CUSTOMIZATIONS.md`** — read for ownership and interface contracts. Update it only when those contracts change; behavior and regressions belong in focused tests.
 
 ## Key Folders
 

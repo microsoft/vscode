@@ -22,7 +22,7 @@
 	padding: 0 var(--vscode-spacing-size100, 10px);
 	background-color: color-mix(in srgb, var(--vscode-focusBorder) 4%, var(--vscode-editorWidget-background));
 	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-agents-fontSize-label1, 12px);
+	font-size: var(--vscode-fontSize-label1, 12px);
 	font-family: var(--vscode-chat-font-family, inherit);
 }
 

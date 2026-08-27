@@ -19,6 +19,8 @@ export const enum ChatExternalSessionsMode {
 
 /** Edit paths whose executable side effects require confirmation regardless of user configuration. */
 export const ALWAYS_CHECKED_EDIT_PATTERNS: ChatEditAutoApprovePatterns = {
+	'**/.mcp.json': false,
+	'**/.npmrc': false,
 	'**/.vscode/*.json': false,
 	'**/.github/agents/**': false,
 	'**/.github/hooks/**': false,

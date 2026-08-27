@@ -13,7 +13,7 @@ import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTel
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { toInitiatorTelemetry, type IAgentHostInitiatorClassification, type IAgentHostInitiatorTelemetry } from '../agentHostTelemetryReporter.js';
 
-export type CopilotClientOperation = 'abort' | 'changeAgent' | 'changeModel' | 'getSessionMetadata' | 'listSessions' | 'modelRefresh' | 'sendMessage';
+export type CopilotClientOperation = 'abort' | 'changeAgent' | 'changeModel' | 'getSessionMetadata' | 'listSessions' | 'modelRefresh' | 'resumeTurn' | 'sendMessage';
 export type CopilotClientOperationFailureKind = 'clientNotConnected' | 'connectionClosed' | 'connectionDisposed' | 'runtimeConnectionClosed';
 type CopilotClientStartupOutcome = 'success' | 'failure' | 'cancelled';
 type CopilotStartupFailureCause = 'nativeModuleProcedureNotFound' | 'nativeModuleInitializationFailed' | 'nativeModuleNotFound' | 'permissionDenied' | 'timeout' | 'spawnFailed' | 'processExitedUnexpectedly' | 'processExited' | 'configurationChanged' | 'other';

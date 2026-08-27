@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
-import { localize } from '../../../../nls.js';
-import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
-import { chatLinesAddedForeground, chatLinesRemovedForeground } from '../../../../workbench/contrib/chat/common/widget/chatColors.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ISessionSummaryHoverData, ISessionSummaryHoverLocation, ISessionSummaryHoverPullRequest } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHover.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { getSessionWorkspaceKind, getUntitledSessionTitle, ISession, SessionWorkspaceKind } from '../../../services/sessions/common/session.js';
+import { getSessionWorkspaceKind, getUntitledSessionTitle, IGitHubPullRequestRef, ISession, SessionWorkspaceKind } from '../../../services/sessions/common/session.js';
 
 /**
  * Aggregated insertions/deletions across all of a session's changes,
@@ -33,80 +32,90 @@ export function getSessionDiffStats(session: ISession): { files: number; inserti
 }
 
 /**
- * Build a compact, reusable hover markdown describing a session.
+ * The Agents window's adapter onto the shared session hover: reads a live
+ * {@link ISession} into the provider-neutral data the widget renders.
  *
- * Layout:
- *   Line 1: **session icon + title**
- *   Line 2: folder icon + folder path · git branch
- *   Line 3: "N files changed" · colored diff stats
- *   Line 4: provider label
+ * This is the richest of the adapters — the Agents window owns the full session
+ * model — so it is the one that can fill in the worktree, the branch, pending
+ * changes and the session's pull requests. Windows backed by a thinner data
+ * source populate what they have and omit the rest.
  */
-export function buildSessionHoverContent(
+export function getSessionSummaryHoverData(
 	session: ISession,
 	sessionsProvidersService: ISessionsProvidersService,
-): IMarkdownString {
-	// Note: `isTrusted` is intentionally left undefined. The hover renders
-	// untrusted, workspace-derived values (folder paths, branch names, session
-	// titles), so it must not enable command-link execution. User-controlled
-	// text is always appended via `appendText` so markdown characters are escaped.
-	const md = new MarkdownString('', { supportThemeIcons: true, supportHtml: true });
+	createdBy?: ISessionSummaryHoverData['createdBy'],
+): ISessionSummaryHoverData {
+	return {
+		title: session.title.get() || getUntitledSessionTitle(session.isQuickChat?.get() ?? false),
+		location: getLocation(session),
+		pullRequests: getPullRequests(session),
+		createdBy,
+		providerLabels: getProviderLabels(session, sessionsProvidersService),
+	};
+}
 
-	// Line 1: session icon + bold title
-	const title = session.title.get() || getUntitledSessionTitle(session.isQuickChat?.get() ?? false);
-	if (session.icon) {
-		md.appendMarkdown(`$(${session.icon.id}) `);
-	}
-	md.appendMarkdown(`**`);
-	md.appendText(title);
-	md.appendMarkdown(`**`);
-	md.appendText('\n');
-
-	// Line 2: folder icon + folder path · git branch
+function getLocation(session: ISession): ISessionSummaryHoverLocation | undefined {
 	const workspace = session.workspace.get();
 	const folder = workspace?.folders[0];
-	// A pending worktree still describes the checkout, so its path, branch and changes are withheld.
+	if (!workspace || !folder) {
+		return undefined;
+	}
+
+	// A pending worktree still describes the checkout it was started from, so its
+	// path, branch and changes are withheld until the worktree exists.
 	const worktreePending = session.worktreePending?.get() ?? false;
-	const branch = worktreePending ? undefined : folder?.gitRepository?.branchName?.trim();
-	let appendedDetails = false;
+	const isVirtual = getSessionWorkspaceKind(workspace, worktreePending) === SessionWorkspaceKind.Virtual;
+	const worktreeUri = worktreePending ? undefined : folder.gitRepository?.workTreeUri;
 
-	if (folder && workspace) {
-		const kind = getSessionWorkspaceKind(workspace, worktreePending);
-		const folderIcon = workspace.typeIcon ?? (kind === SessionWorkspaceKind.Virtual ? Codicon.cloud : kind === SessionWorkspaceKind.Folder ? Codicon.folder : Codicon.worktree);
-		md.appendMarkdown(`$(${folderIcon.id}) `);
-		md.appendText(worktreePending
-			? localize('agentSessions.worktreePending', "Creating worktree…")
-			: folder.root.fsPath);
-		appendedDetails = true;
+	return {
+		// A virtual workspace has no path a user could act on, so it is named by
+		// its repository label instead.
+		workspace: isVirtual ? workspace.label : locationLabel(folder.root),
+		workspaceIcon: workspace.typeIcon ?? (isVirtual ? Codicon.cloud : Codicon.folder),
+		worktree: worktreeUri ? locationLabel(worktreeUri) : undefined,
+		worktreePending,
+		branch: worktreePending ? undefined : folder.gitRepository?.branchName?.trim() || undefined,
+		changes: worktreePending ? undefined : getSessionDiffStats(session),
+	};
+}
+
+/**
+ * Pull requests the session itself produced. Pull requests inherited from the
+ * checkout it started from, or merely referenced by the agent, are left out —
+ * they are not this session's work.
+ */
+function getPullRequests(session: ISession): readonly ISessionSummaryHoverPullRequest[] | undefined {
+	const gitHubInfo = session.workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get();
+	if (!gitHubInfo) {
+		return undefined;
 	}
 
-	if (branch) {
-		if (appendedDetails) {
-			md.appendMarkdown(' · ');
-		}
-		md.appendMarkdown('$(git-branch) ');
-		md.appendText(branch);
-		appendedDetails = true;
-	}
+	// Providers that do not distinguish created from inherited pull requests
+	// publish only the main one, which is the pull request of the session.
+	const refs: readonly IGitHubPullRequestRef[] = gitHubInfo.pullRequests
+		? gitHubInfo.pullRequests.filter(ref => ref.createdByThisSession)
+		: gitHubInfo.pullRequest
+			? [{ owner: gitHubInfo.owner, repo: gitHubInfo.repo, ...gitHubInfo.pullRequest }]
+			: [];
 
-	if (appendedDetails) {
-		md.appendText('\n');
-	}
+	return refs.length
+		? refs.map(ref => ({ title: ref.title ?? `#${ref.number}`, icon: ref.icon }))
+		: undefined;
+}
 
-	// Line 3: file count · diff stats
-	const diffStats = worktreePending ? undefined : getSessionDiffStats(session);
-	if (diffStats) {
-		const fileText = diffStats.files === 1
-			? localize('agentSessions.fileChanged', "1 file changed")
-			: localize('agentSessions.filesChanged', "{0} files changed", diffStats.files);
-		md.appendMarkdown(`${fileText} · <span style="color:${asCssVariable(chatLinesAddedForeground)};">+${diffStats.insertions}</span> <span style="color:${asCssVariable(chatLinesRemovedForeground)};">-${diffStats.deletions}</span>`);
-		md.appendText('\n');
-	}
-
-	// Line 4: provider name
+/** The session type and the provider serving it, e.g. "Claude · Local Agent Host". */
+function getProviderLabels(session: ISession, sessionsProvidersService: ISessionsProvidersService): readonly string[] | undefined {
 	const provider = sessionsProvidersService.getProvider(session.providerId);
-	if (provider) {
-		md.appendText(provider.label);
+	if (!provider) {
+		return undefined;
 	}
+	const sessionType = provider.sessionTypes.find(type => type.id === session.sessionType);
+	return sessionType && sessionType.label !== provider.label
+		? [sessionType.label, provider.label]
+		: [provider.label];
+}
 
-	return md;
+/** A readable label for a location: a filesystem path where there is one. */
+function locationLabel(uri: URI): string {
+	return uri.scheme === Schemas.file ? uri.fsPath : uri.toString(true);
 }

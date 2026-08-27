@@ -38,6 +38,7 @@ import { MockChatService } from '../../../../contrib/chat/test/common/chatServic
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import { FixtureMenuService, registerChatFixtureServices } from './chatFixtureUtils.js';
 import { ChatTurnStatusPillsSetting, isChatTurnStatusPillsEnabled } from '../../../../contrib/chat/browser/widget/chatTurnPills.js';
+import { ChatPetWidget } from '../../../../contrib/chat/browser/widget/chatPetWidget.js';
 
 import '../../../../contrib/chat/browser/widget/media/chat.css';
 
@@ -829,6 +830,70 @@ async function renderResizeObserverLoopHarness(context: ComponentFixtureContext,
 	}));
 }
 
+async function renderDisabledPetResizeObserverProbe(context: ComponentFixtureContext): Promise<void> {
+	const targetWindow = dom.getWindow(context.container);
+	const instantiationService = createEditorServices(context.disposableStore, {
+		colorTheme: context.theme,
+		additionalServices: registerChatFixtureServices,
+	});
+	context.container.style.width = '720px';
+	context.container.style.height = '600px';
+	const movementBounds = dom.append(context.container, dom.$('.disabled-pet-movement-bounds'));
+	const petHost = dom.append(movementBounds, dom.$('.disabled-pet-host'));
+	const dragBounds = dom.append(petHost, dom.$('.disabled-pet-drag-bounds'));
+	const trigger = dom.append(dragBounds, dom.$('.disabled-pet-resize-observer-trigger'));
+	movementBounds.style.width = '100%';
+	movementBounds.style.height = '200px';
+	petHost.style.width = '100%';
+	petHost.style.height = '100px';
+	dragBounds.style.width = '100%';
+	dragBounds.style.height = '100%';
+	trigger.style.width = '10px';
+	trigger.style.height = '10px';
+	context.disposableStore.add(instantiationService.createInstance(
+		ChatPetWidget,
+		{
+			parent: petHost,
+			dragBounds,
+			movementBounds,
+			model: constObservable(undefined),
+			hasInput: constObservable(false),
+			inputChanged: Event.None,
+			getPlatformTop: () => undefined,
+			onDidChangePlatform: Event.None,
+		},
+		undefined,
+	));
+
+	const status = dom.append(context.container, dom.$('.disabled-pet-resize-observer-status'));
+	status.role = 'status';
+	status.textContent = 'Running disabled pet observer probe';
+	status.dataset['warningCount'] = '0';
+	context.disposableStore.add(dom.addDisposableListener(targetWindow, dom.EventType.ERROR, event => {
+		if (event instanceof ErrorEvent && event.message.includes('ResizeObserver loop')) {
+			status.dataset['warningCount'] = String(Number(status.dataset['warningCount']) + 1);
+			status.dataset['observerContext'] = dom.getRecentDisposableResizeObserverContextForLoopError(event.message, targetWindow) ?? event.message;
+		}
+	}));
+
+	let triggerCallbacks = 0;
+	const triggerObserver = context.disposableStore.add(new dom.DisposableResizeObserver('DisabledPetFixture.deepTrigger', () => {
+		triggerCallbacks++;
+		if (triggerCallbacks === 2) {
+			dragBounds.style.height = `${dragBounds.getBoundingClientRect().height + 1}px`;
+		}
+	}, targetWindow));
+	context.disposableStore.add(triggerObserver.observe(trigger));
+
+	const nextFrame = () => new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
+	await nextFrame();
+	await nextFrame();
+	trigger.style.width = '11px';
+	await nextFrame();
+	await nextFrame();
+	status.textContent = 'Completed disabled pet observer probe';
+}
+
 export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 	SimpleQA: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: SIMPLE_QA }) }),
 	ScrollToBottomAction: defineComponentFixture({ render: renderScrollToBottomAction }),
@@ -853,6 +918,11 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 		labels: { kind: 'animated' },
 		virtualTime: { enabled: false },
 		render: context => renderResizeObserverLoopHarness(context, 'none'),
+	}),
+	DisabledPetResizeObserverProbe: defineComponentFixture({
+		labels: { kind: 'animated' },
+		virtualTime: { enabled: false },
+		render: renderDisabledPetResizeObserverProbe,
 	}),
 	CodeBlockInList: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: CODE_BLOCK_IN_LIST }) }),
 	bugs: defineThemedFixtureGroup({

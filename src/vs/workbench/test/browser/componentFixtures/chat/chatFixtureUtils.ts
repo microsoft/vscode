@@ -214,6 +214,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override setVariant() { }
 		override setOnTheRun() { }
 		override setScale(scale: number) { this.scale.set(scale, undefined); }
+		override resetScale() { this.scale.set(1, undefined); }
 		override unlockAchievement() { return false; }
 		override markAchievementSeen() { return false; }
 		override setAccessory() { }

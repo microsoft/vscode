@@ -34,6 +34,7 @@ export const COPILOT_CONFIG: IAgentHostE2EProviderConfig = {
 	supportsHostTerminalTool: true,
 	supportsSubagents: true,
 	supportsSideChats: true,
+	supportsSideChatsE2E: true,
 	supportsPlanMode: true,
 	supportsMultipleChats: true,
 	supportsChatFork: true,

@@ -312,8 +312,8 @@ function advanceOscillation(waves: readonly MutableWave[], dt: number): void {
 
 /**
  * Draw the row of bars. Heights are symmetric about the centre line and follow
- * the same centre-peak silhouette as the toolbar waveform, so the two read as
- * the same instrument at different sizes.
+ * a centre-peak silhouette so the trace reads as one instrument rather than a
+ * strip of unrelated levels.
  */
 function drawBars(
 	context: CanvasRenderingContext2D,
@@ -358,9 +358,8 @@ function bandFraction(position: number, waves: readonly MutableWave[]): number {
 	if (total === 0) {
 		return 0;
 	}
-	// Centre-peak silhouette, matching the toolbar waveform: tallest in the
-	// middle, tapering to the ends, so the row reads as one instrument rather
-	// than a strip cut off at both edges.
+	// Centre-peak silhouette: tallest in the middle and tapering to the ends, so
+	// the row reads as one instrument rather than a strip cut off at both edges.
 	const taper = Math.sin(Math.PI * Math.min(1, Math.max(0, position)));
 	return (amplitude / total) * (0.35 + 0.65 * taper);
 }

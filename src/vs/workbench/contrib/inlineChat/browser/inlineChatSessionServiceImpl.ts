@@ -95,7 +95,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 		const isAgentHostEligible = uri.scheme === Schemas.file && !isNotebook;
 		const resolution = isAgentHostEligible
-			? await this.#inlineChatSessionResolver.resolve(token, model.getLanguageId())
+			? await this.#inlineChatSessionResolver.resolve(token, model.getLanguageId(), uri)
 			: undefined;
 		if (token.isCancellationRequested || (isAgentHostEligible && !resolution)) {
 			resolution?.modelRef.dispose();

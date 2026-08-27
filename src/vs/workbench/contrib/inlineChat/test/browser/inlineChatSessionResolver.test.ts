@@ -33,6 +33,7 @@ const agentHostItem: IChatSessionItem = {
 	label: 'Inline chat session',
 	timing: { created: 0, lastRequestStarted: 0, lastRequestEnded: 0 },
 };
+const targetUri = URI.file('/workspace/inline.ts');
 
 class TestModelReference extends mock<IChatModelReference>() {
 	override readonly object = {} as IChatModelReference['object'];
@@ -124,7 +125,7 @@ suite('InlineChatSessionResolver', () => {
 	test('uses a local session without consulting Agent Host when disabled', async () => {
 		configurationService.agentHostEnabled = false;
 
-		const result = await resolver.resolve(CancellationToken.None, 'typescript');
+		const result = await resolver.resolve(CancellationToken.None, 'typescript', targetUri);
 
 		assert.deepStrictEqual({
 			usesLocalReference: result?.modelRef === chatService.localReference,
@@ -137,7 +138,7 @@ suite('InlineChatSessionResolver', () => {
 			lockToAgent: undefined,
 			contributionLookups: [],
 			creationCalls: [],
-			localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false } }],
+			localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionReason: undefined } }],
 		});
 	});
 
@@ -145,7 +146,7 @@ suite('InlineChatSessionResolver', () => {
 		const agentHostReference = new TestModelReference();
 		chatService.agentHostReference = agentHostReference;
 
-		const result = await resolver.resolve(CancellationToken.None, 'typescript');
+		const result = await resolver.resolve(CancellationToken.None, 'typescript', targetUri);
 		const creation = chatSessionsService.creationCalls[0];
 
 		assert.deepStrictEqual({
@@ -167,10 +168,10 @@ suite('InlineChatSessionResolver', () => {
 					prompt: '',
 					isEphemeral: true,
 					_meta: {
-						'vscode.chat.surface': { surface: 'editorInline', languageId: 'typescript' },
+						'vscode.chat.surface': { surface: 'editorInline', languageId: 'typescript', targetUri: 'file:///workspace/inline.ts' },
 					},
 				},
-				surfaceMeta: { surface: 'editorInline', languageId: 'typescript' },
+				surfaceMeta: { surface: 'editorInline', languageId: 'typescript', targetUri: 'file:///workspace/inline.ts' },
 			},
 			acquisitionCalls: [{ location: ChatAgentLocation.EditorInline, debugOwner: 'InlineChatSessionResolver#resolve' }],
 			localSessionCalls: [],
@@ -180,7 +181,7 @@ suite('InlineChatSessionResolver', () => {
 	test('falls back to a local session when the contribution is missing', async () => {
 		chatSessionsService.contribution = undefined;
 
-		const result = await resolver.resolve(CancellationToken.None, 'typescript');
+		const result = await resolver.resolve(CancellationToken.None, 'typescript', targetUri);
 
 		assert.deepStrictEqual({
 			usesLocalReference: result?.modelRef === chatService.localReference,
@@ -191,14 +192,14 @@ suite('InlineChatSessionResolver', () => {
 			usesLocalReference: true,
 			lockToAgent: undefined,
 			creationCalls: [],
-			localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false } }],
+			localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionReason: undefined } }],
 		});
 	});
 
 	test('falls back to a local session when the contribution does not support editor inline chat', async () => {
 		chatSessionsService.contribution = { ...editorInlineContribution, locations: [ChatAgentLocation.Chat, ChatAgentLocation.Terminal] };
 
-		const result = await resolver.resolve(CancellationToken.None, 'typescript');
+		const result = await resolver.resolve(CancellationToken.None, 'typescript', targetUri);
 
 		assert.deepStrictEqual({
 			usesLocalReference: result?.modelRef === chatService.localReference,
@@ -209,14 +210,14 @@ suite('InlineChatSessionResolver', () => {
 			usesLocalReference: true,
 			lockToAgent: undefined,
 			creationCalls: [],
-			localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false } }],
+			localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionReason: undefined } }],
 		});
 	});
 
 	test('falls back to a local session when Agent Host does not create an item', async () => {
 		chatSessionsService.item = undefined;
 
-		const result = await resolver.resolve(CancellationToken.None, 'typescript');
+		const result = await resolver.resolve(CancellationToken.None, 'typescript', targetUri);
 
 		assert.deepStrictEqual({
 			usesLocalReference: result?.modelRef === chatService.localReference,
@@ -229,7 +230,21 @@ suite('InlineChatSessionResolver', () => {
 			lockToAgent: undefined,
 			creationCalls: 1,
 			acquisitionCalls: [],
-			localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false } }],
+			localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionReason: 'agentHostUnavailable' } }],
+		});
+	});
+
+	test('falls back to a local session when Agent Host acquisition returns no model', async () => {
+		const result = await resolver.resolve(CancellationToken.None, 'typescript', targetUri);
+
+		assert.deepStrictEqual({
+			usesLocalReference: result?.modelRef === chatService.localReference,
+			acquisitionCalls: chatService.acquisitionCalls,
+			localSessionCalls: chatService.localSessionCalls,
+		}, {
+			usesLocalReference: true,
+			acquisitionCalls: [{ location: ChatAgentLocation.EditorInline, debugOwner: 'InlineChatSessionResolver#resolve' }],
+			localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionReason: 'agentHostUnavailable' } }],
 		});
 	});
 
@@ -239,7 +254,7 @@ suite('InlineChatSessionResolver', () => {
 		chatSessionsService.error = new Error('Agent Host unavailable');
 		setUnexpectedErrorHandler(error => reportedErrors.push(error instanceof Error ? error.message : String(error)));
 		try {
-			const result = await resolver.resolve(CancellationToken.None, 'typescript');
+			const result = await resolver.resolve(CancellationToken.None, 'typescript', targetUri);
 
 			assert.deepStrictEqual({
 				usesLocalReference: result?.modelRef === chatService.localReference,
@@ -249,8 +264,30 @@ suite('InlineChatSessionResolver', () => {
 			}, {
 				usesLocalReference: true,
 				lockToAgent: undefined,
-				localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false } }],
+				localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionReason: 'agentHostUnavailable' } }],
 				reportedErrors: ['Agent Host unavailable'],
+			});
+		} finally {
+			setUnexpectedErrorHandler(originalErrorHandler);
+		}
+	});
+
+	test('swallows a non-cancellation Agent Host acquisition error and falls back to a local session', async () => {
+		const originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
+		const reportedErrors: string[] = [];
+		chatService.agentHostError = new Error('Agent Host acquisition failed');
+		setUnexpectedErrorHandler(error => reportedErrors.push(error instanceof Error ? error.message : String(error)));
+		try {
+			const result = await resolver.resolve(CancellationToken.None, 'typescript', targetUri);
+
+			assert.deepStrictEqual({
+				usesLocalReference: result?.modelRef === chatService.localReference,
+				localSessionCalls: chatService.localSessionCalls,
+				reportedErrors,
+			}, {
+				usesLocalReference: true,
+				localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionReason: 'agentHostUnavailable' } }],
+				reportedErrors: ['Agent Host acquisition failed'],
 			});
 		} finally {
 			setUnexpectedErrorHandler(originalErrorHandler);
@@ -261,7 +298,7 @@ suite('InlineChatSessionResolver', () => {
 		chatSessionsService.error = new CancellationError();
 
 		await assert.rejects(
-			resolver.resolve(CancellationToken.None, 'typescript'),
+			resolver.resolve(CancellationToken.None, 'typescript', targetUri),
 			isCancellationError,
 		);
 
@@ -278,7 +315,7 @@ suite('InlineChatSessionResolver', () => {
 		const cancellationSource = store.add(new CancellationTokenSource());
 		cancellationSource.cancel();
 
-		const result = await resolver.resolve(cancellationSource.token, 'typescript');
+		const result = await resolver.resolve(cancellationSource.token, 'typescript', targetUri);
 
 		assert.deepStrictEqual({
 			result,
@@ -299,7 +336,7 @@ suite('InlineChatSessionResolver', () => {
 		const cancellationSource = store.add(new CancellationTokenSource());
 		chatService.agentHostResult = pendingAcquisition.p;
 
-		const resolving = resolver.resolve(cancellationSource.token, 'typescript');
+		const resolving = resolver.resolve(cancellationSource.token, 'typescript', targetUri);
 		await chatService.acquisitionStarted.p;
 		cancellationSource.cancel();
 		pendingAcquisition.complete(agentHostReference);

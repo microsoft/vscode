@@ -12,7 +12,7 @@
 	border: var(--vscode-strokeThickness) solid var(--vscode-agentFeedbackEditorWidget-border, var(--vscode-editorWidget-border, var(--vscode-contrastBorder)));
 	border-radius: var(--vscode-cornerRadius-large);
 	box-shadow: var(--vscode-shadow-lg);
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 	line-height: 1.4;
 	opacity: 0;
 	transition: opacity 0.2s ease-in-out;
@@ -93,7 +93,7 @@
 
 /* Title */
 .agent-feedback-widget-title {
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	line-height: 16px;
 	color: var(--vscode-foreground);
 	white-space: nowrap;
@@ -199,8 +199,8 @@
 	align-items: center;
 	padding: 2px 6px;
 	border-radius: var(--vscode-cornerRadius-small);
-	font-size: var(--vscode-agents-fontSize-label3);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-label3);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	letter-spacing: 0.2px;
 	background: color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 25%, transparent);
 	color: var(--vscode-descriptionForeground);
@@ -214,8 +214,8 @@
 
 /* Line info */
 .agent-feedback-widget-line-info {
-	font-size: var(--vscode-agents-fontSize-label3);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-label3);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-descriptionForeground);
 	text-transform: uppercase;
 	letter-spacing: 0.5px;
@@ -236,7 +236,7 @@
 
 .agent-feedback-widget-text .rendered-markdown code {
 	font-family: var(--monaco-monospace-font);
-	font-size: var(--vscode-agents-fontSize-label3);
+	font-size: var(--vscode-fontSize-label3);
 	padding: 1px 4px;
 	border-radius: var(--vscode-cornerRadius-small);
 	background: color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 25%, transparent);
@@ -255,8 +255,8 @@
 }
 
 .agent-feedback-widget-suggestion-header {
-	font-size: var(--vscode-agents-fontSize-label3);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-label3);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	text-transform: uppercase;
 	letter-spacing: 0.4px;
 	color: var(--vscode-descriptionForeground);
@@ -275,7 +275,7 @@
 	overflow-x: auto;
 	white-space: pre-wrap;
 	font-family: var(--monaco-monospace-font);
-	font-size: var(--vscode-agents-fontSize-label3);
+	font-size: var(--vscode-fontSize-label3);
 	line-height: 1.45;
 	background: var(--vscode-editorWidget-background);
 	user-select: text;
@@ -330,7 +330,7 @@
 
 .agent-feedback-widget-reply-author {
 	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-agents-fontSize-label3);
+	font-size: var(--vscode-fontSize-label3);
 }
 
 .agent-feedback-widget-reply-text {
@@ -347,7 +347,7 @@
 
 .agent-feedback-widget-reply-text .rendered-markdown code {
 	font-family: var(--monaco-monospace-font);
-	font-size: var(--vscode-agents-fontSize-label3);
+	font-size: var(--vscode-fontSize-label3);
 	padding: 2px 4px;
 	border-radius: var(--vscode-cornerRadius-small);
 	background: color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 25%, transparent);
@@ -375,6 +375,6 @@
 	flex: 1;
 	padding: 2px 10px;
 	width: auto;
-	font-size: var(--vscode-agents-fontSize-label2);
+	font-size: var(--vscode-fontSize-label2);
 	line-height: 18px;
 }

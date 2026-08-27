@@ -9,6 +9,7 @@ import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
+import type { ChatErrorAction } from '../../../../common/state/protocol/actions.js';
 import { CompletionItemKind, type CompletionsResult, type ResolveSessionConfigResult, type SessionConfigCompletionsResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import type { RootState } from '../../../../common/state/protocol/state.js';
@@ -707,11 +708,11 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 			&& (getActionEnvelope(n).action as { readonly turnId: string }).turnId === turnId,
 			30_000,
 		);
-		const action = getActionEnvelope(failed).action as { readonly error: { readonly errorType: string; readonly message: string } };
+		const action = getActionEnvelope(failed).action as ChatErrorAction;
 
 		assert.deepStrictEqual({
-			errorType: action.error.errorType,
-			mentionsModel: /model/i.test(action.error.message),
+			errorType: action.part.error.errorType,
+			mentionsModel: /model/i.test(action.part.error.message),
 		}, {
 			errorType: config.provider === 'copilotcli' ? 'sendFailed' : config.provider === 'claude' ? 'success' : 'modelSelectionFailed',
 			mentionsModel: true,

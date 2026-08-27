@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
 import { dirname } from '../../../base/common/path.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
@@ -20,9 +20,7 @@ import { agentHostProxyConfigSchema, clientOwnedApprovalRootConfigKeys, platform
 import { ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType, type ActionOrigin } from '../common/state/sessionActions.js';
 import { isAhpChatChannel, parseSubagentSessionUri, ROOT_STATE_URI, type URI as ProtocolURI } from '../common/state/sessionState.js';
-import { AgentSession } from '../common/agent.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
-import type { WorktreeIsolation } from './shared/worktreeIsolation.js';
 
 export const IAgentConfigurationService = createDecorator<IAgentConfigurationService>('agentConfigurationService');
 
@@ -85,7 +83,6 @@ export interface IAgentConfigurationService {
 
 	/** Fires whenever a session configuration change is processed. */
 	readonly onDidSessionConfigChange: Event<IAgentSessionConfigurationChangeEvent>;
-	readonly onDidChangeWorkingDirectoryPending: Event<string>;
 
 	/**
 	 * Returns the effective value of `key` for `session`, walking the
@@ -103,16 +100,6 @@ export interface IAgentConfigurationService {
 
 	/** Returns all effective session roots, including inherited parent-session roots. */
 	getEffectiveWorkingDirectories(session: ProtocolURI): readonly string[] | undefined;
-
-	/**
-	 * Whether a fresh worktree-isolation session's worktree has not yet been
-	 * created. Agents consult this to defer prewarming (and any other eager
-	 * materialization) until the host resolves the worktree on the first send.
-	 */
-	isWorkingDirectoryPending(session: ProtocolURI): boolean;
-
-	/** Resolves a persisted working directory, repairing a removed worktree when possible. */
-	resolveWorkingDirectoryForResume(session: ProtocolURI, workingDirectory: URI): Promise<URI>;
 
 	/**
 	 * Merges a partial config patch into a session's values via a
@@ -173,25 +160,6 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	readonly onDidRootConfigChange: Event<void> = this._onDidRootConfigChange.event;
 	private readonly _onDidSessionConfigChange = this._register(new Emitter<IAgentSessionConfigurationChangeEvent>());
 	readonly onDidSessionConfigChange: Event<IAgentSessionConfigurationChangeEvent> = this._onDidSessionConfigChange.event;
-	private readonly _onDidChangeWorkingDirectoryPending = this._register(new Emitter<string>());
-	readonly onDidChangeWorkingDirectoryPending: Event<string> = this._onDidChangeWorkingDirectoryPending.event;
-
-	/**
-	 * Host-owned worktree isolation controller. Injected after construction (via
-	 * {@link setWorktreeIsolation}) after host startup finishes constructing its
-	 * Copilot API dependencies. Consulted by {@link isWorkingDirectoryPending},
-	 * which degrades to folder behavior while it is unset (tests, early startup).
-	 */
-	private _worktree: WorktreeIsolation | undefined;
-	private readonly _worktreePendingListener = this._register(new MutableDisposable());
-
-	setWorktreeIsolation(worktree: WorktreeIsolation): void {
-		this._worktree = worktree;
-		const onDidChangeWorkingDirectoryPending = worktree.onDidChangeWorkingDirectoryPending;
-		this._worktreePendingListener.value = onDidChangeWorkingDirectoryPending
-			? onDidChangeWorkingDirectoryPending(sessionId => this._onDidChangeWorkingDirectoryPending.fire(sessionId))
-			: undefined;
-	}
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
@@ -255,14 +223,6 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 
 	getEffectiveWorkingDirectories(session: ProtocolURI): readonly string[] | undefined {
 		return getEffectiveWorkingDirectories(this._stateManager, session);
-	}
-
-	isWorkingDirectoryPending(session: ProtocolURI): boolean {
-		return this._worktree?.isWorkingDirectoryPending(AgentSession.id(session)) ?? false;
-	}
-
-	async resolveWorkingDirectoryForResume(session: ProtocolURI, workingDirectory: URI): Promise<URI> {
-		return this._worktree?.resolveWorkingDirectoryForResume(URI.parse(session), AgentSession.id(session), workingDirectory) ?? workingDirectory;
 	}
 
 	updateSessionConfig(session: ProtocolURI, patch: Record<string, unknown>): void {

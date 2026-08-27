@@ -54,8 +54,8 @@ import { IChatModel, IChatModelInputState } from '../../../common/model/chatMode
 import { CHAT_PROVIDER_ID } from '../../../common/participants/chatParticipantContribTypes.js';
 import { IChatModelReference, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
-import { LocalChatSessionUri, getChatSessionType, isUntitledChatSession } from '../../../common/model/chatUri.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getDefaultNewChatSessionResource, getDefaultNewChatSessionType } from '../../../common/constants.js';
+import { LocalChatSessionUri, getChatSessionType, getNewChatSessionResource, isUntitledChatSession } from '../../../common/model/chatUri.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getDefaultNewChatSessionType, getDefaultNewChatSessionTypeAndReasonFromServices, getLocalFallbackSessionTypeSelectionReason, SessionTypeSelectionReason } from '../../../common/constants.js';
 import { AgentSessionsControl } from '../../agentSessions/agentSessionsControl.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
 import { ChatWidget, layoutChatWidgetForInputHeight } from '../../widget/chatWidget.js';
@@ -97,6 +97,11 @@ interface IChatViewPaneState extends Partial<IChatModelInputState> {
 	sessionResource?: URI;
 
 	sessionsSidebarWidth?: number;
+}
+
+interface IChatSessionAcquisitionResult {
+	modelRef: IChatModelReference | undefined;
+	localFallbackSelectionReason?: SessionTypeSelectionReason;
 }
 
 type ChatViewPaneOpenedClassification = {
@@ -315,7 +320,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		if (this.chatAgentService.getDefaultAgent(ChatAgentLocation.Chat)) {
 			if (!this._widget?.viewModel && !this.restoringSession) {
 				this.restoringSession =
-					this.acquireTransferredOrPersistedSession(CancellationToken.None, 'ChatViewPane#onDidChangeAgents').then(async modelRef => {
+					this.acquireTransferredOrPersistedSession(CancellationToken.None, 'ChatViewPane#onDidChangeAgents').then(async session => {
 						if (!this._widget) {
 							return; // renderBody has not been called yet
 						}
@@ -327,7 +332,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 						try {
 							this._widget.setVisible(false);
 
-							await this.showModel(CancellationToken.None, modelRef, true, !modelRef);
+							await this.showModel(CancellationToken.None, session.modelRef, true, !session.modelRef, undefined, session.localFallbackSelectionReason);
 						} finally {
 							this._widget.setVisible(wasVisible);
 						}
@@ -1276,8 +1281,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	private async _applyModel(token: CancellationToken): Promise<void> {
-		const modelRef = await this.acquireTransferredOrPersistedSession(token, 'ChatViewPane#applyModel');
-		await this.showModel(token, modelRef, true, !modelRef);
+		const session = await this.acquireTransferredOrPersistedSession(token, 'ChatViewPane#applyModel');
+		await this.showModel(token, session.modelRef, true, !session.modelRef, undefined, session.localFallbackSelectionReason);
 	}
 
 	/**
@@ -1285,32 +1290,35 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	 * default-provider override applied by `showModel()`. Used by the
 	 * picker when the user explicitly selects "Local", and by New Local Chat.
 	 */
-	async startNewLocalSession(): Promise<IChatModel | undefined> {
+	async startNewLocalSession(sessionTypeSelectionReason: SessionTypeSelectionReason = 'explicitOverride'): Promise<IChatModel | undefined> {
 		// Preempt any in-flight initial session resolution (e.g. the computed
 		// default provider). Without this, opening the view kicks off a default
 		// resolution that, when the default is a non-local harness, blocks on
 		// agent host activation; canceling it lets this explicit local request
 		// win immediately.
 		this._applyModelCts.value?.cancel();
-		const ref = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { debugOwner: 'ChatViewPane#startNewLocalSession' });
+		const ref = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { debugOwner: 'ChatViewPane#startNewLocalSession', sessionTypeSelectionReason });
 		return this.showModel(CancellationToken.None, ref);
 	}
 
 	/**
 	 * When the remembered or computed default session type is a non-local
 	 * provider (for example when the agent host is enabled), return a new session
-	 * reference for it instead of the built-in local provider. Returns
-	 * `undefined` to fall back to `startNewLocalSession`.
+	 * reference for it instead of the built-in local provider.
 	 */
-	private async acquireDefaultNewSession(token: CancellationToken): Promise<IChatModelReference | undefined> {
+	private async acquireDefaultNewSession(token: CancellationToken, localFallbackSelectionReason?: SessionTypeSelectionReason): Promise<IChatSessionAcquisitionResult> {
 		const workspace = this.workspaceContextService.getWorkspace();
-		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get());
-		if (defaultType === localChatSessionType) {
-			return undefined;
+		const defaultTypeAndReason = getDefaultNewChatSessionTypeAndReasonFromServices(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get());
+		if (defaultTypeAndReason.sessionType === localChatSessionType) {
+			return { modelRef: this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { debugOwner: 'ChatViewPane#acquireDefaultNewSession', sessionTypeSelectionReason: localFallbackSelectionReason ?? defaultTypeAndReason.selectionReason }) };
 		}
-		const resource = getDefaultNewChatSessionResource(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get());
+		const resource = getNewChatSessionResource(defaultTypeAndReason.sessionType);
 		try {
-			return await this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatViewPane#acquireDefaultNewSession');
+			const modelRef = await this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatViewPane#acquireDefaultNewSession', defaultTypeAndReason.selectionReason);
+			return {
+				modelRef,
+				localFallbackSelectionReason: getLocalFallbackSessionTypeSelectionReason(defaultTypeAndReason.sessionType, !!modelRef, localFallbackSelectionReason),
+			};
 		} catch (error) {
 			// A cancellation means the caller (e.g. `startNewLocalSession`)
 			// deliberately preempted this resolution; propagate it so the
@@ -1319,27 +1327,33 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				throw error;
 			}
 			this.logService.warn(`[ChatViewPane] Failed to acquire default agent-host session, falling back to local`, error);
-			return undefined;
+			return {
+				modelRef: undefined,
+				localFallbackSelectionReason: getLocalFallbackSessionTypeSelectionReason(defaultTypeAndReason.sessionType, false, localFallbackSelectionReason),
+			};
 		}
 	}
 
-	private async acquireTransferredOrPersistedSession(token: CancellationToken, debugOwner: string): Promise<IChatModelReference | undefined> {
+	private async acquireTransferredOrPersistedSession(token: CancellationToken, debugOwner: string): Promise<IChatSessionAcquisitionResult> {
 		const sessionResource = this.getTransferredOrPersistedSessionInfo();
 		if (!sessionResource) {
-			return undefined;
+			return { modelRef: undefined };
 		}
 
 		const modelRef = await this.chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, token, debugOwner);
 		if (!modelRef) {
-			return undefined;
+			return {
+				modelRef: undefined,
+				localFallbackSelectionReason: getLocalFallbackSessionTypeSelectionReason(getChatSessionType(sessionResource), false),
+			};
 		}
 
 		if (this.shouldSkipRestoredLocalSession(sessionResource, modelRef.object)) {
 			modelRef.dispose();
-			return undefined;
+			return { modelRef: undefined };
 		}
 
-		return modelRef;
+		return { modelRef };
 	}
 
 	private shouldSkipRestoredLocalSession(sessionResource: URI, model: IChatModel): boolean {
@@ -1350,7 +1364,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			&& !model.hasRequests;
 	}
 
-	private async showModel(token: CancellationToken, modelRef?: IChatModelReference | undefined, startNewSession = true, ignoreTransferredSession = false, inputBeforeLoad?: string): Promise<IChatModel | undefined> {
+	private async showModel(token: CancellationToken, modelRef?: IChatModelReference | undefined, startNewSession = true, ignoreTransferredSession = false, inputBeforeLoad?: string, localFallbackSelectionReason?: SessionTypeSelectionReason): Promise<IChatModel | undefined> {
 		const oldModelResource = this._widget.viewModel?.sessionResource;
 		if (oldModelResource) {
 			this.widgetViewStates.set(getComparisonKey(oldModelResource), this._widget.getViewState());
@@ -1369,7 +1383,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			} else if (!ignoreTransferredSession && this.chatService.transferredSessionResource) {
 				ref = await this.chatService.acquireOrLoadSession(this.chatService.transferredSessionResource, ChatAgentLocation.Chat, token, 'ChatViewPane#showModel');
 			} else {
-				ref = await this.acquireDefaultNewSession(token) ?? this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { debugOwner: 'ChatViewPane#showModel' });
+				const defaultSession = await this.acquireDefaultNewSession(token, localFallbackSelectionReason);
+				ref = defaultSession.modelRef
+					?? this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { debugOwner: 'ChatViewPane#showModel', sessionTypeSelectionReason: defaultSession.localFallbackSelectionReason });
 			}
 			if (!ref) {
 				throw new Error('Could not start chat session');
@@ -1468,7 +1484,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.updateActions();
 	}
 
-	async loadSession(sessionResource: URI): Promise<IChatModel | undefined> {
+	async loadSession(sessionResource: URI, sessionTypeSelectionReason?: SessionTypeSelectionReason): Promise<IChatModel | undefined> {
 		const t0 = Date.now();
 		this.logService.trace(`[ChatViewPane] loadSession start uri=${sessionResource.toString()}`);
 
@@ -1495,6 +1511,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		return this.progressService.withProgress({ location: ChatViewId, delay: 200 }, async () => {
 			let queue: Promise<void> = Promise.resolve();
+			let didAcquireSession = false;
 
 			// A delay here to avoid blinking because only Cloud sessions are slow, most others are fast
 			const clearWidget = disposableTimeout(() => {
@@ -1509,7 +1526,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const clearWidgetCancellationListener = token.onCancellationRequested(() => clearWidget.dispose());
 
 			try {
-				const newModelRef = await this.chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, token, 'ChatViewPane#loadSession');
+				const newModelRef = await this.chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, token, 'ChatViewPane#loadSession', sessionTypeSelectionReason);
+				didAcquireSession = !!newModelRef;
 				clearWidget.dispose();
 				await queue;
 
@@ -1519,7 +1537,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					return undefined;
 				}
 
-				const result = await this.showModel(token, newModelRef, true, false, inputBeforeLoad);
+				const localFallbackSelectionReason = getLocalFallbackSessionTypeSelectionReason(getChatSessionType(sessionResource), !!newModelRef);
+				const result = await this.showModel(token, newModelRef, true, false, inputBeforeLoad, localFallbackSelectionReason);
 				this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()}`);
 				return result;
 			} catch (err) {
@@ -1535,7 +1554,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				// is not left in a broken state without title or back button.
 				this.logService.error(`Failed to load chat session '${sessionResource.toString()}'`, err);
 				this.notificationService.error(localize('chat.loadSessionFailed', "Failed to open chat session: {0}", toErrorMessage(err)));
-				const result = await this.showModel(token, undefined, true, false, inputBeforeLoad);
+				const localFallbackSelectionReason = getLocalFallbackSessionTypeSelectionReason(getChatSessionType(sessionResource), didAcquireSession);
+				const result = await this.showModel(token, undefined, true, false, inputBeforeLoad, localFallbackSelectionReason);
 				this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} error=true`);
 				return result;
 			} finally {

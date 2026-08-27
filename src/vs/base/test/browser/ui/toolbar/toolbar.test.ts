@@ -13,12 +13,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.j
 
 class FixedWidthActionViewItem extends BaseActionViewItem {
 
-	constructor(action: IAction, private readonly width: number) {
+	constructor(action: IAction, private readonly width: number, private readonly visible = true) {
 		super(undefined, action);
 	}
 
 	override render(container: HTMLElement): void {
 		super.render(container);
+		container.style.display = this.visible ? '' : 'none';
 		container.style.width = `${this.width}px`;
 		container.style.boxSizing = 'border-box';
 		container.style.overflow = 'hidden';
@@ -110,7 +111,7 @@ suite('ToolBar', () => {
 		assert.strictEqual(toolbar.getItemAction(1)?.id, 'workbench.action.chat.openModePicker');
 		assert.strictEqual(toolbar.getItemAction(2)?.id, 'workbench.action.chat.openModelPicker');
 		assert.strictEqual(toolbar.getItemAction(3)?.id, ToggleMenuAction.ID);
-		assert.strictEqual(toolbar.getElement().querySelector('.monaco-action-bar')?.classList.contains('has-overflow'), true);
+		assert.strictEqual(toolbar.hasOverflow(), true);
 	});
 
 	test('applies per-action responsive min widths', () => {
@@ -404,13 +405,155 @@ suite('ToolBar', () => {
 
 		// availableWidth = 200 is plenty for all 3 actions; the element's 0 width is ignored
 		assert.strictEqual(toolbar.getItemsLength(), 3);
-		assert.strictEqual(toolbar.getElement().querySelector('.monaco-action-bar')?.classList.contains('has-overflow'), false);
+		assert.strictEqual(toolbar.hasOverflow(), false);
 
 		availableWidth = 60;
 		toolbar.relayout();
 
 		// availableWidth shrank — actions overflow into the toggle menu
 		assert.strictEqual(toolbar.getItemAction(toolbar.getItemsLength() - 1)?.id, ToggleMenuAction.ID);
-		assert.strictEqual(toolbar.getElement().querySelector('.monaco-action-bar')?.classList.contains('has-overflow'), true);
+		assert.strictEqual(toolbar.hasOverflow(), true);
+
+		availableWidth = 200;
+		toolbar.relayout();
+
+		assert.strictEqual(toolbar.getItemsLength(), 3);
+		assert.strictEqual(toolbar.hasOverflow(), false);
+	});
+
+	test('ignores non-rendered actions when deciding to overflow', () => {
+		const hiddenActionIds = new Set(['hidden.a', 'hidden.b', 'hidden.c']);
+		const toolbar = store.add(new TestToolBar(container, contextMenuProvider, {
+			responsiveBehavior: {
+				enabled: true,
+				kind: 'all',
+				minItems: 1,
+				actionMinWidth: 48,
+				getActionMinWidth: () => 22,
+				getAvailableWidth: () => 60,
+			},
+			actionViewItemProvider: action => new FixedWidthActionViewItem(action, 22, !hiddenActionIds.has(action.id)),
+		}));
+		toolbar.setActions([
+			store.add(new Action('hidden.a', 'Hidden A')),
+			store.add(new Action('hidden.b', 'Hidden B')),
+			store.add(new Action('visible.a', 'Visible A')),
+			store.add(new Action('hidden.c', 'Hidden C')),
+			store.add(new Action('visible.b', 'Visible B')),
+		]);
+
+		assert.deepStrictEqual({
+			visibleActions: Array.from({ length: toolbar.getItemsLength() }, (_, index) => ({
+				id: toolbar.getItemAction(index)?.id,
+				display: toolbar.getItemElement(index)?.style.display,
+			})).filter(item => item.display !== 'none').map(item => item.id),
+			overflow: toolbar.hasOverflow(),
+		}, {
+			visibleActions: ['visible.a', 'visible.b'],
+			overflow: false,
+		});
+	});
+
+	test('can keep compact actions visible instead of overflowing', () => {
+		const toolbar = store.add(new TestToolBar(container, contextMenuProvider, {
+			responsiveBehavior: {
+				enabled: true,
+				kind: 'all',
+				minItems: 1,
+				actionMinWidth: 22,
+				getAvailableWidth: () => 50,
+				allowOverflow: false,
+			},
+			actionViewItemProvider: action => new FixedWidthActionViewItem(action, 22),
+		}));
+
+		toolbar.setActions([
+			store.add(new Action('a', 'A')),
+			store.add(new Action('b', 'B')),
+			store.add(new Action('c', 'C')),
+		]);
+
+		assert.deepStrictEqual({
+			items: Array.from({ length: toolbar.getItemsLength() }, (_, index) => toolbar.getItemAction(index)?.id),
+			overflow: toolbar.hasOverflow(),
+		}, {
+			items: ['a', 'b', 'c'],
+			overflow: false,
+		});
+	});
+
+	test('allows overflow only after compact actions still exceed the width', () => {
+		let availableWidth = 100;
+		let allCompact = false;
+		const toolbar = store.add(new TestToolBar(container, contextMenuProvider, {
+			responsiveBehavior: {
+				enabled: true,
+				kind: 'all',
+				minItems: 1,
+				actionMinWidth: 22,
+				getAvailableWidth: () => availableWidth,
+				allowOverflow: () => allCompact,
+			},
+			actionViewItemProvider: action => new FixedWidthActionViewItem(action, 22),
+		}));
+		toolbar.setActions([
+			store.add(new Action('a', 'A')),
+			store.add(new Action('b', 'B')),
+			store.add(new Action('c', 'C')),
+		]);
+
+		availableWidth = 50;
+		toolbar.relayout();
+		const beforeCompact = toolbar.hasOverflow();
+
+		allCompact = true;
+		toolbar.relayout();
+		const afterCompact = toolbar.hasOverflow();
+
+		assert.deepStrictEqual({ beforeCompact, afterCompact }, {
+			beforeCompact: false,
+			afterCompact: true,
+		});
+	});
+
+	test('uses overflow-specific proxy actions', async () => {
+		const runs: string[] = [];
+		let overflowAnchor: HTMLElement | undefined;
+		const toolbar = store.add(new TestToolBar(container, contextMenuProvider, {
+			responsiveBehavior: {
+				enabled: true,
+				kind: 'all',
+				minItems: 1,
+				actionMinWidth: 22,
+				getAvailableWidth: () => 50,
+				getOverflowAction: (action, getAnchor) => ({
+					...action,
+					run: () => {
+						overflowAnchor = getAnchor();
+						runs.push(`overflow:${action.id}`);
+					},
+				}),
+			},
+			actionViewItemProvider: action => new FixedWidthActionViewItem(action, 22),
+		}));
+		toolbar.setActions([
+			store.add(new Action('a', 'A', undefined, true, () => runs.push('original:a'))),
+			store.add(new Action('b', 'B', undefined, true, () => runs.push('original:b'))),
+			store.add(new Action('c', 'C', undefined, true, () => runs.push('original:c'))),
+		]);
+
+		const overflowAction = toolbar.getItemAction(toolbar.getItemsLength() - 1);
+		assert.strictEqual(overflowAction?.id, ToggleMenuAction.ID);
+		await (overflowAction as ToggleMenuAction).menuActions[0].run();
+		const overflowViewItem = toolbar.getItemViewItem(toolbar.getItemsLength() - 1);
+		const overflowButton = overflowViewItem instanceof BaseActionViewItem ? overflowViewItem.element : undefined;
+
+		assert.deepStrictEqual({
+			runs,
+			usesOverflowButton: overflowAnchor === overflowButton,
+		}, {
+			runs: ['overflow:b'],
+			usesOverflowButton: true,
+		});
 	});
 });

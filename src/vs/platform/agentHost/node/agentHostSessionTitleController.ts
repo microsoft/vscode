@@ -7,6 +7,7 @@ import { Limiter } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { SessionServerToolName } from '../common/serverToolNames.js';
@@ -84,7 +85,26 @@ export interface IAgentHostSessionTitleControllerOptions {
 	readonly isActiveAgentTitleGenerationEnabled?: () => boolean;
 }
 
-export class AgentHostSessionTitleController extends Disposable {
+export const IAgentHostSessionTitleController = createDecorator<IAgentHostSessionTitleController>('agentHostSessionTitleController');
+
+/** Coordinates automatic, generated, and user-renamed session and chat titles. */
+export interface IAgentHostSessionTitleController {
+	readonly _serviceBrand: undefined;
+	seedTitleFromFirstMessage(channel: ProtocolURI, userPrompt: string, chatChannel?: ProtocolURI): void;
+	seedProvisionalTitle(channel: ProtocolURI, suggestedTitle: string, chatChannel?: ProtocolURI): void;
+	refineTitleFromFirstTurn(channel: ProtocolURI, chatChannel?: ProtocolURI): void;
+	generateForkedTitle(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, turns: readonly Turn[], fallbackTitle: string, sourceTitle?: string): void;
+	generateExternalSessionTitle(session: ProtocolURI, userPrompt: string): Promise<void>;
+	cancelTitleGeneration(session: ProtocolURI): void;
+	clearSession(session: ProtocolURI, chatChannels: readonly ProtocolURI[]): void;
+	markTitleAuto(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, title: string): void;
+	markTitleRenamed(channel: ProtocolURI, chatChannel?: ProtocolURI): void;
+	prepareInstructionForAgent(channel: ProtocolURI, chatChannel: ProtocolURI): Promise<string | undefined>;
+}
+
+export class AgentHostSessionTitleController extends Disposable implements IAgentHostSessionTitleController {
+
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _titleGenerationCancellationSources = new Map<ProtocolURI, CancellationTokenSource>();
 

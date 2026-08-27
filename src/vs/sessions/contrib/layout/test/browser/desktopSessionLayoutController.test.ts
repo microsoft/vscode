@@ -2762,7 +2762,7 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
-	test('[managed tabs / Scenario 9] shows only Files for a new-session view', async () => {
+	test('[managed tabs / Scenario 9] shows Changes and Files for a new-session view', async () => {
 		createSinglePaneController({ activateAux: true });
 		await settle();
 
@@ -2774,13 +2774,13 @@ suite('LayoutController (desktop)', () => {
 			hasFilesTab: hasFilesTab(),
 			changesTabMissing: harness.contextKeyService.getContextKeyValue(SinglePaneChangesTabMissingContext.key),
 		}, {
-			hasChangesTab: false,
+			hasChangesTab: true,
 			hasFilesTab: true,
 			changesTabMissing: false,
 		});
 	});
 
-	test('[managed tabs / new session] keeps Changes unavailable after a delayed different-folder restore', async () => {
+	test('[managed tabs / new session] restores Changes after a delayed different-folder restore', async () => {
 		const controller = createSinglePaneController({ activateAux: true });
 		await settle();
 
@@ -2794,7 +2794,7 @@ suite('LayoutController (desktop)', () => {
 
 		harness.activeSessionObs.set(makeSession(URI.parse('session:new'), { status: SessionStatus.Untitled, isCreated: false }), undefined);
 		await settle();
-		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: false, hasFilesTab: true });
+		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: true, hasFilesTab: true });
 
 		// A different default folder delays this restore until after the draft reconcile.
 		const filesTab = harness.activeGroupEditors.find(editor => editor instanceof EmptyFileEditorInput);
@@ -2806,7 +2806,7 @@ suite('LayoutController (desktop)', () => {
 		});
 		await settle();
 
-		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: false, hasFilesTab: true });
+		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: true, hasFilesTab: true });
 	});
 
 	test('[managed tabs / submit] activates Changes only after a submitted session reports changes', async () => {
@@ -2816,7 +2816,7 @@ suite('LayoutController (desktop)', () => {
 		const session = makeSession(URI.parse('session:new'), { status: SessionStatus.Untitled, isCreated: false });
 		harness.activeSessionObs.set(session, undefined);
 		await settle();
-		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: false, hasFilesTab: true });
+		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: true, hasFilesTab: true });
 
 		// Submit from the Files tab: visibility and the active tab stay unchanged.
 		harness.activeEditorInput = harness.activeGroupEditors.find(e => e instanceof EmptyFileEditorInput);
@@ -2840,11 +2840,11 @@ suite('LayoutController (desktop)', () => {
 		createSinglePaneController({ activateAux: true });
 		await settle();
 
-		// New-session draft active: only Files is present.
+		// New-session draft active: Changes and Files are present.
 		const draft = makeSession(URI.parse('session:draft'), { status: SessionStatus.Untitled, isCreated: false });
 		harness.activeSessionObs.set(draft, undefined);
 		await settle();
-		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: false, hasFilesTab: true });
+		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: true, hasFilesTab: true });
 
 		// The provider commits the draft by replacing it with a new created resource.
 		const committedResource = URI.parse('session:committed');
@@ -2872,11 +2872,11 @@ suite('LayoutController (desktop)', () => {
 		createSinglePaneController({ activateAux: true });
 		await settle();
 
-		// Session A is a new-session draft with only Files.
+		// Session A is a new-session draft with Changes and Files.
 		const sessionA = makeSession(URI.parse('session:a'), { status: SessionStatus.Untitled, isCreated: false });
 		harness.activeSessionObs.set(sessionA, undefined);
 		await settle();
-		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: false, hasFilesTab: true });
+		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: true, hasFilesTab: true });
 
 		// Pause the very next Changes open so A's submit reconcile stalls mid-open.
 		let releaseChangesOpen!: () => void;
@@ -3065,7 +3065,7 @@ suite('LayoutController (desktop)', () => {
 		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: true, hasFilesTab: false });
 	});
 
-	test('[managed tabs / new session] re-opens Files when a working-set apply empties the group during the switch', async () => {
+	test('[managed tabs / new session] re-opens managed tabs when a working-set apply empties the group during the switch', async () => {
 		const controller = createSinglePaneController({ activateAux: true });
 		await settle();
 
@@ -3084,11 +3084,11 @@ suite('LayoutController (desktop)', () => {
 		});
 		await settle();
 
-		// Only Files is restored for the uncreated session.
-		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: false, hasFilesTab: true });
+		// Changes and Files are restored for the uncreated session.
+		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: true, hasFilesTab: true });
 	});
 
-	test('[managed tabs / new session] re-opens Files on restore-end even if no editor-change fires during the restore', async () => {
+	test('[managed tabs / new session] re-opens managed tabs on restore-end even if no editor-change fires during the restore', async () => {
 		const controller = createSinglePaneController({ activateAux: true });
 		await settle();
 
@@ -3099,14 +3099,14 @@ suite('LayoutController (desktop)', () => {
 		// Switch to a new (uncreated) session; the working-set apply empties the
 		// group during the restore but the transient editor-change is NOT observed
 		// (it races the async close). Only the settled restore-end must re-open the
-		// Files tab.
+		// managed tabs.
 		harness.activeSessionObs.set(makeSession(URI.parse('session:new'), { status: SessionStatus.Untitled, isCreated: false }), undefined);
 		controller.runWithRestore(() => {
 			harness.activeGroupEditors.splice(0, harness.activeGroupEditors.length);
 		});
 		await settle();
 
-		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: false, hasFilesTab: true });
+		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: true, hasFilesTab: true });
 	});
 
 	test('[managed tabs / Scenario 9] removes the Files tab while a real editor is open and does not re-add it when that file closes', async () => {

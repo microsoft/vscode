@@ -18,7 +18,7 @@ import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, SESSIONS_CHANGES_OPEN_SINGL
 import { ChangesViewPane, SinglePaneChangesViewPane, ChangesViewPaneContainer } from './changesView.js';
 import { SessionChangesEditor } from './sessionChangesEditor.js';
 import { SessionChangesEditorInput, SessionChangesEditorSerializer } from './sessionChangesEditorInput.js';
-import { IsPhoneLayoutContext, SessionHasWorkspaceContext, SessionIsCreatedContext } from '../../../common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionHasWorkspaceContext } from '../../../common/contextkeys.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ISessionChangesService, SessionChangesService } from './sessionChangesService.js';
 import './changesActions.js';
@@ -98,7 +98,7 @@ const changesViewContainer = viewContainersRegistry.registerViewContainer({
 
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 
-export const changesViewWhen = ContextKeyExpr.and(IsPhoneLayoutContext.negate(), SessionHasWorkspaceContext, SessionIsCreatedContext);
+export const changesViewWhen = ContextKeyExpr.and(IsPhoneLayoutContext.negate(), SessionHasWorkspaceContext);
 
 /**
  * Registers the Changes view with the layout-appropriate pane class: the single-pane

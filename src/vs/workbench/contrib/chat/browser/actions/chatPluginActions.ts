@@ -21,7 +21,7 @@ import { IAgentPluginRepositoryService } from '../../common/plugins/agentPluginR
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
 import { type IMarketplaceReference, MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from '../../common/plugins/pluginMarketplaceService.js';
 import { InstalledAgentPluginsViewId } from '../chat.js';
-import { CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from './chatActions.js';
+import { CHAT_CATEGORY } from './chatActions.js';
 
 export class ManagePluginsAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.managePlugins';
@@ -32,10 +32,6 @@ export class ManagePluginsAction extends Action2 {
 			title: localize2('plugins', 'Plugins'),
 			category: CHAT_CATEGORY,
 			precondition: ChatContextKeys.enabled,
-			menu: [{
-				id: CHAT_CONFIG_MENU_ID,
-				group: '2_plugins',
-			}],
 			f1: true
 		});
 	}

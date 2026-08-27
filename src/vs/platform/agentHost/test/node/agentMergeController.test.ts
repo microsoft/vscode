@@ -12,6 +12,7 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { AgentMergeConfigKey, agentMergeRootConfigSchema, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
+import { AgentSystemNotificationKind } from '../../common/meta/agentSystemNotificationMeta.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { SessionStatus, buildDefaultChatUri, MessageKind, withSessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
@@ -43,6 +44,7 @@ suite('AgentMergeController', () => {
 			{
 				startTurn: () => false,
 				cancelTurn: () => { },
+				postNotice: () => { },
 				getAutonomousSessionConfig: () => ({
 					[SessionConfigKey.Mode]: 'autopilot',
 					[SessionConfigKey.AutoApprove]: 'assisted',
@@ -243,6 +245,7 @@ suite('AgentMergeController', () => {
 			{
 				startTurn: () => false,
 				cancelTurn: () => { },
+				postNotice: () => { },
 				getAutonomousSessionConfig: () => ({}),
 			},
 			stateManager,
@@ -307,6 +310,7 @@ suite('AgentMergeController', () => {
 			{
 				startTurn: () => false,
 				cancelTurn: () => { },
+				postNotice: () => { },
 				getAutonomousSessionConfig: () => ({}),
 			},
 			stateManager,
@@ -354,6 +358,7 @@ suite('AgentMergeController', () => {
 		readonly stateManager: AgentHostStateManager;
 		readonly configurationService: AgentConfigurationService;
 		readonly session: string;
+		readonly notices: { readonly kind: AgentSystemNotificationKind; readonly content: string }[];
 	} {
 		const logService = new NullLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
@@ -364,10 +369,12 @@ suite('AgentMergeController', () => {
 			override readonly onDidChangeSessionGitHubState = Event.None;
 		}();
 		const endpointService = disposables.add(new AgentHostGitHubEndpointService(configurationService, logService));
+		const notices: { kind: AgentSystemNotificationKind; content: string }[] = [];
 		disposables.add(new AgentMergeController(
 			{
 				startTurn: () => false,
 				cancelTurn: () => { },
+				postNotice: (_session, kind, content) => notices.push({ kind, content }),
 				getAutonomousSessionConfig: () => configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true
 					? { [SessionConfigKey.Mode]: 'autopilot' }
 					: {
@@ -388,8 +395,95 @@ suite('AgentMergeController', () => {
 			schema: platformSessionSchema.toProtocol(),
 			values: {},
 		});
-		return { stateManager, configurationService, session };
+		return { stateManager, configurationService, session, notices };
 	}
+
+	test('announces enablement once it captures a branch, and again on the branch that turned it off', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		configurationService.updateRootConfig({ [AgentMergeConfigKey.Enabled]: true });
+		const session = `copilot:/agent-merge-controller-${++sessionCounter}`;
+		const gitStateService = new class extends mock<IAgentHostGitStateService>() {
+			override readonly onDidRefreshSessionGitState = Event.None;
+			override readonly onDidChangeSessionGitHubState = Event.None;
+			override async attachSessionGitHubPullRequest(): Promise<void> { }
+		}();
+		const endpointService = disposables.add(new AgentHostGitHubEndpointService(configurationService, logService));
+		const notices: { kind: AgentSystemNotificationKind; content: string }[] = [];
+		disposables.add(new AgentMergeController(
+			{
+				startTurn: () => false,
+				cancelTurn: () => { },
+				postNotice: (_session, kind, content) => notices.push({ kind, content }),
+				getAutonomousSessionConfig: () => ({}),
+			},
+			stateManager,
+			configurationService,
+			gitStateService,
+			new class extends mock<IGitHubService>() { }(),
+			endpointService,
+			logService,
+		));
+		stateManager.createSession(summary(session));
+		stateManager.setSessionConfig(session, {
+			schema: platformSessionSchema.toProtocol(),
+			values: {},
+		});
+		stateManager.setSessionMeta(session, withSessionGitState(undefined, { branchName: 'feature', baseBranchName: 'main' }));
+		const captured = new Promise<void>(resolve => {
+			disposables.add(stateManager.onDidChangeSessionConfig(event => {
+				if (event.session.toString() === session && readAgentMergeSessionState(event.current?.values)?.target) {
+					resolve();
+				}
+			}));
+		});
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMerge]: { enabled: true } });
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+		await captured;
+		const afterEnable = [...notices];
+
+		// The checkout moves to an unrelated branch, which is what silently
+		// stopped Agent Merge before it explained itself.
+		stateManager.setSessionMeta(session, withSessionGitState(undefined, { branchName: 'main', baseBranchName: 'main' }));
+		await timeout(0);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			afterEnable,
+			notices,
+			enabled: readAgentMergeSessionState(configurationService.getSessionConfigValues(session))?.enabled,
+		}, {
+			afterEnable: [{ kind: AgentSystemNotificationKind.AgentMergeEnabled, content: 'Agent Merge is on and watching `feature`.' }],
+			notices: [
+				{ kind: AgentSystemNotificationKind.AgentMergeEnabled, content: 'Agent Merge is on and watching `feature`.' },
+				{ kind: AgentSystemNotificationKind.AgentMergeDisabled, content: 'Agent Merge was turned off because the checked-out branch changed from `feature` to `main`.' },
+			],
+			enabled: false,
+		});
+	});
+
+	test('reports a self-disable once, and reports a user disable separately', () => {
+		const { stateManager, configurationService, session, notices } = createControllerHarness(disposables);
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMerge]: { enabled: true } });
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+		// Archiving disables from inside the controller; the re-entrant sync its
+		// own config write triggers must not add a second, reasonless notice.
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionIsArchivedChanged, isArchived: true });
+		const afterSelfDisable = [...notices];
+
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionIsArchivedChanged, isArchived: false });
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMerge]: { enabled: true } });
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMerge]: { enabled: false } });
+
+		assert.deepStrictEqual({ afterSelfDisable, notices }, {
+			afterSelfDisable: [{ kind: AgentSystemNotificationKind.AgentMergeDisabled, content: 'Agent Merge was turned off because this session was archived.' }],
+			notices: [
+				{ kind: AgentSystemNotificationKind.AgentMergeDisabled, content: 'Agent Merge was turned off because this session was archived.' },
+				{ kind: AgentSystemNotificationKind.AgentMergeDisabled, content: 'Agent Merge was turned off for this session.' },
+			],
+		});
+	});
 
 	test('resolves the API host a credential must match for every GitHub deployment', () => {
 		assert.deepStrictEqual({

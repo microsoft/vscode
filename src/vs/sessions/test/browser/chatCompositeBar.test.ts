@@ -112,7 +112,6 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 		visible: session.shouldShowChatTabs,
 		showSessionActions: session.shouldShowChatTabs,
 		openChat: resource => { sessionsService.openChat(session, resource); },
-		newChat: () => { },
 	};
 	bar.setGroup(delegate);
 	const container = mainWindow.document.createElement('div');
@@ -146,10 +145,10 @@ suite('Sessions - ChatCompositeBar', () => {
 		});
 	});
 
-	test('hides New Chat for workspace-less sessions', () => {
-		const { bar } = createHarness(disposables, { isQuickChat: true });
+	test('does not render New Chat in the tab bar', () => {
+		const { bar } = createHarness(disposables);
 
-		assert.strictEqual(bar.element.querySelector('.chat-composite-bar-new-chat')?.classList.contains('hidden'), true);
+		assert.strictEqual(bar.element.querySelector('.chat-composite-bar-new-chat'), null);
 	});
 
 	test('middle-click closes the targeted inactive non-main chat', () => {

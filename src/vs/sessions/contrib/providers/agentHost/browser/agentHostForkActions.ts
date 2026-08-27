@@ -80,7 +80,7 @@ registerAction2(class extends ForkConversationAction {
 					return;
 				}
 			}
-			await sessionsService.openSession(forkedSessionResource);
+			await sessionsService.openSession(forkedSessionResource, { source: 'fork' });
 		});
 	}
 });

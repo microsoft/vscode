@@ -10,9 +10,10 @@ import { ManagedSettingsData, PolicyCategory } from '../../../../../base/common/
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { DefaultConfiguration, PolicyConfiguration } from '../../../../../platform/configuration/common/configurations.js';
-import { IDefaultAccountProvider, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDefaultAccountProvider, IDefaultAccountService, MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_SANDBOX_ENABLED_KEY, INativeManagedSettingsService, IFileManagedSettingsService, thirdPartyAgentEnabledValue } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { IManagedSettingsFreshness, ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessState } from '../../../../../platform/policy/common/managedSettingsFreshness.js';
 import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyValue, PolicyValueSource } from '../../../../../platform/policy/common/policy.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { TestProductService } from '../../../../test/common/workbenchTestServices.js';
@@ -41,10 +42,12 @@ class DefaultAccountProvider implements IDefaultAccountProvider {
 	readonly managedSettingsRawResponse: unknown = null;
 	readonly managedSettingsCompatibilityError = null;
 	readonly onDidChangeManagedSettingsCompatibilityError = Event.None;
+	readonly onDidChangeManagedSettingsFreshness = Event.None;
 
 	constructor(
 		readonly defaultAccount: IDefaultAccount,
 		readonly policyData: IPolicyData | null = {},
+		readonly managedSettingsFreshness: IManagedSettingsFreshness = MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED,
 	) { }
 
 	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider {
@@ -674,12 +677,15 @@ suite('AccountPolicyService', () => {
 		readonly onDidChangeManagedSettings = this._onDidChangeManagedSettings.event;
 
 		constructor(public managedSettings: ManagedSettingsData = {}) { }
+
+		async initialize(): Promise<ManagedSettingsData> { return this.managedSettings; }
 	}
 
 	async function setupGate(opts: {
 		approvedOrgs?: string[] | string;
 		account?: IDefaultAccount | null;
 		policyData?: IPolicyData | null;
+		managedSettingsFreshness?: IManagedSettingsFreshness;
 	}): Promise<{ policyService: AccountPolicyService; managed: FakeManagedPolicyService }> {
 		const managed = disposables.add(new FakeManagedPolicyService());
 		if (opts.approvedOrgs !== undefined) {
@@ -692,7 +698,7 @@ suite('AccountPolicyService', () => {
 		const accountService = disposables.add(new DefaultAccountService(TestProductService));
 		if (opts.account !== null && opts.account !== undefined) {
 			const policyData = opts.policyData === undefined ? {} : opts.policyData;
-			accountService.setDefaultAccountProvider(new DefaultAccountProvider(opts.account, policyData));
+			accountService.setDefaultAccountProvider(new DefaultAccountProvider(opts.account, policyData, opts.managedSettingsFreshness));
 			await accountService.refresh();
 		}
 
@@ -708,6 +714,27 @@ suite('AccountPolicyService', () => {
 		const { policyService } = await setupGate({ account: APPROVED_ORG_ACCOUNT, policyData: { chat_preview_features_enabled: false } });
 		assert.strictEqual(policyService.gateInfo.state, AccountPolicyGateState.Inactive);
 		assert.strictEqual(policyService.getPolicyValue('PolicySettingD'), false); // account policy still flows
+	});
+
+	test('forced managed settings refresh blocks independently of approved account policy', async () => {
+		const freshness: IManagedSettingsFreshness = {
+			state: ManagedSettingsFreshnessState.Blocked,
+			source: 'server',
+			failure: ManagedSettingsFreshnessFailure.Network,
+			lastAttemptAt: 42,
+		};
+		const { policyService } = await setupGate({
+			account: APPROVED_ORG_ACCOUNT,
+			policyData: {},
+			managedSettingsFreshness: freshness,
+		});
+
+		assert.deepStrictEqual(policyService.gateInfo, {
+			state: AccountPolicyGateState.Restricted,
+			reason: AccountPolicyGateUnsatisfiedReason.ManagedSettingsRefresh,
+			managedSettingsFreshness: freshness,
+		});
+		assert.strictEqual(policyService.getPolicyValueSource('PolicySettingD'), PolicyValueSource.AccountGate);
 	});
 
 	test('gate active, no account signed in: restricted', async () => {

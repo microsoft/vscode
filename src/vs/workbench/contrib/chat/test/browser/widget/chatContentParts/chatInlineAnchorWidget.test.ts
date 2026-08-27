@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { URI } from '../../../../../../../base/common/uri.js';
+import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { renderFileWidgets } from '../../../../browser/widget/chatContentParts/chatInlineAnchorWidget.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
@@ -15,6 +16,8 @@ import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatConte
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { ChatQueryTitlePart } from '../../../../browser/widget/chatContentParts/chatConfirmationWidget.js';
 import { getChatMarkdownRenderOptions } from '../../../../browser/widget/chatContentMarkdownRenderer.js';
+import { ChatPetAchievementId, ChatPetAchievementIds } from '../../../../browser/chatPetAchievements.js';
+import { IChatPetService } from '../../../../browser/chatPetService.js';
 
 suite('ChatInlineAnchorWidget Metadata Validation', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -22,6 +25,7 @@ suite('ChatInlineAnchorWidget Metadata Validation', () => {
 	let disposables: DisposableStore;
 	let instantiationService: ReturnType<typeof workbenchInstantiationService>;
 	let mockAnchorService: IChatMarkdownAnchorService;
+	let attemptedUnlocks: ChatPetAchievementId[];
 
 	setup(() => {
 		disposables = store.add(new DisposableStore());
@@ -35,6 +39,13 @@ suite('ChatInlineAnchorWidget Metadata Validation', () => {
 		};
 
 		instantiationService.stub(IChatMarkdownAnchorService, mockAnchorService);
+		attemptedUnlocks = [];
+		instantiationService.stub(IChatPetService, new class extends mock<IChatPetService>() {
+			override unlockAchievement(id: ChatPetAchievementId): boolean {
+				attemptedUnlocks.push(id);
+				return true;
+			}
+		}());
 	});
 
 	function createTestElement(linkText: string, href: string = 'file:///test.txt'): HTMLElement {
@@ -76,6 +87,8 @@ suite('ChatInlineAnchorWidget Metadata Validation', () => {
 		element.querySelector<HTMLElement>('.chat-inline-anchor-widget')?.click();
 
 		assert.strictEqual((await opened.p).toString(), resource.toString());
+		await timeout(0);
+		assert.deepStrictEqual(attemptedUnlocks, [ChatPetAchievementIds.ChatReferenceOpened]);
 	});
 
 	test('wraps the resource opener in trackOpen', async () => {
@@ -122,6 +135,7 @@ suite('ChatInlineAnchorWidget Metadata Validation', () => {
 		element.querySelector<HTMLElement>('.chat-inline-anchor-widget')?.click();
 
 		assert.strictEqual(await failure.p, error);
+		assert.deepStrictEqual(attemptedUnlocks, []);
 	});
 
 	test('renders widget for empty vscode-agent-host link in chat query title', () => {

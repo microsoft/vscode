@@ -29,8 +29,8 @@
 	margin: 0;
 	overflow: hidden;
 	color: var(--vscode-foreground);
-	font-size: var(--vscode-agents-fontSize-label1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
@@ -38,7 +38,7 @@
 .sessions-chat-pet-achievement-badges-count {
 	flex: 0 0 auto;
 	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-agents-fontSize-label2);
+	font-size: var(--vscode-fontSize-label2);
 }
 
 .sessions-account-titlebar-panel .sessions-chat-pet-achievement-badges-list {
@@ -97,7 +97,7 @@
 	width: auto;
 	min-height: 24px;
 	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
-	font-size: var(--vscode-agents-fontSize-label2);
+	font-size: var(--vscode-fontSize-label2);
 }
 
 .hc-black .sessions-chat-pet-achievement-badge,

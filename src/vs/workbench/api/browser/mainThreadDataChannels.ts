@@ -8,7 +8,7 @@ import { Disposable, DisposableMap, DisposableStore } from '../../../base/common
 import { autorun, observableValue } from '../../../base/common/observable.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
-import { IDataChannelService, ILinkPresentation, ILinkPresentationProvider, ILinkPresentationService, ILinkPresentationWatcher, parseLinkPresentation } from '../../../platform/dataChannel/common/dataChannel.js';
+import { IDataChannelService, ILinkPresentation, ILinkPresentationProvider, ILinkPresentationService, ILinkPresentationWatcher, LinkPresentationKind, parseLinkPresentation } from '../../../platform/dataChannel/common/dataChannel.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { ExtHostContext, ExtHostDataChannelsShape, MainContext, MainThreadDataChannelsShape } from '../common/extHost.protocol.js';
 
@@ -37,18 +37,18 @@ export class MainThreadDataChannels extends Disposable implements MainThreadData
 				id: rule.id,
 				source: rule.uriPattern.source,
 				flags: rule.uriPattern.flags,
-				initialKind: rule.initialKind,
+				kind: rule.kind,
 			}))
 		);
 		updateLinkPresentationRules();
 		this._register(this._linkPresentationService.onDidChangeLinkPresentationRules(updateLinkPresentationRules));
 	}
 
-	$createLinkPresentationWatcher(handle: number, providerId: string, resource: UriComponents): void {
+	$createLinkPresentationWatcher(handle: number, providerId: string, kind: LinkPresentationKind, resource: UriComponents): void {
 		const watcher = this._linkPresentationService.createLinkPresentationWatcher(providerId, URI.revive(resource));
 		if (!watcher) {
 			this._proxy.$acceptLinkPresentation(handle, {
-				kind: 'resource',
+				kind,
 				status: { kind: 'error', label: localize('linkPresentation.unavailable', "Not available") },
 				tooltip: localize('linkPresentation.ruleMismatch', "The selected link presentation provider does not accept this resource."),
 				ariaLabel: localize('linkPresentation.unavailableAriaLabel', "Link presentation is not available"),

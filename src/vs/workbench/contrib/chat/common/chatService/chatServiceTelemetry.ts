@@ -189,6 +189,7 @@ export type ChatProviderInvokedEvent = ChatSessionModeEvent & {
 	chatMode: string | undefined;
 	sessionType: string | undefined;
 	harness: string | undefined;
+	sessionTypeSelectionReason: string | undefined;
 	isVirtualWorkspace: boolean;
 	settingDefaultToCopilotHarness: boolean;
 	settingPreferCopilotHarness: boolean;
@@ -217,6 +218,7 @@ export type ChatProviderInvokedClassification = ChatSessionModeClassification & 
 	chatMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat mode used for the request. Built-in modes (ask, agent, edit), extension-contributed names (e.g. Plan), or a hashed identifier for user-created custom agents.' };
 	sessionType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session type scheme (e.g. vscodeLocalChatSession for local, or remote session scheme).' };
 	harness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'For remote agent host sessions, the underlying harness/provider (e.g. copilotcli, claude, codex) so remote activity can be split by harness. Undefined for non-remote sessions.' };
+	sessionTypeSelectionReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Why the session type was selected when the session was created. Undefined for restored or reused sessions.' };
 	isVirtualWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the chat request was made in a virtual workspace.' };
 	settingDefaultToCopilotHarness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective value of the chat.defaultToCopilotHarness setting when the request started.' };
 	settingPreferCopilotHarness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective value of the chat.editor.preferCopilotHarness setting when the request started.' };
@@ -340,6 +342,7 @@ export class ChatRequestTelemetry {
 		agentSlashCommandPart: ChatRequestAgentSubcommandPart | undefined;
 		commandPart: ChatRequestSlashCommandPart | undefined;
 		requestIndex: number;
+		sessionTypeSelectionReason: string | undefined;
 		sessionResource: URI;
 		location: ChatAgentLocation;
 		options: IChatSendRequestOptions | undefined;
@@ -369,6 +372,7 @@ export class ChatRequestTelemetry {
 		this.isComplete = true;
 		this.telemetryService.publicLog2<ChatProviderInvokedEvent, ChatProviderInvokedClassification>('interactiveSessionProviderInvoked', {
 			requestIndex: this.opts.requestIndex,
+			sessionTypeSelectionReason: this.opts.sessionTypeSelectionReason,
 			timeToFirstProgress,
 			totalTime,
 			result,

@@ -31,9 +31,14 @@ suite('StatusbarPart', () => {
 
 	class TestFloatingPanelsLayoutService extends TestLayoutService {
 		floatingPanelsEnabled = false;
+		modernUICompact = false;
 
 		override isFloatingPanelsEnabled(): boolean {
 			return this.floatingPanelsEnabled;
+		}
+
+		override isModernUICompact(): boolean {
+			return this.modernUICompact;
 		}
 	}
 
@@ -105,10 +110,13 @@ suite('StatusbarPart', () => {
 		const defaultConstraints = { minimumHeight: part.minimumHeight, maximumHeight: part.maximumHeight };
 		layoutService.floatingPanelsEnabled = true;
 		const modernUIConstraints = { minimumHeight: part.minimumHeight, maximumHeight: part.maximumHeight };
+		layoutService.modernUICompact = true;
+		const compactModernUIConstraints = { minimumHeight: part.minimumHeight, maximumHeight: part.maximumHeight };
 
-		assert.deepStrictEqual({ defaultConstraints, modernUIConstraints }, {
+		assert.deepStrictEqual({ defaultConstraints, modernUIConstraints, compactModernUIConstraints }, {
 			defaultConstraints: { minimumHeight: 22, maximumHeight: 22 },
 			modernUIConstraints: { minimumHeight: 28, maximumHeight: 28 },
+			compactModernUIConstraints: { minimumHeight: 26, maximumHeight: 26 },
 		});
 	});
 });

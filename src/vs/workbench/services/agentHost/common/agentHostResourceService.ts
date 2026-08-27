@@ -7,6 +7,7 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { VSBuffer, decodeBase64 } from '../../../../base/common/buffer.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../base/common/map.js';
 import { IObservable, derived, observableValue } from '../../../../base/common/observable.js';
 import { extUri } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -16,6 +17,7 @@ import {
 	AgentHostAccessMode,
 	AgentHostLocalFilePermissionsSettingId,
 	AgentHostPermissionMode,
+	type AgentHostPermissionGrant,
 	AgentHostPermissionsSetting,
 	AgentHostResourceIdentity,
 	AgentHostResourcePermissionError,
@@ -28,6 +30,7 @@ import {
 import { normalizeRemoteAgentHostAddress } from '../../../../platform/agentHost/common/agentHostUri.js';
 import {
 	ContentEncoding,
+	DirectoryEntry,
 	ResourceCopyParams, ResourceDeleteParams, ResourceMkdirParams, ResourceMoveParams,
 	ResourceRequestParams, ResourceResolveParams, ResourceResolveResult, ResourceType, ResourceWriteParams,
 } from '../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -39,10 +42,12 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 
 interface IInternalPendingRequest extends IPendingResourceRequest {
 	readonly deferred: DeferredPromise<void>;
+	readonly lexicalUri: URI;
 }
 
 interface IInMemoryGrant {
 	readonly identity: AgentHostResourceIdentity;
+	readonly uri: URI;
 	/**
 	 * Resolves to the realpath'd URI for the grant. Stored as a promise so
 	 * `grantImplicitRead` can return synchronously while the realpath lookup
@@ -52,6 +57,16 @@ interface IInMemoryGrant {
 	 */
 	readonly realpath: Promise<URI>;
 	readonly mode: AgentHostAccessMode;
+}
+
+function getGrantMode(grant: AgentHostPermissionGrant | undefined): AgentHostAccessMode | undefined {
+	if (grant === AgentHostAccessMode.Read || grant === AgentHostAccessMode.ReadWrite) {
+		return grant;
+	}
+	if (typeof grant === 'object' && grant !== null && (grant.mode === AgentHostAccessMode.Read || grant.mode === AgentHostAccessMode.ReadWrite)) {
+		return grant.mode;
+	}
+	return undefined;
 }
 
 function normalizeResourceIdentity(identity: AgentHostResourceIdentity): AgentHostResourceIdentity {
@@ -101,7 +116,15 @@ export class AgentHostResourceService extends Disposable implements IAgentHostRe
 	// ---- Gated FS operations ------------------------------------------------
 
 	async list(identity: AgentHostResourceIdentity, uri: URI): Promise<IResourceListResult> {
-		await this._gate(identity, uri, AgentHostPermissionMode.Read, { channel: ROOT_STATE_URI, uri: uri.toString(), read: true });
+		const normalized = normalizeResourceIdentity(identity);
+		const canonical = await this._canonicalize(uri);
+		if (!await this._isCovered(normalized, canonical, AgentHostPermissionMode.Read)) {
+			const entries = await this._getGrantedChildren(normalized, extUri.normalizePath(uri));
+			if (entries) {
+				return { entries };
+			}
+			throw new AgentHostResourcePermissionError({ channel: ROOT_STATE_URI, uri: uri.toString(), read: true });
+		}
 		const stat = await this._fileService.resolve(uri);
 		if (!stat.isDirectory) {
 			throw new Error(`Resource is not a directory: ${uri.toString()}`);
@@ -221,7 +244,8 @@ export class AgentHostResourceService extends Disposable implements IAgentHostRe
 
 	async request(identity: AgentHostResourceIdentity, params: ResourceRequestParams): Promise<void> {
 		const normalized = normalizeResourceIdentity(identity);
-		const canonical = await this._canonicalize(URI.parse(params.uri));
+		const lexical = extUri.normalizePath(URI.parse(params.uri));
+		const canonical = await this._canonicalize(lexical);
 		if (normalized === LOCAL_AGENT_HOST_RESOURCE_IDENTITY) {
 			return;
 		}
@@ -229,10 +253,10 @@ export class AgentHostResourceService extends Disposable implements IAgentHostRe
 		const wantsRead = params.read === true || !wantsWrite;
 
 		if (wantsRead && !await this._isCovered(normalized, canonical, AgentHostPermissionMode.Read)) {
-			await this._enqueue(normalized, canonical, AgentHostPermissionMode.Read);
+			await this._enqueue(normalized, canonical, lexical, AgentHostPermissionMode.Read);
 		}
 		if (wantsWrite && !await this._isCovered(normalized, canonical, AgentHostPermissionMode.Write)) {
-			await this._enqueue(normalized, canonical, AgentHostPermissionMode.Write);
+			await this._enqueue(normalized, canonical, lexical, AgentHostPermissionMode.Write);
 		}
 	}
 
@@ -254,6 +278,7 @@ export class AgentHostResourceService extends Disposable implements IAgentHostRe
 		);
 		this._inMemoryGrants.set(handle, {
 			identity: normalizeResourceIdentity(identity),
+			uri: lexical,
 			realpath,
 			mode: AgentHostAccessMode.Read,
 		});
@@ -363,22 +388,24 @@ export class AgentHostResourceService extends Disposable implements IAgentHostRe
 	 * segments and following symlinks so the policy check sees the same
 	 * path the OS will actually open. For URIs that don't exist (e.g. a
 	 * `resourceWrite` for a new file), realpath the deepest existing
-	 * ancestor and re-append the leaf.
+	 * ancestor and re-append the missing suffix.
 	 */
 	private async _canonicalize(uri: URI): Promise<URI> {
 		const normalized = extUri.normalizePath(uri);
-		const real = await this._fileService.realpath(normalized).catch(() => undefined);
-		if (real) {
-			return real;
+		const suffix: string[] = [];
+		let current = normalized;
+		while (true) {
+			const real = await this._fileService.realpath(current).catch(() => undefined);
+			if (real) {
+				return suffix.length ? extUri.joinPath(real, ...suffix) : real;
+			}
+			const parent = extUri.dirname(current);
+			if (extUri.isEqual(parent, current)) {
+				return normalized;
+			}
+			suffix.unshift(extUri.basename(current));
+			current = parent;
 		}
-		const parent = extUri.dirname(normalized);
-		if (extUri.isEqual(parent, normalized)) {
-			return normalized;
-		}
-		const realParent = await this._fileService.realpath(parent).catch(() => undefined);
-		return realParent
-			? extUri.joinPath(realParent, extUri.basename(normalized))
-			: normalized;
 	}
 
 	private async _isCovered(identity: AgentHostResourceIdentity, canonicalUri: URI, mode: AgentHostPermissionMode): Promise<boolean> {
@@ -410,7 +437,52 @@ export class AgentHostResourceService extends Disposable implements IAgentHostRe
 		return realpaths.some(uri => extUri.isEqualOrParent(canonicalUri, uri));
 	}
 
-	private _enqueue(address: string, canonicalUri: URI, mode: AgentHostPermissionMode): Promise<void> {
+	private async _getGrantedChildren(identity: AgentHostResourceIdentity, directory: URI): Promise<DirectoryEntry[] | undefined> {
+		if (identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY) {
+			return undefined;
+		}
+		const grantUris = [...this._readPersistedGrants(identity)]
+			.filter(grant => grant.mode === AgentHostAccessMode.Read || grant.mode === AgentHostAccessMode.ReadWrite)
+			.map(grant => grant.lexicalUri);
+		for (const grant of this._inMemoryGrants.values()) {
+			if (grant.identity === identity) {
+				grantUris.push(grant.uri);
+			}
+		}
+
+		const grantedChildren = new ResourceSet(uri => extUri.getComparisonKey(uri));
+		for (const grantUri of grantUris) {
+			if (extUri.isEqual(directory, grantUri) || !extUri.isEqualOrParent(grantUri, directory)) {
+				continue;
+			}
+			const relativePath = extUri.relativePath(directory, grantUri);
+			const segments = relativePath?.split('/').filter(Boolean);
+			if (!segments?.length) {
+				continue;
+			}
+
+			const name = segments[0];
+			const childUri = extUri.joinPath(directory, name);
+			grantedChildren.add(childUri);
+		}
+
+		if (grantedChildren.size === 0) {
+			return undefined;
+		}
+
+		const stat = await this._fileService.resolve(directory);
+		if (!stat.isDirectory) {
+			throw new Error(`Resource is not a directory: ${directory.toString()}`);
+		}
+		return (stat.children ?? [])
+			.filter(child => grantedChildren.has(extUri.joinPath(directory, child.name)))
+			.map(child => ({
+				name: child.name,
+				type: child.isDirectory ? 'directory' : 'file',
+			}));
+	}
+
+	private _enqueue(address: string, canonicalUri: URI, lexicalUri: URI, mode: AgentHostPermissionMode): Promise<void> {
 		const existing = this._pending.get().find(r =>
 			r.address === address && r.mode === mode && extUri.isEqual(r.uri, canonicalUri));
 		if (existing) {
@@ -422,6 +494,7 @@ export class AgentHostResourceService extends Disposable implements IAgentHostRe
 			id: generateUuid(),
 			address,
 			uri: canonicalUri,
+			lexicalUri,
 			mode,
 			deferred,
 			allow: () => this._resolve(request, 'memory'),
@@ -442,12 +515,13 @@ export class AgentHostResourceService extends Disposable implements IAgentHostRe
 
 		this._inMemoryGrants.set(generateUuid(), {
 			identity: request.address,
+			uri: request.lexicalUri,
 			realpath: Promise.resolve(request.uri),
 			mode: accessMode,
 		});
 
 		if (scope === 'persist') {
-			void this._persistGrant(request.address, request.uri, request.mode).catch(err => {
+			void this._persistGrant(request.address, request.uri, request.lexicalUri, request.mode).catch(err => {
 				this._logService.warn('[AgentHostResourceService] Failed to persist grant', err);
 			});
 		}
@@ -463,25 +537,35 @@ export class AgentHostResourceService extends Disposable implements IAgentHostRe
 		}
 	}
 
-	private *_readPersistedGrants(address: string): Iterable<{ uri: URI; mode: AgentHostAccessMode }> {
+	private *_readPersistedGrants(address: string): Iterable<{ uri: URI; lexicalUri: URI; mode: AgentHostAccessMode }> {
 		const forAddress = this._configurationService
 			.getValue<AgentHostPermissionsSetting>(AgentHostLocalFilePermissionsSettingId)?.[address];
 		if (!forAddress) {
 			return;
 		}
-		for (const [uriStr, mode] of Object.entries(forAddress)) {
-			if (mode !== AgentHostAccessMode.Read && mode !== AgentHostAccessMode.ReadWrite) {
+		for (const [uriStr, grant] of Object.entries(forAddress)) {
+			const mode = getGrantMode(grant);
+			if (!mode) {
 				continue;
 			}
 			try {
-				yield { uri: URI.parse(uriStr), mode };
+				const uri = URI.parse(uriStr);
+				let lexicalUri = uri;
+				if (typeof grant === 'object' && typeof grant.lexicalUri === 'string') {
+					try {
+						lexicalUri = URI.parse(grant.lexicalUri);
+					} catch {
+						// Fall back to the canonical URI for malformed lexical metadata.
+					}
+				}
+				yield { uri, lexicalUri, mode };
 			} catch {
 				// Ignore malformed URI keys.
 			}
 		}
 	}
 
-	private async _persistGrant(address: string, uri: URI, mode: AgentHostPermissionMode): Promise<void> {
+	private async _persistGrant(address: string, uri: URI, lexicalUri: URI, mode: AgentHostPermissionMode): Promise<void> {
 		const requested: AgentHostAccessMode = mode === AgentHostPermissionMode.Write
 			? AgentHostAccessMode.ReadWrite
 			: AgentHostAccessMode.Read;
@@ -494,12 +578,19 @@ export class AgentHostResourceService extends Disposable implements IAgentHostRe
 		}
 
 		const { target, value } = this._inspectScopedSetting();
-		const forAddress: Record<string, AgentHostAccessMode> = { ...(value[address] ?? {}) };
+		const forAddress: Record<string, AgentHostPermissionGrant> = { ...(value[address] ?? {}) };
 		const uriKey = uri.toString();
-		if (forAddress[uriKey] === AgentHostAccessMode.ReadWrite) {
+		const existing = forAddress[uriKey];
+		if (getGrantMode(existing) === AgentHostAccessMode.ReadWrite) {
 			return;
 		}
-		forAddress[uriKey] = requested;
+		if (typeof existing === 'object') {
+			forAddress[uriKey] = { mode: requested, lexicalUri: existing.lexicalUri };
+		} else if (!extUri.isEqual(uri, lexicalUri)) {
+			forAddress[uriKey] = { mode: requested, lexicalUri: lexicalUri.toString() };
+		} else {
+			forAddress[uriKey] = requested;
+		}
 
 		await this._configurationService.updateValue(
 			AgentHostLocalFilePermissionsSettingId,

@@ -100,7 +100,7 @@ export class ListAutomationsTool implements IToolImpl {
 			id: ListAutomationsToolId,
 			toolReferenceName: 'listAutomations',
 			canBeReferencedInPrompt: false,
-			icon: Codicon.watch,
+			icon: Codicon.calendar,
 			displayName: localize('automation.tool.list.displayName', "List Automations"),
 			userDescription: localize('automation.tool.list.userDescription', "List scheduled agent automations"),
 			modelDescription: 'List all configured scheduled automations and their stable IDs, editable fields, targets, and timing metadata. Use this before configureAutomation, runAutomation, or deleteAutomation when acting on an existing automation. This tool never changes automation state.',
@@ -366,7 +366,7 @@ export class ConfigureAutomationTool implements IToolImpl {
 			id: ConfigureAutomationToolId,
 			toolReferenceName: ConfigureAutomationToolReferenceName,
 			canBeReferencedInPrompt: false,
-			icon: Codicon.watch,
+			icon: Codicon.calendar,
 			displayName: localize('automation.tool.configure.displayName', "Configure Automation"),
 			userDescription: localize('automation.tool.configure.userDescription', "Create or update an automation"),
 			modelDescription: `Create or update a scheduled automation.

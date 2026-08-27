@@ -631,6 +631,35 @@ suite('SessionDatabase', () => {
 		});
 	});
 
+	// ---- Turn delegation -------------------------------------------------
+
+	suite('turn delegation', () => {
+
+		test('restores delegation by host or provider turn id', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setTurnDelegation('host-turn', '{"sourceSession":"copilot:/source"}');
+			await db.setTurnEventId('host-turn', 'provider-turn');
+
+			assert.deepStrictEqual([...(await db.getTurnDelegations()).entries()], [
+				['host-turn', '{"sourceSession":"copilot:/source"}'],
+				['provider-turn', '{"sourceSession":"copilot:/source"}'],
+			]);
+		});
+
+		test('truncation and remapping follow the owning turn', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setTurnDelegation('old-1', '{"sourceSession":"copilot:/one"}');
+			await db.setTurnDelegation('old-2', '{"sourceSession":"copilot:/two"}');
+
+			await db.remapTurnIds(new Map([['old-1', 'new-1']]));
+			await db.deleteTurnsAfter('new-1');
+
+			assert.deepStrictEqual([...(await db.getTurnDelegations()).entries()], [
+				['new-1', '{"sourceSession":"copilot:/one"}'],
+			]);
+		});
+	});
+
 	// ---- Turn checkpoint refs -------------------------------------------
 
 	suite('turn checkpoint refs', () => {

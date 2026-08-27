@@ -35,9 +35,9 @@ export class MobileAgentHostModePicker extends AgentHostModePicker {
 		@IHoverService hoverService: IHoverService,
 		@IChatPhoneInputPresenter private readonly _phonePresenter: IChatPhoneInputPresenter,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
-		@IChatPetService private readonly _chatPetService: IChatPetService,
+		@IChatPetService protected override readonly _chatPetService: IChatPetService,
 	) {
-		super(session, actionWidgetService, sessionsProvidersService, telemetryService, hoverService);
+		super(session, actionWidgetService, sessionsProvidersService, telemetryService, hoverService, _chatPetService);
 	}
 
 	protected override _showPicker(anchor = this._triggerElement, onHide?: () => void): boolean {

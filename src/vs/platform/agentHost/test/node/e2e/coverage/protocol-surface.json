@@ -6,9 +6,13 @@
 	},
 	"commands": {
 		"covered": 29,
-		"total": 29,
-		"percentage": 100,
-		"uncovered": []
+		"total": 32,
+		"percentage": 90.62,
+		"uncovered": [
+			"fetchAutomationRuns",
+			"listAutomationTriggerDefinitions",
+			"runAutomation"
+		]
 	},
 	"notifications": {
 		"covered": 4,
@@ -23,9 +27,18 @@
 	},
 	"actions": {
 		"covered": 76,
-		"total": 85,
-		"percentage": 89.41,
+		"total": 95,
+		"percentage": 80,
 		"uncovered": [
+			"automation/createRequested",
+			"automation/removed",
+			"automation/set",
+			"automation/updateRequested",
+			"automationRun/cancelRequested",
+			"automationRun/lifecycleChanged",
+			"automationRun/primarySessionChanged",
+			"automationRun/sessionRemoved",
+			"automationRun/sessionSet",
 			"changeset/fileRemoved",
 			"changeset/fileSet",
 			"chat/inputAnswerChanged",
@@ -34,6 +47,7 @@
 			"chat/toolCallAuthResolved",
 			"session/activityChanged",
 			"session/defaultChatChanged",
+			"session/workingDirectoryReplaced",
 			"terminal/commandDetectionAvailable"
 		]
 	}

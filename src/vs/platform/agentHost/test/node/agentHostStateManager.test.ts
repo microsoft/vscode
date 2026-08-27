@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType, NotificationType, type ActionEnvelope, type INotification } from '../../common/state/sessionActions.js';
-import { ChatInputQuestionKind, ChatInputResponseKind, MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
+import { ChatInputQuestionKind, ChatInputResponseKind, MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, createErrorResponsePart, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
 import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { buildChangesetUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
@@ -585,7 +585,7 @@ suite('AgentHostStateManager', () => {
 			type: ActionType.ChatError,
 			turnId: 'turn-1',
 			duration: 1000,
-			error: { errorType: 'failed', message: 'boom' },
+			part: createErrorResponsePart({ errorType: 'failed', message: 'boom' }),
 		});
 
 		assert.deepStrictEqual(events, [
@@ -881,7 +881,7 @@ suite('AgentHostStateManager', () => {
 	});
 
 	test('removeSession flushes pending status=Idle notification before eviction', () => {
-		// Regression: when _maybeEvictIdleSession calls removeSession within the
+		// Regression: when residency eviction calls removeSession within the
 		// 100 ms scheduler window after a turn completes, the client must still
 		// receive a SessionSummaryChanged with status=Idle so the spinner clears.
 		//
@@ -961,7 +961,7 @@ suite('AgentHostStateManager', () => {
 	});
 
 	test('removeSession does NOT dispose per-session changesets (LRU eviction must not clear list-view chip)', () => {
-		// Regression: _maybeEvictIdleSession calls removeSession to drop an
+		// Regression: residency eviction calls removeSession to drop an
 		// idle session from the in-memory cache. The Agents Window list view
 		// keeps a per-row changeset subscription open to render the diff
 		// chip, so cascading disposeSessionChangesets here would emit a

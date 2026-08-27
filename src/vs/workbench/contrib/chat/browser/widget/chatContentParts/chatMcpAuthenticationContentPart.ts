@@ -18,6 +18,7 @@ import { IAgentHostCustomizationService } from '../../agentSessions/agentHost/ag
 import { IChatMcpAuthenticationRequired, IChatMcpAuthenticationRequiredServer } from '../../../common/chatService/chatService.js';
 import { ChatTreeItem } from '../../chat.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
+import { getCompactCodicon } from '../../chatIcons.js';
 import { IChatContentPart } from './chatContentParts.js';
 import './media/chatMcpServersInteractionContent.css';
 
@@ -91,7 +92,7 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 		const container = dom.$('.chat-mcp-servers-interaction-hint');
 		const messageContainer = dom.$('.chat-mcp-servers-message');
 		const iconElement = dom.$('.chat-mcp-servers-icon');
-		iconElement.classList.add(...ThemeIcon.asClassNameArray(icon));
+		iconElement.classList.add(...ThemeIcon.asClassNameArray(getCompactCodicon(icon)));
 
 		const rendered = this.rendered.value = this.markdownRendererService.render(new MarkdownString(content, { isTrusted: true }), action ? {
 			actionHandler: (href: string) => {

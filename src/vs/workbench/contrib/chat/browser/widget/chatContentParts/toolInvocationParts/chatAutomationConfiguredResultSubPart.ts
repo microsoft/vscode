@@ -46,7 +46,7 @@ export class ChatAutomationConfiguredResultSubPart extends BaseChatToolInvocatio
 		}));
 		button.element.classList.add('chat-open-session-button');
 		button.label = label;
-		button.icon = Codicon.watch;
+		button.icon = Codicon.calendar;
 		this._register(button.onDidClick(() => this.commandService.executeCommand(
 			'sessionsView.manageAutomations',
 		)));

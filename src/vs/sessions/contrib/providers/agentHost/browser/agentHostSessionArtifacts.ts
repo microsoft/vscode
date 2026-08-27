@@ -47,6 +47,7 @@ function toSessionArtifact(artifact: IProtocolSessionArtifact): ISessionArtifact
 		id: artifact.id,
 		kind,
 		label: artifact.label,
+		isArtifact: artifact.isArtifact,
 		...(link ? { link } : {}),
 		...(uri ? { uri } : {}),
 		...(artifact.commitHash ? { commitHash: artifact.commitHash } : {}),
@@ -57,22 +58,32 @@ function toSessionArtifact(artifact: IProtocolSessionArtifact): ISessionArtifact
 /**
  * GitHub pull request and issue artifacts are promoted into the session's
  * GitHub links (polled and shown in their own pills) instead of the artifacts
- * pill, so the two never show the same reference twice.
+ * pill, so the two never show the same link twice. References are never
+ * promoted: they belong to the references pill, which is where the user looks
+ * for what the session pointed at rather than produced.
  */
 export interface ISessionArtifactPartition {
-	/** Every artifact in stream order, paired with the link it may be promoted by. */
+	/** Every entry in stream order, paired with the GitHub link that identifies it. */
 	readonly entries: readonly ISessionArtifactEntry[];
-	/** Pull requests this session created; eligible to become the main pull request. */
-	readonly createdPullRequestUrls: readonly string[];
-	/** Pull requests the session only referenced; listed and polled, never main. */
-	readonly referencedPullRequestUrls: readonly string[];
+	/** Pull requests this session produced; polled and shown in the pull request pill. */
+	readonly pullRequestUrls: readonly string[];
+	/**
+	 * Titles the agent recorded for its pull request artifacts, keyed by
+	 * {@link linkKey}. Pull requests discovered from git state have no entry.
+	 */
+	readonly pullRequestTitles: ReadonlyMap<string, string>;
 	readonly issueUrls: readonly string[];
 }
 
-/** An artifact, and the GitHub link it is promoted by when it has one. */
+/** An entry, and the GitHub link that identifies it when it has one. */
 export interface ISessionArtifactEntry {
 	readonly artifact: ISessionArtifact;
-	readonly promotedLink?: string;
+	/**
+	 * The GitHub pull request or issue link this entry stands for. Set for
+	 * references too, so an entry can be recognized as one the GitHub pills
+	 * already surface even though only artifacts are promoted into them.
+	 */
+	readonly gitHubLink?: string;
 }
 
 /** Normalized key for comparing links irrespective of case and trailing slash. */
@@ -81,23 +92,23 @@ export function linkKey(link: string): string {
 }
 
 /**
- * The artifacts the pill shows: everything except the promoted references that
- * the GitHub pills actually surfaced. A promotion the session cannot surface —
- * no repository, or a reference belonging to another repository — stays an
- * artifact rather than disappearing from both places.
+ * The artifacts and references the pills show: everything except the entries
+ * the GitHub pills actually surfaced. A link the session cannot surface — no
+ * repository, or one belonging to another repository — stays here rather than
+ * disappearing from both places.
  */
 export function getPresentedArtifacts(partition: ISessionArtifactPartition, surfacedLinks: ReadonlySet<string>): readonly ISessionArtifact[] {
 	return partition.entries
-		.filter(entry => !entry.promotedLink || !surfacedLinks.has(linkKey(entry.promotedLink)))
+		.filter(entry => !entry.gitHubLink || !surfacedLinks.has(linkKey(entry.gitHubLink)))
 		.map(entry => entry.artifact);
 }
 
 /**
- * Only links the pull request and issue pills can actually render are promoted;
- * anything else (an enterprise host, a malformed link) stays an artifact so it
- * never disappears from both places.
+ * The GitHub link an entry stands for, when the pull request and issue pills
+ * could actually render it. Anything else (an enterprise host, a malformed
+ * link) has no link identity and simply stays in its pill.
  */
-function promotedLink(artifact: IProtocolSessionArtifact): string | undefined {
+function gitHubLink(artifact: IProtocolSessionArtifact): string | undefined {
 	if (artifact.isGitHub !== true || !artifact.link) {
 		return undefined;
 	}
@@ -112,8 +123,8 @@ function promotedLink(artifact: IProtocolSessionArtifact): string | undefined {
 
 export function partitionSessionArtifacts(meta: SessionMeta | undefined): ISessionArtifactPartition {
 	const entries: ISessionArtifactEntry[] = [];
-	const createdPullRequestUrls: string[] = [];
-	const referencedPullRequestUrls: string[] = [];
+	const pullRequestUrls: string[] = [];
+	const pullRequestTitles = new Map<string, string>();
 	const issueUrls: string[] = [];
 
 	for (const artifact of readSessionArtifacts(meta)) {
@@ -121,22 +132,29 @@ export function partitionSessionArtifacts(meta: SessionMeta | undefined): ISessi
 		if (!mapped) {
 			continue;
 		}
-		const link = promotedLink(artifact);
-		entries.push(link ? { artifact: mapped, promotedLink: link } : { artifact: mapped });
-		if (!link) {
+		const link = gitHubLink(artifact);
+		entries.push(link ? { artifact: mapped, gitHubLink: link } : { artifact: mapped });
+		// Only what the session produced is promoted into the GitHub pills; a
+		// reference keeps its link identity but is never polled.
+		if (!link || !artifact.isArtifact) {
 			continue;
 		}
 
 		if (artifact.type === SessionArtifactType.Issue) {
 			issueUrls.push(link);
-		} else if (artifact.createdByThisSession) {
-			createdPullRequestUrls.push(link);
-		} else {
-			referencedPullRequestUrls.push(link);
+			continue;
 		}
+
+		// The label an agent records for a pull request is its title; keep the
+		// first one so a later duplicate cannot rewrite it.
+		const key = linkKey(link);
+		if (mapped.label && !pullRequestTitles.has(key)) {
+			pullRequestTitles.set(key, mapped.label);
+		}
+		pullRequestUrls.push(link);
 	}
 
-	return { entries, createdPullRequestUrls, referencedPullRequestUrls, issueUrls };
+	return { entries, pullRequestUrls, pullRequestTitles, issueUrls };
 }
 
 /** Case-insensitive de-duplication that keeps the first occurrence's casing. */

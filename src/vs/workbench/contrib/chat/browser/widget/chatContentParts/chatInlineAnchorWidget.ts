@@ -44,6 +44,8 @@ import { IWorkspaceSymbol } from '../../../../search/common/search.js';
 import { IChatContentInlineReference } from '../../../common/chatService/chatService.js';
 import { IChatWidgetService } from '../../chat.js';
 import { IChatImageCarouselService } from '../../chatImageCarouselService.js';
+import { ChatPetAchievementIds } from '../../chatPetAchievements.js';
+import { IChatPetService } from '../../chatPetService.js';
 import { chatAttachmentResourceContextKey, hookUpSymbolAttachmentDragAndContextMenu } from '../../attachments/chatAttachmentWidgets.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -153,6 +155,7 @@ export class InlineAnchorWidget extends Disposable {
 		@INotebookDocumentService private readonly notebookDocumentService: INotebookDocumentService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IChatPetService private readonly chatPetService: IChatPetService,
 	) {
 		super();
 
@@ -308,8 +311,10 @@ export class InlineAnchorWidget extends Disposable {
 				selection: location.range,
 			};
 
+			let opened = false;
 			const open = async () => {
 				if (this.options?.openResource && await this.options.openResource(location.uri, editorOptions)) {
+					opened = true;
 					return;
 				}
 
@@ -317,10 +322,11 @@ export class InlineAnchorWidget extends Disposable {
 				const mimeType = getMediaMime(location.uri.path);
 				if (mimeType?.startsWith('image/') && this.configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)) {
 					await this.chatImageCarouselService.openCarouselAtResource(location.uri);
+					opened = true;
 					return;
 				}
 
-				await this.openerService.open(location.uri, {
+				opened = await this.openerService.open(location.uri, {
 					fromUserGesture: true,
 					editorOptions
 				});
@@ -330,6 +336,9 @@ export class InlineAnchorWidget extends Disposable {
 				await this.options.trackOpen(open);
 			} else {
 				await open();
+			}
+			if (opened) {
+				this.chatPetService.unlockAchievement(ChatPetAchievementIds.ChatReferenceOpened);
 			}
 		}));
 	}

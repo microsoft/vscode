@@ -283,12 +283,12 @@ suite('ChatMarkdownContentPart', () => {
 		const pullRequestRule = {
 			id: 'test.linkPresentation',
 			uriPattern: /^https:\/\/github\.com\/microsoft\/vscode\/pull\/1$/,
-			initialKind: 'pullRequest' as const,
+			kind: 'pullRequest' as const,
 		};
 		const sessionRule = {
 			id: 'test.agentSessionLinkPresentation',
 			uriPattern: /^agent-host-session:\/\/copilotcli\/session-1(?:\?chat=chat-2)?$/,
-			initialKind: 'session' as const,
+			kind: 'session' as const,
 		};
 		const presentation = observableValue<ILinkPresentation | undefined>('test.linkPresentation', {
 			kind: 'pullRequest',

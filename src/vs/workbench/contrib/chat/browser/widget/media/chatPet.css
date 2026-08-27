@@ -262,6 +262,11 @@
 	transform: translateY(calc(-1 * var(--vscode-spacing-size40))) rotate(-90deg);
 }
 
+.chat-pet-button.on-the-run,
+.chat-pet-button.returning-from-run {
+	z-index: auto;
+}
+
 .chat-pet-button.on-the-run {
 	transform: translateY(var(--vscode-spacing-size400));
 }

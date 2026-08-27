@@ -63,6 +63,12 @@ interface IAgentHostUriMeta {
 	readonly authority?: string;
 	/** Original URI query, omitted when empty. */
 	readonly query?: string;
+	/**
+	 * Set when the wrapped URI came from a protocol `ContentRef` rather than
+	 * from the host's filesystem. Omitted otherwise. See
+	 * {@link toAgentHostContentUri}.
+	 */
+	readonly contentRef?: true;
 }
 
 /**
@@ -75,6 +81,31 @@ interface IAgentHostUriMeta {
  *   the URI authority (from {@link agentHostAuthority}).
  */
 export function toAgentHostUri(originalUri: URI, connectionAuthority: string): URI {
+	return wrapAgentHostUri(originalUri, connectionAuthority, false);
+}
+
+/**
+ * Wraps a protocol `ContentRef` URI, marking it so the filesystem provider
+ * reads it with `resourceRead` instead of resolving it as a filesystem entry.
+ * Hosts choose their own content URI shapes, so the scheme cannot identify one.
+ *
+ * A content ref that is already a plain `file:` URI on the local connection
+ * stays unwrapped: it addresses a real file and resolves normally.
+ */
+export function toAgentHostContentUri(originalUri: URI, connectionAuthority: string): URI {
+	return wrapAgentHostUri(originalUri, connectionAuthority, true);
+}
+
+/**
+ * Maps a host-side URI into client space.
+ *
+ * `options.contentRef` marks a URI read out of a protocol `ContentRef`, so it
+ * is wrapped with {@link toAgentHostContentUri} rather than
+ * {@link toAgentHostUri}.
+ */
+export type AgentHostUriMapper = (uri: URI, options?: { readonly contentRef?: boolean }) => URI;
+
+function wrapAgentHostUri(originalUri: URI, connectionAuthority: string, contentRef: boolean): URI {
 	if (connectionAuthority === 'local' && originalUri.scheme === Schemas.file) {
 		return originalUri;
 	}
@@ -83,6 +114,7 @@ export function toAgentHostUri(originalUri: URI, connectionAuthority: string): U
 		scheme: originalUri.scheme,
 		...(originalUri.authority ? { authority: originalUri.authority } : {}),
 		...(originalUri.query ? { query: originalUri.query } : {}),
+		...(contentRef ? { contentRef: true } as const : {}),
 	};
 	const params = new URLSearchParams();
 	params.set(AGENT_HOST_META_PARAM, encodeBase64(VSBuffer.fromString(JSON.stringify(meta)), false, true));
@@ -96,6 +128,35 @@ export function toAgentHostUri(originalUri: URI, connectionAuthority: string): U
 }
 
 /**
+ * Reads the {@link IAgentHostUriMeta} payload off a {@link AGENT_HOST_SCHEME}
+ * URI, or `undefined` when it is absent or malformed.
+ */
+function readAgentHostUriMeta(agentHostUri: URI): Partial<IAgentHostUriMeta> | undefined {
+	const encoded = agentHostUri.query ? new URLSearchParams(agentHostUri.query).get(AGENT_HOST_META_PARAM) : null;
+	if (!encoded) {
+		return undefined;
+	}
+	try {
+		return JSON.parse(decodeBase64(encoded).toString()) as Partial<IAgentHostUriMeta>;
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * Whether the URI wraps a protocol `ContentRef` — content read with
+ * `resourceRead`, never resolved with `resourceResolve`.
+ *
+ * See {@link toAgentHostContentUri}.
+ */
+export function isAgentHostContentRefUri(agentHostUri: URI): boolean {
+	if (agentHostUri.scheme !== AGENT_HOST_SCHEME) {
+		return false;
+	}
+	return readAgentHostUriMeta(agentHostUri)?.contentRef === true;
+}
+
+/**
  * Extracts the original URI from a {@link AGENT_HOST_SCHEME} URI.
  *
  * The inverse of {@link toAgentHostUri}.
@@ -105,15 +166,7 @@ export function fromAgentHostUri(agentHostUri: URI): URI {
 		return agentHostUri;
 	}
 
-	let meta: Partial<IAgentHostUriMeta> | undefined;
-	const encoded = agentHostUri.query ? new URLSearchParams(agentHostUri.query).get(AGENT_HOST_META_PARAM) : null;
-	if (encoded) {
-		try {
-			meta = JSON.parse(decodeBase64(encoded).toString()) as Partial<IAgentHostUriMeta>;
-		} catch {
-			meta = undefined;
-		}
-	}
+	const meta = readAgentHostUriMeta(agentHostUri);
 
 	if (!meta || typeof meta.scheme !== 'string') {
 		// Missing/invalid metadata — fall back to treating the path as a

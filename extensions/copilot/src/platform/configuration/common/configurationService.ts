@@ -624,7 +624,6 @@ export namespace ConfigKey {
 		export const AgentHistorySummarizationMode = defineAndMigrateSetting<string | undefined>('chat.advanced.agentHistorySummarizationMode', 'chat.agentHistorySummarizationMode', undefined);
 		export const UseResponsesApiTruncation = defineAndMigrateSetting<boolean | undefined>('chat.advanced.useResponsesApiTruncation', 'chat.useResponsesApiTruncation', false);
 		export const OmitBaseAgentInstructions = defineAndMigrateSetting<boolean>('chat.advanced.omitBaseAgentInstructions', 'chat.omitBaseAgentInstructions', false);
-		export const CLIShowExternalSessions = defineSetting<boolean>('chat.cli.showExternalSessions', ConfigType.Simple, true);
 		export const CLIPlanExitModeEnabled = defineSetting<boolean>('chat.cli.planExitMode.enabled', ConfigType.Simple, true);
 		export const CLIAutoModelEnabled = defineSetting<boolean>('chat.cli.autoModel.enabled', ConfigType.Simple, true);
 		/**

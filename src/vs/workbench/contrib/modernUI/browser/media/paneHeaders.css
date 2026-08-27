@@ -92,7 +92,7 @@
  * MODERN_UI_PANE_HEADER_SIZE so CSS presentation and split-view layout agree.
  */
 .modern-ui .monaco-pane-view {
-	--pane-header-size: 28px;
+	--pane-header-size: var(--vscode-spacing-size280, 28px);
 }
 
 /* Tint the header background on hover (overrides the inline header background). */

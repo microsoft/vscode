@@ -13,7 +13,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import type { IChatDropdownPillOptions } from '../../../../workbench/browser/chatDropdownPill.js';
+import { ChatPillSingleEntry, type IChatDropdownPillOptions } from '../../../../workbench/browser/chatDropdownPill.js';
 import { type IChatPillEntry, type IChatPillSection } from '../../../../workbench/browser/chatPills.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { ISessionChatCustomization, ISessionFolder, SessionCustomizationKind, type IChat } from '../../../services/sessions/common/session.js';
@@ -33,7 +33,7 @@ export const chatCustomizationPillOptions: IChatDropdownPillOptions = {
 	summaryAriaLabel: count => count === 1
 		? localize('chatCustomizations.showSingle', "Show 1 customization")
 		: localize('chatCustomizations.show', "Show {0} customizations", count),
-	alwaysSummarize: true,
+	singleEntry: ChatPillSingleEntry.Summary,
 };
 
 const customizationIcons: ReadonlyMap<SessionCustomizationKind, ThemeIcon> = new Map([

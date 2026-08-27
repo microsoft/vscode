@@ -215,6 +215,11 @@ jobs:
         timeout-minutes: 40
         run: bash test/smoke/scripts/run-agents-window-network-proxy.sh
 
+      - name: 🧪 Run Agents Window smoke tests through Kerberos-authenticated macOS PAC proxy
+        if: ${{ inputs.electron_tests && inputs.smoke_tests }}
+        timeout-minutes: 40
+        run: bash test/smoke/scripts/run-agents-window-network-proxy.sh --kerberos
+
       - name: 🧪 Run smoke tests (Browser, Chromium)
         if: ${{ inputs.browser_tests && inputs.smoke_tests }}
         timeout-minutes: 20

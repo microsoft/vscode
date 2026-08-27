@@ -111,7 +111,7 @@ export class SinglePaneNewSessionStrategy extends SinglePaneLayoutStrategy {
 			if (editors.length === 0) {
 				return;
 			}
-			if (!editors.every((editor) => editor instanceof EmptyFileEditorInput)) {
+			if (!editors.every(editor => editor instanceof EmptyFileEditorInput || isChangesEditorInput(editor, this._sessionChangesService))) {
 				return;
 			}
 
@@ -165,10 +165,7 @@ export class SinglePaneNewSessionStrategy extends SinglePaneLayoutStrategy {
 				return;
 			}
 			this._pendingSidePaneOpenHideSessionKey = undefined;
-			if (
-				editors.length !== 1 ||
-				!(editors[0] instanceof EmptyFileEditorInput)
-			) {
+			if (!editors.every(editor => editor instanceof EmptyFileEditorInput || isChangesEditorInput(editor, this._sessionChangesService))) {
 				return;
 			}
 

@@ -26,6 +26,36 @@ import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
 suite('MainThreadDataChannels', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('preserves the selected kind when the provider is no longer available', () => {
+		const presentations: unknown[] = [];
+		const extHostProxy = new class extends mock<ExtHostDataChannelsShape>() {
+			override $acceptLinkPresentation(_handle: number, data: unknown): void {
+				presentations.push(data);
+			}
+
+			override $acceptLinkPresentationRules(): void { }
+		};
+		const mainThread = store.add(new MainThreadDataChannels(
+			SingleProxyRPCProtocol(extHostProxy),
+			store.add(new DataChannelService()),
+			store.add(new LinkPresentationService(
+				new NullExtensionService(),
+				new NullLogService(),
+				new TestConfigurationService(),
+				store.add(new TestStorageService()),
+			)),
+		));
+
+		mainThread.$createLinkPresentationWatcher(1, 'missing', 'pullRequest', URI.parse('https://example.com/pull/1'));
+
+		assert.deepStrictEqual(presentations, [{
+			kind: 'pullRequest',
+			status: { kind: 'error', label: 'Not available' },
+			tooltip: 'The selected link presentation provider does not accept this resource.',
+			ariaLabel: 'Link presentation is not available',
+		}]);
+	});
+
 	test('bridges core link presentation watchers and runtime enablement', async () => {
 		const presentation = observableValue<ILinkPresentation | undefined>('presentation', {
 			kind: 'session',
@@ -43,7 +73,7 @@ suite('MainThreadDataChannels', () => {
 		store.add(linkPresentationService.registerLinkPresentationProvider({
 			id: 'test.sessions',
 			uriPattern: /^agent-host-session:/i,
-			initialKind: 'session',
+			kind: 'session',
 			enablement: 'test.richLinks.enabled',
 		}, {
 			createLinkPresentationWatcher: () => {
@@ -55,7 +85,7 @@ suite('MainThreadDataChannels', () => {
 			},
 		}));
 
-		let acceptedRules: readonly { id: string; source: string; flags: string; initialKind: vscode.LinkPresentationKind }[] = [];
+		let acceptedRules: readonly { id: string; source: string; flags: string; kind: vscode.LinkPresentationKind }[] = [];
 		const extHostHolder: { value?: ExtHostDataChannels } = {};
 		const extHostProxy: ExtHostDataChannelsShape = {
 			$onDidReceiveData: (channelId, value) => extHostHolder.value?.$onDidReceiveData(channelId, value),
@@ -105,7 +135,7 @@ suite('MainThreadDataChannels', () => {
 		assert.deepStrictEqual({
 			values,
 			acceptedRules,
-			linkPresentationRules: extHost.linkPresentationRules.map(rule => ({ id: rule.id, source: rule.uriPattern.source, flags: rule.uriPattern.flags, initialKind: rule.initialKind })),
+			linkPresentationRules: extHost.linkPresentationRules.map(rule => ({ id: rule.id, source: rule.uriPattern.source, flags: rule.uriPattern.flags, kind: rule.kind })),
 			ruleChangeCount,
 			providerWatcherCreateCount,
 			providerWatcherDisposeCount,
@@ -116,8 +146,8 @@ suite('MainThreadDataChannels', () => {
 				{ kind: 'session', title: 'Running session', status: { kind: 'pending', label: 'Working' }, isLoading: true },
 				{ kind: 'session', title: 'Completed session', status: { kind: 'success', label: 'Completed' } },
 			],
-			acceptedRules: [{ id: 'test.sessions', source: '^agent-host-session:', flags: 'i', initialKind: 'session' }],
-			linkPresentationRules: [{ id: 'test.sessions', source: '^agent-host-session:', flags: 'i', initialKind: 'session' }],
+			acceptedRules: [{ id: 'test.sessions', source: '^agent-host-session:', flags: 'i', kind: 'session' }],
+			linkPresentationRules: [{ id: 'test.sessions', source: '^agent-host-session:', flags: 'i', kind: 'session' }],
 			ruleChangeCount: 2,
 			providerWatcherCreateCount: 2,
 			providerWatcherDisposeCount: 2,
@@ -135,10 +165,10 @@ suite('MainThreadDataChannels', () => {
 		store.add(linkPresentationService.declareExtensionLinkPresentationProvider('test.extension', {
 			id: 'test.linkPresentations',
 			uriPattern: '^https://github\\.com/[^/]+/[^/]+/pull/[0-9]+$',
-			initialKind: 'resource',
+			kind: 'pullRequest',
 			enablement: 'test.richLinks.enabled',
 		}));
-		let acceptedRules: readonly { id: string; source: string; flags: string; initialKind: vscode.LinkPresentationKind }[] = [];
+		let acceptedRules: readonly { id: string; source: string; flags: string; kind: vscode.LinkPresentationKind }[] = [];
 		const extHostProxy: ExtHostDataChannelsShape = {
 			$onDidReceiveData: (channelId, value) => extHost.$onDidReceiveData(channelId, value),
 			$acceptLinkPresentationRules: rules => acceptedRules = rules,
@@ -243,7 +273,7 @@ suite('MainThreadDataChannels', () => {
 				id: 'test.linkPresentations',
 				source: '^https:\\/\\/github\\.com\\/[^/]+\\/[^/]+\\/pull\\/[0-9]+$',
 				flags: 'i',
-				initialKind: 'resource',
+				kind: 'pullRequest',
 			}],
 			secondInitialPresentation: {
 				kind: 'pullRequest',
@@ -270,7 +300,7 @@ suite('MainThreadDataChannels', () => {
 			id: 'test.pullRequests',
 			source: '^https://github\\.com/[^/]+/[^/]+/pull/[0-9]+$',
 			flags: 'i',
-			initialKind: 'pullRequest',
+			kind: 'pullRequest',
 		}]);
 		const extension = {
 			...nullExtensionDescription,
@@ -290,10 +320,18 @@ suite('MainThreadDataChannels', () => {
 		});
 		firstWatcher.dispose();
 		const secondWatcher = store.add(extHost.createLinkPresentationWatcher(extension, 'test.pullRequests', resource));
+		extHost.$acceptLinkPresentationRules([{
+			id: 'test.pullRequests',
+			source: '^https://github\\.com/[^/]+/[^/]+/pull/[0-9]+$',
+			flags: 'i',
+			kind: 'issue',
+		}]);
+		const changedKindWatcher = store.add(extHost.createLinkPresentationWatcher(extension, 'test.pullRequests', resource));
 
 		assert.deepStrictEqual({
 			ruleInitialPresentation,
 			cachedInitialPresentation: secondWatcher.presentation,
+			changedKindInitialPresentation: changedKindWatcher.presentation,
 		}, {
 			ruleInitialPresentation: {
 				kind: 'pullRequest',
@@ -305,6 +343,156 @@ suite('MainThreadDataChannels', () => {
 				status: { kind: 'open', label: 'Open' },
 				isLoading: true,
 			},
+			changedKindInitialPresentation: {
+				kind: 'issue',
+				isLoading: true,
+			},
+		});
+	});
+
+	test('skips file link presentation providers', () => {
+		const linkPresentationService = store.add(new LinkPresentationService(
+			new NullExtensionService(),
+			new NullLogService(),
+			new TestConfigurationService(),
+			store.add(new TestStorageService()),
+		));
+		let watcherCreateCount = 0;
+		store.add(linkPresentationService.registerLinkPresentationProvider({
+			id: 'test.coreFiles',
+			uriPattern: /^file:/,
+			kind: 'file',
+		}, {
+			createLinkPresentationWatcher: () => {
+				watcherCreateCount++;
+				return {
+					presentation: observableValue<ILinkPresentation | undefined>('filePresentation', { kind: 'file' }),
+					dispose: () => { },
+				};
+			},
+		}));
+		store.add(linkPresentationService.declareExtensionLinkPresentationProvider('test.extension', {
+			id: 'test.extensionFiles',
+			uriPattern: '^https://example\\.com/file$',
+			kind: 'file',
+		}));
+
+		const fileResource = URI.parse('file:///workspace/file.ts');
+		const remoteFileResource = URI.parse('https://example.com/file');
+		assert.deepStrictEqual({
+			rules: linkPresentationService.linkPresentationRules,
+			fileRule: linkPresentationService.getLinkPresentationRule(fileResource),
+			remoteFileRule: linkPresentationService.getLinkPresentationRule(remoteFileResource),
+			fileWatcher: linkPresentationService.createLinkPresentationWatcher('test.coreFiles', fileResource),
+			remoteFileWatcher: linkPresentationService.createLinkPresentationWatcher('test.extensionFiles', remoteFileResource),
+			watcherCreateCount,
+		}, {
+			rules: [],
+			fileRule: undefined,
+			remoteFileRule: undefined,
+			fileWatcher: undefined,
+			remoteFileWatcher: undefined,
+			watcherCreateCount: 0,
+		});
+	});
+
+	test('rejects presentations that disagree with the registered kind', () => {
+		const linkPresentationService = store.add(new LinkPresentationService(
+			new NullExtensionService(),
+			new NullLogService(),
+			new TestConfigurationService(),
+			store.add(new TestStorageService()),
+		));
+		const presentation = observableValue<ILinkPresentation | undefined>('presentation', {
+			kind: 'issue',
+			title: 'Wrong kind',
+		});
+		store.add(linkPresentationService.registerLinkPresentationProvider({
+			id: 'test.pullRequests',
+			uriPattern: /^https:\/\/example\.com\/pull\/[0-9]+$/,
+			kind: 'pullRequest',
+		}, {
+			createLinkPresentationWatcher: () => ({
+				presentation,
+				dispose: () => { },
+			}),
+		}));
+		const watcher = store.add(linkPresentationService.createLinkPresentationWatcher(
+			'test.pullRequests',
+			URI.parse('https://example.com/pull/1'),
+		)!);
+		const values: (ILinkPresentation | undefined)[] = [];
+		store.add(autorun(reader => values.push(watcher.presentation.read(reader))));
+
+		presentation.set({
+			kind: 'pullRequest',
+			title: 'Correct kind',
+		}, undefined);
+
+		assert.deepStrictEqual(values, [
+			{
+				kind: 'pullRequest',
+				status: { kind: 'error', label: 'Not available' },
+				tooltip: 'The link presentation provider failed to load.',
+				ariaLabel: 'Link presentation is not available',
+			},
+			{
+				kind: 'pullRequest',
+				title: 'Correct kind',
+			},
+		]);
+	});
+
+	test('replaces a restored presentation when the provider returns the wrong kind', () => {
+		const configurationService = new TestConfigurationService();
+		const storageService = store.add(new TestStorageService());
+		const resource = URI.parse('https://example.com/pull/1');
+		const registration: ILinkPresentationProviderRegistration = {
+			id: 'test.pullRequests',
+			uriPattern: /^https:\/\/example\.com\/pull\/[0-9]+$/,
+			kind: 'pullRequest',
+		};
+		const firstService = store.add(new LinkPresentationService(
+			new NullExtensionService(),
+			new NullLogService(),
+			configurationService,
+			storageService,
+		));
+		store.add(firstService.registerLinkPresentationProvider(registration, {
+			createLinkPresentationWatcher: () => ({
+				presentation: observableValue<ILinkPresentation | undefined>('firstPresentation', {
+					kind: 'pullRequest',
+					title: 'Cached pull request',
+				}),
+				dispose: () => { },
+			}),
+		}));
+		const firstWatcher = store.add(firstService.createLinkPresentationWatcher(registration.id, resource)!);
+		firstWatcher.dispose();
+		firstService.dispose();
+
+		const restoredService = store.add(new LinkPresentationService(
+			new NullExtensionService(),
+			new NullLogService(),
+			configurationService,
+			storageService,
+		));
+		store.add(restoredService.registerLinkPresentationProvider(registration, {
+			createLinkPresentationWatcher: () => ({
+				presentation: observableValue<ILinkPresentation | undefined>('wrongPresentation', {
+					kind: 'issue',
+					title: 'Wrong kind',
+				}),
+				dispose: () => { },
+			}),
+		}));
+		const restoredWatcher = store.add(restoredService.createLinkPresentationWatcher(registration.id, resource)!);
+
+		assert.deepStrictEqual(restoredWatcher.presentation.get(), {
+			kind: 'pullRequest',
+			status: { kind: 'error', label: 'Not available' },
+			tooltip: 'The link presentation provider failed to load.',
+			ariaLabel: 'Link presentation is not available',
 		});
 	});
 
@@ -315,7 +503,7 @@ suite('MainThreadDataChannels', () => {
 		const registration: ILinkPresentationProviderRegistration = {
 			id: 'test.pullRequests',
 			uriPattern: /^https:\/\/github\.com\/[^/]+\/[^/]+\/pull\/[0-9]+$/i,
-			initialKind: 'pullRequest',
+			kind: 'pullRequest',
 			enablement: 'test.richLinks.enabled',
 		};
 		const firstService = store.add(new LinkPresentationService(

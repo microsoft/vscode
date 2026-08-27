@@ -69,7 +69,6 @@ function createMockDelegate(session: IActiveSession, chats: readonly IChat[], ac
 		visible: session.shouldShowChatTabs,
 		showSessionActions: session.shouldShowChatTabs,
 		openChat: () => { },
-		newChat: () => { },
 	};
 }
 

@@ -24,6 +24,7 @@ suite('SessionChatPills', () => {
 			],
 			withoutData: [
 				{ kind: SessionChatPillKind.Artifacts, label: 'Artifacts', checked: true },
+				{ kind: SessionChatPillKind.References, label: 'References', checked: true },
 				{ kind: SessionChatPillKind.Customizations, label: 'Customizations', checked: true },
 				{ kind: SessionChatPillKind.Issues, label: 'Issues', checked: true },
 				{ kind: SessionChatPillKind.Browsers, label: 'Browsers', checked: true },
@@ -52,11 +53,13 @@ suite('SessionChatPills', () => {
 			customizations: visibility.isVisible(SessionChatPillKind.Customizations, undefined),
 			subagents: visibility.isVisible(SessionChatPillKind.Subagents, undefined),
 			artifacts: visibility.isVisible(SessionChatPillKind.Artifacts, undefined),
+			references: visibility.isVisible(SessionChatPillKind.References, undefined),
 			changes: visibility.isVisible(SessionChatPillKind.Changes, undefined),
 		}, {
 			customizations: false,
 			subagents: false,
 			artifacts: true,
+			references: true,
 			changes: true,
 		});
 	});

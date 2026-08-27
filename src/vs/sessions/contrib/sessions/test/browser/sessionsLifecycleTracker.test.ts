@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChat, IGitHubInfo, IGitHubPullRequestRef, ISession, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
-import { MAX_TRACKED_SESSIONS, SESSIONS_KEY, SessionsLifecycleTracker } from '../../browser/sessionsLifecycleTracker.js';
+import { MAX_TRACKED_SESSIONS, MAX_TYPED_FILES_PER_SESSION, SESSIONS_KEY, SessionsLifecycleTracker } from '../../browser/sessionsLifecycleTracker.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 
 interface ICreateSessionOptions {
@@ -208,6 +208,72 @@ suite('SessionsLifecycleTracker', () => {
 		assert.strictEqual(summary!.firstRequestSentInThisClient, false);
 	});
 
+	test('addTypedCharacters accumulates for tracked sessions and never starts tracking', () => {
+		const tracked = createSession('s1');
+		const untracked = createSession('s2');
+		const file = URI.parse('file:///repo/a.ts');
+		tracker.recordNewChatRequestSent(tracked);
+
+		tracker.addTypedCharacters(tracked.sessionId, file, 12);
+		tracker.addTypedCharacters(tracked.sessionId, file, 30);
+		tracker.addTypedCharacters(untracked.sessionId, file, 100);
+
+		assert.strictEqual(tracker.isTracked(untracked.sessionId), false);
+		assert.strictEqual(tracker.finalize(tracked.sessionId, 'archived', tracked)!.typedCharacters, 42);
+	});
+
+	test('typedFileCount counts distinct files and saturates at the cap', () => {
+		const session = createSession('s1');
+		tracker.recordNewChatRequestSent(session);
+
+		tracker.addTypedCharacters(session.sessionId, URI.parse('file:///repo/a.ts'), 1);
+		tracker.addTypedCharacters(session.sessionId, URI.parse('file:///repo/a.ts'), 1);
+		tracker.addTypedCharacters(session.sessionId, URI.parse('file:///repo/b.ts'), 1);
+		for (let i = 0; i < MAX_TYPED_FILES_PER_SESSION + 10; i++) {
+			tracker.addTypedCharacters(session.sessionId, URI.parse(`file:///repo/gen-${i}.ts`), 1);
+		}
+
+		const summary = tracker.finalize(session.sessionId, 'archived', session);
+		assert.strictEqual(summary!.typedFileCount, MAX_TYPED_FILES_PER_SESSION);
+		assert.strictEqual(summary!.typedCharacters, MAX_TYPED_FILES_PER_SESSION + 13);
+	});
+
+	test('typedFileCount separates paths that collide under a 32-bit string hash', () => {
+		// `hash()` is a polynomial string hash, so these two paths hash equal
+		// and would be counted as a single file.
+		const first = URI.parse('file:///repo/Aa.ts');
+		const second = URI.parse('file:///repo/BB.ts');
+		assert.strictEqual(hash(first.toString()), hash(second.toString()), 'precondition: paths collide under hash()');
+
+		const session = createSession('s1');
+		tracker.recordNewChatRequestSent(session);
+		tracker.addTypedCharacters(session.sessionId, first, 3);
+		tracker.addTypedCharacters(session.sessionId, second, 4);
+
+		const summary = tracker.finalize(session.sessionId, 'archived', session);
+		assert.strictEqual(summary!.typedFileCount, 2);
+		assert.strictEqual(summary!.typedCharacters, 7);
+	});
+
+	test('discards file identities persisted in the superseded numeric format', () => {
+		const session = createSession('s1');
+		tracker.recordNewChatRequestSent(session);
+		tracker.addTypedCharacters(session.sessionId, URI.parse('file:///repo/a.ts'), 5);
+
+		// Rewrite the stored identities the way an earlier build wrote them.
+		const stored = JSON.parse(storage.get(SESSIONS_KEY, StorageScope.APPLICATION)!);
+		stored[session.sessionId].typedFileHashes = [123, 456];
+		storage.store(SESSIONS_KEY, JSON.stringify(stored), StorageScope.APPLICATION, StorageTarget.MACHINE);
+
+		const reloaded = disposables.add(new SessionsLifecycleTracker(storage));
+		reloaded.addTypedCharacters(session.sessionId, URI.parse('file:///repo/a.ts'), 2);
+
+		const summary = reloaded.finalize(session.sessionId, 'archived', session);
+		// Characters survive; only the incomparable identities are dropped.
+		assert.strictEqual(summary!.typedFileCount, 1);
+		assert.strictEqual(summary!.typedCharacters, 7);
+	});
+
 	test('bumpCounter increments distinct counter keys independently', () => {
 		const session = createSession('s1');
 
@@ -338,7 +404,7 @@ suite('SessionsLifecycleTracker', () => {
 		});
 	});
 
-	test('summary reports the multi-root workspace topology captured at first observation', () => {
+	test('summary reports the multi-root workspace topology', () => {
 		const workspaceUri = URI.parse('file:///repo');
 		const gitFolder = URI.parse('file:///repo/app');
 		const nonGitFolder = URI.parse('file:///repo/notes');
@@ -362,6 +428,35 @@ suite('SessionsLifecycleTracker', () => {
 			folderCount: 2,
 			gitFolderCount: 1,
 			nonGitFolderCount: 1,
+		});
+	});
+
+	test('summary reports the folder counts as last observed, not as first observed', () => {
+		// A session's workspace resolves asynchronously, so the folders known
+		// when tracking starts are not necessarily what the user worked with.
+		const workspaceUri = URI.parse('file:///repo');
+		const workspace = observableValue<ISessionWorkspace | undefined>('workspace', undefined);
+		const session = { ...createSession('s1'), workspace };
+
+		tracker.recordNewChatRequestSent(session);
+		workspace.set(createWorkspace(workspaceUri, [
+			createFolder(URI.parse('file:///repo/app'), { withGitRepository: true }),
+			createFolder(URI.parse('file:///repo/notes')),
+			createFolder(URI.parse('file:///repo/docs')),
+		]), undefined);
+		const summary = tracker.finalize(session.sessionId, 'archived', session);
+
+		assert.ok(summary);
+		assert.deepStrictEqual({
+			isMultiRoot: summary!.isMultiRoot,
+			folderCount: summary!.folderCount,
+			gitFolderCount: summary!.gitFolderCount,
+			nonGitFolderCount: summary!.nonGitFolderCount,
+		}, {
+			isMultiRoot: true,
+			folderCount: 3,
+			gitFolderCount: 1,
+			nonGitFolderCount: 2,
 		});
 	});
 

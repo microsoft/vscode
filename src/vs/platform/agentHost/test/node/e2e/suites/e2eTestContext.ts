@@ -22,6 +22,7 @@ export type AgentHostE2ETier = 'conformance' | 'parity';
 
 export interface IAgentHostE2ETestContext {
 	readonly tier: AgentHostE2ETier;
+	readonly targetId: string;
 	readonly config: IAgentHostE2EProviderConfig;
 	readonly client: TestProtocolClient;
 	readonly createdSessions: string[];

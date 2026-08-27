@@ -59,7 +59,7 @@ import { isNumber } from '../../../../../../../base/common/types.js';
 import { removeAnsiEscapeCodes } from '../../../../../../../base/common/strings.js';
 import { PANEL_BACKGROUND } from '../../../../../../common/theme.js';
 import { editorBackground } from '../../../../../../../platform/theme/common/colorRegistry.js';
-import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
+import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { CommandsRegistry } from '../../../../../../../platform/commands/common/commands.js';
 
 /**
@@ -330,6 +330,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		return this._contentIndex;
 	}
 
+	public get terminalToolSessionId(): string | undefined {
+		return this._terminalData.terminalToolSessionId;
+	}
+
 	constructor(
 		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
 		terminalData: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData,
@@ -438,24 +442,11 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			initializeTerminalActionsOnce();
 		});
 
-		// Listen for continue in background — updates toolbar to auto-hide the action
 		const terminalToolSessionId = this._terminalData.terminalToolSessionId;
 		if (terminalToolSessionId) {
 			if (this._terminalData.isPty === false) {
 				this._attachOutputSource();
-				this._register(this._terminalChatService.onDidRegisterOutputSource(sessionId => {
-					if (sessionId === terminalToolSessionId) {
-						this._attachOutputSource();
-					}
-				}));
 			}
-			this._register(this._terminalChatService.onDidContinueInBackground(sessionId => {
-				if (sessionId === terminalToolSessionId) {
-					this._terminalData.didContinueInBackground = true;
-					this._toolbarCanContinueInBackground = false;
-					this._updateToolbarActions();
-				}
-			}));
 		}
 		let pastTenseMessage: string | undefined;
 		if (toolInvocation.pastTenseMessage) {
@@ -542,7 +533,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				return;
 			}
 
-			const widget = this._register(this._instantiationService.createInstance(ChatResourceGroupWidget, imageParts));
+			const widget = this._register(this._instantiationService.createInstance(ChatResourceGroupWidget, imageParts, undefined));
 
 			if (this._thinkingCollapsibleWrapper) {
 				// Reparent the single widget between inner (expanded) and outer (collapsed)
@@ -1087,6 +1078,12 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		return this._terminalInstance;
 	}
 
+	public didRegisterOutputSource(terminalToolSessionId: string): void {
+		if (this._terminalData.isPty === false && this._terminalData.terminalToolSessionId === terminalToolSessionId) {
+			this._attachOutputSource();
+		}
+	}
+
 	private _attachOutputSource(): void {
 		const source = this._terminalChatService.getOutputSource(this._terminalData.terminalToolSessionId);
 		if (!source || source === this._outputSource) {
@@ -1215,6 +1212,12 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		if (sessionId) {
 			this._terminalChatService.continueInBackground(sessionId);
 		}
+	}
+
+	public markContinuedInBackground(): void {
+		this._terminalData.didContinueInBackground = true;
+		this._toolbarCanContinueInBackground = false;
+		this._updateToolbarActions();
 	}
 
 	public async toggleOutputFromAction(): Promise<void> {
@@ -1347,7 +1350,6 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
-		@IThemeService private readonly _themeService: IThemeService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
@@ -1375,8 +1377,8 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		const resizeObserver = this._register(new dom.DisposableResizeObserver('ChatTerminalToolProgressPart.handleResize', () => this._handleResize()));
 		this._register(resizeObserver.observe(this.domNode));
 
-		this._applyBackgroundColor();
-		this._register(this._themeService.onDidColorThemeChange(() => this._applyBackgroundColor()));
+		const backgroundColor = ChatContextKeys.inChatEditor.getValue(this._contextKeyService) ? editorBackground : PANEL_BACKGROUND;
+		this.domNode.style.backgroundColor = asCssVariable(backgroundColor);
 	}
 
 	public async toggle(expanded: boolean): Promise<boolean> {
@@ -1825,14 +1827,6 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		return Math.max(rowHeight, 1);
 	}
 
-	private _applyBackgroundColor(): void {
-		const theme = this._themeService.getColorTheme();
-		const isInEditor = ChatContextKeys.inChatEditor.getValue(this._contextKeyService);
-		const backgroundColor = theme.getColor(isInEditor ? editorBackground : PANEL_BACKGROUND);
-		if (backgroundColor) {
-			this.domNode.style.backgroundColor = backgroundColor.toString();
-		}
-	}
 }
 
 export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart {

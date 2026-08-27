@@ -142,6 +142,7 @@ import './services/userAttention/browser/userAttentionBrowser.js';
 import './services/editor/browser/editorPaneService.js';
 import './services/editor/common/customEditorLabelService.js';
 import './services/dataChannel/browser/dataChannelService.js';
+import './services/github/browser/githubService.js';
 import './services/inlineCompletions/common/inlineCompletionsUnification.js';
 import './services/chat/common/chatEntitlementService.js';
 import './services/agentHost/common/agentHostResourceService.js';
@@ -279,6 +280,7 @@ import './contrib/sash/browser/sash.contribution.js';
 
 // Git
 import './contrib/git/browser/git.contributions.js';
+import './contrib/github/browser/githubLinkPresentation.contribution.js';
 
 // SCM
 import './contrib/scm/browser/scm.contribution.js';

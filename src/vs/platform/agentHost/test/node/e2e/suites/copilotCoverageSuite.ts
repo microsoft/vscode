@@ -130,7 +130,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 			seen.add(notification as object);
 			if (isActionNotification(notification, 'chat/error')) {
 				const action = getActionEnvelope(notification).action as ChatErrorAction;
-				throw new Error(`Tool-search turn failed: ${action.error.errorType}: ${action.error.message}`);
+				throw new Error(`Tool-search turn failed: ${action.part.error.errorType}: ${action.part.error.message}`);
 			}
 			if (isActionNotification(notification, 'chat/toolCallStart')) {
 				const action = getActionEnvelope(notification).action as ChatToolCallStartAction;

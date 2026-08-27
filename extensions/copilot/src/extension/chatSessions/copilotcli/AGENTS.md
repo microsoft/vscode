@@ -321,6 +321,8 @@ Orchestrates the start and end of each chat request turn, coordinating worktree 
 
 - **Steering mode**: When a session is already busy (`InProgress` or `NeedsInput`), use `send({ mode: 'immediate' })` to inject messages into the running conversation instead of starting a new request.
 
+- **External sessions are never listed**: `isExternalSession()` in `node/copilotcliSessionService.ts` filters out every session whose `IChatSessionMetadataStore` origin is not `vscode` (e.g. started from the terminal CLI). It is applied on *all* listing paths — `shouldShowSession()` (disk), `getSessionItemImpl()` (targeted refresh), and the in-progress wrapper fallback in `_getAllSessions()` — because `getSession()` can load an external session into `_sessionWrappers` without changing its origin. There is no setting for this — the Agent Host owns external session visibility via `chat.agentSessions.showExternalAgentSessions`.
+
 ## Commands & Slash Commands
 
 **Copilot CLI  commands** (user-facing, sent programmatically):
@@ -341,7 +343,6 @@ The integration respects these VS Code settings (all under `github.copilot.chat.
 |---------|---------|-------------|
 | `mcp.enabled` | `true` | Enable MCP server proxying for CLI sessions |
 | `branchSupport.enabled` | `false` | Enable Git branch support features |
-| `showExternalSessions` | `false` | Show sessions created outside VS Code (e.g., terminal CLI) |
 | `planExitMode.enabled` | `true` | Show plan exit mode choices (Autopilot/Interactive/Exit) |
 | `planCommand.enabled` | `true` | Enable the `/plan` command |
 | `aiGenerateBranchNames.enabled` | `true` | AI-generated branch names for worktrees |

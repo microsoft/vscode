@@ -19,6 +19,8 @@ import { AgentHostSyncOperationContribution } from './agentHostSyncOperationProv
 import { AgentHostWorkspaceFiles } from './agentHostWorkspaceFiles.js';
 import { AgentHostChatCompletionProvider } from './agentHostChatCompletionProvider.js';
 import { CodexCompactCompletionProvider } from './codexCompactCommand.js';
+import { IAgentHostChatContributions } from '../common/agentHostChatContributionsService.js';
+import { registerBuiltInChatContributions } from './chatContributions/builtInChatContributions.js';
 
 export function activateAgentHostContributions(accessor: ServicesAccessor, instantiationService: IInstantiationService): DisposableStore {
 	const store = new DisposableStore();
@@ -42,6 +44,7 @@ export function activateAgentHostContributions(accessor: ServicesAccessor, insta
 		store.add(completions.registerProvider(new CodexCompactCompletionProvider(
 			session => (stateManager.getSessionState(session)?.turns.length ?? 0) > 0,
 		)));
+		store.add(registerBuiltInChatContributions(accessor.get(IAgentHostChatContributions)));
 		return store;
 	} catch (error) {
 		store.dispose();

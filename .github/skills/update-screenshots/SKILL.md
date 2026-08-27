@@ -1,27 +1,120 @@
 ---
 name: update-screenshots
-description: Download screenshot baselines from the latest CI run and commit them. Use when asked to update, accept, or refresh component screenshot baselines from CI, or after the screenshot-test GitHub Action reports differences. This skill should be run as a subagent.
+description: Update the committed blocks-ci screenshot hashes after the "Screenshots & Tests" check fails, or investigate a screenshot diff reported on a PR. Use when asked to update, accept, or refresh component screenshot baselines from CI. This skill should be run as a subagent.
 ---
 
 # Update Component Screenshots from CI
 
-Screenshot baselines are **no longer stored in the repository**. They are managed by an external screenshot service (`hediet-screenshots.azurewebsites.net`). The CI workflow uploads screenshots to this service and diffs them automatically.
+Screenshot **images** are not stored in the repository — they live in an external service
+(`hediet-screenshots.azurewebsites.net`), keyed by commit SHA. But a subset of fixtures is
+pinned by **hash** in [`test/componentFixtures/blocks-ci-screenshots.md`](../../../test/componentFixtures/blocks-ci-screenshots.md),
+and that file **is** committed. When those hashes change, CI fails and you must update the file.
 
-When the `Checking Component Screenshots` GitHub Action detects changes, it posts a PR comment with before/after comparisons. No manual baseline updates are needed — the screenshots on the `main` branch commit become the new baselines automatically after merge.
+## Two different outcomes, only one of which blocks
 
-## What Changed
+The `Screenshots & Tests` job in [`.github/workflows/component-fixtures.yml`](../../workflows/component-fixtures.yml)
+produces two independent results:
 
-- Baseline images were removed from `test/componentFixtures/.screenshots/baseline/`.
-- Git LFS is no longer used for screenshot storage.
-- The screenshot service stores images keyed by commit SHA and handles diffing.
+| Result | Blocking? | Action |
+| --- | --- | --- |
+| Screenshot **diff report** (PR comment with before/after images) | No — informational | Review the visuals. Nothing to commit. |
+| **blocks-ci hash mismatch** | **Yes — fails the check** | Update `blocks-ci-screenshots.md` and commit. |
 
-## If Screenshots Need Investigation
+A fixture opts into the blocking gate with `labels: { kind: 'screenshot', blocksCi: true }`.
+Only those fixtures appear in `blocks-ci-screenshots.md`.
 
-1. Check the PR comment posted by the CI workflow for visual diffs.
-2. Download the `screenshots` artifact from the CI run for the raw captured images:
+The failure looks like this:
 
-```bash
-gh run download <run-id> --name screenshots --dir .tmp/screenshots
+```
+##[error]blocks-ci screenshot hashes do not match committed file. See PR comment or job summary for the updated content.
 ```
 
-3. Compare locally if needed. The artifact contains the full set of captured screenshots.
+## Step 1: Get the expected hashes from CI
+
+> **Never regenerate the hashes locally.** They are hashes of the rendered PNG bytes, produced
+> on `ubuntu-latest`. Rendering on macOS or Windows yields different bytes and therefore
+> different hashes, so locally generated values will fail CI. Always copy the values from the
+> CI job.
+
+Three surfaces carry the same content — use whichever is handy:
+
+- The **PR comment** titled "blocks-ci screenshots changed" (non-fork PRs only) — contains the
+  full updated file plus a patch.
+- The **job summary**, which gets the identical body and is the only surface fork PRs receive.
+- The **job log**, whose final step prints a unified diff:
+
+```bash
+gh api repos/microsoft/vscode/actions/jobs/<JOB_ID>/logs > "$TMPDIR/ci-job-log.txt"
+grep -n '##\[error\]' "$TMPDIR/ci-job-log.txt"
+```
+
+Find the failed job id with:
+
+```bash
+gh pr checks <PR> --json name,link,bucket --jq '.[] | select(.name == "Screenshots & Tests")'
+```
+
+## Step 2: Verify the change is intentional before accepting it
+
+This gate exists to catch **unintended** layout regressions, so accepting new hashes without
+looking at the images defeats its purpose. The images are publicly fetchable by hash, so pull
+both the old (committed) and new (from CI) versions and compare:
+
+```bash
+curl -sL -o old.png "https://hediet-screenshots.azurewebsites.net/images/<OLD_HASH>"
+curl -sL -o new.png "https://hediet-screenshots.azurewebsites.net/images/<NEW_HASH>"
+```
+
+Then view them, and localize the change rather than eyeballing full screenshots — the delta is
+often only a pixel or two:
+
+```bash
+python3 -c "
+from PIL import Image, ImageChops
+a = Image.open('old.png').convert('RGB'); b = Image.open('new.png').convert('RGB')
+print('diff bbox:', ImageChops.difference(a, b).getbbox())
+"
+```
+
+Confirm the delta matches what the PR intends. If the fixture is unrelated to the change, or
+the shift is larger than expected, treat it as a regression and fix the code instead of the
+hashes.
+
+## Step 3: Apply and commit
+
+Edit only the changed lines in `test/componentFixtures/blocks-ci-screenshots.md`, replacing the
+old hash in the image URL with the new one:
+
+```md
+#### editor/inlineChatZoneWidget/InlineChatZoneWidget/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/<NEW_HASH>)
+```
+
+The file is generated by [`build/lib/screenshotBlocksCi.ts`](../../../build/lib/screenshotBlocksCi.ts)
+and compared **byte-for-byte**, so keep the `<!-- auto-generated by CI — do not edit manually -->`
+header, the `#### <fixtureId>` / image-link pairing, the blank line between entries, and the
+`fixtureId` sort order intact. Verify your edit is the exact inverse of the diff CI reported:
+
+```bash
+git diff test/componentFixtures/blocks-ci-screenshots.md
+```
+
+Then commit and push. The check re-runs and should pass; hashes on `main` become the new
+baseline after merge.
+
+## Investigating further
+
+Raw captured images and the manifest for a run are uploaded as an artifact:
+
+```bash
+gh run download <RUN_ID> --name screenshots --dir .tmp/screenshots
+```
+
+`manifest.json` maps each `fixtureId` to its `imageHash` and any render errors.
+
+## Related failures from the same job
+
+The check also fails if a fixture **failed to render** (`Fail if fixtures had errors`) or if the
+Playwright fixture tests failed. Those are genuine bugs — updating hashes will not help. Look
+for `::error::<fixtureId>:` in the log, and download the `playwright-test-results` artifact for
+test failures.

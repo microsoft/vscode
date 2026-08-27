@@ -49,6 +49,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { isNumber } from '../../../../../base/common/types.js';
 import { clamp } from '../../../../../base/common/numbers.js';
 import { LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
+import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 
 const enum RenderConstants {
 	SmoothScrollDuration = 125
@@ -224,6 +225,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 		@ILayoutService layoutService: ILayoutService
 	) {
 		super();
@@ -328,6 +330,9 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this._register(this._decorationAddon.onDidRequestRunCommand(e => this._onDidRequestRunCommand.fire(e)));
 		this._register(this._decorationAddon.onDidRequestCopyAsHtml(e => this._onDidRequestCopyAsHtml.fire(e)));
 		this.raw.loadAddon(this._decorationAddon);
+		if (!options.detached) {
+			this._register(lifecycleService.onWillShutdown(() => this._decorationAddon.clearDecorations()));
+		}
 		this._shellIntegrationAddon = new ShellIntegrationAddon(options.shellIntegrationNonce ?? '', options.disableShellIntegrationReporting, this._onDidExecuteText, this._telemetryService, this._logService);
 		this.raw.loadAddon(this._shellIntegrationAddon);
 		this._xtermAddonLoader.importAddon('clipboard').then(ClipboardAddon => {

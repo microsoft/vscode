@@ -28,7 +28,7 @@
 	background: none;
 	color: var(--vscode-editorHoverWidget-foreground);
 	font-family: inherit;
-	font-size: var(--vscode-agents-fontSize-body1);
+	font-size: var(--vscode-fontSize-body1);
 	line-height: 1.4;
 	text-align: left;
 	cursor: pointer;

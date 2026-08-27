@@ -25,7 +25,7 @@
 
 .files-empty-view-body .files-empty-welcome-message {
 	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 }
 
 /* Sync Changes Action */

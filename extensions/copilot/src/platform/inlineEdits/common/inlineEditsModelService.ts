@@ -24,6 +24,35 @@ export interface IInlineEditsModelService {
 
 export const IInlineEditsModelService = createServiceIdentifier<IInlineEditsModelService>('IInlineEditsModelService');
 
+export class NullInlineEditsModelService implements IInlineEditsModelService {
+	declare _serviceBrand: undefined;
+
+	readonly modelInfo = undefined;
+
+	readonly onModelListUpdated = Event.None;
+
+	setCurrentModelId(_modelId: string): Promise<void> {
+		return Promise.resolve();
+	}
+
+	selectedModelConfiguration(): ModelConfiguration {
+		return NullInlineEditsModelService._defaultConfiguration();
+	}
+
+	defaultModelConfiguration(): ModelConfiguration {
+		return NullInlineEditsModelService._defaultConfiguration();
+	}
+
+	private static _defaultConfiguration(): ModelConfiguration {
+		return {
+			modelName: '',
+			promptingStrategy: undefined,
+			includeTagsInCurrentFile: true,
+			lintOptions: undefined,
+		};
+	}
+}
+
 export interface IUndesiredModelsManager {
 	readonly _serviceBrand: undefined;
 	readonly onDidChange: Event<void>;

@@ -110,6 +110,9 @@ steps:
 
   - template: ../common/install-builtin-extensions.yml@self
 
+  - script: node build/npm/electronTypes.ts
+    displayName: Prepare Electron types
+
   - template: ../common/mixin-vscode-capi.yml@self
 
   - powershell: npm run gulp core-ci

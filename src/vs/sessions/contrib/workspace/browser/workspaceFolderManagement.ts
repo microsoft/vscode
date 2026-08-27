@@ -6,6 +6,7 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ensureSessionWorktreesTrusted } from '../../../services/sessions/browser/worktreeTrust.js';
 import { IWorkspaceContextService, WorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceEditingService } from '../../../../workbench/services/workspaces/common/workspaceEditing.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -41,7 +42,7 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 	private async updateWorkspaceFoldersForSession(session: ISession | undefined): Promise<void> {
 		// Auto-trust an isolated worktree VS Code created off a trusted repo, so a
 		// worktree session mounts without tripping the untrusted-folder backstop.
-		await this.ensureWorktreeTrusted(session);
+		await ensureSessionWorktreesTrusted(session?.workspace.get(), this.workspaceTrustManagementService);
 		const activeSessionFolderData = this.getActiveSessionFolderData(session);
 		const currentRepo = this.workspaceContextService.getWorkspace().folders[0]?.uri;
 
@@ -95,39 +96,6 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 				true
 			) ?? workspace.label
 		};
-	}
-
-	/**
-	 * Auto-trusts the isolated git worktree of the active session, but only when
-	 * VS Code created that worktree off a base repository the user already trusts.
-	 * This is the sole place trust is granted on the session-open path: a plain
-	 * (non-worktree) folder is never trusted here — it must pass the open-trust
-	 * gate ({@link ISessionsService.canOpenSession}) or an explicit trust prompt.
-	 *
-	 * Gating on the base repo's trust ensures trust never flows from an untrusted
-	 * repository into its worktree.
-	 */
-	private async ensureWorktreeTrusted(session: ISession | undefined): Promise<void> {
-		const workspace = session?.workspace.get();
-		if (!workspace?.requiresWorkspaceTrust) {
-			return;
-		}
-
-		const folder = workspace.folders[0];
-		const gitRepository = folder?.gitRepository;
-		// `workTreeUri` is only set for a genuine worktree (working directory !==
-		// repository root); a plain folder session leaves it undefined.
-		if (!folder || !gitRepository?.workTreeUri) {
-			return;
-		}
-
-		const [worktreeTrust, baseRepoTrust] = await Promise.all([
-			this.workspaceTrustManagementService.getUriTrustInfo(folder.workingDirectory),
-			this.workspaceTrustManagementService.getUriTrustInfo(gitRepository.uri),
-		]);
-		if (!worktreeTrust.trusted && baseRepoTrust.trusted) {
-			await this.workspaceTrustManagementService.setUrisTrust([folder.workingDirectory], true);
-		}
 	}
 
 	/**

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 // Surfaces Copilot cloud sandbox (copilot-developer-cli) sessions as native agent-host sessions.
-// Owns a RemoteAgentHostSessionsProvider per sandbox environment, connects on demand via
+// Owns a CloudSandboxSessionsProvider per sandbox environment, connects on demand via
 // CloudSandboxAgentHostService, and wires the live connection to the provider so the native session
 // machinery can enumerate and render the host's sessions.
 
@@ -29,6 +29,7 @@ import {
 	type ICloudSandboxDiscoveryResult,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
+import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { IReplayedTaskHistory } from '../../../../../platform/agentHost/common/taskEventReplay.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { findRemoteAgentHostSessionTypeAuthority, remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
@@ -44,7 +45,8 @@ import { CloudSandboxReadOnlySessionHandler } from './cloudSandboxReadOnlySessio
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionSchemeAlias, IRemoteAgentHostSessionsProviderConfig, RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
+import { ISessionSchemeAlias, IRemoteAgentHostSessionsProviderConfig } from './remoteAgentHostSessionsProvider.js';
+import { CloudSandboxSessionsProvider } from './cloudSandboxSessionsProvider.js';
 import { IRemoteAgentHostConnectionCustomizationService } from './remoteAgentHostConnectionCustomization.js';
 import { createCloudSandboxConnectionCustomization, isCloudSandboxConnectionAddress } from './cloudSandboxConnectionCustomization.js';
 import { watchForIncompatibleNotifications } from './remoteHostOptions.js';
@@ -91,7 +93,7 @@ function discoveredSessionProject(repoName: string | undefined): IAgentSessionMe
  * for the caller to send the first turn into it.
  */
 export interface ICloudSandboxProvisionedSession extends ICloudSandboxCreatedSession {
-	readonly provider: RemoteAgentHostSessionsProvider;
+	readonly provider: CloudSandboxSessionsProvider;
 	readonly session: ISession;
 }
 
@@ -99,7 +101,7 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 	static readonly ID = 'workbench.contrib.cloudSandboxAgentHost';
 
 	/** Provider instances keyed by connection address (`cloudsandbox:<envId>`). */
-	private readonly _providerInstances = new Map<string, RemoteAgentHostSessionsProvider>();
+	private readonly _providerInstances = new Map<string, CloudSandboxSessionsProvider>();
 	private readonly _providerStores = this._register(new DisposableMap<string>());
 	/** Environment metadata keyed by connection address, for on-demand reconnect. */
 	private readonly _environments = new Map<string, ICloudSandboxEnvironment>();
@@ -335,6 +337,7 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 			throw new CancellationError();
 		}
 		this._provisioning.add(address);
+		let seededProvider: CloudSandboxSessionsProvider | undefined;
 		try {
 			this._ensureProvider({ environmentId: created.environmentId, sessionId: created.sessionId, taskId: created.taskId, name });
 
@@ -344,7 +347,7 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 			}
 			const now = Date.now();
 			const project = discoveredSessionProject(request.repoNwo);
-			provider.seedSessions([{
+			provider.seedProvisionalSession({
 				// Same identity discovery seeds under: Mission Control issues the session as
 				// `ahp-session:/<id>` and the host lists that id back, so this reconciles on connect.
 				session: AgentSession.uri(CLOUD_SANDBOX_AGENT_PROVIDER, created.sessionId),
@@ -352,7 +355,8 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 				modifiedTime: now,
 				summary: name,
 				...(project ? { project } : {}),
-			}]);
+			});
+			seededProvider = provider;
 
 			await this.connect({ environmentId: created.environmentId, sessionId: created.sessionId, name });
 
@@ -364,12 +368,19 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 			}
 
 			// The adapter `seedSessions` created addresses the session by its raw id, which is the
-			// session id Mission Control just returned.
-			const session = provider.getSessions().find(candidate => AgentSession.id(candidate.resource) === created.sessionId);
+			// session id Mission Control just returned, and `getSessions` withholds it until
+			// the caller publishes it.
+			const session = provider.getCachedSession(created.sessionId);
 			if (!session) {
 				throw new Error(`Provisioned sandbox session ${created.sessionId} did not surface on its provider`);
 			}
 			return { ...created, provider, session };
+		} catch (error) {
+			// The task exists remotely, and nothing else clears a withheld seed.
+			if (seededProvider && this._providerInstances.get(address) === seededProvider) {
+				seededProvider.publishWithheldSession(created.sessionId);
+			}
+			throw error;
 		} finally {
 			this._provisioning.delete(address);
 		}
@@ -648,6 +659,8 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 			name: env.name,
 			connectOnDemand: () => this.connect({ environmentId: env.environmentId, sessionId: env.sessionId, name: env.name }).then(() => { }),
 			sessionSchemeAlias: SANDBOX_SESSION_SCHEME_ALIAS,
+			// The sandbox agent edits without committing, so `branch` is always empty.
+			defaultChangesetKind: ChangesetKind.Session,
 			// Each sandbox is its own provider named after its task, so the `[host]` suffix would
 			// put every session in a workspace group of one.
 			omitHostFromWorkspaceLabel: true,
@@ -666,8 +679,8 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 	/**
 	 * Provider construction seam so tests can observe each provider's configuration.
 	 */
-	protected _instantiateProvider(config: IRemoteAgentHostSessionsProviderConfig): RemoteAgentHostSessionsProvider {
-		return this._instantiationService.createInstance(RemoteAgentHostSessionsProvider, config);
+	protected _instantiateProvider(config: IRemoteAgentHostSessionsProviderConfig): CloudSandboxSessionsProvider {
+		return this._instantiationService.createInstance(CloudSandboxSessionsProvider, config);
 	}
 
 	/** Wire each live connection to its provider so session enumeration runs. */

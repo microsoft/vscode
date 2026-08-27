@@ -39,7 +39,7 @@ import {
 	AgentHostRestartIpcChannel,
 	AgentHostWillRestartIpcChannel,
 	AgentSession,
-	IAgentCreateChatOptions,
+	IAgentCreateChatRequestOptions,
 	IAgentCreateSessionConfig,
 	IAgentHostInspectInfo,
 	type IAgentHostDebugLogsArtifact,
@@ -441,7 +441,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().disposeSession(session);
 	}
 
-	createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<void> {
+	createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {
 		if (options && hasChatExtensions(options)) {
 			return this._getManagementService().createChatWithExtensions(session, chat, options);
 		}
@@ -520,8 +520,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().diagnosticsFetch(url);
 	}
 
-	getSessionStateFile(session: URI): Promise<URI | undefined> {
-		return this._getManagementService().getSessionStateFile(session);
+	getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined> {
+		return this._getManagementService().getSessionStateFile(session, chat);
 	}
 
 	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact> {
@@ -556,7 +556,7 @@ function hasSessionExtensions(config: IAgentCreateSessionConfig): boolean {
 	return config.model !== undefined || config.agent !== undefined || config.importConversation !== undefined;
 }
 
-function hasChatExtensions(options: IAgentCreateChatOptions): boolean {
+function hasChatExtensions(options: IAgentCreateChatRequestOptions): boolean {
 	return options.title !== undefined || options.model !== undefined;
 }
 

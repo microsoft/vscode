@@ -13,6 +13,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 export const enum SessionChatPillKind {
 	Changes = 'changes',
 	Artifacts = 'artifacts',
+	References = 'references',
 	Customizations = 'customizations',
 	PullRequests = 'pullRequests',
 	Issues = 'issues',
@@ -24,6 +25,7 @@ export const enum SessionChatPillKind {
 export const SESSION_CHAT_PILL_KINDS: readonly SessionChatPillKind[] = [
 	SessionChatPillKind.Changes,
 	SessionChatPillKind.Artifacts,
+	SessionChatPillKind.References,
 	SessionChatPillKind.Customizations,
 	SessionChatPillKind.PullRequests,
 	SessionChatPillKind.Issues,
@@ -35,6 +37,7 @@ export function getSessionChatPillLabel(kind: SessionChatPillKind): string {
 	switch (kind) {
 		case SessionChatPillKind.Changes: return localize('sessionChatPills.changes', "Changes");
 		case SessionChatPillKind.Artifacts: return localize('sessionChatPills.artifacts', "Artifacts");
+		case SessionChatPillKind.References: return localize('sessionChatPills.references', "References");
 		case SessionChatPillKind.Customizations: return localize('sessionChatPills.customizations', "Customizations");
 		case SessionChatPillKind.PullRequests: return localize('sessionChatPills.pullRequests', "Pull Requests");
 		case SessionChatPillKind.Issues: return localize('sessionChatPills.issues', "Issues");

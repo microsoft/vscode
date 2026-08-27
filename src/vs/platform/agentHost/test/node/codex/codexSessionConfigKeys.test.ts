@@ -17,6 +17,7 @@ import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { CodexAgent } from '../../../node/codex/codexAgent.js';
 import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
 import { IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
+import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../../node/shared/worktreeIsolation.js';
 import { IAgentHostCustomizationEnablementService } from '../../../node/agentHostCustomizationEnablementService.js';
 import { IAgentSdkDownloader } from '../../../node/agentSdkDownloader.js';
 import { RecordingAgentSdkDownloader } from '../testAgentSdkDownloader.js';
@@ -27,7 +28,9 @@ import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService
 import { IAgentHostSessionTitleSignal } from '../../../node/agentHostSessionTitleSignal.js';
 import { createNoopCustomizationEnablementService } from '../testCustomizationEnablementService.js';
 import { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
+import { IAgentHostProxyResolver } from '../../../node/agentHostProxyResolver.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
+import { createTestAgentHostProxyResolver } from '../agentServiceTestUtils.js';
 
 function createAgent(disposables: Pick<DisposableStore, 'add'>): CodexAgent {
 	const instantiationService = new TestInstantiationService();
@@ -40,16 +43,20 @@ function createAgent(disposables: Pick<DisposableStore, 'add'>): CodexAgent {
 		onDidRootConfigChange: Event.None,
 		getRootValue: () => undefined,
 	});
+	instantiationService.stub(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());
 	instantiationService.stub(IAgentHostCustomizationEnablementService, createNoopCustomizationEnablementService());
 	instantiationService.stub(IAgentSdkDownloader, new RecordingAgentSdkDownloader());
 	instantiationService.stub(IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE);
 	instantiationService.stub(IAgentHostOTelService, { _serviceBrand: undefined, getNativeSdkTelemetryConfig: async () => undefined });
 	instantiationService.stub(IAgentHostSessionTitleSignal, { _serviceBrand: undefined, onDidChangeSessionTitle: Event.None });
 	instantiationService.stub(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
+	instantiationService.stub(IAgentHostProxyResolver, createTestAgentHostProxyResolver());
 	instantiationService.stub(IProductService, { _serviceBrand: undefined, version: '1.0.0-test' } as IProductService);
 	instantiationService.stub(INativeEnvironmentService, { userHome: URI.file('/tmp') });
 	instantiationService.stub(ILogService, logService);
-	return disposables.add(instantiationService.createInstance(CodexAgent));
+	const agent = disposables.add(instantiationService.createInstance(CodexAgent));
+	agent['_probeAccountAtStartup'] = async () => { };
+	return agent;
 }
 
 suite('codexSessionConfigKeys', () => {

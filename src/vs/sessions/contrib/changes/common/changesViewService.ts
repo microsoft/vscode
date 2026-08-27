@@ -29,7 +29,6 @@ export interface ActiveSessionState {
 export const IChangesViewService = createDecorator<IChangesViewService>('changesViewService');
 
 export interface IChangesViewSectionCollapseState {
-	readonly otherFiles: boolean;
 	readonly checks: boolean;
 }
 

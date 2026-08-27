@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { buildOpenSessionLinkForChatResource, buildOpenSessionLinkUri, createAgentSessionLinkPresentation, isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
+import { AGENT_HOST_CHAT_LINK_PATTERN, AGENT_HOST_SESSION_ONLY_LINK_PATTERN, buildAgentSessionLinkPresentation, buildOpenSessionLinkForChatResource, buildOpenSessionLinkUri, isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseOpenSessionLinkChatId, parseOpenSessionLinkTurnId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
 
 suite('openSessionLink', () => {
@@ -49,6 +49,13 @@ suite('openSessionLink', () => {
 		assert.strictEqual(parseOpenSessionLinkChatId(buildOpenSessionLinkUri('copilotcli:/abc-123')), undefined);
 	});
 
+	test('carries an optional chat and turn id', () => {
+		const link = buildOpenSessionLinkUri('copilotcli:/abc-123', 'chat-9', 'turn-7');
+		assert.strictEqual(link, 'agent-host-session://copilotcli/abc-123?chat=chat-9&turn=turn-7');
+		assert.strictEqual(parseOpenSessionLinkChatId(link), 'chat-9');
+		assert.strictEqual(parseOpenSessionLinkTurnId(link), 'turn-7');
+	});
+
 	test('normalizes the default chat id to a session-only link', () => {
 		assert.strictEqual(buildOpenSessionLinkUri('copilotcli:/abc-123', 'default'), 'agent-host-session://copilotcli/abc-123');
 	});
@@ -57,6 +64,20 @@ suite('openSessionLink', () => {
 		assert.strictEqual(parseOpenSessionLinkChatId('agent-host-session://copilotcli/abc-123?chat=default'), undefined);
 		assert.strictEqual(parseOpenSessionLinkChatId('agent-host-session://copilotcli/abc-123?chat=peer1'), 'peer1');
 		assert.strictEqual(parseOpenSessionLinkChatId('agent-host-session://copilotcli/abc-123?chat=%ZZ'), undefined);
+	});
+
+	test('classifies session and chat links with stable kinds', () => {
+		assert.deepStrictEqual({
+			session: AGENT_HOST_SESSION_ONLY_LINK_PATTERN.test('agent-host-session://copilotcli/abc-123'),
+			sessionAsChat: AGENT_HOST_CHAT_LINK_PATTERN.test('agent-host-session://copilotcli/abc-123'),
+			chatAsSession: AGENT_HOST_SESSION_ONLY_LINK_PATTERN.test('agent-host-session://copilotcli/abc-123?chat=peer1'),
+			chat: AGENT_HOST_CHAT_LINK_PATTERN.test('agent-host-session://copilotcli/abc-123?chat=peer1'),
+		}, {
+			session: true,
+			sessionAsChat: false,
+			chatAsSession: false,
+			chat: true,
+		});
 	});
 
 	test('buildOpenSessionLinkForChatResource maps chat resources to session links', () => {
@@ -80,8 +101,8 @@ suite('openSessionLink', () => {
 
 	test('creates generic link presentations for agent sessions', () => {
 		assert.deepStrictEqual({
-			session: createAgentSessionLinkPresentation('Implement rich links', 'Updating core', 'needsInput'),
-			chat: createAgentSessionLinkPresentation('Investigate tests', 'Updating core', 'completed', 'chat'),
+			session: buildAgentSessionLinkPresentation('Implement rich links', 'Updating core', 'needsInput'),
+			chat: buildAgentSessionLinkPresentation('Investigate tests', 'Updating core', 'completed', 'chat'),
 		}, {
 			session: {
 				kind: 'session',

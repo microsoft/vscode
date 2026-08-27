@@ -262,8 +262,8 @@
 }
 
 .automations-cards-empty-title {
-	font-size: var(--vscode-agents-fontSize-heading3);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 	margin: 0;
 }
@@ -291,8 +291,8 @@
 }
 
 .automations-history-header {
-	font-size: var(--vscode-agents-fontSize-heading3);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 	margin-bottom: 12px;
 	display: flex;

@@ -121,6 +121,9 @@ jobs:
 
       - template: ../common/install-builtin-extensions.yml@self
 
+      - script: node build/npm/electronTypes.ts
+        displayName: Prepare Electron types
+
       - script: npx deemon --detach --wait -- node build/azure-pipelines/common/downloadCopilotVsix.ts
         env:
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)

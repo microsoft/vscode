@@ -269,12 +269,6 @@ div.chat-terminal-content-part.progress-step > div.chat-terminal-output-containe
 .chat-terminal-output-terminal.chat-terminal-output-terminal-no-output {
 	display: none;
 }
-.chat-terminal-output {
-	margin: 0;
-	white-space: pre;
-	font-size: 12px;
-}
-
 .chat-terminal-output-empty {
 	display: none;
 	font-style: italic;
@@ -297,20 +291,6 @@ div.chat-terminal-content-part.progress-step > div.chat-terminal-output-containe
 
 .chat-terminal-output-container > .monaco-scrollable-element > .scrollbar.horizontal .slider {
 	pointer-events: auto;
-}
-
-.chat-terminal-output div,
-.chat-terminal-output span {
-	height: auto;
-	line-height: normal;
-}
-
-.chat-terminal-output pre {
-	margin: 0;
-}
-.chat-terminal-output-info {
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-chat-font-size-body-xs);
 }
 
 .chat-used-context-label .chat-terminal-show-link {

@@ -65,7 +65,7 @@ export function getModelHoverContent(
 
 	if (!isAuto && model.metadata.warningText) {
 		for (const message of Object.values(model.metadata.warningText)) {
-			container.appendChild(createMessageBanner(message, 'chat-model-hover-warning-text', Codicon.warning, disposables, openerService));
+			container.appendChild(createMessageBanner(message, 'chat-model-hover-warning-text', Codicon.warningCompact, disposables, openerService));
 		}
 	}
 

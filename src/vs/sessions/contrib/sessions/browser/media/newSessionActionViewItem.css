@@ -13,7 +13,7 @@ unscoped so the widget renders identically wherever it is mounted. */
 	justify-content: center;
 	gap: 6px;
 	padding: 2px 8px;
-	font-size: var(--vscode-agents-fontSize-label1, 12px);
+	font-size: var(--vscode-fontSize-label1, 12px);
 	line-height: 18px;
 	border-radius: var(--vscode-cornerRadius-small);
 	border: var(--vscode-strokeThickness) solid var(--vscode-agentsNewSessionButton-border, var(--vscode-button-border, transparent));
@@ -49,7 +49,7 @@ unscoped so the widget renders identically wherever it is mounted. */
 	display: inline-block;
 	flex-shrink: 0;
 	font-family: var(--monaco-monospace-font);
-	font-size: var(--vscode-agents-fontSize-label3, 10px);
+	font-size: var(--vscode-fontSize-label3, 10px);
 	line-height: 1;
 	padding: 2px 4px;
 	border: var(--vscode-strokeThickness) solid transparent;

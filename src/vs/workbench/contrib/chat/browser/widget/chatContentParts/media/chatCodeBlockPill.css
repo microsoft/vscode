@@ -33,15 +33,15 @@
 			color: var(--vscode-icon-foreground) !important;
 
 			&::before {
-				font-size: 12px;
+				font-size: var(--vscode-codiconFontSize-compact);
 			}
 		}
 
-		.codicon.codicon-check {
+		.codicon.codicon-check-compact {
 			display: none;
 		}
 
-		.show-checkmarks & .codicon.codicon-check {
+		.show-checkmarks & .codicon.codicon-check-compact {
 			display: inline-flex;
 			padding-left: 2px;
 			margin-left: 0.2em;

@@ -65,7 +65,7 @@
 	.chat-tool-carousel-collapsed-title {
 		flex: 0 1 auto;
 		min-width: 0;
-		font-weight: var(--vscode-agents-fontWeight-semiBold);
+		font-weight: var(--vscode-fontWeight-semiBold);
 		font-size: var(--vscode-chat-font-size-body-s);
 		overflow-wrap: anywhere;
 		white-space: normal;

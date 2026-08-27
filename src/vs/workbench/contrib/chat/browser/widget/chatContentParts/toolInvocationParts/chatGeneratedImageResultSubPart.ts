@@ -102,7 +102,7 @@ export class ChatGeneratedImageResultSubPart extends BaseChatToolInvocationSubPa
 	) {
 		super(toolInvocation);
 		const parts = getGeneratedImageResultPartsFromContent(context.content, context.element.sessionResource);
-		const resourceGroup = this._register(instantiationService.createInstance(ChatResourceGroupWidget, parts));
+		const resourceGroup = this._register(instantiationService.createInstance(ChatResourceGroupWidget, parts, { showImageInHover: false }));
 		this._register(resourceGroup.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		this.domNode = dom.$('.chat-generated-image-result', undefined, resourceGroup.domNode);
 		const hasMultipleGeneratedImages = getGeneratedImageResultCount(context.content) > 1;

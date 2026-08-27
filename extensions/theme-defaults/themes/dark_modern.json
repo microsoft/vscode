@@ -131,5 +131,6 @@
 		"widget.border": "#313131",
 		"modernActivityBar.activeBackground": "#FFFFFF22",
 		"modernActivityBar.hoverBackground": "#FFFFFF11",
+		"modernActivityBar.border": "#252526"
 	},
 }

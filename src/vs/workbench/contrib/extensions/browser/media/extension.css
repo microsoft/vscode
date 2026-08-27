@@ -72,7 +72,7 @@
 }
 
 .extension-list-item > .details > .header-container > .header > .name {
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	overflow: hidden;
@@ -202,7 +202,7 @@
 .extension-list-item > .details > .footer .publisher > .publisher-name {
 	font-size: 11px;
 	color: var(--vscode-descriptionForeground);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 .monaco-list-row.selected .extension-list-item > .details > .footer .publisher > .publisher-name{

@@ -761,12 +761,12 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			content: document.getText(),
 			documentVersion: document.version,
 			readonly: this.#globalState.get(MarkdownEditorProvider.#readonlyStateKey, true),
-			richLinksEnabled: vscode.workspace.getConfiguration('markdown').get<boolean>('experimental.richLinks.enabled', false),
+			richLinksEnabled: vscode.workspace.getConfiguration('markdown').get<boolean>('experimental.richLinks.enabled', true),
 			linkPresentationRules: vscode.window.linkPresentationRules.map(rule => ({
 				id: rule.id,
 				source: rule.uriPattern.source,
 				flags: rule.uriPattern.flags,
-				initialKind: rule.initialKind === 'chat' ? 'session' : rule.initialKind,
+				kind: rule.kind === 'chat' ? 'session' : rule.kind,
 			})),
 		});
 

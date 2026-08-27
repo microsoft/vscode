@@ -21,10 +21,12 @@ import { IThemeService } from '../../../../../../platform/theme/common/themeServ
 import { TestColorTheme, TestThemeService } from '../../../../../../platform/theme/test/common/testThemeService.js';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from '../../../../../common/theme.js';
 import { IViewDescriptor, IViewDescriptorService, ViewContainerLocation } from '../../../../../common/views.js';
+import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { XtermTerminal } from '../../../browser/xterm/xtermTerminal.js';
 import { ITerminalConfiguration, TERMINAL_VIEW_ID } from '../../../common/terminal.js';
 import { registerColors, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_INACTIVE_SELECTION_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR, TERMINAL_SELECTION_FOREGROUND_COLOR } from '../../../common/terminalColorRegistry.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { TestLifecycleService } from '../../../../../test/common/workbenchTestServices.js';
 import { TestWebglAddon, TestXtermAddonImporter } from './xtermTestUtils.js';
 
 registerColors();
@@ -60,6 +62,10 @@ const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	unicodeVersion: '6'
 };
 
+function listenerCount<T>(emitter: Emitter<T>): number {
+	return (emitter as unknown as { _size: number })._size ?? 0;
+}
+
 suite('XtermTerminal', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -68,6 +74,8 @@ suite('XtermTerminal', () => {
 	let themeService: TestThemeService;
 	let xterm: XtermTerminal;
 	let XTermBaseCtor: typeof Terminal;
+	let onWillShutdown: Emitter<unknown>;
+	let lifecycleListenerCountBeforeXterm: number;
 
 	function write(data: string): Promise<void> {
 		return new Promise<void>((resolve) => {
@@ -91,6 +99,9 @@ suite('XtermTerminal', () => {
 			configurationService: () => configurationService
 		}, store);
 		themeService = instantiationService.get(IThemeService) as TestThemeService;
+		const lifecycleService = instantiationService.get(ILifecycleService) as TestLifecycleService;
+		onWillShutdown = (lifecycleService as unknown as { _onWillShutdown: Emitter<unknown> })._onWillShutdown;
+		lifecycleListenerCountBeforeXterm = listenerCount(onWillShutdown);
 
 		XTermBaseCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 
@@ -112,6 +123,30 @@ suite('XtermTerminal', () => {
 	test('should use fallback dimensions of 80x30', () => {
 		strictEqual(xterm.raw.cols, 80);
 		strictEqual(xterm.raw.rows, 30);
+	});
+
+	test('detached terminals do not register decoration shutdown listeners', () => {
+		const listenerCountAfterRegularXterm = listenerCount(onWillShutdown);
+		for (let index = 0; index < 50; index++) {
+			const capabilityStore = store.add(new TerminalCapabilityStore());
+			store.add(instantiationService.createInstance(XtermTerminal, undefined, XTermBaseCtor, {
+				cols: 80,
+				rows: 30,
+				xtermColorProvider: { getBackgroundColor: () => undefined },
+				capabilities: capabilityStore,
+				disableShellIntegrationReporting: true,
+				xtermAddonImporter: new TestXtermAddonImporter(),
+				detached: true,
+			}, undefined));
+		}
+
+		deepStrictEqual({
+			regularXtermListeners: listenerCountAfterRegularXterm - lifecycleListenerCountBeforeXterm,
+			detachedXtermListeners: listenerCount(onWillShutdown) - listenerCountAfterRegularXterm,
+		}, {
+			regularXtermListeners: 1,
+			detachedXtermListeners: 0,
+		});
 	});
 
 	test('disables custom glyphs when moved into an auxiliary window', async () => {

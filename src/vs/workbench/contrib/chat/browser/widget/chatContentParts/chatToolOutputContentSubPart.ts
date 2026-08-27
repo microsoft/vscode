@@ -80,7 +80,7 @@ export class ChatToolOutputContentSubPart extends Disposable {
 	}
 
 	private addResourceGroup(parts: IChatCollapsibleIODataPart[], container: HTMLElement) {
-		const widget = this._register(this._instantiationService.createInstance(ChatResourceGroupWidget, parts));
+		const widget = this._register(this._instantiationService.createInstance(ChatResourceGroupWidget, parts, undefined));
 		container.appendChild(widget.domNode);
 	}
 

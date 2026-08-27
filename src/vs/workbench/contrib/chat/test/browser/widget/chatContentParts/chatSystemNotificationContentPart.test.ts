@@ -34,7 +34,7 @@ suite('ChatSystemNotificationContentPart', () => {
 
 		assert.deepStrictEqual({
 			text: part.domNode.textContent,
-			hasCheck: !!part.domNode.querySelector('.codicon-check'),
+			hasCheck: !!part.domNode.querySelector('.codicon-check-compact'),
 			sameContent: part.hasSameContent({ kind: 'systemNotification', content: new MarkdownString('Background command completed') }),
 			differentContent: part.hasSameContent({ kind: 'systemNotification', content: new MarkdownString('Different') }),
 		}, {

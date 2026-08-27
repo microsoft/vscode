@@ -10,10 +10,12 @@ import { IChatSessionService } from '../../../platform/chat/common/chatSessionSe
 import { IInteractionService } from '../../../platform/chat/common/interactionService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
+import { isAutoExplainabilityHidden } from '../../../platform/endpoint/node/autoChatEndpoint';
+import { IAutomodeService, reportAutoModeRouting } from '../../../platform/endpoint/node/automodeService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { ChatExtPerfMark, clearChatExtMarks, markChatExt } from '../../../util/common/performance';
-import { DisposableStore, IDisposable } from '../../../util/vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from '../../../util/vs/base/common/lifecycle';
 import { autorun } from '../../../util/vs/base/common/observableInternal';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
@@ -69,6 +71,7 @@ class ChatAgents implements IDisposable {
 		@IChatQuotaService private readonly _chatQuotaService: IChatQuotaService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExperimentationService private readonly experimentationService: IExperimentationService,
+		@IAutomodeService private readonly automodeService: IAutomodeService,
 		@IPromptCategorizerService private readonly promptCategorizerService: IPromptCategorizerService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IChatSessionService chatSessionService: IChatSessionService,
@@ -204,6 +207,11 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 	private getChatParticipantHandler(id: string, name: string, defaultIntentIdOrGetter: IntentOrGetter): vscode.ChatExtendedRequestHandler {
 		return async (request, context, stream, token): Promise<vscode.ChatResult> => {
 			markChatExt(request.sessionId, ChatExtPerfMark.WillHandleParticipant);
+			// Installed before anything resolves an endpoint, since that is what
+			// triggers Auto's first route. Inline chat has no room for the row.
+			const autoRouting = request.location2 === undefined && !isAutoExplainabilityHidden(this.experimentationService)
+				? reportAutoModeRouting(request, stream, this.automodeService)
+				: Disposable.None;
 			try {
 				// If we need to switch to the base model, this function will handle it
 				// Otherwise it just returns the same request passed into it
@@ -269,6 +277,7 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 
 				return result;
 			} finally {
+				autoRouting.dispose();
 				markChatExt(request.sessionId, ChatExtPerfMark.DidHandleParticipant);
 				clearChatExtMarks(request.sessionId);
 			}

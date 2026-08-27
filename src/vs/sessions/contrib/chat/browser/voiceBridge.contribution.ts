@@ -137,7 +137,7 @@ class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchCo
 			// Chat resources map to their owning session and chat.
 			const owner = this.sessionsManagementService.getSessionForChatResource(resource);
 			if (owner) {
-				await this.sessionsService.openSession(owner.session.resource, { preserveFocus: true });
+				await this.sessionsService.openSession(owner.session.resource, { preserveFocus: true, source: 'voice' });
 				if (!isEqual(owner.chat.resource, owner.session.resource)) {
 					await this.sessionsService.openChat(owner.session, owner.chat.resource);
 				}
@@ -147,12 +147,12 @@ class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchCo
 			// Otherwise, treat it as a session resource.
 			const session = this.sessionsManagementService.getSession(resource);
 			if (session) {
-				await this.sessionsService.openSession(session.resource, { preserveFocus: true });
+				await this.sessionsService.openSession(session.resource, { preserveFocus: true, source: 'voice' });
 				return true;
 			}
 
 			try {
-				await this.sessionsService.openSession(resource, { preserveFocus: true });
+				await this.sessionsService.openSession(resource, { preserveFocus: true, source: 'voice' });
 				return true;
 			} catch {
 				return false;

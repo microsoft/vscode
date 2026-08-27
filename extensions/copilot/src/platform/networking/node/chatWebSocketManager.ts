@@ -16,6 +16,7 @@ import { ICAPIClientService } from '../../endpoint/common/capiClient';
 import { ILogService, collectSingleLineErrorMessage } from '../../log/common/logService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { HeadersImpl, IHeaders, WebSocketConnection } from '../common/fetcherService';
+import { stringifyJsonBody } from '../common/jsonBody';
 import { IEndpointBody } from '../common/networking';
 import { getResponsesApiCompactionThresholdFromBody } from '../../endpoint/node/responsesApi';
 import { ChatWebSocketRequestOutcome, ChatWebSocketTelemetrySender } from './chatWebSocketTelemetry';
@@ -680,7 +681,7 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 			...rest,
 			initiator: options.userInitiated ? 'user' : 'agent',
 		};
-		const serializedMessage = JSON.stringify(message);
+		const serializedMessage = stringifyJsonBody(message);
 		const sentMessageCharacters = serializedMessage.length;
 		this._totalSentMessageCount += 1;
 		this._totalSentCharacters += sentMessageCharacters;

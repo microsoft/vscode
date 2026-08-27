@@ -4,4 +4,4 @@
  *--------------------------------------------------------------------------------------------*/
 
 export { decodeProviderData, encodeProviderData } from './agentPeerChats.js';
-export type { IPersistedChat, IPersistedSideChat } from './agentPeerChats.js';
+export type { IPersistedChat } from './agentPeerChats.js';

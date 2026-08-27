@@ -9,7 +9,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Event } from '../../../../../../base/common/event.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IRequestContext } from '../../../../../../base/parts/request/common/request.js';
+import { IRequestContext, type IHeaders, type IRequestOptions } from '../../../../../../base/parts/request/common/request.js';
 import { CLOUD_SANDBOX_AGENT_SLUG, CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -247,18 +247,32 @@ interface ICreateCall {
 	readonly url: string;
 	readonly type: string;
 	readonly body: unknown;
+	readonly timeout: number | undefined;
+	readonly headers: IHeaders;
 }
 
-function createServiceForCreate(store: Pick<{ add<T extends { dispose(): void }>(t: T): T }, 'add'>, response: unknown, statusCode = 200, options?: { readonly failDelete?: boolean }): { service: CloudSandboxApiService; calls: ICreateCall[] } {
+function createServiceForCreate(store: Pick<{ add<T extends { dispose(): void }>(t: T): T }, 'add'>, response: unknown, statusCode = 200, options?: { readonly failDelete?: boolean; readonly deleteStatusCode?: number; readonly responseHeaders?: Record<string, string> }): { service: CloudSandboxApiService; calls: ICreateCall[]; errors: string[]; warnings: string[] } {
 	const calls: ICreateCall[] = [];
+	const errors: string[] = [];
+	const warnings: string[] = [];
 	const instantiationService = store.add(new TestInstantiationService());
 	instantiationService.stub(IRequestService, new class extends mock<IRequestService>() {
-		override async request(opts: { url?: string; type?: string; data?: string }): Promise<IRequestContext> {
-			calls.push({ url: opts.url ?? '', type: opts.type ?? '', body: opts.data === undefined ? undefined : JSON.parse(opts.data) });
-			if (opts.type === 'DELETE' && options?.failDelete) {
-				throw new Error('delete failed');
+		override async request(opts: IRequestOptions): Promise<IRequestContext> {
+			calls.push({
+				url: opts.url ?? '',
+				type: opts.type ?? '',
+				body: opts.data === undefined ? undefined : JSON.parse(opts.data),
+				timeout: opts.timeout,
+				headers: opts.headers ?? {},
+			});
+			if (opts.type === 'DELETE') {
+				if (options?.failDelete) {
+					throw new Error('delete failed');
+				}
+				// Reusing the create's failure status would fake a cleanup that never happened.
+				return jsonResponse({}, options?.deleteStatusCode ?? 204);
 			}
-			return jsonResponse(response, statusCode);
+			return jsonResponse(response, statusCode, options?.responseHeaders);
 		}
 	}());
 	instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
@@ -266,11 +280,18 @@ function createServiceForCreate(store: Pick<{ add<T extends { dispose(): void }>
 		override readonly onDidChangeSessions = Event.None;
 	}());
 	instantiationService.stub(IProductService, { defaultChatAgent: undefined } as unknown as IProductService);
-	instantiationService.stub(ILogService, new NullLogService());
+	instantiationService.stub(ILogService, new class extends NullLogService {
+		override error(message: string | Error): void {
+			errors.push(String(message));
+		}
+		override warn(message: string): void {
+			warnings.push(String(message));
+		}
+	}());
 	instantiationService.stub(ICloudSandboxTelemetryService, new class extends mock<ICloudSandboxTelemetryService>() {
 		override reportRequest(): void { }
 	}());
-	return { service: store.add(instantiationService.createInstance(CloudSandboxApiService)), calls };
+	return { service: store.add(instantiationService.createInstance(CloudSandboxApiService)), calls, errors, warnings };
 }
 
 suite('CloudSandboxApiService session creation', () => {
@@ -290,6 +311,10 @@ suite('CloudSandboxApiService session creation', () => {
 			type: calls[0].type,
 			endsWithTasks: calls[0].url.endsWith('/agents/tasks'),
 			body: calls[0].body,
+			// Creating a task provisions a VM before replying, so it needs its own budget.
+			timeout: calls[0].timeout,
+			// `fetch` labels a string body `text/plain` unless told otherwise.
+			contentType: calls[0].headers['Content-Type'],
 		}, {
 			created: { taskId: 'task-1', sessionId: 'sess-1', environmentId: 'env-concrete' },
 			type: 'POST',
@@ -299,6 +324,9 @@ suite('CloudSandboxApiService session creation', () => {
 				prompt: 'fix it',
 				repositories: [{ owner: 'osortega', name: 'simple-server' }],
 			},
+			// A literal, not the constant: comparing a value to itself would prove nothing.
+			timeout: 60_000,
+			contentType: 'application/json',
 		});
 	});
 
@@ -356,5 +384,57 @@ suite('CloudSandboxApiService session creation', () => {
 			() => service.createSession({ prompt: 'hello' }, CancellationToken.None),
 			/HTTP 403/,
 		);
+	});
+
+	test('deletes the task named by a failed create, which Mission Control recorded before failing', async () => {
+		// Compute is provisioned after the record exists, so a failure leaves a task behind.
+		const { service, calls, warnings } = createServiceForCreate(store, { id: 'task-9', message: 'failed to create agent compute' }, 500);
+
+		await assert.rejects(() => service.createSession({ prompt: 'hello' }, CancellationToken.None));
+
+		assert.deepStrictEqual({
+			requests: calls.map(c => `${c.type} ${c.url.replace(/^.*\/agents/, '')}`),
+			// The delete succeeded, so nothing should claim an orphan was left behind.
+			cleanupWarnings: warnings.filter(w => w.includes('task-9')),
+		}, {
+			requests: ['POST /tasks', 'DELETE /tasks/task-9'],
+			cleanupWarnings: [],
+		});
+	});
+
+	test('reports a rejected cleanup rather than claiming the orphan was removed', async () => {
+		// A rejected delete resolves like any other response, so the status must be checked.
+		const { service, warnings } = createServiceForCreate(store, { id: 'task-10', message: 'failed to create agent compute' }, 500, { deleteStatusCode: 500 });
+
+		await assert.rejects(() => service.createSession({ prompt: 'hello' }, CancellationToken.None));
+
+		assert.deepStrictEqual(warnings.filter(w => w.includes('task-10')), [
+			'[CloudSandboxApi] Could not clean up sandbox task task-10: HTTP 500. It remains and can only be removed server-side.',
+		]);
+	});
+
+	test('keeps the failure message when the response names no task', async () => {
+		// The body is read once: reading it again would discard the failure's explanation.
+		const { service, calls } = createServiceForCreate(store, { message: 'failed to create agent compute' }, 500);
+
+		await assert.rejects(
+			() => service.createSession({ prompt: 'hello' }, CancellationToken.None),
+			/HTTP 500 - .*failed to create agent compute/,
+		);
+
+		assert.deepStrictEqual(calls.map(c => c.type), ['POST']);
+	});
+
+	test('logs the request id and raw body when a create fails, so the failure can be escalated', async () => {
+		// The failure message masks its cause, so the request id is what gets escalated.
+		const { service, errors } = createServiceForCreate(store,
+			{ message: 'failed to create agent compute' }, 500,
+			{ responseHeaders: { 'x-github-request-id': 'ABCD:1234:5678', 'x-sweagentd-retry': 'compute_resource_locked' } });
+
+		await assert.rejects(() => service.createSession({ prompt: 'hello' }, CancellationToken.None));
+
+		assert.deepStrictEqual(errors.filter(e => e.includes('Task create failed.')), [
+			'[CloudSandboxApi] Task create failed. HTTP 500 | x-github-request-id: ABCD:1234:5678 | x-sweagentd-retry: compute_resource_locked | body: {"message":"failed to create agent compute"}',
+		]);
 	});
 });

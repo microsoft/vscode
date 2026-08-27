@@ -27,6 +27,12 @@
 		]
 	},
 	{
+		// Reason: @types/node is MIT-licensed as part of DefinitelyTyped, but its npm tarball
+		// does not include the repository-level LICENSE file.
+		"name": "@types/node",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/DefinitelyTyped/DefinitelyTyped/master/LICENSE"
+	},
+	{
 		"name": "tunnel-agent",
 		"prependLicenseText": [
 			"Copyright (c) tunnel-agent authors"

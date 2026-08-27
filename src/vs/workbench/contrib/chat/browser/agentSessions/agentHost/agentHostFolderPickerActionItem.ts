@@ -150,15 +150,18 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 		const selected = this._selectedFolder();
 		const folder = selected && this._workspaceContextService.getWorkspace().folders.find(f => f.uri.toString() === selected.toString());
 		const label = folder ? folder.name : (selected ? basename(selected) : localize('agentHost.selectFolder', "Folder"));
+		const compact = this.pickerOptions.compact.get();
+		element.classList.toggle('icon-only', compact);
 		dom.reset(
 			element,
-			...renderLabelWithIcons(`$(folder)`),
-			dom.$('span.chat-input-picker-label', undefined, label),
+			...renderLabelWithIcons(`$(folder-compact)`),
+			...(!compact ? [dom.$('span.chat-input-picker-label', undefined, label)] : []),
 		);
 		// Set the aria label after the visible text is in place: the base class
 		// derives it from `element.textContent`, so labeling first would lag one
 		// selection behind.
 		this.setAriaLabelAttributes(element);
+		element.ariaLabel = label;
 		return null;
 	}
 

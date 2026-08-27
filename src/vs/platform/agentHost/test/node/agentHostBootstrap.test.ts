@@ -18,14 +18,16 @@ import { createAgentHostRuntime } from '../../node/agentHostBootstrap.js';
 import { NullByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { AgentHostLaunchKind } from '../../common/agentHostTelemetry.js';
 import { IAgentSdkDownloader } from '../../node/agentSdkDownloader.js';
-import { AgentHostServiceCollection } from '../../node/agentHostServices.js';
+import { StrictServiceCollection } from '../../../instantiation/common/strictServiceCollection.js';
 import { createAgentServiceFoundation } from '../../node/agentServiceFoundation.js';
 import { AgentHostProxyConfigKey } from '../../common/agentHostSchema.js';
+import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
+import { IAgentHostReviewService } from '../../common/agentHostReviewService.js';
 
 suite('agentHostBootstrap', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('constructs the renderer BYOK runtime with strict dependency injection', async () => {
+	test('constructs the renderer BYOK runtime', async () => {
 		const testDisposables = disposables.add(new DisposableStore());
 		const userDataPath = mkdtempSync(join(tmpdir(), 'agent-host-bootstrap-'));
 		mkdirSync(join(userDataPath, 'User', 'globalStorage'), { recursive: true });
@@ -46,7 +48,13 @@ suite('agentHostBootstrap', () => {
 		});
 		testDisposables.add(runtime);
 
+		// Whole-graph dependency completeness is checked statically in
+		// agentHostServices.test.ts without forcing every descriptor to construct.
 		assert.ok(runtime.instantiationService.invokeFunction(accessor => accessor.get(IAgentSdkDownloader)));
+		assert.deepStrictEqual(runtime.instantiationService.invokeFunction(accessor => [
+			accessor.get(IAgentHostCheckpointService) !== undefined,
+			accessor.get(IAgentHostReviewService) !== undefined,
+		]), [true, true]);
 	});
 
 	test('loads standalone proxy configuration before resolver construction', () => {
@@ -58,7 +66,7 @@ suite('agentHostBootstrap', () => {
 		const productService = { _serviceBrand: undefined, ...product };
 
 		const foundation = createAgentServiceFoundation({
-			services: new AgentHostServiceCollection(),
+			services: new StrictServiceCollection(),
 			owned: testDisposables,
 			logService: new NullLogService(),
 			productService,
@@ -78,7 +86,7 @@ suite('agentHostBootstrap', () => {
 		const productService = { _serviceBrand: undefined, ...product };
 
 		const foundation = createAgentServiceFoundation({
-			services: new AgentHostServiceCollection(),
+			services: new StrictServiceCollection(),
 			owned: testDisposables,
 			logService: new NullLogService(),
 			productService,

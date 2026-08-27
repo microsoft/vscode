@@ -955,7 +955,6 @@ suite('VisibleSession - property forwarding', () => {
 	test('forwards every session property, including optional ones', () => {
 		const session: ISession = {
 			...stubSession('S'),
-			externalChanges: constObservable([]),
 			artifacts: constObservable([]),
 		};
 		const visible = disposables.add(new VisibleSession(session, stubChat));

@@ -282,8 +282,6 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		// the sessions to migrate away from the bad number usage.
 		// TODO@TylerLeonhardt: Remove this after we are confident that all users have migrated to the new id.
 		let seenNumberAccountId: boolean = false;
-		// Re-store newly verified accounts so future reads do not need another lookup.
-		let seenAccountUpdate: boolean = false;
 		// TODO: eventually remove this Set because we should only have one session per set of scopes.
 		const scopesSeen = new Set<string>();
 		const sessionPromises = sessionData.map(async (session: SessionData): Promise<vscode.AuthenticationSession | undefined> => {
@@ -293,7 +291,6 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			if (!session.account) {
 				try {
 					userInfo = await this._githubServer.getUserInfo(session.accessToken);
-					seenAccountUpdate = true;
 					this._logger.info(`Verified session with the following scopes: ${scopesStr}`);
 				} catch (e) {
 					if (e.message === 'Unauthorized') {
@@ -339,7 +336,8 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			.filter(<T>(p?: T): p is T => Boolean(p));
 
 		this._logger.info(`Got ${verifiedSessions.length} verified sessions.`);
-		if (seenNumberAccountId || seenAccountUpdate || verifiedSessions.length !== sessionData.length) {
+		// Account data discovered during reads must not trigger a secret write because web embedders can re-expose accountless sessions.
+		if (seenNumberAccountId || verifiedSessions.length !== sessionData.length) {
 			await this.storeSessions(verifiedSessions);
 		}
 

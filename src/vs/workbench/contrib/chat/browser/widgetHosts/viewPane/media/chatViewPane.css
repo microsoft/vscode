@@ -3,16 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Voice Agent Bar — wraps the shared AgentsVoiceWidget inside input container */
-.voice-agent-bar {
-	display: flex;
-	flex-direction: column;
-	flex-shrink: 0;
-	border-bottom: 1px solid var(--vscode-panel-border);
-	position: relative;
-	overflow: hidden;
-}
-
 .voice-transcript-overlay-scrollable {
 	position: absolute !important;
 	top: 0;

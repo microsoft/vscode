@@ -10,7 +10,7 @@ import { promisify } from 'util';
 import { Uri } from 'vscode';
 import { BatchedProcessor } from '../../../util/common/async';
 import { coalesce } from '../../../util/vs/base/common/arrays';
-import { Sequencer } from '../../../util/vs/base/common/async';
+import { raceTimeout, Sequencer } from '../../../util/vs/base/common/async';
 import { CachedFunction } from '../../../util/vs/base/common/cache';
 import { CancellationToken, cancelOnDispose } from '../../../util/vs/base/common/cancellation';
 import { Emitter, Event } from '../../../util/vs/base/common/event';
@@ -26,6 +26,12 @@ import { parseGitRemotes } from '../common/utils';
 import { API, APIState, Branch, Change, CommitOptions, CommitShortStat, DiffChange, Ref, RefQuery, Repository, RepositoryAccessDetails } from '../vscode/git';
 
 const execFileAsync = promisify(execFile);
+
+/**
+ * How long {@link GitServiceImpl.getRepositoryFetchUrls} waits for initial repository discovery.
+ * Bounded so a missing or disabled Git extension cannot hang every caller.
+ */
+const INITIAL_DISCOVERY_TIMEOUT_MS = 30_000;
 
 export class GitServiceImpl extends Disposable implements IGitService {
 
@@ -190,6 +196,10 @@ export class GitServiceImpl extends Disposable implements IGitService {
 
 	async getRepositoryFetchUrls(uri: URI): Promise<Pick<RepoContext, 'rootUri' | 'remoteFetchUrls'> | undefined> {
 		this.logService.trace(`[GitServiceImpl][getRepositoryFetchUrls] URI: ${uri.toString()}`);
+
+		// Answering before discovery settles reports the file as belonging to no repository, which
+		// content exclusion reads as "no repository rules apply to this file".
+		await this.waitForInitialDiscovery();
 
 		const gitAPI = this.gitExtensionService.getExtensionApi();
 		if (!gitAPI) {
@@ -430,6 +440,26 @@ export class GitServiceImpl extends Disposable implements IGitService {
 		if (this.repositories.length > 0) {
 			await waitForState(this.activeRepository, state => state !== undefined, undefined, cancelOnDispose(this._store));
 		}
+	}
+
+	private _initialDiscoverySettled: Promise<void> | undefined;
+
+	/**
+	 * Resolves once initial repository discovery has settled, or once {@link INITIAL_DISCOVERY_TIMEOUT_MS}
+	 * elapses. Unlike {@link initialize} this never rejects, and the promise is shared between callers.
+	 */
+	private waitForInitialDiscovery(): Promise<void> {
+		if (this._isInitialized.get()) {
+			return Promise.resolve();
+		}
+		this._initialDiscoverySettled ??= raceTimeout(
+			// Rejects when the service is disposed, which is not worth propagating to a caller that
+			// only wants to know discovery is no longer pending.
+			waitForState(this._isInitialized, state => state, undefined, cancelOnDispose(this._store)).catch(() => undefined),
+			INITIAL_DISCOVERY_TIMEOUT_MS,
+			() => this.logService.warn(`[GitServiceImpl][waitForInitialDiscovery] Timed out after ${INITIAL_DISCOVERY_TIMEOUT_MS}ms.`)
+		).then(() => undefined);
+		return this._initialDiscoverySettled;
 	}
 
 	private async doOpenRepository(repository: Repository): Promise<void> {

@@ -89,6 +89,11 @@
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
+.chat-explanation-read-indicator > .codicon,
+.chat-explanation-item-read > .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
 .chat-explanation-read-indicator.unread {
 	color: var(--vscode-textLink-foreground);
 	opacity: 1;
@@ -221,7 +226,7 @@
 	border-radius: 3px;
 	color: var(--vscode-foreground);
 	opacity: 0.3;
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .chat-explanation-item:hover .chat-explanation-item-read {

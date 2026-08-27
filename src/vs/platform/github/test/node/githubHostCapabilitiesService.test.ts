@@ -9,6 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { GitHubHostCapabilitiesService } from '../../common/githubHostCapabilitiesService.js';
 import { GitHubTransport } from '../../common/githubTransport.js';
+import { FakeGitHubScheduler } from './fakeGitHubScheduler.js';
 import { nodeFetch } from './nodeFetch.js';
 import { gitHubGraphQLResponse, gitHubGraphQLStep, ProgrammableGitHubServer } from './programmableGitHubServer.js';
 
@@ -43,7 +44,7 @@ suite('GitHubHostCapabilitiesService', () => {
 				}),
 			}));
 			const transport = disposables.add(new GitHubTransport(nodeFetch));
-			const service = disposables.add(new GitHubHostCapabilitiesService(transport, server.createEndpointService()));
+			const service = disposables.add(new GitHubHostCapabilitiesService(undefined, undefined, transport, server.createEndpointService()));
 			const signal = new AbortController().signal;
 			const credential = {
 				account: { host: new URL(server.apiBaseUrl).host, accountId: '101' },
@@ -84,7 +85,7 @@ suite('GitHubHostCapabilitiesService', () => {
 				}),
 			}));
 			const transport = disposables.add(new GitHubTransport(nodeFetch));
-			const service = disposables.add(new GitHubHostCapabilitiesService(transport, server.createEndpointService()));
+			const service = disposables.add(new GitHubHostCapabilitiesService(undefined, undefined, transport, server.createEndpointService()));
 			const signal = new AbortController().signal;
 
 			await service.getCapabilities({
@@ -108,7 +109,7 @@ suite('GitHubHostCapabilitiesService', () => {
 				response: gitHubGraphQLResponse(undefined, [{ message: 'Field does not exist', type: 'VALIDATION' }]),
 			}));
 			const transport = disposables.add(new GitHubTransport(nodeFetch));
-			const service = disposables.add(new GitHubHostCapabilitiesService(transport, server.createEndpointService()));
+			const service = disposables.add(new GitHubHostCapabilitiesService(undefined, undefined, transport, server.createEndpointService()));
 			const signal = new AbortController().signal;
 
 			const result = await service.getCapabilities({
@@ -139,7 +140,7 @@ suite('GitHubHostCapabilitiesService', () => {
 			}));
 			const transport = disposables.add(new GitHubTransport(nodeFetch));
 			const logService = disposables.add(new RecordingLogService());
-			const service = disposables.add(new GitHubHostCapabilitiesService(transport, server.createEndpointService(), logService));
+			const service = disposables.add(new GitHubHostCapabilitiesService(undefined, undefined, transport, server.createEndpointService(), logService));
 			const signal = new AbortController().signal;
 
 			const result = await service.getCapabilities({
@@ -170,7 +171,7 @@ suite('GitHubHostCapabilitiesService', () => {
 				}),
 			}));
 			const transport = disposables.add(new GitHubTransport(nodeFetch));
-			const service = disposables.add(new GitHubHostCapabilitiesService(transport, server.createEndpointService()));
+			const service = disposables.add(new GitHubHostCapabilitiesService(undefined, undefined, transport, server.createEndpointService()));
 			const signal = new AbortController().signal;
 
 			const result = await service.getCapabilities({
@@ -191,7 +192,7 @@ suite('GitHubHostCapabilitiesService', () => {
 		});
 	});
 
-	test('retries capability probing after a transient GraphQL error', async () => {
+	test('reuses a degraded probe result before retrying a transient GraphQL error', async () => {
 		await withServer(async server => {
 			server.enqueue(
 				gitHubGraphQLStep({
@@ -205,8 +206,9 @@ suite('GitHubHostCapabilitiesService', () => {
 					}),
 				}),
 			);
+			const scheduler = disposables.add(new FakeGitHubScheduler({ now: 0 }));
 			const transport = disposables.add(new GitHubTransport(nodeFetch));
-			const service = disposables.add(new GitHubHostCapabilitiesService(transport, server.createEndpointService()));
+			const service = disposables.add(new GitHubHostCapabilitiesService(scheduler, undefined, transport, server.createEndpointService()));
 			const signal = new AbortController().signal;
 			const credential = {
 				account: { host: new URL(server.apiBaseUrl).host, accountId: '101' },
@@ -216,20 +218,31 @@ suite('GitHubHostCapabilitiesService', () => {
 			};
 
 			const transient = await service.getCapabilities(credential, undefined, signal);
+			// An uncacheable result must not be re-probed on every lookup: the
+			// fragments that ask still succeed on REST fallbacks, so nothing else
+			// would throttle the extra introspection query.
+			const throttled = await service.getCapabilities(credential, undefined, signal);
+			const requestsWhileThrottled = server.requests.length;
+			scheduler.advanceBy(65_000);
 			const recovered = await service.getCapabilities(credential, undefined, signal);
 
+			const unavailable = {
+				graphql: false,
+				mergeQueue: false,
+				internalMergeStatus: false,
+				reviewThreads: false,
+				checkContextRequiredness: false,
+			};
 			assert.deepStrictEqual({
 				transient,
+				throttled,
+				requestsWhileThrottled,
 				recovered,
 				requestCount: server.requests.length,
 			}, {
-				transient: {
-					graphql: false,
-					mergeQueue: false,
-					internalMergeStatus: false,
-					reviewThreads: false,
-					checkContextRequiredness: false,
-				},
+				transient: unavailable,
+				throttled: unavailable,
+				requestsWhileThrottled: 1,
 				recovered: {
 					graphql: true,
 					mergeQueue: false,
@@ -237,6 +250,49 @@ suite('GitHubHostCapabilitiesService', () => {
 					reviewThreads: true,
 					checkContextRequiredness: false,
 				},
+				requestCount: 2,
+			});
+			server.assertSatisfied();
+		});
+	});
+
+	test('re-probes a degraded host as soon as a new credential arrives', async () => {
+		await withServer(async server => {
+			server.enqueue(
+				gitHubGraphQLStep({
+					// A refusal that belongs to the credential, not the host.
+					response: gitHubGraphQLResponse(undefined, [{ message: 'Resource protected by organization SAML enforcement', type: 'FORBIDDEN' }]),
+				}),
+				gitHubGraphQLStep({
+					response: gitHubGraphQLResponse({
+						pullRequest: { fields: [{ name: 'reviewThreads' }] },
+						repository: { fields: [] },
+						requirableByPullRequest: null,
+					}),
+				}),
+			);
+			const scheduler = disposables.add(new FakeGitHubScheduler({ now: 0 }));
+			const transport = disposables.add(new GitHubTransport(nodeFetch));
+			const service = disposables.add(new GitHubHostCapabilitiesService(scheduler, undefined, transport, server.createEndpointService()));
+			const signal = new AbortController().signal;
+			const account = { host: new URL(server.apiBaseUrl).host, accountId: '101' };
+
+			const refused = await service.getCapabilities({ account, token: 'stale', generation: 1, signal }, undefined, signal);
+			// Authorizing the credential must not leave the user pinned to the
+			// REST fallbacks the refusal produced for the rest of the window.
+			const reauthenticated = await service.getCapabilities({ account, token: 'fresh', generation: 2, signal }, undefined, signal);
+
+			assert.deepStrictEqual({
+				refusedGraphql: refused.graphql,
+				reauthenticatedGraphql: reauthenticated.graphql,
+				reauthenticatedReviewThreads: reauthenticated.reviewThreads,
+				elapsed: scheduler.now(),
+				requestCount: server.requests.length,
+			}, {
+				refusedGraphql: false,
+				reauthenticatedGraphql: true,
+				reauthenticatedReviewThreads: true,
+				elapsed: 0,
 				requestCount: 2,
 			});
 			server.assertSatisfied();
@@ -257,7 +313,7 @@ suite('GitHubHostCapabilitiesService', () => {
 				}),
 			}));
 			const transport = disposables.add(new GitHubTransport(nodeFetch));
-			const service = disposables.add(new GitHubHostCapabilitiesService(transport, server.createEndpointService()));
+			const service = disposables.add(new GitHubHostCapabilitiesService(undefined, undefined, transport, server.createEndpointService()));
 			const credentialSignal = new AbortController().signal;
 			const credential = {
 				account: { host: new URL(server.apiBaseUrl).host, accountId: '101' },

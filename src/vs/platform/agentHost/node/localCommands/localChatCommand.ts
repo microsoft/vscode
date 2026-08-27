@@ -5,13 +5,16 @@
 
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
+import { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, StateAction } from '../../common/state/sessionActions.js';
 import { isAhpChatChannel, parseRequiredSessionUriFromChatUri, ResponsePartKind, ToolCallStatus, ToolResultContentType, type ISessionWithDefaultChat, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
-import { AgentHostLocalTurns } from '../agentHostLocalTurns.js';
+import { IAgentHostLocalTurns } from '../agentHostLocalTurns.js';
+import { IAgentHostSessionTitleController } from '../agentHostSessionTitleController.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
-import { AgentHostStateManager } from '../agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
 import { persistSessionMetadata } from '../shared/persistSessionMetadata.js';
 
 /**
@@ -127,20 +130,19 @@ export const LocalChatCommandRegistry = new LocalChatCommandRegistryImpl();
  * the turn, persisting it as a local turn (so it survives reload and anchors
  * fork/truncate), and asking the owner to drain the message queue.
  */
+export const IAgentHostLocalCommands = createDecorator<AgentHostLocalCommands>('agentHostLocalCommands');
+
 export class AgentHostLocalCommands extends Disposable {
+
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _commands: readonly ILocalChatCommand[];
 
 	constructor(
-		private readonly _stateManager: AgentHostStateManager,
-		private readonly _localTurns: AgentHostLocalTurns,
-		/**
-		 * Invoked after a handled turn is completed so the owner can start the
-		 * next queued message. Draining re-enters the agent-send pipeline, which
-		 * is the owner's concern — not the dispatcher's.
-		 */
-		private readonly _notifyTurnConsumable: (turnChannel: ProtocolURI) => void,
-		private readonly _markTitleRenamed: (session: ProtocolURI, chat?: ProtocolURI) => void,
+		@IAgentHostLocalTurns private readonly _localTurns: IAgentHostLocalTurns,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostChatContributions private readonly _chatContributions: IAgentHostChatContributions,
+		@IAgentHostSessionTitleController private readonly _titleController: IAgentHostSessionTitleController,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostTerminalManager private readonly _terminalManager: IAgentHostTerminalManager,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
@@ -153,7 +155,7 @@ export class AgentHostLocalCommands extends Disposable {
 			getState: channel => this._stateManager.getSessionState(channel),
 			updateChatTitle: (session, chat, title) => this._stateManager.updateChatTitle(session, chat, title),
 			persistSessionFlag: (session, key, value) => persistSessionMetadata(this._sessionDataService, this._logService, session, key, value),
-			markTitleRenamed: (session, chat) => this._markTitleRenamed(session, chat),
+			markTitleRenamed: (session, chat) => this._titleController.markTitleRenamed(session, chat),
 		};
 		this._commands = LocalChatCommandRegistry.createAll(context).map(command => this._register(command));
 	}
@@ -192,7 +194,8 @@ export class AgentHostLocalCommands extends Disposable {
 			if (command.recordsLocalTurn) {
 				this._recordLocalTurn(request.turnChannel, request.turnId);
 			}
-			this._notifyTurnConsumable(request.turnChannel);
+			const session = isAhpChatChannel(request.turnChannel) ? parseRequiredSessionUriFromChatUri(request.turnChannel) : request.turnChannel;
+			this._chatContributions.turnEnd({ session, channel: request.turnChannel, turnId: request.turnId, reason: { kind: 'localCommand' } });
 		}
 	}
 
@@ -214,15 +217,7 @@ export class AgentHostLocalCommands extends Disposable {
 		if (index < 0) {
 			return;
 		}
-		// Anchor = the nearest preceding turn in this chat that is not itself a
-		// local turn.
-		let anchorTurnId: string | undefined;
-		for (let i = index - 1; i >= 0; i--) {
-			if (!this._localTurns.isLocal(chat, turns[i].id)) {
-				anchorTurnId = turns[i].id;
-				break;
-			}
-		}
+		const anchorTurnId = this._localTurns.findAnchorTurnId(chat, turns, turnId);
 		this._localTurns.record(session, chat, sanitizeLocalTurnForPersistence(turns[index]), anchorTurnId);
 	}
 }

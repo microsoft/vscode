@@ -429,6 +429,20 @@ export class CodeApplication extends Disposable {
 				}
 			}
 
+			if (uri.scheme === Schemas.vscodeManagedRemoteResource) {
+				let frame: WebFrameMain | null | undefined = details.frame;
+				if (!frame || frame.isDestroyed()) {
+					this.logService.error('Blocked vscode-managed-remote-resource request', details.url);
+					return callback({ cancel: true });
+				}
+				for (; frame; frame = frame.parent) {
+					if (frame.isDestroyed() || frame.url.startsWith(`${Schemas.vscodeWebview}://`)) {
+						this.logService.error('Blocked vscode-managed-remote-resource request', details.url);
+						return callback({ cancel: true });
+					}
+				}
+			}
+
 			// Block most svgs
 			if (uri.path.endsWith('.svg')) {
 				const isSafeResourceUrl = supportedSvgSchemes.has(uri.scheme);
@@ -829,6 +843,10 @@ export class CodeApplication extends Disposable {
 		protocol.registerBufferProtocol(Schemas.vscodeManagedRemoteResource, (request, callback) => {
 			const url = URI.parse(request.url);
 			if (!url.authority.startsWith('window:')) {
+				return callback(notFound());
+			}
+
+			if (!request.referrer || request.referrer.startsWith(`${Schemas.vscodeWebview}://`)) {
 				return callback(notFound());
 			}
 
