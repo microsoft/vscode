@@ -27,7 +27,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/l
 import { getQuickNavigateHandler, inQuickPickContext } from '../../../../workbench/browser/quickaccess.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSubagentsContext, SessionHasSideChatsContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsQuickChatSessionContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionHasSideChatsContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsQuickChatSessionContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 import { CLOSE_CHAT_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -53,7 +53,7 @@ import { agentsNewSessionButtonBackground, agentsNewSessionButtonBorder, agentsN
 import { logSessionsInteraction, SessionsInteractionSource } from '../../../common/sessionsTelemetry.js';
 import { NEW_SESSION_ACTION_ID } from '../../chat/common/constants.js';
 import { groupSessionsForPicker } from './sessionsPicker.js';
-import { getSessionConversationActionId, getSessionConversationGroupId, SESSION_CONVERSATION_SIDE_CHATS_GROUP, SESSION_CONVERSATION_SUBAGENTS_GROUP } from '../../../browser/sessionConversationGroups.js';
+import { getSessionConversationActionId, isSessionConversationSideChat, SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../browser/sessionConversationGroups.js';
 import { ISessionChatItem, SessionChatItemCanDeleteContext, SessionChatItemCanRenameContext, SessionChatItemIsUntitledContext } from './views/sessionsList.js';
 import './media/newSessionActionViewItem.css';
 
@@ -1404,13 +1404,12 @@ export class SessionConversationActionsContribution extends Disposable implement
 			scopedToSession,
 			SessionIsCreatedContext,
 			SessionIsArchivedContext.negate(),
-			ContextKeyExpr.or(SessionHasSideChatsContext, SessionActiveChatHasSubagentsContext),
+			SessionHasSideChatsContext,
 		);
 
 		const allChats = session.chats.read(reader);
-		const activeChat = session.activeChat.read(reader);
 
-		const registerOpen = (chat: IChat, group: string, order: number) => {
+		const registerOpen = (chat: IChat, order: number) => {
 			const chatResource = chat.resource;
 			const title = chat.title.read(reader) || localize('untitledChat', "Untitled Chat");
 			// Action IDs are global, so scope them to the session and a hash of the
@@ -1421,7 +1420,7 @@ export class SessionConversationActionsContribution extends Disposable implement
 					super({
 						id: getSessionConversationActionId(session.sessionId, chatResource),
 						title,
-						menu: { id: Menus.SessionConversations, group, order, when: conversationsVisible },
+						menu: { id: Menus.SessionConversations, group: SESSION_CONVERSATION_SIDE_CHATS_GROUP, order, when: conversationsVisible },
 					});
 				}
 				override async run(accessor: ServicesAccessor, forwardedSession?: IActiveSession): Promise<void> {
@@ -1452,9 +1451,8 @@ export class SessionConversationActionsContribution extends Disposable implement
 			if (chat.status.read(reader) === SessionStatus.Untitled) {
 				return;
 			}
-			const group = getSessionConversationGroupId(chat, activeChat, extUri);
-			if (group === SESSION_CONVERSATION_SIDE_CHATS_GROUP || group === SESSION_CONVERSATION_SUBAGENTS_GROUP) {
-				registerOpen(chat, group, index);
+			if (isSessionConversationSideChat(chat)) {
+				registerOpen(chat, index);
 			}
 		});
 
@@ -1471,7 +1469,7 @@ MenuRegistry.appendMenuItem(Menus.SessionBarToolbar, {
 	when: ContextKeyExpr.and(
 		SessionIsCreatedContext,
 		SessionIsArchivedContext.negate(),
-		ContextKeyExpr.or(SessionHasSideChatsContext, SessionActiveChatHasSubagentsContext),
+		SessionHasSideChatsContext,
 	),
 });
 

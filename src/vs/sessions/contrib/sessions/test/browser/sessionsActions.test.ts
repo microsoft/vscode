@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { isIMenuItem, isISubmenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { Menus } from '../../../../browser/menus.js';
-import { SESSION_CONVERSATION_SIDE_CHATS_GROUP, SESSION_CONVERSATION_SUBAGENTS_GROUP } from '../../../../browser/sessionConversationGroups.js';
+import { SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../../browser/sessionConversationGroups.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ChatOriginKind, IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -87,12 +87,14 @@ suite('Sessions - Actions', () => {
 			chatsTitle: chats && (typeof chats.title === 'string' ? chats.title : chats.title.value),
 			chatsGroup: chats?.group,
 			chatsOrder: chats?.order,
+			chatsWhen: chats?.when?.serialize(),
 			addChatGroup: addChat?.group,
 			addChatOrder: addChat?.order,
 		}, {
 			chatsTitle: 'Side Chats',
 			chatsGroup: 'secondary/2_chats',
 			chatsOrder: 10,
+			chatsWhen: 'sessionHasSideChats && sessionIsCreated && !sessionIsArchived',
 			addChatGroup: 'secondary/3_newChat',
 			addChatOrder: 10,
 		});
@@ -123,7 +125,7 @@ suite('Sessions - Actions', () => {
 		]);
 	});
 
-	test('the Chats picker surfaces side chats and subagents but not ordinary chats', () => {
+	test('the Side Chats menu surfaces only side chats, not subagents or ordinary chats', () => {
 		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
 		const { session } = createTestSession('Session');
 		const completed = constObservable(SessionStatus.Completed);
@@ -153,12 +155,10 @@ suite('Sessions - Actions', () => {
 			.map(item => ({
 				title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
 				group: item.group,
-			}))
-			.sort((a, b) => a.title.localeCompare(b.title));
+			}));
 
 		assert.deepStrictEqual(registered, [
 			{ title: 'Side chat', group: SESSION_CONVERSATION_SIDE_CHATS_GROUP },
-			{ title: 'Subagent chat', group: SESSION_CONVERSATION_SUBAGENTS_GROUP },
 		]);
 	});
 });
