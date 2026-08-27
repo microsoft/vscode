@@ -755,7 +755,16 @@ function serializeAutomationTarget(target: AutomationTarget): ISerializedAutomat
 		? { kind: 'quickChat', providerId: target.providerId, sessionTypeId: target.sessionTypeId }
 		: {
 			kind: 'workspace',
-			folderUri: target.folderUri.toJSON(),
+			// Serialize explicit components rather than URI.toJSON(). toJSON() emits lazily
+			// cached fsPath and formatted fields only after they have been accessed, so two URIs
+			// for the same folder can serialize differently and break snapshot equality checks.
+			folderUri: {
+				scheme: target.folderUri.scheme,
+				authority: target.folderUri.authority,
+				path: target.folderUri.path,
+				query: target.folderUri.query,
+				fragment: target.folderUri.fragment,
+			},
 			providerId: target.providerId,
 			sessionTypeId: target.sessionTypeId,
 			isolation: target.isolation,
