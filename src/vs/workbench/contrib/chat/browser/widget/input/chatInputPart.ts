@@ -845,10 +845,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly _currentSessionModelObservable = observableValue<IChatModel | undefined>(this, undefined);
 	private readonly _deferredNotificationsEnabled = observableValue(this, true);
 	private readonly _notificationAvailableLanguageModels = observableValue<readonly ILanguageModelChatMetadataAndIdentifier[]>(this, []);
-	private readonly _notificationModelState = derived(this, reader => ({
-		currentModel: this.selectedLanguageModel.read(reader),
-		models: this._notificationAvailableLanguageModels.read(reader),
-	}));
+	private readonly _notificationModelState = derived(this, reader => {
+		const models = this._notificationAvailableLanguageModels.read(reader);
+		const currentModel = this.selectedLanguageModel.read(reader);
+		return {
+			currentModel: models.find(model => model.identifier === currentModel?.identifier),
+			models,
+		};
+	});
 	private _isFirstWorkbenchSession: boolean | undefined;
 
 	/** Whether the session this input is bound to already has a request. */
@@ -974,7 +978,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		));
 		this._register(autorun(reader => {
 			languageModelListChanged.read(reader);
-			const sessionType = this._currentSessionTypeObservable.read(reader) ?? this.getCurrentSessionType();
+			const sessionType = this._notificationModelTargetChatSessionType.read(reader);
 			this._currentModeObservable.read(reader);
 			this._notificationAvailableLanguageModels.set(this.getModelsForSessionType(sessionType), undefined);
 		}));
@@ -2866,7 +2870,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				modelSelection: {
 					state: this._notificationModelState,
 					openPicker: () => this.openModelPicker(),
-					selectModel: modelIdentifier => this.switchModelByIdentifier(modelIdentifier, /* storeSelection */ true, /* isUserAction */ true),
+					selectModel: modelIdentifier => this.selectNotificationModel(modelIdentifier),
 				},
 				onDidChangeVisibility: (visible, focusTarget) => this.noticeHost.setOccupied(ChatInputNoticeLane.Notification, visible, focusTarget),
 				focusInput: () => this.focus(),
@@ -2884,6 +2888,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			sessionStarted: this._sessionStarted.get(),
 			modelState: this._notificationModelState.get(),
 		};
+	}
+
+	private selectNotificationModel(identifier: string): boolean {
+		const model = this._notificationModelState.get().models.find(model => model.identifier === identifier);
+		if (!model) {
+			return false;
+		}
+		this.setCurrentLanguageModel(model, true, !this._pendingDelegationTarget);
+		return true;
 	}
 
 	/**
