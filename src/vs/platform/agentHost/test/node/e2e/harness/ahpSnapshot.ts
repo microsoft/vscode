@@ -425,12 +425,17 @@ function projectAction(
 			return profile === 'behavior' ? {
 				type: action.type,
 				turnId: normalizeIdentifier(action.turnId, 'turn', turns),
-				error: {
-					errorType: action.part.error.errorType,
-					message: action.part.error.message,
+				part: {
+					kind: action.part.kind,
+					error: {
+						errorType: action.part.error.errorType,
+						message: action.part.error.message,
+					},
+					...(action.part.resumable ? { resumable: true } : {}),
 				},
 			} : { type: action.type };
 		case ActionType.ChatUsage:
+		case ActionType.ChatTurnResume:
 		case ActionType.ChatTurnComplete:
 			return { type: action.type, turnId: normalizeIdentifier(action.turnId, 'turn', turns) };
 		default:

@@ -264,4 +264,33 @@ suite('AgentSessionResidency', () => {
 			resident: [true, false],
 		});
 	});
+
+	test('does not continue release after disposal', async () => {
+		residency.dispose();
+		const canRelease = new DeferredPromise<void>();
+		delegate.createRelease = session => ({
+			canRelease: async () => {
+				await canRelease.p;
+				return true;
+			},
+			release: async () => { released.push(session.toString()); },
+		});
+		residency = createResidency(0, 10);
+		const session = createUsedSession('disposed');
+		const reconcile = residency.reconcile();
+		await timeout(0);
+
+		residency.dispose();
+		canRelease.complete();
+		await reconcile;
+		await timeout(15);
+
+		assert.deepStrictEqual({
+			released,
+			resident: stateManager.getSessionState(session.toString()) !== undefined,
+		}, {
+			released: [],
+			resident: true,
+		});
+	});
 });

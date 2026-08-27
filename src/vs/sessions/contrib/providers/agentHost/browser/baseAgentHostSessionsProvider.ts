@@ -20,8 +20,10 @@ import { localize } from '../../../../../nls.js';
 import { AgentSession, AuthenticateParams, AuthenticateResult, IAgentSessionMetadata, protectedResourcesRequireGitHubCopilotSignIn } from '../../../../../platform/agentHost/common/agent.js';
 import { AgentMergeSessionOverrides, AgentMergeSessionState, readAgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import type { AgentHostUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
+import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { parseGitHubIssueUrl } from '../../../../../platform/agentHost/common/githubIssueReferences.js';
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
 import { KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -516,7 +518,7 @@ export interface IAgentHostAdapterOptions {
 	/** Builds the session workspace from session metadata; provider-specific (icon, providerLabel, requiresWorkspaceTrust). */
 	readonly buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectories: readonly URI[] | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined) => ISessionWorkspace | undefined;
 	/** Optional URI mapping for diff entries (remote uses `toAgentHostUri`; local uses identity). */
-	readonly mapDiffUri?: (uri: URI) => URI;
+	readonly mapDiffUri?: AgentHostUriMapper;
 	/**
 	 * GitHub service used to resolve the pull request that targets the
 	 * session's branch and refresh its live state. Optional so tests / hosts
@@ -550,6 +552,8 @@ export interface IAgentHostAdapterOptions {
 	readonly backendSessionScheme?: string;
 	/** Maps a backend session URI to the client resource used by this host. */
 	readonly mapBackendSessionResource: (resource: URI) => URI;
+	/** `Changeset.changeKind` the Changes view selects by default. Defaults to `branch`. */
+	readonly defaultChangesetKind?: ChangesetKind.Branch | ChangesetKind.Uncommitted | ChangesetKind.Session;
 }
 
 /**
@@ -2623,6 +2627,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * the provider itself is disposed.
 	 */
 	private readonly _newSessions = this._register(new DisposableMap<string, NewSession>());
+	private readonly _firstSendModelReferences = this._register(new DisposableMap<string, IChatModelReference>());
 
 	/** The in-flight new session with the given id, if any. */
 	protected _getNewSession(sessionId: string): NewSession | undefined {
@@ -2797,7 +2802,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * the bits that are uniform across hosts (`icon`, `loading`,
 	 * `mapDiffUri`) from the corresponding hooks.
 	 */
-	protected abstract _adapterOptions(): Pick<IAgentHostAdapterOptions, 'buildWorkspace' | 'readOnly'>;
+	protected abstract _adapterOptions(): Pick<IAgentHostAdapterOptions, 'buildWorkspace' | 'readOnly' | 'defaultChangesetKind'>;
 
 	/**
 	 * Hook to normalize a session's metadata before it is cached, keyed, or
@@ -3165,9 +3170,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!newSession) {
 			throw new Error('Cannot start a session that is no longer pending.');
 		}
+		const previousStatus = newSession.session.status.get();
 		newSession.setStatus(SessionStatus.InProgress);
 		newSession.setActivity(activity);
-		return toDisposable(() => newSession.setActivity(undefined));
+		return toDisposable(() => {
+			newSession.setActivity(undefined);
+			if (this._getNewSession(sessionId) === newSession && newSession.session.status.get() === SessionStatus.InProgress) {
+				newSession.setStatus(previousStatus);
+			}
+		});
 	}
 
 	createQuickChat(sessionTypeId: string): ISession {
@@ -4442,8 +4453,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		cached.setChatModelId(chat.resource, selectedModelId, ChatModelSource.CarriedOver);
 		cached.setChatAgent(chat.resource, selectedAgentUri ? { uri: selectedAgentUri, name: '' } : undefined);
 
-		await this._chatSessionsService.getOrCreateChatSession(chat.resource, CancellationToken.None);
-		await this._updateChatSessionState(chat.resource, selectedModelId, selectedAgentUri);
+		await this._prepareFirstSendChatModel(chat.resource, selectedModelId, selectedAgentUri);
 		return chat;
 	}
 
@@ -4506,7 +4516,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			hideFromTranscript: options.hideFromTranscript,
 		};
 
-		const modelRef = await this._chatService.acquireOrLoadSession(chatResource, ChatAgentLocation.Chat, CancellationToken.None);
+		const modelRef = this._firstSendModelReferences.deleteAndLeak(chatResource.toString())
+			?? await this._chatService.acquireOrLoadSession(chatResource, ChatAgentLocation.Chat, CancellationToken.None);
 		if (!modelRef) {
 			throw new Error(`[${this.id}] Unable to load chat session ${chatResource.toString()}`);
 		}
@@ -4528,6 +4539,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		cached.markChatAsSent(chatResource.fragment);
 
 		return cached;
+	}
+
+	private async _prepareFirstSendChatModel(chatResource: URI, modelId: string | undefined, agentUri: string | undefined): Promise<void> {
+		const modelRef = await this._chatService.acquireOrLoadSession(chatResource, ChatAgentLocation.Chat, CancellationToken.None);
+		if (!modelRef) {
+			return;
+		}
+		this._applyChatSessionState(modelRef, modelId, agentUri);
+		this._firstSendModelReferences.set(chatResource.toString(), modelRef);
 	}
 
 	private async _updateChatSessionState(chatResource: URI, modelId: string | undefined, agentUri: string | undefined, options?: { readonly clearDraft?: boolean }): Promise<void> {
@@ -5790,5 +5810,5 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * Optional URI mapper used when applying diff changes. Subclasses
 	 * override to translate remote diff URIs into agent-host URIs.
 	 */
-	protected _diffUriMapper(): ((uri: URI) => URI) | undefined { return undefined; }
+	protected _diffUriMapper(): AgentHostUriMapper | undefined { return undefined; }
 }

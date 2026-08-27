@@ -16,6 +16,7 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentHostClientState, AgentHostProtocolClient } from '../../browser/agentHostProtocolClient.js';
+import { getAgentHostExtensionInitializeResultMeta } from '../../common/agentHostExtensionProtocol.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { ConfigurationTarget, type IConfigurationValue } from '../../../configuration/common/configuration.js';
@@ -324,7 +325,7 @@ suite('AgentHostProtocolClient', () => {
 		return createClientForIdentity('test.example:1234', transport, permissionService, loadEstimator, logService, configurationService, clientId, clientInfo);
 	}
 
-	async function connectClient(client: AgentHostProtocolClient, transport: TestProtocolTransport): Promise<void> {
+	async function connectClient(client: AgentHostProtocolClient, transport: TestProtocolTransport, meta?: Record<string, unknown>): Promise<void> {
 		const connectPromise = client.connect();
 		while (transport.sentMessages.length === 0) {
 			await Promise.resolve();
@@ -333,7 +334,7 @@ suite('AgentHostProtocolClient', () => {
 		transport.fireMessage({
 			jsonrpc: '2.0',
 			id: sent.id,
-			result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
+			result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [], _meta: meta },
 		});
 		await connectPromise;
 	}
@@ -1421,19 +1422,22 @@ suite('AgentHostProtocolClient', () => {
 
 	test('getSessionStateFile maps the returned host resource', async () => {
 		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta());
+		transport.sentMessages.length = 0;
 		const session = URI.parse('copilotcli:/session-1');
-		const resultPromise = client.getSessionStateFile(session);
+		const chat = URI.parse(buildChatUri(session, 'peer-1'));
+		const resultPromise = client.getSessionStateFile(session, chat);
 
 		assert.deepStrictEqual(transport.sentMessages[0], {
 			jsonrpc: '2.0',
-			id: 1,
+			id: 2,
 			method: 'vscode/getAgentHostSessionStateFile',
-			params: { session: session.toString() },
+			params: { session: session.toString(), chat: chat.toString() },
 		});
 
 		transport.fireMessage({
 			jsonrpc: '2.0',
-			id: 1,
+			id: 2,
 			result: { resource: 'file:///state/sdk-session/events.jsonl' },
 		});
 
@@ -1441,6 +1445,16 @@ suite('AgentHostProtocolClient', () => {
 			(await resultPromise)?.toString(),
 			'vscode-agent-host://test.example__1234/state/sdk-session/events.jsonl?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0',
 		);
+	});
+
+	test('getSessionStateFile returns undefined when the host does not advertise chat targeting', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport);
+		transport.sentMessages.length = 0;
+		const session = URI.parse('copilotcli:/session-1');
+		const result = await client.getSessionStateFile(session, URI.parse(buildChatUri(session, 'peer-1')));
+
+		assert.deepStrictEqual({ result, sentMessages: transport.sentMessages }, { result: undefined, sentMessages: [] });
 	});
 
 	test('getSessionStateFile rejects a non-file host resource', async () => {
@@ -1784,8 +1798,8 @@ suite('AgentHostProtocolClient', () => {
 			assert.deepStrictEqual(
 				calls.map(c => ({ address: c.address, uri: c.uri.toString() })),
 				[
-					{ address: 'test.example:1234', uri: 'file:///plugins' },
-					{ address: 'test.example:1234', uri: 'file:///other' },
+					{ address: 'test.example:1234', uri: 'file:///plugins/foo' },
+					{ address: 'test.example:1234', uri: 'file:///other/bar' },
 				],
 			);
 		});
@@ -1851,7 +1865,7 @@ suite('AgentHostProtocolClient', () => {
 			assert.deepStrictEqual(calls.map(call => call.uri.toString()), ['file:///attachments/queued.txt']);
 		});
 
-		test('multiple customizations in the same directory dedupe to one grant', () => {
+		test('multiple customizations in the same directory receive individual grants', () => {
 			const { service, calls } = createCapturingPermissionService();
 			const { client } = createClient(undefined, service);
 			const sessionUri = URI.parse('ahp-session:/test');
@@ -1870,7 +1884,7 @@ suite('AgentHostProtocolClient', () => {
 
 			assert.deepStrictEqual(
 				calls.map(c => c.uri.toString()),
-				['file:///plugins'],
+				['file:///plugins/foo', 'file:///plugins/bar'],
 			);
 		});
 
@@ -1959,7 +1973,7 @@ suite('AgentHostProtocolClient', () => {
 
 			assert.deepStrictEqual(
 				calls.map(c => c.uri.toString()),
-				['file:///plugins'],
+				['file:///plugins/foo'],
 			);
 		});
 	});
