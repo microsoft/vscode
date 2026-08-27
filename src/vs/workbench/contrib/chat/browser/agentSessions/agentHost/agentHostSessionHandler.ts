@@ -1642,6 +1642,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._disposeActiveClientEntry(sessionResource);
 			throw err;
 		}
+		if (this._activeSessions.has(sessionResource)) {
+			this._logService.error(`[AgentHost] provideChatSessionContent overwriting active session for ${sessionResource.toString()}`);
+		}
 		this._activeSessions.set(sessionResource, session);
 		this._configureActiveClientReconciliation(sessionResource, resolvedSession, sessionSubscription);
 
