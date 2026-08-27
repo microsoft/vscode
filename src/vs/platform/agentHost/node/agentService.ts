@@ -2868,10 +2868,8 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 
-		if (!this._worktree.isWorkingDirectoryPending(AgentSession.id(session))) {
-			const workingDirectory = created.resolvedWorkingDirectory ?? config?.workingDirectories?.[0];
-			void this._gitStateService.refreshSessionGitState(session.toString(), workingDirectory);
-		}
+		const workingDirectory = created.resolvedWorkingDirectory ?? config?.workingDirectories?.[0];
+		void this._gitStateService.refreshSessionGitState(session.toString(), workingDirectory);
 
 		this._sessionResidency.touch(session);
 		await this._sessionResidency.reconcile();

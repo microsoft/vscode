@@ -212,14 +212,16 @@ async function confirmAutoApproveLevel(value: string, label: string, dialogServi
 	return maybeConfirmElevatedPermissionLevel(value, dialogService, storageService, { defaultSettingKey: ChatConfiguration.DefaultConfiguration, levelLabel: label });
 }
 
-/**
- * Applies warning/info CSS classes to a trigger element for auto-approve levels.
- */
-function applyAutoApproveTriggerStyles(trigger: HTMLElement, property: string | undefined, value: unknown | undefined): void {
-	if (property === SessionConfigKey.AutoApprove) {
-		trigger.classList.toggle('warning', value === 'autopilot' || value === 'assisted');
-		trigger.classList.toggle('info', value === 'autoApprove');
+function triggerAriaLabel(title: string, label: string, isReadOnly: boolean, hasUncommittedChanges: boolean): string {
+	if (hasUncommittedChanges) {
+		return isReadOnly
+			? localize('agentHostSessionConfig.triggerAriaReadOnlyUncommitted', "{0}: {1}, Uncommitted Changes, Read-Only", title, label)
+			: localize('agentHostSessionConfig.triggerAriaUncommitted', "{0}: {1}, Uncommitted Changes", title, label);
 	}
+
+	return isReadOnly
+		? localize('agentHostSessionConfig.triggerAriaReadOnly', "{0}: {1}, Read-Only", title, label)
+		: localize('agentHostSessionConfig.triggerAria', "{0}: {1}", title, label);
 }
 
 class ConfigCheckboxControl extends Disposable {
@@ -476,18 +478,20 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			if (property === SessionConfigKey.Isolation) {
 				this._renderDisposables.add(markOnboardingTarget(slot, 'sessions.newSession.isolation'));
 			}
+
 			// `renderPickerTrigger`'s `disabled` flag means "read-only"
 			// (renders a `<span>` with `aria-readonly`). The resolving
 			// state is transient and uses `aria-disabled` while preserving
 			// the trigger's appearance. The click handler bails when resolving
 			// in `_showPicker`.
 			const trigger = renderPickerTrigger(slot, isReadOnly, this._renderDisposables, () => this._showPicker(provider, session.sessionId, property, schema, trigger));
-			// The read-only Branch chip skips the hover: it just mirrors the
-			// current/default branch name (already visible as the label),
-			// and the schema description reads awkwardly as a hover for a
-			// fixed value. The editable Branch chip (worktree isolation)
-			// keeps its description, which is useful context there.
-			const tooltip = (property === SessionConfigKey.Branch && isReadOnly) ? undefined : (schema.description ?? schema.title);
+
+			// The Branch chip owns its own hover in `_renderTrigger`, because
+			// the content depends on the repository's uncommitted-changes
+			// state and therefore has to be re-evaluated without a re-render.
+			const tooltip = property !== SessionConfigKey.Branch
+				? (schema.description ?? schema.title)
+				: undefined;
 			if (tooltip) {
 				this._renderDisposables.add(this._hoverService.setupDelayedHover(trigger, { content: tooltip }));
 			}
@@ -569,16 +573,80 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		dom.clearNode(trigger);
 
 		const icon = getConfigIcon(property, value);
-		if (icon) {
-			dom.append(trigger, renderIcon(icon));
-		}
+		const iconElement = icon
+			? dom.append(trigger, renderIcon(icon))
+			: undefined;
+
 		const labelSpan = dom.append(trigger, dom.$('span.sessions-chat-dropdown-label'));
 		const label = this._getLabel(sessionId, property, schema, value);
 		labelSpan.textContent = label;
-		trigger.setAttribute('aria-label', isReadOnly
-			? localize('agentHostSessionConfig.triggerAriaReadOnly', "{0}: {1}, Read-Only", schema.title, label)
-			: localize('agentHostSessionConfig.triggerAria', "{0}: {1}", schema.title, label));
-		applyAutoApproveTriggerStyles(trigger, property, value);
+
+		trigger.setAttribute('aria-label', triggerAriaLabel(schema.title, label, isReadOnly, false));
+
+		if (property === SessionConfigKey.Branch && icon && iconElement) {
+			this._trackBranchRepositoryState(trigger, iconElement, icon, schema, label, isReadOnly);
+		} else if (property === SessionConfigKey.AutoApprove) {
+			trigger.classList.toggle('warning', value === 'autopilot' || value === 'assisted');
+			trigger.classList.toggle('info', value === 'autoApprove');
+		}
+	}
+
+	/**
+	 * Keeps the Branch chip's glyph, aria label, and hover in sync with the
+	 * uncommitted-changes count reported by the agent host.
+	 *
+	 * Dirtiness is ambient repository state rather than a property of the
+	 * selected branch, which is why it is applied to the chip here instead of
+	 * inside {@link getConfigIcon} — that function also renders every row of
+	 * the branch dropdown and of the mobile repository sheet, where a
+	 * repository-level glyph would be meaningless.
+	 *
+	 * The state is patched onto the existing nodes rather than routed through
+	 * `_renderConfigPickers`, which tears the whole chip row down: the host
+	 * re-probes git whenever it observes a file change, so a flip while the
+	 * user has the branch dropdown open would otherwise destroy its anchor.
+	 */
+	private _trackBranchRepositoryState(trigger: HTMLElement, iconElement: HTMLElement, icon: ThemeIcon, schema: SessionConfigPropertySchema, label: string, isReadOnly: boolean): void {
+		let appliedHoverContent: string | undefined;
+		const hover = this._renderDisposables.add(new MutableDisposable<IDisposable>());
+
+		this._renderDisposables.add(autorun(reader => {
+			// Only a positive count counts as uncommitted changes. `undefined`
+			// means the host has not reported git state — an untrusted folder,
+			// no connection, a folder that isn't a repository, or a worktree
+			// still resolving its directory — and an unknown state must never
+			// render as if the repository were dirty.
+			const session = this._session.read(reader);
+			const uncommittedChanges = session?.workspace.read(reader)?.folders[0]?.gitRepository?.uncommittedChanges;
+			const hasUncommittedChanges = (uncommittedChanges ?? 0) > 0;
+
+			iconElement.className = '';
+			iconElement.classList.add(...ThemeIcon.asClassNameArray(hasUncommittedChanges ? Codicon.gitBranchChanges : icon));
+			trigger.setAttribute('aria-label', triggerAriaLabel(schema.title, label, isReadOnly, hasUncommittedChanges));
+
+			const branchName = schema.description ?? schema.title;
+			const content = !hasUncommittedChanges
+				? branchName
+				: uncommittedChanges === 1
+					? localize('agentHostSessionConfig.branchHoverUncommittedChangeWithDescription', "{0}, {1} uncommitted change", branchName, uncommittedChanges)
+					: localize('agentHostSessionConfig.branchHoverUncommittedChangesWithDescription', "{0}, {1} uncommitted changes", branchName, uncommittedChanges);
+
+			// This autorun re-runs for any workspace change, not just an
+			// uncommitted-changes flip, so only touch the hover when the text
+			// actually changed — and clear the old one *before* registering the
+			// replacement. `IHoverService` keys its keyboard-accessible hovers
+			// by target element and the outgoing disposable deletes that key
+			// unconditionally, so registering first would leave the trigger
+			// unreachable via `workbench.action.showHover`.
+			if (appliedHoverContent !== content) {
+				appliedHoverContent = content;
+				hover.clear();
+
+				hover.value = content
+					? this._hoverService.setupDelayedHover(trigger, { content })
+					: undefined;
+			}
+		}));
 	}
 
 	/**
