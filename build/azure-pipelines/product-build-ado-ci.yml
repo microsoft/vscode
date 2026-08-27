@@ -1,0 +1,670 @@
+pr:
+  branches:
+    include: ["release/msrc/*"]
+
+trigger: none
+
+parameters:
+  - name: VSCODE_QUALITY
+    displayName: Quality
+    type: string
+    default: insider
+    values:
+      - exploration
+      - insider
+      - stable
+  - name: NPM_REGISTRY
+    displayName: "Custom NPM Registry"
+    type: string
+    default: 'https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/'
+  - name: CARGO_REGISTRY
+    displayName: "Custom Cargo Registry"
+    type: string
+    default: 'sparse+https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/Cargo/index/'
+  - name: VSCODE_BUILD_WIN32
+    displayName: "🎯 Windows x64"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_WIN32_ARM64
+    displayName: "🎯 Windows arm64"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_LINUX
+    displayName: "🎯 Linux x64"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_LINUX_SNAP
+    displayName: "🎯 Linux x64 Snap"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_LINUX_ARM64
+    displayName: "🎯 Linux arm64"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_LINUX_ARMHF
+    displayName: "🎯 Linux armhf"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_ALPINE
+    displayName: "🎯 Alpine x64"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_ALPINE_ARM64
+    displayName: "🎯 Alpine arm64"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_MACOS
+    displayName: "🎯 macOS x64"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_MACOS_ARM64
+    displayName: "🎯 macOS arm64"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_MACOS_UNIVERSAL
+    displayName: "🎯 macOS universal"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_WEB
+    displayName: "🎯 Web"
+    type: boolean
+    default: true
+  - name: VSCODE_STEP_ON_IT
+    displayName: "Skip tests"
+    type: boolean
+    default: false
+  - name: VSCODE_USE_LEGACY_OSS_NOTICE
+    displayName: "Use legacy OSS Notice"
+    type: boolean
+    default: false
+  # Opt-in for validation builds that never publish (SDK canary runs, SDK bump PR
+  # validation): runs the sanity suite against this build's own pipeline artifacts
+  # rather than the update service, which only serves published builds.
+  - name: VSCODE_RUN_ARTIFACT_SANITY_TESTS
+    displayName: "Run sanity tests against this build's artifacts (for unpublished builds)"
+    type: boolean
+    default: false
+  # SDK -> VS Code integration: override the Copilot dependencies to a version
+  # already published to the private feed. 'none'/'auto' = normal build.
+  # See microsoft/vscode-engineering specs/sdk-vscode-integration.spec.md.
+  - name: VSCODE_SDK_CANARY_VERSION
+    displayName: "SDK canary: @github/copilot-sdk version ('none' = normal build)"
+    type: string
+    default: none
+  - name: VSCODE_CLI_CANARY_VERSION
+    displayName: "SDK canary: @github/copilot version ('auto' = infer from the SDK)"
+    type: string
+    default: auto
+
+variables:
+  - name: VSCODE_PRIVATE_BUILD
+    value: ${{ ne(variables['Build.Repository.Uri'], 'https://github.com/microsoft/vscode.git') }}
+  - name: NPM_REGISTRY
+    value: ${{ parameters.NPM_REGISTRY }}
+  # Normalize the canary sentinels ('none'/'auto') back to empty so the gated
+  # node-modules steps (condition: ne(..., '')) stay a no-op for normal builds
+  # and the override script infers the CLI when it is empty.
+  - name: VSCODE_SDK_CANARY_VERSION
+    ${{ if eq(parameters.VSCODE_SDK_CANARY_VERSION, 'none') }}:
+      value: ""
+    ${{ else }}:
+      value: ${{ parameters.VSCODE_SDK_CANARY_VERSION }}
+  - name: VSCODE_CLI_CANARY_VERSION
+    ${{ if eq(parameters.VSCODE_CLI_CANARY_VERSION, 'auto') }}:
+      value: ""
+    ${{ else }}:
+      value: ${{ parameters.VSCODE_CLI_CANARY_VERSION }}
+  - name: CARGO_REGISTRY
+    value: ${{ parameters.CARGO_REGISTRY }}
+  - name: VSCODE_QUALITY
+    value: ${{ parameters.VSCODE_QUALITY }}
+  - name: VSCODE_BUILD_STAGE_WINDOWS
+    value: ${{ or(eq(parameters.VSCODE_BUILD_WIN32, true), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}
+  - name: VSCODE_BUILD_STAGE_LINUX
+    value: ${{ or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_LINUX_SNAP, true), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}
+  - name: VSCODE_BUILD_STAGE_ALPINE
+    value: ${{ or(eq(parameters.VSCODE_BUILD_ALPINE, true), eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true)) }}
+  - name: VSCODE_BUILD_STAGE_MACOS
+    value: ${{ or(eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}
+  - name: VSCODE_BUILD_STAGE_WEB
+    value: ${{ eq(parameters.VSCODE_BUILD_WEB, true) }}
+  - name: VSCODE_PUBLISH_COUNTER_PREFIX
+    value: $[format('{0:yyyyMMdd}-{1}-{2}', pipeline.startTime, variables['VSCODE_QUALITY'], variables['Build.SourceBranch'])]
+  - name: VSCODE_PUBLISH_COUNTER
+    value: $[counter(variables['VSCODE_PUBLISH_COUNTER_PREFIX'], 1)]
+  - name: VSCODE_STEP_ON_IT
+    value: ${{ eq(parameters.VSCODE_STEP_ON_IT, true) }}
+  # Derived as an explicit lowercase string literal so downloadNotice.ts's
+  # case-sensitive JS check (process.env['VSCODE_OVERWRITE_TPN'] === 'false')
+  # works. ${{ eq(...) }} would emit 'True'/'False' (capitalized) and silently
+  # fail that comparison. Checkbox on => keep legacy notice ('false' = no
+  # overwrite); off => apply CG notice ('true').
+  - name: VSCODE_OVERWRITE_TPN
+    ${{ if eq(parameters.VSCODE_USE_LEGACY_OSS_NOTICE, true) }}:
+      value: 'false'
+    ${{ else }}:
+      value: 'true'
+  - name: VSCODE_BUILD_MACOS_UNIVERSAL
+    value: ${{ and(eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true), eq(parameters.VSCODE_BUILD_MACOS_UNIVERSAL, true)) }}
+  - name: VSCODE_STAGING_BLOB_STORAGE_ACCOUNT_NAME
+    value: vscodeesrp
+  - name: PRSS_CDN_URL
+    value: https://vscode.download.prss.microsoft.com/dbazure/download
+  - name: VSCODE_ESRP_SERVICE_CONNECTION_ID
+    value: fe07e6ce-6ffb-4df9-8d27-d129523a3f3e
+  - name: VSCODE_ESRP_TENANT_ID
+    value: 975f013f-7f24-47e8-a7d3-abc4752bf346
+  - name: VSCODE_ESRP_CLIENT_ID
+    value: 4ac7ed59-b5e9-4f66-9c30-8d1afa72d32d
+  - name: ESRP_TENANT_ID
+    value: 975f013f-7f24-47e8-a7d3-abc4752bf346
+  - name: ESRP_CLIENT_ID
+    value: c24324f7-e65f-4c45-8702-ed2d4c35df99
+  - name: AZURE_DOCUMENTDB_ENDPOINT
+    value: https://vscode.documents.azure.com/
+  - name: VSCODE_MIXIN_REPO
+    value: microsoft/vscode-distro
+  - name: skipComponentGovernanceDetection
+    value: false
+  - name: ComponentDetection.Timeout
+    value: 600
+  - name: Codeql.SkipTaskAutoInjection
+    value: true
+  - name: ARTIFACT_PREFIX
+    value: ''
+
+name: "$(Date:yyyyMMdd).$(Rev:r) (${{ parameters.VSCODE_QUALITY }})"
+
+resources:
+  repositories:
+    - repository: 1esPipelines
+      type: git
+      name: 1ESPipelineTemplates/1ESPipelineTemplates
+      ref: refs/tags/release
+    - repository: distro
+      type: github
+      name: microsoft/vscode-distro
+      endpoint: Monaco
+      ref: main
+    - repository: capi
+      type: github
+      name: microsoft/vscode-capi
+      endpoint: Monaco
+      ref: main
+    - repository: encrypt
+      type: github
+      name: microsoft/vscode-encrypt
+      endpoint: Monaco
+      ref: main
+    - repository: vsda
+      type: github
+      name: microsoft/vsda
+      endpoint: Monaco
+      ref: main
+    - repository: regexp
+      type: github
+      name: microsoft/vscode-regexp-languagedetection
+      endpoint: Monaco
+      ref: main
+    - repository: vscode_loc
+      type: github
+      name: microsoft/vscode-extensions-loc
+      endpoint: Monaco
+      ref: main
+
+extends:
+  template: v1/1ES.Unofficial.PipelineTemplate.yml@1esPipelines
+  parameters:
+    sdl:
+      sourceRepositoriesToScan:
+        exclude:
+          - repository: distro
+          - repository: capi
+          - repository: encrypt
+          - repository: vsda
+          - repository: regexp
+          - repository: vscode_loc
+      tsa:
+        enabled: true
+        configFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/tsaoptions.json
+      binskim:
+        analyzeTargetGlob: '+:file|$(Agent.BuildDirectory)/VSCode-*/**/*.exe;+:file|$(Agent.BuildDirectory)/VSCode-*/**/*.dll;+:file|$(Agent.BuildDirectory)/VSCode-*/**/*.node;-:file|$(Agent.BuildDirectory)/VSCode-*/**/resources/**/*.exe;-:file|$(Agent.BuildDirectory)/VSCode-*/**/resources/**/*.node;-:file|$(Build.SourcesDirectory)/.build/**/system-setup/VSCodeSetup*.exe;-:file|$(Build.SourcesDirectory)/.build/**/user-setup/VSCodeUserSetup*.exe'
+      codeql:
+        runSourceLanguagesInSourceAnalysis: true
+        compiled:
+          enabled: false
+          justificationForDisabling: "CodeQL breaks ESRP CodeSign on macOS (ICM #520035761, githubcustomers/microsoft-codeql-support#198)"
+      credscan:
+        suppressionsFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/CredScanSuppressions.json
+      eslint:
+        enabled: true
+        enableExclusions: true
+        exclusionsFilePath: $(Build.SourcesDirectory)/.eslint-ignore
+      sourceAnalysisPool: 1es-windows-2022-x64
+      createAdoIssuesForJustificationsForDisablement: false
+    containers:
+      ubuntu-2004-arm64:
+        image: onebranch.azurecr.io/linux/ubuntu-2004-arm64:latest
+    settings:
+      networkIsolationPolicy: Permissive,CFSClean,CFSClean2,CFSClean3
+    stages:
+      - stage: Validate
+        displayName: Validate Commit
+        dependsOn: []
+        jobs:
+          - job: CheckCommitTrailer
+            displayName: Check for Trailer
+            pool:
+              name: 1es-ubuntu-22.04-x64
+              os: linux
+            steps:
+              - checkout: self
+                path: s
+                fetchDepth: 0
+                fetchTags: false
+                persistCredentials: true
+                retryCountOnTaskFailure: 3
+                displayName: Checkout microsoft/vscode
+
+              - script: |
+                  set -euo pipefail
+
+                  if [ "$(Build.Reason)" = "PullRequest" ]; then
+                    # Azure normally checks out a synthetic merge commit for PR validation. Its first
+                    # parent is the target and its second parent is the PR head. Fall back to finding
+                    # the merge base when the provider checks out the PR head directly.
+                    parent_count=$(git rev-list --parents -n 1 HEAD | awk '{ print NF - 1 }')
+                    if [ "$parent_count" = "2" ]; then
+                      base_sha=$(git rev-parse HEAD^1)
+                      head_sha=$(git rev-parse HEAD^2)
+                    else
+                      target_branch="$(System.PullRequest.TargetBranch)"
+                      target_branch="${target_branch#refs/heads/}"
+                      git fetch origin "$target_branch:refs/remotes/origin/$target_branch"
+                      head_sha=$(git rev-parse HEAD)
+                      base_sha=$(git merge-base "origin/$target_branch" "$head_sha")
+                    fi
+                  else
+                    # Manual builds validate the selected branch's latest commit.
+                    head_sha=$(git rev-parse HEAD)
+                    base_sha=$(git rev-parse HEAD^1)
+                  fi
+
+                  # MSRC pull requests must be squashed to one commit before validation succeeds.
+                  commit_count=$(git rev-list --count "$base_sha..$head_sha")
+                  if [ "$commit_count" != "1" ]; then
+                    echo "##vso[task.logissue type=error]This PR has $commit_count commits. release/msrc/* PRs must contain exactly one commit. Please squash your commits."
+                    exit 1
+                  fi
+                  echo "PR has a single commit."
+
+                  # Extract every Msrc-Case-Id trailer value from the PR head commit.
+                  mapfile -t trailer_values < <(
+                    git log -1 --pretty='format:%(trailers:key=Msrc-Case-Id,valueonly=true)' "$head_sha" |
+                      sed '/^[[:space:]]*$/d'
+                  )
+
+                  if [ "${#trailer_values[@]}" = "0" ]; then
+                    echo "##vso[task.logissue type=error]Commit $head_sha is missing the required 'Msrc-Case-Id' trailer."
+                    printf "Add a trailer to the commit message, for example:\n\n    Msrc-Case-Id: 12345\n\n"
+                    exit 1
+                  fi
+
+                  # Every supplied case ID must be numeric or explicitly marked not applicable.
+                  for value in "${trailer_values[@]}"; do
+                    if [[ ! "$value" =~ ^[0-9]+$ && "$value" != "N/A" ]]; then
+                      echo "##vso[task.logissue type=error]Commit $head_sha has an invalid 'Msrc-Case-Id' trailer value. Expected a number or N/A."
+                      printf "Use a numeric case id or N/A, for example:\n\n    Msrc-Case-Id: 12345\n\n"
+                      exit 1
+                    fi
+                  done
+
+                  echo "Commit $head_sha has the required 'Msrc-Case-Id' trailer."
+                displayName: Verify Commit and Trailer
+
+      - stage: Quality
+        dependsOn: []
+        pool:
+          name: 1es-ubuntu-22.04-x64
+          os: linux
+        jobs:
+          - template: build/azure-pipelines/product-quality-checks.yml@self
+
+      - stage: Copilot
+        dependsOn: []
+        pool:
+          name: 1es-ubuntu-22.04-x64
+          os: linux
+        jobs:
+          - template: build/azure-pipelines/product-copilot.yml@self
+            parameters:
+              VSCODE_PUBLISH: false
+              VSCODE_RELEASE: false
+
+      - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
+        - stage: Windows
+          dependsOn: []
+          pool:
+            name: 1es-windows-2022-x64
+            os: windows
+          jobs:
+            - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
+              - template: build/azure-pipelines/win32/product-build-win32-cli.yml@self
+                parameters:
+                  VSCODE_ARCH: x64
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_CHECK_ONLY: true
+
+            - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_TEST_SUITE: Electron
+            - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_TEST_SUITE: Browser
+            - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_TEST_SUITE: Remote
+
+      - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX'], true) }}:
+        - stage: Linux
+          dependsOn: []
+          pool:
+            name: 1es-ubuntu-22.04-x64
+            os: linux
+          jobs:
+            - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
+              - template: build/azure-pipelines/linux/product-build-linux-cli.yml@self
+                parameters:
+                  VSCODE_ARCH: x64
+                  VSCODE_CHECK_ONLY: true
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+
+            - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_TEST_SUITE: Electron
+            - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_TEST_SUITE: Browser
+            - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_TEST_SUITE: Remote
+
+      - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS'], true) }}:
+        - stage: macOS
+          dependsOn: []
+          pool:
+            name: AcesShared
+            os: macOS
+            demands:
+              - ImageOverride -equals ACES_VM_SharedPool_Sequoia
+          variables:
+            BUILDSECMON_OPT_IN: true
+          jobs:
+            - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
+              - template: build/azure-pipelines/darwin/product-build-darwin-cli.yml@self
+                parameters:
+                  VSCODE_ARCH: x64
+                  VSCODE_CHECK_ONLY: true
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+
+            - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_TEST_SUITE: Electron
+            - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_TEST_SUITE: Browser
+            - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_TEST_SUITE: Remote
+
+      # Validation builds that never publish (SDK canary runs, SDK bump PR validation) cannot resolve
+      # builds through the update service. Run the sanity suite against this build's own artifacts
+      # instead. Each job's grep is scoped to exactly the
+      # targets its artifacts cover, and each stage depends only on the build stage producing them
+      # so one platform failing does not skip the rest.
+      - ${{ if and(eq(parameters.VSCODE_RUN_ARTIFACT_SANITY_TESTS, true), eq(variables['VSCODE_BUILD_STAGE_MACOS'], true)) }}:
+        - stage: ArtifactSanityTestsMacOS
+          displayName: Sanity Tests (Artifacts, macOS)
+          dependsOn:
+            - macOS
+          variables:
+            - name: BUILD_COMMIT
+              value: $(Build.SourceVersion)
+            - name: BUILD_QUALITY
+              value: ${{ variables.VSCODE_QUALITY }}
+          jobs:
+            - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
+              - template: build/azure-pipelines/common/sanity-tests.yml@self
+                parameters:
+                  name: artifact_macos_x64
+                  displayName: macOS x64 (no runtime)
+                  poolName: AcesShared
+                  os: macOS
+                  continueOnError: false
+                  args: --no-detection --grep "darwin-x64"
+                  artifacts:
+                    - vscode_cli_darwin_x64_cli
+                    - vscode_client_darwin_x64_archive
+                    - vscode_client_darwin_x64_dmg
+                    - vscode_server_darwin_x64_archive
+                    - vscode_web_darwin_x64_archive
+
+            - ${{ if eq(parameters.VSCODE_BUILD_MACOS_ARM64, true) }}:
+              - template: build/azure-pipelines/common/sanity-tests.yml@self
+                parameters:
+                  name: artifact_macos_arm64
+                  displayName: macOS arm64
+                  poolName: AcesShared
+                  os: macOS
+                  continueOnError: false
+                  args: --grep "darwin-arm64"
+                  artifacts:
+                    - vscode_cli_darwin_arm64_cli
+                    - vscode_client_darwin_arm64_archive
+                    - vscode_client_darwin_arm64_dmg
+                    - vscode_server_darwin_arm64_archive
+                    - vscode_web_darwin_arm64_archive
+
+            - ${{ if eq(variables['VSCODE_BUILD_MACOS_UNIVERSAL'], true) }}:
+              - template: build/azure-pipelines/common/sanity-tests.yml@self
+                parameters:
+                  name: artifact_macos_universal
+                  displayName: macOS universal
+                  poolName: AcesShared
+                  os: macOS
+                  continueOnError: false
+                  args: --grep "darwin-universal"
+                  artifacts:
+                    - vscode_client_darwin_universal_archive
+                    - vscode_client_darwin_universal_dmg
+
+      - ${{ if and(eq(parameters.VSCODE_RUN_ARTIFACT_SANITY_TESTS, true), eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true)) }}:
+        - stage: ArtifactSanityTestsWindows
+          displayName: Sanity Tests (Artifacts, Windows)
+          dependsOn:
+            - Windows
+          variables:
+            - name: BUILD_COMMIT
+              value: $(Build.SourceVersion)
+            - name: BUILD_QUALITY
+              value: ${{ variables.VSCODE_QUALITY }}
+          jobs:
+            - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
+              - template: build/azure-pipelines/common/sanity-tests.yml@self
+                parameters:
+                  name: artifact_windows_x64
+                  displayName: Windows x64
+                  poolName: 1es-windows-2022-x64
+                  os: windows
+                  continueOnError: false
+                  args: --grep "win32-x64"
+                  artifacts:
+                    - vscode_cli_win32_x64_cli
+                    - vscode_client_win32_x64_archive
+                    - vscode_client_win32_x64_setup
+                    - vscode_client_win32_x64_user-setup
+                    - vscode_server_win32_x64_archive
+                    - vscode_web_win32_x64_archive
+
+            - ${{ if eq(parameters.VSCODE_BUILD_WIN32_ARM64, true) }}:
+              - template: build/azure-pipelines/common/sanity-tests.yml@self
+                parameters:
+                  name: artifact_windows_arm64
+                  displayName: Windows arm64
+                  poolName: 1es-windows-2022-arm64
+                  os: windows
+                  arch: arm64
+                  # Non-blocking: arm64 binaries are missing VersionInfo ProductName, which fails
+                  # the published SanityTests run on main too.
+                  continueOnError: true
+                  args: --grep "win32-arm64"
+                  artifacts:
+                    - vscode_cli_win32_arm64_cli
+                    - vscode_client_win32_arm64_archive
+                    - vscode_client_win32_arm64_setup
+                    - vscode_client_win32_arm64_user-setup
+                    - vscode_server_win32_arm64_archive
+                    - vscode_web_win32_arm64_archive
+
+      # The SDK ships linuxmusl prebuilds that only the Alpine jobs exercise.
+      - ${{ if and(eq(parameters.VSCODE_RUN_ARTIFACT_SANITY_TESTS, true), eq(variables['VSCODE_BUILD_STAGE_ALPINE'], true)) }}:
+        - stage: ArtifactSanityTestsAlpine
+          displayName: Sanity Tests (Artifacts, Alpine)
+          dependsOn:
+            - Alpine
+          variables:
+            - name: BUILD_COMMIT
+              value: $(Build.SourceVersion)
+            - name: BUILD_QUALITY
+              value: ${{ variables.VSCODE_QUALITY }}
+          jobs:
+            - ${{ if eq(parameters.VSCODE_BUILD_ALPINE, true) }}:
+              - template: build/azure-pipelines/common/sanity-tests.yml@self
+                parameters:
+                  name: artifact_alpine_x64
+                  displayName: Alpine 3.22 amd64
+                  poolName: 1es-ubuntu-22.04-x64
+                  container: alpine
+                  arch: amd64
+                  continueOnError: false
+                  args: --grep "alpine-x64$"
+                  artifacts:
+                    - vscode_cli_alpine_x64_cli
+                    - vscode_server_linux_alpine_archive-unsigned
+                    - vscode_web_linux_alpine_archive-unsigned
+
+            - ${{ if eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true) }}:
+              - template: build/azure-pipelines/common/sanity-tests.yml@self
+                parameters:
+                  name: artifact_alpine_arm64
+                  displayName: Alpine 3.22 arm64
+                  poolName: 1es-azure-linux-3-arm64
+                  container: alpine
+                  arch: arm64
+                  continueOnError: false
+                  args: --grep "alpine-arm64$"
+                  artifacts:
+                    - vscode_cli_alpine_arm64_cli
+                    - vscode_server_alpine_arm64_archive-unsigned
+                    - vscode_web_alpine_arm64_archive-unsigned
+
+      # rpm targets are excluded, there is no dnf/yum on the Ubuntu hosts.
+      - ${{ if and(eq(parameters.VSCODE_RUN_ARTIFACT_SANITY_TESTS, true), eq(variables['VSCODE_BUILD_STAGE_LINUX'], true)) }}:
+        - stage: ArtifactSanityTestsLinux
+          displayName: Sanity Tests (Artifacts, Linux)
+          dependsOn:
+            - Linux
+          variables:
+            - name: BUILD_COMMIT
+              value: $(Build.SourceVersion)
+            - name: BUILD_QUALITY
+              value: ${{ variables.VSCODE_QUALITY }}
+          jobs:
+            - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
+              - template: build/azure-pipelines/common/sanity-tests.yml@self
+                parameters:
+                  name: artifact_ubuntu_x64
+                  displayName: Ubuntu 22.04 x64
+                  poolName: 1es-ubuntu-22.04-x64
+                  os: linux
+                  continueOnError: false
+                  args: --grep "linux(-deb|-snap)?-x64$"
+                  artifacts:
+                    - vscode_cli_linux_x64_cli
+                    - vscode_client_linux_x64_archive-unsigned
+                    - vscode_client_linux_x64_deb-package
+                    - vscode_client_linux_x64_snap
+                    - vscode_server_linux_x64_archive-unsigned
+                    - vscode_web_linux_x64_archive-unsigned
+
+            - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
+              - template: build/azure-pipelines/common/sanity-tests.yml@self
+                parameters:
+                  name: artifact_ubuntu_arm64
+                  displayName: Ubuntu 24.04 arm64
+                  poolName: 1es-azure-linux-3-arm64
+                  container: ubuntu-24
+                  arch: arm64
+                  continueOnError: false
+                  args: --grep "linux(-deb)?-arm64$"
+                  artifacts:
+                    - vscode_cli_linux_arm64_cli
+                    - vscode_client_linux_arm64_archive-unsigned
+                    - vscode_client_linux_arm64_deb-package
+                    - vscode_server_linux_arm64_archive-unsigned
+                    - vscode_web_linux_arm64_archive-unsigned
+
+            - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true) }}:
+              - template: build/azure-pipelines/common/sanity-tests.yml@self
+                parameters:
+                  name: artifact_ubuntu_armhf
+                  displayName: Ubuntu 24.04 arm32
+                  poolName: 1es-azure-linux-3-arm64
+                  container: ubuntu-24
+                  arch: arm
+                  continueOnError: false
+                  args: --grep "linux(-deb)?-armhf$"
+                  artifacts:
+                    - vscode_cli_linux_armhf_cli
+                    - vscode_client_linux_armhf_archive-unsigned
+                    - vscode_client_linux_armhf_deb-package
+
+      - stage: node_modules
+        dependsOn: []
+        jobs:
+          - template: build/azure-pipelines/win32/product-build-win32-node-modules.yml@self
+            parameters:
+              VSCODE_ARCH: arm64
+          - template: build/azure-pipelines/linux/product-build-linux-node-modules.yml@self
+            parameters:
+              NPM_ARCH: arm64
+              VSCODE_ARCH: arm64
+          - template: build/azure-pipelines/linux/product-build-linux-node-modules.yml@self
+            parameters:
+              NPM_ARCH: arm
+              VSCODE_ARCH: armhf
+          - template: build/azure-pipelines/alpine/product-build-alpine-node-modules.yml@self
+            parameters:
+              VSCODE_ARCH: x64
+          - template: build/azure-pipelines/alpine/product-build-alpine-node-modules.yml@self
+            parameters:
+              VSCODE_ARCH: arm64
+          - template: build/azure-pipelines/darwin/product-build-darwin-node-modules.yml@self
+            parameters:
+              VSCODE_ARCH: x64
+          - template: build/azure-pipelines/web/product-build-web-node-modules.yml@self
