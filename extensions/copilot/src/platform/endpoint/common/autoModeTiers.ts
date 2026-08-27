@@ -35,5 +35,6 @@ export const AUTO_MODE_TIER_PROPERTY = 'tier';
  * something a caller can select.
  */
 export function isSelectableAutoModeTier(value: unknown): value is AutoModeTier {
-	return typeof value === 'string' && (selectableAutoModeTiers as readonly string[]).includes(value);
+    return typeof value === 'string' && (selectableAutoModeTiers as readonly string[]).includes(value.trim().toLowerCase());
 }
+
