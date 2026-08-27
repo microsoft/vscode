@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { ActionType, type ActionEnvelope, type ClientChangesetAction } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, MessageKind, ResponsePartKind, SessionLifecycle, SessionStatus, TerminalClaimKind, TerminalLifecycleStatus, TurnState, type AnnotationsState, type ChangesetState, type ErrorInfo, type RootState, type SessionState, type SessionSummary, type TerminalState, type Turn } from '../../common/state/protocol/state.js';
-import { buildDefaultChatUri, createChatState, createDefaultChatSummary, getTurnError, ROOT_STATE_URI, StateComponents, type ChatState } from '../../common/state/sessionState.js';
-import { AgentSubscriptionManager, ChangesetStateSubscription, ChatStateSubscription, isActionEnvelopeRelevantToSubscriptionUris, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
+import { AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, ChangesetStatus, MessageKind, ResponsePartKind, SessionLifecycle, SessionStatus, TerminalClaimKind, TerminalLifecycleStatus, TurnState, type AnnotationsState, type AutomationCatalogState, type AutomationRunState, type ChangesetState, type ErrorInfo, type RootState, type SessionState, type SessionSummary, type TerminalState, type Turn } from '../../common/state/protocol/state.js';
+import { AUTOMATION_CATALOG_URI, buildDefaultChatUri, createChatState, createDefaultChatSummary, getTurnError, ROOT_STATE_URI, StateComponents, type ChatState } from '../../common/state/sessionState.js';
+import { AgentSubscriptionManager, AutomationCatalogSubscription, AutomationRunSubscription, ChangesetStateSubscription, ChatStateSubscription, isActionEnvelopeRelevantToSubscriptionUris, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
 import { normalizeLegacyActionEnvelope, readLegacyTurnError } from '../../common/state/legacyProtocolCompatibility.js';
 
 // Helpers
@@ -83,6 +84,121 @@ const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toStri
 const terminalUri = URI.from({ scheme: 'agenthost-terminal', path: '/term1' }).toString();
 const chatUri = buildDefaultChatUri(sessionUri);
 const changesetUri = `${sessionUri}/changeset/session`;
+const automationUri = 'ahp-automation:/test-automation';
+const automationRunUri = 'ahp-automation-run:/test-run';
+
+function makeAutomationCatalogState(): AutomationCatalogState {
+	return { automations: [] };
+}
+
+function makeAutomationRunState(): AutomationRunState {
+	return {
+		resource: automationRunUri,
+		automation: automationUri,
+		origin: { kind: AutomationRunOriginKind.Manual },
+		lifecycle: { status: AutomationRunStatus.Pending, createdAt: new Date(1).toISOString() },
+		sessions: [],
+	};
+}
+
+suite('Automation subscriptions', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('catalogue changes only after the authoritative set action', () => {
+		const subscription = disposables.add(new AutomationCatalogSubscription('c1', noop));
+		subscription.handleSnapshot(makeAutomationCatalogState(), 0);
+		const definition = {
+			title: 'Daily summary',
+			message: { text: 'Summarize the repository.', origin: { kind: MessageKind.Automation } },
+			session: {},
+			enabled: true,
+			triggers: [],
+		};
+
+		subscription.receiveEnvelope(makeEnvelope({
+			type: ActionType.AutomationCreateRequested,
+			resource: automationUri,
+			definition,
+		}, 1, { clientId: 'c1', clientSeq: 1 }, undefined, AUTOMATION_CATALOG_URI));
+
+		const requested = subscription.value as AutomationCatalogState;
+		subscription.receiveEnvelope(makeEnvelope({
+			type: ActionType.AutomationSet,
+			automation: {
+				resource: automationUri,
+				definition,
+				runs: [],
+				operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
+				createdAt: new Date(1).toISOString(),
+				modifiedAt: new Date(1).toISOString(),
+			},
+		}, 2, undefined, undefined, AUTOMATION_CATALOG_URI));
+
+		assert.deepStrictEqual({
+			requested: requested.automations,
+			authoritative: (subscription.value as AutomationCatalogState).automations.map(automation => automation.resource),
+		}, {
+			requested: [],
+			authoritative: [automationUri],
+		});
+	});
+
+	test('run cancellation remains side-effect-only until the lifecycle changes', () => {
+		const subscription = disposables.add(new AutomationRunSubscription(automationRunUri, 'c1', noop));
+		subscription.handleSnapshot(makeAutomationRunState(), 0);
+		subscription.receiveEnvelope(makeEnvelope({
+			type: ActionType.AutomationRunCancelRequested,
+		}, 1, { clientId: 'c1', clientSeq: 1 }, undefined, automationRunUri));
+		const requested = (subscription.value as AutomationRunState).lifecycle.status;
+		subscription.receiveEnvelope(makeEnvelope({
+			type: ActionType.AutomationRunLifecycleChanged,
+			lifecycle: {
+				status: AutomationRunStatus.Cancelled,
+				createdAt: new Date(1).toISOString(),
+				completedAt: new Date(2).toISOString(),
+			},
+		}, 2, undefined, undefined, automationRunUri));
+
+		assert.deepStrictEqual({
+			requested,
+			authoritative: (subscription.value as AutomationRunState).lifecycle.status,
+		}, {
+			requested: AutomationRunStatus.Pending,
+			authoritative: AutomationRunStatus.Cancelled,
+		});
+	});
+
+	test('rejected removal does not mutate the catalogue', () => {
+		const subscription = disposables.add(new AutomationCatalogSubscription('c1', noop));
+		const definition = {
+			title: 'Daily summary',
+			message: { text: 'Summarize the repository.', origin: { kind: MessageKind.Automation } },
+			session: {},
+			enabled: true,
+			triggers: [],
+		};
+		subscription.handleSnapshot({
+			automations: [{
+				resource: automationUri,
+				definition,
+				runs: [],
+				operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
+				createdAt: new Date(1).toISOString(),
+				modifiedAt: new Date(1).toISOString(),
+			}],
+		}, 0);
+
+		subscription.receiveEnvelope(makeEnvelope({
+			type: ActionType.AutomationRemoved,
+			resource: automationUri,
+		}, 1, { clientId: 'c1', clientSeq: 1 }, 'Automation has an active run.', AUTOMATION_CATALOG_URI));
+
+		assert.deepStrictEqual(
+			(subscription.value as AutomationCatalogState).automations.map(automation => automation.resource),
+			[automationUri],
+		);
+	});
+});
 
 suite('ChangesetStateSubscription', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -736,9 +852,9 @@ suite('AgentSubscriptionManager', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createManager(subscribe: (resource: URI) => Promise<{ resource: string; state: SessionState | TerminalState | ChangesetState | AnnotationsState; fromSeq: number }> = async (resource) => {
-		subscribedResources.push(resource.toString());
+	function createManager(subscribe: (resource: URI) => Promise<{ resource: string; state: SessionState | TerminalState | ChangesetState | AnnotationsState | AutomationCatalogState; fromSeq: number }> = async resource => {
 		const key = resource.toString();
+		subscribedResources.push(key);
 		if (key.endsWith('/annotations')) {
 			return { resource: key, state: { annotations: [] }, fromSeq: 0 };
 		}
@@ -752,7 +868,7 @@ suite('AgentSubscriptionManager', () => {
 			() => ++seq,
 			noop,
 			subscribe,
-			(resource) => {
+			resource => {
 				unsubscribedResources.push(resource.toString());
 			},
 		));
@@ -885,6 +1001,28 @@ suite('AgentSubscriptionManager', () => {
 		assert.ok(subscribedResources.includes(terminalUri));
 
 		ref.dispose();
+	});
+
+	test('preserves the exact authority-less automation catalogue channel', async () => {
+		const mgr = createManager(async resource => {
+			subscribedResources.push(resource.toString());
+			return { resource: resource.toString(), state: { automations: [] }, fromSeq: 0 };
+		});
+		const ref = mgr.getSubscriptionByChannel<AutomationCatalogState>(StateComponents.AutomationCatalog, AUTOMATION_CATALOG_URI, 'AutomationHolder');
+		await Event.toPromise(ref.object.onDidChange);
+
+		assert.deepStrictEqual({
+			subscribedResources,
+			channels: mgr.currentSubscriptionChannels(),
+			activeChannel: mgr.getActiveSubscriptions()[0].channel,
+		}, {
+			subscribedResources: [AUTOMATION_CATALOG_URI],
+			channels: [AUTOMATION_CATALOG_URI],
+			activeChannel: AUTOMATION_CATALOG_URI,
+		});
+
+		ref.dispose();
+		assert.deepStrictEqual(unsubscribedResources, [AUTOMATION_CATALOG_URI]);
 	});
 
 	test('dispatchOptimistic applies to matching session subscription', async () => {
@@ -1124,10 +1262,31 @@ suite('AgentSubscriptionManager', () => {
 
 			mgr.dispatchOptimistic(sessionUri, { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///ws2' });
 
-			mgr.markSubscriptionsMissing([URI.parse(sessionUri)]);
+			mgr.markSubscriptionsMissing([sessionUri]);
 
 			assert.ok(ref.object.value instanceof Error);
 			assert.deepStrictEqual(mgr.getPendingActions(), []);
+			ref.dispose();
+		});
+
+		test('markSubscriptionsMissing preserves exact protocol channels', async () => {
+			const mgr = createManager(async resource => ({
+				resource: resource.toString(),
+				state: { automations: [] },
+				fromSeq: 0,
+			}));
+			const ref = mgr.getSubscriptionByChannel<AutomationCatalogState>(StateComponents.AutomationCatalog, AUTOMATION_CATALOG_URI, 'test');
+			await Event.toPromise(ref.object.onDidChange);
+
+			mgr.markSubscriptionsMissing([AUTOMATION_CATALOG_URI]);
+
+			assert.deepStrictEqual({
+				valueIsError: ref.object.value instanceof Error,
+				channel: mgr.getActiveSubscriptions()[0].channel,
+			}, {
+				valueIsError: true,
+				channel: AUTOMATION_CATALOG_URI,
+			});
 			ref.dispose();
 		});
 
