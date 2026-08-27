@@ -25,6 +25,7 @@ import { ExtensionIdentifier } from '../../../../platform/extensions/common/exte
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { McpGalleryManifestStatus } from '../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { IGalleryMcpServer, IGalleryMcpServerConfiguration, IInstallableMcpServer, IQueryOptions } from '../../../../platform/mcp/common/mcpManagement.js';
+import { IMcpDiscoveryMetadata } from '../../../../platform/mcp/common/mcpDiscoveryMetadata.js';
 import { IMcpDevModeConfig, IMcpSandboxConfiguration, IMcpServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceFolder, IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
@@ -72,6 +73,7 @@ export interface McpCollectionDefinition {
 	/** Globally-unique, stable ID for this definition */
 	readonly id: string;
 	readonly provenance?: McpCollectionProvenance;
+	readonly discovery?: IMcpDiscoveryMetadata;
 	/** Human-readable label for the definition */
 	readonly label: string;
 	/** Definitions this collection contains. */
@@ -907,12 +909,22 @@ export interface IWorkbenchMcpServer {
 }
 
 export const IMcpWorkbenchService = createDecorator<IMcpWorkbenchService>('IMcpWorkbenchService');
+export const enum McpLocalDiscoveryState {
+	Pending = 'pending',
+	Complete = 'complete',
+	Failed = 'failed',
+}
+
+export type McpLocalServerDiscoveryOutcome = 'loaded' | 'disabled' | 'blocked' | 'rejected';
+
 export interface IMcpWorkbenchService {
 	readonly _serviceBrand: undefined;
 	readonly onChange: Event<IWorkbenchMcpServer | undefined>;
 	readonly onReset: Event<void>;
 	readonly local: readonly IWorkbenchMcpServer[];
+	readonly localDiscoveryState?: IObservable<McpLocalDiscoveryState>;
 	getEnabledLocalMcpServers(): IWorkbenchLocalMcpServer[];
+	getLocalMcpServerDiscoveryOutcome?(server: IWorkbenchLocalMcpServer): McpLocalServerDiscoveryOutcome;
 	queryLocal(): Promise<IWorkbenchMcpServer[]>;
 	queryGallery(options?: IQueryOptions, token?: CancellationToken): Promise<IIterativePager<IWorkbenchMcpServer>>;
 	canInstall(mcpServer: IWorkbenchMcpServer): true | IMarkdownString;

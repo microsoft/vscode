@@ -30,10 +30,18 @@ export type IAgentPluginAgent = INamedPluginResource;
 export type IAgentPluginInstruction = INamedPluginResource;
 export type IAgentPluginMcpServerDefinition = IMcpServerDefinition;
 
+export interface IAgentPluginMcpConfigurationOutcome {
+	readonly configurationPresent: number;
+	readonly configuredEntryCount: number;
+	readonly parseErrorCount: number;
+	readonly unreadableCount: number;
+}
+
 export interface IAgentPlugin {
 	readonly uri: URI;
 	readonly format: PluginFormat;
 	readonly discoveryOrigin: AgentPluginDiscoveryOrigin;
+	readonly remoteAuthority?: string | null;
 	/** Human-readable display name for the plugin. */
 	readonly label: string;
 	readonly enablement: IObservable<ContributionEnablementState>;
@@ -54,6 +62,7 @@ export interface IAgentPlugin {
 	readonly agents: IObservable<readonly IAgentPluginAgent[]>;
 	readonly instructions: IObservable<readonly IAgentPluginInstruction[]>;
 	readonly mcpServerDefinitions: IObservable<readonly IAgentPluginMcpServerDefinition[]>;
+	readonly mcpConfigurationOutcome?: IObservable<IAgentPluginMcpConfigurationOutcome | undefined>;
 	/** Set when the plugin was installed from a marketplace repository. */
 	readonly fromMarketplace?: IMarketplacePlugin;
 }

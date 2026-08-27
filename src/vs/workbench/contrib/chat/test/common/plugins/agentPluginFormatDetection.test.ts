@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { autorun, waitForState } from '../../../../../../base/common/observable.js';
@@ -485,6 +485,46 @@ suite('AgentPlugin format detection', () => {
 
 		await waitForState(plugins[0].mcpServerDefinitions, defs => defs.length > 0);
 		assert.strictEqual(plugins[0].mcpServerDefinitions.get()[0].name, 'standalone-server');
+	}));
+
+	test('publishes plugin MCP definitions and configuration state atomically', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = pluginUri('/plugins/mcp-atomic');
+		await writeFile('/plugins/mcp-atomic/plugin.json', JSON.stringify({
+			name: 'mcp-atomic',
+			mcpServers: { first: { command: 'first' } },
+		}));
+		const discovery = createDiscovery();
+		discovery.start(mockEnablementModel);
+		await discovery.setSourcesAndRefresh([uri]);
+		const [plugin] = getDiscoveredPlugins(discovery);
+		const states: { configurationPresent: number; serverCount: number }[] = [];
+		store.add(autorun(reader => {
+			const outcome = plugin.mcpConfigurationOutcome?.read(reader);
+			const serverDefinitions = plugin.mcpServerDefinitions.read(reader);
+			if (outcome) {
+				states.push({ configurationPresent: outcome.configurationPresent, serverCount: serverDefinitions.length });
+			}
+		}));
+		const finalOutcome = await waitForState(plugin.mcpConfigurationOutcome!, result => result?.configuredEntryCount === 1);
+		await writeFile('/plugins/mcp-atomic/plugin.json', JSON.stringify({
+			name: 'mcp-atomic',
+			mcpServers: {
+				first: { command: 'first' },
+				second: { command: 'second' },
+			},
+		}));
+		await timeout(600);
+		const refreshedOutcome = plugin.mcpConfigurationOutcome!.get();
+
+		assert.deepStrictEqual({
+			finalState: { configurationPresent: finalOutcome?.configurationPresent, configuredEntryCount: finalOutcome?.configuredEntryCount, serverCount: 1 },
+			refreshedState: { configurationPresent: refreshedOutcome?.configurationPresent, configuredEntryCount: refreshedOutcome?.configuredEntryCount, serverCount: plugin.mcpServerDefinitions.get().length },
+			inconsistentStates: states.filter(state => state.configurationPresent > 0 && state.serverCount === 0),
+		}, {
+			finalState: { configurationPresent: 1, configuredEntryCount: 1, serverCount: 1 },
+			refreshedState: { configurationPresent: 1, configuredEntryCount: 2, serverCount: 2 },
+			inconsistentStates: [],
+		});
 	}));
 
 	test('publishes one final component snapshot after all reads settle', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

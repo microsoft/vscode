@@ -40,7 +40,8 @@ import {
 	getPluginManifestComponent,
 	readPluginSkills,
 	readMarkdownComponents,
-	readPluginMcpServers,
+	readPluginMcpServersWithOutcome,
+	resolveMcpServersMap,
 	parseMcpServerDefinitionMap,
 	detectPluginFormat,
 	type PluginComponent,
@@ -48,6 +49,7 @@ import {
 	type IParsedHookGroup,
 } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { Extensions, IExtensionFeaturesRegistry, IExtensionFeatureTableRenderer, IRenderedData, IRowData, ITableData } from '../../../../services/extensionManagement/common/extensionFeatures.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { ChatConfiguration } from '../constants.js';
@@ -55,7 +57,7 @@ import { ContributionEnablementState, EnablementModel, IEnablementModel } from '
 import { HookType } from '../promptSyntax/hookTypes.js';
 import { AgentPluginCollisionEnablementModel, getAgentPluginPolicyId, getCanonicalAgentPluginCollisionGroups, getSortedAgentPlugins, IDiscoveredAgentPlugins, isAgentPluginBlockedByPolicy } from './agentPluginEnablement.js';
 import { IAgentPluginRepositoryService } from './agentPluginRepositoryService.js';
-import { AgentPluginDiscoveryOrigin, AgentPluginDiscoveryOutcome, AgentPluginDiscoveryPriority, agentPluginDiscoveryRegistry, IAgentPlugin, IAgentPluginComponentSnapshot, IAgentPluginDiscovery, IAgentPluginDiscoveryCandidate, IAgentPluginDiscoverySnapshot, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginService } from './agentPluginService.js';
+import { AgentPluginDiscoveryOrigin, AgentPluginDiscoveryOutcome, AgentPluginDiscoveryPriority, agentPluginDiscoveryRegistry, IAgentPlugin, IAgentPluginComponentSnapshot, IAgentPluginDiscovery, IAgentPluginDiscoveryCandidate, IAgentPluginDiscoverySnapshot, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginMcpConfigurationOutcome, IAgentPluginMcpServerDefinition, IAgentPluginService } from './agentPluginService.js';
 import { AgentPluginTelemetry } from './agentPluginTelemetry.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from './pluginMarketplaceService.js';
 
@@ -224,6 +226,7 @@ function readAgentPluginDiscoverySnapshots(discoveries: readonly IAgentPluginDis
  */
 interface PluginEntry extends IAgentPlugin {
 	discoveryOrigin: AgentPluginDiscoveryOrigin;
+	remoteAuthority: string | null;
 	readonly policyBlocked: ISettableObservable<boolean>;
 	readonly componentSnapshot: IObservable<IAgentPluginComponentSnapshot | undefined>;
 }
@@ -284,6 +287,7 @@ interface IPluginSource {
 	readonly uri: URI;
 	readonly origin?: AgentPluginDiscoveryOrigin;
 	readonly enabled?: boolean;
+	readonly remoteAuthority?: string | null;
 	readonly fromMarketplace: IMarketplacePlugin | undefined;
 	/** Repository root that serves as the boundary for component path resolution. */
 	readonly repositoryUri?: URI;
@@ -317,6 +321,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		protected readonly _pathService: IPathService,
 		protected readonly _logService: ILogService,
 		protected readonly _workspaceContextService: IWorkspaceContextService,
+		protected readonly _remoteAuthority: string | null = null,
 	) {
 		super();
 	}
@@ -396,7 +401,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 				if (!this._isCurrentRefresh(version)) {
 					return { plugins: [], candidates: [] };
 				}
-				const plugin = await this._toPlugin(resolvedUri, origin, format, source.fromMarketplace, source.repositoryUri, source.remove, version);
+				const plugin = await this._toPlugin(resolvedUri, origin, source.remoteAuthority ?? this._remoteAuthority, format, source.fromMarketplace, source.repositoryUri, source.remove, version);
 				seenPluginUris.add(resolvedUri.toString());
 				plugins.push(plugin);
 				candidates.push({ origin, format: format.format, outcome: AgentPluginDiscoveryOutcome.Loaded, plugin });
@@ -427,7 +432,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		}
 	}
 
-	private async _toPlugin(uri: URI, discoveryOrigin: AgentPluginDiscoveryOrigin, format: IPluginFormatConfig, fromMarketplace: IMarketplacePlugin | undefined, repositoryUri: URI | undefined, removeCallback: (() => void) | undefined, version: number): Promise<IAgentPlugin> {
+	private async _toPlugin(uri: URI, discoveryOrigin: AgentPluginDiscoveryOrigin, remoteAuthority: string | null, format: IPluginFormatConfig, fromMarketplace: IMarketplacePlugin | undefined, repositoryUri: URI | undefined, removeCallback: (() => void) | undefined, version: number): Promise<IAgentPlugin> {
 		const key = uri.toString();
 		const existing = this._pluginEntries.get(key);
 		if (existing) {
@@ -440,6 +445,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			} else {
 				existing.plugin.remove = removeCallback;
 				existing.plugin.discoveryOrigin = discoveryOrigin;
+				existing.plugin.remoteAuthority = remoteAuthority;
 				return existing.plugin;
 			}
 		}
@@ -535,10 +541,39 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			format.hookConfigPath,
 		);
 
-		const mcpComponent = observeComponent(
+		const mcpComponent = observeComponentData<{
+			readonly serverDefinitions: readonly IAgentPluginMcpServerDefinition[];
+			readonly configurationOutcome: IAgentPluginMcpConfigurationOutcome;
+		}>(
 			'mcpServers',
-			paths => readPluginMcpServers(uri, paths, format, this._fileService),
-			async section => parseMcpServerDefinitionMap(manifestUri, { mcpServers: section }, uri, format),
+			async paths => {
+				const result = await readPluginMcpServersWithOutcome(uri, paths, format, this._fileService);
+				return {
+					serverDefinitions: result.definitions,
+					configurationOutcome: {
+						configurationPresent: result.configurationPresent,
+						configuredEntryCount: result.configuredEntryCount,
+						parseErrorCount: result.parseErrorCount,
+						unreadableCount: result.unreadableCount,
+					},
+				};
+			},
+			async section => {
+				const raw = { mcpServers: section };
+				const definitions = parseMcpServerDefinitionMap(manifestUri, raw, uri, format);
+				const configuredServers = resolveMcpServersMap(raw);
+				const configuredEntryCount = configuredServers ? Object.keys(configuredServers).length : 0;
+				return {
+					serverDefinitions: definitions,
+					configurationOutcome: {
+						configurationPresent: 1,
+						configuredEntryCount,
+						parseErrorCount: configuredServers ? configuredEntryCount - definitions.length : 1,
+						unreadableCount: 0,
+					},
+				};
+			},
+			{ serverDefinitions: [], configurationOutcome: { configurationPresent: 0, configuredEntryCount: 0, parseErrorCount: 0, unreadableCount: 0 } },
 			'.mcp.json',
 		);
 		const commands = commandsComponent.value;
@@ -546,7 +581,8 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		const agents = agentsComponent.value;
 		const instructions = instructionsComponent.value;
 		const hooks = hooksComponent.value;
-		const mcpServerDefinitions = mcpComponent.value;
+		const mcpServerDefinitions = mcpComponent.value.map(result => result.serverDefinitions);
+		const mcpConfigurationOutcome = mcpComponent.read.map(result => result.settled ? result.value.configurationOutcome : undefined);
 		const componentSnapshot = derived(reader => {
 			const commandsResult = commandsComponent.read.read(reader);
 			const skillsResult = skillsComponent.read.read(reader);
@@ -563,7 +599,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 				agentCount: agentsResult.value.length,
 				instructionCount: instructionsResult.value.length,
 				hookCount: hooksResult.value.length,
-				mcpServerCount: mcpResult.value.length,
+				mcpServerCount: mcpResult.value.serverDefinitions.length,
 				manifestParseError: manifestParseError.read(reader),
 				manifestUnreadable: manifestUnreadable.read(reader),
 			};
@@ -617,6 +653,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			uri,
 			format: format.format,
 			discoveryOrigin,
+			remoteAuthority,
 			label: fromMarketplace?.name ?? manifestName ?? basename(uri),
 			enablement,
 			policyBlocked,
@@ -629,6 +666,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			agents,
 			instructions,
 			mcpServerDefinitions,
+			mcpConfigurationOutcome,
 			componentSnapshot,
 			fromMarketplace,
 		};
@@ -755,8 +793,9 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IPathService pathService: IPathService,
 		@ILogService logService: ILogService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
-		super(fileService, pathService, logService, workspaceContextService);
+		super(fileService, pathService, logService, workspaceContextService, environmentService.remoteAuthority ?? null);
 		this._pluginLocationsConfig = observableConfigValue<Record<string, boolean>>(ChatConfiguration.PluginLocations, {}, _configurationService);
 		// Enterprise-managed plugin-ID entries (delivered via the `ChatEnabledPlugins` policy).
 		// These are plugin IDs in `<plugin>@<marketplace>` form, distinct from filesystem paths.
@@ -909,8 +948,9 @@ export class MarketplaceAgentPluginDiscovery extends AbstractAgentPluginDiscover
 		@IPathService pathService: IPathService,
 		@ILogService logService: ILogService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
-		super(fileService, pathService, logService, workspaceContextService);
+		super(fileService, pathService, logService, workspaceContextService, environmentService.remoteAuthority ?? null);
 	}
 
 	public override start(enablementModel: IEnablementModel): void {
@@ -984,8 +1024,9 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 		@ILogService logService: ILogService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IDialogService private readonly _dialogService: IDialogService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
-		super(fileService, pathService, logService, workspaceContextService);
+		super(fileService, pathService, logService, workspaceContextService, environmentService.remoteAuthority ?? null);
 	}
 
 	public override start(enablementModel: IEnablementModel): void {
@@ -1183,8 +1224,9 @@ export class ExtensionAgentPluginDiscovery extends AbstractAgentPluginDiscovery 
 		@IPathService pathService: IPathService,
 		@ILogService logService: ILogService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
-		super(fileService, pathService, logService, workspaceContextService);
+		super(fileService, pathService, logService, workspaceContextService, environmentService.remoteAuthority ?? null);
 	}
 
 	public override start(enablementModel: IEnablementModel): void {

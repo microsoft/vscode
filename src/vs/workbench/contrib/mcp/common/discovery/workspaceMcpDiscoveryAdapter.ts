@@ -9,13 +9,14 @@ import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import { McpDiscoveryFormat, McpDiscoveryScope, McpDiscoverySource } from '../../../../../platform/mcp/common/mcpDiscoveryMetadata.js';
 import { StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { DiscoverySource } from '../mcpConfiguration.js';
 import { IMcpRegistry } from '../mcpRegistryTypes.js';
 import { McpCollectionSortOrder, McpServerTrust } from '../mcpTypes.js';
-import { IMcpDiscovery } from './mcpDiscovery.js';
+import { IMcpDiscovery, mcpHost } from './mcpDiscovery.js';
 import { FilesystemMcpDiscovery, WritableMcpCollectionDefinition } from './nativeMcpDiscoveryAbstract.js';
 import { claudeConfigToServerDefinition } from './nativeMcpDiscoveryAdapters.js';
 
@@ -45,6 +46,7 @@ export class CursorWorkspaceMcpDiscoveryAdapter extends FilesystemMcpDiscovery i
 		for (const folder of this._workspaceContextService.getWorkspace().folders) {
 			this.watchFolder(folder);
 		}
+		this.completeDiscoveryRegistration();
 	}
 
 	private watchFolder(folder: IWorkspaceFolder) {
@@ -58,6 +60,12 @@ export class CursorWorkspaceMcpDiscoveryAdapter extends FilesystemMcpDiscovery i
 			serverDefinitions: observableValue(this, []),
 			configTarget: ConfigurationTarget.WORKSPACE_FOLDER,
 			order: McpCollectionSortOrder.WorkspaceFolder + 1,
+			discovery: {
+				source: McpDiscoverySource.CursorWorkspace,
+				format: McpDiscoveryFormat.ClaudeMcpServers,
+				scope: McpDiscoveryScope.WorkspaceFolder,
+				host: mcpHost(this._remoteAgentService.getConnection()?.remoteAuthority),
+			},
 			presentation: {
 				origin: configFile,
 			},

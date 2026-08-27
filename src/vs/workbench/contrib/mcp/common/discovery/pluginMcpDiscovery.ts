@@ -6,12 +6,12 @@
 import { hash } from '../../../../../base/common/hash.js';
 import { Disposable, DisposableResourceMap } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
-import { Schemas } from '../../../../../base/common/network.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, observableValue } from '../../../../../base/common/observable.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { McpDiscoveryFormat, McpDiscoveryScope, McpDiscoverySource } from '../../../../../platform/mcp/common/mcpDiscoveryMetadata.js';
 import { StorageScope } from '../../../../../platform/storage/common/storage.js';
 import {
 	IAgentPlugin,
@@ -21,7 +21,7 @@ import {
 import { isContributionEnabled } from '../../../chat/common/enablement.js';
 import { IMcpRegistry } from '../mcpRegistryTypes.js';
 import { MCP_PLUGIN_COLLECTION_ID_PREFIX, McpCollectionProvenance, McpCollectionSortOrder, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust } from '../mcpTypes.js';
-import { IMcpDiscovery } from './mcpDiscovery.js';
+import { IMcpConfigurationOutcome, IMcpDiscovery, IMcpDiscoveryCandidate, IMcpDiscoverySnapshot, mcpCandidate, mcpHost } from './mcpDiscovery.js';
 
 /**
  * Prefix used for the {@link McpCollectionDefinition.id | collection id} of
@@ -35,6 +35,8 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 	readonly fromGallery = false;
 
 	private readonly _collections = this._register(new DisposableResourceMap());
+	private readonly _discoverySnapshot = observableValue<IMcpDiscoverySnapshot | undefined>(this, undefined);
+	readonly discoverySnapshot = this._discoverySnapshot;
 
 	constructor(
 		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
@@ -45,14 +47,60 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 
 	public start(): void {
 		this._register(autorun(reader => {
-			const plugins = this._agentPluginService.plugins.read(reader);
+			if (!this._agentPluginService.discoveryComplete.read(reader)) {
+				return;
+			}
+			const enabledPlugins = new Set(this._agentPluginService.plugins.read(reader));
+			const plugins = this._agentPluginService.discoveredPlugins.read(reader);
 			const seen = new ResourceSet();
+			const candidates: IMcpDiscoveryCandidate[] = [];
+			const configurationOutcomes: IMcpConfigurationOutcome[] = [];
+			let snapshotComplete = true;
 			for (const plugin of plugins) {
-				if (!isContributionEnabled(plugin.enablement.read(reader))) {
+				const servers = plugin.mcpServerDefinitions.read(reader);
+				const configurationOutcome = plugin.mcpConfigurationOutcome?.read(reader);
+				const state = configurationOutcome ?? {
+					configurationPresent: servers.length > 0 ? 1 : 0,
+					configuredEntryCount: servers.length,
+					parseErrorCount: 0,
+					unreadableCount: 0,
+				};
+				snapshotComplete &&= plugin.mcpConfigurationOutcome === undefined || configurationOutcome !== undefined;
+				if (servers.length === 0 && state.configurationPresent === 0 && state.parseErrorCount === 0 && state.unreadableCount === 0) {
 					continue;
 				}
-				const servers = plugin.mcpServerDefinitions.read(reader);
-				if (servers.length === 0) {
+				const host = mcpHost(plugin.remoteAuthority);
+				const blocked = plugin.policyBlocked?.read(reader) === true;
+				const enabled = enabledPlugins.has(plugin) && isContributionEnabled(plugin.enablement.read(reader));
+				if (configurationOutcome !== undefined || plugin.mcpConfigurationOutcome === undefined) {
+					for (const server of servers) {
+						const valid = this._toServerDefinition('telemetry', server) !== undefined;
+						candidates.push(mcpCandidate(
+							McpDiscoverySource.Plugin,
+							McpDiscoveryFormat.PluginMap,
+							McpDiscoveryScope.Plugin,
+							host,
+							blocked ? 'blocked' : !enabled ? 'disabled' : valid ? 'loaded' : 'parseError',
+						));
+					}
+					for (let i = 0; i < state.parseErrorCount; i++) {
+						candidates.push(mcpCandidate(McpDiscoverySource.Plugin, McpDiscoveryFormat.PluginMap, McpDiscoveryScope.Plugin, host, 'parseError'));
+					}
+					for (let i = 0; i < state.unreadableCount; i++) {
+						candidates.push(mcpCandidate(McpDiscoverySource.Plugin, McpDiscoveryFormat.PluginMap, McpDiscoveryScope.Plugin, host, 'unreadable'));
+					}
+					configurationOutcomes.push({
+						source: McpDiscoverySource.Plugin,
+						format: McpDiscoveryFormat.PluginMap,
+						scope: McpDiscoveryScope.Plugin,
+						host,
+						configurationPresent: state.configurationPresent,
+						configuredEntryCount: state.configuredEntryCount,
+						parseErrorCount: state.parseErrorCount,
+						unreadableCount: state.unreadableCount,
+					});
+				}
+				if (!enabled || blocked || servers.length === 0) {
 					continue;
 				}
 
@@ -71,6 +119,9 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 					this._collections.deleteAndDispose(pluginUri);
 				}
 			}
+			if (snapshotComplete) {
+				this._discoverySnapshot.set({ candidates, configurationOutcomes }, undefined);
+			}
 		}));
 	}
 
@@ -80,13 +131,19 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 			id: collectionId,
 			provenance: McpCollectionProvenance.Plugin,
 			label: `${plugin.label} (Agent Plugin)`,
-			remoteAuthority: plugin.uri.scheme === Schemas.vscodeRemote ? plugin.uri.authority : null,
+			remoteAuthority: plugin.remoteAuthority ?? null,
 			configTarget: ConfigurationTarget.USER,
 			scope: StorageScope.PROFILE,
 			trustBehavior: McpServerTrust.Kind.Trusted,
 			serverDefinitions: plugin.mcpServerDefinitions.map(defs =>
 				defs.map(d => this._toServerDefinition(collectionId, d)).filter(isDefined)),
 			order: McpCollectionSortOrder.Plugin,
+			discovery: {
+				source: McpDiscoverySource.Plugin,
+				format: McpDiscoveryFormat.PluginMap,
+				scope: McpDiscoveryScope.Plugin,
+				host: mcpHost(plugin.remoteAuthority),
+			},
 			presentation: {
 				origin: manifestURI,
 			},
