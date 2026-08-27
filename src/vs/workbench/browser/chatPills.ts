@@ -5,6 +5,7 @@
 
 import { $, addDisposableListener, DisposableResizeObserver, EventHelper, EventType, isHTMLElement, reset } from '../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../base/browser/keyboardEvent.js';
+import { mainWindow, type CodeWindow } from '../../base/browser/window.js';
 import { IActionViewItem } from '../../base/browser/ui/actionbar/actionbar.js';
 import { BaseActionViewItem, IActionViewItemOptions } from '../../base/browser/ui/actionbar/actionViewItems.js';
 import { Button } from '../../base/browser/ui/button/button.js';
@@ -103,6 +104,8 @@ export const CHAT_INPUT_PILLS_ROW_HEIGHT = 28;
 export interface IChatPillsRowOptions {
 	/** Uses tighter horizontal spacing while preserving the pill content and hit targets. */
 	readonly compact?: boolean;
+	/** Window that owns the row. Required when rendering in an auxiliary window. */
+	readonly targetWindow?: CodeWindow;
 }
 
 /** Shared horizontally scrollable row for pills mounted above a chat input. */
@@ -122,7 +125,9 @@ export class ChatPillsRow extends Disposable {
 	constructor(debugName: string, options?: IChatPillsRowOptions) {
 		super();
 
-		this.content = $('.chat-pills-row-content');
+		const targetWindow = options?.targetWindow ?? mainWindow;
+		this.content = targetWindow.document.createElement('div');
+		this.content.className = 'chat-pills-row-content';
 		this._scrollable = this._register(new DomScrollableElement(this.content, {
 			horizontal: ScrollbarVisibility.Auto,
 			horizontalScrollbarSize: 6,
@@ -136,7 +141,7 @@ export class ChatPillsRow extends Disposable {
 		this._resizeObserver = this._register(new DisposableResizeObserver(debugName, () => {
 			this.scanDomNode();
 			this._onDidChangeLayout.fire();
-		}));
+		}, targetWindow));
 		this._register(this._resizeObserver.observe(this.content));
 		this._register(this._scrollable.onScroll(event => {
 			if (event.scrollLeftChanged) {

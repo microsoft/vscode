@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mainWindow } from '../../../base/browser/window.js';
+import { getWindow } from '../../../base/browser/dom.js';
+import { ensureCodeWindow, mainWindow } from '../../../base/browser/window.js';
 import { timeout } from '../../../base/common/async.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
@@ -70,6 +71,30 @@ suite('ChatPills', () => {
 				tabIndex: null,
 				pillFocused: true,
 			},
+		});
+
+		disposables.dispose();
+	});
+
+	test('creates the row in its target window realm', () => {
+		const disposables = store.add(new DisposableStore());
+		const iframe = mainWindow.document.createElement('iframe');
+		mainWindow.document.body.appendChild(iframe);
+		disposables.add(toDisposable(() => iframe.remove()));
+		const auxiliaryWindow = iframe.contentWindow!;
+		ensureCodeWindow(auxiliaryWindow, 999);
+
+		const row = disposables.add(new ChatPillsRow('ChatPills.auxiliaryWindowTest', { targetWindow: auxiliaryWindow }));
+		auxiliaryWindow.document.body.appendChild(row.element);
+
+		assert.deepStrictEqual({
+			contentDocument: row.content.ownerDocument === auxiliaryWindow.document,
+			elementDocument: row.element.ownerDocument === auxiliaryWindow.document,
+			windowId: getWindow(row.content).vscodeWindowId,
+		}, {
+			contentDocument: true,
+			elementDocument: true,
+			windowId: 999,
 		});
 
 		disposables.dispose();

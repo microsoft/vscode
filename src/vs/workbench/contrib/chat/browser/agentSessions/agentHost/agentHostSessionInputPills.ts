@@ -259,7 +259,10 @@ export class AgentHostSessionInputPills extends Disposable {
 	) {
 		super();
 
-		const row = this._register(new ChatPillsRow('AgentHostSessionInputPills.content', { compact }));
+		const row = this._register(new ChatPillsRow('AgentHostSessionInputPills.content', {
+			compact,
+			targetWindow: getWindow(this._widget.inputPart.persistentContentContainerElement),
+		}));
 		row.element.classList.add('agent-host-session-input-pills', 'hidden');
 		this._widget.inputPart.persistentContentContainerElement.appendChild(row.element);
 		this._register(toDisposable(() => row.element.remove()));
