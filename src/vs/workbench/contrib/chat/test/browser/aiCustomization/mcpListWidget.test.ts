@@ -114,6 +114,7 @@ type McpAccessTestWidget = {
 	element: HTMLElement;
 	mcpAccessEnabled: boolean;
 	visible: boolean;
+	searchQuery: string;
 	access: McpAccessValue;
 	policyAccess: McpAccessValue | undefined;
 	configurationService: IConfigurationService;
@@ -128,6 +129,10 @@ type McpAccessTestWidget = {
 	disabledMessage: HTMLElement;
 	disabledLinkListener: MutableDisposable<{ dispose(): void }>;
 	commandService: ICommandService;
+	queryCount: number;
+	refreshCount: number;
+	queryMcpSearch(): Promise<void>;
+	refresh(): Promise<void>;
 	updateAccessState(): void;
 };
 
@@ -136,6 +141,7 @@ function createMcpAccessTestWidget(access: McpAccessValue, policyAccess: McpAcce
 	widget.element = document.createElement('div');
 	widget.mcpAccessEnabled = false;
 	widget.visible = false;
+	widget.searchQuery = '';
 	widget.access = access;
 	widget.policyAccess = policyAccess;
 	widget.configurationService = {
@@ -156,6 +162,10 @@ function createMcpAccessTestWidget(access: McpAccessValue, policyAccess: McpAcce
 	widget.disabledMessage = document.createElement('div');
 	widget.disabledLinkListener = store.add(new MutableDisposable());
 	widget.commandService = { executeCommand: async () => undefined } as unknown as ICommandService;
+	widget.queryCount = 0;
+	widget.refreshCount = 0;
+	widget.queryMcpSearch = async () => { widget.queryCount++; };
+	widget.refresh = async () => { widget.refreshCount++; };
 	return widget;
 }
 
@@ -274,6 +284,24 @@ suite('mcpListWidget', () => {
 		});
 	});
 
+	test('restarts a retained marketplace search when access is restored', () => {
+		const widget = createMcpAccessTestWidget(McpAccessValue.None, undefined, disposables);
+		widget.searchQuery = 'github';
+		widget.visible = true;
+		widget.updateAccessState();
+
+		widget.access = McpAccessValue.All;
+		widget.updateAccessState();
+
+		assert.deepStrictEqual({
+			queryCount: widget.queryCount,
+			refreshCount: widget.refreshCount,
+		}, {
+			queryCount: 1,
+			refreshCount: 0,
+		});
+	});
+
 	test('uses durable enablement for the primary MCP switch', () => {
 		const sessionResource = URI.parse('vscode-agent-session:///session-1');
 		const activeSessionServer = createAgentHostServer({
@@ -298,6 +326,30 @@ suite('mcpListWidget', () => {
 			hostEnabled: true,
 			localCalls: [['server-1', ContributionEnablementState.EnabledProfile]],
 			agentHostCalls: [[sessionResource, activeSessionServer.id, activeSessionServer.enablement, CustomizationEnablementKind.Global, false]],
+		});
+	});
+
+	test('uses host enablement for host-owned plugin MCP rows with local counterparts', () => {
+		const sessionResource = URI.parse('vscode-agent-session:///session-1');
+		const activeSessionServer = createAgentHostServer({
+			isPluginProvided: true,
+			isClientBundled: false,
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+		});
+		const { service: mcpService, calls: localCalls } = createMcpService(ContributionEnablementState.EnabledProfile);
+		const { service: agentHostService, calls: agentHostCalls } = createAgentHostCustomizations();
+
+		const enabled = isPrimaryMcpServerEnabled(mcpService, 'server-1', activeSessionServer);
+		setPrimaryMcpServerEnablement(mcpService, agentHostService, sessionResource, 'server-1', activeSessionServer, true);
+
+		assert.deepStrictEqual({
+			enabled,
+			localCalls,
+			agentHostCalls,
+		}, {
+			enabled: false,
+			localCalls: [],
+			agentHostCalls: [[sessionResource, activeSessionServer.id, activeSessionServer.enablement, CustomizationEnablementKind.Global, true]],
 		});
 	});
 

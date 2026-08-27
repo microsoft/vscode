@@ -731,6 +731,10 @@ export function getActiveSessionServerLifecycleAction(server: AgentHostMcpServer
 
 type AgentHostMcpServerEnablementScope = 'global' | 'workspace' | 'session';
 
+function isHostOwnedPluginMcpServer(server: AgentHostMcpServer | undefined): server is AgentHostMcpServer {
+	return server?.isPluginProvided === true && !server.isClientBundled;
+}
+
 const agentHostMcpServerEnablementActionInfo = {
 	global: {
 		kind: CustomizationEnablementKind.Global,
@@ -785,6 +789,16 @@ export function setPrimaryMcpServerEnablement(
 	activeSessionServer: AgentHostMcpServer | undefined,
 	enabled: boolean,
 ): void {
+	if (isHostOwnedPluginMcpServer(activeSessionServer)) {
+		agentHostCustomizations.setCustomizationEnablement(
+			sessionResource,
+			activeSessionServer.id,
+			activeSessionServer.enablement,
+			CustomizationEnablementKind.Global,
+			enabled,
+		);
+		return;
+	}
 	if (localServerId) {
 		const current = mcpService.enablementModel.readEnabled(localServerId);
 		const next = getToggledMcpEnablementState(current);
@@ -811,6 +825,9 @@ export function isPrimaryMcpServerEnabled(
 	localServerId: string | undefined,
 	activeSessionServer: AgentHostMcpServer | undefined,
 ): boolean {
+	if (isHostOwnedPluginMcpServer(activeSessionServer)) {
+		return getCustomizationScopeEnablement(activeSessionServer).global;
+	}
 	if (localServerId) {
 		return isContributionEnabled(mcpService.enablementModel.readEnabled(localServerId));
 	}
@@ -865,7 +882,7 @@ export function getBuiltinMcpServerEnablementActions(mcpService: IMcpService, se
 	if (activeSessionServer === undefined) {
 		return getLocalMcpServerEnablementActions(mcpService, serverId, isEmptyWorkbench);
 	}
-	if (activeSessionServer.isPluginProvided && !activeSessionServer.isClientBundled) {
+	if (isHostOwnedPluginMcpServer(activeSessionServer)) {
 		return getAgentHostMcpServerEnablementActions(agentHostCustomizations, agentPluginService, sessionResource, activeSessionServer);
 	}
 	return [
@@ -1298,7 +1315,11 @@ export class McpListWidget extends Disposable {
 				});
 			}
 		} else if (accessChanged && this.visible) {
-			void this.refresh();
+			if (this.searchQuery.trim()) {
+				void this.queryMcpSearch();
+			} else {
+				void this.refresh();
+			}
 		}
 	}
 
