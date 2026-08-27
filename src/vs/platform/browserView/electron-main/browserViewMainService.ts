@@ -577,6 +577,9 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 				}));
 			}
 			if (canAddToDictionary) {
+				if (spellingSuggestions.length > 0) {
+					menu.append(new MenuItem({ type: 'separator' }));
+				}
 				menu.append(new MenuItem({
 					label: localize('browser.contextMenu.addToDictionary', 'Add to Dictionary'),
 					click: () => webContents.session.addWordToSpellCheckerDictionary(params.misspelledWord)
