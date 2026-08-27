@@ -83,6 +83,7 @@ import { ISCMService } from '../../../../scm/common/scm.js';
 import { IWorkbenchLayoutService, Position } from '../../../../../services/layout/browser/layoutService.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../../common/views.js';
 import { ResourceLabels } from '../../../../../browser/labels.js';
+import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
@@ -106,6 +107,7 @@ import { ChatModelSelectionDiagnostics } from './chatModelSelectionDiagnostics.j
 import { deserializeUntitledInputAttachments, deserializeUntitledInputState, serializeUntitledInputAttachments, serializeUntitledInputState } from './chatInputStatePersistence.js';
 import { ChatInputStateOrigin, IChatModel, IChatModelInputState, IChatRequestModeInfo, IChatRequestModel, IInputModel, IIntendedModelHolder, IntendedModelSlot, logChangesToStateModel } from '../../../common/model/chatModel.js';
 import { isInConversationModelChoice, ModelSelectionReason, resolveConfiguredModel, RestoredModelReason } from '../../../common/modelSelection.js';
+import { ensureDefaultNewSessionModeExperiment } from './chatDefaultNewSessionModeExperiment.js';
 import { filterModelsForSession, hasModelsTargetingSession, isModelHiddenInPicker, isModelSupportedForInlineChat, isModelSupportedForMode, isNewConversation, isSessionStarted, mergeModelsWithCache, shouldDropAgnosticDraftModel, shouldResetOnModelListChange, shouldRestorePerTypeModelOnSessionSwitch } from './chatInputModelUtils.js';
 import { getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { IChatResponseViewModel, isResponseVM } from '../../../common/model/chatViewModel.js';
@@ -903,6 +905,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IChatPetService private readonly chatPetService: IChatPetService,
 		@IActionViewItemService private readonly actionViewItemService: IActionViewItemService,
+		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService,
 	) {
 		super();
 		this._modelSelectionDiagnostics = new ChatModelSelectionDiagnostics(this.logService, this.storageService, () => ({
@@ -1616,9 +1619,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 			this._setEmptyModelState();
 
-			// The default mode setting may be registered asynchronously by TAS,
-			// and custom modes (like Plan) load asynchronously from prompt files.
-			// Re-apply when either becomes available.
 			this._modelSyncDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
 				if (this._chatSessionIsEmpty && e.affectsConfiguration(ChatConfiguration.DefaultNewSessionMode)) {
 					this._setEmptyModelState();
@@ -1711,6 +1711,18 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._modelSelectionController.ensureCurrentModelSupported();
 			return;
 		}
+
+		void ensureDefaultNewSessionModeExperiment(this.experimentService, {
+			chatSessionIsEmpty: this._chatSessionIsEmpty,
+			sessionType: this._currentSessionType ?? this.getCurrentSessionType(),
+			anonymous: this.entitlementService.anonymous,
+			setting: this.configurationService.inspect<string>(ChatConfiguration.DefaultNewSessionMode),
+			modes: this._currentChatModesObservable.get(),
+		}).then(applied => {
+			if (applied && this._chatSessionIsEmpty) {
+				this._setEmptyModelState();
+			}
+		});
 
 		const rawDefaultMode = this.configurationService.getValue<string>(ChatConfiguration.DefaultNewSessionMode);
 		if (typeof rawDefaultMode === 'string') {
