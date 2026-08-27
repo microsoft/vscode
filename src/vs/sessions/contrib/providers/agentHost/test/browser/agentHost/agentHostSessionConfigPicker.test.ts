@@ -11,7 +11,7 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../../platform/actions/common/actions.js';
-import { IActionListDelegate } from '../../../../../../../platform/actionWidget/browser/actionList.js';
+import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { SessionConfigKey } from '../../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ResolveSessionConfigResult, SessionConfigPropertySchema, SessionConfigValueItem } from '../../../../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -34,7 +34,7 @@ import { AgentHostSessionConfigPicker, IConfigPickerItem, PickerActionViewItem }
 
 const SESSION_ID = 'local-agent-host:s1';
 
-function makeWorkspace(uncommittedChanges: number | undefined): ISessionWorkspace {
+function makeWorkspace(uncommittedChanges: number | undefined, branchName = 'main'): ISessionWorkspace {
 	const root = URI.file('/repo');
 	return {
 		uri: root,
@@ -48,6 +48,7 @@ function makeWorkspace(uncommittedChanges: number | undefined): ISessionWorkspac
 			gitRepository: {
 				uri: root,
 				workTreeUri: undefined,
+				branchName,
 				baseBranchName: undefined,
 				uncommittedChanges,
 				gitHubInfo: constObservable(undefined),
@@ -193,6 +194,7 @@ function branchState(container: HTMLElement): { icon: string | undefined; ariaLa
 /** Captures the delegate passed to the last `IActionWidgetService.show` call, so tests can drive a selection. */
 class CapturingActionWidgetHolder {
 	delegate: IActionListDelegate<IConfigPickerItem> | undefined;
+	items: readonly IActionListItem<IConfigPickerItem>[] = [];
 }
 
 function setupServices(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, 'add'>) {
@@ -204,7 +206,10 @@ function setupServices(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeake
 	instantiationService.stub(IActionWidgetService, {
 		isVisible: false,
 		hide: () => { },
-		show: (_user, _supportsPreview, _items, delegate: IActionListDelegate<IConfigPickerItem>) => { actionWidget.delegate = delegate; },
+		show: (_user, _supportsPreview, items: readonly IActionListItem<IConfigPickerItem>[], delegate: IActionListDelegate<IConfigPickerItem>) => {
+			actionWidget.items = items;
+			actionWidget.delegate = delegate;
+		},
 	} as Partial<IActionWidgetService> as IActionWidgetService);
 	instantiationService.stub(IHoverService, { setupDelayedHover: () => ({ dispose: () => { } }) } as Partial<IHoverService> as IHoverService);
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
@@ -351,8 +356,10 @@ suite('Agent Host Session Config Picker', () => {
 		const clean = branchState(container);
 		services.workspaceObs.set(makeWorkspace(2), undefined);
 		const dirtyAfterUpdate = branchState(container);
+		services.workspaceObs.set(makeWorkspace(2, 'dev'), undefined);
+		const differentBranch = branchState(container);
 
-		assert.deepStrictEqual({ initiallyDirty, clean, dirtyAfterUpdate }, {
+		assert.deepStrictEqual({ initiallyDirty, clean, dirtyAfterUpdate, differentBranch }, {
 			initiallyDirty: {
 				icon: 'codicon-git-branch-changes',
 				ariaLabel: 'Base Branch: main, Uncommitted Changes',
@@ -365,6 +372,84 @@ suite('Agent Host Session Config Picker', () => {
 				icon: 'codicon-git-branch-changes',
 				ariaLabel: 'Base Branch: main, Uncommitted Changes',
 			},
+			differentBranch: {
+				icon: 'codicon-git-branch',
+				ariaLabel: 'Base Branch: main',
+			},
+		});
+	});
+
+	test('expanded branch picker marks only the checked-out branch as having uncommitted changes', async () => {
+		const services = setupServices(store);
+		services.provider.config = makeDynamicBranchConfig('main');
+		services.provider.completions = [
+			{ value: 'dev', label: 'dev' },
+			{ value: 'main', label: 'main' },
+		];
+		services.workspaceObs.set(makeWorkspace(2, 'dev'), undefined);
+		const { container } = renderPicker(store, services);
+
+		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!
+			.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		await new Promise(resolve => setTimeout(resolve));
+
+		const plural = services.actionWidget.items.map(item => ({
+			kind: item.kind,
+			label: item.label,
+			icon: item.group?.icon?.id,
+			checked: item.item?.checked,
+			detail: item.detail,
+			ariaDescription: item.ariaDescription,
+		}));
+
+		services.workspaceObs.set(makeWorkspace(1, 'dev'), undefined);
+		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!
+			.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		await new Promise(resolve => setTimeout(resolve));
+		const singularItem = services.actionWidget.items.find(item => item.label === 'dev');
+		const singular = {
+			detail: singularItem?.detail,
+			ariaDescription: singularItem?.ariaDescription,
+		};
+
+		services.provider.completions = [{ value: 'main', label: 'main' }];
+		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!
+			.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		await new Promise(resolve => setTimeout(resolve));
+		const singleResultKinds = services.actionWidget.items.map(item => item.kind);
+
+		assert.deepStrictEqual({ plural, singular, singleResultKinds }, {
+			plural: [
+				{
+					kind: ActionListItemKind.Action,
+					label: 'main',
+					icon: Codicon.gitBranch.id,
+					checked: true,
+					detail: undefined,
+					ariaDescription: undefined,
+				},
+				{
+					kind: ActionListItemKind.Separator,
+					label: '',
+					icon: undefined,
+					checked: undefined,
+					detail: undefined,
+					ariaDescription: undefined,
+				},
+				{
+					kind: ActionListItemKind.Action,
+					label: 'dev',
+					icon: Codicon.gitBranchChanges.id,
+					checked: false,
+					detail: '2 uncommitted changes',
+					ariaDescription: '2 uncommitted changes',
+				},
+			],
+			singular: {
+				detail: '1 uncommitted change',
+				ariaDescription: '1 uncommitted change',
+			},
+			singleResultKinds: [ActionListItemKind.Action],
 		});
 	});
 
