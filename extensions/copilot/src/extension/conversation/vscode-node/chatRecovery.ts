@@ -26,6 +26,7 @@ export const chatRecoverySignalNames = [
 	'requestRetried',
 	'requestEdited',
 	'requestChangedModel',
+	'planReviewRejected',
 ] as const;
 
 export type ChatRecoverySignalName = typeof chatRecoverySignalNames[number];
@@ -70,6 +71,25 @@ export function didLastTestRunFail(metadata: Partial<IResultMetadata> | undefine
 		.join('\n') ?? '';
 	const failedCount = testRunSummaryPattern.exec(resultText)?.groups?.failed;
 	return failedCount !== undefined && Number.parseInt(failedCount, 10) > 0;
+}
+
+export function wasLastPlanReviewRejected(metadata: Partial<IResultMetadata> | undefined): boolean {
+	const lastPlanReview = metadata?.toolCallRounds
+		?.flatMap(round => round.toolCalls)
+		.filter(toolCall => getToolName(toolCall.name) === ToolName.CoreReviewPlan)
+		.at(-1);
+	if (!lastPlanReview) {
+		return false;
+	}
+	const resultText = metadata?.toolCallResults?.[lastPlanReview.id]?.content
+		.flatMap(part => part instanceof LanguageModelTextPart ? [part.value] : [])
+		.join('') ?? '';
+	try {
+		const result = JSON.parse(resultText) as { rejected?: unknown };
+		return result.rejected === true;
+	} catch {
+		return false;
+	}
 }
 
 /**
@@ -130,6 +150,9 @@ export function isChatRecoveryAttempt(previousRequest: ChatRequestTurn2 | undefi
 	}
 	if (didLastTestRunFail(previousResponse?.result.metadata, changedFiles.map(entry => entry.document.uri))) {
 		signals.push('documentGeneratedTestsFail');
+	}
+	if (wasLastPlanReviewRejected(previousResponse?.result.metadata)) {
+		signals.push('planReviewRejected');
 	}
 
 	return signals.length > 1;

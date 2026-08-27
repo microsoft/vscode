@@ -8,7 +8,7 @@ import { ChatRequest, ChatRequestTurn2, LanguageModelTextPart, LanguageModelTool
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IResultMetadata } from '../../../prompt/common/conversation';
 import { ToolName } from '../../../tools/common/toolNames';
-import { arePromptsSimilar, didLastTestRunFail, isChatRecoveryAttempt } from '../chatRecovery';
+import { arePromptsSimilar, didLastTestRunFail, isChatRecoveryAttempt, wasLastPlanReviewRejected } from '../chatRecovery';
 
 const changedTestFile = URI.file('/workspace/new.test.ts');
 
@@ -24,6 +24,22 @@ function metadataWithTestRuns(...runs: { failedCount: number; file?: string }[])
 			response: '',
 			toolInputRetry: 0,
 			toolCalls: [{ id: callId, name: ToolName.CoreRunTest, arguments: JSON.stringify({ files: [file] }) }]
+		};
+	});
+
+	return { toolCallRounds, toolCallResults };
+}
+
+function metadataWithPlanReviews(...results: string[]): Partial<IResultMetadata> {
+	const toolCallResults: NonNullable<IResultMetadata['toolCallResults']> = {};
+	const toolCallRounds = results.map((result, index) => {
+		const callId = `plan-review-${index}`;
+		toolCallResults[callId] = new LanguageModelToolResult([new LanguageModelTextPart(result)]);
+		return {
+			id: `round-${index}`,
+			response: '',
+			toolInputRetry: 0,
+			toolCalls: [{ id: callId, name: ToolName.CoreReviewPlan, arguments: '{}' }]
 		};
 	});
 
@@ -60,6 +76,14 @@ suite('Chat recovery', () => {
 
 	test('ignores test runs for unchanged files', () => {
 		expect(didLastTestRunFail(metadataWithTestRuns({ failedCount: 2, file: URI.file('/workspace/other.test.ts').fsPath }), [changedTestFile])).toBe(false);
+	});
+
+	test('detects rejection from the last plan review', () => {
+		expect([
+			wasLastPlanReviewRejected(metadataWithPlanReviews('{"rejected":true}')),
+			wasLastPlanReviewRejected(metadataWithPlanReviews('{"rejected":true}', '{"rejected":false}')),
+			wasLastPlanReviewRejected(metadataWithPlanReviews('not json')),
+		]).toEqual([true, false, false]);
 	});
 
 	test('requires more than one recovery signal', () => {
