@@ -7,7 +7,7 @@ import { Code } from './code';
 
 interface IQuickInputElementInfo {
 	label: string;
-	uiAutomationId?: string;
+	id?: string;
 }
 
 export class QuickInput {
@@ -35,7 +35,7 @@ export class QuickInput {
 		const [entry, label] = await this.code.waitForElements(QuickInput.QUICK_INPUT_FOCUSED_ELEMENTS, false, elements => elements.length === 2);
 		return {
 			label: label.textContent,
-			uiAutomationId: entry.attributes['data-quick-input-automation-id']
+			id: entry.attributes['data-quick-input-id']
 		};
 	}
 

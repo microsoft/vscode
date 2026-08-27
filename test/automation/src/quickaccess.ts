@@ -18,6 +18,9 @@ export type CommandMatchMode = 'exactCommandId' | 'exactLabel' | 'fuzzy';
 
 export interface IRunCommandOptions {
 	keepOpen?: boolean;
+	/**
+	 * How to match the focused command. Defaults to `exactCommandId`.
+	 */
 	match?: CommandMatchMode;
 }
 
@@ -201,7 +204,7 @@ export class QuickAccess {
 					return false;
 				}
 
-				if (match === 'fuzzy' || (match === 'exactLabel' ? element.label === command : element.uiAutomationId === command)) {
+				if (match === 'fuzzy' || (match === 'exactLabel' ? element.label === command : element.id === command)) {
 					return true;
 				}
 

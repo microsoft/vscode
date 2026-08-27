@@ -71,10 +71,6 @@ export interface IQuickItem {
  */
 export interface IQuickPickItem extends IQuickItem {
 	/**
-	 * A stable identifier exposed to UI automation.
-	 */
-	uiAutomationId?: string;
-	/**
 	 * The type of the quick pick item. Used to distinguish between 'item' and 'separator'
 	 */
 	type?: 'item';
