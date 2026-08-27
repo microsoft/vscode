@@ -17,10 +17,8 @@
 > All waves A–D and gates G-B1, G-C1, G-C2, G-D1 are done. Codex, Claude, and
 > Copilot all use the unified orchestrator path.
 >
-> Codex advertises `multipleChats: { fork: true }`. Host-only capability checks
-> and provider-independent conformance scenarios run in replay; model-backed
-> Codex peer/fork parity remains gated by `supportsMultipleChatsE2E` /
-> `supportsChatForkE2E` until the documented live-recording defect is fixed.
+> Codex advertises `multipleChats: { fork: true, sideChat: true }`. Model-backed
+> peer, fork, and side-chat parity scenarios run in deterministic replay.
 >
 > The *operational* chat surface (send/abort/model/agent/history) is fully
 > chat-addressed and uniform across harnesses. Session ownership lives in the
@@ -285,10 +283,11 @@ The agent declares these in `getDescriptor().capabilities` (`common/agent.ts:IAg
 
 UI code gates "Add Chat" and "Fork" actions on those context keys. No code inside `AgentService` or `AgentHostStateManager` switches on provider id to gate features. `AgentService.createChat` throws synchronously when `!provider.chats` (the structural guard that replaces a capability check in the orchestrator).
 
-Claude, Copilot, and Codex advertise `multipleChats: { fork: true }`. Codex does
-not advertise `sideChat`; side-chat context/restore, subagent E2E, and native
-streaming file-creation coverage remain independently disabled and must not be
-inferred from its peer-chat/fork support.
+Claude, Copilot, and Codex advertise
+`multipleChats: { fork: true, sideChat: true }`. Codex side-chat context and
+restore run in deterministic replay. Subagent E2E and native streaming
+file-creation coverage remain independently disabled and must not be inferred
+from its peer-chat/fork/side-chat support.
 
 ---
 
