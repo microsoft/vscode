@@ -52,6 +52,14 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 		return true;
 	}
 
+	/**
+	 * Tapping always opens the sheet, which carries its own "Re-discover
+	 * hosts" action, so the pill never reads as a re-discovery trigger.
+	 */
+	protected override _retriesOnClick(): boolean {
+		return false;
+	}
+
 	protected override _showMenu(_e: Event): void {
 		if (!this.element) {
 			return;

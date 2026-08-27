@@ -34,7 +34,7 @@ export interface IAgentHostConnectProgress {
 export interface IAgentHostGroup {
 	/** Stable id shared by every member, and the filter key of the collapsed entry. */
 	readonly id: string;
-	/** Display name of the collapsed entry (e.g. "Cloud Sandboxes"). */
+	/** Display name of the collapsed entry (e.g. "GitHub Sandboxes"). */
 	readonly label: string;
 	/** Icon for the collapsed entry. Falls back to the generic remote icon. */
 	readonly icon?: ThemeIcon;

@@ -219,17 +219,17 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		}));
 	}
 
-	private _renderSidebarButtonAffordances(interactive: boolean, canRetry: boolean): void {
+	private _renderSidebarButtonAffordances(interactive: boolean, retryOnClick: boolean): void {
 		if (!this._sidebarButton || !this._sidebarTrailingIcon) {
 			return;
 		}
 
 		// Trailing chevron — only attached when this is a real picker
-		// (i.e. there are 2+ hosts to choose from). For canRetry /
-		// single-host the button is *not* a dropdown — in canRetry the
-		// refresh action lives in the trailing connect slot instead,
+		// (i.e. there are 2+ hosts to choose from). When clicking re-runs
+		// discovery, or for single-host, the button is *not* a dropdown —
+		// the refresh action lives in the trailing connect slot instead,
 		// mirroring the disconnect button shape.
-		const showChevron = interactive && !canRetry;
+		const showChevron = interactive && !retryOnClick;
 		if (showChevron) {
 			if (!this._sidebarTrailingIcon.isConnected) {
 				this._sidebarButton.element.appendChild(this._sidebarTrailingIcon);
@@ -240,11 +240,28 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 	}
 
 	protected _isInteractive(): boolean {
-		const hosts = this._filterService.hosts;
-		// Interactive when there is something to do: pick from a menu (>1
-		// hosts) or trigger re-discovery (0 hosts). With exactly 1 host the
-		// pill is a static label.
-		return hosts.length === 0 || hosts.length > 1;
+		// Interactive when there is something to do: pick from a menu (2+
+		// entries) or trigger re-discovery (no host to connect to). A lone
+		// connectable host is a static label.
+		return this._filterService.hosts.length > 1 || this._canRetry();
+	}
+
+	/**
+	 * Whether re-discovery is the useful action, i.e. there is no host the
+	 * user can connect to. True with no hosts at all, and with only
+	 * non-connectable entries such as a sandbox group.
+	 */
+	protected _canRetry(): boolean {
+		return !this._filterService.hosts.some(h => h.connectable);
+	}
+
+	/**
+	 * Whether clicking the pill re-runs discovery rather than opening the
+	 * picker. Only when there is nothing to switch between — with 2+ entries
+	 * the click opens the menu, so the affordances must read as a menu.
+	 */
+	protected _retriesOnClick(): boolean {
+		return this._filterService.hosts.length <= 1 && this._canRetry();
 	}
 
 	private _update(): void {
@@ -262,8 +279,15 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		const selected = this._filterService.selectedHost;
 
 		const hasMenu = hosts.length > 1;
-		const canRetry = hosts.length === 0;
-		const interactive = hasMenu || canRetry;
+		const canRetry = this._canRetry();
+		// What clicking actually does. The affordances below follow this, not
+		// `canRetry`: with 2+ entries the click opens the menu even when none
+		// of them is connectable.
+		const retryOnClick = this._retriesOnClick();
+		// Ask the same predicate the click handlers gate on, so the pill never
+		// renders as a static label while remaining clickable (mobile always
+		// opens its sheet) or vice versa.
+		const interactive = this._isInteractive();
 		const discovering = this._filterService.isDiscovering;
 
 		// Dropdown label + aria
@@ -277,17 +301,16 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 			// Sidebar appearance: write the host name into our own label
 			// span (which is `flex: 1` so it consumes remaining space) and
 			// (re)position the leading host icon + trailing chevron
-			// around it. The chevron uses `$(refresh)` when there are no
-			// hosts (clicking re-runs discovery) and is omitted entirely
-			// for the non-interactive single-host case.
+			// around it. The chevron is dropped when clicking re-runs
+			// discovery, and for the non-interactive single-host case.
 			this._labelElement.textContent = text;
-			this._renderSidebarButtonAffordances(interactive, canRetry);
+			this._renderSidebarButtonAffordances(interactive, retryOnClick);
 		} else {
 			this._labelElement.textContent = text;
 		}
 
 		// Leading icon follows the selection, so a grouped entry can carry its
-		// own identity (Cloud Sandboxes shows a package, not a remote plug).
+		// own identity (GitHub Sandboxes shows a package, not a remote plug).
 		this._renderLeadingIcon(selected?.icon ?? Codicon.remote);
 
 		this.element.classList.toggle('single-host', !interactive);
@@ -295,7 +318,7 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		// to a small pulsing icon (a la "checking…"). Once discovery finishes,
 		// the label re-appears.
 		this._dropdownElement.classList.toggle('discovering', discovering);
-		this._dropdownElement.classList.toggle('no-hosts', canRetry);
+		this._dropdownElement.classList.toggle('no-hosts', hosts.length === 0);
 
 		// Swap the chevron content based on the click affordance: a chevron
 		// when the pill opens a menu, a refresh icon when it triggers re-
@@ -304,7 +327,7 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		// surface.
 		if (this._chevronElement) {
 			dom.clearNode(this._chevronElement);
-			const chevronIconId = canRetry ? Codicon.refresh.id : Codicon.chevronDown.id;
+			const chevronIconId = retryOnClick ? Codicon.refresh.id : Codicon.chevronDown.id;
 			this._chevronElement.append(...renderLabelWithIcons(`$(${chevronIconId})`));
 		}
 
@@ -325,13 +348,15 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 			} else {
 				this._dropdownElement.removeAttribute('aria-haspopup');
 			}
-			const ariaLabel = selected
-				? localize('agentHostFilter.aria.selected', "Sessions scoped to host {0}. Click to change host.", selected.label)
-				: canRetry
+			const ariaLabel = !selected
+				? (retryOnClick
 					? localize('agentHostFilter.aria.retry', "No hosts found. Click to re-discover hosts.")
-					: localize('agentHostFilter.aria.none', "No agent host selected.");
+					: localize('agentHostFilter.aria.none', "No agent host selected."))
+				: retryOnClick
+					? localize('agentHostFilter.aria.selectedRetry', "Sessions scoped to host {0}. Click to re-discover hosts.", selected.label)
+					: localize('agentHostFilter.aria.selected', "Sessions scoped to host {0}. Click to change host.", selected.label);
 			this._dropdownElement.setAttribute('aria-label', ariaLabel);
-			const hoverText = canRetry
+			const hoverText = retryOnClick
 				? (discovering
 					? localize('agentHostFilter.hover.searching', "Searching for hosts…")
 					: localize('agentHostFilter.hover.retry', "Re-discover hosts"))
@@ -386,11 +411,12 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		this._connectElement.classList.remove('connected', 'connecting', 'disconnected', 'rediscover', 'hidden');
 		this._connectHover.clear();
 
-		// Sidebar appearance: when there are no known hosts, repurpose
-		// this trailing slot as a "Re-discover hosts" button so the
-		// user has an independent control next to the "No Host" picker
-		// — same shape as disconnect/connect on a real host.
-		if (!selected && this._sidebarButton && canRetry) {
+		// Sidebar appearance: when there is no host to connect to, repurpose
+		// this trailing slot as a "Re-discover hosts" button so the user has
+		// an independent control next to the picker — same shape as
+		// disconnect/connect on a real host. A connectable selection owns the
+		// slot instead, so only offer it when nothing else claims it.
+		if (canRetry && this._sidebarButton && !selected?.connectable) {
 			this._connectElement.setAttribute('role', 'button');
 			this._connectElement.tabIndex = 0;
 			this._connectElement.classList.add('rediscover');
@@ -488,16 +514,16 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 			return;
 		}
 
-		const hosts = this._filterService.hosts;
-		// Zero hosts: the pill is a re-discovery trigger, not a menu. Fire
-		// rediscover() unless one is already in flight.
-		if (hosts.length === 0) {
+		// Nothing to switch between: the pill re-runs discovery rather than
+		// opening a menu. Fire rediscover() unless one is already in flight.
+		if (this._retriesOnClick()) {
 			if (!this._filterService.isDiscovering) {
 				this._filterService.rediscover();
 			}
 			return;
 		}
-		if (hosts.length === 1) {
+		const hosts = this._filterService.hosts;
+		if (hosts.length <= 1) {
 			return;
 		}
 

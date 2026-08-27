@@ -12,7 +12,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../base/
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -65,13 +65,13 @@ const SANDBOX_SESSION_SCHEME_ALIAS: ISessionSchemeAlias = {
 };
 
 /**
- * Folds every sandbox environment into one "Cloud Sandboxes" entry in the host
+ * Folds every sandbox environment into one "GitHub Sandboxes" entry in the host
  * filter. Sandboxes are not connectable: one connects when a session of it is
  * opened, so a manual toggle would act on nothing the user pointed at.
  */
 const CLOUD_SANDBOX_HOST_GROUP: IAgentHostGroup = {
-	id: 'cloudsandbox',
-	label: localize('cloudSandbox.hostGroup', "Cloud Sandboxes"),
+	id: 'githubsandbox',
+	label: localize('githubSandbox.hostGroup', "GitHub Sandboxes"),
 	icon: Codicon.package,
 	order: 1,
 	connectable: false,
@@ -145,6 +145,11 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 	private _discoveryQueued: Promise<void> | undefined;
 	/** Whether discovery has completed at least once, used to stop the auth-driven retry. */
 	private _hasDiscovered = false;
+	/**
+	 * Keeps the "GitHub Sandboxes" filter entry present for as long as the feature is on, so the
+	 * place is visible and selectable before the user has any sandbox session to put in it.
+	 */
+	private readonly _hostGroupRegistration = this._register(new MutableDisposable());
 
 	constructor(
 		@ICloudSandboxAgentHostService private readonly _cloudSandboxService: ICloudSandboxAgentHostService,
@@ -188,6 +193,7 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 		// leave stale providers, connections, or credential refreshers behind.
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(CloudSandboxEnabledSettingId) || e.affectsConfiguration(RemoteAgentHostsEnabledSettingId)) {
+				this._updateHostGroupRegistration();
 				if (this._isEnabled()) {
 					void this._discoverAndSeed();
 				} else {
@@ -195,6 +201,8 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 				}
 			}
 		}));
+
+		this._updateHostGroupRegistration();
 
 		// Lazy discovery: surface environment-bound sandbox sessions in the list without connecting.
 		// Connecting happens on open via the sandbox async activator.
@@ -656,6 +664,19 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 
 	private _isEnabled(): boolean {
 		return isCloudSandboxEnabled(this._configurationService);
+	}
+
+	/**
+	 * Keep the host filter entry in step with the feature toggles. The entry stands on its own —
+	 * it is there whether or not discovery has found any environment — so a user with the feature
+	 * on but no tasks yet can still see and select the place their sandboxes will appear in.
+	 */
+	private _updateHostGroupRegistration(): void {
+		if (!this._isEnabled()) {
+			this._hostGroupRegistration.clear();
+		} else if (!this._hostGroupRegistration.value) {
+			this._hostGroupRegistration.value = this._agentHostFilterService.registerHostGroup(CLOUD_SANDBOX_HOST_GROUP);
+		}
 	}
 
 	/** Create the sessions provider for an environment if it doesn't exist yet. */

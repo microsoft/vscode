@@ -295,4 +295,41 @@ suite('AgentHostFilterService', () => {
 		store.add(providers.registerProvider(new StubRemoteProvider('localhost:4321', 'Host A') as unknown as ISessionsProvider));
 		assert.strictEqual(service.selectedHostId, isWeb ? 'cloudsandbox' : undefined);
 	});
+
+	test('a declared group has an entry with no members, and drops it when undeclared', () => {
+		const providers = new StubSessionsProvidersService();
+		store.add(providers.registerProvider(new StubRemoteProvider('localhost:4321', 'Host A') as unknown as ISessionsProvider));
+		const service = createService(providers);
+
+		const registration = service.registerHostGroup(SANDBOX_GROUP);
+		assert.deepStrictEqual([...service.hosts].map(h => ({ id: h.id, providerIds: [...h.providerIds], grouped: h.grouped, status: h.status })), [
+			{ id: pid('localhost:4321'), providerIds: [pid('localhost:4321')], grouped: false, status: AgentHostFilterConnectionStatus.Connected },
+			{ id: 'cloudsandbox', providerIds: [], grouped: true, status: AgentHostFilterConnectionStatus.Disconnected },
+		]);
+
+		registration.dispose();
+		assert.deepStrictEqual([...service.hosts].map(h => h.id), [pid('localhost:4321')]);
+	});
+
+	test('members fold into an already-declared group entry', () => {
+		const providers = new StubSessionsProvidersService();
+		const service = createService(providers);
+		store.add(service.registerHostGroup(SANDBOX_GROUP));
+
+		store.add(providers.registerProvider(new StubRemoteProvider('cloudsandbox:env-1', 'Task one', RemoteAgentHostConnectionStatus.connected, SANDBOX_GROUP) as unknown as ISessionsProvider));
+		assert.deepStrictEqual([...service.hosts].map(h => ({ id: h.id, providerIds: [...h.providerIds], status: h.status })), [
+			{ id: 'cloudsandbox', providerIds: [pid('cloudsandbox:env-1')], status: AgentHostFilterConnectionStatus.Connected },
+		]);
+	});
+
+	test('an empty declared group is never the automatic selection', () => {
+		const providers = new StubSessionsProvidersService();
+		store.add(providers.registerProvider(new StubRemoteProvider('localhost:4321', 'Host A') as unknown as ISessionsProvider));
+		const service = createService(providers);
+		// Ranked alongside Host A, so only the connectable-first rule keeps the
+		// default off the alphabetically earlier group.
+		store.add(service.registerHostGroup(SANDBOX_GROUP_UNRANKED));
+
+		assert.strictEqual(service.selectedHostId, isWeb ? pid('localhost:4321') : undefined);
+	});
 });

@@ -32,6 +32,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IAuthenticationService } from '../../../../../../workbench/services/authentication/common/authentication.js';
 import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IAgentHostGroup } from '../../../../../common/agentHostSessionsProvider.js';
 import { IAgentHostFilterService } from '../../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ISession } from '../../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
@@ -124,6 +125,15 @@ class StubSessionsProvidersService extends Disposable {
 	getProviders(): ISessionsProvider[] { return []; }
 }
 
+/** The single host filter entry every sandbox environment folds into. */
+const GITHUB_SANDBOX_GROUP: IAgentHostGroup = {
+	id: 'githubsandbox',
+	label: 'GitHub Sandboxes',
+	icon: Codicon.package,
+	order: 1,
+	connectable: false,
+};
+
 interface ITestHarness {
 	readonly contribution: TestCloudSandboxContribution;
 	readonly configurationService: TestConfigurationService;
@@ -135,17 +145,23 @@ interface ITestHarness {
 	onConnect?: () => Promise<void>;
 	readonly created: ICloudSandboxCreateSessionRequest[];
 	readonly connectedTo: string[];
+	/** Host groups currently declared to the filter service. */
+	readonly hostGroups: IAgentHostGroup[];
 }
 
 /**
  * Creates the contribution with a discovery result, and resolves once the constructor's eager
- * `_discoverAndSeed()` pass has committed its seeds.
+ * `_discoverAndSeed()` pass has committed its seeds. `hostGroups` holds the groups currently
+ * declared to the host filter, so tests can assert the entry's presence and its teardown.
  */
 async function createContribution(store: Pick<DisposableStore, 'add'>, sessions: readonly ICloudSandboxDiscoveredSession[], options?: {
 	/** Task Mission Control returns from `createSession`, or a rejection. */
 	readonly createSession?: () => Promise<ICloudSandboxCreatedSession>;
+	/** Whether the sandbox feature settings start on. Defaults to `true`. */
+	readonly enabled?: boolean;
 }): Promise<ITestHarness> {
 	const discoveryHandlers: (() => Promise<void>)[] = [];
+	const hostGroups: IAgentHostGroup[] = [];
 	const instantiationService = store.add(new TestInstantiationService());
 	const created: ICloudSandboxCreateSessionRequest[] = [];
 	const connectedTo: string[] = [];
@@ -153,6 +169,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 		discovered: sessions,
 		created,
 		connectedTo,
+		hostGroups,
 		runDiscovery: async () => { await Promise.all(discoveryHandlers.map(handler => handler())); },
 	} as ITestHarness;
 
@@ -188,10 +205,19 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 			discoveryHandlers.push(handler);
 			return toDisposable(() => { });
 		}
+		override registerHostGroup(group: IAgentHostGroup): IDisposable {
+			hostGroups.push(group);
+			return toDisposable(() => {
+				const index = hostGroups.indexOf(group);
+				if (index >= 0) {
+					hostGroups.splice(index, 1);
+				}
+			});
+		}
 	}());
 	const configurationService = new TestConfigurationService({
-		[CloudSandboxEnabledSettingId]: true,
-		[RemoteAgentHostsEnabledSettingId]: true,
+		[CloudSandboxEnabledSettingId]: options?.enabled ?? true,
+		[RemoteAgentHostsEnabledSettingId]: options?.enabled ?? true,
 	});
 	instantiationService.stub(IConfigurationService, configurationService);
 	instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
@@ -267,15 +293,28 @@ suite('CloudSandboxAgentHostContribution', () => {
 	});
 
 	test('folds every sandbox into one non-connectable host filter group', async () => {
-		const contribution = await createContribution(store, [
+		const { contribution } = await createContribution(store, [
 			discoveredSession(),
 			discoveredSession({ environmentId: 'env-2', sessionId: 'sess-2', taskId: 'task-2', name: 'hi' }),
 		]);
 
 		assert.deepStrictEqual([...contribution.stubProviders.values()].map(p => p.config.hostGroup), [
-			{ id: 'cloudsandbox', label: 'Cloud Sandboxes', icon: Codicon.package, order: 1, connectable: false },
-			{ id: 'cloudsandbox', label: 'Cloud Sandboxes', icon: Codicon.package, order: 1, connectable: false },
+			GITHUB_SANDBOX_GROUP,
+			GITHUB_SANDBOX_GROUP,
 		]);
+	});
+
+	test('declares the host filter group even with no sandbox sessions', async () => {
+		const { contribution, hostGroups } = await createContribution(store, []);
+
+		assert.deepStrictEqual([...contribution.stubProviders.keys()], []);
+		assert.deepStrictEqual([...hostGroups], [GITHUB_SANDBOX_GROUP]);
+	});
+
+	test('declares no host filter group while the feature is disabled', async () => {
+		const { hostGroups } = await createContribution(store, [discoveredSession()], { enabled: false });
+
+		assert.deepStrictEqual([...hostGroups], []);
 	});
 });
 

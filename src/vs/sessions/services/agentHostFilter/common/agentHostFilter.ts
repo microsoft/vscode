@@ -7,6 +7,7 @@ import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IAgentHostGroup } from '../../../common/agentHostSessionsProvider.js';
 
 /**
  * Connection status of a host surfaced in the host filter.
@@ -30,7 +31,8 @@ export interface IAgentHostFilterEntry {
 	readonly id: string;
 	/**
 	 * The provider ids this entry scopes the sessions list to. Exactly one
-	 * for an ungrouped host; one per member for a grouped entry.
+	 * for an ungrouped host; one per member for a grouped entry, which may be
+	 * empty for a declared group whose members do not exist yet.
 	 */
 	readonly providerIds: readonly string[];
 	/** Display name for the entry. */
@@ -126,4 +128,12 @@ export interface IAgentHostFilterService {
 	 * routine into the shared host picker UX.
 	 */
 	registerDiscoveryHandler(handler: () => Promise<void>): IDisposable;
+
+	/**
+	 * Declare a host group that always has an entry, even while none of its
+	 * member providers exist. Used by hosts whose members only appear once the
+	 * user has sessions on them, so the place itself stays visible and
+	 * selectable. Members fold into the declared entry as they register.
+	 */
+	registerHostGroup(group: IAgentHostGroup): IDisposable;
 }

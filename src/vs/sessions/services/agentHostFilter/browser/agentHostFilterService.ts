@@ -12,7 +12,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { isAgentHostProvider, IAgentHostSessionsProvider } from '../../../common/agentHostSessionsProvider.js';
+import { isAgentHostProvider, IAgentHostGroup, IAgentHostSessionsProvider } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry, IAgentHostFilterService } from '../common/agentHostFilter.js';
 
@@ -88,6 +88,12 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 	private _discoveringCount = 0;
 
 	/**
+	 * Groups declared via {@link registerHostGroup}. Each always yields an
+	 * entry, whether or not any member provider exists yet.
+	 */
+	private readonly _declaredGroups = new Map<string, IAgentHostGroup>();
+
+	/**
 	 * Subscriptions to the `connectionStatus` observable of every currently
 	 * registered remote provider. Rebuilt whenever the set of providers
 	 * changes so we always observe the live set.
@@ -149,6 +155,16 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 	registerDiscoveryHandler(handler: () => Promise<void>): IDisposable {
 		this._discoveryHandlers.add(handler);
 		return toDisposable(() => this._discoveryHandlers.delete(handler));
+	}
+
+	registerHostGroup(group: IAgentHostGroup): IDisposable {
+		this._declaredGroups.set(group.id, group);
+		this._rewatchProviders();
+		return toDisposable(() => {
+			if (this._declaredGroups.delete(group.id) && !this._providerWatchers.isDisposed) {
+				this._rewatchProviders();
+			}
+		});
 	}
 
 	setSelectedHostId(hostId: string): void {
@@ -243,6 +259,34 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 			const grouped = new Map<string, IMutableEntry>();
 			const entries: IMutableEntry[] = [];
 
+			const groupEntry = (group: IAgentHostGroup): IMutableEntry => {
+				let entry = grouped.get(group.id);
+				if (!entry) {
+					// Members roll their status in below; Disconnected is the
+					// identity of that rollup, so an empty group reads as such.
+					entry = {
+						id: group.id,
+						providerIds: [],
+						label: group.label,
+						grouped: true,
+						address: undefined,
+						icon: group.icon ?? Codicon.remote,
+						status: AgentHostFilterConnectionStatus.Disconnected,
+						connectable: group.connectable !== false,
+						order: group.order ?? 0,
+					};
+					grouped.set(group.id, entry);
+					entries.push(entry);
+				}
+				return entry;
+			};
+
+			// A declared group is a place the user can scope to whether or not
+			// it currently holds anything, so it gets an entry up front.
+			for (const group of this._declaredGroups.values()) {
+				groupEntry(group);
+			}
+
 			for (const provider of providers) {
 				const status = mapStatus(provider.connectionStatus!.read(reader));
 				const group = provider.hostGroup;
@@ -260,25 +304,9 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 					});
 					continue;
 				}
-				const existing = grouped.get(group.id);
-				if (existing) {
-					existing.providerIds.push(provider.id);
-					existing.status = rollupStatus([existing.status, status]);
-					continue;
-				}
-				const entry: IMutableEntry = {
-					id: group.id,
-					providerIds: [provider.id],
-					label: group.label,
-					grouped: true,
-					address: undefined,
-					icon: group.icon ?? Codicon.remote,
-					status,
-					connectable: group.connectable !== false,
-					order: group.order ?? 0,
-				};
-				grouped.set(group.id, entry);
-				entries.push(entry);
+				const entry = groupEntry(group);
+				entry.providerIds.push(provider.id);
+				entry.status = rollupStatus([entry.status, status]);
 			}
 
 			entries.sort((a, b) => a.order - b.order || a.label.localeCompare(b.label));
