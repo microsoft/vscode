@@ -28,6 +28,7 @@ import {
 	type SessionState,
 } from '../../../../common/state/sessionState.js';
 import { assertToolCallCompleteText, createRealSession } from '../harness/agentHostE2ETestHarness.js';
+import { summarizeAnthropicRequest, summarizeResponsesRequest } from '../harness/capiWireCodec.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { conformanceTest, providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 
@@ -37,6 +38,13 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs } = context;
 	/** See the same constant in `fileOperationsSuite`. */
 	const PREFER_FILE_TOOLS = ' Use your file tools; do not run a shell command.';
+
+	function peerFileOperationPrompt(fileToolsPrompt: string, shellCommand: string, shellFollowup: string): string {
+		if (config.fileOperationStrategy !== 'shell') {
+			return fileToolsPrompt;
+		}
+		return `Run exactly this shell command, with no modifications: \`${shellCommand}\`. ${shellFollowup}`;
+	}
 
 	async function createSession(prefix: string): Promise<{ sessionUri: string; defaultChatUri: string; workspace: string }> {
 		const workspace = mkdtempSync(join(tmpdir(), `ahp-multichat-${prefix}-`));
@@ -139,16 +147,11 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 	}
 
 	function observedModelMessages(body: string): readonly IObservedModelMessage[] {
-		const request: unknown = JSON.parse(body);
-		if (!isRecord(request) || !Array.isArray(request.messages)) {
+		const request = summarizeAnthropicRequest(body) ?? summarizeResponsesRequest(body);
+		if (!request) {
 			return [];
 		}
-		return request.messages.flatMap(message => {
-			if (!isRecord(message) || typeof message.role !== 'string') {
-				return [];
-			}
-			return [{ role: message.role, content: modelContentText(message.content) }];
-		});
+		return request.messages.map(message => ({ role: message.role, content: modelContentText(message.content) }));
 	}
 
 	function modelContentText(value: unknown): string {
@@ -681,7 +684,12 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		const peer = await createPeer(sessionUri, 'peer');
 		await context.client.call<SubscribeResult>('subscribe', { channel: peer });
 
-		const response = await driveTurn(peer, 'peer-read', `Read the file at ${file} and reply with its exact contents only.`, 1);
+		const prompt = peerFileOperationPrompt(
+			`Read the file at ${file} and reply with its exact contents only.`,
+			`node -e "process.stdout.write(require('fs').readFileSync('peer-note.txt','utf8'))"`,
+			'Then reply with its exact output only.',
+		);
+		const response = await driveTurn(peer, 'peer-read', prompt, 1);
 
 		assert.match(response, /PEER_FILE_VALUE/);
 		assertToolCallCompleteText(context.client, {
@@ -702,7 +710,12 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		const peer = await createPeer(sessionUri, 'peer');
 		await context.client.call<SubscribeResult>('subscribe', { channel: peer });
 
-		const response = await driveTurn(peer, 'peer-read-nested', `Read the file at ${file} and reply with its exact contents only.`, 1);
+		const prompt = peerFileOperationPrompt(
+			`Read the file at ${file} and reply with its exact contents only.`,
+			`node -e "process.stdout.write(require('fs').readFileSync('nested/peer.txt','utf8'))"`,
+			'Then reply with its exact output only.',
+		);
+		const response = await driveTurn(peer, 'peer-read-nested', prompt, 1);
 
 		assert.match(response, /PEER_NESTED_READ/);
 		assertToolCallCompleteText(context.client, {
@@ -721,7 +734,12 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		const peer = await createPeer(sessionUri, 'peer');
 		await context.client.call<SubscribeResult>('subscribe', { channel: peer });
 
-		await driveTurn(peer, 'peer-create', `Create the file at ${file} containing exactly PEER_CREATED.`, 1);
+		const prompt = peerFileOperationPrompt(
+			`Create the file at ${file} containing exactly PEER_CREATED.`,
+			`node -e "require('fs').writeFileSync('peer-created.txt','PEER_CREATED')"`,
+			'Then reply exactly "created".',
+		);
+		await driveTurn(peer, 'peer-create', prompt, 1);
 
 		assert.strictEqual(readFileSync(file, 'utf8'), 'PEER_CREATED');
 	});
@@ -733,7 +751,12 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		const peer = await createPeer(sessionUri, 'peer');
 		await context.client.call<SubscribeResult>('subscribe', { channel: peer });
 
-		await driveTurn(peer, 'peer-edit', `Replace the complete contents of ${file} with AFTER_PEER.${PREFER_FILE_TOOLS}`, 1);
+		const prompt = peerFileOperationPrompt(
+			`Replace the complete contents of ${file} with AFTER_PEER.${PREFER_FILE_TOOLS}`,
+			`node -e "require('fs').writeFileSync('peer-edit.txt','AFTER_PEER')"`,
+			'Then reply exactly "edited".',
+		);
+		await driveTurn(peer, 'peer-edit', prompt, 1);
 
 		assert.strictEqual(readFileSync(file, 'utf8').trim(), 'AFTER_PEER');
 	}, config.supportsMultipleChats);
@@ -760,7 +783,12 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		const peer = await createPeer(sessionUri, 'peer');
 		await context.client.call<SubscribeResult>('subscribe', { channel: peer });
 
-		const response = await driveTurn(peer, 'peer-missing', `Try to read ${file}. If it does not exist, reply exactly "missing".${PREFER_FILE_TOOLS}`, 1);
+		const prompt = peerFileOperationPrompt(
+			`Try to read ${file}. If it does not exist, reply exactly "missing".${PREFER_FILE_TOOLS}`,
+			`node -e "console.log(require('fs').existsSync('peer-missing.txt')?'present':'missing')"`,
+			'Then reply with its exact output only.',
+		);
+		const response = await driveTurn(peer, 'peer-missing', prompt, 1);
 
 		assert.match(response, /missing/i);
 		assertToolCallCompleteText(context.client, {
@@ -768,8 +796,8 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 			turnId: 'peer-missing',
 			toolNames: fileReadToolNames(config.provider),
 			workspace,
-			expected: [/does not exist/],
-			success: false,
+			expected: config.fileOperationStrategy === 'shell' ? [/missing/] : [/does not exist/],
+			success: config.fileOperationStrategy === 'shell',
 		});
 	});
 
@@ -780,7 +808,12 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		const peer = await createPeer(sessionUri, 'peer');
 		await context.client.call<SubscribeResult>('subscribe', { channel: peer });
 
-		const response = await driveTurn(peer, 'peer-spaces', `Read the file at ${file} and reply with its exact contents only.`, 1);
+		const prompt = peerFileOperationPrompt(
+			`Read the file at ${file} and reply with its exact contents only.`,
+			`node -e "process.stdout.write(require('fs').readFileSync('peer file.txt','utf8'))"`,
+			'Then reply with its exact output only.',
+		);
+		const response = await driveTurn(peer, 'peer-spaces', prompt, 1);
 
 		assert.match(response, /PEER_SPACED/);
 		assertToolCallCompleteText(context.client, {
@@ -802,8 +835,18 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		await context.client.call<SubscribeResult>('subscribe', { channel: first });
 		await context.client.call<SubscribeResult>('subscribe', { channel: second });
 
-		await driveTurn(first, 'first-write', `Create the file at ${firstFile} containing exactly FIRST_PEER.`, 1);
-		await driveTurn(second, 'second-write', `Create the file at ${secondFile} containing exactly SECOND_PEER.`, 10);
+		const firstPrompt = peerFileOperationPrompt(
+			`Create the file at ${firstFile} containing exactly FIRST_PEER.`,
+			`node -e "require('fs').writeFileSync('first-peer.txt','FIRST_PEER')"`,
+			'Then reply exactly "created".',
+		);
+		const secondPrompt = peerFileOperationPrompt(
+			`Create the file at ${secondFile} containing exactly SECOND_PEER.`,
+			`node -e "require('fs').writeFileSync('second-peer.txt','SECOND_PEER')"`,
+			'Then reply exactly "created".',
+		);
+		await driveTurn(first, 'first-write', firstPrompt, 1);
+		await driveTurn(second, 'second-write', secondPrompt, 10);
 
 		assert.deepStrictEqual({
 			first: readFileSync(firstFile, 'utf8'),
@@ -1027,6 +1070,9 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		await driveTurn(peer, 'peer-resource-selection', 'Reply exactly "selection".', 1, attachments);
 
 		const request = context.observedModelRequestBodies.at(-1) ?? '';
-		assert.ok(request.includes('peer-selection.txt') && (request.includes('peer-selection.txt:2') || request.includes('(line 2)')));
+		assert.ok(
+			request.includes('peer-selection.txt') && (request.includes('peer-selection.txt:2') || request.includes('(line 2)')),
+			`Expected the selected line reference in: ${JSON.stringify(observedModelMessages(request))}`,
+		);
 	});
 }
