@@ -23,10 +23,15 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IListService } from '../../../../platform/list/browser/listService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { IURLService } from '../../../../platform/url/common/url.js';
+import { resolveCommandsContext } from '../../../../workbench/browser/parts/editor/editorCommandsContext.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
+import { WebviewInput } from '../../../../workbench/contrib/webviewPanel/browser/webviewEditorInput.js';
+import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { Menus } from '../../../browser/menus.js';
 import { ChatPillActionViewItem } from '../../../../workbench/browser/chatPills.js';
@@ -140,9 +145,10 @@ class OpenPullRequestAction extends Action2 {
 }
 registerAction2(OpenPullRequestAction);
 
+const pullRequestOverviewViewType = 'PullRequestOverview';
 const pullRequestOverviewEditorWhen = ContextKeyExpr.and(
 	SessionHasPullRequestContext,
-	ContextKeyExpr.equals('activeWebviewPanelId', 'PullRequestOverview'),
+	ContextKeyExpr.equals('activeWebviewPanelId', pullRequestOverviewViewType),
 );
 
 class OpenPullRequestInBrowserAction extends Action2 {
@@ -165,14 +171,34 @@ class OpenPullRequestInBrowserAction extends Action2 {
 				group: 'navigation',
 				order: 1,
 				when: pullRequestOverviewEditorWhen,
+			}, {
+				id: MenuId.ModalEditorEditorTitle,
+				group: 'navigation',
+				order: 1,
+				when: pullRequestOverviewEditorWhen,
 			}],
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const pullRequest = getSessionPullRequest(accessor.get(ISessionsService).activeSession.get());
-		if (pullRequest) {
-			await accessor.get(IOpenerService).open(pullRequest.uri, {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const sessionsService = accessor.get(ISessionsService);
+		const editorService = accessor.get(IEditorService);
+		const resolvedContext = resolveCommandsContext(args, editorService, accessor.get(IEditorGroupsService), accessor.get(IListService));
+		const pullRequestEditors = resolvedContext.groupedEditors
+			.flatMap(group => group.editors)
+			.filter(isPullRequestOverviewEditor);
+		const openerService = accessor.get(IOpenerService);
+
+		for (const editor of pullRequestEditors) {
+			const pullRequestNumber = getPullRequestNumber(editor);
+			if (pullRequestNumber === undefined) {
+				continue;
+			}
+			const pullRequest = getSessionPullRequest(sessionsService.activeSession.get(), pullRequestNumber);
+			if (!pullRequest) {
+				continue;
+			}
+			await openerService.open(pullRequest.uri, {
 				openExternal: true,
 				allowContributedOpeners: false,
 			});
@@ -183,13 +209,25 @@ registerAction2(OpenPullRequestInBrowserAction);
 
 // --- Copy Pull Request URL action
 
-function getSessionPullRequest(session: ISession | undefined): IGitHubPullRequestRef | undefined {
+function isPullRequestOverviewEditor(editor: object): editor is WebviewInput {
+	return editor instanceof WebviewInput &&
+		(editor.viewType === `mainThreadWebview-${pullRequestOverviewViewType}` || editor.providerId === pullRequestOverviewViewType);
+}
+
+function getPullRequestNumber(editor: WebviewInput): number | undefined {
+	const match = /^#(?<number>[1-9]\d*)(?:\s|$)/.exec(editor.getName());
+	return match?.groups ? Number(match.groups.number) : undefined;
+}
+
+function getSessionPullRequest(session: ISession | undefined, pullRequestNumber?: number): IGitHubPullRequestRef | undefined {
 	const gitHubInfo = session?.workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get();
-	const pullRequestRef = gitHubInfo?.pullRequests?.[0];
+	const pullRequestRef = pullRequestNumber === undefined
+		? gitHubInfo?.pullRequests?.[0]
+		: gitHubInfo?.pullRequests?.find(ref => ref.number === pullRequestNumber);
 	if (pullRequestRef) {
 		return pullRequestRef;
 	}
-	if (!gitHubInfo?.pullRequest) {
+	if (!gitHubInfo?.pullRequest || (pullRequestNumber !== undefined && gitHubInfo.pullRequest.number !== pullRequestNumber)) {
 		return undefined;
 	}
 
