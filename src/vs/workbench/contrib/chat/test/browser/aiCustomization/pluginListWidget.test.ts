@@ -10,7 +10,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { PluginFormat } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { CustomizationEnablementKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { getInstalledPluginMetadata, getRemotePluginDisabledLabel, getToggledPluginEnablementState, PluginMarketplaceSnapshotModel, shouldLoadPluginMarketplaceSnapshot } from '../../../browser/aiCustomization/pluginListWidget.js';
+import { getInstalledPluginMetadata, getRemotePluginDisabledLabel, getToggledPluginEnablementState, isCurrentPluginMarketplaceRequest, PluginMarketplaceSnapshotModel, shouldLoadPluginMarketplaceSnapshot } from '../../../browser/aiCustomization/pluginListWidget.js';
 import { AgentPluginItemKind, IInstalledPluginItem } from '../../../browser/agentPluginEditor/agentPluginItems.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
@@ -97,5 +97,15 @@ suite('pluginListWidget', () => {
 			shouldLoadPluginMarketplaceSnapshot(true, 'loaded', true),
 			shouldLoadPluginMarketplaceSnapshot(true, 'uninitialized', false),
 		], [false, true, false, false]);
+	});
+
+	test('accepts marketplace results only for the initiating search', () => {
+		assert.deepStrictEqual([
+			isCurrentPluginMarketplaceRequest('agent', 'agent', false, false, true, false),
+			isCurrentPluginMarketplaceRequest('agent', '', false, false, true, false),
+			isCurrentPluginMarketplaceRequest('agent', 'agent', false, true, true, false),
+			isCurrentPluginMarketplaceRequest('agent', 'agent', false, false, false, false),
+			isCurrentPluginMarketplaceRequest('agent', 'agent', false, false, true, true),
+		], [true, false, false, false, false]);
 	});
 });
