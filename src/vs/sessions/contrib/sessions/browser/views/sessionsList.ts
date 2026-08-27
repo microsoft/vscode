@@ -18,7 +18,7 @@ import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabe
 import { createMatches, FuzzyScore, IMatch } from '../../../../../base/common/filters.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { IObservable, IReader, autorun, derived, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, IReader, autorun, derived, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { fromNow } from '../../../../../base/common/date.js';
@@ -46,6 +46,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { ChatInteractivity, ChatOriginKind, getChatCapabilities, getSessionStatusMessage, getSessionWorkspaceKind, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionWorkspace, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
 import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
@@ -102,6 +103,8 @@ const $ = DOM.$;
 const AUTOMATIONS_SECTION_ID = 'automations';
 const SESSION_SECTION_FOCUS_FROM_POINTER_CLASS = 'session-section-focus-from-pointer';
 const SESSION_HEADER_DROP_TARGET_CLASS = 'session-header-drop-target';
+/** Shared empty set used as the default "no session hierarchy is hovered/selected" value. */
+const EMPTY_GUIDE_SESSION_IDS: ReadonlySet<string> = new Set();
 
 export const SessionItemToolbarMenuId = new MenuId('SessionItemToolbar');
 export const SessionItemContextMenuId = MenuId.SessionItemContextMenu;
@@ -204,6 +207,7 @@ function getSessionListChats(session: ISession, reader?: IReader): readonly ICha
 	return session.chats.read(reader).filter(chat =>
 		!isEqual(chat.resource, mainChat.resource) &&
 		chat.origin?.kind !== ChatOriginKind.Tool &&
+		chat.origin?.kind !== ChatOriginKind.SideChat &&
 		chat.interactivity.read(reader) !== ChatInteractivity.Hidden
 	);
 }
@@ -411,6 +415,13 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		private readonly markdownRendererService: IMarkdownRendererService | undefined,
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly approvalRowMaxLines: number,
+		/**
+		 * Session IDs whose hierarchy indent/connector guides should be shown —
+		 * i.e. the session (or one of its chats) is currently hovered or
+		 * selected. Read reactively so guides appear only while the pointer or
+		 * selection is within this exact session's hierarchy.
+		 */
+		private readonly activeGuideSessionIds: IObservable<ReadonlySet<string>> = constObservable(EMPTY_GUIDE_SESSION_IDS),
 	) { }
 
 	renderTemplate(container: HTMLElement): ISessionChatItemTemplate {
@@ -456,6 +467,10 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 				undefined,
 				element.chat.resource,
 			);
+		}));
+		template.elementDisposables.add(autorun(reader => {
+			const showGuides = this.activeGuideSessionIds.read(reader).has(element.session.sessionId);
+			template.container.classList.toggle('session-hierarchy-guides-visible', showGuides);
 		}));
 		template.elementDisposables.add(this.hoverService.setupDelayedHover(template.title.element, () => ({
 			content: getChatTitle(element.chat),
@@ -714,7 +729,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	readonly onDidApproveSession: Event<IApprovedSession> = this._onDidApproveSession.event;
 
 	constructor(
-		private readonly options: { grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; useCompactQuickChatRows: boolean; approvalRowMaxLines: number; aggregateChatApprovals: boolean; toolbarMenuId: MenuId | undefined; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>; onDidRequestRename?: (session: ISession) => void },
+		private readonly options: { grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; useCompactQuickChatRows: boolean; approvalRowMaxLines: number; aggregateChatApprovals: boolean; toolbarMenuId: MenuId | undefined; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>; onDidRequestRename?: (session: ISession) => void; activeGuideSessionIds?: IObservable<ReadonlySet<string>> },
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly ciFixModel: ISessionCIFixModel | undefined,
 		private readonly instantiationService: IInstantiationService,
@@ -725,6 +740,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		private readonly sessionsManagementService: ISessionsManagementService,
 		private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 		private readonly openerService: IOpenerService,
+		private readonly labelService: ILabelService,
 		// TEMPORARY — see the note on the `IAgentSessionsService` import above (#320480).
 		private readonly agentSessionsService: IAgentSessionsService,
 		private readonly _voicePlaybackService: IVoicePlaybackService,
@@ -863,7 +879,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		if (this.options.showHover) {
 			// Rich hover on the row: the same widget session pills use in chat output.
 			template.elementDisposables.add(this.hoverService.setupDelayedHover(template.container, () => ({
-				content: new SessionSummaryHoverWidget(getSessionSummaryHoverData(element, this.sessionsProvidersService, this.getCreatorHoverData(element))).domNode,
+				content: new SessionSummaryHoverWidget(getSessionSummaryHoverData(element, this.sessionsProvidersService, this.openerService, this.labelService, this.getCreatorHoverData(element))).domNode,
 				appearance: { showPointer: true },
 				position: { hoverPosition: HoverPosition.RIGHT, forcePosition: true },
 				persistence: { hideOnHover: false },
@@ -901,6 +917,13 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			template.container.classList.toggle('archived', isArchived);
 			// Only apply pinned styling when not archived to avoid persistent toolbars on archived sessions
 			template.container.classList.toggle('pinned', isPinned && !isArchived);
+		}));
+
+		// Hierarchy indent/connector guides — visible only while this exact
+		// session (or one of its chat children) is hovered or selected.
+		template.elementDisposables.add(autorun(reader => {
+			const showGuides = (this.options.activeGuideSessionIds?.read(reader) ?? EMPTY_GUIDE_SESSION_IDS).has(element.sessionId);
+			template.container.classList.toggle('session-hierarchy-guides-visible', showGuides);
 		}));
 
 		// Sticky styling — reactive on the wrapper's sticky observable
@@ -2260,6 +2283,35 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 */
 	private readonly chatApprovalHeightReconcile = this._register(new MutableDisposable());
 	private readonly automationSessions = observableValue<readonly ISession[]>(this, []);
+	/**
+	 * Session IDs whose hierarchy indent/connector guides should be visible:
+	 * the union of the currently-hovered session (if any) and every session
+	 * that is the parent of, or itself, a currently selected or keyboard-focused
+	 * row. Focus is tracked separately from selection because arrow-key
+	 * navigation (via the workbench `list.focusUp`/`list.focusDown` commands)
+	 * moves the tree's focus without changing its selection.
+	 * Hovering, selecting, or focusing a chat child reveals its own parent's
+	 * guides only.
+	 */
+	private readonly hoveredGuideSessionId = observableValue<string | undefined>(this, undefined);
+	private readonly selectedGuideSessionIds = observableValue<ReadonlySet<string>>(this, EMPTY_GUIDE_SESSION_IDS);
+	private readonly focusedGuideSessionIds = observableValue<ReadonlySet<string>>(this, EMPTY_GUIDE_SESSION_IDS);
+	private readonly activeGuideSessionIds = derived(this, reader => {
+		const hovered = this.hoveredGuideSessionId.read(reader);
+		const selected = this.selectedGuideSessionIds.read(reader);
+		const focused = this.focusedGuideSessionIds.read(reader);
+		if (!hovered && focused.size === 0) {
+			return selected;
+		}
+		const ids = new Set(selected);
+		for (const id of focused) {
+			ids.add(id);
+		}
+		if (hovered) {
+			ids.add(hovered);
+		}
+		return ids;
+	});
 	private visible = true;
 	private readonly excludedSessionTypes: Set<string>;
 	private readonly excludedStatuses: Set<SessionStatus>;
@@ -2328,6 +2380,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 		@IOpenerService private readonly openerService: IOpenerService,
+		@ILabelService private readonly labelService: ILabelService,
 	) {
 		super();
 
@@ -2397,6 +2450,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				onDidRequestRename: session => {
 					this.commandService.executeCommand(RENAME_SESSION_COMMAND_ID, session).catch(onUnexpectedError);
 				},
+				activeGuideSessionIds: this.activeGuideSessionIds,
 			},
 			approvalModel,
 			undefined,
@@ -2408,13 +2462,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this._sessionsManagementService,
 			this.agentHostConnectionsService,
 			this.openerService,
+			this.labelService,
 			agentSessionsService,
 			voicePlaybackService,
 		);
 
 		const showMoreRenderer = new SessionShowMoreRenderer();
 		const placeholderRenderer = new SessionPlaceholderRenderer(hoverService);
-		const chatRenderer = new SessionChatItemRenderer(hoverService, instantiationService, markdownRendererService, approvalModel, DEFAULT_APPROVAL_ROW_MAX_LINES);
+		const chatRenderer = new SessionChatItemRenderer(hoverService, instantiationService, markdownRendererService, approvalModel, DEFAULT_APPROVAL_ROW_MAX_LINES, this.activeGuideSessionIds);
 		const selectHeader = (element: ISessionSection | ISessionGroupItem, event: MouseEvent) => {
 			this.tree.setFocus([element], event);
 			this.tree.setSelection([element], event);
@@ -2546,6 +2601,52 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		));
 		this.tree.updateOptions({ indent: 0, defaultIndent: 0, expandOnDoubleClick: false });
+
+		// Hierarchy guides: resolve any row (a session or one of its chats) to
+		// the session whose guides it belongs to, so hovering/selecting/focusing
+		// a chat child reveals only its own parent's guides, never an unrelated
+		// session's.
+		const guideOwnerSessionId = (element: SessionListItem | null): string | undefined => {
+			if (element && isSessionItem(element)) {
+				return element.sessionId;
+			}
+			if (element && isSessionChatItem(element)) {
+				return element.session.sessionId;
+			}
+			return undefined;
+		};
+		const guideOwnerSessionIds = (elements: readonly (SessionListItem | null)[]): Set<string> => {
+			const ids = new Set<string>();
+			for (const element of elements) {
+				const id = guideOwnerSessionId(element);
+				if (id) {
+					ids.add(id);
+				}
+			}
+			return ids;
+		};
+		this._register(this.tree.onMouseOver(e => {
+			this.hoveredGuideSessionId.set(guideOwnerSessionId(e.element), undefined);
+		}));
+		this._register(this.tree.onMouseOut(e => {
+			// Only clear if the pointer left the row that set the hover, i.e. no
+			// unrelated `mouseout` (e.g. bubbling from a child element within the
+			// same row) resets a hover another row's `mouseover` just established.
+			if (guideOwnerSessionId(e.element) === this.hoveredGuideSessionId.get()) {
+				this.hoveredGuideSessionId.set(undefined, undefined);
+			}
+		}));
+		this._register(this.tree.onDidChangeSelection(() => {
+			this.selectedGuideSessionIds.set(guideOwnerSessionIds(this.tree.getSelection()), undefined);
+		}));
+		const updateFocusedGuideSessionIds = () => {
+			this.focusedGuideSessionIds.set(guideOwnerSessionIds(this.tree.getFocus()), undefined);
+		};
+		this._register(this.tree.onDidChangeFocus(updateFocusedGuideSessionIds));
+		this._register(this.tree.onDidFocus(updateFocusedGuideSessionIds));
+		this._register(this.tree.onDidBlur(() => {
+			this.focusedGuideSessionIds.set(EMPTY_GUIDE_SESSION_IDS, undefined);
+		}));
 
 		this._register(this.tree.onDidOpen(async e => {
 			const element = e.element;
@@ -4347,6 +4448,7 @@ export class SessionsFlatList extends Disposable {
 		@IVoicePlaybackService voicePlaybackService: IVoicePlaybackService,
 		@IAgentHostConnectionsService agentHostConnectionsService: IAgentHostConnectionsService,
 		@IOpenerService openerService: IOpenerService,
+		@ILabelService labelService: ILabelService,
 	) {
 		super();
 
@@ -4387,6 +4489,7 @@ export class SessionsFlatList extends Disposable {
 			this._sessionsManagementService,
 			agentHostConnectionsService,
 			openerService,
+			labelService,
 			agentSessionsService,
 			voicePlaybackService,
 		);

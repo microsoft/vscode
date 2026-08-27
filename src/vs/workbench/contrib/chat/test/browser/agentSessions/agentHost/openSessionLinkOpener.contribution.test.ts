@@ -12,6 +12,7 @@ import { NullLogService } from '../../../../../../../platform/log/common/log.js'
 import { buildOpenSessionLinkUri } from '../../../../../../../platform/agentHost/common/openSessionLink.js';
 import { ILinkPresentationService } from '../../../../../../../platform/dataChannel/common/dataChannel.js';
 import { IOpener, IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
+import { IPathService } from '../../../../../../services/path/common/pathService.js';
 import { AgentHostOpenSessionLinkOpenerContribution } from '../../../../browser/agentSessions/agentHost/openSessionLinkOpener.contribution.js';
 import { ISessionSummaryHoverService } from '../../../../browser/agentSessions/sessionSummaryHoverService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../browser/chat.js';
@@ -56,6 +57,7 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 			new class extends mock<ISessionSummaryHoverService>() {
 				override registerProvider(): IDisposable { return Disposable.None; }
 			},
+			new class extends mock<IPathService>() { },
 		));
 
 		assert.ok(registeredOpener, 'expected an opener service opener to be registered');
@@ -93,6 +95,7 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 			new class extends mock<ISessionSummaryHoverService>() {
 				override registerProvider(): IDisposable { return Disposable.None; }
 			},
+			new class extends mock<IPathService>() { },
 		));
 
 		const opened = await requestOriginService.open({

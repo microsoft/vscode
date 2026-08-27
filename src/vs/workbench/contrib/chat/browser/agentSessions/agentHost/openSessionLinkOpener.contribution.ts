@@ -8,6 +8,7 @@ import { structuralEquals } from '../../../../../../base/common/equals.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { tildify } from '../../../../../../base/common/labels.js';
 import { IObservable, observableValueOpts } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -18,6 +19,7 @@ import { ILinkPresentation, ILinkPresentationService, ILinkPresentationWatcher }
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
+import { IPathService } from '../../../../../services/path/common/pathService.js';
 import { IChatRequestOriginService } from '../../../common/chatRequestOrigin.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
@@ -61,6 +63,7 @@ export class AgentHostOpenSessionLinkOpenerContribution extends Disposable imple
 		@ILinkPresentationService linkPresentationService: ILinkPresentationService,
 		@ILogService logService: ILogService,
 		@ISessionSummaryHoverService sessionSummaryHoverService: ISessionSummaryHoverService,
+		@IPathService pathService: IPathService,
 	) {
 		super();
 		this._register(openerService.registerOpener({
@@ -92,7 +95,7 @@ export class AgentHostOpenSessionLinkOpenerContribution extends Disposable imple
 		this._register(sessionSummaryHoverService.registerProvider({
 			provideSessionSummaryHoverData: async (resource, token) => {
 				const item = await this._findChatSessionItem(resource, token);
-				return item ? toSessionSummaryHoverData(item) : undefined;
+				return item ? toSessionSummaryHoverData(item, pathService.userHome({ preferLocal: true }).fsPath) : undefined;
 			},
 		}));
 	}
@@ -224,16 +227,21 @@ function toSessionLinkPresentation(item: IChatSessionItem): ILinkPresentation {
  * session's pull requests have no representation here and are left out rather
  * than guessed at. Everything the item does carry — the workspace or worktree
  * path, the branch and the change counts — is surfaced through the same widget.
+ *
+ * Paths arrive as opaque strings rather than URIs, so they are tildified
+ * directly instead of going through the label service; {@link tildify} rewrites
+ * only a path that really sits under {@link userHome}, leaving a remote
+ * session's path alone.
  */
-function toSessionSummaryHoverData(item: IChatSessionItem): ISessionSummaryHoverData {
+function toSessionSummaryHoverData(item: IChatSessionItem, userHome: string): ISessionSummaryHoverData {
 	const metadata = item.metadata;
 	const changes = getAgentChangesSummary(item.changes);
-	const worktree = metadata?.worktreePath;
+	const workspace = metadata?.repositoryPath ?? metadata?.workingDirectoryPath;
 	return {
 		title: item.label,
 		location: {
-			workspace: metadata?.repositoryPath ?? metadata?.workingDirectoryPath,
-			worktree,
+			workspace: workspace ? tildify(workspace, userHome) : undefined,
+			worktree: metadata?.worktreePath ? tildify(metadata.worktreePath, userHome) : undefined,
 			branch: metadata?.branchName ?? metadata?.branch,
 			changes: changes && (changes.insertions > 0 || changes.deletions > 0) ? changes : undefined,
 		},
