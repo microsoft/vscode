@@ -9,13 +9,15 @@ import { Button, unthemedButtonStyles } from '../../../../../../base/browser/ui/
 import { URI } from '../../../../../../base/common/uri.js';
 import { Action, IAction, Separator } from '../../../../../../base/common/actions.js';
 import { Emitter } from '../../../../../../base/common/event.js';
-import { Disposable, DisposableStore, isDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, isDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CustomizationEnablementKind, McpServerStatus, type CustomizationEnablement } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { mcpAccessConfig, McpAccessValue } from '../../../../../../platform/mcp/common/mcpManagement.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
@@ -39,11 +41,13 @@ import {
 	getMcpStatusRenderSignature,
 	getServerItemContextMenuActions,
 	getToggledMcpEnablementState,
+	McpListWidget,
 	McpServerItemRenderer,
 	registerMcpInlineButtonAction,
 	type IMcpStatusRenderInput,
 	updateMcpCardRuntimePresentation,
 	hasSameMcpMembership,
+	setPrimaryMcpServerEnablement,
 	shouldLoadMcpGallerySnapshot,
 } from '../../../browser/aiCustomization/mcpListWidget.js';
 
@@ -103,6 +107,55 @@ function trackActions(store: Pick<DisposableStore, 'add'>, actions: readonly IAc
 		}
 	}
 	return [...actions];
+}
+
+type McpAccessTestWidget = {
+	element: HTMLElement;
+	mcpAccessEnabled: boolean;
+	visible: boolean;
+	access: McpAccessValue;
+	policyAccess: McpAccessValue | undefined;
+	configurationService: IConfigurationService;
+	delayedGallerySearch: { cancel(): void };
+	delayedCancelCount: number;
+	galleryCts: { dispose(cancel?: boolean): void } | undefined;
+	requestCancelCount: number;
+	gallerySnapshotLoading: boolean;
+	gallerySearchLoading: boolean;
+	searchInput: { hideMessage(): void };
+	disabledIcon: HTMLElement;
+	disabledMessage: HTMLElement;
+	disabledLinkListener: MutableDisposable<{ dispose(): void }>;
+	commandService: ICommandService;
+	updateAccessState(): void;
+};
+
+function createMcpAccessTestWidget(access: McpAccessValue, policyAccess: McpAccessValue | undefined, store: Pick<DisposableStore, 'add'>): McpAccessTestWidget {
+	const widget = Object.create(McpListWidget.prototype) as McpAccessTestWidget;
+	widget.element = document.createElement('div');
+	widget.mcpAccessEnabled = false;
+	widget.visible = false;
+	widget.access = access;
+	widget.policyAccess = policyAccess;
+	widget.configurationService = {
+		inspect: (key: string) => key === mcpAccessConfig ? {
+			value: widget.access,
+			defaultValue: McpAccessValue.All,
+			policyValue: widget.policyAccess,
+		} : undefined,
+	} as unknown as IConfigurationService;
+	widget.delayedCancelCount = 0;
+	widget.delayedGallerySearch = { cancel: () => widget.delayedCancelCount++ };
+	widget.galleryCts = undefined;
+	widget.requestCancelCount = 0;
+	widget.gallerySnapshotLoading = false;
+	widget.gallerySearchLoading = false;
+	widget.searchInput = { hideMessage() { } };
+	widget.disabledIcon = document.createElement('div');
+	widget.disabledMessage = document.createElement('div');
+	widget.disabledLinkListener = store.add(new MutableDisposable());
+	widget.commandService = { executeCommand: async () => undefined } as unknown as ICommandService;
+	return widget;
 }
 
 suite('mcpListWidget', () => {
@@ -171,11 +224,71 @@ suite('mcpListWidget', () => {
 
 	test('loads gallery snapshots only for visible MCP sections', () => {
 		assert.deepStrictEqual([
-			shouldLoadMcpGallerySnapshot(false, '', 0, false, false),
-			shouldLoadMcpGallerySnapshot(true, '', 0, false, false),
-			shouldLoadMcpGallerySnapshot(true, 'search', 0, false, false),
-			shouldLoadMcpGallerySnapshot(true, '', 1, false, false),
-		], [false, true, false, false]);
+			shouldLoadMcpGallerySnapshot(false, '', 0, false, false, true),
+			shouldLoadMcpGallerySnapshot(true, '', 0, false, false, true),
+			shouldLoadMcpGallerySnapshot(true, 'search', 0, false, false, true),
+			shouldLoadMcpGallerySnapshot(true, '', 1, false, false, true),
+			shouldLoadMcpGallerySnapshot(true, '', 0, false, false, false),
+		], [false, true, false, false, false]);
+	});
+
+	test('shows access-disabled UI before gallery work starts', () => {
+		const widget = createMcpAccessTestWidget(McpAccessValue.None, McpAccessValue.None, disposables);
+
+		widget.updateAccessState();
+
+		assert.deepStrictEqual({
+			accessEnabled: widget.mcpAccessEnabled,
+			disabledClass: widget.element.classList.contains('access-disabled'),
+			message: widget.disabledMessage.textContent,
+		}, {
+			accessEnabled: false,
+			disabledClass: true,
+			message: 'Access to MCP servers is disabled by your organization. Contact your organization administrator for more information.',
+		});
+	});
+
+	test('cancels delayed and in-flight gallery work when access is revoked', () => {
+		const widget = createMcpAccessTestWidget(McpAccessValue.All, undefined, disposables);
+		widget.updateAccessState();
+		widget.galleryCts = { dispose: cancel => widget.requestCancelCount += cancel ? 1 : 0 };
+		widget.gallerySnapshotLoading = true;
+		widget.gallerySearchLoading = true;
+
+		widget.access = McpAccessValue.None;
+		widget.updateAccessState();
+
+		assert.deepStrictEqual({
+			accessEnabled: widget.mcpAccessEnabled,
+			delayedCancelCount: widget.delayedCancelCount,
+			requestCancelCount: widget.requestCancelCount,
+			gallerySnapshotLoading: widget.gallerySnapshotLoading,
+			gallerySearchLoading: widget.gallerySearchLoading,
+		}, {
+			accessEnabled: false,
+			delayedCancelCount: 1,
+			requestCancelCount: 1,
+			gallerySnapshotLoading: false,
+			gallerySearchLoading: false,
+		});
+	});
+
+	test('uses durable enablement for the primary MCP switch', () => {
+		const sessionResource = URI.parse('vscode-agent-session:///session-1');
+		const activeSessionServer = createAgentHostServer();
+		const { service: mcpService, calls: localCalls } = createMcpService(ContributionEnablementState.EnabledProfile);
+		const { service: agentHostService, calls: agentHostCalls } = createAgentHostCustomizations();
+
+		setPrimaryMcpServerEnablement(mcpService, agentHostService, sessionResource, 'server-1', activeSessionServer, false);
+		setPrimaryMcpServerEnablement(mcpService, agentHostService, sessionResource, undefined, activeSessionServer, false);
+
+		assert.deepStrictEqual({
+			localCalls,
+			agentHostCalls,
+		}, {
+			localCalls: [['server-1', ContributionEnablementState.DisabledProfile]],
+			agentHostCalls: [[sessionResource, activeSessionServer.id, activeSessionServer.enablement, CustomizationEnablementKind.Global, false]],
+		});
 	});
 
 	test('distinguishes membership changes from state-only changes', () => {

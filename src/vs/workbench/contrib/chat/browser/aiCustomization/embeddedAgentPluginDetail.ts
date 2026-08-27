@@ -8,8 +8,9 @@ import { Button, ButtonWithDropdown } from '../../../../../base/browser/ui/butto
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
@@ -24,7 +25,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { defaultButtonStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
+import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { createPolicyBlockedEnableAction, createUninstallPluginAction, isPluginPolicyBlocked } from '../agentPluginActions.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -40,9 +41,10 @@ import type { IContextMenuProvider } from '../../../../../base/browser/contextme
 import { AnchorAlignment } from '../../../../../base/browser/ui/contextview/contextview.js';
 import { getPluginInclusionLabel } from './aiCustomizationPresentation.js';
 import { getErrorMessage } from '../../../../../base/common/errors.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, waitForState } from '../../../../../base/common/observable.js';
 
 const $ = DOM.$;
+const INSTALL_REGISTRATION_TIMEOUT = 10_000;
 
 export interface IPluginReadme {
 	readonly content: string;
@@ -96,6 +98,27 @@ export async function loadPluginReadme(
 	throw new Error(`Unsupported plugin README URI scheme: ${readmeUri.scheme}`);
 }
 
+export async function waitForInstalledPlugin(
+	agentPluginService: Pick<IAgentPluginService, 'plugins'>,
+	expectedUri: URI,
+	token: CancellationToken,
+): Promise<IAgentPlugin | undefined> {
+	try {
+		const plugins = await waitForState(
+			agentPluginService.plugins,
+			plugins => plugins.some(plugin => plugin.uri.toString() === expectedUri.toString()),
+			undefined,
+			token,
+		);
+		return plugins.find(plugin => plugin.uri.toString() === expectedUri.toString());
+	} catch (error) {
+		if (isCancellationError(error)) {
+			return undefined;
+		}
+		throw error;
+	}
+}
+
 /**
  * Compact detail view for an agent plugin inside the AI Customizations management editor's
  * split-pane host. Renders identity, provenance, contribution summary, and description while
@@ -131,6 +154,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 	private readonly copyStateReset = this._register(new MutableDisposable());
 	private readonly narrowLayoutUpdate = this._register(new MutableDisposable());
 	private readonly inputStateAutorun = this._register(new MutableDisposable());
+	private readonly installWaitDisposables = this._register(new MutableDisposable<DisposableStore>());
 
 	private current: IAgentPluginItem | undefined;
 	private narrowLayout = false;
@@ -229,6 +253,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 	}
 
 	setInput(item: IAgentPluginItem): void {
+		this.installWaitDisposables.clear();
 		this.current = item;
 		this.renderItem();
 		if (item.kind === AgentPluginItemKind.Installed) {
@@ -254,6 +279,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 	}
 
 	clearInput(): void {
+		this.installWaitDisposables.clear();
 		this.current = undefined;
 		this.inputStateAutorun.clear();
 		this.renderItem();
@@ -325,27 +351,41 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			this.renderDisposables.add(installButton.onDidClick(async () => {
 				installButton.label = localize('installing', "Installing...");
 				installButton.enabled = false;
+				const marketplacePlugin: IMarketplacePlugin = {
+					name: item.name,
+					description: item.description,
+					version: item.version ?? '',
+					source: item.source,
+					sourceDescriptor: item.sourceDescriptor,
+					marketplace: item.marketplace,
+					marketplaceReference: item.marketplaceReference,
+					marketplaceType: item.marketplaceType,
+					readmeUri: item.readmeUri,
+				};
 				try {
-					await this.pluginInstallService.installPlugin({
-						name: item.name,
-						description: item.description,
-						version: item.version ?? '',
-						source: item.source,
-						sourceDescriptor: item.sourceDescriptor,
-						marketplace: item.marketplace,
-						marketplaceReference: item.marketplaceReference,
-						marketplaceType: item.marketplaceType,
-						readmeUri: item.readmeUri,
-					});
+					await this.pluginInstallService.installPlugin(marketplacePlugin);
+					const waitDisposables = new DisposableStore();
+					this.installWaitDisposables.value = waitDisposables;
+					const waitCts = new CancellationTokenSource();
+					waitDisposables.add({ dispose: () => waitCts.dispose(true) });
+					waitDisposables.add(disposableTimeout(() => waitCts.cancel(), INSTALL_REGISTRATION_TIMEOUT));
+					const expectedUri = this.pluginInstallService.getPluginInstallUri(marketplacePlugin);
+					const plugin = await waitForInstalledPlugin(this.agentPluginService, expectedUri, waitCts.token);
+					if (this.installWaitDisposables.value === waitDisposables) {
+						this.installWaitDisposables.clear();
+					}
 					if (this._store.isDisposed || this.current !== item) {
 						return;
 					}
-					const installed = this.getInstalledPluginForMarketplaceItem(item);
-					if (installed) {
+					if (plugin) {
 						installButton.label = localize('installed', "Installed");
-						this.setInput(installed);
+						this.setInput(this.toInstalledPluginItem(plugin));
+					} else {
+						installButton.label = localize('install', "Install");
+						installButton.enabled = true;
 					}
 				} catch (error) {
+					this.installWaitDisposables.clear();
 					if (this._store.isDisposed || this.current !== item) {
 						return;
 					}
@@ -375,9 +415,15 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			uninstallButton.label = uninstallAction.label;
 			uninstallButton.enabled = uninstallAction.enabled;
 			this.renderDisposables.add(uninstallButton.onDidClick(async () => {
-				await uninstallAction.run();
-				if (!this._store.isDisposed && this.current === item) {
-					this._onDidUninstall.fire();
+				try {
+					const removed = await uninstallAction.runAndGetResult();
+					if (removed && !this._store.isDisposed && this.current === item) {
+						this._onDidUninstall.fire();
+					}
+				} catch (error) {
+					if (!this._store.isDisposed && this.current === item) {
+						this.notificationService.error(localize('pluginUninstallFailed', "Unable to uninstall plugin: {0}", getErrorMessage(error)));
+					}
 				}
 			}));
 		}
@@ -407,6 +453,10 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 				anchorAlignment: AnchorAlignment.RIGHT,
 			}),
 		};
+		const alternateAction = this.renderDisposables.add(new Action('plugin.alternateScope', '', undefined, true, async () => {
+			const state = getPluginEnablementActionState(item.plugin.enablement.get());
+			setEnablement(state.alternateState);
+		}));
 		const splitButton = this.renderDisposables.add(new ButtonWithDropdown(this.titleActionsEl, {
 			...defaultButtonStyles,
 			secondary: true,
@@ -416,9 +466,8 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			actions: {
 				getActions: () => {
 					const state = getPluginEnablementActionState(item.plugin.enablement.get());
-					return [
-						this.renderDisposables.add(new Action(`plugin.${state.isEnabled ? 'exclude' : 'include'}AlternateScope`, state.alternateLabel, undefined, true, async () => setEnablement(state.alternateState)))
-					];
+					alternateAction.label = state.alternateLabel;
+					return [alternateAction];
 				},
 			},
 			ariaLabel: '',
@@ -434,22 +483,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		this.renderDisposables.add(splitButton.onDidClick(() => setEnablement(getPluginEnablementActionState(item.plugin.enablement.get()).primaryState)));
 	}
 
-	private getInstalledPluginForMarketplaceItem(item: Extract<IAgentPluginItem, { kind: AgentPluginItemKind.Marketplace }>): IAgentPluginItem | undefined {
-		const expectedUri = this.pluginInstallService.getPluginInstallUri({
-			name: item.name,
-			description: item.description,
-			version: item.version ?? '',
-			source: item.source,
-			sourceDescriptor: item.sourceDescriptor,
-			marketplace: item.marketplace,
-			marketplaceReference: item.marketplaceReference,
-			marketplaceType: item.marketplaceType,
-			readmeUri: item.readmeUri,
-		});
-		const plugin = this.agentPluginService.plugins.get().find(plugin => plugin.uri.toString() === expectedUri.toString());
-		if (!plugin) {
-			return undefined;
-		}
+	private toInstalledPluginItem(plugin: IAgentPlugin): IAgentPluginItem {
 		return {
 			kind: AgentPluginItemKind.Installed,
 			name: plugin.label || basename(plugin.uri),

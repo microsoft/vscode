@@ -1303,7 +1303,7 @@ function makeInstalledPlugin(name: string, uri: URI, enablement: boolean | Contr
 			{ uri: URI.joinPath(uri, 'instructions', `${contributionName}.instructions.md`), name: `${name} instructions`, description: `Context rules for ${name}.` },
 		]);
 		override readonly mcpServerDefinitions = constObservable([]);
-		override remove() { }
+		override async remove() { return true; }
 	}();
 }
 

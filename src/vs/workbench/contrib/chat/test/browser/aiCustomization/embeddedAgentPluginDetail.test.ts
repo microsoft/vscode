@@ -6,6 +6,8 @@
 import assert from 'assert';
 import { VSBuffer, bufferToStream } from '../../../../../../base/common/buffer.js';
 import { Event } from '../../../../../../base/common/event.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IRequestContext } from '../../../../../../base/parts/request/common/request.js';
@@ -13,7 +15,7 @@ import { FileOperationError, FileOperationResult, IFileService } from '../../../
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { AgentPluginItemKind, IAgentPluginItem, IMarketplacePluginItem } from '../../../browser/agentPluginEditor/agentPluginItems.js';
-import { getPluginVersion, loadPluginReadme, PluginReadmeRenderGuard } from '../../../browser/aiCustomization/embeddedAgentPluginDetail.js';
+import { getPluginVersion, loadPluginReadme, PluginReadmeRenderGuard, waitForInstalledPlugin } from '../../../browser/aiCustomization/embeddedAgentPluginDetail.js';
 import { MarketplaceType, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 import { parseMarketplaceReference } from '../../../common/plugins/marketplaceReference.js';
 import { IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
@@ -54,7 +56,7 @@ function createMarketplaceItem(readmeUri: URI): IMarketplacePluginItem {
 }
 
 suite('embeddedAgentPluginDetail', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const fileService = new class extends mock<IFileService>() { }();
 
@@ -70,6 +72,29 @@ suite('embeddedAgentPluginDetail', () => {
 			firstCurrent: false,
 			secondCurrent: true,
 		});
+	});
+
+	test('waits for asynchronous installed plugin discovery', async () => {
+		const expectedUri = URI.file('/plugins/example');
+		const plugins = observableValue<readonly IAgentPlugin[]>('plugins', []);
+		const plugin = new class extends mock<IAgentPlugin>() {
+			override readonly uri = expectedUri;
+		}();
+		const result = waitForInstalledPlugin({ plugins }, expectedUri, CancellationToken.None);
+
+		plugins.set([plugin], undefined);
+
+		assert.strictEqual(await result, plugin);
+	});
+
+	test('stops waiting for installed plugin discovery when cancelled', async () => {
+		const plugins = observableValue<readonly IAgentPlugin[]>('plugins', []);
+		const cts = disposables.add(new CancellationTokenSource());
+		const result = waitForInstalledPlugin({ plugins }, URI.file('/plugins/example'), cts.token);
+
+		cts.cancel();
+
+		assert.strictEqual(await result, undefined);
 	});
 
 	test('reads marketplace plugin versions', () => {

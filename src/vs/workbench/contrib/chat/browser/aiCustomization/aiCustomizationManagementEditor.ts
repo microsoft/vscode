@@ -133,6 +133,16 @@ type CustomizationEditorSectionChangedClassification = {
 	comment: 'Tracks section navigation within the Agent Customizations editor.';
 };
 
+export function isCurrentPluginContributionNavigation(
+	requestGeneration: number,
+	currentGeneration: number,
+	requestedSection: AICustomizationManagementSection,
+	selectedSection: AICustomizationManagementSection | undefined,
+	isListView: boolean,
+): boolean {
+	return requestGeneration === currentGeneration && requestedSection === selectedSection && isListView;
+}
+
 type CustomizationEditorItemSelectedEvent = {
 	section: string;
 	promptType: string;
@@ -366,6 +376,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private readonly sections: ISectionItem[] = [];
 	private readonly allSections: ISectionItem[] = [];
 	private selectedSection: AICustomizationManagementSection | undefined;
+	private contentNavigationGeneration = 0;
 
 	// Welcome page
 	private welcomePage: AICustomizationWelcomePage | undefined;
@@ -2016,6 +2027,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private updateContentVisibility(): void {
+		this.contentNavigationGeneration++;
 		const isEditorMode = this.viewMode === 'editor';
 		const isMigrationMode = this.viewMode === 'migration';
 		const isMcpDetailMode = this.viewMode === 'mcpDetail';
@@ -3364,10 +3376,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.sectionContextKey.set(section);
 		this.storageService.store(AI_CUSTOMIZATION_MANAGEMENT_SELECTED_SECTION_KEY, section, StorageScope.PROFILE, StorageTarget.USER);
 		this.updateContentVisibility();
+		const navigationGeneration = this.contentNavigationGeneration;
 		await this.listWidget.setSection(section);
 		const modelSection = ITEMS_MODEL_SECTIONS.find(s => s === section);
 		if (modelSection) {
 			await this.itemsModel.whenSectionLoaded(modelSection);
+			if (!isCurrentPluginContributionNavigation(navigationGeneration, this.contentNavigationGeneration, section, this.selectedSection, this.viewMode === 'list')) {
+				return;
+			}
 			const item = this.itemsModel.getItems(modelSection).get().find(item => isEqual(item.uri, uri));
 			if (item) {
 				const source = item.source;

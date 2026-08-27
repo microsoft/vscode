@@ -96,6 +96,20 @@ export function shouldLoadPluginMarketplaceSnapshot(visible: boolean, state: Plu
 	return visible && state === 'uninitialized' && marketplaceAvailable;
 }
 
+export function isCurrentPluginMarketplaceRequest(
+	requestQuery: string,
+	currentQuery: string,
+	requestBrowseMode: boolean,
+	currentBrowseMode: boolean,
+	isActiveRequest: boolean,
+	isCancellationRequested: boolean,
+): boolean {
+	return isActiveRequest
+		&& !isCancellationRequested
+		&& requestQuery === currentQuery
+		&& requestBrowseMode === currentBrowseMode;
+}
+
 //#region Entry types
 
 /**
@@ -661,6 +675,7 @@ export class PluginListWidget extends Disposable {
 	private marketplaceSnapshotCts: CancellationTokenSource | undefined;
 	private readonly delayedFilter = new Delayer<void>(200);
 	private readonly delayedMarketplaceSearch = new Delayer<void>(400);
+	private filterGeneration = 0;
 
 	constructor(
 		private readonly marketplaceBrowsingAvailable = !isWeb,
@@ -696,6 +711,8 @@ export class PluginListWidget extends Disposable {
 		}));
 		this._register({
 			dispose: () => {
+				this.delayedFilter.cancel();
+				this.delayedMarketplaceSearch.cancel();
 				this.marketplaceCts?.dispose(true);
 				this.marketplaceCts = undefined;
 				this.marketplaceSnapshotCts?.dispose(true);
@@ -779,11 +796,15 @@ export class PluginListWidget extends Disposable {
 
 		this._register(this.searchInput.onDidChange(() => {
 			this.searchQuery = this.searchInput.value;
+			this.marketplaceCts?.dispose(true);
+			this.marketplaceCts = undefined;
 			if (this.browseMode) {
 				this.delayedMarketplaceSearch.trigger(() => this.queryMarketplace());
 			} else if (this.searchQuery.trim()) {
 				this.delayedMarketplaceSearch.trigger(() => this.queryPluginSearch());
 			} else {
+				this.delayedMarketplaceSearch.cancel();
+				this.marketplaceItems = [];
 				this.searchInput.hideMessage();
 				this.delayedFilter.trigger(() => this.filterPlugins());
 			}
@@ -948,10 +969,7 @@ export class PluginListWidget extends Disposable {
 
 		// Listen to plugin service changes
 		this._register(autorun(reader => {
-			const plugins = this.agentPluginService.plugins.read(reader);
-			for (const plugin of plugins) {
-				plugin.enablement.read(reader);
-			}
+			this.agentPluginService.plugins.read(reader);
 			void this.refresh();
 		}));
 		this._register(this.pluginMarketplaceService.onDidChangeMarketplaces(() => {
@@ -1336,8 +1354,6 @@ export class PluginListWidget extends Disposable {
 
 	private appendInstalledPluginRow(parent: HTMLElement, item: IInstalledPluginItem): void {
 		const row = DOM.append(parent, $('.plugin-list-item.plugin-home-row.plugin-installed-item'));
-		const enabled = isContributionEnabled(item.plugin.enablement.get());
-		row.classList.toggle('disabled', !enabled || item.plugin.policyBlocked?.get() === true);
 		const primaryAction = this.addSurfaceActivation(row, localize('installedPluginRowAriaLabel', "{0}. {1}", item.name, getPluginInclusionLabel(item.plugin)), () => this._onDidSelectPlugin.fire(item));
 
 		const details = DOM.append(primaryAction, $('.plugin-list-item-details'));
@@ -1358,7 +1374,7 @@ export class PluginListWidget extends Disposable {
 		metadata.style.display = metadata.textContent ? '' : 'none';
 
 		const actions = DOM.append(row, $('.plugin-list-item-action'));
-		const toggle = this.appendInstalledPluginToggle(actions, item);
+		const toggle = this.appendInstalledPluginToggle(actions, row, primaryAction, item);
 		const more = this.cardDisposables.add(new Button(actions, { ...getButtonStyles({ buttonSecondaryBackground: undefined, buttonSecondaryBorder: undefined }), secondary: true, supportIcons: true, ariaLabel: localize('pluginMoreActionsAria', "More actions for {0}", item.name) }));
 		more.element.classList.add('plugin-card-icon-button');
 		more.label = `$(${Codicon.ellipsis.id})`;
@@ -1372,25 +1388,36 @@ export class PluginListWidget extends Disposable {
 		});
 	}
 
-	private appendInstalledPluginToggle(parent: HTMLElement, item: IInstalledPluginItem): HTMLButtonElement {
-		const current = item.plugin.enablement.get();
-		const checked = isContributionEnabled(current);
-		const workspaceScope = current === ContributionEnablementState.EnabledWorkspace || current === ContributionEnablementState.DisabledWorkspace;
-		const blocked = isPluginPolicyBlocked(item.plugin);
-		const toggleLabel = checked
-			? (workspaceScope ? localize('excludePluginWorkspaceAria', "Exclude {0} from Workspace", item.name) : localize('excludePluginProfileAria', "Exclude {0} from Profile", item.name))
-			: (workspaceScope ? localize('includePluginWorkspaceAria', "Include {0} in Workspace", item.name) : localize('includePluginProfileAria', "Include {0} for Profile", item.name));
+	private appendInstalledPluginToggle(parent: HTMLElement, row: HTMLElement, primaryAction: HTMLElement, item: IInstalledPluginItem): HTMLButtonElement {
+		let renderedState = item.plugin.enablement.get();
 		const switchElement = DOM.append(parent, $('button.plugin-enable-switch')) as HTMLButtonElement;
 		switchElement.type = 'button';
-		switchElement.disabled = blocked;
 		switchElement.setAttribute('role', 'switch');
-		switchElement.setAttribute('aria-checked', String(checked));
-		switchElement.setAttribute('aria-label', blocked ? localize('pluginManagedByOrganizationAria', "{0} is managed by your organization", item.name) : toggleLabel);
-		switchElement.classList.toggle('checked', checked);
-		switchElement.title = blocked ? localize('pluginPolicyBlockedSwitch', "This plugin is managed by your organization.") : toggleLabel;
 		DOM.append(switchElement, $('.plugin-enable-switch-thumb'));
+		const update = (state: ContributionEnablementState, blocked: boolean) => {
+			renderedState = state;
+			const checked = isContributionEnabled(state);
+			const workspaceScope = state === ContributionEnablementState.EnabledWorkspace || state === ContributionEnablementState.DisabledWorkspace;
+			const toggleLabel = checked
+				? (workspaceScope ? localize('excludePluginWorkspaceAria', "Exclude {0} from Workspace", item.name) : localize('excludePluginProfileAria', "Exclude {0} from Profile", item.name))
+				: (workspaceScope ? localize('includePluginWorkspaceAria', "Include {0} in Workspace", item.name) : localize('includePluginProfileAria', "Include {0} for Profile", item.name));
+			const accessibleLabel = blocked ? localize('pluginManagedByOrganizationAria', "{0} is managed by your organization", item.name) : toggleLabel;
+			switchElement.disabled = blocked;
+			switchElement.setAttribute('aria-checked', String(checked));
+			switchElement.setAttribute('aria-label', accessibleLabel);
+			switchElement.classList.toggle('checked', checked);
+			switchElement.title = blocked ? localize('pluginPolicyBlockedSwitch', "This plugin is managed by your organization.") : toggleLabel;
+			row.classList.toggle('disabled', !checked || blocked);
+			primaryAction.setAttribute('aria-label', localize('installedPluginRowAriaLabel', "{0}. {1}", item.name, getPluginInclusionLabel(item.plugin)));
+		};
+		this.cardDisposables.add(autorun(reader => {
+			const state = item.plugin.enablement.read(reader);
+			const blocked = item.plugin.policyBlocked?.read(reader) === true;
+			update(state, blocked);
+		}));
 		this.cardDisposables.add(DOM.addDisposableListener(switchElement, 'click', () => {
-			const nextState = getToggledPluginEnablementState(current);
+			const nextState = getToggledPluginEnablementState(renderedState);
+			update(nextState, isPluginPolicyBlocked(item.plugin));
 			this.agentPluginService.enablementModel.setEnabled(item.plugin.uri.toString(), nextState);
 			status(localize('pluginInclusionChanged', "{0}. {1}.", item.name, getPluginInclusionLabel(item.plugin)));
 		}));
@@ -1678,6 +1705,9 @@ export class PluginListWidget extends Disposable {
 	}
 
 	private toggleBrowseMode(browse: boolean): void {
+		this.delayedMarketplaceSearch.cancel();
+		this.marketplaceCts?.dispose(true);
+		this.marketplaceCts = undefined;
 		this.browseMode = browse;
 		this.element.classList.toggle('browse-mode', browse);
 		this.searchInput.value = '';
@@ -1693,7 +1723,6 @@ export class PluginListWidget extends Disposable {
 		if (browse) {
 			void this.queryMarketplace();
 		} else {
-			this.marketplaceCts?.dispose(true);
 			this.marketplaceItems = [];
 			void this.filterPlugins();
 		}
@@ -1707,6 +1736,8 @@ export class PluginListWidget extends Disposable {
 	private async queryMarketplace(): Promise<void> {
 		this.marketplaceCts?.dispose(true);
 		const cts = this.marketplaceCts = new CancellationTokenSource();
+		const query = this.searchQuery.toLowerCase().trim();
+		const browseMode = this.browseMode;
 
 		// Show loading state
 		this.showEmptySurface();
@@ -1716,18 +1747,22 @@ export class PluginListWidget extends Disposable {
 		try {
 			const plugins = await this.pluginMarketplaceService.fetchMarketplacePlugins(cts.token);
 
-			if (cts.token.isCancellationRequested) {
+			if (!this.isCurrentMarketplaceRequest(cts, query, browseMode)) {
 				return;
 			}
 
-			const query = this.searchQuery.toLowerCase().trim();
 			if (query) {
 				const allPlugins = this.agentPluginService.plugins.get();
-				this.installedItems = allPlugins
+				const installedItems = allPlugins
 					.map(p => installedPluginToItem(p, this.labelService))
 					.filter(item => item.name.toLowerCase().includes(query) || item.description.toLowerCase().includes(query))
 					.sort(compareInstalledPluginItems);
-				this.remoteItems = [...await this.getRemotePluginItems(query)];
+				const remoteItems = [...await this.getRemotePluginItems(query)];
+				if (!this.isCurrentMarketplaceRequest(cts, query, browseMode)) {
+					return;
+				}
+				this.installedItems = installedItems;
+				this.remoteItems = remoteItems;
 			}
 			const filtered = query
 				? plugins.filter(p => p.name.toLowerCase().includes(query) || p.description.toLowerCase().includes(query) || p.marketplace.toLowerCase().includes(query))
@@ -1748,7 +1783,7 @@ export class PluginListWidget extends Disposable {
 				this.updateMarketplaceList();
 			}
 		} catch {
-			if (!cts.token.isCancellationRequested) {
+			if (this.isCurrentMarketplaceRequest(cts, query, browseMode)) {
 				this.marketplaceItems = [];
 				this.showEmptySurface();
 				this.emptyText.textContent = localize('marketplaceError', "Unable to load marketplace");
@@ -1764,33 +1799,69 @@ export class PluginListWidget extends Disposable {
 			return;
 		}
 
+		const query = this.searchQuery.toLowerCase().trim();
+		if (!query || this.browseMode) {
+			return;
+		}
 		this.marketplaceCts?.dispose(true);
 		const cts = this.marketplaceCts = new CancellationTokenSource();
 		try {
 			const plugins = await this.pluginMarketplaceService.fetchMarketplacePlugins(cts.token);
-			if (cts.token.isCancellationRequested || this.browseMode) {
+			if (!this.isCurrentMarketplaceRequest(cts, query, false)) {
 				return;
 			}
-			const query = this.searchQuery.toLowerCase().trim();
+			const installedItems = this.agentPluginService.plugins.get()
+				.map(p => installedPluginToItem(p, this.labelService))
+				.filter(item => item.name.toLowerCase().includes(query) || item.description.toLowerCase().includes(query))
+				.sort(compareInstalledPluginItems);
+			const remoteItems = [...await this.getRemotePluginItems(query)];
+			if (!this.isCurrentMarketplaceRequest(cts, query, false)) {
+				return;
+			}
 			const filtered = query
 				? plugins.filter(p => p.name.toLowerCase().includes(query) || p.description.toLowerCase().includes(query) || p.marketplace.toLowerCase().includes(query))
 				: plugins;
 			const installedUris = new Set(this.agentPluginService.plugins.get().map(p => p.uri.toString()));
-			this.marketplaceItems = filtered
+			const marketplaceItems = filtered
 				.filter(p => {
 					const expectedUri = this.pluginInstallService.getPluginInstallUri(p);
 					return !installedUris.has(expectedUri.toString());
 				})
 				.map(marketplacePluginToItem);
+			if (!this.isCurrentMarketplaceRequest(cts, query, false)) {
+				return;
+			}
+			this.installedItems = installedItems;
+			this.remoteItems = remoteItems;
+			this.marketplaceItems = marketplaceItems;
 			this.searchInput.hideMessage();
 		} catch {
+			if (!this.isCurrentMarketplaceRequest(cts, query, false)) {
+				return;
+			}
 			this.marketplaceItems = [];
 			this.searchInput.showMessage({
 				content: localize('pluginSearchMarketplaceUnavailable', "Marketplace results are unavailable. Showing installed plugins only."),
 				type: MessageType.WARNING,
 			});
+			await this.filterPlugins();
+			return;
 		}
-		await this.filterPlugins();
+		if (this.isCurrentMarketplaceRequest(cts, query, false)) {
+			this.updateSearchResultsList();
+			this._onDidChangeItemCount.fire(this.itemCount);
+		}
+	}
+
+	private isCurrentMarketplaceRequest(cts: CancellationTokenSource, query: string, browseMode: boolean): boolean {
+		return isCurrentPluginMarketplaceRequest(
+			query,
+			this.searchQuery.toLowerCase().trim(),
+			browseMode,
+			this.browseMode,
+			this.marketplaceCts === cts,
+			cts.token.isCancellationRequested,
+		);
 	}
 
 	private updateMarketplaceList(): void {
@@ -1872,9 +1943,15 @@ export class PluginListWidget extends Disposable {
 	}
 
 	private async filterPlugins(): Promise<void> {
+		const generation = ++this.filterGeneration;
 		const query = this.searchQuery.toLowerCase().trim();
+		const browseMode = this.browseMode;
 		const allPlugins = this.agentPluginService.plugins.get();
-		this.remoteItems = [...await this.getRemotePluginItems(query)];
+		const remoteItems = [...await this.getRemotePluginItems(query)];
+		if (generation !== this.filterGeneration || this.searchQuery.toLowerCase().trim() !== query || this.browseMode !== browseMode) {
+			return;
+		}
+		this.remoteItems = remoteItems;
 
 		this.installedItems = allPlugins
 			.map(p => installedPluginToItem(p, this.labelService))
