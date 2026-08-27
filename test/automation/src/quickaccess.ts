@@ -189,13 +189,13 @@ export class QuickAccess {
 		}
 	}
 
-	async runCommand(command: string, options?: IRunCommandOptions): Promise<void> {
+	async runCommand(commandId: string, options?: IRunCommandOptions): Promise<void> {
 		const keepOpen = options?.keepOpen;
 		const match = options?.match ?? 'exactCommandId';
 
 		const openCommandPalletteAndTypeCommand = async (): Promise<boolean> => {
 			// open commands picker
-			await this.openQuickAccessWithRetry(QuickAccessKind.Commands, `>${command}`);
+			await this.openQuickAccessWithRetry(QuickAccessKind.Commands, `>${commandId}`);
 
 			for (let retries = 0; retries < 10; retries++) {
 				const element = await this.quickInput.waitForQuickInputElement();
@@ -204,7 +204,7 @@ export class QuickAccess {
 					return false;
 				}
 
-				if (match === 'fuzzy' || (match === 'exactLabel' ? element.label === command : element.id === command)) {
+				if (match === 'fuzzy' || (match === 'exactLabel' ? element.label === commandId : element.id === commandId)) {
 					return true;
 				}
 
@@ -218,7 +218,7 @@ export class QuickAccess {
 
 		if (!hasCommandFound) {
 
-			this.code.logger.log(`QuickAccess: No ${match} match for '${command}', will retry...`);
+			this.code.logger.log(`QuickAccess: No ${match} match for '${commandId}', will retry...`);
 			await this.quickInput.closeQuickInput();
 
 			let retries = 0;
@@ -227,14 +227,14 @@ export class QuickAccess {
 				if (hasCommandFound) {
 					break;
 				} else {
-					this.code.logger.log(`QuickAccess: No ${match} match for '${command}', will retry...`);
+					this.code.logger.log(`QuickAccess: No ${match} match for '${commandId}', will retry...`);
 					await this.quickInput.closeQuickInput();
 					await this.code.wait(1000);
 				}
 			}
 
 			if (!hasCommandFound) {
-				throw new Error(`QuickAccess.runCommand(command: ${command}, match: ${match}) failed to find command.`);
+				throw new Error(`QuickAccess.runCommand(commandId: ${commandId}, match: ${match}) failed to find command.`);
 			}
 		}
 
@@ -252,7 +252,7 @@ export class QuickAccess {
 				if (++selectRetries > 3) {
 					throw err;
 				}
-				this.code.logger.log(`QuickAccess.runCommand(command: ${command}, match: ${match}): selectQuickInputElement failed (${err}), will retry...`);
+				this.code.logger.log(`QuickAccess.runCommand(commandId: ${commandId}, match: ${match}): selectQuickInputElement failed (${err}), will retry...`);
 				try {
 					await this.quickInput.closeQuickInput();
 				} catch {
@@ -260,7 +260,7 @@ export class QuickAccess {
 				}
 				const found = await openCommandPalletteAndTypeCommand();
 				if (!found) {
-					throw new Error(`QuickAccess.runCommand(command: ${command}, match: ${match}) failed to find command on retry.`);
+					throw new Error(`QuickAccess.runCommand(commandId: ${commandId}, match: ${match}) failed to find command on retry.`);
 				}
 			}
 		}
