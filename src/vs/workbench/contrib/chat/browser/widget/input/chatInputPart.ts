@@ -845,6 +845,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly _currentSessionModelObservable = observableValue<IChatModel | undefined>(this, undefined);
 	private readonly _deferredNotificationsEnabled = observableValue(this, true);
 	private readonly _notificationAvailableLanguageModels = observableValue<readonly ILanguageModelChatMetadataAndIdentifier[]>(this, []);
+	private readonly _notificationModelState = derived(this, reader => ({
+		currentModel: this.selectedLanguageModel.read(reader),
+		models: this._notificationAvailableLanguageModels.read(reader),
+	}));
 	private _isFirstWorkbenchSession: boolean | undefined;
 
 	/** Whether the session this input is bound to already has a request. */
@@ -2859,10 +2863,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				deferredNotificationsEnabled: this._deferredNotificationsEnabled,
 				isTransientChat: constObservable(this.options.isTransientChat ?? false),
 				sessionStarted: this._sessionStarted,
-				selectedLanguageModel: this.selectedLanguageModel,
-				availableLanguageModels: this._notificationAvailableLanguageModels,
-				openModelPicker: () => this.openModelPicker(),
-				switchToModel: modelIdentifier => this.switchModelByIdentifier(modelIdentifier, /* storeSelection */ true, /* isUserAction */ true),
+				modelSelection: {
+					state: this._notificationModelState,
+					openPicker: () => this.openModelPicker(),
+					selectModel: modelIdentifier => this.switchModelByIdentifier(modelIdentifier, /* storeSelection */ true, /* isUserAction */ true),
+				},
 				onDidChangeVisibility: (visible, focusTarget) => this.noticeHost.setOccupied(ChatInputNoticeLane.Notification, visible, focusTarget),
 				focusInput: () => this.focus(),
 			});
@@ -2877,8 +2882,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			deferredNotificationsEnabled: this._deferredNotificationsEnabled.get(),
 			isTransientChat: this.options.isTransientChat ?? false,
 			sessionStarted: this._sessionStarted.get(),
-			selectedLanguageModel: this.selectedLanguageModel.get(),
-			availableLanguageModels: this._notificationAvailableLanguageModels.get(),
+			modelState: this._notificationModelState.get(),
 		};
 	}
 

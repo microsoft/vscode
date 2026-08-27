@@ -168,8 +168,7 @@ function inputContext(selectedLanguageModel = manualModel, availableLanguageMode
 		deferredNotificationsEnabled: true,
 		isTransientChat: false,
 		sessionStarted: false,
-		selectedLanguageModel,
-		availableLanguageModels,
+		modelState: { currentModel: selectedLanguageModel, models: availableLanguageModels },
 	};
 }
 
@@ -947,7 +946,7 @@ suite('ChatQuotaNotificationContribution', () => {
 
 			assert.deepStrictEqual({
 				message: notification.message,
-				visible: notification.when?.({ ...inputContext(), selectedLanguageModel: undefined }),
+				visible: notification.when?.({ ...inputContext(), modelState: { currentModel: undefined, models: [] } }),
 			}, {
 				message: 'Credit Limit Reached',
 				visible: true,

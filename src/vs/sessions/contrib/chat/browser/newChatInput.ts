@@ -590,10 +590,11 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 					const session = this.options.session.read(reader);
 					return session ? session.activeChat.read(reader).status.read(reader) !== SessionStatus.Untitled : false;
 				}),
-				selectedLanguageModel: derived(this, reader => this._modelSelection.state.read(reader).currentModel),
-				availableLanguageModels: derived(this, reader => this._modelSelection.state.read(reader).models),
-				openModelPicker: () => this._newChatModelPickerService.openModelPicker(),
-				switchToModel: modelIdentifier => this._newChatModelPickerService.switchToModel(modelIdentifier),
+				modelSelection: {
+					state: this._modelSelection.state,
+					openPicker: () => this._newChatModelPickerService.openModelPicker(),
+					selectModel: modelIdentifier => this._newChatModelPickerService.switchToModel(modelIdentifier),
+				},
 				onDidChangeVisibility: (visible, focusTarget) => this.noticeHost.setOccupied(ChatInputNoticeLane.Notification, visible, focusTarget),
 				focusInput: () => this.focus(),
 			},
@@ -1486,8 +1487,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			deferredNotificationsEnabled: this.options.deferredNotificationsEnabled?.get() ?? true,
 			isTransientChat: session?.isQuickChat?.get() ?? false,
 			sessionStarted: activeChat ? activeChat.status.get() !== SessionStatus.Untitled : false,
-			selectedLanguageModel: modelSelection.currentModel,
-			availableLanguageModels: modelSelection.models,
+			modelState: modelSelection,
 		};
 	}
 

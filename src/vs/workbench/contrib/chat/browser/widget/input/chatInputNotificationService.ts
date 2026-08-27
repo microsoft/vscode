@@ -62,14 +62,18 @@ export interface IChatInputNotificationMuteAction {
 }
 
 /** Input state used to choose notification content. */
+export interface IChatInputNotificationModelState {
+	readonly currentModel: ILanguageModelChatMetadataAndIdentifier | undefined;
+	readonly models: readonly ILanguageModelChatMetadataAndIdentifier[];
+}
+
 export interface IChatInputNotificationContext {
 	readonly sessionType: string | undefined;
 	readonly sessionResource: URI | undefined;
 	readonly deferredNotificationsEnabled: boolean;
 	readonly isTransientChat: boolean;
 	readonly sessionStarted: boolean;
-	readonly selectedLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined;
-	readonly availableLanguageModels: readonly ILanguageModelChatMetadataAndIdentifier[];
+	readonly modelState: IChatInputNotificationModelState;
 }
 
 /** A complete notification body selected for one input. */

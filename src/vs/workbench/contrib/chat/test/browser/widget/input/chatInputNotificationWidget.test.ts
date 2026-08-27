@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../../../base/common/lifecycle.js';
-import { constObservable, observableValue } from '../../../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
@@ -18,9 +18,9 @@ import { ILogService, NullLogService } from '../../../../../../../platform/log/c
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
-import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationBody, IChatInputNotificationContext, IChatInputNotificationService, matchesModelIdentifier } from '../../../../browser/widget/input/chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationBody, IChatInputNotificationContext, IChatInputNotificationModelState, IChatInputNotificationService, matchesModelIdentifier } from '../../../../browser/widget/input/chatInputNotificationService.js';
 import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js';
-import { ChatInputNotificationWidget, IChatInputNotificationDelegate } from '../../../../browser/widget/input/chatInputNotificationWidget.js';
+import { ChatInputNotificationWidget, IChatInputNotificationDelegate, IChatInputNotificationModelSelection } from '../../../../browser/widget/input/chatInputNotificationWidget.js';
 import { isByokModel } from '../../../../common/chatSelectedModel.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
 import { localChatSessionType, SessionType } from '../../../../common/chatSessionsService.js';
@@ -74,14 +74,27 @@ suite('ChatInputNotificationWidget', () => {
 			deferredNotificationsEnabled: true,
 			isTransientChat: false,
 			sessionStarted: false,
-			selectedLanguageModel: undefined,
-			availableLanguageModels: [],
+			modelState: { currentModel: undefined, models: [] },
 			...overrides,
 		};
 	}
 
 	function showForNonByokModels(context: IChatInputNotificationContext): boolean {
-		return !context.selectedLanguageModel || !isByokModel(context.selectedLanguageModel.metadata);
+		return !context.modelState.currentModel || !isByokModel(context.modelState.currentModel.metadata);
+	}
+
+	function modelSelection(options: {
+		readonly state?: IObservable<IChatInputNotificationModelState>;
+		readonly currentModel?: ILanguageModelChatMetadataAndIdentifier;
+		readonly models?: readonly ILanguageModelChatMetadataAndIdentifier[];
+		readonly openPicker?: () => void;
+		readonly selectModel?: (modelIdentifier: string) => boolean;
+	} = {}): IChatInputNotificationModelSelection {
+		return {
+			state: options.state ?? constObservable({ currentModel: options.currentModel, models: options.models ?? [] }),
+			openPicker: options.openPicker ?? (() => { }),
+			selectModel: options.selectModel ?? (() => true),
+		};
 	}
 
 	function createNotificationService(): IChatInputNotificationService {
@@ -261,19 +274,19 @@ suite('ChatInputNotificationWidget', () => {
 	});
 
 	test('reactively hides notifications that opt out of BYOK models', () => {
-		const selectedLanguageModel = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>('selectedLanguageModel', undefined);
-		const { widget, notificationService } = createWidget({ delegate: { selectedLanguageModel } });
+		const modelState = observableValue<IChatInputNotificationModelState>('modelState', { currentModel: undefined, models: [] });
+		const { widget, notificationService } = createWidget({ delegate: { modelSelection: modelSelection({ state: modelState }) } });
 		showNotification(notificationService, { id: 'ordinary', message: 'Ordinary notification', actions: [] });
 		showNotification(notificationService, { id: 'quota', message: 'Credits at 88%', actions: [], when: showForNonByokModels });
 
 		const rendered = () => widget.domNode.querySelector('.chat-input-notification-header')?.textContent;
 		// An unresolved selection must not withhold the notification.
 		const unresolved = rendered();
-		selectedLanguageModel.set(makeModel('copilot', false), undefined);
+		modelState.set({ currentModel: makeModel('copilot', false), models: [] }, undefined);
 		const copilot = rendered();
-		selectedLanguageModel.set(makeModel('customendpoint', true), undefined);
+		modelState.set({ currentModel: makeModel('customendpoint', true), models: [] }, undefined);
 		const byok = rendered();
-		selectedLanguageModel.set(makeModel('copilot', false), undefined);
+		modelState.set({ currentModel: makeModel('copilot', false), models: [] }, undefined);
 
 		assert.deepStrictEqual({ unresolved, copilot, byok, backToCopilot: rendered() }, {
 			unresolved: 'Credits at 88%',
@@ -415,10 +428,10 @@ suite('ChatInputNotificationWidget', () => {
 		notificationService.announceRendered(notification, notification);
 		const announcedById = Reflect.get(notificationService, '_announcedById') as Map<string, string>;
 
-		notificationService.handleMessageSent(context({ selectedLanguageModel: makeModel('customendpoint', true) }));
+		notificationService.handleMessageSent(context({ modelState: { currentModel: makeModel('customendpoint', true), models: [] } }));
 		const afterByokMessage = notificationService.getActiveNotification()?.id;
 		const announcedAfterByokMessage = announcedById.has(notification.id);
-		notificationService.handleMessageSent(context({ selectedLanguageModel: makeModel('copilot', false) }));
+		notificationService.handleMessageSent(context({ modelState: { currentModel: makeModel('copilot', false), models: [] } }));
 
 		assert.deepStrictEqual({
 			afterByokMessage,
@@ -600,12 +613,14 @@ suite('ChatInputNotificationWidget', () => {
 		const { notificationService, widget } = createWidget({
 			telemetryService,
 			delegate: {
-				availableLanguageModels: constObservable([model]),
-				switchToModel: modelIdentifier => {
-					switchedModels.push(modelIdentifier);
-					return true;
-				},
-				openModelPicker: () => pickerOpenCount++,
+				modelSelection: modelSelection({
+					models: [model],
+					selectModel: modelIdentifier => {
+						switchedModels.push(modelIdentifier);
+						return true;
+					},
+					openPicker: () => pickerOpenCount++,
+				}),
 			},
 		});
 
@@ -632,12 +647,10 @@ suite('ChatInputNotificationWidget', () => {
 	test('resolves and announces body changes from the input model', () => {
 		const autoModel = makeModel('copilot', false, 'auto');
 		const manualModel = makeModel('copilot', false, 'manual');
-		const selectedLanguageModel = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>('selectedLanguageModel', manualModel);
+		const modelState = observableValue<IChatInputNotificationModelState>('modelState', { currentModel: manualModel, models: [autoModel, manualModel] });
 		const { notificationService, widget } = createWidget({
 			delegate: {
-				selectedLanguageModel,
-				availableLanguageModels: constObservable([autoModel, manualModel]),
-				switchToModel: () => true,
+				modelSelection: modelSelection({ state: modelState }),
 			},
 		});
 		const defaultBody = {
@@ -652,7 +665,7 @@ suite('ChatInputNotificationWidget', () => {
 			id: 'quota',
 			message: 'Credits at 90%',
 			...defaultBody,
-			resolveBody: (context: IChatInputNotificationContext) => context.selectedLanguageModel?.metadata.id === 'auto' ? defaultBody : switchBody,
+			resolveBody: (context: IChatInputNotificationContext) => context.modelState.currentModel?.metadata.id === 'auto' ? defaultBody : switchBody,
 		} as const;
 
 		showNotification(notificationService, notification);
@@ -662,9 +675,9 @@ suite('ChatInputNotificationWidget', () => {
 			action: widget.domNode.querySelector('.chat-input-notification-action-button')?.textContent,
 		});
 		const manual = result(widget);
-		selectedLanguageModel.set(autoModel, undefined);
+		modelState.set({ currentModel: autoModel, models: [autoModel, manualModel] }, undefined);
 		const auto = result(widget);
-		selectedLanguageModel.set(manualModel, undefined);
+		modelState.set({ currentModel: manualModel, models: [autoModel, manualModel] }, undefined);
 		assert.deepStrictEqual({
 			manual,
 			auto,
@@ -705,9 +718,7 @@ suite('ChatInputNotificationWidget', () => {
 		let pickerOpenCount = 0;
 		const { notificationService, widget } = createWidget({
 			delegate: {
-				availableLanguageModels: constObservable([]),
-				switchToModel: () => true,
-				openModelPicker: () => pickerOpenCount++,
+				modelSelection: modelSelection({ openPicker: () => pickerOpenCount++ }),
 			},
 		});
 
@@ -731,9 +742,11 @@ suite('ChatInputNotificationWidget', () => {
 		const { notificationService, widget } = createWidget({
 			logService,
 			delegate: {
-				availableLanguageModels: constObservable([model]),
-				switchToModel: () => { throw new Error('selection failed'); },
-				openModelPicker: () => pickerOpenCount++,
+				modelSelection: modelSelection({
+					models: [model],
+					selectModel: () => { throw new Error('selection failed'); },
+					openPicker: () => pickerOpenCount++,
+				}),
 			},
 		});
 
@@ -757,12 +770,14 @@ suite('ChatInputNotificationWidget', () => {
 		const { notificationService, widget } = createWidget({
 			logService,
 			delegate: {
-				availableLanguageModels: constObservable([model]),
-				switchToModel: () => false,
-				openModelPicker: () => {
-					pickerOpenCount++;
-					throw new Error('picker failed');
-				},
+				modelSelection: modelSelection({
+					models: [model],
+					selectModel: () => false,
+					openPicker: () => {
+						pickerOpenCount++;
+						throw new Error('picker failed');
+					},
+				}),
 			},
 		});
 		showNotification(notificationService, {

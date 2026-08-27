@@ -19,8 +19,7 @@ function inputContext(overrides: Partial<IChatInputNotificationContext> = {}): I
 		deferredNotificationsEnabled: true,
 		isTransientChat: false,
 		sessionStarted: false,
-		selectedLanguageModel: undefined,
-		availableLanguageModels: [],
+		modelState: { currentModel: undefined, models: [] },
 		...overrides,
 	};
 }

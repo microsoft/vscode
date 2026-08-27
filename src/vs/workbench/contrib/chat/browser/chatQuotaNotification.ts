@@ -20,11 +20,11 @@ const THRESHOLDS = [50, 75, 90, 95];
 const SWITCH_TO_AUTO_TREATMENT_NAME = 'config.chatQuotaWarningSwitchToAuto';
 
 function isAutoEligible(context: IChatInputNotificationContext): boolean {
-	return !isAutoLanguageModel(context.selectedLanguageModel) && context.availableLanguageModels.some(isAutoLanguageModel);
+	return !isAutoLanguageModel(context.modelState.currentModel) && context.modelState.models.some(isAutoLanguageModel);
 }
 
 function isQuotaNotificationVisible(context: IChatInputNotificationContext): boolean {
-	return !context.selectedLanguageModel || !isByokModel(context.selectedLanguageModel.metadata);
+	return !context.modelState.currentModel || !isByokModel(context.modelState.currentModel.metadata);
 }
 
 /**

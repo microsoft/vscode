@@ -24,7 +24,7 @@ import { IChatInputNoticeFocusTarget } from './chatInputNoticeHost.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
 import { ChatInputNoticeVariant, ChatInputNoticeWidget } from './chatInputNoticeWidget.js';
 import { ChatInputStackSlot, setChatInputStackSlot } from './chatInputStack.js';
-import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, getChatInputNotificationAnnouncementSignature, IChatInputNotification, IChatInputNotificationAction, IChatInputNotificationBody, IChatInputNotificationCommandAction, IChatInputNotificationContext, IChatInputNotificationService, isChatInputNotificationApplicableToSession, resolveChatInputNotificationBody } from './chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, getChatInputNotificationAnnouncementSignature, IChatInputNotification, IChatInputNotificationAction, IChatInputNotificationBody, IChatInputNotificationCommandAction, IChatInputNotificationContext, IChatInputNotificationModelState, IChatInputNotificationService, isChatInputNotificationApplicableToSession, resolveChatInputNotificationBody } from './chatInputNotificationService.js';
 import './media/chatInputNotificationWidget.css';
 
 const $ = dom.$;
@@ -65,6 +65,15 @@ const severityToIcon: Record<ChatInputNotificationSeverity, ThemeIcon> = {
 	[ChatInputNotificationSeverity.Error]: Codicon.error,
 };
 
+const emptyModelState: IChatInputNotificationModelState = { currentModel: undefined, models: [] };
+
+/** Input-local model state and picker operations. */
+export interface IChatInputNotificationModelSelection {
+	readonly state: IObservable<IChatInputNotificationModelState>;
+	readonly openPicker: () => void;
+	readonly selectModel: (modelIdentifier: string) => boolean;
+}
+
 /** Input-local capabilities used to filter and execute semantic notification actions. */
 export interface IChatInputNotificationDelegate {
 	readonly modelTargetChatSessionType?: IObservable<string | undefined>;
@@ -74,12 +83,7 @@ export interface IChatInputNotificationDelegate {
 	readonly isTransientChat?: IObservable<boolean>;
 	/** Whether the session this input is bound to already has a request. */
 	readonly sessionStarted?: IObservable<boolean>;
-	/** This input's own selected model. Omit when the surface has no model of its own. */
-	readonly selectedLanguageModel?: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
-	readonly availableLanguageModels?: IObservable<readonly ILanguageModelChatMetadataAndIdentifier[]>;
-	readonly openModelPicker?: () => void;
-	/** Returns false to open this input's model picker as a fallback. */
-	readonly switchToModel?: (modelIdentifier: string) => boolean;
+	readonly modelSelection?: IChatInputNotificationModelSelection;
 	/**
 	 * Reports whether a notification is rendered. `focusTarget` is the widget
 	 * itself, so a host can route notice-focus commands into it while it shows.
@@ -111,8 +115,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 	private _sessionResource: URI | undefined;
 	private _deferredNotificationsEnabled = true;
 	private _sessionStarted = false;
-	private _selectedLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined;
-	private _availableLanguageModels: readonly ILanguageModelChatMetadataAndIdentifier[] = [];
+	private _modelState = emptyModelState;
 	private _isTransientChat = false;
 	private _lastAnnouncementSignature: string | undefined;
 	private _visible = false;
@@ -144,8 +147,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 			this._sessionResource = this._delegate?.sessionResource?.read(reader);
 			this._deferredNotificationsEnabled = this._delegate?.deferredNotificationsEnabled?.read(reader) ?? true;
 			this._sessionStarted = this._delegate?.sessionStarted?.read(reader) ?? false;
-			this._selectedLanguageModel = this._delegate?.selectedLanguageModel?.read(reader);
-			this._availableLanguageModels = this._delegate?.availableLanguageModels?.read(reader) ?? [];
+			this._modelState = this._delegate?.modelSelection?.state.read(reader) ?? emptyModelState;
 			this._isTransientChat = this._delegate?.isTransientChat?.read(reader) ?? false;
 			this._render();
 		}));
@@ -240,8 +242,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 			deferredNotificationsEnabled: this._deferredNotificationsEnabled,
 			isTransientChat: this._isTransientChat,
 			sessionStarted: this._sessionStarted,
-			selectedLanguageModel: this._selectedLanguageModel,
-			availableLanguageModels: this._availableLanguageModels,
+			modelState: this._modelState,
 		};
 	}
 
@@ -366,9 +367,9 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 			case ChatInputNotificationActionKind.Command:
 				return true;
 			case ChatInputNotificationActionKind.OpenModelPicker:
-				return !!this._delegate?.openModelPicker;
+				return !!this._delegate?.modelSelection;
 			case ChatInputNotificationActionKind.SwitchToModel:
-				return !!this._delegate?.switchToModel;
+				return !!this._delegate?.modelSelection;
 		}
 	}
 
@@ -398,7 +399,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 	}
 
 	private _resolveModel(action: Extract<IChatInputNotificationAction, { kind: ChatInputNotificationActionKind.SwitchToModel }>): ILanguageModelChatMetadataAndIdentifier | undefined {
-		return this._availableLanguageModels.find(model => this._matchesModel(action, model));
+		return this._modelState.models.find(model => this._matchesModel(action, model));
 	}
 
 	private _matchesModel(action: Extract<IChatInputNotificationAction, { kind: ChatInputNotificationActionKind.SwitchToModel }>, model: ILanguageModelChatMetadataAndIdentifier): boolean {
@@ -413,7 +414,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 	private _switchToModel(modelIdentifier: string | undefined): void {
 		let switched = false;
 		try {
-			switched = modelIdentifier ? this._delegate?.switchToModel?.(modelIdentifier) ?? false : false;
+			switched = modelIdentifier ? this._delegate?.modelSelection?.selectModel(modelIdentifier) ?? false : false;
 		} catch (error) {
 			this._logError(error);
 		}
@@ -424,7 +425,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 
 	private _openModelPicker(): void {
 		try {
-			this._delegate?.openModelPicker?.();
+			this._delegate?.modelSelection?.openPicker();
 		} catch (error) {
 			this._logError(error);
 		}
