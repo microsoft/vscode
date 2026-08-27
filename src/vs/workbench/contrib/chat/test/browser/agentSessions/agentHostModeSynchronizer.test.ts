@@ -51,6 +51,7 @@ suite('AgentHostModeSynchronizer', () => {
 		let customModes = [...initialCustomModes];
 		const modeChanges = store.add(new Emitter<IChatModeChangeEvent>());
 		const modesChanges = store.add(new Emitter<void>());
+		const widgetRemovals = store.add(new Emitter<IChatWidget>());
 		const mode = observableValue<IChatMode>('mode', initialMode);
 		const modes = createModes(() => customModes, modesChanges.event);
 		const modesObservable = observableValue<IChatModes>('modes', modes);
@@ -76,6 +77,7 @@ suite('AgentHostModeSynchronizer', () => {
 		const widgetService = {
 			getAllWidgets: () => [widget],
 			onDidAddWidget: Event.None,
+			onDidRemoveWidget: widgetRemovals.event,
 			onDidChangeFocusedSession: Event.None,
 			getWidgetBySessionResource: (r: URI) => r.toString() === resource.toString() ? widget : undefined,
 			lastFocusedWidget: widget,
@@ -93,6 +95,8 @@ suite('AgentHostModeSynchronizer', () => {
 		return {
 			modeChanges,
 			modesChanges,
+			widget,
+			widgetRemovals,
 			setCustomModes: (next: readonly IChatMode[]) => {
 				customModes = [...next];
 			},
@@ -119,6 +123,27 @@ suite('AgentHostModeSynchronizer', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual(setChatModeCalls, []);
+	});
+
+	test('stops observing a removed widget', async () => {
+		const untitledResource = URI.parse('agent-host-claude:/untitled-session-1');
+		const { modeChanges, modesChanges, setChatModeCalls, setCustomModes, storageService, widget, widgetRemovals } = createSynchronizer(ChatMode.Agent, [], untitledResource);
+		const key = agentHostAgentPickerStorageKey(untitledResource.scheme);
+		storageService.store(key, agentUri, StorageScope.PROFILE, StorageTarget.MACHINE);
+
+		widgetRemovals.fire(widget);
+		setCustomModes([createCustomMode()]);
+		modesChanges.fire();
+		modeChanges.fire({ isUserInitiated: true });
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			selectedAgent: storageService.get(key, StorageScope.PROFILE),
+			setChatModeCalls,
+		}, {
+			selectedAgent: agentUri,
+			setChatModeCalls: [],
+		});
 	});
 
 	test('retries restore when custom modes load late', async () => {

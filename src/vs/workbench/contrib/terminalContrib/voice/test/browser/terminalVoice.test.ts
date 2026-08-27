@@ -103,7 +103,7 @@ suite('TerminalVoiceSession', () => {
 				stateEmitter.fire(state);
 				return finalText;
 			}
-			override cancel(): void { }
+			override async cancel(): Promise<void> { }
 		});
 	}
 

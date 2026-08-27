@@ -8,11 +8,10 @@ import { IKeyboardEvent } from '../../keyboardEvent.js';
 import { IMouseEvent } from '../../mouseEvent.js';
 import { IToggleStyles, Toggle } from '../toggle/toggle.js';
 import { IContextViewProvider } from '../contextview/contextview.js';
-import { CaseSensitiveToggle, RegexToggle, WholeWordsToggle } from './findInputToggles.js';
+import { CaseSensitiveToggle, navigateToggles, RegexToggle, WholeWordsToggle } from './findInputToggles.js';
 import { HistoryInputBox, IInputBoxStyles, IInputValidator, IMessage as InputBoxMessage } from '../inputbox/inputBox.js';
 import { Widget } from '../widget.js';
 import { Emitter, Event } from '../../../common/event.js';
-import { KeyCode } from '../../../common/keyCodes.js';
 import { IAction } from '../../../common/actions.js';
 import type { IActionViewItemProvider } from '../actionbar/actionbar.js';
 import './findInput.css';
@@ -175,31 +174,7 @@ export class FindInput extends Widget {
 
 			// Arrow-Key support to navigate between options
 			this.onkeydown(this.domNode, (event: IKeyboardEvent) => {
-				if (event.equals(KeyCode.LeftArrow) || event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Escape)) {
-					const indexes = this.getToggleDomNodes();
-					const index = indexes.indexOf(<HTMLElement>this.domNode.ownerDocument.activeElement);
-					if (index >= 0) {
-						let newIndex: number = -1;
-						if (event.equals(KeyCode.RightArrow)) {
-							newIndex = (index + 1) % indexes.length;
-						} else if (event.equals(KeyCode.LeftArrow)) {
-							if (index === 0) {
-								newIndex = indexes.length - 1;
-							} else {
-								newIndex = index - 1;
-							}
-						}
-
-						if (event.equals(KeyCode.Escape)) {
-							indexes[index].blur();
-							this.inputBox.focus();
-						} else if (newIndex >= 0) {
-							indexes[newIndex].focus();
-						}
-
-						dom.EventHelper.stop(event, true);
-					}
-				}
+				navigateToggles(event, this.domNode, () => this.getToggleDomNodes(), () => this.inputBox.focus());
 			});
 		}
 

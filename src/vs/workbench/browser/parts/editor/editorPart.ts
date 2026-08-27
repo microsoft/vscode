@@ -24,7 +24,7 @@ import { EditorDropTarget } from './editorDropTarget.js';
 import { Color } from '../../../../base/common/color.js';
 import { CenteredViewLayout, CenteredViewState } from '../../../../base/browser/ui/centered/centeredViewLayout.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { Parts, IWorkbenchLayoutService, Position, FLOATING_PANEL_INNER_MARGIN, FLOATING_PANEL_MARGIN, getFloatingOuterEdgeOwners, getFloatingEditorVerticalMargins } from '../../../services/layout/browser/layoutService.js';
+import { Parts, IWorkbenchLayoutService, Position, getFloatingEditorVerticalMargins, getFloatingEditorVerticalOuterEdges, getFloatingOuterEdgeOwners, getFloatingPaneCompositeHorizontalMargins } from '../../../services/layout/browser/layoutService.js';
 import { DeepPartial, assertType } from '../../../../base/common/types.js';
 import { CompositeDragAndDropObserver } from '../../dnd.js';
 import { DeferredPromise, Promises } from '../../../../base/common/async.js';
@@ -39,7 +39,7 @@ import { mainWindow } from '../../../../base/browser/window.js';
 
 /**
  * The width (in pixels) of the editor card border drawn on every side when the
- * Modern UI Update experiment is enabled (`styleOverrides/media/editorBorder.css`).
+ * Modern UI Update experiment is enabled (`modernUI/media/editorBorder.css`).
  * The editor reserves this thickness when laying out its contents so they sit
  * inside the frame instead of overflowing (and being clipped by) the border.
  * Keep in sync with the `--vscode-strokeThickness` (1px) token used there.
@@ -902,7 +902,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		// Different groups view: move via groups view API
 		else {
 			movedView = targetView.groupsView.addGroup(targetView, direction, sourceView);
-			sourceView.closeAllEditors();
+			sourceView.closeAllEditors({ force: true });
 			this.removeGroup(sourceView, restoreFocus);
 		}
 
@@ -1424,10 +1424,8 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		this.left = left;
 
 		// When the floating panels experiment is enabled, reserve a margin around the
-		// main editor so it floats like the side bar and panel cards. The editor has
-		// no top margin (it stays flush with the title bar). Scope to the main window
-		// (auxiliary editor windows do not apply the matching CSS). The matching
-		// `margin` is applied in CSS (`.floating-panels .part.editor`).
+		// main editor so it floats like the side bar and panel cards. Scope to the main
+		// window (auxiliary editor windows do not apply the matching CSS).
 		if (this.windowId === mainWindow.vscodeWindowId && this.layoutService.isFloatingPanelsEnabled()) {
 
 			// When the editor becomes the outermost card on a side (no floating part
@@ -1437,15 +1435,15 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 			const owners = getFloatingOuterEdgeOwners(this.layoutService);
 			const outerLeft = owners.left === Parts.EDITOR_PART;
 			const outerRight = owners.right === Parts.EDITOR_PART;
+			const verticalOuterEdges = getFloatingEditorVerticalOuterEdges(this.layoutService);
 
-			const leftMargin = outerLeft ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_MARGIN;
-			const rightMargin = outerRight ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_INNER_MARGIN;
+			const { left: leftMargin, right: rightMargin } = getFloatingPaneCompositeHorizontalMargins(this.layoutService, Parts.EDITOR_PART);
 
 			width = Math.max(0, width - leftMargin - rightMargin);
 			const { top, bottom } = getFloatingEditorVerticalMargins(this.layoutService, mainWindow);
 			height = Math.max(0, height - top - bottom);
 
-			// Reserve space for the Modern UI editor border (styleOverrides/media/editorBorder.css) so content doesn't get clipped.
+			// Reserve space for the Modern UI editor border (modernUI/media/editorBorder.css) so content doesn't get clipped.
 			if (!this.element.classList.contains('modal-editor-part')) {
 				width = Math.max(0, width - EDITOR_FRAME_BORDER_WIDTH * 2);
 				height = Math.max(0, height - EDITOR_FRAME_BORDER_WIDTH * 2);
@@ -1453,8 +1451,10 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 
 			this.element.classList.toggle('floating-editor-outer-left', outerLeft);
 			this.element.classList.toggle('floating-editor-outer-right', outerRight);
+			this.element.classList.toggle('floating-editor-outer-top', verticalOuterEdges.top);
+			this.element.classList.toggle('floating-editor-outer-bottom', verticalOuterEdges.bottom);
 		} else {
-			this.element.classList.remove('floating-editor-outer-left', 'floating-editor-outer-right');
+			this.element.classList.remove('floating-editor-outer-left', 'floating-editor-outer-right', 'floating-editor-outer-top', 'floating-editor-outer-bottom');
 		}
 
 		// Layout contents
@@ -1573,7 +1573,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 
 		const groups = this.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 		for (const group of groups) {
-			await group.closeAllEditors({ excludeConfirming: true });
+			await group.closeAllEditors({ excludeConfirming: true, force: true });
 		}
 
 		return groups;

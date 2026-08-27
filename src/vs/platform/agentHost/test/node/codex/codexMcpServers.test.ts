@@ -5,10 +5,12 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { McpServerStatus } from '../../../common/state/protocol/channels-session/state.js';
-import { buildCodexMcpReadResult, codexMcpListToInventory, codexMcpServersFromConfig, codexMcpStatusToEntry, codexMcpToolsChanged, codexStartupErrorNeedsAuth, codexToolMapToArray, injectCodexMcpAuthTokens, inventoryToSdkServers, normalizeCodexMcpResourceUrl, translateCodexMcpStartupState } from '../../../node/codex/codexMcpServers.js';
+import { McpServerStatus, type McpServerState } from '../../../common/state/protocol/channels-session/state.js';
+import { buildCodexMcpReadResult, CodexMcpInventory, codexMcpListToInventory, codexMcpServersFromConfig, codexMcpStatusToEntry, codexMcpToolsChanged, codexStartupErrorNeedsAuth, codexToolMapToArray, injectCodexMcpAuthTokens, inventoryToSdkServers, normalizeCodexMcpResourceUrl, toCodexMcpServerJson, translateCodexMcpStartupState, type ICodexMcpServerEntry } from '../../../node/codex/codexMcpServers.js';
 import type { McpServerStatus as CodexMcpServerStatus } from '../../../node/codex/protocol/generated/v2/McpServerStatus.js';
 import type { Tool } from '../../../node/codex/protocol/generated/Tool.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { McpServerType } from '../../../../mcp/common/mcpPlatformTypes.js';
 
 suite('codexMcpServers', () => {
 
@@ -91,6 +93,39 @@ suite('codexMcpServers', () => {
 		], [false, true, true]);
 	});
 
+	test('CodexMcpInventory isolates thread servers while retaining global servers', () => {
+		const entry = (state: McpServerState): ICodexMcpServerEntry => ({
+			state,
+			tools: [],
+			resources: [],
+			resourceTemplates: [],
+		});
+		const inventory = new CodexMcpInventory();
+		inventory.replace(null, new Map([
+			['global', entry({ kind: McpServerStatus.Ready })],
+			['same-name', entry({ kind: McpServerStatus.Stopped })],
+		]));
+		inventory.replace('thread-a', new Map([
+			['workspace-a', entry({ kind: McpServerStatus.Ready })],
+			['same-name', entry({ kind: McpServerStatus.Starting })],
+		]));
+		inventory.replace('thread-b', new Map([
+			['workspace-b', entry({ kind: McpServerStatus.Error, error: { errorType: 'failed', message: 'b' } })],
+			['same-name', entry({ kind: McpServerStatus.Ready })],
+		]));
+
+		assert.deepStrictEqual([...inventory.forThread('thread-a').keys()], ['global', 'same-name', 'workspace-a']);
+		assert.strictEqual(inventory.forThread('thread-a').get('same-name')?.state.kind, McpServerStatus.Starting);
+		assert.deepStrictEqual([...inventory.forThread('thread-b').keys()], ['global', 'same-name', 'workspace-b']);
+		assert.strictEqual(inventory.forThread('thread-b').get('same-name')?.state.kind, McpServerStatus.Ready);
+		assert.strictEqual(inventory.forThread('thread-b').has('workspace-a'), false);
+		assert.deepStrictEqual([...inventory.forThread(undefined).keys()], ['global', 'same-name']);
+
+		inventory.setState('thread-a', 'global', { kind: McpServerStatus.Error, error: { errorType: 'failed', message: 'thread only' } });
+		assert.strictEqual(inventory.forThread('thread-a').get('global')?.state.kind, McpServerStatus.Error);
+		assert.strictEqual(inventory.forThread('thread-b').get('global')?.state.kind, McpServerStatus.Ready);
+	});
+
 	suite('codexMcpServersFromConfig', () => {
 
 		test('maps stdio + http servers, stringifies env, and maps headers to http_headers', () => {
@@ -101,6 +136,13 @@ suite('codexMcpServers', () => {
 				local: { command: 'npx', args: ['-y', 'pkg'], env: { KEY: 'val', N: '3' }, cwd: '/w' },
 				remote: { url: 'https://x/mcp', http_headers: { Authorization: 'token-value' } },
 			});
+		});
+
+		test('applies a URI default cwd at the provider boundary', () => {
+			const defaultCwd = URI.file('/workspace');
+			assert.strictEqual(toCodexMcpServerJson({ type: McpServerType.LOCAL, command: 'server' }, defaultCwd).cwd, defaultCwd.fsPath);
+			assert.strictEqual(toCodexMcpServerJson({ type: McpServerType.LOCAL, command: 'server', cwd: '/explicit' }, defaultCwd).cwd, '/explicit');
+			assert.strictEqual(toCodexMcpServerJson({ type: McpServerType.LOCAL, command: 'server', cwd: './relative' }, defaultCwd).cwd, URI.file('/workspace/relative').fsPath);
 		});
 
 		test('omits empty args/env/headers and command-only stdio', () => {

@@ -2,7 +2,7 @@
 
 The **agent host** is a separate utility process (under `src/vs/platform/agentHost/`) that hosts native Copilot, Claude, and Codex runtimes instead of using the extension's in-process harnesses. The agent host has its own OTel pipeline so provider-native traces can be exported to a collector or persisted locally for inspection.
 
-> **Availability:** Insiders / non-stable builds only. Requires `chat.agentHost.enabled` to be `true`.
+> **Availability:** Insiders / non-stable builds only.
 
 This doc lives next to the code (`IAgentHostOTelService` in [node/otel/agentHostOTelService.ts](node/otel/agentHostOTelService.ts)) because the agent host runs entirely outside the extension host and is independent of the extension-side OTel pipeline (`github.copilot.chat.otel.*`) documented in `extensions/copilot/docs/monitoring/`.
 
@@ -93,11 +93,11 @@ The host emits a zero-duration `vscode.agent_host.session` anchor and passes its
 
 ## Session Title Metadata
 
-When content capture is enabled, the agent host emits a zero-duration `vscode.agent_host.session.title_changed` span whenever an authoritative Copilot or Claude session title changes. This includes fallback, generated, refined, and manually renamed titles; assigning the same title again does not emit another span. Downstream consumers can use the latest span for a conversation to display its current title.
+When content capture is enabled, the agent host emits a zero-duration `vscode.agent_host.session.title_changed` span whenever an authoritative Copilot, Claude, or Codex session title changes. This includes fallback, generated, refined, and manually renamed titles; assigning the same title again does not emit another span. Downstream consumers can use the latest span for a conversation to display its current title.
 
 | Attribute | Description |
 |---|---|
-| `gen_ai.conversation.id` | Provider conversation identifier (Copilot conversation ID or Claude SDK session ID). |
+| `gen_ai.conversation.id` | Provider conversation identifier (Copilot conversation ID, Claude SDK session ID, or Codex agent host session ID). |
 | `vscode.agent_host.session.title` | Latest session title, bounded to 200 characters. |
 | `vscode.agent_host.session.uri` | Agent Host protocol URI for the session. |
 
@@ -152,7 +152,6 @@ To collect agent host traces with the [Aspire Dashboard](https://learn.microsoft
 
 ```json
 {
-  "chat.agentHost.enabled": true,
   "chat.agentHost.otel.enabled": true,
   "chat.agentHost.otel.captureContent": true,
   "chat.agentHost.otel.dbSpanExporter.enabled": true,

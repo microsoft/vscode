@@ -58,7 +58,7 @@
 }
 
 .session-changes-editor-header-left .action-label {
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 	align-items: center;
 	min-width: 0;
 	max-width: 100%;
@@ -79,7 +79,7 @@
 /* Diff-stats item (rich "N files +X -Y" rendering) styling, keyed off the item's
  * own marker class so it applies in both the classic internal changes-editor
  * header and the single-pane editor-group header (where it renders inside
- * `.editor-group-header-primary`). It remains fully interactive/clickable, so no
+ * `.editor-group-header-primary-actions`). It remains fully interactive/clickable, so no
  * hover-background override is needed here -- it keeps the normal toolbar hover. */
 .changes-diff-stats-action-rich {
 	flex: 1 1 auto;
@@ -95,7 +95,7 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 	padding: 3px;
 	border-radius: var(--vscode-cornerRadius-small);
 }
@@ -141,7 +141,7 @@
 	gap: var(--vscode-spacing-size40);
 	min-width: 0;
 	max-width: 100%;
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 }
 
 .changes-picker-action-rich .action-label > span:not(.codicon) {
@@ -181,7 +181,7 @@
 	height: 26px;
 	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
 	box-sizing: border-box;
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 	line-height: 18px;
 	white-space: nowrap;
 }
@@ -237,7 +237,7 @@
  * without extra padding. The toolbar action-item override below applies in the title bar. */
 .changes-actions-bar .monaco-button,
 .changes-actions-bar .monaco-button-dropdown {
-	height: 24px;
+	height: 22px;
 	box-sizing: border-box;
 }
 
@@ -255,9 +255,9 @@
 /* Normalize the button bar height for the title bar without affecting the classic header. */
 .monaco-action-bar .action-item.changes-actions-bar .monaco-button,
 .monaco-action-bar .action-item.changes-actions-bar .monaco-button-dropdown {
-	height: 24px;
-	min-height: 24px;
-	padding-top: 0;
+	height: 22px;
+	min-height: 22px;
+	padding-block: 0;
 }
 
 .monaco-action-bar .action-item.changes-actions-bar .monaco-button-dropdown {
@@ -292,7 +292,7 @@
  * specificity than the base rule) so the buttons size to their own content. */
 .monaco-action-bar .action-item.changes-actions-bar .codicon {
 	width: auto;
-	height: 22px;
+	height: 20px;
 	flex-shrink: 0;
 	color: var(--vscode-button-foreground) !important;
 }

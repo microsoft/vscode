@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { env, window } from 'vscode';
+import { FetchBlockedError } from '../../../shared-fetch-utils/common/fetchTypes';
+import { DEFAULT_RATE_LIMIT_BACKOFF_MS, MAX_RATE_LIMIT_BACKOFF_MS } from '../../../shared-fetch-utils/common/middleware/rateLimitBackoffMiddleware';
 import { TaskSingler } from '../../../util/common/taskSingler';
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { ICAPIClientService } from '../../endpoint/common/capiClient';
@@ -27,7 +29,12 @@ export class SubscriptionExpiredError extends Error { }
 export class ContactSupportError extends Error { }
 export class EnterpriseManagedError extends Error { }
 export class InvalidTokenError extends Error { }
-export class RateLimitedError extends Error { }
+export class RateLimitedError extends FetchBlockedError {
+	constructor(retryAfterMs: number) {
+		const boundedRetryAfterMs = Math.min(retryAfterMs, MAX_RATE_LIMIT_BACKOFF_MS);
+		super('Your account has exceeded GitHub\'s API rate limit. Please try again later.', boundedRetryAfterMs);
+	}
+}
 export class GitHubLoginFailedError extends ErrorNoTelemetry { }
 
 export class VSCodeCopilotTokenManager extends BaseCopilotTokenManager {
@@ -93,6 +100,8 @@ export class VSCodeCopilotTokenManager extends BaseCopilotTokenManager {
 			if (tokenResult.kind === 'success') {
 				this._logService.info(`Got Copilot token for devDeviceId`);
 				this._logService.info(`Copilot Chat: ${this._envService.getVersion()}, VS Code: ${this._envService.vscodeVersion}`);
+			} else if (tokenResult.reason === 'RateLimited') {
+				return tokenResult;
 			} else {
 				this._logService.warn('GitHub login failed');
 				return { kind: 'failure', reason: 'GitHubLoginFailed' };
@@ -137,7 +146,7 @@ export class VSCodeCopilotTokenManager extends BaseCopilotTokenManager {
 		}
 
 		if (tokenResult.kind === 'failure' && tokenResult.reason === 'RateLimited') {
-			throw new RateLimitedError(`Your account has exceeded GitHub's API rate limit. Please try again later.`);
+			throw new RateLimitedError(tokenResult.retryAfterMs ?? DEFAULT_RATE_LIMIT_BACKOFF_MS);
 		}
 
 		if (tokenResult.kind === 'failure') {

@@ -163,8 +163,10 @@ suite('ChatQuotaNotificationContribution integration', () => {
 		return telemetryAppender.events.filter(e => e.eventName === 'chatInputNotificationShown' || e.eventName === 'chatInputNotificationDismissed');
 	}
 
+	// The widget is the notification frame itself; its header row only exists
+	// while something is actually rendered.
 	function getRenderedText(widget: ChatInputNotificationWidget): string {
-		return widget.domNode.querySelector<HTMLElement>('.chat-input-notification')?.textContent ?? '';
+		return widget.domNode.querySelector('.chat-input-notification-header') ? widget.domNode.textContent ?? '' : '';
 	}
 
 	function assertShownTelemetry(telemetryAppender: TestTelemetryAppender, telemetryId: string): void {
@@ -183,7 +185,7 @@ suite('ChatQuotaNotificationContribution integration', () => {
 		assert.deepStrictEqual(getNotificationTelemetryEvents(telemetryAppender), []);
 
 		const widget = store.add(instantiationService.createInstance(ChatInputNotificationWidget, undefined));
-		assert.ok(widget.domNode.querySelector('.chat-input-notification'));
+		assert.ok(widget.domNode.querySelector('.chat-input-notification-header'));
 
 		assertShownTelemetry(telemetryAppender, 'quotaExhausted');
 	});
@@ -335,7 +337,7 @@ suite('ChatQuotaNotificationContribution integration', () => {
 			autoDismissOnMessage: true,
 		});
 
-		assert.ok(widget.domNode.querySelector('.chat-input-notification'));
+		assert.ok(widget.domNode.querySelector('.chat-input-notification-header'));
 		assert.deepStrictEqual(getNotificationTelemetryEvents(telemetryAppender), [
 			{
 				eventName: 'chatInputNotificationShown',
@@ -383,7 +385,7 @@ suite('ChatQuotaNotificationContribution integration', () => {
 		actionButton.click();
 		await timeout(0);
 
-		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification'), null);
+		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification-header'), null);
 		assert.deepStrictEqual(commandService.executedCommands, ['workbench.action.chat.manageAdditionalSpend']);
 		assert.deepStrictEqual(telemetryAppender.events.filter(e => e.eventName === 'workbenchActionExecuted' || e.eventName === 'chatInputNotificationShown'), [
 			{

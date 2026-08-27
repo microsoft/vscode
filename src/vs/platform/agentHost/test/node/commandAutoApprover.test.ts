@@ -8,6 +8,25 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { CommandAutoApprover, type ICommandApprovalEvaluation } from '../../node/commandAutoApprover.js';
 
+suite('CommandAutoApprover initialization', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('initializes concurrent approvers', async () => {
+		const approvers = Array.from({ length: 20 }, () => disposables.add(new CommandAutoApprover(new NullLogService())));
+
+		await Promise.all(approvers.map(approver => approver.initialize()));
+
+		assert.deepStrictEqual(
+			approvers.map(approver => [
+				approver.shouldAutoApprove('ls'),
+				approver.shouldAutoApprove('Get-ChildItem', { language: 'powershell' }),
+			]),
+			Array.from({ length: approvers.length }, () => ['approved', 'approved']),
+		);
+	});
+});
+
 suite('CommandAutoApprover', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -500,6 +519,32 @@ suite('CommandAutoApprover', () => {
 				approver.shouldAutoApprove('Get-ChildItem | Where-Object { Remove-Item $_ }', pwsh),
 				approver.shouldAutoApprove('Get-ChildItem | ForEach-Object { Invoke-Expression $_ }', pwsh),
 			], ['denied', 'denied']);
+		});
+
+		// Reported PowerShell wrapper shapes: an outer allowed cmdlet must not
+		// hide nested denied/non-allowed commands inside a script block. The Bash
+		// grammar keeps `{ ... }` opaque, so the same rules can incorrectly
+		// approve the line when the wrong dialect is selected.
+		test('does not auto-approve denied commands nested in Measure-Command script blocks', () => {
+			const rules = {
+				...pwsh,
+				autoApproveRules: {
+					'Measure-Command': true,
+					'Where-Object': true,
+					'Set-Content': false,
+					'Start-Process': false,
+					'Invoke-Expression': false,
+				},
+			};
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('Measure-Command { Set-Content -Path out.txt -Value pwned }', rules),
+				approver.shouldAutoApprove('Measure-Command { Invoke-Expression "Write-Output hi" }', rules),
+				approver.shouldAutoApprove('Get-ChildItem | Where-Object { Start-Process notepad }', rules),
+				// Visible separators already rejected nested denied commands.
+				approver.shouldAutoApprove('Write-Host hi; Set-Content -Path out.txt -Value pwned', rules),
+				// The wrong dialect demonstrates the opaque-block bypass.
+				approver.shouldAutoApprove('Measure-Command { Set-Content -Path out.txt -Value pwned }', { language: 'bash', autoApproveRules: rules.autoApproveRules }),
+			], ['denied', 'denied', 'denied', 'denied', 'approved']);
 		});
 
 		// An unquoted `$null` discards PowerShell output; both the spaced form (a

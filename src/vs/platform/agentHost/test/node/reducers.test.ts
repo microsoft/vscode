@@ -5,10 +5,12 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { sortCustomizationEnablement, withCustomizationEnablement } from '../../common/customizationEnablement.js';
 import { changesetReducer, chatReducer, sessionReducer } from '../../common/state/protocol/reducers.js';
+import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, ChangesetOperationStatus, CustomizationLoadStatus, MessageKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ResponsePartKind, ToolCallStatus, TurnState, type AgentCustomization, type ChangesetState, type Customization, type PluginCustomization, type ChatState, type SessionState } from '../../common/state/sessionState.js';
-import { CustomizationType, ToolCallContributorKind, type ToolCallContributor } from '../../common/state/protocol/state.js';
+import { ChangesetStatus, ChangesetOperationStatus, CustomizationLoadStatus, MessageKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ResponsePartKind, ToolCallStatus, TurnState, type AgentCustomization, type ChangesetState, type Customization, type PluginCustomization, type ChatState, type SessionState } from '../../common/state/sessionState.js';
+import { CustomizationEnablementKind, CustomizationType, McpServerStatus, ToolCallContributorKind, type ToolCallContributor } from '../../common/state/protocol/state.js';
 
 function makeSession(): SessionState {
 	return {
@@ -102,7 +104,53 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 			responseParts: [],
 			usage: undefined,
 			state: TurnState.Complete,
-			error: undefined,
+		});
+	});
+
+	test('resumes and completes one turn while preserving durable errors', () => {
+		let state = chatReducer(makeChat(), {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		});
+		state = chatReducer(state, {
+			type: ActionType.ChatError,
+			turnId: 'turn-1',
+			duration: 100,
+			part: { kind: ResponsePartKind.Error, error: { errorType: 'first', message: 'failed' }, resumable: true },
+		});
+		state = chatReducer(state, { type: ActionType.ChatTurnResume, turnId: 'turn-1' });
+		state = chatReducer(state, {
+			type: ActionType.ChatError,
+			turnId: 'turn-1',
+			duration: 200,
+			part: { kind: ResponsePartKind.Error, error: { errorType: 'second', message: 'failed again' }, resumable: true },
+		});
+		state = chatReducer(state, { type: ActionType.ChatTurnResume, turnId: 'turn-1' });
+		state = chatReducer(state, { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 300 });
+
+		assert.deepStrictEqual({
+			activeTurn: state.activeTurn,
+			turns: state.turns.map(turn => ({
+				id: turn.id,
+				message: turn.message.text,
+				state: turn.state,
+				duration: turn.duration,
+				errors: turn.responseParts.filter(part => part.kind === ResponsePartKind.Error),
+			})),
+		}, {
+			activeTurn: undefined,
+			turns: [{
+				id: 'turn-1',
+				message: 'hello',
+				state: TurnState.Complete,
+				duration: 300,
+				errors: [
+					{ kind: ResponsePartKind.Error, error: { errorType: 'first', message: 'failed' }, resumable: true },
+					{ kind: ResponsePartKind.Error, error: { errorType: 'second', message: 'failed again' }, resumable: true },
+				],
+			}],
 		});
 	});
 
@@ -179,17 +227,16 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 
 		state = chatReducer(state, {
 			type: ActionType.ChatInputRequested,
-			request: {
+			request: withChatInputRequestPurpose({
 				id: 'req-1',
-				purpose: ChatInputRequestPurpose.AskUser,
 				message: 'What is your name?',
 				questions: [{
 					kind: ChatInputQuestionKind.Text,
 					id: 'q-1',
 					message: 'What is your name?',
 					required: true
-				}]
-			},
+				}],
+			}, ChatInputRequestPurpose.AskUser),
 		});
 
 		assert.deepStrictEqual({
@@ -199,9 +246,8 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 			status: SessionStatus.InputNeeded,
 			responsePart: {
 				kind: ResponsePartKind.InputRequest,
-				request: {
+				request: withChatInputRequestPurpose({
 					id: 'req-1',
-					purpose: ChatInputRequestPurpose.AskUser,
 					message: 'What is your name?',
 					questions: [{
 						kind: ChatInputQuestionKind.Text,
@@ -209,7 +255,7 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 						message: 'What is your name?',
 						required: true,
 					}],
-				},
+				}, ChatInputRequestPurpose.AskUser),
 			},
 		});
 	});
@@ -218,11 +264,10 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 		let state = withActiveTurnAndToolCall(makeChat());
 		state = chatReducer(state, {
 			type: ActionType.ChatInputRequested,
-			request: {
+			request: withChatInputRequestPurpose({
 				id: 'req-1',
-				purpose: ChatInputRequestPurpose.AskUser,
 				questions: [{ kind: ChatInputQuestionKind.Text, id: 'q-1', message: 'First?' }],
-			},
+			}, ChatInputRequestPurpose.AskUser),
 		});
 		state = chatReducer(state, {
 			type: ActionType.ChatInputAnswerChanged,
@@ -232,11 +277,10 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 		});
 		state = chatReducer(state, {
 			type: ActionType.ChatInputRequested,
-			request: {
+			request: withChatInputRequestPurpose({
 				id: 'req-1',
-				purpose: ChatInputRequestPurpose.AskUser,
 				questions: [{ kind: ChatInputQuestionKind.Text, id: 'q-1', message: 'Updated?' }],
-			},
+			}, ChatInputRequestPurpose.AskUser),
 		});
 		state = chatReducer(state, {
 			type: ActionType.ChatInputCompleted,
@@ -246,14 +290,13 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 
 		assert.deepStrictEqual(state.activeTurn?.responseParts.at(-1), {
 			kind: ResponsePartKind.InputRequest,
-			request: {
+			request: withChatInputRequestPurpose({
 				id: 'req-1',
-				purpose: ChatInputRequestPurpose.AskUser,
 				questions: [{ kind: ChatInputQuestionKind.Text, id: 'q-1', message: 'Updated?' }],
 				answers: {
 					'q-1': { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: 'answer' } },
 				},
-			},
+			}, ChatInputRequestPurpose.AskUser),
 			response: ChatInputResponseKind.Accept,
 		});
 	});
@@ -279,17 +322,16 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 		// Add an input request
 		state = chatReducer(state, {
 			type: ActionType.ChatInputRequested,
-			request: {
+			request: withChatInputRequestPurpose({
 				id: 'req-1',
-				purpose: ChatInputRequestPurpose.AskUser,
 				message: 'What is your name?',
 				questions: [{
 					kind: ChatInputQuestionKind.Text,
 					id: 'q-1',
 					message: 'What is your name?',
 					required: true
-				}]
-			},
+				}],
+			}, ChatInputRequestPurpose.AskUser),
 		});
 		assert.strictEqual(state.status, SessionStatus.InputNeeded);
 
@@ -308,9 +350,8 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 			status: SessionStatus.InProgress,
 			responsePart: {
 				kind: ResponsePartKind.InputRequest,
-				request: {
+				request: withChatInputRequestPurpose({
 					id: 'req-1',
-					purpose: ChatInputRequestPurpose.AskUser,
 					message: 'What is your name?',
 					questions: [{
 						kind: ChatInputQuestionKind.Text,
@@ -324,7 +365,7 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 							value: { kind: ChatInputAnswerValueKind.Text, value: 'Alice' },
 						},
 					},
-				},
+				}, ChatInputRequestPurpose.AskUser),
 				response: ChatInputResponseKind.Accept,
 			},
 		});
@@ -630,7 +671,6 @@ suite('sessionReducer – SessionCustomizationUpdated', () => {
 			id: 'file:///plugin-a',
 			uri: 'file:///plugin-a',
 			name: 'Plugin A',
-			enabled: true,
 			...extra,
 		};
 	}
@@ -658,5 +698,109 @@ suite('sessionReducer – SessionCustomizationUpdated', () => {
 		});
 
 		assert.deepStrictEqual(next.customizations, [updated]);
+	});
+});
+
+suite('customization enablement', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('sorts stably and replaces decisions for one scope', () => {
+		const workspaceFirst = { kind: CustomizationEnablementKind.Workspace, uri: 'file:///one', enabled: false } as const;
+		const workspaceSecond = { kind: CustomizationEnablementKind.Workspace, uri: 'file:///two', enabled: true } as const;
+		const global = { kind: CustomizationEnablementKind.Global, enabled: false } as const;
+		const session = { kind: CustomizationEnablementKind.Session, enabled: true } as const;
+
+		assert.deepStrictEqual(
+			withCustomizationEnablement([workspaceFirst, global, workspaceSecond, session], CustomizationEnablementKind.Workspace, { kind: CustomizationEnablementKind.Workspace, uri: 'file:///three', enabled: false }),
+			[session, { kind: CustomizationEnablementKind.Workspace, uri: 'file:///three', enabled: false }, global],
+		);
+		assert.deepStrictEqual(
+			sortCustomizationEnablement([workspaceFirst, global, workspaceSecond, session]),
+			[session, workspaceFirst, workspaceSecond, global],
+		);
+	});
+
+	test('replaces enablement for plugins and MCP servers while retaining child enablement transitions', () => {
+		const plugin: PluginCustomization = {
+			type: CustomizationType.Plugin,
+			id: 'plugin',
+			uri: 'file:///plugin',
+			name: 'Plugin',
+			children: [{
+				type: CustomizationType.Agent,
+				id: 'agent',
+				uri: 'file:///plugin/agent.md',
+				name: 'Agent',
+			}],
+		};
+		const mcp = {
+			type: CustomizationType.McpServer,
+			id: 'mcp',
+			uri: 'file:///mcp.json',
+			name: 'MCP',
+			state: { kind: McpServerStatus.Stopped },
+		} as const;
+		const seeded = { ...makeSession(), customizations: [plugin, mcp] };
+		const withSet = sessionReducer(seeded, {
+			type: ActionType.SessionCustomizationToggled,
+			id: 'plugin',
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+		});
+		const withMcpSet = sessionReducer(withSet, {
+			type: ActionType.SessionCustomizationToggled,
+			id: 'mcp',
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+		});
+		const withChange = sessionReducer(withMcpSet, {
+			type: ActionType.SessionCustomizationToggled,
+			id: 'plugin',
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: true }],
+		});
+		const withMcpChange = sessionReducer(withChange, {
+			type: ActionType.SessionCustomizationToggled,
+			id: 'mcp',
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: true }],
+		});
+		const withClear = sessionReducer(withMcpChange, {
+			type: ActionType.SessionCustomizationToggled,
+			id: 'plugin',
+			enablement: [],
+		});
+		const withMcpClear = sessionReducer(withClear, {
+			type: ActionType.SessionCustomizationToggled,
+			id: 'mcp',
+			enablement: [],
+		});
+		const withChildSet = sessionReducer(withMcpClear, {
+			type: ActionType.SessionCustomizationToggled,
+			id: 'agent',
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+		});
+		const withChildClear = sessionReducer(withChildSet, {
+			type: ActionType.SessionCustomizationToggled,
+			id: 'agent',
+			enablement: [],
+		});
+
+		assert.deepStrictEqual([
+			withSet.customizations,
+			withMcpSet.customizations,
+			withChange.customizations,
+			withMcpChange.customizations,
+			withClear.customizations,
+			withMcpClear.customizations,
+			withChildSet.customizations,
+			withChildClear.customizations,
+		], [
+			[{ ...plugin, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] }, mcp],
+			[{ ...plugin, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] }, { ...mcp, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] }],
+			[{ ...plugin, enablement: [{ kind: CustomizationEnablementKind.Session, enabled: true }] }, { ...mcp, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] }],
+			[{ ...plugin, enablement: [{ kind: CustomizationEnablementKind.Session, enabled: true }] }, { ...mcp, enablement: [{ kind: CustomizationEnablementKind.Session, enabled: true }] }],
+			[plugin, { ...mcp, enablement: [{ kind: CustomizationEnablementKind.Session, enabled: true }] }],
+			[plugin, mcp],
+			[{ ...plugin, children: [{ ...plugin.children![0], enabled: false }] }, mcp],
+			[{ ...plugin, children: [{ ...plugin.children![0], enabled: true }] }, mcp],
+		]);
 	});
 });

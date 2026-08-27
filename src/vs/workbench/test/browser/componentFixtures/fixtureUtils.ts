@@ -61,6 +61,8 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 import { TestAccessibilityService } from '../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IActionViewItemService, NullActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { IChatPhoneInputPresenter } from '../../../contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
+import { IChatPasteTargetService } from '../../../contrib/chat/browser/chat.js';
+import { ChatPasteTargetService } from '../../../contrib/chat/browser/attachments/chatPasteTargetService.js';
 import { IMenuService } from '../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { TestClipboardService } from '../../../../platform/clipboard/test/common/testClipboardService.js';
@@ -71,7 +73,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IDataChannelService, NullDataChannelService } from '../../../../platform/dataChannel/common/dataChannel.js';
-import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDefaultAccountService, MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../../platform/dialogs/test/common/testDialogService.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -103,6 +105,8 @@ import { IChatEditingService } from '../../../contrib/chat/common/editing/chatEd
 import { ISessionsManagementService } from '../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsService } from '../../../../sessions/services/sessions/browser/sessionsService.js';
+// eslint-disable-next-line local/code-import-patterns
+import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../../sessions/services/sessions/common/sessionChangesStatsCache.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ICodeReviewService, PRReviewStateKind } from '../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
 import { constObservable } from '../../../../base/common/observable.js';
@@ -590,6 +594,10 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		managedSettingsFetchStatus: null,
 		managedSettingsFetchedAt: null,
 		managedSettingsRawResponse: null,
+		managedSettingsCompatibilityError: null,
+		onDidChangeManagedSettingsCompatibilityError: Event.None,
+		managedSettingsFreshness: MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED,
+		onDidChangeManagedSettingsFreshness: Event.None,
 		getDefaultAccount: async () => null,
 		getDefaultAccountAuthenticationProvider: () => ({ id: 'test', name: 'Test', scopes: [], enterprise: false }),
 		resolveGitHubUrl: (path: string) => `https://github.com/${path}`,
@@ -627,6 +635,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 	defineInstance(IAgentFeedbackService, {
 		_serviceBrand: undefined,
 		onDidChangeFeedback: Event.None,
+		onDidChangeFeedbackVisibility: Event.None,
 		onDidChangeNavigation: Event.None,
 		onDidChangeFeedbackScope: Event.None,
 		activeFeedbackSessionResource: constObservable(AGENT_FEEDBACK_NEW_SESSION_RESOURCE),
@@ -641,6 +650,9 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		acceptFeedback: () => { },
 		addReply: () => { },
 		getFeedback: () => [],
+		showFeedbackInEditor: () => { },
+		hideFeedbackInEditor: () => { },
+		getVisibleResolvedFeedbackIds: () => new Set(),
 		hasLoadedFeedback: () => true,
 		getSessionForFile: () => undefined,
 		getFeedbackSessionResource: () => undefined,
@@ -676,6 +688,10 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		_serviceBrand: undefined,
 		activeSession: constObservable(undefined),
 	});
+
+	// The real cache: it only reads and writes the (null) storage service, and
+	// the changes pill it feeds reads it directly.
+	define(ISessionChangesStatsCache, SessionChangesStatsCache);
 
 	definePartialInstance(ICodeReviewService, {
 		_serviceBrand: undefined,
@@ -784,6 +800,10 @@ export function registerWorkbenchServices(registration: ServiceRegistration): vo
 	registration.defineInstance(IWorkspaceTrustRequestService, new class extends mock<IWorkspaceTrustRequestService>() {
 		override async requestWorkspaceTrust() { return true; }
 	}());
+
+	// Chat inputs register themselves as paste targets while rendering; the real
+	// service is a plain registry with no dependencies, so use it directly.
+	registration.defineInstance(IChatPasteTargetService, new ChatPasteTargetService());
 }
 
 
@@ -867,6 +887,7 @@ export interface ComponentFixtureOptions {
 	labels?: ThemedFixtureGroupLabels;
 	virtualTime?: { enabled?: boolean; durationMs?: number; teardownDrainMs?: number };
 	additionalThemes?: readonly ComponentFixtureAdditionalTheme[];
+	expectedVisualDescriptions?: readonly string[];
 }
 
 type ThemedFixtures = ReturnType<typeof defineFixtureVariants>;
@@ -898,6 +919,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 		isolation: 'none',
 		displayMode: { type: 'component' },
 		background: themeVariant.background,
+		expectedVisualDescriptions: options.expectedVisualDescriptions,
 		inputSchema: fixtureInputSchema,
 		inputControls: {
 			reverseStylesheets: { placement: 'toolbar', label: 'Reverse Stylesheets' },

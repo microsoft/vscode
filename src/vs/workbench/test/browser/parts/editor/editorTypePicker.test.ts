@@ -9,8 +9,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { DEFAULT_EDITOR_ASSOCIATION, IEditorInputWithDiffResources } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { getAvailableEditorTypes, IAvailableEditorTypes, hasDefaultEditorAssociation } from '../../../../browser/parts/editor/editorTypePicker.js';
-import { IEditorResolverService, RegisteredEditorInfo, RegisteredEditorPriority } from '../../../../services/editor/common/editorResolverService.js';
+import { getAvailableEditorTypes } from '../../../../browser/parts/editor/editorTypePicker.js';
+import { IEditorResolverService, IEditorResolverServiceGetAllEditorsOptions, IEditorResolverServiceGetEditorsOptions, RegisteredEditorInfo, RegisteredEditorPriority } from '../../../../services/editor/common/editorResolverService.js';
 
 suite('Editor Type Picker', () => {
 
@@ -28,42 +28,6 @@ suite('Editor Type Picker', () => {
 		};
 	}
 
-	function available(customEditor: RegisteredEditorInfo, isDiffEditor = false): IAvailableEditorTypes {
-		return {
-			resource: URI.file('/test.txt'),
-			isDiffEditor,
-			currentId: DEFAULT_EDITOR_ASSOCIATION.id,
-			editors: [
-				editor(DEFAULT_EDITOR_ASSOCIATION.id, RegisteredEditorPriority.builtin),
-				customEditor,
-			]
-		};
-	}
-
-	test('default editor association visibility', () => {
-		const optionalEditor = available(editor('test.optionalEditor', RegisteredEditorPriority.option));
-		const defaultEditor = available(editor('test.defaultEditor', RegisteredEditorPriority.default));
-		const builtinEditor = available(editor('test.builtinEditor', RegisteredEditorPriority.builtin));
-		const diffDefaultEditor = available(editor('test.diffDefaultEditor', RegisteredEditorPriority.option, RegisteredEditorPriority.default), true);
-
-		assert.deepStrictEqual({
-			optionalEditor: hasDefaultEditorAssociation(optionalEditor, undefined),
-			configuredOptionalEditor: hasDefaultEditorAssociation(optionalEditor, 'test.optionalEditor'),
-			configuredTextEditor: hasDefaultEditorAssociation(optionalEditor, DEFAULT_EDITOR_ASSOCIATION.id),
-			defaultEditor: hasDefaultEditorAssociation(defaultEditor, undefined),
-			defaultEditorOverriddenWithText: hasDefaultEditorAssociation(defaultEditor, DEFAULT_EDITOR_ASSOCIATION.id),
-			builtinEditor: hasDefaultEditorAssociation(builtinEditor, undefined),
-			diffDefaultEditor: hasDefaultEditorAssociation(diffDefaultEditor, undefined),
-		}, {
-			optionalEditor: false,
-			configuredOptionalEditor: true,
-			configuredTextEditor: false,
-			defaultEditor: true,
-			defaultEditorOverriddenWithText: true,
-			builtinEditor: true,
-			diffDefaultEditor: true,
-		});
-	});
 	test('inline custom diff editor is classified as a diff editor', () => {
 		const original = URI.file('/original/test.md');
 		const modified = URI.file('/modified/test.md');
@@ -79,19 +43,26 @@ suite('Editor Type Picker', () => {
 			override getName(): string { return 'test'; }
 		}());
 		const requestedResources: URI[] = [];
+		const requestedOptions: (IEditorResolverServiceGetEditorsOptions | undefined)[] = [];
 		const editorResolverService = new class extends mock<IEditorResolverService>() {
-			override getEditors(resource?: URI): RegisteredEditorInfo[] {
-				if (resource) {
-					requestedResources.push(resource);
+			override getEditors(resourceOrOptions?: URI | IEditorResolverServiceGetAllEditorsOptions, options?: IEditorResolverServiceGetEditorsOptions): RegisteredEditorInfo[] {
+				if (URI.isUri(resourceOrOptions)) {
+					requestedResources.push(resourceOrOptions);
 				}
+				requestedOptions.push(options);
 				return registeredEditors;
 			}
 		};
 
 		const result = getAvailableEditorTypes(input, editorResolverService);
 
-		assert.deepStrictEqual({ requestedResources, result }, {
+		assert.deepStrictEqual({ requestedResources, requestedOptions, result }, {
 			requestedResources: [modified],
+			requestedOptions: [{
+				excludeUnconfiguredUniversalOptionalEditors: true,
+				currentEditorId: 'test.markdownEditor',
+				isDiffEditor: true,
+			}],
 			result: {
 				resource: modified,
 				isDiffEditor: true,
@@ -102,4 +73,39 @@ suite('Editor Type Picker', () => {
 			}
 		});
 	});
+	test('hidden editor types are omitted unless currently active', () => {
+		const resource = URI.file('/workspace/test.md');
+		const registeredEditors = [
+			editor(DEFAULT_EDITOR_ASSOCIATION.id, RegisteredEditorPriority.builtin),
+			editor('test.markdownEditor', RegisteredEditorPriority.option),
+			editor('test.markdownPreview', RegisteredEditorPriority.option),
+		];
+		class TestEditorInput extends EditorInput {
+			constructor(private readonly id: string) {
+				super();
+			}
+
+			override get typeId(): string { return 'test.editor'; }
+			override get editorId(): string { return this.id; }
+			override get resource(): URI { return resource; }
+			override getName(): string { return 'test'; }
+		}
+		const editorResolverService = new class extends mock<IEditorResolverService>() {
+			override getEditors(): RegisteredEditorInfo[] {
+				return registeredEditors;
+			}
+		};
+		const markdownEditor = disposables.add(new TestEditorInput('test.markdownEditor'));
+		const markdownPreview = disposables.add(new TestEditorInput('test.markdownPreview'));
+		const getEditorIds = (input: EditorInput) => getAvailableEditorTypes(input, editorResolverService, ['test.markdownPreview'])?.editors.map(editor => editor.id);
+
+		assert.deepStrictEqual({
+			hidden: getEditorIds(markdownEditor),
+			active: getEditorIds(markdownPreview),
+		}, {
+			hidden: [DEFAULT_EDITOR_ASSOCIATION.id, 'test.markdownEditor'],
+			active: [DEFAULT_EDITOR_ASSOCIATION.id, 'test.markdownEditor', 'test.markdownPreview'],
+		});
+	});
+
 });

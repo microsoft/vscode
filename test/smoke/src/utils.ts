@@ -7,13 +7,51 @@ import * as sqlite3 from '@vscode/sqlite3';
 import * as fs from 'fs';
 import { Suite, Context } from 'mocha';
 import { dirname, join } from 'path';
-import { Application, ApplicationOptions, Logger } from '../../automation';
+import { Application, ApplicationOptions, IModelConfigSection, Logger } from '../../automation';
 
 export interface MockLlmServer {
 	readonly url: string;
 	requestCount(): number;
+	getRequests(): readonly { readonly path: string; readonly method: string; readonly body: unknown }[];
 	close(): Promise<void>;
 }
+
+/**
+ * The model-configuration button label the mock server's `mock-config-model`
+ * must show before any option is picked, i.e. the labels of its two schema
+ * defaults: reasoning effort `medium` (the `mock-config` family default) and the
+ * `default` billing tier's 272000-token context window.
+ */
+export const MOCK_CONFIG_MODEL_DEFAULT_LABEL = 'Medium 272K';
+
+/**
+ * Every option `mock-config-model` declares in its configuration schema, in the
+ * order the model-configuration dropdown renders them. The `Thinking Effort`
+ * options come from `capabilities.supports.reasoning_effort`, the `Context Size`
+ * options from the `default` / `long_context` billing tiers (272000 and
+ * `max_context_window_tokens - max_output_tokens` = 922000, which
+ * `formatTokenCount` renders as "1M" via its `>900K → 1M` branch).
+ *
+ * `checked` reflects the pristine state — the schema default of each group — so
+ * this snapshot is only valid before any option has been selected.
+ */
+export const MOCK_CONFIG_MODEL_DEFAULT_SECTIONS: readonly IModelConfigSection[] = [
+	{
+		header: 'Thinking Effort',
+		options: [
+			{ label: 'Low', description: '', checked: false },
+			{ label: 'Medium', description: 'Default', checked: true },
+			{ label: 'High', description: '', checked: false },
+		],
+	},
+	{
+		header: 'Context Size',
+		options: [
+			{ label: '272K', description: 'Default', checked: true },
+			{ label: '1M', description: '', checked: false },
+		],
+	},
+];
 
 export function describeRepeat(n: number, description: string, callback: (this: Suite) => void): void {
 	for (let i = 0; i < n; i++) {
@@ -115,14 +153,15 @@ export function installAppAfterHandler(appFn?: () => Application | undefined, jo
 }
 
 export function createApp(options: ApplicationOptions, optionsTransform?: (opts: ApplicationOptions) => ApplicationOptions): Application {
+	if (options.userDataDir) {
+		options = { ...options, userDataDir: getRandomUserDataDir(options.userDataDir) };
+	}
+
 	if (optionsTransform) {
 		options = optionsTransform({ ...options });
 	}
 
-	const config = options.userDataDir
-		? { ...options, userDataDir: getRandomUserDataDir(options.userDataDir) }
-		: options;
-	const app = new Application(config);
+	const app = new Application(options);
 
 	return app;
 }
@@ -198,11 +237,15 @@ export function getCopilotSmokeTestEnv(mockServer?: MockLlmServer, opts?: { user
 	// the per-run `userDataDir` means the smoke-test cleanup (which removes
 	// the whole `testDataPath`) also wipes the Copilot state, so repeated
 	// local runs don't accumulate sessions that slow down `listSessions`
-	// and other startup paths.
+	// and other startup paths. Codex uses its own `CODEX_HOME`, so isolate it
+	// under the same per-run state root.
 	let xdgStateHome: string | undefined;
 	let copilotHome: string | undefined;
+	let codexHome: string | undefined;
 	if (opts?.userDataDir) {
 		xdgStateHome = `${opts.userDataDir}-copilot-state`;
+		codexHome = join(opts.userDataDir, 'codex-home');
+		fs.mkdirSync(codexHome, { recursive: true });
 		// Anchor the Copilot runtime's home (`COPILOT_HOME`) at the same
 		// `.copilot` directory the extension resolves from `XDG_STATE_HOME`,
 		// so the runtime's process logs land in a known, per-run location we
@@ -211,12 +254,12 @@ export function getCopilotSmokeTestEnv(mockServer?: MockLlmServer, opts?: { user
 		// as `${COPILOT_HOME}/logs` and is NOT influenced by `XDG_STATE_HOME`,
 		// so without this the logs would go to the agent's real `~/.copilot`.
 		copilotHome = join(xdgStateHome, '.copilot');
+		codexHome = join(xdgStateHome, '.codex');
 		try {
 			fs.mkdirSync(copilotHome, { recursive: true });
+			fs.mkdirSync(codexHome, { recursive: true });
 		} catch {
-			// best effort — the dir will be created by the extension on first
-			// write if mkdir fails here (e.g. due to a race with a sibling
-			// suite). The env vars are still honoured.
+			// Best effort: the runtimes create their home directories on first write.
 		}
 	}
 
@@ -234,6 +277,7 @@ export function getCopilotSmokeTestEnv(mockServer?: MockLlmServer, opts?: { user
 		VSCODE_COPILOT_CHAT_TOKEN: mockServer ? buildCopilotChatToken(getMockLlmServerUrl(mockServer)) : undefined,
 		XDG_STATE_HOME: xdgStateHome,
 		COPILOT_HOME: copilotHome,
+		CODEX_HOME: codexHome,
 	};
 }
 
@@ -244,10 +288,8 @@ export function getCopilotSmokeTestEnv(mockServer?: MockLlmServer, opts?: { user
  * The runtime writes its process logs to `${COPILOT_HOME}/logs`, and
  * `getCopilotSmokeTestEnv` pins `COPILOT_HOME` for the run. Diagnostics resolve
  * the directory from the *exact* `COPILOT_HOME` the app launched with (read back
- * via `app.extraEnv`) rather than reconstructing it from the randomized
- * `userDataDir`: `createApp` appends a random suffix to `userDataDir` *after*
- * the env is computed, so a path derived from `app.userDataPath` would not match
- * where the runtime actually wrote. There is deliberately no fall back to the
+ * via `app.extraEnv`) rather than reconstructing it from `app.userDataPath`.
+ * There is deliberately no fall back to the
  * ambient `~/.copilot/logs` — on a reused CI agent that could surface an
  * unrelated session's trace log (session/model/auth diagnostics), which we must
  * never copy into an uploaded artifact.

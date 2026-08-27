@@ -5,7 +5,9 @@
 
 import { encodeBase64, VSBuffer, decodeBase64 } from '../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localChatSessionType } from '../chatSessionsService.js';
 
 type ChatSessionIdentifier = {
@@ -73,6 +75,17 @@ export function chatSessionResourceToId(resource: URI): string {
 }
 
 /**
+ * Resolves a session resource that must be an immediate child of its storage root.
+ */
+export function getChatSessionStorageResource(storageRoot: URI, sessionId: string, suffix: string = ''): URI {
+	const resource = extUri.joinPath(storageRoot, `${sessionId}${suffix}`);
+	if (!extUri.isEqual(extUri.dirname(resource), storageRoot)) {
+		throw new Error(`Invalid chat session ID: ${sessionId}`);
+	}
+	return resource;
+}
+
+/**
  * Extracts the chat session type from a resource URI.
  *
  * @param resource - The chat session resource URI
@@ -94,4 +107,15 @@ export function getChatSessionType(resource: URI): string {
 
 export function isUntitledChatSession(resource: URI): boolean {
 	return resource.path.startsWith('/untitled-');
+}
+
+/**
+ * Builds a fresh untitled session resource for the given session type. Local
+ * sessions get a new local-session URI; other types get an untitled URI under
+ * their own scheme.
+ */
+export function getNewChatSessionResource(sessionType: string): URI {
+	return sessionType === localChatSessionType
+		? LocalChatSessionUri.getNewSessionUri()
+		: URI.from({ scheme: sessionType, path: `/untitled-${generateUuid()}` });
 }

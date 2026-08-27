@@ -9,7 +9,7 @@
 
 import assert from 'assert';
 import { execSync } from 'child_process';
-import { chmodSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from 'fs';
+import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from 'fs';
 import { homedir, tmpdir, userInfo } from 'os';
 import { fileURLToPath } from 'url';
 import { timeout } from '../../../../../../base/common/async.js';
@@ -19,7 +19,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import {
 	ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind,
 	ChatInputResponseKind, ToolResultContentType, ToolCallConfirmationReason, ToolCallCancellationReason, buildDefaultChatUri,
-	getInlineToolInput, ROOT_STATE_URI, type MessageAttachment, type ChatInputAnswer, type ChatInputRequest, type RootState, type TerminalState,
+	getInlineToolInput, MessageKind, ROOT_STATE_URI, type MessageAttachment, type ChatInputAnswer, type ChatInputRequest, type RootState, type TerminalState,
 	type ToolResultContent,
 } from '../../../../common/state/sessionState.js';
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
@@ -27,13 +27,13 @@ import { TerminalClaimKind } from '../../../../common/state/protocol/channels-te
 import {
 	ActionType,
 	type ChatInputRequestedAction, type ChatToolCallReadyAction,
-	type ChatToolCallCompleteAction, type ChatToolCallStartAction,
+	type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallStartAction,
 } from '../../../../common/state/sessionActions.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
-import { AgentHostSessionReleaseGraceMsEnvVar } from '../../../../common/agentService.js';
-import { CapiReplayMode } from './capiReplayProxy.js';
+import { AgentHostSessionResidencyLimitEnvVar } from '../../../../common/agentService.js';
+import { CapiReplayMode, type ICapiReplayResponse } from './capiReplayProxy.js';
 import {
-	fetchSessionWithChat, getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification, IServerHandle, stopServer, TestProtocolClient,
+	fetchSessionWithChat, getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification, IServerHandle, killServer, stopServer, TestProtocolClient,
 } from '../../serverIntegrationTestHelpers.js';
 import { defaultAgentHostTarget, type IAgentHostTarget } from './agentHostTarget.js';
 import { createProviderSession, dispatchTurn, dispatchTurnWithAttachments } from '../../providerIntegrationTestHelpers.js';
@@ -195,6 +195,19 @@ const STALE_RECORDED_REQUEST_EXCEPTIONS = new Set<string>([
 	'claude:side chat receives bounded source context without copied history',
 ]);
 
+const RECOVERABLE_RECORDING_MODEL_RESPONSE: ICapiReplayResponse = {
+	status: 400,
+	headers: {
+		'content-type': 'application/json',
+	},
+	body: '{"error":{"message":"Injected recoverable E2E failure.","type":"invalid_request_error","code":"invalid_request_error"}}',
+};
+
+const RECORDING_MODEL_RESPONSES = new Map<string, ICapiReplayResponse>([
+	['copilotcli:resumes a failed turn in place', RECOVERABLE_RECORDING_MODEL_RESPONSE],
+	['copilotcli:resumes the same turn after repeated failures', RECOVERABLE_RECORDING_MODEL_RESPONSE],
+]);
+
 /** Identifies one provider's capture of a test, matching `fixturePathFor`. */
 function captureKey(provider: string, testTitle: string): string {
 	return `${provider}:${testTitle}`;
@@ -206,14 +219,14 @@ function captureKey(provider: string, testTitle: string): string {
  * `AGENT_HOST_REPLAY_RECORD=1` or `AGENT_HOST_UPDATE_SNAPSHOTS=1`. Tests that
  * declare no model traffic always use the strict shared empty replay fixture.
  */
-export function capiReplayFor(provider: string, testTitle: string, modelTraffic: AgentHostE2EModelTraffic = 'recorded'): { fixturePath: string; real: true; mode: CapiReplayMode; allowPosixCommands: boolean; allowStaleRecordedRequest: boolean } {
+export function capiReplayFor(provider: string, testTitle: string, modelTraffic: AgentHostE2EModelTraffic = 'recorded'): { fixturePath: string; real: true; mode: CapiReplayMode; allowPosixCommands: boolean; allowStaleRecordedRequest: boolean; recordingModelResponse?: ICapiReplayResponse } {
 	const key = captureKey(provider, testTitle);
 	const allowPosixCommands = POSIX_COMMAND_EXCEPTIONS.has(key);
 	const allowStaleRecordedRequest = STALE_RECORDED_REQUEST_EXCEPTIONS.has(key);
 	if (modelTraffic === 'none') {
 		return { fixturePath: EMPTY_CAPTURE_PATH, real: true, mode: 'replay', allowPosixCommands, allowStaleRecordedRequest };
 	}
-	return { fixturePath: fixturePathFor(provider, testTitle), real: true, mode: REPLAY_MODE, allowPosixCommands, allowStaleRecordedRequest };
+	return { fixturePath: fixturePathFor(provider, testTitle), real: true, mode: REPLAY_MODE, allowPosixCommands, allowStaleRecordedRequest, recordingModelResponse: RECORDING_MODEL_RESPONSES.get(key) };
 }
 
 // #endregion
@@ -280,6 +293,32 @@ export interface IAgentHostE2EProviderConfig {
 	readonly exitPlanModeToolName: string;
 	/** File-creation tool that exposes model-generated argument deltas, when supported. */
 	readonly streamingFileCreateToolName?: string;
+	/** Alternate model used to verify a client-selected model reaches the provider. */
+	readonly modelSwitchTarget?: string;
+	/** Model used to switch an already-running provider session a second time. */
+	readonly modelSwitchReturnTarget?: string;
+	/** Provider-specific prompt that reliably triggers one interactive input request. */
+	readonly interactiveInputPrompt?: string;
+	/** Provider-specific prompt that expects a cancelled interactive input request. */
+	readonly cancelledInputPrompt?: string;
+	/** Provider-specific prompt that triggers a freeform text input request. */
+	readonly textInputPrompt?: string;
+	/** Provider-specific prompt that triggers a multi-select input request. */
+	readonly multiSelectInputPrompt?: string;
+	/** Provider supports a session with no working directory through the full model path. */
+	readonly supportsWorkspacelessE2E?: boolean;
+	/** Provider exposes runtime slash commands through AHP completions after materialization. */
+	readonly supportsRuntimeSlashCommandsE2E?: boolean;
+	/** Provider supports shared default-chat attachment scenarios. */
+	readonly supportsAttachmentsE2E?: boolean;
+	/** Provider supports truncating a materialized conversation and continuing. */
+	readonly supportsTruncateE2E?: boolean;
+	/** Provider supports worktree include-file materialization in deterministic replay. */
+	readonly supportsWorktreeIncludeFilesE2E?: boolean;
+	/** Provider can deterministically replay cancellation while paused on input or approval. */
+	readonly supportsPausedTurnCancellationE2E?: boolean;
+	/** Provider's denied file-creation flow mutates the workspace during replay on Linux. */
+	readonly fileToolDenialReplayUnstableOnLinux?: boolean;
 	/**
 	 * Whether the suite should be enabled. Returning false skips the suite
 	 * entirely (mirrors `suite.skip(...)`).
@@ -318,12 +357,16 @@ export interface IAgentHostE2EProviderConfig {
 	readonly supportsSubagents: boolean;
 	/** Whether the provider supports creating side chats from a source turn. */
 	readonly supportsSideChats?: boolean;
+	/** Whether committed replay fixtures cover side-chat behavior for this provider. */
+	readonly supportsSideChatsE2E?: boolean;
 	/**
 	 * When set, shell-dependent replay tests are skipped on Linux because this
 	 * provider completes recorded shell-tool turns without emitting tool-call
 	 * notifications there. Recording and other platforms keep full coverage.
 	 */
 	readonly shellToolReplayUnstableOnLinux?: boolean;
+	/** Provider intermittently completes successful shell calls without exposing result text. */
+	readonly shellToolResultTextUnreliable?: boolean;
 	/**
 	 * When set, the subagent-reopen ("replay path") test is skipped on Windows for
 	 * this provider, which rebuilds the reopened transcript from the bundled SDK's
@@ -343,6 +386,8 @@ export interface IAgentHostE2EProviderConfig {
 	readonly supportsPlanMode: boolean;
 	/** Whether the provider supports additional peer chats and chat forks. */
 	readonly supportsMultipleChats: boolean;
+	/** Whether model-backed multiple-chat parity scenarios have deterministic fixtures. */
+	readonly supportsMultipleChatsE2E?: boolean;
 	readonly supportsChatFork: boolean;
 	/** Whether provider-backed fork context can be tested end-to-end. */
 	readonly supportsChatForkE2E: boolean;
@@ -364,12 +409,13 @@ export async function createRealSession(
 	clientId: string,
 	trackingList: string[],
 	workingDirectory: URI,
+	beforeCreateSession?: () => Promise<void>,
 ): Promise<string> {
 	const sessionUri = await createProviderSession(c, {
 		provider: config.provider,
 		scheme: config.scheme,
 		githubToken: config.githubToken ?? resolveGitHubToken(),
-	}, clientId, trackingList, workingDirectory);
+	}, clientId, trackingList, workingDirectory, beforeCreateSession);
 	c.setAhpSnapshotNormalization({
 		workingDirectory: workingDirectory.fsPath,
 		homeDirectory: homedir(),
@@ -480,18 +526,51 @@ export interface IDrivenTurnResult {
 }
 
 export async function driveTurnToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, clientSeq: number): Promise<IDrivenTurnResult> {
-	return driveTurn(c, session, turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq));
+	return driveTurn(c, buildDefaultChatUri(session), turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq));
+}
+
+export async function driveChatTurnToCompletion(c: TestProtocolClient, chat: string, turnId: string, text: string, clientSeq: number): Promise<IDrivenTurnResult> {
+	return driveTurn(c, chat, turnId, clientSeq, () => c.dispatch({
+		channel: chat,
+		clientSeq,
+		action: {
+			type: ActionType.ChatTurnStarted,
+			turnId,
+			startedAt: new Date().toISOString(),
+			message: { text, origin: { kind: MessageKind.User } },
+		},
+	}));
 }
 
 export async function driveTurnWithAttachmentsToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, attachments: readonly MessageAttachment[], clientSeq: number): Promise<IDrivenTurnResult> {
-	return driveTurn(c, session, turnId, clientSeq, () => dispatchTurnWithAttachments(c, session, turnId, text, attachments, clientSeq));
+	return driveTurn(c, buildDefaultChatUri(session), turnId, clientSeq, () => dispatchTurnWithAttachments(c, session, turnId, text, attachments, clientSeq));
 }
 
-async function driveTurn(c: TestProtocolClient, session: string, turnId: string, clientSeq: number, dispatch: () => void): Promise<IDrivenTurnResult> {
+export async function driveTurnWithModelToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, model: string, clientSeq: number): Promise<IDrivenTurnResult> {
+	return driveTurn(c, buildDefaultChatUri(session), turnId, clientSeq, () => c.dispatch({
+		channel: buildDefaultChatUri(session),
+		clientSeq,
+		action: {
+			type: ActionType.ChatTurnStarted,
+			turnId,
+			startedAt: new Date().toISOString(),
+			message: { text, origin: { kind: MessageKind.User }, model: { id: model } },
+		},
+	}));
+}
+
+export async function driveTurnWithCancelledInputToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, clientSeq: number): Promise<IDrivenTurnResult> {
+	return driveTurn(c, buildDefaultChatUri(session), turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq), ChatInputResponseKind.Cancel);
+}
+
+export async function driveTurnWithAnswersToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, clientSeq: number, getAnswers: (request: ChatInputRequest) => Record<string, ChatInputAnswer>): Promise<IDrivenTurnResult> {
+	return driveTurn(c, buildDefaultChatUri(session), turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq), ChatInputResponseKind.Accept, getAnswers);
+}
+
+async function driveTurn(c: TestProtocolClient, chat: string, turnId: string, clientSeq: number, dispatch: () => void, inputResponse = ChatInputResponseKind.Accept, answerProvider = getAcceptedAnswers): Promise<IDrivenTurnResult> {
 	c.clearReceived();
 	dispatch();
 
-	const chat = buildDefaultChatUri(session);
 	const seenNotifications = new Set<object>();
 	let nextClientSeq = clientSeq + 1;
 	let sawInputRequest = false;
@@ -517,7 +596,8 @@ async function driveTurn(c: TestProtocolClient, session: string, turnId: string,
 		seenNotifications.add(notification as object);
 
 		if (isActionNotification(notification, 'chat/error')) {
-			throw new Error(`Session error while driving ${turnId}`);
+			const action = getActionEnvelope(notification).action as ChatErrorAction;
+			throw new Error(`Session error while driving ${turnId}: ${action.part.error.errorType}: ${action.part.error.message}`);
 		}
 
 		if (isActionNotification(notification, 'chat/toolCallReady')) {
@@ -525,7 +605,7 @@ async function driveTurn(c: TestProtocolClient, session: string, turnId: string,
 			if (!action.confirmed) {
 				sawPendingConfirmation = true;
 				c.dispatch({
-					channel: buildDefaultChatUri(session),
+					channel: chat,
 					clientSeq: nextClientSeq++,
 					action: {
 						type: ActionType.ChatToolCallConfirmed,
@@ -543,13 +623,13 @@ async function driveTurn(c: TestProtocolClient, session: string, turnId: string,
 			sawInputRequest = true;
 			const action = getActionEnvelope(notification).action as ChatInputRequestedAction;
 			c.dispatch({
-				channel: buildDefaultChatUri(session),
+				channel: chat,
 				clientSeq: nextClientSeq++,
 				action: {
 					type: ActionType.ChatInputCompleted,
 					requestId: action.request.id,
-					response: ChatInputResponseKind.Accept,
-					answers: getAcceptedAnswers(action.request),
+					response: inputResponse,
+					answers: inputResponse === ChatInputResponseKind.Accept ? answerProvider(action.request) : undefined,
 				},
 			});
 			continue;
@@ -796,7 +876,7 @@ export class AgentHostE2EServerLease {
 	private _testsOnCurrentServer = 0;
 	private _cleanupClientSeq = 1_000_000;
 	private _currentCapiReplay: ReturnType<typeof capiReplayFor> | undefined;
-	private readonly _startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly homeDir: string; readonly userDataDir: string; readonly env: Readonly<Record<string, string>> };
+	private readonly _startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly codexHomeDir: string; readonly homeDir: string; readonly userDataDir: string; readonly env: Readonly<Record<string, string>> };
 	private readonly _target: IAgentHostTarget;
 
 	constructor(
@@ -804,14 +884,17 @@ export class AgentHostE2EServerLease {
 		startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly target?: IAgentHostTarget } = {},
 	) {
 		const dataDir = mkdtempSync(join(tmpdir(), 'vscode-agent-host-e2e-'));
+		const codexHomeDir = join(dataDir, '.codex');
+		mkdirSync(codexHomeDir);
 		this._dataDir = dataDir;
 		this._target = startOptions.target ?? defaultAgentHostTarget;
 		this._startOptions = {
 			claudeSdkRoot: startOptions.claudeSdkRoot,
 			codexSdkRoot: startOptions.codexSdkRoot,
+			codexHomeDir,
 			homeDir: dataDir,
 			userDataDir: join(dataDir, 'user-data'),
-			env: { [AgentHostSessionReleaseGraceMsEnvVar]: '0' },
+			env: { [AgentHostSessionResidencyLimitEnvVar]: '0' },
 		};
 		// Server reuse is a replay-only optimization: recording writes one fixture
 		// per proxy and so needs a fresh proxy (hence a fresh server) per test.
@@ -863,6 +946,15 @@ export class AgentHostE2EServerLease {
 	 * uninitialized client for the caller to initialize with a new client id.
 	 */
 	async restart(): Promise<TestProtocolClient> {
+		return this._restart(false);
+	}
+
+	/** Crash the target without graceful shutdown, then restart it over the same persisted state and replay proxy. */
+	async crashAndRestart(): Promise<TestProtocolClient> {
+		return this._restart(true);
+	}
+
+	private async _restart(crash: boolean): Promise<TestProtocolClient> {
 		const server = this._server;
 		const proxy = server?.capiReplay;
 		const capiReplay = this._currentCapiReplay;
@@ -870,9 +962,14 @@ export class AgentHostE2EServerLease {
 			throw new Error('[agent-host-e2e] no replay-backed server to restart');
 		}
 
-		this._client?.close();
+		if (crash) {
+			await killServer(server);
+			this._client?.close();
+		} else {
+			this._client?.close();
+			await stopServer(server);
+		}
 		this._client = undefined;
-		await stopServer(server);
 		this._server = undefined;
 
 		try {
@@ -895,6 +992,14 @@ export class AgentHostE2EServerLease {
 		await client.connect();
 		this._client = client;
 		return client;
+	}
+
+	setRecordingModelResponse(response: ICapiReplayResponse, path?: string): void {
+		const proxy = this._server?.capiReplay;
+		if (!proxy) {
+			throw new Error('[agent-host-e2e] no replay-backed server');
+		}
+		proxy.setRecordingModelResponse(response, path);
 	}
 
 	/**

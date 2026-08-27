@@ -21,6 +21,7 @@ export interface CreatedPullRequest {
 	readonly url: string;
 	readonly number: number;
 	readonly nodeId?: string;
+	readonly createdAt?: number;
 }
 
 /**
@@ -33,6 +34,25 @@ interface GitHubPullRequestResponseItem {
 	readonly number?: unknown;
 	readonly html_url?: unknown;
 	readonly node_id?: unknown;
+	readonly created_at?: unknown;
+	readonly state?: unknown;
+	readonly head?: { readonly sha?: unknown };
+}
+
+function toCreatedPullRequest(item: GitHubPullRequestResponseItem | undefined): CreatedPullRequest | undefined {
+	const html_url = item?.html_url;
+	const number = item?.number;
+	const node_id = item?.node_id;
+	const created_at = item?.created_at;
+	const createdAt = typeof created_at === 'string' ? Date.parse(created_at) : undefined;
+	return typeof html_url === 'string' && typeof number === 'number'
+		? {
+			number,
+			url: html_url,
+			nodeId: typeof node_id === 'string' ? node_id : undefined,
+			...(createdAt !== undefined && Number.isFinite(createdAt) ? { createdAt } : {}),
+		}
+		: undefined;
 }
 
 interface GitHubIssueOrPullRequestResponseItem {
@@ -91,6 +111,16 @@ export interface IAgentHostOctoKitService {
 	/** Finds the most recently updated pull request for `headOwner:branch`, if any. */
 	findPullRequestByHeadBranch(owner: string, repo: string, branch: string, token: string, signal: AbortSignal, headOwner?: string): Promise<CreatedPullRequest | undefined>;
 
+	/**
+	 * Finds the pull request whose head commit is exactly `sha`, if any.
+	 *
+	 * Unlike {@link findPullRequestByHeadBranch} this does not depend on the
+	 * local branch carrying the same name as the remote head branch, so it also
+	 * resolves branches checked out from a pull request head under a different
+	 * name or pushed with an explicit refspec.
+	 */
+	findPullRequestByHeadSha(owner: string, repo: string, sha: string, token: string, signal: AbortSignal): Promise<CreatedPullRequest | undefined>;
+
 	/** Fetches the title and body of an issue or pull request. */
 	getIssueOrPullRequest(owner: string, repo: string, number: number, token: string, signal: AbortSignal): Promise<GitHubIssueOrPullRequest>;
 
@@ -112,11 +142,30 @@ export const IAgentHostOctoKitService = createDecorator<IAgentHostOctoKitService
 const GITHUB_API_VERSION = '2022-11-28';
 const MAX_ERROR_RESPONSE_BODY_LENGTH = 500;
 
+/** Page size, and therefore upper bound, for the pull requests read per commit. */
+const MAX_COMMIT_PULL_REQUESTS = 100;
+
+const COMMIT_PULL_REQUESTS_ROUTE = /^repos\/[^/]+\/[^/]+\/commits\/[^/]+\/pulls\?per_page=\d+$/;
+
 const ENABLE_AUTO_MERGE_MUTATION = `mutation EnableAutoMerge($pullRequestId: ID!, $mergeMethod: PullRequestMergeMethod!) {
 	enablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId, mergeMethod: $mergeMethod }) {
 		pullRequest { id }
 	}
 }`;
+
+function isMissingCommitPullRequestsResponse(routeSlug: string, method: 'GET' | 'POST', statusCode: number, responseText: string | undefined): boolean {
+	if (method !== 'GET' || statusCode !== 422 || !COMMIT_PULL_REQUESTS_ROUTE.test(routeSlug) || responseText === undefined) {
+		return false;
+	}
+
+	try {
+		const body: { readonly message?: unknown } | null = JSON.parse(responseText);
+		const message = body?.message;
+		return typeof message === 'string' && message.startsWith('No commit found for SHA: ');
+	} catch {
+		return false;
+	}
+}
 
 export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 
@@ -125,9 +174,11 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 	private readonly _fetch: FetchFunction;
 
 	/**
-	 * A cache of ETags for pull request search results.
+	 * Cached pull request listings keyed by route, with the ETag that validated
+	 * them. The items are kept alongside the ETag because a `304` response
+	 * carries no body: without them a revalidated route would look empty.
 	 */
-	private readonly pullRequestSearchEtags = new LRUCache<string, string>(100);
+	private readonly pullRequestSearchCache = new LRUCache<string, { readonly etag: string; readonly items: readonly GitHubPullRequestResponseItem[] }>(100);
 
 	constructor(
 		fetchFn: FetchFunction | undefined,
@@ -168,35 +219,56 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 
 	async findPullRequestByHeadBranch(owner: string, repo: string, branch: string, token: string, signal: AbortSignal, headOwner = owner): Promise<CreatedPullRequest | undefined> {
 		const routeSlug = `repos/${owner}/${repo}/pulls?head=${encodeURIComponent(`${headOwner}:${branch}`)}&state=all&sort=updated&direction=desc&per_page=1`;
+		const items = await this._searchPullRequests(routeSlug, token, signal);
+		return toCreatedPullRequest(items[0]);
+	}
 
-		const etag = this.pullRequestSearchEtags.get(routeSlug);
-		const response = await this._makeGHAPIRequest<GitHubPullRequestResponseItem[]>(routeSlug, 'GET', token, signal, undefined, etag);
+	async findPullRequestByHeadSha(owner: string, repo: string, sha: string, token: string, signal: AbortSignal): Promise<CreatedPullRequest | undefined> {
+		const routeSlug = `repos/${owner}/${repo}/commits/${encodeURIComponent(sha)}/pulls?per_page=${MAX_COMMIT_PULL_REQUESTS}`;
+		const items = await this._searchPullRequests(routeSlug, token, signal);
 
-		if (response.etag) {
-			this.pullRequestSearchEtags.set(routeSlug, response.etag);
-		}
-
-		if (
-			response.statusCode === 304 ||
-			!Array.isArray(response.data) ||
-			response.data.length === 0
-		) {
+		// Only the first page is read. A full page means later pages could hold
+		// further candidates, so neither the match nor its uniqueness can be
+		// established — a commit associated with this many pull requests is not
+		// one this lookup can speak for anyway.
+		if (items.length >= MAX_COMMIT_PULL_REQUESTS) {
+			this._logService.warn(`[AgentHostOctoKitService] Not resolving a pull request for ${sha}: more than ${MAX_COMMIT_PULL_REQUESTS} are associated with it`);
 			return undefined;
 		}
 
-		const first = response.data[0];
-		const html_url = first?.html_url;
-		const number = first?.number;
-		const node_id = first?.node_id;
-		return typeof html_url === 'string' && typeof number === 'number'
-			? {
-				number,
-				url: html_url,
-				nodeId: typeof node_id === 'string'
-					? node_id
-					: undefined
-			}
-			: undefined;
+		// The endpoint also lists pull requests that merely *contain* the
+		// commit, such as those of the branches below a stacked branch. Only a
+		// pull request whose head is exactly this commit describes the branch
+		// that is checked out.
+		const atHead = items.filter(item => item?.head?.sha === sha);
+		const open = atHead.filter(item => item.state === 'open');
+		const candidates = open.length > 0 ? open : atHead;
+
+		// Branches that point at the same commit are indistinguishable by
+		// commit alone, so report none rather than guess at one of them.
+		return candidates.length === 1 ? toCreatedPullRequest(candidates[0]) : undefined;
+	}
+
+	/**
+	 * Issues a conditional GET for a pull request listing route, serving the
+	 * previously cached listing when the ETag still validates.
+	 */
+	private async _searchPullRequests(routeSlug: string, token: string, signal: AbortSignal): Promise<readonly GitHubPullRequestResponseItem[]> {
+		// Validators and bodies are scoped to the host that issued them, which
+		// can change when the endpoint is repointed at another GitHub instance.
+		const cacheKey = `${this._endpoint.getApiBaseUri()}/${routeSlug}`;
+		const cached = this.pullRequestSearchCache.get(cacheKey);
+		const response = await this._makeGHAPIRequest<GitHubPullRequestResponseItem[]>(routeSlug, 'GET', token, signal, undefined, cached?.etag);
+
+		if (response.statusCode === 304) {
+			return cached?.items ?? [];
+		}
+
+		const items = Array.isArray(response.data) ? response.data : [];
+		if (response.etag) {
+			this.pullRequestSearchCache.set(cacheKey, { etag: response.etag, items });
+		}
+		return items;
 	}
 
 	async getIssueOrPullRequest(owner: string, repo: string, number: number, token: string, signal: AbortSignal): Promise<GitHubIssueOrPullRequest> {
@@ -276,6 +348,9 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 
 		if (!response.ok) {
 			const errorText = await response.text().catch(() => undefined);
+			if (isMissingCommitPullRequestsResponse(routeSlug, method, statusCode, errorText)) {
+				return { data: undefined, statusCode, etag: undefined };
+			}
 			const errorDetail = this._formatErrorResponseBody(errorText);
 			this._logService.error(`[AgentHostOctoKit] ${method} ${url} - Status: ${response.status}${errorDetail ? ` - ${errorDetail}` : ''}`);
 			throw new Error(`GitHub API request failed: ${method} ${routeSlug} - ${response.status} ${response.statusText}${errorDetail ? ` - ${errorDetail}` : ''}`);

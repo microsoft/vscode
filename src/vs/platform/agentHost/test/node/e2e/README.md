@@ -13,6 +13,9 @@ They do this by recording the model traffic once (against real CAPI) into commit
 ## TL;DR
 
 ```bash
+# Run the complete deterministic suite in parallel.
+npm run test-agent-host-e2e
+
 # Replay (default): deterministic, tokenless. This is what CI runs.
 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts
 
@@ -101,17 +104,20 @@ The residual case is `providerHostOnlyTest(...)`: per-provider, but no model tra
 | `conformance/` | The conformance-tier entry point. Registered once; names a reference provider. |
 | `providers/` | Deterministic provider entry points and provider-specific scenarios. Live Codex scenarios are isolated in `codexAgentHostLive.integrationTest.ts`. |
 | `suites/` | Scenario modules, each of which may contribute to either tier. Add new scenarios to the closest existing suite; add a suite module when a new behavior area emerges. |
-| `suites/clientFilesystemSuite.ts` | The `resource*` family in both directions, including the host's reverse requests for client-side files. |
+| `suites/clientFilesystemSuite.ts` | Client-to-host `resource*` operations and resource-watch behavior. |
+| `suites/clientHostedFilesystemSuite.ts` | Host-to-client `resource*` operations against client-hosted files. |
 | `harness/` | Record/replay, AHP snapshots, shared turn drivers, and server lifecycle. |
 | `harness/agentHostTarget.ts` | The portability seam: the only code that knows how to launch a concrete AHP implementation. |
 | `captures/*.yaml` | Committed model fixtures, plus one shared strict empty fixture for tests that declare no model traffic. |
 | `conformance/__snapshots__/`, `providers/__snapshots__/` | Semantic AHP snapshots (`*.traffic.ahp.yaml`) and assembled-prompt snapshots (`*.prompt.md`), resolved relative to the entry point that registered the test. |
-| `providers/copilotPromptsE2E.integrationTest.ts` | The prompt boundary: the system prompt and tool schemas the bundled Copilot CLI assembles, read off a replayed turn. See [Prompt snapshots](#prompt-snapshots). |
+| `providers/copilotPromptsE2E.integrationTest.ts` | The provider request-body boundary: the complete model request body the bundled Copilot CLI sends, read off a replayed turn. See [Prompt snapshots](#prompt-snapshots). |
 | `coverage/summary.json` | Checked-in line coverage of the host implementation. |
 | `coverage/protocol-surface.json` | Checked-in coverage of the AHP contract itself. |
 | [`KNOWN_ISSUES.md`](./KNOWN_ISSUES.md) | Inventory and reevaluation process for disabled or conditional tests. |
 
-Use these deterministic E2E tests when the value comes from running the bundled provider process with realistic captured model behavior: SDK event ordering, tool schemas and execution, provider persistence, protocol-to-provider mapping, or cross-provider parity. Use `../providerIntegration/` for a real provider with a synthetic local LLM, and an ordinary unit test when no server process is required. `../protocol/` is frozen; do not add to it.
+Use these deterministic E2E tests when the value comes from running the bundled provider process with realistic captured model behavior: SDK event ordering, tool schemas and execution, provider persistence, protocol-to-provider mapping, or cross-provider parity. Use `../providerIntegration/` for a bundled provider with a synthetic local LLM, and an ordinary unit test when no server process is required. `../protocol/` is frozen; do not add to it.
+
+Entries under `KNOWN_ISSUES.md`'s suspected-product-bug section must be understandable without reading the test or knowing Agent Host implementation terminology. Begin with complete sentences that explain the user workflow, the failure, and its likely user impact. Put test titles, protocol actions, provider-specific names, gates, and reproduction commands after that explanation.
 
 ---
 
@@ -150,8 +156,12 @@ exchanges:
   | `${capi}` | the upstream CAPI origin (rewritten back to the proxy URL on replay) |
   | `${redacted}` | minted session tokens (`token` / `session_token` fields) |
   | `${system}` | the echoed system prompt (Responses API echoes `instructions`) |
+  | `${uuid_N}` | the Nth runtime UUID captured across requests and responses |
+  | `${plugin_copy}` | the path-derived directory name of a client plugin copied into the isolated Agent Host home |
 
   Tool-call ids are also normalized to stable ordinals (`toolcall_0`, `toolcall_1`, …).
+
+  UUID placeholders are rebound dynamically during replay. The proxy aligns each recorded request with the live request, learns the fresh UUID corresponding to `${uuid_N}`, normalizes the request before comparison, and expands later model tool arguments with the learned value. Bindings are cleared whenever the shared proxy switches fixtures.
 
 ---
 
@@ -180,8 +190,19 @@ A mismatch fails the test as `[capi-replay] N model request mismatch(es)` and pr
 Replay is the default — no setup, no token:
 
 ```bash
+# Run conformance and all provider suites in parallel.
+npm run test-agent-host-e2e
+
+# Limit parallelism when machine resources are constrained.
+npm run test-agent-host-e2e -- --jobs 2
+
+# Run one provider.
 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts
 ```
+
+The complete-suite runner starts one test process per entrypoint and runs up to four concurrently. `AGENT_HOST_E2E_JOBS` or `--jobs` can lower the worker count. Each process's output is printed as one block when it completes, and any Mocha failure details are repeated after the final suite summary so failures remain easy to find. Recording and snapshot-update modes remain per-provider commands so they never make concurrent writes or real CAPI requests.
+
+Pull request Electron jobs run the complete suite only when the changed files can affect the Agent Host, its shared platform dependencies, provider SDK versions, build infrastructure, or the E2E harness. The classification happens inside each already-allocated Electron runner so Linux, macOS, and Windows jobs remain parallel. When no relevant files changed, CI sets `VSCODE_SKIP_AGENT_HOST_E2E=1`; `test-integration.sh` and `test-integration.bat` then skip this suite while continuing with every other integration test.
 
 Provider availability:
 
@@ -200,6 +221,8 @@ The lease also owns a fresh suite data directory. Every server it starts uses th
 - **Per-test** (always while recording) — fork a fresh server + proxy for every test and kill it in teardown. Full isolation: nothing carries over between tests. The cost is that every test re-pays the server fork **and** the provider SDK/CLI cold start (`_ensureClient` spawns and caches the CLI subprocess per server).
 
 - **Shared** (the default in replay, for every provider) — reuse a server + proxy across tests, swapping the per-test fixture and reconnecting a fresh client. The lease recycles after 25 model-backed tests or 40 total tests, whichever comes first. The model cap bounds provider-process load; the total cap bounds host-owned terminals, watchers, subscriptions, and other resource accumulation in host-only suites.
+
+The complete-suite runner parallelizes above this lease: conformance, Claude, Codex, and Copilot each run in an isolated test process with their own server lease. Tests within one entrypoint stay serial and continue sharing servers, preserving the lifecycle and fixture-window invariants while letting the four independent entrypoints overlap.
 
 The swap is what makes sharing cheap: the proxy is an `http.Server` running **inside the test process**, so `CapiReplayProxy.resetForReplay(fixturePath)` is a plain in-process method call — no IPC, no re-fork. It reloads the replay buckets and clears the cache-miss log while keeping the **same proxy URL**, so the long-lived agent host (forked against that URL) keeps talking to the same proxy and just receives the next fixture's recorded responses. Per-test state must be reset there rather than read from the proxy's constructor options, which belong to whichever test started the shared server. Teardown calls `assertNoReplayMismatches()` to verify a test's traffic *without* stopping the server (vs `stop()`, which verifies then closes); the suite's `suiteTeardown` closes it via `close()`.
 
@@ -290,9 +313,11 @@ The update scope is the tests selected by the command. Running a whole provider 
 
 ### Prompt snapshots
 
-`providers/copilotPromptsE2E.integrationTest.ts` pins what the bundled Copilot CLI actually gives the model: the assembled system prompt, the tool definitions, and the turn messages with the context the CLI injects around them (`<current_datetime>`, `<system_reminder>`).
+`providers/copilotPromptsE2E.integrationTest.ts` pins every field of the model request body the bundled Copilot CLI sends. That covers the assembled system prompt, the tool definitions, and the turn messages with the context the CLI injects around them (`<current_datetime>`, `<system_reminder>`), and equally the sampling parameters (`thinking` / `text.verbosity` / `max_tokens` / `parallel_tool_calls`) that a rendered subset used to leave unpinned.
 
-It keeps as much real prompt text as possible. What is elided is the session id, the clock, the environment probe (OS name, tools found on `PATH`), the platform-specific package-manager hint in the Bash tool, the injected repository instructions, and the model catalog — each keeping its surrounding label or wrapper, so a change to the *shape* of those lines still fails.
+The body is pretty-printed rather than reproduced byte-for-byte — the CLI minifies it onto one line — and no field is dropped, so a parameter the CLI starts sending appears in the next baseline diff on its own. Indenting only reaches the structure: JSON escapes the newlines inside string values, so the system prompt and the longer tool descriptions each stay on one line. A reworded sentence inside one of them therefore shows up as that entire line rewritten, not as a line-level diff.
+
+It keeps as much real prompt text as possible. What is elided is the session id, the clock, the environment probe (OS name, tools found on `PATH`), the platform-specific package-manager hint in the Bash tool, the injected repository instructions, and the model catalog — each keeping its surrounding label or wrapper, so a change to the *shape* of those lines still fails. Request metadata outside the body is deliberately out of scope.
 
 Pinning a new model is opt-in. Nothing here is derived from the live `/models` catalog, so a newly released model does not appear until a maintainer adds it to `capiStubs.ts` — and adding it there alone does not fail the suite, because the CLI's inlined model listing is elided. A model is only pinned once someone also adds it to `SNAPSHOT_MODELS` and commits its fixture and baseline.
 
@@ -423,6 +448,7 @@ File-operation capability and coverage are separate concerns. A provider with no
 - `POST /models/session`, `POST /models/session/intent` — auto-mode selection. Deliberately answered with a `500 + x-should-retry:false` so the SDK falls back to the configured model (auto-mode isn't wanted in replay). Not counted as a cache miss.
 - `/copilot_internal/*token*`, `/copilot_internal/*user*` — fake token + generic user/identity.
 - `GET /copilot/mcp_registry` — enterprise MCP registry policy. The Copilot CLI fetches this only when the developer has local MCP servers configured (`~/.copilot/mcp-config.json`) on an org/enterprise plan, so whether it's called varies per machine. Served as an empty registry (`{ mcp_registries: [] }`) so a developer's local MCP config never breaks replay (issue #325248).
+- `POST /mcp`, `POST /mcp/readonly`, and the subsequent GitHub MCP OAuth metadata probes — built-in GitHub MCP bootstrap. These suites do not exercise GitHub MCP tools, so replay returns `404` instead of recording ancillary traffic or changing the fixture's model-visible tool inventory.
 - `/telemetry`, `/agents*` — empty bodies.
 
 Everything else — i.e. the model endpoints `/v1/messages` and `/responses` — is recorded/replayed as turns.

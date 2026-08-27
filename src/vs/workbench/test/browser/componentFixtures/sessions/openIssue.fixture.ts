@@ -111,10 +111,9 @@ function renderIssuePill(ctx: ComponentFixtureContext, issues: readonly IGitHubI
 
 	const item = disposableStore.add(instantiationService.createInstance(OpenIssueActionViewItem, action, {}));
 
-	// Recreate the session header meta toolbar host so the inline-label styling
-	// (.chat-composite-bar-meta-toolbar) applies as in production.
+	// Host the metadata action with its inline-label styling.
 	const toolbar = document.createElement('div');
-	toolbar.classList.add('chat-composite-bar-meta-toolbar');
+	toolbar.classList.add('session-metadata-pill-toolbar');
 	container.appendChild(toolbar);
 	item.render(toolbar);
 
@@ -180,6 +179,16 @@ const openIssue: IGitHubIssue = {
 	closedAt: undefined,
 };
 
+const shortDescriptionIssue: IGitHubIssue = {
+	...openIssue,
+	body: 'The terminal stops streaming output.',
+};
+
+const longDescriptionIssue: IGitHubIssue = {
+	...openIssue,
+	body: 'Steps to reproduce: open a session on a worktree, start a long-running build, and switch to another session while output is still streaming. Return to the original session and observe that the terminal no longer updates even though the task is still running. The task also never reports completion, so it is unclear whether the build finished, failed, or remains active in the background. This description is intentionally long enough to exceed three lines and verify that the issue hover clamps the text without revealing any part of a fourth line.',
+};
+
 const completedIssue: IGitHubIssue = {
 	number: 678,
 	title: 'Session header pill should show the referenced issue',
@@ -223,7 +232,11 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}),
 
 	OpenIssue_Hover: defineComponentFixture({
-		render: (ctx) => renderIssueHover(ctx, openIssue),
+		render: (ctx) => renderIssueHover(ctx, shortDescriptionIssue),
+	}),
+
+	OpenIssue_Hover_LongDescription: defineComponentFixture({
+		render: (ctx) => renderIssueHover(ctx, longDescriptionIssue),
 	}),
 
 	OpenIssue_List: defineComponentFixture({

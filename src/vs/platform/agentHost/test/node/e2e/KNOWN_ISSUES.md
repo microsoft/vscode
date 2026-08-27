@@ -8,12 +8,358 @@ When a valid E2E scenario exposes a gap:
 
 1. Minimize it and identify the affected provider, platform, and mode.
 2. Keep the test, but gate only the affected variant.
-3. Record the exact title, scope, expected and observed behavior, gate, and focused reproduction here.
-4. Record symptoms, not unverified root-cause hypotheses.
-5. Keep generated captures for variants expected to run again; never hand-edit them.
-6. Remove the gate, entry, stale comments, and orphaned artifacts together when the gap closes.
+3. For a suspected product bug, first explain in complete sentences what the user is trying to do, what fails, and how that failure is likely to affect the user. Define feature-specific terms instead of assuming that the test title or an implementation detail such as "full context" is self-explanatory.
+4. After the user-facing explanation, record the exact test title, scope, expected and observed behavior, gate, and focused reproduction.
+5. Record symptoms, not unverified root-cause hypotheses.
+6. Keep generated captures for variants expected to run again; never hand-edit them.
+7. Remove the gate, entry, stale comments, and orphaned artifacts together when the gap closes.
 
 Capability skips are tracked separately from suspected bugs. A provider that does not advertise a capability is expected to skip positive-path tests for that capability.
+
+### Binary writes to client-hosted files are corrupted
+
+An agent host can address files that live on a connected client and send symmetric AHP filesystem operations back to that client. When the host writes binary content this way, bytes that are not valid UTF-8 are replaced before they reach the client, so images and other binary files can be corrupted.
+
+- Test: `client-hosted resourceWrite decodes base64 content`.
+- Scope: conformance reference provider on all platforms.
+- Expected: a base64 `resourceWrite` to a `vscode-agent-client:` URI preserves every decoded byte when the host routes the write back to the owning client.
+- Observed: bytes such as `0xff` and `0xfe` reach the client as UTF-8 replacement characters (`0xef 0xbf 0xbd`).
+- Gate: the scenario requires `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_RUN_KNOWN_ISSUES=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/conformance/agentHostConformance.integrationTest.ts \
+    --grep "client-hosted resourceWrite decodes base64 content"
+  ```
+
+### Duplicate session creation is accepted
+
+A client can retry session creation with a URI that already identifies a live session. The host accepts the duplicate request instead of reporting that the resource already exists, so clients cannot distinguish an idempotent retry from an accidental collision and a provider may be asked to create conflicting backing state.
+
+- Test: `creating a duplicate session resource is rejected`.
+- Scope: conformance reference provider on all platforms.
+- Expected: the second AHP `createSession` request fails with `SessionAlreadyExists`.
+- Observed: the second request resolves successfully.
+- Gate: the scenario requires `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_RUN_KNOWN_ISSUES=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/conformance/agentHostConformance.integrationTest.ts \
+    --grep "creating a duplicate session resource is rejected"
+  ```
+
+### Deleting a worktree session can race background Git work
+
+A user can configure ignored files to be copied into an isolated worktree, complete an agent turn, and then delete the session. Session deletion can fail because background changeset or Git-state work is still using the worktree while Git removes it, leaving the session's worktree behind.
+
+- Test: `worktree materialization copies configured ignored files`.
+- Scope: providers with deterministic worktree include-file coverage.
+- Expected: deleting the completed session stops all work associated with it and removes its isolated worktree.
+- Observed: teardown can fail with `git worktree exited with code 255: error: failed to delete '.git/worktrees/<name>': Directory not empty`.
+- Gate: the scenario requires `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_RUN_KNOWN_ISSUES=1 AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts \
+    --grep "worktree materialization copies configured ignored files"
+  ```
+
+### Client plugin skill is missing from Copilot slash completions
+
+A user can add a skill through a client-pushed plugin and invoke it by name in a Copilot session. The skill works when named explicitly, but it is absent from slash completions, so users cannot discover or select it through completion UI.
+
+- Tests:
+  - `plugin skill is included in leading slash completions`
+  - `plugin skill is included in whitespace slash completions without runtime commands`
+- Scope: Copilot client-pushed plugins.
+- Expected: the AHP `completions` command returns the enabled plugin skill for both a leading slash token and a whitespace-delimited slash token.
+- Observed: the completions response contains no item for the enabled `probe-skill`, including when the plugin has the canonical space-free name `e2e-probe`. An explicit model-driven invocation of the same skill succeeds.
+- Gate: both variants require `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_RUN_KNOWN_ISSUES=1 AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "plugin skill is included"
+  ```
+
+### Asynchronous Copilot shell lifecycles are record-only
+
+A user can start a shell command in the background, inspect or list the running shell, and stop it. The lifecycle works live, but deterministic replay cannot preserve whether the command-completion system notification reaches the model before its next request, so the captured request history changes with process timing.
+
+- Tests:
+  - `managed shell can be read and stopped after asynchronous execution`
+  - `managed shell sessions can be listed after asynchronous execution`
+  - `custom terminal tool manages an asynchronous shell lifecycle`
+- Scope: Copilot deterministic replay.
+- Expected: the same fixture replays whether the short-lived background command completes just before or just after the model's next request.
+- Observed: focused replay can include the completion system notification while a broad shared-process run omits it, causing strict model-request mismatches.
+- Gate: the scenarios run only when `AGENT_HOST_REPLAY_RECORD=1` through `context.runRecordOnlyTests`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "managed shell|custom terminal tool manages"
+  ```
+
+### Copilot deferred tool search cannot be replayed
+
+A Copilot session can defer client-provided tools, search for the relevant tool on demand, and then execute the selected tool. The live workflow succeeds, but the recorded Responses fixture loses the hosted tool-search output that triggers the AHP client-tool exchange, so replay ends the turn before either tool appears.
+
+- Tests:
+  - `tool search exposes deferred client tools and executes the selected result`
+  - `tool search tolerates a malformed client result without activating a deferred tool`
+- Scope: Copilot deterministic replay with `gpt-5.6-sol`.
+- Expected: replay regenerates the hosted tool-search output and reaches the same `toolSearch` AHP lifecycle as recording.
+- Observed: recording observes `toolSearch` and the deferred tool, while the normalized fixture stores the first response as empty content; replay therefore completes without either tool call.
+- Gate: both scenarios run only when `AGENT_HOST_REPLAY_RECORD=1` through `context.runRecordOnlyTests`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "tool search"
+  ```
+
+### Copilot config slash commands are missing from completions
+
+A user can type Copilot configuration commands such as `/autopilot` to change the session mode. The commands work when sent directly, but the AHP completions response does not include their state-aware forms, so users cannot discover `/autopilot on` before entering autopilot mode or `/autopilot off` after entering it.
+
+- Test: `config slash completions reflect the current Copilot session mode`.
+- Scope: Copilot.
+- Expected: completions include `/autopilot ` and the state-changing `on` or `off` form based on the current session mode.
+- Observed: the completions response contains no `/autopilot` items before or after changing the session mode, although sending `/goal <prompt>` directly changes the mode to `plan` and forwards the prompt successfully.
+- Gate: the scenario requires `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_RUN_KNOWN_ISSUES=1 AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "config slash completions"
+  ```
+
+### Copilot shell and plugin-skill tool rows disappear after a host restart
+
+A user can reopen a Copilot session after restarting Agent Host and expects the completed transcript to retain its tool rows. Ordinary edit tool history is restored, but completed shell and plugin-skill lifecycles disappear entirely, so reopened conversations lose important evidence of what the agent did.
+
+- Tests:
+  - `shell failure metadata is reconstructed after a host restart`
+  - `plugin skill lifecycle is reconstructed after a host restart`
+- Scope: Copilot.
+- Expected: restored turns retain the completed shell tool call and both the skill and nested MCP tool calls that were visible before restart.
+- Observed: the source turn remains, but its restored `responseParts` contain no matching tool calls. A control using an ordinary edit tool retains its tool row across the same restart flow.
+- Gate: both scenarios require `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_RUN_KNOWN_ISSUES=1 AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "shell failure metadata|plugin skill lifecycle is reconstructed"
+  ```
+
+### Copilot provider sessions can disappear across a Windows host restart
+
+A user can restart Agent Host and reopen a Copilot session with a persisted conversation or peer chat. On Windows, the provider session can no longer be found after restart, so the host cannot reconstruct the conversation, tool rows, or peer-chat catalog.
+
+- Tests:
+  - `tool-rich provider history is reconstructed after a host restart`
+  - `peer chat catalog and transcript survive a host restart`
+- Scope: Copilot on Windows.
+- Expected: restarting Agent Host preserves the provider session and restores the completed edit tool call or peer-chat catalog and transcript.
+- Observed: reopening fails with `Session not found on backend`, although the same deterministic replay passes on macOS and Linux.
+- Gate: the Windows variants are skipped at their declarations in `copilotCoverageSuite.ts` and `sessionPersistenceSuite.ts`.
+- Reproduce on Windows:
+
+  ```powershell
+  $env:AGENT_HOST_RUN_KNOWN_ISSUES = '1'
+  $env:AGENT_HOST_UPDATE_SNAPSHOTS = '1'
+  .\scripts\test-integration.bat --run `
+    src\vs\platform\agentHost\test\node\e2e\providers\copilotAgentHostE2E.integrationTest.ts `
+    --grep "tool-rich provider history|peer chat catalog"
+  ```
+
+### Persisted Copilot request errors are restored as cancelled on Windows
+
+A user can restart Agent Host after a Copilot request fails and expects the reopened turn to retain its error state and diagnostic details. On Windows, the reopened turn is instead marked cancelled with no error, hiding why the request failed.
+
+- Test: `request error survives a host restart`.
+- Scope: Copilot on Windows.
+- Expected: the reopened turn remains in the error state and contains the same request error published before restart.
+- Observed: the reopened turn has state `cancelled` and no error, although the same deterministic replay passes on macOS and Linux.
+- Gate: the Windows variant is skipped at the test declaration in `copilotAgentHostE2E.integrationTest.ts`.
+- Reproduce on Windows:
+
+  ```powershell
+  .\scripts\test-integration.bat --run `
+    src\vs\platform\agentHost\test\node\e2e\providers\copilotAgentHostE2E.integrationTest.ts `
+    --grep "request error survives a host restart"
+  ```
+
+### Changeset discard state does not refresh on Windows
+
+A user can discard changed files from a session. On Windows, the discard restores the requested files on disk but affected changesets and session summaries do not refresh, leaving the UI stale.
+
+- Tests:
+  - `discarding one file preserves sibling changes`
+  - `discarding the last tracked change clears changeset and list summaries`
+- Scope: Agent Host conformance on Windows.
+- Expected: discarding one file removes it from the changeset while preserving siblings; discarding the final change clears branch and uncommitted changesets plus the session-list summary.
+- Observed: the discard operation completes, but the discarded entries and aggregate summary remain unchanged after the synchronization retry expires.
+- Gate: both Windows variants are disabled through `conformanceTest` platform conditions in `changesetSuite.ts`.
+- Reproduce on Windows:
+
+  ```powershell
+  .\scripts\test-integration.bat --run `
+    src\vs\platform\agentHost\test\node\e2e\conformance\agentHostConformance.integrationTest.ts `
+    --grep "discarding one file preserves sibling changes|discarding the last tracked change"
+  ```
+
+### Copilot workspaceless scratch directories survive session disposal on Windows
+
+A user can create a Copilot session without selecting a workspace, which makes the provider allocate a temporary scratch directory. Disposing that session on Windows leaves the directory behind, leaking temporary files and disk space.
+
+- Test: `workspaceless session uses and cleans up a provider scratch directory`.
+- Scope: Copilot on Windows.
+- Expected: disposing the session removes its provider scratch directory.
+- Observed: the scratch directory still exists after the disposal command completes and the cleanup retry expires.
+- Gate: the Windows variant is skipped at the test declaration in `copilotCoverageSuite.ts`.
+- Reproduce on Windows:
+
+  ```powershell
+  .\scripts\test-integration.bat --run `
+    src\vs\platform\agentHost\test\node\e2e\providers\copilotAgentHostE2E.integrationTest.ts `
+    --grep "workspaceless session uses and cleans up"
+  ```
+
+### Copilot custom-terminal command metadata is incomplete on Windows
+
+A user can run a failing command through Copilot's custom terminal tool and expects the terminal transcript to report that the command completed with its real exit code. On Windows, command detection is enabled but the matching command entry has neither completion state nor an exit code.
+
+- Test: `custom terminal tool preserves a nonzero shell exit code`.
+- Scope: Copilot custom terminal tool on Windows.
+- Expected: the terminal command is complete and reports exit code `9`.
+- Observed: the terminal resource exists and supports command detection, but the command entry cannot be found, so completion and exit-code metadata are absent.
+- Gate: the Windows variant is skipped at the test declaration in `copilotCoverageSuite.ts`.
+- Reproduce on Windows:
+
+  ```powershell
+  .\scripts\test-integration.bat --run `
+    src\vs\platform\agentHost\test\node\e2e\providers\copilotAgentHostE2E.integrationTest.ts `
+    --grep "custom terminal tool preserves a nonzero"
+  ```
+
+### Copilot client-plugin hooks do not execute on Windows
+
+A user can contribute lifecycle hooks through a client-pushed Copilot plugin to observe session creation, submitted prompts, tool calls, results, and session disposal. On Windows, the plugin's skill and MCP server work, but none of its hook commands write their expected output, so hook-driven automation never runs.
+
+- Tests:
+  - `plugin SessionStart hook runs when the provider materializes`
+  - `plugin UserPromptSubmit hook receives the submitted prompt`
+  - `plugin PreToolUse hook runs before an MCP tool`
+  - `plugin PostToolUse hook runs after an MCP tool result`
+  - `plugin SessionEnd hook runs when the session is disposed`
+  - `failing plugin hook is non-fatal to the provider turn`
+  - `non-JSON plugin hook output is ignored without failing the provider turn`
+- Scope: Copilot client-pushed plugins on Windows.
+- Expected: each configured hook executes and writes its event payload; failure and non-JSON variants remain non-fatal to the provider turn.
+- Observed: each scenario completes its provider turn, but the expected hook log is never created or updated.
+- Gate: all seven Windows variants use the platform-scoped `pluginHookTest` registration in `mcpPluginSuite.ts`.
+- Reproduce on Windows:
+
+  ```powershell
+  .\scripts\test-integration.bat --run `
+    src\vs\platform\agentHost\test\node\e2e\providers\copilotAgentHostE2E.integrationTest.ts `
+    --grep "plugin .* hook|failing plugin hook|non-JSON plugin hook"
+  ```
+
+### File-tool denial mutates the workspace during Linux replay
+
+- Test: `declining a file creation tool prevents the mutation and completes the turn`.
+- Scope: Claude and Copilot on Linux.
+- Expected: declining the `Write` tool prevents `denied.txt` from being created and the replayed turn completes.
+- Observed: the turn completes, but `denied.txt` exists on Linux. For Copilot, the host auto-approves the in-workspace write before the synthetic denial reaches the permission request; both providers pass on macOS.
+- Gate: the Claude and Copilot variants are disabled on Linux through `fileToolDenialReplayUnstableOnLinux`.
+- Reproduce on Linux:
+
+  ```bash
+  ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/{claude,copilot}AgentHostE2E.integrationTest.ts \
+    --grep "declining a file creation tool"
+  ```
+
+### Client-pushed plugin MCP coverage is provider-scoped
+
+- Tests: the `client plugin …` and `plugin MCP …` scenarios in `mcpPluginSuite.ts`.
+- Scope: Claude and Codex.
+- Expected: providers that consume client-pushed plugin customizations expose the parsed plugin and can execute its MCP tools through deterministic replay.
+- Observed:
+  - Claude does not publish the client-pushed plugin through this customization path; its native customization discovery uses separate `.claude` roots.
+  - Codex publishes the plugin catalog, but its model-backed recording path is unavailable in this harness because live Responses requests fail before the model turn with a malformed authorization-header response.
+- Gate: the suite excludes Claude; Codex runs host-only catalog/toggle coverage while model-backed MCP scenarios run only for Copilot.
+- Reproduce:
+
+  ```bash
+  ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts \
+    --grep "client plugin exposes"
+  ```
+
+  ```bash
+  AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
+    --grep "plugin MCP tool executes"
+  ```
+
+### Claude paused-turn cancellation is not replay-stable
+
+- Tests:
+  - `cancelling a turn paused for input allows a replacement turn`
+  - `cancelling a turn paused for file-tool approval allows a replacement turn`
+- Scope: Claude replay.
+- Expected: cancelling while the turn waits for input or tool approval ends that turn and allows a fresh replacement turn to complete.
+- Observed: replay either continues the cancelled input turn's response or reports a chat error before the replacement can complete.
+- Gate: `supportsPausedTurnCancellationE2E` is enabled only for Copilot.
+- Reproduce:
+
+  ```bash
+  ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts \
+    --grep "cancelling a turn paused"
+  ```
+
+### Codex retains a client plugin after the active client is removed
+
+- Test: `removing the active client removes its plugin customization`.
+- Scope: Codex.
+- Expected: `session/activeClientRemoved` removes the departing client's plugin from the session customization catalog.
+- Observed: the active client is removed but the plugin customization remains in session state.
+- Gate: the Codex variant is disabled at the `providerHostOnlyTest` declaration in `mcpPluginSuite.ts`.
+- Reproduce:
+
+  ```bash
+  ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
+    --grep "removing the active client removes its plugin customization"
+  ```
+
+### Claude truncation does not produce a replay-stable follow-up request
+
+- Test: `truncating a materialized chat removes later context and allows continuation`.
+- Scope: Claude.
+- Expected: after `chat/truncated` removes the second turn, the follow-up model request contains the first turn and follow-up only.
+- Observed: live recording sends the expected pruned request, while replay rebuilds the follow-up request with the removed second turn still present.
+- Gate: `supportsTruncateE2E` is enabled only for Copilot.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts \
+    --grep "truncating a materialized chat"
+  ```
 
 ## Structural coverage gaps
 
@@ -26,7 +372,7 @@ The blanket `!isWindows` shell exclusion is gone: `portableShellToolReplayEnable
 The following tests remain scoped at their call sites:
 
 - `a bang command runs locally and exposes terminal output` — the successful bang command produces output but does not complete reliably. Not a portability problem.
-- `worktree session uses the resolved worktree as working directory` — the whole scenario is skipped on Windows after CI exposed two blockers unrelated to command portability, described below.
+- `worktree session uses the resolved worktree as working directory` — the whole scenario is skipped on Windows because the host terminal tool does not expose a terminal resource there, as described below.
 
 The prompt snapshots in `providers/copilotPromptsE2E.integrationTest.ts` are also POSIX-only — every model, by construction rather than because of an observed failure.
 
@@ -47,9 +393,9 @@ The E2E workspaces come from `os.tmpdir()`, and what that returns is not what a 
 | Windows CI | `C:\Users\CLOUDT~1\AppData\Local\Temp\…` (8.3 short form) | `C:\Users\cloudtest\AppData\Local\Temp\…` |
 | macOS | `/var/folders/…` (logical) | `/private/var/folders/…` (physical) |
 
-Any assertion that a command's output *contains* a path built from `tmpdir()` is therefore comparing two different spellings of the same directory. `normalizeSnapshotText` already strips `/private` for the macOS case, but a test asserting directly on tool output — rather than through a snapshot — has no such help.
+Any assertion that a command's output *contains* a path built from `tmpdir()` is therefore comparing two different spellings of the same directory. `normalizeSnapshotText` strips `/private` for snapshots, while direct worktree assertions accept both the reported path and its `realpathSync` canonical form.
 
-This is why `worktree session uses the resolved worktree as working directory` fails on Windows CI: the assertion never matches, and the test times out waiting for output that will never arrive in the expected form. Reworking it means resolving both sides with `realpathSync.native` before comparing, which also removes the macOS special case.
+This path aliasing previously made `worktree session uses the resolved worktree as working directory` time out after the tool and turn had already completed on macOS, and would have failed the same way on Windows. The test now canonicalizes direct path comparisons; the separate missing Windows terminal resource remains the platform blocker.
 
 ### The host terminal tool surfaces no content on Windows
 
@@ -140,6 +486,89 @@ A capture that genuinely cannot be refreshed goes in `STALE_RECORDED_REQUEST_EXC
   Remove the entry from `STALE_RECORDED_REQUEST_EXCEPTIONS` and re-record once the fork defect is fixed.
 ## Suspected product bugs
 
+### Copilot session debug export omits provider log entries
+
+A user can export debug logs for a completed Copilot session to diagnose provider behavior. The export reports that provider logs were included, but its manifest contains only Agent Host process logs, so the provider-specific evidence needed for troubleshooting is absent.
+
+- Test: `materialized Copilot debug collection includes provider log entries`.
+- Scope: Copilot sessions on all platforms.
+- Expected: a session-scoped debug export reports `providerLogsIncluded: true` and lists at least one provider log in addition to the Agent Host process log.
+- Observed: the export reports `providerLogsIncluded: true`, but every manifest entry is an Agent Host process log.
+- Gate: the scenario requires `AGENT_HOST_RUN_KNOWN_ISSUES=1` in fixture-recording mode.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_RUN_KNOWN_ISSUES=1 AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "materialized Copilot debug collection includes provider log entries"
+  ```
+
+### Resource reads ignore the requested base64 encoding
+
+A client can request arbitrary file bytes from the Agent Host in base64 so binary data remains lossless. The host always reports UTF-8 instead, and bytes that are not valid UTF-8 cannot be reconstructed by the client.
+
+- Test: `resourceRead returns requested base64 content without byte loss`.
+- Scope: conformance reference provider on all platforms.
+- Expected: AHP `resourceRead` honors `encoding: "base64"` and returns all requested bytes with `encoding: "base64"`.
+- Observed: the response reports `encoding: "utf-8"` and stringifies the raw bytes as text.
+- Gate: the scenario requires `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_RUN_KNOWN_ISSUES=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/conformance/agentHostConformance.integrationTest.ts \
+    --grep "resourceRead returns requested base64 content without byte loss"
+  ```
+
+### Branch changeset stays stale after a second edit to the same file
+
+- Test: `a second edit updates one changeset entry in place`.
+- Scope: conformance reference provider, branch changeset subscribed across two host-local turns.
+- Expected: after the second turn adds a third line, the existing file entry keeps its identity and updates from `+2 -1` to `+3 -1`.
+- Observed: the changeset remains ready with the first turn's `+2 -1` diff and never publishes the second edit.
+- Gate: the affected `conformanceTest` is disabled at its declaration in `changesetSuite.ts`.
+- Reproduce:
+
+  ```bash
+  ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/conformance/agentHostConformance.integrationTest.ts \
+    --grep "a second edit updates one changeset entry in place"
+  ```
+
+### Multi-client subscriptions do not consistently isolate and broadcast channel traffic
+
+- Tests:
+  - `a chat action is broadcast to every subscribed client`
+  - `an unsubscribed client stops receiving channel actions`
+  - `terminal output is streamed to every subscribed client`
+  - `root session summaries are broadcast to every subscribed client`
+- Scope: conformance reference provider with two initialized AHP clients connected to one real host.
+- Expected: every client subscribed to a chat, terminal, or root channel receives its actions and notifications; unsubscribing one client does not affect another client's subscription.
+- Observed: the additional client receives no chat draft, terminal data, or root summary notification, and after it unsubscribes the shared client's next session action does not echo.
+- Gate: each affected `conformanceTest` is disabled at its declaration in `protocolContractsSuite.ts`.
+- Reproduce:
+
+  ```bash
+  ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/conformance/agentHostConformance.integrationTest.ts \
+    --grep "chat action is broadcast|unsubscribed client|terminal output is streamed|root session summaries"
+  ```
+
+### Discard changes fails for an untracked file
+
+- Test: `discarding an untracked file removes it from disk`.
+- Scope: conformance reference provider, uncommitted changeset with one untracked file.
+- Expected: the advertised resource-scoped `discard-changes` operation removes the untracked file and returns to idle.
+- Observed: the operation fails because `git restore` reports that the untracked path does not match a file known to Git.
+- Gate: the affected `conformanceTest` is disabled at its declaration in `changesetSuite.ts`.
+- Reproduce:
+
+  ```bash
+  ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/conformance/agentHostConformance.integrationTest.ts \
+    --grep "discarding an untracked file"
+  ```
+
 ### Checkpoint-backed per-turn changesets omit host-local filesystem edits
 
 - Tests:
@@ -179,37 +608,106 @@ A capture that genuinely cannot be refreshed goes in `STALE_RECORDED_REQUEST_EXC
 
   Substitute `codexAgentHostE2E.integrationTest.ts` to reproduce the Codex variant.
 
-### Claude `create_chat` server-tool turns do not complete
+### Claude current-session creation turns do not complete
 
 - Tests:
-  - `server tool: create_chat defaults to the invoking session and starts its local prompt`
-  - `server tool: create_chat applies an explicit peer title`
+  - `server tool: create_session currentSession starts a prompt in a peer chat`
+  - `server tool: create_session currentSession applies an explicit peer title`
 - Scope: Claude.
 - Expected: after confirmation, the host creates the peer chat, starts the local `/rename` prompt there, returns the tool result, and completes the invoking turn.
 - Observed: the confirmation is accepted, but the invoking turn never reaches tool completion or `chat/turnComplete`.
-- Gate: `supportsServerToolCreateChat` in `serverToolsSuite.ts`.
+- Gate: `supportsCurrentSessionCreation` in `serverToolsSuite.ts`.
 - Reproduce:
 
   ```bash
   AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
     src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts \
-    --grep "server tool: create_chat defaults"
+    --grep "server tool: create_session currentSession starts"
   ```
 
-### Codex does not surface feedback server-tool confirmation
+### Claude omits important tool details when reading another session's transcript
 
-- Test: `server tool: viewUnreviewedComments returns selected feedback and clears pending reveal state`.
+The `get_session_context` tool lets an agent read the conversation history of an existing session. Its most detailed mode includes the tools used in earlier turns and the arguments passed to those tools, which helps the agent understand what work has already been performed.
+
+With Claude, that detailed history omits the arguments of a previous `list_sessions` call and exposes the provider's internal name, `mcp__host__list_sessions`, instead of the product-facing name. An agent using this history may be unable to tell what an earlier tool call did, causing it to repeat work or make decisions from an incomplete account of the session.
+
+- Test: `server tool: get_session_context full includes prior server-tool input`.
+- Scope: Claude.
+- Expected: the returned transcript identifies the earlier tool as `list_sessions` and includes its `{}` input.
+- Observed: the transcript identifies it as `mcp__host__list_sessions` and omits the input.
+- Gate: `supportsFullSessionContext` in `serverToolsSuite.ts`.
+- Reproduce: record the exact test with the Claude provider.
+
+### Claude reports that another session was deleted but leaves it available
+
+The `delete_session` tool lets an agent delete a different Agent Host session. Claude reports that this operation succeeded, but the supposedly deleted session remains in the session list.
+
+For users, this means a request to clean up an obsolete session may appear successful even though nothing was removed. The stale session can remain visible and available for later operations, contradicting the agent's confirmation.
+
+- Test: `server tool: delete_session removes a non-current session`.
+- Scope: Claude.
+- Expected: after the tool reports success, the target no longer appears in `listSessions`.
+- Observed: the target is still listed after the tool completes and remains listed after repeated checks.
+- Gate: `supportsCrossSessionDelete` in `serverToolsSuite.ts`.
+- Reproduce: record the exact test with the Claude provider.
+
+### Claude can send a message to the chat that is already running the tool
+
+The `send_message` tool is intended for contacting another session or chat. The host rejects attempts to target the same chat that is currently invoking the tool, because doing so can recursively start more work in an already active conversation.
+
+Claude bypasses that protection and starts another turn in the current chat. A user could therefore see unexpected duplicate work, recursive agent activity, or a conversation that repeatedly messages itself.
+
+- Test: `server tool: send_message refuses to target the invoking chat`.
+- Scope: Claude.
+- Expected: the tool fails with an error explaining that it cannot send a message to the current chat.
+- Observed: another turn starts in the current chat instead of the tool returning the safety error.
+- Gate: `supportsSelfSendRejection` in `serverToolsSuite.ts`.
+- Reproduce: record the exact test with the Claude provider.
+
+For all three Claude tests:
+
+```bash
+AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
+  src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts \
+  --grep "server tool: (get_session_context full|delete_session removes|send_message refuses)"
+```
+
+### Codex cannot complete several workflows that refer to another session
+
+Agent Host gives sessions stable links so an agent can look up a particular session, send work to another session, or delete another session. In the affected Codex workflows, the provider fails a model request with `Authorization header is badly formatted` before the requested session tool can run.
+
+Users may be unable to use session links or ask a Codex agent to coordinate with or remove another session. The failure currently appears as an authentication error rather than a useful explanation of which cross-session operation could not be completed. It is not yet known whether the malformed authorization originates in Codex's handling of additional sessions or in the Agent Host integration.
+
+- Tests:
+  - `server tool: list_sessions direct lookup accepts an open-session link`
+  - `server tool: send_message starts a turn in another session`
+  - `server tool: delete_session removes a non-current session`
 - Scope: Codex.
-- Expected: `viewUnreviewedComments` reaches `chat/toolCallReady` with an unconfirmed tool call so the client can choose which comments to reveal.
-- Observed: the server tool executes and returns the selected comment, but no pending confirmation is emitted.
-- Gate: the Codex variant is skipped by `supportsViewUnreviewedComments` in `serverToolsSuite.ts`. Its recorded fixture remains because the harness resolves the capture before Mocha applies the provider gate.
-- Reproduce:
+- Expected: Codex completes the model turn and invokes the requested session tool with the referenced session.
+- Observed: direct lookup fails its first model request; send and delete fail while preparing the additional target session. Each failure reports `Authorization header is badly formatted`.
+- Gates: `supportsDirectSessionLookup`, `supportsCrossSessionSend`, and `supportsCrossSessionDelete` in `serverToolsSuite.ts`.
+- Reproduce: record the affected tests with the Codex provider.
 
-  ```bash
-  AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
-    --grep "server tool: viewUnreviewedComments"
-  ```
+### Codex can send a message to the chat that is already running the tool
+
+As with Claude, Codex does not enforce the `send_message` protection that prevents an active chat from messaging itself. Instead of rejecting the call, Codex starts another turn in the current chat.
+
+This can produce unexpected duplicate or recursive agent work for users and defeats the host's loop-prevention contract.
+
+- Test: `server tool: send_message refuses to target the invoking chat`.
+- Scope: Codex.
+- Expected: the tool fails with an error explaining that it cannot send a message to the current chat.
+- Observed: another turn starts in the current chat instead of the tool returning the safety error.
+- Gate: `supportsSelfSendRejection` in `serverToolsSuite.ts`.
+- Reproduce: record the exact test with the Codex provider.
+
+For the affected Codex tests:
+
+```bash
+AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
+  src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
+  --grep "server tool: (list_sessions direct lookup|send_message|delete_session removes)"
+```
 
 ### Claude provider-context fork
 
@@ -267,8 +765,9 @@ Three rows remain, and they are not about command portability:
 |---|---|---|
 | `a bang command runs locally and exposes terminal output` | Windows | The successful bang command produces output but does not complete reliably. |
 | `resource watch reports changes on its subscribed channel` | Windows | The subscribed filesystem watch does not emit `resourceWatch/changed` after a protocol `resourceWrite` within the test timeout. Descriptor, missing-root, and resource mutation coverage remain enabled. |
-| `worktree session uses the resolved worktree as working directory` | Windows | `os.tmpdir()` yields an 8.3 short path while the shell reports the long path, and Copilot's completed host-terminal call publishes no terminal-content notification. |
+| `worktree session uses the resolved worktree as working directory` | Windows | Copilot's completed host-terminal call publishes no terminal-content notification, so the test cannot subscribe to the terminal and assert its working directory. |
 | ``strips redundant `cd <workingDirectory> &&` prefix from shell tool calls`` | Copilot on Windows | The turn completes, but `chat/toolCallReady` omits the `toolInput` needed to assert that the prefix was removed. |
+| `shell read helper remains a non-terminal tool` | Copilot on Windows | The scenario depends on completed ordinary-shell output, which the Copilot provider does not reliably surface on Windows; the read-helper protocol shape remains covered on POSIX. |
 
 Copilot's ordinary provider shell also omits `ToolResultTerminalContent.result.preview` on Windows, while its terminal-shaped resource is not backed by the host terminal manager and cannot be subscribed. These tests are skipped for Copilot on Windows because their direct output oracle would otherwise be empty:
 
@@ -309,6 +808,29 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
 
   Temporarily clear `shellToolReplayUnstableOnLinux`.
 
+### Codex successful shell result text
+
+- Tests:
+  - `worktree session uses the resolved worktree as working directory`
+  - `reads an existing text file`
+  - `reads a file from a nested directory`
+  - `lists workspace entries`
+  - `reads a value from JSON`
+  - `counts lines in a file`
+  - `handles a missing file without a session error`
+  - `runs a deterministic shell command`
+  - `inspects git status`
+- Scope: Codex.
+- Expected: successful shell tool completions include the command output in their result text.
+- Observed: the turn response contains the expected value, but the successful tool completion can have an empty `text` field.
+- Gate: these nine tests remain enabled for other providers and are skipped for Codex.
+- Tracking issue: [#329512](https://github.com/microsoft/vscode/issues/329512).
+- Failing runs:
+  - [PR #329485](https://github.com/microsoft/vscode/actions/runs/31132506547/job/92724492870?pr=329485)
+  - [PR #329492](https://github.com/microsoft/vscode/actions/runs/31130785836/job/92718953820?pr=329492)
+  - [PR #329517](https://github.com/microsoft/vscode/actions/runs/31148098482/job/92771783938?pr=329517)
+  - [PR #329867](https://github.com/microsoft/vscode/actions/runs/31342377741/job/93319069992?pr=329867)
+
 ### Claude subagent replay on Windows
 
 - Test: `reopening a session keeps sub-agent messages out of the parent transcript (replay path)`.
@@ -318,40 +840,6 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
 - Gate: `subagentReplayUnstableOnWindows: true`.
 - Related investigation: [#325284](https://github.com/microsoft/vscode/pull/325284).
 - Reproduce: temporarily clear the gate and run the exact title with `scripts\test-integration.bat`.
-
-### Git-status snapshot ordering
-
-- Test: `inspects git status`.
-- Scope: Claude and Codex.
-- Expected: the behavior snapshot contains stable semantic tool traffic.
-- Observed: customization and changeset notifications occur at nondeterministic points in the snapshot.
-- Gate: enabled only for Copilot, subject to shell-platform gates.
-- Reproduce: enable the provider variant and record the exact title with `AGENT_HOST_UPDATE_SNAPSHOTS=1`.
-
-### Server-tool session references cannot replay across UUID-only providers
-
-- Tests:
-  - `server tool: list_sessions direct lookup accepts an open-session link`
-  - `server tool: get_session_context summary includes a completed prior turn`
-  - `server tool: get_session_context full includes prior server-tool input`
-  - `server tool: get_session_context transcriptLimit keeps only the newest turn`
-  - `server tool: send_message starts a turn in another session`
-  - `server tool: delete_session removes a non-current session`
-  - `server tool: send_message refuses to target the invoking chat`
-  - `server tool: delete_session refuses to delete the invoking session`
-- Scope: Claude and Codex deterministic E2E replay.
-- Expected: the model can pass a session URI returned by the host back into a later server-tool invocation.
-- Observed: Claude requires UUID-shaped session resources. The capture normalizer rewrites those UUIDs to `${uuid_N}`, but replay cannot map that placeholder to the fresh run's session URI when it appears in a later tool argument. Copilot accepts stable non-UUID test resources, so these scenarios replay there.
-- Gate: `supportsReplayableSessionReferences` in `serverToolsSuite.ts`.
-- Reproduce: temporarily enable the selected provider and record one test, then replay it:
-
-  ```bash
-  AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts \
-    --grep "server tool: get_session_context summary"
-  ```
-
-The remaining server-tool scenarios use no session URI in model-generated tool arguments and remain enabled for every provider.
 
 ### Mid-turn abort is record-only
 
@@ -371,6 +859,50 @@ The remaining server-tool scenarios use no session URI in model-generated tool a
   AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
     src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
     --grep "accepted steering followed by abort"
+  ```
+
+### Retryable Copilot errors are temporarily disabled
+
+Copilot errors currently end a turn without offering an in-place retry. The retry protocol remains implemented, but the host intentionally omits the `resumable` marker from live, restored, and repeated errors until the feature is re-enabled.
+
+- Tests:
+  - `resumes a failed turn in place`
+  - `resumes the same turn after repeated failures`
+  - `restores and resumes a turn interrupted by host shutdown`
+- Scope: Copilot on all platforms and execution modes.
+- Expected when enabled: a failed turn is marked resumable, and retrying continues the same turn without adding another user message. An unfinished request restored after host shutdown has the same behavior.
+- Observed: Copilot errors intentionally omit the `resumable` marker, so clients cannot request an in-place retry.
+- Gate: all three scenarios are unconditionally skipped. The host-shutdown scenario additionally requires direct `AGENT_HOST_REPLAY_RECORD=1` mode because replay has no active streaming window to terminate.
+- Run after removing the temporary gate:
+
+  ```bash
+  ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "resumes a failed turn in place|resumes the same turn after repeated failures"
+
+  AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "restores and resumes a turn interrupted by host shutdown"
+  ```
+
+### Codex model-backed multiple-chat recording
+
+- Tests: the model-backed peer-chat and fork scenarios in `multiChatSuite.ts`, and `side chat receives bounded source context without copied history`.
+- Scope: Codex recording and strict replay only. Codex advertises `multipleChats.fork` and `multipleChats.sideChat`; host-only capability checks and conformance catalog/lifecycle scenarios run.
+- Expected: focused `AGENT_HOST_UPDATE_SNAPSHOTS=1` recording produces Codex peer/fork/side-chat captures that replay without cache misses.
+- Observed: on the current live recording path, even the existing simple Codex recording fails before producing a usable model response; peer turns report a CAPI malformed authorization-header error. The side-chat scenario shares that recording path and has no accepted capture. No fixtures are accepted or hand-edited.
+- Gate: `supportsMultipleChatsE2E: false`, `supportsChatForkE2E: false`, and `supportsSideChatsE2E: false`.
+- Reproduce:
+
+  ```bash
+  unset GITHUB_TOKEN
+  AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
+    --grep "peer chat completes a simple turn"
+
+  AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
+    --grep "side chat receives bounded source context without copied history"
   ```
 
 ## Test-design limitations
@@ -393,8 +925,9 @@ A test that checks only its final dispatch can miss an earlier action that was e
 
 | Capability | Gate | Provider(s) skipped | Effect |
 |---|---|---|---|
-| Multiple chats | `supportsMultipleChats` | Codex | Model-backed peer-chat scenarios skip; the negative capability test still runs. |
-| Chat fork | `supportsChatForkE2E` | Codex | Provider-backed fork scenarios skip. Claude's use of the same gate is the bug above. |
+| Model-backed multiple chats | `supportsMultipleChatsE2E` | Codex | Capability and conformance scenarios run; provider/model peer turns skip until focused Codex captures can be recorded. |
+| Provider-backed fork parity | `supportsChatForkE2E` | Claude, Codex | Fork capability remains advertised; model-backed fork-context assertions skip. |
+| Side-chat context parity | `supportsSideChatsE2E` | Codex | Side-chat capability remains advertised; model-backed hidden-context assertions skip pending focused Codex captures. |
 | Subagents | `supportsSubagents` | Codex | Subagent routing and reopen scenarios skip. |
 | Streaming file creation | `streamingFileCreateToolName` | Codex | Argument-delta coverage requires a native file-creation tool; shell-backed file behavior is covered separately. |
 | Plan mode | `supportsPlanMode` | Codex | The plan-mode scenario skips. Claude's use of the same gate is the prompt limitation above. |
@@ -407,3 +940,21 @@ The entire Claude or Codex suite also skips when its bundled SDK package is unav
 2. Reevaluate broad provider gates one title at a time and check whether a capture exists.
 3. Re-record narrowly after SDK/CLI behavior changes and review every generated artifact.
 4. Remove fixed gates, entries, comments, and orphaned captures together.
+### Codex provider context restoration can time out
+
+A user can restart Agent Host and continue an existing Codex conversation. The restored turn can start
+without ever completing, so the user cannot continue the conversation after the host restart. This has
+reproduced in replay on Windows and Linux.
+
+- Test: `session metadata history and provider context survive a host restart`
+- Scope: Codex.
+- Expected: the restored session retains its transcript and provider context, and a follow-up turn completes.
+- Observed: the follow-up emits `chat/turnStarted` but no completion before the 90-second timeout.
+- Gate: skipped for Codex unless `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_RUN_KNOWN_ISSUES=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
+    --grep "session metadata history and provider context survive"
+  ```

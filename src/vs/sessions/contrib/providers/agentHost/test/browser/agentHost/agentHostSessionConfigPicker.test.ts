@@ -27,7 +27,7 @@ import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../
 import { ISessionsProvidersService } from '../../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IActiveSession } from '../../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../../../services/sessions/common/sessionsProvider.js';
-import { AgentHostSessionConfigPicker, IConfigPickerItem } from '../../../browser/agentHostSessionConfigPicker.js';
+import { AgentHostSessionConfigPicker, IConfigPickerItem, PickerActionViewItem } from '../../../browser/agentHostSessionConfigPicker.js';
 
 const SESSION_ID = 'local-agent-host:s1';
 
@@ -231,6 +231,38 @@ suite('Agent Host Session Config Picker', () => {
 		});
 	});
 
+	test('picker action view items expose responsive compact state', () => {
+		let pickerAnchor: HTMLElement | undefined;
+		const item = store.add(new PickerActionViewItem({
+			render: () => { },
+			showPicker: anchor => {
+				pickerAnchor = anchor;
+				return true;
+			},
+			dispose: () => { },
+		}));
+		const container = document.createElement('div');
+		const overflowAnchor = document.createElement('button');
+		item.render(container);
+		const expanded = {
+			compact: item.isCompact(),
+			className: container.classList.contains('compact-picker'),
+		};
+
+		item.setCompact(true);
+		item.show(overflowAnchor);
+		const compact = {
+			compact: item.isCompact(),
+			className: container.classList.contains('compact-picker'),
+			usesOverflowAnchor: pickerAnchor === overflowAnchor,
+		};
+
+		assert.deepStrictEqual({ expanded, compact }, {
+			expanded: { compact: false, className: false },
+			compact: { compact: true, className: true, usesOverflowAnchor: true },
+		});
+	});
+
 	test('a picker recreated on a session switch still renders the provider-seeded chips (disabled) while resolving', () => {
 		const services = setupServices(store);
 		const { provider } = services;
@@ -392,7 +424,7 @@ suite('Agent Host Session Config Picker', () => {
 		assert.strictEqual(isolationSlot(container), null);
 	});
 
-	test('never renders a chip for the hidden worktreeBranchTrack carrier property', () => {
+	test('never renders chips for hidden worktree branch carrier properties', () => {
 		const services = setupServices(store);
 		services.provider.config = {
 			schema: {
@@ -407,14 +439,18 @@ suite('Agent Host Session Config Picker', () => {
 						title: 'Track Branch', description: '', type: 'boolean',
 						default: false, readOnly: true, sessionMutable: false,
 					},
+					[SessionConfigKey.WorktreeCreateNewBranch]: {
+						title: 'Create New Branch', description: '', type: 'boolean',
+						default: true, readOnly: true, sessionMutable: false,
+					},
 				},
 			},
-			values: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.WorktreeBranchTrack]: false },
+			values: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.WorktreeBranchTrack]: false, [SessionConfigKey.WorktreeCreateNewBranch]: true },
 		} as ResolveSessionConfigResult;
 		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs));
 		const container = document.createElement('div');
 		picker.render(container);
 
-		assert.strictEqual(container.querySelectorAll('.sessions-chat-picker-slot').length, 1, 'only the isolation checkbox renders, not a worktreeBranchTrack chip');
+		assert.strictEqual(container.querySelectorAll('.sessions-chat-picker-slot').length, 1, 'only the isolation checkbox renders');
 	});
 });
