@@ -36,16 +36,19 @@ export class RemoteNativeMpcDiscovery extends NativeFilesystemMcpDiscovery {
 			return this.setDetails(undefined);
 		}
 
-		await connection.withChannel(NativeMcpDiscoveryHelperChannelName, async channel => {
-			const service = ProxyChannel.toService<INativeMcpDiscoveryHelperService>(channel);
-
-			service.load().then(
-				data => this.setDetails(data),
-				err => {
-					this.logService.warn('Error getting remote process MCP environment', err);
+		try {
+			await connection.withChannel(NativeMcpDiscoveryHelperChannelName, async channel => {
+				const service = ProxyChannel.toService<INativeMcpDiscoveryHelperService>(channel);
+				try {
+					this.setDetails(await service.load());
+				} catch (error) {
+					this.logService.warn('Error getting remote process MCP environment', error);
 					this.setDetails(undefined);
 				}
-			);
-		});
+			});
+		} catch (error) {
+			this.logService.warn('Error connecting to remote process MCP environment', error);
+			this.setDetails(undefined);
+		}
 	}
 }

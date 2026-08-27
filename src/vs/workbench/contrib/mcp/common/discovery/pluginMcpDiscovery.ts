@@ -7,7 +7,7 @@ import { hash } from '../../../../../base/common/hash.js';
 import { Disposable, DisposableResourceMap } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, observableValue } from '../../../../../base/common/observable.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
@@ -20,8 +20,9 @@ import {
 } from '../../../chat/common/plugins/agentPluginService.js';
 import { isContributionEnabled } from '../../../chat/common/enablement.js';
 import { IMcpRegistry } from '../mcpRegistryTypes.js';
-import { MCP_PLUGIN_COLLECTION_ID_PREFIX, McpCollectionProvenance, McpCollectionSortOrder, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust } from '../mcpTypes.js';
-import { IMcpDiscovery } from './mcpDiscovery.js';
+import { MCP_PLUGIN_COLLECTION_ID_PREFIX, McpCollectionProvenance, McpCollectionSortOrder, McpDiscoveryFormat, McpDiscoveryScope, McpDiscoverySource, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust } from '../mcpTypes.js';
+import { IMcpConfigurationTelemetrySnapshot, IMcpDiscovery, IMcpDiscoveryTelemetryCandidate, IMcpDiscoveryTelemetrySnapshot } from './mcpDiscovery.js';
+import { mcpCandidate, mcpHost } from './mcpDiscoveryTelemetry.js';
 
 /**
  * Prefix used for the {@link McpCollectionDefinition.id | collection id} of
@@ -35,6 +36,8 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 	readonly fromGallery = false;
 
 	private readonly _collections = this._register(new DisposableResourceMap());
+	private readonly _telemetrySnapshot = observableValue<IMcpDiscoveryTelemetrySnapshot | undefined>(this, undefined);
+	readonly telemetrySnapshot = this._telemetrySnapshot;
 
 	constructor(
 		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
@@ -45,14 +48,66 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 
 	public start(): void {
 		this._register(autorun(reader => {
-			const plugins = this._agentPluginService.plugins.read(reader);
+			if (!this._agentPluginService.discoveryComplete.read(reader)) {
+				return;
+			}
+			const enabledPlugins = new Set(this._agentPluginService.plugins.read(reader));
+			const plugins = this._agentPluginService.discoveredPlugins.read(reader);
 			const seen = new ResourceSet();
+			const candidates: IMcpDiscoveryTelemetryCandidate[] = [];
+			const configurations: IMcpConfigurationTelemetrySnapshot[] = [];
+			let telemetryReady = true;
 			for (const plugin of plugins) {
-				if (!isContributionEnabled(plugin.enablement.read(reader))) {
+				const discoveryResult = plugin.mcpDiscoveryResult?.read(reader);
+				const servers = discoveryResult?.serverDefinitions ?? plugin.mcpServerDefinitions.read(reader);
+				const state = discoveryResult ?? plugin.mcpConfigurationState?.read(reader) ?? {
+					configurationPresent: servers.length > 0 ? 1 : 0,
+					parseErrorCount: 0,
+					unreadableCount: 0,
+				};
+				const pluginTelemetryReady = plugin.mcpDiscoveryReady?.read(reader) ?? true;
+				telemetryReady &&= pluginTelemetryReady;
+				if (!pluginTelemetryReady) {
+					if (this._collections.has(plugin.uri)) {
+						seen.add(plugin.uri);
+					}
 					continue;
 				}
-				const servers = plugin.mcpServerDefinitions.read(reader);
-				if (servers.length === 0) {
+				if (servers.length === 0 && state.configurationPresent === 0 && state.parseErrorCount === 0 && state.unreadableCount === 0) {
+					continue;
+				}
+				const host = mcpHost(plugin.uri.scheme === Schemas.vscodeRemote ? plugin.uri.authority : null);
+				const blocked = plugin.policyBlocked?.read(reader) === true;
+				const enabled = enabledPlugins.has(plugin) && isContributionEnabled(plugin.enablement.read(reader));
+				if (pluginTelemetryReady) {
+					for (const server of servers) {
+						const valid = this._toServerDefinition('telemetry', server) !== undefined;
+						candidates.push(mcpCandidate(
+							McpDiscoverySource.Plugin,
+							McpDiscoveryFormat.PluginMap,
+							McpDiscoveryScope.Plugin,
+							host,
+							blocked ? 'blocked' : !enabled ? 'disabled' : valid ? 'loaded' : 'parseError',
+						));
+					}
+					for (let i = 0; i < state.parseErrorCount; i++) {
+						candidates.push(mcpCandidate(McpDiscoverySource.Plugin, McpDiscoveryFormat.PluginMap, McpDiscoveryScope.Plugin, host, 'parseError'));
+					}
+					for (let i = 0; i < state.unreadableCount; i++) {
+						candidates.push(mcpCandidate(McpDiscoverySource.Plugin, McpDiscoveryFormat.PluginMap, McpDiscoveryScope.Plugin, host, 'unreadable'));
+					}
+					configurations.push({
+						source: McpDiscoverySource.Plugin,
+						format: McpDiscoveryFormat.PluginMap,
+						scope: McpDiscoveryScope.Plugin,
+						host,
+						configurationPresent: state.configurationPresent,
+						configuredEntryCount: servers.length,
+						parseErrorCount: state.parseErrorCount,
+						unreadableCount: state.unreadableCount,
+					});
+				}
+				if (!enabled || blocked || servers.length === 0) {
 					continue;
 				}
 
@@ -71,6 +126,9 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 					this._collections.deleteAndDispose(pluginUri);
 				}
 			}
+			if (telemetryReady) {
+				this._telemetrySnapshot.set({ candidates, configurations }, undefined);
+			}
 		}));
 	}
 
@@ -87,6 +145,12 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 			serverDefinitions: plugin.mcpServerDefinitions.map(defs =>
 				defs.map(d => this._toServerDefinition(collectionId, d)).filter(isDefined)),
 			order: McpCollectionSortOrder.Plugin,
+			discovery: {
+				source: McpDiscoverySource.Plugin,
+				format: McpDiscoveryFormat.PluginMap,
+				scope: McpDiscoveryScope.Plugin,
+				host: mcpHost(plugin.uri.scheme === Schemas.vscodeRemote ? plugin.uri.authority : null),
+			},
 			presentation: {
 				origin: manifestURI,
 			},

@@ -18,8 +18,9 @@ import { IWorkbenchLocalMcpServer } from '../../../../services/mcp/common/mcpWor
 import { getMcpServerMapping } from '../mcpConfigFileUtils.js';
 import { mcpConfigurationSection } from '../mcpConfiguration.js';
 import { IMcpRegistry } from '../mcpRegistryTypes.js';
-import { IMcpConfigPath, IMcpWorkbenchService, MCP_CONFIGURATION_COLLECTION_ID_PREFIX, McpCollectionDefinition, McpCollectionSortOrder, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust } from '../mcpTypes.js';
-import { IMcpDiscovery } from './mcpDiscovery.js';
+import { IMcpConfigPath, IMcpWorkbenchService, MCP_CONFIGURATION_COLLECTION_ID_PREFIX, McpCollectionDefinition, McpCollectionSortOrder, McpDiscoveryFormat, McpDiscoveryHost, McpDiscoveryScope, McpDiscoverySource, McpInstallProvenance, McpLocalDiscoveryState, McpServerDefinition, McpServerEnablementState, McpServerLaunch, McpServerTransportType, McpServerTrust } from '../mcpTypes.js';
+import { IMcpDiscovery, IMcpDiscoveryTelemetryCandidate, IMcpDiscoveryTelemetrySnapshot } from './mcpDiscovery.js';
+import { mcpCandidate } from './mcpDiscoveryTelemetry.js';
 
 interface CollectionState extends IDisposable {
 	definition: McpCollectionDefinition;
@@ -30,6 +31,8 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 
 	readonly fromGallery = true;
 	private readonly collections = this._register(new DisposableMap<string, CollectionState>());
+	private readonly _telemetrySnapshot = observableValue<IMcpDiscoveryTelemetrySnapshot | undefined>(this, undefined);
+	readonly telemetrySnapshot = this._telemetrySnapshot;
 
 	constructor(
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
@@ -62,9 +65,17 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 
 	private async sync(): Promise<void> {
 		try {
+			const discoveryState = this.mcpWorkbenchService.localDiscoveryState?.get();
+			if (discoveryState === McpLocalDiscoveryState.Pending) {
+				return;
+			}
+			const suppressCandidateTelemetry = discoveryState === McpLocalDiscoveryState.Failed;
+			const enabledLocalServers = this.mcpWorkbenchService.getEnabledLocalMcpServers();
+			const enabledLocalServerSet = new Set(enabledLocalServers);
+
 			const collections = new Map<string, [IMcpConfigPath | undefined, McpServerDefinition[]]>();
 			const mcpConfigPathInfos = new ResourceMap<Promise<IMcpConfigPath & { locations: Map<string, Location> } | undefined>>();
-			for (const server of this.mcpWorkbenchService.getEnabledLocalMcpServers()) {
+			for (const server of enabledLocalServers) {
 				let mcpConfigPathPromise = mcpConfigPathInfos.get(server.mcpResource);
 				if (!mcpConfigPathPromise) {
 					mcpConfigPathPromise = (async (local: IWorkbenchLocalMcpServer) => {
@@ -142,6 +153,10 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 					trustBehavior: McpServerTrust.Kind.Trusted,
 					configTarget: mcpConfigPath?.target ?? ConfigurationTarget.USER,
 					scope: mcpConfigPath?.scope ?? StorageScope.PROFILE,
+					discovery: mcpConfigPath ? {
+						...getMcpConfigDiscoveryMetadata(mcpConfigPath),
+						format: McpDiscoveryFormat.VSCodeServers,
+					} : undefined,
 				};
 				const existingCollection = this.collections.get(id);
 
@@ -163,8 +178,52 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 				});
 			}
 
+			const telemetryCandidates: IMcpDiscoveryTelemetryCandidate[] = [];
+			if (!suppressCandidateTelemetry) {
+				for (const server of this.mcpWorkbenchService.local) {
+					if (!server.local) {
+						continue;
+					}
+					const path = this.mcpWorkbenchService.getMcpConfigPath(server.local);
+					if (!path) {
+						continue;
+					}
+					const metadata = getMcpConfigDiscoveryMetadata(path);
+					let outcome = this.mcpWorkbenchService.getLocalMcpServerDiscoveryOutcome?.(server.local)
+						?? (server.runtimeStatus?.state === McpServerEnablementState.DisabledByAccess
+							? 'blocked'
+							: server.runtimeStatus && server.runtimeStatus.state !== McpServerEnablementState.Enabled ? 'disabled' : 'loaded');
+					if (outcome === 'loaded' && !enabledLocalServerSet.has(server.local)) {
+						outcome = 'rejected';
+					}
+					telemetryCandidates.push(mcpCandidate(
+						metadata.source,
+						McpDiscoveryFormat.VSCodeServers,
+						metadata.scope,
+						metadata.host,
+						outcome,
+						server.local.source === 'gallery' ? McpInstallProvenance.Gallery : McpInstallProvenance.Local,
+					));
+				}
+			}
+			this._telemetrySnapshot.set({ candidates: telemetryCandidates, configurations: [] }, undefined);
+
 		} catch (error) {
 			this.logService.error(error);
+			this._telemetrySnapshot.set({ candidates: [], configurations: [] }, undefined);
 		}
+	}
+}
+
+function getMcpConfigDiscoveryMetadata(path: IMcpConfigPath): { source: McpDiscoverySource; scope: McpDiscoveryScope; host: McpDiscoveryHost } {
+	switch (path.key) {
+		case 'userLocalValue':
+			return { source: McpDiscoverySource.VSCodeUserConfig, scope: McpDiscoveryScope.Profile, host: McpDiscoveryHost.Local };
+		case 'userRemoteValue':
+			return { source: McpDiscoverySource.VSCodeRemoteUserConfig, scope: McpDiscoveryScope.Profile, host: McpDiscoveryHost.Remote };
+		case 'workspaceValue':
+			return { source: McpDiscoverySource.VSCodeWorkspaceConfig, scope: McpDiscoveryScope.Workspace, host: path.remoteAuthority ? McpDiscoveryHost.Remote : McpDiscoveryHost.Local };
+		case 'workspaceFolderValue':
+			return { source: McpDiscoverySource.VSCodeWorkspaceFolderConfig, scope: McpDiscoveryScope.WorkspaceFolder, host: path.remoteAuthority ? McpDiscoveryHost.Remote : McpDiscoveryHost.Local };
 	}
 }

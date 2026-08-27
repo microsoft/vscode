@@ -36,13 +36,13 @@ import { DidUninstallWorkbenchMcpServerEvent, IWorkbenchLocalMcpServer, IWorkben
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { mcpConfigurationSection } from '../common/mcpConfiguration.js';
 import { McpServerInstallData, McpServerInstallClassification } from '../common/mcpServer.js';
-import { HasInstalledMcpServersContext, IMcpConfigPath, IMcpService, IMcpWorkbenchService, IWorkbenchMcpServer, McpCollectionSortOrder, McpServerEnablementState, McpServerInstallState, McpServerEnablementStatus, McpServersGalleryStatusContext } from '../common/mcpTypes.js';
-import { ContributionEnablementState } from '../../chat/common/enablement.js';
+import { HasInstalledMcpServersContext, IMcpConfigPath, IMcpService, IMcpWorkbenchService, IWorkbenchMcpServer, McpCollectionSortOrder, McpLocalDiscoveryState, McpLocalServerDiscoveryOutcome, McpServerEnablementState, McpServerInstallState, McpServerEnablementStatus, McpServersGalleryStatusContext } from '../common/mcpTypes.js';
+import { ContributionEnablementState, isContributionEnabled } from '../../chat/common/enablement.js';
 import { McpServerEditorInput } from './mcpServerEditorInput.js';
 import { IMcpGalleryManifestService } from '../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { IIterativePager, IIterativePage } from '../../../../base/common/paging.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
-import { autorun, runOnChange } from '../../../../base/common/observable.js';
+import { autorun, observableValue, runOnChange } from '../../../../base/common/observable.js';
 import Severity from '../../../../base/common/severity.js';
 import { ThrottledDelayer } from '../../../../base/common/async.js';
 
@@ -309,9 +309,13 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 	private uninstalling: McpWorkbenchServer[] = [];
 
 	private _local: McpWorkbenchServer[] = [];
+	private readonly _localDiscoveryState = observableValue(this, McpLocalDiscoveryState.Pending);
+	readonly localDiscoveryState = this._localDiscoveryState;
 	private registrySyncGeneration = 0;
 	private registryGeneration = 0;
 	private localQueryGeneration = 0;
+	private localQuerySettled = false;
+	private localQueryFailed = false;
 	private profileChangeGeneration = 0;
 	// Source identity is intentionally trusted only in-process; IPC copies are re-verified.
 	private readonly gallerySourceGenerations = new WeakMap<IGalleryMcpServer, number>();
@@ -350,15 +354,12 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		this._register(this.mcpManagementService.onDidUpdateMcpServersInCurrentProfile(e => this.onDidUpdateMcpServers(e)));
 		this._register(this.mcpManagementService.onDidUninstallMcpServerInCurrentProfile(e => this.onDidUninstallMcpServer(e)));
 		this._register(this.mcpManagementService.onDidChangeProfile(e => this.onDidChangeProfile()));
-		this.queryLocal().then(() => {
-			if (this._store.isDisposed) {
-				return;
-			}
-			this._register(mcpGalleryManifestService.onDidChangeMcpGalleryManifest(() => {
-				this.invalidateRegistryVerification();
-				this.scheduleRegistrySync();
-			}));
+		this._register(mcpGalleryManifestService.onDidChangeMcpGalleryManifest(() => {
+			this.invalidateRegistryVerification();
 			this.scheduleRegistrySync();
+		}));
+		void this.queryLocal().catch(error => {
+			this.logService.error(error);
 		});
 		urlService.registerHandler(this);
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -387,8 +388,16 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 	private async onDidChangeProfile() {
 		const profileChangeGeneration = ++this.profileChangeGeneration;
 		const generation = ++this.localQueryGeneration;
+		this.localQuerySettled = false;
+		this.localQueryFailed = false;
+		this._localDiscoveryState.set(McpLocalDiscoveryState.Pending, undefined);
 		this.invalidateRegistryVerification();
-		await this.queryLocalForGeneration(generation);
+		try {
+			await this.queryLocalForGeneration(generation);
+		} catch (error) {
+			this.logService.error(error);
+			return;
+		}
 		if (profileChangeGeneration !== this.profileChangeGeneration) {
 			return;
 		}
@@ -397,6 +406,9 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 	}
 
 	private invalidateRegistryVerification(): void {
+		if (!this.localQueryFailed) {
+			this._localDiscoveryState.set(McpLocalDiscoveryState.Pending, undefined);
+		}
 		this.registryGeneration++;
 		this.registrySyncGeneration++;
 		for (const server of this._local) {
@@ -487,8 +499,25 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 
 	private scheduleRegistrySync(): void {
 		const generation = ++this.registrySyncGeneration;
-		void this.registrySyncDelayer.trigger(() => this.syncInstalledMcpServers(generation))
-			.catch(error => this.logService.error(error));
+		const localQueryGeneration = this.localQueryGeneration;
+		if (!this.localQueryFailed) {
+			this._localDiscoveryState.set(McpLocalDiscoveryState.Pending, undefined);
+		}
+		void this.registrySyncDelayer.trigger(async () => {
+			try {
+				await this.syncInstalledMcpServers(generation);
+			} catch (error) {
+				this.logService.error(error);
+			} finally {
+				if (generation === this.registrySyncGeneration
+					&& localQueryGeneration === this.localQueryGeneration
+					&& this.localQuerySettled
+					&& !this.localQueryFailed) {
+					this._localDiscoveryState.set(McpLocalDiscoveryState.Complete, undefined);
+					this._onChange.fire(undefined);
+				}
+			}
+		}).catch(error => this.logService.error(error));
 	}
 
 	private async syncInstalledMcpServers(generation: number): Promise<void> {
@@ -577,15 +606,34 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 	}
 
 	async queryLocal(): Promise<IWorkbenchMcpServer[]> {
-		await this.queryLocalForGeneration(++this.localQueryGeneration);
+		const generation = ++this.localQueryGeneration;
+		this.localQuerySettled = false;
+		this.localQueryFailed = false;
+		this._localDiscoveryState.set(McpLocalDiscoveryState.Pending, undefined);
+		if (await this.queryLocalForGeneration(generation)) {
+			this.scheduleRegistrySync();
+		}
 		return [...this.local];
 	}
 
 	private async queryLocalForGeneration(generation: number): Promise<boolean> {
-		const installed = await this.mcpManagementService.getInstalled();
+		let installed: IWorkbenchLocalMcpServer[];
+		try {
+			installed = await this.mcpManagementService.getInstalled();
+		} catch (error) {
+			if (generation === this.localQueryGeneration) {
+				this.localQuerySettled = true;
+				this.localQueryFailed = true;
+				this._localDiscoveryState.set(McpLocalDiscoveryState.Failed, undefined);
+				this._onChange.fire(undefined);
+			}
+			throw error;
+		}
 		if (generation !== this.localQueryGeneration) {
 			return false;
 		}
+		this.localQuerySettled = true;
+		this.localQueryFailed = false;
 		this._local = this.sort(installed.map(i => {
 			const existing = this._local.find(local => local.id === i.id);
 			const local = existing ?? this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), e => this.getRuntimeStatus(e), undefined, undefined, undefined);
@@ -594,6 +642,20 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		}));
 		this._onChange.fire(undefined);
 		return true;
+	}
+
+	getLocalMcpServerDiscoveryOutcome(local: IWorkbenchLocalMcpServer): McpLocalServerDiscoveryOutcome {
+		const server = this._local.find(candidate => candidate.local === local || this.areSameMcpServers(candidate.local, local));
+		if (!server) {
+			return 'rejected';
+		}
+		if (this.getEnablementStatus(server)?.state === McpServerEnablementState.DisabledByAccess) {
+			return 'blocked';
+		}
+		if (!isContributionEnabled(this.mcpService.enablementModel.readEnabled(server.id))) {
+			return 'disabled';
+		}
+		return 'loaded';
 	}
 
 	private rememberGallerySource(gallery: IGalleryMcpServer, registryGeneration = this.registryGeneration): void {

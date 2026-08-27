@@ -437,8 +437,14 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 	}
 
 	async getInstalled(): Promise<ILocalMcpServer[]> {
+		this.mcpResourceScannerService.activateTelemetry(this.mcpResource, this.target);
 		await this.initialize();
 		return Array.from(this.local.values());
+	}
+
+	override dispose(): void {
+		this.mcpResourceScannerService.clearTelemetry(this.mcpResource);
+		super.dispose();
 	}
 
 	protected async scanLocalServer(name: string, config: IMcpServerConfiguration, rootSandbox?: IMcpSandboxConfiguration): Promise<ILocalMcpServer> {

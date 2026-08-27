@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { parse as parseJSONC } from '../../../base/common/json.js';
+import { ParseError, parse as parseJSONC } from '../../../base/common/json.js';
 import { cloneAndChange, equals as objectEquals } from '../../../base/common/objects.js';
 import { isAbsolute } from '../../../base/common/path.js';
 import { basename, extname, isEqualOrParent, joinPath, normalizePath, isEqual as isURLEquals, dirname } from '../../../base/common/resources.js';
 import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import { hasKey, Mutable } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
-import { IFileService } from '../../files/common/files.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../files/common/files.js';
 import { parseFrontMatter } from '../../../base/common/yaml.js';
 import { IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpStdioServerConfiguration, McpServerType } from '../../mcp/common/mcpPlatformTypes.js';
 import { CustomizationType, McpServerStatus, type AgentCustomization, type HookCustomization, type McpServerCustomization, type RuleCustomization, type SkillCustomization } from '../../agentHost/common/state/protocol/state.js';
@@ -1250,6 +1250,60 @@ export async function readPluginMcpServers(
 	fileService: IFileService,
 ): Promise<readonly IMcpServerDefinition[]> {
 	return readMcpServers(pluginUri, paths, format, fileService);
+}
+
+export interface IPluginMcpReadResult {
+	readonly definitions: readonly IMcpServerDefinition[];
+	readonly configurationPresent: number;
+	readonly parseErrorCount: number;
+	readonly unreadableCount: number;
+}
+
+export async function readPluginMcpServersWithOutcome(
+	pluginUri: URI,
+	paths: readonly URI[],
+	format: IPluginFormatConfig,
+	fileService: IFileService,
+): Promise<IPluginMcpReadResult> {
+	const merged = new Map<string, IMcpServerDefinition>();
+	let configurationPresent = 0;
+	let parseErrorCount = 0;
+	let unreadableCount = 0;
+	for (const mcpPath of paths) {
+		if (format.format === PluginFormat.AgentPlugin && !await isResolvedWithin(pluginUri, mcpPath, fileService)) {
+			continue;
+		}
+		try {
+			const contents = await fileService.readFile(mcpPath);
+			configurationPresent++;
+			const errors: ParseError[] = [];
+			const json = parseJSONC(contents.value.toString(), errors);
+			if (errors.length > 0 || json === undefined) {
+				parseErrorCount++;
+			}
+			const definitions = parseMcpServerDefinitionMap(mcpPath, json, pluginUri, format);
+			const configuredServers = resolveMcpServersMap(json);
+			if (configuredServers && Object.keys(configuredServers).length > definitions.length) {
+				parseErrorCount += Object.keys(configuredServers).length - definitions.length;
+			}
+			for (const definition of definitions) {
+				if (!merged.has(definition.name)) {
+					merged.set(definition.name, definition);
+				}
+			}
+		} catch (error) {
+			if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+				configurationPresent++;
+				unreadableCount++;
+			}
+		}
+	}
+	return {
+		definitions: [...merged.values()].sort((a, b) => a.name.localeCompare(b.name)),
+		configurationPresent,
+		parseErrorCount,
+		unreadableCount,
+	};
 }
 
 export function parseMcpServerDefinitionMap(

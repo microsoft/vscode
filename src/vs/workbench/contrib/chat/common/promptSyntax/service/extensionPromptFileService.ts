@@ -18,7 +18,7 @@ import { IExtensionService } from '../../../../../services/extensions/common/ext
 import { IFilesConfigurationService } from '../../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { getSkillFolderName } from '../config/promptFileLocations.js';
 import { ParsedPromptFile, PromptFileParser } from '../promptFileParser.js';
-import { PromptFileSource, PromptsType } from '../promptTypes.js';
+import { PromptFileFormat, PromptFileSource, PromptRootKind, PromptsType } from '../promptTypes.js';
 import {
 	CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT,
 	IExtensionPromptPath,
@@ -52,6 +52,20 @@ const ALL_PROMPT_TYPES: readonly PromptsType[] = [
 	PromptsType.hook,
 ];
 
+function getExtensionPromptFormat(type: PromptsType): PromptFileFormat {
+	switch (type) {
+		case PromptsType.prompt:
+			return PromptFileFormat.PromptMarkdown;
+		case PromptsType.skill:
+			return PromptFileFormat.SkillMarkdown;
+		case PromptsType.agent:
+		case PromptsType.instructions:
+			return PromptFileFormat.ExtensionDeclared;
+		case PromptsType.hook:
+			return PromptFileFormat.HookJson;
+	}
+}
+
 /**
  * Owns the registry of prompt files contributed by extensions, both via
  * static contribution points (see {@link registerContributedFile}) and via
@@ -68,11 +82,11 @@ export class ExtensionPromptFileService extends Disposable {
 	 * Files contributed via extension contribution points, keyed by type then URI.
 	 */
 	private readonly contributedFiles = {
-		[PromptsType.prompt]: new ResourceMap<Promise<IExtensionPromptPath>>(),
-		[PromptsType.instructions]: new ResourceMap<Promise<IExtensionPromptPath>>(),
-		[PromptsType.agent]: new ResourceMap<Promise<IExtensionPromptPath>>(),
-		[PromptsType.skill]: new ResourceMap<Promise<IExtensionPromptPath>>(),
-		[PromptsType.hook]: new ResourceMap<Promise<IExtensionPromptPath>>(),
+		[PromptsType.prompt]: new ResourceMap<{ readonly promptPath: IExtensionPromptPath; readonly value: Promise<IExtensionPromptPath> }>(),
+		[PromptsType.instructions]: new ResourceMap<{ readonly promptPath: IExtensionPromptPath; readonly value: Promise<IExtensionPromptPath> }>(),
+		[PromptsType.agent]: new ResourceMap<{ readonly promptPath: IExtensionPromptPath; readonly value: Promise<IExtensionPromptPath> }>(),
+		[PromptsType.skill]: new ResourceMap<{ readonly promptPath: IExtensionPromptPath; readonly value: Promise<IExtensionPromptPath> }>(),
+		[PromptsType.hook]: new ResourceMap<{ readonly promptPath: IExtensionPromptPath; readonly value: Promise<IExtensionPromptPath> }>(),
 	};
 
 	/**
@@ -128,7 +142,7 @@ export class ExtensionPromptFileService extends Disposable {
 	 */
 	public async getExtensionPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly IExtensionPromptPath[]> {
 		await this.extensionService.whenInstalledExtensionsRegistered();
-		const settledResults = await Promise.allSettled(this.contributedFiles[type].values());
+		const settledResults = await Promise.allSettled([...this.contributedFiles[type].values()].map(entry => entry.value));
 		const contributedFiles = settledResults
 			.filter((result): result is PromiseFulfilledResult<IExtensionPromptPath> => result.status === 'fulfilled')
 			.map(result => result.value);
@@ -136,17 +150,26 @@ export class ExtensionPromptFileService extends Disposable {
 		const activationEvent = this._getProviderActivationEvent(type);
 		const providerFiles = activationEvent ? await this._listFromProviders(type, activationEvent, token) : [];
 
-		return [...contributedFiles, ...providerFiles].filter(file => {
-			if (!file.when) {
-				return true;
-			}
-			const when = ContextKeyExpr.deserialize(file.when);
-			if (!when) {
-				this.logger.warn(`[getExtensionPromptFiles] Ignoring contributed prompt file with invalid when clause: ${file.when}`);
-				return false;
-			}
-			return this.contextKeyService.contextMatchesRules(when);
-		});
+		return [...contributedFiles, ...providerFiles].filter(file => this.isEnabled(file));
+	}
+
+	public async getRejectedContributedFiles(type: PromptsType): Promise<readonly IExtensionPromptPath[]> {
+		await this.extensionService.whenInstalledExtensionsRegistered();
+		const entries = [...this.contributedFiles[type].values()];
+		const settledResults = await Promise.allSettled(entries.map(entry => entry.value));
+		return settledResults.flatMap((result, index) => result.status === 'rejected' && this.isEnabled(entries[index].promptPath) ? [entries[index].promptPath] : []);
+	}
+
+	private isEnabled(file: IExtensionPromptPath): boolean {
+		if (!file.when) {
+			return true;
+		}
+		const when = ContextKeyExpr.deserialize(file.when);
+		if (!when) {
+			this.logger.warn(`[getExtensionPromptFiles] Ignoring contributed prompt file with invalid when clause: ${file.when}`);
+			return false;
+		}
+		return this.contextKeyService.contextMatchesRules(when);
 	}
 
 	/**
@@ -159,6 +182,19 @@ export class ExtensionPromptFileService extends Disposable {
 			// keep first registration per extension (handler filters duplicates per extension already)
 			return Disposable.None;
 		}
+		const promptPath = {
+			uri,
+			name,
+			description,
+			when,
+			sessionTypes,
+			storage: PromptsStorage.extension,
+			type,
+			extension,
+			source: PromptFileSource.ExtensionContribution,
+			format: getExtensionPromptFormat(type),
+			rootKind: PromptRootKind.Extension,
+		} satisfies IExtensionPromptPath;
 		const entryPromise = (async () => {
 			// For skills, validate that the file follows the required structure
 			if (type === PromptsType.skill) {
@@ -173,9 +209,9 @@ export class ExtensionPromptFileService extends Disposable {
 				}
 			}
 
-			return { uri, name, description, when, sessionTypes, storage: PromptsStorage.extension, type, extension, source: PromptFileSource.ExtensionContribution } satisfies IExtensionPromptPath;
+			return { ...promptPath, name, description };
 		})();
-		bucket.set(uri, entryPromise);
+		bucket.set(uri, { promptPath, value: entryPromise });
 
 		this._enqueueReadonlyUpdate(uri);
 
@@ -269,6 +305,8 @@ export class ExtensionPromptFileService extends Disposable {
 						type,
 						extension: providerEntry.extension,
 						source: PromptFileSource.ExtensionAPI,
+						format: getExtensionPromptFormat(type),
+						rootKind: PromptRootKind.Extension,
 						name: file.name,
 						description: file.description,
 						when: file.when,

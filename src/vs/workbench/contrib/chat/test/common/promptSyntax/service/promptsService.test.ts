@@ -30,7 +30,7 @@ import { TestInstantiationService } from '../../../../../../../platform/instanti
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
-import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
 import { testWorkspace } from '../../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
@@ -55,7 +55,7 @@ import { ChatConfiguration, ChatModeKind } from '../../../../common/constants.js
 import { HookType } from '../../../../common/promptSyntax/hookTypes.js';
 import { IContextKeyChangeEvent, IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { IAgentPlugin, IAgentPluginAgent, IAgentPluginCommand, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from '../../../../common/plugins/agentPluginService.js';
+import { AgentPluginDiscoveryOrigin, IAgentPlugin, IAgentPluginAgent, IAgentPluginCommand, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from '../../../../common/plugins/agentPluginService.js';
 import { PluginFormat } from '../../../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../../platform/workspace/common/workspaceTrust.js';
 import { COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG } from '../../../../../../../platform/policy/common/copilotManagedSettings.js';
@@ -90,6 +90,23 @@ class TestPromptContextKeyService extends MockContextKeyService {
 	}
 }
 
+class TestTelemetryService extends NullTelemetryServiceShape {
+	readonly events: { readonly name: string; readonly data: unknown }[] = [];
+
+	override publicLog2(eventName?: string, data?: unknown): void {
+		if (eventName) {
+			this.events.push({ name: eventName, data });
+		}
+	}
+}
+
+function isDiscoveryCountEvent(value: unknown): value is { readonly candidateCount: number; readonly disabledCount: number; readonly parseErrorCount: number } {
+	return typeof value === 'object' && value !== null
+		&& Object.hasOwn(value, 'candidateCount')
+		&& Object.hasOwn(value, 'disabledCount')
+		&& Object.hasOwn(value, 'parseErrorCount');
+}
+
 suite('PromptsService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -101,6 +118,7 @@ suite('PromptsService', () => {
 	let testPluginsObservable: ISettableObservable<readonly IAgentPlugin[]>;
 	let workspaceTrustService: TestWorkspaceTrustManagementService;
 	let logService: NullLogService;
+	let telemetryService: TestTelemetryService;
 
 	setup(async () => {
 		instaService = disposables.add(new TestInstantiationService());
@@ -125,8 +143,9 @@ suite('PromptsService', () => {
 		instaService.stub(IConfigurationService, testConfigService);
 		instaService.stub(IWorkbenchEnvironmentService, {});
 		instaService.stub(IUserDataProfileService, new TestUserDataProfileService());
-		instaService.stub(ITelemetryService, NullTelemetryService);
-		instaService.stub(IStorageService, InMemoryStorageService);
+		telemetryService = new TestTelemetryService();
+		instaService.stub(ITelemetryService, telemetryService);
+		instaService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 		instaService.stub(IExtensionService, {
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true),
 			activateByEvent: () => Promise.resolve()
@@ -218,6 +237,73 @@ suite('PromptsService', () => {
 
 		service = disposables.add(instaService.createInstance(PromptsService));
 		instaService.stub(IPromptsService, service);
+	});
+
+	test('cancellation does not emit parse-error discovery snapshots', async () => {
+		testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+		testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
+		const extension = { identifier: { value: 'test.cancellation' } } as IExtensionDescription;
+		const registrations = [
+			service.registerPromptFileProvider(extension, PromptsType.prompt, { providePromptFiles: async () => [{ uri: URI.file('/extension/cancel.prompt.md') }] }),
+			service.registerPromptFileProvider(extension, PromptsType.agent, { providePromptFiles: async () => [{ uri: URI.file('/extension/cancel.agent.md') }] }),
+			service.registerPromptFileProvider(extension, PromptsType.skill, { providePromptFiles: async () => [{ uri: URI.file('/extension/cancel/SKILL.md') }] }),
+			service.registerPromptFileProvider(extension, PromptsType.instructions, { providePromptFiles: async () => [{ uri: URI.file('/extension/cancel.instructions.md') }] }),
+		];
+		registrations.forEach(registration => disposables.add(registration));
+		sinon.stub(service, 'parseNew').rejects(new CancellationError());
+
+		await assert.rejects(service.getPromptSlashCommands(CancellationToken.None), CancellationError);
+		await assert.rejects(service.getCustomAgents(CancellationToken.None), CancellationError);
+		await assert.rejects(service.findAgentSkills(CancellationToken.None), CancellationError);
+		await assert.rejects(service.getInstructionFiles(CancellationToken.None), CancellationError);
+
+		assert.deepStrictEqual(telemetryService.events.filter(event =>
+			event.name === 'promptFilesFound'
+			|| event.name === 'customAgentsFound'
+			|| event.name === 'agentSkillsFound'
+			|| event.name === 'instructionsFound'
+		), []);
+	});
+
+	test('disabled malformed agents are reported as disabled rather than parse errors', async () => {
+		const agentUri = URI.file('/extension/disabled.agent.md');
+		const extension = { identifier: { value: 'test.disabled-agent' } } as IExtensionDescription;
+		disposables.add(service.registerPromptFileProvider(extension, PromptsType.agent, { providePromptFiles: async () => [{ uri: agentUri }] }));
+		service.setDisabledPromptFiles(PromptsType.agent, new ResourceSet([agentUri]));
+		assert.strictEqual(service.getDisabledPromptFiles(PromptsType.agent).has(agentUri), true);
+		sinon.stub(service, 'parseNew').rejects(new Error('malformed'));
+
+		await service.getCustomAgents(CancellationToken.None);
+
+		const event = telemetryService.events.filter(candidate => candidate.name === 'customAgentsFound').at(-1)?.data;
+		assert.ok(isDiscoveryCountEvent(event));
+		assert.deepStrictEqual({
+			disabledCount: event.disabledCount,
+			parseErrorCount: event.parseErrorCount,
+		}, {
+			disabledCount: 1,
+			parseErrorCount: 0,
+		});
+	});
+
+	test('rejected extension skills honor false and invalid when clauses', async () => {
+		testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+		testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
+		const extension = { identifier: { value: 'test.rejected-skills' } } as IExtensionDescription;
+		disposables.add(service.registerContributedFile(PromptsType.skill, URI.file('/missing/false/SKILL.md'), extension, undefined, undefined, 'never.enabled'));
+		disposables.add(service.registerContributedFile(PromptsType.skill, URI.file('/missing/invalid/SKILL.md'), extension, undefined, undefined, '('));
+
+		await service.findAgentSkills(CancellationToken.None);
+
+		const event = telemetryService.events.filter(candidate => candidate.name === 'agentSkillsFound').at(-1)?.data;
+		assert.ok(isDiscoveryCountEvent(event));
+		assert.deepStrictEqual({
+			candidateCount: event.candidateCount,
+			parseErrorCount: event.parseErrorCount,
+		}, {
+			candidateCount: 0,
+			parseErrorCount: 0,
+		});
 	});
 
 	test('lists local prompt files relative to an explicit root and its parent repository', async () => {
@@ -3962,7 +4048,7 @@ suite('PromptsService', () => {
 			sinon.restore();
 		});
 
-		test('CancellationError from parseNew is skipped without logging', async () => {
+		test('CancellationError from parseNew aborts discovery without logging', async () => {
 			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, false);
 
 			const promptUri = URI.parse('file://extensions/my-extension/cancelled.prompt.md');
@@ -3974,14 +4060,9 @@ suite('PromptsService', () => {
 			});
 			sinon.stub(service, 'parseNew').rejects(new CancellationError());
 
-			const slashCommands = await service.getPromptSlashCommands(CancellationToken.None);
-			const discoveryInfo = await service.getDiscoveryInfo(PromptsType.prompt, CancellationToken.None);
-
-			assert.deepStrictEqual(slashCommands, []);
+			await assert.rejects(service.getPromptSlashCommands(CancellationToken.None), CancellationError);
 			assert.strictEqual(logErrorSpy.called, false);
-			assert.strictEqual(discoveryInfo.files.length, 1);
-			assert.strictEqual(discoveryInfo.files[0].status, 'skipped');
-			assert.strictEqual(discoveryInfo.files[0].skipReason, 'parse-error');
+			assert.strictEqual(telemetryService.events.some(event => event.name === 'promptFilesFound'), false);
 		});
 	});
 
@@ -4801,6 +4882,7 @@ suite('PromptsService', () => {
 			const plugin: IAgentPlugin = {
 				uri: URI.file('/plugins/my-plugin'),
 				format: PluginFormat.Copilot,
+				discoveryOrigin: AgentPluginDiscoveryOrigin.ConfiguredPath,
 				label: 'my-plugin',
 				enablement,
 				remove: () => { },
@@ -4847,6 +4929,7 @@ suite('PromptsService', () => {
 			const plugin: IAgentPlugin = {
 				uri: URI.file('/plugins/devtools'),
 				format: PluginFormat.Copilot,
+				discoveryOrigin: AgentPluginDiscoveryOrigin.ConfiguredPath,
 				label: 'devtools',
 				enablement,
 				remove: () => { },
@@ -4900,6 +4983,7 @@ suite('PromptsService', () => {
 			const plugin: IAgentPlugin = {
 				uri: pluginUri,
 				format: PluginFormat.Copilot,
+				discoveryOrigin: AgentPluginDiscoveryOrigin.ConfiguredPath,
 				label: 'datadog',
 				enablement,
 				remove: () => { },
@@ -4981,6 +5065,7 @@ suite('PromptsService', () => {
 			const plugin: IAgentPlugin = {
 				uri: URI.file('/plugins/managed'),
 				format: PluginFormat.Copilot,
+				discoveryOrigin: AgentPluginDiscoveryOrigin.ConfiguredPath,
 				label: 'managed',
 				enablement: observableValue('lockdownPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */),
 				hooks: observableValue('lockdownPluginHooks', []),
@@ -5016,6 +5101,7 @@ suite('PromptsService', () => {
 			const plugin: IAgentPlugin = {
 				uri: pluginUri,
 				format: PluginFormat.Copilot,
+				discoveryOrigin: AgentPluginDiscoveryOrigin.ConfiguredPath,
 				label: 'managed',
 				enablement: observableValue('lockdownInstructionPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */),
 				hooks: observableValue('lockdownInstructionPluginHooks', []),
@@ -5104,6 +5190,7 @@ suite('PromptsService', () => {
 			const plugin: IAgentPlugin = {
 				uri: pluginUri,
 				format: PluginFormat.Copilot,
+				discoveryOrigin: AgentPluginDiscoveryOrigin.ConfiguredPath,
 				label: 'managed-plugin',
 				enablement: observableValue('managedPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */),
 				hooks: observableValue('managedPluginHooks', []),
@@ -5136,6 +5223,7 @@ suite('PromptsService', () => {
 				plugin: {
 					uri: URI.file(path),
 					format: PluginFormat.Copilot,
+					discoveryOrigin: AgentPluginDiscoveryOrigin.ConfiguredPath,
 					label: basename(URI.file(path)),
 					enablement,
 					remove: () => { },
@@ -5409,6 +5497,7 @@ suite('PromptsService', () => {
 				plugin: {
 					uri: URI.file(path),
 					format: PluginFormat.Copilot,
+					discoveryOrigin: AgentPluginDiscoveryOrigin.ConfiguredPath,
 					label: basename(URI.file(path)),
 					enablement,
 					remove: () => { },

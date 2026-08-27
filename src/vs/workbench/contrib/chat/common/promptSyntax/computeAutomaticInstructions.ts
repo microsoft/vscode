@@ -96,6 +96,9 @@ export class ComputeAutomaticInstructions {
 	}
 
 	public async collect(variables: ChatRequestVariableSet, token: CancellationToken): Promise<void> {
+		if (token.isCancellationRequested) {
+			return;
+		}
 
 		const startTime = performance.now();
 		const instructionFiles = await this._promptsService.getInstructionFiles(token);

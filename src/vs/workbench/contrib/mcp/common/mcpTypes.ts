@@ -51,6 +51,54 @@ export const enum McpCollectionProvenance {
 	Plugin = 'plugin',
 }
 
+export const enum McpDiscoverySource {
+	VSCodeUserConfig = 'vscodeUserConfig',
+	VSCodeRemoteUserConfig = 'vscodeRemoteUserConfig',
+	VSCodeWorkspaceConfig = 'vscodeWorkspaceConfig',
+	VSCodeWorkspaceFolderConfig = 'vscodeWorkspaceFolderConfig',
+	WorkspaceDotMcp = 'workspaceDotMcp',
+	ClaudeDesktop = 'claudeDesktop',
+	CursorGlobal = 'cursorGlobal',
+	CursorWorkspace = 'cursorWorkspace',
+	Windsurf = 'windsurf',
+	Extension = 'extension',
+	Plugin = 'plugin',
+}
+
+export const enum McpDiscoveryFormat {
+	VSCodeServers = 'vscodeServers',
+	ClaudeMcpServers = 'claudeMcpServers',
+	ExtensionProvider = 'extensionProvider',
+	PluginMap = 'pluginMap',
+}
+
+export const enum McpDiscoveryHost {
+	Local = 'local',
+	Remote = 'remote',
+	Unknown = 'unknown',
+}
+
+export const enum McpDiscoveryScope {
+	Profile = 'profile',
+	Workspace = 'workspace',
+	WorkspaceFolder = 'workspaceFolder',
+	Extension = 'extension',
+	Plugin = 'plugin',
+}
+
+export const enum McpInstallProvenance {
+	Gallery = 'gallery',
+	Local = 'local',
+	NotApplicable = 'notApplicable',
+}
+
+export interface IMcpCollectionDiscoveryMetadata {
+	readonly source: McpDiscoverySource;
+	readonly format: McpDiscoveryFormat;
+	readonly host: McpDiscoveryHost;
+	readonly scope: McpDiscoveryScope;
+}
+
 /**
  * Prefix of the collection id used for MCP servers discovered from folder-root
  * `.mcp.json` files (Claude-style `{ "mcpServers": { ... } }`). The suffix is
@@ -72,6 +120,7 @@ export interface McpCollectionDefinition {
 	/** Globally-unique, stable ID for this definition */
 	readonly id: string;
 	readonly provenance?: McpCollectionProvenance;
+	readonly discovery?: IMcpCollectionDiscoveryMetadata;
 	/** Human-readable label for the definition */
 	readonly label: string;
 	/** Definitions this collection contains. */
@@ -907,12 +956,22 @@ export interface IWorkbenchMcpServer {
 }
 
 export const IMcpWorkbenchService = createDecorator<IMcpWorkbenchService>('IMcpWorkbenchService');
+export const enum McpLocalDiscoveryState {
+	Pending = 'pending',
+	Complete = 'complete',
+	Failed = 'failed',
+}
+
+export type McpLocalServerDiscoveryOutcome = 'loaded' | 'disabled' | 'blocked' | 'rejected';
+
 export interface IMcpWorkbenchService {
 	readonly _serviceBrand: undefined;
 	readonly onChange: Event<IWorkbenchMcpServer | undefined>;
 	readonly onReset: Event<void>;
 	readonly local: readonly IWorkbenchMcpServer[];
+	readonly localDiscoveryState?: IObservable<McpLocalDiscoveryState>;
 	getEnabledLocalMcpServers(): IWorkbenchLocalMcpServer[];
+	getLocalMcpServerDiscoveryOutcome?(server: IWorkbenchLocalMcpServer): McpLocalServerDiscoveryOutcome;
 	queryLocal(): Promise<IWorkbenchMcpServer[]>;
 	queryGallery(options?: IQueryOptions, token?: CancellationToken): Promise<IIterativePager<IWorkbenchMcpServer>>;
 	canInstall(mcpServer: IWorkbenchMcpServer): true | IMarkdownString;

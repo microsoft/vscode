@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { constObservable, waitForState } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -36,7 +36,7 @@ import { TestProductService } from '../../../../test/common/workbenchTestService
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { McpServerEditorInput } from '../../browser/mcpServerEditorInput.js';
 import { McpWorkbenchService } from '../../browser/mcpWorkbenchService.js';
-import { IMcpService } from '../../common/mcpTypes.js';
+import { IMcpService, McpLocalDiscoveryState } from '../../common/mcpTypes.js';
 
 interface IResolveRequest {
 	readonly infos: readonly { name: string; id?: string }[];
@@ -227,11 +227,14 @@ suite('McpWorkbenchService', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function createFixture(installed: IWorkbenchLocalMcpServer[], accessValue: McpAccessValue = McpAccessValue.Registry) {
+	async function createFixture(installed: IWorkbenchLocalMcpServer[], accessValue: McpAccessValue = McpAccessValue.Registry, initialInstalledResult?: Promise<IWorkbenchLocalMcpServer[]>) {
 		const galleryService = new TestMcpGalleryService(store);
 		const manifestService = new TestMcpGalleryManifestService(store);
 		const managementService = new TestWorkbenchMcpManagementService(store);
 		managementService.installed = [...installed];
+		if (initialInstalledResult) {
+			managementService.queueInstalledResult(initialInstalledResult);
+		}
 		const configurationService = new TestConfigurationService({ [mcpAccessConfig]: accessValue });
 		const allowedMcpServersEmitter = store.add(new Emitter<void>());
 		const openedEditors: McpServerEditorInput[] = [];
@@ -265,7 +268,11 @@ suite('McpWorkbenchService', () => {
 		);
 		const instantiationService = store.add(new TestInstantiationService(services));
 		const service = store.add(instantiationService.createInstance(McpWorkbenchService));
-		await Event.toPromise(service.onChange);
+		if (initialInstalledResult) {
+			await waitForState(service.localDiscoveryState, state => state !== McpLocalDiscoveryState.Pending);
+		} else {
+			await Event.toPromise(service.onChange);
+		}
 		return { service, galleryService, manifestService, managementService, allowedMcpServersEmitter, openedEditors };
 	}
 
@@ -349,6 +356,40 @@ suite('McpWorkbenchService', () => {
 			requested: ['failed', 'found', 'missing'],
 			enabled: ['found'],
 			verified: [['failed', false], ['found', true], ['missing', false]],
+		});
+
+	});
+
+	test('settles local discovery as failed when the initial scan rejects', async () => {
+		const { service, manifestService } = await createFixture([], McpAccessValue.All, Promise.reject(new Error('scan failed')));
+		manifestService.fireChange();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			state: service.localDiscoveryState.get(),
+			local: service.local,
+		}, {
+			state: McpLocalDiscoveryState.Failed,
+			local: [],
+		});
+	});
+
+	test('continues registry reconciliation for installs after an initial scan failure', async () => {
+		const { service, galleryService, managementService } = await createFixture([], McpAccessValue.All, Promise.reject(new Error('scan failed')));
+		const added = createLocal('post-failure');
+
+		managementService.fireInstall([{ name: added.name, local: added, mcpResource: added.mcpResource }]);
+		const request = await galleryService.nextRequest();
+		await complete(request, new Map([[added.name, found(createGallery(added.name))]]));
+
+		assert.deepStrictEqual({
+			state: service.localDiscoveryState.get(),
+			requested: request.infos.map(info => info.name),
+			local: service.local.map(server => server.name),
+		}, {
+			state: McpLocalDiscoveryState.Failed,
+			requested: ['post-failure'],
+			local: ['post-failure'],
 		});
 	});
 

@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { PluginFormat } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { ContributionEnablementState, IEnablementModel, isContributionEnabled } from '../../../common/enablement.js';
 import { AgentPluginCollisionEnablementModel, getCanonicalAgentPluginCollisionGroups, getSortedAgentPlugins, IDiscoveredAgentPlugins, isAgentPluginBlockedByPolicy, isAgentPluginForceEnabledByPolicy } from '../../../common/plugins/agentPluginEnablement.js';
-import { AgentPluginDiscoveryPriority, IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
+import { AgentPluginDiscoveryOrigin, AgentPluginDiscoveryPriority, IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
 import { IMarketplacePlugin, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 
 suite('AgentPlugin enablement', () => {
@@ -20,6 +20,7 @@ suite('AgentPlugin enablement', () => {
 		return {
 			uri,
 			format: PluginFormat.Copilot,
+			discoveryOrigin: AgentPluginDiscoveryOrigin.ConfiguredPath,
 			label,
 			enablement: observableValue('testPluginEnablement', ContributionEnablementState.EnabledProfile),
 			hooks: observableValue('testPluginHooks', []),

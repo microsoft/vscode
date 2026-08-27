@@ -4,17 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
 import { StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { IMcpRegistry } from '../mcpRegistryTypes.js';
-import { McpCollectionSortOrder, McpServerDefinition, McpServerTrust, WORKSPACE_DOT_MCP_COLLECTION_ID_PREFIX } from '../mcpTypes.js';
-import { IMcpDiscovery } from './mcpDiscovery.js';
+import { McpCollectionSortOrder, McpDiscoveryFormat, McpDiscoveryScope, McpDiscoverySource, McpServerDefinition, McpServerTrust, WORKSPACE_DOT_MCP_COLLECTION_ID_PREFIX } from '../mcpTypes.js';
+import { IMcpDiscovery, IMcpDiscoveryTelemetrySnapshot } from './mcpDiscovery.js';
+import { mcpCandidate, mcpHost } from './mcpDiscoveryTelemetry.js';
 import { claudeConfigToServerDefinition } from './nativeMcpDiscoveryAdapters.js';
 
 /**
@@ -25,6 +26,10 @@ export class WorkspaceDotMcpDiscovery extends Disposable implements IMcpDiscover
 	readonly fromGallery = false;
 
 	private readonly _collections = this._register(new DisposableMap<string, IDisposable>());
+	private readonly _telemetryByFolder = new Map<string, IMcpDiscoveryTelemetrySnapshot | undefined>();
+	private readonly _folderGenerations = new Map<string, number>();
+	private readonly _telemetrySnapshot = observableValue<IMcpDiscoveryTelemetrySnapshot | undefined>(this, undefined);
+	readonly telemetrySnapshot = this._telemetrySnapshot;
 
 	constructor(
 		@IFileService private readonly _fileService: IFileService,
@@ -38,19 +43,33 @@ export class WorkspaceDotMcpDiscovery extends Disposable implements IMcpDiscover
 	start(): void {
 		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(e => {
 			for (const removed of e.removed) {
-				this._collections.deleteAndDispose(removed.uri.toString());
+				const key = removed.uri.toString();
+				if (this._collections.has(key)) {
+					this._collections.deleteAndDispose(key);
+				} else {
+					this._folderGenerations.set(key, (this._folderGenerations.get(key) ?? 0) + 1);
+					this._telemetryByFolder.delete(key);
+				}
 			}
 			for (const added of e.added) {
 				this._watchFolder(added);
 			}
+			this._publishTelemetry();
 		}));
 
 		for (const folder of this._workspaceContextService.getWorkspace().folders) {
 			this._watchFolder(folder);
 		}
+		if (this._workspaceContextService.getWorkspace().folders.length === 0) {
+			this._telemetrySnapshot.set({ candidates: [], configurations: [] }, undefined);
+		}
 	}
 
 	private _watchFolder(folder: IWorkspaceFolder) {
+		const telemetryKey = folder.uri.toString();
+		const folderGeneration = (this._folderGenerations.get(telemetryKey) ?? 0) + 1;
+		this._folderGenerations.set(telemetryKey, folderGeneration);
+		this._telemetryByFolder.set(telemetryKey, undefined);
 		const configFile = joinPath(folder.uri, '.mcp.json');
 		const collectionId = `${WORKSPACE_DOT_MCP_COLLECTION_ID_PREFIX}${folder.index}`;
 		const serverDefinitions = observableValue<readonly McpServerDefinition[]>(this, []);
@@ -64,6 +83,12 @@ export class WorkspaceDotMcpDiscovery extends Disposable implements IMcpDiscover
 			serverDefinitions,
 			configTarget: ConfigurationTarget.WORKSPACE_FOLDER,
 			order: McpCollectionSortOrder.WorkspaceFolder + 1,
+			discovery: {
+				source: McpDiscoverySource.WorkspaceDotMcp,
+				format: McpDiscoveryFormat.ClaudeMcpServers,
+				scope: McpDiscoveryScope.WorkspaceFolder,
+				host: mcpHost(this._remoteAgentService.getConnection()?.remoteAuthority),
+			},
 			presentation: {
 				origin: configFile,
 			},
@@ -71,21 +96,77 @@ export class WorkspaceDotMcpDiscovery extends Disposable implements IMcpDiscover
 
 		const store = new DisposableStore();
 		const collectionRegistration = store.add(new MutableDisposable());
+		let updateGeneration = 0;
+		store.add(toDisposable(() => {
+			updateGeneration++;
+			if (this._folderGenerations.get(telemetryKey) === folderGeneration) {
+				this._folderGenerations.set(telemetryKey, folderGeneration + 1);
+				this._telemetryByFolder.delete(telemetryKey);
+				this._publishTelemetry();
+			}
+		}));
 
 		const updateFile = async () => {
+			const generation = ++updateGeneration;
+			const isCurrent = () => generation === updateGeneration
+				&& this._folderGenerations.get(telemetryKey) === folderGeneration
+				&& !store.isDisposed;
 			let definitions: McpServerDefinition[] = [];
+			let configurationPresent = 0;
+			let parseErrorCount = 0;
+			let unreadableCount = 0;
 			try {
 				const contents = await this._fileService.readFile(configFile);
-				const defs = await claudeConfigToServerDefinition(collectionId, contents.value, { defaultCwd: folder.uri });
-				if (defs) {
-					for (const d of defs) {
-						d.roots = [folder.uri];
-					}
-					definitions = defs;
+				if (!isCurrent()) {
+					return;
 				}
-			} catch {
-				// file doesn't exist or is malformed
+				configurationPresent = 1;
+				try {
+					const defs = await claudeConfigToServerDefinition(collectionId, contents.value, { defaultCwd: folder.uri });
+					if (!isCurrent()) {
+						return;
+					}
+					if (defs) {
+						for (const d of defs) {
+							d.roots = [folder.uri];
+						}
+						definitions = defs;
+					} else {
+						parseErrorCount = 1;
+					}
+				} catch {
+					parseErrorCount = 1;
+				}
+			} catch (error) {
+				if (!isCurrent()) {
+					return;
+				}
+				if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+					configurationPresent = 1;
+					unreadableCount = 1;
+				}
 			}
+			if (!isCurrent()) {
+				return;
+			}
+			const host = mcpHost(this._remoteAgentService.getConnection()?.remoteAuthority);
+			this._telemetryByFolder.set(telemetryKey, {
+				candidates: definitions.map(() => mcpCandidate(McpDiscoverySource.WorkspaceDotMcp, McpDiscoveryFormat.ClaudeMcpServers, McpDiscoveryScope.WorkspaceFolder, host, 'loaded')).concat(
+					parseErrorCount ? [mcpCandidate(McpDiscoverySource.WorkspaceDotMcp, McpDiscoveryFormat.ClaudeMcpServers, McpDiscoveryScope.WorkspaceFolder, host, 'parseError')] : [],
+					unreadableCount ? [mcpCandidate(McpDiscoverySource.WorkspaceDotMcp, McpDiscoveryFormat.ClaudeMcpServers, McpDiscoveryScope.WorkspaceFolder, host, 'unreadable')] : [],
+				),
+				configurations: [{
+					source: McpDiscoverySource.WorkspaceDotMcp,
+					format: McpDiscoveryFormat.ClaudeMcpServers,
+					scope: McpDiscoveryScope.WorkspaceFolder,
+					host,
+					configurationPresent,
+					configuredEntryCount: definitions.length,
+					parseErrorCount,
+					unreadableCount,
+				}],
+			});
+			this._publishTelemetry();
 
 			if (!definitions.length) {
 				collectionRegistration.clear();
@@ -103,5 +184,16 @@ export class WorkspaceDotMcpDiscovery extends Disposable implements IMcpDiscover
 		updateFile();
 
 		this._collections.set(folder.uri.toString(), store);
+	}
+
+	private _publishTelemetry(): void {
+		const snapshots = [...this._telemetryByFolder.values()];
+		if (snapshots.some(snapshot => snapshot === undefined)) {
+			return;
+		}
+		this._telemetrySnapshot.set({
+			candidates: snapshots.flatMap(snapshot => snapshot?.candidates ?? []),
+			configurations: snapshots.flatMap(snapshot => snapshot?.configurations ?? []),
+		}, undefined);
 	}
 }

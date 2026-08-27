@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { autorun, observableSignal, observableValue } from '../../../../../base/common/observable.js';
 import { isFalsyOrWhitespace } from '../../../../../base/common/strings.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -15,8 +17,9 @@ import { IExtensionService } from '../../../../services/extensions/common/extens
 import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
 import { mcpActivationEvent, mcpContributionPoint } from '../mcpConfiguration.js';
 import { IMcpRegistry } from '../mcpRegistryTypes.js';
-import { extensionPrefixedIdentifier, McpCollectionSortOrder, McpServerDefinition, McpServerTrust } from '../mcpTypes.js';
-import { IMcpDiscovery } from './mcpDiscovery.js';
+import { extensionPrefixedIdentifier, McpCollectionSortOrder, McpDiscoveryFormat, McpDiscoveryHost, McpDiscoveryScope, McpDiscoverySource, McpServerDefinition, McpServerTrust } from '../mcpTypes.js';
+import { IMcpConfigurationTelemetrySnapshot, IMcpDiscovery, IMcpDiscoveryTelemetryCandidate, IMcpDiscoveryTelemetrySnapshot } from './mcpDiscovery.js';
+import { mcpCandidate, mcpHost } from './mcpDiscoveryTelemetry.js';
 
 const cacheKey = 'mcp.extCachedServers';
 
@@ -38,6 +41,11 @@ export class ExtensionMcpDiscovery extends Disposable implements IMcpDiscovery {
 	private readonly _extensionCollectionIdsToPersist = new Map<string, PersistWhen>();
 	private readonly cachedServers: { [collcetionId: string]: IServerCacheEntry };
 	private readonly _conditionalCollections = this._register(new DisposableMap<string>());
+	private readonly _declaredCollections = new Map<string, McpDiscoveryHost>();
+	private readonly _telemetryChanged = observableSignal(this);
+	private readonly _extensionsReady = observableValue(this, false);
+	private readonly _telemetrySnapshot = observableValue<IMcpDiscoveryTelemetrySnapshot | undefined>(this, undefined);
+	readonly telemetrySnapshot = this._telemetrySnapshot;
 
 	constructor(
 		@IMcpRegistry private readonly _mcpRegistry: IMcpRegistry,
@@ -75,12 +83,71 @@ export class ExtensionMcpDiscovery extends Disposable implements IMcpDiscovery {
 
 	public start(): void {
 		const extensionCollections = this._register(new DisposableMap<string>());
+		void this._extensionService.whenInstalledExtensionsRegistered().then(() => this._extensionsReady.set(true, undefined));
+		this._register(autorun(reader => {
+			if (!this._extensionsReady.read(reader)) {
+				return;
+			}
+			this._telemetryChanged.read(reader);
+			const extensionDefinitions = this._mcpRegistry.collections.read(reader).filter(collection => collection.discovery?.source === McpDiscoverySource.Extension);
+			const candidates: IMcpDiscoveryTelemetryCandidate[] = [];
+			const registeredIds = new Set<string>();
+			const configurations: IMcpConfigurationTelemetrySnapshot[] = [];
+			for (const collection of extensionDefinitions) {
+				registeredIds.add(collection.id);
+				const definitions = collection.serverDefinitions.read(reader);
+				const host = collection.discovery?.host ?? mcpHost(collection.remoteAuthority);
+				candidates.push(...definitions.map(() => mcpCandidate(
+					McpDiscoverySource.Extension,
+					McpDiscoveryFormat.ExtensionProvider,
+					McpDiscoveryScope.Extension,
+					host,
+					'loaded',
+				)));
+				if (collection.lazy && definitions.length === 0) {
+					candidates.push(mcpCandidate(
+						McpDiscoverySource.Extension,
+						McpDiscoveryFormat.ExtensionProvider,
+						McpDiscoveryScope.Extension,
+						host,
+						'unresolved',
+					));
+				}
+				configurations.push({
+					source: McpDiscoverySource.Extension,
+					format: McpDiscoveryFormat.ExtensionProvider,
+					scope: McpDiscoveryScope.Extension,
+					host,
+					configurationPresent: 1,
+					configuredEntryCount: definitions.length,
+					parseErrorCount: 0,
+					unreadableCount: 0,
+				});
+			}
+			for (const [id, host] of this._declaredCollections) {
+				if (!registeredIds.has(id)) {
+					candidates.push(mcpCandidate(McpDiscoverySource.Extension, McpDiscoveryFormat.ExtensionProvider, McpDiscoveryScope.Extension, host, 'disabled'));
+					configurations.push({
+						source: McpDiscoverySource.Extension,
+						format: McpDiscoveryFormat.ExtensionProvider,
+						scope: McpDiscoveryScope.Extension,
+						host,
+						configurationPresent: 1,
+						configuredEntryCount: 0,
+						parseErrorCount: 0,
+						unreadableCount: 0,
+					});
+				}
+			}
+			this._telemetrySnapshot.set({ candidates, configurations }, undefined);
+		}));
 		this._register(_mcpExtensionPoint.setHandler((_extensions, delta) => {
 			const { added, removed } = delta;
 
 			for (const collections of removed) {
 				for (const coll of collections.value) {
 					const id = extensionPrefixedIdentifier(collections.description.identifier, coll.id);
+					this._declaredCollections.delete(id);
 					extensionCollections.deleteAndDispose(id);
 					this._conditionalCollections.deleteAndDispose(id);
 				}
@@ -94,6 +161,7 @@ export class ExtensionMcpDiscovery extends Disposable implements IMcpDiscovery {
 
 				for (const coll of collections.value) {
 					const id = extensionPrefixedIdentifier(collections.description.identifier, coll.id);
+					this._declaredCollections.set(id, getExtensionDiscoveryHost(collections.description.extensionLocation));
 					this._extensionCollectionIdsToPersist.set(id, PersistWhen.CollectionExists);
 
 					// Handle conditional collections with 'when' clause
@@ -105,6 +173,7 @@ export class ExtensionMcpDiscovery extends Disposable implements IMcpDiscovery {
 					}
 				}
 			}
+			this._telemetryChanged.trigger(undefined);
 		}));
 	}
 
@@ -123,6 +192,12 @@ export class ExtensionMcpDiscovery extends Disposable implements IMcpDiscovery {
 			scope: StorageScope.WORKSPACE,
 			configTarget: ConfigurationTarget.USER,
 			order: McpCollectionSortOrder.Extension,
+			discovery: {
+				source: McpDiscoverySource.Extension,
+				format: McpDiscoveryFormat.ExtensionProvider,
+				scope: McpDiscoveryScope.Extension,
+				host: getExtensionDiscoveryHost(collections.description.extensionLocation),
+			},
 			serverDefinitions: observableValue<McpServerDefinition[]>(this, serverDefs?.map(McpServerDefinition.fromSerialized) || []),
 			lazy: {
 				isCached: !!serverDefs,
@@ -161,6 +236,7 @@ export class ExtensionMcpDiscovery extends Disposable implements IMcpDiscovery {
 			} else if (!nowSatisfied && isRegistered) {
 				extensionCollections.deleteAndDispose(id);
 			}
+			this._telemetryChanged.trigger(undefined);
 		};
 
 		const contextKeyListener = this._contextKeyService.onDidChangeContext(evaluate);
@@ -200,4 +276,14 @@ export class ExtensionMcpDiscovery extends Disposable implements IMcpDiscovery {
 
 		return true;
 	}
+}
+
+export function getExtensionDiscoveryHost(extensionLocation: URI): McpDiscoveryHost {
+	if (extensionLocation.scheme === Schemas.vscodeRemote) {
+		return McpDiscoveryHost.Remote;
+	}
+	if (extensionLocation.scheme === Schemas.file) {
+		return McpDiscoveryHost.Local;
+	}
+	return McpDiscoveryHost.Unknown;
 }

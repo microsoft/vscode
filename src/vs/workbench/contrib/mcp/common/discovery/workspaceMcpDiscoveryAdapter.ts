@@ -14,8 +14,9 @@ import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platf
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { DiscoverySource } from '../mcpConfiguration.js';
 import { IMcpRegistry } from '../mcpRegistryTypes.js';
-import { McpCollectionSortOrder, McpServerTrust } from '../mcpTypes.js';
+import { McpCollectionSortOrder, McpDiscoveryFormat, McpDiscoveryScope, McpDiscoverySource, McpServerTrust } from '../mcpTypes.js';
 import { IMcpDiscovery } from './mcpDiscovery.js';
+import { mcpHost } from './mcpDiscoveryTelemetry.js';
 import { FilesystemMcpDiscovery, WritableMcpCollectionDefinition } from './nativeMcpDiscoveryAbstract.js';
 import { claudeConfigToServerDefinition } from './nativeMcpDiscoveryAdapters.js';
 
@@ -45,6 +46,7 @@ export class CursorWorkspaceMcpDiscoveryAdapter extends FilesystemMcpDiscovery i
 		for (const folder of this._workspaceContextService.getWorkspace().folders) {
 			this.watchFolder(folder);
 		}
+		this.completeTelemetryRegistration();
 	}
 
 	private watchFolder(folder: IWorkspaceFolder) {
@@ -58,6 +60,12 @@ export class CursorWorkspaceMcpDiscoveryAdapter extends FilesystemMcpDiscovery i
 			serverDefinitions: observableValue(this, []),
 			configTarget: ConfigurationTarget.WORKSPACE_FOLDER,
 			order: McpCollectionSortOrder.WorkspaceFolder + 1,
+			discovery: {
+				source: McpDiscoverySource.CursorWorkspace,
+				format: McpDiscoveryFormat.ClaudeMcpServers,
+				scope: McpDiscoveryScope.WorkspaceFolder,
+				host: mcpHost(this._remoteAgentService.getConnection()?.remoteAuthority),
+			},
 			presentation: {
 				origin: configFile,
 			},
