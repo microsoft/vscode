@@ -114,6 +114,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			if (catalog && !(catalog instanceof Error)
 				&& (isAgentHostAutomationCatalogMigrated(catalog)
 					|| catalog.automations.some(automation => automation.operations.includes(AutomationOperation.Run)))
+				&& !catalog.automations.some(automation => isAgentHostLegacyAutomationImportPending(automation.definition))
 				&& (!this._legacySource || this._legacySource.automations.read(reader).length === 0)
 				&& !this._migrationPromise
 				&& !this._ready.read(reader)) {
@@ -474,6 +475,9 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			if (isCancellationError(error)) {
 				throw error;
 			}
+			if (error instanceof AggregateError) {
+				failedCount = Math.max(failedCount, error.errors.length);
+			}
 			const durationMs = Date.now() - startedAt;
 			this._logService.error(`[AgentHostAutomationStore] Automation migration failed: discovered=${discovered.length}, migrated=${migratedCount}, failed=${failedCount}, durationMs=${durationMs}, error=${error instanceof Error ? error.message : String(error)}.`);
 			publishAutomationMigration(this._telemetryService, {
@@ -542,6 +546,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		if (!catalog || catalog instanceof Error) {
 			return;
 		}
+		const failures: Error[] = [];
 		const pending = catalog.automations.filter(automation => isAgentHostLegacyAutomationImportPending(automation.definition));
 		for (const automation of pending) {
 			if (this._store.isDisposed) {
@@ -563,9 +568,13 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 				if (isCancellationError(error) || this._store.isDisposed) {
 					throw new CancellationError();
 				}
-				const message = error instanceof Error ? error.message : String(error);
-				this._logService.error(`[AgentHostAutomationStore] Failed to drain pending Automation import: id=${id}, error=${message}`);
+				const failure = error instanceof Error ? error : new Error(String(error));
+				failures.push(failure);
+				this._logService.error(`[AgentHostAutomationStore] Failed to drain pending Automation import: id=${id}, error=${failure.message}`);
 			}
+		}
+		if (failures.length > 0) {
+			throw new AggregateError(failures, `Failed to drain ${failures.length} pending Agent Host Automation import(s).`);
 		}
 	}
 

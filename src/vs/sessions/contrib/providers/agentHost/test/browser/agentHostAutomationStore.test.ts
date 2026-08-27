@@ -50,6 +50,7 @@ class TestAutomationConnection {
 	subscribedChannel: string | undefined;
 	runPrimarySession = 'mock:/session';
 	suppressCreatePublication = false;
+	updateError: Error | undefined;
 	readonly createRequested = new DeferredPromise<void>();
 
 	constructor(migrationComplete: boolean) {
@@ -130,6 +131,9 @@ class TestAutomationConnection {
 				origin: undefined,
 			});
 		} else if (action.type === ActionType.AutomationUpdateRequested) {
+			if (this.updateError) {
+				throw this.updateError;
+			}
 			const current = this._catalog.automations.find(automation => automation.resource === action.resource);
 			if (!current) {
 				throw new Error(`Missing Automation: ${action.resource}`);
@@ -936,6 +940,42 @@ suite('AgentHostAutomationStore', () => {
 		await store.importAutomationSnapshot(archivedSnapshot('stranded', 'run-stranded'));
 		assert.strictEqual(store.canRunAutomation('stranded'), false);
 
+		await store.completeMigration();
+
+		assert.deepStrictEqual({
+			canRun: store.canRunAutomation('stranded'),
+			isHostOwned: store.isSchedulingOwnedByHost('stranded'),
+		}, {
+			canRun: true,
+			isHostOwned: true,
+		});
+	});
+
+	test('a failed pending-import drain keeps migration unready and retryable', async () => {
+		const connection = new TestAutomationConnection(true);
+		disposables.add(connection);
+		const storage = disposables.add(new InMemoryStorageService());
+		const automationStorage = new TestAutomationStorageService(storage);
+		const logService = new RecordingLogService();
+		const telemetryService = new RecordingTelemetryService();
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, undefined, logService, storage, telemetryService, automationStorage));
+		await store.importAutomationSnapshot(archivedSnapshot('stranded', 'run-stranded'));
+		connection.updateError = new Error('update unavailable');
+
+		await assert.rejects(store.completeMigration(), /Failed to drain 1 pending Agent Host Automation import/);
+
+		const failedEvent = telemetryService.events.find(event => event.name === 'automation.migration' && event.data['outcome'] === 'failed');
+		assert.deepStrictEqual({
+			canRun: store.canRunAutomation('stranded'),
+			isHostOwned: store.isSchedulingOwnedByHost('stranded'),
+			failedCount: failedEvent?.data['failedCount'],
+		}, {
+			canRun: false,
+			isHostOwned: false,
+			failedCount: 1,
+		});
+
+		connection.updateError = undefined;
 		await store.completeMigration();
 
 		assert.deepStrictEqual({
