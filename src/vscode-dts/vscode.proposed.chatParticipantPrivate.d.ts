@@ -244,9 +244,14 @@ declare module 'vscode' {
 		readonly modeInstructions2?: ChatRequestModeInstructions;
 
 		/**
+		 * The permission level that was active for this request, if any.
+		 */
+		readonly permissionLevel?: string;
+
+		/**
 		 * @hidden
 		 */
-		constructor(prompt: string, command: string | undefined, references: ChatPromptReference[], participant: string, toolReferences: ChatLanguageModelToolReference[], editedFileEvents: ChatRequestEditedFileEvent[] | undefined, id: string | undefined, modelId: string | undefined, modeInstructions2: ChatRequestModeInstructions | undefined);
+		constructor(prompt: string, command: string | undefined, references: ChatPromptReference[], participant: string, toolReferences: ChatLanguageModelToolReference[], editedFileEvents: ChatRequestEditedFileEvent[] | undefined, id: string | undefined, modelId: string | undefined, modeInstructions2: ChatRequestModeInstructions | undefined, permissionLevel?: string);
 	}
 
 	export class ChatResponseTurn2 {

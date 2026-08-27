@@ -3575,6 +3575,7 @@ export class ChatRequestTurn implements vscode.ChatRequestTurn2 {
 		readonly id?: string,
 		readonly modelId?: string,
 		readonly modeInstructions2?: vscode.ChatRequestModeInstructions,
+		readonly permissionLevel?: string,
 	) { }
 }
 

@@ -29,7 +29,7 @@ import { ChatSummarizerProvider } from '../../prompt/node/summarizer';
 import { ChatTitleProvider } from '../../prompt/node/title';
 import { IUserFeedbackService } from './userActions';
 import { getAdditionalWelcomeMessage } from './welcomeMessageProvider';
-import { isChatRecoveryAttempt } from './chatRecovery';
+import { getChatRecoveryAttemptScore } from './chatRecovery';
 
 export class ChatAgentService implements IChatAgentService {
 	declare readonly _serviceBrand: undefined;
@@ -210,7 +210,7 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 			try {
 				const sentRequests = context.history.filter((turn): turn is ChatRequestTurn2 => turn instanceof ChatRequestTurn);
 				const sentResponses = context.history.filter((turn): turn is ChatResponseTurn => turn instanceof ChatResponseTurn);
-				const isRecoveryAttempt = isChatRecoveryAttempt(sentRequests.at(-1), sentResponses.at(-1), request);
+				const isRecoveryAttempt = getChatRecoveryAttemptScore(sentRequests.at(-1), sentResponses.at(-1), request);
 
 				// If we need to switch to the base model, this function will handle it
 				// Otherwise it just returns the same request passed into it
@@ -276,7 +276,7 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 
 				if (isRecoveryAttempt) {
 					this.logService.info('[ChatAgentService/FailedRequest] Detected a chat recovery attempt.');
-					// this.telemetryService.sendMSFTTelemetryEvent('chatFixOfPreviousFailedRequest', { modelId: request.model?.id });
+					// this.telemetryService.sendMSFTTelemetryEvent('chatRecoveryAttempt', { modelId: request.model?.id });
 				}
 
 				return result;
