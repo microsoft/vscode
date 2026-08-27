@@ -113,6 +113,7 @@ export interface IProductConfiguration {
 	readonly win32VersionedUpdate?: boolean;
 	readonly win32ContextMenu?: { readonly [arch: string]: { readonly clsid: string } };
 	readonly applicationName: string;
+	readonly linuxDesktopName?: string;
 	readonly embedderIdentifier?: string;
 	readonly agentsTelemetryAppName?: string;
 
