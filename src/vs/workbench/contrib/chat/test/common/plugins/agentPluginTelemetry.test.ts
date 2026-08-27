@@ -8,8 +8,12 @@ import { autorun, constObservable } from '../../../../../../base/common/observab
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { makeMcpServerCustomization, PluginFormat } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
+import { IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { getCanonicalAgentPluginCollisionGroups, IDiscoveredAgentPlugins } from '../../../common/plugins/agentPluginEnablement.js';
 import { AgentPluginDiscoveryOrigin, AgentPluginDiscoveryOutcome, AgentPluginDiscoveryPriority, IAgentPlugin, IAgentPluginDiscoverySnapshot } from '../../../common/plugins/agentPluginService.js';
@@ -24,6 +28,16 @@ class TestTelemetryService extends NullTelemetryServiceShape {
 		if (eventName) {
 			this.events.push({ name: eventName, data });
 		}
+	}
+}
+
+class LayeredConfigurationService extends TestConfigurationService {
+	constructor(private readonly values: Readonly<Record<string, IConfigurationValue<unknown>>>) {
+		super();
+	}
+
+	override inspect<T>(key: string): IConfigurationValue<T> {
+		return (this.values[key] ?? {}) as IConfigurationValue<T>;
 	}
 }
 
@@ -113,7 +127,7 @@ suite('AgentPluginTelemetry', () => {
 		}];
 		const finalPlugins = [configuredPath, configuredId, installed, cliMarketplace, policyBlocked];
 		const telemetryService = new TestTelemetryService();
-		const reporter = new AgentPluginTelemetry(telemetryService);
+		const reporter = new AgentPluginTelemetry(telemetryService, new TestConfigurationService(), store.add(new TestStorageService()));
 		store.add(autorun(reader => {
 			reporter.logDiscovery(snapshots, finalPlugins, new Map(), true, reader);
 			reporter.logDiscovery(snapshots, finalPlugins, new Map(), true, reader);
@@ -149,10 +163,61 @@ suite('AgentPluginTelemetry', () => {
 		]);
 	});
 
+	test('reports explicit configuration layers and stored enablement without values', () => {
+		const telemetryService = new TestTelemetryService();
+		const configurationService = new LayeredConfigurationService({
+			'chat.plugins.enabled': { userValue: false, workspaceValue: true, policyValue: false },
+			'chat.pluginLocations': { userLocalValue: { '/local': true }, userRemoteValue: { '/remote': false } },
+			'chat.plugins.marketplaces': { applicationValue: ['application'], userValue: ['user'] },
+			'chat.plugins.extraMarketplaces': { policyValue: { managed: true } },
+			'chat.plugins.strictMarketplaces': { applicationValue: ['application'], policyValue: ['policy'] },
+			'chat.plugins.enabledPlugins': { applicationValue: { application: false }, policyValue: { policy: true } },
+		});
+		const storageService = store.add(new TestStorageService());
+		storageService.store('agentPlugins.enablement', JSON.stringify([['private-plugin', false]]), StorageScope.PROFILE, StorageTarget.MACHINE);
+		const reporter = new AgentPluginTelemetry(telemetryService, configurationService, storageService);
+		reporter.logConfiguration();
+		reporter.logConfiguration();
+
+		const rows = telemetryService.events.map(event => ({ name: event.name, data: event.data as Record<string, unknown> }));
+		assert.deepStrictEqual({
+			counts: rows.reduce<Record<string, number>>((counts, row) => {
+				counts[row.name] = (counts[row.name] ?? 0) + 1;
+				return counts;
+			}, {}),
+			pluginGate: rows.filter(row => row.data.entryPoint === 'pluginsEnabled').map(row => [row.data.scope, row.data.enabledEntryCount, row.data.disabledEntryCount]),
+			strictMarketplaces: rows.filter(row => row.data.entryPoint === 'strictMarketplaces').map(row => row.data.scope),
+			enabledPlugins: rows.filter(row => row.data.entryPoint === 'enabledPlugins').map(row => [row.data.scope, row.data.enabledEntryCount, row.data.disabledEntryCount]),
+		}, {
+			counts: {
+				agentPluginLocationsConfigured: 5,
+				agentPluginMarketplacesConfigured: 5,
+				agentPluginEnablementConfigured: 3,
+			},
+			pluginGate: [['policy', 0, 1], ['user', 0, 1], ['workspace', 1, 0]],
+			strictMarketplaces: ['application', 'policy'],
+			enabledPlugins: [['application', 0, 1], ['policy', 1, 0]],
+		});
+	});
+
+	test('caps absent configuration telemetry at one marker per event family', () => {
+		const telemetryService = new TestTelemetryService();
+		const reporter = new AgentPluginTelemetry(telemetryService, new TestConfigurationService(), store.add(new TestStorageService()));
+
+		reporter.logConfiguration();
+		reporter.logConfiguration();
+
+		assert.deepStrictEqual(telemetryService.events.map(event => event.name), [
+			'agentPluginLocationsConfigured',
+			'agentPluginMarketplacesConfigured',
+			'agentPluginEnablementConfigured',
+		]);
+	});
+
 	test('classifies the global integration gate as disabled rather than a collision', () => {
 		const candidatePlugin = plugin('globally-disabled', AgentPluginDiscoveryOrigin.ConfiguredPath, PluginFormat.Copilot);
 		const telemetryService = new TestTelemetryService();
-		const reporter = new AgentPluginTelemetry(telemetryService);
+		const reporter = new AgentPluginTelemetry(telemetryService, new TestConfigurationService(), store.add(new TestStorageService()));
 		store.add(autorun(reader => reporter.logDiscovery([{
 			candidates: [{ origin: AgentPluginDiscoveryOrigin.ConfiguredPath, format: PluginFormat.Copilot, outcome: AgentPluginDiscoveryOutcome.Loaded, plugin: candidatePlugin, components: components(candidatePlugin) }],
 		}], [], new Map(), false, reader)));
@@ -203,7 +268,7 @@ suite('AgentPluginTelemetry', () => {
 			],
 		}];
 		const telemetryService = new TestTelemetryService();
-		const reporter = new AgentPluginTelemetry(telemetryService);
+		const reporter = new AgentPluginTelemetry(telemetryService, new TestConfigurationService(), store.add(new TestStorageService()));
 		const collisionGroups = getCanonicalAgentPluginCollisionGroups(discoveries);
 		store.add(autorun(reader => reporter.logDiscovery(snapshots, [marketplacePlugin, cliPlugin], collisionGroups, true, reader)));
 
@@ -230,7 +295,7 @@ suite('AgentPluginTelemetry', () => {
 			],
 		}];
 		const telemetryService = new TestTelemetryService();
-		const reporter = new AgentPluginTelemetry(telemetryService);
+		const reporter = new AgentPluginTelemetry(telemetryService, new TestConfigurationService(), store.add(new TestStorageService()));
 		store.add(autorun(reader => {
 			reporter.logDiscovery(snapshots(1), [first, second], new Map(), true, reader);
 			reporter.logDiscovery(snapshots(2), [first, second], new Map(), true, reader);

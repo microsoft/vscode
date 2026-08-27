@@ -13,9 +13,34 @@ import { waitForState } from '../../../../../../base/common/observable.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
 import { testWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
-import { WorkspacePluginSettingsService } from '../../../common/plugins/workspacePluginSettingsService.js';
+import { WorkspacePluginSettingsFileKind, WorkspacePluginSettingsService } from '../../../common/plugins/workspacePluginSettingsService.js';
+
+class TestTelemetryService extends NullTelemetryServiceShape {
+	readonly events: { readonly name: string; readonly data: unknown }[] = [];
+
+	override publicLog2(eventName?: string, data?: unknown): void {
+		if (eventName) {
+			this.events.push({ name: eventName, data });
+		}
+	}
+}
+
+interface IConfigurationRow {
+	readonly settingsFileKind: string;
+	readonly configurationPresent: number;
+	readonly configuredEntryCount: number;
+	readonly enabledEntryCount: number;
+	readonly disabledEntryCount: number;
+	readonly parseErrorCount: number;
+	readonly unreadableCount: number;
+}
+
+function isConfigurationRow(value: unknown): value is IConfigurationRow {
+	return typeof value === 'object' && value !== null && 'settingsFileKind' in value && 'configuredEntryCount' in value;
+}
 
 suite('WorkspacePluginSettingsService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -23,12 +48,14 @@ suite('WorkspacePluginSettingsService', () => {
 
 	let fileService: FileService;
 	let workspaceContextService: TestContextService;
+	let telemetryService: TestTelemetryService;
 	const workspaceRoot = URI.from({ scheme: Schemas.inMemory, path: '/workspace' });
 
 	setup(() => {
 		workspaceContextService = new TestContextService(testWorkspace(workspaceRoot));
 		fileService = store.add(new FileService(logService));
 		store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
+		telemetryService = new TestTelemetryService();
 	});
 
 	function createService(): WorkspacePluginSettingsService {
@@ -36,6 +63,7 @@ suite('WorkspacePluginSettingsService', () => {
 			fileService,
 			workspaceContextService,
 			logService,
+			telemetryService,
 		));
 	}
 
@@ -51,6 +79,11 @@ suite('WorkspacePluginSettingsService', () => {
 
 	async function writeCopilotSettings(content: string): Promise<void> {
 		const uri = URI.from({ scheme: Schemas.inMemory, path: '/workspace/.github/copilot/settings.json' });
+		await fileService.writeFile(uri, VSBuffer.fromString(content));
+	}
+
+	async function writeCopilotLocalSettings(content: string): Promise<void> {
+		const uri = URI.from({ scheme: Schemas.inMemory, path: '/workspace/.github/copilot/settings.local.json' });
 		await fileService.writeFile(uri, VSBuffer.fromString(content));
 	}
 
@@ -261,5 +294,43 @@ suite('WorkspacePluginSettingsService', () => {
 
 		assert.strictEqual(service.enabledPlugins.get().size, 0);
 		assert.strictEqual(service.extraMarketplaces.get().length, 0);
+		assert.deepStrictEqual(telemetryService.events, []);
+	}));
+
+	test('reports all settings-file kinds including empty and malformed files', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		await writeClaudeSettings(JSON.stringify({
+			extraKnownMarketplaces: { private: { source: 'github', repo: 'owner/repository' } },
+			enabledPlugins: { 'enabled@private': true },
+		}));
+		await writeClaudeLocalSettings('{ invalid');
+		await writeCopilotSettings(JSON.stringify({ enabledPlugins: { 'disabled@private': false } }));
+		await writeCopilotLocalSettings('{}');
+
+		const service = createService();
+		await waitForState(service.enabledPlugins, value => value.size === 2);
+
+		const latestRows = new Map<string, IConfigurationRow>();
+		for (const event of telemetryService.events) {
+			if ((event.name === 'agentPluginMarketplacesConfigured' || event.name === 'agentPluginEnablementConfigured') && isConfigurationRow(event.data)) {
+				latestRows.set(`${event.name}/${event.data.settingsFileKind}`, event.data);
+			}
+		}
+		const summarize = (eventName: string, kind: WorkspacePluginSettingsFileKind) => {
+			const row = latestRows.get(`${eventName}/${kind}`);
+			return row && [row.configurationPresent, row.configuredEntryCount, row.enabledEntryCount, row.disabledEntryCount, row.parseErrorCount, row.unreadableCount];
+		};
+		assert.deepStrictEqual({
+			claudeSharedMarketplaces: summarize('agentPluginMarketplacesConfigured', WorkspacePluginSettingsFileKind.ClaudeShared),
+			claudeSharedEnablement: summarize('agentPluginEnablementConfigured', WorkspacePluginSettingsFileKind.ClaudeShared),
+			claudeLocal: summarize('agentPluginEnablementConfigured', WorkspacePluginSettingsFileKind.ClaudeLocal),
+			copilotShared: summarize('agentPluginEnablementConfigured', WorkspacePluginSettingsFileKind.CopilotShared),
+			copilotLocal: summarize('agentPluginEnablementConfigured', WorkspacePluginSettingsFileKind.CopilotLocal),
+		}, {
+			claudeSharedMarketplaces: [1, 1, 1, 0, 0, 0],
+			claudeSharedEnablement: [1, 1, 1, 0, 0, 0],
+			claudeLocal: [1, 0, 0, 0, 1, 0],
+			copilotShared: [1, 1, 0, 1, 0, 0],
+			copilotLocal: [1, 0, 0, 0, 0, 0],
+		});
 	}));
 });

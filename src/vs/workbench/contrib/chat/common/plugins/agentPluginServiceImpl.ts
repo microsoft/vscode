@@ -27,7 +27,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
-import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { localize } from '../../../../../nls.js';
@@ -109,7 +109,11 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 		super();
 
 		const baseEnablementModel = this._register(new EnablementModel('agentPlugins.enablement', storageService));
-		const telemetry = new AgentPluginTelemetry(telemetryService);
+		const telemetry = new AgentPluginTelemetry(telemetryService, configurationService, storageService);
+		telemetry.logConfiguration();
+		this._register(configurationService.onDidChangeConfiguration(() => telemetry.logConfiguration()));
+		this._register(storageService.onDidChangeValue(StorageScope.PROFILE, 'agentPlugins.enablement', this._store)(() => telemetry.logConfiguration()));
+		this._register(storageService.onDidChangeValue(StorageScope.WORKSPACE, 'agentPlugins.enablement', this._store)(() => telemetry.logConfiguration()));
 
 		const pluginsEnabled = observableConfigValue(ChatConfiguration.PluginsEnabled, true, configurationService);
 
