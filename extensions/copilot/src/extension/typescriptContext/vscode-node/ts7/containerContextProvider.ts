@@ -10,7 +10,7 @@ import type { API } from '@typescript/native/unstable/async';
 import * as ts from '@typescript/native/unstable/ast';
 
 import type { ILogService } from '../../../../platform/log/common/logService';
-import { type IContainerContextProvider, type Container, type LineRange } from '../../../../platform/languageContextProvider/common/containerContextProvider';
+import { type IContainerContextProviderService, type Container, type LineRange } from '../../../../platform/languageContextProvider/common/containerContextProvider';
 import { TypeScript7Api } from './ts7Api';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import tss from './typescripts';
@@ -21,7 +21,7 @@ enum CodeUsageKind {
 	Implementation = 'implementation'
 }
 
-export class TS7ContainerContextProvider implements Omit<IContainerContextProvider, '_serviceBrand'>, vscode.Disposable {
+export class TS7ContainerContextProvider implements Omit<IContainerContextProviderService, '_serviceBrand'>, vscode.Disposable {
 
 	private readonly disposables: DisposableStore;
 	private readonly nativeApi: TypeScript7Api;

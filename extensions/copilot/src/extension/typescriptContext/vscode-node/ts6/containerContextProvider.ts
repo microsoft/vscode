@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
 
-import type { IContainerContextProvider, Container } from '../../../../platform/languageContextProvider/common/containerContextProvider';
+import type { IContainerContextProviderService, Container } from '../../../../platform/languageContextProvider/common/containerContextProvider';
 
-export class TS6ContainerContextProvider implements Omit<IContainerContextProvider, '_serviceBrand'>, vscode.Disposable {
+export class TS6ContainerContextProvider implements Omit<IContainerContextProviderService, '_serviceBrand'>, vscode.Disposable {
 	getContainers(document: vscode.Uri, languageId: string, line: number): Promise<Container[] | undefined> {
 		return Promise.resolve(undefined);
 	}

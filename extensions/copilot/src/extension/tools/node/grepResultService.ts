@@ -11,7 +11,7 @@ import { LRUCache } from '../../../util/vs/base/common/map';
 export const IGrepResultService = createServiceIdentifier<IGrepResultService>('IGrepResultService');
 
 interface FileMatch {
-	path: string;
+	uri: vscode.Uri;
 	matches: vscode.TextSearchMatch2[];
 }
 
@@ -23,7 +23,7 @@ export interface IGrepResultService {
 	readonly _serviceBrand: undefined;
 
 	addGrepResult(requestId: string, result: MatchResult): void;
-	getGrepResult(requestId: string, path: string, startLine: number, endLine: number): { line: number } | undefined;
+	getGrepResult(requestId: string, uri: vscode.Uri, startLine: number, endLine: number): { line: number } | undefined;
 }
 
 export class NullGrepResultService implements IGrepResultService {
@@ -33,7 +33,7 @@ export class NullGrepResultService implements IGrepResultService {
 		// No-op
 	}
 
-	getGrepResult(requestId: string, path: string, startLine: number, endLine: number): { line: number } | undefined {
+	getGrepResult(requestId: string, uri: vscode.Uri, startLine: number, endLine: number): { line: number } | undefined {
 		return undefined;
 	}
 }
@@ -43,7 +43,7 @@ interface Matches {
 }
 
 export class GrepResultService implements IGrepResultService {
-	declare readonly _serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	private readonly cache: LRUCache<string, Matches>;
 
@@ -53,17 +53,17 @@ export class GrepResultService implements IGrepResultService {
 	addGrepResult(requestId: string, result: MatchResult): void {
 		const matches: Matches = { files: new Map() };
 		for (const file of result.files) {
-			matches.files.set(file.path, file.matches.map(m => m.ranges[0].sourceRange));
+			matches.files.set(file.uri.toString(), file.matches.map(m => m.ranges[0].sourceRange));
 		}
 		this.cache.set(requestId, matches);
 	}
 
-	getGrepResult(requestId: string, path: string, startLine: number, endLine: number): { line: number } | undefined {
+	getGrepResult(requestId: string, uri: vscode.Uri, startLine: number, endLine: number): { line: number } | undefined {
 		const matches = this.cache.get(requestId);
 		if (!matches) {
 			return undefined;
 		}
-		const fileMatches = matches.files.get(path);
+		const fileMatches = matches.files.get(uri.toString());
 		if (!fileMatches) {
 			return undefined;
 		}

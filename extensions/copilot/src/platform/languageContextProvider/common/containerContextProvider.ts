@@ -17,16 +17,16 @@ export interface Container {
 	range: LineRange;
 }
 
-export const IContainerContextProvider = createServiceIdentifier<IContainerContextProvider>('IContainerContextProvider');
+export const IContainerContextProviderService = createServiceIdentifier<IContainerContextProviderService>('IContainerContextProviderService');
 
-export interface IContainerContextProvider extends vscode.Disposable {
+export interface IContainerContextProviderService extends vscode.Disposable {
 	readonly _serviceBrand: undefined;
 
 	getContainers(document: vscode.Uri, languageId: string, line: number): Promise<Container[] | undefined>;
 }
 
-export class NullContainerContextProvider implements IContainerContextProvider {
-	declare readonly _serviceBrand: undefined;
+export class NullContainerContextProviderService implements IContainerContextProviderService {
+	readonly _serviceBrand: undefined;
 
 	async getContainers(document: vscode.Uri, languageId: string, line: number): Promise<Container[] | undefined> {
 		return undefined;

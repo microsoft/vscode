@@ -37,7 +37,8 @@ import { formatUriForFileWidget } from '../common/toolUtils';
 import { getImageMimeType } from './imageToolUtils';
 import { assertFileNotContentExcluded, isFileExternalAndNeedsConfirmation, resolveToolInputPath } from './toolUtils';
 import { IGrepResultService } from './grepResultService';
-import { IContainerContextProvider } from '../../../platform/languageContextProvider/common/containerContextProvider';
+import { IContainerContextProviderService } from '../../../platform/languageContextProvider/common/containerContextProvider';
+import { ILogService } from '../../../platform/log/common/logService';
 
 export const getReadFileV2Description = (orig: vscode.LanguageModelToolInformation): vscode.LanguageModelToolInformation => ({
 	name: ToolName.ReadFile,
@@ -136,7 +137,8 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 		@IFileSystemService private readonly fileSystemService: IFileSystemService,
 		@IExtensionsService private readonly extensionsService: IExtensionsService,
 		@IGrepResultService private readonly grepResultService: IGrepResultService,
-		@IContainerContextProvider private readonly containerContextProvider: IContainerContextProvider
+		@IContainerContextProviderService private readonly containerContextProvider: IContainerContextProviderService,
+		@ILogService private readonly logService: ILogService
 	) { }
 
 	async invoke(options: vscode.LanguageModelToolInvocationOptions<ReadFileParams>, token: vscode.CancellationToken) {
@@ -185,12 +187,17 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 			const documentSnapshot = await this.getSnapshot(uri);
 			ranges = getParamRanges(options.input, documentSnapshot);
 			if (options.chatRequestId !== undefined && uri.scheme === 'file' && documentSnapshot.languageId === 'typescript') {
-				const grepResultMatch = this.grepResultService.getGrepResult(options.chatRequestId, uri.fsPath, ranges.start, ranges.end);
-				if (grepResultMatch && typeof this.containerContextProvider.getContainers === 'function' && documentSnapshot.version === documentSnapshot.document.version) {
+				const grepResultMatch = this.grepResultService.getGrepResult(options.chatRequestId, uri, ranges.start, ranges.end);
+				if (grepResultMatch && documentSnapshot.version === documentSnapshot.document.version) {
 					const containers = await this.containerContextProvider.getContainers(documentSnapshot.uri, documentSnapshot.languageId, grepResultMatch.line);
-					if (containers !== undefined && documentSnapshot.version === documentSnapshot.document.version) {
-						console.log(containers);
+					if (containers !== undefined && containers.length > 0 && documentSnapshot.version === documentSnapshot.document.version) {
+						const saving = (ranges.end - ranges.start) - (containers[0].range.end - containers[0].range.start);
+						this.logService.info(`Saving ${saving} lines reading ${documentSnapshot.uri.fsPath}. Requests [${ranges.start}-${ranges.end}], Grep match: ${grepResultMatch.line}, container [${containers[0].range.start}-${containers[0].range.end}]`);
+					} else {
+						this.logService.info(`No containers found for grep result match at line ${grepResultMatch.line}`);
 					}
+				} else {
+					this.logService.info(`No grep result match found for requestId ${options.chatRequestId}`);
 				}
 			}
 

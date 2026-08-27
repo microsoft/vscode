@@ -45,6 +45,7 @@ interface IFindTextInFilesToolParams {
 
 interface FileMatch {
 	path: string;
+	uri: vscode.Uri;
 	matches: vscode.TextSearchMatch2[];
 	elidedMatches?: number;
 }
@@ -212,7 +213,7 @@ Then if you want to include those files you can call the tool again by setting "
 			const path = this.promptPathRepresentationService.getFilePath(textMatch.uri, true);
 			let fileMatch = groupedByFile.get(path);
 			if (fileMatch === undefined) {
-				fileMatch = { path, matches: [] };
+				fileMatch = { path, uri: textMatch.uri, matches: [] };
 				groupedByFile.set(path, fileMatch);
 			}
 			fileMatch.matches.push(textMatch);
