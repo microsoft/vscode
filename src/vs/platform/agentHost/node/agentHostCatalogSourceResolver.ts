@@ -92,7 +92,7 @@ export class AgentHostCatalogSourceResolver {
 		const folderPicker = preferPersistedMetadata
 			? (metadata[SESSION_META_FOLDER_PICKER_KEY] !== undefined ? persistedFolderPicker : readSessionFolderPickerDecision(state.meta))
 			: readSessionFolderPickerDecision(state.meta) ?? persistedFolderPicker;
-		const persistedArtifacts = parseSessionArtifacts(metadata[SESSION_ARTIFACTS_KEY]);
+		const persistedArtifacts = parseSessionArtifacts(metadata[SESSION_ARTIFACTS_KEY]).artifacts;
 		const stateArtifacts = readSessionArtifacts(state.meta);
 		const artifacts = preferPersistedMetadata
 			? (metadata[SESSION_ARTIFACTS_KEY] !== undefined ? persistedArtifacts : stateArtifacts)

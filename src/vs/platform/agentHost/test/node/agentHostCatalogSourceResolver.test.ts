@@ -18,8 +18,8 @@ import { WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolati
 
 const session = URI.parse('agenthost:catalog-source');
 const chat = 'agenthost-chat:catalog-source/default';
-const liveArtifact = { id: 'live-artifact', type: SessionArtifactType.Website, label: 'Live artifact', link: 'https://example.com/live' };
-const persistedArtifact = { id: 'persisted-artifact', type: SessionArtifactType.Issue, label: 'Persisted artifact', link: 'https://example.com/persisted' };
+const liveArtifact = { id: 'live-artifact', type: SessionArtifactType.Website, label: 'Live artifact', isArtifact: true, link: 'https://example.com/live' };
+const persistedArtifact = { id: 'persisted-artifact', type: SessionArtifactType.Issue, label: 'Persisted artifact', isArtifact: true, link: 'https://example.com/persisted' };
 const liveCreationReference = { session: 'agenthost:live-creator', chat: 'agenthost-chat:live-creator/default', turnId: 'live-turn' } as const;
 const persistedCreationReference = { session: 'agenthost:persisted-creator', chat: 'agenthost-chat:persisted-creator/default', turnId: 'persisted-turn' } as const;
 const liveGit = { branchName: 'live-branch', outgoingChanges: 2 };

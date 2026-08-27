@@ -79,7 +79,7 @@
 
 .interactive-session .chat-plan-review-container .chat-plan-review-title-label {
 	min-width: 0;
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	font-size: var(--vscode-chat-font-size-body-s);
 	white-space: nowrap;
 	overflow: hidden;

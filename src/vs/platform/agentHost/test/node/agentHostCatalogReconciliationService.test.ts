@@ -47,6 +47,7 @@ function registered(name: string): IRegisteredSession {
 		session: URI.parse(`agenthost:${name}`),
 		provider: 'copilot',
 		startTime: 1,
+		modifiedTime: 1,
 		external: false,
 		source: 'explicit',
 	};

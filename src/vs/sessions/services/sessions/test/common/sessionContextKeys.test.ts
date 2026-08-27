@@ -223,7 +223,7 @@ suite('setSessionContextKeys - side chat', () => {
 			shouldShowChatTabs: constObservable(true),
 		});
 		setActiveSessionContextKeys(withSideChat, contextKeyService, undefined);
-		assert.strictEqual(SessionHasMultipleCommittedChatsContext.getValue(contextKeyService), true);
+		const withSideChatCommittedChats = SessionHasMultipleCommittedChatsContext.getValue(contextKeyService);
 
 		const withToolChat = upcastPartial<IActiveSession>({
 			...stubSession({ sessionId: 'tool', chats: constObservable([mainChat, toolChat]), mainChat: constObservable(mainChat) }),
@@ -234,7 +234,13 @@ suite('setSessionContextKeys - side chat', () => {
 			shouldShowChatTabs: constObservable(false),
 		});
 		setActiveSessionContextKeys(withToolChat, contextKeyService, undefined);
-		assert.strictEqual(SessionHasMultipleCommittedChatsContext.getValue(contextKeyService), false);
+		assert.deepStrictEqual({
+			withSideChatCommittedChats,
+			withToolChatCommittedChats: SessionHasMultipleCommittedChatsContext.getValue(contextKeyService),
+		}, {
+			withSideChatCommittedChats: true,
+			withToolChatCommittedChats: false,
+		});
 	});
 
 	test('shows subagents only for the active chat scope', () => {

@@ -23,7 +23,7 @@ import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID, chatPetAchievements, ChatPetAcce
 import { ChatPetService, getChatPetVariant } from '../../../browser/chatPetService.js';
 import { getChatPetAccessoryImageSource, hasChatPetAccessoryImageDimensions, hasChatPetBodyImageDimensions } from '../../../browser/widget/chatPetAccessoryRenderer.js';
 import { getChatPetAccessoryRigFrame, getChatPetAccessoryRigPose, getChatPetAccessoryTrack, getChatPetAntennaeOcclusionBounds, getChatPetEyeAccessoryAnchor, getChatPetReducedMotionRigFrame } from '../../../browser/widget/chatPetAccessoryRig.js';
-import { CHAT_PET_ACHIEVEMENT_UNLOCKED_DURATION, CHAT_PET_CONFIRMATION_ATTENTION_DURATION, CHAT_PET_ICON_TRANSFORMATION_CHANCE, CHAT_PET_IDLE_SLEEP_DELAY, CHAT_PET_WALL_IMPACT_DURATION, CHAT_PET_WINDOW_OWNERSHIP_CHANNEL, CHAT_PET_YAPPING_CHANCE, ChatPetBlinkController, ChatPetDirectionChangeController, ChatPetFacingController, ChatPetHopController, ChatPetWidget, IChatPetWidgetHost, advanceChatPetThrow, doesChatPetStateBlink, doesChatPetStateTrackCursor, drawChatPetAchievementStar, getChatPetAnchoredHorizontalPosition, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBlinkDelay, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetEyeAccessoryGazeOffset, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalAnchor, getChatPetHorizontalPosition, getChatPetPillPlatformTop, getChatPetPlatformTop, getChatPetRelativeHorizontalPosition, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetRestoredHorizontalPosition, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetThrowLanding, getChatPetThrowRotation, getChatPetThrowVelocity, getChatPetVerticalOffset, getChatPetWallReboundVelocity, getChatPetWideSpriteHorizontalOffset, isChatPetImageSource, isChatPetKeyboardInteractionEnabled, isChatPetVisible, isChatPetWindowActive, setChatPetWideLayerOffset, shouldClaimChatPetWindowOnConstruction, shouldPlaceChatPetSpeechBubbleLeft, shouldReserveChatPetSpace, shouldSettleChatPetThrow } from '../../../browser/widget/chatPetWidget.js';
+import { CHAT_PET_ACHIEVEMENT_UNLOCKED_DURATION, CHAT_PET_CONFIRMATION_ATTENTION_DURATION, CHAT_PET_ICON_TRANSFORMATION_CHANCE, CHAT_PET_IDLE_SLEEP_DELAY, CHAT_PET_OVERLAY_CLASS, CHAT_PET_WALL_IMPACT_DURATION, CHAT_PET_WINDOW_OWNERSHIP_CHANNEL, CHAT_PET_YAPPING_CHANCE, ChatPetBlinkController, ChatPetDirectionChangeController, ChatPetFacingController, ChatPetHopController, ChatPetWidget, IChatPetWidgetHost, advanceChatPetThrow, doesChatPetStateBlink, doesChatPetStateTrackCursor, drawChatPetAchievementStar, getChatPetAnchoredHorizontalPosition, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBlinkDelay, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetEyeAccessoryGazeOffset, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalAnchor, getChatPetHorizontalPosition, getChatPetPillPlatformTop, getChatPetPlatformTop, getChatPetStackPlatformTop, getChatPetRelativeHorizontalPosition, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetRestoredHorizontalPosition, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetThrowLanding, getChatPetThrowRotation, getChatPetThrowVelocity, getChatPetVerticalOffset, getChatPetWallReboundVelocity, getChatPetWideSpriteHorizontalOffset, isChatPetImageSource, isChatPetKeyboardInteractionEnabled, isChatPetVisible, isChatPetWindowActive, setChatPetWideLayerOffset, shouldClaimChatPetWindowOnConstruction, shouldPlaceChatPetSpeechBubbleLeft, shouldReserveChatPetSpace, shouldSettleChatPetThrow } from '../../../browser/widget/chatPetWidget.js';
 
 suite('ChatPetWidget', () => {
 
@@ -1098,7 +1098,7 @@ suite('ChatPetWidget', () => {
 			disabledAchievementIds: disabledChatPetAchievements.map(achievement => achievement.id),
 			disabledAccessoryIds: disabledChatPetAchievements.flatMap(achievement => achievement.accessories.map(accessory => accessory.id)),
 		}, {
-			count: 14,
+			count: 13,
 			achievementIds: [
 				ChatPetAchievementIds.RequestRevision,
 				ChatPetAchievementIds.FirstChatMessage,
@@ -1109,7 +1109,6 @@ suite('ChatPetWidget', () => {
 				ChatPetAchievementIds.AgentsWindowOpened,
 				ChatPetAchievementIds.CreatePullRequest,
 				ChatPetAchievementIds.AgentEditKept,
-				ChatPetAchievementIds.SessionArchived,
 				ChatPetAchievementIds.AgentChangesReviewed,
 				ChatPetAchievementIds.ChatReferenceOpened,
 				ChatPetAchievementIds.UsefulOutputCopied,
@@ -1125,13 +1124,12 @@ suite('ChatPetWidget', () => {
 				ChatPetAccessoryIds.PropellerHat,
 				ChatPetAccessoryIds.DarkSailorHat,
 				ChatPetAccessoryIds.WhiteChefHat,
-				ChatPetAccessoryIds.SantaHat,
-				ChatPetAccessoryIds.RiceHat,
+				ChatPetAccessoryIds.BambooHat,
 				ChatPetAccessoryIds.StrawHat,
 				ChatPetAccessoryIds.PinkPartyHat,
 				ChatPetAccessoryIds.WizardHat,
 			],
-			uniqueAccessoryCount: 14,
+			uniqueAccessoryCount: 13,
 			atlasNames: [
 				'grand-top-hat-monocle',
 				'cowboy-hat',
@@ -1142,14 +1140,13 @@ suite('ChatPetWidget', () => {
 				'propeller-hat',
 				'dark-sailor-hat',
 				'white-chef-hat',
-				'santa-hat',
-				'rice-hat',
+				'bamboo-hat',
 				'straw-hat',
 				'pink-party-hat',
 				'wizard-hat',
 			],
-			atlasCellSizes: Array(14).fill(96),
-			rewardCounts: Array(14).fill(1),
+			atlasCellSizes: Array(13).fill(96),
+			rewardCounts: Array(13).fill(1),
 			coversAntennae: true,
 			crownAccessoryId: 'crown',
 			disabledAchievementIds: [
@@ -1186,7 +1183,6 @@ suite('ChatPetWidget', () => {
 
 	test('maps every newly added hat to a distinct achievement', () => {
 		const achievementIds = [
-			ChatPetAchievementIds.SessionArchived,
 			ChatPetAchievementIds.AgentChangesReviewed,
 			ChatPetAchievementIds.ChatReferenceOpened,
 			ChatPetAchievementIds.UsefulOutputCopied,
@@ -1205,8 +1201,7 @@ suite('ChatPetWidget', () => {
 		}, {
 			firstMessageRewards: [ChatPetAccessoryIds.CowboyHat],
 			newAchievements: [
-				{ title: 'Wrapped Up', reward: ChatPetAccessoryIds.SantaHat },
-				{ title: 'Trust but Verify', reward: ChatPetAccessoryIds.RiceHat },
+				{ title: 'Trust but Verify', reward: ChatPetAccessoryIds.BambooHat },
 				{ title: 'Follow the Trail', reward: ChatPetAccessoryIds.StrawHat },
 				{ title: 'Copy That', reward: ChatPetAccessoryIds.PinkPartyHat },
 				{ title: 'Party Mode', reward: ChatPetAccessoryIds.WizardHat },
@@ -1328,8 +1323,7 @@ suite('ChatPetWidget', () => {
 				ChatPetAccessoryIds.PropellerHat,
 				ChatPetAccessoryIds.DarkSailorHat,
 				ChatPetAccessoryIds.WhiteChefHat,
-				ChatPetAccessoryIds.SantaHat,
-				ChatPetAccessoryIds.RiceHat,
+				ChatPetAccessoryIds.BambooHat,
 				ChatPetAccessoryIds.StrawHat,
 				ChatPetAccessoryIds.PinkPartyHat,
 				ChatPetAccessoryIds.WizardHat,
@@ -2136,6 +2130,39 @@ suite('ChatPetWidget', () => {
 			158,
 			110,
 		]);
+	});
+
+	test('stands on the topmost surface showing above the input', () => {
+		const container = mainWindow.document.createElement('div');
+		container.style.cssText = 'position:absolute;top:100px;left:0;width:200px';
+		// Offset above the host, so it would win if the walk did not skip it.
+		const overlay = mainWindow.document.createElement('div');
+		overlay.className = CHAT_PET_OVERLAY_CLASS;
+		overlay.style.cssText = 'position:absolute;top:-10px;left:0;width:200px;height:20px';
+		const emptySlot = mainWindow.document.createElement('div');
+		emptySlot.style.display = 'none';
+		const notice = mainWindow.document.createElement('div');
+		notice.style.height = '30px';
+		const inputWrapper = mainWindow.document.createElement('div');
+		inputWrapper.style.paddingTop = '6px';
+		const input = mainWindow.document.createElement('div');
+		input.style.height = '40px';
+		inputWrapper.append(input);
+		container.append(overlay, emptySlot, notice, inputWrapper);
+		mainWindow.document.body.append(container);
+		disposables.add(toDisposable(() => container.remove()));
+
+		const containerTop = container.getBoundingClientRect().top;
+		const dockedNotice = getChatPetStackPlatformTop(container, input) - containerTop;
+		const skippingLeadingContent = getChatPetStackPlatformTop(container, input, notice) - containerTop;
+		notice.style.display = 'none';
+		const noticeStoodDown = getChatPetStackPlatformTop(container, input) - containerTop;
+
+		assert.deepStrictEqual({ dockedNotice, skippingLeadingContent, noticeStoodDown }, {
+			dockedNotice: 0,
+			skippingLeadingContent: 36,
+			noticeStoodDown: 6,
+		});
 	});
 
 	test('uses only the pill under the pet as a raised platform', () => {

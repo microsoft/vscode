@@ -24,6 +24,7 @@ export interface IAgentHostDatabaseSession {
 	readonly session: string;
 	readonly provider: AgentProvider;
 	readonly startTime: number;
+	readonly modifiedTime: number;
 	readonly external: boolean | undefined;
 	readonly source: AgentSessionRegistrationSource;
 }
@@ -31,6 +32,8 @@ export interface IAgentHostDatabaseSession {
 export interface IAgentHostDatabaseSessionOptions {
 	readonly provider: AgentProvider;
 	readonly startTime: number;
+	/** Last observed provider modification time; defaults to {@link startTime}. */
+	readonly modifiedTime?: number;
 	readonly source: AgentSessionRegistrationSource;
 }
 
@@ -87,6 +90,8 @@ export interface IAgentHostDatabase extends IDisposable {
 	/** Atomically tombstones and removes a session so concurrent backfill cannot re-register it. */
 	tombstoneAndUnregisterSession(session: string): Promise<void>;
 	updateSessionExternal(updates: readonly IAgentHostDatabaseExternalUpdate[]): Promise<void>;
+	/** Advances the durable last-observed modification time. */
+	updateSessionModifiedTime(session: string, modifiedTime: number): Promise<boolean>;
 	getSession(session: string): Promise<IAgentHostDatabaseSession | undefined>;
 	listSessions(): Promise<readonly IAgentHostDatabaseSession[]>;
 	isSessionRegistryEmpty(): Promise<boolean>;
@@ -328,6 +333,20 @@ const migrations = [
 			'ALTER TABLE sessions_v2_v8 RENAME TO sessions_v2',
 		].join(';\n'),
 	},
+	{
+		version: 9,
+		sql: [
+			'ALTER TABLE sessions ADD COLUMN modified_time INTEGER NOT NULL DEFAULT 0',
+			'UPDATE sessions SET modified_time = start_time',
+		].join(';\n'),
+	},
+	{
+		version: 10,
+		sql: [
+			'ALTER TABLE sessions_v2 ADD COLUMN modified_time INTEGER NOT NULL DEFAULT 0',
+			'UPDATE sessions_v2 SET modified_time = start_time',
+		].join(';\n'),
+	},
 ] as const;
 
 function openDatabase(path: string): Promise<Database> {
@@ -421,18 +440,19 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	constructor(private readonly _path: string) { }
 
 	async registerSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
-		const { provider, startTime, source } = sessionOptions;
+		const { provider, startTime, modifiedTime = startTime, source } = sessionOptions;
 		return this._transactionSequencer.queue(async () => {
 			const database = await this._ensureDatabase();
 			await exec(database, 'BEGIN IMMEDIATE');
 			try {
 				const changes = await runReturningChanges(
 					database,
-					`INSERT INTO sessions (session_uri, provider, start_time, external, registration_source)
-						SELECT ?, ?, ?, CASE WHEN ? = 'discovery' THEN 1 ELSE 0 END, ?
+					`INSERT INTO sessions (session_uri, provider, start_time, modified_time, external, registration_source)
+						SELECT ?, ?, ?, ?, CASE WHEN ? = 'discovery' THEN 1 ELSE 0 END, ?
 						WHERE ? = 0 OR NOT EXISTS (SELECT 1 FROM metadata WHERE key = ? AND value = 'true')
 						ON CONFLICT(session_uri) DO UPDATE SET
 							provider = CASE WHEN excluded.registration_source = 'explicit' THEN excluded.provider ELSE sessions.provider END,
+							modified_time = MAX(sessions.modified_time, excluded.modified_time),
 							external = CASE
 								WHEN excluded.registration_source = 'explicit' THEN 0
 								WHEN excluded.registration_source = 'restore' THEN 0
@@ -444,7 +464,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 								WHEN sessions.registration_source = 'explicit' THEN 'explicit'
 								ELSE excluded.registration_source
 							END`,
-					[session, provider, startTime, source, source, registerOptions.checkTombstone ? 1 : 0, tombstoneKey(session)],
+					[session, provider, startTime, modifiedTime, source, source, registerOptions.checkTombstone ? 1 : 0, tombstoneKey(session)],
 				);
 				if (!registerOptions.checkTombstone) {
 					await run(database, 'DELETE FROM metadata WHERE key = ?', [tombstoneKey(session)]);
@@ -511,19 +531,43 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		});
 	}
 
+	async updateSessionModifiedTime(session: string, modifiedTime: number): Promise<boolean> {
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			await exec(database, 'BEGIN IMMEDIATE');
+			try {
+				const changes = await runReturningChanges(
+					database,
+					'UPDATE sessions_v2 SET modified_time = ? WHERE session_uri = ? AND modified_time < ?',
+					[modifiedTime, session, modifiedTime],
+				);
+				await run(
+					database,
+					'UPDATE sessions SET modified_time = ? WHERE session_uri = ? AND modified_time < ?',
+					[modifiedTime, session, modifiedTime],
+				);
+				await exec(database, 'COMMIT');
+				return changes > 0;
+			} catch (error) {
+				return this._rollback(database, error, `Failed to update the modified time for ${session}`);
+			}
+		});
+	}
+
 	async listSessions(): Promise<readonly IAgentHostDatabaseSession[]> {
-		const rows = await all(await this._ensureDatabase(), 'SELECT session_uri, provider, start_time, external, registration_source FROM sessions', []);
+		const rows = await all(await this._ensureDatabase(), 'SELECT session_uri, provider, start_time, modified_time, external, registration_source FROM sessions', []);
 		return rows.map(row => ({
 			session: row.session_uri as string,
 			provider: row.provider as AgentProvider,
 			startTime: row.start_time as number,
+			modifiedTime: row.modified_time as number,
 			external: row.external === null ? undefined : row.external === 1,
 			source: row.registration_source as AgentSessionRegistrationSource,
 		}));
 	}
 
 	async getSession(session: string): Promise<IAgentHostDatabaseSession | undefined> {
-		const row = await get(await this._ensureDatabase(), 'SELECT session_uri, provider, start_time, external, registration_source FROM sessions WHERE session_uri = ?', [session]);
+		const row = await get(await this._ensureDatabase(), 'SELECT session_uri, provider, start_time, modified_time, external, registration_source FROM sessions WHERE session_uri = ?', [session]);
 		if (!row) {
 			return undefined;
 		}
@@ -531,6 +575,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			session: row.session_uri as string,
 			provider: row.provider as AgentProvider,
 			startTime: row.start_time as number,
+			modifiedTime: row.modified_time as number,
 			external: row.external === null || row.external === undefined ? undefined : row.external === 1,
 			source: row.registration_source as AgentSessionRegistrationSource,
 		};
@@ -668,7 +713,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	}
 
 	async registerRuntimeSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
-		const { provider, startTime, source } = sessionOptions;
+		const { provider, startTime, modifiedTime = startTime, source } = sessionOptions;
 		return this._transactionSequencer.queue(async () => {
 			const database = await this._ensureDatabase();
 			await exec(database, 'BEGIN IMMEDIATE');
@@ -676,8 +721,8 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				const existing = await get(database, `SELECT provider FROM sessions_v2 WHERE session_uri = ?
 					UNION ALL SELECT provider FROM sessions WHERE session_uri = ?
 					LIMIT 1`, [session, session]);
-				await run(database, `INSERT INTO sessions_v2 (session_uri, provider, start_time, external, registration_source)
-					SELECT session_uri, provider, start_time, external, registration_source
+				await run(database, `INSERT INTO sessions_v2 (session_uri, provider, start_time, modified_time, external, registration_source)
+					SELECT session_uri, provider, start_time, modified_time, external, registration_source
 					FROM sessions
 					WHERE session_uri = ?
 						AND (? = 0 OR NOT EXISTS (SELECT 1 FROM metadata WHERE key = ? AND value = 'true'))
@@ -687,22 +732,24 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					tombstoneKey(session),
 					session,
 				]);
-				const changes = await this._registerSessionV2(database, session, provider, startTime, source, registerOptions);
+				const changes = await this._registerSessionV2(database, session, provider, startTime, modifiedTime, source, registerOptions);
 				if (changes > 0) {
-					const row = await get(database, 'SELECT session_uri, provider, start_time, external, registration_source FROM sessions_v2 WHERE session_uri = ?', [session]);
+					const row = await get(database, 'SELECT session_uri, provider, start_time, modified_time, external, registration_source FROM sessions_v2 WHERE session_uri = ?', [session]);
 					if (!row) {
 						throw new Error(`Missing sessions_v2 identity after registering ${session}`);
 					}
-					await run(database, `INSERT INTO sessions (session_uri, provider, start_time, external, registration_source)
-						VALUES (?, ?, ?, ?, ?)
+					await run(database, `INSERT INTO sessions (session_uri, provider, start_time, modified_time, external, registration_source)
+						VALUES (?, ?, ?, ?, ?, ?)
 						ON CONFLICT(session_uri) DO UPDATE SET
 							provider = excluded.provider,
 							start_time = excluded.start_time,
+							modified_time = MAX(sessions.modified_time, excluded.modified_time),
 							external = excluded.external,
 							registration_source = excluded.registration_source`, [
 						row.session_uri,
 						row.provider,
 						row.start_time,
+						row.modified_time,
 						row.external,
 						row.registration_source,
 					]);
@@ -773,12 +820,13 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 						: `CASE WHEN registration_source = 'explicit' THEN 'explicit' ELSE 'restore' END`;
 					await run(database, `UPDATE sessions_v2 SET external = ?, registration_source = ${source}
 						WHERE session_uri = ? AND external IS NULL`, [external ? 1 : 0, session]);
-					await run(database, `INSERT INTO sessions (session_uri, provider, start_time, external, registration_source)
-						SELECT session_uri, provider, start_time, external, registration_source
+					await run(database, `INSERT INTO sessions (session_uri, provider, start_time, modified_time, external, registration_source)
+						SELECT session_uri, provider, start_time, modified_time, external, registration_source
 						FROM sessions_v2 WHERE session_uri = ?
 						ON CONFLICT(session_uri) DO UPDATE SET
 							provider = excluded.provider,
 							start_time = excluded.start_time,
+							modified_time = MAX(sessions.modified_time, excluded.modified_time),
 							external = excluded.external,
 							registration_source = excluded.registration_source`, [session]);
 				}
@@ -809,12 +857,12 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	}
 
 	async registerSessionV2(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
-		const { provider, startTime, source } = sessionOptions;
+		const { provider, startTime, modifiedTime = startTime, source } = sessionOptions;
 		return this._transactionSequencer.queue(async () => {
 			const database = await this._ensureDatabase();
 			await exec(database, 'BEGIN IMMEDIATE');
 			try {
-				const changes = await this._registerSessionV2(database, session, provider, startTime, source, registerOptions);
+				const changes = await this._registerSessionV2(database, session, provider, startTime, modifiedTime, source, registerOptions);
 				if (!registerOptions.checkTombstone) {
 					await run(database, 'DELETE FROM metadata WHERE key = ?', [tombstoneKey(session)]);
 				}
@@ -897,7 +945,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	async getSessionV2Registration(session: string): Promise<IAgentHostDatabaseSession | undefined> {
 		const row = await get(
 			await this._ensureDatabase(),
-			`SELECT session_uri, provider, start_time, external, registration_source
+			`SELECT session_uri, provider, start_time, modified_time, external, registration_source
 				FROM sessions_v2
 				WHERE session_uri = ?
 					AND NOT EXISTS (SELECT 1 FROM metadata WHERE key = ? AND value = 'true')
@@ -913,7 +961,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	async listSessionV2Registrations(): Promise<readonly IAgentHostDatabaseSession[]> {
 		const rows = await all(
 			await this._ensureDatabase(),
-			`SELECT session_uri, provider, start_time, external, registration_source
+			`SELECT session_uri, provider, start_time, modified_time, external, registration_source
 				FROM sessions_v2
 				WHERE NOT EXISTS (
 					SELECT 1 FROM metadata
@@ -932,7 +980,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	async listSessionV2RegistrationsForImport(): Promise<readonly IAgentHostDatabaseSession[]> {
 		const rows = await all(
 			await this._ensureDatabase(),
-			`SELECT session_uri, provider, start_time, external, registration_source
+			`SELECT session_uri, provider, start_time, modified_time, external, registration_source
 				FROM sessions_v2
 				ORDER BY session_uri`,
 			[],
@@ -987,7 +1035,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 
 	async listSessionsV2Receipts(): Promise<readonly IAgentHostDatabaseSessionV2Receipt[]> {
 		const rows = await all(await this._ensureDatabase(), this._selectVerifiedSessionsV2(
-			`session_uri, provider, start_time, external, registration_source,
+			`session_uri, provider, start_time, modified_time, external, registration_source,
 				session_generation, source_revision, payload_version, payload_hash, is_chat_backing,
 				COALESCE(CAST((
 					SELECT value FROM metadata WHERE key = '${sessionsV2PayloadDirtyKeyPrefix}' || sessions_v2.session_uri
@@ -1054,7 +1102,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					await exec(database, 'COMMIT');
 					return 'tombstoned';
 				}
-				const registry = await get(database, 'SELECT provider, start_time, external, registration_source FROM sessions_v2 WHERE session_uri = ?', [envelope.session]);
+				const registry = await get(database, 'SELECT provider, start_time, modified_time, external, registration_source FROM sessions_v2 WHERE session_uri = ?', [envelope.session]);
 				if (!registry) {
 					await exec(database, 'COMMIT');
 					return 'missingSession';
@@ -1084,12 +1132,13 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				}
 
 				await run(database, `INSERT INTO sessions_v2 (
-				session_uri, provider, start_time, external, registration_source,
+				session_uri, provider, start_time, modified_time, external, registration_source,
 				session_generation, source_revision, payload_version, payload_hash, verified, payload, is_chat_backing
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
 			ON CONFLICT(session_uri) DO UPDATE SET
 				provider = excluded.provider,
 				start_time = excluded.start_time,
+				modified_time = excluded.modified_time,
 				external = excluded.external,
 				registration_source = excluded.registration_source,
 				session_generation = excluded.session_generation,
@@ -1102,6 +1151,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					envelope.session,
 					registry.provider,
 					registry.start_time,
+					registry.modified_time,
 					registry.external,
 					registry.registration_source,
 					envelope.sessionGeneration,
@@ -1124,16 +1174,18 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		session: string,
 		provider: AgentProvider,
 		startTime: number,
+		modifiedTime: number,
 		source: AgentSessionRegistrationSource,
 		registerOptions: IAgentHostDatabaseRegisterOptions,
 	): Promise<number> {
 		return runReturningChanges(
 			database,
-			`INSERT INTO sessions_v2 (session_uri, provider, start_time, external, registration_source)
-				SELECT ?, ?, ?, CASE WHEN ? = 'discovery' THEN 1 ELSE 0 END, ?
+			`INSERT INTO sessions_v2 (session_uri, provider, start_time, modified_time, external, registration_source)
+				SELECT ?, ?, ?, ?, CASE WHEN ? = 'discovery' THEN 1 ELSE 0 END, ?
 				WHERE ? = 0 OR NOT EXISTS (SELECT 1 FROM metadata WHERE key = ? AND value = 'true')
 				ON CONFLICT(session_uri) DO UPDATE SET
 					provider = CASE WHEN excluded.registration_source = 'explicit' THEN excluded.provider ELSE sessions_v2.provider END,
+					modified_time = MAX(sessions_v2.modified_time, excluded.modified_time),
 					external = CASE
 						WHEN excluded.registration_source IN ('explicit', 'restore') THEN 0
 						WHEN sessions_v2.registration_source = 'explicit' THEN sessions_v2.external
@@ -1144,7 +1196,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 						WHEN sessions_v2.registration_source = 'explicit' THEN 'explicit'
 						ELSE excluded.registration_source
 					END`,
-			[session, provider, startTime, source, source, registerOptions.checkTombstone ? 1 : 0, tombstoneKey(session)],
+			[session, provider, startTime, modifiedTime, source, source, registerOptions.checkTombstone ? 1 : 0, tombstoneKey(session)],
 		);
 	}
 
@@ -1242,6 +1294,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			session: row.session_uri as string,
 			provider: row.provider as AgentProvider,
 			startTime: row.start_time as number,
+			modifiedTime: row.modified_time as number,
 			external: row.external === null ? undefined : row.external === 1,
 			source: row.registration_source as AgentSessionRegistrationSource,
 		};

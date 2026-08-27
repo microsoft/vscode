@@ -189,7 +189,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 			complete: await database.getSessionV2('session://fresh'),
 		}, {
 			legacy: undefined,
-			current: { session: 'session://fresh', provider: 'copilot', startTime: 1, external: false, source: 'explicit' },
+			current: { session: 'session://fresh', provider: 'copilot', startTime: 1, modifiedTime: 1, external: false, source: 'explicit' },
 			complete: undefined,
 		});
 		await database.close();
@@ -211,12 +211,12 @@ suite('AgentHostDatabase sessions_v2', () => {
 				sessionV2Columns: sessionV2Columns.map(row => row.name),
 				sessionV2ForeignKeys,
 			}, {
-				version: [{ user_version: 8 }],
+				version: [{ user_version: 10 }],
 				tables: ['metadata', 'sessions', 'sessions_v2'],
-				sessionColumns: ['session_uri', 'provider', 'start_time', 'external', 'registration_source'],
+				sessionColumns: ['session_uri', 'provider', 'start_time', 'external', 'registration_source', 'modified_time'],
 				sessionV2Columns: [
 					'session_uri', 'provider', 'start_time', 'external', 'registration_source', 'session_generation',
-					'source_revision', 'payload_version', 'payload_hash', 'verified', 'payload', 'is_chat_backing',
+					'source_revision', 'payload_version', 'payload_hash', 'verified', 'payload', 'is_chat_backing', 'modified_time',
 				],
 				sessionV2ForeignKeys: [],
 			});
@@ -258,7 +258,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 
 		assert.deepStrictEqual(results, [4, 5, 6].map(version => ({
 			version,
-			schemaVersion: [{ user_version: 8 }],
+			schemaVersion: [{ user_version: 10 }],
 			foreignKeys: [],
 			published: undefined,
 			directLegacy: undefined,
@@ -266,6 +266,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				session: `session://direct-${version}`,
 				provider: 'claude',
 				startTime: 200 + version,
+				modifiedTime: 200 + version,
 				external: false,
 				source: 'explicit',
 			},
@@ -297,6 +298,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				session: 'session://published-6',
 				provider: 'copilot',
 				startTime: 6,
+				modifiedTime: 6,
 				external: true,
 				source: 'discovery',
 			},
@@ -331,7 +333,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 		const receipt = (await database.listSessionsV2Receipts())[0];
 		const { payload: _payload, ...expectedReceipt } = storedRow(
 			createEnvelope(session, 'generation-1', 1),
-			{ provider: 'copilot', startTime: 1, external: false, source: 'explicit' },
+			{ provider: 'copilot', startTime: 1, modifiedTime: 1, external: false, source: 'explicit' },
 		);
 		void _payload;
 		await database.unregisterSessionV2(session);
@@ -400,19 +402,19 @@ suite('AgentHostDatabase sessions_v2', () => {
 		assert.deepStrictEqual(results, [
 			{
 				version: 1,
-				session: { session: 'session://upgrade-1', provider: 'copilot', startTime: 1, external: undefined, source: 'explicit' },
+				session: { session: 'session://upgrade-1', provider: 'copilot', startTime: 1, modifiedTime: 1, external: undefined, source: 'explicit' },
 				sessionV2: undefined,
 				migratedRows: [{ session_uri: 'session://upgrade-1', provider: 'copilot', start_time: 1, external: null, registration_source: 'explicit', verified: 0 }],
 			},
 			{
 				version: 2,
-				session: { session: 'session://upgrade-2', provider: 'copilot', startTime: 2, external: true, source: 'discovery' },
+				session: { session: 'session://upgrade-2', provider: 'copilot', startTime: 2, modifiedTime: 2, external: true, source: 'discovery' },
 				sessionV2: undefined,
 				migratedRows: [{ session_uri: 'session://upgrade-2', provider: 'copilot', start_time: 2, external: 1, registration_source: 'discovery', verified: 0 }],
 			},
 			{
 				version: 3,
-				session: { session: 'session://upgrade-3', provider: 'copilot', startTime: 3, external: false, source: 'restore' },
+				session: { session: 'session://upgrade-3', provider: 'copilot', startTime: 3, modifiedTime: 3, external: false, source: 'restore' },
 				sessionV2: undefined,
 				migratedRows: [{ session_uri: 'session://upgrade-3', provider: 'copilot', start_time: 3, external: 0, registration_source: 'restore', verified: 0 }],
 			},
@@ -427,7 +429,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 			startTime: 42,
 			source: 'restore',
 		}, { checkTombstone: false });
-		const registration = { provider: 'copilot', startTime: 42, external: false, source: 'restore' };
+		const registration = { provider: 'copilot', startTime: 42, modifiedTime: 42, external: false, source: 'restore' };
 		const envelope = createEnvelope(session, 'generation-1', 7);
 
 		const result = await database.upsertSessionV2(envelope, undefined);
@@ -508,7 +510,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				transitioned: 'applied',
 				delayedOldGeneration: 'generationMismatch',
 			},
-			row: storedRow(createEnvelope(session, 'generation-2', 0), { provider: 'copilot', startTime: 1, external: false, source: 'explicit' }),
+			row: storedRow(createEnvelope(session, 'generation-2', 0), { provider: 'copilot', startTime: 1, modifiedTime: 1, external: false, source: 'explicit' }),
 		});
 	});
 
@@ -552,13 +554,13 @@ suite('AgentHostDatabase sessions_v2', () => {
 		const explicit = await database.getSessionV2(session);
 
 		assert.deepStrictEqual({
-			discovered: discovered && { provider: discovered.provider, startTime: discovered.startTime, external: discovered.external, source: discovered.source, sourceRevision: discovered.sourceRevision },
-			restored: restored && { provider: restored.provider, startTime: restored.startTime, external: restored.external, source: restored.source, sourceRevision: restored.sourceRevision },
-			explicit: explicit && { provider: explicit.provider, startTime: explicit.startTime, external: explicit.external, source: explicit.source, sourceRevision: explicit.sourceRevision },
+			discovered: discovered && { provider: discovered.provider, startTime: discovered.startTime, modifiedTime: discovered.startTime, external: discovered.external, source: discovered.source, sourceRevision: discovered.sourceRevision },
+			restored: restored && { provider: restored.provider, startTime: restored.startTime, modifiedTime: restored.startTime, external: restored.external, source: restored.source, sourceRevision: restored.sourceRevision },
+			explicit: explicit && { provider: explicit.provider, startTime: explicit.startTime, modifiedTime: explicit.startTime, external: explicit.external, source: explicit.source, sourceRevision: explicit.sourceRevision },
 		}, {
-			discovered: { provider: 'copilot', startTime: 1, external: true, source: 'discovery', sourceRevision: 1 },
-			restored: { provider: 'copilot', startTime: 1, external: false, source: 'restore', sourceRevision: 1 },
-			explicit: { provider: 'claude', startTime: 1, external: false, source: 'explicit', sourceRevision: 1 },
+			discovered: { provider: 'copilot', startTime: 1, modifiedTime: 1, external: true, source: 'discovery', sourceRevision: 1 },
+			restored: { provider: 'copilot', startTime: 1, modifiedTime: 1, external: false, source: 'restore', sourceRevision: 1 },
+			explicit: { provider: 'claude', startTime: 1, modifiedTime: 1, external: false, source: 'explicit', sourceRevision: 1 },
 		});
 	});
 
@@ -608,8 +610,8 @@ suite('AgentHostDatabase sessions_v2', () => {
 			current: await database.getSessionV2Registration(session),
 			exclusion: await database.getSessionsV2Exclusion('copilot', session),
 		}, {
-			legacy: { session, provider: 'copilot', startTime: 10, external: true, source: 'discovery' },
-			current: { session, provider: 'copilot', startTime: 10, external: true, source: 'discovery' },
+			legacy: { session, provider: 'copilot', startTime: 10, modifiedTime: 20, external: true, source: 'discovery' },
+			current: { session, provider: 'copilot', startTime: 10, modifiedTime: 20, external: true, source: 'discovery' },
 			exclusion: undefined,
 		});
 
@@ -635,8 +637,8 @@ suite('AgentHostDatabase sessions_v2', () => {
 			current: await database.getSessionV2Registration(session),
 			keys: await database.listRuntimeCompatibleSessionKeys(),
 		}, {
-			legacy: { session, provider: 'claude', startTime: 10, external: false, source: 'explicit' },
-			current: { session, provider: 'claude', startTime: 10, external: false, source: 'explicit' },
+			legacy: { session, provider: 'claude', startTime: 10, modifiedTime: 20, external: false, source: 'explicit' },
+			current: { session, provider: 'claude', startTime: 10, modifiedTime: 20, external: false, source: 'explicit' },
 			keys: [session],
 		});
 	});
@@ -664,13 +666,14 @@ suite('AgentHostDatabase sessions_v2', () => {
 				session: current.session,
 				provider: current.provider,
 				startTime: current.startTime,
+				modifiedTime: current.modifiedTime,
 				external: current.external,
 				source: current.source,
 			},
 			sourceRevision: current?.sourceRevision,
 		}, {
-			legacy: { session, provider: 'copilot', startTime: 1, external: true, source: 'discovery' },
-			current: { session, provider: 'copilot', startTime: 1, external: true, source: 'discovery' },
+			legacy: { session, provider: 'copilot', startTime: 1, modifiedTime: 1, external: true, source: 'discovery' },
+			current: { session, provider: 'copilot', startTime: 1, modifiedTime: 1, external: true, source: 'discovery' },
 			sourceRevision: 3,
 		});
 	});
@@ -729,8 +732,8 @@ suite('AgentHostDatabase sessions_v2', () => {
 			oldBuildSessionV2: await database.getSessionV2Registration('session://old-build'),
 		}, {
 			currentOnlyLegacy: undefined,
-			currentOnlyV2: storedRow(createEnvelope(currentOnly, 'generation-1', 1), { provider: 'copilot', startTime: 1, external: false, source: 'explicit' }),
-			oldBuildSession: { session: 'session://old-build', provider: 'copilot', startTime: 2, external: true, source: 'discovery' },
+			currentOnlyV2: storedRow(createEnvelope(currentOnly, 'generation-1', 1), { provider: 'copilot', startTime: 1, modifiedTime: 1, external: false, source: 'explicit' }),
+			oldBuildSession: { session: 'session://old-build', provider: 'copilot', startTime: 2, modifiedTime: 0, external: true, source: 'discovery' },
 			oldBuildSessionV2: undefined,
 		});
 	});
@@ -756,8 +759,8 @@ suite('AgentHostDatabase sessions_v2', () => {
 			list: await database.listSessionsV2(),
 		}, {
 			orphanRows: [{ session_uri: session }],
-			get: storedRow(createEnvelope(session, 'generation-1', 1), { provider: 'copilot', startTime: 1, external: false, source: 'explicit' }),
-			list: [storedRow(createEnvelope(session, 'generation-1', 1), { provider: 'copilot', startTime: 1, external: false, source: 'explicit' })],
+			get: storedRow(createEnvelope(session, 'generation-1', 1), { provider: 'copilot', startTime: 1, modifiedTime: 1, external: false, source: 'explicit' }),
+			list: [storedRow(createEnvelope(session, 'generation-1', 1), { provider: 'copilot', startTime: 1, modifiedTime: 1, external: false, source: 'explicit' })],
 		});
 	});
 
@@ -780,7 +783,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 			imported: false,
 			explicit: true,
 			tombstoned: false,
-			registration: { session, provider: 'claude', startTime: 3, external: false, source: 'explicit' },
+			registration: { session, provider: 'claude', startTime: 3, modifiedTime: 3, external: false, source: 'explicit' },
 			complete: undefined,
 		});
 	});
@@ -819,7 +822,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 			registrations: await database.listSessionV2Registrations(),
 			complete: await database.listSessionsV2(),
 		}, {
-			registrations: [{ session, provider: 'copilot', startTime: 1, external: true, source: 'discovery' }],
+			registrations: [{ session, provider: 'copilot', startTime: 1, modifiedTime: 1, external: true, source: 'discovery' }],
 			complete: [],
 		});
 	});
@@ -856,7 +859,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				projection: undefined,
 			},
 			revivedExclusion: undefined,
-			revivedRegistration: { session, provider: 'copilot', startTime: 2, external: true, source: 'discovery' },
+			revivedRegistration: { session, provider: 'copilot', startTime: 2, modifiedTime: 2, external: true, source: 'discovery' },
 		});
 	});
 
@@ -907,7 +910,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 			excludedRegistration: undefined,
 			excludedMarker: { provider: 'copilot', session: excluded, reason: 'staleExternal', fingerprint: '1' },
 			excludedUpsert: 'missingSession',
-			registeredIdentity: { session: registered, provider: 'copilot', startTime: 2, external: true, source: 'discovery' },
+			registeredIdentity: { session: registered, provider: 'copilot', startTime: 2, modifiedTime: 2, external: true, source: 'discovery' },
 			staleMarker: undefined,
 		});
 	});

@@ -42,26 +42,30 @@ suite('serverToolGroups display', () => {
 	});
 
 	test('session-management tools resolve to dedicated display strings', () => {
-		const display = (toolName: string) => {
-			const d = getServerToolDisplay(toolName, undefined);
-			return { displayName: d?.displayName, invocation: text(d?.invocationMessage) };
+		const display = (toolName: string, args?: unknown, completed = false) => {
+			const d = getServerToolDisplay(toolName, args, completed ? { success: true } : undefined);
+			return { displayName: d?.displayName, invocation: text(d?.invocationMessage), past: text(d?.pastTenseMessage) };
 		};
 		assert.deepStrictEqual({
 			list: display('list_sessions'),
 			current: display('get_current_session'),
-			create: display('create_session'),
+			createCurrent: display('create_session', { relationship: 'currentSession' }, true),
+			createIndependent: display('create_session', { relationship: 'independent' }, true),
+			createFallback: display('create_session'),
 			chat: display('create_chat'),
 			send: display('send_message'),
 			context: display('get_session_context'),
 			del: display('delete_session'),
 		}, {
-			list: { displayName: 'List Sessions', invocation: 'List sessions' },
-			current: { displayName: 'Get Current Session', invocation: 'Get current session' },
-			create: { displayName: 'Create Session', invocation: 'Creating session' },
-			chat: { displayName: 'Create Chat', invocation: 'Create chat' },
-			send: { displayName: 'Send Message', invocation: 'Send message' },
-			context: { displayName: 'Get Session Context', invocation: 'Read session context' },
-			del: { displayName: 'Delete Session', invocation: 'Deleting session' },
+			list: { displayName: 'List Sessions', invocation: 'List sessions', past: undefined },
+			current: { displayName: 'Get Current Session', invocation: 'Get current session', past: undefined },
+			createCurrent: { displayName: 'Create Chat in Current Session', invocation: 'Creating chat in the current session', past: 'Created chat in the current session' },
+			createIndependent: { displayName: 'Create New Session', invocation: 'Creating new session', past: 'Created new session' },
+			createFallback: { displayName: 'Create Session', invocation: 'Creating session', past: 'Created session' },
+			chat: { displayName: 'Create Chat', invocation: 'Create chat', past: undefined },
+			send: { displayName: 'Send Message', invocation: 'Send message', past: undefined },
+			context: { displayName: 'Get Session Context', invocation: 'Read session context', past: undefined },
+			del: { displayName: 'Delete Session', invocation: 'Deleting session', past: 'Deleted session' },
 		});
 	});
 

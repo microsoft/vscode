@@ -36,6 +36,7 @@ suite('AgentHostCatalogListReader', () => {
 		session,
 		provider: 'copilot',
 		startTime: 100,
+		modifiedTime: 100,
 		external: true,
 		source: 'discovery',
 	};
@@ -66,7 +67,7 @@ suite('AgentHostCatalogListReader', () => {
 				githubRepo: 'vscode',
 			},
 			[SESSION_META_SOURCE_CONTROL_KEY]: { merge: { commit: 'abc123' }, latestOutcome: 'pullRequest' },
-			[SESSION_META_ARTIFACTS_KEY]: [{ id: 'artifact', type: 'pullRequest', label: 'PR', link: 'https://github.com/microsoft/vscode/pull/1', isGitHub: true, createdByThisSession: true }],
+			[SESSION_META_ARTIFACTS_KEY]: [{ id: 'artifact', type: 'pullRequest', label: 'PR', isArtifact: true, link: 'https://github.com/microsoft/vscode/pull/1', isGitHub: true }],
 			[SESSION_META_CREATED_BY_SESSION_KEY]: {
 				session: 'agent-session://copilot/creator',
 				chat: 'agent-chat://copilot/creator/default',
@@ -94,6 +95,7 @@ suite('AgentHostCatalogListReader', () => {
 		const encoded = encode(catalogData);
 		database.catalog = {
 			session: session.toString(),
+			modifiedTime: 100,
 			sessionGeneration: 'incarnation',
 			sourceRevision: 2,
 			payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,

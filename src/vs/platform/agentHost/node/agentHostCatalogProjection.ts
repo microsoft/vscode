@@ -249,11 +249,11 @@ const artifactValidator = plainObject(vObj({
 	id: boundedString(),
 	type: vEnum('pullRequest', 'issue', 'commit', 'website', 'file', 'resource'),
 	label: boundedString(MAX_TITLE_LENGTH),
+	isArtifact: vOptionalProp(vBoolean()),
 	link: vOptionalProp(boundedString()),
 	uri: vOptionalProp(boundedString()),
 	commitHash: vOptionalProp(boundedString()),
 	isGitHub: vOptionalProp(vBoolean()),
-	createdByThisSession: vOptionalProp(vBoolean()),
 }));
 
 const artifactsValidator = new RefinedValidator(

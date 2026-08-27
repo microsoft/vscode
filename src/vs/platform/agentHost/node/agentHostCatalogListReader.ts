@@ -77,7 +77,9 @@ export class AgentHostCatalogListReader {
 		return {
 			session: registered.session,
 			startTime: registered.startTime,
-			modifiedTime: data.modifiedTime,
+			// The registry owns durable recency: a live advance can outrun the
+			// payload's own timestamp until the next reconciliation writes it back.
+			modifiedTime: Math.max(data.modifiedTime, registered.modifiedTime),
 			summary: data.summary,
 			status,
 			project: data.project,
