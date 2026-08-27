@@ -206,6 +206,7 @@ function getSessionListChats(session: ISession, reader?: IReader): readonly ICha
 	return session.chats.read(reader).filter(chat =>
 		!isEqual(chat.resource, mainChat.resource) &&
 		chat.origin?.kind !== ChatOriginKind.Tool &&
+		chat.origin?.kind !== ChatOriginKind.SideChat &&
 		chat.interactivity.read(reader) !== ChatInteractivity.Hidden
 	);
 }
@@ -2283,21 +2284,31 @@ export class SessionsList extends Disposable implements ISessionsList {
 	/**
 	 * Session IDs whose hierarchy indent/connector guides should be visible:
 	 * the union of the currently-hovered session (if any) and every session
-	 * that is the parent of, or itself, a currently selected/focused row.
-	 * Hovering or selecting a chat child reveals its own parent's guides only.
+	 * that is the parent of, or itself, a currently selected or keyboard-focused
+	 * row. Focus is tracked separately from selection because arrow-key
+	 * navigation (via the workbench `list.focusUp`/`list.focusDown` commands)
+	 * moves the tree's focus without changing its selection.
+	 * Hovering, selecting, or focusing a chat child reveals its own parent's
+	 * guides only.
 	 */
 	private readonly hoveredGuideSessionId = observableValue<string | undefined>(this, undefined);
 	private readonly selectedGuideSessionIds = observableValue<ReadonlySet<string>>(this, EMPTY_GUIDE_SESSION_IDS);
+	private readonly focusedGuideSessionIds = observableValue<ReadonlySet<string>>(this, EMPTY_GUIDE_SESSION_IDS);
 	private readonly activeGuideSessionIds = derived(this, reader => {
 		const hovered = this.hoveredGuideSessionId.read(reader);
 		const selected = this.selectedGuideSessionIds.read(reader);
-		if (!hovered) {
+		const focused = this.focusedGuideSessionIds.read(reader);
+		if (!hovered && focused.size === 0) {
 			return selected;
 		}
-		if (selected.has(hovered)) {
-			return selected;
+		const ids = new Set(selected);
+		for (const id of focused) {
+			ids.add(id);
 		}
-		return new Set([...selected, hovered]);
+		if (hovered) {
+			ids.add(hovered);
+		}
+		return ids;
 	});
 	private visible = true;
 	private readonly excludedSessionTypes: Set<string>;
@@ -2588,8 +2599,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.tree.updateOptions({ indent: 0, defaultIndent: 0, expandOnDoubleClick: false });
 
 		// Hierarchy guides: resolve any row (a session or one of its chats) to
-		// the session whose guides it belongs to, so hovering/selecting a chat
-		// child reveals only its own parent's guides, never an unrelated
+		// the session whose guides it belongs to, so hovering/selecting/focusing
+		// a chat child reveals only its own parent's guides, never an unrelated
 		// session's.
 		const guideOwnerSessionId = (element: SessionListItem | null): string | undefined => {
 			if (element && isSessionItem(element)) {
@@ -2599,6 +2610,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 				return element.session.sessionId;
 			}
 			return undefined;
+		};
+		const guideOwnerSessionIds = (elements: readonly (SessionListItem | null)[]): Set<string> => {
+			const ids = new Set<string>();
+			for (const element of elements) {
+				const id = guideOwnerSessionId(element);
+				if (id) {
+					ids.add(id);
+				}
+			}
+			return ids;
 		};
 		this._register(this.tree.onMouseOver(e => {
 			this.hoveredGuideSessionId.set(guideOwnerSessionId(e.element), undefined);
@@ -2612,14 +2633,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}));
 		this._register(this.tree.onDidChangeSelection(() => {
-			const ids = new Set<string>();
-			for (const element of this.tree.getSelection()) {
-				const id = guideOwnerSessionId(element);
-				if (id) {
-					ids.add(id);
-				}
-			}
-			this.selectedGuideSessionIds.set(ids, undefined);
+			this.selectedGuideSessionIds.set(guideOwnerSessionIds(this.tree.getSelection()), undefined);
+		}));
+		const updateFocusedGuideSessionIds = () => {
+			this.focusedGuideSessionIds.set(guideOwnerSessionIds(this.tree.getFocus()), undefined);
+		};
+		this._register(this.tree.onDidChangeFocus(updateFocusedGuideSessionIds));
+		this._register(this.tree.onDidFocus(updateFocusedGuideSessionIds));
+		this._register(this.tree.onDidBlur(() => {
+			this.focusedGuideSessionIds.set(EMPTY_GUIDE_SESSION_IDS, undefined);
 		}));
 
 		this._register(this.tree.onDidOpen(async e => {

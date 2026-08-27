@@ -108,7 +108,7 @@ export class VisibleSession extends Disposable implements IActiveSession {
 		});
 		// Tab strip contents: the open chats in the provider's order, with subagent
 		// (tool-origin) chats hidden by default. A subagent surfaces as a tab only
-		// once explicitly opened (e.g. from the Conversations menu), tracked in
+		// once explicitly opened (e.g. from the Side Chats menu), tracked in
 		// `_shownSubagentUris`. Hidden and closed chats are excluded by `openChats`.
 		this.visibleChatTabs = derived(this, reader => {
 			const shownSubagents = this._shownSubagentUris.read(reader);
@@ -119,7 +119,7 @@ export class VisibleSession extends Disposable implements IActiveSession {
 		// Shown only when there is more than one chat actually showing as a tab.
 		// A single visible tab (even if other chats are closed, or its title
 		// diverged from the session title, or subagents exist) always hides the
-		// strip; the Conversations menu surfaces in the session header instead.
+		// strip; the Side Chats menu surfaces in the session header instead.
 		this.shouldShowChatTabs = derived(this, reader => {
 			return this.visibleChatTabs.read(reader).length > 1;
 		});
@@ -136,7 +136,7 @@ export class VisibleSession extends Disposable implements IActiveSession {
 			return;
 		}
 		// Closing a subagent (tool-origin) tab just hides it again; it stays
-		// reachable from the Conversations menu and is not added to the
+		// reachable from the Side Chats menu and is not added to the
 		// reopenable closed set.
 		if (chat.origin?.kind === ChatOriginKind.Tool) {
 			const shown = this._shownSubagentUris.get();

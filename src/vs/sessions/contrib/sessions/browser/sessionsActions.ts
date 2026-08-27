@@ -27,7 +27,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/l
 import { getQuickNavigateHandler, inQuickPickContext } from '../../../../workbench/browser/quickaccess.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSubagentsContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsQuickChatSessionContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSubagentsContext, SessionHasSideChatsContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsQuickChatSessionContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 import { CLOSE_CHAT_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -53,7 +53,7 @@ import { agentsNewSessionButtonBackground, agentsNewSessionButtonBorder, agentsN
 import { logSessionsInteraction, SessionsInteractionSource } from '../../../common/sessionsTelemetry.js';
 import { NEW_SESSION_ACTION_ID } from '../../chat/common/constants.js';
 import { groupSessionsForPicker } from './sessionsPicker.js';
-import { getSessionConversationActionId, getSessionConversationGroupId, SESSION_CONVERSATION_SUBAGENTS_GROUP } from '../../../browser/sessionConversationGroups.js';
+import { getSessionConversationActionId, getSessionConversationGroupId, SESSION_CONVERSATION_SIDE_CHATS_GROUP, SESSION_CONVERSATION_SUBAGENTS_GROUP } from '../../../browser/sessionConversationGroups.js';
 import { ISessionChatItem, SessionChatItemCanDeleteContext, SessionChatItemCanRenameContext, SessionChatItemIsUntitledContext } from './views/sessionsList.js';
 import './media/newSessionActionViewItem.css';
 
@@ -648,8 +648,9 @@ registerAction2(class AddChatToSessionAction extends Action2 {
 			},
 			menu: [{
 				id: Menus.SessionBarToolbar,
-				group: 'secondary/2_chats',
-				order: 20,
+				// Keep New Chat visually separate from the Side Chats submenu.
+				group: 'secondary/3_newChat',
+				order: 10,
 				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, IsQuickChatSessionContext.negate(), SessionIsArchivedContext.negate()),
 			}, {
 				id: Menus.SessionItemContextMenu,
@@ -992,7 +993,7 @@ function openChatsPicker(accessor: ServicesAccessor, mru?: { readonly backward: 
 	// MRU mode cycles every open tab (including in-composer drafts) so the set of
 	// switchable chats matches the SessionHasMultipleOpenChatsContext gate. The
 	// searchable palette flow instead skips untitled drafts (no meaningful title,
-	// mirroring the Chats dropdown) and adds the closed chats below.
+	// mirroring the Side Chats dropdown) and adds the closed chats below.
 	const openItems = (mru
 		? session.visibleChatTabs.get()
 		: session.visibleChatTabs.get().filter(chat => chat.status.get() !== SessionStatus.Untitled)
@@ -1368,9 +1369,9 @@ export class NewSessionActionViewItemContribution extends Disposable implements 
 }
 
 /**
- * Populates the Chats submenu for each visible session. Actions are scoped per
- * session via {@link SessionIdContext} and re-registered whenever visible
- * sessions or their chats change.
+ * Populates the Side Chats submenu for each visible session. Actions are
+ * scoped per session via {@link SessionIdContext} and re-registered whenever
+ * visible sessions or their chats change.
  */
 export class SessionConversationActionsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -1403,7 +1404,7 @@ export class SessionConversationActionsContribution extends Disposable implement
 			scopedToSession,
 			SessionIsCreatedContext,
 			SessionIsArchivedContext.negate(),
-			SessionActiveChatHasSubagentsContext,
+			ContextKeyExpr.or(SessionHasSideChatsContext, SessionActiveChatHasSubagentsContext),
 		);
 
 		const allChats = session.chats.read(reader);
@@ -1452,7 +1453,7 @@ export class SessionConversationActionsContribution extends Disposable implement
 				return;
 			}
 			const group = getSessionConversationGroupId(chat, activeChat, extUri);
-			if (group === SESSION_CONVERSATION_SUBAGENTS_GROUP) {
+			if (group === SESSION_CONVERSATION_SIDE_CHATS_GROUP || group === SESSION_CONVERSATION_SUBAGENTS_GROUP) {
 				registerOpen(chat, group, index);
 			}
 		});
@@ -1463,14 +1464,14 @@ export class SessionConversationActionsContribution extends Disposable implement
 
 MenuRegistry.appendMenuItem(Menus.SessionBarToolbar, {
 	submenu: Menus.SessionConversations,
-	title: localize2('chatCompositeBar.conversations', "Chats"),
+	title: localize2('chatCompositeBar.sideChats', "Side Chats"),
 	icon: Codicon.commentDiscussion,
 	group: 'secondary/2_chats',
 	order: 10,
 	when: ContextKeyExpr.and(
 		SessionIsCreatedContext,
 		SessionIsArchivedContext.negate(),
-		SessionActiveChatHasSubagentsContext,
+		ContextKeyExpr.or(SessionHasSideChatsContext, SessionActiveChatHasSubagentsContext),
 	),
 });
 
@@ -1487,7 +1488,7 @@ registerAction2(class TogglePinSessionAction extends Action2 {
 			},
 			menu: {
 				id: Menus.SessionBarToolbar,
-				group: 'secondary/3_pin',
+				group: 'secondary/4_pin',
 				order: 10,
 				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionIsArchivedContext.negate()),
 			},
@@ -1560,7 +1561,7 @@ registerAction2(class CloseSessionAction extends Action2 {
 			menu: [{
 				id: Menus.SessionBarToolbar,
 				when: ContextKeyExpr.or(SessionIsCreatedContext, MultipleSessionsVisibleContext),
-				group: 'secondary/3_pin',
+				group: 'secondary/4_pin',
 				order: 30,
 			}, {
 				id: Menus.SessionHeaderContext,
@@ -1594,7 +1595,7 @@ registerAction2(class ToggleMaximizeSessionViewAction extends Action2 {
 			menu: {
 				id: Menus.SessionBarToolbar,
 				when: MultipleSessionsVisibleContext,
-				group: 'secondary/3_pin',
+				group: 'secondary/4_pin',
 				order: 20,
 			},
 		});

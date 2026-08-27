@@ -8,7 +8,7 @@ import { extUri } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { getSessionConversationGroupId, getSessionConversationStatusAriaLabel, getSessionConversationStatusLabel, SESSION_CONVERSATION_CHATS_GROUP, SESSION_CONVERSATION_SUBAGENTS_GROUP } from '../../browser/sessionConversationGroups.js';
+import { getSessionConversationGroupId, getSessionConversationStatusAriaLabel, getSessionConversationStatusLabel, SESSION_CONVERSATION_CHATS_GROUP, SESSION_CONVERSATION_SIDE_CHATS_GROUP, SESSION_CONVERSATION_SUBAGENTS_GROUP } from '../../browser/sessionConversationGroups.js';
 import { ChatOriginKind, IChat, IChatOrigin, SessionStatus } from '../../services/sessions/common/session.js';
 
 function createChat(id: string, origin?: IChatOrigin): IChat {
@@ -21,7 +21,7 @@ function createChat(id: string, origin?: IChatOrigin): IChat {
 suite('Sessions - Session conversation groups', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('omits side chats and separates active-chat subagents', () => {
+	test('groups side chats separately and separates active-chat subagents', () => {
 		const activeChat = createChat('active');
 		assert.deepStrictEqual([
 			getSessionConversationGroupId(createChat('regular'), activeChat, extUri),
@@ -30,7 +30,7 @@ suite('Sessions - Session conversation groups', () => {
 			getSessionConversationGroupId(createChat('other-subagent', { kind: ChatOriginKind.Tool, parentChat: URI.parse('test-chat:/other') }), activeChat, extUri),
 		], [
 			SESSION_CONVERSATION_CHATS_GROUP,
-			undefined,
+			SESSION_CONVERSATION_SIDE_CHATS_GROUP,
 			SESSION_CONVERSATION_SUBAGENTS_GROUP,
 			undefined,
 		]);
