@@ -144,6 +144,19 @@ suite('Chat recovery', () => {
 		});
 	});
 
+	test('detects changes to the selected model identifier', () => {
+		const previousRequest = { prompt: 'previous request', modelId: 'copilot/model-a' } as ChatRequestTurn2;
+		const previousResponse = chatResponse(undefined, true);
+
+		expect({
+			unchanged: getChatRecoveryAttempt(previousRequest, previousResponse, chatRequest({ modelId: 'copilot/model-a' })),
+			changed: getChatRecoveryAttempt(previousRequest, previousResponse, chatRequest({ modelId: 'copilot/model-b' })),
+		}).toEqual({
+			unchanged: { modelId: 'model', scoringVersion: '2', totalScore: 0.75, lastResponseErrored: true },
+			changed: { modelId: 'model', scoringVersion: '2', totalScore: 1, requestChangedModel: true, lastResponseErrored: true },
+		});
+	});
+
 	test('excludes requests that are not user-driven recovery attempts', () => {
 		const previousRequest = { prompt: 'previous request', modelId: 'model' } as ChatRequestTurn2;
 		const previousResponse = chatResponse(undefined, true);

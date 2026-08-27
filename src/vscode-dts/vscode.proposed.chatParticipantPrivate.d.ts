@@ -119,6 +119,11 @@ declare module 'vscode' {
 		readonly parentRequestId?: string;
 
 		/**
+		 * The identifier of the language model selected for this request, if known.
+		 */
+		readonly modelId?: string;
+
+		/**
 		 * The permission level for tool auto-approval in this request.
 		 * - `'autoApprove'`: Auto-approve all tool calls and retry on errors.
 		 * - `'autopilot'`: Everything autoApprove does plus continues until the task is done.

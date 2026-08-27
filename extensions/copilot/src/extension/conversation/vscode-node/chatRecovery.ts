@@ -160,7 +160,7 @@ function addRequestSignals(recoveryAttempt: ChatRecoveryAttempt, previousRequest
 	if (request.editedRequestId) {
 		addSignal(recoveryAttempt, ChatRecoverySignal.RequestEdited);
 	}
-	if (previousRequest?.modelId && previousRequest.modelId !== request.model.id) {
+	if (previousRequest?.modelId && previousRequest.modelId !== (request.modelId ?? request.model.id)) {
 		addSignal(recoveryAttempt, ChatRecoverySignal.RequestChangedModel);
 	}
 	if (didReducePermissions(previousRequest?.permissionLevel, request.permissionLevel)) {
