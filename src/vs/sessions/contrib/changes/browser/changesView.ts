@@ -373,7 +373,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 					}),
 				})
 				: contributed;
-			return { primary, contributed, groups: primaryGroup.length > 0 ? [primaryGroup, ...rest] : rest };
+			return { primary, contributed, isAgentMerge: contributed instanceof SubmenuItemAction && contributed.item.submenu === Menus.ChangesAgentMerge, groups: primaryGroup.length > 0 ? [primaryGroup, ...rest] : rest };
 		});
 
 		const operationActionGroupsObs = derived<{ readonly groups: IAction[][]; readonly hasRunning: boolean }>(reader => {
@@ -481,11 +481,11 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 
 			primaryActions.push(...menuActions.primary);
 
-			// A contributed primary is a group label rather than an action, so
-			// it cannot report progress itself. Agent Merge is busy for as long
-			// as it is enabled, since it watches the pull request continuously.
+			// A contributed primary is a group label rather than an action, so it
+			// cannot report progress itself. Agent Merge is busy for as long as
+			// it is enabled, since it watches the pull request continuously.
 			primaryIsBusy = usesContributedPrimary
-				? agentMergeEnabledObs.read(reader)
+				? dropdownMenuActions.isAgentMerge && agentMergeEnabledObs.read(reader)
 				: operations.hasRunning;
 			buttonBar.update(primaryActions, menuActions.secondary);
 
