@@ -18,7 +18,7 @@ import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabe
 import { createMatches, FuzzyScore, IMatch } from '../../../../../base/common/filters.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { IObservable, IReader, autorun, derived, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, IReader, autorun, derived, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { fromNow } from '../../../../../base/common/date.js';
@@ -102,6 +102,8 @@ const $ = DOM.$;
 const AUTOMATIONS_SECTION_ID = 'automations';
 const SESSION_SECTION_FOCUS_FROM_POINTER_CLASS = 'session-section-focus-from-pointer';
 const SESSION_HEADER_DROP_TARGET_CLASS = 'session-header-drop-target';
+/** Shared empty set used as the default "no session hierarchy is hovered/selected" value. */
+const EMPTY_GUIDE_SESSION_IDS: ReadonlySet<string> = new Set();
 
 export const SessionItemToolbarMenuId = new MenuId('SessionItemToolbar');
 export const SessionItemContextMenuId = MenuId.SessionItemContextMenu;
@@ -366,6 +368,13 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 	constructor(
 		private readonly hoverService: IHoverService,
 		private readonly instantiationService: IInstantiationService,
+		/**
+		 * Session IDs whose hierarchy indent/connector guides should be shown —
+		 * i.e. the session (or one of its chats) is currently hovered or
+		 * selected. Read reactively so guides appear only while the pointer or
+		 * selection is within this exact session's hierarchy.
+		 */
+		private readonly activeGuideSessionIds: IObservable<ReadonlySet<string>> = constObservable(EMPTY_GUIDE_SESSION_IDS),
 	) { }
 
 	renderTemplate(container: HTMLElement): ISessionChatItemTemplate {
@@ -400,6 +409,10 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 				undefined,
 				element.chat.resource,
 			);
+		}));
+		template.elementDisposables.add(autorun(reader => {
+			const showGuides = this.activeGuideSessionIds.read(reader).has(element.session.sessionId);
+			template.container.classList.toggle('session-hierarchy-guides-visible', showGuides);
 		}));
 		template.elementDisposables.add(this.hoverService.setupDelayedHover(template.title.element, () => ({
 			content: getChatTitle(element.chat),
@@ -530,7 +543,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	readonly onDidApproveSession: Event<IApprovedSession> = this._onDidApproveSession.event;
 
 	constructor(
-		private readonly options: { grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; useCompactQuickChatRows: boolean; approvalRowMaxLines: number; toolbarMenuId: MenuId | undefined; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>; onDidRequestRename?: (session: ISession) => void },
+		private readonly options: { grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; useCompactQuickChatRows: boolean; approvalRowMaxLines: number; toolbarMenuId: MenuId | undefined; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>; onDidRequestRename?: (session: ISession) => void; activeGuideSessionIds?: IObservable<ReadonlySet<string>> },
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly ciFixModel: ISessionCIFixModel | undefined,
 		private readonly instantiationService: IInstantiationService,
@@ -717,6 +730,13 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			template.container.classList.toggle('archived', isArchived);
 			// Only apply pinned styling when not archived to avoid persistent toolbars on archived sessions
 			template.container.classList.toggle('pinned', isPinned && !isArchived);
+		}));
+
+		// Hierarchy indent/connector guides — visible only while this exact
+		// session (or one of its chat children) is hovered or selected.
+		template.elementDisposables.add(autorun(reader => {
+			const showGuides = (this.options.activeGuideSessionIds?.read(reader) ?? EMPTY_GUIDE_SESSION_IDS).has(element.sessionId);
+			template.container.classList.toggle('session-hierarchy-guides-visible', showGuides);
 		}));
 
 		// Sticky styling — reactive on the wrapper's sticky observable
@@ -2089,6 +2109,25 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private readonly sessionChatsObserver = this._register(new MutableDisposable());
 	private readonly activeSessionUpdate = this._register(new MutableDisposable());
 	private readonly automationSessions = observableValue<readonly ISession[]>(this, []);
+	/**
+	 * Session IDs whose hierarchy indent/connector guides should be visible:
+	 * the union of the currently-hovered session (if any) and every session
+	 * that is the parent of, or itself, a currently selected/focused row.
+	 * Hovering or selecting a chat child reveals its own parent's guides only.
+	 */
+	private readonly hoveredGuideSessionId = observableValue<string | undefined>(this, undefined);
+	private readonly selectedGuideSessionIds = observableValue<ReadonlySet<string>>(this, EMPTY_GUIDE_SESSION_IDS);
+	private readonly activeGuideSessionIds = derived(this, reader => {
+		const hovered = this.hoveredGuideSessionId.read(reader);
+		const selected = this.selectedGuideSessionIds.read(reader);
+		if (!hovered) {
+			return selected;
+		}
+		if (selected.has(hovered)) {
+			return selected;
+		}
+		return new Set([...selected, hovered]);
+	});
 	private visible = true;
 	private readonly excludedSessionTypes: Set<string>;
 	private readonly excludedStatuses: Set<SessionStatus>;
@@ -2219,6 +2258,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				onDidRequestRename: session => {
 					this.commandService.executeCommand(RENAME_SESSION_COMMAND_ID, session).catch(onUnexpectedError);
 				},
+				activeGuideSessionIds: this.activeGuideSessionIds,
 			},
 			approvalModel,
 			undefined,
@@ -2236,7 +2276,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const showMoreRenderer = new SessionShowMoreRenderer();
 		const placeholderRenderer = new SessionPlaceholderRenderer(hoverService);
-		const chatRenderer = new SessionChatItemRenderer(hoverService, instantiationService);
+		const chatRenderer = new SessionChatItemRenderer(hoverService, instantiationService, this.activeGuideSessionIds);
 		const selectHeader = (element: ISessionSection | ISessionGroupItem, event: MouseEvent) => {
 			this.tree.setFocus([element], event);
 			this.tree.setSelection([element], event);
@@ -2367,6 +2407,41 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		));
 		this.tree.updateOptions({ indent: 0, defaultIndent: 0, expandOnDoubleClick: false });
+
+		// Hierarchy guides: resolve any row (a session or one of its chats) to
+		// the session whose guides it belongs to, so hovering/selecting a chat
+		// child reveals only its own parent's guides, never an unrelated
+		// session's.
+		const guideOwnerSessionId = (element: SessionListItem | null): string | undefined => {
+			if (element && isSessionItem(element)) {
+				return element.sessionId;
+			}
+			if (element && isSessionChatItem(element)) {
+				return element.session.sessionId;
+			}
+			return undefined;
+		};
+		this._register(this.tree.onMouseOver(e => {
+			this.hoveredGuideSessionId.set(guideOwnerSessionId(e.element), undefined);
+		}));
+		this._register(this.tree.onMouseOut(e => {
+			// Only clear if the pointer left the row that set the hover, i.e. no
+			// unrelated `mouseout` (e.g. bubbling from a child element within the
+			// same row) resets a hover another row's `mouseover` just established.
+			if (guideOwnerSessionId(e.element) === this.hoveredGuideSessionId.get()) {
+				this.hoveredGuideSessionId.set(undefined, undefined);
+			}
+		}));
+		this._register(this.tree.onDidChangeSelection(() => {
+			const ids = new Set<string>();
+			for (const element of this.tree.getSelection()) {
+				const id = guideOwnerSessionId(element);
+				if (id) {
+					ids.add(id);
+				}
+			}
+			this.selectedGuideSessionIds.set(ids, undefined);
+		}));
 
 		this._register(this.tree.onDidOpen(async e => {
 			const element = e.element;
