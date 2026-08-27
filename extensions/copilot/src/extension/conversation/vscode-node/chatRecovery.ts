@@ -15,6 +15,11 @@ import { getToolName, ToolName } from '../../tools/common/toolNames';
 
 const testRunSummaryPattern = /<summary passed=\d+ failed=(?<failed>\d+) \/>/;
 
+interface IChatRecoveryEnvironment {
+	readonly getDiagnostics: (uri: vscode.Uri) => readonly vscode.Diagnostic[];
+	readonly textDocuments: readonly vscode.TextDocument[];
+}
+
 export enum ChatRecoverySignal {
 	DocumentUserRejected = 'documentUserRejected',
 	DocumentUserModified = 'documentUserModified',
@@ -93,7 +98,7 @@ export function wasLastPlanReviewRejected(metadata: Partial<IResultMetadata> | u
 /**
  * Determines whether the current chat request is an attempt to recover from a previous failed request.
  */
-export function isChatRecoveryAttempt(previousRequest: ChatRequestTurn2 | undefined, previousResponse: ChatResponseTurn | undefined, request: vscode.ChatRequest): boolean {
+export function isChatRecoveryAttempt(previousRequest: ChatRequestTurn2 | undefined, previousResponse: ChatResponseTurn | undefined, request: vscode.ChatRequest, environment?: IChatRecoveryEnvironment): boolean {
 	if ((!previousRequest && !previousResponse) || request.permissionLevel === 'autopilot' || request.subAgentInvocationId || request.isSystemInitiated) {
 		return false;
 	}
@@ -134,13 +139,13 @@ export function isChatRecoveryAttempt(previousRequest: ChatRequestTurn2 | undefi
 		signals.push(ChatRecoverySignal.DocumentUserModified);
 	}
 	const documentGeneratedProblems = changedFiles.some(entry =>
-		vscode.languages.getDiagnostics(entry.document.uri).some(diagnostic => diagnostic.severity === vscode.DiagnosticSeverity.Error)
+		(environment?.getDiagnostics(entry.document.uri) ?? vscode.languages.getDiagnostics(entry.document.uri)).some(diagnostic => diagnostic.severity === vscode.DiagnosticSeverity.Error)
 	);
 	if (documentGeneratedProblems) {
 		signals.push(ChatRecoverySignal.DocumentGeneratedProblems);
 	}
 	const documentHasMergeConflicts = changedFiles.some(entry => {
-		const document = vscode.workspace.textDocuments.find(document => isEqual(document.uri, entry.document.uri));
+		const document = (environment?.textDocuments ?? vscode.workspace.textDocuments).find(document => isEqual(document.uri, entry.document.uri));
 		return document !== undefined && MergeConflictParser.scanDocument(document).length > 0;
 	});
 	if (documentHasMergeConflicts) {

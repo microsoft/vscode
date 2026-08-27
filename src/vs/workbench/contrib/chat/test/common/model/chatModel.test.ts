@@ -1908,14 +1908,17 @@ suite('serializeSendOptions', () => {
 			userSelectedModelId: 'copilot/gpt',
 			userSelectedModelConfiguration: { thinkingEffort: 'high', contextSize: 2000 },
 			isVoiceModeInput: true,
+			editedRequestId: 'request-to-replace',
 		});
 
 		assert.deepStrictEqual({
 			modelConfiguration: serialized.userSelectedModelConfiguration,
 			isVoiceModeInput: serialized.isVoiceModeInput,
+			editedRequestId: serialized.editedRequestId,
 		}, {
 			modelConfiguration: { thinkingEffort: 'high', contextSize: 2000 },
 			isVoiceModeInput: true,
+			editedRequestId: 'request-to-replace',
 		});
 	});
 });

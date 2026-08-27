@@ -2024,6 +2024,7 @@ export class ChatService extends Disposable implements IChatService {
 				location: ChatAgentLocation.Chat,
 				editedFileEvents: request.editedFileEvents,
 				modeInstructions: request.modeInfo?.modeInstructions,
+				modelId: request.modelId ? this.languageModelsService.lookupLanguageModel(request.modelId)?.id : undefined,
 			};
 			history.push({ request: historyRequest, response: toChatHistoryContent(request.response.response.value), result: request.response.result ?? {} });
 		}
