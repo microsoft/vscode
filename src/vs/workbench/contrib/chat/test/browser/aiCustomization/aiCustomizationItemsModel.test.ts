@@ -20,7 +20,7 @@ import { AICustomizationItemsModel } from '../../../browser/aiCustomization/aiCu
 import { AICustomizationManagementSection, AICustomizationSources, BUILTIN_STORAGE, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationSyncProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
-import { IAgentPluginService, type IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
+import { AgentPluginDiscoveryOrigin, IAgentPluginService, type IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
 import { PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
 import { IAgentSource, ICustomAgent, IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
@@ -158,6 +158,7 @@ suite('AICustomizationItemsModel', () => {
 			return {
 				uri: URI.parse(`plugin-test://${name}`),
 				format: PluginFormat.Copilot,
+				discoveryOrigin: AgentPluginDiscoveryOrigin.ConfiguredPath,
 				label: name,
 				enablement: observableValue('pluginEnablement', ContributionEnablementState.EnabledProfile),
 				remove: () => { },
@@ -642,6 +643,7 @@ suite('AICustomizationItemsModel', () => {
 			return {
 				uri: URI.parse(`plugin-test://${name}`),
 				format: PluginFormat.Copilot,
+				discoveryOrigin: AgentPluginDiscoveryOrigin.ConfiguredPath,
 				label: name,
 				enablement: observableValue('pluginEnablement', ContributionEnablementState.EnabledProfile),
 				remove: () => { },

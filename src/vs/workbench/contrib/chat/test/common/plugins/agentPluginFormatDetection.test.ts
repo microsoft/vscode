@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { waitForState } from '../../../../../../base/common/observable.js';
+import { autorun, waitForState } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
@@ -249,6 +249,28 @@ suite('AgentPlugin format detection', () => {
 		assert.strictEqual(plugins[0].commands.get()[0].name, 'run');
 	}));
 
+	test('retains optional-manifest parse failures without changing component discovery', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = pluginUri('/plugins/malformed-copilot-plugin');
+		await writeFile('/plugins/malformed-copilot-plugin/plugin.json', '{ invalid');
+		await writeFile('/plugins/malformed-copilot-plugin/commands/run.md', '# Run');
+
+		const discovery = createDiscovery();
+		discovery.start(mockEnablementModel);
+		await discovery.setSourcesAndRefresh([uri]);
+
+		const [plugin] = getDiscoveredPlugins(discovery);
+		await waitForState(plugin.commands, commands => commands.length > 0);
+		assert.deepStrictEqual({
+			format: plugin.format,
+			manifestParseError: plugin.manifestParseError?.get(),
+			commands: plugin.commands.get().map(command => command.name),
+		}, {
+			format: PluginFormat.Copilot,
+			manifestParseError: true,
+			commands: ['run'],
+		});
+	}));
+
 	test('plugin label uses manifest `name` when no marketplace metadata is present', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		// Direct-installed plugin (no marketplace metadata) with a `name` in
 		// its manifest — the label should use the manifest name, not the
@@ -463,6 +485,38 @@ suite('AgentPlugin format detection', () => {
 
 		await waitForState(plugins[0].mcpServerDefinitions, defs => defs.length > 0);
 		assert.strictEqual(plugins[0].mcpServerDefinitions.get()[0].name, 'standalone-server');
+	}));
+
+	test('publishes one final component snapshot after all reads settle', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = pluginUri('/plugins/delayed-components');
+		await writeFile('/plugins/delayed-components/plugin.json', JSON.stringify({
+			name: 'delayed-components',
+			hooks: {
+				PreToolUse: [{ type: 'command', command: 'echo ready' }],
+			},
+		}));
+		const userHomeBarrier = new DeferredPromise<URI>();
+		const discovery = store.add(new TestPluginDiscovery(
+			fileService,
+			{ userHome: () => userHomeBarrier.p } as IPathService,
+			logService,
+			instantiationService.get(IWorkspaceContextService),
+		));
+		discovery.start(mockEnablementModel);
+		const snapshots: number[] = [];
+		store.add(autorun(reader => {
+			const snapshot = discovery.discoverySnapshot.read(reader);
+			if (snapshot) {
+				snapshots.push(snapshot.candidates[0]?.components?.hookCount ?? -1);
+			}
+		}));
+
+		await discovery.setSourcesAndRefresh([uri]);
+		assert.strictEqual(discovery.discoverySnapshot.get(), undefined);
+		userHomeBarrier.complete(URI.file('/home/testuser'));
+		await waitForState(discovery.discoverySnapshot, snapshot => snapshot !== undefined);
+
+		assert.deepStrictEqual(snapshots, [1]);
 	}));
 
 	test('reads skills from skills/ subdirectories', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

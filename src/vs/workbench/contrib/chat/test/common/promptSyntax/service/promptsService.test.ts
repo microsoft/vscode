@@ -55,7 +55,7 @@ import { ChatConfiguration, ChatModeKind } from '../../../../common/constants.js
 import { HookType } from '../../../../common/promptSyntax/hookTypes.js';
 import { IContextKeyChangeEvent, IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { IAgentPlugin, IAgentPluginAgent, IAgentPluginCommand, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from '../../../../common/plugins/agentPluginService.js';
+import { AgentPluginDiscoveryOrigin, IAgentPlugin, IAgentPluginAgent, IAgentPluginCommand, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from '../../../../common/plugins/agentPluginService.js';
 import { PluginFormat } from '../../../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../../platform/workspace/common/workspaceTrust.js';
 import { COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG } from '../../../../../../../platform/policy/common/copilotManagedSettings.js';
@@ -4882,6 +4882,7 @@ suite('PromptsService', () => {
 			const plugin: IAgentPlugin = {
 				uri: URI.file('/plugins/my-plugin'),
 				format: PluginFormat.Copilot,
+				discoveryOrigin: AgentPluginDiscoveryOrigin.ConfiguredPath,
 				label: 'my-plugin',
 				enablement,
 				remove: () => { },
@@ -4928,6 +4929,7 @@ suite('PromptsService', () => {
 			const plugin: IAgentPlugin = {
 				uri: URI.file('/plugins/devtools'),
 				format: PluginFormat.Copilot,
+				discoveryOrigin: AgentPluginDiscoveryOrigin.ConfiguredPath,
 				label: 'devtools',
 				enablement,
 				remove: () => { },
@@ -4981,6 +4983,7 @@ suite('PromptsService', () => {
 			const plugin: IAgentPlugin = {
 				uri: pluginUri,
 				format: PluginFormat.Copilot,
+				discoveryOrigin: AgentPluginDiscoveryOrigin.ConfiguredPath,
 				label: 'datadog',
 				enablement,
 				remove: () => { },
@@ -5062,6 +5065,7 @@ suite('PromptsService', () => {
 			const plugin: IAgentPlugin = {
 				uri: URI.file('/plugins/managed'),
 				format: PluginFormat.Copilot,
+				discoveryOrigin: AgentPluginDiscoveryOrigin.ConfiguredPath,
 				label: 'managed',
 				enablement: observableValue('lockdownPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */),
 				hooks: observableValue('lockdownPluginHooks', []),
@@ -5097,6 +5101,7 @@ suite('PromptsService', () => {
 			const plugin: IAgentPlugin = {
 				uri: pluginUri,
 				format: PluginFormat.Copilot,
+				discoveryOrigin: AgentPluginDiscoveryOrigin.ConfiguredPath,
 				label: 'managed',
 				enablement: observableValue('lockdownInstructionPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */),
 				hooks: observableValue('lockdownInstructionPluginHooks', []),
@@ -5185,6 +5190,7 @@ suite('PromptsService', () => {
 			const plugin: IAgentPlugin = {
 				uri: pluginUri,
 				format: PluginFormat.Copilot,
+				discoveryOrigin: AgentPluginDiscoveryOrigin.ConfiguredPath,
 				label: 'managed-plugin',
 				enablement: observableValue('managedPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */),
 				hooks: observableValue('managedPluginHooks', []),
@@ -5217,6 +5223,7 @@ suite('PromptsService', () => {
 				plugin: {
 					uri: URI.file(path),
 					format: PluginFormat.Copilot,
+					discoveryOrigin: AgentPluginDiscoveryOrigin.ConfiguredPath,
 					label: basename(URI.file(path)),
 					enablement,
 					remove: () => { },
@@ -5490,6 +5497,7 @@ suite('PromptsService', () => {
 				plugin: {
 					uri: URI.file(path),
 					format: PluginFormat.Copilot,
+					discoveryOrigin: AgentPluginDiscoveryOrigin.ConfiguredPath,
 					label: basename(URI.file(path)),
 					enablement,
 					remove: () => { },

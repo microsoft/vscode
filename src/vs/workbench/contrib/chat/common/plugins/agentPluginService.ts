@@ -33,6 +33,7 @@ export type IAgentPluginMcpServerDefinition = IMcpServerDefinition;
 export interface IAgentPlugin {
 	readonly uri: URI;
 	readonly format: PluginFormat;
+	readonly discoveryOrigin: AgentPluginDiscoveryOrigin;
 	/** Human-readable display name for the plugin. */
 	readonly label: string;
 	readonly enablement: IObservable<ContributionEnablementState>;
@@ -43,6 +44,8 @@ export interface IAgentPlugin {
 	 * consumers honor it automatically.
 	 */
 	readonly policyBlocked?: IObservable<boolean>;
+	readonly manifestParseError?: IObservable<boolean>;
+	readonly manifestUnreadable?: IObservable<boolean>;
 	/** Removes this plugin from its discovery source (config or installed storage). Undefined for policy-managed plugins that cannot be removed by the user. */
 	remove?(): void;
 	readonly hooks: IObservable<readonly IAgentPluginHook[]>;
@@ -58,12 +61,55 @@ export interface IAgentPlugin {
 export interface IAgentPluginService {
 	readonly _serviceBrand: undefined;
 	readonly plugins: IObservable<readonly IAgentPlugin[]>;
+	readonly discoveredPlugins: IObservable<readonly IAgentPlugin[]>;
+	readonly discoveryComplete: IObservable<boolean>;
 	readonly enablementModel: IEnablementModel;
 }
 
 export interface IAgentPluginDiscovery extends IDisposable {
 	readonly plugins: IObservable<readonly IAgentPlugin[] | undefined>;
+	readonly discoverySnapshot: IObservable<IAgentPluginDiscoverySnapshot | undefined>;
 	start(enablementModel: IEnablementModel): void;
+}
+
+export const enum AgentPluginDiscoveryOrigin {
+	ConfiguredPath = 'configuredPath',
+	ConfiguredPluginId = 'configuredPluginId',
+	VSCodeInstalled = 'vscodeInstalled',
+	CopilotCliMarketplace = 'copilotCliMarketplace',
+	CopilotCliDirect = 'copilotCliDirect',
+	ExtensionContribution = 'extensionContribution',
+}
+
+export const enum AgentPluginDiscoveryOutcome {
+	Loaded = 'loaded',
+	Disabled = 'disabled',
+	ParseError = 'parseError',
+	Unreadable = 'unreadable',
+	Collision = 'collision',
+}
+
+export interface IAgentPluginDiscoveryCandidate {
+	readonly origin: AgentPluginDiscoveryOrigin;
+	readonly format: PluginFormat | undefined;
+	readonly outcome: AgentPluginDiscoveryOutcome;
+	readonly plugin?: IAgentPlugin;
+	readonly components?: IAgentPluginComponentSnapshot;
+}
+
+export interface IAgentPluginDiscoverySnapshot {
+	readonly candidates: readonly IAgentPluginDiscoveryCandidate[];
+}
+
+export interface IAgentPluginComponentSnapshot {
+	readonly commandCount: number;
+	readonly skillCount: number;
+	readonly agentCount: number;
+	readonly instructionCount: number;
+	readonly hookCount: number;
+	readonly mcpServerCount: number;
+	readonly manifestParseError: boolean;
+	readonly manifestUnreadable: boolean;
 }
 
 export const enum AgentPluginDiscoveryPriority {

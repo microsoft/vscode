@@ -12,7 +12,7 @@ import { CustomizationEnablementKind, CustomizationType, type PluginCustomizatio
 import { createUninstallPluginAction, getAgentHostPluginEnablementActions } from '../../browser/agentPluginActions.js';
 import { IAgentHostCustomizationService } from '../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { ContributionEnablementState } from '../../common/enablement.js';
-import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPluginService.js';
+import { AgentPluginDiscoveryOrigin, IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 
 suite('AgentPluginActions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -21,6 +21,7 @@ suite('AgentPluginActions', () => {
 		return {
 			uri: URI.file('/plugins/local-plugin'),
 			format: PluginFormat.Copilot,
+			discoveryOrigin: AgentPluginDiscoveryOrigin.ConfiguredPath,
 			label: 'Local Plugin',
 			enablement: observableValue('enablement', ContributionEnablementState.EnabledProfile),
 			remove,
