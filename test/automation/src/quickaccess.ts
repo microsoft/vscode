@@ -212,8 +212,8 @@ export class QuickAccess {
 				return text === command;
 			}
 
-			const focusedCommandId = await this.quickInput.waitForQuickInputCommandId();
-			return focusedCommandId === command;
+			const focusedAutomationId = await this.quickInput.waitForQuickInputAutomationId();
+			return focusedAutomationId === command;
 		};
 
 		let hasCommandFound = await openCommandPalletteAndTypeCommand();
@@ -240,9 +240,9 @@ export class QuickAccess {
 			}
 		}
 
-		let expectedItem: { type: 'commandId' | 'label'; value: string } | undefined;
+		let expectedItem: { type: 'automationId' | 'label'; value: string } | undefined;
 		if (match === 'exactCommandId') {
-			expectedItem = { type: 'commandId', value: command };
+			expectedItem = { type: 'automationId', value: command };
 		} else if (match === 'exactLabel') {
 			expectedItem = { type: 'label', value: command };
 		}

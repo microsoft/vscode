@@ -384,25 +384,21 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		assert.strictEqual(quickpick.activeItems.length, 0);
 	});
 
-	test('command id is exposed as DOM metadata and cleared for other items', () => {
-		const quickpick = store.add(controller.createQuickPick() as QuickPick<IQuickPickItem>);
-		const commandItem: IQuickPickItem & { commandId: string } = {
-			commandId: 'command-id',
-			label: 'command'
-		};
-		quickpick.items = [commandItem];
+	test('automation id is exposed as DOM metadata and cleared when absent', () => {
+		const quickpick = store.add(controller.createQuickPick());
+		quickpick.items = [{ uiAutomationId: 'automation-id', label: 'item with automation id' }];
 		quickpick.show();
 
 		const entry = fixture.querySelector<HTMLElement>('.quick-input-list-entry')!;
-		const commandId = entry.getAttribute('data-command-id');
+		const automationId = entry.getAttribute('data-quick-input-automation-id');
 
 		quickpick.items = [{ id: 'item-id', label: 'non-command item' }];
 		const recycledEntry = fixture.querySelector<HTMLElement>('.quick-input-list-entry')!;
-		const recycledCommandId = recycledEntry.getAttribute('data-command-id');
+		const recycledAutomationId = recycledEntry.getAttribute('data-quick-input-automation-id');
 
-		assert.deepStrictEqual({ commandId, recycledCommandId }, {
-			commandId: 'command-id',
-			recycledCommandId: null
+		assert.deepStrictEqual({ automationId, recycledAutomationId }, {
+			automationId: 'automation-id',
+			recycledAutomationId: null
 		});
 	});
 
