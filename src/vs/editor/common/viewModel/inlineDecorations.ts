@@ -243,17 +243,19 @@ export class InjectedTextInlineDecorationsComputer implements IInlineDecorations
 				const injectedTextStartOffsetInInputWithInjections = injectionOffsets[currentInjectedOffset] + totalInjectedTextLengthBefore;
 				const injectedTextEndOffsetInInputWithInjections = injectedTextStartOffsetInInputWithInjections + length;
 				const isWidthOnly = (length === 0 && options.widthInEm !== undefined);
-				const isAtWrapBoundary = injectedTextStartOffsetInInputWithInjections === lineEndOffsetInInputWithInjections && outputLineIndex < breakOffsets.length - 1;
+				const isLastOutputLine = outputLineIndex === breakOffsets.length - 1;
+				const isAtInternalWrapBoundary = injectedTextStartOffsetInInputWithInjections === lineEndOffsetInInputWithInjections && !isLastOutputLine;
 
-				if (injectedTextStartOffsetInInputWithInjections > lineEndOffsetInInputWithInjections || (isWidthOnly && isAtWrapBoundary)) {
+				if (injectedTextStartOffsetInInputWithInjections > lineEndOffsetInInputWithInjections || (isWidthOnly && isAtInternalWrapBoundary)) {
 					// Injected text only starts in later wrapped lines.
 					break;
 				}
 
-				// Injected text that only reserves horizontal space covers no character, so it cannot be
-				// contained in a wrapped line the way injected text with content is.
-				const isWidthOnly = (length === 0 && options.widthInEm !== undefined);
-				if (lineStartOffsetInInputWithInjections < injectedTextEndOffsetInInputWithInjections) {
+				const isInLine = isWidthOnly
+					? lineStartOffsetInInputWithInjections <= injectedTextStartOffsetInInputWithInjections
+					&& (injectedTextStartOffsetInInputWithInjections < lineEndOffsetInInputWithInjections || isLastOutputLine)
+					: lineStartOffsetInInputWithInjections < injectedTextEndOffsetInInputWithInjections;
+				if (isInLine) {
 					// Injected text ends after or in this line (but also starts in or before this line).
 					if (options.inlineClassName) {
 						const wrappedTextIndentLength = this.context.getWrappedTextIndentLength(modelLineNumber);
