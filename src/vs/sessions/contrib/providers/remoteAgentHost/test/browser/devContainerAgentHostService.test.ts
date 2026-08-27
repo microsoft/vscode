@@ -223,7 +223,7 @@ suite('Dev Container Agent Host Service', () => {
 				connection: {
 					type: RemoteAgentHostEntryType.DevContainer,
 					address,
-					hostPath: '/source',
+					hostPath: sourceWorkspace.fsPath,
 				},
 			},
 			provider: {
