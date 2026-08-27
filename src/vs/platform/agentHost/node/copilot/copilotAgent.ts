@@ -4324,7 +4324,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				await this._storeSessionMetadata(resolved.configurationResource, undefined, workingDirectory, [workingDirectory], undefined, undefined);
 				const backing = { sdkSessionId: connected.sessionId };
 				this._chatBackings.set(chatKey, backing);
-				return { providerData: encodeProviderData(backing) };
+				return this._chatBackingResult(AgentSession.id(resolved.configurationResource), backing);
 			}
 			const backing = { sdkSessionId: AgentSession.id(resolved.configurationResource) };
 			this._chatBackings.set(chatKey, backing);

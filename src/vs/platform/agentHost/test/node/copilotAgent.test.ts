@@ -5544,6 +5544,7 @@ suite('CopilotAgent', () => {
 					connectCalls: client.remoteSessionConnectCalls,
 					resumeCalls,
 					providerData: materialized?.providerData,
+					backingSession: materialized?.backingSession?.toString(),
 				}, {
 					discovered: [{ id: sessionId, external: true, adoptable: false }],
 					project: 'https://github.com/owner/repository',
@@ -5553,6 +5554,7 @@ suite('CopilotAgent', () => {
 					connectCalls: [sessionId],
 					resumeCalls: [`connected-${sessionId}`],
 					providerData: JSON.stringify({ sdkSessionId: `connected-${sessionId}` }),
+					backingSession: AgentSession.uri('copilotcli', `connected-${sessionId}`).toString(),
 				});
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
