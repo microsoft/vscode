@@ -875,11 +875,11 @@ suite('Sessions - SessionsList', () => {
 				date: rowSnapshot(dateRows).map(row => ({ title: row.title, badge: row.badge, ariaLabel: row.ariaLabel })),
 			}, {
 				workspace: [
-					{ title: 'Grouped', badge: 'vscode', ariaLabel: 'Grouped, updated now, in vscode' },
-					{ title: 'Ordinary', badge: undefined, ariaLabel: 'Ordinary, updated now' },
+					{ title: 'Grouped', badge: 'vscode', ariaLabel: 'Grouped, updated now, State: Completed, in vscode' },
+					{ title: 'Ordinary', badge: undefined, ariaLabel: 'Ordinary, updated now, State: Completed' },
 				],
 				date: [
-					{ title: 'Ordinary', badge: 'monaco', ariaLabel: 'Ordinary, updated now, in monaco' },
+					{ title: 'Ordinary', badge: 'monaco', ariaLabel: 'Ordinary, updated now, State: Completed, in monaco' },
 				],
 			});
 		});
@@ -1075,7 +1075,7 @@ suite('Sessions - SessionsList', () => {
 				peerChatNeedsInput: peerRow.closest('.monaco-list-row')?.getAttribute('aria-label'),
 				aggregateStatus: session.status.get(),
 			}, {
-				session: { inProgress: false, needsInput: false, ariaLabel: 'Session, updated now, in Workspace' },
+				session: { inProgress: false, needsInput: false, ariaLabel: 'Session, updated now, State: Completed, in Workspace' },
 				peerChatNeedsInput: 'Peer chat, chat, updated now, State: Input Needed',
 				aggregateStatus: SessionStatus.NeedsInput,
 			});
@@ -1098,7 +1098,7 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual(sessionRowSnapshot(container), {
 				inProgress: false,
 				needsInput: true,
-				ariaLabel: 'Session, updated now',
+				ariaLabel: 'Session, updated now, State: Input Needed',
 			});
 		});
 
@@ -1128,8 +1128,33 @@ suite('Sessions - SessionsList', () => {
 			mainStatus.set(SessionStatus.NeedsInput, undefined);
 
 			assert.deepStrictEqual({ before, after: sessionRowSnapshot(container) }, {
-				before: { inProgress: false, needsInput: false, ariaLabel: 'Session, updated now, in Workspace' },
-				after: { inProgress: false, needsInput: true, ariaLabel: 'Session, updated now' },
+				before: { inProgress: false, needsInput: false, ariaLabel: 'Session, updated now, State: Completed, in Workspace' },
+				after: { inProgress: false, needsInput: true, ariaLabel: 'Session, updated now, State: Input Needed' },
+			});
+		});
+
+		test('failed non-main chat shows an error icon on its own row', () => {
+			const main = createChat('Main chat', undefined, ChatInteractivity.Full, SessionStatus.Completed);
+			const peer = createChat('Failed chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.Error);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+
+			const container = renderSessionChats(session);
+			const peerRow = [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
+				.find(element => element.textContent?.includes('Failed chat'));
+			assert.ok(peerRow);
+
+			assert.deepStrictEqual({
+				errorIcon: !!peerRow.querySelector('.codicon-error'),
+				ariaLabel: peerRow.closest('.monaco-list-row')?.getAttribute('aria-label'),
+			}, {
+				errorIcon: true,
+				ariaLabel: 'Failed chat, chat, updated now, State: Failed',
 			});
 		});
 

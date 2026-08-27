@@ -184,7 +184,9 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		override getSortKey(session: ISession, mode: SessionSortMode): number {
 			return mode === 'created' ? session.createdAt.getTime() : session.updatedAt.get().getTime();
 		}
-		override getStatusIcon() { return Codicon.circleSmallFilled; }
+		override getStatusIcon(status: SessionStatus) {
+			return status === SessionStatus.Error ? Codicon.error : Codicon.circleSmallFilled;
+		}
 	});
 	instantiationService.stub(ISessionGroupsService, new class extends mock<ISessionGroupsService>() {
 		override readonly onDidChange = Event.None;
