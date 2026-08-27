@@ -3,16 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, EventType, reset } from '../../base/browser/dom.js';
+import { $, addDisposableListener, DisposableResizeObserver, EventHelper, EventType, isHTMLElement, reset } from '../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../base/browser/keyboardEvent.js';
 import { IActionViewItem } from '../../base/browser/ui/actionbar/actionbar.js';
 import { BaseActionViewItem, IActionViewItemOptions } from '../../base/browser/ui/actionbar/actionViewItems.js';
 import { Button } from '../../base/browser/ui/button/button.js';
+import { DomScrollableElement } from '../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ToolBar } from '../../base/browser/ui/toolbar/toolbar.js';
 import { IAction, IActionRunner } from '../../base/common/actions.js';
+import { disposableTimeout } from '../../base/common/async.js';
 import { Emitter, Event } from '../../base/common/event.js';
+import { MarkdownString } from '../../base/common/htmlContent.js';
+import { KeyCode } from '../../base/common/keyCodes.js';
 import { isMacintosh } from '../../base/common/platform.js';
-import { Disposable } from '../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../base/common/lifecycle.js';
 import { autorun, derived, IObservable } from '../../base/common/observable.js';
+import { ScrollbarVisibility } from '../../base/common/scrollable.js';
 import { ThemeIcon } from '../../base/common/themables.js';
 import { URI } from '../../base/common/uri.js';
 import { localize } from '../../nls.js';
@@ -63,6 +69,17 @@ export interface IChatPillSection {
 	readonly entries: readonly IChatPillEntry[];
 }
 
+/** Describes a pill entry's target while keeping its accessible name action-oriented. */
+export function getChatPillResourceLocation(uri: URI, label: string, ariaLabel = localize('chatPills.open', "Open {0}", label)): Pick<IChatPillEntry, 'ariaDescription' | 'ariaLabel' | 'hover' | 'tooltip'> {
+	const value = uri.toString(true);
+	return {
+		ariaDescription: value,
+		ariaLabel,
+		hover: { content: new MarkdownString().appendText(value) },
+		tooltip: value,
+	};
+}
+
 export function getChatPillEntries(sections: readonly IChatPillSection[]): readonly IChatPillEntry[] {
 	return sections.flatMap(section => section.entries);
 }
@@ -75,6 +92,103 @@ export interface IChatPillsWidgetOptions {
 	 * it per item, which would hide the pills from a surrounding context menu.
 	 */
 	readonly allowContextMenu?: boolean;
+}
+
+/**
+ * The floating row's rendered height: 2px/4px vertical padding around a 22px
+ * small button. Hosts reserve this much transcript space while the row is shown.
+ */
+export const CHAT_INPUT_PILLS_ROW_HEIGHT = 28;
+
+export interface IChatPillsRowOptions {
+	/** Uses tighter horizontal spacing while preserving the pill content and hit targets. */
+	readonly compact?: boolean;
+}
+
+/** Shared horizontally scrollable row for pills mounted above a chat input. */
+export class ChatPillsRow extends Disposable {
+
+	readonly element: HTMLElement;
+	readonly content: HTMLElement;
+
+	private readonly _scrollable: DomScrollableElement;
+	private readonly _resizeObserver: DisposableResizeObserver;
+	private readonly _onDidChangeLayout = this._register(new Emitter<void>());
+	readonly onDidChangeLayout: Event<void> = this._onDidChangeLayout.event;
+	private readonly _onDidRequestContextMenu = this._register(new Emitter<HTMLElement>());
+	readonly onDidRequestContextMenu: Event<HTMLElement> = this._onDidRequestContextMenu.event;
+	private readonly _pendingFocus = this._register(new MutableDisposable());
+
+	constructor(debugName: string, options?: IChatPillsRowOptions) {
+		super();
+
+		this.content = $('.chat-pills-row-content');
+		this._scrollable = this._register(new DomScrollableElement(this.content, {
+			horizontal: ScrollbarVisibility.Auto,
+			horizontalScrollbarSize: 6,
+			scrollYToX: true,
+			vertical: ScrollbarVisibility.Hidden,
+		}));
+		this.element = this._scrollable.getDomNode();
+		this.element.classList.add('chat-pills-row');
+		this.element.classList.toggle('compact', options?.compact === true);
+
+		this._resizeObserver = this._register(new DisposableResizeObserver(debugName, () => {
+			this.scanDomNode();
+			this._onDidChangeLayout.fire();
+		}));
+		this._register(this._resizeObserver.observe(this.content));
+		this._register(this._scrollable.onScroll(event => {
+			if (event.scrollLeftChanged) {
+				this._onDidChangeLayout.fire();
+			}
+		}));
+		this._register(addDisposableListener(this.content, EventType.FOCUS_IN, () => this.scanDomNode()));
+		this._register(addDisposableListener(this.content, EventType.KEY_DOWN, event => {
+			const keyboardEvent = new StandardKeyboardEvent(event);
+			const target = isHTMLElement(event.target) ? event.target : this.content;
+			const activatesEmptyRow = target === this.content && (keyboardEvent.keyCode === KeyCode.Enter || keyboardEvent.keyCode === KeyCode.Space);
+			if (activatesEmptyRow
+				|| keyboardEvent.keyCode === KeyCode.ContextMenu
+				|| (keyboardEvent.shiftKey && keyboardEvent.keyCode === KeyCode.F10)) {
+				EventHelper.stop(event, true);
+				this._onDidRequestContextMenu.fire(target);
+			}
+		}));
+	}
+
+	observe(element: HTMLElement): void {
+		this._register(this._resizeObserver.observe(element));
+		this.scanDomNode();
+	}
+
+	scanDomNode(): void {
+		this._scrollable.scanDomNode();
+	}
+
+	setEmpty(empty: boolean, ariaLabel: string): void {
+		this.element.classList.toggle('empty', empty);
+		if (empty) {
+			this.content.tabIndex = 0;
+			this.content.setAttribute('role', 'button');
+			this.content.setAttribute('aria-label', ariaLabel);
+		} else {
+			this.content.removeAttribute('tabindex');
+			this.content.removeAttribute('role');
+			this.content.removeAttribute('aria-label');
+		}
+	}
+
+	restoreFocus(getPillElements: () => readonly HTMLElement[]): void {
+		this._pendingFocus.value = disposableTimeout(() => {
+			const pill = getPillElements().at(0);
+			if (pill) {
+				pill.focus();
+			} else if (this.element.classList.contains('empty')) {
+				this.content.focus();
+			}
+		});
+	}
 }
 
 /**

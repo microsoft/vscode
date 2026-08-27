@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
+import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { getSessionChatPillMenu, SessionChatPillKind, SessionChatPillVisibility } from '../../common/sessionChatPills.js';
 
 suite('SessionChatPills', () => {
@@ -44,6 +44,25 @@ suite('SessionChatPills', () => {
 			changes: undefined,
 			noTarget: undefined,
 		});
+	});
+
+	test('limits the menu to the pill kinds offered by the surface', () => {
+		assert.deepStrictEqual(
+			getSessionChatPillMenu(
+				new Set([SessionChatPillKind.PullRequests, SessionChatPillKind.Browsers]),
+				new Set(),
+				SessionChatPillKind.Browsers,
+				[SessionChatPillKind.Changes, SessionChatPillKind.Artifacts, SessionChatPillKind.PullRequests],
+			),
+			{
+				withData: [
+					{ kind: SessionChatPillKind.PullRequests, label: 'Pull Requests', checked: true },
+				],
+				withoutData: [
+					{ kind: SessionChatPillKind.Artifacts, label: 'Artifacts', checked: true },
+				],
+			},
+		);
 	});
 
 	test('hides customizations and subagents by default, and always shows changes', () => {
@@ -89,7 +108,6 @@ suite('SessionChatPills', () => {
 			issues: visibility.isVisible(SessionChatPillKind.Issues, undefined),
 			restored: disposables.add(new SessionChatPillVisibility(storageService)).isVisible(SessionChatPillKind.PullRequests, undefined),
 		};
-		// Hiding an already-hidden pill is a no-op, so one toggle brings it back.
 		visibility.hide(SessionChatPillKind.PullRequests);
 		visibility.toggle(SessionChatPillKind.PullRequests);
 

@@ -63,6 +63,36 @@ function getToolCallFileEdits(toolCall: ToolCallState): ISessionFileDiff[] {
 	return edits;
 }
 
+/** Maps one Agent Host changeset file into the diff shape used by chat editors. */
+export function agentHostChangesetFileToEntryDiff(file: ChangesetFile, connectionAuthority: string): IEditSessionEntryDiff | undefined {
+	const normalized = normalizeFileEdit(file.edit);
+	if (!normalized) {
+		return undefined;
+	}
+
+	const modifiedURI = toAgentHostUri(normalized.resource, connectionAuthority);
+	const originalURI = normalized.beforeContentUri
+		? toAgentHostContentUri(normalized.beforeContentUri, connectionAuthority)
+		: modifiedURI;
+	const modifiedSnapshotURI = normalized.afterContentUri
+		? toAgentHostContentUri(normalized.afterContentUri, connectionAuthority)
+		: undefined;
+
+	return {
+		originalURI,
+		modifiedURI,
+		modifiedSnapshotURI,
+		isCreated: normalized.kind === FileEditKind.Create,
+		isDeleted: normalized.kind === FileEditKind.Delete,
+		added: file.edit.diff?.added ?? 0,
+		removed: file.edit.diff?.removed ?? 0,
+		quitEarly: false,
+		identical: false,
+		isFinal: true,
+		isBusy: false,
+	};
+}
+
 /**
  * Supplies the chat "Changed N files" summary for agent host responses from the
  * authoritative per-turn changeset the host computes server-side (the same
@@ -176,7 +206,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 			const changesetState = turnUri ? changesetStateObs.read(reader).read(reader) : undefined;
 			const changeset = changesetState instanceof Error ? undefined : changesetState;
 			const changesetDiffs = changeset?.files
-				.map(file => this._changesetFileToEntryDiff(file))
+				.map(file => agentHostChangesetFileToEntryDiff(file, this._connectionAuthority))
 				.filter(isDefined);
 			// A non-empty per-turn changeset is always authoritative (e.g. a turn
 			// added after migration, which does have checkpoints), so it takes
@@ -339,6 +369,9 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 				if (existing) {
 					existing.added += diff.added;
 					existing.removed += diff.removed;
+					existing.modifiedURI = diff.modifiedURI;
+					existing.modifiedSnapshotURI = diff.modifiedSnapshotURI;
+					existing.isCreated = existing.isCreated || diff.isCreated;
 				} else {
 					byUri.set(key, diff);
 				}
@@ -366,6 +399,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 			originalURI,
 			modifiedURI,
 			modifiedSnapshotURI,
+			isCreated: normalized.kind === FileEditKind.Create,
 			added: fileEdit.diff?.added ?? 0,
 			removed: fileEdit.diff?.removed ?? 0,
 			quitEarly: false,
@@ -376,42 +410,4 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		};
 	}
 
-	private _changesetFileToEntryDiff(file: ChangesetFile): IEditSessionEntryDiff | undefined {
-		const normalized = normalizeFileEdit(file.edit);
-		if (!normalized) {
-			return undefined;
-		}
-
-		const modifiedURI = toAgentHostUri(normalized.resource, this._connectionAuthority);
-		// For creates there is no before-content; fall back to the modified URI
-		// so the entry still resolves. The collapsed summary uses the
-		// server-provided counts below, so its +/- numbers stay correct
-		// regardless; only an explicitly-opened diff of a created file shows no
-		// delta.
-		const originalURI = normalized.beforeContentUri
-			? toAgentHostContentUri(normalized.beforeContentUri, this._connectionAuthority)
-			: modifiedURI;
-
-		// The frozen after-turn snapshot, when the changeset provides one. Lets
-		// consumers show this turn's diff (before-snapshot -> after-snapshot)
-		// rather than before-snapshot -> live file (which includes later turns).
-		// Distinct from the checkpoint-ref readability fix (#323932): that made
-		// these blobs readable; this line decides *which* snapshot to diff against.
-		const modifiedSnapshotURI = normalized.afterContentUri
-			? toAgentHostContentUri(normalized.afterContentUri, this._connectionAuthority)
-			: undefined;
-
-		return {
-			originalURI,
-			modifiedURI,
-			modifiedSnapshotURI,
-			isDeleted: normalized.kind === FileEditKind.Delete,
-			added: file.edit.diff?.added ?? 0,
-			removed: file.edit.diff?.removed ?? 0,
-			quitEarly: false,
-			identical: false,
-			isFinal: true,
-			isBusy: false,
-		};
-	}
 }

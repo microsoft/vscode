@@ -3,15 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, DisposableResizeObserver, EventType, getWindow } from '../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, getWindow } from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
-import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { toAction, Action, Separator, type IAction } from '../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedOpts, IObservable, IReader, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
-import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -21,12 +19,12 @@ import { CHAT_TURN_ARTIFACT_PILL_ID, CHAT_TURN_CHANGES_PILL_ID, ChatTurnPillsPro
 import { SessionArtifacts, sessionArtifactLocation, sessionReferencesPillOptions, SESSION_REFERENCES_PILL_ID } from './sessionArtifacts.js';
 import { chatCustomizationPillOptions, SessionCustomizations, SESSION_CUSTOMIZATIONS_PILL_ID } from './sessionCustomizations.js';
 import { localize } from '../../../../nls.js';
-import { getChatPillEntries, ChatPillsWidget, IChatPill, IChatPillsModel, type IChatPillSection } from '../../../../workbench/browser/chatPills.js';
+import { CHAT_INPUT_PILLS_ROW_HEIGHT, ChatPillsRow, getChatPillEntries, ChatPillsWidget, IChatPill, IChatPillsModel, type IChatPillSection } from '../../../../workbench/browser/chatPills.js';
 import { createChatSectionPill, type IChatDropdownPillOptions } from '../../../../workbench/browser/chatDropdownPill.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../workbench/browser/labels.js';
 import { VIEW_SESSION_CHANGES_COMMAND_ID } from '../../changes/common/changes.js';
 import { OPEN_ISSUE_ACTION_ID, OPEN_PULL_REQUEST_ACTION_ID } from '../../github/common/types.js';
-import { getSessionChatPillMenu, SessionChatPillKind, SessionChatPillVisibility, type ISessionChatPillMenuEntry } from '../common/sessionChatPills.js';
+import { getSessionChatPillMenu, ISessionChatPillVisibilityService, SessionChatPillKind, type ISessionChatPillMenuEntry } from '../../../../workbench/contrib/chat/common/sessionChatPills.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IChat } from '../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
@@ -35,7 +33,6 @@ import { SessionBrowsersControl, sessionBrowsersPillOptions } from './sessionBro
 import type { ISessionChatPillsDebugData } from './sessionChatInputToolbarDebug.js';
 import { SessionMetadataPills } from './sessionMetadataPills.js';
 import { SessionActivatingActionRunner } from '../../../browser/sessionActionRunner.js';
-import './media/sessionChatInputToolbar.css';
 
 /** Diff stats for the current turn, from the chat''s last-turn changes. */
 function computeTurnStats(chat: IChat, reader: IReader): IDiffStats {
@@ -93,14 +90,14 @@ export function getSessionChatPillKindForAction(actionId: string): SessionChatPi
  * the row floats over it. Derived from the row's `2px`/`4px` padding here plus a
  * 22px `.monaco-text-button.small` pill; keep in sync if either changes.
  */
-export const SESSION_CHAT_INPUT_TOOLBAR_HEIGHT = 28;
+export const SESSION_CHAT_INPUT_TOOLBAR_HEIGHT = CHAT_INPUT_PILLS_ROW_HEIGHT;
 
 /** A toolbar for session metadata, active-turn status, and background activity. */
 export class SessionChatInputToolbar extends Disposable {
 
 	readonly element: HTMLElement;
 	private readonly _content: HTMLElement;
-	private readonly _scrollable: DomScrollableElement;
+	private readonly _row: ChatPillsRow;
 	private readonly _onDidChangeChatPetPlatform = this._register(new Emitter<void>());
 	readonly onDidChangeChatPetPlatform: Event<void> = this._onDidChangeChatPetPlatform.event;
 	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
@@ -143,19 +140,16 @@ export class SessionChatInputToolbar extends Disposable {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IChatResponseFileChangesService private readonly _chatResponseFileChangesService: IChatResponseFileChangesService,
+		@ISessionChatPillVisibilityService visibility: ISessionChatPillVisibilityService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
-		this._content = $('.session-chat-input-toolbar-content');
-		this._scrollable = this._register(new DomScrollableElement(this._content, {
-			horizontal: ScrollbarVisibility.Auto,
-			horizontalScrollbarSize: 6,
-			scrollYToX: true,
-			vertical: ScrollbarVisibility.Hidden,
-		}));
-		this.element = this._scrollable.getDomNode();
+		this._row = this._register(new ChatPillsRow('SessionChatInputToolbar.content'));
+		this._content = this._row.content;
+		this.element = this._row.element;
 		this.element.classList.add('session-chat-input-toolbar', 'hidden');
+		this._register(this._row.onDidChangeLayout(() => this._onDidChangeChatPetPlatform.fire()));
 
 		this._diffStats = derivedOpts<IDiffStats>({ owner: this, equalsFn: diffStatsEqual }, reader => {
 			const debugData = this._debugData.read(reader);
@@ -167,7 +161,6 @@ export class SessionChatInputToolbar extends Disposable {
 		});
 
 		const turnStatusPillsEnabled = observeTurnStatusPillsEnabled(this._configurationService);
-		const visibility = this._register(instantiationService.createInstance(SessionChatPillVisibility));
 		this._browsers = this._register(instantiationService.createInstance(SessionBrowsersControl, this._session, this._chat, turnStatusPillsEnabled, derived(reader => visibility.isVisible(SessionChatPillKind.Browsers, reader))));
 
 		// The browsers pill already offers the pages it lists, so the artifacts and
@@ -258,6 +251,7 @@ export class SessionChatInputToolbar extends Disposable {
 		}));
 		pills.element.classList.add('show-file-icons');
 		this._content.appendChild(pills.element);
+		this._row.observe(pills.element);
 		this._register(pills.onDidChangePills(() => this._onDidChangeChatPetPlatform.fire()));
 
 		// Kinds the session reports data for; the others are listed in a separate group.
@@ -283,28 +277,25 @@ export class SessionChatInputToolbar extends Disposable {
 			}
 			return kinds;
 		});
-		this._register(addDisposableListener(this._content, EventType.CONTEXT_MENU, (e: MouseEvent) => {
-			// The row owns its context menu, so never fall through to a native one.
-			e.preventDefault();
-			e.stopPropagation();
-
+		const showContextMenu = (anchor: HTMLElement | StandardMouseEvent, targetKind?: SessionChatPillKind) => {
 			const kinds = kindsWithData.get();
 			if (kinds.size === 0) {
 				return;
 			}
 
-			const anchor = new StandardMouseEvent(getWindow(this._content), e);
-			const targetPill = pills.getPill(e.target as HTMLElement | null);
-			const targetKind = targetPill ? getSessionChatPillKindForAction(targetPill.action.id) : undefined;
 			this._contextMenuService.showContextMenu({
 				getAnchor: () => anchor,
 				getActions: () => {
 					const menu = getSessionChatPillMenu(kinds, visibility.readHiddenKinds(undefined), targetKind);
+					const restoreFocus = () => this._row.restoreFocus(() => pills.getPillElements());
 					const toggleAction = (entry: ISessionChatPillMenuEntry) => toAction({
 						id: `sessions.chatPills.toggle.${entry.kind}`,
 						label: entry.label,
 						checked: entry.checked,
-						run: () => visibility.toggle(entry.kind),
+						run: () => {
+							visibility.toggle(entry.kind);
+							restoreFocus();
+						},
 					});
 
 					const groups: IAction[][] = [];
@@ -313,27 +304,31 @@ export class SessionChatInputToolbar extends Disposable {
 						groups.push([toAction({
 							id: `sessions.chatPills.hide.${hide.kind}`,
 							label: hide.label,
-							run: () => visibility.hide(hide.kind),
+							run: () => {
+								visibility.hide(hide.kind);
+								restoreFocus();
+							},
 						})]);
 					}
 					groups.push(menu.withData.map(toggleAction), menu.withoutData.map(toggleAction));
 					return Separator.join(...groups);
 				},
 			});
-		}));
+		};
+		this._register(addDisposableListener(this._content, EventType.CONTEXT_MENU, (e: MouseEvent) => {
+			// The row owns its context menu, so never fall through to a native one.
+			e.preventDefault();
+			e.stopPropagation();
 
-		const resizeObserver = this._register(new DisposableResizeObserver('SessionChatInputToolbar.content', () => {
-			this._scrollable.scanDomNode();
-			this._onDidChangeChatPetPlatform.fire();
+			const anchor = new StandardMouseEvent(getWindow(this._content), e);
+			const targetPill = pills.getPill(e.target as HTMLElement | null);
+			const targetKind = targetPill ? getSessionChatPillKindForAction(targetPill.action.id) : undefined;
+			showContextMenu(anchor, targetKind);
 		}));
-		this._register(resizeObserver.observe(this._content));
-		this._register(resizeObserver.observe(pills.element));
-		this._register(this._scrollable.onScroll(e => {
-			if (e.scrollLeftChanged) {
-				this._onDidChangeChatPetPlatform.fire();
-			}
+		this._register(this._row.onDidRequestContextMenu(anchor => {
+			const targetPill = pills.getPill(anchor);
+			showContextMenu(anchor, targetPill ? getSessionChatPillKindForAction(targetPill.action.id) : undefined);
 		}));
-		this._register(addDisposableListener(this._content, EventType.FOCUS_IN, () => this._scrollable.scanDomNode()));
 
 		this._register(autorun(reader => {
 			const anyVisible = pills.isVisible.read(reader);
@@ -342,14 +337,12 @@ export class SessionChatInputToolbar extends Disposable {
 			const anyHidden = kindsWithData.read(reader).size > 0;
 			const visible = anyVisible || anyHidden;
 			this.element.classList.toggle('hidden', !visible);
-			// With no pill left to right-click, the row itself has to carry the
-			// visibility menu or the hidden pills could never be restored.
-			this.element.classList.toggle('empty', !anyVisible);
+			this._row.setEmpty(anyHidden && !anyVisible, localize('sessionChatPills.configure', "Configure Session Status Pills"));
 			if (this._visible !== visible) {
 				this._visible = visible;
 				this._onDidChangeVisibility.fire(visible);
 			}
-			this._scrollable.scanDomNode();
+			this._row.scanDomNode();
 		}));
 	}
 

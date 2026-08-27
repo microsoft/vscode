@@ -148,6 +148,39 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		]);
 	});
 
+	test('wraps local non-file snapshots through the Agent Host file system', () => {
+		const ds = store.add(new DisposableStore());
+		const conn = new FakeAgentConnection();
+		const provider = ds.add(new AgentHostResponseFileChangesProvider(conn, 'local', () => backendSession, undefined, new NullLogService()));
+
+		conn.setState(backendSession.toString(), sessionStateWithTurnSupport());
+		conn.setState(turnChangesetUri('t1'), {
+			status: ChangesetStatus.Ready,
+			files: [{
+				id: '1',
+				edit: {
+					before: { uri: URI.file('/repo/a.ts').toString(), content: { uri: 'git-blob://a-before' } },
+					after: { uri: URI.file('/repo/a.ts').toString(), content: { uri: 'git-blob://a-after' } },
+					diff: { added: 1, removed: 1 },
+				},
+			}],
+		} satisfies ChangesetState);
+
+		const diff = observe(provider, ds).latest()[0];
+
+		assert.deepStrictEqual({
+			originalScheme: diff.originalURI.scheme,
+			originalAuthority: diff.originalURI.authority,
+			originalSource: fromAgentHostUri(diff.originalURI).toString(),
+			modifiedSource: diff.modifiedSnapshotURI && fromAgentHostUri(diff.modifiedSnapshotURI).toString(),
+		}, {
+			originalScheme: 'vscode-agent-host',
+			originalAuthority: 'local',
+			originalSource: 'git-blob://a-before/',
+			modifiedSource: 'git-blob://a-after/',
+		});
+	});
+
 	test('keeps the changeset subscription when session state updates', () => {
 		const ds = store.add(new DisposableStore());
 		const conn = new FakeAgentConnection();

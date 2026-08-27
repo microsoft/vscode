@@ -6,7 +6,22 @@
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IEditSessionEntryDiff } from '../common/editing/chatEditingService.js';
 import { AbstractChatResponseFileChangesService, IChatResponseFileChangesOpenContext } from './chatResponseFileChangesService.js';
+
+/** Opens chat-produced file changes in the standard multi-diff editor. */
+export function openChatFileChanges(editorService: IEditorService, label: string, diffs: readonly IEditSessionEntryDiff[]): void {
+	const source = URI.parse(`multi-diff-editor:${Date.now().toString()}-${Math.random().toString(36).slice(2)}`);
+	void editorService.openEditor({
+		multiDiffSource: source,
+		label,
+		resources: diffs.map(diff => ({
+			original: { resource: diff.isCreated ? undefined : diff.originalURI },
+			modified: { resource: diff.isDeleted ? undefined : diff.modifiedSnapshotURI ?? diff.modifiedURI },
+			goToFileResource: diff.modifiedURI,
+		})),
+	});
+}
 
 export class EditorChatResponseFileChangesService extends AbstractChatResponseFileChangesService {
 	constructor(
@@ -23,14 +38,6 @@ export class EditorChatResponseFileChangesService extends AbstractChatResponseFi
 		if (!diffs?.length) {
 			return;
 		}
-		const source = URI.parse(`multi-diff-editor:${Date.now().toString()}-${Math.random().toString(36).slice(2)}`);
-		this.editorService.openEditor({
-			multiDiffSource: source,
-			label: localize('chatTurnPills.changes.title', "Turn File Changes"),
-			resources: diffs.map(diff => ({
-				original: { resource: diff.originalURI },
-				modified: { resource: diff.isDeleted ? undefined : diff.modifiedURI },
-			})),
-		});
+		openChatFileChanges(this.editorService, localize('chatTurnPills.changes.title', "Turn File Changes"), diffs);
 	}
 }

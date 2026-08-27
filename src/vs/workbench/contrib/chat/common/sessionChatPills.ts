@@ -6,10 +6,11 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IReader } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { observableMemento, ObservableMemento } from '../../../../platform/observable/common/observableMemento.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
-/** The kinds of pill shown above the chat input, each independently hideable. */
+/** The kinds of pill shown above an agent chat input, each independently hideable. */
 export const enum SessionChatPillKind {
 	Changes = 'changes',
 	Artifacts = 'artifacts',
@@ -64,7 +65,7 @@ export interface ISessionChatPillMenuEntry {
 
 /**
  * The pill visibility context menu: an optional "Hide X" for the pill that was
- * right-clicked, then the kinds the session has data for, then the rest. The
+ * right-clicked, then the kinds the surface has data for, then the rest. The
  * caller renders a separator between the groups it shows.
  */
 export interface ISessionChatPillMenu {
@@ -74,20 +75,19 @@ export interface ISessionChatPillMenu {
 }
 
 /**
- * Builds the visibility menu. Every hideable kind is listed and toggleable,
- * checked while it is not hidden, grouped by whether the session has data for it.
- *
- * @param targetKind The pill that was right-clicked, which gains a "Hide X"
- * entry. Omitted when the click did not land on a pill.
+ * Builds the visibility menu. Every offered, hideable kind is listed and
+ * toggleable, checked while it is not hidden, and grouped by whether the
+ * current session has data for it.
  */
 export function getSessionChatPillMenu(
 	kindsWithData: ReadonlySet<SessionChatPillKind>,
 	hiddenKinds: ReadonlySet<SessionChatPillKind>,
 	targetKind?: SessionChatPillKind,
+	offeredKinds: readonly SessionChatPillKind[] = SESSION_CHAT_PILL_KINDS,
 ): ISessionChatPillMenu {
 	const withData: ISessionChatPillMenuEntry[] = [];
 	const withoutData: ISessionChatPillMenuEntry[] = [];
-	for (const kind of SESSION_CHAT_PILL_KINDS) {
+	for (const kind of offeredKinds) {
 		if (!isSessionChatPillHideable(kind)) {
 			continue;
 		}
@@ -98,7 +98,7 @@ export function getSessionChatPillMenu(
 		});
 	}
 
-	const hide = targetKind !== undefined && isSessionChatPillHideable(targetKind)
+	const hide = targetKind !== undefined && offeredKinds.includes(targetKind) && isSessionChatPillHideable(targetKind)
 		? { kind: targetKind, label: localize('sessionChatPills.hide', "Hide {0}", getSessionChatPillLabel(targetKind)) }
 		: undefined;
 
@@ -124,8 +124,20 @@ const hiddenSessionChatPills = observableMemento<readonly string[]>({
 	},
 });
 
+export const ISessionChatPillVisibilityService = createDecorator<ISessionChatPillVisibilityService>('sessionChatPillVisibilityService');
+
+export interface ISessionChatPillVisibilityService {
+	readonly _serviceBrand: undefined;
+	readHiddenKinds(reader: IReader | undefined): ReadonlySet<SessionChatPillKind>;
+	isVisible(kind: SessionChatPillKind, reader: IReader | undefined): boolean;
+	hide(kind: SessionChatPillKind): void;
+	toggle(kind: SessionChatPillKind): void;
+}
+
 /** The user's per-kind pill visibility choices, persisted across windows. */
-export class SessionChatPillVisibility extends Disposable {
+export class SessionChatPillVisibility extends Disposable implements ISessionChatPillVisibilityService {
+
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _hiddenKinds: ObservableMemento<readonly string[]>;
 
