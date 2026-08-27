@@ -23,6 +23,13 @@
 	cursor: pointer;
 }
 
+/* The injected text is empty, so this box has no line box of its own and would align by its bottom margin edge.
+An empty inline-block child restores an in-flow line box, so the box keeps the font's strut baseline. */
+.colorpicker-color-decoration::before {
+	content: '';
+	display: inline-block;
+}
+
 .hc-black .colorpicker-color-decoration,
 .vs-dark .colorpicker-color-decoration {
 	border: solid 0.1em #eee;
@@ -206,6 +213,6 @@
 	cursor: pointer;
 }
 
-.colorpicker-body .insert-button:hover{
+.colorpicker-body .insert-button:hover {
 	background: var(--vscode-button-hoverBackground);
 }
