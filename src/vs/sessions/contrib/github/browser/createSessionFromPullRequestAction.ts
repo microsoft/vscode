@@ -19,25 +19,24 @@ import { IQuickInputService } from '../../../../platform/quickinput/common/quick
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../browser/workbench.js';
 import { Menus } from '../../../browser/menus.js';
-import { ISessionSection, SessionSectionHasNonCloudRepositoryContext, SessionSectionTypeContext } from '../../sessions/browser/views/sessionsList.js';
+import { ISessionSection, SessionSectionHasGitHubRepositoryContext, SessionSectionHasNonCloudRepositoryContext, SessionSectionTypeContext } from '../../sessions/browser/views/sessionsList.js';
 import { IGitHubService } from './githubService.js';
 import { IGitHubPullRequestSummary } from '../common/types.js';
-import { createPullRequestBootstrapPrompt, createPullRequestContextAttachment, createPullRequestQuickPickItems, createPullRequestSessionMetadata, getExistingPullRequests, getGitHubRepositoryFromRemotes, hasExistingPullRequest, IPullRequestQuickPickItem, mergePullRequestSummaries, pullRequestMatchesQuery, resolvePullRequestSessionRepository } from './pullRequestPicker.js';
+import { createPullRequestBootstrapPrompt, createPullRequestContextAttachment, createPullRequestQuickPickItems, createPullRequestSessionMetadata, getExistingPullRequests, IPullRequestQuickPickItem, isPullRequestAvailable, mergePullRequestSummaries, pullRequestMatchesQuery, resolvePullRequestSessionRepository } from './pullRequestPicker.js';
 import { createAndOpenPullRequestSession } from './pullRequestSessionCreation.js';
 
-export const CREATE_SESSION_FROM_PULL_REQUEST_COMMAND_ID = 'workbench.agentSessions.createSessionFromPullRequest';
+export const NEW_SESSION_FROM_PULL_REQUEST_COMMAND_ID = 'workbench.agentSessions.newSessionFromPullRequest';
 
-registerAction2(class CreateSessionFromPullRequestAction extends Action2 {
+registerAction2(class NewSessionFromPullRequestAction extends Action2 {
 	constructor() {
 		super({
-			id: CREATE_SESSION_FROM_PULL_REQUEST_COMMAND_ID,
-			title: localize2('createSessionFromPullRequest', "Create Session from Pull Request"),
+			id: NEW_SESSION_FROM_PULL_REQUEST_COMMAND_ID,
+			title: localize2('newSessionFromPullRequest', "New Session from Pull Request"),
 			icon: Codicon.gitPullRequestCreate,
 			precondition: ChatContextKeys.enabled,
 			menu: {
@@ -46,8 +45,9 @@ registerAction2(class CreateSessionFromPullRequestAction extends Action2 {
 				order: 2,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.enabled,
-					ContextKeyExpr.equals(SessionSectionTypeContext.key, 'workspace'),
+					SessionSectionHasGitHubRepositoryContext,
 					SessionSectionHasNonCloudRepositoryContext,
+					SessionSectionTypeContext.isEqualTo('workspace')
 				),
 			},
 		});
@@ -60,7 +60,6 @@ registerAction2(class CreateSessionFromPullRequestAction extends Action2 {
 
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const notificationService = accessor.get(INotificationService);
-		const gitService = accessor.get(IGitService);
 		const gitHubService = accessor.get(IGitHubService);
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
@@ -70,8 +69,8 @@ registerAction2(class CreateSessionFromPullRequestAction extends Action2 {
 		const store = new DisposableStore();
 		const pickerCts = store.add(new CancellationTokenSource());
 		let sessionCreated = false;
-		picker.title = localize('createSessionFromPullRequest.title', "Create Session from Pull Request");
-		picker.placeholder = localize('createSessionFromPullRequest.resolvingRepository', "Resolving GitHub repository...");
+		picker.title = localize('newSessionFromPullRequest.title', "New Session from Pull Request");
+		picker.placeholder = localize('newSessionFromPullRequest.resolvingRepository', "Resolving GitHub repository...");
 		picker.matchOnDescription = true;
 		picker.matchOnDetail = true;
 		picker.sortByLabel = false;
@@ -88,26 +87,7 @@ registerAction2(class CreateSessionFromPullRequestAction extends Action2 {
 
 		let repository;
 		try {
-			repository = await resolvePullRequestSessionRepository(
-				context.sessions,
-				async folderUri => {
-					const gitRepository = await gitService.openRepository(folderUri);
-					if (!gitRepository) {
-						return undefined;
-					}
-					const current = getGitHubRepositoryFromRemotes(gitRepository.state.get().remotes);
-					if (current) {
-						return current;
-					}
-					const state = await waitForState(
-						gitRepository.state,
-						state => state.remotes.length > 0,
-						undefined,
-						pickerCts.token,
-					);
-					return getGitHubRepositoryFromRemotes(state.remotes);
-				},
-			);
+			repository = await resolvePullRequestSessionRepository(context.sessions);
 		} catch (error) {
 			picker.hide();
 			if (!isCancellationError(error)) {
@@ -212,7 +192,7 @@ registerAction2(class CreateSessionFromPullRequestAction extends Action2 {
 		const initialGroupsPromise = loadInitialGroups();
 		const loadUntilMatch = async (query: string, generation: number): Promise<void> => {
 			await initialGroupsPromise;
-			while (generation === searchGeneration && query && hasNextPage && !pullRequests.some(pullRequest => !hasExistingPullRequest(pullRequest, existingPullRequests) && pullRequestMatchesQuery(pullRequest, query))) {
+			while (generation === searchGeneration && query && hasNextPage && !pullRequests.some(pullRequest => isPullRequestAvailable(pullRequest, existingPullRequests) && pullRequestMatchesQuery(pullRequest, query))) {
 				await loadNextPage();
 			}
 		};
@@ -251,8 +231,9 @@ registerAction2(class CreateSessionFromPullRequestAction extends Action2 {
 						},
 					}, {
 						isolationMode: 'worktree',
-						branch: pullRequest.checkoutRef,
+						branch: pullRequest.headRef,
 						worktreeBranchTrack: true,
+						worktreeCreateNewBranch: false,
 						metadata: createPullRequestSessionMetadata(repository.owner, repository.repo, pullRequest),
 						onSessionCreated,
 					}, pickerCts.token),

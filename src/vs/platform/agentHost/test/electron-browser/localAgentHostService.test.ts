@@ -4,18 +4,39 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { constObservable } from '../../../../base/common/observable.js';
+import { URI } from '../../../../base/common/uri.js';
 import { IChannelClient, IChannelServer, IServerChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
+import { IEnvironmentService } from '../../../environment/common/environment.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
-import { NullLogService } from '../../../log/common/log.js';
+import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../log/common/log.js';
+import { INotificationService } from '../../../notification/common/notification.js';
+import { TestNotificationService } from '../../../notification/test/common/testNotificationService.js';
 import { ITelemetryData } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
+import { AgentHostClientState, AgentHostProtocolClient } from '../../browser/agentHostProtocolClient.js';
+import { isFatalAgentHostStartError, toFatalAgentHostStartError } from '../../common/agent.js';
 import { AGENT_HOST_CLIENT_PROXY_CHANNEL } from '../../common/agentHostClientProxyChannel.js';
 import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, AgentHostClientByokLmChannel } from '../../common/agentHostClientByokLmChannel.js';
-import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
+import { AgentHostClientType, editorWindowAgentHostClientInfo } from '../../common/agentHostClientInfo.js';
 import { AgentHostStartupTelemetry } from '../../common/agentHostStartupTelemetry.js';
 import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.js';
-import { LocalAgentHostManagementConnection, registerAgentHostClientChannels } from '../../electron-browser/localAgentHostService.js';
+import { ProtocolError } from '../../common/state/sessionProtocol.js';
+import { LocalAgentHostManagementConnection, LocalAgentHostServiceClient, registerAgentHostClientChannels } from '../../electron-browser/localAgentHostService.js';
+
+class CapturingNotificationService extends TestNotificationService {
+	readonly errors: (string | Error)[] = [];
+
+	override error(error: string | Error) {
+		this.errors.push(error);
+		return super.error(error);
+	}
+}
 
 class TestTelemetryService extends NullTelemetryServiceShape {
 	readonly events: { eventName: string; data: ITelemetryData | undefined }[] = [];
@@ -69,6 +90,72 @@ suite('registerAgentHostClientChannels', () => {
 		const { server, registered } = fakeChannelServer();
 		registerAgentHostClientChannels(server, fakeInstantiationService(false), new NullLogService());
 		assert.deepStrictEqual(registered, [AGENT_HOST_CLIENT_PROXY_CHANNEL, AGENT_HOST_CLIENT_BYOK_LM_CHANNEL]);
+	});
+
+	test('classifies only utility process validation errors as fatal', () => {
+		const originalError = new TypeError('Invalid value for args');
+		originalError.stack = 'original stack';
+		const fatalError = toFatalAgentHostStartError(originalError);
+
+		assert.deepStrictEqual({
+			classification: [
+				isFatalAgentHostStartError(originalError),
+				isFatalAgentHostStartError(new TypeError('unrelated')),
+				isFatalAgentHostStartError(new Error('Invalid value for args')),
+			],
+			fatal: fatalError.fatal,
+			name: fatalError.name,
+			stack: fatalError.stack,
+		}, {
+			classification: [true, false, false],
+			fatal: true,
+			name: 'TypeError',
+			stack: 'original stack',
+		});
+	});
+
+	test('surfaces fatal startup only before the initial connection', () => {
+		const notifications = new CapturingNotificationService();
+		const onDidChangeConnectionState = disposables.add(new Emitter<AgentHostClientState>());
+		const onDidFatalClose = disposables.add(new Emitter<ProtocolError>());
+		const protocolClient = {
+			clientId: 'test-client',
+			connect: () => Promise.resolve(),
+			onDidChangeConnectionState: onDidChangeConnectionState.event,
+			onDidFatalClose: onDidFatalClose.event,
+			initializeResult: constObservable(undefined),
+			rootState: {
+				value: undefined,
+				verifiedValue: undefined,
+				onDidChange: Event.None,
+				onWillApplyAction: Event.None,
+				onDidApplyAction: Event.None,
+			},
+			dispose: () => { },
+		};
+		const startupTelemetry = {
+			protocolConnected: () => { },
+			connectionFailed: () => { },
+			dispose: () => { },
+		};
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IEnvironmentService, { logsHome: URI.file('/logs') } as Partial<IEnvironmentService>);
+		instantiationService.stub(INotificationService, notifications);
+		instantiationService.stubInstance(AgentHostProtocolClient, protocolClient);
+		instantiationService.stubInstance(AgentHostStartupTelemetry, startupTelemetry);
+		instantiationService.set(IInstantiationService, instantiationService);
+		const service = disposables.add(instantiationService.createInstance(LocalAgentHostServiceClient, editorWindowAgentHostClientInfo));
+		service.startAgentHost();
+
+		onDidFatalClose.fire(new ProtocolError(-32000, 'fatal before connect'));
+		onDidChangeConnectionState.fire(AgentHostClientState.Connected);
+		onDidFatalClose.fire(new ProtocolError(-32000, 'fatal after connect'));
+
+		assert.deepStrictEqual(notifications.errors, [
+			'The Agent Host failed to start. Restart the application to try again. See the logs for details.',
+		]);
 	});
 
 	suite('LocalAgentHostManagementConnection', () => {

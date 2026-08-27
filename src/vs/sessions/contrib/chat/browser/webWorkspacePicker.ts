@@ -19,6 +19,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { SESSION_WORKSPACE_GROUP_GITHUB } from '../../../services/sessions/common/session.js';
 import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IWorkspacePickerItem, IWorkspacePickerOptions, WorkspacePicker } from './sessionWorkspacePicker.js';
@@ -94,8 +95,9 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		return false;
 	}
 
-	override showPicker(): void {
-		if (!this._triggerElement) {
+	override showPicker(force = false, anchor?: HTMLElement, preferredGroup?: string, attachesContext?: boolean): void {
+		const trigger = anchor ?? this._triggerElement;
+		if (!trigger) {
 			return;
 		}
 		// On phone, render the picker as a bottom sheet instead of the
@@ -103,13 +105,14 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		// phone viewports so a single instance handles both desktop
 		// browsers and rotation across the phone breakpoint.
 		if (!shouldUseMobileWorkspacePickerSheet(this._layoutService)) {
-			super.showPicker();
+			super.showPicker(force, trigger, preferredGroup, attachesContext);
 			return;
 		}
+		this._setDirectPickerFilter(preferredGroup, attachesContext);
 		const items = this._buildItems();
 		showMobileWorkspacePickerSheet(
 			this._layoutService,
-			this._triggerElement,
+			trigger,
 			items,
 			item => this._dispatchPickerItem(item),
 			this._getAllBrowseActions(),
@@ -140,7 +143,12 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		}
 
 		// 1. Recent workspaces for the scoped provider
-		const recents = this._getRecentWorkspaces().filter(w => w.providerId === scopedProviderId);
+		const isGitHubCategory = this._directPickerGroup === SESSION_WORKSPACE_GROUP_GITHUB;
+		const recents = this._getRecentWorkspaces().filter(w =>
+			(w.providerId === scopedProviderId || isGitHubCategory)
+			&& this._directPickerAttachesContext !== true
+			&& (this._directPickerGroup === undefined || w.workspace.group === this._directPickerGroup)
+		);
 		for (const { workspace, providerId } of recents) {
 			const folderUri = workspace.folders[0]?.root;
 			if (!folderUri) {
@@ -152,23 +160,40 @@ export class WebWorkspacePicker extends WorkspacePicker {
 				label: workspace.label,
 				description: workspace.description,
 				group: { title: '', icon: workspace.icon },
+				disabled: this._isProviderUnavailable(providerId),
 				item: { folderUri, providerId, checked: checked || undefined },
 				onRemove: () => this._removeRecentWorkspace(folderUri),
 			});
 		}
 
-		// 2. "Select Folder..." — dispatches the scoped provider's first browse action
+		// 2. Browse actions for the scoped provider and selected category.
 		const allBrowseActions = this._getAllBrowseActions();
-		const browseIndex = allBrowseActions.findIndex(a => a.providerId === scopedProviderId);
-		if (browseIndex >= 0 && !this._isProviderUnavailable(scopedProviderId)) {
+		const browseActions = allBrowseActions
+			.map((action, index) => ({ action, index }))
+			.filter(({ action }) => action.providerId === scopedProviderId || this._directPickerGroup === SESSION_WORKSPACE_GROUP_GITHUB);
+		if (browseActions.length > 0) {
 			if (items.length > 0) {
 				items.push({ kind: ActionListItemKind.Separator, label: '' });
 			}
+			for (const { action, index } of browseActions) {
+				items.push({
+					kind: ActionListItemKind.Action,
+					label: action.label,
+					description: action.description,
+					group: { title: '', icon: action.icon },
+					disabled: this._isProviderUnavailable(action.providerId),
+					item: { browseActionIndex: index },
+				});
+			}
+		}
+
+		if (items.length === 0 && this._directPickerGroup === SESSION_WORKSPACE_GROUP_GITHUB) {
 			items.push({
 				kind: ActionListItemKind.Action,
-				label: localize('scopedWorkspacePicker.selectFolder', "Select Folder..."),
-				group: { title: '', icon: Codicon.folderOpened },
-				item: { browseActionIndex: browseIndex },
+				label: localize('scopedWorkspacePicker.githubLoading', "GitHub repositories are still loading"),
+				group: { title: '', icon: Codicon.loading },
+				disabled: true,
+				item: {},
 			});
 		}
 

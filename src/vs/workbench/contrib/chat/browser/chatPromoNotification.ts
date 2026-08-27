@@ -14,13 +14,17 @@ import { ChatConfiguration, ChatSaleNotification } from '../common/constants.js'
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { CHAT_OPEN_ACTION_ID } from './actions/chatActions.js';
 import { IChatWidgetService } from './chat.js';
-import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotificationService } from './widget/input/chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotificationContext, IChatInputNotificationService, IChatInputNotificationSwitchToModelAction, matchesModelIdentifier } from './widget/input/chatInputNotificationService.js';
 
 const PROMO_NOTIFICATION_ID = 'copilot.promoNotification';
 const DISMISSED_PROMOS_STORAGE_KEY = 'chat.dismissedPromoIds';
 
 export const CHAT_PROMO_TRY_MODEL_COMMAND_ID = '_chat.tryPromoModel';
 export const CHAT_PROMO_DISMISS_COMMAND_ID = '_chat.dismissPromo';
+
+function isPromoVisible(context: IChatInputNotificationContext): boolean {
+	return context.deferredNotificationsEnabled && !context.isTransientChat && !context.sessionStarted;
+}
 
 /**
  * Surfaces a model's promo as a chat input notification, scoped to the harness
@@ -124,23 +128,23 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 				continue;
 			}
 
+			const description = ILanguageModelChatMetadata.getPromoEndsAtLabel(promo.endsAt);
+			const action: IChatInputNotificationSwitchToModelAction = {
+				label: localize('chat.promo.tryModel', "Try {0}", model.metadata.name),
+				kind: ChatInputNotificationActionKind.SwitchToModel,
+				matchesModel: matchesModelIdentifier(model.identifier),
+			};
+
 			this._chatInputNotificationService.setNotification({
 				id: notificationId,
 				telemetryId: promo.id,
 				severity: ChatInputNotificationSeverity.Info,
 				message: promo.message,
-				description: ILanguageModelChatMetadata.getPromoEndsAtLabel(promo.endsAt),
-				actions: [{
-					label: localize('chat.promo.tryModel', "Try {0}", model.metadata.name),
-					kind: ChatInputNotificationActionKind.SwitchToModel,
-					modelIdentifier: model.identifier,
-				}],
+				description,
+				actions: [action],
+				when: isPromoVisible,
 				dismissible: true,
 				autoDismissOnMessage: false,
-				deferForNewUsers: true,
-				// Only actionable while the user is still choosing how to start work.
-				hideInTransientChats: true,
-				hideInStartedSessions: true,
 				sessionTypes: [harness],
 			});
 		}

@@ -67,8 +67,8 @@ function createMockDelegate(session: IActiveSession, chats: readonly IChat[], ac
 		activeChatResource: observableValue('activeChatResource', activeChat.resource.toString()),
 		mainChatResource: observableValue('mainChatResource', chats[0].resource.toString()),
 		visible: session.shouldShowChatTabs,
+		showSessionActions: session.shouldShowChatTabs,
 		openChat: () => { },
-		newChat: () => { },
 	};
 }
 
@@ -98,6 +98,7 @@ function renderBar(ctx: ComponentFixtureContext, chats: readonly IChat[], active
 
 	container.style.width = '360px';
 	container.style.backgroundColor = 'var(--vscode-sideBar-background)';
+	container.classList.add('chat-groups-view', 'single-group');
 
 	const session = createMockSession(chats, activeChat, sessionTitle);
 	const bar = disposableStore.add(instantiationService.createInstance(ChatCompositeBar));

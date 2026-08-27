@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../../base/browser/dom.js';
-import { IAnchor } from '../../../../../../../base/browser/ui/contextview/contextview.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
-import { AnchorPosition } from '../../../../../../../base/common/layout.js';
 import { formatTokenCount } from '../../../../../../../base/common/numbers.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../../nls.js';
@@ -56,16 +54,9 @@ export interface IModelPickerConfigurationHost {
 	readonly shouldShowCacheBreakHint: () => boolean;
 	readonly getCacheBreakLearnMoreLink: () => IActionListHeaderLink | undefined;
 	readonly dismissCacheBreakHint: () => void;
-	readonly onDidChangeVisibility?: (visible: boolean) => void | Promise<void>;
-	readonly getActionWidgetContainer?: () => HTMLElement | undefined;
-	readonly getActionWidgetAnchor?: (anchor: HTMLElement) => HTMLElement | IAnchor;
-	readonly getAnchorPosition?: () => AnchorPosition | undefined;
 }
 
 export class ModelPickerConfiguration {
-
-	private _showRequestId = 0;
-	private _activeButton: HTMLElement | undefined;
 
 	constructor(
 		private readonly _host: IModelPickerConfigurationHost,
@@ -91,7 +82,7 @@ export class ModelPickerConfiguration {
 				: String(effortConfig.value);
 			labelParts.push(effortLabel);
 			// The group is generic, so producers name it: Copilot's Auto model uses it
-			// for "Tier" while regular models use it for thinking effort.
+			// for "Optimize for" while regular models use it for thinking effort.
 			ariaParts.push(effortConfig.schema.title
 				? localize('chat.modelPicker.navigationAriaLabel', "{0}: {1}", effortConfig.schema.title, effortLabel)
 				: localize('chat.modelPicker.effortAriaLabel', "Thinking Effort: {0}", effortLabel));
@@ -123,11 +114,6 @@ export class ModelPickerConfiguration {
 		if (this._host.isDisabled() || !button || !this._host.getSelectedModel()) {
 			return;
 		}
-		if (button.getAttribute('aria-expanded') === 'true') {
-			this._showRequestId++;
-			this._actionWidgetService.hide(true);
-			return;
-		}
 
 		const items = this._buildItems();
 		if (!items.length) {
@@ -135,7 +121,6 @@ export class ModelPickerConfiguration {
 		}
 
 		const previouslyFocusedElement = dom.getActiveElement();
-		const showRequestId = ++this._showRequestId;
 		const delegate = {
 			onSelect: async (action: IActionWidgetDropdownAction) => {
 				this._actionWidgetService.focusItemById(action.id);
@@ -143,15 +128,7 @@ export class ModelPickerConfiguration {
 				this._actionWidgetService.updateItems(this._buildItems(), action.id);
 			},
 			onHide: () => {
-				this._showRequestId++;
-				if (this._activeButton === button) {
-					this._activeButton = undefined;
-				}
 				button.setAttribute('aria-expanded', 'false');
-				const visibilityChange = this._host.onDidChangeVisibility?.(false);
-				if (visibilityChange) {
-					void visibilityChange.catch(() => { });
-				}
 				if (dom.isHTMLElement(previouslyFocusedElement)) {
 					previouslyFocusedElement.focus();
 				}
@@ -159,71 +136,34 @@ export class ModelPickerConfiguration {
 		};
 
 		button.setAttribute('aria-expanded', 'true');
-		this._activeButton = button;
 		const showCacheBreakHint = this._host.shouldShowCacheBreakHint();
-		const showActionWidget = () => {
-			if (showRequestId !== this._showRequestId || button.getAttribute('aria-expanded') !== 'true') {
-				return;
-			}
-			this._actionWidgetService.show(
-				'ChatModelConfigPicker',
-				false,
-				items,
-				delegate,
-				this._host.getActionWidgetAnchor?.(button) ?? button,
-				this._host.getActionWidgetContainer?.(),
-				[],
-				{
-					isChecked: element => element.kind === ActionListItemKind.Action ? !!element.item?.checked : undefined,
-					getRole: element => element.kind === ActionListItemKind.Action ? 'menuitemradio' as const : 'separator' as const,
-					getWidgetRole: () => 'menu' as const,
-				},
-				withChatInputPickerMotion({
-					headerText: showCacheBreakHint ? localize('chat.config.cacheBreakHint', "Changing these options mid-session resets the prompt cache and may increase cost.") : undefined,
-					headerIcon: showCacheBreakHint ? Codicon.info : undefined,
-					headerLink: showCacheBreakHint ? this._host.getCacheBreakLearnMoreLink() : undefined,
-					headerDismiss: showCacheBreakHint ? this._host.dismissCacheBreakHint : undefined,
-					reserveSubmenuSpace: false,
-					anchorPosition: this._host.getAnchorPosition?.(),
-				}),
-			);
+		this._actionWidgetService.show(
+			'ChatModelConfigPicker',
+			false,
+			items,
+			delegate,
+			button,
+			undefined,
+			[],
+			{
+				isChecked: element => element.kind === ActionListItemKind.Action ? !!element.item?.checked : undefined,
+				getRole: element => element.kind === ActionListItemKind.Action ? 'menuitemradio' as const : 'separator' as const,
+				getWidgetRole: () => 'menu' as const,
+			},
+			withChatInputPickerMotion({
+				headerText: showCacheBreakHint ? localize('chat.config.cacheBreakHint', "Changing these options mid-session resets the prompt cache and may increase cost.") : undefined,
+				headerIcon: showCacheBreakHint ? Codicon.info : undefined,
+				headerLink: showCacheBreakHint ? this._host.getCacheBreakLearnMoreLink() : undefined,
+				headerDismiss: showCacheBreakHint ? this._host.dismissCacheBreakHint : undefined,
+				reserveSubmenuSpace: false,
+			}),
+		);
 
-			if (focusGroup) {
-				const groupItem = items.find(item => item.kind === ActionListItemKind.Action && item.item?.id?.startsWith(`${focusGroup}.`));
-				if (groupItem?.kind === ActionListItemKind.Action && groupItem.item) {
-					this._actionWidgetService.focusItemById(groupItem.item.id);
-				}
+		if (focusGroup) {
+			const groupItem = items.find(item => item.kind === ActionListItemKind.Action && item.item?.id?.startsWith(`${focusGroup}.`));
+			if (groupItem?.kind === ActionListItemKind.Action && groupItem.item) {
+				this._actionWidgetService.focusItemById(groupItem.item.id);
 			}
-		};
-		const visibilityChange = this._host.onDidChangeVisibility?.(true);
-		if (visibilityChange) {
-			void visibilityChange.then(showActionWidget, () => {
-				if (showRequestId !== this._showRequestId) {
-					return;
-				}
-				this._showRequestId++;
-				if (this._activeButton === button) {
-					this._activeButton = undefined;
-				}
-				button.setAttribute('aria-expanded', 'false');
-				const hideVisibilityChange = this._host.onDidChangeVisibility?.(false);
-				if (hideVisibilityChange) {
-					void hideVisibilityChange.catch(() => { });
-				}
-				if (dom.isHTMLElement(previouslyFocusedElement)) {
-					previouslyFocusedElement.focus();
-				}
-			});
-		} else {
-			showActionWidget();
-		}
-	}
-
-	dispose(): void {
-		this._showRequestId++;
-		if (this._activeButton) {
-			this._activeButton = undefined;
-			this._actionWidgetService.hide(true);
 		}
 	}
 

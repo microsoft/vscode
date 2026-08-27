@@ -49,6 +49,8 @@ import { dedupeSessionFileDiffs, evaluateMultiRootDiffSources } from './agentHos
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { reportAgentHostStaticChangesetComputed, reportAgentHostTurnChangesetComputed, type IMultiRootTurnDiffMetrics, type StaticChangesetOutcome, type TurnChangesetOutcome } from './agentHostChangesetTelemetry.js';
 import type { IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
+import { AgentSession } from '../common/agent.js';
+import { IAgentHostWorktreeIsolation, type IAgentHostWorktreePendingState } from './shared/worktreeIsolation.js';
 
 /**
  * Maximum number of per-repository git diffs a multi-folder fan-out runs at
@@ -185,6 +187,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 */
 	private readonly _pendingMaterialization = new Set<ProtocolURI>();
 
+	private readonly _worktree: IAgentHostWorktreePendingState;
+
 	constructor(
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@ILogService private readonly _logService: ILogService,
@@ -196,8 +200,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		@IAgentHostChangesetSubscriptionService private readonly _changesetSubscriptions: IAgentHostChangesetSubscriptionService,
 		@IAgentHostReviewService private readonly _reviewService: IAgentHostReviewService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IAgentHostWorktreeIsolation worktree: IAgentHostWorktreeIsolation,
 	) {
 		super();
+		this._worktree = worktree;
 		this._diffComputeService = this._createDiffComputeService();
 	}
 
@@ -215,7 +221,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	private _hasWorkingDirectory(session: ProtocolURI): boolean {
-		return !!this._configurationService.getEffectiveWorkingDirectories(session)?.[0];
+		return !this._worktree.isWorkingDirectoryPending(AgentSession.id(session))
+			&& !!this._configurationService.getEffectiveWorkingDirectories(session)?.[0];
 	}
 
 	registerStaticChangesets(session: ProtocolURI): void {
@@ -378,7 +385,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	refreshChangesetCatalog(session: ProtocolURI): void {
 		const state = this._stateManager.getSessionState(session);
-		if (!state || state?.lifecycle === SessionLifecycle.CreationFailed) {
+		if (!state || state?.lifecycle === SessionLifecycle.Failed) {
 			return;
 		}
 
@@ -470,6 +477,12 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	private async _computeTurnChangeset(session: ProtocolURI, turnId: string, reportTelemetry: boolean, clientContext?: IAgentHostClientTelemetryContext): Promise<ProtocolURI> {
 		const turnUri = this._stateManager.registerChangeset(buildTurnChangesetUri(session, turnId));
+		if (this._stateManager.getChangesetState(turnUri)?.status !== ChangesetStatus.Computing) {
+			this._stateManager.dispatchServerAction(turnUri, {
+				type: ActionType.ChangesetStatusChanged,
+				status: ChangesetStatus.Computing,
+			});
+		}
 		const stopWatch = StopWatch.create();
 		let outcome: TurnChangesetOutcome = 'error';
 		let result: ITurnDiffResult | undefined;
@@ -712,7 +725,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			}
 			const workingDirectories = this._configurationService.getEffectiveWorkingDirectories(session);
 			if (isMultiRootSession(workingDirectories)) {
-				return this._computeMultiFolderTurnDiffs(session, trackedSource.sessionUri, trackedSource.db, turnId, workingDirectories!);
+				return await this._computeMultiFolderTurnDiffs(session, trackedSource.sessionUri, trackedSource.db, turnId, workingDirectories!);
 			}
 			const diffs = await this._computeSingleFolderTurnDiffs(session, trackedSource.sessionUri, trackedSource.db, turnId);
 			return { diffs, outcome: 'computed' };
@@ -838,13 +851,14 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * diff, or an error), that repository falls back to its tracked edits so
 	 * one repo's git failure never drops the folder — mirroring the
 	 * single-folder path's edit-tracker fallback. `usedFallback` reports whether
-	 * that fallback was taken. Every git failure is logged as an error.
+	 * that fallback was taken. Missing checkpoints are expected for older turns;
+	 * actual git failures are logged as errors.
 	 */
 	private async _computeRepoTurnDiffs(session: ProtocolURI, trackedSession: ProtocolURI, sessionUri: URI, db: ISessionDatabase, turnId: string, repoRoot: URI): Promise<{ readonly diffs: readonly ISessionFileDiff[]; readonly usedFallback: boolean }> {
 		try {
 			const pair = await this._checkpointService.getTurnCheckpointPair(sessionUri, turnId, repoRoot);
 			if (!pair) {
-				this._logService.error(`[AgentHostChangesetService] No checkpoint pair for multi-folder turn ${session}/${turnId} in repository ${repoRoot.toString()}; falling back to tracked edits for that repository.`);
+				this._logService.trace(`[AgentHostChangesetService] No checkpoint pair for multi-folder turn ${session}/${turnId} in repository ${repoRoot.toString()}; falling back to tracked edits for that repository.`);
 				return { diffs: await this._computeRepoTurnDiffsFromTrackedEdits(session, trackedSession, db, turnId, repoRoot), usedFallback: true };
 			}
 			if (pair.parent === pair.current) {

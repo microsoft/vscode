@@ -39,6 +39,7 @@ import { resizeImage } from '../../../../workbench/contrib/chat/browser/chatImag
 import { createImageHoverContent, openPastedTextArtifact } from '../../../../workbench/contrib/chat/browser/attachments/chatAttachmentWidgets.js';
 import { imageToHash, isImage } from '../../../../workbench/contrib/chat/browser/widget/input/editor/chatPasteProviders.js';
 import { getExcludes, ISearchConfiguration, ISearchService, QueryType } from '../../../../workbench/services/search/common/search.js';
+import { isAdditionalWorkspaceContextId } from '../common/newChatContextIds.js';
 
 /**
  * The attachment surface of the composer, as seen by its input plumbing
@@ -119,7 +120,7 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 		this._resourceLabels.clear();
 		dom.clearNode(this._container);
 
-		const visibleAttachments = this._attachedContext.filter(entry => !isAgentHostCompletionVariableEntry(entry));
+		const visibleAttachments = this._attachedContext.filter(entry => !isAgentHostCompletionVariableEntry(entry) && !isAdditionalWorkspaceContextId(entry.id));
 		if (visibleAttachments.length === 0) {
 			this._container.style.display = 'none';
 			return;
@@ -195,10 +196,13 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 				pill.role = 'button';
 			}
 
-			const removeButton = dom.append(pill, dom.$('.sessions-chat-attachment-remove'));
+			const removeButton = dom.append(pill, dom.$<HTMLButtonElement>('button.sessions-chat-attachment-remove'));
+			removeButton.type = 'button';
 			removeButton.title = localize('removeAttachment', "Remove");
-			removeButton.tabIndex = -1;
-			dom.append(removeButton, renderIcon(Codicon.closeCompact));
+			removeButton.setAttribute('aria-label', localize('removeNamedAttachment', "Remove {0}", entry.name));
+			const removeIcon = dom.append(removeButton, renderIcon(Codicon.closeCompact));
+			removeIcon.setAttribute('aria-hidden', 'true');
+			this._renderDisposables.add(dom.addDisposableListener(removeButton, dom.EventType.KEY_DOWN, e => e.stopPropagation()));
 			this._renderDisposables.add(dom.addDisposableListener(removeButton, dom.EventType.CLICK, (e) => {
 				e.stopPropagation();
 				this.removeAttachment(entry.id);

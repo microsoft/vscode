@@ -13,8 +13,37 @@ import { InMemoryStorageService, StorageScope } from '../../../../../platform/st
 import { CHAT_PROMO_DISMISS_COMMAND_ID, CHAT_PROMO_TRY_MODEL_COMMAND_ID, ChatPromoNotificationContribution } from '../../browser/chatPromoNotification.js';
 import { ChatConfiguration, ChatSaleNotification } from '../../common/constants.js';
 import { IChatWidgetService } from '../../browser/chat.js';
-import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../common/languageModels.js';
-import { ChatInputNotificationActionKind, IChatInputNotification, IChatInputNotificationService, isChatInputNotificationApplicableToSessionType } from '../../browser/widget/input/chatInputNotificationService.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../common/languageModels.js';
+import { ChatInputNotificationActionKind, IChatInputNotification, IChatInputNotificationContext, IChatInputNotificationService, isChatInputNotificationApplicableToSessionType } from '../../browser/widget/input/chatInputNotificationService.js';
+
+function inputContext(overrides: Partial<IChatInputNotificationContext> = {}): IChatInputNotificationContext {
+	return {
+		sessionType: undefined,
+		sessionResource: undefined,
+		deferredNotificationsEnabled: true,
+		isTransientChat: false,
+		sessionStarted: false,
+		modelState: { currentModel: undefined, models: [] },
+		...overrides,
+	};
+}
+
+function assertPromoAction(notification: IChatInputNotification, identifier: string, label: string): void {
+	const action = notification.actions[0];
+	const model = { identifier, metadata: { id: identifier, vendor: 'test', family: identifier } as ILanguageModelChatMetadata } satisfies ILanguageModelChatMetadataAndIdentifier;
+	const otherModel = { ...model, identifier: 'other/model' };
+	assert.deepStrictEqual({
+		label: action?.label,
+		kind: action?.kind,
+		matches: action?.kind === ChatInputNotificationActionKind.SwitchToModel && action.matchesModel(model),
+		matchesOther: action?.kind === ChatInputNotificationActionKind.SwitchToModel && action.matchesModel(otherModel),
+	}, {
+		label,
+		kind: ChatInputNotificationActionKind.SwitchToModel,
+		matches: true,
+		matchesOther: false,
+	});
+}
 
 function createMockNotificationService(disposables: Pick<DisposableStore, 'add'>) {
 	const notifications = new Map<string, IChatInputNotification>();
@@ -168,6 +197,8 @@ suite('ChatPromoNotificationContribution', () => {
 			message: 'Get 20% off',
 			commandCount: 0,
 		});
+		assert.ok(notification);
+		assertPromoAction(notification, 'copilot:gpt-5.5', 'Try GPT-5.5');
 	});
 
 	test('shows the post-update card for a discounted promo when the setting is popup', () => {
@@ -297,12 +328,16 @@ suite('ChatPromoNotificationContribution', () => {
 
 		const notification = notifService.getNotification();
 		assert.deepStrictEqual({
-			hideInTransientChats: notification?.hideInTransientChats,
-			hideInStartedSessions: notification?.hideInStartedSessions,
+			newUser: notification?.when?.(inputContext({ deferredNotificationsEnabled: false })),
+			transient: notification?.when?.(inputContext({ isTransientChat: true })),
+			started: notification?.when?.(inputContext({ sessionStarted: true })),
+			eligible: notification?.when?.(inputContext()),
 			autoDismissOnMessage: notification?.autoDismissOnMessage,
 		}, {
-			hideInTransientChats: true,
-			hideInStartedSessions: true,
+			newUser: false,
+			transient: false,
+			started: false,
+			eligible: true,
 			autoDismissOnMessage: false,
 		});
 	});
@@ -480,17 +515,17 @@ suite('ChatPromoNotificationContribution', () => {
 		const local = notifService.getNotificationForSession('local');
 		assert.ok(local, 'Expected a local promo');
 		assert.ok(local.message.toString().includes('Local promo'));
-		assert.deepStrictEqual(local.actions, [{ label: 'Try GPT-5.5', kind: ChatInputNotificationActionKind.SwitchToModel, modelIdentifier: 'local:gpt-5.5' }]);
+		assertPromoAction(local, 'local:gpt-5.5', 'Try GPT-5.5');
 
 		const copilot = notifService.getNotificationForSession('copilotcli');
 		assert.ok(copilot, 'Expected a Copilot promo');
 		assert.ok(copilot.message.toString().includes('Copilot promo'));
-		assert.deepStrictEqual(copilot.actions, [{ label: 'Try Claude', kind: ChatInputNotificationActionKind.SwitchToModel, modelIdentifier: 'copilot:claude' }]);
+		assertPromoAction(copilot, 'copilot:claude', 'Try Claude');
 
 		const codex = notifService.getNotificationForSession('openai-codex');
 		assert.ok(codex, 'Expected a Codex promo');
 		assert.ok(codex.message.toString().includes('Codex promo'));
-		assert.deepStrictEqual(codex.actions, [{ label: 'Try o4', kind: ChatInputNotificationActionKind.SwitchToModel, modelIdentifier: 'codex:o4' }]);
+		assertPromoAction(codex, 'codex:o4', 'Try o4');
 	});
 
 	test('does not leak a harness promo into a different session type', () => {

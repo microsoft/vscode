@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, MutableDisposable, type IReference } from '../../../base/common/lifecycle.js';
+import { Disposable, type IReference } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
@@ -17,7 +17,7 @@ import { CustomizationEnablementKind, CustomizationType, type CustomizationEnabl
 import { IAgentHostStorageService } from './agentHostStorageService.js';
 import { getEffectiveWorkingDirectories } from './agentConfigurationService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
-import type { IAgentHostWorktreeIsolation } from './shared/worktreeIsolation.js';
+import { IAgentHostWorktreeIsolation, type IAgentHostWorktreePendingState } from './shared/worktreeIsolation.js';
 
 const STORAGE_KEY = 'customizationEnablement';
 const LRU_STORAGE_KEY = 'customizationEnablementLru';
@@ -162,16 +162,17 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 	 * Replayed after either session load or a working-directory event, while resolution reports `pending` rather than no decision.
 	 */
 	private readonly _pendingReplacements = new Map<string, IPendingReplacement>();
-	private _worktree: IAgentHostWorktreeIsolation | undefined;
-	private readonly _worktreePendingListener = this._register(new MutableDisposable());
+	private readonly _worktree: IAgentHostWorktreePendingState;
 
 	constructor(
 		@IAgentHostStorageService private readonly _storageService: IAgentHostStorageService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@IAgentHostStateManager private readonly _sessionState: AgentHostStateManager,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostWorktreeIsolation worktree: IAgentHostWorktreeIsolation,
 	) {
 		super();
+		this._worktree = worktree;
 		this._persistent = this._readPersistentEnablement();
 		this._lru = this._readLru();
 		this._reconcileLru();
@@ -189,13 +190,7 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 				}
 			}
 		}));
-	}
-
-	/** Bound after AgentService construction because WorktreeIsolation depends on ICopilotApiService and AgentService's endpoint service. */
-	setWorktreeIsolation(worktree: IAgentHostWorktreeIsolation): void {
-		this._worktree = worktree;
-		const onDidChangeWorkingDirectoryPending = worktree.onDidChangeWorkingDirectoryPending;
-		this._worktreePendingListener.value = onDidChangeWorkingDirectoryPending?.(sessionId => {
+		this._register(this._worktree.onDidChangeWorkingDirectoryPending(sessionId => {
 			const session = this._sessionsById.get(sessionId);
 			if (session === undefined) {
 				// A worktree can become pending before this service initializes its
@@ -204,7 +199,7 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 				return;
 			}
 			this._notifyDecisionChanged([session]);
-		});
+		}));
 	}
 
 	async initializeSession(session: string): Promise<void> {
@@ -224,7 +219,7 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 		if (readSessionWorkspaceless(summary?._meta)) {
 			return { kind: 'workspaceless' };
 		}
-		if (this._worktree?.isWorkingDirectoryPending(AgentSession.id(session))) {
+		if (this._worktree.isWorkingDirectoryPending(AgentSession.id(session))) {
 			return { kind: 'pending' };
 		}
 		const directory = getEffectiveWorkingDirectories(this._sessionState, session)?.[0];

@@ -193,7 +193,7 @@ suite('RemoteAgentHostService', () => {
 
 		// Mock the instantiation service to capture created protocol clients.
 		// `_connectTo` calls `createInstance` for `WebSocketClientTransport`
-		// and `RemoteAgentHostProtocolClient`. We only care about tracking
+		// and `AgentHostProtocolClient`. We only care about tracking
 		// the protocol client; for the transport we return a no-op
 		// disposable so the test can keep asserting on `createdClients.length`.
 		const mockInstantiationService: Partial<IInstantiationService> = {
@@ -704,8 +704,9 @@ suite('RemoteAgentHostService', () => {
 				{ name: 'Tunnel', connection: { type: RemoteAgentHostEntryType.Tunnel, tunnelId: 'runtime-tunnel', clusterId: 'cluster' } },
 				{ name: 'WSL', connection: { type: RemoteAgentHostEntryType.WSL, address: 'wsl:runtime', distro: 'runtime' } },
 				{ name: 'Cloud Sandbox', connection: { type: RemoteAgentHostEntryType.CloudSandbox, address: 'cloud:runtime', environmentId: 'env_runtime' } },
+				{ name: 'Dev Container', connection: { type: RemoteAgentHostEntryType.DevContainer, address: 'devcontainer:runtime' } },
 			];
-			const addresses = ['tunnel:runtime-tunnel', 'wsl:runtime', 'cloud:runtime'];
+			const addresses = ['tunnel:runtime-tunnel', 'wsl:runtime', 'cloud:runtime', 'devcontainer:runtime'];
 
 			for (let index = 0; index < entries.length; index++) {
 				const client = disposables.add(new MockProtocolClient(addresses[index]));
