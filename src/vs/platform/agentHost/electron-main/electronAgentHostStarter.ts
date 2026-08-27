@@ -313,6 +313,7 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 		'Debugger listening on ws://',
 		'For help, see: https://nodejs.org/en/docs/inspector',
 		'ExperimentalWarning: SQLite is an experimental feature',
+		'[copilot-sdk] CopilotClient.stop runtime shutdown complete.',
 	];
 
 	private _isExpectedStderr(data: string): boolean {

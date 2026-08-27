@@ -172,7 +172,16 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 		const isEphemeral = this._stateManager.isEphemeralSession(sessionUri);
 		return this._groups.flatMap(group => {
 			if (materializedDefinitions && group.materializeDefinitions) {
-				return materializedDefinitions.filter(definition => this._groupByToolName.get(definition.name) === group);
+				// A session's tool membership is fixed at materialization time, but
+				// each still-current tool's metadata (description, schema) is refreshed
+				// from the group so restored sessions pick up wording changes instead
+				// of pinning the descriptions they were first advertised with. Tools
+				// with no current definition (e.g. the retired create_chat) keep their
+				// stored metadata.
+				const currentByName = new Map(group.definitions.map(definition => [definition.name, definition]));
+				return materializedDefinitions
+					.filter(definition => this._groupByToolName.get(definition.name) === group)
+					.map(definition => currentByName.get(definition.name) ?? definition);
 			}
 			const definitions = group.definitions.filter(definition => group.isEnabled(definition.name));
 			return isEphemeral ? definitions.filter(definition => definition.enabledForEphemeralSessions) : definitions;

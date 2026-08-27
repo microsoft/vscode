@@ -15,7 +15,7 @@ import { FileService } from '../../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import { CustomizationType } from '../../../common/state/protocol/channels-session/state.js';
-import { codexHooksToContainers, codexSelectedCapabilityRootCandidates, codexSkillsToContainers, discoverCodexWorkspaceAgents } from '../../../node/codex/codexCustomizations.js';
+import { codexHooksToContainers, codexSelectedCapabilityRootCandidates, codexSkillsToContainers, discoverCodexWorkspaceAgents, discoverCodexWorkspaceInstructions } from '../../../node/codex/codexCustomizations.js';
 import type { HookMetadata } from '../../../node/codex/protocol/generated/v2/HookMetadata.js';
 import type { SkillMetadata } from '../../../node/codex/protocol/generated/v2/SkillMetadata.js';
 import type { SkillScope } from '../../../node/codex/protocol/generated/v2/SkillScope.js';
@@ -108,6 +108,31 @@ suite('codexCustomizations', () => {
 				{ uri: secondaryDirectory.toString(), children: [{ name: 'Secondary Agent', uri: secondaryOnlyAgent.toString() }] },
 			],
 		});
+	});
+
+	test('surfaces each workspace root AGENTS.md as an always-on rule', async () => {
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		const workspace = URI.from({ scheme: Schemas.inMemory, path: '/workspace' });
+		await fileService.createFolder(workspace);
+		await Promise.all([
+			fileService.writeFile(URI.joinPath(workspace, 'AGENTS.md'), VSBuffer.fromString('Use workspace instructions.')),
+			fileService.writeFile(URI.joinPath(workspace, 'CLAUDE.md'), VSBuffer.fromString('Not loaded by Codex.')),
+		]);
+
+		const containers = await discoverCodexWorkspaceInstructions([workspace, workspace], fileService);
+
+		assert.deepStrictEqual(containers.map(container => ({
+			uri: container.uri,
+			contents: container.contents,
+			writable: container.writable,
+			children: container.children?.map(child => ({ type: child.type, name: child.name, uri: child.uri, alwaysApply: child.type === CustomizationType.Rule ? child.alwaysApply : undefined })),
+		})), [{
+			uri: workspace.toString(),
+			contents: CustomizationType.Rule,
+			writable: false,
+			children: [{ type: CustomizationType.Rule, name: 'AGENTS.md', uri: URI.joinPath(workspace, 'AGENTS.md').toString(), alwaysApply: true }],
+		}]);
 	});
 
 	test('groups skills by scope into read-only containers, sorted by name', () => {

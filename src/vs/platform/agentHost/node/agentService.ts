@@ -39,6 +39,7 @@ import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../common/meta/agentSnapshotAttachmentMeta.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../common/meta/agentEphemeralSessionMeta.js';
 import { IAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../common/meta/agentMessageDelegationMeta.js';
+import { toAgentMergeMessageMeta } from '../common/meta/agentMergeMessageMeta.js';
 import { readChatSurfaceMeta, withChatSurfaceMeta } from '../common/meta/agentChatSurfaceMeta.js';
 import { AgentConfigurationService, getEffectiveWorkingDirectories } from './agentConfigurationService.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
@@ -1191,6 +1192,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const message: Message = {
 			text: prompt,
 			origin: { kind: MessageKind.SystemNotification },
+			_meta: toAgentMergeMessageMeta(),
 		};
 		const action = { type: ActionType.ChatTurnStarted, turnId, startedAt: new Date().toISOString(), message } as const;
 		this._stateManager.dispatchServerAction(chat, action);
@@ -2866,10 +2868,8 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 
-		if (!this._worktree.isWorkingDirectoryPending(AgentSession.id(session))) {
-			const workingDirectory = created.resolvedWorkingDirectory ?? config?.workingDirectories?.[0];
-			void this._gitStateService.refreshSessionGitState(session.toString(), workingDirectory);
-		}
+		const workingDirectory = created.resolvedWorkingDirectory ?? config?.workingDirectories?.[0];
+		void this._gitStateService.refreshSessionGitState(session.toString(), workingDirectory);
 
 		this._sessionResidency.touch(session);
 		await this._sessionResidency.reconcile();
@@ -3491,6 +3491,15 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		if (e.chat.toString() !== state.defaultChat) {
+			if (!state.chats.some(chat => chat.resource.toString() === e.chat.toString())) {
+				return;
+			}
+			if (e.result?.providerData !== undefined) {
+				this._onChatDataChanged({ chat: e.chat, providerData: e.result.providerData });
+			}
+			if (e.result?.backingSession) {
+				void this._markChatBacking(e.result.backingSession, e.chat);
+			}
 			return;
 		}
 		if (e.result) {
