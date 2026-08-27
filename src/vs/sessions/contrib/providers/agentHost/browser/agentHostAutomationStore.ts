@@ -976,20 +976,19 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		if (!raw) {
 			return [];
 		}
-		try {
-			const value: unknown = JSON.parse(raw);
-			if (!isLegacyRunArchive(value)) {
-				this._logService.error(`[AgentHostAutomationStore] Ignoring invalid legacy run archive: key=${this._archiveKey}.`);
-				return [];
-			}
-			return value.runs.map(run => ({
-				...run,
-				sessionResource: run.sessionResource ? URI.parse(run.sessionResource) : undefined,
-			}));
-		} catch (error) {
-			this._logService.error(`[AgentHostAutomationStore] Failed to parse legacy run archive: key=${this._archiveKey}, error=${error instanceof Error ? error.message : String(error)}`);
+		const parsed = parseArchivedRuns(raw);
+		if (parsed.kind === 'unsupported') {
+			this._logService.error(`[AgentHostAutomationStore] Ignoring legacy run archive with unsupported version: key=${this._archiveKey}, version=${parsed.version}.`);
 			return [];
 		}
+		if (parsed.kind === 'invalid') {
+			this._logService.error(`[AgentHostAutomationStore] Ignoring invalid legacy run archive: key=${this._archiveKey}, error=${parsed.error}.`);
+			return [];
+		}
+		if (parsed.droppedRuns > 0) {
+			this._logService.warn(`[AgentHostAutomationStore] Dropped ${parsed.droppedRuns} malformed run(s) from legacy run archive: key=${this._archiveKey}.`);
+		}
+		return parsed.runs;
 	}
 
 	private async _archiveRuns(runs: readonly IAutomationRun[]): Promise<void> {
@@ -998,7 +997,21 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		}
 		let raw = await this._automationStorageService.read(this._archiveKey);
 		for (let attempt = 0; attempt < LEGACY_RUN_ARCHIVE_WRITE_ATTEMPTS; attempt++) {
-			const current = raw === undefined ? [] : parseArchivedRuns(raw, this._archiveKey);
+			let current: readonly IAutomationRun[] = [];
+			if (raw !== undefined) {
+				const parsed = parseArchivedRuns(raw);
+				if (parsed.kind === 'unsupported') {
+					throw new Error(`Cannot update legacy Automation run archive with unsupported version: key=${this._archiveKey}, version=${parsed.version}.`);
+				}
+				if (parsed.kind === 'invalid') {
+					this._logService.error(`[AgentHostAutomationStore] Replacing invalid legacy run archive: key=${this._archiveKey}, error=${parsed.error}.`);
+				} else {
+					current = parsed.runs;
+					if (parsed.droppedRuns > 0) {
+						this._logService.warn(`[AgentHostAutomationStore] Dropping ${parsed.droppedRuns} malformed run(s) while repairing legacy run archive: key=${this._archiveKey}.`);
+					}
+				}
+			}
 			const merged = distinctById([...runs, ...current]);
 			const archive: ILegacyRunArchive = {
 				version: LEGACY_RUN_ARCHIVE_VERSION,
@@ -1124,16 +1137,6 @@ function distinctById<T extends { readonly id: string }>(items: readonly T[]): T
 	return result;
 }
 
-function isLegacyRunArchive(value: unknown): value is ILegacyRunArchive {
-	if (!value || typeof value !== 'object' || Array.isArray(value)) {
-		return false;
-	}
-	const archive = value as Record<string, unknown>;
-	return archive['version'] === LEGACY_RUN_ARCHIVE_VERSION
-		&& Array.isArray(archive['runs'])
-		&& archive['runs'].every(isSerializedArchivedRun);
-}
-
 function isSerializedArchivedRun(value: unknown): value is ISerializedArchivedRun {
 	if (!value || typeof value !== 'object' || Array.isArray(value)) {
 		return false;
@@ -1150,18 +1153,41 @@ function isSerializedArchivedRun(value: unknown): value is ISerializedArchivedRu
 		&& (run['errorMessage'] === undefined || typeof run['errorMessage'] === 'string');
 }
 
-function parseArchivedRuns(raw: string, key: string): readonly IAutomationRun[] {
+type ParsedArchivedRuns =
+	| { readonly kind: 'archive'; readonly runs: readonly IAutomationRun[]; readonly droppedRuns: number }
+	| { readonly kind: 'invalid'; readonly error: string }
+	| { readonly kind: 'unsupported'; readonly version: number };
+
+function parseArchivedRuns(raw: string): ParsedArchivedRuns {
 	let value: unknown;
 	try {
 		value = JSON.parse(raw);
 	} catch (error) {
-		throw new Error(`Failed to parse legacy Automation run archive '${key}'.`, { cause: error });
+		return { kind: 'invalid', error: error instanceof Error ? error.message : String(error) };
 	}
-	if (!isLegacyRunArchive(value)) {
-		throw new Error(`Legacy Automation run archive is invalid: ${key}`);
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return { kind: 'invalid', error: 'archive is not an object' };
 	}
-	return value.runs.map(run => ({
-		...run,
-		sessionResource: run.sessionResource ? URI.parse(run.sessionResource) : undefined,
-	}));
+	const archive = value as Record<string, unknown>;
+	if (typeof archive['version'] === 'number' && archive['version'] > LEGACY_RUN_ARCHIVE_VERSION) {
+		return { kind: 'unsupported', version: archive['version'] };
+	}
+	if (archive['version'] !== LEGACY_RUN_ARCHIVE_VERSION || !Array.isArray(archive['runs'])) {
+		return { kind: 'invalid', error: 'archive has an invalid version or runs collection' };
+	}
+	const runs: IAutomationRun[] = [];
+	for (const run of archive['runs']) {
+		if (!isSerializedArchivedRun(run)) {
+			continue;
+		}
+		try {
+			runs.push({
+				...run,
+				sessionResource: run.sessionResource ? URI.parse(run.sessionResource) : undefined,
+			});
+		} catch {
+			continue;
+		}
+	}
+	return { kind: 'archive', runs, droppedRuns: archive['runs'].length - runs.length };
 }

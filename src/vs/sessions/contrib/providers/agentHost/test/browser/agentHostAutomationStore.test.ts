@@ -303,9 +303,14 @@ class PausedRemovalAutomationStore extends AutomationStore {
 
 class RecordingLogService extends NullLogService {
 	readonly errors: string[] = [];
+	readonly warnings: string[] = [];
 
 	override error(message: string, ..._args: unknown[]): void {
 		this.errors.push(message);
+	}
+
+	override warn(message: string, ..._args: unknown[]): void {
+		this.warnings.push(message);
 	}
 }
 
@@ -758,6 +763,57 @@ suite('AgentHostAutomationStore', () => {
 			restored.runs.get().map(run => ({ ...run, sessionResource: run.sessionResource?.toString() })),
 			snapshot.runs.map(run => ({ ...run, sessionResource: run.sessionResource?.toString() })),
 		);
+	});
+
+	test('repairs malformed legacy run archive rows while preserving valid history', async () => {
+		const connection = new TestAutomationConnection(true);
+		disposables.add(connection);
+		const storage = disposables.add(new InMemoryStorageService());
+		const automationStorage = new TestAutomationStorageService(storage);
+		const logService = new RecordingLogService();
+		const archiveKey = 'agentHostAutomation.legacyRunArchive.local-agent-host';
+		const existingRun = archivedSnapshot('existing', 'run-existing').runs[0];
+		await automationStorage.compareAndSwap(archiveKey, undefined, JSON.stringify({
+			version: 1,
+			runs: [
+				{ ...existingRun, sessionResource: existingRun.sessionResource?.toString() },
+				{ id: 'malformed' },
+			],
+		}));
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, undefined, logService, storage, NullTelemetryService, automationStorage));
+
+		await store.importAutomationSnapshot(archivedSnapshot('imported', 'run-imported'));
+
+		const persisted = JSON.parse((await automationStorage.read(archiveKey))!);
+		assert.deepStrictEqual({
+			runIds: persisted.runs.map((run: { id: string }) => run.id).sort(),
+			loggedRepair: logService.warnings.some(message => message.includes('malformed run(s) while repairing legacy run archive')),
+		}, {
+			runIds: ['run-existing', 'run-imported'],
+			loggedRepair: true,
+		});
+	});
+
+	test('replaces an unreadable legacy run archive while importing history', async () => {
+		const connection = new TestAutomationConnection(true);
+		disposables.add(connection);
+		const storage = disposables.add(new InMemoryStorageService());
+		const automationStorage = new TestAutomationStorageService(storage);
+		const logService = new RecordingLogService();
+		const archiveKey = 'agentHostAutomation.legacyRunArchive.local-agent-host';
+		await automationStorage.compareAndSwap(archiveKey, undefined, '{');
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, undefined, logService, storage, NullTelemetryService, automationStorage));
+
+		await store.importAutomationSnapshot(archivedSnapshot('imported', 'run-imported'));
+
+		const persisted = JSON.parse((await automationStorage.read(archiveKey))!);
+		assert.deepStrictEqual({
+			runIds: persisted.runs.map((run: { id: string }) => run.id),
+			loggedReplacement: logService.errors.some(message => message.includes('Replacing invalid legacy run archive')),
+		}, {
+			runIds: ['run-imported'],
+			loggedReplacement: true,
+		});
 	});
 
 	test('merges concurrent legacy run archives without lost updates', async () => {
