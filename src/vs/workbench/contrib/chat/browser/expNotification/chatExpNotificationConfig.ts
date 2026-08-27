@@ -41,6 +41,8 @@ const SEVERITIES = new Map([
 export interface IChatExpNotificationMatch {
 	readonly sessionTypes: readonly string[];
 	readonly selectedModels: readonly string[];
+	/** Models that suppress the notification, so a nudge can skip users already on its target. */
+	readonly excludeSelectedModels: readonly string[];
 }
 
 /** A parsed notification, ready to hand to the notification service once `when` is bound. */
@@ -174,11 +176,15 @@ function readMatch(raw: unknown, path: string): IChatExpNotificationMatch | stri
 	if (typeof selectedModels === 'string') {
 		return selectedModels;
 	}
-	if (!sessionTypes.length && !selectedModels.length) {
+	const excludeSelectedModels = readSelectorList(source.excludeSelectedModels, `${path}.excludeSelectedModels`);
+	if (typeof excludeSelectedModels === 'string') {
+		return excludeSelectedModels;
+	}
+	if (!sessionTypes.length && !selectedModels.length && !excludeSelectedModels.length) {
 		return `${path} must narrow at least one dimension`;
 	}
 
-	return { sessionTypes, selectedModels };
+	return { sessionTypes, selectedModels, excludeSelectedModels };
 }
 
 function readActions(raw: unknown, path: string): ChatExpNotificationAction[] | string {
@@ -262,10 +268,11 @@ function readAction(raw: unknown, path: string): ChatExpNotificationAction | str
 
 /** Whether the chat described by `context` should be shown a notification matching `match`. */
 export function matchesChatExpNotification(match: IChatExpNotificationMatch, context: IChatExpNotificationMatchContext): boolean {
-	const { sessionTypes, selectedModels } = match;
+	const { sessionTypes, selectedModels, excludeSelectedModels } = match;
 	const sessionCandidates = [context.sessionType, context.harness].map(value => value && normalizeSelector(value));
 	const modelCandidates = expandModelMatchCandidates(context.selectedModelId, context.selectedModelAliases);
 
 	return (!sessionTypes.length || sessionTypes.some(selector => sessionCandidates.includes(selector)))
-		&& (!selectedModels.length || selectedModels.some(selector => modelCandidates.has(selector)));
+		&& (!selectedModels.length || selectedModels.some(selector => modelCandidates.has(selector)))
+		&& !excludeSelectedModels.some(selector => modelCandidates.has(selector));
 }

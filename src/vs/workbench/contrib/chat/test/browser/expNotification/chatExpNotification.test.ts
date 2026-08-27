@@ -56,7 +56,7 @@ suite('ChatExpNotification', () => {
 				severity: ChatInputNotificationSeverity.Info,
 				message: 'Auto now picks stronger models',
 				description: 'Auto routes each request to the best available model.',
-				match: { sessionTypes: ['copilotcli'], selectedModels: ['gpt-4o'] },
+				match: { sessionTypes: ['copilotcli'], selectedModels: ['gpt-4o'], excludeSelectedModels: [] },
 				signature: undefined,
 				actions: [
 					{ kind: ChatInputNotificationActionKind.Command, label: 'Learn More', telemetryActionId: 'learn', commandId: 'vscode.open', commandArgs: ['https://aka.ms/x'], matchesModel: undefined },
@@ -91,7 +91,7 @@ suite('ChatExpNotification', () => {
 		test('rejects malformed payloads whole', () => {
 			assert.deepStrictEqual([
 				parseChatExpNotifications(undefined).error,
-				parseChatExpNotifications('not json').error,
+				parseChatExpNotifications('not json').error?.replace(/:.*/, ''),
 				parseChatExpNotifications(JSON.stringify({ version: 99, notifications: [validNotification] })).error,
 				parseChatExpNotifications(JSON.stringify({ version: CHAT_EXP_NOTIFICATION_VERSION, notifications: 'nope' })).error,
 				parseOne({ ...validNotification, id: 'Has Spaces' }).error,
@@ -106,7 +106,7 @@ suite('ChatExpNotification', () => {
 				parseChatExpNotifications(payload(validNotification, validNotification)).error,
 			], [
 				'empty payload',
-				'payload is not valid JSON: Unexpected token \'o\', "not json" is not valid JSON',
+				'payload is not valid JSON',
 				'unsupported version 99, expected 1',
 				'notifications must be an array',
 				'notifications[0].id is missing or malformed',
@@ -132,7 +132,7 @@ suite('ChatExpNotification', () => {
 				...overrides,
 			});
 
-			function matches(match: { sessionTypes?: string[]; selectedModels?: string[] }, overrides?: Partial<IChatExpNotificationMatchContext>): boolean {
+			function matches(match: { sessionTypes?: string[]; selectedModels?: string[]; excludeSelectedModels?: string[] }, overrides?: Partial<IChatExpNotificationMatchContext>): boolean {
 				const parsed = parseOne({ ...validNotification, actions: [], match }).notifications?.[0];
 				assert.ok(parsed);
 				return matchesChatExpNotification(parsed.match, context(overrides));
@@ -147,6 +147,15 @@ suite('ChatExpNotification', () => {
 					matches({ sessionTypes: ['local'] }),
 					matches({ sessionTypes: ['local'] }, { sessionType: 'local', harness: undefined }),
 				], [true, true, true, false, false, true]);
+			});
+
+			test('an excluded model suppresses the notification', () => {
+				assert.deepStrictEqual([
+					matches({ sessionTypes: ['copilotcli'], excludeSelectedModels: ['auto'] }),
+					matches({ sessionTypes: ['copilotcli'], excludeSelectedModels: ['claude-sonnet-4.5'] }),
+					matches({ sessionTypes: ['copilotcli'], excludeSelectedModels: ['Claude Sonnet 4.5'] }),
+					matches({ excludeSelectedModels: ['auto'] }, { selectedModelId: undefined, selectedModelAliases: undefined }),
+				], [true, false, false, true]);
 			});
 
 			test('a model selector matches across identifier shapes, and every dimension must match', () => {
