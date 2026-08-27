@@ -7,6 +7,7 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyExpr, IContextKey, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -320,6 +321,75 @@ suite('ChatSessionsService - in-progress lifecycle', () => {
 		}, {
 			registeredProviders: [sessionType],
 			inProgress: [],
+		});
+	});
+});
+
+suite('ChatSessionsService - deletion lifecycle', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	let service: ChatSessionsService;
+
+	setup(() => {
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		service = store.add(instantiationService.createInstance(ChatSessionsService));
+	});
+
+	test('disposes cached content only after controller deletion succeeds', async () => {
+		const sessionType = 'delete-provider';
+		const resource = URI.from({ scheme: sessionType, path: '/session-1' });
+		const counters = { deleted: 0, provided: 0, disposed: 0 };
+		let deletionError: Error | undefined = new Error('delete failed');
+
+		store.add(service.registerChatSessionContribution({
+			type: sessionType,
+			name: sessionType,
+			displayName: sessionType,
+			description: '',
+		}));
+		store.add(service.registerChatSessionItemController(sessionType, {
+			onDidChangeChatSessionItems: Event.None,
+			items: [],
+			async refresh(): Promise<void> { },
+			async deleteChatSessionItem(): Promise<void> {
+				counters.deleted++;
+				if (deletionError) {
+					throw deletionError;
+				}
+			},
+		}));
+		store.add(service.registerChatSessionContentProvider(sessionType, {
+			provideChatSessionContent: async sessionResource => {
+				counters.provided++;
+				const disposable = store.add(toDisposable(() => {
+					counters.disposed++;
+				}));
+				return {
+					sessionResource,
+					history: [],
+					onWillDispose: Event.None,
+					dispose: () => disposable.dispose(),
+				};
+			},
+		}));
+
+		const initialSession = await service.getOrCreateChatSession(resource, CancellationToken.None);
+		await assert.rejects(service.deleteChatSessionItem(resource, CancellationToken.None), deletionError);
+		const sessionAfterFailure = await service.getOrCreateChatSession(resource, CancellationToken.None);
+
+		deletionError = undefined;
+		await service.deleteChatSessionItem(resource, CancellationToken.None);
+		const sessionAfterSuccess = await service.getOrCreateChatSession(resource, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			counters,
+			cachedAfterFailure: sessionAfterFailure === initialSession,
+			recreatedAfterSuccess: sessionAfterSuccess !== initialSession,
+		}, {
+			counters: { deleted: 2, provided: 2, disposed: 1 },
+			cachedAfterFailure: true,
+			recreatedAfterSuccess: true,
 		});
 	});
 });

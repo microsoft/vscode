@@ -194,7 +194,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 			if (toSide && activeSessionId !== undefined && selected.session.sessionId !== activeSessionId) {
 				sessionsService.insertAt(selected.session, activeSessionId, 'right', !inBackground);
 			} else {
-				sessionsService.openSession(selected.session.resource, { preserveFocus: inBackground });
+				sessionsService.openSession(selected.session.resource, { preserveFocus: inBackground, source: 'sessionsList' });
 			}
 		};
 

@@ -8,7 +8,7 @@ import type { ISettableObservable } from '../../../base/common/observable.js';
 import type { StopWatch } from '../../../base/common/stopwatch.js';
 import { createDecorator, type BrandedService } from '../../instantiation/common/instantiation.js';
 import type { IAgent } from './agent.js';
-import type { AgentHostLaunchKind, IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
+import type { AgentHostLaunchKind, AgentHostTurnFailureStage, IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
 import type { StateAction } from './state/sessionActions.js';
 import type { ErrorInfo, Message, Turn, URI as ProtocolURI } from './state/sessionState.js';
 
@@ -70,10 +70,56 @@ export interface IOutgoingTurnContributionResult {
 	readonly message: Message;
 }
 
+/** A turn request that has entered host state and is asking to proceed to a provider. */
+export interface IIncomingRequest {
+	readonly session: ProtocolURI;
+	/** The chat the turn targets. */
+	readonly chat: ProtocolURI;
+	/** The channel the turn's actions are dispatched on. */
+	readonly turnChannel: ProtocolURI;
+	readonly message: Message;
+	readonly turnId: string;
+	/** Whether the request came straight from a client or was drained from the queue. */
+	readonly source: 'direct' | 'queued';
+	readonly clientId: string | undefined;
+	readonly clientContext: IAgentHostClientTelemetryContext;
+}
+
+/**
+ * What a contribution decided about an incoming request. `accept` is the
+ * default, so a contribution that does not care returns `undefined`.
+ *
+ * `handled` means the host satisfied the request itself and no provider should
+ * see it — a local command such as `/rename` or `!command`. The contribution
+ * has already performed the work; the caller only stops.
+ */
+export type IncomingRequestDisposition =
+	| { readonly kind: 'accept' }
+	| { readonly kind: 'handled' }
+	| {
+		readonly kind: 'reject';
+		readonly error: ErrorInfo;
+		readonly stage: AgentHostTurnFailureStage;
+	};
+
 /** The chat and owning session whose complete restored turn list is being hydrated. */
 export interface IHydrationContext {
 	readonly session: ProtocolURI;
 	readonly chat: ProtocolURI;
+}
+
+/**
+ * Host-owned chat state restored from persistence before a chat enters the
+ * session catalog. Distinct from turn hydration: this runs eagerly for every
+ * restored chat, including peer chats whose turns stay unloaded until their
+ * first content request.
+ *
+ * The object form lets this grow with further host-owned restorable fields
+ * without adding another hook.
+ */
+export interface IRestoredChat {
+	readonly title?: string;
+	readonly draft?: Message;
 }
 
 /** A client action after it has been reduced into host state. */
@@ -177,10 +223,33 @@ export interface IAgentHostChatContribution extends IDisposable {
 	 */
 	onOutgoingTurn?(turn: IOutgoingTurn): ISendContribution | undefined | Promise<ISendContribution | undefined>;
 	/**
+	 * Decides whether a turn request may proceed to its provider. Contributions run
+	 * in `order` and the first non-accept disposition wins; later contributions are
+	 * not consulted.
+	 *
+	 * Unlike every other hook, this one fails CLOSED: a contribution that throws
+	 * rejects the request rather than being skipped. It is an admission gate, so
+	 * treating a failure as an accept would let a request past a guard that exists
+	 * to stop it.
+	 *
+	 * Deliberately synchronous. A gate must decide before the send path performs any
+	 * await, so the state it reads cannot change under it between the decision and
+	 * its effect. Every admission check the host performs today — read-only and
+	 * archived chats, local commands, a missing provider — is synchronous.
+	 */
+	onIncomingRequest?(request: IIncomingRequest): IncomingRequestDisposition | undefined;
+	/**
 	 * Hydrates the complete restored turn list. Each ordered stage receives the previous stage's output;
 	 * failures preserve that previous list so a failed enrichment never loses chat history.
 	 */
 	onHydrateTurns?(context: IHydrationContext, turns: readonly Turn[]): readonly Turn[] | Promise<readonly Turn[]>;
+	/**
+	 * Hydrates host-owned chat state before the chat is registered in the
+	 * session catalog. Each ordered stage receives the previous stage's result;
+	 * failures preserve that previous value, so a failed enrichment never drops
+	 * an already-restored title or draft.
+	 */
+	onHydrateChat?(context: IHydrationContext, restored: IRestoredChat): IRestoredChat | Promise<IRestoredChat>;
 }
 
 export type IAgentHostChatContributionSignature<Services extends BrandedService[]> = new (context: IAgentHostChatContributionContext, ...services: Services) => IAgentHostChatContribution;
@@ -204,7 +273,9 @@ export interface IAgentHostChatContributions extends IDisposable {
 	turnEnd(turn: ITurnEnd): void;
 	action(action: IObservedAction): void;
 	outgoingTurn(turn: IOutgoingTurn): Promise<IOutgoingTurnContributionResult>;
+	incomingRequest(request: IIncomingRequest): IncomingRequestDisposition;
 	hydrateTurns(context: IHydrationContext, turns: readonly Turn[]): Promise<readonly Turn[]>;
+	hydrateChat(context: IHydrationContext, restored: IRestoredChat): Promise<IRestoredChat>;
 	disposeChatState(chat: ProtocolURI): void;
 	disposeSessionState(session: ProtocolURI): void;
 }

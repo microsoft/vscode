@@ -553,8 +553,8 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		suite('failed turn resume', () => {
-			async function createErroredTurn(): Promise<{ session: URI; chat: string }> {
-				service.registerProvider(copilotAgent);
+			async function createErroredTurn(resumable = true): Promise<{ session: URI; chat: string }> {
+				registerTestAgentProvider(service, copilotAgent);
 				const session = await service.createSession({ provider: 'copilot' });
 				const chat = buildDefaultChatUri(session.toString());
 				const stateManager = getStateManager(service);
@@ -582,7 +582,7 @@ suite('AgentService (node dispatcher)', () => {
 					type: ActionType.ChatError,
 					turnId: 'turn-1',
 					duration: 100,
-					part: createErrorResponsePart({ errorType: 'requestFailed', message: 'failed' }, true),
+					part: createErrorResponsePart({ errorType: 'requestFailed', message: 'failed' }, resumable),
 				});
 				return { session, chat };
 			}
@@ -599,6 +599,28 @@ suite('AgentService (node dispatcher)', () => {
 					activeTurn: getStateManager(service).getChatState(chat)?.activeTurn,
 				}, {
 					rejectionReason: 'The session provider does not support turn resume.',
+					activeTurn: undefined,
+				});
+			});
+
+			test('rejects a non-resumable error without calling the provider', async () => {
+				const { chat } = await createErroredTurn(false);
+				const resumeCalls: string[] = [];
+				copilotAgent.chats.resumeTurn = async (_chat, turnId) => {
+					resumeCalls.push(turnId);
+				};
+				const envelopePromise = Event.toPromise(Event.filter(service.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+
+				service.dispatchAction(chat, { type: ActionType.ChatTurnResume, turnId: 'turn-1' }, 'client-1', 1);
+
+				const envelope = await envelopePromise;
+				assert.deepStrictEqual({
+					rejectionReason: envelope.rejectionReason,
+					resumeCalls,
+					activeTurn: getStateManager(service).getChatState(chat)?.activeTurn,
+				}, {
+					rejectionReason: 'The requested turn is not the latest resumable errored turn.',
+					resumeCalls: [],
 					activeTurn: undefined,
 				});
 			});
@@ -769,7 +791,7 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 
-			test('finalizes the same turn with another resumable error when continuation fails immediately', async () => {
+			test('finalizes the same turn with a non-resumable error when continuation fails immediately', async () => {
 				const { chat } = await createErroredTurn();
 				copilotAgent.chats.resumeTurn = async () => {
 					throw new Error('continuation failed');
@@ -792,7 +814,7 @@ suite('AgentService (node dispatcher)', () => {
 					state: TurnState.Error,
 					errors: [
 						createErrorResponsePart({ errorType: 'requestFailed', message: 'failed' }, true),
-						createErrorResponsePart({ errorType: 'sendFailed', message: 'Error: continuation failed' }, true),
+						createErrorResponsePart({ errorType: 'sendFailed', message: 'Error: continuation failed' }),
 					],
 					durationAtLeastInitial: true,
 				});
@@ -12884,7 +12906,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('inactive subscription is not registered after provider release', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const agent = new DelayedReleaseMockAgent('copilot');
-				service.registerProvider(agent);
+				registerTestAgentProvider(service, agent);
 				const { session } = await createAgentSession(agent);
 				agent.sessionMessages = [
 					{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
@@ -12907,7 +12929,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('failed subscription removes its subscriber registration', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			const missingSession = URI.parse('copilot:/missing-session');
 
 			await assert.rejects(service.subscribe(missingSession, 'client-1'));
@@ -12919,7 +12941,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('unsubscribe after service disposal does not schedule GC', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const agent = new MockAgent('copilot');
-				service.registerProvider(agent);
+				registerTestAgentProvider(service, agent);
 				const session = await service.createSession({ provider: 'copilot' });
 				service.addSubscriber(session, 'client-1');
 

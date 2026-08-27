@@ -31,6 +31,13 @@ export const enum AgentHostTransportKind {
 	Unknown = 'unknown',
 }
 
+/**
+ * The stage a turn reached before it failed. Declared here rather than beside the
+ * telemetry reporter so `common` consumers (such as the chat contribution
+ * admission hook) can name a failure stage without importing from `node`.
+ */
+export type AgentHostTurnFailureStage = 'validation' | 'workingDirectory' | 'modelSelection' | 'sendMessage' | 'provider';
+
 export interface IAgentHostClientTelemetryContext {
 	readonly clientType: AgentHostClientType;
 	readonly connectionKind: AgentHostClientConnectionKind;
