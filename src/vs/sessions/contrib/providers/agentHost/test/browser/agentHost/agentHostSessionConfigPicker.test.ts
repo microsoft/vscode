@@ -276,7 +276,7 @@ suite('Agent Host Session Config Picker', () => {
 		assert.strictEqual(branchLabel(second.container), 'dev', 'branch label reflects the resolved value');
 	});
 
-	test('renders a Dev Container checkbox immediately after New Worktree and updates the draft', () => {
+	test('renders Dev Container before the Worktree and Branch controls and updates the draft', () => {
 		const services = setupServices(store);
 		const { provider } = services;
 		const { container } = renderPicker(store, services);
@@ -287,13 +287,15 @@ suite('Agent Host Session Config Picker', () => {
 
 		assert.deepStrictEqual({
 			labels: Array.from(container.querySelectorAll<HTMLElement>('.sessions-chat-config-checkbox .sessions-chat-dropdown-label')).map(label => label.textContent),
-			worktreeImmediatelyPrecedesDevContainer: worktree.nextElementSibling === devContainer,
+			devContainerImmediatelyPrecedesWorktree: devContainer.nextElementSibling === worktree,
+			worktreeImmediatelyPrecedesBranch: worktree.nextElementSibling === branchSlot(container),
 			devContainerChecked: devContainer.querySelector('.monaco-checkbox')?.getAttribute('aria-checked'),
 			devContainerEnabled: provider.devContainerEnabled,
 			setSessionConfigValueCalls: provider.setSessionConfigValueCalls,
 		}, {
-			labels: ['New Worktree', 'Dev Container'],
-			worktreeImmediatelyPrecedesDevContainer: true,
+			labels: ['Dev Container', 'New Worktree'],
+			devContainerImmediatelyPrecedesWorktree: true,
+			worktreeImmediatelyPrecedesBranch: true,
 			devContainerChecked: 'true',
 			devContainerEnabled: true,
 			setSessionConfigValueCalls: 0,
@@ -308,7 +310,7 @@ suite('Agent Host Session Config Picker', () => {
 		assert.strictEqual(devContainerSlot(container), null);
 	});
 
-	test('keeps Worktree left of Dev Container when availability resolves later', () => {
+	test('keeps Dev Container left of Worktree when availability resolves later', () => {
 		const services = setupServices(store);
 		services.provider.devContainerAvailable = false;
 		const { container } = renderPicker(store, services);
@@ -321,10 +323,12 @@ suite('Agent Host Session Config Picker', () => {
 		const devContainer = devContainerSlot(container)!;
 		assert.deepStrictEqual({
 			labels: Array.from(container.querySelectorAll<HTMLElement>('.sessions-chat-config-checkbox .sessions-chat-dropdown-label')).map(label => label.textContent),
-			worktreeImmediatelyPrecedesDevContainer: worktree.nextElementSibling === devContainer,
+			devContainerImmediatelyPrecedesWorktree: devContainer.nextElementSibling === worktree,
+			worktreeImmediatelyPrecedesBranch: worktree.nextElementSibling === branchSlot(container),
 		}, {
-			labels: ['New Worktree', 'Dev Container'],
-			worktreeImmediatelyPrecedesDevContainer: true,
+			labels: ['Dev Container', 'New Worktree'],
+			devContainerImmediatelyPrecedesWorktree: true,
+			worktreeImmediatelyPrecedesBranch: true,
 		});
 	});
 

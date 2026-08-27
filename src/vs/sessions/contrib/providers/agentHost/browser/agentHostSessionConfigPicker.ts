@@ -628,7 +628,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		}
 		const isolationSlot = this._isolationCheckbox.value?.slot;
 		if (this._container && isolationSlot?.parentElement === this._container) {
-			this._container.insertBefore(control.slot, isolationSlot.nextSibling);
+			this._container.insertBefore(control.slot, isolationSlot);
 		} else {
 			this._container?.prepend(control.slot);
 		}
