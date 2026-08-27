@@ -124,8 +124,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'agent-plugins-dir': { type: 'string' },
 	'agents-user-data-dir': { type: 'string' },
 	'agents-extensions-dir': { type: 'string' },
-	// Private and unlisted (no `cat`, so it never appears in `--help`), and
-	// deliberately distinct from the smoke-test flags. Carries no secret.
+	// No `cat`, so it never appears in `--help`.
 	'agent-session-claim-hash': { type: 'string' },
 	'show-versions': { type: 'boolean', cat: 'e', description: localize('showVersions', "Show versions of installed extensions, when using --list-extensions.") },
 	'category': { type: 'string', allowEmptyValue: true, cat: 'e', description: localize('category', "Filters installed extensions by provided category, when using --list-extensions."), args: 'category' },

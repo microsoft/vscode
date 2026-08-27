@@ -11,20 +11,17 @@ import { URI } from '../../../../base/common/uri.js';
 /**
  * One-shot admission of an *already existing* remote Agent Host session into an
  * Agents Window, for an evaluation controller that drives every turn itself.
- * The controller and its bridge own the whole secret lifecycle; VS Code is told
- * only a **commitment** — a SHA-256 over the exact claim it will accept — on a
- * private, unlisted launch argument, so argv carries nothing secret. The bridge
- * later presents the pre-image, which pins the session type, session URI, and
- * bridge identity as well as the nonce. See `AGENT_SESSION_CLAIM.md`.
+ *
+ * VS Code is told only a commitment — a SHA-256 over the exact claim it will
+ * accept — so argv carries nothing secret. The bridge later presents the
+ * pre-image, which pins the session type, session URI, and bridge identity as
+ * well as the nonce.
  */
 
-/**
- * Private, unlisted launch argument carrying the hex SHA-256 commitment.
- * Non-secret: a one-way hash of a claim the holder must already know in full.
- */
+/** Private, unlisted launch argument carrying the hex SHA-256 commitment. */
 export const AGENT_SESSION_CLAIM_HASH_ARG = 'agent-session-claim-hash';
 
-/** Hidden (no menu, no `f1`) command the reviewed bridge extension invokes. */
+/** Hidden (no menu, no `f1`) command the bridge extension invokes. */
 export const AGENT_SESSION_CLAIM_COMMAND_ID = 'workbench.action.agentHost.claimExternalSession';
 
 /** The exact argument the bridge passes. Extra or missing keys are rejected. */
@@ -44,7 +41,7 @@ const COMMITMENT_PATTERN = /^[0-9a-f]{64}$/;
 
 /**
  * Non-empty printable ASCII, so the canonical encoding's length prefix is
- * portable: for ASCII a JS string's `length` is its UTF-8 byte length, and a
+ * portable: for ASCII a JS string's `length` is its UTF-8 byte length, so a
  * controller in another language prefixes the same numbers.
  */
 const FIELD_PATTERN = /^[\x20-\x7E]+$/;
@@ -55,10 +52,10 @@ export function parseAgentSessionClaimCommitment(value: string | undefined): str
 }
 
 /**
- * Validates the shape of an untrusted command argument: exactly these fields,
- * each non-empty printable ASCII (see {@link FIELD_PATTERN}), so nothing can be
- * smuggled past a future reader. The session URI must re-serialize to itself
- * with a lowercase scheme, because the host's registry keys on the exact string.
+ * Validates an untrusted command argument: exactly these fields, each
+ * non-empty printable ASCII (see {@link FIELD_PATTERN}). The session URI must
+ * re-serialize to itself with a lowercase scheme, because the host's registry
+ * keys on the exact string.
  */
 export function parseAgentSessionClaimRequest(raw: unknown): IAgentSessionClaimRequest | undefined {
 	if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
@@ -87,10 +84,10 @@ export function parseAgentSessionClaimRequest(raw: unknown): IAgentSessionClaimR
 }
 
 /**
- * Hashes the claim into the commitment the launch argument carries. The encoding
- * is netstring-style — each field prefixed with its length and a colon — so no
- * combination of field contents can produce the same bytes as a different one.
- * Fields are ASCII, so the prefix is equally a character and a byte count.
+ * Hashes the claim into the commitment the launch argument carries. The
+ * encoding is netstring-style — each field prefixed with its length and a
+ * colon — so no combination of field contents can produce the same bytes as a
+ * different one.
  */
 export async function computeAgentSessionClaimCommitment(request: IAgentSessionClaimRequest): Promise<string> {
 	const canonical = REQUEST_KEYS.map(key => `${request[key].length}:${request[key]}`).join('');
@@ -100,16 +97,15 @@ export async function computeAgentSessionClaimCommitment(request: IAgentSessionC
 
 /**
  * Makes the claimed session the window's active session, on the ordinary
- * sessions-view path. Supplied by the sessions layer because the chat layer
- * cannot reach it, and awaited by the claim so the inventory it settles on is
- * the session-scoped one an ordinary open produces.
+ * sessions-view path. Supplied by the sessions layer, which this layer cannot
+ * import.
  */
 export type AgentSessionClaimActivation = (sessionResource: URI, token: CancellationToken) => Promise<void>;
 
 /** Joins an existing session as an active client; never creates one. */
 export type AgentSessionClaimTarget = (backendSession: URI, activate: AgentSessionClaimActivation, token: CancellationToken) => Promise<IDisposable>;
 
-/** Why a readiness wait ended. A closed vocabulary, safe to log and assert on. */
+/** Why a readiness wait ended. */
 export const enum AgentSessionClaimReadiness {
 	Ready = 'ready',
 	/** The caller's token was cancelled — including by its own budget guard. */
@@ -120,16 +116,12 @@ export type AgentSessionClaimReadinessResult =
 	| { readonly outcome: AgentSessionClaimReadiness.Ready; readonly target: AgentSessionClaimTarget }
 	| { readonly outcome: AgentSessionClaimReadiness.Cancelled };
 
-/**
- * The Agent Host session handlers a claim can be served by, keyed by exact
- * session type. A registry rather than a service: one writer, one reader.
- */
+/** The Agent Host session handlers a claim can be served by, by session type. */
 class AgentSessionClaimTargetRegistry {
 
 	private readonly _targets = new Map<string, AgentSessionClaimTarget>();
 	private readonly _onDidRegisterTarget = new Emitter<string>();
 
-	/** Fires with the exact session type each time a handler registers. */
 	readonly onDidRegisterTarget: Event<string> = this._onDidRegisterTarget.event;
 
 	register(sessionType: string, target: AgentSessionClaimTarget): IDisposable {
@@ -149,7 +141,7 @@ class AgentSessionClaimTargetRegistry {
 	/**
 	 * Resolves as soon as {@link sessionType} has a handler, driven purely by
 	 * {@link onDidRegisterTarget}: it schedules nothing and polls nothing. The
-	 * caller supplies whatever deadline it wants through {@link token}.
+	 * caller supplies its deadline through {@link token}.
 	 */
 	whenTargetReady(sessionType: string, token: CancellationToken): Promise<AgentSessionClaimReadinessResult> {
 		const target = this._targets.get(sessionType);

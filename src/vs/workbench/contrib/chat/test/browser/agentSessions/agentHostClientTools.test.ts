@@ -3237,7 +3237,7 @@ suite('AgentHostClientTools', () => {
 		suite('external session claim', () => {
 
 			const claimedSession = AgentSession.uri('copilot', 'session-1');
-			/** Exactly the resource the handler derives and asks to be activated. */
+			/** The resource the handler derives and asks to be activated. */
 			const claimedResource = URI.parse('agent-host-copilotcli:/session-1');
 
 			/** Session resources the claim asked the window to make active. */
@@ -3278,7 +3278,7 @@ suite('AgentHostClientTools', () => {
 				});
 			}
 
-			/** A tool set carrying {@link tool}, as a real registration publishes one. */
+			/** A tool set carrying {@link tool}. */
 			function toolSetWith(tool: IToolData): IToolSet {
 				return new class extends mock<IToolSet>() {
 					override readonly id = `set-${tool.id}`;
@@ -3369,8 +3369,7 @@ suite('AgentHostClientTools', () => {
 			test('settles on the inventory the active session brings up', async () => {
 				const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
 
-				// Stands in for the session-scoped tools a real window registers
-				// off the back of its active session: they exist only afterwards.
+				// Session-scoped tools exist only once the session is active.
 				await claim(handler, async () => {
 					toolsService.toolSets.set([toolSetWith(testRunTaskTool)], undefined);
 				});
@@ -3404,7 +3403,6 @@ suite('AgentHostClientTools', () => {
 
 				assert.deepStrictEqual(connection.dispatchedActions, [],
 					'a claim that never became active must publish nothing, not even a removal');
-				// The hold is released too, so the window is free to try again.
 				await claim(handler);
 				assert.deepStrictEqual(activated, [claimedResource.toString()]);
 			});
@@ -3461,8 +3459,7 @@ suite('AgentHostClientTools', () => {
 
 			test('runs a confirmable client tool that no chat could have answered', async () => {
 				// `testConfirmTool` sets `canRequestPreApproval`, so an unclaimed
-				// call is denied after the grace window. A claimed session has no
-				// chat surface at all, so the evaluation launch approves it.
+				// call is denied after the grace window.
 				const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testConfirmTool]);
 
 				await claim(handler);

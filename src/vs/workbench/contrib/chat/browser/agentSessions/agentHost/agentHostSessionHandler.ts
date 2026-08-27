@@ -1382,7 +1382,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 
 		// One holder, released by the dispose callback below or the construction
-		// `catch` — never both. A claim may hold the same entry too.
+		// `catch` — never both.
 		this._retainActiveClientEntry(sessionResource);
 
 		// For new sessions, defer backend session creation until the first request
@@ -2238,10 +2238,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		entry.attach(backendSession, sessionSubscription);
 	}
 
-	/**
-	 * Records one holder of a session resource's {@link ActiveClientEntry}: a
-	 * chat and a claim address the same resource, so it outlives either alone.
-	 */
+	/** Records one holder: a chat and a claim address the same resource. */
 	private _retainActiveClientEntry(sessionResource: URI): void {
 		this._activeClientHolders.set(sessionResource, (this._activeClientHolders.get(sessionResource) ?? 0) + 1);
 	}
@@ -2268,24 +2265,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private static readonly EXTERNAL_CLAIM_REF = 'external-claim';
 
 	/**
-	 * Joins an **existing** backend session as an additional active client,
-	 * without originating anything.
-	 *
-	 * An evaluation controller owns every turn; this window only contributes its
-	 * inventory and serves the client tools the host asks for. Unlike
-	 * {@link provideChatSessionContent} it never creates a session — one that has
-	 * not hydrated is a hard failure — and it dispatches no draft, pending
-	 * message, or turn of its own. Its one watcher,
-	 * {@link _watchForSessionInputNeeded}, runs from a bare session subscription;
-	 * it, the active-client entry, and the subscription are shared with any chat
+	 * Joins an **existing** backend session as an additional active client.
+	 * Unlike {@link provideChatSessionContent} it never creates one: a session
+	 * that has not hydrated is a hard failure. The `inputNeeded` watcher, the
+	 * active-client entry, and the session subscription are shared with any chat
 	 * on the same session and reference-counted.
 	 *
-	 * {@link activate} runs once the session is known to exist and before this
-	 * client is published, because a session-scoped surface is registered from
-	 * the *active session*, not from the claim: with none, the window would
-	 * advertise the surface an ordinary window has with no session open at all.
-	 * Publishing after it means {@link ActiveClientEntry.whenSettled} settles on
-	 * the final inventory rather than on one that is about to change.
+	 * {@link activate} runs after the session is known to exist and before this
+	 * client is published: session-scoped tools are registered off the *active
+	 * session*, so publishing first would settle on an inventory that is about
+	 * to change.
 	 */
 	async claimExternalSession(backendSession: URI, activate: AgentSessionClaimActivation, token: CancellationToken): Promise<IDisposable> {
 		const sessionKey = backendSession.toString();
@@ -2374,10 +2363,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	/**
 	 * The locally-derived approval for a claimed session's client tools, or
-	 * `undefined` for every ordinary session. A claimed session has no chat that
-	 * could answer a confirmation, so the evaluation launch approves instead;
-	 * deliberately *not* read from the host's confirmation state. Read per call,
-	 * so it starts and stops exactly with the claim.
+	 * `undefined` for every ordinary session. Deliberately *not* read from the
+	 * host's confirmation state, and re-read per call so it starts and stops
+	 * exactly with the claim.
 	 */
 	private _externalClaimToolApproval(backendSession: URI): ConfirmedReason | undefined {
 		return this._externalClaims.has(backendSession.toString())
@@ -2917,9 +2905,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				parameters,
 				context: contextSessionResource ? { sessionResource: contextSessionResource } : undefined,
 				chatStreamToolCallId: toolCall.toolCallId,
-				// A claimed session's approval is local — derived from the
-				// evaluation launch — and deliberately replaces, rather than
-				// falls back to, the host's own confirmation state.
+				// A claimed session's approval is local, and replaces rather
+				// than falls back to the host's own confirmation state.
 				preApproved: claimApproval ?? (toolCall.status === ToolCallStatus.PendingConfirmation ? undefined : getClientToolPreApproval(toolCall)),
 			}, async () => 0, token);
 		} catch (err) {

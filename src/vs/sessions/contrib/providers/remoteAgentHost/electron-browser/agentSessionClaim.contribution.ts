@@ -27,17 +27,13 @@ import { ISessionsManagementService } from '../../../../services/sessions/common
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 
 /**
- * Terminal guard for a whole claim — readiness, hydration, and the settle. Each
- * wait is event-driven; this only turns one that will never end into a failure.
+ * Terminal guard for a whole claim. Every wait below is event-driven; this only
+ * turns one that will never end into a failure.
  */
 export const AGENT_SESSION_CLAIM_BUDGET_MS = 60_000;
 const BUDGET_EXCEEDED_OUTCOME = 'budgetExceeded';
 
-/**
- * How far a claim had got when the guard fired. A closed vocabulary — no paths,
- * no product error text — so it is safe to report to the caller that is waiting
- * on it, and precise enough to say *which* wait never ended.
- */
+/** How far a claim had got when the guard fired. */
 const enum AgentSessionClaimPhase {
 	Readiness = 'readiness',
 	Hydration = 'hydration',
@@ -51,9 +47,9 @@ const SPENT_CLAIM_STORAGE_PREFIX = 'agentHost.sessionClaim.spent.';
 
 /**
  * The private launch path for claiming an existing remote Agent Host session.
- * Inert unless this window was started with the private, unlisted
- * `--agent-session-claim-hash` argument: the command is registered at runtime,
- * only when gated, so an ordinary window has no such command.
+ * The command is registered at runtime and only when
+ * `--agent-session-claim-hash` was passed, so an ordinary window has no such
+ * command at all.
  */
 export class AgentSessionClaimContribution extends Disposable implements IWorkbenchContribution {
 
@@ -73,7 +69,7 @@ export class AgentSessionClaimContribution extends Disposable implements IWorkbe
 
 		const commitment = parseAgentSessionClaimCommitment(environmentService.args[AGENT_SESSION_CLAIM_HASH_ARG]);
 		// A reload re-runs this with the same argv, so the spent marker — not the
-		// argument — is what makes a claim once-per-launch.
+		// argument — is what keeps a claim to one use.
 		if (!commitment || this._storageService.getBoolean(SPENT_CLAIM_STORAGE_PREFIX + commitment, StorageScope.APPLICATION, false)) {
 			return;
 		}
@@ -81,7 +77,7 @@ export class AgentSessionClaimContribution extends Disposable implements IWorkbe
 		this._register(CommandsRegistry.registerCommand({
 			id: AGENT_SESSION_CLAIM_COMMAND_ID,
 			// No `metadata`: an undescribed command is excluded from the Command
-			// Palette, and no menu contributes it anywhere.
+			// Palette.
 			handler: (_accessor, ...args: unknown[]) => this._claimExternalSession(args[0]),
 		}));
 		this._logService.info('[AgentSessionClaim] Claim command registered for this launch');
@@ -107,8 +103,6 @@ export class AgentSessionClaimContribution extends Disposable implements IWorkbe
 			throw new Error('Agent session claim rejected: request does not match this launch');
 		}
 
-		// Driven by the registry's registration event, so a race with
-		// `RemoteAgentHostContribution` waits rather than fails.
 		const pending = new DisposableStore();
 		const budget = pending.add(new CancellationTokenSource());
 		let budgetExceeded = false;
@@ -128,7 +122,7 @@ export class AgentSessionClaimContribution extends Disposable implements IWorkbe
 			this._logService.info(`[AgentSessionClaim] Claimed ${request.sessionUri}`);
 		} catch (err) {
 			// Classified once: the guard can interrupt any of the waits, and
-			// must read the same whichever it was — naming the one it caught.
+			// must read the same whichever it was.
 			throw budgetExceeded
 				? new Error(`Agent session claim ${BUDGET_EXCEEDED_OUTCOME}: ${request.sessionType} did not become claimable within ${AGENT_SESSION_CLAIM_BUDGET_MS}ms (phase: ${phase})`)
 				: err;
@@ -138,20 +132,17 @@ export class AgentSessionClaimContribution extends Disposable implements IWorkbe
 	}
 
 	/**
-	 * Makes the claimed session active the one way the sidebar does — a single
-	 * {@link ISessionsService.openSession} on the existing resource — so the
-	 * window's session-scoped surfaces come up exactly as they do for a user who
-	 * clicked the row. It shows a session that already exists and resolves once
-	 * it has loaded: nothing here creates, composes, or submits.
+	 * Makes the claimed session active on the same path a sidebar click takes,
+	 * so the window's session-scoped surfaces come up as they ordinarily do.
+	 * Opens an existing session and nothing else.
 	 *
 	 * `openSession` throws for a resource no provider has listed yet, and the
 	 * bridge can invoke the claim before the remote session list has caught up,
-	 * so the exact resource is first awaited on the management service's own
-	 * change event — the same reason the handler wait is event-driven.
+	 * so the exact resource is awaited first.
 	 *
-	 * The services are resolved here rather than injected because this
-	 * contribution is constructed in *every* window at `BlockStartup`, and an
-	 * ungated one must not pull the sessions view up with it.
+	 * The services are resolved on use rather than injected: this contribution
+	 * is constructed in every window at `BlockStartup`, and an ungated one must
+	 * not pull the sessions view up with it.
 	 */
 	private _activateSession(sessionResource: URI, token: CancellationToken, enter: (phase: AgentSessionClaimPhase) => void): Promise<void> {
 		return this._instantiationService.invokeFunction(accessor => {
@@ -171,8 +162,7 @@ export class AgentSessionClaimContribution extends Disposable implements IWorkbe
 /**
  * Resolves as soon as {@link sessionResource} is one of the sessions the
  * providers list, driven purely by `onDidChangeSessions`: it schedules nothing
- * and polls nothing, and an already-listed session resolves with no clock
- * involved at all. The caller supplies its deadline through {@link token}.
+ * and polls nothing. The caller supplies its deadline through {@link token}.
  */
 function whenSessionListed(managementService: ISessionsManagementService, sessionResource: URI, token: CancellationToken): Promise<void> {
 	if (managementService.getSession(sessionResource)) {

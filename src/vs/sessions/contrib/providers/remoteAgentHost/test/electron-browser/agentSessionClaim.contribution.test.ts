@@ -47,7 +47,6 @@ const REQUEST: IAgentSessionClaimRequest = {
 	bridgeExtensionVersion: BRIDGE_VERSION,
 };
 
-/** Every `ISessionsService` call the claim makes, in order. */
 interface IRecordedOpen {
 	readonly resource: string;
 	readonly options: { preserveFocus?: boolean } | undefined;
@@ -71,8 +70,6 @@ suite('AgentSessionClaimContribution', () => {
 		activatedSessions = [];
 		claimDisposeCount = 0;
 		openedSessions = [];
-		// The ordinary case: the provider has already listed the session the
-		// bridge names by the time the command runs.
 		listedSessions = new Set([SESSION_RESOURCE.toString()]);
 		sessionsChanged = store.add(new Emitter<ISessionsChangeEvent>());
 		storageService = store.add(new InMemoryStorageService());
@@ -82,8 +79,6 @@ suite('AgentSessionClaimContribution', () => {
 	function registerTarget(sessionType = SESSION_TYPE): IDisposable {
 		return agentSessionClaimTargets.register(sessionType, async (backendSession, activate, token) => {
 			claimedSessions.push(backendSession);
-			// The real handler activates from inside the claim, before it
-			// publishes; this stands in for exactly that call.
 			await activate(SESSION_RESOURCE, token);
 			activatedSessions.push(SESSION_RESOURCE);
 			return toDisposable(() => { claimDisposeCount++; });
@@ -98,8 +93,8 @@ suite('AgentSessionClaimContribution', () => {
 		instantiationService.stub(INativeWorkbenchEnvironmentService, new class extends mock<INativeWorkbenchEnvironmentService>() {
 			override readonly args = { [AGENT_SESSION_CLAIM_HASH_ARG]: commitment } as NativeParsedArgs;
 		});
-		// Only the two members the claim is allowed to touch are implemented:
-		// any create, compose, or send would throw rather than pass silently.
+		// Only the members the claim may touch are implemented, so anything else
+		// throws rather than passing silently.
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override async openSession(resource: URI, options?: { preserveFocus?: boolean }): Promise<void> {
 				openedSessions.push({ resource: resource.toString(), options });
@@ -270,9 +265,8 @@ suite('AgentSessionClaimContribution', () => {
 
 	test('reports budgetExceeded when the budget fires during the claim itself', async () => {
 		targetRegistration?.dispose();
-		// A handler that is registered but only ends when cancelled, exactly as
-		// the real one does: the guard has to interrupt the claim itself rather
-		// than the readiness wait.
+		// Registered, but only ends when cancelled: the guard has to interrupt
+		// the claim itself rather than the readiness wait.
 		store.add(agentSessionClaimTargets.register(SESSION_TYPE, (_session, _activate, token) =>
 			new Promise((_resolve, reject) => store.add(token.onCancellationRequested(() => reject(new CancellationError()))))));
 		await gated();
@@ -287,8 +281,7 @@ suite('AgentSessionClaimContribution', () => {
 		await gated();
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			await claimCommand().run({ ...REQUEST });
-			// If the guard were still armed it would cancel here and the run
-			// would not be idle; draining proves it was disposed.
+			// Draining proves the guard was disposed rather than still armed.
 			await timeout(AGENT_SESSION_CLAIM_BUDGET_MS * 2);
 		});
 		assert.strictEqual(claimDisposeCount, 0, 'a released guard must not tear the claim down');
@@ -308,9 +301,6 @@ suite('AgentSessionClaimContribution', () => {
 			await gated();
 			await claimCommand().run({ ...REQUEST });
 
-			// The same call a sidebar click makes: one existing resource, focus
-			// taken. Nothing else on `ISessionsService` is even implemented by
-			// the stub, so a create, compose, or send would have thrown.
 			assert.deepStrictEqual(openedSessions, [{
 				resource: SESSION_RESOURCE.toString(),
 				options: { preserveFocus: false },
@@ -327,16 +317,14 @@ suite('AgentSessionClaimContribution', () => {
 		});
 
 		test('waits for the session to be listed, on the change event alone', async () => {
-			// The bridge can invoke the claim before the remote list has caught
-			// up. `openSession` would throw for an unlisted resource.
+			// `openSession` throws for an unlisted resource.
 			listedSessions.clear();
 			await gated();
 			const claimed = claimCommand().run({ ...REQUEST });
 			await Promise.resolve();
 			assert.strictEqual(openedSessions.length, 0, 'an unlisted session must not be opened');
 
-			// The event is the only thing that can let this proceed: nothing is
-			// scheduled, and nothing re-reads the list on a timer.
+			// The event is the only thing that can let this proceed.
 			listedSessions.add(SESSION_RESOURCE.toString());
 			sessionsChanged.fire({ added: [], removed: [], changed: [] });
 			await claimed;
