@@ -34,10 +34,6 @@ export type QuickPickItem = IQuickPickSeparator | IQuickPickItem;
  */
 export interface IQuickItem {
 	id?: string;
-	/**
-	 * A stable identifier exposed to UI automation.
-	 */
-	uiAutomationId?: string;
 	label: string;
 	ariaLabel?: string;
 	description?: string;
@@ -74,6 +70,10 @@ export interface IQuickItem {
  * Represents a quick pick item used in the quick pick UI.
  */
 export interface IQuickPickItem extends IQuickItem {
+	/**
+	 * A stable identifier exposed to UI automation.
+	 */
+	uiAutomationId?: string;
 	/**
 	 * The type of the quick pick item. Used to distinguish between 'item' and 'separator'
 	 */
