@@ -42,6 +42,7 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 	sessions: ISession[];
 	readonly readSessions: ISession[] = [];
 	readonly renamed: { readonly session: ISession; readonly title: string }[] = [];
+	readonly archived: ISession[] = [];
 	readonly renamedChats: { readonly session: ISession; readonly chatResource: URI; readonly title: string }[] = [];
 	readonly deletedChats: { readonly session: ISession; readonly chatResource: URI }[] = [];
 	renameError: Error | undefined;
@@ -64,6 +65,10 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 		if (this.renameError) {
 			throw this.renameError;
 		}
+	}
+
+	override async archiveSession(session: ISession): Promise<void> {
+		this.archived.push(session);
 	}
 
 	override async deleteChat(session: ISession, chatResource: URI): Promise<void> {
