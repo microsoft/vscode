@@ -555,14 +555,24 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// to hang in resolver extensions
 			let os: OperatingSystem | undefined;
 			if (!this.shellLaunchConfig.customPtyImplementation && this._terminalConfigurationService.config.shellIntegration?.enabled && !this.shellLaunchConfig.executable) {
-				os = await this._processManager.getBackendOS();
-				const defaultProfile = (await this._terminalProfileResolverService.getDefaultProfile({ remoteAuthority: this.remoteAuthority, os }));
-				this.shellLaunchConfig.executable = defaultProfile.path;
-				this.shellLaunchConfig.args = defaultProfile.args;
-				// Only use default icon and color and env if they are undefined in the SLC
-				this.shellLaunchConfig.icon ??= defaultProfile.icon;
-				this.shellLaunchConfig.color ??= defaultProfile.color;
-				this.shellLaunchConfig.env ??= defaultProfile.env;
+				// This is a best-effort optimization: resolving the backend OS requires the remote
+				// agent environment, which may not be available yet for a remote terminal whose
+				// connection is still being established. In that case `getBackendOS` rejects; skip
+				// the ahead-of-time resolution rather than failing terminal creation, since the
+				// executable is resolved again through the normal path in `_createProcess`.
+				try {
+					os = await this._processManager.getBackendOS();
+					const defaultProfile = (await this._terminalProfileResolverService.getDefaultProfile({ remoteAuthority: this.remoteAuthority, os }));
+					this.shellLaunchConfig.executable = defaultProfile.path;
+					this.shellLaunchConfig.args = defaultProfile.args;
+					// Only use default icon and color and env if they are undefined in the SLC
+					this.shellLaunchConfig.icon ??= defaultProfile.icon;
+					this.shellLaunchConfig.color ??= defaultProfile.color;
+					this.shellLaunchConfig.env ??= defaultProfile.env;
+				} catch (err) {
+					os = undefined;
+					this._logService.trace('terminalInstance: skipping ahead-of-time executable resolution because the backend OS could not be resolved yet', err);
+				}
 			}
 
 			// Resolve the shell type ahead of time to allow features that depend upon it to work
