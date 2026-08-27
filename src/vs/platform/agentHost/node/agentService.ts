@@ -3493,6 +3493,15 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		if (e.chat.toString() !== state.defaultChat) {
+			if (!state.chats.some(chat => chat.resource.toString() === e.chat.toString())) {
+				return;
+			}
+			if (e.result?.providerData !== undefined) {
+				this._onChatDataChanged({ chat: e.chat, providerData: e.result.providerData });
+			}
+			if (e.result?.backingSession) {
+				void this._markChatBacking(e.result.backingSession, e.chat);
+			}
 			return;
 		}
 		if (e.result) {
