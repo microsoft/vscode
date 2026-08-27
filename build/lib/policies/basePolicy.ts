@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { renderADMLString } from './render.ts';
+import { renderADMLString, escapeXml } from './render.ts';
 import type { Category, LanguageTranslations, NlsString, Policy, PolicyType } from './types.ts';
 
 export abstract class BasePolicy implements Policy {
