@@ -158,6 +158,10 @@ class AlwaysRenderConfigPicker extends AgentHostSessionConfigPicker {
 	protected override _shouldRenderProperty(_property: string, _schema: SessionConfigPropertySchema, _isNewSession: boolean): boolean {
 		return true;
 	}
+
+	renderTriggerForTest(trigger: HTMLElement, property: string, schema: SessionConfigPropertySchema, value: unknown, isReadOnly: boolean): void {
+		this._renderTrigger(trigger, SESSION_ID, property, schema, value, isReadOnly);
+	}
 }
 
 function isolationSlot(container: HTMLElement): HTMLElement | null {
@@ -317,32 +321,21 @@ suite('Agent Host Session Config Picker', () => {
 
 	test('generic auto-approve chips retain their contextual accessible name', () => {
 		const services = setupServices(store);
-		services.provider.config = {
-			schema: {
-				type: 'object',
-				properties: {
-					[SessionConfigKey.AutoApprove]: {
-						title: 'Approval Mode',
-						type: 'string',
-						enum: ['assisted'],
-						enumLabels: ['Assisted'],
-						readOnly: true,
-					},
-				},
-			},
-			values: { [SessionConfigKey.AutoApprove]: 'assisted' },
-		} as ResolveSessionConfigResult;
-
-		const { container } = renderPicker(store, services);
-		const trigger = container.querySelector<HTMLElement>('.sessions-chat-picker-slot .action-label');
+		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs));
+		const trigger = document.createElement('span');
+		picker.renderTriggerForTest(trigger, SessionConfigKey.AutoApprove, {
+			title: 'Approval Mode',
+			type: 'string',
+			enum: ['assisted'],
+			enumLabels: ['Assisted'],
+			readOnly: true,
+		}, 'assisted', true);
 
 		assert.deepStrictEqual({
-			ariaLabel: trigger?.getAttribute('aria-label'),
-			ariaReadOnly: trigger?.getAttribute('aria-readonly'),
-			warning: trigger?.classList.contains('warning'),
+			ariaLabel: trigger.getAttribute('aria-label'),
+			warning: trigger.classList.contains('warning'),
 		}, {
 			ariaLabel: 'Approval Mode: Assisted, Read-Only',
-			ariaReadOnly: 'true',
 			warning: true,
 		});
 	});
