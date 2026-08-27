@@ -14,6 +14,13 @@ enum QuickAccessKind {
 	Symbols
 }
 
+export type CommandMatchMode = 'exactCommandId' | 'exactLabel' | 'fuzzy';
+
+export interface IRunCommandOptions {
+	keepOpen?: boolean;
+	match?: CommandMatchMode;
+}
+
 export class QuickAccess {
 
 	constructor(private code: Code, private editors: Editors, private quickInput: QuickInput) { }
@@ -179,13 +186,13 @@ export class QuickAccess {
 		}
 	}
 
-	async runCommand(commandId: string, options?: { keepOpen?: boolean; exactLabelMatch?: boolean }): Promise<void> {
+	async runCommand(command: string, options?: IRunCommandOptions): Promise<void> {
 		const keepOpen = options?.keepOpen;
-		const exactLabelMatch = options?.exactLabelMatch;
+		const match = options?.match ?? 'exactCommandId';
 
 		const openCommandPalletteAndTypeCommand = async (): Promise<boolean> => {
 			// open commands picker
-			await this.openQuickAccessWithRetry(QuickAccessKind.Commands, `>${commandId}`);
+			await this.openQuickAccessWithRetry(QuickAccessKind.Commands, `>${command}`);
 
 			// wait for best choice to be focused
 			await this.quickInput.waitForQuickInputElementFocused();
@@ -197,19 +204,23 @@ export class QuickAccess {
 				return false;
 			}
 
-			if (exactLabelMatch) {
-				return text === commandId;
+			if (match === 'fuzzy') {
+				return true;
+			}
+
+			if (match === 'exactLabel') {
+				return text === command;
 			}
 
 			const focusedCommandId = await this.quickInput.waitForQuickInputCommandId();
-			return focusedCommandId === commandId;
+			return focusedCommandId === command;
 		};
 
 		let hasCommandFound = await openCommandPalletteAndTypeCommand();
 
 		if (!hasCommandFound) {
 
-			this.code.logger.log(`QuickAccess: No exact command match for '${commandId}', will retry...`);
+			this.code.logger.log(`QuickAccess: No ${match} match for '${command}', will retry...`);
 			await this.quickInput.closeQuickInput();
 
 			let retries = 0;
@@ -218,15 +229,22 @@ export class QuickAccess {
 				if (hasCommandFound) {
 					break;
 				} else {
-					this.code.logger.log(`QuickAccess: No exact command match for '${commandId}', will retry...`);
+					this.code.logger.log(`QuickAccess: No ${match} match for '${command}', will retry...`);
 					await this.quickInput.closeQuickInput();
 					await this.code.wait(1000);
 				}
 			}
 
 			if (!hasCommandFound) {
-				throw new Error(`QuickAccess.runCommand(commandId: ${commandId}) failed to find command.`);
+				throw new Error(`QuickAccess.runCommand(command: ${command}, match: ${match}) failed to find command.`);
 			}
+		}
+
+		let expectedItem: { type: 'commandId' | 'label'; value: string } | undefined;
+		if (match === 'exactCommandId') {
+			expectedItem = { type: 'commandId', value: command };
+		} else if (match === 'exactLabel') {
+			expectedItem = { type: 'label', value: command };
 		}
 
 		// Wait and click on best choice. Focus can be stolen away from the
@@ -237,13 +255,13 @@ export class QuickAccess {
 		let selectRetries = 0;
 		while (true) {
 			try {
-				await this.quickInput.selectQuickInputElement(0, keepOpen, exactLabelMatch ? undefined : commandId);
+				await this.quickInput.selectQuickInputElement(0, keepOpen, expectedItem);
 				break;
 			} catch (err) {
 				if (++selectRetries > 3) {
 					throw err;
 				}
-				this.code.logger.log(`QuickAccess.runCommand(commandId: ${commandId}): selectQuickInputElement failed (${err}), will retry...`);
+				this.code.logger.log(`QuickAccess.runCommand(command: ${command}, match: ${match}): selectQuickInputElement failed (${err}), will retry...`);
 				try {
 					await this.quickInput.closeQuickInput();
 				} catch {
@@ -251,7 +269,7 @@ export class QuickAccess {
 				}
 				const found = await openCommandPalletteAndTypeCommand();
 				if (!found) {
-					throw new Error(`QuickAccess.runCommand(commandId: ${commandId}) failed to find command on retry.`);
+					throw new Error(`QuickAccess.runCommand(command: ${command}, match: ${match}) failed to find command on retry.`);
 				}
 			}
 		}

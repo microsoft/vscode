@@ -14,7 +14,6 @@ export class QuickInput {
 	private static QUICK_INPUT_FOCUSED_ELEMENT = `${QuickInput.QUICK_INPUT_ROW}.focused .monaco-highlighted-label`;
 	// Note: this only grabs the label and not the description or detail
 	private static QUICK_INPUT_ENTRY_LABEL = `${QuickInput.QUICK_INPUT_ROW} .quick-input-list-row > .monaco-icon-label .label-name`;
-	private static QUICK_INPUT_ENTRY_LABEL_SPAN = `${QuickInput.QUICK_INPUT_ROW} .monaco-highlighted-label`;
 
 	constructor(private code: Code) { }
 
@@ -31,7 +30,7 @@ export class QuickInput {
 	}
 
 	async waitForQuickInputElementText(): Promise<string> {
-		return this.code.waitForTextContent(QuickInput.QUICK_INPUT_ENTRY_LABEL_SPAN);
+		return this.code.waitForTextContent(QuickInput.QUICK_INPUT_FOCUSED_ELEMENT);
 	}
 
 	async waitForQuickInputCommandId(): Promise<string | undefined> {
@@ -51,15 +50,20 @@ export class QuickInput {
 		await this.code.waitForElement(QuickInput.QUICK_INPUT, r => !!r && r.attributes.style.indexOf('display: none;') !== -1);
 	}
 
-	async selectQuickInputElement(index: number, keepOpen?: boolean, expectedCommandId?: string): Promise<void> {
+	async selectQuickInputElement(index: number, keepOpen?: boolean, expectedItem?: { type: 'commandId' | 'label'; value: string }): Promise<void> {
 		await this.waitForQuickInputOpened();
 		for (let from = 0; from < index; from++) {
 			await this.code.dispatchKeybinding('down', async () => { });
 		}
-		if (expectedCommandId) {
-			const commandId = await this.waitForQuickInputCommandId();
-			if (commandId !== expectedCommandId) {
-				throw new Error(`Focused Quick Input command '${commandId}' does not match expected command '${expectedCommandId}'.`);
+		if (expectedItem?.type === 'commandId') {
+			const value = await this.waitForQuickInputCommandId();
+			if (value !== expectedItem.value) {
+				throw new Error(`Focused Quick Input command '${value}' does not match expected command '${expectedItem.value}'.`);
+			}
+		} else if (expectedItem?.type === 'label') {
+			const value = await this.waitForQuickInputElementText();
+			if (value !== expectedItem.value) {
+				throw new Error(`Focused Quick Input label '${value}' does not match expected label '${expectedItem.value}'.`);
 			}
 		}
 		await this.code.dispatchKeybinding('enter', async () => {
