@@ -41,6 +41,8 @@ function createEntitlementService(opts: {
 	additionalUsageEnabled?: boolean;
 	additionalUsageCount?: number;
 	entitlement?: ChatEntitlement;
+	resetDate?: string;
+	resetDateHasTime?: boolean;
 }): IChatEntitlementService {
 	return {
 		_serviceBrand: undefined,
@@ -58,6 +60,8 @@ function createEntitlementService(opts: {
 			usageBasedBilling: opts.usageBasedBilling ?? opts.premiumChat?.usageBasedBilling,
 			additionalUsageEnabled: opts.additionalUsageEnabled,
 			additionalUsageCount: opts.additionalUsageCount,
+			resetDate: opts.resetDate,
+			resetDateHasTime: opts.resetDateHasTime,
 		},
 		update: (_token: CancellationToken) => Promise.resolve(),
 		onDidChangeSentiment: Event.None,
@@ -91,6 +95,15 @@ function getCalloutText(element: HTMLElement): string | null {
 function getQuotaLabels(element: HTMLElement): string[] {
 	const indicators = element.querySelectorAll('.quota-indicator:not(.included) .quota-title');
 	return Array.from(indicators).map(el => el.textContent ?? '');
+}
+
+function getQuotaResets(element: HTMLElement): [string, string][] {
+	const indicators = element.querySelectorAll('.quota-indicator:not(.included)');
+	return Array.from(indicators).map(el => [
+		el.querySelector('.quota-title > span:not(.quota-reset)')?.textContent ?? '',
+		// The time of day is locale and timezone dependent, so only its presence is asserted.
+		(el.querySelector('.quota-reset')?.textContent ?? '').replace(/ at .+$/, ' at <time>')
+	]);
 }
 
 function getIncludedLabels(element: HTMLElement): string[] {
@@ -686,6 +699,25 @@ suite('ChatStatusDashboard', () => {
 		assert.strictEqual(credits?.value, '1,284');
 		assert.strictEqual(credits?.suffix, 'Credits used');
 		assert.ok(credits?.reset.startsWith('Resets May 31 at '));
+	});
+
+	test('quota indicators prefer their own snapshot reset over the account reset', () => {
+		const premiumResetAt = Math.floor(Date.UTC(2026, 6, 5, 14, 0, 0) / 1000);
+		const completionsResetAt = Math.floor(Date.UTC(2026, 6, 9, 14, 0, 0) / 1000);
+		const dashboard = createDashboard(createEntitlementService({
+			chat: { percentRemaining: 80, unlimited: false },
+			premiumChat: { percentRemaining: 60, unlimited: false, resetAt: premiumResetAt },
+			completions: { percentRemaining: 90, unlimited: false, resetAt: completionsResetAt },
+			entitlement: ChatEntitlement.Pro,
+			resetDate: '2026-09-01T12:00:00Z',
+			resetDateHasTime: false,
+		}));
+
+		assert.deepStrictEqual(getQuotaResets(dashboard.element), [
+			['Chat messages', 'Resets Sep 1'],
+			['Premium requests', 'Resets Jul 5 at <time>'],
+			['Inline Suggestions', 'Resets Jul 9 at <time>'],
+		]);
 	});
 
 	test('Business — pooled exhausted (no overages): shows exhausted indicator and callout', () => {

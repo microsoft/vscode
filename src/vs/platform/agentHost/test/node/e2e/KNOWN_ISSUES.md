@@ -16,6 +16,40 @@ When a valid E2E scenario exposes a gap:
 
 Capability skips are tracked separately from suspected bugs. A provider that does not advertise a capability is expected to skip positive-path tests for that capability.
 
+### Binary writes to client-hosted files are corrupted
+
+An agent host can address files that live on a connected client and send symmetric AHP filesystem operations back to that client. When the host writes binary content this way, bytes that are not valid UTF-8 are replaced before they reach the client, so images and other binary files can be corrupted.
+
+- Test: `client-hosted resourceWrite decodes base64 content`.
+- Scope: conformance reference provider on all platforms.
+- Expected: a base64 `resourceWrite` to a `vscode-agent-client:` URI preserves every decoded byte when the host routes the write back to the owning client.
+- Observed: bytes such as `0xff` and `0xfe` reach the client as UTF-8 replacement characters (`0xef 0xbf 0xbd`).
+- Gate: the scenario requires `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_RUN_KNOWN_ISSUES=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/conformance/agentHostConformance.integrationTest.ts \
+    --grep "client-hosted resourceWrite decodes base64 content"
+  ```
+
+### Duplicate session creation is accepted
+
+A client can retry session creation with a URI that already identifies a live session. The host accepts the duplicate request instead of reporting that the resource already exists, so clients cannot distinguish an idempotent retry from an accidental collision and a provider may be asked to create conflicting backing state.
+
+- Test: `creating a duplicate session resource is rejected`.
+- Scope: conformance reference provider on all platforms.
+- Expected: the second AHP `createSession` request fails with `SessionAlreadyExists`.
+- Observed: the second request resolves successfully.
+- Gate: the scenario requires `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_RUN_KNOWN_ISSUES=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/conformance/agentHostConformance.integrationTest.ts \
+    --grep "creating a duplicate session resource is rejected"
+  ```
+
 ### Deleting a worktree session can race background Git work
 
 A user can configure ignored files to be copied into an isolated worktree, complete an agent turn, and then delete the session. Session deletion can fail because background changeset or Git-state work is still using the worktree while Git removes it, leaving the session's worktree behind.
@@ -129,19 +163,23 @@ A user can reopen a Copilot session after restarting Agent Host and expects the 
 
 ### Copilot provider sessions can disappear across a Windows host restart
 
-A user can restart Agent Host and reopen a Copilot session that contains completed tool activity. On Windows, the provider session can no longer be found after restart, so the host cannot reconstruct the persisted conversation and its tool rows.
+A user can restart Agent Host and reopen a Copilot session with a persisted conversation or peer chat. On Windows, the provider session can no longer be found after restart, so the host cannot reconstruct the conversation, tool rows, or peer-chat catalog.
 
-- Test: `tool-rich provider history is reconstructed after a host restart`.
+- Tests:
+  - `tool-rich provider history is reconstructed after a host restart`
+  - `peer chat catalog and transcript survive a host restart`
 - Scope: Copilot on Windows.
-- Expected: restarting Agent Host preserves the provider session and restores the completed edit tool call.
+- Expected: restarting Agent Host preserves the provider session and restores the completed edit tool call or peer-chat catalog and transcript.
 - Observed: reopening fails with `Session not found on backend`, although the same deterministic replay passes on macOS and Linux.
-- Gate: the Windows variant is skipped at the test declaration in `copilotCoverageSuite.ts`.
+- Gate: the Windows variants are skipped at their declarations in `copilotCoverageSuite.ts` and `sessionPersistenceSuite.ts`.
 - Reproduce on Windows:
 
   ```powershell
+  $env:AGENT_HOST_RUN_KNOWN_ISSUES = '1'
+  $env:AGENT_HOST_UPDATE_SNAPSHOTS = '1'
   .\scripts\test-integration.bat --run `
     src\vs\platform\agentHost\test\node\e2e\providers\copilotAgentHostE2E.integrationTest.ts `
-    --grep "tool-rich provider history"
+    --grep "tool-rich provider history|peer chat catalog"
   ```
 
 ### Persisted Copilot request errors are restored as cancelled on Windows
@@ -448,6 +486,40 @@ A capture that genuinely cannot be refreshed goes in `STALE_RECORDED_REQUEST_EXC
   Remove the entry from `STALE_RECORDED_REQUEST_EXCEPTIONS` and re-record once the fork defect is fixed.
 ## Suspected product bugs
 
+### Copilot session debug export omits provider log entries
+
+A user can export debug logs for a completed Copilot session to diagnose provider behavior. The export reports that provider logs were included, but its manifest contains only Agent Host process logs, so the provider-specific evidence needed for troubleshooting is absent.
+
+- Test: `materialized Copilot debug collection includes provider log entries`.
+- Scope: Copilot sessions on all platforms.
+- Expected: a session-scoped debug export reports `providerLogsIncluded: true` and lists at least one provider log in addition to the Agent Host process log.
+- Observed: the export reports `providerLogsIncluded: true`, but every manifest entry is an Agent Host process log.
+- Gate: the scenario requires `AGENT_HOST_RUN_KNOWN_ISSUES=1` in fixture-recording mode.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_RUN_KNOWN_ISSUES=1 AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "materialized Copilot debug collection includes provider log entries"
+  ```
+
+### Resource reads ignore the requested base64 encoding
+
+A client can request arbitrary file bytes from the Agent Host in base64 so binary data remains lossless. The host always reports UTF-8 instead, and bytes that are not valid UTF-8 cannot be reconstructed by the client.
+
+- Test: `resourceRead returns requested base64 content without byte loss`.
+- Scope: conformance reference provider on all platforms.
+- Expected: AHP `resourceRead` honors `encoding: "base64"` and returns all requested bytes with `encoding: "base64"`.
+- Observed: the response reports `encoding: "utf-8"` and stringifies the raw bytes as text.
+- Gate: the scenario requires `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_RUN_KNOWN_ISSUES=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/conformance/agentHostConformance.integrationTest.ts \
+    --grep "resourceRead returns requested base64 content without byte loss"
+  ```
+
 ### Branch changeset stays stale after a second edit to the same file
 
 - Test: `a second edit updates one changeset entry in place`.
@@ -536,21 +608,21 @@ A capture that genuinely cannot be refreshed goes in `STALE_RECORDED_REQUEST_EXC
 
   Substitute `codexAgentHostE2E.integrationTest.ts` to reproduce the Codex variant.
 
-### Claude `create_chat` server-tool turns do not complete
+### Claude current-session creation turns do not complete
 
 - Tests:
-  - `server tool: create_chat defaults to the invoking session and starts its local prompt`
-  - `server tool: create_chat applies an explicit peer title`
+  - `server tool: create_session currentSession starts a prompt in a peer chat`
+  - `server tool: create_session currentSession applies an explicit peer title`
 - Scope: Claude.
 - Expected: after confirmation, the host creates the peer chat, starts the local `/rename` prompt there, returns the tool result, and completes the invoking turn.
 - Observed: the confirmation is accepted, but the invoking turn never reaches tool completion or `chat/turnComplete`.
-- Gate: `supportsServerToolCreateChat` in `serverToolsSuite.ts`.
+- Gate: `supportsCurrentSessionCreation` in `serverToolsSuite.ts`.
 - Reproduce:
 
   ```bash
   AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
     src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts \
-    --grep "server tool: create_chat defaults"
+    --grep "server tool: create_session currentSession starts"
   ```
 
 ### Claude omits important tool details when reading another session's transcript
@@ -789,6 +861,50 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
     --grep "accepted steering followed by abort"
   ```
 
+### Retryable Copilot errors are temporarily disabled
+
+Copilot errors currently end a turn without offering an in-place retry. The retry protocol remains implemented, but the host intentionally omits the `resumable` marker from live, restored, and repeated errors until the feature is re-enabled.
+
+- Tests:
+  - `resumes a failed turn in place`
+  - `resumes the same turn after repeated failures`
+  - `restores and resumes a turn interrupted by host shutdown`
+- Scope: Copilot on all platforms and execution modes.
+- Expected when enabled: a failed turn is marked resumable, and retrying continues the same turn without adding another user message. An unfinished request restored after host shutdown has the same behavior.
+- Observed: Copilot errors intentionally omit the `resumable` marker, so clients cannot request an in-place retry.
+- Gate: all three scenarios are unconditionally skipped. The host-shutdown scenario additionally requires direct `AGENT_HOST_REPLAY_RECORD=1` mode because replay has no active streaming window to terminate.
+- Run after removing the temporary gate:
+
+  ```bash
+  ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "resumes a failed turn in place|resumes the same turn after repeated failures"
+
+  AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "restores and resumes a turn interrupted by host shutdown"
+  ```
+
+### Codex model-backed multiple-chat recording
+
+- Tests: the model-backed peer-chat and fork scenarios in `multiChatSuite.ts`, and `side chat receives bounded source context without copied history`.
+- Scope: Codex recording and strict replay only. Codex advertises `multipleChats.fork` and `multipleChats.sideChat`; host-only capability checks and conformance catalog/lifecycle scenarios run.
+- Expected: focused `AGENT_HOST_UPDATE_SNAPSHOTS=1` recording produces Codex peer/fork/side-chat captures that replay without cache misses.
+- Observed: on the current live recording path, even the existing simple Codex recording fails before producing a usable model response; peer turns report a CAPI malformed authorization-header error. The side-chat scenario shares that recording path and has no accepted capture. No fixtures are accepted or hand-edited.
+- Gate: `supportsMultipleChatsE2E: false`, `supportsChatForkE2E: false`, and `supportsSideChatsE2E: false`.
+- Reproduce:
+
+  ```bash
+  unset GITHUB_TOKEN
+  AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
+    --grep "peer chat completes a simple turn"
+
+  AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
+    --grep "side chat receives bounded source context without copied history"
+  ```
+
 ## Test-design limitations
 
 ### Claude plan-mode prompt
@@ -809,8 +925,9 @@ A test that checks only its final dispatch can miss an earlier action that was e
 
 | Capability | Gate | Provider(s) skipped | Effect |
 |---|---|---|---|
-| Multiple chats | `supportsMultipleChats` | Codex | Model-backed peer-chat scenarios skip; the negative capability test still runs. |
-| Chat fork | `supportsChatForkE2E` | Codex | Provider-backed fork scenarios skip. Claude's use of the same gate is the bug above. |
+| Model-backed multiple chats | `supportsMultipleChatsE2E` | Codex | Capability and conformance scenarios run; provider/model peer turns skip until focused Codex captures can be recorded. |
+| Provider-backed fork parity | `supportsChatForkE2E` | Claude, Codex | Fork capability remains advertised; model-backed fork-context assertions skip. |
+| Side-chat context parity | `supportsSideChatsE2E` | Codex | Side-chat capability remains advertised; model-backed hidden-context assertions skip pending focused Codex captures. |
 | Subagents | `supportsSubagents` | Codex | Subagent routing and reopen scenarios skip. |
 | Streaming file creation | `streamingFileCreateToolName` | Codex | Argument-delta coverage requires a native file-creation tool; shell-backed file behavior is covered separately. |
 | Plan mode | `supportsPlanMode` | Codex | The plan-mode scenario skips. Claude's use of the same gate is the prompt limitation above. |
@@ -823,3 +940,21 @@ The entire Claude or Codex suite also skips when its bundled SDK package is unav
 2. Reevaluate broad provider gates one title at a time and check whether a capture exists.
 3. Re-record narrowly after SDK/CLI behavior changes and review every generated artifact.
 4. Remove fixed gates, entries, comments, and orphaned captures together.
+### Codex provider context restoration can time out
+
+A user can restart Agent Host and continue an existing Codex conversation. The restored turn can start
+without ever completing, so the user cannot continue the conversation after the host restart. This has
+reproduced in replay on Windows and Linux.
+
+- Test: `session metadata history and provider context survive a host restart`
+- Scope: Codex.
+- Expected: the restored session retains its transcript and provider context, and a follow-up turn completes.
+- Observed: the follow-up emits `chat/turnStarted` but no completion before the 90-second timeout.
+- Gate: skipped for Codex unless `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_RUN_KNOWN_ISSUES=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
+    --grep "session metadata history and provider context survive"
+  ```

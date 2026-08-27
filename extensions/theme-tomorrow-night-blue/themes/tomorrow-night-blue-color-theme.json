@@ -61,6 +61,7 @@
 		"terminal.ansiBrightMagenta": "#d778ff",
 		"terminal.ansiBrightCyan": "#78ffff",
 		"terminal.ansiBrightWhite": "#ffffff",
+		"agentsCard.border": "#00000000",
 		// modern ui
 		"surface.border": "#00000000",
 	},

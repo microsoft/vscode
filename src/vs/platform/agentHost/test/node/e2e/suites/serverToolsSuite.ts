@@ -15,9 +15,10 @@ import { buildAnnotationsUri } from '../../../../common/annotationsUri.js';
 import { buildOpenSessionLinkUri } from '../../../../common/openSessionLink.js';
 import { SessionServerToolName } from '../../../../common/serverToolNames.js';
 import type { ListSessionsResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
-import { ActionType, type ChatToolCallCompleteAction, type ChatToolCallStartAction, type StateAction } from '../../../../common/state/sessionActions.js';
+import { ActionType, NotificationType, type ChatToolCallCompleteAction, type ChatToolCallStartAction, type SessionAddedParams, type StateAction } from '../../../../common/state/sessionActions.js';
 import {
 	buildDefaultChatUri,
+	readSessionCreationReference,
 	ROOT_STATE_URI,
 	type AnnotationsState,
 	type ChatState,
@@ -25,7 +26,7 @@ import {
 	type SessionState,
 } from '../../../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
-import { createRealSession, driveTurnToCompletion, resolveGitHubToken, textFromContent } from '../harness/agentHostE2ETestHarness.js';
+import { createRealSession, driveChatTurnToCompletion, driveTurnToCompletion, resolveGitHubToken, textFromContent } from '../harness/agentHostE2ETestHarness.js';
 import { summarizeAnthropicRequest } from '../harness/capiWireCodec.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
@@ -53,13 +54,12 @@ interface ISeedFeedbackOptions {
 	readonly replies?: readonly string[];
 }
 
-const feedbackToolNames = ['addComment', 'listComments', 'deleteComments', 'resolveComments', 'viewUnreviewedComments'] as const;
+const feedbackToolNames = ['addComment', 'listComments', 'replyToComment', 'deleteComments', 'resolveComments', 'viewUnreviewedComments'] as const;
 const feedbackResourceUri = 'untitled://server-tools/reviewed.ts';
 const sessionToolNames = [
 	SessionServerToolName.ListSessions,
 	SessionServerToolName.GetCurrentSession,
 	SessionServerToolName.CreateSession,
-	SessionServerToolName.CreateChat,
 	SessionServerToolName.SendMessage,
 	SessionServerToolName.GetSessionContext,
 	SessionServerToolName.DeleteSession,
@@ -79,8 +79,8 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 	const supportsSelfSendRejection = config.provider === 'copilotcli';
 	// Model ids are not provider-qualified; Claude and Codex selections currently resolve to Copilot.
 	const supportsProviderModelSessionCreation = config.provider === 'copilotcli';
-	// Claude's create_chat server-tool turn does not complete after confirmation.
-	const supportsServerToolCreateChat = config.provider === 'copilotcli';
+	// Claude's current-session creation turn does not complete after confirmation.
+	const supportsCurrentSessionCreation = config.provider === 'copilotcli';
 	let nextClientSequence = 10_000;
 
 	function reserveClientSequenceBlock(): number {
@@ -178,7 +178,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			type: ActionType.AnnotationsSet,
 			annotation: {
 				id: options.id,
-				turnId: 'seed-feedback',
+				origin: { session: sessionUri, chat: buildDefaultChatUri(sessionUri), turnId: 'seed-feedback' },
 				resource: options.resource,
 				range: { start: { line: 1, character: 2 }, end: { line: 1, character: 8 } },
 				resolved: options.resolved ?? false,
@@ -200,7 +200,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 		toolName: string,
 		options: { readonly success?: boolean; readonly result?: readonly RegExp[] } = {},
 	): Promise<{ readonly turn: Awaited<ReturnType<typeof driveTurnToCompletion>>; readonly tool: IObservedToolCall }> {
-		const turn = await driveTurnToCompletion(context.client, session.sessionUri, turnId, prompt, reserveClientSequenceBlock());
+		const turn = await driveChatTurnToCompletion(context.client, session.chatUri, turnId, prompt, reserveClientSequenceBlock());
 		const starts = context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'))
 			.map(n => ({ envelope: getActionEnvelope(n), action: getActionEnvelope(n).action as ChatToolCallStartAction }))
 			.filter(({ envelope, action }) => envelope.channel === session.chatUri && action.turnId === turnId && toolNameMatches(action.toolName, toolName));
@@ -316,12 +316,14 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			'Call listComments exactly once, then reply exactly "listed".',
 			'listComments',
 		);
-		const result = JSON.parse(tool.resultText) as { comments: readonly { id: string; replies?: readonly string[] }[]; note?: string };
+		const result = JSON.parse(tool.resultText) as { comments: readonly { id: string; author?: string; replies?: readonly { author: string; text: string }[] }[]; note?: string };
 		assert.deepStrictEqual({
-			comments: result.comments.map(comment => ({ id: comment.id, replies: comment.replies })),
+			comments: result.comments.map(comment => ({ id: comment.id, author: comment.author, replies: comment.replies })),
 			noteMentionsUnreviewed: result.note?.includes('1 code review comment') ?? false,
 		}, {
-			comments: [{ id: 'accepted-comment', replies: ['reply'] }],
+			// The seeded entries carry no author, so the comment falls back to its
+			// `codeReview` origin and the reply to the user.
+			comments: [{ id: 'accepted-comment', author: 'agent', replies: [{ author: 'user', text: 'reply' }] }],
 			noteMentionsUnreviewed: true,
 		});
 	});
@@ -498,6 +500,55 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 		assert.deepStrictEqual(result.sessions.find(item => item.session === archived.sessionUri)?.status?.split(',').sort(), ['archived', 'idle']);
 	});
 
+	serverToolTest('server tool: list_sessions hides archived sessions by default', async function () {
+		const session = await createSession('sessions-hide-archived');
+		const archived = await addSession('sessions-hide-archived-target', session.workspace);
+		await materializeSession(archived, 'turn-sessions-hide-archived-target', 'ARCHIVED_HIDDEN_READY');
+		await dispatchAndWait(archived.sessionUri, { type: ActionType.SessionIsArchivedChanged, isArchived: true });
+		context.client.clearReceived();
+
+		const { tool } = await driveServerTool(
+			session,
+			'turn-sessions-hide-archived',
+			`Call list_sessions exactly once with workspace "${session.workspace}", then reply exactly "listed".`,
+			SessionServerToolName.ListSessions,
+		);
+		const result = JSON.parse(tool.resultText) as { sessions: readonly { session: string }[] };
+
+		assert.deepStrictEqual({
+			includesActive: result.sessions.some(item => item.session === session.sessionUri),
+			includesArchived: result.sessions.some(item => item.session === archived.sessionUri),
+		}, {
+			includesActive: true,
+			includesArchived: false,
+		});
+	});
+
+	serverToolTest('server tool: list_sessions includeArchived returns active and archived sessions', async function () {
+		const session = await createSession('sessions-include-archived');
+		const archived = await addSession('sessions-include-archived-target', session.workspace);
+		await materializeSession(archived, 'turn-sessions-include-archived-target', 'ARCHIVED_INCLUDED_READY');
+		await dispatchAndWait(archived.sessionUri, { type: ActionType.SessionIsArchivedChanged, isArchived: true });
+		context.client.clearReceived();
+
+		const { tool } = await driveServerTool(
+			session,
+			'turn-sessions-include-archived',
+			`Call list_sessions exactly once with workspace "${session.workspace}" and includeArchived true, then reply exactly "listed".`,
+			SessionServerToolName.ListSessions,
+		);
+		const result = JSON.parse(tool.resultText) as { sessions: readonly { session: string }[] };
+		const returned = new Set(result.sessions.map(item => item.session));
+
+		assert.deepStrictEqual({
+			includesActive: returned.has(session.sessionUri),
+			includesArchived: returned.has(archived.sessionUri),
+		}, {
+			includesActive: true,
+			includesArchived: true,
+		});
+	});
+
 	serverToolTest('server tool: list_sessions status filter finds the invoking in-progress session', async function () {
 		const session = await createSession('sessions-status');
 		const { tool } = await driveServerTool(
@@ -511,6 +562,31 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			session: session.sessionUri,
 			status: 'inProgress',
 		}]);
+	});
+
+	serverToolTest('server tool: list_sessions status filter combines active and archived sessions', async function () {
+		const session = await createSession('sessions-status-combined');
+		const archived = await addSession('sessions-status-combined-target', session.workspace);
+		await materializeSession(archived, 'turn-sessions-status-combined-target', 'COMBINED_TARGET_READY');
+		await dispatchAndWait(archived.sessionUri, { type: ActionType.SessionIsArchivedChanged, isArchived: true });
+		context.client.clearReceived();
+
+		const { tool } = await driveServerTool(
+			session,
+			'turn-sessions-status-combined',
+			'Call list_sessions exactly once with status ["inProgress", "archived"], then reply exactly "filtered".',
+			SessionServerToolName.ListSessions,
+		);
+		const result = JSON.parse(tool.resultText) as { sessions: readonly { session: string }[] };
+		const returned = new Set(result.sessions.map(item => item.session));
+
+		assert.deepStrictEqual({
+			includesActive: returned.has(session.sessionUri),
+			includesArchived: returned.has(archived.sessionUri),
+		}, {
+			includesActive: true,
+			includesArchived: true,
+		});
 	});
 
 	serverToolTest('server tool: list_sessions unread filter returns the invoking unread session', async function () {
@@ -540,6 +616,19 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 		assert.ok(result.sessions.some(item => item.session === session.sessionUri));
 	});
 
+	serverToolTest('server tool: list_sessions createdAfter excludes sessions before the boundary', async function () {
+		const session = await createSession('sessions-created-after-exclude');
+		const { tool } = await driveServerTool(
+			session,
+			'turn-sessions-created-after-exclude',
+			'Call list_sessions exactly once with createdAfter "2999-01-01T00:00:00Z", then reply exactly "filtered".',
+			SessionServerToolName.ListSessions,
+		);
+		const result = JSON.parse(tool.resultText) as { sessions: readonly { session: string }[] };
+
+		assert.strictEqual(result.sessions.some(item => item.session === session.sessionUri), false);
+	});
+
 	serverToolTest('server tool: list_sessions createdBefore excludes current sessions', async function () {
 		const session = await createSession('sessions-created-before');
 		const { tool } = await driveServerTool(
@@ -552,14 +641,27 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 		assert.strictEqual(result.sessions.some(item => item.session === session.sessionUri), false);
 	});
 
-	serverToolTest('server tool: create_chat defaults to the invoking session and starts its local prompt', async function () {
+	serverToolTest('server tool: list_sessions createdBefore accepts sessions before a future boundary', async function () {
+		const session = await createSession('sessions-created-before-include');
+		const { tool } = await driveServerTool(
+			session,
+			'turn-sessions-created-before-include',
+			'Call list_sessions exactly once with createdBefore "2999-01-01T00:00:00Z", then reply exactly "filtered".',
+			SessionServerToolName.ListSessions,
+		);
+		const result = JSON.parse(tool.resultText) as { sessions: readonly { session: string }[] };
+
+		assert.ok(result.sessions.some(item => item.session === session.sessionUri));
+	});
+
+	serverToolTest('server tool: create_session currentSession starts a prompt in a peer chat', async function () {
 		const session = await createSession('create-chat-default');
 		const before = new Set((await sessionState(session.sessionUri)).chats.map(chat => chat.resource));
 		const { turn } = await driveServerTool(
 			session,
 			'turn-create-chat-default',
-			'Call create_chat exactly once with prompt "/rename Created Peer", then reply exactly "created".',
-			SessionServerToolName.CreateChat,
+			'Call create_session exactly once with relationship "currentSession", prompt "/rename Created Peer", and title "Created Peer", then reply exactly "created".',
+			SessionServerToolName.CreateSession,
 		);
 		const after = await sessionState(session.sessionUri);
 		const peer = after.chats.find(chat => !before.has(chat.resource));
@@ -572,23 +674,23 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			sawPendingConfirmation: true,
 			messages: ['/rename Created Peer'],
 		});
-	}, config.supportsMultipleChats && supportsServerToolCreateChat);
+	}, config.supportsMultipleChats && supportsCurrentSessionCreation);
 
-	serverToolTest('server tool: create_chat applies an explicit peer title', async function () {
+	serverToolTest('server tool: create_session currentSession applies an explicit peer title', async function () {
 		const session = await createSession('create-chat-title');
 		const before = new Set((await sessionState(session.sessionUri)).chats.map(chat => chat.resource));
 		await driveServerTool(
 			session,
 			'turn-create-chat-title',
-			'Call create_chat exactly once with prompt "/rename" and title "Explicit Peer", then reply exactly "created".',
-			SessionServerToolName.CreateChat,
+			'Call create_session exactly once with relationship "currentSession", prompt "/rename", and title "Explicit Peer", then reply exactly "created".',
+			SessionServerToolName.CreateSession,
 		);
 		const after = await sessionState(session.sessionUri);
 		const peer = after.chats.find(chat => !before.has(chat.resource));
 		assert.ok(peer);
 		await waitForChatIdle(peer.resource);
 		assert.strictEqual((await sessionState(session.sessionUri)).chats.find(chat => chat.resource === peer.resource)?.title, 'Explicit Peer');
-	}, config.supportsMultipleChats && supportsServerToolCreateChat);
+	}, config.supportsMultipleChats && supportsCurrentSessionCreation);
 
 	serverToolTest('server tool: get_session_context summary includes a completed prior turn', async function () {
 		const session = await createSession('context-summary', true);
@@ -606,6 +708,76 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 		}, {
 			detail: 'summary',
 			first: { turn: 1, state: 'complete', user: 'Reply exactly "CONTEXT_READY".', assistant: 'CONTEXT_READY' },
+		});
+	});
+
+	serverToolTest('server tool: get_session_context accepts explicit summary detail', async function () {
+		const session = await createSession('context-explicit-summary', true);
+		await driveTurnToCompletion(context.client, session.sessionUri, 'turn-context-explicit-summary-seed', 'Reply exactly "SUMMARY_READY".', reserveClientSequenceBlock());
+		const { tool } = await driveServerTool(
+			session,
+			'turn-context-explicit-summary',
+			`Call get_session_context exactly once with session "${session.sessionUri}" and detail "summary", then reply exactly "read".`,
+			SessionServerToolName.GetSessionContext,
+		);
+		const result = JSON.parse(tool.resultText) as { detail: string; transcript: readonly { user?: string; assistant?: string }[] };
+
+		assert.deepStrictEqual({
+			detail: result.detail,
+			first: result.transcript[0],
+		}, {
+			detail: 'summary',
+			first: {
+				turn: 1,
+				state: 'complete',
+				user: 'Reply exactly "SUMMARY_READY".',
+				assistant: 'SUMMARY_READY',
+			},
+		});
+	});
+
+	serverToolTest('server tool: get_session_context accepts an open-session link', async function () {
+		const session = await createSession('context-link', true);
+		await driveTurnToCompletion(context.client, session.sessionUri, 'turn-context-link-seed', 'Reply exactly "LINK_READY".', reserveClientSequenceBlock());
+		const link = buildOpenSessionLinkUri(URI.parse(session.sessionUri));
+		const { tool } = await driveServerTool(
+			session,
+			'turn-context-link',
+			`Call get_session_context exactly once with session "${link}", then reply exactly "read".`,
+			SessionServerToolName.GetSessionContext,
+		);
+		const result = JSON.parse(tool.resultText) as { transcript: readonly { user?: string; assistant?: string }[] };
+
+		assert.deepStrictEqual(result.transcript[0], {
+			turn: 1,
+			state: 'complete',
+			user: 'Reply exactly "LINK_READY".',
+			assistant: 'LINK_READY',
+		});
+	});
+
+	serverToolTest('server tool: get_session_context digest includes completed response text', async function () {
+		const session = await createSession('context-digest', true);
+		await driveTurnToCompletion(context.client, session.sessionUri, 'turn-context-digest-seed', 'Reply exactly "DIGEST_READY".', reserveClientSequenceBlock());
+		const { tool } = await driveServerTool(
+			session,
+			'turn-context-digest',
+			`Call get_session_context exactly once with session "${session.sessionUri}" and detail "digest", then reply exactly "read".`,
+			SessionServerToolName.GetSessionContext,
+		);
+		const result = JSON.parse(tool.resultText) as { detail: string; transcript: readonly { user?: string; assistant?: string }[] };
+
+		assert.deepStrictEqual({
+			detail: result.detail,
+			first: result.transcript[0],
+		}, {
+			detail: 'digest',
+			first: {
+				turn: 1,
+				state: 'complete',
+				user: 'Reply exactly "DIGEST_READY".',
+				assistant: 'DIGEST_READY',
+			},
 		});
 	});
 
@@ -675,20 +847,26 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 		const root = await context.client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
 		const model = (root.snapshot!.state as RootState).agents
 			.find(agent => agent.provider === config.provider)
-			?.models.find(model => model.id === 'claude-opus-4.6');
+			?.models.find(model => model.id === 'claude-sonnet-5');
 		assert.ok(model);
-		const before = new Set((await context.client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI })).items.map(item => item.resource));
 		context.client.clearReceived();
 		const { turn } = await driveServerTool(
 			session,
 			'turn-create-session',
-			`Call create_session exactly once with workspace "${session.workspace}", prompt "${childPrompt}", and model "${model.id}", then reply exactly "created".`,
+			`Call create_session exactly once with relationship "independent", workspace "${session.workspace}", prompt "${childPrompt}", title "Created Child", and model "${model.id}", then reply exactly "created".`,
 			SessionServerToolName.CreateSession,
 		);
-		const after = await context.client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
-		const child = after.items.find(item => !before.has(item.resource));
-		assert.ok(child);
+		const childAdded = await context.client.waitForNotification(notification => {
+			if (notification.method !== NotificationType.SessionAdded) {
+				return false;
+			}
+			const summary = (notification.params as SessionAddedParams).summary;
+			return summary.resource !== session.sessionUri && summary.provider === model.provider;
+		}, 30_000);
+		const child = (childAdded.params as SessionAddedParams).summary;
 		createdSessions.push(child.resource);
+		const creationReference = readSessionCreationReference(child._meta);
+		assert.ok(creationReference, 'child SessionAdded summary should include its creating turn');
 		const childRequest = await retry(async () => {
 			const requests = context.observedModelRequestBodies
 				.map(summarizeAnthropicRequest)
@@ -704,12 +882,20 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			sawPendingConfirmation: turn.sawPendingConfirmation,
 			provider: child.provider,
 			messages: childState.turns.map(turn => turn.message.text),
+			title: childState.title,
 			childRequestModel: childRequest.model,
+			creationReference,
 		}, {
 			sawPendingConfirmation: true,
 			provider: model.provider,
 			messages: [childPrompt],
+			title: 'Created Child',
 			childRequestModel: model.id,
+			creationReference: {
+				session: session.sessionUri,
+				chat: session.chatUri,
+				turnId: 'turn-create-session',
+			},
 		});
 	}, supportsProviderModelSessionCreation);
 

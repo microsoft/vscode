@@ -10,9 +10,9 @@ import type { URI } from './state.js';
 
 import type { RootAgentsChangedAction, RootActiveSessionsChangedAction, RootTerminalsChangedAction, RootConfigChangedAction } from '../channels-root/actions.js';
 
-import type { SessionReadyAction, SessionCreationFailedAction, SessionChatAddedAction, SessionChatRemovedAction, SessionChatUpdatedAction, SessionDefaultChatChangedAction, SessionTitleChangedAction, SessionServerToolsChangedAction, SessionActiveClientSetAction, SessionActiveClientRemovedAction, SessionWorkingDirectorySetAction, SessionWorkingDirectoryRemovedAction, SessionInputNeededSetAction, SessionInputNeededRemovedAction, SessionCustomizationsChangedAction, SessionCustomizationToggledAction, SessionCustomizationUpdatedAction, SessionCustomizationRemovedAction, SessionMcpServerStateChangedAction, SessionMcpServerStartRequestedAction, SessionMcpServerStopRequestedAction, SessionIsReadChangedAction, SessionIsArchivedChangedAction, SessionActivityChangedAction, SessionChangesetsChangedAction, SessionConfigChangedAction, SessionMetaChangedAction } from '../channels-session/actions.js';
+import type { SessionReadyAction, SessionCreationFailedAction, SessionChatAddedAction, SessionChatRemovedAction, SessionChatUpdatedAction, SessionDefaultChatChangedAction, SessionTitleChangedAction, SessionServerToolsChangedAction, SessionActiveClientSetAction, SessionActiveClientRemovedAction, SessionWorkingDirectorySetAction, SessionWorkingDirectoryRemovedAction, SessionWorkingDirectoryReplacedAction, SessionInputNeededSetAction, SessionInputNeededRemovedAction, SessionCustomizationsChangedAction, SessionCustomizationToggledAction, SessionCustomizationUpdatedAction, SessionCustomizationRemovedAction, SessionMcpServerStateChangedAction, SessionMcpServerStartRequestedAction, SessionMcpServerStopRequestedAction, SessionIsReadChangedAction, SessionIsArchivedChangedAction, SessionActivityChangedAction, SessionChangesetsChangedAction, SessionConfigChangedAction, SessionMetaChangedAction } from '../channels-session/actions.js';
 
-import type { ChatTurnStartedAction, ChatDeltaAction, ChatResponsePartAction, ChatToolCallStartAction, ChatToolCallDeltaAction, ChatToolCallReadyAction, ChatToolCallConfirmedAction, ChatToolCallCompleteAction, ChatToolCallResultConfirmedAction, ChatToolCallContentChangedAction, ChatToolCallAuthRequiredAction, ChatToolCallAuthResolvedAction, ChatTurnCompleteAction, ChatTurnCancelledAction, ChatErrorAction, ChatActivityChangedAction, ChatWorkingDirectorySetAction, ChatWorkingDirectoryRemovedAction, ChatUsageAction, ChatReasoningAction, ChatPendingMessageSetAction, ChatPendingMessageRemovedAction, ChatQueuedMessagesReorderedAction, ChatDraftChangedAction, ChatInputRequestedAction, ChatInputAnswerChangedAction, ChatInputCompletedAction, ChatTruncatedAction, ChatTurnsLoadedAction } from '../channels-chat/actions.js';
+import type { ChatTurnStartedAction, ChatDeltaAction, ChatResponsePartAction, ChatToolCallStartAction, ChatToolCallDeltaAction, ChatToolCallReadyAction, ChatToolCallConfirmedAction, ChatToolCallCompleteAction, ChatToolCallResultConfirmedAction, ChatToolCallContentChangedAction, ChatToolCallAuthRequiredAction, ChatToolCallAuthResolvedAction, ChatTurnCompleteAction, ChatTurnCancelledAction, ChatErrorAction, ChatTurnResumeAction, ChatActivityChangedAction, ChatWorkingDirectorySetAction, ChatWorkingDirectoryRemovedAction, ChatUsageAction, ChatReasoningAction, ChatPendingMessageSetAction, ChatPendingMessageRemovedAction, ChatQueuedMessagesReorderedAction, ChatDraftChangedAction, ChatInputRequestedAction, ChatInputAnswerChangedAction, ChatInputCompletedAction, ChatTruncatedAction, ChatTurnsLoadedAction } from '../channels-chat/actions.js';
 
 import type { ChangesetStatusChangedAction, ChangesetFileSetAction, ChangesetFileRemovedAction, ChangesetFilesReviewChangedAction, ChangesetContentChangedAction, ChangesetOperationsChangedAction, ChangesetOperationStatusChangedAction, ChangesetClearedAction } from '../channels-changeset/actions.js';
 
@@ -21,6 +21,8 @@ import type { AnnotationsSetAction, AnnotationsUpdatedAction, AnnotationsRemoved
 import type { TerminalDataAction, TerminalInputAction, TerminalResizedAction, TerminalClaimedAction, TerminalTitleChangedAction, TerminalCwdChangedAction, TerminalExitedAction, TerminalClearedAction, TerminalCommandDetectionAvailableAction, TerminalCommandExecutedAction, TerminalCommandFinishedAction } from '../channels-terminal/actions.js';
 
 import type { ResourceWatchChangedAction } from '../channels-resource-watch/actions.js';
+import type { AutomationCreateRequestedAction, AutomationRemovedAction, AutomationSetAction, AutomationUpdateRequestedAction } from '../channels-automation/actions.js';
+import type { AutomationRunLifecycleChangedAction, AutomationRunSessionSetAction, AutomationRunSessionRemovedAction, AutomationRunPrimarySessionChangedAction, AutomationRunCancelRequestedAction } from '../channels-automation-run/actions.js';
 
 // ─── Action Type Enum ────────────────────────────────────────────────────────
 
@@ -28,6 +30,7 @@ import type { ResourceWatchChangedAction } from '../channels-resource-watch/acti
  * Discriminant values for all state actions.
  *
  * @category Actions
+ * @nonexhaustive
  */
 export const enum ActionType {
 	RootAgentsChanged = 'root/agentsChanged',
@@ -53,6 +56,7 @@ export const enum ActionType {
 	ChatTurnComplete = 'chat/turnComplete',
 	ChatTurnCancelled = 'chat/turnCancelled',
 	ChatError = 'chat/error',
+	ChatTurnResume = 'chat/turnResume',
 	ChatActivityChanged = 'chat/activityChanged',
 	ChatWorkingDirectorySet = 'chat/workingDirectorySet',
 	ChatWorkingDirectoryRemoved = 'chat/workingDirectoryRemoved',
@@ -64,6 +68,7 @@ export const enum ActionType {
 	SessionActiveClientRemoved = 'session/activeClientRemoved',
 	SessionWorkingDirectorySet = 'session/workingDirectorySet',
 	SessionWorkingDirectoryRemoved = 'session/workingDirectoryRemoved',
+	SessionWorkingDirectoryReplaced = 'session/workingDirectoryReplaced',
 	SessionInputNeededSet = 'session/inputNeededSet',
 	SessionInputNeededRemoved = 'session/inputNeededRemoved',
 	ChatPendingMessageSet = 'chat/pendingMessageSet',
@@ -115,6 +120,15 @@ export const enum ActionType {
 	TerminalCommandExecuted = 'terminal/commandExecuted',
 	TerminalCommandFinished = 'terminal/commandFinished',
 	ResourceWatchChanged = 'resourceWatch/changed',
+	AutomationCreateRequested = 'automation/createRequested',
+	AutomationUpdateRequested = 'automation/updateRequested',
+	AutomationSet = 'automation/set',
+	AutomationRemoved = 'automation/removed',
+	AutomationRunLifecycleChanged = 'automationRun/lifecycleChanged',
+	AutomationRunSessionSet = 'automationRun/sessionSet',
+	AutomationRunSessionRemoved = 'automationRun/sessionRemoved',
+	AutomationRunPrimarySessionChanged = 'automationRun/primarySessionChanged',
+	AutomationRunCancelRequested = 'automationRun/cancelRequested',
 }
 
 // ─── Action Envelope ─────────────────────────────────────────────────────────
@@ -167,6 +181,7 @@ export type StateAction =
 	| SessionActiveClientRemovedAction
 	| SessionWorkingDirectorySetAction
 	| SessionWorkingDirectoryRemovedAction
+	| SessionWorkingDirectoryReplacedAction
 	| SessionInputNeededSetAction
 	| SessionInputNeededRemovedAction
 	| SessionCustomizationsChangedAction
@@ -197,6 +212,7 @@ export type StateAction =
 	| ChatTurnCompleteAction
 	| ChatTurnCancelledAction
 	| ChatErrorAction
+	| ChatTurnResumeAction
 	| ChatActivityChangedAction
 	| ChatWorkingDirectorySetAction
 	| ChatWorkingDirectoryRemovedAction
@@ -235,4 +251,13 @@ export type StateAction =
 	| TerminalCommandDetectionAvailableAction
 	| TerminalCommandExecutedAction
 	| TerminalCommandFinishedAction
-	| ResourceWatchChangedAction;
+	| ResourceWatchChangedAction
+	| AutomationCreateRequestedAction
+	| AutomationUpdateRequestedAction
+	| AutomationSetAction
+	| AutomationRemovedAction
+	| AutomationRunLifecycleChangedAction
+	| AutomationRunSessionSetAction
+	| AutomationRunSessionRemovedAction
+	| AutomationRunPrimarySessionChangedAction
+	| AutomationRunCancelRequestedAction;

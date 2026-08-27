@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
-import { IAnchor } from '../../../../base/browser/ui/contextview/contextview.js';
 import { Event } from '../../../../base/common/event.js';
-import { AnchorPosition } from '../../../../base/common/layout.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
@@ -27,7 +25,7 @@ import { IHandOff } from '../common/promptSyntax/promptFileParser.js';
 import { CHAT_PROVIDER_ID } from '../common/participants/chatParticipantContribTypes.js';
 import { ChatRequestQueueKind, IChatElicitationRequest, IChatLocationData, IChatSendRequestOptions } from '../common/chatService/chatService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatPendingDividerViewModel } from '../common/model/chatViewModel.js';
-import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
+import { ChatAgentLocation, ChatModeKind, IResolvedNewChatSessionType } from '../common/constants.js';
 import { ChatAttachmentModel } from './attachments/chatAttachmentModel.js';
 import { IChatEditorOptions } from './widgetHosts/editor/chatEditor.js';
 import { ChatInputPart } from './widget/input/chatInputPart.js';
@@ -128,6 +126,7 @@ export interface IChatWidgetService {
 	readonly lastFocusedWidget: IChatWidget | undefined;
 
 	readonly onDidAddWidget: Event<IChatWidget>;
+	readonly onDidRemoveWidget: Event<IChatWidget>;
 
 	readonly onDidChangeWidgetVisibility: Event<IChatWidget>;
 
@@ -261,16 +260,15 @@ export interface IChatWidgetViewOptions {
 	renderFollowups?: boolean;
 	renderStyle?: 'compact' | 'minimal';
 	renderInputToolbarBelowInput?: boolean;
-	inputEditorMaxHeight?: number;
-	renderGettingStartedTip?: boolean;
+	renderGettingStartedTip?: boolean | (() => boolean);
 	supportsFileReferences?: boolean;
 	filter?: (item: ChatTreeItem) => boolean;
 	/**
 	 * Action triggered when 'clear' is called on the widget. The optional
-	 * `targetSessionType` carries the already-resolved new session type so the
-	 * host can open a session of that type instead of recomputing the default.
+	 * `resolvedSessionType` carries the already-resolved new session type and
+	 * selection reason so the host does not recompute either value.
 	 */
-	clear?: (targetSessionType?: string) => Promise<void>;
+	clear?: (resolvedSessionType?: IResolvedNewChatSessionType) => Promise<void>;
 	rendererOptions?: IChatListItemRendererOptions;
 	menus?: {
 		/**
@@ -322,17 +320,22 @@ export interface IChatWidgetViewOptions {
 	 * instead of silently dropping them.
 	 */
 	submitHandler?: (query: string, mode: ChatModeKind, attachedContext?: IChatRequestVariableEntry[], isVoiceModeInput?: boolean) => Promise<boolean>;
-	onDidChangeModelPickerVisibility?: (visible: boolean) => void | Promise<void>;
-	inputPickerPosition?: AnchorPosition;
-	inputPickerContainer?: HTMLElement | (() => HTMLElement | undefined);
-	inputPickerAnchor?: (anchor: HTMLElement) => HTMLElement | IAnchor;
-	inputPickerOpenOnMouseUp?: boolean;
-
 	/**
 	 * Whether we are running in the sessions window.
 	 * When true, the secondary toolbar (permissions picker) is hidden.
 	 */
 	isSessionsWindow?: boolean;
+
+	/** Enables the transcript Find widget (`Ctrl/Cmd+F`) for this chat widget. Off by default. */
+	enableFind?: boolean;
+
+	/**
+	 * Height of the content this host mounts into
+	 * {@link ChatInputPart.persistentContentContainerElement}. Setting it floats that
+	 * content above the input, so the transcript scrolls underneath it, and reserves
+	 * the same space below the transcript. Must match the content's rendered height.
+	 */
+	persistentContentHeight?: number;
 }
 
 export interface IChatViewViewContext {
@@ -448,6 +451,7 @@ export interface IChatWidget {
 	acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined>;
 	getSelectedModelRequestOptions(): Pick<IChatSendRequestOptions, 'userSelectedModelId' | 'userSelectedModelConfiguration'>;
 	startEditing(requestId: string): void;
+	cancelEditing(): Promise<void>;
 	finishedEditing(completedEdit?: boolean): void;
 	rerunLastRequest(): Promise<void>;
 	setInputPlaceholder(placeholder: string): void;
@@ -509,7 +513,7 @@ export interface IChatWidget {
 	 * clobber each other.
 	 */
 	holdAutoScroll(): IDisposable;
-	clear(targetSessionType?: string): Promise<void>;
+	clear(resolvedSessionType?: IResolvedNewChatSessionType): Promise<void>;
 	getInputState(): IChatModelInputState | undefined;
 	getViewState(): IChatWidgetViewState;
 	restoreViewState(state: IChatWidgetViewState): void;
@@ -519,6 +523,24 @@ export interface IChatWidget {
 	executeHandoff(handoff: IHandOff, agentId?: string): Promise<void>;
 
 	delegateScrollFromMouseWheelEvent(event: IMouseWheelEvent): void;
+
+	/** Returns the widget's transcript Find controller, or `undefined` if `enableFind` was not set. */
+	getFindController(): IChatFindController | undefined;
+}
+
+/** Minimal surface used to route `Ctrl/Cmd+F` and Find Next/Previous to a chat widget's transcript Find widget. */
+export interface IChatFindController {
+	readonly visible: boolean;
+	/** Shows the Find widget, optionally seeding the query and focusing the input. */
+	show(seedText?: string, focus?: boolean): void;
+	hide(): void;
+	next(): void;
+	previous(): void;
+	toggleCaseSensitive(): void;
+	toggleWholeWord(): void;
+	toggleRegex(): void;
+	/** Focuses the Find widget's last-focused element (defaults to the input). */
+	focus(): void;
 }
 
 /**

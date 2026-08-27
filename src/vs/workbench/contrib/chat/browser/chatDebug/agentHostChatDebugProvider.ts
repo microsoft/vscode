@@ -16,6 +16,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { isCustomizationEnabled } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { buildDefaultChatUri, CustomizationType, readUsageInfoMeta, StateComponents, type ChatState, type ChildCustomization, type Customization, type UsageInfo } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
@@ -1162,7 +1163,9 @@ function flattenCustomizations(customizations: readonly Customization[]): IFlatC
 			type: c.type,
 			name: c.name,
 			uri: c.uri,
-			enabled: (c as { enabled?: boolean }).enabled !== false,
+			enabled: c.type === CustomizationType.McpServer
+				? isCustomizationEnabled(c)
+				: c.enabled !== false,
 			description: (c as { description?: string }).description,
 		});
 	};
@@ -1529,7 +1532,7 @@ function lastIndexOfNewline(buffer: VSBuffer): number {
  * the session id.
  */
 function fallbackSessionTitle(sessionId: string): string {
-	return localize('agentHost.debug.untitledSession', "Copilot CLI Session {0}", sessionId.slice(0, 8));
+	return localize('agentHost.debug.untitledSession', "Copilot Session {0}", sessionId.slice(0, 8));
 }
 
 /** Derives a session title from the first user message in an events stream. */

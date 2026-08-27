@@ -149,6 +149,12 @@
 		"welcomePage.tileBackground": "#F3F3F3",
 		"widget.border": "#E5E5E5",
 		// modern ui
-		"surface.border": "#E0E0E0",
+		"surface.border": "#E5E5E5",
+		"agentsPanel.border": "#E5E5E5",
+		"modernActivityBar.activeBackground": "#e4e6f1",
+		"modernActivityBar.hoverBackground": "#F2F2F2",
+		"modernActivityBar.activeForeground": "#3B3B3B",
+		"modernActivityBar.hoverForeground": "#3B3B3B",
+		"modernActivityBar.border": "#E5E5E5"
 	},
 }

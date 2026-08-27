@@ -8,7 +8,7 @@
 		"editor.foreground": "#d3af86",
 		"focusBorder": "#a57a4c",
 		// agent sessions
-		"agentsPanel.border": "#5e452b",
+		"agentsPanel.border": "#00000000",
 		"agentsChatInput.border": "#5e452b",
 		"agentsChatInput.focusBorder": "#a57a4c",
 		"agentsNewSessionButton.border": "#5e452b",

@@ -14,6 +14,9 @@ import { crypto } from './node/crypto';
 import { TIMED_OUT_ERROR, USER_CANCELLATION_ERROR } from './common/errors';
 import { GitHubSocialSignInProvider, isSocialSignInProvider } from './flows';
 
+// `vscode` doesn't publicly export `UriComponents`, so derive the exact shape from `Uri.from`.
+type UriComponents = Parameters<typeof vscode.Uri.from>[0];
+
 interface SessionData {
 	id: string;
 	account?: {
@@ -22,6 +25,7 @@ interface SessionData {
 		// Unfortunately, for some time the id was a number, so we need to support both.
 		// This can be removed once we are confident that all users have migrated to the new id.
 		id: string | number;
+		icon?: UriComponents;
 	};
 	scopes: string[];
 	accessToken: string;
@@ -283,13 +287,12 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		const sessionPromises = sessionData.map(async (session: SessionData): Promise<vscode.AuthenticationSession | undefined> => {
 			// For GitHub scope list, order doesn't matter so we immediately sort the scopes
 			const scopesStr = [...session.scopes].sort().join(' ');
-			let userInfo: { id: string; accountName: string } | undefined;
+			let userInfo: { id: string; accountName: string; avatarUrl: string | undefined } | undefined;
 			if (!session.account) {
 				try {
 					userInfo = await this._githubServer.getUserInfo(session.accessToken);
 					this._logger.info(`Verified session with the following scopes: ${scopesStr}`);
 				} catch (e) {
-					// Remove sessions that return unauthorized response
 					if (e.message === 'Unauthorized') {
 						return undefined;
 					}
@@ -308,13 +311,17 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			} else {
 				accountId = userInfo?.id ?? '<unknown>';
 			}
+			const icon = session.account?.icon
+				? vscode.Uri.from(session.account.icon)
+				: userInfo?.avatarUrl ? vscode.Uri.parse(userInfo.avatarUrl) : undefined;
 			return {
 				id: session.id,
 				account: {
 					label: session.account
 						? session.account.label ?? session.account.displayName ?? '<unknown>'
-						: userInfo?.accountName ?? '<unknown>',
-					id: accountId
+						: (userInfo?.accountName ?? '<unknown>'),
+					id: accountId,
+					icon,
 				},
 				// we set this to session.scopes to maintain the original order of the scopes requested
 				// by the extension that called getSession()
@@ -329,6 +336,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			.filter(<T>(p?: T): p is T => Boolean(p));
 
 		this._logger.info(`Got ${verifiedSessions.length} verified sessions.`);
+		// Account data discovered during reads must not trigger a secret write because web embedders can re-expose accountless sessions.
 		if (seenNumberAccountId || verifiedSessions.length !== sessionData.length) {
 			await this.storeSessions(verifiedSessions);
 		}
@@ -412,7 +420,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		return {
 			id: crypto.getRandomValues(new Uint32Array(2)).reduce((prev, curr) => prev += curr.toString(16), ''),
 			accessToken: token,
-			account: { label: userInfo.accountName, id: userInfo.id },
+			account: { label: userInfo.accountName, id: userInfo.id, icon: userInfo.avatarUrl ? vscode.Uri.parse(userInfo.avatarUrl) : undefined },
 			scopes
 		};
 	}

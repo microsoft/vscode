@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { adaptManagedSettings, IManagedSettingsResponse } from '../../browser/managedSettings.js';
+import { adaptManagedSettings, appendManagedSettingsClientIdentity, IManagedSettingsResponse, parseManagedSettingsCompatibilityError } from '../../browser/managedSettings.js';
 
 suite('adaptManagedSettings', () => {
 
@@ -17,6 +17,25 @@ suite('adaptManagedSettings', () => {
 		});
 	});
 
+	test('appends client identity to the request url', () => {
+		assert.deepStrictEqual({
+			withRuntime: appendManagedSettingsClientIdentity('https://api.github.com/copilot_internal/managed_settings', {
+				version: '1.132.0',
+				copilotVersions: { runtime: '0.0.344', sdk: '0.1.0' },
+			}),
+			withoutRuntime: appendManagedSettingsClientIdentity('https://api.github.com/copilot_internal/managed_settings', { version: '1.132.0' }),
+			preservesExistingQuery: appendManagedSettingsClientIdentity('https://api.github.com/copilot_internal/managed_settings?foo=bar', { version: '1.132.0' }),
+			dropsStaleRuntimeVersion: appendManagedSettingsClientIdentity('https://api.github.com/copilot_internal/managed_settings?copilot_runtime_version=0.0.1', { version: '1.132.0' }),
+			unparseableUrl: appendManagedSettingsClientIdentity('not a url', { version: '1.132.0' }),
+		}, {
+			withRuntime: 'https://api.github.com/copilot_internal/managed_settings?client_id=vscode&client_version=1.132.0&copilot_runtime_version=0.0.344',
+			withoutRuntime: 'https://api.github.com/copilot_internal/managed_settings?client_id=vscode&client_version=1.132.0',
+			preservesExistingQuery: 'https://api.github.com/copilot_internal/managed_settings?foo=bar&client_id=vscode&client_version=1.132.0',
+			dropsStaleRuntimeVersion: 'https://api.github.com/copilot_internal/managed_settings?client_id=vscode&client_version=1.132.0',
+			unparseableUrl: 'not a url',
+		});
+	});
+
 	test('normalizes permissions into a dot-path managed setting', () => {
 		assert.deepStrictEqual(adaptManagedSettings({
 			permissions: { disableBypassPermissionsMode: 'disable' },
@@ -25,6 +44,23 @@ suite('adaptManagedSettings', () => {
 				'permissions.disableBypassPermissionsMode': 'disable',
 			},
 		});
+	});
+
+	test('parses the stable compatibility error and optional versions', () => {
+		assert.deepStrictEqual(parseManagedSettingsCompatibilityError({
+			error_code: 'client_update_required',
+			client_id: 'vscode',
+			client_version: '1.132.0',
+			minimum_client_version: '1.133.0',
+		}), {
+			errorCode: 'client_update_required',
+			clientVersion: '1.132.0',
+			minimumClientVersion: '1.133.0',
+		});
+	});
+
+	test('rejects an unrecognized compatibility error shape', () => {
+		assert.strictEqual(parseManagedSettingsCompatibilityError({ error_code: 'unexpected' }), undefined);
 	});
 
 	test('carries enabledPlugins as a canonical JSON string under a single key', () => {

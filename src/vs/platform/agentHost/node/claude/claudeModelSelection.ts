@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IAgentModelInfo } from '../../common/agentService.js';
+import type { IAgentModelInfo } from '../../common/agent.js';
 import { createAgentModelGroupMeta } from '../../common/agentModelSource.js';
 import { CLAUDE_PROVIDER_ANTHROPIC, CLAUDE_PROVIDER_COPILOT } from '../../common/claudeProviders.js';
 import type { ModelSelection } from '../../common/state/protocol/state.js';

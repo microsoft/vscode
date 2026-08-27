@@ -112,6 +112,7 @@ class BrowserNavigationBar extends Disposable {
 
 		const urlBarHost: IBrowserUrlBarHost = {
 			get input() { return editor.input instanceof BrowserEditorInput ? editor.input : undefined; },
+			get isReadonly() { return editor.input instanceof BrowserEditorInput && editor.input.associatedResource !== undefined; },
 			ensureBrowserFocus: () => editor.ensureBrowserFocus(),
 			getPrimaryActions: (text) => this._resolvePrimaryActions(text),
 			getPlaceholder: () => this._searchEngine

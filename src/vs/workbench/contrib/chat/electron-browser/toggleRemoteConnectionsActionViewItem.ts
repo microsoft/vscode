@@ -15,8 +15,11 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { localize } from '../../../../nls.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ITunnelHostService } from '../common/tunnelHost.js';
 import { RENAME_TUNNEL_ID, SHOW_TUNNEL_HOST_OUTPUT_ID } from './tunnelHostService.js';
+
+const TUNNEL_ACCESS_DOCS_URL = 'https://aka.ms/vscode-agent-tunnel-access';
 
 export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 
@@ -29,6 +32,7 @@ export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 		action: IAction,
 		@ITunnelHostService private readonly _tunnelHostService: ITunnelHostService,
 		@IHoverService private readonly _hoverService: IHoverService,
+		@IProductService private readonly _productService: IProductService,
 	) {
 		super(undefined, action);
 
@@ -111,15 +115,20 @@ export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 		} else if (this._tunnelHostService.isSharing) {
 			const info = this._tunnelHostService.sharingInfo;
 			if (info) {
-				lines.push(localize('tunnelHost.hover.sharing', "Remote session access enabled via tunnel '{0}'", info.tunnelName));
+				lines.push(info.viaRemoteTunnelAccess
+					? localize('tunnelHost.hover.remoteTunnelAccess', "Remote session access is provided by Remote Tunnel Access via tunnel '{0}'. Turning off remote session access does not disable Remote Tunnel Access.", info.tunnelName)
+					: localize('tunnelHost.hover.sharing', "Remote session access enabled via tunnel '{0}'", info.tunnelName));
 			} else {
 				lines.push(localize('tunnelHost.hover.enabled', "Remote session access is enabled"));
 			}
 		} else {
-			lines.push(localize('tunnelHost.hover.idle', "Allow remote session access"));
+			const agentsUrl = this._productService.webUrl ? `${this._productService.webUrl.replace(/\/$/, '')}/agents` : undefined;
+			lines.push(agentsUrl
+				? localize('tunnelHost.hover.idle', "Allow connections from other machines and {0}", `[${agentsUrl.replace(/https?:\/\//, '')}](${agentsUrl})`)
+				: localize('tunnelHost.hover.idle.noWebUrl', "Allow connections from other machines"));
 		}
 
-		lines.push(`[${localize('tunnelHost.hover.showOutput', "Show Output")}](command:${SHOW_TUNNEL_HOST_OUTPUT_ID}) | [${localize('tunnelHost.hover.renameTunnel', "Rename Tunnel")}](command:${RENAME_TUNNEL_ID})`);
+		lines.push(`[${localize('tunnelHost.hover.showOutput', "Show Output")}](command:${SHOW_TUNNEL_HOST_OUTPUT_ID}) | [${localize('tunnelHost.hover.renameTunnel', "Rename Tunnel")}](command:${RENAME_TUNNEL_ID}) | [${localize('tunnelHost.hover.learnMore', "Learn More")}](${TUNNEL_ACCESS_DOCS_URL})`);
 
 		const md = new MarkdownString(lines.join('\n\n'), { isTrusted: { enabledCommands: [SHOW_TUNNEL_HOST_OUTPUT_ID, RENAME_TUNNEL_ID] } });
 		return { markdown: md, markdownNotSupportedFallback: lines[0] };
@@ -132,10 +141,15 @@ export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 		if (this._tunnelHostService.isSharing) {
 			const info = this._tunnelHostService.sharingInfo;
 			if (info) {
-				return localize('tunnelHost.hover.sharing', "Remote session access enabled via tunnel '{0}'", info.tunnelName);
+				return info.viaRemoteTunnelAccess
+					? localize('tunnelHost.ariaLabel.remoteTunnelAccess', "Remote session access provided by Remote Tunnel Access via tunnel '{0}'", info.tunnelName)
+					: localize('tunnelHost.hover.sharing', "Remote session access enabled via tunnel '{0}'", info.tunnelName);
 			}
 			return localize('tunnelHost.hover.enabled', "Remote session access is enabled");
 		}
-		return localize('tunnelHost.hover.idle', "Allow remote session access");
+		const agentsUrl = this._productService.webUrl ? `${this._productService.webUrl.replace(/\/$/, '')}/agents` : undefined;
+		return agentsUrl
+			? localize('tunnelHost.hover.idle.ariaLabel', "Allow connections from other machines and {0}", agentsUrl.replace(/https?:\/\//, ''))
+			: localize('tunnelHost.hover.idle.ariaLabel.noWebUrl', "Allow connections from other machines");
 	}
 }

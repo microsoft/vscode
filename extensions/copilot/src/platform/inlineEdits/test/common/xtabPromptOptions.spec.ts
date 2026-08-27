@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { ImportChanges } from '../../common/dataTypes/importFilteringOptions';
-import { applyStrategyConfig, DEFAULT_OPTIONS, GlobalBudgetOptions, IncludeLineNumbersOption, MODEL_CONFIGURATION_VALIDATOR, ModelConfiguration, PromptingStrategy, RejectedEditsMemoryMode } from '../../common/dataTypes/xtabPromptOptions';
+import { applyStrategyConfig, DEFAULT_OPTIONS, GlobalBudgetOptions, IncludeLineNumbersOption, isEagernessPrompt, MODEL_CONFIGURATION_VALIDATOR, ModelConfiguration, PatchModelPrediction, PromptingStrategy, RejectedEditsMemoryMode } from '../../common/dataTypes/xtabPromptOptions';
 
 function baseConfig(overrides: Partial<ModelConfiguration> = {}): ModelConfiguration {
 	return {
@@ -53,6 +53,40 @@ describe('applyStrategyConfig', () => {
 			recentlyViewedDocuments: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace, maxTokens: 99 },
 			supportsNextCursorLinePrediction: false,
 		});
+		// The additional client/latency knobs are only baked into PatchBased02Optimized.
+		expect(result.patchModelPredictionKind).toBeUndefined();
+		expect(result.cacheDelay).toBeUndefined();
+		expect(result.debounce).toBeUndefined();
+		expect(result.supportsUnifiedCompletions).toBeUndefined();
+	});
+
+	it('forces baked-in fields for PatchBased02Optimized', () => {
+		const result = applyStrategyConfig(baseConfig({
+			promptingStrategy: PromptingStrategy.PatchBased02Optimized,
+			includeTagsInCurrentFile: true,
+			includePostScript: false,
+			currentFile: { includeLineNumbers: IncludeLineNumbersOption.None, maxTokens: 42 },
+			recentlyViewedDocuments: { includeLineNumbers: IncludeLineNumbersOption.None, maxTokens: 99 },
+			supportsNextCursorLinePrediction: true,
+			allowImportChanges: ImportChanges.None,
+		}));
+		expect(result).toMatchObject({
+			includeTagsInCurrentFile: false,
+			includePostScript: true,
+			currentFile: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace, maxTokens: 42 },
+			recentlyViewedDocuments: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace, maxTokens: 99 },
+			supportsNextCursorLinePrediction: false,
+			allowImportChanges: ImportChanges.All,
+			patchModelPredictionKind: PatchModelPrediction.CurrentLineCompleted,
+			splitPatchOnDiff: true,
+			patchFastYieldLineWithCursor: true,
+			extraDebounceEndOfLine: 0,
+			nesMimicGhostTextBehavior: true,
+			cacheDelay: 200,
+			rebasedCacheDelay: 0,
+			debounce: 0,
+			supportsUnifiedCompletions: true,
+		});
 	});
 
 	it('forces recentlyViewedDocuments.includeLineNumbers=None for PatchBased02WithoutRecentLineNumbers', () => {
@@ -85,6 +119,12 @@ describe('applyStrategyConfig', () => {
 
 describe('MODEL_CONFIGURATION_VALIDATOR', () => {
 
+	it('accepts a config with eagernessPrompt', () => {
+		const result = MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig({ eagernessPrompt: 'aggressionHighLow' }));
+		expect(result.error).toBeUndefined();
+		expect(result.content?.eagernessPrompt).toBe('aggressionHighLow');
+	});
+
 	it('keeps rejected-edit memory off by default', () => {
 		expect(DEFAULT_OPTIONS.memory).toBeUndefined();
 		expect(MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig()).content?.memory).toBeUndefined();
@@ -111,6 +151,13 @@ describe('MODEL_CONFIGURATION_VALIDATOR', () => {
 	it('rejects an invalid allowImportChanges value', () => {
 		const result = MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig({ allowImportChanges: 'sometimes' as ImportChanges }));
 		expect(result.error).toBeDefined();
+	});
+});
+
+describe('isEagernessPrompt', () => {
+	it('recognizes the PatchBased02 aggression prompt option', () => {
+		expect(isEagernessPrompt({ ...DEFAULT_OPTIONS, promptingStrategy: PromptingStrategy.PatchBased02, eagernessPrompt: 'aggressionHighLow' })).toBe(true);
+		expect(isEagernessPrompt({ ...DEFAULT_OPTIONS, promptingStrategy: PromptingStrategy.PatchBased02 })).toBe(false);
 	});
 });
 

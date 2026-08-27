@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -160,7 +161,7 @@ suite('sessionWorkspaceEqual', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function workspace(branchName = 'main', gitHubInfo: IObservable<IGitHubInfo | undefined> = constObservable(undefined)): ISessionWorkspace {
+	function workspace(branchName = 'main', gitHubInfo: IObservable<IGitHubInfo | undefined> = constObservable(undefined), typeIcon?: ThemeIcon): ISessionWorkspace {
 		const root = URI.file('/repo');
 		return {
 			uri: root,
@@ -182,6 +183,7 @@ suite('sessionWorkspaceEqual', () => {
 			}],
 			requiresWorkspaceTrust: true,
 			isVirtualWorkspace: false,
+			typeIcon,
 		};
 	}
 
@@ -198,6 +200,23 @@ suite('sessionWorkspaceEqual', () => {
 
 	test('returns false when folder repository metadata changes', () => {
 		assert.strictEqual(sessionWorkspaceEqual(workspace('main'), workspace('feature')), false);
+	});
+
+	test('compares typeIcon', () => {
+		const info = constObservable<IGitHubInfo | undefined>(undefined);
+		assert.deepStrictEqual({
+			added: sessionWorkspaceEqual(workspace('main', info), workspace('main', info, Codicon.package)),
+			removed: sessionWorkspaceEqual(workspace('main', info, Codicon.package), workspace('main', info)),
+			changed: sessionWorkspaceEqual(workspace('main', info, Codicon.package), workspace('main', info, Codicon.folder)),
+			same: sessionWorkspaceEqual(workspace('main', info, Codicon.package), workspace('main', info, Codicon.package)),
+			bothUnset: sessionWorkspaceEqual(workspace('main', info), workspace('main', info)),
+		}, {
+			added: false,
+			removed: false,
+			changed: false,
+			same: true,
+			bothUnset: true,
+		});
 	});
 });
 

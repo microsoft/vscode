@@ -278,13 +278,11 @@ const RIM_SIZE_FLOOR = 0.35;
  */
 export function createVoiceRimLight(target: HTMLElement, accent: Color, theme: GlowThemeKind, mood: VoiceRimMood = 'cool', background?: Color): IVoiceRimLight {
 	const store = new DisposableStore();
-	const doc = target.ownerDocument;
 
 	if (!target.style.position) {
 		target.style.position = 'relative';
 	}
-	const slot = doc.createElement('div');
-	slot.className = 'voice-glow-slot voice-glow-slot-inline';
+	const slot = $('.voice-glow-slot.voice-glow-slot-inline');
 	target.appendChild(slot);
 	store.add(toDisposable(() => slot.remove()));
 

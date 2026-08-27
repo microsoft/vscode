@@ -81,7 +81,9 @@ the schema's nested
 
 | Schema property (path) | Type in schema | Composition (`x-composition.strategy`) |
 |------------------------|----------------|----------------------------------------|
-| `permissions.disableBypassPermissionsMode` | string enum `"disable"` | most-restrictive-wins (sticky once set) |
+| `permissions.disableBypassPermissionsMode` | string enum `"disable"` \| `"allow-auto-only"` | most-restrictive-wins (sticky once set) |
+| `model` | string (`auto`, a model family name, or a full model id) | — |
+| `permissions.model` | string (legacy location for `model`) | — |
 | `forceRemoteSettingsRefresh` | boolean | MDM wins; controls the server cache rather than a configuration setting |
 | `enabledPlugins` | `{ "PLUGIN@MARKETPLACE": boolean }` | deny-wins (false beats true; enterprise denials immutable) |
 | `extraKnownMarketplaces` | `{ name: { source, autoUpdate? } }`, source `github` \| `git` \| `directory` | most-restrictive-wins (higher layer is the complete allowlist); explicit `autoUpdate` overrides the client's global plugin auto-update setting for that marketplace |
@@ -111,6 +113,15 @@ the schema's nested
 Note the schema's `x-composition` describes the **server/runtime** layering across
 enterprise/org/user. Inside VS Code the bag has already been collapsed to a single
 projected `ManagedSettingsData` before a `policy.value()` callback ever sees it.
+
+> **Multi-key precedence (`model`).** The channel merge in `pickManagedSettings` only resolves the
+> *same* key across delivery channels; it does not know that top-level `model` supersedes the legacy
+> nested `permissions.model`. That cross-key precedence is resolved in the policy's `value()`
+> callback (`managedModelValue` in `copilotManagedSettings.ts`), which reads the top-level key first
+> and falls back to the legacy key (treating a blank value as unset). Because it is key-level, a
+> non-empty top-level `model` wins even when `permissions.model` was supplied by a
+> higher-precedence channel. The `ChatDefaultModel` policy declares **both** keys in its
+> `managedSettings` so native MDM watches each and projection keeps them.
 
 ## Declaring a managed setting on a policy
 
@@ -211,6 +222,32 @@ delivery slot for the managed value.
 | `projectManagedSettings(values, definitions, onWarn?)` | Keeps only declared keys whose runtime value **matches the declared type**. Undeclared keys and type mismatches are **dropped (validated, never coerced)**, with an optional warning. |
 | `pickManagedSettings(nativeMdm, server, file)` | Merges the channels **per key** by precedence (native MDM → server → file): the highest-precedence channel that sets a key wins, lower channels fill in keys the higher ones leave unset, and every contribution is recorded for provenance. **The extension point when adding a new channel** — extend the `ManagedSettingsChannel` union, the `MANAGED_SETTINGS_CHANNELS` order, and this function together. |
 | `managedSettingValue(key)` | Builds the standard pass-through `value` callback `policyData => policyData.managedSettings?.[key]`. Use for the common "lock to the managed value, else fall through" case (see [Declaring a managed setting](#declaring-a-managed-setting-on-a-policy)). |
+| `thirdPartyAgentEnabledValue(policyData)` | Shared `value` callback for the third-party harness policies (see [Governance presence](#governance-presence-disables-the-third-party-harnesses)). |
+
+### Governance presence disables the third-party harnesses
+
+`IPolicyData.managedSettingsActive` is `true` when **any** channel supplies **any** managed
+setting — i.e. the user is governed at all, independent of which keys were set. It is set in
+`AccountPolicyService.getPolicyData` from `pickManagedSettings(...).activeSources`, and unlike
+`IPolicyData.managedSettings` it is **not** projected onto the keys VS Code declares, so it also
+reflects runtime-owned keys VS Code never reads.
+
+The `Claude3PIntegration` and `Codex3PIntegration` policies both use
+`thirdPartyAgentEnabledValue`, which forces its setting to `false` when the account disables
+chat preview features **or** when `managedSettingsActive` is `true`. Rationale: managed settings
+are composed and enforced by the Copilot runtime and never reach the Claude or Codex harnesses,
+so leaving those harnesses available would hand a governed user an ungoverned path around every
+control the enterprise set. This mirrors the runtime-owned `sandbox.enabled` floor retiring the
+local harness (`IAgentHostEnablementService.managedSandboxEnforced`).
+
+Invariants:
+
+- The rule keys off **presence**, not a value, so the policies deliberately declare **no**
+  `managedSettings` keys — they must not be added to the native MDM watcher schema.
+- `AccountPolicyService.resolvePolicyValue` probes for this presence dependence (re-evaluating
+  the callback with `managedSettingsActive: false`) so **Developer: Policy Diagnostics**
+  attributes the value to the governing channel rather than to the account.
+- The `value` callback stays pure and deterministic — attribution evaluates it more than once.
 
 ### Normalization: the structured-key descriptor table
 
@@ -234,6 +271,8 @@ Constants (also in `copilotManagedSettings.ts`):
 | `GITHUB_COPILOT_WIN32_POLICY_NAME` | `GitHubCopilot` (productName for the watcher) |
 | `GITHUB_COPILOT_MACOS_BUNDLE_ID` | `com.github.copilot` (CFPreferences app id) |
 | `COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY` | `permissions.disableBypassPermissionsMode` |
+| `COPILOT_TOP_LEVEL_MODEL_KEY` | `model` (canonical; wins over the legacy nested key) |
+| `COPILOT_MODEL_KEY` | `permissions.model` (legacy; retained for original-schema deployments) |
 | `COPILOT_ENABLED_PLUGINS_KEY` | `enabledPlugins` |
 | `COPILOT_EXTRA_MARKETPLACES_KEY` | `extraKnownMarketplaces` |
 | `COPILOT_STRICT_MARKETPLACES_KEY` | `strictKnownMarketplaces` |
@@ -333,10 +372,13 @@ constant, configuration policy, or policy-data export.
 
 `forceRemoteSettingsRefresh` is not a user configuration setting. It controls whether the
 server-managed-settings cache may satisfy startup, so VS Code preserves it in the cached raw server
-bag and always includes it in the native MDM watch schema. `DefaultAccountProvider` resolves an
-explicit native MDM boolean ahead of the cached server value; when the result is `true`, it bypasses
-an otherwise-fresh server cache for the first fetch for that account in the current process. The
-cache remains available as the normal fetch-failure fallback.
+bag and always includes it in the native MDM watch schema. `DefaultAccountProvider` resolves the
+control across native MDM, cached server, and managed-file delivery before using the server cache.
+When the result is `true`, only a fresh successful server response for the current account,
+authentication provider, and endpoint satisfies the requirement. A failed refresh may retain cached
+restrictions and the flag itself, but the Account Policy gate keeps AI features disabled until a
+retry succeeds. Authentication remains available so users can recover from missing or expired
+credentials.
 
 Reference tests:
 - `src/vs/platform/policy/test/common/copilotManagedSettings.test.ts`

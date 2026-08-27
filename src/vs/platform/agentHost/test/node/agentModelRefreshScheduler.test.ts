@@ -11,7 +11,7 @@ import { observableValue } from '../../../../base/common/observable.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import type { IAgent, IAgentDescriptor } from '../../common/agentService.js';
+import type { IAgent, IAgentDescriptor } from '../../common/agent.js';
 import { AgentModelRefreshScheduler } from '../../node/agentModelRefreshScheduler.js';
 
 /**

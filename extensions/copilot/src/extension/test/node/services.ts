@@ -184,10 +184,6 @@ class NullAutomodeService implements IAutomodeService {
 		throw new Error('Not implemented');
 	}
 
-	consumeLastRoutingDecision(): undefined {
-		return undefined;
-	}
-
 	getAutoPickerMetadata(): AutoModePickerMetadata {
 		return { discountRange: { low: 0, high: 0 } };
 	}
@@ -197,6 +193,8 @@ class NullAutomodeService implements IAutomodeService {
 	}
 
 	readonly onDidChangeAutoModeTierSupport = Event.None;
+
+	readonly onDidRoute = Event.None;
 
 	invalidateRouterCache(): void { }
 }

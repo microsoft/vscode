@@ -9,6 +9,7 @@ import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
+import type { ChatErrorAction } from '../../../../common/state/protocol/actions.js';
 import { CompletionItemKind, type CompletionsResult, type ResolveSessionConfigResult, type SessionConfigCompletionsResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import type { RootState } from '../../../../common/state/protocol/state.js';
@@ -139,6 +140,30 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 
 		const responseParts = context.client.receivedNotifications(n => isActionNotification(n, 'chat/responsePart'));
 		assert.ok(responseParts.length > 0, 'should have received at least one response part');
+	});
+
+	test('preserves a fenced multiline markdown response', async function () {
+		this.timeout(120_000);
+		const workspaceDir = mkdtempSync(join(tmpdir(), 'ahp-markdown-response-'));
+		tempDirs.push(workspaceDir);
+		const sessionUri = await createRealSession(
+			context.client,
+			config,
+			`markdown-response-${config.provider}`,
+			createdSessions,
+			URI.file(workspaceDir),
+		);
+		const expected = '```text\nALPHA\nBETA\n```';
+
+		const result = await driveTurnToCompletion(
+			context.client,
+			sessionUri,
+			'turn-markdown-response',
+			`Reply with exactly this Markdown code block and nothing else:\n${expected}`,
+			1,
+		);
+
+		assert.strictEqual(result.responseText, expected);
 	});
 
 	test('listModels returns well-shaped model entries after authenticate', async function () {
@@ -668,7 +693,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 			action: {
 				type: ActionType.ChatTurnStarted,
 				turnId,
-				startedAt: '2025-01-01T00:00:00.000Z',
+				startedAt: new Date().toISOString(),
 				message: {
 					text: 'This turn must fail before contacting a model.',
 					origin: { kind: MessageKind.User },
@@ -683,11 +708,11 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 			&& (getActionEnvelope(n).action as { readonly turnId: string }).turnId === turnId,
 			30_000,
 		);
-		const action = getActionEnvelope(failed).action as { readonly error: { readonly errorType: string; readonly message: string } };
+		const action = getActionEnvelope(failed).action as ChatErrorAction;
 
 		assert.deepStrictEqual({
-			errorType: action.error.errorType,
-			mentionsModel: /model/i.test(action.error.message),
+			errorType: action.part.error.errorType,
+			mentionsModel: /model/i.test(action.part.error.message),
 		}, {
 			errorType: config.provider === 'copilotcli' ? 'sendFailed' : config.provider === 'claude' ? 'success' : 'modelSelectionFailed',
 			mentionsModel: true,
