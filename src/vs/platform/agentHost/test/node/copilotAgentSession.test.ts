@@ -5274,6 +5274,61 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(turnStarted.queuedMessageId, 'steer-1');
 		});
 
+		test('promotes scaffolded steering with attachments to its own turn', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-original');
+			const imageUri = URI.file('/session/attachments/pasted-image.png');
+
+			await session.sendSteering({
+				id: 'steer-attachment',
+				message: {
+					text: 'Inspect the attached screenshot.',
+					origin: { kind: MessageKind.User },
+					attachments: [{
+						type: MessageAttachmentKind.Resource,
+						uri: imageUri.toString(),
+						label: 'Pasted Image',
+						displayKind: 'image',
+					}],
+				},
+			});
+			mockSession.fire('user.message', {
+				content: `Inspect the attached screenshot.
+<attachments>
+<attachment id="pasted-image.png">/session/attachments/pasted-image.png</attachment>
+</attachments>
+<userRequest>
+Inspect the attached screenshot.
+</userRequest>
+<reminder>
+Use the attached image as context.
+</reminder>`,
+				interactionId: 'interaction-steer',
+			} as SessionEventPayload<'user.message'>['data']);
+
+			assert.deepStrictEqual(getActions(signals)
+				.filter(action => action.type === ActionType.ChatTurnComplete || action.type === ActionType.ChatTurnStarted)
+				.map(action => action.type === ActionType.ChatTurnComplete
+					? { type: action.type, turnId: action.turnId }
+					: { type: action.type, message: action.message, queuedMessageId: action.queuedMessageId }), [
+				{ type: ActionType.ChatTurnComplete, turnId: 'turn-original' },
+				{
+					type: ActionType.ChatTurnStarted,
+					message: {
+						text: 'Inspect the attached screenshot.',
+						origin: { kind: MessageKind.User },
+						attachments: [{
+							type: MessageAttachmentKind.Resource,
+							uri: imageUri.toString(),
+							label: 'Pasted Image',
+							displayKind: 'image',
+						}],
+					},
+					queuedMessageId: 'steer-attachment',
+				},
+			]);
+		});
+
 		test('promotes steering when the SDK echoes before send resolves', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-original');

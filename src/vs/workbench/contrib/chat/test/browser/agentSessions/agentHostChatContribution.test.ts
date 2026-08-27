@@ -11917,6 +11917,63 @@ suite('AgentHostChatContribution', () => {
 			});
 		}));
 
+		test('stale client completion does not complete a server-initiated steering response', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, chatSession, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const steeringTurnId = 'server-steering-turn';
+			const serverRequestIds: string[] = [];
+			disposables.add(chatSession.onDidStartServerRequest!(request => serverRequestIds.push(request.id)));
+
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			agentHostService.fireAction({
+				channel: session!,
+				action: {
+					type: 'chat/turnStarted',
+					startedAt: '2025-01-01T00:00:00.000Z',
+					session,
+					turnId: steeringTurnId,
+					message: { text: 'Steering', origin: { kind: MessageKind.User } },
+				} as ChatAction,
+				serverSeq: 3,
+				origin: undefined,
+			});
+			await timeout(10);
+			agentHostService.fireAction({
+				channel: session!,
+				action: {
+					type: 'chat/responsePart',
+					session,
+					turnId: steeringTurnId,
+					part: { kind: 'markdown', id: 'steering-markdown', content: 'Steering response' },
+				} as ChatAction,
+				serverSeq: 4,
+				origin: undefined,
+			});
+
+			assert.deepStrictEqual({
+				serverRequestIds,
+				isComplete: chatSession.isCompleteObs!.get(),
+				markdown: chatSession.progressObs!.get()
+					.filter((part): part is IChatMarkdownContent => part.kind === 'markdownContent')
+					.map(part => part.content.value),
+			}, {
+				serverRequestIds: [steeringTurnId],
+				isComplete: false,
+				markdown: ['Steering response'],
+			});
+
+			agentHostService.fireAction({
+				channel: session!,
+				action: { type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId: steeringTurnId } as ChatAction,
+				serverSeq: 5,
+				origin: undefined,
+			});
+			await turnPromise;
+			await timeout(10);
+
+			assert.strictEqual(chatSession.isCompleteObs!.get(), true);
+		}));
+
 		test('disposing chat session does not call disposeSession on connection', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 

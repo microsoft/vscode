@@ -28,7 +28,7 @@ import { ActionType, type ChatTurnStartedAction, type SessionActiveClientSetActi
 import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { buildChatUri, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, customizationId, withSessionExternal, withSessionWorkspaceless } from '../../common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, buildChatUri, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, customizationId, withSessionExternal, withSessionWorkspaceless } from '../../common/state/sessionState.js';
 import { NonReconnectableTransportError, type IClientTransport, type IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
@@ -2497,6 +2497,58 @@ suite('AgentHostProtocolClient', () => {
 			annotationsRef.dispose();
 			chatRef.dispose();
 			sessionRef.dispose();
+			client.dispose();
+		});
+
+		test('marks an exact-channel subscription missing when restore fails', async function () {
+			this.timeout(10_000);
+			const { client, transports } = createFactoryClient();
+			const connectPromise = client.connect();
+			await completeHandshake(transports[0], connectPromise);
+
+			const catalogRef = client.getSubscriptionByChannel(StateComponents.AutomationCatalog, AUTOMATION_CATALOG_URI, 'test');
+			const initialSubscribe = await waitForRequest(transports[0], 'subscribe');
+			transports[0].fireMessage({
+				jsonrpc: '2.0', id: initialSubscribe.id,
+				result: { snapshot: { resource: AUTOMATION_CATALOG_URI, state: { automations: [] }, fromSeq: 5 } },
+			});
+			await flushMicrotasks();
+
+			transports[0].fireClose();
+			await waitForReconnecting(client);
+			const reconnectTransport = await waitForTransport(transports, 1);
+			reconnectTransport.connectDeferred.complete();
+			const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0', id: reconnect.id,
+				error: { code: AhpErrorCodes.NotFound, message: 'Reconnect client not found' },
+			});
+			const initialize = await waitForRequest(reconnectTransport, 'initialize');
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0', id: initialize.id,
+				result: {
+					protocolVersion: PROTOCOL_VERSION,
+					serverSeq: 0,
+					snapshots: [{ resource: ROOT_STATE_URI, state: { agents: [], activeSessions: 0 }, fromSeq: 0 }],
+				},
+			});
+
+			const restoredSubscribe = await waitForRequest(reconnectTransport, 'subscribe');
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0', id: restoredSubscribe.id,
+				error: { code: JsonRpcErrorCodes.InternalError, message: 'Catalogue unavailable' },
+			});
+			await flushMicrotasks();
+
+			assert.deepStrictEqual({
+				channel: (restoredSubscribe.params as { channel: string }).channel,
+				valueIsError: catalogRef.object.value instanceof Error,
+			}, {
+				channel: AUTOMATION_CATALOG_URI,
+				valueIsError: true,
+			});
+
+			catalogRef.dispose();
 			client.dispose();
 		});
 

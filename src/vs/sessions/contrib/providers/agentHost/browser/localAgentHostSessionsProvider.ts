@@ -49,6 +49,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { AgentHostSessionAdapter, BaseAgentHostSessionsProvider } from './baseAgentHostSessionsProvider.js';
+import { ReconnectableAgentHostAutomationStore } from './reconnectableAgentHostAutomationStore.js';
 
 const LOCAL_RESOURCE_SCHEME_PREFIX = 'agent-host-';
 
@@ -172,7 +173,14 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService, dialogService, workspaceTrustManagementService);
-		this.automations = this._register(instantiationService.createInstance(AutomationStore, providerAutomationStorageKey(this.id)));
+		const legacyAutomations = this._register(instantiationService.createInstance(AutomationStore, providerAutomationStorageKey(this.id)));
+		const automations = this._register(instantiationService.createInstance(ReconnectableAgentHostAutomationStore, this.id, legacyAutomations, {
+			toHost: resource => resource,
+			fromHost: resource => resource,
+			resourceSchemeForProvider: provider => this.resourceSchemeForProvider(provider),
+			providerForResourceScheme: scheme => scheme.startsWith(LOCAL_RESOURCE_SCHEME_PREFIX) ? scheme.slice(LOCAL_RESOURCE_SCHEME_PREFIX.length) : undefined,
+		}));
+		this.automations = automations;
 
 		this._isSessionsWindow = environmentService.isSessionsWindow;
 
@@ -196,6 +204,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		const connectionListeners = this._register(new DisposableStore());
 		const bindConnection = () => {
 			connectionListeners.clear();
+			automations.setConnection(this._agentHostService);
 			this._attachConnectionListeners(this._agentHostService, connectionListeners);
 
 			const rootState = this._agentHostService.rootState;
