@@ -1248,7 +1248,14 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 
 		await controllerData.initialRefresh;
-		return controllerData.controller.deleteChatSessionItem(sessionResource, token);
+		await controllerData.controller.deleteChatSessionItem(sessionResource, token);
+
+		const sessionData = this._sessions.get(sessionResource) ?? this._sessions.get(this._resolveResource(sessionResource));
+		if (sessionData) {
+			this._sessions.delete(sessionData.resource);
+			sessionData.dispose();
+			sessionData.session.dispose();
+		}
 	}
 
 	private _getChatSessionItemController(sessionResource: URI) {
@@ -1709,7 +1716,7 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 				if (openOptions.type === AgentSessionProviders.Local) {
 					await view.startNewLocalSession();
 				} else {
-					await view.loadSession(sessionResource);
+					await view.loadSession(sessionResource, 'explicitOverride');
 				}
 				view.focus();
 				break;
@@ -1718,6 +1725,7 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 				const options: IChatEditorOptions = {
 					override: ChatEditorInput.EditorID,
 					pinned: true,
+					sessionTypeSelectionReason: 'explicitOverride',
 					...(openOptions.type === AgentSessionProviders.Local ? { explicitSessionType: localChatSessionType } : {}),
 					title: {
 						fallback: localize('chatEditorContributionName', "{0}", openOptions.displayName),

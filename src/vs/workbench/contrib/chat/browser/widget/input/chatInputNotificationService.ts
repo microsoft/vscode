@@ -77,6 +77,11 @@ export interface IChatInputNotification {
 	/** Whether to hide this notification once its session has a request. */
 	readonly hideInStartedSessions?: boolean;
 	/**
+	 * Whether to hide this notification while the input's own selected model is BYOK.
+	 * Checked per input, since a producer only sees the panel's globally persisted model.
+	 */
+	readonly hideForByokModels?: boolean;
+	/**
 	 * Optional allow-list of chat session types that should display this
 	 * notification. When undefined, the notification renders in every chat
 	 * input. When set, only chat inputs whose current session type is in the

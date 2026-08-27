@@ -14,8 +14,8 @@ import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/c
 import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { createAgentHostResourceUriMapper, fromAgentHostUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, MessageAttachmentKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, withMessageHiddenFromTranscript, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { createAgentHostResourceUriMapper, fromAgentHostUri, toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, createErrorResponsePart, MessageAttachmentKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, withMessageHiddenFromTranscript, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatTranscriptContextAttachmentDisplayKind, IChatRequestTranscriptContextVariableEntry, toChatTranscriptContextAttachmentMeta } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
@@ -368,8 +368,70 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
+		test('created session annotates only its first request with the creating turn', () => {
+			const firstTurn = createTurn({
+				id: 'turn-1',
+				message: {
+					text: 'Hello',
+					origin: { kind: MessageKind.User },
+					_meta: toAgentMessageDelegationMeta({
+						sourceSession: 'copilot:/creator',
+						sourceChat: 'ahp-chat://default/Y29waWxvdDovY3JlYXRvcg',
+						sourceTurnId: 'creating-turn',
+					}),
+				},
+			});
+			const history = rawTurnsToHistory(
+				URI.parse('copilot:/created'),
+				[firstTurn, createTurn({ id: 'turn-2' })],
+				'agent-host-copilot',
+				'local',
+			);
+
+			assert.deepStrictEqual([
+				history[0].type === 'request' ? history[0].origin : undefined,
+				history[2].type === 'request' ? history[2].origin : undefined,
+			], [{
+				kind: ChatRequestOriginKind.Delegation,
+				sourceSessionResource: URI.parse('agent-host-session://copilot/creator?turn=creating-turn'),
+				delegationScope: 'session',
+			}, undefined]);
+		});
+
+		test('created session maps an aliased backend source to its logical provider', () => {
+			const turn = createTurn({
+				message: {
+					text: 'Hello',
+					origin: { kind: MessageKind.User },
+					_meta: toAgentMessageDelegationMeta({
+						sourceSession: 'ahp-session:/creator',
+						sourceChat: 'ahp-chat://default/YWhwLXNlc3Npb246L2NyZWF0b3I',
+					}),
+				},
+			});
+
+			const history = rawTurnsToHistory(
+				URI.parse('ahp-session:/created'),
+				[turn],
+				'copilot',
+				'remote',
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				'copilot',
+			);
+
+			assert.deepStrictEqual(history[0].type === 'request' ? history[0].origin : undefined, {
+				kind: ChatRequestOriginKind.Delegation,
+				sourceSessionResource: URI.parse('agent-host-session://copilot/creator'),
+				delegationScope: 'session',
+			});
+		});
+
 		test('thread coordination tools restore deterministic target-session chips', () => {
 			const createLink = 'agent-host-session://codex/created-thread';
+			const createChatLink = 'agent-host-session://codex/source-thread?chat=peer';
 			const sendLink = 'agent-host-session://codex/target-thread';
 			const turn = createTurn({
 				responseParts: [{
@@ -379,6 +441,14 @@ suite('stateToProgressAdapter', () => {
 						toolName: 'create_session',
 						toolInput: JSON.stringify({ prompt: 'Remember this word: capybara' }),
 						content: [{ type: ToolResultContentType.Text, text: createLink }],
+					}),
+				}, {
+					kind: ResponsePartKind.ToolCall,
+					toolCall: createCompletedToolCall({
+						toolCallId: 'create-current',
+						toolName: 'create_session',
+						toolInput: JSON.stringify({ relationship: 'currentSession', prompt: 'Parallel task' }),
+						content: [{ type: ToolResultContentType.Text, text: createChatLink }],
 					}),
 				}, {
 					kind: ResponsePartKind.ToolCall,
@@ -401,12 +471,18 @@ suite('stateToProgressAdapter', () => {
 				kind: 'sessionCreated',
 				openLink: createLink,
 				label: 'Remember this word: capybara',
-				isChat: false,
+				fullTitle: 'Remember this word: capybara',
+			}, {
+				kind: 'sessionCreated',
+				openLink: createChatLink,
+				label: 'Parallel task',
+				fullTitle: 'Parallel task',
+				isChat: true,
 			}, {
 				kind: 'sessionCreated',
 				openLink: sendLink,
 				label: 'foo',
-				isChat: false,
+				fullTitle: 'foo',
 			}]);
 		});
 
@@ -594,6 +670,7 @@ suite('stateToProgressAdapter', () => {
 					mcpAppData: {
 						kind: 'agentHost',
 						resourceUri: 'ui://github-mcp-server/pr-write',
+						connectionAuthority: 'local',
 						serverId: 'github-customization',
 						channel: 'mcp://copilot/session/GitHub',
 					},
@@ -682,13 +759,21 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(response.type, 'response');
 			if (response.type !== 'response') { return; }
 
-			assert.deepStrictEqual(response.parts, [{
-				kind: 'autoModeResolution',
-				resolvedModel: 'gpt-5.4-mini',
-				resolvedModelName: 'GPT-5.4 mini',
-				predictedLabel: 'no_reasoning',
-				confidence: 0.98,
-			}]);
+			assert.deepStrictEqual(response.parts, [
+				{ kind: 'autoModeResolution', resolved: { id: 'gpt-5.4-mini', name: 'GPT-5.4 mini' } },
+			]);
+		});
+
+		test('drops a routing part that never resolved from restored history', () => {
+			const turn = createTurn({ message: message('first'), usage: { model: 'auto' } });
+			const lookup = makeLookup('agent-host-copilot:', { 'auto': 'Auto' }, 'auto');
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p', lookup);
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+
+			assert.deepStrictEqual(response.parts.filter(part => part.kind === 'autoModeResolution'), []);
 		});
 
 		test('falls back to session-level model when turn has no usage.model', () => {
@@ -1082,7 +1167,7 @@ suite('stateToProgressAdapter', () => {
 		test('error turn produces error details in history', () => {
 			const turn = createTurn({
 				state: TurnState.Error,
-				error: { errorType: 'test', message: 'boom' },
+				responseParts: [createErrorResponsePart({ errorType: 'test', message: 'boom' })],
 			});
 
 			const history = turnsToHistory(URI.file('/'), [turn], 'p');
@@ -1093,14 +1178,32 @@ suite('stateToProgressAdapter', () => {
 			assert.ok(!response.parts.some(p => p.kind === 'markdownContent' && (p as IChatMarkdownContent).content.value.includes('boom')), 'Error should not be duplicated as a markdown part');
 		});
 
+		test('historical resumable errors can restore Try Again without rendering completed errors', () => {
+			const resumableError = createErrorResponsePart({ errorType: 'test', message: 'boom' }, true);
+			const errorTurn = createTurn({ state: TurnState.Error, responseParts: [resumableError] });
+			const completeTurn = createTurn({ state: TurnState.Complete, responseParts: [resumableError] });
+			const errorDetails = {
+				message: 'boom',
+				confirmationButtons: [{ data: { resume: true }, label: 'Try Again' }],
+			};
+
+			const history = rawTurnsToHistory(URI.file('/'), [errorTurn, completeTurn], 'p', '', undefined, undefined, undefined, createAgentHostResourceUriMapper(''), undefined, () => errorDetails);
+			const responses = history.filter(item => item.type === 'response');
+
+			assert.deepStrictEqual(responses.map(response => response.type === 'response' ? response.errorDetails : undefined), [
+				errorDetails,
+				undefined,
+			]);
+		});
+
 		test('forwarded quota error turn produces quota-exceeded error details', () => {
 			const turn = createTurn({
 				state: TurnState.Error,
-				error: {
+				responseParts: [createErrorResponsePart({
 					errorType: 'quota',
 					message: 'raw',
 					_meta: { chatError: { fetchError: { type: 'quotaExceeded', capiError: { code: 'quota_exceeded' } } } },
-				},
+				})],
 			});
 
 			const history = turnsToHistory(URI.file('/'), [turn], 'p');
@@ -1472,6 +1575,7 @@ suite('stateToProgressAdapter', () => {
 				mcpAppData: {
 					kind: 'agentHost',
 					resourceUri: 'ui://docs/app',
+					connectionAuthority: 'local',
 					serverId: 'docs-customization',
 					channel: 'mcp://copilot/test-session-1/docs',
 				},
@@ -2322,6 +2426,29 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
+		test('gives each Agent Merge notice an icon that matches what it reports', () => {
+			const notice = (kind: AgentSystemNotificationKind) => activeTurnToProgress(URI.file('/'), createActiveTurnState([{
+				kind: ResponsePartKind.SystemNotification,
+				content: 'Agent Merge changed state',
+				_meta: toAgentSystemNotificationMeta({ kind }),
+			}]), undefined)[0];
+
+			assert.deepStrictEqual({
+				enabled: notice(AgentSystemNotificationKind.AgentMergeEnabled),
+				disabled: notice(AgentSystemNotificationKind.AgentMergeDisabled),
+				// An unrecognized kind must still render, using the default check.
+				unknown: activeTurnToProgress(URI.file('/'), createActiveTurnState([{
+					kind: ResponsePartKind.SystemNotification,
+					content: 'Agent Merge changed state',
+					_meta: { kind: 'somethingNewer' },
+				}]), undefined)[0],
+			}, {
+				enabled: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.gitMerge },
+				disabled: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.circleSlash },
+				unknown: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state') },
+			});
+		});
+
 		test('produces thinking progress for reasoning', () => {
 			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([
 				{ kind: ResponsePartKind.Reasoning, id: 'r-1', content: 'Let me think about this...' },
@@ -2545,7 +2672,7 @@ suite('stateToProgressAdapter', () => {
 					uri: URI.file('/workspace/package.json'),
 					editKind: 'create',
 					originalUri: undefined,
-					modifiedContentUri: toAgentHostUri(URI.parse('pending-edit-content://session/tc-create/package.json'), 'local'),
+					modifiedContentUri: toAgentHostContentUri(URI.parse('pending-edit-content://session/tc-create/package.json'), 'local'),
 					originalContentUri: undefined,
 					insertions: undefined,
 					deletions: undefined,
@@ -3087,6 +3214,7 @@ suite('stateToProgressAdapter', () => {
 				mcpAppData: {
 					kind: 'agentHost',
 					resourceUri: 'ui://docs/app',
+					connectionAuthority: 'local',
 					serverId: 'docs-customization',
 					channel: 'mcp://copilot/test-session-1/docs',
 				},
@@ -3207,6 +3335,7 @@ suite('stateToProgressAdapter', () => {
 				premiumChat: {
 					percentRemaining: 75,
 					unlimited: false,
+					usageBasedBilling: undefined,
 					entitlement: 300,
 					quotaRemaining: 225,
 					// `resetAt` is epoch seconds, not milliseconds.
@@ -3215,6 +3344,7 @@ suite('stateToProgressAdapter', () => {
 				chat: {
 					percentRemaining: 100,
 					unlimited: true,
+					usageBasedBilling: undefined,
 					entitlement: undefined,
 					quotaRemaining: undefined,
 					resetAt: undefined,
@@ -3222,6 +3352,70 @@ suite('stateToProgressAdapter', () => {
 				additionalUsageEnabled: true,
 				additionalUsageCount: 1.5,
 				resetDate: '2026-07-01T00:00:00.000Z',
+			});
+		});
+
+		test('prefers the premium_models snapshot key over premium_interactions', () => {
+			// Missing the alias left agent-host premium quota stale, so no banners. #332787
+			const result = usageInfoToQuotas({
+				_meta: {
+					quotaSnapshots: {
+						premium_models: {
+							isUnlimitedEntitlement: false,
+							entitlementRequests: 1200,
+							usedRequests: 1056,
+							remainingPercentage: 12,
+							overage: 0,
+							overageAllowedWithExhaustedQuota: false,
+							tokenBasedBilling: true,
+							overageEntitlement: 5000,
+						},
+						premium_interactions: {
+							isUnlimitedEntitlement: false,
+							entitlementRequests: 1200,
+							usedRequests: 0,
+							remainingPercentage: 100,
+						},
+					},
+				},
+			});
+
+			assert.deepStrictEqual(result, {
+				premiumChat: {
+					percentRemaining: 12,
+					unlimited: false,
+					usageBasedBilling: true,
+					entitlement: 1200,
+					quotaRemaining: 144,
+					resetAt: undefined,
+				},
+				additionalUsageEnabled: false,
+				additionalUsageCount: 0,
+				additionalUsageEntitlement: 5000,
+				usageBasedBilling: true,
+			});
+		});
+
+		test('maps the session and weekly rate limits', () => {
+			const result = usageInfoToQuotas({
+				_meta: {
+					quotaSnapshots: {
+						session: {
+							isUnlimitedEntitlement: false,
+							remainingPercentage: 20,
+							resetDate: '2026-07-01T00:00:00.000Z',
+						},
+						weekly: {
+							isUnlimitedEntitlement: false,
+							remainingPercentage: 45,
+						},
+					},
+				},
+			});
+
+			assert.deepStrictEqual(result, {
+				sessionRateLimit: { percentRemaining: 20, unlimited: false, resetDate: '2026-07-01T00:00:00.000Z' },
+				weeklyRateLimit: { percentRemaining: 45, unlimited: false, resetDate: undefined },
 			});
 		});
 

@@ -1319,7 +1319,7 @@ suite('codexMapAppServerEvents', () => {
 			},
 		});
 		assert.deepStrictEqual(actions, [
-			{ type: ActionType.ChatError, turnId: 'turn_a', duration: 0, error: { errorType: 'CodexError', message: 'boom' } },
+			{ type: ActionType.ChatError, turnId: 'turn_a', duration: 0, part: { kind: ResponsePartKind.Error, error: { errorType: 'CodexError', message: 'boom' } } },
 			{ type: ActionType.ChatTurnComplete, turnId: 'turn_a', duration: 0 },
 		]);
 	});

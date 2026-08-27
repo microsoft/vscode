@@ -228,7 +228,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				override readonly onDidChangeBackground = Event.None;
 				override getBackground() { return undefined; }
 				override getConfiguredBackgroundImage() { return undefined; }
-				override setBackgroundImage() { return Promise.resolve(); }
+				override setBackground() { return Promise.resolve(); }
 			}());
 		},
 	});

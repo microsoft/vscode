@@ -51,6 +51,7 @@ import { ICopilotConfigSlashCommandState } from '../../common/copilotConfigSlash
 import { getCopilotHomePath } from '../../common/copilotHome.js';
 import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDataService.js';
 import { IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
+import { MODEL_REFRESH_BASE_DELAY_MS, MODEL_REFRESH_MAX_ATTEMPTS, MODEL_REFRESH_MAX_DELAY_MS, modelRefreshBackoff } from '../shared/modelRefreshRetry.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import type { ErrorInfo } from '../../common/state/protocol/common/state.js';
 import { ProtectedResourceMetadata, type AgentSelection, type ChildCustomizationType, type ConfigPropertySchema, type ConfigSchema, type CustomizationEnablement, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
@@ -78,6 +79,7 @@ import { createCopilotCliEnvironment } from './copilotCliEnvironment.js';
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
 import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
 import { CopilotGitHubTelemetryForwarder } from './copilotGitHubTelemetryForwarder.js';
+import { CopilotSecondaryAssignmentContext } from './copilotSecondaryAssignmentContext.js';
 import { CopilotSessionLauncher, ContextSizeConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, isCopilotReasoningEffort, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
 import { CopilotAgentStartupConfig } from './copilotAgentStartupConfig.js';
 import { ShellManager } from './copilotShellTools.js';
@@ -750,9 +752,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * client restart, or the host's periodic scheduler), so we retry a few
 	 * times before giving up. Overridable in tests to avoid real delays.
 	 */
-	protected readonly _modelRefreshMaxAttempts: number = 5;
-	protected readonly _modelRefreshBaseDelayMs: number = 1_000;
-	protected readonly _modelRefreshMaxDelayMs: number = 30_000;
+	protected readonly _modelRefreshMaxAttempts: number = MODEL_REFRESH_MAX_ATTEMPTS;
+	protected readonly _modelRefreshBaseDelayMs: number = MODEL_REFRESH_BASE_DELAY_MS;
+	protected readonly _modelRefreshMaxDelayMs: number = MODEL_REFRESH_MAX_DELAY_MS;
 	/** Pending model-refresh retry timer; cleared on a fresh refresh, shutdown, or dispose. */
 	private readonly _modelRefreshRetry = this._register(new MutableDisposable());
 	/**
@@ -874,7 +876,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _plugins: PluginController;
 	private readonly _sessionLauncher: CopilotSessionLauncher;
 	private readonly _gitHubTelemetryForwarder: CopilotGitHubTelemetryForwarder;
-	private _vscodeAssignmentContext: string | undefined;
+	private readonly _secondaryAssignmentContext: CopilotSecondaryAssignmentContext;
 	private readonly _githubTelemetryRouter: AgentHostGitHubTelemetryRouter | undefined;
 	readonly onDidCustomizationsChange: Event<void>;
 	/** Per-session active client state for tools + plugin snapshot tracking. */
@@ -915,7 +917,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController, () => this._ensureClient()));
 		this._sessionLauncher = this._instantiationService.createInstance(CopilotSessionLauncher);
 		this._configurationService.publishRootTransientValues?.({ [CopilotCliVSCodeAssignmentContextKey]: undefined });
-		this._gitHubTelemetryForwarder = this._instantiationService.createInstance(CopilotGitHubTelemetryForwarder, () => this._restrictedTelemetryEnabled, () => this._vscodeAssignmentContext);
+		this._gitHubTelemetryForwarder = this._instantiationService.createInstance(CopilotGitHubTelemetryForwarder, () => this._restrictedTelemetryEnabled);
+		this._secondaryAssignmentContext = this._instantiationService.createInstance(CopilotSecondaryAssignmentContext);
 		this._register(this._configurationService.onDidRootConfigChange(() => this._updateVSCodeAssignmentContext()));
 		this._updateVSCodeAssignmentContext();
 		this._slashCommandProvider = new CopilotSlashCommandProvider(() => this._ensureClient().then(c => c.rpc.commands.list().then(c => c.commands)), this._logService);
@@ -1058,15 +1061,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		);
 	}
 
-	/**
-	 * A key absent from root config (e.g. dropped by a schema-filtered replace)
-	 * keeps the last-known context sticky; an explicit empty-string dispatch
-	 * from the workbench clears it.
-	 */
 	private _updateVSCodeAssignmentContext(): void {
 		const value = this._configurationService.getRootConfigValues?.()[CopilotCliVSCodeAssignmentContextKey];
 		if (typeof value === 'string') {
-			this._vscodeAssignmentContext = value || undefined;
+			this._telemetryService.setExperimentProperty('abexp.assignmentcontext', value);
 		}
 	}
 
@@ -1633,6 +1631,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _routeGitHubTelemetry(notification: GitHubTelemetryNotification): Promise<void> {
+		this._secondaryAssignmentContext.update(notification);
 		const additionalProperties = { initiatorClientType: this._clientTypeForTelemetry(notification.sessionId) };
 		const router = this._githubTelemetryRouter;
 		if (!router?.isTarget(notification)) {
@@ -1851,8 +1850,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * floor keeps a minimum spacing between attempts.
 	 */
 	private _modelRefreshBackoff(attempt: number): number {
-		const exp = Math.min(this._modelRefreshMaxDelayMs, this._modelRefreshBaseDelayMs * 2 ** attempt);
-		return Math.round(exp / 2 + Math.random() * (exp / 2));
+		return modelRefreshBackoff(attempt, this._modelRefreshBaseDelayMs, this._modelRefreshMaxDelayMs);
 	}
 
 	private _stopClient(): Promise<void> {
@@ -2365,8 +2363,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return processLogsTarget.collectDebugLogs(outputDirectory, false);
 	}
 
-	async getSessionStateFile(session: URI): Promise<URI | undefined> {
-		const resource = URI.file(join(getCopilotHomePath(this._environmentService.userHome.fsPath, process.env), 'session-state', this._sdkConversationId(session), 'events.jsonl'));
+	async getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined> {
+		const sdkConversationId = chat && !isDefaultChatUri(chat)
+			? this._findChatByUri(chat)?.sessionId ?? this._chatBackings.get(chat.toString())?.sdkSessionId
+			: this._sdkConversationId(session);
+		if (!sdkConversationId) {
+			return undefined;
+		}
+		const resource = URI.file(join(getCopilotHomePath(this._environmentService.userHome.fsPath, process.env), 'session-state', sdkConversationId, 'events.jsonl'));
 		return await this._fileService.exists(resource) ? resource : undefined;
 	}
 
@@ -2908,6 +2912,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		changeModel: (chatUri: URI, model: ModelSelection, context: URI | IAgentChatContext): Promise<void> => {
 			return this._changeModel(chatUri, model, context);
 		},
+		resumeTurn: (chatUri: URI, turnId: string, context: URI | IAgentChatContext, senderClientId?: string, clientType?: AgentHostClientType): Promise<void> => {
+			return this._resumeTurn(chatUri, turnId, context, senderClientId, clientType);
+		},
 		changeAgent: (chatUri: URI, agent: AgentSelection | undefined, context: URI | IAgentChatContext): Promise<void> => {
 			return this._changeAgent(chatUri, agent, context);
 		},
@@ -3091,6 +3098,42 @@ export class CopilotAgent extends Disposable implements IAgent {
 			...(project ? { project } : {}),
 			...this._chatBackingResult(sessionId, { sdkSessionId: reserved?.sdkSessionId ?? sdkSessionId }),
 		};
+	}
+
+	private async _resumeTurn(chat: URI, turnId: string, operationContext: URI | IAgentChatContext, senderClientId?: string, clientType = AgentHostClientType.Unknown): Promise<void> {
+		try {
+			await this._resumeTurnOnce(chat, turnId, operationContext, senderClientId, clientType);
+		} catch (error) {
+			const recovery = await this._handleClientOperationFailure(error, 'resumeTurn', this._clientFailureCorrelation(chat, turnId, operationContext));
+			if (recovery?.failedTurnIds.has(turnId)) {
+				return;
+			}
+			throw error;
+		}
+	}
+
+	private async _resumeTurnOnce(chat: URI, turnId: string, operationContext: URI | IAgentChatContext, senderClientId?: string, clientType = AgentHostClientType.Unknown): Promise<void> {
+		const context = this._resolveChatContext(chat, operationContext);
+		const clientTelemetryContext = URI.isUri(operationContext) ? undefined : operationContext.clientTelemetryContext;
+		await this._queueChat(context.configurationId, context.sequencerKey, async () => {
+			const current = this._resolveChatContext(chat, operationContext);
+			let entry = current.target ?? await this._ensureResolvedChatSession(current);
+			if (!entry) {
+				throw new Error(`[Copilot] resumeTurn for unknown chat: ${chat.toString()}`);
+			}
+			const activeClient = this._activeClients.get(current.configurationResource);
+			const currentSnapshot = activeClient ? await activeClient.snapshot(current.chatKey) : undefined;
+			if (activeClient && currentSnapshot && await activeClient.requiresRestart(entry.appliedSnapshot, current.chatKey, currentSnapshot)) {
+				await this._destroyLiveSession(entry, true);
+				entry = entry.sessionId === current.configurationId
+					? await this._resumeSession(current.configurationId, current.chat)
+					: await this._ensureResolvedChatSession(current);
+			}
+			if (!entry) {
+				throw new Error(`[Copilot] resumeTurn for unavailable chat: ${chat.toString()}`);
+			}
+			await entry.resume(turnId, this._resolveSdkMode(current.configurationResource), senderClientId, clientType, clientTelemetryContext);
+		});
 	}
 
 	/** Mints the chat's backing from an imported conversation supplied by Agent Host. */
