@@ -3,7 +3,7 @@ parameters:
     type: string # linux, darwin, win32
 
 steps:
-  - script: git lfs install --local
+  - script: git lfs install
     condition: and(succeeded(), eq(variables['Build.Repository.Provider'], 'TfsGit'))
     displayName: Initialize Git LFS for Azure Repos
 
