@@ -9,6 +9,9 @@ import { URI } from '../../base/common/uri.js';
 import { IAgentConnection } from '../../platform/agentHost/common/agentService.js';
 import { createDecorator } from '../../platform/instantiation/common/instantiation.js';
 
+/** Hidden setting that enables Dev Container Agent Host sessions. */
+export const DevContainerAgentHostEnabledSettingId = 'chat.agentHost.devContainer.enabled';
+
 /** Connected Agent Host and workspace mapping produced by a Dev Container connector. */
 export interface IDevContainerAgentHostConnection {
 	/**

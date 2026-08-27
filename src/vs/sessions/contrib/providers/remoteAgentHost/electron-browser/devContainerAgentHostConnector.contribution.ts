@@ -26,15 +26,19 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ISharedProcessService } from '../../../../../platform/ipc/electron-browser/services.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../../workbench/services/output/common/output.js';
-import { IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
+import { DevContainerAgentHostEnabledSettingId, IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
 
-/** Throws when remote Agent Host connections are disabled. */
-export function ensureRemoteAgentHostsEnabled(configurationService: IConfigurationService): void {
+/** Throws when Dev Container Agent Host connections are disabled. */
+export function ensureDevContainerAgentHostsEnabled(configurationService: IConfigurationService): void {
+	if (!configurationService.getValue<boolean>(DevContainerAgentHostEnabledSettingId)) {
+		throw new Error(localize('devContainerAgentHost.disabled', "Dev Container Agent Host connections are not enabled."));
+	}
 	if (!configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
 		throw new Error(localize('devContainerAgentHost.remoteAgentHostsDisabled', "Remote Agent Host connections are not enabled."));
 	}
@@ -47,7 +51,11 @@ export async function isDevContainerWorkspaceAvailable(
 	mainService: IDevContainerAgentHostMainService,
 	configurationService: IConfigurationService,
 ): Promise<boolean> {
-	if (!configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId) || workspaceUri.scheme !== Schemas.file) {
+	if (
+		!configurationService.getValue<boolean>(DevContainerAgentHostEnabledSettingId)
+		|| !configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)
+		|| workspaceUri.scheme !== Schemas.file
+	) {
 		return false;
 	}
 	const hasConfiguration = await Promise.all([
@@ -116,7 +124,7 @@ class DevContainerAgentHostConnector implements IDevContainerAgentHostConnector 
 	}
 
 	async connect(workspaceUri: URI, token: CancellationToken): Promise<IDevContainerAgentHostConnection> {
-		ensureRemoteAgentHostsEnabled(this._configurationService);
+		ensureDevContainerAgentHostsEnabled(this._configurationService);
 		if (workspaceUri.scheme !== Schemas.file) {
 			throw new Error(localize('devContainerAgentHost.localWorkspaceRequired', "Dev Container Agent Hosts require a local file workspace."));
 		}
@@ -208,6 +216,18 @@ class DevContainerAgentHostConnectorContribution extends Disposable implements I
 		this._register(service.registerConnector(instantiationService.createInstance(DevContainerAgentHostConnector)));
 	}
 }
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	properties: {
+		[DevContainerAgentHostEnabledSettingId]: {
+			type: 'boolean',
+			description: localize('chat.agentHost.devContainer.enabled', "Enable running Agent Host sessions in Dev Containers."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			included: false,
+		},
+	},
+});
 
 registerWorkbenchContribution2(
 	DevContainerAgentHostConnectorContribution.ID,
