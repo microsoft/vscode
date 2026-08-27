@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -129,7 +128,6 @@ class StubSessionsProvidersService extends Disposable {
 const GITHUB_SANDBOX_GROUP: IAgentHostGroup = {
 	id: 'githubsandbox',
 	label: 'GitHub Sandboxes',
-	icon: Codicon.package,
 	order: 1,
 	connectable: false,
 };

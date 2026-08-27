@@ -67,12 +67,12 @@ const SANDBOX_SESSION_SCHEME_ALIAS: ISessionSchemeAlias = {
 /**
  * Folds every sandbox environment into one "GitHub Sandboxes" entry in the host
  * filter. Sandboxes are not connectable: one connects when a session of it is
- * opened, so a manual toggle would act on nothing the user pointed at.
+ * opened, so a manual toggle would act on nothing the user pointed at. The icon
+ * is left to the default so the entry reads like every other host.
  */
 const CLOUD_SANDBOX_HOST_GROUP: IAgentHostGroup = {
 	id: 'githubsandbox',
 	label: localize('githubSandbox.hostGroup', "GitHub Sandboxes"),
-	icon: Codicon.package,
 	order: 1,
 	connectable: false,
 };
