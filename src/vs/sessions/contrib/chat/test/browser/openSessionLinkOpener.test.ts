@@ -17,6 +17,7 @@ import { ILinkPresentationProvider, ILinkPresentationService } from '../../../..
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IOpener, IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ISessionSummaryHoverProvider, ISessionSummaryHoverService } from '../../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHoverService.js';
+import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -91,6 +92,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			sessionsProvidersService,
 			sessionSummaryHoverService,
 			new class extends mock<ILabelService>() { },
+			new class extends mock<IPreferencesService>() { },
 		));
 
 		if (!registeredOpener) {
@@ -156,6 +158,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			sessionsProvidersService,
 			sessionSummaryHoverService,
 			new class extends mock<ILabelService>() { },
+			new class extends mock<IPreferencesService>() { },
 		));
 
 		const watcher = presentationProvider?.createLinkPresentationWatcher(URI.parse(buildOpenSessionLinkUri(sessionResource, 'chat-2')));
@@ -220,6 +223,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			sessionsProvidersService,
 			hover.service,
 			new class extends mock<ILabelService>() { },
+			new class extends mock<IPreferencesService>() { },
 		));
 
 		const provider = hover.provider();
@@ -236,6 +240,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 				location: undefined,
 				pullRequests: undefined,
 				createdBy: undefined,
+				externalSession: undefined,
 				providerLabel: 'Local Agent Host',
 			},
 			unknown: undefined,

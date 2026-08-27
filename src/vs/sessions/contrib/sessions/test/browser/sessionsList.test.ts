@@ -26,6 +26,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { IPreferencesService, IOpenSettingsOptions } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { getSessionChatDragData, isSessionChatDrag, SessionsDataTransfers } from '../../../../browser/dnd.js';
 import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
@@ -47,6 +48,7 @@ function createSession(id: string, opts: {
 	isArchived?: boolean;
 	isRead?: boolean;
 	isAutomation?: boolean;
+	isExternal?: boolean;
 	resource?: URI;
 }): ISession {
 	const createdAt = opts.createdAt ?? new Date();
@@ -68,6 +70,7 @@ function createSession(id: string, opts: {
 		} : undefined),
 		isQuickChat: observableValue(`isQuickChat-${id}`, opts.workspaceLabel === undefined),
 		isAutomation: observableValue(`isAutomation-${id}`, opts.isAutomation === true),
+		isExternal: observableValue(`isExternal-${id}`, opts.isExternal === true),
 		title: observableValue(`title-${id}`, id),
 		updatedAt: observableValue(`updatedAt-${id}`, updatedAt),
 		status: observableValue(`status-${id}`, SessionStatus.Completed),
@@ -552,6 +555,7 @@ suite('Sessions - SessionsList', () => {
 			},
 			new class extends mock<IOpenerService>() { },
 			new class extends mock<ILabelService>() { },
+			new class extends mock<IPreferencesService>() { },
 			{
 				title: 'Creator session',
 				onOpen,
@@ -561,6 +565,36 @@ suite('Sessions - SessionsList', () => {
 		assert.deepStrictEqual(hover.createdBy, {
 			title: 'Creator session',
 			onOpen,
+		});
+	});
+
+	test('external session hover leads to the setting that governs external sessions', () => {
+		const queries: (string | undefined)[] = [];
+		const hoverFor = (isExternal: boolean) => getSessionSummaryHoverData(
+			createSession(isExternal ? 'External' : 'Local', { workspaceLabel: 'Workspace', isExternal }),
+			new class extends mock<ISessionsProvidersService>() {
+				override getProvider() { return undefined; }
+			},
+			new class extends mock<IOpenerService>() { },
+			new class extends mock<ILabelService>() { },
+			new class extends mock<IPreferencesService>() {
+				override async openSettings(options?: IOpenSettingsOptions): Promise<undefined> {
+					queries.push(options?.query);
+					return undefined;
+				}
+			},
+		);
+		const externalHover = hoverFor(true);
+		externalHover.externalSession?.onOpen();
+
+		assert.deepStrictEqual({
+			external: !!externalHover.externalSession,
+			local: !!hoverFor(false).externalSession,
+			queries,
+		}, {
+			external: true,
+			local: false,
+			queries: ['@id:chat.agentSessions.showExternal'],
 		});
 	});
 
@@ -617,6 +651,7 @@ suite('Sessions - SessionsList', () => {
 			new class extends mock<ILabelService>() {
 				override getUriLabel(resource: URI): string { return resource.path; }
 			},
+			new class extends mock<IPreferencesService>() { },
 		);
 		hover.pullRequests?.forEach(pullRequest => pullRequest.onOpen?.());
 
