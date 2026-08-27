@@ -1386,6 +1386,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 
 	if (context.tier === 'parity') {
 		const supportsProviderFileEdits = config.streamingFileCreateToolName !== undefined || config.fileOperationStrategy === 'shell';
+		// Skip unstable Codex packaged-Linux shell replay while retaining recording and unaffected platforms.
 		const providerFileEditsEnabled = config.fileOperationStrategy !== 'shell' || context.portableShellToolReplayEnabled;
 		(config.supportsMultipleChats && supportsProviderFileEdits && providerFileEditsEnabled ? test : test.skip)('session changeset aggregates provider edits from default and peer chats', async function () {
 			this.timeout(240_000);
