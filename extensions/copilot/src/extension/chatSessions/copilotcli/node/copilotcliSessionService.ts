@@ -160,6 +160,8 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	/** Whether we've attempted to install the bridge (only try once). */
 	private _bridgeInstalled = false;
 	private showExternalSessions: boolean;
+	/** Snapshotted at startup: when on, the agent host surfaces legacy sessions, so this list stands down for non-archived legacy ones. A change requires a window reload. */
+	private readonly _migrateLegacyEnabled: boolean;
 	private _customAgentLookupChanged: boolean = false;
 	private _customAgentLookupRebuild: Promise<void> | undefined;
 	private readonly _customAgentLookup = new Map<string, [ChatCustomAgent, Lazy<Promise<string>>]>();
@@ -189,6 +191,8 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	) {
 		super();
 		this.showExternalSessions = this.configurationService.getConfig(ConfigKey.Advanced.CLIShowExternalSessions);
+		// Core (non-`github.copilot`) setting, so it must be read via getNonExtensionConfig.
+		this._migrateLegacyEnabled = this.configurationService.getNonExtensionConfig<boolean>('chat.agentSessions.migrateLegacyCopilotCli') === true;
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ConfigKey.Advanced.CLIShowExternalSessions.fullyQualifiedId)) {
 				this.showExternalSessions = this.configurationService.getConfig(ConfigKey.Advanced.CLIShowExternalSessions);
@@ -469,6 +473,17 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 					const workingDirectory = metadata.context?.cwd ? URI.file(metadata.context.cwd) : undefined;
 					this._sessionWorkingDirectories.set(metadata.sessionId, workingDirectory);
 					if (!await this.shouldShowSession(metadata.sessionId, metadata.context)) {
+						return;
+					}
+					// When migrating legacy CLI sessions is enabled, the agent host surfaces
+					// them, so stand down here for non-archived legacy (origin 'vscode')
+					// sessions to avoid double-showing. Archived legacy sessions stay in this
+					// list — their archive / worktree lifecycle lives here — until opened.
+					// Live wrappers (freshly created sessions) are left to the in-progress path.
+					if (this._migrateLegacyEnabled
+						&& !this._sessionWrappers.has(metadata.sessionId)
+						&& await this._chatSessionMetadataStore.getSessionOrigin(metadata.sessionId) === 'vscode'
+						&& !await this._chatSessionMetadataStore.getSessionArchived(metadata.sessionId)) {
 						return;
 					}
 					const id = metadata.sessionId;

@@ -3394,6 +3394,37 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		testWithExternalSessionClock('coalesces a burst of storm-driven reconciliations into a single trailing pass', async () => {
+			const now = Date.now();
+			const svc = createExternalSessionService();
+			const agent = disposables.add(new TimedExternalAgent('copilot'));
+			agent.addSession('a', now);
+			svc.registerProvider(agent);
+			await svc.listSessions();
+			await waitForSessionListReconciliation(svc);
+
+			// Count reconciliation passes directly: each is one O(catalog) walk.
+			let reconcilePasses = 0;
+			const internal = svc as unknown as {
+				_reconcileExternalSessions(previousMode?: AgentHostExternalSessionsMode): Promise<void>;
+				_queueSessionListReconciliation(): void;
+			};
+			const reconcile = internal._reconcileExternalSessions.bind(svc);
+			internal._reconcileExternalSessions = previousMode => {
+				reconcilePasses++;
+				return reconcile(previousMode);
+			};
+
+			// Without coalescing, this synchronous burst chains one pass per call.
+			for (let i = 0; i < 10; i++) {
+				internal._queueSessionListReconciliation();
+			}
+			await waitForSessionListReconciliation(svc);
+
+			// A burst collapses to the in-flight pass plus at most one trailing pass.
+			assert.ok(reconcilePasses <= 2, `expected <= 2 reconcile passes, got ${reconcilePasses}`);
+		});
+
 		testWithExternalSessionClock('recent replaces the oldest visible external session when a newer session is discovered', async () => {
 			const now = Date.now();
 			const svc = createExternalSessionService();
@@ -3736,7 +3767,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('an adoptable chat retracted by disabling migration is re-surfaced when it is re-enabled', async () => {
+		test('keeps a surfaced adoptable chat when the migration setting is disabled at runtime (frozen until reload)', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MockAgent('copilot'));
 			svc.registerProvider(agent);
@@ -3751,20 +3782,16 @@ suite('AgentService (node dispatcher)', () => {
 			}
 			const afterFirstEnable = !!getStateManager(svc).getSurfacedSessionSummary(session.toString());
 
+			// The gate is snapshotted at startup, so disabling it at runtime does not
+			// retract the surfaced adoptable chat: it stays until a window reload.
 			getConfigurationService(svc).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: false });
-			await timeout(0);
-			const whileDisabled = !!getStateManager(svc).getSurfacedSessionSummary(session.toString());
-
-			// Discovery skips chats already in the registry, so re-enabling must restore
-			// them from the registry rather than waiting for another discovery pass.
-			getConfigurationService(svc).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
-			for (let i = 0; i < 50 && !getStateManager(svc).getSurfacedSessionSummary(session.toString()); i++) {
+			for (let i = 0; i < 20; i++) {
 				await timeout(0);
 			}
 
 			assert.deepStrictEqual(
-				{ afterFirstEnable, whileDisabled, afterReEnable: !!getStateManager(svc).getSurfacedSessionSummary(session.toString()) },
-				{ afterFirstEnable: true, whileDisabled: false, afterReEnable: true },
+				{ afterFirstEnable, whileDisabled: !!getStateManager(svc).getSurfacedSessionSummary(session.toString()) },
+				{ afterFirstEnable: true, whileDisabled: true },
 			);
 		});
 
@@ -7496,8 +7523,8 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 
-		test('adopts a surfaced legacy session on open only when the migrate setting is on', async () => {
-			// Open-adoption is strictly gated on the live migrate setting.
+		test('adopts a surfaced legacy session on open only when the migrate setting is on (frozen at startup)', async () => {
+			// Open-adoption is gated on the startup-frozen migrate snapshot.
 			class AdoptOnOpenAgent extends MockAgent {
 				adoptCalls = 0;
 				private _adopted = false;
@@ -7513,16 +7540,8 @@ suite('AgentService (node dispatcher)', () => {
 				}
 			}
 
-			const db = new TestSessionDatabase();
-			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			const agent = disposables.add(new AdoptOnOpenAgent());
-			localService.registerProvider(agent);
-			agent.sessionMessages = [];
-
-			const session = AgentSession.uri('copilot', 'surfaced-legacy');
-			const sessionStr = session.toString();
-			getStateManager(localService).announceSurfacedSession({
-				resource: sessionStr,
+			const surface = (svc: IAgentService, session: URI) => getStateManager(svc).announceSurfacedSession({
+				resource: session.toString(),
 				provider: 'copilot',
 				title: 'Legacy',
 				status: SessionStatus.Idle,
@@ -7531,16 +7550,29 @@ suite('AgentService (node dispatcher)', () => {
 				_meta: withSessionEhcliAdoptable(undefined),
 			});
 
-			// Migrate setting off: opening must not adopt (dead-ends on missing backend metadata).
-			await assert.rejects(() => localService.restoreSession(session));
-			assert.strictEqual(agent.adoptCalls, 0);
+			// Migrate setting off at startup: opening must not adopt (refused as a
+			// non-adoptable unregistered chat).
+			const offService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const offAgent = disposables.add(new AdoptOnOpenAgent());
+			offService.registerProvider(offAgent);
+			offAgent.sessionMessages = [];
+			const offSession = AgentSession.uri('copilot', 'surfaced-legacy-off');
+			surface(offService, offSession);
+			await assert.rejects(() => offService.restoreSession(offSession));
+			assert.strictEqual(offAgent.adoptCalls, 0);
 
-			// Migrate setting on: opening adopts in place.
-			getConfigurationService(localService).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
-			await localService.restoreSession(session);
+			// Migrate setting on at startup: opening adopts in place.
+			const onService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const onAgent = disposables.add(new AdoptOnOpenAgent());
+			onService.registerProvider(onAgent);
+			onAgent.sessionMessages = [];
+			getConfigurationService(onService).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+			const onSession = AgentSession.uri('copilot', 'surfaced-legacy-on');
+			surface(onService, onSession);
+			await onService.restoreSession(onSession);
 
 			assert.deepStrictEqual(
-				{ adoptCalls: agent.adoptCalls, restored: !!getStateManager(localService).getSessionState(sessionStr) },
+				{ adoptCalls: onAgent.adoptCalls, restored: !!getStateManager(onService).getSessionState(onSession.toString()) },
 				{ adoptCalls: 1, restored: true },
 			);
 		});
@@ -7984,7 +8016,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('turning the migrate setting off un-surfaces adoptable legacy sessions that were never opened', async () => {
+		test('keeps a surfaced adoptable legacy session when the migrate setting is turned off at runtime (frozen until reload)', async () => {
 			class AdoptOnOpenAgent extends MockAgent {
 				constructor() { super('copilot'); }
 				override async getChatMetadata(): Promise<IAgentChatMetadata | undefined> {
@@ -8018,29 +8050,33 @@ suite('AgentService (node dispatcher)', () => {
 				}
 			}));
 
-			// Turn the setting off: the un-opened surfaced entry is dropped.
+			// The gate is snapshotted at startup, so turning the setting off at runtime
+			// does not un-surface the entry: it stays until a window reload.
 			getConfigurationService(localService).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: false });
 
 			assert.deepStrictEqual(
-				{ surfaced: getStateManager(localService).getSurfacedSessionSummary(sessionStr), removed },
-				{ surfaced: undefined, removed: sessionStr },
+				{ stillSurfaced: !!getStateManager(localService).getSurfacedSessionSummary(sessionStr), removed },
+				{ stillSurfaced: true, removed: undefined },
 			);
 		});
 
 		test('excludes adoptable-legacy sessions from the list while the migrate setting is off', async () => {
 			// Guards against a refresh re-surfacing a registry entry that can no longer be opened while migration is off.
-			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const adoptable: IAgentSessionMetadata = {
 				session: AgentSession.uri('copilot', 'adoptable-list-gate'),
 				startTime: Date.now(),
 				modifiedTime: Date.now(),
 				_meta: withSessionEhcliAdoptable(undefined),
 			};
-			const shouldInclude = (localService as unknown as { _shouldIncludeSession(s: IAgentSessionMetadata): boolean })._shouldIncludeSession.bind(localService);
 
-			const includedWhileOff = shouldInclude(adoptable);
-			getConfigurationService(localService).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
-			const includedWhileOn = shouldInclude(adoptable);
+			// The gate is snapshotted at startup, so each state needs its own service:
+			// one that came up with the setting off, one that came up with it on.
+			const offService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const includedWhileOff = (offService as unknown as { _shouldIncludeSession(s: IAgentSessionMetadata): boolean })._shouldIncludeSession.bind(offService)(adoptable);
+
+			const onService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			getConfigurationService(onService).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+			const includedWhileOn = (onService as unknown as { _shouldIncludeSession(s: IAgentSessionMetadata): boolean })._shouldIncludeSession.bind(onService)(adoptable);
 
 			assert.deepStrictEqual({ includedWhileOff, includedWhileOn }, { includedWhileOff: false, includedWhileOn: true });
 		});

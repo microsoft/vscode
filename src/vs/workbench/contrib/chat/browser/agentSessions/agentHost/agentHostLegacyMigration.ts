@@ -17,6 +17,25 @@ import type { SessionState } from '../../../../../../platform/agentHost/common/s
 import { COPILOT_CLI_AGENT_PROVIDER, getCopilotCliSessionRawId, migratedCopilotCliResource } from '../../copilotCliEventsUri.js';
 
 /**
+ * Startup-frozen value of {@link ChatConfiguration.MigrateLegacyCopilotCliSessions}.
+ * Migration is a one-time, one-way operation, so enabling the setting only takes
+ * effect on the next window reload: until then an open must behave as if it were
+ * still off. {@link primeLegacyMigrationStartupSnapshot} captures the value once at
+ * startup; before that (only in tests) the live value is used so each test's stub
+ * is honored in isolation.
+ */
+let _legacyMigrationEnabledAtStartup: boolean | undefined;
+
+export function primeLegacyMigrationStartupSnapshot(configurationService: IConfigurationService): void {
+	_legacyMigrationEnabledAtStartup = configurationService.getValue<boolean>(ChatConfiguration.MigrateLegacyCopilotCliSessions) === true;
+}
+
+export function isLegacyMigrationEnabledAtStartup(configurationService: IConfigurationService): boolean {
+	return _legacyMigrationEnabledAtStartup ?? (configurationService.getValue<boolean>(ChatConfiguration.MigrateLegacyCopilotCliSessions) === true);
+}
+
+
+/**
  * How long an adoption probe may take before falling back to the legacy resource.
  *
  * Right after migration is enabled on a large catalogue the host is still busy
@@ -102,8 +121,10 @@ export async function adoptLegacyCopilotCliResource(
 	// The host restores a session whether or not it adopts it, so a successful
 	// probe does not by itself mean migration happened. Gate on the setting here:
 	// without it we would move sessions onto the agent host for users who never
-	// opted in — including external ones, which are never adopted at all.
-	if (configurationService.getValue<boolean>(ChatConfiguration.MigrateLegacyCopilotCliSessions) !== true) {
+	// opted in — including external ones, which are never adopted at all. The gate
+	// is the startup-frozen value: enabling migration takes effect on the next
+	// window reload, so an open before reload behaves as if it were still off.
+	if (!isLegacyMigrationEnabledAtStartup(configurationService)) {
 		report('settingDisabled');
 		return undefined;
 	}

@@ -19,6 +19,7 @@ import { IInstantiationService } from '../../../../../../../platform/instantiati
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IProgressService } from '../../../../../../../platform/progress/common/progress.js';
 import { IStorageService } from '../../../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
 import { isResourceEditorInput } from '../../../../../../common/editor.js';
@@ -73,6 +74,7 @@ suite('ChatEditorInput', () => {
 			{ _serviceBrand: undefined, enabled: constObservable(false), managedSandboxEnforced: constObservable(false) },
 			{ ambientConnection: undefined } as unknown as IAgentHostConnectionsService,
 			NullTelemetryService,
+			{ withProgress: (_options: unknown, task: (progress: unknown) => unknown) => task({ report() { } }) } as unknown as IProgressService,
 		);
 
 		try {
@@ -130,6 +132,7 @@ suite('ChatEditorInput', () => {
 			{ _serviceBrand: undefined, enabled: constObservable(false), managedSandboxEnforced: constObservable(false) },
 			{ ambientConnection: undefined } as unknown as IAgentHostConnectionsService,
 			NullTelemetryService,
+			{ withProgress: (_options: unknown, task: (progress: unknown) => unknown) => task({ report() { } }) } as unknown as IProgressService,
 		);
 
 		try {
