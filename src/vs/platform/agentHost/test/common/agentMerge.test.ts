@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AgentMergeConfiguration, evaluateAgentMerge, getNonMergeSessionConfigValues, readAgentMergeSessionState, shouldStopMergingAfterAgentChanges } from '../../common/agentMerge.js';
+import { AgentMergeConfiguration, AGENT_MERGE_UNKNOWN_COMMIT, evaluateAgentMerge, getNonMergeSessionConfigValues, readAgentMergeSessionState, shouldStopMergingAfterAgentChanges } from '../../common/agentMerge.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { PullRequestSnapshot } from '../../../github/common/githubPullRequestService.js';
 
@@ -225,22 +225,26 @@ suite('Agent Merge gate', () => {
 		});
 	});
 
-	test('stops merging automatically once a repair turn lands a commit', () => {
+	test('stops merging automatically once a repair turn changes the worktree', () => {
 		const ifUnchanged: AgentMergeConfiguration = { ...configuration, mergePullRequest: 'ifUnchanged' };
 		const enabled = { enabled: true };
 
 		assert.deepStrictEqual({
 			noRepairYet: shouldStopMergingAfterAgentChanges(ifUnchanged, enabled, 'sha1'),
-			repairPushedNothing: shouldStopMergingAfterAgentChanges(ifUnchanged, { ...enabled, repairHeadSha: 'sha1' }, 'sha1'),
-			repairLandedCommit: shouldStopMergingAfterAgentChanges(ifUnchanged, { ...enabled, repairHeadSha: 'sha1' }, 'sha2'),
-			headUnknown: shouldStopMergingAfterAgentChanges(ifUnchanged, { ...enabled, repairHeadSha: 'sha1' }, undefined),
-			always: shouldStopMergingAfterAgentChanges({ ...configuration, mergePullRequest: 'always' }, { ...enabled, repairHeadSha: 'sha1' }, 'sha2'),
-			never: shouldStopMergingAfterAgentChanges({ ...configuration, mergePullRequest: 'never' }, { ...enabled, repairHeadSha: 'sha1' }, 'sha2'),
+			repairCommittedNothing: shouldStopMergingAfterAgentChanges(ifUnchanged, { ...enabled, repairBaseCommit: 'sha1' }, 'sha1'),
+			repairCommitted: shouldStopMergingAfterAgentChanges(ifUnchanged, { ...enabled, repairBaseCommit: 'sha1' }, 'sha2'),
+			// Fails closed: an unreadable worktree after a repair turn, and an
+			// unreadable one when the baseline was taken, both count as changed.
+			worktreeUnreadable: shouldStopMergingAfterAgentChanges(ifUnchanged, { ...enabled, repairBaseCommit: 'sha1' }, undefined),
+			baselineUnknown: shouldStopMergingAfterAgentChanges(ifUnchanged, { ...enabled, repairBaseCommit: AGENT_MERGE_UNKNOWN_COMMIT }, 'sha1'),
+			always: shouldStopMergingAfterAgentChanges({ ...configuration, mergePullRequest: 'always' }, { ...enabled, repairBaseCommit: 'sha1' }, 'sha2'),
+			never: shouldStopMergingAfterAgentChanges({ ...configuration, mergePullRequest: 'never' }, { ...enabled, repairBaseCommit: 'sha1' }, 'sha2'),
 		}, {
 			noRepairYet: false,
-			repairPushedNothing: false,
-			repairLandedCommit: true,
-			headUnknown: false,
+			repairCommittedNothing: false,
+			repairCommitted: true,
+			worktreeUnreadable: true,
+			baselineUnknown: true,
 			always: false,
 			never: false,
 		});

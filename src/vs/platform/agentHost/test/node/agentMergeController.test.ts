@@ -12,6 +12,8 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { AgentMergeConfigKey, agentMergeRootConfigSchema, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
+import { IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { URI } from '../../../../base/common/uri.js';
 import { AgentSystemNotificationKind } from '../../common/meta/agentSystemNotificationMeta.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
@@ -24,6 +26,15 @@ import { AgentMergeController, firstCredentialFailure, isSamlEnforcementError, p
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 
 let sessionCounter = 0;
+
+/**
+ * The controller only reads git to resolve the worktree commit that backs the
+ * "merge only while unchanged" baseline. These tests never exercise that path,
+ * so the worktree simply reports as unreadable.
+ */
+const noopGitService = new class extends mock<IAgentHostGitService>() {
+	override async getRepositoryRoot(): Promise<URI | undefined> { return undefined; }
+}();
 
 suite('AgentMergeController', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -53,6 +64,7 @@ suite('AgentMergeController', () => {
 			stateManager,
 			configurationService,
 			gitStateService,
+			noopGitService,
 			new class extends mock<IGitHubService>() { }(),
 			endpointService,
 			logService,
@@ -251,6 +263,7 @@ suite('AgentMergeController', () => {
 			stateManager,
 			configurationService,
 			gitStateService,
+			noopGitService,
 			new class extends mock<IGitHubService>() { }(),
 			endpointService,
 			logService,
@@ -316,6 +329,7 @@ suite('AgentMergeController', () => {
 			stateManager,
 			configurationService,
 			gitStateService,
+			noopGitService,
 			new class extends mock<IGitHubService>() { }(),
 			endpointService,
 			logService,
@@ -385,6 +399,7 @@ suite('AgentMergeController', () => {
 			stateManager,
 			configurationService,
 			gitStateService,
+			noopGitService,
 			new class extends mock<IGitHubService>() { }(),
 			endpointService,
 			logService,
@@ -421,6 +436,7 @@ suite('AgentMergeController', () => {
 			stateManager,
 			configurationService,
 			gitStateService,
+			noopGitService,
 			new class extends mock<IGitHubService>() { }(),
 			endpointService,
 			logService,

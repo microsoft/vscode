@@ -112,11 +112,16 @@ export interface AgentMergeSessionState {
 	readonly repeatedPromptCount?: number;
 	readonly totalPromptCount?: number;
 	/**
-	 * Pull request head SHA observed when the most recent repair turn started.
-	 * A later head means that turn landed a commit, which is what demotes an
-	 * `ifUnchanged` session to `never`.
+	 * Local worktree commit observed when the most recent repair turn started.
+	 * A different local commit afterwards means that turn produced work, which
+	 * is what demotes an `ifUnchanged` session to `never`.
+	 *
+	 * Deliberately the local commit rather than the pull request's published
+	 * head: GitHub reports a push only after some replication delay, and a turn
+	 * ends by evaluating immediately, so a published comparison would routinely
+	 * read a stale head and merge changes it should have held back.
 	 */
-	readonly repairHeadSha?: string;
+	readonly repairBaseCommit?: string;
 }
 
 export interface AgentMergeControllerState {
@@ -126,7 +131,7 @@ export interface AgentMergeControllerState {
 	readonly lastPromptAt?: string;
 	readonly repeatedPromptCount?: number;
 	readonly totalPromptCount?: number;
-	readonly repairHeadSha?: string;
+	readonly repairBaseCommit?: string;
 }
 
 export type AgentMergeRequiredChecks =
@@ -336,7 +341,7 @@ export function readAgentMergeSessionState(values: Record<string, unknown> | und
 		...(typeof controller.lastPromptAt === 'string' ? { lastPromptAt: controller.lastPromptAt } : {}),
 		...(typeof controller.repeatedPromptCount === 'number' && Number.isInteger(controller.repeatedPromptCount) && controller.repeatedPromptCount >= 0 ? { repeatedPromptCount: controller.repeatedPromptCount } : {}),
 		...(typeof controller.totalPromptCount === 'number' && Number.isInteger(controller.totalPromptCount) && controller.totalPromptCount >= 0 ? { totalPromptCount: controller.totalPromptCount } : {}),
-		...(typeof controller.repairHeadSha === 'string' ? { repairHeadSha: controller.repairHeadSha } : {}),
+		...(typeof controller.repairBaseCommit === 'string' ? { repairBaseCommit: controller.repairBaseCommit } : {}),
 	};
 }
 
@@ -403,24 +408,39 @@ function readOverrides(value: unknown): AgentMergeSessionOverrides | undefined {
 }
 
 /**
+ * Recorded as the repair baseline when the session worktree cannot be read.
+ * No git object id can equal it, so a session that reached this state always
+ * counts as changed — see {@link shouldStopMergingAfterAgentChanges}.
+ */
+export const AGENT_MERGE_UNKNOWN_COMMIT = 'unknown';
+
+/**
  * Whether a session that only authorized merging while the pull request is
- * unchanged must stop merging automatically, because a repair turn has landed
- * a commit since it started.
+ * unchanged must stop merging automatically, because a repair turn produced
+ * work since it started.
+ *
+ * Compares local worktree commits, not the pull request's published head: the
+ * commit exists locally the moment the agent makes it, whereas GitHub reports
+ * it only after a replication delay that a turn-completion check would race.
+ *
+ * Fails closed. Once a repair turn has run, a commit that cannot be resolved
+ * counts as a change: a missed automatic merge is cheap, whereas merging
+ * agent-written changes the user wanted to review first is not.
  *
  * Callers rewrite the chosen value to `never` rather than gating on this, so
  * the value always reflects what will actually happen. Clearing
- * {@link AgentMergeSessionState.repairHeadSha} at the same time is what lets a
- * later re-selection start from a fresh baseline.
+ * {@link AgentMergeSessionState.repairBaseCommit} at the same time is what lets
+ * a later re-selection start from a fresh baseline.
  */
 export function shouldStopMergingAfterAgentChanges(
 	configuration: AgentMergeConfiguration,
 	agentMerge: AgentMergeSessionState,
-	headSha: string | undefined,
+	currentCommit: string | undefined,
 ): boolean {
-	return configuration.mergePullRequest === 'ifUnchanged'
-		&& agentMerge.repairHeadSha !== undefined
-		&& headSha !== undefined
-		&& agentMerge.repairHeadSha !== headSha;
+	if (configuration.mergePullRequest !== 'ifUnchanged' || agentMerge.repairBaseCommit === undefined) {
+		return false;
+	}
+	return agentMerge.repairBaseCommit !== currentCommit;
 }
 
 export function isAgentMergeMergePullRequest(value: unknown): value is AgentMergeMergePullRequest {
