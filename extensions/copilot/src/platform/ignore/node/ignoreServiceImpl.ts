@@ -107,7 +107,7 @@ export class BaseIgnoreService implements IIgnoreService {
 		return this._remoteContentExclusions?.isRegexContextExclusionsEnabled ?? false;
 	}
 
-	public async isCopilotIgnored(file: URI, token?: CancellationToken): Promise<boolean> {
+	public async isCopilotIgnored(file: URI, token?: CancellationToken, contents?: string): Promise<boolean> {
 		this.syncEnablement();
 		if (!this._copilotIgnoreEnabled) {
 			return false;
@@ -116,7 +116,7 @@ export class BaseIgnoreService implements IIgnoreService {
 		// report every file as allowed for the whole of extension startup.
 		await this.init();
 		const localCopilotIgnored = this._copilotIgnoreFiles.isIgnored(file);
-		return localCopilotIgnored || await (this._remoteContentExclusions?.isIgnored(file, token) ?? false);
+		return localCopilotIgnored || await (this._remoteContentExclusions?.isIgnored(file, token, contents) ?? false);
 	}
 
 

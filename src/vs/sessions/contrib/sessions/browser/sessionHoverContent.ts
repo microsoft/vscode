@@ -43,11 +43,13 @@ export function getSessionDiffStats(session: ISession): { files: number; inserti
 export function getSessionSummaryHoverData(
 	session: ISession,
 	sessionsProvidersService: ISessionsProvidersService,
+	createdBy?: ISessionSummaryHoverData['createdBy'],
 ): ISessionSummaryHoverData {
 	return {
 		title: session.title.get() || getUntitledSessionTitle(session.isQuickChat?.get() ?? false),
 		location: getLocation(session),
 		pullRequests: getPullRequests(session),
+		createdBy,
 		providerLabels: getProviderLabels(session, sessionsProvidersService),
 	};
 }

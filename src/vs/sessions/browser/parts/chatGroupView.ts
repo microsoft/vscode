@@ -52,9 +52,6 @@ export interface IChatGroupContext {
 	/** Activate (show + focus) the given chat within this group. */
 	openChat(resource: URI): void;
 
-	/** Start a new chat within this group. */
-	newChat(): void;
-
 	/** A chat tab drag has started for the given chat. */
 	onTabDragStart(resource: URI): void;
 
@@ -175,7 +172,6 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			visible: context.tabsVisible,
 			showSessionActions: context.showSessionActions,
 			openChat: resource => context.openChat(resource),
-			newChat: () => context.newChat(),
 			onTabDragStart: resource => context.onTabDragStart(resource),
 			onTabDragEnd: () => context.onTabDragEnd(),
 		};

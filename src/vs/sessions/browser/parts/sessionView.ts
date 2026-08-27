@@ -252,8 +252,14 @@ export class SessionView extends Disposable implements ISerializableView {
 		standaloneView ? standaloneView.focus() : this._groupsView.focus();
 	}
 
-	startTitleEditing(): void {
-		this._header.startTitleEditing();
+	/**
+	 * Starts an inline rename of the session title in the header. Returns
+	 * `false` when the header cannot host it (e.g. this view is hidden or the
+	 * chat tabs row replaces the header) so callers can fall back to another
+	 * rename affordance.
+	 */
+	startTitleEditing(): boolean {
+		return this._isVisible && this._header.startTitleEditing();
 	}
 
 	selectWorkspace(folderUri: URI, providerId?: string): void {

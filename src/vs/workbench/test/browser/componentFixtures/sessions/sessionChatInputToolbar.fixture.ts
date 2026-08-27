@@ -55,7 +55,7 @@ interface ISessionSpec {
 	readonly turnChanges?: readonly ISessionTurnFileChange[];
 	readonly browsers?: readonly { readonly title?: string; readonly ownerSubagent?: number }[];
 	readonly subagents?: readonly string[];
-	/** Artifacts the agent recorded on the session. */
+	/** Artifacts and references the agent recorded on the session. */
 	readonly artifacts?: readonly ISessionArtifact[];
 	/** Customizations the chat used or read. */
 	readonly customizations?: readonly ISessionChatCustomization[];
@@ -272,29 +272,48 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		})),
 	}),
 
-	// --- Agent-set artifacts -------------------------------------------------
+	// --- Agent-set artifacts and references ----------------------------------
 
 	SessionChatPills_ArtifactSingleFile: defineComponentFixture({
 		render: (ctx) => renderPills(ctx, createMockSession({
-			artifacts: [{ id: 'a1', kind: SessionArtifactKind.File, label: 'Implementation plan', uri: URI.file('/repo/docs/plan.md') }],
+			artifacts: [{ id: 'a1', kind: SessionArtifactKind.File, label: 'Implementation plan', isArtifact: true, uri: URI.file('/repo/docs/plan.md') }],
 		})),
 	}),
 
 	SessionChatPills_ArtifactSinglePullRequest: defineComponentFixture({
 		render: (ctx) => renderPills(ctx, createMockSession({
-			artifacts: [{ id: 'a1', kind: SessionArtifactKind.PullRequest, label: 'Fix login redirect', link: URI.parse('https://github.com/microsoft/vscode/pull/1234'), isGitHub: true }],
+			artifacts: [{ id: 'a1', kind: SessionArtifactKind.PullRequest, label: 'Fix login redirect', isArtifact: true, link: URI.parse('https://github.com/microsoft/vscode/pull/1234'), isGitHub: true }],
 		})),
 	}),
 
 	SessionChatPills_ArtifactsEveryType: defineComponentFixture({
 		render: (ctx) => renderPills(ctx, createMockSession({
 			artifacts: [
-				{ id: 'a1', kind: SessionArtifactKind.PullRequest, label: 'Fix login redirect', link: URI.parse('https://github.com/microsoft/vscode/pull/1234'), isGitHub: true },
-				{ id: 'a2', kind: SessionArtifactKind.Issue, label: 'Crash on startup', link: URI.parse('https://github.com/microsoft/vscode/issues/99'), isGitHub: true },
-				{ id: 'a3', kind: SessionArtifactKind.Commit, label: 'Extract auth helper', link: URI.parse('https://github.com/microsoft/vscode/commit/abc1234'), commitHash: 'abc1234' },
-				{ id: 'a4', kind: SessionArtifactKind.Website, label: 'Design doc', link: URI.parse('https://example.com/design') },
-				{ id: 'a5', kind: SessionArtifactKind.File, label: 'Implementation plan', uri: URI.file('/repo/docs/plan.md') },
-				{ id: 'a6', kind: SessionArtifactKind.Resource, label: 'Dashboard', uri: URI.parse('https://example.com/dashboard') },
+				{ id: 'a1', kind: SessionArtifactKind.PullRequest, label: 'Fix login redirect', isArtifact: true, link: URI.parse('https://github.com/microsoft/vscode/pull/1234'), isGitHub: true },
+				{ id: 'a2', kind: SessionArtifactKind.Issue, label: 'Crash on startup', isArtifact: true, link: URI.parse('https://github.com/microsoft/vscode/issues/99'), isGitHub: true },
+				{ id: 'a3', kind: SessionArtifactKind.Commit, label: 'Extract auth helper', isArtifact: true, link: URI.parse('https://github.com/microsoft/vscode/commit/abc1234'), commitHash: 'abc1234' },
+				{ id: 'a4', kind: SessionArtifactKind.Website, label: 'Design doc', isArtifact: true, link: URI.parse('https://example.com/design') },
+				{ id: 'a5', kind: SessionArtifactKind.File, label: 'Implementation plan', isArtifact: true, uri: URI.file('/repo/docs/plan.md') },
+				{ id: 'a6', kind: SessionArtifactKind.Resource, label: 'Dashboard', isArtifact: true, uri: URI.parse('https://example.com/dashboard') },
+			],
+		})),
+	}),
+
+	// A single reference still summarizes as a count, unlike a single artifact.
+	SessionChatPills_ReferenceSingle: defineComponentFixture({
+		render: (ctx) => renderPills(ctx, createMockSession({
+			artifacts: [{ id: 'r1', kind: SessionArtifactKind.Commit, label: 'Commit that broke login', isArtifact: false, link: URI.parse('https://github.com/microsoft/vscode/commit/def5678'), commitHash: 'def5678' }],
+		})),
+	}),
+
+	SessionChatPills_ArtifactsAndReferences: defineComponentFixture({
+		render: (ctx) => renderPills(ctx, createMockSession({
+			artifacts: [
+				{ id: 'a1', kind: SessionArtifactKind.PullRequest, label: 'Fix login redirect', isArtifact: true, link: URI.parse('https://github.com/microsoft/vscode/pull/1234'), isGitHub: true },
+				{ id: 'a2', kind: SessionArtifactKind.File, label: 'Implementation plan', isArtifact: true, uri: URI.file('/repo/docs/plan.md') },
+				{ id: 'r1', kind: SessionArtifactKind.Issue, label: 'Crash on startup', isArtifact: false, link: URI.parse('https://github.com/microsoft/vscode/issues/99'), isGitHub: true },
+				{ id: 'r2', kind: SessionArtifactKind.Commit, label: 'Commit that broke login', isArtifact: false, link: URI.parse('https://github.com/microsoft/vscode/commit/def5678'), commitHash: 'def5678' },
+				{ id: 'r3', kind: SessionArtifactKind.Website, label: 'OAuth redirect spec', isArtifact: false, link: URI.parse('https://example.com/spec') },
 			],
 		})),
 	}),
