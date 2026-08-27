@@ -10,6 +10,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
+import { COPILOT_CLI_EH_SCHEME } from '../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
 import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
 import { IView, Sizing, SplitView } from '../../../../../base/browser/ui/splitview/splitview.js';
 import { Color } from '../../../../../base/common/color.js';
@@ -228,6 +229,13 @@ export class SessionsView extends ViewPane {
 					}
 				};
 				if (sideBySide) {
+					// A legacy Copilot CLI session adopts asynchronously on open, so the
+					// synchronous showSession + getSessionView path below cannot mount its
+					// (twin) view in time. Open it normally, which migrates it.
+					if (session.resource.scheme === COPILOT_CLI_EH_SCHEME) {
+						this.sessionsService.openChat(session, chat.resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
+						return;
+					}
 					this.sessionsService.showSession(session.resource, { preserveFocus });
 					const sessionView = this.sessionsPartService.getSessionView(session.sessionId);
 					if (!sessionView) {

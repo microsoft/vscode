@@ -25,6 +25,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { SessionsTerminalContribution } from '../../browser/sessionsTerminalContribution.js';
 import { TestPathService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
@@ -374,6 +375,10 @@ suite('SessionsTerminalContribution', () => {
 		});
 
 		instantiationService.stub(IPathService, new TestPathService(HOME_DIR));
+
+		instantiationService.stub(IFileService, new class extends mock<IFileService>() {
+			override async exists(): Promise<boolean> { return true; }
+		});
 
 		instantiationService.stub(IAgentHostTerminalService, new class extends mock<IAgentHostTerminalService>() {
 			override readonly profiles = constObservable<never[]>([]);
