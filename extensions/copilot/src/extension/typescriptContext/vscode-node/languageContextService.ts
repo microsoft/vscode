@@ -18,7 +18,7 @@ import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { InspectorDataProvider } from './inspector';
 import { ThrottledDebouncer } from './throttledDebounce';
 import { ContextItemSummary, ErrorLocation, ErrorPart, type OnCachePopulatedEvent, type OnContextComputedEvent, type OnContextComputedOnTimeoutEvent } from './types';
-import { TS6LanguageContextService } from './tsc6/tsContextService';
+import { TS6LanguageContextService } from './ts6/tsContextService';
 import { TS7LanguageContextService } from './ts7/tsContextService';
 import { currentTokenBudget, NullTSLanguageContextService, type TSLanguageContextService } from './tsContextService';
 import { TypeScript } from './tsService';

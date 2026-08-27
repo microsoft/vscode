@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createServiceIdentifier } from '../../../util/common/services';
 import type * as vscode from 'vscode';
+
+import { createServiceIdentifier } from '../../../util/common/services';
 import { LRUCache } from '../../../util/vs/base/common/map';
 
-export const IGrepResultService = createServiceIdentifier<IGrepResultService>('grepResultService');
+export const IGrepResultService = createServiceIdentifier<IGrepResultService>('IGrepResultService');
 
 interface FileMatch {
 	path: string;
@@ -19,11 +20,15 @@ interface MatchResult {
 }
 
 export interface IGrepResultService {
+	readonly _serviceBrand: undefined;
+
 	addGrepResult(requestId: string, result: MatchResult): void;
 	getGrepResult(requestId: string, path: string, startLine: number, endLine: number): { line: number } | undefined;
 }
 
 export class NullGrepResultService implements IGrepResultService {
+	declare readonly _serviceBrand: undefined;
+
 	addGrepResult(requestId: string, result: MatchResult): void {
 		// No-op
 	}
@@ -38,6 +43,8 @@ interface Matches {
 }
 
 export class GrepResultService implements IGrepResultService {
+	declare readonly _serviceBrand: undefined;
+
 	private readonly cache: LRUCache<string, Matches>;
 
 	constructor() {
