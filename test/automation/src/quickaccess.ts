@@ -197,21 +197,21 @@ export class QuickAccess {
 			// open commands picker
 			await this.openQuickAccessWithRetry(QuickAccessKind.Commands, `>${commandId}`);
 
-			for (let retries = 0; retries < 10; retries++) {
-				const element = await this.quickInput.waitForQuickInputElement();
+			const element = await this.quickInput.waitForQuickInputElement();
 
-				if (element.label === 'No matching commands') {
-					return false;
-				}
-
-				if (match === 'fuzzy' || (match === 'exactLabel' ? element.label === commandId : element.id === commandId)) {
-					return true;
-				}
-
-				await this.code.wait(100);
+			if (element.label === 'No matching commands') {
+				return false;
 			}
 
-			return false;
+			if (match === 'fuzzy') {
+				return true;
+			}
+
+			if (match === 'exactLabel') {
+				return element.label === commandId;
+			}
+
+			return element.id === commandId;
 		};
 
 		let hasCommandFound = await openCommandPalletteAndTypeCommand();
