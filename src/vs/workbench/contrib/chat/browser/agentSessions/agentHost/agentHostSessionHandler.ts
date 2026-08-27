@@ -2886,9 +2886,19 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						?.response;
 					response?.setResult({ ...response.result, errorDetails });
 				}
-				chatSession.isCompleteObs.set(true, undefined);
+				this._completeSessionTurn(backendSession, chatSession.sessionResource, turnId, chatSession);
 			},
 		}));
+	}
+
+	private _completeSessionTurn(backendSession: URI, sessionResource: URI, turnId: string, chatSession = this._activeSessions.get(sessionResource)): void {
+		if (!chatSession) {
+			return;
+		}
+		const activeTurnId = this._getSessionState(backendSession.toString(), this._getChatURI(sessionResource))?.activeTurn?.id;
+		if (activeTurnId === undefined || activeTurnId === turnId) {
+			chatSession.complete();
+		}
 	}
 
 	private _turnStopWatchKey(chatURI: string, turnId: string): string {
@@ -3036,7 +3046,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				onTurnEnded: (lastTurn) => {
 					store.dispose();
 					this._clientDispatchedTurnIds.delete(turnId);
-					this._activeSessions.get(request.sessionResource)?.isCompleteObs.set(true, undefined);
+					this._completeSessionTurn(session, request.sessionResource, turnId);
 					resolve(lastTurn);
 				},
 				onFileEdits: (tc) => {
@@ -3120,7 +3130,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				onTurnEnded: lastTurn => {
 					store.dispose();
 					this._clientDispatchedTurnIds.delete(turnId);
-					this._activeSessions.get(request.sessionResource)?.isCompleteObs.set(true, undefined);
+					this._completeSessionTurn(session, request.sessionResource, turnId);
 					resolve(lastTurn);
 				},
 				onFileEdits: toolCall => {
@@ -5093,7 +5103,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			seedEmittedLengths,
 			initialResponsePartCount,
 			onTurnEnded: () => {
-				chatSession.complete();
+				this._completeSessionTurn(backendSession, chatSession.sessionResource, turnId, chatSession);
 				reconnectStore.dispose();
 			},
 		}));
