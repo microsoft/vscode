@@ -27,7 +27,7 @@ import { hasKey } from '../../../../base/common/types.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
+import { AgentChatMigrationDeferred, AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
@@ -4769,6 +4769,107 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(agent.listExternalChatsCalls, 1);
 		});
 
+		test('a deferred provider does not block healthy listings and migrates when discovery signals readiness', async () => {
+			class CatalogAgent extends MockAgent {
+				override async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[]> {
+					return this.listExternalChats();
+				}
+			}
+			class DeferredCatalogAgent extends MockAgent {
+				ready = false;
+				catalogCalls = 0;
+				private readonly _onDidDiscoverChats = new Emitter<readonly IAgentDiscoveredChat[]>();
+				override readonly onDidDiscoverChats = this._onDidDiscoverChats.event;
+
+				override async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[] | typeof AgentChatMigrationDeferred> {
+					this.catalogCalls++;
+					return this.ready ? this.listExternalChats() : AgentChatMigrationDeferred;
+				}
+
+				override fireDiscoveredChats(chats: readonly IAgentDiscoveredChat[]): void {
+					this._onDidDiscoverChats.fire(chats);
+				}
+
+				override dispose(): void {
+					this._onDidDiscoverChats.dispose();
+					super.dispose();
+				}
+			}
+
+			const db = new TransientRegistryWriteDatabase();
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
+			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
+			const healthy = disposables.add(new CatalogAgent('copilot'));
+			const deferred = disposables.add(new DeferredCatalogAgent('claude'));
+			const healthySession = AgentSession.uri('copilot', 'healthy');
+			const deferredSession = AgentSession.uri('claude', 'deferred');
+			(healthy as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(healthySession), healthySession);
+			registerTestAgentProvider(svc, healthy);
+			registerTestAgentProvider(svc, deferred);
+
+			const listedWhileDeferred = (await svc.listSessions()).map(session => session.session.toString());
+			const markerWhileDeferred = await db.isProviderBackfilled('claude');
+			assert.deepStrictEqual({ listedWhileDeferred, markerWhileDeferred }, {
+				listedWhileDeferred: [healthySession.toString()],
+				markerWhileDeferred: false,
+			});
+
+			deferred.ready = true;
+			(deferred as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(deferredSession), deferredSession);
+			deferred.fireDiscoveredChats([discoveredChat(deferredSession)]);
+			for (let i = 0; i < 50 && !(await db.isProviderBackfilled('claude')); i++) {
+				await timeout(0);
+			}
+
+			assert.deepStrictEqual({
+				markerAfterReadiness: await db.isProviderBackfilled('claude'),
+				catalogCalls: deferred.catalogCalls,
+				listedAfterReadiness: (await svc.listSessions()).map(session => session.session.toString()).sort(),
+			}, {
+				markerAfterReadiness: true,
+				catalogCalls: 2,
+				listedAfterReadiness: [deferredSession.toString(), healthySession.toString()].sort(),
+			});
+		});
+
+		test('a failed deferred migration remains retryable on the next list refresh', async () => {
+			class DeferredCatalogAgent extends MockAgent {
+				ready = false;
+				catalogCalls = 0;
+
+				override async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[] | typeof AgentChatMigrationDeferred> {
+					this.catalogCalls++;
+					return this.ready ? this.listExternalChats() : AgentChatMigrationDeferred;
+				}
+			}
+
+			const db = new TransientRegistryWriteDatabase();
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
+			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
+			const agent = disposables.add(new DeferredCatalogAgent('claude'));
+			const session = AgentSession.uri('claude', 'retry-after-write-failure');
+			registerTestAgentProvider(svc, agent);
+
+			assert.deepStrictEqual(await svc.listSessions(), []);
+
+			agent.ready = true;
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
+			db.failRegistryWrites(1);
+			await assert.rejects(svc.listSessions(), /transient registry write failure/);
+
+			assert.deepStrictEqual({
+				markerAfterFailure: await db.isProviderBackfilled('claude'),
+				listedAfterRetry: (await svc.listSessions()).map(candidate => candidate.session.toString()),
+				markerAfterRetry: await db.isProviderBackfilled('claude'),
+				catalogCalls: agent.catalogCalls,
+			}, {
+				markerAfterFailure: false,
+				listedAfterRetry: [session.toString()],
+				markerAfterRetry: true,
+				catalogCalls: 3,
+			});
+		});
+
 		test('listSessions rejects an unavailable catalog and retries it on the next call', async () => {
 			class NotYetMigratableAgent extends MockAgent {
 				override readonly onDidDiscoverChats = Event.None;
@@ -7338,12 +7439,16 @@ suite('AgentService (node dispatcher)', () => {
 				readonly migrationGate = new DeferredPromise<void>();
 				sdkReady = false;
 				catalogAvailable = true;
+				catalogDeferred = false;
 				listChatsToMigrateCalls = 0;
 				getChatMetadataCalls = 0;
 
-				override async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[] | undefined> {
+				override async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[] | undefined | typeof AgentChatMigrationDeferred> {
 					this.listChatsToMigrateCalls++;
 					await this.migrationGate.p;
+					if (this.catalogDeferred) {
+						return AgentChatMigrationDeferred;
+					}
 					if (!this.catalogAvailable) {
 						return undefined;
 					}
@@ -7494,6 +7599,56 @@ suite('AgentService (node dispatcher)', () => {
 				}, {
 					isProtocolError: true,
 					code: JSON_RPC_INTERNAL_ERROR,
+					hydrated: false,
+				});
+			});
+
+			test('reports a deferred catalog as an internal error, never a false not found', async () => {
+				const svc = makeService();
+				const agent = disposables.add(new StartupRaceAgent('copilot'));
+				const session = AgentSession.uri('copilot', 'catalog-deferred');
+				seedSession(agent, session);
+				agent.catalogDeferred = true;
+				registerTestAgentProvider(svc, agent);
+				agent.migrationGate.complete();
+
+				let rejected: unknown;
+				await svc.restoreSession(session).catch(err => { rejected = err; });
+
+				assert.deepStrictEqual({
+					isProtocolError: rejected instanceof ProtocolError,
+					code: (rejected as ProtocolError)?.code,
+					hydrated: !!getStateManager(svc).getSessionState(session.toString()),
+				}, {
+					isProtocolError: true,
+					code: JSON_RPC_INTERNAL_ERROR,
+					hydrated: false,
+				});
+			});
+
+			test('probes a deferred catalog after persisted backfill before reporting a session missing', async () => {
+				const db = new TransientRegistryWriteDatabase();
+				await db.markProviderBackfilled('copilot');
+				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
+				const agent = disposables.add(new StartupRaceAgent('copilot'));
+				const session = AgentSession.uri('copilot', 'deferred-after-backfill');
+				seedSession(agent, session);
+				agent.catalogDeferred = true;
+				agent.migrationGate.complete();
+				registerTestAgentProvider(svc, agent);
+
+				let rejected: unknown;
+				await svc.restoreSession(session).catch(err => { rejected = err; });
+
+				assert.deepStrictEqual({
+					isProtocolError: rejected instanceof ProtocolError,
+					code: (rejected as ProtocolError)?.code,
+					catalogProbed: agent.listChatsToMigrateCalls > 0,
+					hydrated: !!getStateManager(svc).getSessionState(session.toString()),
+				}, {
+					isProtocolError: true,
+					code: JSON_RPC_INTERNAL_ERROR,
+					catalogProbed: true,
 					hydrated: false,
 				});
 			});
@@ -13811,7 +13966,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(state?.workingDirectories?.[0], worktreeDir.toString());
 		});
 
-		test('pending worktree session defers git state and branch changes until materialization', async () => {
+		test('pending worktree session probes the source repository but defers branch changes until materialization', async () => {
 			class ProvisionalWorktreeAgent extends MockAgent {
 				private readonly _onDidMaterializeChat = new Emitter<IAgentMaterializeChatEvent>();
 				override readonly onDidMaterializeChat = this._onDidMaterializeChat.event;
@@ -13885,7 +14040,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			isolation.clearPending(AgentSession.id(session));
 			agent.materialize(session, worktreeDir);
-			for (let i = 0; i < 20 && (gitStateCalls.length === 0 || diffCalls.length === 0); i++) {
+			for (let i = 0; i < 20 && diffCalls.length === 0; i++) {
 				await timeout(0);
 			}
 
@@ -13893,18 +14048,16 @@ suite('AgentService (node dispatcher)', () => {
 				beforeMaterialization,
 				afterMaterialization: {
 					workingDirectory: getStateManager(localService).getSessionState(session.toString())?.workingDirectories?.[0],
-					gitStateCalls,
 					diffCalls: [...new Set(diffCalls)],
 				},
 			}, {
 				beforeMaterialization: {
 					workingDirectory: sourceDir.toString(),
-					gitStateCalls: [],
+					gitStateCalls: [{ resource: sourceDir.toString(), baseBranch: undefined }],
 					diffCalls: [],
 				},
 				afterMaterialization: {
 					workingDirectory: worktreeDir.toString(),
-					gitStateCalls: [{ resource: worktreeDir.toString(), baseBranch: undefined }],
 					diffCalls: [worktreeDir.toString()],
 				},
 			});
