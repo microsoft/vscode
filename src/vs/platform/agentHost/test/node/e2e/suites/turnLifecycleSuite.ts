@@ -16,6 +16,7 @@ import {
 	dispatchTurn,
 	driveTurnToCompletion,
 } from '../harness/agentHostE2ETestHarness.js';
+import { summarizeAnthropicRequest, summarizeResponsesRequest } from '../harness/capiWireCodec.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 
@@ -64,8 +65,10 @@ export function defineTurnLifecycleTests(context: IAgentHostE2ETestContext): voi
 		assert.strictEqual(followupTurn.sawPendingConfirmation, false, 'follow-up turn should not surface new pending confirmations');
 		assert.match(followupTurn.responseText, /hello world/i, 'follow-up turn should retain the original plan context');
 		if (config.planModeStyle === 'session-state') {
+			const requestBody = context.observedModelRequestBodies.at(-1);
+			const request = requestBody && (summarizeAnthropicRequest(requestBody) ?? summarizeResponsesRequest(requestBody));
 			assert.ok(
-				context.observedModelRequestBodies.at(-1)?.includes(planPrompt),
+				request?.messages.some(message => typeof message.content === 'string' && message.content.includes(planPrompt)),
 				'follow-up model request should retain the original planning turn',
 			);
 		}
