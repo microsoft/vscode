@@ -46,6 +46,14 @@ class FailingTransferAutomationStore extends AutomationStore {
 	}
 }
 
+class AcknowledgingMigrationAutomationStore extends AutomationStore {
+	readonly acknowledgedAutomationIds: string[] = [];
+
+	async acknowledgeAutomationSnapshotImported(snapshot: IAutomation): Promise<void> {
+		this.acknowledgedAutomationIds.push(snapshot.automation.id);
+	}
+}
+
 class ConcurrentlyMutatingMigrationAutomationStore extends AutomationStore {
 	legacyWriter!: AutomationStore;
 	mutation!: 'update' | 'delete' | 'run' | 'continuousUpdate';
@@ -100,7 +108,7 @@ class DestinationDeletingTransferAutomationStore extends AutomationStore {
 suite('ProviderAutomationService', () => {
 	const teardown = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(legacyRaw?: string, providerRaw?: string, providerFailure?: 'staleRunRecovery' | 'migration' | 'transfer' | 'concurrentMigrationUpdate' | 'concurrentMigrationDelete' | 'concurrentMigrationRun' | 'continuousMigrationUpdate' | 'concurrentTransferRun' | 'destinationDeleteDuringRollback'): {
+	function createService(legacyRaw?: string, providerRaw?: string, providerFailure?: 'staleRunRecovery' | 'migration' | 'transfer' | 'acknowledgement' | 'concurrentMigrationUpdate' | 'concurrentMigrationDelete' | 'concurrentMigrationRun' | 'continuousMigrationUpdate' | 'concurrentTransferRun' | 'destinationDeleteDuringRollback'): {
 		readonly service: ProviderAutomationService;
 		readonly providerStore: AutomationStore;
 		readonly storage: InMemoryStorageService;
@@ -126,6 +134,9 @@ suite('ProviderAutomationService', () => {
 				break;
 			case 'transfer':
 				providerStore = new FailingTransferAutomationStore(storageKey, storage, new NullLogService(), NullTelemetryService, automationStorage);
+				break;
+			case 'acknowledgement':
+				providerStore = new AcknowledgingMigrationAutomationStore(storageKey, storage, new NullLogService(), NullTelemetryService, automationStorage);
 				break;
 			case 'concurrentMigrationUpdate':
 			case 'concurrentMigrationDelete':
@@ -419,12 +430,13 @@ suite('ProviderAutomationService', () => {
 				leaderWindowId: 1,
 			}],
 		});
-		const { service, providerStore, storage } = createService(legacy);
+		const { service, providerStore, storage } = createService(legacy, undefined, 'acknowledgement');
 
 		await service.waitForMigrationForTesting();
 
 		assert.deepStrictEqual({
 			automation: providerStore.getAutomation('automation-1'),
+			acknowledgedAutomationIds: (providerStore as AcknowledgingMigrationAutomationStore).acknowledgedAutomationIds,
 			runIds: providerStore.runs.get().map(run => run.id),
 			legacy: JSON.parse(storage.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION)!),
 		}, {
@@ -443,6 +455,7 @@ suite('ProviderAutomationService', () => {
 				lastRunAt: undefined,
 				nextRunAt: undefined,
 			},
+			acknowledgedAutomationIds: ['automation-1'],
 			runIds: ['run-1'],
 			legacy: { schemaVersion: 3, revision: 2, automations: [], runs: [] },
 		});
