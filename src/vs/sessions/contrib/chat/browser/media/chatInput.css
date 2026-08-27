@@ -107,12 +107,12 @@
 }
 
 .new-chat-input-status-hover-title {
-	font-size: var(--vscode-agents-fontSize-label1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 .new-chat-input-status-hover-detail {
-	font-size: var(--vscode-agents-fontSize-body1);
+	font-size: var(--vscode-fontSize-body1);
 	line-height: 1.4;
 }
 
@@ -299,7 +299,7 @@
 
 .sessions-chat-config-toolbar .action-label,
 .sessions-chat-config-toolbar .action-label .chat-input-picker-label {
-	font-size: var(--vscode-agents-fontSize-label2, 11px);
+	font-size: var(--vscode-fontSize-label2, 11px);
 }
 
 /* Expanded labels are never truncated; compact mode removes the label. */
@@ -601,7 +601,7 @@
 	display: inline-flex;
 	align-items: center;
 	overflow: hidden;
-	font-size: var(--vscode-agents-fontSize-body2, 11px);
+	font-size: var(--vscode-fontSize-body2, 11px);
 	padding: 0 4px 0 0;
 	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
 	border-radius: var(--vscode-cornerRadius-small);

@@ -44,6 +44,9 @@ export interface IChatPetWidgetHost {
 	readonly onDidChangePlatform: Event<void>;
 }
 
+/** The layer the pet is positioned in, spanning its host. */
+export const CHAT_PET_OVERLAY_CLASS = 'chat-pet-overlay';
+
 export const CHAT_PET_IDLE_SLEEP_DELAY = 20_000;
 export const CHAT_PET_CONFIRMATION_ATTENTION_DURATION = 2_000;
 export const CHAT_PET_ACHIEVEMENT_UNLOCKED_DURATION = 10_000;
@@ -968,6 +971,41 @@ export function getChatPetPillPlatformTop(petCenterX: number, pillBounds: readon
 	return undefined;
 }
 
+/** Top of the topmost surface showing above the input, else the input's own top. */
+export function getChatPetStackPlatformTop(container: HTMLElement, inputContainer: HTMLElement, startAfter?: Element): number {
+	const inputTop = inputContainer.getBoundingClientRect().top;
+	let current = container;
+	let previousElement = startAfter;
+	while (true) {
+		const children = Array.from(current.children);
+		const startIndex = previousElement ? children.indexOf(previousElement) + 1 : 0;
+		let nestedContainer: HTMLElement | undefined;
+		for (let index = startIndex; index < children.length; index++) {
+			const child = children[index];
+			// The pet's own overlay spans the host, so it is never a platform.
+			if (!dom.isHTMLElement(child) || child.classList.contains(CHAT_PET_OVERLAY_CLASS)) {
+				continue;
+			}
+			if (child === inputContainer) {
+				return inputTop;
+			}
+			if (child.contains(inputContainer)) {
+				nestedContainer = child;
+				break;
+			}
+			const bounds = child.getBoundingClientRect();
+			if (bounds.height > 0 && bounds.top <= inputTop) {
+				return bounds.top;
+			}
+		}
+		if (!nestedContainer) {
+			return inputTop;
+		}
+		current = nestedContainer;
+		previousElement = undefined;
+	}
+}
+
 export function shouldPlaceChatPetSpeechBubbleLeft(state: ChatPetState | undefined, buttonRight: number, inputRight: number, scale = 1): boolean {
 	return state === 'rendering' && buttonRight + CHAT_PET_SPEECH_BUBBLE_RIGHT_OVERHANG * scale > inputRight;
 }
@@ -1177,7 +1215,7 @@ export class ChatPetWidget extends Disposable {
 		this._selectedAccessory = this.chatPetService.selectedAccessory.get();
 		this._searchScheduler = this._register(new RunOnceScheduler(() => this._trySearch(), SEARCH_INTERVAL));
 		this.parent.classList.add('chat-pet-host');
-		this._overlay = dom.$('.chat-pet-overlay');
+		this._overlay = dom.$(`.${CHAT_PET_OVERLAY_CLASS}`);
 		this.parent.prepend(this._overlay);
 		this._register(toDisposable(() => {
 			this.parent.classList.remove('chat-pet-host');

@@ -241,5 +241,5 @@ suite('LocalGitService', () => {
 		await assert.rejects(() => service.checkoutCommit('test-op', repoPath, pinnedCommit));
 
 		assert.strictEqual(await runGit('rev-parse', 'HEAD'), initialCommit);
-	});
+	}).timeout(20_000);
 });

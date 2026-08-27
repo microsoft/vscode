@@ -25,7 +25,7 @@ suite('Sessions - Chat View', () => {
 
 	/** Reaches the banner without standing up the widget's whole service graph. */
 	interface ISubSessionTipRenderer {
-		_renderSubSessionTip(container: HTMLElement): void;
+		_renderSubSessionTip(): void;
 	}
 
 	test('forwards new chat visibility to the aquarium host', () => {
@@ -187,6 +187,7 @@ suite('Sessions - Chat View', () => {
 			backgroundImage: chatView.style.backgroundImage,
 			layerHidden: layer?.hidden,
 			layerAriaHidden: layer?.ariaHidden,
+			layerColor: layer ? dom.getWindow(layer).getComputedStyle(layer).color : undefined,
 			layerPointerEvents: layer ? dom.getWindow(layer).getComputedStyle(layer).pointerEvents : undefined,
 			hasIcons: (layer?.querySelectorAll('.codicon').length ?? 0) > 0,
 			firstIconAriaHidden: firstIcon?.ariaHidden,
@@ -196,6 +197,7 @@ suite('Sessions - Chat View', () => {
 			backgroundImage: '',
 			layerHidden: false,
 			layerAriaHidden: 'true',
+			layerColor: 'color(srgb 0.12549 0.12549 0.12549 / 0.1)',
 			layerPointerEvents: 'none',
 			hasIcons: true,
 			firstIconAriaHidden: 'true',
@@ -235,11 +237,12 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
-	test('applies a lightly translucent treatment without backdrop blur to the complete assistant response', () => {
+	test('applies a borderless translucent side fade to the complete assistant response', () => {
 		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
 		workbench.style.setProperty('--session-view-background', '#ffffff');
 		workbench.style.setProperty('--vscode-cornerRadius-medium', '6px');
 		workbench.style.setProperty('--vscode-spacing-size160', '16px');
+		workbench.style.setProperty('--vscode-spacing-size320', '32px');
 		const part = dom.append(workbench, dom.$('.part.sessionspart'));
 		const chatView = dom.append(part, dom.$('.chat-view.has-chat-background'));
 		const session = dom.append(chatView, dom.$('.interactive-session'));
@@ -255,9 +258,12 @@ suite('Sessions - Chat View', () => {
 		const responseStyle = dom.getWindow(response).getComputedStyle(response);
 		assert.deepStrictEqual({
 			responseBackgroundColor: responseStyle.backgroundColor,
+			responseBackgroundImage: responseStyle.backgroundImage,
 			responseBackdropFilter: responseStyle.getPropertyValue('backdrop-filter'),
 			responseWebkitBackdropFilter: responseStyle.getPropertyValue('-webkit-backdrop-filter') || 'none',
+			responseBorderStyle: responseStyle.borderStyle,
 			responseBorderRadius: responseStyle.borderRadius,
+			responseBoxShadow: responseStyle.boxShadow,
 			responseOverflow: responseStyle.overflow,
 			responsePaddingBottom: responseStyle.paddingBottom,
 			valueBackgroundColor: dom.getWindow(value).getComputedStyle(value).backgroundColor,
@@ -266,10 +272,13 @@ suite('Sessions - Chat View', () => {
 			plainResponseBorderStyle: dom.getWindow(plainResponse).getComputedStyle(plainResponse).borderStyle,
 			plainResponsePaddingBottom: dom.getWindow(plainResponse).getComputedStyle(plainResponse).paddingBottom,
 		}, {
-			responseBackgroundColor: 'color(srgb 1 1 1 / 0.96)',
+			responseBackgroundColor: 'rgba(0, 0, 0, 0)',
+			responseBackgroundImage: 'linear-gradient(to right, rgba(0, 0, 0, 0), color(srgb 1 1 1 / 0.88) 32px, color(srgb 1 1 1 / 0.88) calc(100% - 32px), rgba(0, 0, 0, 0))',
 			responseBackdropFilter: 'none',
 			responseWebkitBackdropFilter: 'none',
+			responseBorderStyle: 'none',
 			responseBorderRadius: '6px',
+			responseBoxShadow: 'none',
 			responseOverflow: 'hidden',
 			responsePaddingBottom: '16px',
 			valueBackgroundColor: 'rgba(0, 0, 0, 0)',
@@ -543,19 +552,17 @@ suite('Sessions - Chat View', () => {
 		store.add(toDisposable(() => container.remove()));
 
 		// Built through the prototype: the banner only needs its storage key, the
-		// input's notice host, and somewhere to keep its listeners.
+		// input's notice host and host slot, and somewhere to keep its listeners.
 		const widget = Object.create(NewChatInSessionWidget.prototype) as ISubSessionTipRenderer;
 		Object.assign(widget, {
 			storageService: { getBoolean: () => false, store: () => { } },
-			_newChatInput: { noticeHost, focus: () => { } },
+			_newChatInput: { noticeHost, focus: () => { }, hostNoticeContainerElement: container },
 			_tipDisposable: store.add(new MutableDisposable()),
 		});
-		widget._renderSubSessionTip(container);
+		widget._renderSubSessionTip();
 
-		const showing = () => {
-			const tip = container.querySelector<HTMLElement>('.sub-session-tip-container');
-			return !!tip && isChatInputStackSlotShowing(tip);
-		};
+		// The composer owns the slot, so the tip reports on the container itself.
+		const showing = () => isChatInputStackSlotShowing(container);
 		const shownInitially = showing();
 		// A notification owns the space outright, so the banner must not stack with it.
 		noticeHost.setOccupied(ChatInputNoticeLane.Notification, true, { hasFocus: () => false, focus: () => { } });
