@@ -43,6 +43,8 @@ import { Menus } from '../../../browser/menus.js';
 import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 import { type IResolvedFolderWorkspace, SessionWorkspaceFallback } from './sessionWorkspaceFallback.js';
+import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { ADDITIONAL_FOLDER_CONTEXT_ID_PREFIX, ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX, getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
 
 export type { IResolvedFolderWorkspace } from './sessionWorkspaceFallback.js';
 
@@ -108,13 +110,17 @@ export interface IWorkspacePickerTrigger {
 	readonly removeAriaLabel?: string;
 }
 
-interface IResolvedBrowseSelection {
+export interface IResolvedBrowseSelection {
 	readonly workspace: ISessionWorkspace;
 	readonly providerId: string;
 }
 
 interface IBrowsedWorkspaceSelection extends IResolvedBrowseSelection {
 	readonly action: ISessionWorkspaceBrowseAction;
+}
+
+interface IAttachedRepositorySelection extends IResolvedBrowseSelection {
+	readonly attachmentId: string;
 }
 
 interface IRestoredWorkspaceSelection {
@@ -145,6 +151,10 @@ export class WorkspacePicker extends Disposable {
 	readonly onDidSelectContext: Event<ISessionWorkspace> = this._onDidSelectContext.event;
 	private readonly _onDidSelectFolderContext = this._register(new Emitter<URI>());
 	readonly onDidSelectFolderContext: Event<URI> = this._onDidSelectFolderContext.event;
+	private readonly _onDidSelectRepositoryContext = this._register(new Emitter<IResolvedBrowseSelection>());
+	readonly onDidSelectRepositoryContext: Event<IResolvedBrowseSelection> = this._onDidSelectRepositoryContext.event;
+	private readonly _onDidRemoveAttachedContext = this._register(new Emitter<string>());
+	readonly onDidRemoveAttachedContext: Event<string> = this._onDidRemoveAttachedContext.event;
 
 	private _selectedFolderUri: URI | undefined;
 	private _selectedResolved: IResolvedFolderWorkspace | undefined;
@@ -194,9 +204,10 @@ export class WorkspacePicker extends Disposable {
 	private readonly _contextSelections = new Map<string, ISessionWorkspace[]>();
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	private readonly _additionalRepositoryTriggerDisposables = this._register(new DisposableStore());
-	private readonly _additionalRepositorySelections = new Map<string, ISessionWorkspace>();
+	private readonly _additionalRepositorySelections = new Map<string, IAttachedRepositorySelection>();
 	private readonly _additionalFolderTriggerDisposables = this._register(new DisposableStore());
 	private readonly _additionalFolderSelections = new Map<string, IResolvedFolderWorkspace>();
+	private _attachedContext: readonly IChatRequestVariableEntry[] = [];
 	private readonly _tabbedWidget: TabbedActionListWidget;
 	private readonly _pickerGroupContext: IContextKey<string>;
 	private _activeTriggerElement: HTMLElement | undefined;
@@ -241,7 +252,7 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	get attachedContextWorkspaces(): readonly ISessionWorkspace[] {
-		return [...this._additionalRepositorySelections.values()];
+		return Array.from(this._additionalRepositorySelections.values(), selection => selection.workspace);
 	}
 
 	clearAttachedContext(): void {
@@ -255,7 +266,13 @@ export class WorkspacePicker extends Disposable {
 		this._onDidChangeSelection.fire();
 	}
 
-	syncAttachedContextIds(attachmentIds: ReadonlySet<string>): void {
+	syncAttachedContext(attachments: readonly IChatRequestVariableEntry[]): void {
+		this._attachedContext = attachments;
+		this._syncAttachedContext();
+	}
+
+	private _syncAttachedContext(): void {
+		const attachmentIds = new Set(this._attachedContext.map(attachment => attachment.id));
 		let changed = false;
 		for (const [key, contexts] of this._contextSelections) {
 			const retained = contexts.filter(context => attachmentIds.has(`github-context:${context.uri.toString()}`));
@@ -269,7 +286,40 @@ export class WorkspacePicker extends Disposable {
 				this._contextSelections.delete(key);
 			}
 		}
+		for (const [key, selection] of this._additionalFolderSelections) {
+			if (!attachmentIds.has(getAdditionalFolderContextId(selection.workspace.folders[0].root))) {
+				this._additionalFolderSelections.delete(key);
+				changed = true;
+			}
+		}
+		for (const [key, selection] of this._additionalRepositorySelections) {
+			if (!attachmentIds.has(selection.attachmentId)) {
+				this._additionalRepositorySelections.delete(key);
+				changed = true;
+			}
+		}
+		for (const attachment of this._attachedContext) {
+			if (attachment.id.startsWith(ADDITIONAL_FOLDER_CONTEXT_ID_PREFIX) && URI.isUri(attachment.value)) {
+				const resolved = this._resolveFolder(attachment.value);
+				if (resolved?.workspace.group === SESSION_WORKSPACE_GROUP_LOCAL) {
+					const key = this.uriIdentityService.extUri.getComparisonKey(attachment.value);
+					if (!this._additionalFolderSelections.has(key)) {
+						this._additionalFolderSelections.set(key, resolved);
+						changed = true;
+					}
+				}
+			} else if (attachment.id.startsWith(ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX) && URI.isUri(attachment.value)) {
+				const resolved = this._resolveFolder(attachment.value);
+				const repositoryId = resolved && this._getRepositoryIdForResolvedWorkspace(resolved);
+				if (resolved?.workspace.group === SESSION_WORKSPACE_GROUP_GITHUB && repositoryId && !this._additionalRepositorySelections.has(repositoryId)) {
+					this._additionalRepositorySelections.set(repositoryId, { ...resolved, attachmentId: attachment.id });
+					changed = true;
+				}
+			}
+		}
 		if (changed) {
+			this._renderAdditionalFolderTriggers();
+			this._renderAdditionalRepositoryTriggers();
 			this._updateTriggerLabel();
 			this._onDidChangeSelection.fire();
 		}
@@ -348,6 +398,7 @@ export class WorkspacePicker extends Disposable {
 				}
 			}
 			this._restoreAutomaticSelection();
+			this._syncAttachedContext();
 			const activeTrigger = this._activeTriggerElement;
 			if (activeTrigger && (this.actionWidgetService.isVisible || this._tabbedWidget.isVisible)) {
 				this.showPicker(true, activeTrigger, this._directPickerGroup, this._directPickerAttachesContext);
@@ -825,9 +876,14 @@ export class WorkspacePicker extends Disposable {
 			return false;
 		}
 		if (repositoryId !== this._getCurrentRepositoryId() && !this._additionalRepositorySelections.has(repositoryId)) {
-			this._additionalRepositorySelections.set(repositoryId, workspace);
+			const selection = { workspace, providerId };
+			this._additionalRepositorySelections.set(repositoryId, {
+				...selection,
+				attachmentId: getAdditionalRepositoryContextId(workspace.uri),
+			});
 			this.recentWorkspacesService.addRecentWorkspace(workspace.folders[0].root, providerId, false);
 			this._renderAdditionalRepositoryTriggers();
+			this._onDidSelectRepositoryContext.fire(selection);
 			this._onDidChangeSelection.fire();
 		}
 		return true;
@@ -974,14 +1030,19 @@ export class WorkspacePicker extends Disposable {
 			.find(r => this.uriIdentityService.extUri.isEqual(r.workspace.folders[0]?.root, folderUri))
 			?.providerId;
 		const resolved = this._resolveFolder(folderUri, providerIdHint ?? storedProviderId);
-		const removedAdditionalFolder = this._additionalFolderSelections.delete(this.uriIdentityService.extUri.getComparisonKey(folderUri));
+		const additionalFolderKey = this.uriIdentityService.extUri.getComparisonKey(folderUri);
+		const additionalFolder = this._additionalFolderSelections.get(additionalFolderKey);
+		const removedAdditionalFolder = this._additionalFolderSelections.delete(additionalFolderKey);
 		const repositoryId = resolved && this._getRepositoryIdForResolvedWorkspace(resolved);
+		const additionalRepository = repositoryId ? this._additionalRepositorySelections.get(repositoryId) : undefined;
 		const removedAdditionalRepository = repositoryId ? this._additionalRepositorySelections.delete(repositoryId) : false;
-		if (removedAdditionalFolder) {
+		if (removedAdditionalFolder && additionalFolder) {
 			this._renderAdditionalFolderTriggers();
+			this._onDidRemoveAttachedContext.fire(getAdditionalFolderContextId(additionalFolder.workspace.folders[0].root));
 		}
-		if (removedAdditionalRepository) {
+		if (removedAdditionalRepository && additionalRepository) {
 			this._renderAdditionalRepositoryTriggers();
+			this._onDidRemoveAttachedContext.fire(additionalRepository.attachmentId);
 		}
 		this._selectedFolderUri = folderUri;
 		this._selectedResolved = resolved;
@@ -1379,7 +1440,8 @@ export class WorkspacePicker extends Disposable {
 		if (!this._categoryRow || !this._repositoryTriggerOptions) {
 			return;
 		}
-		for (const workspace of this._additionalRepositorySelections.values()) {
+		for (const selection of this._additionalRepositorySelections.values()) {
+			const { workspace } = selection;
 			const slot = dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot');
 			this._categoryRow.insertBefore(slot, this._repositoryContextTriggerSlot ?? null);
 			this._additionalRepositoryTriggerDisposables.add({ dispose: () => slot.remove() });
@@ -1388,20 +1450,21 @@ export class WorkspacePicker extends Disposable {
 				label: workspace.label,
 				ariaLabel: localize('workspacePicker.attachedRepositoryAriaLabel', "Attached repository {0}", workspace.label),
 				selectedWorkspace: workspace,
-				remove: () => this._removeAdditionalRepository(workspace),
+				remove: () => this._removeAdditionalRepository(selection),
 				removeAriaLabel: localize('workspacePicker.removeAttachedRepository', "Remove attached repository {0}", workspace.label),
 			}));
 		}
 	}
 
-	private _removeAdditionalRepository(workspace: ISessionWorkspace): void {
-		const repositoryId = this._getRepositoryId(workspace);
+	private _removeAdditionalRepository(selection: IAttachedRepositorySelection): void {
+		const repositoryId = this._getRepositoryId(selection.workspace);
 		if (!repositoryId || !this._additionalRepositorySelections.delete(repositoryId)) {
 			return;
 		}
 		this._renderAdditionalRepositoryTriggers();
 		this._updateTriggerLabel();
 		this._onDidChangeSelection.fire();
+		this._onDidRemoveAttachedContext.fire(selection.attachmentId);
 		this._focusCategoryTrigger(this._repositoryTriggerOptions);
 	}
 
@@ -1432,6 +1495,7 @@ export class WorkspacePicker extends Disposable {
 		}
 		this._renderAdditionalFolderTriggers();
 		this._onDidChangeSelection.fire();
+		this._onDidRemoveAttachedContext.fire(getAdditionalFolderContextId(folderUri));
 		this._focusCategoryTrigger(this._folderTriggerOptions);
 	}
 

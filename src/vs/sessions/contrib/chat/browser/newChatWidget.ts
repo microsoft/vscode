@@ -33,7 +33,7 @@ import { WebWorkspacePicker } from './webWorkspacePicker.js';
 import { IPreferredSessionType } from './sessionTypePicker.js';
 import { NewChatInputWidget } from './newChatInput.js';
 import { NoAgentHostEmptyState } from './noAgentHostEmptyState.js';
-import { IChatRequestVariableEntry, toPasteVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IChatViewOptions } from '../../../browser/parts/chatView.js';
 import { SessionWorkspacePickerVisibleContext } from '../../../common/contextkeys.js';
@@ -52,6 +52,7 @@ import { IStorageService, StorageScope } from '../../../../platform/storage/comm
 import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTracker.js';
 import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 import { Menus } from '../../../browser/menus.js';
+import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
 
 // #region --- New Chat Widget ---
 
@@ -255,9 +256,31 @@ export class NewChatWidget extends Disposable {
 			);
 			this._newChatInput.focus();
 		}));
-		this._register(this._workspacePicker.onDidSelectFolderContext(() => this._newChatInput.focus()));
+		this._register(this._workspacePicker.onDidSelectFolderContext(folderUri => {
+			this._newChatInput.addAttachments({
+				kind: 'directory',
+				id: getAdditionalFolderContextId(folderUri),
+				name: basename(folderUri),
+				value: folderUri,
+			});
+			this._newChatInput.focus();
+		}));
+		this._register(this._workspacePicker.onDidSelectRepositoryContext(({ workspace }) => {
+			const folderUri = workspace.folders[0].root;
+			this._newChatInput.addAttachments({
+				kind: 'generic',
+				id: getAdditionalRepositoryContextId(workspace.uri),
+				name: workspace.label,
+				value: folderUri,
+				icon: workspace.icon,
+			});
+			this._newChatInput.focus();
+		}));
+		this._register(this._workspacePicker.onDidRemoveAttachedContext(id => this._newChatInput.removeAttachment(id)));
+		const syncAttachedContext = () => this._workspacePicker.syncAttachedContext(this._newChatInput.attachments);
+		syncAttachedContext();
 		this._register(this._newChatInput.onDidChangeAttachments(() => {
-			this._workspacePicker.syncAttachedContextIds(this._newChatInput.attachmentIds);
+			syncAttachedContext();
 		}));
 		this._register(this._newChatInput.sessionTypePicker.onDidSelectSessionType(async pick => {
 			// A quick chat has no folder: re-create the draft with the picked
@@ -785,23 +808,8 @@ export class NewChatWidget extends Disposable {
 		const workspaceRoots = session.workspace.get()?.folders.map(folder => folder.root)
 			?? (this._workspacePicker.selectedFolderUri ? [this._workspacePicker.selectedFolderUri] : []);
 		const request = buildNewSessionPrompt(query, feedbackItems, workspaceRoots);
-		const pickerContext: IChatRequestVariableEntry[] = [
-			...this._workspacePicker.additionalFolderUris.map(uri => ({
-				kind: 'directory' as const,
-				id: uri.toString(),
-				name: basename(uri),
-				value: uri,
-			})),
-			...this._workspacePicker.attachedContextWorkspaces.map(context => {
-				const contextUri = context.uri.toString();
-				return toPasteVariableEntry(context.label, `GitHub context: ${contextUri}`, {
-					id: `github-context:${contextUri}`,
-					icon: context.icon,
-				});
-			}),
-		];
 		const requestContext = new Map<string, IChatRequestVariableEntry>();
-		for (const context of [...(attachedContext ?? []), ...pickerContext]) {
+		for (const context of attachedContext ?? []) {
 			if (!requestContext.has(context.id)) {
 				requestContext.set(context.id, context);
 			}

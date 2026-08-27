@@ -50,6 +50,25 @@ interface ConfirmationMetadata {
 	chatContext: vscode.ChatContext;
 }
 
+const GITHUB_CONTEXT_ID_PREFIX = 'github-context:';
+const ADDITIONAL_FOLDER_CONTEXT_ID_PREFIX = 'sessions-additional-folder:';
+const ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX = 'sessions-additional-repository:';
+
+export function formatNewSessionContextReference(reference: vscode.ChatPromptReference): string | undefined {
+	if (reference.id.startsWith(GITHUB_CONTEXT_ID_PREFIX)) {
+		const uri = reference.id.slice(GITHUB_CONTEXT_ID_PREFIX.length);
+		return uri ? `GitHub resource: ${uri}` : undefined;
+	}
+	if (reference.id.startsWith(ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX)) {
+		const uri = reference.id.slice(ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX.length);
+		return uri ? `GitHub repository: ${uri}` : undefined;
+	}
+	if (reference.id.startsWith(ADDITIONAL_FOLDER_CONTEXT_ID_PREFIX) && reference.value instanceof vscode.Uri) {
+		return `Folder: ${reference.value.fsPath}`;
+	}
+	return undefined;
+}
+
 type InitialSessionOption = {
 	readonly optionId: string;
 	readonly value: string | vscode.ChatSessionProviderOptionItem;
@@ -2308,10 +2327,15 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		// 'file:///Users/jospicer/dev/joshbot/.github/workflows/build-vsix.yml'  -> '.github/workflows/build-vsix.yml'
 		const fileRefs: string[] = [];
 		const fullFileParts: string[] = [];
+		const newSessionContextRefs: string[] = [];
 		const processedReferences: vscode.ChatPromptReference[] = [];
 		const git = this._gitExtensionService.getExtensionApi();
 		for (const ref of references || []) {
-			if (ref.value instanceof vscode.Uri && ref.value.scheme === 'file') {
+			const newSessionContext = formatNewSessionContextReference(ref);
+			if (newSessionContext) {
+				newSessionContextRefs.push(` - ${newSessionContext}`);
+				processedReferences.push(ref);
+			} else if (ref.value instanceof vscode.Uri && ref.value.scheme === 'file') {
 				const fileUri = ref.value;
 				const repositoryForFile = git?.getRepository(fileUri);
 				if (repositoryForFile) {
@@ -2371,7 +2395,8 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 
 		const parts: string[] = [
 			...(fullFileParts.length ? ['The user has attached the following uncommitted or modified files as relevant context:', ...fullFileParts] : []),
-			...(fileRefs.length ? ['The user has attached the following file paths as relevant context:', ...fileRefs] : [])
+			...(fileRefs.length ? ['The user has attached the following file paths as relevant context:', ...fileRefs] : []),
+			...(newSessionContextRefs.length ? ['The user has attached the following new-session context:', ...newSessionContextRefs] : []),
 		];
 
 		this.logService.debug(`Cloud agent knew how to process ${processedReferences.length} of the ${references?.length || 0} provided references.`);

@@ -20,6 +20,7 @@ import { IPreferredSessionType } from '../../browser/sessionTypePicker.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
 import { IChatRequestVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
 
 /** The part of the active session `_recreateOnProviderChange` actually reads. */
 interface IActiveDraft {
@@ -104,8 +105,6 @@ interface ISendHarness {
 	readonly _feedbackItems: IObservable<readonly never[]>;
 	readonly _workspacePicker: {
 		readonly selectedFolderUri: URI | undefined;
-		readonly additionalFolderUris: readonly URI[];
-		readonly attachedContextWorkspaces: readonly ISessionWorkspace[];
 		clearAttachedContext(): void;
 		showPicker(): void;
 	};
@@ -304,7 +303,7 @@ suite('NewChatWidget', () => {
 		assert.deepStrictEqual(eligibility, [false, false, true, true]);
 	});
 
-	test('forwards selected folder and GitHub attachments to the first chat request', async () => {
+	test('forwards every composer context pill to the first chat request', async () => {
 		const primaryFolder = URI.file('/primary');
 		const attachedFolder = URI.file('/additional');
 		const session = upcastPartial<ISession>({
@@ -329,16 +328,41 @@ suite('NewChatWidget', () => {
 			'Explicit repository context',
 			{ id: `github-context:https://github.com/microsoft/vscode` },
 		);
+		const repositoryRoot = URI.parse('vscode-vfs://github/microsoft/vscode/HEAD');
 		const repositoryContext = upcastPartial<ISessionWorkspace>({
 			uri: URI.parse('https://github.com/microsoft/vscode'),
 			label: 'microsoft/vscode',
 			icon: Codicon.repo,
+			folders: [{
+				root: repositoryRoot,
+				workingDirectory: repositoryRoot,
+				name: 'vscode',
+				description: undefined,
+			}],
 		});
 		const issueContext = upcastPartial<ISessionWorkspace>({
 			uri: URI.parse('https://github.com/microsoft/vscode/issues/332805'),
 			label: 'microsoft/vscode#332805',
 			icon: Codicon.issues,
 		});
+		const attachedFolderContext: IChatRequestVariableEntry = {
+			kind: 'directory',
+			id: getAdditionalFolderContextId(attachedFolder),
+			name: 'additional',
+			value: attachedFolder,
+		};
+		const additionalRepositoryContext: IChatRequestVariableEntry = {
+			kind: 'generic',
+			id: getAdditionalRepositoryContextId(repositoryContext.uri),
+			name: repositoryContext.label,
+			value: repositoryRoot,
+			icon: repositoryContext.icon,
+		};
+		const issueAttachment = toPasteVariableEntry(
+			issueContext.label,
+			`GitHub context: ${issueContext.uri.toString()}`,
+			{ id: `github-context:${issueContext.uri.toString()}`, icon: issueContext.icon },
+		);
 		let sentOptions: ISendRequestOptions | undefined;
 		let clearAttachedContextCount = 0;
 
@@ -347,8 +371,6 @@ suite('NewChatWidget', () => {
 			_feedbackItems: constObservable([]),
 			_workspacePicker: {
 				selectedFolderUri: primaryFolder,
-				additionalFolderUris: [attachedFolder],
-				attachedContextWorkspaces: [repositoryContext, issueContext],
 				clearAttachedContext: () => clearAttachedContextCount++,
 				showPicker: () => { },
 			},
@@ -360,7 +382,13 @@ suite('NewChatWidget', () => {
 				},
 			},
 			logService: { error: () => { } },
-		}, 'work across contexts', [composerAttachment, duplicateRepositoryAttachment]);
+		}, 'work across contexts', [
+			composerAttachment,
+			duplicateRepositoryAttachment,
+			attachedFolderContext,
+			additionalRepositoryContext,
+			issueAttachment,
+		]);
 
 		assert.deepStrictEqual({
 			result,
@@ -376,8 +404,9 @@ suite('NewChatWidget', () => {
 			attachments: [
 				{ kind: 'file', id: composerAttachment.id, value: URI.file('/explicit-file').toString() },
 				{ kind: 'paste', id: duplicateRepositoryAttachment.id, value: duplicateRepositoryAttachment.value },
-				{ kind: 'directory', id: attachedFolder.toString(), value: attachedFolder.toString() },
-				{ kind: 'paste', id: `github-context:${issueContext.uri.toString()}`, value: `GitHub context: ${issueContext.uri.toString()}` },
+				{ kind: 'directory', id: attachedFolderContext.id, value: attachedFolder.toString() },
+				{ kind: 'generic', id: additionalRepositoryContext.id, value: repositoryRoot.toString() },
+				{ kind: 'paste', id: issueAttachment.id, value: issueAttachment.value },
 			],
 		});
 	});
@@ -391,8 +420,6 @@ suite('NewChatWidget', () => {
 			_feedbackItems: constObservable([]),
 			_workspacePicker: {
 				selectedFolderUri: undefined,
-				additionalFolderUris: [],
-				attachedContextWorkspaces: [],
 				clearAttachedContext: () => { },
 				showPicker: () => pickerOpenCount++,
 			},

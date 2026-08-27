@@ -53,6 +53,8 @@ import { IMenuService } from '../../../../../platform/actions/common/actions.js'
 import { INotification, INotificationHandle, INotificationService, NoOpNotification, NotificationMessage } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { AGENTIC_SIGN_IN_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { IChatRequestVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
 
 // ---- Storage key (must match the one in sessionWorkspacePicker.ts) ----------
 const STORAGE_KEY_RECENT_WORKSPACES = 'sessions.recentlyPickedWorkspaces';
@@ -1520,26 +1522,84 @@ suite('WorkspacePicker - Category Triggers', () => {
 			{ label: 'Repository', ariaLabel: 'Choose a repository', icon: Codicon.add, group: SESSION_WORKSPACE_GROUP_GITHUB, attachesContext: false },
 		]);
 		const folderContexts: URI[] = [];
+		const removedContextIds: string[] = [];
 		disposables.add(picker.onDidSelectFolderContext(uri => folderContexts.push(uri)));
+		disposables.add(picker.onDidRemoveAttachedContext(id => removedContextIds.push(id)));
 
 		picker.setDirectFilter(SESSION_WORKSPACE_GROUP_LOCAL, false);
 		await picker.dispatchItem({ browseActionIndex: 0 });
 		const pillsBeforeRemove = Array.from(container.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')).map(element => element.textContent);
 		const removeButton = container.querySelector<HTMLButtonElement>('[aria-label="Remove attached folder local/additional"]');
 		removeButton?.click();
+		const pillsAfterRemove = Array.from(container.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')).map(element => element.textContent);
+		const restoredAttachment: IChatRequestVariableEntry = {
+			kind: 'directory',
+			id: getAdditionalFolderContextId(additionalFolder),
+			name: 'additional',
+			value: additionalFolder,
+		};
+		picker.syncAttachedContext([restoredAttachment]);
+		const pillsAfterRestore = Array.from(container.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')).map(element => element.textContent);
+		picker.setSelectedWorkspace(additionalFolder, { fireEvent: false, persist: false });
 
 		assert.deepStrictEqual({
 			selectedFolder: picker.selectedFolderUri?.toString(),
 			pillsBeforeRemove,
+			pillsAfterRemove,
+			pillsAfterRestore,
 			pills: Array.from(container.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')).map(element => element.textContent),
 			folderContexts: folderContexts.map(uri => uri.toString()),
 			additionalFolderUris: picker.additionalFolderUris.map(uri => uri.toString()),
+			removedContextIds,
 		}, {
-			selectedFolder: primaryFolder.toString(),
+			selectedFolder: additionalFolder.toString(),
 			pillsBeforeRemove: ['local/primary', 'local/additional', 'Repository'],
-			pills: ['local/primary', 'Repository'],
+			pillsAfterRemove: ['local/primary', 'Repository'],
+			pillsAfterRestore: ['local/primary', 'local/additional', 'Repository'],
+			pills: ['local/additional', 'Repository'],
 			folderContexts: [additionalFolder.toString()],
 			additionalFolderUris: [],
+			removedContextIds: [
+				getAdditionalFolderContextId(additionalFolder),
+				getAdditionalFolderContextId(additionalFolder),
+			],
+		});
+	});
+
+	test('restores additional folder context when its provider registers later', () => {
+		const providersService = disposables.add(new MockSessionsProvidersService());
+		const picker = createTestPicker(disposables, providersService);
+		const container = document.createElement('div');
+		picker.renderCategoryTriggers(container, [
+			{ label: 'Folder', ariaLabel: 'Choose a folder', icon: Codicon.add, group: SESSION_WORKSPACE_GROUP_LOCAL },
+		]);
+		const folder = URI.file('/local/delayed');
+		picker.syncAttachedContext([{
+			kind: 'directory',
+			id: getAdditionalFolderContextId(folder),
+			name: 'delayed',
+			value: folder,
+		}]);
+		const beforeProvider = picker.additionalFolderUris.map(uri => uri.toString());
+		const baseProvider = createMockProvider('local-1');
+
+		providersService.setProviders([{
+			...baseProvider,
+			supportsLocalWorkspaces: true,
+			resolveWorkspace: uri => {
+				const workspace = baseProvider.resolveWorkspace(uri);
+				return workspace ? { ...workspace, group: SESSION_WORKSPACE_GROUP_LOCAL } : undefined;
+			},
+		}]);
+
+		assert.deepStrictEqual({
+			beforeProvider,
+			afterProvider: picker.additionalFolderUris.map(uri => uri.toString()),
+			pills: Array.from(container.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')).map(element => element.textContent),
+		}, {
+			beforeProvider: [],
+			afterProvider: [folder.toString()],
+			pills: ['Folder', 'local/delayed'],
 		});
 	});
 
@@ -1889,9 +1949,12 @@ suite('WorkspacePicker - Category Triggers', () => {
 		const issueSelection = picker.dispatchItem({ browseActionIndex: 0 });
 		picker.setDirectFilter(undefined);
 		await issueSelection;
-		const attachmentIds = new Set(contexts.map(context => `github-context:${context.uri.toString()}`));
-		attachmentIds.delete('github-context:https://github.com/microsoft/vscode/pull/1');
-		picker.syncAttachedContextIds(attachmentIds);
+		const attachments = contexts
+			.filter(context => context.uri.path !== '/microsoft/vscode/pull/1')
+			.map(context => toPasteVariableEntry(context.label, `GitHub context: ${context.uri.toString()}`, {
+				id: `github-context:${context.uri.toString()}`,
+			}));
+		picker.syncAttachedContext(attachments);
 
 		assert.deepStrictEqual({
 			selectedFolder: picker.selectedFolderUri?.path,
@@ -2054,7 +2117,11 @@ suite('WorkspacePicker - Category Triggers', () => {
 			{ label: 'Issue/PR', ariaLabel: 'Choose an issue or pull request', icon: Codicon.add, group: SESSION_WORKSPACE_GROUP_GITHUB, attachesContext: true },
 		]);
 		const contexts: ISessionWorkspace[] = [];
+		const repositoryContexts: Array<{ workspace: ISessionWorkspace; providerId: string }> = [];
+		const removedContextIds: string[] = [];
 		disposables.add(picker.onDidSelectContext(context => contexts.push(context)));
+		disposables.add(picker.onDidSelectRepositoryContext(context => repositoryContexts.push(context)));
+		disposables.add(picker.onDidRemoveAttachedContext(id => removedContextIds.push(id)));
 		browseHook.onBrowse = () => picker.setDirectFilter(undefined);
 
 		picker.setDirectFilter(SESSION_WORKSPACE_GROUP_GITHUB, false);
@@ -2064,25 +2131,44 @@ suite('WorkspacePicker - Category Triggers', () => {
 		await picker.dispatchItem({ browseActionIndex: 0 });
 		const pillsBeforeRemove = Array.from(container.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')).map(element => element.textContent);
 		container.querySelector<HTMLButtonElement>('[aria-label="Remove attached repository microsoft/other"]')?.click();
-		await picker.dispatchItem({
-			folderUri: URI.parse('vscode-vfs://github/microsoft/other/HEAD'),
-			providerId: githubProvider.id,
-		});
+		const pillsAfterRemove = Array.from(container.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')).map(element => element.textContent);
+		const attachedRepository = repositoryContexts.at(-1);
+		assert.ok(attachedRepository);
+		const restoredAttachment: IChatRequestVariableEntry = {
+			kind: 'generic',
+			id: getAdditionalRepositoryContextId(attachedRepository.workspace.uri),
+			name: attachedRepository.workspace.label,
+			value: attachedRepository.workspace.folders[0].root,
+		};
+		picker.syncAttachedContext([restoredAttachment]);
+		const pillsAfterRestore = Array.from(container.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')).map(element => element.textContent);
+		picker.syncAttachedContext([restoredAttachment]);
+		container.querySelector<HTMLButtonElement>('[aria-label="Remove attached repository microsoft/other"]')?.click();
+		const pillsAfterRestoredRemove = Array.from(container.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')).map(element => element.textContent);
 
 		assert.deepStrictEqual({
 			selectedFolder: picker.selectedFolderUri?.toString(),
 			selectedProvider: picker.selectedResolved?.providerId,
 			pillsBeforeRemove,
-			pills: Array.from(container.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')).map(element => element.textContent),
+			pillsAfterRemove,
+			pillsAfterRestore,
+			pillsAfterRestoredRemove,
 			contexts: contexts.map(context => context.uri.toString()),
 			attachedContextWorkspaces: picker.attachedContextWorkspaces.map(context => context.uri.toString()),
+			removedContextIds,
 		}, {
 			selectedFolder: localUri.toString(),
 			selectedProvider: localProvider.id,
 			pillsBeforeRemove: ['local/vscode', 'microsoft/vscode', 'microsoft/other', 'Issue/PR'],
-			pills: ['local/vscode', 'microsoft/vscode', 'microsoft/other', 'Issue/PR'],
+			pillsAfterRemove: ['local/vscode', 'microsoft/vscode', 'Issue/PR'],
+			pillsAfterRestore: ['local/vscode', 'microsoft/vscode', 'microsoft/other', 'Issue/PR'],
+			pillsAfterRestoredRemove: ['local/vscode', 'microsoft/vscode', 'Issue/PR'],
 			contexts: [],
-			attachedContextWorkspaces: ['https://github.com/microsoft/other'],
+			attachedContextWorkspaces: [],
+			removedContextIds: [
+				getAdditionalRepositoryContextId(URI.parse('https://github.com/microsoft/other')),
+				getAdditionalRepositoryContextId(URI.parse('https://github.com/microsoft/other')),
+			],
 		});
 	});
 });
