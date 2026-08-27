@@ -350,7 +350,12 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 	}
 
 	async toggleElementSelection(id: string, enabled?: boolean, options?: IBrowserElementSelectionOptions): Promise<void> {
-		return this._getBrowserView(id).inspector.toggleElementSelection(enabled, options);
+		const view = this._getBrowserView(id);
+		const config = this._windowConfigurations.get(view.hostWindowId);
+		if (config?.sendElementsToChatEnabled === false) {
+			return view.inspector.toggleElementSelection(false);
+		}
+		return view.inspector.toggleElementSelection(enabled, options);
 	}
 
 	async setElementComments(id: string, update: IBrowserElementCommentsUpdate): Promise<void> {
@@ -365,6 +370,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		const oldConfig = this._windowConfigurations.get(windowId);
 		const didThemeChange = !equals(oldConfig?.theme, config.theme);
 		const didProxyChange = !equals(oldConfig?.proxyInfo, config.proxyInfo);
+		const didDisableElementSelection = oldConfig?.sendElementsToChatEnabled !== false && config.sendElementsToChatEnabled === false;
 
 		this._windowConfigurations.set(windowId, config);
 		this._ensureWindowCloseSubscription(windowId);
@@ -379,6 +385,9 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 				}
 				if (typeof config.maxHistoryEntries === 'number') {
 					view.session.history.setMaxEntries(config.maxHistoryEntries);
+				}
+				if (didDisableElementSelection) {
+					void view.inspector.toggleElementSelection(false);
 				}
 			}
 		}

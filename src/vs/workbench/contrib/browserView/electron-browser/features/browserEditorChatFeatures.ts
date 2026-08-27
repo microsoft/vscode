@@ -989,12 +989,12 @@ class AddConsoleLogsToChatAction extends Action2 {
 			category: BrowserActionCategory,
 			icon: Codicon.output,
 			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), chatElementsWhen),
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled),
 			menu: {
 				id: MenuId.BrowserChatActionsMenu,
 				group: '2_logs',
 				order: 1,
-				when: chatElementsWhen
+				when: ChatContextKeys.enabled
 			}
 		});
 	}
@@ -1016,12 +1016,12 @@ class AddScreenshotToChatAction extends Action2 {
 			category: BrowserActionCategory,
 			icon: Codicon.deviceCamera,
 			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), chatElementsWhen),
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled),
 			menu: {
 				id: MenuId.BrowserChatActionsMenu,
 				group: '3_screenshots',
 				order: 1,
-				when: chatElementsWhen
+				when: ChatContextKeys.enabled
 			}
 		});
 	}
@@ -1043,13 +1043,13 @@ class AddAreaScreenshotToChatAction extends Action2 {
 			category: BrowserActionCategory,
 			icon: Codicon.screenFull,
 			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), chatElementsWhen),
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled),
 			toggled: CONTEXT_BROWSER_AREA_SELECTION_ACTIVE,
 			menu: {
 				id: MenuId.BrowserChatActionsMenu,
 				group: '3_screenshots',
 				order: 2,
-				when: chatElementsWhen
+				when: ChatContextKeys.enabled
 			}
 		});
 	}
@@ -1072,12 +1072,12 @@ class AddFullPageScreenshotToChatAction extends Action2 {
 			category: BrowserActionCategory,
 			icon: Codicon.deviceCamera,
 			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), chatElementsWhen, enabledSetting),
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled, enabledSetting),
 			menu: {
 				id: MenuId.BrowserChatActionsMenu,
 				group: '3_screenshots',
 				order: 3,
-				when: ContextKeyExpr.and(chatElementsWhen, enabledSetting)
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, enabledSetting)
 			}
 		});
 	}
@@ -1152,6 +1152,17 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				{ comment: ['This is the description for a setting.'], key: 'browser.sendElementsToChat.enabled' },
 				"Controls whether the Integrated Browser can select page elements to add to chat. When disabled, the inspect overlay, Add Element to Chat, and Comment on Elements actions are hidden. This is independent of `#workbench.browser.enableChatTools#`, which only gates agent browser tools."
 			),
+			policy: {
+				name: 'BrowserSendElementsToChat',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.136',
+				localization: {
+					description: {
+						key: 'browser.sendElementsToChat.enabled',
+						value: localize('browser.sendElementsToChat.enabled', 'Controls whether the Integrated Browser can select page elements to add to chat. When disabled, the inspect overlay, Add Element to Chat, and Comment on Elements actions are hidden.')
+					}
+				},
+			},
 		},
 		[BrowserSendElementsToChatAttachImagesSettingId]: {
 			type: 'boolean',

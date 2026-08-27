@@ -1019,6 +1019,21 @@
             "type": "boolean",
             "default": true,
             "included": true
+        },
+        {
+            "key": "workbench.browser.sendElementsToChat.enabled",
+            "name": "BrowserSendElementsToChat",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.136",
+            "localization": {
+                "description": {
+                    "key": "browser.sendElementsToChat.enabled",
+                    "value": "Controls whether the Integrated Browser can select page elements to add to chat. When disabled, the inspect overlay, Add Element to Chat, and Comment on Elements actions are hidden."
+                }
+            },
+            "type": "boolean",
+            "default": true,
+            "included": true
         }
     ]
 }
