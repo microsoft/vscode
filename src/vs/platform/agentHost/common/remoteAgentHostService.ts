@@ -193,6 +193,8 @@ export interface IRemoteAgentHostDevContainerConnection {
 	readonly type: RemoteAgentHostEntryType.DevContainer;
 	/** Stable address for the container connection. */
 	readonly address: string;
+	/** Local source folder containing the Dev Container configuration. */
+	readonly hostPath: string;
 }
 
 export type RemoteAgentHostConnection = IRemoteAgentHostWebSocketConnection | IRemoteAgentHostSSHConnection | IRemoteAgentHostWSLConnection | IRemoteAgentHostTunnelConnection | IRemoteAgentHostCloudSandboxConnection | IRemoteAgentHostDevContainerConnection;
