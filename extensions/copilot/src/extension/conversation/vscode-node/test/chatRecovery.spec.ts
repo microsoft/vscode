@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { expect, suite, test } from 'vitest';
-import { ChatRequest, ChatRequestEditedFileEventKind, ChatRequestTurn2, ChatResponseTurn, LanguageModelTextPart, LanguageModelToolResult } from '../../../../vscodeTypes';
+import { ChatRequest, ChatRequestEditedFileEventKind, ChatRequestTurn2, ChatResponseTextEditPart, LanguageModelTextPart, LanguageModelToolResult } from '../../../../vscodeTypes';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { PreviousEditCodeStep } from '../../../intents/node/editCodeStep';
 import { IResultMetadata } from '../../../prompt/common/conversation';
@@ -58,13 +58,15 @@ function chatRequest(overrides: Partial<ChatRequest>): ChatRequest {
 	} as ChatRequest;
 }
 
-function chatResponse(metadata?: Partial<IResultMetadata>, hasError = false): ChatResponseTurn {
+function chatResponse(metadata?: Partial<IResultMetadata>, hasError = false) {
 	return {
+		response: [],
+		participant: 'agent',
 		result: {
 			metadata,
 			errorDetails: hasError ? { message: 'Previous request failed' } : undefined,
 		}
-	} as ChatResponseTurn;
+	};
 }
 
 function metadataWithChangedFile(uri: vscode.Uri, metadata: Partial<IResultMetadata> = {}, state = WorkingSetEntryState.Undecided): Partial<IResultMetadata> {
@@ -214,6 +216,29 @@ suite('Chat recovery', () => {
 			userModified: { modelId: 'model', scoringVersion: '2', totalScore: 1.25, requestRetried: true, requestEdited: true, documentUserModified: true },
 			generatedProblems: { modelId: 'model', scoringVersion: '2', totalScore: 1.25, requestRetried: true, requestEdited: true, documentGeneratedProblems: true },
 			mergeConflicts: { modelId: 'model', scoringVersion: '2', totalScore: 1, requestRetried: true, documentHasMergeConflicts: true },
+		});
+	});
+
+	test('detects Agent mode recovery signals from response edits', () => {
+		const changedDocument = URI.file('/workspace/changed.ts');
+		const previousRequest = { prompt: 'previous request', modelId: 'model' } as ChatRequestTurn2;
+		const previousResponse = {
+			response: [new ChatResponseTextEditPart(changedDocument, vscode.TextEdit.insert(new vscode.Position(0, 0), 'generated'))],
+			participant: 'agent',
+			result: {},
+		};
+		const noWorkspaceSignals = { getDiagnostics: () => [], hasMergeConflicts: () => false };
+		const diagnosticSignals = {
+			getDiagnostics: (uri: vscode.Uri) => uri.toString() === changedDocument.toString() ? [new vscode.Diagnostic(new vscode.Range(0, 0, 0, 5), 'Generated error', vscode.DiagnosticSeverity.Error)] : [],
+			hasMergeConflicts: () => false,
+		};
+
+		expect({
+			userRejected: getChatRecoveryAttempt(previousRequest, previousResponse, chatRequest({ editedFileEvents: [{ uri: changedDocument, eventKind: ChatRequestEditedFileEventKind.Undo }] }), noWorkspaceSignals),
+			generatedProblems: getChatRecoveryAttempt(previousRequest, previousResponse, chatRequest({}), diagnosticSignals),
+		}).toEqual({
+			userRejected: { modelId: 'model', scoringVersion: '2', totalScore: 0.75, documentUserRejected: true },
+			generatedProblems: { modelId: 'model', scoringVersion: '2', totalScore: 0.5, documentGeneratedProblems: true },
 		});
 	});
 });

@@ -1153,7 +1153,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			res.push(turn);
 
 			// RESPONSE turn
-			const parts = coalesce(h.response.map(r => typeConvert.ChatResponsePart.toContent(r, this._commands.converter)));
+			const parts = coalesce(h.response.map(r => typeConvert.ChatResponsePart.toContent(r, this._commands.converter, isProposedApiEnabled(extension, 'chatParticipantPrivate'))));
 			res.push(new extHostTypes.ChatResponseTurn(parts, result, h.request.agentId, h.request.command));
 		}
 

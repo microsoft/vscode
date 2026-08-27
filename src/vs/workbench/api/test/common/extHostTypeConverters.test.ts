@@ -9,8 +9,8 @@ import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
 import { IconPathDto } from '../../common/extHost.protocol.js';
-import { ChatAgentRequest, ChatPromptReference, ChatRequestModeInstructions, ChatResponseVoiceProgressPart, ChatToolInvocationPart, IconPath } from '../../common/extHostTypeConverters.js';
-import { ChatReferenceBinaryData, ChatResponseVoiceProgressPart as ExtHostChatResponseVoiceProgressPart, ChatSubagentToolInvocationData, ChatToolInvocationPart as ExtHostChatToolInvocationPart, ThemeColor, ThemeIcon } from '../../common/extHostTypes.js';
+import { ChatAgentRequest, ChatPromptReference, ChatRequestModeInstructions, ChatResponsePart, ChatResponseVoiceProgressPart, ChatToolInvocationPart, IconPath } from '../../common/extHostTypeConverters.js';
+import { ChatReferenceBinaryData, ChatResponseTextEditPart, ChatResponseVoiceProgressPart as ExtHostChatResponseVoiceProgressPart, ChatSubagentToolInvocationData, ChatToolInvocationPart as ExtHostChatToolInvocationPart, ThemeColor, ThemeIcon } from '../../common/extHostTypes.js';
 import { ChatAgentLocation } from '../../../contrib/chat/common/constants.js';
 import { IElementVariableEntry } from '../../../contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatRequestModeInstructions } from '../../../contrib/chat/common/model/chatModel.js';
@@ -47,6 +47,25 @@ suite('extHostTypeConverters', function () {
 		assert.deepStrictEqual({ modelId: result.modelId, providerModelId: result.model.id }, {
 			modelId: 'copilot/model-a',
 			providerModelId: 'model-a',
+		});
+	});
+
+	test('exposes response edits only to private chat participants', () => {
+		const uri = URI.file('/workspace/generated.ts');
+		const historyPart = {
+			kind: 'textEditGroup' as const,
+			uri,
+			edits: [[]],
+			done: true,
+		};
+		const privatePart = ChatResponsePart.toContent(historyPart, undefined as never, true);
+
+		assert.deepStrictEqual({
+			privatePart: privatePart instanceof ChatResponseTextEditPart ? { uri: privatePart.uri.toString(), isDone: privatePart.isDone } : undefined,
+			publicPart: ChatResponsePart.toContent(historyPart, undefined as never),
+		}, {
+			privatePart: { uri: uri.toString(), isDone: true },
+			publicPart: undefined,
 		});
 	});
 
