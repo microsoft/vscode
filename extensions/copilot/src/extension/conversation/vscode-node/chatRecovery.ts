@@ -6,10 +6,29 @@
 import * as vscode from 'vscode';
 import { computeLevenshteinDistance } from '../../../util/vs/base/common/diff/diff';
 import { isEqual } from '../../../util/vs/base/common/resources';
-import { ChatRequestTurn2, ChatResponseTurn } from '../../../vscodeTypes';
+import { ChatRequestTurn2, ChatResponseTurn, LanguageModelTextPart } from '../../../vscodeTypes';
 import { MergeConflictParser } from '../../git/vscode/mergeConflictParser';
 import { PreviousEditCodeStep } from '../../intents/node/editCodeStep';
-import { WorkingSetEntryState } from '../../prompt/common/intents';
+import { IResultMetadata } from '../../prompt/common/conversation';
+import { IToolCall, WorkingSetEntryState } from '../../prompt/common/intents';
+import { getToolName, ToolName } from '../../tools/common/toolNames';
+
+const testRunSummaryPattern = /<summary passed=\d+ failed=(?<failed>\d+) \/>/;
+
+export const chatRecoverySignalNames = [
+	'documentUserRejected',
+	'documentUserModified',
+	'documentHasMergeConflicts',
+	'documentGeneratedProblems',
+	'documentGeneratedTestsFail',
+	'lastRequestRepeated',
+	'lastResponseErrored',
+	'requestRetried',
+	'requestEdited',
+	'requestChangedModel',
+] as const;
+
+export type ChatRecoverySignalName = typeof chatRecoverySignalNames[number];
 
 export function arePromptsSimilar(previousPrompt: string, currentPrompt: string): boolean {
 	const normalizedPreviousPrompt = previousPrompt.trim().replace(/\s+/g, ' ').toLowerCase();
@@ -17,10 +36,40 @@ export function arePromptsSimilar(previousPrompt: string, currentPrompt: string)
 	if (!normalizedPreviousPrompt || !normalizedCurrentPrompt) {
 		return false;
 	}
+	if (normalizedPreviousPrompt === normalizedCurrentPrompt) {
+		return true;
+	}
 	const maximumLength = Math.max(normalizedPreviousPrompt.length, normalizedCurrentPrompt.length);
 	const similarity = 1 - computeLevenshteinDistance(normalizedPreviousPrompt, normalizedCurrentPrompt) / maximumLength;
 
 	return similarity >= 0.8;
+}
+
+function testRunTargetsChangedFile(toolCall: IToolCall, changedFileUris: readonly vscode.Uri[]): boolean {
+	if (getToolName(toolCall.name) !== ToolName.CoreRunTest) {
+		return false;
+	}
+	try {
+		const input = JSON.parse(toolCall.arguments) as { files?: string[] };
+		return input.files?.some(file => changedFileUris.some(uri => isEqual(vscode.Uri.file(file), uri))) === true;
+	} catch {
+		return false;
+	}
+}
+
+export function didLastTestRunFail(metadata: Partial<IResultMetadata> | undefined, changedFileUris: readonly vscode.Uri[]): boolean {
+	const lastTestRun = metadata?.toolCallRounds
+		?.flatMap(round => round.toolCalls)
+		.filter(toolCall => testRunTargetsChangedFile(toolCall, changedFileUris))
+		.at(-1);
+	if (!lastTestRun) {
+		return false;
+	}
+	const resultText = metadata?.toolCallResults?.[lastTestRun.id]?.content
+		.flatMap(part => part instanceof LanguageModelTextPart ? [part.value] : [])
+		.join('\n') ?? '';
+	const failedCount = testRunSummaryPattern.exec(resultText)?.groups?.failed;
+	return failedCount !== undefined && Number.parseInt(failedCount, 10) > 0;
 }
 
 /**
@@ -30,57 +79,58 @@ export function isChatRecoveryAttempt(previousRequest: ChatRequestTurn2 | undefi
 	if ((!previousRequest && !previousResponse) || request.permissionLevel === 'autopilot' || request.subAgentInvocationId || request.isSystemInitiated) {
 		return false;
 	}
-	// If the request is a rerun, it is a recovery attempt.
+
+	const signals: ChatRecoverySignalName[] = [];
 	if (request.attempt > 0) {
-		return true;
+		signals.push('requestRetried');
 	}
-	// Editing and resubmitting a prompt strongly indicates that the prior request needed correction.
 	if (request.editedRequestId) {
-		return true;
+		signals.push('requestEdited');
 	}
-	// If the previous request was another model
 	if (previousRequest?.modelId && previousRequest.modelId !== request.model.id) {
-		return true;
+		signals.push('requestChangedModel');
 	}
-	// A substantially repeated prompt suggests that the previous response did not resolve it.
 	if (previousRequest && arePromptsSimilar(previousRequest.prompt, request.prompt)) {
-		return true;
+		signals.push('lastRequestRepeated');
 	}
-	// If the previous response had an error, it is likely that the user is attempting to recover from it.
 	if (previousResponse?.result.errorDetails) {
-		return true;
+		signals.push('lastResponseErrored');
 	}
-	// If the previous response was not an expected error, it is likely that the user is attempting to recover from it.
-	const previousFailure = previousResponse?.result.errorDetails?.isExpectedError === false;
-	if (previousFailure) {
-		return true;
-	}
+
 	const editStep = previousResponse ? PreviousEditCodeStep.fromChatResultMetaData(previousResponse.result) : undefined;
 	const changedFiles = editStep?.workingSet.filter(entry => entry.state !== WorkingSetEntryState.Initial) ?? [];
-	// All files were rejected or modified, which strongly suggests that the previous request was not successful.
-	const allChangedFilesRejectedOrModified = changedFiles.length > 0 && changedFiles.every(entry =>
+	const documentUserRejected = changedFiles.some(entry =>
 		request.editedFileEvents?.some(event =>
-			(event.eventKind === vscode.ChatRequestEditedFileEventKind.Undo || event.eventKind === vscode.ChatRequestEditedFileEventKind.UserModification)
-			&& isEqual(event.uri, entry.document.uri)
+			event.eventKind === vscode.ChatRequestEditedFileEventKind.Undo && isEqual(event.uri, entry.document.uri)
 		) === true
 	);
-	if (allChangedFilesRejectedOrModified) {
-		return true;
+	if (documentUserRejected) {
+		signals.push('documentUserRejected');
 	}
-	// Files have bad diagnostics
-	const someFilesHaveBadDiagnostics = changedFiles.some(entry =>
+	const documentUserModified = changedFiles.some(entry =>
+		request.editedFileEvents?.some(event =>
+			event.eventKind === vscode.ChatRequestEditedFileEventKind.UserModification && isEqual(event.uri, entry.document.uri)
+		) === true
+	);
+	if (documentUserModified) {
+		signals.push('documentUserModified');
+	}
+	const documentGeneratedProblems = changedFiles.some(entry =>
 		vscode.languages.getDiagnostics(entry.document.uri).some(diagnostic => diagnostic.severity === vscode.DiagnosticSeverity.Error)
 	);
-	if (someFilesHaveBadDiagnostics) {
-		return true;
+	if (documentGeneratedProblems) {
+		signals.push('documentGeneratedProblems');
 	}
-	// Files have merge conflicts
-	const someFilesHaveMergeConflicts = changedFiles.some(entry => {
+	const documentHasMergeConflicts = changedFiles.some(entry => {
 		const document = vscode.workspace.textDocuments.find(document => isEqual(document.uri, entry.document.uri));
 		return document !== undefined && MergeConflictParser.scanDocument(document).length > 0;
 	});
-	if (someFilesHaveMergeConflicts) {
-		return true;
+	if (documentHasMergeConflicts) {
+		signals.push('documentHasMergeConflicts');
 	}
-	return false;
+	if (didLastTestRunFail(previousResponse?.result.metadata, changedFiles.map(entry => entry.document.uri))) {
+		signals.push('documentGeneratedTestsFail');
+	}
+
+	return signals.length > 1;
 }

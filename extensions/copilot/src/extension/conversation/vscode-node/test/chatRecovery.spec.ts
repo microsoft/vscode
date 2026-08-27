@@ -4,7 +4,40 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { expect, suite, test } from 'vitest';
-import { arePromptsSimilar } from '../chatRecovery';
+import { ChatRequest, ChatRequestTurn2, LanguageModelTextPart, LanguageModelToolResult } from '../../../../vscodeTypes';
+import { URI } from '../../../../util/vs/base/common/uri';
+import { IResultMetadata } from '../../../prompt/common/conversation';
+import { ToolName } from '../../../tools/common/toolNames';
+import { arePromptsSimilar, didLastTestRunFail, isChatRecoveryAttempt } from '../chatRecovery';
+
+const changedTestFile = URI.file('/workspace/new.test.ts');
+
+function metadataWithTestRuns(...runs: { failedCount: number; file?: string }[]): Partial<IResultMetadata> {
+	const toolCallResults: NonNullable<IResultMetadata['toolCallResults']> = {};
+	const toolCallRounds = runs.map(({ failedCount, file = changedTestFile.fsPath }, index) => {
+		const callId = `test-call-${index}`;
+		toolCallResults[callId] = new LanguageModelToolResult([
+			new LanguageModelTextPart(`<summary passed=1 failed=${failedCount} />`)
+		]);
+		return {
+			id: `round-${index}`,
+			response: '',
+			toolInputRetry: 0,
+			toolCalls: [{ id: callId, name: ToolName.CoreRunTest, arguments: JSON.stringify({ files: [file] }) }]
+		};
+	});
+
+	return { toolCallRounds, toolCallResults };
+}
+
+function chatRequest(overrides: Partial<ChatRequest>): ChatRequest {
+	return {
+		prompt: 'new request',
+		attempt: 0,
+		model: { id: 'model' },
+		...overrides,
+	} as ChatRequest;
+}
 
 suite('Chat recovery', () => {
 	test('compares normalized prompts', () => {
@@ -15,5 +48,25 @@ suite('Chat recovery', () => {
 	test('does not treat empty attachment-only prompts as repeats', () => {
 		expect(arePromptsSimilar('', '')).toBe(false);
 		expect(arePromptsSimilar('  \n', 'Fix the error')).toBe(false);
+	});
+
+	test('detects a failed last test run', () => {
+		expect(didLastTestRunFail(metadataWithTestRuns({ failedCount: 0 }, { failedCount: 2 }), [changedTestFile])).toBe(true);
+	});
+
+	test('ignores an earlier failure after tests pass', () => {
+		expect(didLastTestRunFail(metadataWithTestRuns({ failedCount: 2 }, { failedCount: 0 }), [changedTestFile])).toBe(false);
+	});
+
+	test('ignores test runs for unchanged files', () => {
+		expect(didLastTestRunFail(metadataWithTestRuns({ failedCount: 2, file: URI.file('/workspace/other.test.ts').fsPath }), [changedTestFile])).toBe(false);
+	});
+
+	test('requires more than one recovery signal', () => {
+		const previousRequest = { prompt: 'previous request', modelId: 'model' } as ChatRequestTurn2;
+		expect([
+			isChatRecoveryAttempt(previousRequest, undefined, chatRequest({ attempt: 1 })),
+			isChatRecoveryAttempt(previousRequest, undefined, chatRequest({ attempt: 1, editedRequestId: 'request-id' })),
+		]).toEqual([false, true]);
 	});
 });
