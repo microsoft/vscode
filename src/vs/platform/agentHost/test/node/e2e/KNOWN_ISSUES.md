@@ -861,6 +861,30 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
     --grep "accepted steering followed by abort"
   ```
 
+### Retryable Copilot errors are temporarily disabled
+
+Copilot errors currently end a turn without offering an in-place retry. The retry protocol remains implemented, but the host intentionally omits the `resumable` marker from live, restored, and repeated errors until the feature is re-enabled.
+
+- Tests:
+  - `resumes a failed turn in place`
+  - `resumes the same turn after repeated failures`
+  - `restores and resumes a turn interrupted by host shutdown`
+- Scope: Copilot on all platforms and execution modes.
+- Expected when enabled: a failed turn is marked resumable, and retrying continues the same turn without adding another user message. An unfinished request restored after host shutdown has the same behavior.
+- Observed: Copilot errors intentionally omit the `resumable` marker, so clients cannot request an in-place retry.
+- Gate: all three scenarios are unconditionally skipped. The host-shutdown scenario additionally requires direct `AGENT_HOST_REPLAY_RECORD=1` mode because replay has no active streaming window to terminate.
+- Run after removing the temporary gate:
+
+  ```bash
+  ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "resumes a failed turn in place|resumes the same turn after repeated failures"
+
+  AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "restores and resumes a turn interrupted by host shutdown"
+  ```
+
 ### Codex model-backed multiple-chat recording
 
 - Tests: the model-backed peer-chat and fork scenarios in `multiChatSuite.ts`, and `side chat receives bounded source context without copied history`.

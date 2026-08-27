@@ -31,6 +31,7 @@ import { ICustomViewService } from '../../customView/browser/customViewService.j
 import { IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { setActiveSessionContextKeys } from '../common/sessionContextKeys.js';
 import { ISessionChangesStatsCache } from '../common/sessionChangesStatsCache.js';
+import { ISessionOpenTelemetryAttempt, ISessionOpenTelemetryService, SessionOpenSource } from './sessionOpenTelemetryService.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
 
@@ -81,6 +82,11 @@ export interface ICloseChatOptions {
 	 * the batch would make one arbitrary member of it reopenable.
 	 */
 	readonly skipHistory?: boolean;
+}
+
+export interface IOpenSessionOptions {
+	readonly preserveFocus?: boolean;
+	readonly source?: SessionOpenSource;
 }
 
 /**
@@ -174,10 +180,10 @@ export interface ISessionsService {
 	 * When `options.preserveFocus` is set, the session is shown without moving
 	 * keyboard focus into it.
 	 */
-	openSession(sessionResource: URI, options?: { preserveFocus?: boolean }): Promise<void>;
+	openSession(sessionResource: URI, options?: IOpenSessionOptions): Promise<void>;
 
 	/** Place a session to the right of the last visible session and activate it. */
-	openSessionToSide(session: ISession, options?: { preserveFocus?: boolean; chatResource?: URI }): Promise<void>;
+	openSessionToSide(session: ISession, options?: IOpenSessionOptions & { chatResource?: URI }): Promise<void>;
 
 	/**
 	 * Whether the given session may be opened, honoring workspace trust. Prompts
@@ -191,7 +197,7 @@ export interface ISessionsService {
 	 * When `options.preserveFocus` is set, the chat is shown without moving
 	 * keyboard focus into it.
 	 */
-	openChat(session: ISession, chatUri: URI, options?: { preserveFocus?: boolean }): Promise<void>;
+	openChat(session: ISession, chatUri: URI, options?: IOpenSessionOptions): Promise<void>;
 
 	/**
 	 * Close a chat from the session view. The chat is hidden from the tab strip
@@ -370,6 +376,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@ISessionChangesStatsCache private readonly changesStatsCache: ISessionChangesStatsCache,
+		@ISessionOpenTelemetryService private readonly sessionOpenTelemetryService: ISessionOpenTelemetryService,
 	) {
 		super();
 
@@ -459,9 +466,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// one disappears.
 		this._register(this.sessionsManagementService.onDidChangeSessions(e => this._onDidChangeSessions(e)));
 
-		// Reflect provider session replacement (e.g. a draft graduating into a
-		// committed session) onto the grid slot.
+		// Reflect both provider session replacement (e.g. a draft graduating)
+		// and pre-send draft replacement onto the same visible grid slot.
 		this._register(this.sessionsManagementService.onDidReplaceSession(({ from, to }) => this._onDidReplaceSession(from, to)));
+		this._register(this.sessionsManagementService.onDidReplaceNewDraftSession(({ from, to }) => this._onDidReplaceSession(from, to)));
 
 		// While a foreground send materialises new chats, keep the newest chat
 		// active in the visible slot so the user sees the chat being sent.
@@ -625,7 +633,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (e.removed.length && e.removed.some(r => r.sessionId === currentActive.sessionId)) {
 			const fallback = this._visibility.activeSession.get();
 			if (fallback && this.sessionsManagementService.getSession(fallback.resource)) {
-				this.openSession(fallback.resource);
+				this.openSession(fallback.resource, { source: 'fallback' });
 			} else {
 				this.openNewSession();
 			}
@@ -723,12 +731,31 @@ export class SessionsService extends Disposable implements ISessionsService {
 		return this._visibility.setActive(session, preserveFocus);
 	}
 
-	async openChat(session: ISession, chatUri: URI, options?: { preserveFocus?: boolean }): Promise<void> {
+	async openChat(session: ISession, chatUri: URI, options?: IOpenSessionOptions): Promise<void> {
 		const t0 = Date.now();
 		this._cancelRestore();
 		const token = this._startOpenSession();
+		if (options?.source) {
+			await this.sessionOpenTelemetryService.withOpenRequest(options.source, token, telemetryAttempt =>
+				this._openChat(session, chatUri, options.preserveFocus, token, t0, telemetryAttempt));
+			return;
+		}
+		await this._openChat(session, chatUri, options?.preserveFocus, token, t0);
+	}
+
+	private async _openChat(session: ISession, chatUri: URI, preserveFocus: boolean | undefined, token: CancellationToken, startTime: number, telemetryAttempt?: ISessionOpenTelemetryAttempt): Promise<void> {
+		if (telemetryAttempt) {
+			this.sessionOpenTelemetryService.sessionResolved(
+				telemetryAttempt,
+				session.resource,
+				session.providerId,
+				this.activeSession.get()?.sessionId === session.sessionId,
+				session.loading.get(),
+			);
+			this.sessionOpenTelemetryService.sessionActivated(telemetryAttempt, chatUri);
+		}
 		this.logService.trace(`[SessionsView] openChat start uri=${chatUri.toString()} provider=${session.providerId}`);
-		this._activate(session, options?.preserveFocus);
+		this._activate(session, preserveFocus);
 		if (!await this._waitForSessionToLoad(session, token)) {
 			this.logService.trace(`[SessionsView] openChat cancelled while waiting for session to load uri=${chatUri.toString()}`);
 			return;
@@ -746,13 +773,19 @@ export class SessionsService extends Disposable implements ISessionsService {
 				this._setChatClosedState(session, chat, false);
 			}
 		}
+		if (telemetryAttempt) {
+			if (chat) {
+				this.sessionOpenTelemetryService.sessionActivated(telemetryAttempt, chat.resource);
+			}
+			this.sessionOpenTelemetryService.sessionLoaded(telemetryAttempt);
+		}
 
 		if (chat && chat.status.get() === SessionStatus.Untitled) {
-			this.logService.trace(`[SessionsView] openChat done total=${Date.now() - t0}ms uri=${chatUri.toString()} path=untitled`);
+			this.logService.trace(`[SessionsView] openChat done total=${Date.now() - startTime}ms uri=${chatUri.toString()} path=untitled`);
 			return;
 		}
 
-		this.logService.trace(`[SessionsView] openChat done total=${Date.now() - t0}ms uri=${chatUri.toString()}`);
+		this.logService.trace(`[SessionsView] openChat done total=${Date.now() - startTime}ms uri=${chatUri.toString()}`);
 	}
 
 	async closeChat(session: IActiveSession, chat: IChat, options?: ICloseChatOptions): Promise<void> {
@@ -801,33 +834,43 @@ export class SessionsService extends Disposable implements ISessionsService {
 		});
 	}
 
-	async openSession(sessionResource: URI, options?: { preserveFocus?: boolean }): Promise<void> {
+	async openSession(sessionResource: URI, options?: IOpenSessionOptions): Promise<void> {
 		this.logService.trace(`[SessionsView] openSession requested uri=${sessionResource.toString()}`);
 		// Claim the open before resolving: resolution can take seconds for a legacy
 		// Copilot CLI resource, and a newer open must win regardless of which
 		// resolution finishes first.
 		this._cancelRestore();
 		const token = this._startOpenSession();
-		// Redirect a superseded resource (legacy Copilot CLI) before lookup, so an
-		// open by URI migrates rather than reaching the old provider.
-		const resolved = await this.sessionsManagementService.resolveSessionResource(sessionResource, 'open');
-		if (token.isCancellationRequested) {
-			return;
-		}
-		const sessionData = this._showSession(resolved, options);
-		await this._waitForOpenSessionToLoad(sessionData, token);
+		await this.sessionOpenTelemetryService.withOpenRequest(options?.source ?? 'unknown', token, async telemetryAttempt => {
+			// Redirect a superseded resource (legacy Copilot CLI) before lookup, so an
+			// open by URI migrates rather than reaching the old provider.
+			const resolved = await this.sessionsManagementService.resolveSessionResource(sessionResource, 'open');
+			if (token.isCancellationRequested) {
+				return;
+			}
+			const sessionData = this._getSession(resolved);
+			this.sessionOpenTelemetryService.sessionResolved(
+				telemetryAttempt,
+				sessionData.resource,
+				sessionData.providerId,
+				this.activeSession.get()?.sessionId === sessionData.sessionId,
+				sessionData.loading.get(),
+			);
+			this._showSession(sessionData, options);
+			await this._waitForOpenSessionToLoad(sessionData, token, telemetryAttempt);
+		});
 	}
 
-	async openSessionToSide(session: ISession, options?: { preserveFocus?: boolean; chatResource?: URI }): Promise<void> {
+	async openSessionToSide(session: ISession, options?: IOpenSessionOptions & { chatResource?: URI }): Promise<void> {
 		const visible = this.visibleSessions.get();
 		const lastVisible = visible[visible.length - 1];
 		if (lastVisible && lastVisible.sessionId !== session.sessionId) {
 			this.insertAt(session, lastVisible.sessionId, 'right');
 		}
 		if (options?.chatResource) {
-			await this.openChat(session, options.chatResource, { preserveFocus: options.preserveFocus });
+			await this.openChat(session, options.chatResource, { preserveFocus: options.preserveFocus, source: options.source });
 		} else {
-			await this.openSession(session.resource, { preserveFocus: options?.preserveFocus });
+			await this.openSession(session.resource, { preserveFocus: options?.preserveFocus, source: options?.source });
 		}
 	}
 
@@ -877,30 +920,39 @@ export class SessionsService extends Disposable implements ISessionsService {
 	showSession(sessionResource: URI, options?: { preserveFocus?: boolean }): void {
 		this._cancelRestore();
 		this._startOpenSession();
-		this._showSession(sessionResource, options);
+		this._showSession(this._getSession(sessionResource), options);
 	}
 
-	private _showSession(sessionResource: URI, options?: { preserveFocus?: boolean }): ISession {
-		const t0 = Date.now();
+	private _getSession(sessionResource: URI): ISession {
 		const sessionData = this.sessionsManagementService.getSession(sessionResource);
 		if (!sessionData) {
 			this.logService.warn(`[SessionsView] openSession: session not found uri=${sessionResource.toString()}`);
 			throw new Error(`Session with resource ${sessionResource.toString()} not found`);
 		}
-		this.logService.trace(`[SessionsView] openSession start uri=${sessionResource.toString()} provider=${sessionData.providerId}`);
-
-		this._activate(sessionData, options?.preserveFocus);
-		this.logService.trace(`[SessionsView] showSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()}`);
 		return sessionData;
 	}
 
-	private async _waitForOpenSessionToLoad(sessionData: ISession, token: CancellationToken): Promise<void> {
+	private _showSession(sessionData: ISession, options?: { preserveFocus?: boolean }): void {
+		const t0 = Date.now();
+		this.logService.trace(`[SessionsView] openSession start uri=${sessionData.resource.toString()} provider=${sessionData.providerId}`);
+
+		this._activate(sessionData, options?.preserveFocus);
+		this.logService.trace(`[SessionsView] showSession done total=${Date.now() - t0}ms uri=${sessionData.resource.toString()}`);
+	}
+
+	private async _waitForOpenSessionToLoad(sessionData: ISession, token: CancellationToken, telemetryAttempt: ISessionOpenTelemetryAttempt): Promise<void> {
 		const t0 = Date.now();
 		if (!await this._waitForSessionToLoad(sessionData, token)) {
 			this.logService.trace(`[SessionsView] openSession cancelled while waiting for session to load uri=${sessionData.resource.toString()}`);
 			return;
 		}
 
+		const activeSession = this.activeSession.get();
+		const activeChat = activeSession?.sessionId === sessionData.sessionId ? activeSession.activeChat.get() : undefined;
+		if (activeChat) {
+			this.sessionOpenTelemetryService.sessionActivated(telemetryAttempt, activeChat.resource);
+		}
+		this.sessionOpenTelemetryService.sessionLoaded(telemetryAttempt);
 		this.logService.trace(`[SessionsView] openSession loaded total=${Date.now() - t0}ms uri=${sessionData.resource.toString()}`);
 	}
 

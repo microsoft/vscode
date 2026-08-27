@@ -88,7 +88,7 @@ export class SessionsWindowNotifier extends Disposable implements IWorkbenchCont
 
 			if (result.clicked || typeof result.actionIndex === 'number') {
 				await this._hostService.focus(mainWindow, { mode: FocusMode.Force });
-				await this._sessionsService.openSession(session.resource);
+				await this._sessionsService.openSession(session.resource, { source: 'notification' });
 			}
 		} finally {
 			if (!cts.token.isCancellationRequested) {

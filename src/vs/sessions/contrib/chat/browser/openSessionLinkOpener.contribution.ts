@@ -12,6 +12,7 @@ import { localize } from '../../../../nls.js';
 import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AGENT_HOST_CHAT_LINK_PATTERN, AGENT_HOST_SESSION_ONLY_LINK_PATTERN, AgentSessionLinkStatus, buildAgentSessionLinkPresentation, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
 import { ILinkPresentation, ILinkPresentationService, ILinkPresentationWatcher } from '../../../../platform/dataChannel/common/dataChannel.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { ISessionSummaryHoverService } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHoverService.js';
@@ -43,6 +44,7 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		@ILinkPresentationService linkPresentationService: ILinkPresentationService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@ISessionSummaryHoverService sessionSummaryHoverService: ISessionSummaryHoverService,
+		@ILabelService labelService: ILabelService,
 	) {
 		super();
 		this._register(openerService.registerOpener({
@@ -67,7 +69,7 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		this._register(sessionSummaryHoverService.registerProvider({
 			provideSessionSummaryHoverData: async resource => {
 				const session = this._findSessionForLink(resource);
-				return session ? getSessionSummaryHoverData(session, sessionsProvidersService) : undefined;
+				return session ? getSessionSummaryHoverData(session, sessionsProvidersService, openerService, labelService) : undefined;
 			},
 		}));
 	}
@@ -90,7 +92,7 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 			await this._sessionsService.openChat(session, chatResource);
 			return true;
 		}
-		await this._sessionsService.openSession(session.resource);
+		await this._sessionsService.openSession(session.resource, { source: 'link' });
 		return true;
 	}
 }

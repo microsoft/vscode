@@ -14,16 +14,9 @@ import { IChatAutoModeResolutionPart } from './chatService/chatService.js';
  */
 export const HIDE_AUTO_EXPLAINABILITY_TREATMENT = 'copilotchat.hideAutoExplainability';
 
-/** Collapsed row label: the router is still deciding, or it has answered. */
+/** The row label, naming the model once the router has picked one. */
 export function autoModeRoutingTitle(part: IChatAutoModeResolutionPart): string {
 	return part.resolved
-		? localize('autoMode.routed', "Routed task")
-		: localize('autoMode.routing', "Routing task…");
-}
-
-/** Expanded row body, or `undefined` while there is nothing to explain yet. */
-export function autoModeRoutingDetail(part: IChatAutoModeResolutionPart): string | undefined {
-	return part.resolved
-		? localize('autoMode.routedTo', "Auto routed your task to {0}", part.resolved.name)
-		: undefined;
+		? localize('autoMode.routedTo', "Auto routed task to {0}", part.resolved.name)
+		: localize('autoMode.routing', "Auto routing task");
 }
