@@ -13,6 +13,7 @@ import type { IAgentCreateSessionConfig, IAgentModelInfo, IAgentSessionMetadata 
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, MessageKind, readSessionCreationReference, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, withSessionGitState, withSessionGitHubState, type ModelSelection, type ResponsePart, type ToolCallState, type Turn } from '../../common/state/sessionState.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
@@ -666,7 +667,7 @@ suite('SessionServerTools', () => {
 		store.dispose();
 	});
 
-	test('create_session inherits the calling chat model and permission config', async () => {
+	test('create_session inherits the calling chat model, permission config, and isolation', async () => {
 		const source = URI.parse(buildChatUri('copilot:/caller', 'peer'));
 		let creationSource: URI | undefined;
 		let created: IAgentCreateSessionConfig | undefined;
@@ -680,6 +681,7 @@ suite('SessionServerTools', () => {
 						autoApprove: 'autoApprove',
 						permissions: { allow: ['shell'], deny: ['write'] },
 					},
+					isolation: 'folder',
 				};
 			},
 			onCreate: config => { created = config; },
@@ -706,6 +708,7 @@ suite('SessionServerTools', () => {
 				config: {
 					autoApprove: 'autoApprove',
 					permissions: { allow: ['shell'], deny: ['write'] },
+					[SessionConfigKey.Isolation]: 'folder',
 				},
 			},
 		});
@@ -746,7 +749,7 @@ suite('SessionServerTools', () => {
 				project: { uri: remoteProject, displayName: 'Remote App' },
 			}],
 			getModels: () => [claudeModel],
-			getCreationDefaults: () => ({ provider: 'copilot', model: { id: 'gpt-4o' } }),
+			getCreationDefaults: () => ({ provider: 'copilot', model: { id: 'gpt-4o' }, config: { autoApprove: 'autoApprove' }, isolation: 'folder' }),
 			onCreate: config => { created = config; },
 		});
 
@@ -762,6 +765,7 @@ suite('SessionServerTools', () => {
 			workingDirectories: [remoteProject],
 			provider: 'claude',
 			model: { id: 'claude-sonnet' },
+			config: { [SessionConfigKey.Isolation]: 'folder' },
 			createdBySession: {
 				session: 'copilot:/source',
 				chat: 'copilot:/source',

@@ -14,6 +14,7 @@ import type { IAgentServerToolDefinition } from '../../common/agentServerTools.j
 import { buildChatUri, buildDefaultChatUri, getInlineToolInput, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionGitState, readSessionGitHubState, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type Message, type ModelSelection, type ResponsePart, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
 import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } from './agentServerToolHost.js';
@@ -238,6 +239,7 @@ export interface ISessionCreationDefaults {
 	readonly provider?: AgentProvider;
 	readonly model?: ModelSelection;
 	readonly config?: Record<string, unknown>;
+	readonly isolation?: 'folder' | 'worktree';
 }
 
 /** Point-in-time snapshot of a chat's conversation, read from the host state. */
@@ -744,11 +746,18 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 	const defaults = source ? accessor.getCreationDefaults(source) : undefined;
 	const provider = args.model?.provider ?? defaults?.provider;
 	const inheritsSourceProvider = provider !== undefined && provider === defaults?.provider;
+	const inheritedProviderConfig = inheritsSourceProvider ? defaults?.config : undefined;
+	const configValues = inheritedProviderConfig === undefined && defaults?.isolation === undefined
+		? undefined
+		: {
+			...inheritedProviderConfig,
+			...(defaults?.isolation !== undefined ? { [SessionConfigKey.Isolation]: defaults.isolation } : {}),
+		};
 	const config: IAgentCreateSessionConfig = {
 		workingDirectories: args.workspace ? [args.workspace] : undefined,
 		...(provider !== undefined ? { provider } : {}),
 		...(args.model !== undefined ? { model: { id: args.model.id } } : defaults?.model !== undefined ? { model: defaults.model } : {}),
-		...(inheritsSourceProvider && defaults?.config !== undefined ? { config: defaults.config } : {}),
+		...(configValues !== undefined ? { config: configValues } : {}),
 		...(currentSession !== undefined && source !== undefined ? {
 			_meta: withSessionCreationReference(undefined, {
 				session: currentSession.toString(),

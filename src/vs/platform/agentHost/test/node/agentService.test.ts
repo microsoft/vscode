@@ -11390,7 +11390,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('session creation tools inherit the calling chat model and session permissions', async () => {
+		test('session creation tools inherit the calling chat model, session permissions, and host isolation', async () => {
 			class ServerToolAgent extends MockAgent {
 				readonly createSessionConfigs: (IAgentCreateSessionConfig | undefined)[] = [];
 				readonly createChatOptions: (IAgentCreateChatOptions | undefined)[] = [];
@@ -11435,7 +11435,20 @@ suite('AgentService (node dispatcher)', () => {
 				}
 			}
 
-			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const workingDirectory = URI.file('/workspace');
+			const gitService = createNoopGitService();
+			gitService.getRepositoryRoot = async () => workingDirectory;
+			gitService.revParse = async () => 'head';
+			gitService.getCurrentBranch = async () => 'feature';
+			gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'main' });
+			const sessionDataService = createSessionDataService(new TestSessionDatabase());
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+			setTestAgentHostWorktreeIsolation(localService, disposables.add(new WorktreeIsolation(
+				{ generateBranchName: async () => 'agents/test' },
+				gitService,
+				sessionDataService,
+				new NullLogService(),
+			)));
 			const agent = disposables.add(new ServerToolAgent('copilot'));
 			registerTestAgentProvider(localService, agent);
 			const sourceSession = await localService.createSession({ provider: 'copilot' });
@@ -11449,6 +11462,7 @@ suite('AgentService (node dispatcher)', () => {
 					[ClaudeSessionConfigKey.PermissionMode]: 'bypassPermissions',
 					[CodexSessionConfigKey.PermissionsPreset]: 'full-access',
 					[SessionConfigKey.Mode]: 'plan',
+					[SessionConfigKey.Isolation]: 'folder',
 				},
 			});
 			localService.dispatchAction(sourceChat.toString(), {
@@ -11462,13 +11476,16 @@ suite('AgentService (node dispatcher)', () => {
 
 			await agent.serverToolHost!.executeTool(sourceChat.toString(), SessionServerToolName.CreateSession, {
 				relationship: 'independent',
-				workspace: URI.file('/workspace').toString(),
+				workspace: workingDirectory.toString(),
 				prompt: 'new session',
 				title: 'New Session',
 			});
 			const createdSessionUri = getStateManager(localService).getSessionUris().find(uri => !sessionUrisBeforeCreation.has(uri));
 			const delegatedMessage = createdSessionUri
 				? getStateManager(localService).getChatState(buildDefaultChatUri(createdSessionUri))?.activeTurn?.message
+				: undefined;
+			const createdIsolation = createdSessionUri
+				? getStateManager(localService).getSessionState(createdSessionUri)?.config?.values[SessionConfigKey.Isolation]
 				: undefined;
 			await agent.serverToolHost!.executeTool(sourceChat.toString(), SessionServerToolName.CreateSession, {
 				relationship: 'currentSession',
@@ -11478,6 +11495,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			assert.deepStrictEqual({
 				sourceModelBeforeCreation,
+				createdIsolation,
 				delegation: delegatedMessage && readAgentMessageDelegationMeta(delegatedMessage),
 				sessionConfig: {
 					...agent.createSessionConfigs.at(-1),
@@ -11487,6 +11505,7 @@ suite('AgentService (node dispatcher)', () => {
 				chatOptions: agent.createChatOptions.at(-1),
 			}, {
 				sourceModelBeforeCreation: { id: 'source-model' },
+				createdIsolation: 'folder',
 				delegation: {
 					sourceSession: sourceSession.toString(),
 					sourceChat: sourceChat.toString(),
