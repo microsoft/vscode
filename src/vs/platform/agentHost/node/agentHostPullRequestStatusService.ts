@@ -86,6 +86,11 @@ interface IWatch extends IDisposable {
 	status?: IAgentHostPullRequestStatus;
 }
 
+/** Whether a session should be watched, or why it should not be. */
+type IWatchTarget =
+	| { readonly kind: 'watch'; readonly pullRequestUrl: string }
+	| { readonly kind: 'skip'; readonly reason: string };
+
 export class AgentHostPullRequestStatusService extends Disposable implements IAgentHostPullRequestStatusService {
 
 	declare readonly _serviceBrand: undefined;
@@ -183,7 +188,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		}
 
 		const target = this._getWatchTarget(sessionKey);
-		if (!('pullRequestUrl' in target)) {
+		if (target.kind === 'skip') {
 			this._stopWatch(sessionKey, target.reason);
 			return;
 		}
@@ -217,7 +222,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		// Eligibility can have changed while the credential was in flight; the
 		// follow-up run installs the watch the session actually needs.
 		const current = this._getWatchTarget(sessionKey);
-		if (!('pullRequestUrl' in current) || current.pullRequestUrl !== target.pullRequestUrl) {
+		if (current.kind === 'skip' || current.pullRequestUrl !== target.pullRequestUrl) {
 			this._logService.trace(`[AgentHostPullRequestStatusService] Retrying sync because the session changed while resolving credentials: session=${sessionKey}`);
 			this._staleSyncs.add(sessionKey);
 			return;
@@ -248,24 +253,26 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 	 * eligible. The reason is carried rather than collapsed into `undefined` so
 	 * a missing button bar can be explained from the logs alone.
 	 */
-	private _getWatchTarget(sessionKey: string): { readonly pullRequestUrl: string } | { readonly reason: string } {
+	private _getWatchTarget(sessionKey: string): IWatchTarget {
 		const state = this._stateManager.getSessionState(sessionKey);
 		if (!state) {
-			return { reason: 'session is unknown' };
+			return { kind: 'skip', reason: 'session is unknown' };
 		}
 		if (isSessionStatusArchived(state.status)) {
-			return { reason: 'session is archived' };
+			return { kind: 'skip', reason: 'session is archived' };
 		}
 		if (this._changesetSubscriptions.getSessionSubscriptions(sessionKey).size === 0) {
-			return { reason: 'no client is subscribed to the session changes' };
+			return { kind: 'skip', reason: 'no client is subscribed to the session changes' };
 		}
 		const gitHubState = readSessionGitHubState(state._meta);
 		const gitState = readSessionGitState(state._meta);
 		if (!hasSessionPullRequestForBranch(gitHubState, gitState?.branchName)) {
-			return { reason: `no pull request is known for branch '${gitState?.branchName ?? 'unknown'}'` };
+			return { kind: 'skip', reason: `no pull request is known for branch '${gitState?.branchName ?? 'unknown'}'` };
 		}
 		const pullRequestUrl = getSessionRelatedPullRequestUrls(gitHubState)[0] ?? gitHubState?.pullRequestUrls?.[0];
-		return pullRequestUrl ? { pullRequestUrl } : { reason: 'the session has no pull request URL' };
+		return pullRequestUrl
+			? { kind: 'watch', pullRequestUrl }
+			: { kind: 'skip', reason: 'the session has no pull request URL' };
 	}
 
 	private _updateStatus(sessionKey: string, watch: IWatch, snapshot: PullRequestSnapshot): void {

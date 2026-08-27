@@ -232,11 +232,12 @@ registerAction2(class EnableAgentMergeInSessionAction extends AgentMergeActionBa
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const active = this.getActiveSession(accessor);
+		const logService = accessor.get(ILogService);
 		if (!active) {
 			return;
 		}
 		await active.provider.setAgentMergeEnabled(active.session.sessionId, true);
-		accessor.get(ILogService).info(`[AgentMergeActions] Enabled from the title bar: session=${active.session.sessionId}`);
+		logService.info(`[AgentMergeActions] Enabled from the title bar: session=${active.session.sessionId}`);
 	}
 });
 
@@ -257,11 +258,12 @@ registerAction2(class DisableAgentMergeInSessionAction extends AgentMergeActionB
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const active = this.getActiveSession(accessor);
+		const logService = accessor.get(ILogService);
 		if (!active) {
 			return;
 		}
 		await active.provider.setAgentMergeEnabled(active.session.sessionId, false);
-		accessor.get(ILogService).info(`[AgentMergeActions] Disabled from the title bar: session=${active.session.sessionId}`);
+		logService.info(`[AgentMergeActions] Disabled from the title bar: session=${active.session.sessionId}`);
 	}
 });
 
@@ -351,8 +353,10 @@ registerAction2(class OpenAgentMergeDefaultsAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		await accessor.get(IPreferencesService).openSettings({ jsonEditor: false, query: `@tag:${AGENT_MERGE_SETTING_TAG}` });
-		accessor.get(ILogService).trace(`[AgentMergeActions] Opened Agent Merge defaults in the settings editor`);
+		const preferencesService = accessor.get(IPreferencesService);
+		const logService = accessor.get(ILogService);
+		await preferencesService.openSettings({ jsonEditor: false, query: `@tag:${AGENT_MERGE_SETTING_TAG}` });
+		logService.trace(`[AgentMergeActions] Opened Agent Merge defaults in the settings editor`);
 	}
 });
 
