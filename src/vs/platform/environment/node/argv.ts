@@ -124,6 +124,8 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'agent-plugins-dir': { type: 'string' },
 	'agents-user-data-dir': { type: 'string' },
 	'agents-extensions-dir': { type: 'string' },
+	// No `cat`, so it never appears in `--help`.
+	'agent-session-claim-hash': { type: 'string' },
 	'show-versions': { type: 'boolean', cat: 'e', description: localize('showVersions', "Show versions of installed extensions, when using --list-extensions.") },
 	'category': { type: 'string', allowEmptyValue: true, cat: 'e', description: localize('category', "Filters installed extensions by provided category, when using --list-extensions."), args: 'category' },
 	'install-extension': { type: 'string[]', cat: 'e', args: 'ext-id | path', description: localize('installExtension', "Installs or updates an extension. The argument is either an extension id or a path to a VSIX. The identifier of an extension is '${publisher}.${name}'. Use '--force' argument to update to latest version. To install a specific version provide '@${version}'. For example: 'vscode.csharp@1.2.3'.") },

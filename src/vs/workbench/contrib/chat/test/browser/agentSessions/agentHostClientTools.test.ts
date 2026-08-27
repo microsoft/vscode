@@ -28,7 +28,7 @@ import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatStat
 import { chatReducer, sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { ContentEncoding } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { ConfirmationOptionKind, McpAuthRequiredReason, SessionInputRequestKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ConfirmationOptionKind, McpAuthRequiredReason, SessionInputRequestKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type SessionActiveClient } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { IChatProgress, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
@@ -41,6 +41,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
 import { AgentHostSessionHandler, toolDataToDefinition, toolResultToProtocol, UNOBSERVED_CLIENT_TOOL_GRACE_MS } from '../../../browser/agentSessions/agentHost/agentHostSessionHandler.js';
+import type { AgentSessionClaimActivation } from '../../../common/agentHostSessionClaim.js';
 import { AgentHostActiveClientService, IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostCustomizationService, NullAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, IAgentHostToolSetEnablementService, IToolEnablementState } from '../../../browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
@@ -471,6 +472,15 @@ suite('AgentHostClientTools', () => {
 
 		function createMockToolsService(disposables: DisposableStore, tools: IToolData[], options?: { requireConfirmation?: boolean; throwBeforeConfirmation?: Error; invokeResult?: DeferredPromise<IToolResult> }) {
 			const onDidChangeTools = disposables.add(new Emitter<void>());
+			// The real service hands every consumer one cached observable and
+			// only *schedules* `onDidChangeTools` on registration, behind a
+			// 750ms `RunOnceScheduler`. Model both: `registerToolDeferred` makes
+			// a tool visible to lookups immediately but leaves the observable on
+			// its previous value until `flushToolUpdates` runs. Nothing here
+			// ever fires on a timer, so a test that sees a deferred tool in an
+			// inventory can only have got there through an explicit flush.
+			const observedTools = observableValue<readonly IToolData[]>('tools', [...tools]);
+			let toolsDirty = false;
 			const pendingToolCalls = new Map<string, ChatToolInvocation>();
 			const begunToolCalls: ChatToolInvocation[] = [];
 			const invokedToolCalls: IToolInvocation[] = [];
@@ -480,7 +490,7 @@ suite('AgentHostClientTools', () => {
 			return {
 				onDidChangeTools: onDidChangeTools.event,
 				getToolByName: (name: string) => tools.find(t => t.toolReferenceName === name),
-				observeTools: () => observableValue('tools', tools),
+				observeTools: () => observedTools,
 				registerToolData: () => toDisposable(() => { }),
 				registerToolImplementation: () => toDisposable(() => { }),
 				registerTool: () => toDisposable(() => { }),
@@ -575,8 +585,14 @@ suite('AgentHostClientTools', () => {
 				},
 				updateToolStream: async () => { },
 				cancelToolCallsForRequest: () => { },
-				flushToolUpdates: () => { },
-				toolSets: observableValue('sets', []),
+				flushToolUpdates: () => {
+					if (toolsDirty) {
+						toolsDirty = false;
+						observedTools.set([...tools], undefined);
+						onDidChangeTools.fire();
+					}
+				},
+				toolSets: observableValue<IToolSet[]>('sets', []),
 				getToolSetsForModel: () => [],
 				getToolSet: () => undefined,
 				getToolSetByName: () => undefined,
@@ -597,12 +613,17 @@ suite('AgentHostClientTools', () => {
 				onDidInvokeTool: Event.None,
 				_serviceBrand: undefined,
 				fireOnDidChangeTools: () => onDidChangeTools.fire(),
+				/** Registers a tool the way the real service does: event deferred. */
+				registerToolDeferred: (tool: IToolData) => {
+					tools.push(tool);
+					toolsDirty = true;
+				},
 				begunToolCalls,
 				invokedToolCalls,
 				executedToolCalls,
 				invocationTokens,
 				recordedStateKinds,
-			} satisfies ILanguageModelToolsService & { fireOnDidChangeTools: () => void; begunToolCalls: ChatToolInvocation[]; invokedToolCalls: IToolInvocation[]; executedToolCalls: IToolInvocation[]; invocationTokens: CancellationToken[]; recordedStateKinds: Map<string, IChatToolInvocation.StateKind[]> };
+			} satisfies ILanguageModelToolsService & { fireOnDidChangeTools: () => void; registerToolDeferred: (tool: IToolData) => void; begunToolCalls: ChatToolInvocation[]; invokedToolCalls: IToolInvocation[]; executedToolCalls: IToolInvocation[]; invocationTokens: CancellationToken[]; recordedStateKinds: Map<string, IChatToolInvocation.StateKind[]> };
 		}
 
 		class MockAgentHostConnection extends mock<IAgentHostService>() {
@@ -618,10 +639,21 @@ suite('AgentHostClientTools', () => {
 
 			private readonly _liveSubscriptions = new Map<string, { state: SessionState | ChatState; emitter: Emitter<SessionState | ChatState> }>();
 			public dispatchedActions: { channel: string; action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction }[] = [];
+			public readonly createSessionCalls: unknown[] = [];
+			private readonly _onDidDispatch = disposables.add(new Emitter<void>());
+			/** Fires after every dispatch, so tests can await state instead of polling. */
+			public readonly onDidDispatch = this._onDidDispatch.event;
 			public readonly resourceReadUris: URI[] = [];
 			public resourceReadData = '{"task":"build"}';
 			public resourceReadEncoding = ContentEncoding.Utf8;
 			public readonly resourceReadResponses = new Map<string, Promise<{ data: string; encoding: ContentEncoding }>>();
+
+			// Recorded, never served: joining an existing session must never
+			// create or materialize one.
+			override async createSession(params: unknown): Promise<URI> {
+				this.createSessionCalls.push(params);
+				throw new Error('createSession is not available in this test');
+			}
 
 			override async resourceRead(uri: URI) {
 				this.resourceReadUris.push(uri);
@@ -634,6 +666,7 @@ suite('AgentHostClientTools', () => {
 				if (isSessionAction(action) || isChatAction(action)) {
 					this.applySessionAction(channel, action);
 				}
+				this._onDidDispatch.fire();
 			}
 
 			applySessionAction(channel: string | URI, action: SessionAction | ChatAction): void {
@@ -3219,6 +3252,427 @@ suite('AgentHostClientTools', () => {
 			);
 			assert.ok(completionEntry, 'completion for the nested client tool should be dispatched');
 			assert.strictEqual(completionEntry.channel.toString(), subagentChat2, 'completion should target the level-2 subagent chat URI');
+		});
+
+		suite('external session claim', () => {
+
+			const claimedSession = AgentSession.uri('copilot', 'session-1');
+			/** The resource the handler derives and asks to be activated. */
+			const claimedResource = URI.parse('agent-host-copilotcli:/session-1');
+
+			/** Session resources the claim asked the window to make active. */
+			let activated: string[];
+
+			setup(() => { activated = []; });
+
+			async function claim(handler: AgentHostSessionHandler, activate?: AgentSessionClaimActivation) {
+				const claimDisposable = await handler.claimExternalSession(claimedSession, async (sessionResource, token) => {
+					activated.push(sessionResource.toString());
+					await activate?.(sessionResource, token);
+				}, CancellationToken.None);
+				disposables.add(claimDisposable);
+				return claimDisposable;
+			}
+
+			/** Every active-client publish this handler has made, in order. */
+			function publishedClients(connection: MockAgentHostConnection): SessionActiveClient[] {
+				return connection.dispatchedActions.flatMap(entry =>
+					isSessionAction(entry.action) && entry.action.type === ActionType.SessionActiveClientSet
+						? [entry.action.activeClient]
+						: []);
+			}
+
+			/** Resolves once {@link count} active-client publishes have happened. */
+			function whenPublished(connection: MockAgentHostConnection, count: number): Promise<void> {
+				if (publishedClients(connection).length >= count) {
+					return Promise.resolve();
+				}
+				return new Promise<void>(resolve => {
+					const listener = connection.onDidDispatch(() => {
+						if (publishedClients(connection).length >= count) {
+							listener.dispose();
+							resolve();
+						}
+					});
+					disposables.add(listener);
+				});
+			}
+
+			/** A tool set carrying {@link tool}. */
+			function toolSetWith(tool: IToolData): IToolSet {
+				return new class extends mock<IToolSet>() {
+					override readonly id = `set-${tool.id}`;
+					override readonly deprecated = false;
+					override getTools(): Iterable<IToolData> { return [tool]; }
+				}();
+			}
+
+			/**
+			 * Resolves when the handler dispatches the tool call's completion,
+			 * driven by the connection's dispatch event — no polling, and no
+			 * delay standing in for the result.
+			 */
+			function whenToolCompleted(connection: MockAgentHostConnection, toolCallId: string): Promise<void> {
+				const completed = () => connection.dispatchedActions.some(entry =>
+					isChatAction(entry.action)
+					&& entry.action.type === ActionType.ChatToolCallComplete
+					&& entry.action.toolCallId === toolCallId);
+				if (completed()) {
+					return Promise.resolve();
+				}
+				return new Promise<void>(resolve => {
+					const listener = connection.onDidDispatch(() => {
+						if (completed()) {
+							listener.dispose();
+							resolve();
+						}
+					});
+					disposables.add(listener);
+				});
+			}
+
+			test('publishes the window inventory as an active client of the existing session', async () => {
+				const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+				toolsService.toolSets.set([new class extends mock<IToolSet>() {
+					override readonly id = 'enabled';
+					override readonly deprecated = false;
+					override getTools(): Iterable<IToolData> { return [testRunTaskTool]; }
+				}], undefined);
+
+				await claim(handler);
+
+				const published = connection.dispatchedActions.filter(entry =>
+					isSessionAction(entry.action) && entry.action.type === ActionType.SessionActiveClientSet);
+				assert.strictEqual(published.length, 1, 'the claim should publish exactly one active client');
+				assert.strictEqual(published[0].channel.toString(), claimedSession.toString());
+				const action = published[0].action;
+				assert.ok(isSessionAction(action) && action.type === ActionType.SessionActiveClientSet);
+				assert.strictEqual(action.activeClient.clientId, connection.clientId);
+				assert.deepStrictEqual(
+					action.activeClient.tools?.map(tool => tool.name),
+					['runTask'],
+					'the claimed session should carry the full client tool inventory');
+			});
+
+			test('originates no draft, pending message, turn, or authentication frame', async () => {
+				const { handler, connection } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+
+				await claim(handler);
+
+				assert.deepStrictEqual(
+					connection.dispatchedActions.map(entry => entry.action.type),
+					[ActionType.SessionActiveClientSet],
+					'joining a session must publish nothing but the active client');
+			});
+
+			test('never creates or materializes a session', async () => {
+				const { handler, connection } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+
+				await claim(handler);
+
+				assert.deepStrictEqual(connection.createSessionCalls, []);
+			});
+
+			test('makes the exact claimed session active before publishing this client', async () => {
+				const { handler, connection } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+
+				let publishesAtActivation = -1;
+				await claim(handler, async () => { publishesAtActivation = publishedClients(connection).length; });
+
+				assert.deepStrictEqual(activated, [claimedResource.toString()],
+					'the claim must activate the resource it derives from the backend session, and only it');
+				assert.strictEqual(publishesAtActivation, 0,
+					'a session-scoped surface comes up with the active session, so nothing may be published before it');
+				assert.strictEqual(publishedClients(connection).length, 1);
+			});
+
+			test('settles on the inventory the active session brings up', async () => {
+				const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+
+				// Session-scoped tools exist only once the session is active.
+				await claim(handler, async () => {
+					toolsService.toolSets.set([toolSetWith(testRunTaskTool)], undefined);
+				});
+
+				const published = publishedClients(connection);
+				assert.strictEqual(published.length, 1, 'one settled publish, not one per inventory revision');
+				assert.deepStrictEqual(published[0].tools?.map(tool => tool.name), ['runTask'],
+					'the claim must not return before the post-activation inventory is published');
+			});
+
+			test('settles on tools registered during activation, without waiting for the debounce', async () => {
+				// The window registers its session-scoped tools once the session
+				// is active, and the service defers the change event behind a
+				// scheduler while every consumer reads one cached observable. The
+				// mock never fires that event on a clock, so `runTests` can only
+				// reach the published inventory if the claim flushed the registry.
+				const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+				toolsService.toolSets.set([toolSetWith(testRunTaskTool), toolSetWith(testRunTestsTool)], undefined);
+
+				await claim(handler, async () => {
+					toolsService.registerToolDeferred(testRunTestsTool);
+				});
+
+				const published = publishedClients(connection);
+				assert.strictEqual(published.length, 1, 'one settled publish, not a correction a debounce later');
+				assert.deepStrictEqual(
+					published[0].tools?.map(tool => tool.name).sort(),
+					['runTask', 'runTests'],
+					'the first settled publish must carry the post-activation inventory');
+			});
+
+			test('a tool registered before the claim is published without a flush', async () => {
+				// The flush must not be what makes an *already delivered* tool
+				// visible: this one is in the observable from the start.
+				const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+				toolsService.toolSets.set([toolSetWith(testRunTaskTool)], undefined);
+
+				await claim(handler);
+
+				assert.deepStrictEqual(
+					publishedClients(connection)[0].tools?.map(tool => tool.name),
+					['runTask']);
+			});
+
+			test('republishes the whole inventory when it changes after the claim', async () => {
+				const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool, testRunTestsTool]);
+
+				await claim(handler, async () => {
+					toolsService.toolSets.set([toolSetWith(testRunTaskTool)], undefined);
+				});
+				toolsService.toolSets.set([toolSetWith(testRunTaskTool), toolSetWith(testRunTestsTool)], undefined);
+				await whenPublished(connection, 2);
+
+				const published = publishedClients(connection);
+				assert.deepStrictEqual(published[published.length - 1].tools?.map(tool => tool.name).sort(), ['runTask', 'runTests'],
+					'a later inventory change must re-reconcile, publishing the complete set');
+			});
+
+			test('an activation that fails takes the whole claim down', async () => {
+				const { handler, connection } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+
+				await assert.rejects(
+					() => handler.claimExternalSession(claimedSession, async () => { throw new Error('no sessions view'); }, CancellationToken.None),
+					/no sessions view/);
+
+				assert.deepStrictEqual(connection.dispatchedActions, [],
+					'a claim that never became active must publish nothing, not even a removal');
+				await claim(handler);
+				assert.deepStrictEqual(activated, [claimedResource.toString()]);
+			});
+
+			test('rejects a session that does not belong to this handler', async () => {
+				const { handler, connection } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+
+				await assert.rejects(
+					() => handler.claimExternalSession(URI.parse('other-provider:/session-1'), async () => { }, CancellationToken.None),
+					/does not belong to session type/);
+				assert.deepStrictEqual(connection.dispatchedActions, []);
+				assert.deepStrictEqual(activated, [], 'a session this handler does not own must not be activated');
+			});
+
+			test('refuses to claim the same session twice', async () => {
+				const { handler } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+
+				await claim(handler);
+				await assert.rejects(
+					() => handler.claimExternalSession(claimedSession, async () => { }, CancellationToken.None),
+					/already claimed/);
+			});
+
+			test('publishes the removal when the claim is released', async () => {
+				const { handler, connection } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+
+				(await claim(handler)).dispose();
+
+				const removals = connection.dispatchedActions.filter(entry =>
+					isSessionAction(entry.action) && entry.action.type === ActionType.SessionActiveClientRemoved);
+				assert.strictEqual(removals.length, 1, 'releasing the claim should publish an active-client removal');
+				assert.strictEqual(removals[0].channel.toString(), claimedSession.toString());
+				const action = removals[0].action;
+				assert.ok(isSessionAction(action) && action.type === ActionType.SessionActiveClientRemoved);
+				assert.strictEqual(action.clientId, connection.clientId);
+			});
+
+			test('serves a client tool from the bare claimed session, with no chat model', async () => {
+				const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+
+				await claim(handler);
+				applyRunningClientExecution(connection, buildDefaultChatUri(claimedSession.toString()), 'turn-1', {
+					toolCallId: 'tool-call-1',
+					toolName: 'runTask',
+					displayName: 'Run Task',
+					invocationMessage: 'Run Task',
+					toolInput: '{"task":"build"}',
+				});
+				await whenToolCompleted(connection, 'tool-call-1');
+
+				assert.strictEqual(toolsService.invokedToolCalls.length, 1);
+				assert.deepStrictEqual(toolsService.invokedToolCalls[0].parameters, { task: 'build' });
+			});
+
+			test('runs a confirmable client tool that no chat could have answered', async () => {
+				// `testConfirmTool` sets `canRequestPreApproval`, so an unclaimed
+				// call is denied after the grace window.
+				const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testConfirmTool]);
+
+				await claim(handler);
+				applyRunningClientExecution(connection, buildDefaultChatUri(claimedSession.toString()), 'turn-1', {
+					toolCallId: 'tool-call-1',
+					toolName: 'deleteAll',
+					displayName: 'Delete Everything',
+					invocationMessage: 'Delete Everything',
+					toolInput: '{}',
+				});
+				await whenToolCompleted(connection, 'tool-call-1');
+
+				assert.strictEqual(toolsService.invokedToolCalls.length, 1, 'a claimed confirmable tool must run, not be denied');
+				assert.deepStrictEqual(
+					toolsService.invokedToolCalls[0].preApproved,
+					{ type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'Approved by the evaluation session claim this window was launched for.' },
+					'approval must be locally derived, not read from the host confirmation');
+			});
+
+			test('an unclaimed confirmable client tool is still denied', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testConfirmTool]);
+
+				// Same handler, same tool, but this session was never claimed.
+				await handler.provideChatSessionContent(URI.parse('agent-host-copilotcli:/session-1'), CancellationToken.None);
+				applyRunningClientExecution(connection, buildDefaultChatUri(claimedSession.toString()), 'turn-1', {
+					toolCallId: 'tool-call-1',
+					toolName: 'deleteAll',
+					displayName: 'Delete Everything',
+					invocationMessage: 'Delete Everything',
+					toolInput: '{}',
+				});
+				await timeout(UNOBSERVED_CLIENT_TOOL_GRACE_MS + 1);
+
+				assert.deepStrictEqual(toolsService.invokedToolCalls, [], 'the claim approval must not leak to ordinary sessions');
+				const completion = connection.dispatchedActions.find(entry =>
+					isChatAction(entry.action) && entry.action.type === ActionType.ChatToolCallComplete);
+				assert.ok(completion && isChatAction(completion.action) && completion.action.type === ActionType.ChatToolCallComplete);
+				assert.strictEqual(completion.action.result.success, false, 'it must still be denied, not run');
+			}));
+
+			/** Applies a confirmable client-tool request against the claimed session. */
+			function applyConfirmableTool(connection: MockAgentHostConnection): void {
+				applyRunningClientExecution(connection, buildDefaultChatUri(claimedSession.toString()), 'turn-1', {
+					toolCallId: 'tool-call-1',
+					toolName: 'deleteAll',
+					displayName: 'Delete Everything',
+					invocationMessage: 'Delete Everything',
+					toolInput: '{}',
+				});
+			}
+
+			test('a claim taken after a chat installed the watcher still approves', async () => {
+				const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testConfirmTool]);
+
+				// The chat creates the shared watcher first; the claim arrives
+				// afterwards and must still apply to it.
+				await handler.provideChatSessionContent(URI.parse('agent-host-copilotcli:/session-1'), CancellationToken.None);
+				await claim(handler);
+				applyConfirmableTool(connection);
+				await whenToolCompleted(connection, 'tool-call-1');
+
+				assert.strictEqual(toolsService.invokedToolCalls.length, 1, 'approval must not be fixed at watcher creation');
+			});
+
+			test('releasing the claim restores ordinary confirmation for a surviving chat', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testConfirmTool]);
+
+				const claimDisposable = await claim(handler);
+				await handler.provideChatSessionContent(URI.parse('agent-host-copilotcli:/session-1'), CancellationToken.None);
+				claimDisposable.dispose();
+
+				applyConfirmableTool(connection);
+				await timeout(UNOBSERVED_CLIENT_TOOL_GRACE_MS + 1);
+
+				assert.deepStrictEqual(toolsService.invokedToolCalls, [], 'approval must end with the claim');
+				const completion = connection.dispatchedActions.find(entry =>
+					isChatAction(entry.action) && entry.action.type === ActionType.ChatToolCallComplete);
+				assert.ok(completion && isChatAction(completion.action) && completion.action.type === ActionType.ChatToolCallComplete);
+				assert.strictEqual(completion.action.result.success, false, 'the chat falls back to ordinary denial');
+			}));
+
+			test('a chat opened on the claimed session keeps working after the claim is released', async () => {
+				const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+
+				const claimDisposable = await claim(handler);
+				await handler.provideChatSessionContent(URI.parse('agent-host-copilotcli:/session-1'), CancellationToken.None);
+				claimDisposable.dispose();
+
+				applyRunningClientExecution(connection, buildDefaultChatUri(claimedSession.toString()), 'turn-1', {
+					toolCallId: 'tool-call-1',
+					toolName: 'runTask',
+					displayName: 'Run Task',
+					invocationMessage: 'Run Task',
+					toolInput: '{"task":"build"}',
+				});
+				await whenToolCompleted(connection, 'tool-call-1');
+
+				assert.strictEqual(toolsService.invokedToolCalls.length, 1, 'releasing the claim must not tear down the chat\'s watcher');
+				const removals = connection.dispatchedActions.filter(entry =>
+					isSessionAction(entry.action) && entry.action.type === ActionType.SessionActiveClientRemoved);
+				assert.deepStrictEqual(removals, [], 'the shared active client must survive while the chat holds it');
+			});
+
+			test('the claim keeps working after a chat on the same session closes', async () => {
+				const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+
+				await claim(handler);
+				const chatResource = URI.parse('agent-host-copilotcli:/session-1');
+				const chat = await handler.provideChatSessionContent(chatResource, CancellationToken.None);
+				chat.dispose();
+
+				applyRunningClientExecution(connection, buildDefaultChatUri(claimedSession.toString()), 'turn-1', {
+					toolCallId: 'tool-call-1',
+					toolName: 'runTask',
+					displayName: 'Run Task',
+					invocationMessage: 'Run Task',
+					toolInput: '{"task":"build"}',
+				});
+				await whenToolCompleted(connection, 'tool-call-1');
+
+				assert.strictEqual(toolsService.invokedToolCalls.length, 1, 'closing the chat must not tear down the claim\'s watcher');
+				const removals = connection.dispatchedActions.filter(entry =>
+					isSessionAction(entry.action) && entry.action.type === ActionType.SessionActiveClientRemoved);
+				assert.deepStrictEqual(removals, [], 'the shared active client must survive while the claim holds it');
+			});
+
+			test('a displaced chat releases its active-client hold', async () => {
+				const { handler, connection } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+				const claimDisposable = await claim(handler);
+				const chatResource = URI.parse('agent-host-copilotcli:/session-1');
+				const firstChat = await handler.provideChatSessionContent(chatResource, CancellationToken.None);
+				const replacementChat = await handler.provideChatSessionContent(chatResource, CancellationToken.None);
+
+				firstChat.dispose();
+				replacementChat.dispose();
+				claimDisposable.dispose();
+
+				const removals = connection.dispatchedActions.filter(entry =>
+					isSessionAction(entry.action) && entry.action.type === ActionType.SessionActiveClientRemoved);
+				assert.strictEqual(removals.length, 1, 'each chat must release its holder even when it no longer owns the shared session state');
+			});
+
+			test('stops serving client tools once the claim is released', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+
+				(await claim(handler)).dispose();
+				applyRunningClientExecution(connection, buildDefaultChatUri(claimedSession.toString()), 'turn-1', {
+					toolCallId: 'tool-call-1',
+					toolName: 'runTask',
+					displayName: 'Run Task',
+					invocationMessage: 'Run Task',
+					toolInput: '{"task":"build"}',
+				});
+				// Virtual time drains every scheduled task, so this is a
+				// deterministic "nothing more will happen", not a short wait.
+				await timeout(UNOBSERVED_CLIENT_TOOL_GRACE_MS + 1);
+
+				assert.deepStrictEqual(toolsService.invokedToolCalls, []);
+			}));
 		});
 	});
 });

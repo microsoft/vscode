@@ -79,6 +79,8 @@ export interface NativeParsedArgs {
 	'agent-plugins-dir'?: string;
 	'agents-user-data-dir'?: string;
 	'agents-extensions-dir'?: string;
+	/** Private, unlisted SHA-256 commitment for a one-shot Agent Host session claim. */
+	'agent-session-claim-hash'?: string;
 	extensionDevelopmentPath?: string[]; // undefined or array of 1 or more local paths or URIs
 	extensionTestsPath?: string; // either a local path or a URI
 	extensionDevelopmentKind?: string[];

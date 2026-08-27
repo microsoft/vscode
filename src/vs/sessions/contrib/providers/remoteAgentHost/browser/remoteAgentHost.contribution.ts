@@ -36,6 +36,7 @@ import { authenticateProtectedResources, AgentHostAuthenticationRecovery, AgentH
 import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionHandler.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
+import { agentSessionClaimTargets } from '../../../../../workbench/contrib/chat/common/agentHostSessionClaim.js';
 import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ICustomizationHarnessService } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
@@ -1020,6 +1021,11 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(address, connection, resources),
 		}));
 		agentStore.add(this._chatSessionsService.registerChatSessionContentProvider(sessionType, sessionHandler));
+
+		// Reachable by the private claim command, which exists only in a window
+		// launched with a claim commitment.
+		agentStore.add(agentSessionClaimTargets.register(sessionType,
+			(backendSession, activate, token) => sessionHandler.claimExternalSession(backendSession, activate, token)));
 
 		// Language model provider.
 		// Order matters: `updateModels` must be called after
