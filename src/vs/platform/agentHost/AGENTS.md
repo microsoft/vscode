@@ -260,6 +260,11 @@ directly and can resolve a unique project display name, preferring the
 configured project root over a transient worktree. Ambiguous names require an
 explicit project URI.
 
+An independent session inherits the creating session's host-owned isolation
+selection independently of provider-owned configuration. The target workspace
+still constrains the effective selection, so a folder that cannot support Git
+worktrees resolves to folder isolation.
+
 ---
 
 ## 4. Capabilities Gating

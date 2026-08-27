@@ -1189,11 +1189,14 @@ export class AgentService extends Disposable implements IAgentService {
 			: session.draft
 				? session.draft.model
 				: session.turns.at(-1)?.message.model;
-		const config = this._providerService.getProvider(session.provider)?.getInheritedChatConfig(getNonMergeSessionConfigValues(session.config?.values));
+		const sourceConfig = getNonMergeSessionConfigValues(session.config?.values);
+		const config = this._providerService.getProvider(session.provider)?.getInheritedChatConfig(sourceConfig);
+		const isolation = sourceConfig[SessionConfigKey.Isolation];
 		return {
 			provider: session.provider,
 			...(model !== undefined ? { model } : {}),
 			...(config !== undefined ? { config } : {}),
+			...(isolation === 'folder' || isolation === 'worktree' ? { isolation } : {}),
 		};
 	}
 
