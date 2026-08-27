@@ -105,7 +105,7 @@ suite('Chat recovery', () => {
 		]).toEqual([true, false, false]);
 	});
 
-	test('requires the normalized recovery score to reach the threshold', () => {
+	test('returns recovery attempts that reach the threshold', () => {
 		const previousRequest = { prompt: 'previous request', modelId: 'model' } as ChatRequestTurn2;
 		expect([
 			getChatRecoveryAttempt(previousRequest, undefined, chatRequest({ attempt: 1 })),
@@ -113,8 +113,8 @@ suite('Chat recovery', () => {
 			getChatRecoveryAttempt({ ...previousRequest, modelId: 'other-model' }, undefined, chatRequest({ attempt: 1, editedRequestId: 'request-id' })),
 			getChatRecoveryAttempt({ ...previousRequest, permissionLevel: 'autopilot' }, undefined, chatRequest({ attempt: 1, editedRequestId: 'request-id' })),
 		]).toEqual([
-			undefined,
-			undefined,
+			{ modelId: 'model', scoringVersion: '2', totalScore: 0.25, requestRetried: true },
+			{ modelId: 'model', scoringVersion: '2', totalScore: 0.75, requestRetried: true, requestEdited: true },
 			{ modelId: 'model', scoringVersion: '2', totalScore: 1, requestRetried: true, requestEdited: true, requestChangedModel: true },
 			{ modelId: 'model', scoringVersion: '2', totalScore: 1.25, requestRetried: true, requestEdited: true, requestReducedPermissions: true },
 		]);
@@ -137,10 +137,10 @@ suite('Chat recovery', () => {
 			autopilotToAutoApprove: { modelId: 'model', scoringVersion: '2', totalScore: 1.25, requestReducedPermissions: true, lastResponseErrored: true },
 			autoApproveToAssisted: { modelId: 'model', scoringVersion: '2', totalScore: 1.25, requestReducedPermissions: true, lastResponseErrored: true },
 			assistedToDefault: { modelId: 'model', scoringVersion: '2', totalScore: 1.25, requestReducedPermissions: true, lastResponseErrored: true },
-			unchanged: undefined,
-			increased: undefined,
-			unknownPrevious: undefined,
-			unknownCurrent: undefined,
+			unchanged: { modelId: 'model', scoringVersion: '2', totalScore: 0.75, lastResponseErrored: true },
+			increased: { modelId: 'model', scoringVersion: '2', totalScore: 0.75, lastResponseErrored: true },
+			unknownPrevious: { modelId: 'model', scoringVersion: '2', totalScore: 0.75, lastResponseErrored: true },
+			unknownCurrent: { modelId: 'model', scoringVersion: '2', totalScore: 0.75, lastResponseErrored: true },
 		});
 	});
 

@@ -4,14 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import type * as vscode from 'vscode';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
 import { IconPathDto } from '../../common/extHost.protocol.js';
-import { ChatPromptReference, ChatRequestModeInstructions, ChatResponseVoiceProgressPart, ChatToolInvocationPart, IconPath } from '../../common/extHostTypeConverters.js';
+import { ChatAgentRequest, ChatPromptReference, ChatRequestModeInstructions, ChatResponseVoiceProgressPart, ChatToolInvocationPart, IconPath } from '../../common/extHostTypeConverters.js';
 import { ChatReferenceBinaryData, ChatResponseVoiceProgressPart as ExtHostChatResponseVoiceProgressPart, ChatSubagentToolInvocationData, ChatToolInvocationPart as ExtHostChatToolInvocationPart, ThemeColor, ThemeIcon } from '../../common/extHostTypes.js';
+import { ChatAgentLocation } from '../../../contrib/chat/common/constants.js';
 import { IElementVariableEntry } from '../../../contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatRequestModeInstructions } from '../../../contrib/chat/common/model/chatModel.js';
+import { IChatAgentRequest } from '../../../contrib/chat/common/participants/chatAgents.js';
+import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
 import { Dto } from '../../../services/extensions/common/proxyIdentifier.js';
 
 suite('extHostTypeConverters', function () {
@@ -22,6 +26,28 @@ suite('extHostTypeConverters', function () {
 			ChatResponseVoiceProgressPart.from(new ExtHostChatResponseVoiceProgressPart('investigating', 'Investigating the relevant code.')),
 			{ kind: 'voiceProgress', id: 'investigating', value: 'Investigating the relevant code.' }
 		);
+	});
+
+	test('preserves the selected model identifier in private chat requests', () => {
+		const request: IChatAgentRequest = {
+			sessionResource: URI.parse('chat-session:/test'),
+			requestId: 'request-id',
+			agentId: 'agent-id',
+			message: 'prompt',
+			variables: { variables: [] },
+			location: ChatAgentLocation.Chat,
+			userSelectedModelId: 'copilot/model-a',
+		};
+		const model = { id: 'model-a' } as vscode.LanguageModelChat;
+		const result = ChatAgentRequest.to(request, undefined, model, undefined, [], new Map(), {
+			...nullExtensionDescription,
+			enabledApiProposals: ['chatParticipantPrivate'],
+		}, new NullLogService());
+
+		assert.deepStrictEqual({ modelId: result.modelId, providerModelId: result.model.id }, {
+			modelId: 'copilot/model-a',
+			providerModelId: 'model-a',
+		});
 	});
 
 	suite('IconPath', function () {
