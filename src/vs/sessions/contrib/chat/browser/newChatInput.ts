@@ -1710,9 +1710,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._contextAttachments.addAttachments(...uris.map(uri => toFileVariableEntry(uri)));
 	}
 
-	attachTextContext(name: string, content: string, icon: ThemeIcon): void {
+	attachTextContext(name: string, content: string, icon: ThemeIcon, id = `context:${content}`): void {
 		this._contextAttachments.addAttachments(toPasteVariableEntry(name, content, {
-			id: `context:${content}`,
+			id,
 			icon,
 		}));
 	}

@@ -27,7 +27,7 @@ import { IOpenNewSessionResult, ISessionsService } from '../../../services/sessi
 import { isAllowSignedOutWhenUsableEnabled, shouldShowGitHubWorkspaceGroupSignIn } from '../../../browser/sessionsAuthGate.js';
 import { AGENTIC_SIGN_IN_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { IAquariumService, IMountedToggleHandle } from '../../aquarium/browser/aquariumOverlay.js';
-import { WorkspacePicker } from './sessionWorkspacePicker.js';
+import { IWorkspacePickerTrigger, WorkspacePicker } from './sessionWorkspacePicker.js';
 import { WebWorkspacePicker } from './webWorkspacePicker.js';
 import { IPreferredSessionType } from './sessionTypePicker.js';
 import { NewChatInputWidget } from './newChatInput.js';
@@ -245,10 +245,12 @@ export class NewChatWidget extends Disposable {
 			this._newChatInput.focus();
 		}));
 		this._register(this._workspacePicker.onDidSelectContext(context => {
+			const contextUri = context.uri.toString();
 			this._newChatInput.attachTextContext(
 				context.label,
-				localize('newSessionWorkspacePicker.githubContextAttachment', "GitHub context: {0}", context.uri.toString()),
+				`GitHub context: ${contextUri}`,
 				context.icon,
+				`github-context:${contextUri}`,
 			);
 			this._newChatInput.focus();
 		}));
@@ -640,39 +642,44 @@ export class NewChatWidget extends Disposable {
 
 	private _renderWorkspacePicker(container: HTMLElement): IDisposable {
 		this._workspacePickerVisibleKey.set(true);
+		const remoteTrigger: IWorkspacePickerTrigger = {
+			label: localize('newSessionWorkspacePicker.remote', "Remote Setup"),
+			ariaLabel: localize('newSessionWorkspacePicker.remoteAriaLabel', "Choose a remote setup for the new session"),
+			icon: Codicon.add,
+			group: SESSION_WORKSPACE_GROUP_REMOTE,
+			hideWhenWorkspaceSelected: true,
+		};
+		const moreTrigger: IWorkspacePickerTrigger = {
+			ariaLabel: localize('newSessionWorkspacePicker.moreAriaLabel', "More workspace options"),
+			icon: Codicon.ellipsis,
+		};
+		const folderTrigger: IWorkspacePickerTrigger = {
+			label: localize('newSessionWorkspacePicker.folder', "Folder"),
+			ariaLabel: localize('newSessionWorkspacePicker.folderAriaLabel', "Choose a folder for the new session"),
+			icon: Codicon.add,
+			group: SESSION_WORKSPACE_GROUP_LOCAL,
+		};
+		const repositoryTrigger: IWorkspacePickerTrigger = {
+			label: localize('newSessionWorkspacePicker.githubRepository', "Repository"),
+			ariaLabel: localize('newSessionWorkspacePicker.githubRepositoryAriaLabel', "Choose a GitHub repository for the new session"),
+			icon: Codicon.add,
+			group: SESSION_WORKSPACE_GROUP_GITHUB,
+			attachesContext: false,
+		};
+		const gitHubContextTrigger: IWorkspacePickerTrigger = {
+			label: localize('newSessionWorkspacePicker.githubContext', "Issue/PR"),
+			ariaLabel: localize('newSessionWorkspacePicker.githubContextAriaLabel', "Attach a GitHub issue or pull request to the new session"),
+			icon: Codicon.add,
+			group: SESSION_WORKSPACE_GROUP_GITHUB,
+			attachesContext: true,
+			hideWhenNoGitHubRepository: true,
+		};
 		this._workspacePicker.renderCategoryTriggers(container, [
-			{
-				label: localize('newSessionWorkspacePicker.folder', "Folder"),
-				ariaLabel: localize('newSessionWorkspacePicker.folderAriaLabel', "Choose a folder for the new session"),
-				icon: Codicon.add,
-				group: SESSION_WORKSPACE_GROUP_LOCAL,
-			},
-			{
-				label: localize('newSessionWorkspacePicker.githubRepository', "Repository"),
-				ariaLabel: localize('newSessionWorkspacePicker.githubRepositoryAriaLabel', "Choose a GitHub repository for the new session"),
-				icon: Codicon.add,
-				group: SESSION_WORKSPACE_GROUP_GITHUB,
-				attachesContext: false,
-			},
-			{
-				label: localize('newSessionWorkspacePicker.githubContext', "Issue/PR"),
-				ariaLabel: localize('newSessionWorkspacePicker.githubContextAriaLabel', "Attach a GitHub issue or pull request to the new session"),
-				icon: Codicon.add,
-				group: SESSION_WORKSPACE_GROUP_GITHUB,
-				attachesContext: true,
-				hideWhenNoGitHubRepository: true,
-			},
-			{
-				label: localize('newSessionWorkspacePicker.remote', "Remote Setup"),
-				ariaLabel: localize('newSessionWorkspacePicker.remoteAriaLabel', "Choose a remote setup for the new session"),
-				icon: Codicon.add,
-				group: SESSION_WORKSPACE_GROUP_REMOTE,
-				hideWhenWorkspaceSelected: true,
-			},
-			{
-				ariaLabel: localize('newSessionWorkspacePicker.moreAriaLabel', "More workspace options"),
-				icon: Codicon.ellipsis,
-			},
+			isWeb ? { ...folderTrigger, group: SESSION_WORKSPACE_GROUP_REMOTE, hideWhenNoWorkspaceSelected: true } : folderTrigger,
+			repositoryTrigger,
+			gitHubContextTrigger,
+			remoteTrigger,
+			moreTrigger,
 		]);
 		return Disposable.None;
 	}

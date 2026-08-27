@@ -1466,6 +1466,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	private readonly _multiChatEnabled: boolean;
 	private readonly _localGitHubInfo = new Map<string, ISettableObservable<IGitHubInfo | undefined>>();
 	private readonly _localGitHubInfoDisposables = this._register(new DisposableMap<string>());
+	private readonly _localGitHubInfoResolutionStarted = new Set<string>();
 
 	private _isCopilotCliAvailable(): boolean {
 		return !this.agentHostEnablementService.enabled.get();
@@ -2655,12 +2656,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			workingDirectory: uri,
 			name: basename(uri),
 			description: undefined,
-			gitRepository: uri.scheme === Schemas.file ? {
-				uri,
-				workTreeUri: uri,
-				baseBranchName: undefined,
-				gitHubInfo: this._getLocalGitHubInfo(uri),
-			} : undefined,
+			gitRepository: uri.scheme === Schemas.file ? this._getLocalGitRepository(uri) : undefined,
 		};
 		return {
 			uri: uri,
@@ -2674,16 +2670,45 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		};
 	}
 
-	private _getLocalGitHubInfo(uri: URI): IObservable<IGitHubInfo | undefined> {
+	private _getLocalGitRepository(uri: URI): ISessionGitRepository {
+		const gitHubInfo = this._getLocalGitHubInfo(uri);
+		return {
+			uri,
+			workTreeUri: uri,
+			baseBranchName: undefined,
+			gitHubInfo,
+			resolveGitHubInfo: () => this._resolveLocalGitHubInfo(uri, gitHubInfo),
+		};
+	}
+
+	private _getLocalGitHubInfo(uri: URI): ISettableObservable<IGitHubInfo | undefined> {
 		const key = this.uriIdentityService.extUri.getComparisonKey(uri);
 		let gitHubInfo = this._localGitHubInfo.get(key);
 		if (gitHubInfo) {
 			return gitHubInfo;
 		}
+		if (this._localGitHubInfo.size >= 50) {
+			const oldestKey = this._localGitHubInfo.keys().next().value;
+			if (oldestKey !== undefined) {
+				this._localGitHubInfo.delete(oldestKey);
+				this._localGitHubInfoDisposables.deleteAndDispose(oldestKey);
+				this._localGitHubInfoResolutionStarted.delete(oldestKey);
+			}
+		}
 		gitHubInfo = observableValue<IGitHubInfo | undefined>(this, undefined);
 		this._localGitHubInfo.set(key, gitHubInfo);
+		return gitHubInfo;
+	}
+
+	private _resolveLocalGitHubInfo(uri: URI, gitHubInfo: ISettableObservable<IGitHubInfo | undefined>): void {
+		const key = this.uriIdentityService.extUri.getComparisonKey(uri);
+		if (this._localGitHubInfoResolutionStarted.has(key)) {
+			return;
+		}
+		this._localGitHubInfoResolutionStarted.add(key);
 		void this.gitService.openRepository(uri).then(repository => {
 			if (!repository || this._localGitHubInfo.get(key) !== gitHubInfo) {
+				this._localGitHubInfoResolutionStarted.delete(key);
 				return;
 			}
 			this._localGitHubInfoDisposables.set(key, autorun(reader => {
@@ -2691,9 +2716,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				gitHubInfo.set(repositoryInfo ? { owner: repositoryInfo.owner, repo: repositoryInfo.repo } : undefined, undefined);
 			}));
 		}, error => {
+			this._localGitHubInfoResolutionStarted.delete(key);
 			this.logService.warn(`Failed to resolve GitHub repository metadata for '${uri.toString()}'.`, error);
 		});
-		return gitHubInfo;
 	}
 
 	private _labelFromUri(uri: URI): string {

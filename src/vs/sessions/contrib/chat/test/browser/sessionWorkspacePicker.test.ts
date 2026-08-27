@@ -1213,7 +1213,7 @@ suite('WorkspacePicker - Category Triggers', () => {
 		}, {
 			selectedFolderUri: folderUri.toString(),
 			triggers: [
-				{ label: 'local/project', ariaLabel: 'Choose a folder', hidden: false, hasPopup: 'listbox', expanded: 'false', role: 'button', tabIndex: 0 },
+				{ label: 'local/project', ariaLabel: 'Folder: local/project', hidden: false, hasPopup: 'listbox', expanded: 'false', role: 'button', tabIndex: 0 },
 				{ label: 'Repo, Issue, or PR', ariaLabel: 'Choose a GitHub target', hidden: false, hasPopup: 'listbox', expanded: 'false', role: 'button', tabIndex: 0 },
 				{ label: 'Remote Setup', ariaLabel: 'Choose a remote setup', hidden: true, hasPopup: 'listbox', expanded: 'false', role: 'button', tabIndex: 0 },
 				{ label: undefined, ariaLabel: 'More workspace options', hidden: false, hasPopup: 'listbox', expanded: 'false', role: 'button', tabIndex: 0 },
@@ -1254,6 +1254,7 @@ suite('WorkspacePicker - Category Triggers', () => {
 			{ label: 'Remote Setup', ariaLabel: 'Choose a remote setup', icon: Codicon.add, group: SESSION_WORKSPACE_GROUP_REMOTE, hideWhenWorkspaceSelected: true },
 		]);
 		const folderTrigger = container.querySelector<HTMLElement>('[aria-label="Choose a folder"]');
+		const repositoryTrigger = container.querySelector<HTMLElement>('[aria-label="Choose a repository"]');
 		const iconBefore = folderTrigger?.querySelector('.codicon');
 		const labelBefore = folderTrigger?.querySelector('.sessions-chat-dropdown-label');
 
@@ -1267,7 +1268,8 @@ suite('WorkspacePicker - Category Triggers', () => {
 			iconClass: iconBefore?.className,
 			label: labelBefore?.textContent,
 			repositoryLabelBeforeMetadata,
-			repositoryLabel: container.querySelector<HTMLElement>('[aria-label="Choose a repository"] .sessions-chat-dropdown-label')?.textContent,
+			repositoryLabel: repositoryTrigger?.querySelector<HTMLElement>('.sessions-chat-dropdown-label')?.textContent,
+			repositoryAriaLabel: repositoryTrigger?.getAttribute('aria-label'),
 			contextLabel: container.querySelector<HTMLElement>('[aria-label="Choose an issue or pull request"] .sessions-chat-dropdown-label')?.textContent,
 			contextHidden: container.querySelector<HTMLElement>('[aria-label="Choose an issue or pull request"]')?.parentElement?.hidden,
 			remoteHidden: container.querySelector<HTMLElement>('[aria-label="Choose a remote setup"]')?.parentElement?.hidden,
@@ -1278,16 +1280,44 @@ suite('WorkspacePicker - Category Triggers', () => {
 			label: 'local/project',
 			repositoryLabelBeforeMetadata: 'Repository',
 			repositoryLabel: 'microsoft/vscode',
+			repositoryAriaLabel: 'Repository: microsoft/vscode',
 			contextLabel: 'Issue/PR',
 			contextHidden: false,
 			remoteHidden: true,
 		});
 	});
 
-	test('uses repository metadata from another provider for the selected execution folder', () => {
+	test('uses repository metadata from another provider for the selected execution folder', async () => {
 		const providersService = disposables.add(new MockSessionsProvidersService());
 		const executionProvider = createMockProvider('local-agent-host');
 		const metadataProvider = createMockProvider('metadata-provider');
+		const repositoryProvider = createMockProvider('repository-provider', {
+			browseActions: [{
+				label: 'Repository...',
+				group: SESSION_WORKSPACE_GROUP_GITHUB,
+				icon: Codicon.repo,
+				providerId: 'repository-provider',
+				attachesContext: false,
+				run: async () => {
+					const root = URI.parse('vscode-vfs://github/microsoft/vscode/HEAD');
+					return {
+						uri: root,
+						label: 'microsoft/vscode',
+						icon: Codicon.repo,
+						group: SESSION_WORKSPACE_GROUP_GITHUB,
+						folders: [{
+							root,
+							workingDirectory: root,
+							name: 'vscode',
+							description: undefined,
+							gitRepository: undefined,
+						}],
+						requiresWorkspaceTrust: false,
+						isVirtualWorkspace: true,
+					};
+				},
+			}],
+		});
 		const gitHubInfo = observableValue<{ owner: string; repo: string } | undefined>('gitHubInfo', undefined);
 		providersService.setProviders([
 			{
@@ -1316,21 +1346,32 @@ suite('WorkspacePicker - Category Triggers', () => {
 					} : undefined;
 				},
 			},
+			repositoryProvider,
 		]);
-		const picker = createTestPicker(disposables, providersService);
+		const picker = createTestPicker(
+			disposables,
+			providersService,
+			undefined,
+			new TestNotificationService(),
+			DispatchingWorkspacePicker,
+		) as DispatchingWorkspacePicker;
 		const container = document.createElement('div');
 		picker.renderCategoryTriggers(container, [
 			{ label: 'Folder', ariaLabel: 'Choose a folder', icon: Codicon.add, group: SESSION_WORKSPACE_GROUP_LOCAL },
 			{ label: 'Repository', ariaLabel: 'Choose a repository', icon: Codicon.add, group: SESSION_WORKSPACE_GROUP_GITHUB, attachesContext: false },
 			{ label: 'Issue/PR', ariaLabel: 'Choose an issue or pull request', icon: Codicon.add, group: SESSION_WORKSPACE_GROUP_GITHUB, attachesContext: true, hideWhenNoGitHubRepository: true },
 		]);
+		const repositoryTrigger = container.querySelector<HTMLElement>('[aria-label="Choose a repository"]');
 
 		picker.setSelectedWorkspace(URI.file('/agent-host/vscode'), { fireEvent: false, providerId: executionProvider.id, persist: false });
 		gitHubInfo.set({ owner: 'microsoft', repo: 'vscode' }, undefined);
+		picker.setDirectFilter(SESSION_WORKSPACE_GROUP_GITHUB, false);
+		await picker.dispatchItem({ browseActionIndex: 0 });
+		picker.setDirectFilter(undefined);
 
 		assert.deepStrictEqual({
 			selectedFolder: picker.selectedFolderUri?.toString(),
-			repositoryLabel: container.querySelector<HTMLElement>('[aria-label="Choose a repository"] .sessions-chat-dropdown-label')?.textContent,
+			repositoryLabel: repositoryTrigger?.querySelector<HTMLElement>('.sessions-chat-dropdown-label')?.textContent,
 			contextHidden: container.querySelector<HTMLElement>('[aria-label="Choose an issue or pull request"]')?.parentElement?.hidden,
 		}, {
 			selectedFolder: URI.file('/agent-host/vscode').toString(),

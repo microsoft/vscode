@@ -168,7 +168,7 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		const allBrowseActions = this._getAllBrowseActions();
 		const browseActions = allBrowseActions
 			.map((action, index) => ({ action, index }))
-			.filter(({ action }) => action.providerId === scopedProviderId);
+			.filter(({ action }) => action.providerId === scopedProviderId || this._directPickerGroup === SESSION_WORKSPACE_GROUP_GITHUB);
 		if (browseActions.length > 0 && !this._isProviderUnavailable(scopedProviderId)) {
 			if (items.length > 0) {
 				items.push({ kind: ActionListItemKind.Separator, label: '' });

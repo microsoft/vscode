@@ -102,6 +102,7 @@ export interface IWorkspacePickerTrigger {
 	readonly group?: string;
 	readonly attachesContext?: boolean;
 	readonly hideWhenWorkspaceSelected?: boolean;
+	readonly hideWhenNoWorkspaceSelected?: boolean;
 	readonly hideWhenNoGitHubRepository?: boolean;
 	readonly selectedWorkspace?: ISessionWorkspace;
 }
@@ -762,7 +763,7 @@ export class WorkspacePicker extends Disposable {
 		}
 		const matchesRepository = (candidate: IResolvedFolderWorkspace) =>
 			candidate.workspace.group === SESSION_WORKSPACE_GROUP_LOCAL
-			&& this._getRepositoryId(candidate.workspace) === repositoryId;
+			&& this._getRepositoryIdForResolvedWorkspace(candidate) === repositoryId;
 		if (this._selectedResolved && matchesRepository(this._selectedResolved)) {
 			return this._selectedResolved;
 		}
@@ -930,6 +931,7 @@ export class WorkspacePicker extends Disposable {
 		const observed = new Set<IObservable<IGitHubInfo | undefined>>();
 		for (const workspace of this._getSelectedRepositoryWorkspaceCandidates()) {
 			for (const folder of workspace.folders) {
+				folder.gitRepository?.resolveGitHubInfo?.();
 				const gitHubInfo = folder.gitRepository?.gitHubInfo;
 				if (gitHubInfo && !observed.has(gitHubInfo)) {
 					observed.add(gitHubInfo);
@@ -950,12 +952,30 @@ export class WorkspacePicker extends Disposable {
 		if (!this._selectedResolved || !this._selectedFolderUri) {
 			return [];
 		}
-		const candidates = [this._selectedResolved.workspace];
+		return this._getRepositoryWorkspaceCandidates(this._selectedResolved);
+	}
+
+	private _getRepositoryIdForResolvedWorkspace(selection: IResolvedFolderWorkspace): string | undefined {
+		for (const workspace of this._getRepositoryWorkspaceCandidates(selection)) {
+			const repositoryId = this._getRepositoryId(workspace);
+			if (repositoryId) {
+				return repositoryId;
+			}
+		}
+		return undefined;
+	}
+
+	private _getRepositoryWorkspaceCandidates(selection: IResolvedFolderWorkspace): ISessionWorkspace[] {
+		const folderUri = selection.workspace.folders[0]?.root;
+		if (!folderUri) {
+			return [selection.workspace];
+		}
+		const candidates = [selection.workspace];
 		for (const provider of this.sessionsProvidersService.getProviders()) {
-			if (provider.id === this._selectedResolved.providerId) {
+			if (provider.id === selection.providerId) {
 				continue;
 			}
-			const workspace = provider.resolveWorkspace(this._selectedFolderUri);
+			const workspace = provider.resolveWorkspace(folderUri);
 			if (workspace?.group === SESSION_WORKSPACE_GROUP_LOCAL) {
 				candidates.push(workspace);
 			}
@@ -1097,8 +1117,8 @@ export class WorkspacePicker extends Disposable {
 			: this._directPickerAttachesContext === true
 				? []
 				: this._getRecentWorkspaces()
-				.filter(w => providerIds.has(w.providerId))
-				.filter(w => !tabFilter || tabFilter(w));
+					.filter(w => providerIds.has(w.providerId))
+					.filter(w => !tabFilter || tabFilter(w));
 
 		// Build flat list in recency order (no source grouping)
 		for (const { workspace, providerId } of recentWorkspaces) {
@@ -1106,7 +1126,7 @@ export class WorkspacePicker extends Disposable {
 			if (!folderUri) {
 				continue;
 			}
-			const repositoryId = this._getRepositoryId(workspace);
+			const repositoryId = this._getRepositoryIdForResolvedWorkspace({ workspace, providerId });
 			const selected = this._isSelectedFolder(folderUri)
 				|| (repositoryId !== undefined && repositoryId === this._getCurrentRepositoryId());
 			const attached = this._additionalFolderSelections.has(this.uriIdentityService.extUri.getComparisonKey(folderUri))
@@ -1166,13 +1186,13 @@ export class WorkspacePicker extends Disposable {
 			const isRepositoryAction = action.group === SESSION_WORKSPACE_GROUP_GITHUB && action.attachesContext !== true;
 			if (isRepositoryAction && this._getCurrentRepositoryId()) {
 				items.push({
-						kind: ActionListItemKind.Action,
-						label: localize('workspacePicker.addRepository', "Add Repository..."),
-						description: action.description,
-						group: { title: '', icon: action.icon },
-						disabled: isUnavailable,
-						item: { browseActionIndex: index, browseActionMode: 'add' },
-					});
+					kind: ActionListItemKind.Action,
+					label: localize('workspacePicker.addRepository', "Add Repository..."),
+					description: action.description,
+					group: { title: '', icon: action.icon },
+					disabled: isUnavailable,
+					item: { browseActionIndex: index, browseActionMode: 'add' },
+				});
 			} else {
 				items.push({
 					kind: ActionListItemKind.Action,
@@ -1296,6 +1316,7 @@ export class WorkspacePicker extends Disposable {
 			this._additionalRepositoryTriggerDisposables.add(this._addTrigger(slot, {
 				...this._repositoryTriggerOptions,
 				label: workspace.label,
+				ariaLabel: localize('workspacePicker.attachedRepositoryAriaLabel', "Attached repository {0}", workspace.label),
 				selectedWorkspace: workspace,
 			}));
 		}
@@ -1313,6 +1334,7 @@ export class WorkspacePicker extends Disposable {
 			this._additionalFolderTriggerDisposables.add(this._addTrigger(slot, {
 				...this._folderTriggerOptions,
 				label: selection.workspace.label,
+				ariaLabel: localize('workspacePicker.attachedFolderAriaLabel', "Attached folder {0}", selection.workspace.label),
 				selectedWorkspace: selection.workspace,
 			}));
 		}
@@ -1334,11 +1356,11 @@ export class WorkspacePicker extends Disposable {
 				: undefined;
 			const selectedWorkspace = options.selectedWorkspace;
 			const hideForSelectedWorkspace = workspace !== undefined && options.hideWhenWorkspaceSelected === true;
+			const hideForMissingWorkspace = workspace === undefined && options.hideWhenNoWorkspaceSelected === true;
 			const hideForMissingGitHubRepository = workspace !== undefined
 				&& options.hideWhenNoGitHubRepository === true
 				&& this._getCurrentRepositoryId() === undefined;
-			trigger.parentElement?.toggleAttribute('hidden', hideForSelectedWorkspace || hideForMissingGitHubRepository);
-			trigger.setAttribute('aria-label', options.ariaLabel);
+			trigger.parentElement?.toggleAttribute('hidden', hideForSelectedWorkspace || hideForMissingWorkspace || hideForMissingGitHubRepository);
 			trigger.classList.toggle('selected', selectedWorkspace !== undefined || isSelectedCategory || contextCount > 0 || relatedGitHubInfo !== undefined);
 			const icon = selectedWorkspace?.icon
 				?? (contextCount > 0 ? Codicon.attach : undefined)
@@ -1352,6 +1374,9 @@ export class WorkspacePicker extends Disposable {
 			const label = selectedWorkspace?.label
 				?? (contextCount > 0 ? localize('workspacePicker.attachedContextCount', "Attached {0}", contextCount) : undefined)
 				?? (relatedGitHubInfo ? `${relatedGitHubInfo.owner}/${relatedGitHubInfo.repo}` : (isSelectedCategory && workspace ? workspace.label : options.label));
+			trigger.setAttribute('aria-label', label && label !== options.label && !selectedWorkspace
+				? localize('workspacePicker.categorySelectionAriaLabel', "{0}: {1}", options.label ?? options.ariaLabel, label)
+				: options.ariaLabel);
 			let labelSpan = trigger.querySelector<HTMLElement>(':scope > .sessions-chat-dropdown-label');
 			if (label) {
 				labelSpan ??= dom.append(trigger, dom.$('span.sessions-chat-dropdown-label'));
