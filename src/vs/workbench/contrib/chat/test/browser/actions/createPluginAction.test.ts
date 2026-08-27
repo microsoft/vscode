@@ -328,14 +328,6 @@ suite('CreatePluginAction helpers', () => {
 			}, 'server'), /server.*command/);
 		});
 
-		test('rejects non-portable HTTP URLs', () => {
-			assert.throws(() => serializeMcpLaunch({
-				type: McpServerTransportType.HTTP,
-				transport: 'streamable-http',
-				uri: URI.parse('http://example.com/mcp'),
-				headers: [],
-			}, 'server'), /server.*URL/);
-		});
 	});
 });
 

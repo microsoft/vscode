@@ -275,7 +275,7 @@ class CreatePluginAction extends Action2 {
 				format: PluginCreationFormat.AgentPlugin,
 			},
 			{
-				label: localize('agentPluginLegacyCompatibilityFormat', "Agent Plugin with Legacy Compatibility"),
+				label: localize('agentPluginLegacyCompatibilityFormat', "Open Plugin (Legacy Compatibility)"),
 				description: localize('agentPluginLegacyCompatibilityFormatDescription', "Also supports older clients"),
 				format: PluginCreationFormat.AgentPluginWithLegacyCompatibility,
 			},
@@ -590,9 +590,6 @@ export function serializeMcpLaunch(launch: McpServerDefinition['launch'], server
 		if (launch.headers.length > 0) {
 			throw new Error(localize('pluginMcpHeadersNotPortable', "MCP server '{0}' cannot be exported because portable plugins cannot include HTTP headers.", serverLabel));
 		}
-		if (!isPortableMcpUrl(launch.uri)) {
-			throw new Error(localize('pluginMcpUrlNotPortable', "MCP server '{0}' cannot be exported because its URL is not a portable HTTP or HTTPS endpoint.", serverLabel));
-		}
 		const result: Record<string, unknown> = {
 			type: launch.transport ?? 'streamable-http',
 			url: launch.uri.toString(true),
@@ -654,29 +651,6 @@ function isContainedRelativePath(path: string): boolean {
 		}
 	}
 	return true;
-}
-
-function isPortableMcpUrl(uri: URI): boolean {
-	const value = uri.toString(true);
-	if (!URL.canParse(value)) {
-		return false;
-	}
-	const url = new URL(value);
-	if ((url.protocol !== 'http:' && url.protocol !== 'https:') || !url.hostname || url.username || url.password || url.hash) {
-		return false;
-	}
-	return url.protocol === 'https:' || isLoopbackHostname(url.hostname);
-}
-
-function isLoopbackHostname(hostname: string): boolean {
-	const normalized = hostname.toLowerCase();
-	if (normalized === 'localhost' || normalized === '[::1]') {
-		return true;
-	}
-	const ipv4Segments = normalized.split('.');
-	return ipv4Segments.length === 4
-		&& ipv4Segments[0] === '127'
-		&& ipv4Segments.every(segment => /^\d{1,3}$/.test(segment) && Number(segment) <= 255);
 }
 
 export async function copyDirectory(fileService: IFileService, source: URI, target: URI): Promise<void> {
