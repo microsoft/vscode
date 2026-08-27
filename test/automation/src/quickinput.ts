@@ -19,6 +19,7 @@ export class QuickInput {
 	// Note: this only grabs the label and not the description or detail
 	private static QUICK_INPUT_ENTRY_LABEL = `${QuickInput.QUICK_INPUT_ROW} .quick-input-list-row > .monaco-icon-label .label-name`;
 	private static QUICK_INPUT_FOCUSED_LABEL = `${QuickInput.QUICK_INPUT_ROW}.focused .quick-input-list-row > .monaco-icon-label .label-name`;
+	private static QUICK_INPUT_FOCUSED_ELEMENTS = `${QuickInput.QUICK_INPUT_FOCUSED_ENTRY}, ${QuickInput.QUICK_INPUT_FOCUSED_LABEL}`;
 
 	constructor(private code: Code) { }
 
@@ -31,12 +32,9 @@ export class QuickInput {
 	}
 
 	async waitForQuickInputElement(): Promise<IQuickInputElementInfo> {
-		const [label, entry] = await Promise.all([
-			this.code.waitForTextContent(QuickInput.QUICK_INPUT_FOCUSED_LABEL),
-			this.code.waitForElement(QuickInput.QUICK_INPUT_FOCUSED_ENTRY)
-		]);
+		const [entry, label] = await this.code.waitForElements(QuickInput.QUICK_INPUT_FOCUSED_ELEMENTS, false, elements => elements.length === 2);
 		return {
-			label,
+			label: label.textContent,
 			id: entry.attributes['data-quick-input-id']
 		};
 	}
