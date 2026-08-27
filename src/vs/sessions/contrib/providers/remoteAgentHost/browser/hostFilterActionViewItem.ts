@@ -414,9 +414,7 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 			return;
 		}
 
-		// A grouped entry (e.g. Cloud Sandboxes) has no single connection to
-		// toggle — its members connect when one of their sessions is opened —
-		// so the slot stays empty rather than offering a control over nothing.
+		// A non-connectable entry has no connection the user drives.
 		if (!selected.connectable) {
 			this._connectElement.classList.add('hidden');
 			this._connectElement.removeAttribute('role');
@@ -507,9 +505,7 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 
 		const actions: IAction[] = [];
 		for (const host of hosts) {
-			// Connection state is only meaningful for a host the user connects
-			// to; a grouped entry aggregates many connections that come and go
-			// on their own, so it is shown by name alone.
+			// Connection state is only meaningful where the user drives it.
 			const label = !host.connectable || host.status === AgentHostFilterConnectionStatus.Connected
 				? host.label
 				: host.status === AgentHostFilterConnectionStatus.Connecting

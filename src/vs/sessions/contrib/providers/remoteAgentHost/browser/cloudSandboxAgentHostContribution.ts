@@ -65,17 +65,9 @@ const SANDBOX_SESSION_SCHEME_ALIAS: ISessionSchemeAlias = {
 };
 
 /**
- * Folds every sandbox environment into one entry in the host filter.
- *
- * Each environment is its own connection and therefore its own provider, but a user with 20 Mission
- * Control tasks has 20 of them — as individual hosts they would bury the machines the picker exists
- * to switch between, and each would show a session list of exactly one. Grouping keeps the
- * per-environment connections and gives the user a single "Cloud Sandboxes" place holding all of
- * their sandbox sessions.
- *
- * `connectable: false` because a sandbox connects when one of its sessions is opened, so a
- * connect/disconnect toggle on the group would act on nothing the user pointed at. `order: 1` sorts
- * it after the user's own hosts, which also keeps a fresh profile from defaulting into it.
+ * Folds every sandbox environment into one "Cloud Sandboxes" entry in the host
+ * filter. Sandboxes are not connectable: one connects when a session of it is
+ * opened, so a manual toggle would act on nothing the user pointed at.
  */
 const CLOUD_SANDBOX_HOST_GROUP: IAgentHostGroup = {
 	id: 'cloudsandbox',

@@ -142,8 +142,7 @@ export class WebWorkspacePicker extends WorkspacePicker {
 			return items;
 		}
 
-		// 1. Recent workspaces for the scoped host — for a grouped entry that
-		// spans every member (e.g. all of the user's sandbox environments).
+		// 1. Recent workspaces across every provider the entry scopes to.
 		const isGitHubCategory = this._directPickerGroup === SESSION_WORKSPACE_GROUP_GITHUB;
 		const recents = this._getRecentWorkspaces().filter(w =>
 			(scopedProviderIds.has(w.providerId) || isGitHubCategory)
@@ -167,15 +166,13 @@ export class WebWorkspacePicker extends WorkspacePicker {
 			});
 		}
 
-		// 2. Browse actions for the scoped host and selected category. A
-		// grouped entry contributes none of its own: there is no single
-		// machine to browse, and its members (cloud sandboxes) are created by
-		// the service rather than by picking a folder here. GitHub actions are
-		// not machine-bound, so they still apply.
+		// 2. Browse actions for the scoped host and selected category. A grouped
+		// entry contributes none of its own — no single machine to browse —
+		// but GitHub actions are not machine-bound, so they still apply.
 		const allBrowseActions = this._getAllBrowseActions();
 		const browseActions = allBrowseActions
 			.map((action, index) => ({ action, index }))
-			.filter(({ action }) => (scoped.connectable && scopedProviderIds.has(action.providerId)) || this._directPickerGroup === SESSION_WORKSPACE_GROUP_GITHUB);
+			.filter(({ action }) => (!scoped.grouped && scopedProviderIds.has(action.providerId)) || this._directPickerGroup === SESSION_WORKSPACE_GROUP_GITHUB);
 		if (browseActions.length > 0) {
 			if (items.length > 0) {
 				items.push({ kind: ActionListItemKind.Separator, label: '' });

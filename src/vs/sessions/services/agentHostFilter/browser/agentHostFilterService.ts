@@ -67,6 +67,11 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 	readonly onDidChangeDiscovering: Event<void> = this._onDidChangeDiscovering.event;
 
 	private _selectedHostId: string | undefined;
+	/**
+	 * `true` while {@link _selectedHostId} comes from the fallback rather than
+	 * from the user. An automatic choice is provisional and can be replaced.
+	 */
+	private _selectionIsAutomatic = false;
 	private _hosts: readonly IAgentHostFilterEntry[] = [];
 
 	/**
@@ -150,12 +155,15 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 		if (!this._hosts.some(h => h.id === hostId)) {
 			return;
 		}
-		if (hostId === this._selectedHostId) {
-			return;
-		}
+		// Picking the entry the fallback already landed on still makes it the
+		// user's choice, so run through even when the id is unchanged.
+		const changed = hostId !== this._selectedHostId;
 		this._selectedHostId = hostId;
-		this._persist();
-		this._onDidChange.fire();
+		this._selectionIsAutomatic = false;
+		this._persist(hostId);
+		if (changed) {
+			this._onDidChange.fire();
+		}
 	}
 
 	reconnect(hostId: string): void {
@@ -191,20 +199,20 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 	}
 
 	/**
-	 * Resolve a stored (or current) selection against the live entry list,
-	 * falling back to the first entry the user can actually connect to. That
-	 * fallback matters because grouped entries like cloud sandboxes come and
-	 * go with the user's task list: without it, a fresh profile could open
-	 * scoped to somebody's ephemeral sandbox instead of their own machine.
+	 * Resolve a selection against the live entry list. A selection made by the
+	 * fallback is provisional and is replaced once a connectable entry shows
+	 * up; an explicit user choice is always kept.
 	 */
-	private _validate(hostId: string | undefined): string | undefined {
-		if (hostId !== undefined && this._hosts.some(h => h.id === hostId)) {
-			return hostId;
-		}
+	private _validate(hostId: string | undefined): { readonly id: string | undefined; readonly automatic: boolean } {
 		if (this._hosts.length === 0) {
-			return undefined;
+			return { id: undefined, automatic: false };
 		}
-		return (this._hosts.find(h => h.connectable) ?? this._hosts[0]).id;
+		const current = hostId === undefined ? undefined : this._hosts.find(h => h.id === hostId);
+		if (current && (!this._selectionIsAutomatic || current.connectable)) {
+			return { id: current.id, automatic: this._selectionIsAutomatic };
+		}
+		const connectable = this._hosts.find(h => h.connectable);
+		return { id: (connectable ?? current ?? this._hosts[0]).id, automatic: true };
 	}
 
 	/**
@@ -224,6 +232,7 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 				id: string;
 				providerIds: string[];
 				label: string;
+				grouped: boolean;
 				address: string | undefined;
 				icon: ThemeIcon;
 				status: AgentHostFilterConnectionStatus;
@@ -242,6 +251,7 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 						id: provider.id,
 						providerIds: [provider.id],
 						label: provider.label,
+						grouped: false,
 						address: provider.remoteAddress,
 						icon: provider.icon,
 						status,
@@ -260,6 +270,7 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 					id: group.id,
 					providerIds: [provider.id],
 					label: group.label,
+					grouped: true,
 					address: undefined,
 					icon: group.icon ?? Codicon.remote,
 					status,
@@ -287,24 +298,24 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 
 		this._hosts = hosts;
 
-		const validated = isWeb ? this._validate(this._selectedHostId) : undefined;
-		const selectionChanged = validated !== this._selectedHostId;
+		const validated = isWeb ? this._validate(this._selectedHostId) : { id: undefined, automatic: false };
+		const selectionChanged = validated.id !== this._selectedHostId;
 		if (selectionChanged) {
-			this._selectedHostId = validated;
-			this._persist();
+			this._selectedHostId = validated.id;
 		}
+		this._selectionIsAutomatic = validated.automatic;
 
 		if (changed || selectionChanged) {
 			this._onDidChange.fire();
 		}
 	}
 
-	private _persist(): void {
-		if (this._selectedHostId === undefined) {
-			this._storageService.remove(STORAGE_KEY, StorageScope.PROFILE);
-		} else {
-			this._storageService.store(STORAGE_KEY, this._selectedHostId, StorageScope.PROFILE, StorageTarget.USER);
-		}
+	/**
+	 * Store an explicit user choice. Automatic selections are deliberately not
+	 * stored, so a restart re-runs the fallback against the hosts of the day.
+	 */
+	private _persist(hostId: string): void {
+		this._storageService.store(STORAGE_KEY, hostId, StorageScope.PROFILE, StorageTarget.USER);
 	}
 }
 

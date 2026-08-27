@@ -167,6 +167,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 					id: provider.id,
 					providerIds: [provider.id],
 					label: provider.label,
+					grouped: false,
 					address: undefined,
 					icon: provider.icon,
 					status: AgentHostFilterConnectionStatus.Connected,

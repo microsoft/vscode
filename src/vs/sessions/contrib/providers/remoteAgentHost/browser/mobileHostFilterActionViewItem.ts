@@ -207,21 +207,21 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 			row.classList.add('checked');
 		}
 
-		// Icon + small status dot in the bottom-right.
+		// Icon, plus a status dot only where the user drives the connection.
 		const iconWrap = dom.append(row, $('span.host-picker-sheet-item-icon'));
 		iconWrap.append(...renderLabelWithIcons(`$(${host.icon.id})`));
-		const status = dom.append(iconWrap, $('span.host-picker-sheet-item-status'));
-		switch (host.status) {
-			case AgentHostFilterConnectionStatus.Connected:
-				status.classList.add('connected');
-				break;
-			case AgentHostFilterConnectionStatus.Connecting:
-				status.classList.add('connecting');
-				break;
+		if (host.connectable) {
+			const status = dom.append(iconWrap, $('span.host-picker-sheet-item-status'));
+			switch (host.status) {
+				case AgentHostFilterConnectionStatus.Connected:
+					status.classList.add('connected');
+					break;
+				case AgentHostFilterConnectionStatus.Connecting:
+					status.classList.add('connecting');
+					break;
+			}
 		}
 
-		// Name + status sub-line. A grouped entry has no connection the user
-		// drives, so it is named without a state the tap cannot change.
 		const text = dom.append(row, $('span.host-picker-sheet-item-text'));
 		dom.append(text, $('span.host-picker-sheet-item-name')).textContent = host.label;
 		if (host.connectable) {

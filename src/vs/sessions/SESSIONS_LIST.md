@@ -85,7 +85,7 @@ Stale entries that match no current session are inert and may be compacted by th
 
 The list supports created-time and updated-time sorting. Manual ordering stores list-owned sort keys for each mode without changing provider timestamps.
 
-Filters compose across session type, status, archive/read state, and provider. The find widget matches session and section labels and bypasses presentation capping while a search is active.
+Filters compose across session type, status, archive/read state, and provider. The agent host filter scopes to every provider the selected host entry covers, which is more than one when that entry groups several hosts. The find widget matches session and section labels and bypasses presentation capping while a search is active.
 
 ## Drag and drop
 

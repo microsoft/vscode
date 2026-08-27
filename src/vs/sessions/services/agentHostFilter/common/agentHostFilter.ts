@@ -18,13 +18,9 @@ export const enum AgentHostFilterConnectionStatus {
 }
 
 /**
- * A single entry the user can scope the sessions list to.
- *
- * Usually one entry is one host provider, but a provider may declare an
- * {@link IAgentHostGroup} to be folded together with its peers into a single
- * entry — cloud sandboxes do this, since every sandbox environment is its own
- * connection (and therefore its own provider) while the user thinks of them as
- * one place. {@link providerIds} is what the entry actually scopes to.
+ * A single entry the user can scope the sessions list to. Usually one entry is
+ * one host provider, but providers that declare an {@link IAgentHostGroup} fold
+ * into one entry that scopes to all of their {@link providerIds}.
  */
 export interface IAgentHostFilterEntry {
 	/**
@@ -39,6 +35,8 @@ export interface IAgentHostFilterEntry {
 	readonly providerIds: readonly string[];
 	/** Display name for the entry. */
 	readonly label: string;
+	/** Whether this entry collapses several providers declaring the same group. */
+	readonly grouped: boolean;
 	/**
 	 * The raw host address (e.g. `localhost:4321`, `tunnel+abc123`), or
 	 * `undefined` for a grouped entry, which has no single address.

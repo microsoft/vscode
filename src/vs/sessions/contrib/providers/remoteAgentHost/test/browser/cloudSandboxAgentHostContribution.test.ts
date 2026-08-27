@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -262,6 +263,18 @@ suite('CloudSandboxAgentHostContribution', () => {
 		})), [
 			{ name: 'Change port to 5555', omitHostFromWorkspaceLabel: true },
 			{ name: 'hi', omitHostFromWorkspaceLabel: true },
+		]);
+	});
+
+	test('folds every sandbox into one non-connectable host filter group', async () => {
+		const contribution = await createContribution(store, [
+			discoveredSession(),
+			discoveredSession({ environmentId: 'env-2', sessionId: 'sess-2', taskId: 'task-2', name: 'hi' }),
+		]);
+
+		assert.deepStrictEqual([...contribution.stubProviders.values()].map(p => p.config.hostGroup), [
+			{ id: 'cloudsandbox', label: 'Cloud Sandboxes', icon: Codicon.package, order: 1, connectable: false },
+			{ id: 'cloudsandbox', label: 'Cloud Sandboxes', icon: Codicon.package, order: 1, connectable: false },
 		]);
 	});
 });
