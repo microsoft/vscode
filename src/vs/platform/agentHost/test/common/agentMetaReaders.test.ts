@@ -126,8 +126,8 @@ suite('Agent host _meta readers', () => {
 
 		test('reads and writes editor inline metadata', () => {
 			assert.deepStrictEqual(
-				readChatSurfaceMeta({ _meta: withChatSurfaceMeta(undefined, { surface: 'editorInline', languageId: 'typescript' }) }),
-				{ surface: 'editorInline', languageId: 'typescript' },
+				readChatSurfaceMeta({ _meta: withChatSurfaceMeta(undefined, { surface: 'editorInline', languageId: 'typescript', targetUri: 'file:///workspace/inline.ts' }) }),
+				{ surface: 'editorInline', languageId: 'typescript', targetUri: 'file:///workspace/inline.ts' },
 			);
 			assert.deepStrictEqual(
 				readChatSurfaceMeta({ _meta: withChatSurfaceMeta(undefined, { surface: 'editorInline' }) }),
@@ -135,8 +135,12 @@ suite('Agent host _meta readers', () => {
 			);
 			assert.strictEqual(readChatSurfaceMeta({ _meta: { 'vscode.chat.surface': { surface: 'editorInline', languageId: 1 } } }), undefined);
 			assert.deepStrictEqual(
-				withChatSurfaceMeta({ existing: 'value' }, { surface: 'editorInline', languageId: 'typescript' }),
-				{ existing: 'value', 'vscode.chat.surface': { surface: 'editorInline', languageId: 'typescript' } },
+				readChatSurfaceMeta({ _meta: { 'vscode.chat.surface': { surface: 'editorInline', targetUri: 1 } } }),
+				{ surface: 'editorInline' },
+			);
+			assert.deepStrictEqual(
+				withChatSurfaceMeta({ existing: 'value' }, { surface: 'editorInline', languageId: 'typescript', targetUri: 'file:///workspace/inline.ts' }),
+				{ existing: 'value', 'vscode.chat.surface': { surface: 'editorInline', languageId: 'typescript', targetUri: 'file:///workspace/inline.ts' } },
 			);
 		});
 	});
@@ -155,6 +159,7 @@ suite('Agent host _meta readers', () => {
 				bashOmitsPowerShellIdioms: !bash.includes('Stop-Process'),
 				shellUnknownTargetsOs: shellUnknown.includes('targeting Linux'),
 				shellUnknownOmitsShellGuidance: !shellUnknown.includes('active shell') && !shellUnknown.includes('Python or Perl') && !shellUnknown.includes('Stop-Process'),
+				allRequireFencedCommands: [pwsh, bash, shellUnknown].every(instruction => instruction.includes('each command in its own fenced Markdown code block using triple backticks')),
 				allTagged: pwsh.startsWith('<terminal_chat>') && bash.endsWith('</terminal_chat>') && shellUnknown.endsWith('</terminal_chat>'),
 			}, {
 				pwshTargetsShellAndOs: true,
@@ -165,6 +170,7 @@ suite('Agent host _meta readers', () => {
 				bashOmitsPowerShellIdioms: true,
 				shellUnknownTargetsOs: true,
 				shellUnknownOmitsShellGuidance: true,
+				allRequireFencedCommands: true,
 				allTagged: true,
 			});
 		});
@@ -342,6 +348,11 @@ suite('Agent host _meta readers', () => {
 				{ model: 'claude-sonnet-4.6', inputTokens: 40, cachedTokens: 0, outputTokens: 12 },
 			];
 			assert.deepStrictEqual(readUsageInfoMeta(usage({ turnTokenTotals: totals })).turnTokenTotals, totals);
+			assert.deepStrictEqual(readUsageInfoMeta(usage({ directTurnTokenTotals: totals })).directTurnTokenTotals, totals);
+			assert.deepStrictEqual(
+				readUsageInfoMeta(usage({ directCopilotUsage: { totalNanoAiu: 123 } })).directCopilotUsage,
+				{ totalNanoAiu: 123 },
+			);
 		});
 
 		test('drops rows that are not fully formed, and reports nothing when none survive', () => {
@@ -361,6 +372,8 @@ suite('Agent host _meta readers', () => {
 			assert.deepStrictEqual(meta.turnTokenTotals, [{ model: 'gpt-5', inputTokens: 7, cachedTokens: 0, outputTokens: 3 }]);
 			assert.strictEqual(readUsageInfoMeta(usage({ turnTokenTotals: [{ model: 'gpt-5' }] })).turnTokenTotals, undefined);
 			assert.strictEqual(readUsageInfoMeta(usage({ turnTokenTotals: 'nope' })).turnTokenTotals, undefined);
+			assert.strictEqual(readUsageInfoMeta(usage({ directTurnTokenTotals: 'nope' })).directTurnTokenTotals, undefined);
+			assert.strictEqual(readUsageInfoMeta(usage({ directCopilotUsage: { totalNanoAiu: 'nope' } })).directCopilotUsage, undefined);
 			assert.strictEqual(readUsageInfoMeta(usage({})).turnTokenTotals, undefined);
 		});
 

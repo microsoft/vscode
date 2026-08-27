@@ -23,6 +23,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { fromNow } from '../../../../../base/common/date.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId, IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
@@ -44,8 +45,9 @@ import { chartsOrange } from '../../../../../platform/theme/common/colors/charts
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { getSessionStatusMessage, getSessionWorkspaceKind, GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, getChatCapabilities, getSessionStatusMessage, getSessionWorkspaceKind, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionWorkspace, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
 import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
@@ -78,18 +80,22 @@ import { IWorkbenchAssignmentService } from '../../../../../workbench/services/a
 // eslint-disable-next-line no-restricted-imports
 import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
-import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../../../browser/dnd.js';
+import { DraggedSessionIdentifier, fillSessionChatDragData, SessionsDataTransfers } from '../../../../browser/dnd.js';
 import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
 import { ElementsDragAndDropData, ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { buildSessionHoverContent } from '../sessionHoverContent.js';
+import { getSessionSummaryHoverData } from '../sessionHoverContent.js';
+import { SessionSummaryHoverWidget } from '../../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHover.js';
 import { SessionStatusIcon } from '../../../../browser/sessionStatusIcon.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
 import { Menus } from '../../../../browser/menus.js';
+import { getSessionConversationStatusAriaLabel } from '../../../../browser/sessionConversationGroups.js';
 
 const $ = DOM.$;
 
@@ -109,6 +115,9 @@ export const SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING = 'sessions.list.sh
 export const IsSessionPinnedContext = new RawContextKey<boolean>('sessionItem.isPinned', false);
 export const SessionItemHasBranchNameContext = new RawContextKey<boolean>('sessionItem.hasBranchName', false);
 export const SessionItemStatusContext = new RawContextKey<SessionStatus>('sessionItem.status', SessionStatus.Completed);
+export const SessionChatItemCanRenameContext = new RawContextKey<boolean>('sessionChatItem.canRename', false);
+export const SessionChatItemCanDeleteContext = new RawContextKey<boolean>('sessionChatItem.canDelete', false);
+export const SessionChatItemIsUntitledContext = new RawContextKey<boolean>('sessionChatItem.isUntitled', false);
 /** Whether the focused session item currently belongs to a user group. */
 export const SessionItemInGroupContext = new RawContextKey<boolean>('sessionItem.inGroup', false);
 export const SessionSectionTypeContext = new RawContextKey<string>('sessionSection.type', '');
@@ -171,7 +180,33 @@ export interface ISessionPlaceholder {
 	readonly hover?: string;
 }
 
-export type SessionListItem = ISession | ISessionSection | ISessionGroupItem | ISessionShowMore | ISessionPlaceholder;
+export class SessionChatItem {
+	constructor(
+		readonly session: ISession,
+		readonly chat: IChat,
+	) { }
+}
+
+export type ISessionChatItem = SessionChatItem;
+
+export type SessionListItem = ISession | SessionChatItem | ISessionSection | ISessionGroupItem | ISessionShowMore | ISessionPlaceholder;
+
+function isSessionChatItem(item: SessionListItem): item is ISessionChatItem {
+	return item instanceof SessionChatItem;
+}
+
+function getChatTitle(chat: IChat, reader?: IReader): string {
+	return chat.title.read(reader).trim() || localize('untitledChat', "Untitled Chat");
+}
+
+function getSessionListChats(session: ISession, reader?: IReader): readonly IChat[] {
+	const mainChat = session.mainChat.read(reader);
+	return session.chats.read(reader).filter(chat =>
+		!isEqual(chat.resource, mainChat.resource) &&
+		chat.origin?.kind !== ChatOriginKind.Tool &&
+		chat.interactivity.read(reader) !== ChatInteractivity.Hidden
+	);
+}
 
 function isSessionGroupItem(item: SessionListItem): item is ISessionGroupItem {
 	return 'group' in item;
@@ -188,7 +223,7 @@ function getSessionSectionIcon(sectionId: string): ThemeIcon | undefined {
 		case 'pinned':
 			return Codicon.pinned;
 		case AUTOMATIONS_SECTION_ID:
-			return Codicon.watch;
+			return Codicon.calendar;
 		case 'archived':
 			return Codicon.archive;
 		case 'recent':
@@ -211,7 +246,7 @@ function isSessionPlaceholder(item: SessionListItem): item is ISessionPlaceholde
 }
 
 function isSessionItem(item: SessionListItem): item is ISession {
-	return !isSessionGroupItem(item) && !isSessionSection(item) && !isSessionShowMore(item) && !isSessionPlaceholder(item);
+	return !isSessionChatItem(item) && !isSessionGroupItem(item) && !isSessionSection(item) && !isSessionShowMore(item) && !isSessionPlaceholder(item);
 }
 
 const SHOW_MORE_FOLDERS_LABEL = '__more_folders__';
@@ -231,6 +266,16 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	private static readonly ITEM_HEIGHT = 54;
 	/** Quick-chat rows are single-line — see the `.session-item.quick-chat` rules in `sessionsList.css`. */
 	private static readonly ITEM_HEIGHT_QUICK_CHAT = 28;
+	private static readonly CHAT_ITEM_HEIGHT = 28;
+	private static readonly CHAT_ITEM_HEIGHT_PHONE = 44;
+	/**
+	 * Bottom slack reserved under a chat row's approval prompt. The session row
+	 * absorbs the rendered code-block's line-height rounding in its own bottom
+	 * padding; the chat row has none, so it reserves this small buffer instead.
+	 * Keep in sync with the `.session-approval-row.visible` bottom margin in
+	 * `sessionsList.css`.
+	 */
+	private static readonly CHAT_APPROVAL_BOTTOM_SLACK = 6;
 	/**
 	 * Phone layout uses a taller row so the inline action toolbar can
 	 * meet the 44px minimum touch target without overflowing. Sized to
@@ -249,9 +294,30 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 		private readonly _approvalRowMaxLines: number = DEFAULT_APPROVAL_ROW_MAX_LINES,
 		private readonly _ciFixModel: ISessionCIFixModel | undefined = undefined,
 		private readonly _useCompactQuickChatRows = true,
+		/**
+		 * Whether the session row surfaces an approval from any of its chats. Lists
+		 * that render nested chats as their own rows (the main sessions tree) keep
+		 * this `false` so the session row only shows its main chat's approval;
+		 * flat, chat-less lists (blocked sessions, automations) set it `true`.
+		 */
+		private readonly _aggregateChatApprovals = false,
 	) { }
 
 	getHeight(element: SessionListItem): number {
+		if (isSessionChatItem(element)) {
+			let chatHeight = this._isPhone() ? SessionsTreeDelegate.CHAT_ITEM_HEIGHT_PHONE : SessionsTreeDelegate.CHAT_ITEM_HEIGHT;
+			if (this._approvalModel) {
+				const approval = this._approvalModel.getApproval(element.chat.resource).get();
+				if (approval) {
+					// Reserve the approval row plus a small bottom slack (the chat row,
+					// unlike the session row, has no bottom padding to absorb the
+					// rendered code-block's line-height rounding). Kept in sync with the
+					// `.session-approval-row.visible` bottom margin in `sessionsList.css`.
+					chatHeight += SessionItemRenderer.getApprovalRowHeight(approval.label, this._approvalRowMaxLines) + SessionsTreeDelegate.CHAT_APPROVAL_BOTTOM_SLACK;
+				}
+			}
+			return chatHeight;
+		}
 		if (isSessionSection(element) || isSessionGroupItem(element)) {
 			return SessionsTreeDelegate.SECTION_HEIGHT;
 		}
@@ -271,7 +337,10 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 			height = SessionsTreeDelegate.ITEM_HEIGHT;
 		}
 		if (this._approvalModel) {
-			const approval = getFirstApprovalAcrossChats(this._approvalModel, element as ISession, undefined);
+			// In the main tree only the main chat's approval renders on the session
+			// row (nested/side chats surface theirs on their own rows); flat lists
+			// with no chat rows aggregate an approval from any of the session's chats.
+			const approval = getSessionRowApproval(this._approvalModel, element as ISession, undefined, this._aggregateChatApprovals);
 			if (approval) {
 				height += SessionItemRenderer.getApprovalRowHeight(approval.label, this._approvalRowMaxLines);
 			}
@@ -283,10 +352,16 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	}
 
 	hasDynamicHeight(element: SessionListItem): boolean {
+		if (isSessionChatItem(element)) {
+			return !!this._approvalModel;
+		}
 		return (!!this._approvalModel || !!this._ciFixModel) && isSessionItem(element);
 	}
 
 	getTemplateId(element: SessionListItem): string {
+		if (isSessionChatItem(element)) {
+			return SessionChatItemRenderer.TEMPLATE_ID;
+		}
 		if (isSessionGroupItem(element)) {
 			return SessionGroupRenderer.TEMPLATE_ID;
 		}
@@ -301,6 +376,226 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 		}
 		return SessionItemRenderer.TEMPLATE_ID;
 	}
+}
+
+//#endregion
+
+//#region Chat Item Renderer
+
+interface ISessionChatItemTemplate {
+	readonly container: HTMLElement;
+	readonly statusIcon: SessionStatusIcon;
+	readonly title: HighlightedLabel;
+	readonly approvalRow: HTMLElement;
+	readonly approvalLabel: HTMLElement;
+	readonly approvalButtonContainer: HTMLElement;
+	readonly disposables: DisposableStore;
+	readonly elementDisposables: DisposableStore;
+}
+
+class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, ISessionChatItemTemplate> {
+	static readonly TEMPLATE_ID = 'session-chat-item';
+	readonly templateId = SessionChatItemRenderer.TEMPLATE_ID;
+	readonly rowClassName = 'session-list-inset-row';
+
+	private readonly _onDidChangeItemHeight = new Emitter<ISessionChatItem>();
+	readonly onDidChangeItemHeight: Event<ISessionChatItem> = this._onDidChangeItemHeight.event;
+
+	private readonly _onDidApproveSession = new Emitter<IApprovedSession>();
+	/** Fires when the user approves a chat's pending action via its "Allow" button. */
+	readonly onDidApproveSession: Event<IApprovedSession> = this._onDidApproveSession.event;
+
+	constructor(
+		private readonly hoverService: IHoverService,
+		private readonly instantiationService: IInstantiationService,
+		private readonly markdownRendererService: IMarkdownRendererService | undefined,
+		private readonly approvalModel: AgentSessionApprovalModel | undefined,
+		private readonly approvalRowMaxLines: number,
+	) { }
+
+	renderTemplate(container: HTMLElement): ISessionChatItemTemplate {
+		const disposables = new DisposableStore();
+		const elementDisposables = disposables.add(new DisposableStore());
+		container.classList.add('session-chat-item');
+
+		const titleRow = DOM.append(container, $('.session-chat-title-row'));
+		const iconContainer = DOM.append(titleRow, $('.session-chat-icon'));
+		iconContainer.setAttribute('aria-hidden', 'true');
+		const statusIcon = disposables.add(this.instantiationService.createInstance(SessionStatusIcon, iconContainer));
+		const title = disposables.add(new HighlightedLabel(DOM.append(titleRow, $('.session-chat-title'))));
+
+		// Approval row — mirrors the session row's approval prompt but scoped to
+		// this specific chat (see the "Approval Row Content" region above).
+		const approvalRow = DOM.append(container, $('.session-approval-row'));
+		const approvalLabel = DOM.append(approvalRow, $('span.session-approval-label'));
+		const approvalButtonContainer = DOM.append(approvalRow, $('.session-approval-button'));
+		for (const eventType of ['pointerdown', 'pointerup', 'click', 'dblclick'] as const) {
+			disposables.add(DOM.addDisposableListener(approvalRow, eventType, e => e.stopPropagation()));
+		}
+		disposables.add(Gesture.ignoreTarget(approvalRow));
+
+		return { container, statusIcon, title, approvalRow, approvalLabel, approvalButtonContainer, disposables, elementDisposables };
+	}
+
+	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionChatItemTemplate): void {
+		const element = node.element;
+		if (!isSessionChatItem(element)) {
+			return;
+		}
+
+		template.elementDisposables.clear();
+		const chats = getSessionListChats(element.session);
+		template.container.classList.toggle('last-chat', isEqual(chats.at(-1)?.resource, element.chat.resource));
+		template.elementDisposables.add(autorun(reader => {
+			template.title.set(getChatTitle(element.chat, reader), createMatches(node.filterData));
+			const status = element.chat.status.read(reader);
+			template.statusIcon.setStatus(
+				isActiveSessionStatus(status) ? status : SessionStatus.Completed,
+				true,
+				false,
+				undefined,
+				element.chat.resource,
+			);
+		}));
+		template.elementDisposables.add(this.hoverService.setupDelayedHover(template.title.element, () => ({
+			content: getChatTitle(element.chat),
+		}), { groupId: 'sessions-list' }));
+
+		if (this.approvalModel) {
+			this.renderApprovalRow(element, template);
+		}
+	}
+
+	private renderApprovalRow(element: ISessionChatItem, template: ISessionChatItemTemplate): void {
+		if (!this.approvalModel || !this.markdownRendererService) {
+			return;
+		}
+
+		const approvalModel = this.approvalModel;
+		const markdownRendererService = this.markdownRendererService;
+		const chatResource = element.chat.resource;
+		let lastApprovalHeight = approvalRowHeightFor(approvalModel.getApproval(chatResource).get(), this.approvalRowMaxLines);
+		template.approvalRow.classList.toggle('visible', lastApprovalHeight > 0);
+
+		const buttonStore = template.elementDisposables.add(new DisposableStore());
+
+		template.elementDisposables.add(autorun(reader => {
+			buttonStore.clear();
+
+			const info = approvalModel.getApproval(chatResource).read(reader);
+			const visible = !!info;
+
+			template.approvalRow.classList.toggle('visible', visible);
+
+			if (info) {
+				renderApprovalRowContent(info, {
+					label: template.approvalLabel,
+					buttonContainer: template.approvalButtonContainer,
+				}, buttonStore, markdownRendererService, this.hoverService, true, this.approvalRowMaxLines, approvalId => {
+					this._onDidApproveSession.fire({ session: element.session, approvalId });
+				});
+			}
+
+			// Fire on any height change, not just visibility — the model can swap
+			// one pending approval for another whose label spans a different number
+			// of lines, which changes the reserved row height.
+			const height = approvalRowHeightFor(info, this.approvalRowMaxLines);
+			if (height !== lastApprovalHeight) {
+				lastApprovalHeight = height;
+				this._onDidChangeItemHeight.fire(element);
+			}
+		}));
+	}
+
+	disposeElement(_node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionChatItemTemplate): void {
+		template.elementDisposables.clear();
+	}
+
+	disposeTemplate(template: ISessionChatItemTemplate): void {
+		template.disposables.dispose();
+	}
+}
+
+//#endregion
+
+//#region Approval Row Content
+
+/** DOM slots shared by the session-row and chat-row approval prompts. */
+interface IApprovalRowElements {
+	readonly label: HTMLElement;
+	readonly buttonContainer: HTMLElement;
+}
+
+/**
+ * The vertical space a pending approval contributes to its row, or `0` when
+ * there is none. Tracked by the approval renderers so a row's virtualized
+ * height is refreshed whenever it changes — including when one approval is
+ * replaced directly by another with a different line count (not just when an
+ * approval appears or clears).
+ */
+function approvalRowHeightFor(info: IAgentSessionApprovalInfo | undefined, maxLines: number): number {
+	return info ? SessionItemRenderer.getApprovalRowHeight(info.label, maxLines) : 0;
+}
+
+/**
+ * Renders a pending approval's label (and, when requested, a hover with the
+ * full content) plus an "Allow" button into the given row elements. Shared by
+ * the session row (main-chat approvals) and chat rows (nested/side-chat
+ * approvals) so both render identically.
+ */
+function renderApprovalRowContent(
+	info: IAgentSessionApprovalInfo,
+	elements: IApprovalRowElements,
+	store: DisposableStore,
+	markdownRendererService: IMarkdownRendererService,
+	hoverService: IHoverService,
+	showHover: boolean,
+	maxLines: number,
+	onApprove: (approvalId: string) => void,
+): void {
+	// Render up to `maxLines` lines as separate code blocks
+	const lines = info.label.split('\n');
+	const visibleLines = lines.slice(0, maxLines);
+	if (lines.length > maxLines) {
+		visibleLines[maxLines - 1] = `${visibleLines[maxLines - 1]} \u2026`;
+	}
+	const langId = info.languageId ?? 'json';
+	const labelContent = new MarkdownString();
+	for (const line of visibleLines) {
+		labelContent.appendCodeblock(langId, line);
+	}
+
+	elements.label.textContent = '';
+	store.add(markdownRendererService.render(labelContent, {}, elements.label));
+
+	if (showHover) {
+		const fullContent = new MarkdownString().appendCodeblock(info.languageId ?? 'json', info.label);
+		store.add(hoverService.setupDelayedHover(elements.label, {
+			content: fullContent,
+			style: HoverStyle.Pointer,
+			position: { hoverPosition: HoverPosition.BELOW },
+		}));
+	}
+
+	elements.buttonContainer.textContent = '';
+	const button = store.add(new Button(elements.buttonContainer, {
+		title: localize('allowActionOnce', "Allow once"),
+		// All simultaneously visible "Allow" buttons share the same visible label
+		// and tooltip, so give each an explicit accessible name that names the
+		// command/action it approves — otherwise screen-reader users can't tell
+		// which chat's action a button belongs to.
+		ariaLabel: localize('allowActionAria', "Allow: {0}", info.label),
+		secondary: true,
+		...defaultButtonStyles
+	}));
+	button.label = localize('allowAction', "Allow");
+	store.add(button.onDidClick(() => {
+		// Capture the approval's identity BEFORE confirming: `confirm()` may
+		// synchronously clear the pending approval, so we can't read it after.
+		const approvalId = agentSessionApprovalId(info);
+		info.confirm();
+		onApprove(approvalId);
+	}));
 }
 
 //#endregion
@@ -418,7 +713,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	readonly onDidApproveSession: Event<IApprovedSession> = this._onDidApproveSession.event;
 
 	constructor(
-		private readonly options: { grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; useCompactQuickChatRows: boolean; approvalRowMaxLines: number; toolbarMenuId: MenuId | undefined; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>; onDidRequestRename?: (session: ISession) => void },
+		private readonly options: { grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; useCompactQuickChatRows: boolean; approvalRowMaxLines: number; aggregateChatApprovals: boolean; toolbarMenuId: MenuId | undefined; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>; onDidRequestRename?: (session: ISession) => void },
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly ciFixModel: ISessionCIFixModel | undefined,
 		private readonly instantiationService: IInstantiationService,
@@ -426,10 +721,27 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		private readonly markdownRendererService: IMarkdownRendererService,
 		private readonly hoverService: IHoverService,
 		private readonly sessionsProvidersService: ISessionsProvidersService,
+		private readonly sessionsManagementService: ISessionsManagementService,
+		private readonly agentHostConnectionsService: IAgentHostConnectionsService,
+		private readonly openerService: IOpenerService,
 		// TEMPORARY — see the note on the `IAgentSessionsService` import above (#320480).
 		private readonly agentSessionsService: IAgentSessionsService,
 		private readonly _voicePlaybackService: IVoicePlaybackService,
 	) {
+	}
+
+	private getCreatorHoverData(session: ISession): { readonly title: string; readonly onOpen: () => void } | undefined {
+		const creationReference = session.createdBySession?.get();
+		if (!creationReference) {
+			return undefined;
+		}
+		const creator = this.sessionsManagementService.getSession(creationReference.session);
+		const resolved = this.agentHostConnectionsService.resolveSessionResource(creationReference.session);
+		if (!creator || !resolved) {
+			return undefined;
+		}
+		const target = buildOpenSessionLinkUri(resolved.backendSession, creationReference.chat?.fragment, creationReference.turnId);
+		return { title: creator.title.get(), onOpen: () => this.openerService.open(target).catch(onUnexpectedError) };
 	}
 
 	renderTemplate(container: HTMLElement): ISessionItemTemplate {
@@ -548,9 +860,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		this.agentSessionsService.model.observeSession(element.resource);
 
 		if (this.options.showHover) {
-			// Rich hover on the row showing folder, branch, diff stats and provider.
+			// Rich hover on the row: the same widget session pills use in chat output.
 			template.elementDisposables.add(this.hoverService.setupDelayedHover(template.container, () => ({
-				content: buildSessionHoverContent(element, this.sessionsProvidersService),
+				content: new SessionSummaryHoverWidget(getSessionSummaryHoverData(element, this.sessionsProvidersService, this.getCreatorHoverData(element))).domNode,
 				appearance: { showPointer: true },
 				position: { hoverPosition: HoverPosition.RIGHT, forcePosition: true },
 				persistence: { hideOnHover: false },
@@ -777,64 +1089,36 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		}
 
 		const approvalModel = this.approvalModel;
-		const initialInfo = getFirstApprovalAcrossChats(approvalModel, element, undefined);
-		let wasVisible = !!initialInfo;
-		template.approvalRow.classList.toggle('visible', wasVisible);
+		const aggregate = this.options.aggregateChatApprovals;
+		const initialInfo = getSessionRowApproval(approvalModel, element, undefined, aggregate);
+		let lastApprovalHeight = approvalRowHeightFor(initialInfo, this.options.approvalRowMaxLines);
+		template.approvalRow.classList.toggle('visible', lastApprovalHeight > 0);
 
 		const buttonStore = template.elementDisposables.add(new DisposableStore());
 
 		template.elementDisposables.add(autorun(reader => {
 			buttonStore.clear();
 
-			const info = getFirstApprovalAcrossChats(approvalModel, element, reader);
+			const info = getSessionRowApproval(approvalModel, element, reader, aggregate);
 			const visible = !!info;
 
 			template.approvalRow.classList.toggle('visible', visible);
 
 			if (info) {
-				// Render up to `maxLines` lines as separate code blocks
-				const lines = info.label.split('\n');
-				const maxLines = this.options.approvalRowMaxLines;
-				const visibleLines = lines.slice(0, maxLines);
-				if (lines.length > maxLines) {
-					visibleLines[maxLines - 1] = `${visibleLines[maxLines - 1]} \u2026`;
-				}
-				const langId = info.languageId ?? 'json';
-				const labelContent = new MarkdownString();
-				for (const line of visibleLines) {
-					labelContent.appendCodeblock(langId, line);
-				}
-
-				template.approvalLabel.textContent = '';
-				buttonStore.add(this.markdownRendererService.render(labelContent, {}, template.approvalLabel));
-
-				if (this.options.showHover) {
-					const fullContent = new MarkdownString().appendCodeblock(info.languageId ?? 'json', info.label);
-					buttonStore.add(this.hoverService.setupDelayedHover(template.approvalLabel, {
-						content: fullContent,
-						style: HoverStyle.Pointer,
-						position: { hoverPosition: HoverPosition.BELOW },
-					}));
-				}
-
-				template.approvalButtonContainer.textContent = '';
-				const button = buttonStore.add(new Button(template.approvalButtonContainer, {
-					title: localize('allowActionOnce', "Allow once"),
-					secondary: true,
-					...defaultButtonStyles
-				}));
-				button.label = localize('allowAction', "Allow");
-				buttonStore.add(button.onDidClick(() => {
-					// Capture the approval's identity BEFORE confirming: `confirm()` may
-					// synchronously clear the pending approval, so we can't read it after.
-					const approvalId = agentSessionApprovalId(info);
-					info.confirm();
+				renderApprovalRowContent(info, {
+					label: template.approvalLabel,
+					buttonContainer: template.approvalButtonContainer,
+				}, buttonStore, this.markdownRendererService, this.hoverService, this.options.showHover, this.options.approvalRowMaxLines, approvalId => {
 					this._onDidApproveSession.fire({ session: element, approvalId });
-				}));
+				});
 			}
 
-			if (wasVisible !== visible) {
-				wasVisible = visible;
+			// Fire on any height change, not just visibility — the model can swap
+			// one pending approval for another whose label spans a different number
+			// of lines, which changes the reserved row height.
+			const height = approvalRowHeightFor(info, this.options.approvalRowMaxLines);
+			if (height !== lastApprovalHeight) {
+				lastApprovalHeight = height;
 				this._onDidChangeItemHeight.fire(element);
 			}
 		}));
@@ -883,7 +1167,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		}));
 	}
 
-	disposeElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionItemTemplate): void {
+	disposeElement(_node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionItemTemplate): void {
 		template.elementDisposables.clear();
 	}
 
@@ -1084,7 +1368,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 					statusIcon.setStatus(SessionStatus.Completed, false, false);
 				} else {
 					statusIcon.reset();
-					template.icon.className = `session-section-icon ${ThemeIcon.asClassName(Codicon.watch)}`;
+					template.icon.className = `session-section-icon ${ThemeIcon.asClassName(Codicon.calendar)}`;
 				}
 			}));
 		}
@@ -1417,6 +1701,15 @@ class SessionsAccessibilityProvider {
 	}
 
 	getAriaLabel(element: SessionListItem): string | IObservable<string> | null {
+		if (isSessionChatItem(element)) {
+			return derived(this, reader => localize(
+				'sessionChatItemAria',
+				"{0}, chat, updated {1}, {2}",
+				getChatTitle(element.chat, reader),
+				fromNow(element.chat.updatedAt.read(reader), true),
+				getSessionConversationStatusAriaLabel(element.chat.status.read(reader)),
+			));
+		}
 		if (isSessionGroupItem(element)) {
 			return `${element.group.name}, ${element.sessions.length}`;
 		}
@@ -1566,10 +1859,17 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		if (isSessionPlaceholder(element)) {
 			return null;
 		}
+		if (isSessionChatItem(element)) {
+			return element.chat.resource.toString();
+		}
 		return element.resource.toString();
 	}
 
 	getDragLabel(elements: SessionListItem[]): string | undefined {
+		const chatItem = elements.find(isSessionChatItem);
+		if (chatItem) {
+			return getChatTitle(chatItem.chat);
+		}
 		const groupItem = elements.find(isSessionGroupItem);
 		if (groupItem) {
 			return groupItem.group.name;
@@ -1589,7 +1889,13 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 	}
 
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
-		const sessions = this.toSessions(data instanceof ElementsDragAndDropData ? data.elements as SessionListItem[] : []);
+		const elements = data instanceof ElementsDragAndDropData ? data.elements as SessionListItem[] : [];
+		const chatItem = elements.find(isSessionChatItem);
+		if (chatItem) {
+			fillSessionChatDragData(originalEvent, chatItem.session.sessionId, chatItem.chat.resource);
+			return;
+		}
+		const sessions = this.toSessions(elements);
 		if (sessions.length === 0) {
 			return;
 		}
@@ -1858,6 +2164,22 @@ export interface ISessionsListControlOptions {
 	readonly sorting: () => SessionsSorting;
 	readonly findWidgetContainer?: HTMLElement;
 	onSessionOpen(resource: URI, preserveFocus: boolean, sideBySide: boolean): void;
+
+	/**
+	 * Gate invoked before a session is opened (before mark-read, activation, and
+	 * folder mount). Return `false` to refuse the open — e.g. the session's folder
+	 * is not trusted — leaving the current session/empty slot untouched. When
+	 * omitted, opens are not gated.
+	 */
+	canOpenSession?(session: ISession): Promise<boolean>;
+	onChatOpen?(session: ISession, chat: IChat, preserveFocus: boolean, sideBySide: boolean): void;
+
+	/**
+	 * Approval model tracking pending tool confirmations for the shown sessions
+	 * and their chats. When omitted the list creates and owns its own; injectable
+	 * so tests and fixtures can supply pending approvals without a live chat model.
+	 */
+	readonly approvalModel?: AgentSessionApprovalModel;
 }
 
 /**
@@ -1926,6 +2248,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private readonly listContainer: HTMLElement;
 	private readonly tree: WorkbenchObjectTree<SessionListItem, FuzzyScore>;
 	private sessions: ISession[] = [];
+	private readonly sessionChatsObserver = this._register(new MutableDisposable());
+	private readonly activeSessionUpdate = this._register(new MutableDisposable());
 	private readonly automationSessions = observableValue<readonly ISession[]>(this, []);
 	private visible = true;
 	private readonly excludedSessionTypes: Set<string>;
@@ -1988,6 +2312,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
 
@@ -2010,7 +2336,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.listContainer.classList.remove(SESSION_SECTION_FOCUS_FROM_POINTER_CLASS);
 		}, true));
 
-		const approvalModel = this._register(instantiationService.createInstance(AgentSessionApprovalModel));
+		const approvalModel = this.options.approvalModel ?? this._register(instantiationService.createInstance(AgentSessionApprovalModel));
 		const markdownRendererService = instantiationService.invokeFunction(accessor => accessor.get(IMarkdownRendererService));
 		const hoverService = instantiationService.invokeFunction(accessor => accessor.get(IHoverService));
 		const sessionsProvidersService = instantiationService.invokeFunction(accessor => accessor.get(ISessionsProvidersService));
@@ -2051,6 +2377,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				showHover: true,
 				useCompactQuickChatRows: true,
 				approvalRowMaxLines: DEFAULT_APPROVAL_ROW_MAX_LINES,
+				aggregateChatApprovals: false,
 				toolbarMenuId: SessionItemToolbarMenuId,
 				onDidRequestRename: session => {
 					this.commandService.executeCommand(RENAME_SESSION_COMMAND_ID, session).catch(onUnexpectedError);
@@ -2063,12 +2390,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 			markdownRendererService,
 			hoverService,
 			sessionsProvidersService,
+			this._sessionsManagementService,
+			this.agentHostConnectionsService,
+			this.openerService,
 			agentSessionsService,
 			voicePlaybackService,
 		);
 
 		const showMoreRenderer = new SessionShowMoreRenderer();
 		const placeholderRenderer = new SessionPlaceholderRenderer(hoverService);
+		const chatRenderer = new SessionChatItemRenderer(hoverService, instantiationService, markdownRendererService, approvalModel, DEFAULT_APPROVAL_ROW_MAX_LINES);
 		const selectHeader = (element: ISessionSection | ISessionGroupItem, event: MouseEvent) => {
 			this.tree.setFocus([element], event);
 			this.tree.setSelection([element], event);
@@ -2095,6 +2426,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			delegate,
 			[
 				sessionRenderer,
+				chatRenderer,
 				sectionRenderer,
 				groupRenderer,
 				showMoreRenderer,
@@ -2131,6 +2463,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 						if (isSessionPlaceholder(element)) {
 							return `placeholder:${element.sectionId}`;
 						}
+						if (isSessionChatItem(element)) {
+							return `chat:${element.session.sessionId}:${element.chat.resource.toString()}`;
+						}
 						return element.resource.toString();
 					},
 					getGroupId: (element: SessionListItem) => {
@@ -2146,6 +2481,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 						if (isSessionPlaceholder(element)) {
 							return NotSelectableGroupId;
 						}
+						if (isSessionChatItem(element)) {
+							return 3;
+						}
 						// Use a distinct group for archived (done) sessions so that
 						// multi-selection cannot span the workspace and done sections.
 						return element.isArchived.get() ? 2 : 1;
@@ -2153,7 +2491,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				},
 				horizontalScrolling: false,
 				multipleSelectionSupport: true,
-				indent: 0,
+				expandOnlyOnTwistieClick: element => isSessionItem(element),
 				findWidgetEnabled: true,
 				defaultFindMode: TreeFindMode.Filter,
 				findWidgetContainer: this.options.findWidgetContainer,
@@ -2178,16 +2516,22 @@ export class SessionsList extends Disposable implements ISessionsList {
 						if (isSessionPlaceholder(element)) {
 							return element.label;
 						}
+						if (isSessionChatItem(element)) {
+							return getChatTitle(element.chat);
+						}
 						return element.title.get();
 					}
 				},
 				overrideStyles: this.options.overrideStyles,
 				renderIndentGuides: RenderIndentGuides.None,
-				twistieAdditionalCssClass: () => 'force-no-twistie',
+				twistieAdditionalCssClass: element => isSessionItem(element) && getSessionListChats(element).length > 0
+					? 'session-chat-twistie'
+					: 'force-no-twistie',
 			}
 		));
+		this.tree.updateOptions({ indent: 0, defaultIndent: 0, expandOnDoubleClick: false });
 
-		this._register(this.tree.onDidOpen(e => {
+		this._register(this.tree.onDidOpen(async e => {
 			const element = e.element;
 			if (!element) {
 				return;
@@ -2208,12 +2552,32 @@ export class SessionsList extends Disposable implements ISessionsList {
 			if (isSessionPlaceholder(element)) {
 				return;
 			}
+			if (isSessionChatItem(element)) {
+				if (this.options.canOpenSession && !(await this.options.canOpenSession(element.session))) {
+					return;
+				}
+				this.markRead(element.session);
+				const isLeftClick = DOM.isMouseEvent(e.browserEvent) && e.browserEvent.button === 0;
+				const preserveFocus = isLeftClick ? false : (e.editorOptions.preserveFocus ?? false);
+				if (this.options.onChatOpen) {
+					this.options.onChatOpen(element.session, element.chat, preserveFocus, e.sideBySide);
+				} else {
+					this._sessionsService.openChat(element.session, element.chat.resource, { preserveFocus }).catch(onUnexpectedError);
+				}
+				return;
+			}
 			if (isSessionSection(element) && element.id === AUTOMATIONS_SECTION_ID) {
 				this.tree.setSelection([]);
 				this.commandService.executeCommand('sessionsView.manageAutomations');
 				return;
 			}
 			if (!isSessionSection(element) && !isSessionGroupItem(element)) {
+				// Gate the open on workspace trust before any side effect (mark-read,
+				// activation, folder mount). A refused open leaves the current
+				// session (or empty new-session slot) untouched.
+				if (this.options.canOpenSession && !(await this.options.canOpenSession(element))) {
+					return;
+				}
 				this.markRead(element);
 				// A deliberate left mouse click on a session should move keyboard
 				// focus into the chat input so the user can start typing right
@@ -2240,6 +2604,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}));
 
+		this._register(chatRenderer.onDidChangeItemHeight(chatItem => {
+			if (this.tree.hasElement(chatItem)) {
+				this.tree.updateElementHeight(chatItem, delegate.getHeight(chatItem));
+			}
+		}));
+
 		// React to phone <-> desktop viewport transitions: refresh heights
 		// for all known sessions so the virtual list reserves the correct
 		// space for the new layout. Iterates `this.sessions` (all known
@@ -2256,11 +2626,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 			if (!e.affectsSome(phoneKeys)) {
 				return;
 			}
-			for (const session of this.sessions) {
-				if (this.tree.hasElement(session)) {
-					this.tree.updateElementHeight(session, delegate.getHeight(session));
+			const updateNodeHeights = (node: ITreeNode<SessionListItem | null, FuzzyScore>): void => {
+				if (node.element && (isSessionItem(node.element) || isSessionChatItem(node.element))) {
+					this.tree.updateElementHeight(node.element, delegate.getHeight(node.element));
 				}
-			}
+				for (const child of node.children) {
+					updateNodeHeights(child);
+				}
+			};
+			updateNodeHeights(this.tree.getNode());
 		}));
 
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
@@ -2354,10 +2728,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		// Re-render when the active session changes.
 		this._register(autorun(reader => {
-			this._sessionsService.activeSession.read(reader);
-			if (this.visible) {
-				this.update();
-			}
+			const activeSession = this._sessionsService.activeSession.read(reader);
+			activeSession?.activeChat.read(reader);
+			this.activeSessionUpdate.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.listContainer), () => {
+				if (this.visible) {
+					this.update();
+					this.syncActiveChatSelection(activeSession);
+				}
+			});
 		}));
 
 		// Resolve the per-group session limit from the experiment service and
@@ -2372,6 +2750,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}));
 
 		this.refresh();
+		this.syncActiveChatSelection(this._sessionsService.activeSession.get());
 	}
 
 	/**
@@ -2394,6 +2773,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	refresh(): void {
 		this.sessions = this._sessionsManagementService.getSessions();
+		let initialized = false;
+		this.sessionChatsObserver.value = autorun(reader => {
+			for (const session of this.sessions) {
+				getSessionListChats(session, reader);
+			}
+			if (initialized && this.visible) {
+				this.update();
+			}
+			initialized = true;
+		});
 		this.automationSessions.set(this.sessions, undefined);
 		for (const session of this.sessions) {
 			this._sessionsListModelService.migrateLegacyReadState(session);
@@ -2544,7 +2933,17 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const sessionGroupLimit = this.sessionGroupLimit.get();
 
 		const toSessionChildren = (sessions: readonly ISession[]): IObjectTreeElement<SessionListItem>[] =>
-			sessions.map(session => ({ element: session as SessionListItem }));
+			sessions.map(session => {
+				const chats = getSessionListChats(session);
+				return {
+					element: session as SessionListItem,
+					collapsible: chats.length > 0,
+					collapsed: ObjectTreeElementCollapseState.PreserveOrExpanded,
+					children: chats.length > 0
+						? chats.map(chat => ({ element: new SessionChatItem(session, chat) }))
+						: undefined,
+				};
+			});
 
 		const renderSessionChildren = (sessions: readonly ISession[], sectionId: string, sectionLabel: string, enabled: boolean): IObjectTreeElement<SessionListItem>[] => {
 			const limited = limitSessionsForList(sessions, sessionGroupLimit, {
@@ -2722,6 +3121,27 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		this.tree.setChildren(null, children);
 		this._onDidUpdate.fire();
+	}
+
+	private syncActiveChatSelection(activeSession: IActiveSession | undefined): void {
+		if (!activeSession) {
+			return;
+		}
+		const session = this.sessions.find(candidate => candidate.sessionId === activeSession.sessionId);
+		if (!session || !this.tree.hasElement(session)) {
+			return;
+		}
+		const activeChat = activeSession.activeChat.get();
+		const chatItem = this.tree.getNode(session).children
+			.map(node => node.element)
+			.find(element => !!element && isSessionChatItem(element) && this.uriIdentityService.extUri.isEqual(element.chat.resource, activeChat.resource));
+		if (!chatItem || !isSessionChatItem(chatItem)) {
+			this.tree.setSelection([session]);
+			return;
+		}
+		this.tree.expand(session);
+		this.tree.reveal(chatItem, 0.5);
+		this.tree.setSelection([chatItem]);
 	}
 
 	getVisibleSessions(): readonly ISession[] {
@@ -3041,6 +3461,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	private onContextMenu(e: ITreeContextMenuEvent<SessionListItem | null>): void {
 		const element = e.element;
+		if (element && isSessionChatItem(element)) {
+			this.showChatContextMenu(element, e.anchor);
+			return;
+		}
 		if (!element || isSessionSection(element) || isSessionShowMore(element) || isSessionPlaceholder(element)) {
 			this.showCreateGroupContextMenu(e.anchor);
 			return;
@@ -3104,6 +3528,27 @@ export class SessionsList extends Disposable implements ISessionsList {
 			getAnchor: () => e.anchor,
 			getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id) ?? undefined,
 			onHide: () => disposables.dispose(),
+		});
+	}
+
+	private showChatContextMenu(element: ISessionChatItem, anchor: ITreeContextMenuEvent<SessionListItem | null>['anchor']): void {
+		const capabilities = getChatCapabilities(element.chat, element.session, undefined);
+		const contextKeyService = this.contextKeyService.createOverlay([
+			[SessionChatItemCanRenameContext.key, capabilities.canRename],
+			[SessionChatItemCanDeleteContext.key, capabilities.canDelete],
+			[SessionChatItemIsUntitledContext.key, element.chat.status.get() === SessionStatus.Untitled],
+		]);
+		const menu = this.menuService.createMenu(Menus.SessionChatItemContext, contextKeyService);
+		const actions = Separator.join(...menu.getActions({ arg: element, shouldForwardArgs: true }).map(([, groupActions]) => groupActions));
+		if (actions.length === 0) {
+			menu.dispose();
+			return;
+		}
+		this.contextMenuService.showContextMenu({
+			getActions: () => actions,
+			getAnchor: () => anchor,
+			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id) ?? undefined,
+			onHide: () => menu.dispose(),
 		});
 	}
 
@@ -3447,6 +3892,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 //#region Approval Helpers
 
+/**
+ * The oldest pending approval across every chat in the session, regardless of
+ * which chat it belongs to. Used where chats aren't rendered as separate rows
+ * (e.g. the flat blocked-sessions dropdown), so the session row is the only
+ * place an approval from any of its chats can surface.
+ */
 export function getFirstApprovalAcrossChats(approvalModel: AgentSessionApprovalModel, session: ISession, reader: IReader | undefined,): IAgentSessionApprovalInfo | undefined {
 	let oldest: IAgentSessionApprovalInfo | undefined;
 	for (const chat of session.chats.read(reader)) {
@@ -3456,6 +3907,29 @@ export function getFirstApprovalAcrossChats(approvalModel: AgentSessionApprovalM
 		}
 	}
 	return oldest;
+}
+
+/**
+ * The pending approval on a session's main chat only. Used by the main
+ * sessions tree, where nested/side chats are rendered as their own rows and
+ * surface their own approval there instead of being aggregated onto the
+ * parent session row.
+ */
+function getMainChatApproval(approvalModel: AgentSessionApprovalModel, session: ISession, reader: IReader | undefined): IAgentSessionApprovalInfo | undefined {
+	const mainChat = session.mainChat.read(reader);
+	if (!mainChat?.resource) {
+		return undefined;
+	}
+	return approvalModel.getApproval(mainChat.resource).read(reader);
+}
+
+/**
+ * The approval to show on a session row. When `aggregate` is true (flat lists
+ * with no chat rows) it is the oldest approval across all chats; otherwise (the
+ * main tree, which renders chats as their own rows) it is only the main chat's.
+ */
+function getSessionRowApproval(approvalModel: AgentSessionApprovalModel, session: ISession, reader: IReader | undefined, aggregate: boolean): IAgentSessionApprovalInfo | undefined {
+	return aggregate ? getFirstApprovalAcrossChats(approvalModel, session, reader) : getMainChatApproval(approvalModel, session, reader);
 }
 
 //#endregion
@@ -3816,6 +4290,8 @@ export class SessionsFlatList extends Disposable {
 		@IHoverService hoverService: IHoverService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IVoicePlaybackService voicePlaybackService: IVoicePlaybackService,
+		@IAgentHostConnectionsService agentHostConnectionsService: IAgentHostConnectionsService,
+		@IOpenerService openerService: IOpenerService,
 	) {
 		super();
 
@@ -3840,6 +4316,9 @@ export class SessionsFlatList extends Disposable {
 				showHover: this.options.showSessionHover ?? true,
 				useCompactQuickChatRows,
 				approvalRowMaxLines: this.options.approvalRowMaxLines ?? DEFAULT_APPROVAL_ROW_MAX_LINES,
+				// This list renders no nested chat rows, so the session row is the
+				// only place an approval on any of its chats can surface.
+				aggregateChatApprovals: true,
 				toolbarMenuId: this.options.toolbarMenuId ?? SessionItemToolbarMenuId,
 				handleToolbarAction: this.options.onToolbarAction,
 			},
@@ -3850,11 +4329,14 @@ export class SessionsFlatList extends Disposable {
 			markdownRendererService,
 			hoverService,
 			sessionsProvidersService,
+			this._sessionsManagementService,
+			agentHostConnectionsService,
+			openerService,
 			agentSessionsService,
 			voicePlaybackService,
 		);
 
-		this._delegate = new SessionsTreeDelegate(approvalModel, () => false, this.options.approvalRowMaxLines ?? DEFAULT_APPROVAL_ROW_MAX_LINES, this.options.ciFixModel, useCompactQuickChatRows);
+		this._delegate = new SessionsTreeDelegate(approvalModel, () => false, this.options.approvalRowMaxLines ?? DEFAULT_APPROVAL_ROW_MAX_LINES, this.options.ciFixModel, useCompactQuickChatRows, true /* aggregateChatApprovals */);
 
 		this.tree = this._register(instantiationService.createInstance(
 			WorkbenchObjectTree<SessionListItem, FuzzyScore>,
