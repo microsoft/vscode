@@ -627,7 +627,9 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			const branchName = schema.description ?? schema.title;
 			const content = !hasUncommittedChanges
 				? branchName
-				: localize('agentHostSessionConfig.branchHoverUncommittedWithDescription', "{0}, {1} uncommitted change(s)", branchName, uncommittedChanges);
+				: uncommittedChanges === 1
+					? localize('agentHostSessionConfig.branchHoverUncommittedChangeWithDescription', "{0}, {1} uncommitted change", branchName, uncommittedChanges)
+					: localize('agentHostSessionConfig.branchHoverUncommittedChangesWithDescription', "{0}, {1} uncommitted changes", branchName, uncommittedChanges);
 
 			// This autorun re-runs for any workspace change, not just an
 			// uncommitted-changes flip, so only touch the hover when the text
