@@ -22,7 +22,7 @@ export class Editor {
 
 	async findReferences(filename: string, term: string, line: number): Promise<References> {
 		await this.clickOnTerm(filename, term, line);
-		await this.commands.runCommand('Peek References');
+		await this.commands.runCommand('Peek References', { exactLabelMatch: true });
 		const references = new References(this.code);
 		await references.waitUntilOpen();
 		return references;
@@ -30,7 +30,7 @@ export class Editor {
 
 	async rename(filename: string, line: number, from: string, to: string): Promise<void> {
 		await this.clickOnTerm(filename, from, line);
-		await this.commands.runCommand('Rename Symbol');
+		await this.commands.runCommand('Rename Symbol', { exactLabelMatch: true });
 
 		await this.code.waitForActiveElement(RENAME_INPUT);
 		await this.code.waitForSetValue(RENAME_INPUT, to);
@@ -42,12 +42,12 @@ export class Editor {
 
 	async gotoDefinition(filename: string, term: string, line: number): Promise<void> {
 		await this.clickOnTerm(filename, term, line);
-		await this.commands.runCommand('Go to Implementations');
+		await this.commands.runCommand('Go to Implementations', { exactLabelMatch: true });
 	}
 
 	async peekDefinition(filename: string, term: string, line: number): Promise<References> {
 		await this.clickOnTerm(filename, term, line);
-		await this.commands.runCommand('Peek Definition');
+		await this.commands.runCommand('Peek Definition', { exactLabelMatch: true });
 		const peek = new References(this.code);
 		await peek.waitUntilOpen();
 		return peek;

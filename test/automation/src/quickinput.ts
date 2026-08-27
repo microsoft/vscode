@@ -10,6 +10,7 @@ export class QuickInput {
 	private static QUICK_INPUT = '.quick-input-widget';
 	private static QUICK_INPUT_INPUT = `${QuickInput.QUICK_INPUT} .quick-input-box input`;
 	private static QUICK_INPUT_ROW = `${QuickInput.QUICK_INPUT} .quick-input-list .monaco-list-row`;
+	private static QUICK_INPUT_FOCUSED_ENTRY = `${QuickInput.QUICK_INPUT_ROW}.focused .quick-input-list-entry`;
 	private static QUICK_INPUT_FOCUSED_ELEMENT = `${QuickInput.QUICK_INPUT_ROW}.focused .monaco-highlighted-label`;
 	// Note: this only grabs the label and not the description or detail
 	private static QUICK_INPUT_ENTRY_LABEL = `${QuickInput.QUICK_INPUT_ROW} .quick-input-list-row > .monaco-icon-label .label-name`;
@@ -33,6 +34,11 @@ export class QuickInput {
 		return this.code.waitForTextContent(QuickInput.QUICK_INPUT_ENTRY_LABEL_SPAN);
 	}
 
+	async waitForQuickInputCommandId(): Promise<string | undefined> {
+		const element = await this.code.waitForElement(QuickInput.QUICK_INPUT_FOCUSED_ENTRY);
+		return element.attributes['data-command-id'];
+	}
+
 	async closeQuickInput(): Promise<void> {
 		await this.code.dispatchKeybinding('escape', () => this.waitForQuickInputClosed());
 	}
@@ -45,10 +51,16 @@ export class QuickInput {
 		await this.code.waitForElement(QuickInput.QUICK_INPUT, r => !!r && r.attributes.style.indexOf('display: none;') !== -1);
 	}
 
-	async selectQuickInputElement(index: number, keepOpen?: boolean): Promise<void> {
+	async selectQuickInputElement(index: number, keepOpen?: boolean, expectedCommandId?: string): Promise<void> {
 		await this.waitForQuickInputOpened();
 		for (let from = 0; from < index; from++) {
 			await this.code.dispatchKeybinding('down', async () => { });
+		}
+		if (expectedCommandId) {
+			const commandId = await this.waitForQuickInputCommandId();
+			if (commandId !== expectedCommandId) {
+				throw new Error(`Focused Quick Input command '${commandId}' does not match expected command '${expectedCommandId}'.`);
+			}
 		}
 		await this.code.dispatchKeybinding('enter', async () => {
 			if (!keepOpen) {

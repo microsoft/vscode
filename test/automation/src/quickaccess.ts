@@ -193,18 +193,23 @@ export class QuickAccess {
 			// Retry for as long as the command not found
 			const text = await this.quickInput.waitForQuickInputElementText();
 
-			if (text === 'No matching commands' || (exactLabelMatch && text !== commandId)) {
+			if (text === 'No matching commands') {
 				return false;
 			}
 
-			return true;
+			if (exactLabelMatch) {
+				return text === commandId;
+			}
+
+			const focusedCommandId = await this.quickInput.waitForQuickInputCommandId();
+			return focusedCommandId === commandId;
 		};
 
 		let hasCommandFound = await openCommandPalletteAndTypeCommand();
 
 		if (!hasCommandFound) {
 
-			this.code.logger.log(`QuickAccess: No matching commands, will retry...`);
+			this.code.logger.log(`QuickAccess: No exact command match for '${commandId}', will retry...`);
 			await this.quickInput.closeQuickInput();
 
 			let retries = 0;
@@ -213,7 +218,7 @@ export class QuickAccess {
 				if (hasCommandFound) {
 					break;
 				} else {
-					this.code.logger.log(`QuickAccess: No matching commands, will retry...`);
+					this.code.logger.log(`QuickAccess: No exact command match for '${commandId}', will retry...`);
 					await this.quickInput.closeQuickInput();
 					await this.code.wait(1000);
 				}
@@ -232,7 +237,7 @@ export class QuickAccess {
 		let selectRetries = 0;
 		while (true) {
 			try {
-				await this.quickInput.selectQuickInputElement(0, keepOpen);
+				await this.quickInput.selectQuickInputElement(0, keepOpen, exactLabelMatch ? undefined : commandId);
 				break;
 			} catch (err) {
 				if (++selectRetries > 3) {

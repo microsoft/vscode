@@ -384,6 +384,28 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		assert.strictEqual(quickpick.activeItems.length, 0);
 	});
 
+	test('command id is exposed as DOM metadata and cleared for other items', () => {
+		const quickpick = store.add(controller.createQuickPick() as QuickPick<IQuickPickItem>);
+		const commandItem: IQuickPickItem & { commandId: string } = {
+			commandId: 'command-id',
+			label: 'command'
+		};
+		quickpick.items = [commandItem];
+		quickpick.show();
+
+		const entry = fixture.querySelector<HTMLElement>('.quick-input-list-entry')!;
+		const commandId = entry.getAttribute('data-command-id');
+
+		quickpick.items = [{ id: 'item-id', label: 'non-command item' }];
+		const recycledEntry = fixture.querySelector<HTMLElement>('.quick-input-list-entry')!;
+		const recycledCommandId = recycledEntry.getAttribute('data-command-id');
+
+		assert.deepStrictEqual({ commandId, recycledCommandId }, {
+			commandId: 'command-id',
+			recycledCommandId: null
+		});
+	});
+
 	test('isKeyModified - returns false when no modifiers are pressed', () => {
 		assert.strictEqual(isKeyModified(NO_KEY_MODS), false);
 		assert.strictEqual(isKeyModified({ ctrlCmd: false, alt: false, shift: false }), false);

@@ -32,6 +32,7 @@ import { Disposable, DisposableStore, MutableDisposable } from '../../../base/co
 import { observableValue, observableValueOpts, transaction } from '../../../base/common/observable.js';
 import { OS } from '../../../base/common/platform.js';
 import { escape, ltrim } from '../../../base/common/strings.js';
+import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IAccessibilityService } from '../../accessibility/common/accessibility.js';
@@ -43,10 +44,15 @@ import { isDark } from '../../theme/common/theme.js';
 import { IThemeService } from '../../theme/common/themeService.js';
 import { asCssVariable } from '../../theme/common/colorUtils.js';
 import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, QuickPickFocus, QuickPickItem } from '../common/quickInput.js';
+import type { ICommandQuickPick } from './commandsQuickAccess.js';
 import { IQuickInputStyles } from './quickInput.js';
 import { quickInputButtonsToActionArrays } from './quickInputUtils.js';
 
 const $ = dom.$;
+
+function isCommandQuickPickItem(item: IQuickPickItem | ICommandQuickPick): item is ICommandQuickPick {
+	return hasKey(item, { commandId: true }) && typeof item.commandId === 'string';
+}
 
 interface IQuickInputItemLazyParts {
 	readonly saneLabel: string;
@@ -472,6 +478,11 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 		const mainItem: IQuickPickItem = element.item;
 
 		element.element.classList.toggle('not-pickable', element.item.pickable === false);
+		if (isCommandQuickPickItem(mainItem)) {
+			data.entry.setAttribute('data-command-id', mainItem.commandId);
+		} else {
+			data.entry.removeAttribute('data-command-id');
+		}
 
 		this.ensureCheckbox(element, data);
 
