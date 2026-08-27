@@ -34,7 +34,6 @@ export function isLegacyMigrationEnabledAtStartup(configurationService: IConfigu
 	return _legacyMigrationEnabledAtStartup ?? (configurationService.getValue<boolean>(ChatConfiguration.MigrateLegacyCopilotCliSessions) === true);
 }
 
-
 /**
  * How long an adoption probe may take before falling back to the legacy resource.
  *

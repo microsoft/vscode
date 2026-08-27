@@ -463,6 +463,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 				: new Set<string>();
 
 			// Convert SessionMetadata to ICopilotCLISession
+			let migrationStoodDown = 0;
 			const limiter = new Limiter<ICopilotCLISessionItem | undefined>(SESSION_LIST_MAX_PARALLELISM);
 			const diskSessions: ICopilotCLISessionItem[] = coalesce(await Promise.all(
 				sessionMetadataList.map(metadata => limiter.queue(async (): Promise<ICopilotCLISessionItem | undefined> => {
@@ -484,6 +485,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 						&& !this._sessionWrappers.has(metadata.sessionId)
 						&& await this._chatSessionMetadataStore.getSessionOrigin(metadata.sessionId) === 'vscode'
 						&& !await this._chatSessionMetadataStore.getSessionArchived(metadata.sessionId)) {
+						migrationStoodDown++;
 						return;
 					}
 					const id = metadata.sessionId;
@@ -510,6 +512,10 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 					};
 				}))
 			));
+
+			if (migrationStoodDown > 0) {
+				this.logService.trace(`[CopilotCLISession] Migration enabled: stood down for ${migrationStoodDown} non-archived legacy session(s); the agent host surfaces these.`);
+			}
 
 			const diskSessionIds = new Set(diskSessions.map(s => s.id));
 			// If we have a new session that has started, then return that as well.
