@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { DeferredPromise, raceTimeout, timeout } from '../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, ImmortalReference, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
@@ -33,17 +34,19 @@ import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } 
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService, type ChatSendResult, type IChatModelReference, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService, isIChatSessionFileChange2 } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatModeKind } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import type { IChatModel, IChatModelInputState, IInputModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
-import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
+import { ISessionChangeEvent, ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { ChatInteractivity, ChatModelSource, ChatOriginKind, getChatCapabilities, ISession, SessionStatus, TURN_CHANGES_CHANGESET_ID } from '../../../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, WorkspaceNotTrustedError } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
+import { IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { LocalAgentHostSessionsProvider } from '../../browser/localAgentHostSessionsProvider.js';
 import { AgentHostSessionAdapter, type IAgentHostAdapterOptions } from '../../browser/baseAgentHostSessionsProvider.js';
@@ -56,6 +59,7 @@ import { GitHubPullRequestModel } from '../../../../github/browser/models/github
 import { IPullRequestIconCache, PullRequestIconCache } from '../../../../github/browser/pullRequestIconCache.js';
 import { computePullRequestIcon, GitHubPullRequestState, type IGitHubPullRequest } from '../../../../github/common/types.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../workbench/services/environment/common/environmentService.js';
+import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
 
 // ---- Mock IAgentHostService -------------------------------------------------
 
@@ -422,7 +426,7 @@ function createSchemaDefaultConfigurationService(): TestConfigurationService {
 
 function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
 	{ type: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
-], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; activeClientAgents?: IObservable<readonly AgentCustomization[]>; activeClientScope?: (sessionType: string, roots: readonly URI[]) => IAgentCustomizationScope; storageService?: IStorageService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; workspaceTrustBarrier?: DeferredPromise<void>; workspaceTrustError?: Error; gitHubService?: IGitHubService }): LocalAgentHostSessionsProvider {
+], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; activeClientAgents?: IObservable<readonly AgentCustomization[]>; activeClientScope?: (sessionType: string, roots: readonly URI[]) => IAgentCustomizationScope; storageService?: IStorageService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; requestWorkspaceTrust?: (uri: URI) => Promise<boolean>; workspaceTrustBarrier?: DeferredPromise<void>; workspaceTrustError?: Error; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; gitHubService?: IGitHubService; devContainerAgentHostService?: IDevContainerAgentHostService; sessionsProvidersService?: ISessionsProvidersService }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IAgentHostService, agentHostService);
@@ -437,7 +441,15 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 			}
 			return { uri, trusted: options?.workspaceTrusted ?? true };
 		}
+		override async setUrisTrust(uris: URI[], trusted: boolean): Promise<void> {
+			await options?.setUrisTrust?.(uris, trusted);
+		}
 	});
+	instantiationService.stub(IWorkspaceTrustRequestService, new class extends mock<IWorkspaceTrustRequestService>() {
+		override requestResourcesTrust(requestOptions: ResourceTrustRequestOptions): Promise<boolean> {
+			return options?.requestWorkspaceTrust?.(requestOptions.uri) ?? Promise.resolve(options?.workspaceTrusted ?? true);
+		}
+	}());
 	instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: options?.isSessionsWindow ?? true } as IWorkbenchEnvironmentService);
 	instantiationService.stub(IFileDialogService, {});
 	instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: options?.confirmDelete ?? true }) });
@@ -491,6 +503,8 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 			dispose: () => { },
 		});
 	}());
+	instantiationService.stub(IDevContainerAgentHostService, options?.devContainerAgentHostService ?? new class extends mock<IDevContainerAgentHostService>() { }());
+	instantiationService.stub(ISessionsProvidersService, options?.sessionsProvidersService ?? new class extends mock<ISessionsProvidersService>() { }());
 
 	return disposables.add(instantiationService.createInstance(LocalAgentHostSessionsProvider));
 }
@@ -2702,7 +2716,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			during,
 			after: session.description.get()?.value,
 		}, {
-			status: SessionStatus.InProgress,
+			status: SessionStatus.Untitled,
 			during: activity,
 			after: undefined,
 		});
@@ -3218,6 +3232,222 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await waitForSessionConfig(provider, session.sessionId, config => config === undefined);
 
 		assert.strictEqual(provider.getSessionConfig(session.sessionId), undefined);
+	});
+
+	test('prepareNewSession does not start a Dev Container when workspace trust is denied', async () => {
+		let connectCalls = 0;
+		const devContainerAgentHostService = new class extends mock<IDevContainerAgentHostService>() {
+			override async isAvailable(): Promise<boolean> { return true; }
+			override async connect(): Promise<never> {
+				connectCalls++;
+				throw new Error('unexpected connect');
+			}
+		}();
+		const provider = createProvider(disposables, agentHost, undefined, {
+			devContainerAgentHostService,
+			requestWorkspaceTrust: async () => false,
+		});
+		const session = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
+		await timeout(0);
+		provider.setDevContainerEnabled(session.sessionId, true);
+
+		await assert.rejects(
+			provider.prepareNewSession(session.sessionId, CancellationToken.None),
+			WorkspaceNotTrustedError,
+		);
+		assert.strictEqual(connectCalls, 0);
+	});
+
+	test('prepareNewSession releases the Dev Container connection when post-connect setup fails', async () => {
+		const remoteWorkspace = URI.parse('agent-host://devcontainer/workspaces/project');
+		const setupError = new Error('failed to trust mapped workspace');
+		let releaseCalls = 0;
+		const devContainerAgentHostService = new class extends mock<IDevContainerAgentHostService>() {
+			override async isAvailable(): Promise<boolean> { return true; }
+			override async connect() {
+				return {
+					providerId: 'agenthost-devcontainer',
+					workspaceUri: remoteWorkspace,
+					release: async () => { releaseCalls++; },
+				};
+			}
+		}();
+		const provider = createProvider(disposables, agentHost, undefined, {
+			devContainerAgentHostService,
+			setUrisTrust: async () => { throw setupError; },
+		});
+		const session = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
+		await timeout(0);
+		provider.setDevContainerEnabled(session.sessionId, true);
+
+		await assert.rejects(
+			provider.prepareNewSession(session.sessionId, CancellationToken.None),
+			error => error === setupError,
+		);
+		assert.strictEqual(releaseCalls, 1);
+	});
+
+	test('prepareNewSession routes an enabled Dev Container draft to the connected provider', async () => {
+		agentHost.resolveSessionConfigResult = {
+			schema: {
+				type: 'object',
+				properties: {
+					mode: { type: 'string', title: 'Mode' },
+					localOnly: { type: 'string', title: 'Local Only' },
+				},
+			},
+			values: { mode: 'interactive', localOnly: 'value' },
+		};
+		const remoteWorkspace = URI.parse('agent-host://devcontainer/workspaces/project');
+		const targetProviderId = 'agenthost-devcontainer';
+		const state: { provider?: LocalAgentHostSessionsProvider; replacement?: ISession } = {};
+		let connectedWorkspace: URI | undefined;
+		let releaseCalls = 0;
+		const trustedTargetUris: string[] = [];
+		const deletedTargetDrafts: string[] = [];
+		const transferredConfig: [string, unknown][] = [];
+		const sourceModelId = 'agent-host-copilotcli:gpt-5';
+		const targetModelId = 'agent-host-devcontainer-copilotcli:gpt-5';
+		const selectedTargetModels: [string, URI, string, ChatModelSource][] = [];
+		const selectedTargetAgents: [string, string, string][] = [];
+		const sourceAgentUri = 'file:///home/user/project/.github/agents/reviewer.agent.md';
+		const targetAgent: AgentCustomization = {
+			type: CustomizationType.Agent,
+			id: 'reviewer',
+			uri: 'file:///workspaces/project/.github/agents/reviewer.agent.md',
+			name: 'Reviewer',
+		};
+		const targetProvider = new class extends mock<IAgentHostSessionsProvider>() {
+			override readonly id = targetProviderId;
+			override readonly onDidChangeSessionConfig = Event.None;
+			override getSessionTypes() {
+				assert.ok(state.provider);
+				return [...state.provider.sessionTypes];
+			}
+			override createNewSession(workspaceUri: URI): ISession {
+				assert.strictEqual(workspaceUri.toString(), remoteWorkspace.toString());
+				assert.ok(state.replacement);
+				return state.replacement;
+			}
+			override async setSessionConfigValue(_sessionId: string, property: string, value: unknown): Promise<void> {
+				transferredConfig.push([property, value]);
+			}
+			override deleteNewSession(sessionId: string): void {
+				deletedTargetDrafts.push(sessionId);
+			}
+			override isSessionConfigResolving() { return constObservable(false); }
+			override getSessionConfig(): ResolveSessionConfigResult {
+				return {
+					schema: {
+						type: 'object',
+						properties: {
+							mode: { type: 'string', title: 'Mode' },
+						},
+					},
+					values: { mode: 'interactive' },
+				};
+			}
+			override getModelsSnapshot() {
+				return {
+					models: [{
+						identifier: targetModelId,
+						metadata: {
+							...createTestLanguageModel('gpt-5'),
+							vendor: 'agent-host-devcontainer-copilotcli',
+							targetChatSessionType: 'remote-devcontainer-copilot',
+						},
+					}],
+					desiredModelResolution: { kind: 'notRequested' } as const,
+					modelTarget: 'remote-devcontainer-copilot',
+				};
+			}
+			override setModel(sessionId: string, chatResource: URI, modelId: string, source: ChatModelSource): void {
+				selectedTargetModels.push([sessionId, chatResource, modelId, source]);
+			}
+			override getCustomAgents(): readonly AgentCustomization[] {
+				return [targetAgent];
+			}
+			override setAgent(sessionId: string, agent: { readonly uri: string; readonly name: string } | undefined): void {
+				if (agent) {
+					selectedTargetAgents.push([sessionId, agent.uri, agent.name]);
+				}
+			}
+		}();
+		const sessionsProvidersService = new class extends mock<ISessionsProvidersService>() {
+			override getProvider<T extends ISessionsProvider>(providerId: string): T | undefined {
+				return providerId === targetProviderId ? targetProvider as unknown as T : undefined;
+			}
+		}();
+		const devContainerAgentHostService = new class extends mock<IDevContainerAgentHostService>() {
+			override async isAvailable(): Promise<boolean> {
+				return true;
+			}
+			override async connect(workspaceUri: URI) {
+				connectedWorkspace = workspaceUri;
+				return {
+					providerId: targetProviderId,
+					workspaceUri: remoteWorkspace,
+					release: async () => { releaseCalls++; },
+				};
+			}
+		}();
+		const provider = createProvider(disposables, agentHost, undefined, {
+			devContainerAgentHostService,
+			sessionsProvidersService,
+			languageModelIds: [sourceModelId],
+			lookupLanguageModel: id => id === sourceModelId
+				? { ...createTestLanguageModel('gpt-5'), targetChatSessionType: 'agent-host-copilotcli' }
+				: undefined,
+			setUrisTrust: async (uris, trusted) => {
+				assert.strictEqual(trusted, true);
+				trustedTargetUris.push(...uris.map(uri => uri.toString()));
+			},
+		});
+		state.provider = provider;
+		const source = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
+		await waitForSessionConfig(provider, source.sessionId, config => config?.values.mode === 'interactive');
+		await timeout(0);
+		const replacementResource = URI.parse('remote-devcontainer-copilot:///replacement');
+		const replacementChat = { ...source.mainChat.get(), resource: replacementResource };
+		const replacement = {
+			...source,
+			sessionId: `${targetProviderId}:${replacementResource.toString()}`,
+			providerId: targetProviderId,
+			resource: replacementResource,
+			mainChat: constObservable(replacementChat),
+			chats: constObservable([replacementChat]),
+		};
+		state.replacement = replacement;
+
+		provider.setModel(source.sessionId, source.mainChat.get().resource, sourceModelId, ChatModelSource.Chosen);
+		provider.setAgent(source.sessionId, { uri: sourceAgentUri, name: 'Reviewer' });
+		provider.setDevContainerEnabled(source.sessionId, true);
+		const prepared = await provider.prepareNewSession(source.sessionId, CancellationToken.None);
+		await prepared.discard?.();
+
+		assert.deepStrictEqual({
+			available: provider.isDevContainerAvailable(source.sessionId),
+			enabled: provider.isDevContainerEnabled(source.sessionId),
+			connectedWorkspace: connectedWorkspace?.toString(),
+			preparedSessionId: prepared.session.sessionId,
+			transferredConfig,
+			selectedTargetModels,
+			selectedTargetAgents,
+			deletedTargetDrafts,
+			releaseCalls,
+			trustedTargetUris,
+		}, {
+			available: true,
+			enabled: true,
+			connectedWorkspace: 'file:///home/user/project',
+			preparedSessionId: replacement.sessionId,
+			transferredConfig: [['mode', 'interactive']],
+			selectedTargetModels: [[replacement.sessionId, replacementResource, targetModelId, ChatModelSource.Chosen]],
+			selectedTargetAgents: [[replacement.sessionId, targetAgent.uri, targetAgent.name]],
+			deletedTargetDrafts: [replacement.sessionId],
+			releaseCalls: 1,
+			trustedTargetUris: [remoteWorkspace.toString()],
+		});
 	});
 
 	test('createNewSession maps allowAll from chat.defaultConfiguration to autoApprove', async () => {
