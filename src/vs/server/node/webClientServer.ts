@@ -331,7 +331,7 @@ export class WebClientServer {
 	 */
 	private async _handleRoot(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: URL): Promise<void> {
 		// Prefix routes with basePath for clients
-		const basePath = this._getFirstHeader(req, 'x-forwarded-prefix') || this._basePath;
+		const basePath = this._getEffectiveBasePath(req);
 
 		const queryConnectionTokens = parsedUrl.searchParams.getAll(connectionTokenQueryName);
 		if (queryConnectionTokens.length === 1) {
@@ -524,7 +524,11 @@ export class WebClientServer {
 	}
 
 	private _getEffectiveBasePath(req: http.IncomingMessage): string {
-		return this._getFirstHeader(req, 'x-forwarded-prefix') || this._basePath;
+		const forwardedPrefix = this._getFirstHeader(req, 'x-forwarded-prefix');
+		if (forwardedPrefix && isSafeBasePath(forwardedPrefix)) {
+			return forwardedPrefix;
+		}
+		return this._basePath;
 	}
 
 	private _getFirstHeader(req: http.IncomingMessage, headerName: string): string | undefined {
