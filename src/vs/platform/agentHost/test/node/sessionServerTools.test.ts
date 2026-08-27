@@ -738,6 +738,32 @@ suite('SessionServerTools', () => {
 		});
 	});
 
+	test('create_session inherits worktree isolation', async () => {
+		const gitWorkspace = URI.file('/workspace/git-repository');
+		let created: IAgentCreateSessionConfig | undefined;
+		const accessor = createAccessor({
+			getCreationDefaults: () => ({ provider: 'copilot', isolation: 'worktree' }),
+			onCreate: config => { created = config; },
+		});
+
+		await applyCreateSessionTool(accessor, {
+			relationship: 'independent',
+			workspace: gitWorkspace.toString(),
+			prompt: 'do it',
+			title: 'Isolated Task',
+		}, URI.parse('copilot:/source'));
+
+		assert.deepStrictEqual(createConfigSnapshot(created), {
+			workingDirectories: [gitWorkspace],
+			provider: 'copilot',
+			createdBySession: {
+				session: 'copilot:/source',
+				chat: 'copilot:/source',
+			},
+			config: { [SessionConfigKey.Isolation]: 'worktree' },
+		});
+	});
+
 	test('create_session uses a remote project root with a model from another provider', async () => {
 		const remoteProject = URI.parse('vscode-remote://ssh-remote+example/home/me/app');
 		const remoteWorktree = URI.parse('vscode-remote://ssh-remote+example/home/me/app-worktree');
