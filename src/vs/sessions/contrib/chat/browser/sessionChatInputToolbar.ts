@@ -18,7 +18,7 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChatResponseFileChangesService } from '../../../../workbench/contrib/chat/browser/chatResponseFileChangesService.js';
 import { CHAT_TURN_ARTIFACT_PILL_ID, CHAT_TURN_CHANGES_PILL_ID, ChatTurnPillsProvider, diffStatsEqual, EMPTY_DIFF_STATS, IChatTurnPillsModel, IDiffStats, observeTurnStatusPillsEnabled } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
-import { SessionArtifacts, sessionArtifactLocation } from './sessionArtifacts.js';
+import { SessionArtifacts, sessionArtifactLocation, sessionReferencesPillOptions, SESSION_REFERENCES_PILL_ID } from './sessionArtifacts.js';
 import { chatCustomizationPillOptions, SessionCustomizations, SESSION_CUSTOMIZATIONS_PILL_ID } from './sessionCustomizations.js';
 import { localize } from '../../../../nls.js';
 import { getChatPillEntries, ChatPillsWidget, IChatPill, IChatPillsModel, type IChatPillSection } from '../../../../workbench/browser/chatPills.js';
@@ -71,6 +71,8 @@ export function getSessionChatPillKindForAction(actionId: string): SessionChatPi
 			return SessionChatPillKind.Changes;
 		case CHAT_TURN_ARTIFACT_PILL_ID:
 			return SessionChatPillKind.Artifacts;
+		case SESSION_REFERENCES_PILL_ID:
+			return SessionChatPillKind.References;
 		case SESSION_CUSTOMIZATIONS_PILL_ID:
 			return SessionChatPillKind.Customizations;
 		case OPEN_PULL_REQUEST_ACTION_ID:
@@ -128,6 +130,8 @@ export class SessionChatInputToolbar extends Disposable {
 	private readonly _diffStats: IObservable<IDiffStats>;
 	/** Artifact sections shown in the artifact pill. */
 	private readonly _artifactSections: IObservable<readonly IChatPillSection[]>;
+	/** Reference sections shown in the references pill. */
+	private readonly _referenceSections: IObservable<readonly IChatPillSection[]>;
 	/** Customization sections shown in the customizations pill. */
 	private readonly _customizationSections: IObservable<readonly IChatPillSection[]>;
 
@@ -163,13 +167,14 @@ export class SessionChatInputToolbar extends Disposable {
 		const visibility = this._register(instantiationService.createInstance(SessionChatPillVisibility));
 		this._browsers = this._register(instantiationService.createInstance(SessionBrowsersControl, this._session, this._chat, turnStatusPillsEnabled, derived(reader => visibility.isVisible(SessionChatPillKind.Browsers, reader))));
 
-		// The browsers pill already offers the pages it lists, so the artifacts pill
-		// leaves those websites out.
+		// The browsers pill already offers the pages it lists, so the artifacts and
+		// references pills leave those websites out.
 		const sessionArtifacts = this._register(instantiationService.createInstance(SessionArtifacts, this._session, this._browsers.urls));
 		this._artifactSections = derived(this, reader => {
 			const debugData = this._debugData.read(reader);
 			return debugData ? buildDebugArtifactSections(debugData) : sessionArtifacts.sections.read(reader);
 		});
+		this._referenceSections = sessionArtifacts.referenceSections;
 		const sessionCustomizations = this._register(instantiationService.createInstance(SessionCustomizations, this._chat, this._session));
 		this._customizationSections = sessionCustomizations.sections;
 
@@ -203,20 +208,28 @@ export class SessionChatInputToolbar extends Disposable {
 			return createChatSectionPill(action, sections, options, resourceLabels, instantiationService);
 		};
 
-		// Customization sections are not gated at the source, so gate them here the
-		// way the two activity controls gate their own. Data presence follows the
-		// feature gate but not the user's visibility choice, otherwise hiding the
-		// pill would drop it from the menu that restores it.
-		const availableCustomizations = derived(reader => turnStatusPillsEnabled.read(reader) ? this._customizationSections.read(reader) : []);
-		const hasCustomizations = derived(reader => getChatPillEntries(availableCustomizations.read(reader)).length > 0);
-		const customizationSections = derived(reader => visibility.isVisible(SessionChatPillKind.Customizations, reader)
-			? availableCustomizations.read(reader)
-			: []);
+		// Customization and reference sections are not gated at the source, so gate
+		// them here the way the two activity controls gate their own. Data presence
+		// follows the feature gate but not the user's visibility choice, otherwise
+		// hiding the pill would drop it from the menu that restores it.
+		const gated = (kind: SessionChatPillKind, source: IObservable<readonly IChatPillSection[]>) => {
+			const available = derived(reader => turnStatusPillsEnabled.read(reader) ? source.read(reader) : []);
+			return {
+				hasData: derived(reader => getChatPillEntries(available.read(reader)).length > 0),
+				sections: derived(reader => visibility.isVisible(kind, reader) ? available.read(reader) : []),
+			};
+		};
+		const customizations = gated(SessionChatPillKind.Customizations, this._customizationSections);
+		const references = gated(SessionChatPillKind.References, this._referenceSections);
 
 		// Every section-backed pill lives in the same toolbar, so the whole row is
 		// one tab stop with arrow-key navigation instead of one stop per pill.
+		// These follow the candidate pills, which is what puts References directly
+		// after the artifacts pill: the two read as a pair, what the session made
+		// and what it points at.
 		const sectionPills: readonly { readonly pill: IObservable<IChatPill>; readonly sections: IObservable<readonly IChatPillSection[]> }[] = [
-			{ pill: sectionPill(SESSION_CUSTOMIZATIONS_PILL_ID, localize('sessionChatPills.customizations', "Customizations"), customizationSections, chatCustomizationPillOptions), sections: customizationSections },
+			{ pill: sectionPill(SESSION_REFERENCES_PILL_ID, localize('sessionChatPills.references', "References"), references.sections, sessionReferencesPillOptions), sections: references.sections },
+			{ pill: sectionPill(SESSION_CUSTOMIZATIONS_PILL_ID, localize('sessionChatPills.customizations', "Customizations"), customizations.sections, chatCustomizationPillOptions), sections: customizations.sections },
 			{ pill: sectionPill(SESSION_BROWSERS_PILL_ID, localize('sessionChatPills.browsers', "Browsers"), this._browsers.sections, sessionBrowsersPillOptions), sections: this._browsers.sections },
 			{ pill: sectionPill(SESSION_SUBAGENTS_PILL_ID, localize('sessionChatPills.subagents', "Subagents"), this._backgroundActivities.sections, sessionSubagentsPillOptions), sections: this._backgroundActivities.sections },
 		];
@@ -259,8 +272,11 @@ export class SessionChatInputToolbar extends Disposable {
 			if (this._backgroundActivities.hasData.read(reader)) {
 				kinds.add(SessionChatPillKind.Subagents);
 			}
-			if (hasCustomizations.read(reader)) {
+			if (customizations.hasData.read(reader)) {
 				kinds.add(SessionChatPillKind.Customizations);
+			}
+			if (references.hasData.read(reader)) {
+				kinds.add(SessionChatPillKind.References);
 			}
 			return kinds;
 		});

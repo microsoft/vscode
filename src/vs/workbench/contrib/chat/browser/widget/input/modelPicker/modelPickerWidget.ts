@@ -606,13 +606,16 @@ export class ModelPickerWidget extends Disposable {
 				: genericNoModels
 					? localize('chat.modelPicker.noModels', "No models available")
 					: (name ?? localize('chat.modelPicker.auto', "Auto"));
-		if (!compact || !modelIcon || noModelsAvailable) {
+		const showModelLabel = !compact || !modelIcon || noModelsAvailable;
+		if (showModelLabel) {
 			nameChildren.push(dom.$('span.chat-input-picker-label', undefined, modelLabel));
 		}
 		if (this._badgeIcon) {
 			nameChildren.push(this._badgeIcon);
 		}
 		dom.reset(this._nameButton, ...nameChildren);
+
+		this._domNode.classList.toggle('icon-only', !showModelLabel);
 
 		if (this._configButton) {
 			this._configuration.renderButton(this._configButton, compact, noModelsAvailable);
