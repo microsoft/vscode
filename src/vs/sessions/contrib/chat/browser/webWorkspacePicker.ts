@@ -143,8 +143,9 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		}
 
 		// 1. Recent workspaces for the scoped provider
+		const isGitHubCategory = this._directPickerGroup === SESSION_WORKSPACE_GROUP_GITHUB;
 		const recents = this._getRecentWorkspaces().filter(w =>
-			w.providerId === scopedProviderId
+			(w.providerId === scopedProviderId || isGitHubCategory)
 			&& this._directPickerAttachesContext !== true
 			&& (this._directPickerGroup === undefined || w.workspace.group === this._directPickerGroup)
 		);
@@ -159,6 +160,7 @@ export class WebWorkspacePicker extends WorkspacePicker {
 				label: workspace.label,
 				description: workspace.description,
 				group: { title: '', icon: workspace.icon },
+				disabled: this._isProviderUnavailable(providerId),
 				item: { folderUri, providerId, checked: checked || undefined },
 				onRemove: () => this._removeRecentWorkspace(folderUri),
 			});
@@ -169,7 +171,7 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		const browseActions = allBrowseActions
 			.map((action, index) => ({ action, index }))
 			.filter(({ action }) => action.providerId === scopedProviderId || this._directPickerGroup === SESSION_WORKSPACE_GROUP_GITHUB);
-		if (browseActions.length > 0 && !this._isProviderUnavailable(scopedProviderId)) {
+		if (browseActions.length > 0) {
 			if (items.length > 0) {
 				items.push({ kind: ActionListItemKind.Separator, label: '' });
 			}
@@ -179,6 +181,7 @@ export class WebWorkspacePicker extends WorkspacePicker {
 					label: action.label,
 					description: action.description,
 					group: { title: '', icon: action.icon },
+					disabled: this._isProviderUnavailable(action.providerId),
 					item: { browseActionIndex: index },
 				});
 			}

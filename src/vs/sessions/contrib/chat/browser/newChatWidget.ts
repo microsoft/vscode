@@ -12,6 +12,7 @@ import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { constObservable, derived, derivedObservableWithCache, autorun, IObservable, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
+import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -32,7 +33,7 @@ import { WebWorkspacePicker } from './webWorkspacePicker.js';
 import { IPreferredSessionType } from './sessionTypePicker.js';
 import { NewChatInputWidget } from './newChatInput.js';
 import { NoAgentHostEmptyState } from './noAgentHostEmptyState.js';
-import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { IChatRequestVariableEntry, toPasteVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IChatViewOptions } from '../../../browser/parts/chatView.js';
 import { SessionWorkspacePickerVisibleContext } from '../../../common/contextkeys.js';
@@ -254,9 +255,9 @@ export class NewChatWidget extends Disposable {
 			);
 			this._newChatInput.focus();
 		}));
-		this._register(this._workspacePicker.onDidSelectFolderContext(folderUri => {
-			this._newChatInput.attach([folderUri]);
-			this._newChatInput.focus();
+		this._register(this._workspacePicker.onDidSelectFolderContext(() => this._newChatInput.focus()));
+		this._register(this._newChatInput.onDidChangeAttachments(() => {
+			this._workspacePicker.syncAttachedContextIds(this._newChatInput.attachmentIds);
 		}));
 		this._register(this._newChatInput.sessionTypePicker.onDidSelectSessionType(async pick => {
 			// A quick chat has no folder: re-create the draft with the picked
@@ -784,6 +785,27 @@ export class NewChatWidget extends Disposable {
 		const workspaceRoots = session.workspace.get()?.folders.map(folder => folder.root)
 			?? (this._workspacePicker.selectedFolderUri ? [this._workspacePicker.selectedFolderUri] : []);
 		const request = buildNewSessionPrompt(query, feedbackItems, workspaceRoots);
+		const pickerContext: IChatRequestVariableEntry[] = [
+			...this._workspacePicker.additionalFolderUris.map(uri => ({
+				kind: 'directory' as const,
+				id: uri.toString(),
+				name: basename(uri),
+				value: uri,
+			})),
+			...this._workspacePicker.attachedContextWorkspaces.map(context => {
+				const contextUri = context.uri.toString();
+				return toPasteVariableEntry(context.label, `GitHub context: ${contextUri}`, {
+					id: `github-context:${contextUri}`,
+					icon: context.icon,
+				});
+			}),
+		];
+		const requestContext = new Map<string, IChatRequestVariableEntry>();
+		for (const context of [...(attachedContext ?? []), ...pickerContext]) {
+			if (!requestContext.has(context.id)) {
+				requestContext.set(context.id, context);
+			}
+		}
 
 		// Capture the composer's workspace selection before the send: a
 		// background send consumes the in-flight new session and resets the
@@ -792,7 +814,7 @@ export class NewChatWidget extends Disposable {
 		// have no workspace, so they re-seed via openQuickChat instead.
 		const wasQuickChat = this._isQuickChatComposer.get();
 		const reseedFolderUri = background && !wasQuickChat ? this._workspacePicker.selectedFolderUri : undefined;
-		const sendOptions = { query: request, attachedContext, background };
+		const sendOptions = { query: request, attachedContext: requestContext.size > 0 ? [...requestContext.values()] : undefined, background };
 		const clearFeedback = () => {
 			for (const item of feedbackItems) {
 				this.agentFeedbackService.removeFeedback(AGENT_FEEDBACK_NEW_SESSION_RESOURCE, item.id);
@@ -822,6 +844,7 @@ export class NewChatWidget extends Disposable {
 		if (!background) {
 			clearFeedback();
 		}
+		this._workspacePicker.clearAttachedContext();
 
 		// A background send graduated the composer's in-flight session and
 		// returned the view to a fresh (but session-less) new-session composer.

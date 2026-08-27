@@ -13,12 +13,12 @@ import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
+import { ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { ISendRequestOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IOpenNewSessionOptions, IOpenNewSessionResult } from '../../../../services/sessions/browser/sessionsService.js';
 import { IPreferredSessionType } from '../../browser/sessionTypePicker.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
-import { IChatRequestVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { IChatRequestVariableEntry, toFileVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 
 /** The part of the active session `_recreateOnProviderChange` actually reads. */
@@ -102,7 +102,13 @@ interface ISessionCountHarness {
 interface ISendHarness {
 	readonly _session: IObservable<ISession | undefined>;
 	readonly _feedbackItems: IObservable<readonly never[]>;
-	readonly _workspacePicker: { readonly selectedFolderUri: URI | undefined; showPicker(): void };
+	readonly _workspacePicker: {
+		readonly selectedFolderUri: URI | undefined;
+		readonly additionalFolderUris: readonly URI[];
+		readonly attachedContextWorkspaces: readonly ISessionWorkspace[];
+		clearAttachedContext(): void;
+		showPicker(): void;
+	};
 	readonly _isQuickChatComposer: IObservable<boolean>;
 	readonly agentFeedbackService: { removeFeedback(resource: URI, id: string): void };
 	readonly sessionsManagementService: { sendNewChatRequest(session: ISession, options: ISendRequestOptions): Promise<void> };
@@ -317,17 +323,36 @@ suite('NewChatWidget', () => {
 				isVirtualWorkspace: false,
 			}),
 		});
-		const attachments = [
-			toFileVariableEntry(attachedFolder),
-			toPasteVariableEntry('microsoft/vscode', 'GitHub context: https://github.com/microsoft/vscode', { id: 'repo', icon: Codicon.repo }),
-			toPasteVariableEntry('microsoft/vscode#332805', 'GitHub context: https://github.com/microsoft/vscode/issues/332805', { id: 'issue', icon: Codicon.issues }),
-		];
+		const composerAttachment = toFileVariableEntry(URI.file('/explicit-file'));
+		const duplicateRepositoryAttachment = {
+			kind: 'paste' as const,
+			id: `github-context:https://github.com/microsoft/vscode`,
+			name: 'explicit repository context',
+			value: 'Explicit repository context',
+		};
+		const repositoryContext = upcastPartial<ISessionWorkspace>({
+			uri: URI.parse('https://github.com/microsoft/vscode'),
+			label: 'microsoft/vscode',
+			icon: Codicon.repo,
+		});
+		const issueContext = upcastPartial<ISessionWorkspace>({
+			uri: URI.parse('https://github.com/microsoft/vscode/issues/332805'),
+			label: 'microsoft/vscode#332805',
+			icon: Codicon.issues,
+		});
 		let sentOptions: ISendRequestOptions | undefined;
+		let clearAttachedContextCount = 0;
 
 		const result = await send.call({
 			_session: constObservable(session),
 			_feedbackItems: constObservable([]),
-			_workspacePicker: { selectedFolderUri: primaryFolder, showPicker: () => { } },
+			_workspacePicker: {
+				selectedFolderUri: primaryFolder,
+				additionalFolderUris: [attachedFolder],
+				attachedContextWorkspaces: [repositoryContext, issueContext],
+				clearAttachedContext: () => clearAttachedContextCount++,
+				showPicker: () => { },
+			},
 			_isQuickChatComposer: constObservable(false),
 			agentFeedbackService: { removeFeedback: () => { } },
 			sessionsManagementService: {
@@ -336,16 +361,25 @@ suite('NewChatWidget', () => {
 				},
 			},
 			logService: { error: () => { } },
-		}, 'work across contexts', attachments);
+		}, 'work across contexts', [composerAttachment, duplicateRepositoryAttachment]);
 
 		assert.deepStrictEqual({
 			result,
-			attachmentIds: sentOptions?.attachedContext?.map(attachment => attachment.id),
-			attachmentValues: sentOptions?.attachedContext?.map(attachment => attachment.value),
+			clearAttachedContextCount,
+			attachments: sentOptions?.attachedContext?.map(attachment => ({
+				kind: attachment.kind,
+				id: attachment.id,
+				value: URI.isUri(attachment.value) ? attachment.value.toString() : attachment.value,
+			})),
 		}, {
 			result: true,
-			attachmentIds: attachments.map(attachment => attachment.id),
-			attachmentValues: attachments.map(attachment => attachment.value),
+			clearAttachedContextCount: 1,
+			attachments: [
+				{ kind: 'file', id: composerAttachment.id, value: URI.file('/explicit-file').toString() },
+				{ kind: 'paste', id: duplicateRepositoryAttachment.id, value: duplicateRepositoryAttachment.value },
+				{ kind: 'directory', id: attachedFolder.toString(), value: attachedFolder.toString() },
+				{ kind: 'paste', id: `github-context:${issueContext.uri.toString()}`, value: `GitHub context: ${issueContext.uri.toString()}` },
+			],
 		});
 	});
 
@@ -358,6 +392,9 @@ suite('NewChatWidget', () => {
 			_feedbackItems: constObservable([]),
 			_workspacePicker: {
 				selectedFolderUri: undefined,
+				additionalFolderUris: [],
+				attachedContextWorkspaces: [],
+				clearAttachedContext: () => { },
 				showPicker: () => pickerOpenCount++,
 			},
 			_isQuickChatComposer: constObservable(false),

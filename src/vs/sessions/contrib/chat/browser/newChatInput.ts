@@ -1717,6 +1717,14 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}));
 	}
 
+	get onDidChangeAttachments(): Event<void> {
+		return this._contextAttachments.onDidChangeContext;
+	}
+
+	get attachmentIds(): ReadonlySet<string> {
+		return new Set(this._contextAttachments.attachments.map(attachment => attachment.id));
+	}
+
 	getVoiceModels() {
 		return this._modelSelection.state.get().models;
 	}
