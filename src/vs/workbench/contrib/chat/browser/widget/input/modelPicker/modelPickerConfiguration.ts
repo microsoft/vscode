@@ -123,9 +123,9 @@ export class ModelPickerConfiguration {
 		const previouslyFocusedElement = dom.getActiveElement();
 		const delegate = {
 			onSelect: async (action: IActionWidgetDropdownAction) => {
-				this._actionWidgetService.focusItemById(action.id);
-				await action.run();
-				this._actionWidgetService.updateItems(this._buildItems(), action.id);
+				const actionResult = action.run();
+				this._actionWidgetService.hide();
+				await actionResult;
 			},
 			onHide: () => {
 				button.setAttribute('aria-expanded', 'false');
