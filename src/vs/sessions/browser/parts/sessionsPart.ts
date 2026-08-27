@@ -29,6 +29,8 @@ import { IProgressIndicator } from '../../../platform/progress/common/progress.j
 import { AbstractProgressScope, ScopedProgressIndicator } from '../../../workbench/services/progress/browser/progressIndicator.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
 import { applyAgentsPartCardStyles, getAgentsPartCardContentSize } from './agentsPartCard.js';
+import { SessionsChatBackgroundRenderer } from '../../services/chatBackground/browser/chatBackgroundRenderer.js';
+import { ISessionsChatBackgroundService } from '../../services/chatBackground/browser/chatBackgroundService.js';
 
 interface IGridSlot {
 	readonly view: SessionView;
@@ -92,6 +94,7 @@ export class SessionsPart extends Part {
 		@IAgentWorkbenchLayoutService private readonly agentWorkbenchLayoutService: IAgentWorkbenchLayoutService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ISessionsChatBackgroundService private readonly chatBackgroundService: ISessionsChatBackgroundService,
 	) {
 		super(
 			Parts.SESSIONS_PART,
@@ -115,6 +118,11 @@ export class SessionsPart extends Part {
 	}
 
 	protected override createContentArea(parent: HTMLElement): HTMLElement {
+		const backgroundRenderer = this._register(new SessionsChatBackgroundRenderer(parent));
+		const updateBackground = () => backgroundRenderer.setBackground(this.chatBackgroundService.getBackground());
+		this._register(this.chatBackgroundService.onDidChangeBackground(updateBackground));
+		updateBackground();
+
 		const contentArea = $('.content');
 		parent.appendChild(contentArea);
 
