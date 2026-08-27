@@ -1267,6 +1267,7 @@ suite('AgentHostChatContribution', () => {
 
 			assert.ok(chatAgentService.registeredAgents.has('agent-host-copilot'));
 		});
+
 	});
 
 	// ---- Download progress notification (editor window) -----------------

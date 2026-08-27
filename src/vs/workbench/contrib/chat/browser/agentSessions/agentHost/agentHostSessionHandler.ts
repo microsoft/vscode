@@ -349,10 +349,7 @@ function userOriginMessage(text: string, attachments: readonly MessageAttachment
 		: { text, origin: { kind: MessageKind.User } };
 }
 
-/**
- * Whether `err` reports that the host has no such resource (AHP `NotFound`), which a client can
- * legitimately provoke by addressing a session `createSession` has yet to bring into being.
- */
+/** Whether `err` reports that the host has no such resource (AHP `NotFound`). */
 export function isNotFoundError(err: unknown): boolean {
 	return err instanceof ProtocolError && err.code === AHP_NOT_FOUND;
 }
