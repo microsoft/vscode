@@ -28,6 +28,7 @@ import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { buildPhrasePool, defaultThinkingMessages, maybePickFunWorkingMessage } from './chatThinkingContentPart.js';
+import { getCompactCodicon } from '../../chatIcons.js';
 
 export class ChatProgressContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -76,7 +77,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		result.element.classList.add('progress-step');
 		renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._fileWidgetStore);
 		if (useShimmer) {
-			this.applyPartialShimmer(result.element);
+			syncShimmerPhase(this.applyShimmer(result.element));
 		}
 
 		const tooltip: IMarkdownString | undefined = this.createApprovalMessage();
@@ -88,30 +89,46 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		this.renderedMessage.value = result;
 	}
 
-	private applyPartialShimmer(element: HTMLElement): void {
-		if (!this.toolInvocation || !isAskQuestionsToolInvocation(this.toolInvocation)) {
-			return;
-		}
-
+	/**
+	 * Applies the shimmer treatment and returns the elements that actually animate, so their
+	 * animation phase can be synced. A partial shimmer wraps only the leading verb in spans;
+	 * otherwise the whole message paragraph shimmers.
+	 */
+	private applyShimmer(element: HTMLElement): readonly HTMLElement[] {
 		const firstChild = element.firstElementChild;
 		const messageElement = isHTMLElement(firstChild) && firstChild.tagName === 'P' ? firstChild : element;
-		const message = messageElement.textContent;
-		const suffixOffset = message?.indexOf(' (') ?? -1;
-		if (suffixOffset <= 0) {
-			return;
+		const boundary = this.toolInvocation ? this.computeShimmerBoundary(messageElement) : -1;
+		if (boundary <= 0) {
+			return [messageElement];
 		}
 
 		element.classList.add('chat-progress-partial-shimmer');
-		this.wrapLeadingText(messageElement, suffixOffset);
+		return this.wrapLeadingText(messageElement, boundary);
 	}
 
-	private wrapLeadingText(element: HTMLElement, length: number): void {
+	/**
+	 * How many leading characters of the progress message should shimmer. Ask-question rows
+	 * shimmer everything before the ` (` summary; streaming rows shimmer only the stable leading
+	 * verb so moving parts (line counts, file names) stay still. Non-positive skips partial shimmer.
+	 */
+	private computeShimmerBoundary(messageElement: HTMLElement): number {
+		if (isAskQuestionsToolInvocation(this.toolInvocation!)) {
+			return messageElement.textContent?.indexOf(' (') ?? -1;
+		}
+		if (IChatToolInvocation.isStreaming(this.toolInvocation!)) {
+			return leadingStableTextLength(messageElement);
+		}
+		return -1;
+	}
+
+	private wrapLeadingText(element: HTMLElement, length: number): HTMLElement[] {
+		const spans: HTMLElement[] = [];
 		let remaining = length;
 		const walker = element.ownerDocument.createTreeWalker(element, NodeFilter.SHOW_TEXT);
 		while (remaining > 0) {
 			const node = walker.nextNode();
 			if (!node) {
-				return;
+				return spans;
 			}
 
 			const text = node.nodeValue ?? '';
@@ -121,7 +138,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 
 			const shimmerText = text.slice(0, remaining);
 			const suffixText = text.slice(remaining);
-			const span = element.ownerDocument.createElement('span');
+			const span = $<HTMLSpanElement>('span');
 			span.classList.add('chat-progress-shimmer-text');
 			span.textContent = shimmerText;
 			node.parentNode?.insertBefore(span, node);
@@ -130,8 +147,10 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 			} else {
 				node.parentNode?.removeChild(node);
 			}
+			spans.push(span);
 			remaining -= shimmerText.length;
 		}
+		return spans;
 	}
 
 	updateMessage(content: IMarkdownString): void {
@@ -182,6 +201,47 @@ function shouldShowSpinner(followingContent: IChatRendererContent[], element: Ch
 	return isResponseVM(element) && !element.isComplete && followingContent.length === 0;
 }
 
+/**
+ * Length of the leading, non-moving portion of a streaming progress message — the verb before
+ * the first digit, `(`, or inline element (e.g. a file anchor). Trailing whitespace is excluded
+ * so the shimmer ends on the word rather than the gap before the static suffix.
+ */
+function leadingStableTextLength(messageElement: HTMLElement): number {
+	const fullText = messageElement.textContent ?? '';
+	let length = 0;
+	for (const node of messageElement.childNodes) {
+		if (node.nodeType === Node.TEXT_NODE) {
+			const nodeText = node.nodeValue ?? '';
+			const movingPart = /[(\d]/.exec(nodeText);
+			if (movingPart) {
+				length += movingPart.index;
+				break;
+			}
+			length += nodeText.length;
+		} else {
+			break;
+		}
+	}
+	while (length > 0 && /\s/.test(fullText[length - 1])) {
+		length--;
+	}
+	return length;
+}
+
+const SHIMMER_ANIMATION_DURATION_MS = 2000;
+const shimmerEpochMs = Date.now();
+
+/**
+ * Aligns freshly-rendered shimmer elements to a shared timeline via a negative `animation-delay`.
+ * Streaming progress recreates its DOM on every update, which would otherwise restart the CSS
+ * animation from 0% and make the sweep appear frozen; a phase offset keeps it continuous.
+ */
+function syncShimmerPhase(animatedElements: readonly HTMLElement[]): void {
+	const animationDelay = `-${(Date.now() - shimmerEpochMs) % SHIMMER_ANIMATION_DURATION_MS}ms`;
+	for (const element of animatedElements) {
+		element.style.animationDelay = animationDelay;
+	}
+}
 
 export class ChatProgressSubPart extends Disposable {
 	public readonly domNode: HTMLElement;
@@ -196,7 +256,7 @@ export class ChatProgressSubPart extends Disposable {
 
 		this.domNode = $('.progress-container');
 		const iconElement = $('div');
-		iconElement.classList.add(...ThemeIcon.asClassNameArray(icon));
+		iconElement.classList.add(...ThemeIcon.asClassNameArray(getCompactCodicon(icon)));
 		if (tooltip) {
 			this._register(hoverService.setupDelayedHover(iconElement, {
 				content: tooltip,

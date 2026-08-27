@@ -19,8 +19,11 @@ const STORAGE_KEY_RECENT_WORKSPACES = 'sessions.recentlyPickedWorkspaces';
 const MAX_RECENT_WORKSPACES = 10;
 const MAX_VSCODE_RECENT_WORKSPACES = 10;
 
-function hasWorktreesPathSegment(uri: URI): boolean {
-	return uri.path.split('/').some(segment => segment.toLowerCase().endsWith('.worktrees'));
+export function isWorktreeWorkspaceUri(uri: URI): boolean {
+	return uri.path.split('/').some(segment => {
+		const normalizedSegment = segment.toLowerCase();
+		return normalizedSegment.endsWith('.worktrees') || normalizedSegment === 'copilot-worktrees';
+	});
 }
 
 /** A recently used folder, resolved to its workspace. `checked` marks the currently selected folder in the new-session workspace picker. */
@@ -50,10 +53,8 @@ export interface ISessionsRecentWorkspacesService {
 	 * Code's own recently opened folders (deduplicated against own history).
 	 *
 	 * Pass `false` to restrict to the sessions' own recently-picked history
-	 * only, e.g. to restore the last explicit selection made in an Agents
-	 * Window folder picker, so an unrelated folder the user merely opened in
-	 * a regular VS Code window never silently becomes a new session's
-	 * default workspace.
+	 * only. The new-session workspace picker checks this history before
+	 * considering VS Code's recently opened folders.
 	 */
 	getRecentWorkspaces(includeVSCodeRecents?: boolean): IRecentWorkspace[];
 
@@ -106,7 +107,8 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 	private _resolveStored(stored: readonly IStoredRecentWorkspace[]): IRecentWorkspace[] {
 		const recents: IRecentWorkspace[] = [];
 		for (const entry of stored) {
-			const resolved = this._resolveWorkspace(URI.revive(entry.uri), entry.providerId);
+			const folderUri = URI.revive(entry.uri);
+			const resolved = this._resolveWorkspace(folderUri, entry.providerId);
 			if (resolved) {
 				recents.push({ workspace: resolved.workspace, providerId: resolved.providerId, checked: entry.checked });
 			}
@@ -172,7 +174,7 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 			.filter(isRecentFolder)
 			.map(f => f.folderUri)
 			.filter(uri => !basename(uri).startsWith('copilot-'))
-			.filter(uri => !hasWorktreesPathSegment(uri))
+			.filter(uri => !isWorktreeWorkspaceUri(uri))
 			.slice(0, MAX_VSCODE_RECENT_WORKSPACES);
 		this._onDidChangeRecentWorkspaces.fire();
 	}

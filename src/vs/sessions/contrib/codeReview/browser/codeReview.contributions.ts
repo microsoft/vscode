@@ -21,6 +21,7 @@ import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/c
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
+import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
 
 registerSingleton(ICodeReviewService, CodeReviewService, InstantiationType.Delayed);
 
@@ -28,9 +29,8 @@ const CODE_REVIEW_QUERY = '/code-review';
 
 const singlePaneDetailPanel = SinglePaneLayoutEnabledContext;
 
-// Code review is shown next to the diff-stats action in the single-pane Changes
-// editor header, so it is only contributed to the classic changes button bar
-// when single-pane is off.
+// Code review is shown in the single-pane editor title bar, so it is only
+// contributed to the classic changes button bar when single-pane is off.
 const codeReviewChangesToolbarWhen = ContextKeyExpr.and(
 	IsSessionsWindowContext,
 	SessionWorkspaceIsVirtualContext.toNegated(),
@@ -40,10 +40,17 @@ const codeReviewChangesToolbarWhen = ContextKeyExpr.and(
 	singlePaneDetailPanel.negate(),
 );
 
-// Code review in the single-pane Changes editor header: on the left
-// (SessionsEditorHeaderPrimary), in its own group right after the diff-stats
-// action (separated by a divider), whether the editor area is visible or
-// collapsed.
+const singlePaneCodeReviewWhen = ContextKeyExpr.and(
+	IsSessionsWindowContext,
+	ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID),
+	singlePaneDetailPanel,
+	IsAuxiliaryWindowContext.toNegated(),
+	IsTopRightEditorGroupContext,
+	SessionWorkspaceIsVirtualContext.toNegated(),
+	SessionIsCreatedContext,
+	SessionHasChangesContext,
+);
+
 class RunSessionCodeReviewAction extends Action2 {
 
 	static readonly ID = 'sessions.codeReview.run';
@@ -55,7 +62,7 @@ class RunSessionCodeReviewAction extends Action2 {
 			tooltip: localize('sessions.runCodeReview.tooltip', "Run Code Review"),
 			category: CHAT_CATEGORY,
 			icon: Codicon.codeReview,
-			precondition: ChatContextKeys.hasAgentSessionChanges,
+			precondition: ContextKeyExpr.or(ChatContextKeys.hasAgentSessionChanges, SessionHasChangesContext),
 			menu: [
 				{
 					id: MenuId.AgentsChangesToolbar,
@@ -64,21 +71,10 @@ class RunSessionCodeReviewAction extends Action2 {
 					when: codeReviewChangesToolbarWhen,
 				},
 				{
-					// A separate group (rather than 'navigation', which holds the Branch
-					// Changes picker + diff-stats) so a separator renders before it.
-					id: Menus.SessionsEditorHeaderPrimary,
-					group: '1_codeReview',
-					order: 1,
-					when: ContextKeyExpr.and(
-						IsSessionsWindowContext,
-						ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID),
-						singlePaneDetailPanel,
-						IsAuxiliaryWindowContext.toNegated(),
-						IsTopRightEditorGroupContext,
-						SessionWorkspaceIsVirtualContext.toNegated(),
-						SessionIsCreatedContext,
-						SessionHasChangesContext,
-					),
+					id: Menus.SessionsEditorTitle,
+					group: 'navigation',
+					order: 10,
+					when: singlePaneCodeReviewWhen,
 				},
 			],
 		});
@@ -88,10 +84,14 @@ class RunSessionCodeReviewAction extends Action2 {
 		const sessionManagementService = accessor.get(ISessionsManagementService);
 		const sessionsService = accessor.get(ISessionsService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
+		const sessionChangesService = accessor.get(ISessionChangesService);
 
-		const resource = URI.isUri(sessionResource)
+		const candidateResource = URI.isUri(sessionResource)
 			? sessionResource
 			: sessionsService.activeSession.get()?.resource;
+		const resource = candidateResource
+			? sessionChangesService.getSessionResource(candidateResource) ?? candidateResource
+			: undefined;
 		if (!resource) {
 			return;
 		}

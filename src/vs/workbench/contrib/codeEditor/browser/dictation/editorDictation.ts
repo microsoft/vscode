@@ -28,7 +28,7 @@ import { EditOperation } from '../../../../../editor/common/core/editOperation.j
 import { Selection } from '../../../../../editor/common/core/selection.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
-import { registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { assertReturnsDefined } from '../../../../../base/common/types.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { toAction } from '../../../../../base/common/actions.js';
@@ -71,6 +71,18 @@ export class EditorDictationStartAction extends EditorAction2 {
 				secondary: isWindows ? [
 					KeyMod.Alt | KeyCode.Backquote
 				] : undefined
+			},
+			menu: {
+				id: MenuId.EditorContext,
+				group: '1_modification',
+				order: 6,
+				// Only surface in the context menu when a dictation engine is
+				// available and the editor is editable. No persistent toolbar
+				// button is added; the entry point stays confined to the menu.
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.or(HasSpeechProvider, BuiltinDictationConfigured),
+					EditorContextKeys.readOnly.toNegated()
+				)
 			}
 		});
 	}
@@ -265,22 +277,25 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 
 		disposables.add(this.editor.onDidChangeCursorPosition(() => this.widget.layout()));
 
+		const window = getWindow(this.editor.getDomNode()) ?? getActiveWindow();
+		await startDictation(this.chatSpeechToTextService, this.editor, window, this.logService, 'editor');
+
+		// If the session did not take (start failed without a state transition),
+		// do not leave the widget stranded.
+		if (activeDictationEditor() !== this.editor) {
+			this.sessionDisposables.clear();
+			return;
+		}
+
 		// When the shared session ends on its own (final transcript applied, an
-		// error, or the model failing to load), tear down the editor-side UI.
+		// error, or the model failing to load), tear down the editor-side UI. This
+		// is registered only after the takeover in `startDictation` has settled so
+		// cancelling a previous surface's session cannot tear down this one.
 		disposables.add(this.chatSpeechToTextService.onDidChangeState(state => {
 			if (state === ChatSpeechToTextState.Idle) {
 				this.sessionDisposables.clear();
 			}
 		}));
-
-		const window = getWindow(this.editor.getDomNode()) ?? getActiveWindow();
-		await startDictation(this.chatSpeechToTextService, this.editor, window, this.logService, 'editor');
-
-		// If the session did not take (already dictating elsewhere, or start
-		// failed without a state transition), do not leave the widget stranded.
-		if (activeDictationEditor() !== this.editor) {
-			this.sessionDisposables.clear();
-		}
 	}
 
 	private async startWithProvider(): Promise<void> {

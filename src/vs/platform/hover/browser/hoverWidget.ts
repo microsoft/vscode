@@ -12,7 +12,7 @@ import { KeyCode } from '../../../base/common/keyCodes.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { HoverAction, HoverPosition, HoverWidget as BaseHoverWidget, getHoverAccessibleViewHint } from '../../../base/browser/ui/hover/hoverWidget.js';
 import { Widget } from '../../../base/browser/ui/widget.js';
-import { AnchorPosition } from '../../../base/browser/ui/contextview/contextview.js';
+import { AnchorAlignment, AnchorPosition } from '../../../base/browser/ui/contextview/contextview.js';
 import { IMarkdownRendererService } from '../../markdown/browser/markdownRenderer.js';
 import { isMarkdownString } from '../../../base/common/htmlContent.js';
 import { localize } from '../../../nls.js';
@@ -48,6 +48,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 	private readonly _hoverPointer: HTMLElement | undefined;
 	private readonly _hoverContainer: HTMLElement;
 	private readonly _target: IHoverTarget;
+	private readonly _anchorAlignment: AnchorAlignment;
 	private readonly _linkHandler: ((url: string) => void) | undefined;
 
 	private _isDisposed: boolean = false;
@@ -116,6 +117,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		this._linkHandler = options.linkHandler;
 
 		this._target = 'targetElements' in options.target ? options.target : new ElementHoverTarget(options.target);
+		this._anchorAlignment = options.position?.anchorAlignment ?? AnchorAlignment.LEFT;
 
 		if (options.style) {
 			switch (options.style) {
@@ -359,6 +361,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 
 		this._hover.containerDomNode.classList.remove('right-aligned');
 		this._hover.contentsDomNode.style.maxHeight = '';
+		this._hover.containerDomNode.style.maxWidth = '';
 
 		const getZoomAccountedBoundingClientRect = (e: HTMLElement) => {
 			const zoom = dom.getDomNodeZoomLevel(e);
@@ -443,6 +446,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 
 	private computeXCordinate(target: TargetRect): void {
 		const hoverWidth = this._hover.containerDomNode.clientWidth + Constants.HoverBorderWidth;
+		const documentElementClientLeft = this._targetDocumentElement.clientLeft;
 
 		if (this._target.x !== undefined) {
 			this._x = this._target.x;
@@ -457,21 +461,24 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		}
 
 		else {
-			if (this._hoverPointer) {
+			if (this._anchorAlignment === AnchorAlignment.RIGHT) {
+				this._x = target.right - hoverWidth;
+			} else if (this._hoverPointer) {
 				this._x = target.center.x - (this._hover.containerDomNode.clientWidth / 2);
 			} else {
 				this._x = target.left;
 			}
 
 			// Hover is going beyond window towards right end
-			if (this._x + hoverWidth >= this._targetDocumentElement.clientWidth) {
+			const documentElementClientWidth = this._targetDocumentElement.clientWidth;
+			if (this._x + hoverWidth >= documentElementClientWidth) {
 				this._hover.containerDomNode.classList.add('right-aligned');
-				this._x = Math.max(this._targetDocumentElement.clientWidth - hoverWidth - Constants.HoverWindowEdgeMargin, this._targetDocumentElement.clientLeft);
+				this._x = Math.max(documentElementClientWidth - hoverWidth - Constants.HoverWindowEdgeMargin, documentElementClientLeft);
 			}
 		}
 
 		// Hover is going beyond window towards left end
-		if (this._x < this._targetDocumentElement.clientLeft) {
+		if (this._x < documentElementClientLeft) {
 			this._x = target.left + Constants.HoverWindowEdgeMargin;
 		}
 
@@ -507,6 +514,14 @@ export class HoverWidget extends Widget implements IHoverWidget {
 	private adjustHorizontalHoverPosition(target: TargetRect): void {
 		// Do not adjust horizontal hover position if x cordiante is provided
 		if (this._target.x !== undefined) {
+			return;
+		}
+
+		if (this._anchorAlignment === AnchorAlignment.RIGHT && (this._hoverPosition === HoverPosition.ABOVE || this._hoverPosition === HoverPosition.BELOW)) {
+			const availableWidth = target.right - this._targetDocumentElement.clientLeft - Constants.HoverWindowEdgeMargin - Constants.HoverBorderWidth;
+			if (this._hover.containerDomNode.clientWidth > availableWidth) {
+				this._hover.containerDomNode.style.maxWidth = `${Math.max(availableWidth, 0)}px`;
+			}
 			return;
 		}
 

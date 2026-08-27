@@ -7,6 +7,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { NesDatagenInputFormat, NesDatagenSampleTask, PivotStrategy } from '../../base/simulationOptions';
+import type { Scoring } from '../alternativeAction/types';
 import { runInputPipeline, RunPipelineOptions } from '../pipeline';
 import { allContinuousRecords, continuousFixtures } from './fixtures/continuousFixtureData';
 
@@ -63,6 +64,7 @@ async function runContinuousPipeline(opts?: Partial<RunPipelineOptions>): Promis
 	samples: OutputSample[];
 	logs: string[];
 	output: string;
+	scoredEdits: { fileName: string; value: Scoring.t }[];
 }> {
 	const logs: string[] = [];
 	const log = (...args: unknown[]) => {
@@ -75,6 +77,7 @@ async function runContinuousPipeline(opts?: Partial<RunPipelineOptions>): Promis
 			output: outputPath,
 			rowOffset: 0,
 			workerMode: false,
+			generateScoredEdits: false,
 			sampleTask: NesDatagenSampleTask.Xtab,
 			sameFileJumpMinAbove: 5,
 			sameFileJumpMinBelow: 5,
@@ -91,7 +94,14 @@ async function runContinuousPipeline(opts?: Partial<RunPipelineOptions>): Promis
 	await runInputPipeline(pipelineOpts, log);
 
 	const output = await fs.readFile(outputPath, 'utf-8');
-	return { samples: parseJsonl<OutputSample>(output), logs, output };
+	const scoredEditsDirectory = path.join(tmpDir, 'output.scoredEdits');
+	const scoredEdits = pipelineOpts.nesDatagen?.generateScoredEdits
+		? await Promise.all((await fs.readdir(scoredEditsDirectory)).sort().map(async fileName => ({
+			fileName,
+			value: JSON.parse(await fs.readFile(path.join(scoredEditsDirectory, fileName), 'utf8')) as Scoring.t,
+		})))
+		: [];
+	return { samples: parseJsonl<OutputSample>(output), logs, output, scoredEdits };
 }
 
 describe('nes-datagen continuous pipeline e2e', () => {
@@ -170,6 +180,48 @@ describe('nes-datagen continuous pipeline e2e', () => {
 		expect(a.output).toBe(b.output);
 	});
 
+	test('generates scoredEdits files from continuous recordings', async () => {
+		const result = await runContinuousPipeline({
+			nesDatagen: {
+				input: inputPath,
+				output: outputPath,
+				rowOffset: 0,
+				workerMode: false,
+				generateScoredEdits: true,
+				sampleTask: NesDatagenSampleTask.Xtab,
+				sameFileJumpMinAbove: 5,
+				sameFileJumpMinBelow: 5,
+				inputFormat: NesDatagenInputFormat.Continuous,
+				pivotStrategy: PivotStrategy.Random,
+				seed: 42,
+			},
+		});
+		const samplesById = new Map(result.samples.map(sample => [sample.metadata.rowIndex, sample]));
+
+		expect(result.scoredEdits.map(({ fileName, value }) => {
+			const sampleId = Number(fileName.split('.')[0]);
+			return {
+				fileName,
+				expectedEdit: samplesById.get(sampleId)?.metadata.oracleEdits,
+				scoredEdit: value.edits[0]?.edit,
+				recordedEdit: value.scoringContext.recording.nextUserEdit.edit,
+			};
+		})).toEqual([
+			{
+				fileName: '0.scoredEdits.w.json',
+				expectedEdit: [[16, 19, 'sum']],
+				scoredEdit: [[16, 19, 'sum']],
+				recordedEdit: [[16, 19, 'sum']],
+			},
+			{
+				fileName: '1.scoredEdits.w.json',
+				expectedEdit: [[15, 15, ' -> str']],
+				scoredEdit: [[15, 15, ' -> str']],
+				recordedEdit: [[15, 15, ' -> str']],
+			},
+		]);
+	});
+
 	test('a slice whose oracle edit is malformed is isolated, not fatal', async () => {
 		// Overlapping replacements in the post-pivot `changed` make the split
 		// throw; the batch must still produce the sibling sample rather than abort.
@@ -196,6 +248,7 @@ describe('nes-datagen continuous pipeline e2e', () => {
 					output: mixedOutput,
 					rowOffset: 0,
 					workerMode: false,
+					generateScoredEdits: false,
 					sampleTask: NesDatagenSampleTask.Xtab,
 					sameFileJumpMinAbove: 5,
 					sameFileJumpMinBelow: 5,

@@ -9,13 +9,19 @@ import { constObservable, observableValue } from '../../../../../../base/common/
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
+import { IMenuItem, isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
+import { AgentHostAllowSignedOutWhenUsableSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
+import { ContextKeyValue } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { type IChatAcceptInputOptions, IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
-import { ChatSubmitAction, ExecuteHandoffActionId, GetHandoffsActionId, registerChatExecuteActions } from '../../../browser/actions/chatExecuteActions.js';
+import { ChatSubmitAction, ExecuteHandoffActionId, GetHandoffsActionId, OpenModelPickerAction, registerChatExecuteActions } from '../../../browser/actions/chatExecuteActions.js';
+import { AgentSessionProviders } from '../../../browser/agentSessions/agentSessions.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
+import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { IChatMode, IChatModes, IChatModeService, ICustomAgentInfo } from '../../../common/chatModes.js';
-import { ChatModeKind } from '../../../common/constants.js';
 import { IHandOff } from '../../../common/promptSyntax/promptFileParser.js';
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { MockChatWidgetService } from '../widget/mockChatWidget.js';
@@ -51,6 +57,34 @@ suite('GetHandoffsAction', () => {
 	let chatExecuteActions: DisposableStore;
 	suiteSetup(() => {
 		chatExecuteActions = registerChatExecuteActions();
+	});
+
+	test('shows Copilot Agent Host models in the signed-out Agents welcome view', () => {
+		const item = MenuRegistry.getMenuItems(MenuId.ChatInput)
+			.find((candidate): candidate is IMenuItem => isIMenuItem(candidate) && candidate.command.id === OpenModelPickerAction.ID);
+		assert.ok(item?.when);
+
+		const evaluate = (values: Record<string, ContextKeyValue>) => item.when!.evaluate({
+			getValue: <T extends ContextKeyValue = ContextKeyValue>(key: string) => values[key] as T,
+		});
+		const context = {
+			[ChatContextKeys.location.key]: ChatAgentLocation.Chat,
+			[ChatContextKeys.inAgentSessionsWelcome.key]: true,
+			[ChatContextKeys.agentSessionType.key]: AgentSessionProviders.AgentHostCopilot,
+			[IsSessionsWindowContext.key]: true,
+		};
+
+		assert.deepStrictEqual({
+			enabled: evaluate({ ...context, [`config.${AgentHostAllowSignedOutWhenUsableSettingId}`]: true }),
+			disabled: evaluate({ ...context, [`config.${AgentHostAllowSignedOutWhenUsableSettingId}`]: false }),
+			editorWindow: evaluate({ ...context, [IsSessionsWindowContext.key]: false, [`config.${AgentHostAllowSignedOutWhenUsableSettingId}`]: true }),
+			claude: evaluate({ ...context, [ChatContextKeys.agentSessionType.key]: AgentSessionProviders.AgentHostClaude, [`config.${AgentHostAllowSignedOutWhenUsableSettingId}`]: true }),
+		}, {
+			enabled: true,
+			disabled: false,
+			editorWindow: false,
+			claude: false,
+		});
 	});
 
 	suiteTeardown(() => {

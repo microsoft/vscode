@@ -22,6 +22,7 @@ export type AgentHostE2ETier = 'conformance' | 'parity';
 
 export interface IAgentHostE2ETestContext {
 	readonly tier: AgentHostE2ETier;
+	readonly targetId: string;
 	readonly config: IAgentHostE2EProviderConfig;
 	readonly client: TestProtocolClient;
 	readonly createdSessions: string[];
@@ -38,12 +39,20 @@ export interface IAgentHostE2ETestContext {
 	 * reason is visible at the call site.
 	 */
 	readonly portableShellToolReplayEnabled: boolean;
-	readonly supportsFileTools: boolean;
-	readonly stableSharedServerFileScenarios: boolean;
+	readonly isLinux: boolean;
 	readonly isWindows: boolean;
 	readonly runRecordOnlyTests: boolean;
+	/** Whether explicitly requested known-issue reproductions should run against live recording. */
+	readonly runKnownIssueTests: boolean;
+	/** Whether explicitly requested model-free known-issue reproductions should run in strict replay. */
+	readonly runHostOnlyKnownIssueTests: boolean;
 	readonly registerNoModelTrafficTest: (title: string) => void;
 	readonly observedModelRequestBodies: readonly string[];
+	/**
+	 * Restart the target against the current test's isolated persistent state and
+	 * replay stream. The replacement client is connected but not initialized.
+	 */
+	readonly restartServer: () => Promise<void>;
 	/**
 	 * Open an extra connection to the same server. Needed only by tests that
 	 * exercise connection lifecycle, which cannot be expressed on the single

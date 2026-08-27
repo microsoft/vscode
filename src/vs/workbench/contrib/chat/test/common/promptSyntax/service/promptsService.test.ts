@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { DeferredPromise } from '../../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
@@ -23,7 +23,7 @@ import { ModelService } from '../../../../../../../editor/common/services/modelS
 import { IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationService, IConfigurationValue } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../../../../../platform/extensions/common/extensions.js';
-import { IFileService } from '../../../../../../../platform/files/common/files.js';
+import { IFileContent, IFileService, IReadFileOptions } from '../../../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -43,7 +43,7 @@ import { ComputeAutomaticInstructions, newInstructionsCollectionEvent, newInstru
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 import { AGENTS_SOURCE_FOLDER, CLAUDE_CONFIG_FOLDER, HOOKS_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptFileSource, PromptsType, Target } from '../../../../common/promptSyntax/promptTypes.js';
-import { IAgentDiscoveryResult, IAgentSource, ICustomAgent, IPromptFileContext, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { IAgentDiscoveryResult, IAgentSource, ICustomAgent, IPromptFileContext, IPromptPath, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
 import { mockFiles } from '../testUtils/mockFilesystem.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
@@ -100,10 +100,12 @@ suite('PromptsService', () => {
 	let fileService: IFileService;
 	let testPluginsObservable: ISettableObservable<readonly IAgentPlugin[]>;
 	let workspaceTrustService: TestWorkspaceTrustManagementService;
+	let logService: NullLogService;
 
 	setup(async () => {
 		instaService = disposables.add(new TestInstantiationService());
-		instaService.stub(ILogService, new NullLogService());
+		logService = new NullLogService();
+		instaService.stub(ILogService, logService);
 
 		workspaceContextService = new TestContextService();
 		instaService.stub(IWorkspaceContextService, workspaceContextService);
@@ -211,11 +213,32 @@ suite('PromptsService', () => {
 
 		instaService.stub(IAgentPluginService, {
 			plugins: testPluginsObservable,
-			enablementModel: { readEnabled: () => 2 /* EnabledProfile */, setEnabled: () => { }, remove: () => { } },
+			enablementModel: { readEnabled: () => 2 /* EnabledProfile */, readProfileEnabled: () => true, setEnabled: () => { }, remove: () => { } },
 		});
 
 		service = disposables.add(instaService.createInstance(PromptsService));
 		instaService.stub(IPromptsService, service);
+	});
+
+	test('lists local prompt files relative to an explicit root and its parent repository', async () => {
+		const parentRoot = URI.file('/parent-repo');
+		const explicitRoot = URI.joinPath(parentRoot, 'packages/explicit-root');
+		const siblingRoot = URI.file('/sibling-root');
+		workspaceContextService.setWorkspace(testWorkspace(explicitRoot, siblingRoot));
+		testConfigService.setUserConfiguration(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS, true);
+		await mockFiles(fileService, [
+			{ path: '/parent-repo/.git/HEAD', contents: ['ref: refs/heads/main'] },
+			{ path: '/parent-repo/.github/prompts/parent.prompt.md', contents: ['parent'] },
+			{ path: '/parent-repo/packages/explicit-root/.github/prompts/explicit.prompt.md', contents: ['explicit'] },
+			{ path: '/sibling-root/.github/prompts/sibling.prompt.md', contents: ['sibling'] },
+		]);
+
+		const files = await service.listPromptFilesForStorage(PromptsType.prompt, PromptsStorage.local, CancellationToken.None, explicitRoot);
+
+		assert.deepStrictEqual(files.map(file => file.uri.path), [
+			'/parent-repo/packages/explicit-root/.github/prompts/explicit.prompt.md',
+			'/parent-repo/.github/prompts/parent.prompt.md',
+		]);
 	});
 
 	suite('IAgentSource.isEquals', () => {
@@ -907,6 +930,73 @@ suite('PromptsService', () => {
 	suite('getCustomAgents', () => {
 		teardown(() => {
 			sinon.restore();
+		});
+
+
+		test('reads agent files with bounded concurrency', async () => {
+			const rootFolder = '/custom-agents-concurrency';
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			const agentCount = 40;
+			await mockFiles(fileService, Array.from({ length: agentCount }, (_, index) => ({
+				path: `${rootFolder}/.github/agents/agent${index}.agent.md`,
+				contents: [
+					'---',
+					`description: 'Agent file ${index}.'`,
+					'---',
+				]
+			})));
+
+			let inFlight = 0;
+			let maxInFlight = 0;
+			const readFile = fileService.readFile.bind(fileService);
+			sinon.stub(fileService, 'readFile').callsFake(async (resource: URI, options?: IReadFileOptions, token?: CancellationToken): Promise<IFileContent> => {
+				inFlight++;
+				maxInFlight = Math.max(maxInFlight, inFlight);
+				try {
+					// Yield so that overlapping reads are observable.
+					await timeout(0);
+					return await readFile(resource, options, token);
+				} finally {
+					inFlight--;
+				}
+			});
+
+			const agents = await service.getCustomAgents(CancellationToken.None);
+
+			assert.strictEqual(agents.length, agentCount, 'Must discover every agent file.');
+			assert.ok(maxInFlight > 1, 'Must read agent files concurrently.');
+			assert.ok(
+				maxInFlight < agentCount,
+				`Must not read all ${agentCount} agent files at once, but read ${maxInFlight} concurrently.`,
+			);
+
+			// A discovery pass can be invalidated while it is still running, which
+			// starts a second pass alongside the first. Both passes must share the
+			// same quota, otherwise the number of open files grows with the number
+			// of passes.
+			const singlePassPeak = maxInFlight;
+			maxInFlight = 0;
+
+			const firstPass = service.getCustomAgents(CancellationToken.None);
+			const contributedAgent = URI.joinPath(rootFolderUri, '.github/agents/agent0.agent.md');
+			const registered = service.registerContributedFile(
+				PromptsType.agent,
+				contributedAgent,
+				{ identifier: new ExtensionIdentifier('test.extension'), name: 'test' } as IExtensionDescription,
+				undefined,
+				undefined,
+			);
+			const secondPass = service.getCustomAgents(CancellationToken.None);
+			await Promise.all([firstPass, secondPass]);
+			registered.dispose();
+
+			assert.ok(
+				maxInFlight <= singlePassPeak,
+				`Overlapping discovery passes must share one quota, but read ${maxInFlight} concurrently versus ${singlePassPeak} for a single pass.`,
+			);
 		});
 
 
@@ -1830,8 +1920,17 @@ suite('PromptsService', () => {
 
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
-			const userPromptsFolder = '/user-data/prompts';
+			const userPromptsFolder = '/home/user/user-data-prompts';
 			const userPromptsFolderUri = URI.file(userPromptsFolder);
+			testConfigService.setUserConfiguration(PromptsConfig.PROMPT_LOCATIONS_KEY, {
+				[PROMPT_DEFAULT_SOURCE_FOLDER]: true,
+				'~/.copilot/prompts': true,
+				'~/shared-prompts': true,
+				'/home/user/shared-prompts': true,
+				'~/user-data-prompts': true,
+				[userPromptsFolder]: true,
+				[`${userPromptsFolder}/team`]: true,
+			});
 
 			// Override the user data profile service
 			const customUserDataProfileService = {
@@ -1849,7 +1948,7 @@ suite('PromptsService', () => {
 			service.dispose();
 			const testService = disposables.add(instaService.createInstance(PromptsService));
 
-			// Create prompt files in both workspace and user data folder
+			// Create prompt files in workspace, User Data, and a configured personal folder.
 			await mockFiles(fileService, [
 				// Workspace prompt
 				{
@@ -1870,21 +1969,69 @@ suite('PromptsService', () => {
 						'---',
 						'I am a user data prompt.',
 					]
+				},
+				{
+					path: '/home/user/shared-prompts/shared.prompt.md',
+					contents: [
+						'---',
+						'description: \'Shared configured prompt.\'',
+						'---',
+						'I am configured for both storages.',
+					]
+				},
+				{
+					path: `${userPromptsFolder}/team/team.prompt.md`,
+					contents: [
+						'---',
+						'description: \'Nested user data prompt.\'',
+						'---',
+						'I am a nested user data prompt.',
+					]
+				},
+				{
+					path: '/home/user/.copilot/prompts/personal.prompt.md',
+					contents: [
+						'---',
+						'description: \'Personal prompt.\'',
+						'---',
+						'I am a personal prompt.',
+					]
 				}
 			]);
 
-			const result = await testService.listPromptFiles(PromptsType.prompt, CancellationToken.None);
+			const [allPrompts, userPrompts, workspacePrompts] = await Promise.all([
+				testService.listPromptFiles(PromptsType.prompt, CancellationToken.None),
+				testService.listPromptFilesForStorage(PromptsType.prompt, PromptsStorage.user, CancellationToken.None),
+				testService.listPromptFilesForStorage(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
+			]);
+			const summarize = (prompts: readonly IPromptPath[]) => prompts
+				.map(prompt => ({ file: basename(prompt.uri), storage: prompt.storage, source: prompt.source }))
+				.sort((a, b) => `${a.file}:${a.storage}`.localeCompare(`${b.file}:${b.storage}`));
 
-			// Should find prompts from both workspace and user data
-			assert.strictEqual(result.length, 2, 'Should find 2 prompts (1 workspace + 1 user data)');
-
-			const workspacePrompt = result.find(p => p.storage === PromptsStorage.local);
-			assert.ok(workspacePrompt, 'Should find workspace prompt');
-			assert.ok(workspacePrompt.uri.path.includes('workspace-prompt.prompt.md'));
-
-			const userPrompt = result.find(p => p.storage === PromptsStorage.user);
-			assert.ok(userPrompt, 'Should find user data prompt');
-			assert.ok(userPrompt.uri.path.includes('user-prompt.prompt.md'));
+			assert.deepStrictEqual({
+				allPrompts: summarize(allPrompts),
+				userPrompts: summarize(userPrompts),
+				workspacePrompts: summarize(workspacePrompts),
+			}, {
+				allPrompts: [
+					{ file: 'personal.prompt.md', storage: PromptsStorage.user, source: PromptFileSource.ConfigPersonal },
+					{ file: 'shared.prompt.md', storage: PromptsStorage.local, source: PromptFileSource.ConfigWorkspace },
+					{ file: 'shared.prompt.md', storage: PromptsStorage.user, source: PromptFileSource.ConfigPersonal },
+					{ file: 'team.prompt.md', storage: PromptsStorage.user, source: PromptFileSource.UserData },
+					{ file: 'user-prompt.prompt.md', storage: PromptsStorage.user, source: PromptFileSource.UserData },
+					{ file: 'workspace-prompt.prompt.md', storage: PromptsStorage.local, source: PromptFileSource.GitHubWorkspace },
+				],
+				userPrompts: [
+					{ file: 'personal.prompt.md', storage: PromptsStorage.user, source: PromptFileSource.ConfigPersonal },
+					{ file: 'shared.prompt.md', storage: PromptsStorage.user, source: PromptFileSource.ConfigPersonal },
+					{ file: 'team.prompt.md', storage: PromptsStorage.user, source: PromptFileSource.UserData },
+					{ file: 'user-prompt.prompt.md', storage: PromptsStorage.user, source: PromptFileSource.UserData },
+				],
+				workspacePrompts: [
+					{ file: 'shared.prompt.md', storage: PromptsStorage.local, source: PromptFileSource.ConfigWorkspace },
+					{ file: 'workspace-prompt.prompt.md', storage: PromptsStorage.local, source: PromptFileSource.GitHubWorkspace },
+				],
+			});
 		});
 	});
 
@@ -1896,8 +2043,13 @@ suite('PromptsService', () => {
 
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
-			const userPromptsFolder = '/user-data/prompts';
+			const userPromptsFolder = '/home/user/user-data-prompts';
 			const userPromptsFolderUri = URI.file(userPromptsFolder);
+			testConfigService.setUserConfiguration(PromptsConfig.INSTRUCTIONS_LOCATION_KEY, {
+				[INSTRUCTIONS_DEFAULT_SOURCE_FOLDER]: true,
+				'~/': true,
+				'/home/user': true,
+			});
 
 			// Override the user data profile service
 			const customUserDataProfileService = {
@@ -1941,18 +2093,31 @@ suite('PromptsService', () => {
 				}
 			]);
 
-			const result = await testService.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+			const [allInstructions, userInstructions, workspaceInstructions] = await Promise.all([
+				testService.listPromptFiles(PromptsType.instructions, CancellationToken.None),
+				testService.listPromptFilesForStorage(PromptsType.instructions, PromptsStorage.user, CancellationToken.None),
+				testService.listPromptFilesForStorage(PromptsType.instructions, PromptsStorage.local, CancellationToken.None),
+			]);
+			const summarize = (instructions: readonly IPromptPath[]) => instructions
+				.map(instruction => ({ file: basename(instruction.uri), storage: instruction.storage, source: instruction.source }))
+				.sort((a, b) => a.file.localeCompare(b.file));
 
-			// Should find instructions from both workspace and user data
-			assert.strictEqual(result.length, 2, 'Should find 2 instructions (1 workspace + 1 user data)');
-
-			const workspaceInstructions = result.find(p => p.storage === PromptsStorage.local);
-			assert.ok(workspaceInstructions, 'Should find workspace instructions');
-			assert.ok(workspaceInstructions.uri.path.includes('workspace-instructions.instructions.md'));
-
-			const userInstructions = result.find(p => p.storage === PromptsStorage.user);
-			assert.ok(userInstructions, 'Should find user data instructions');
-			assert.ok(userInstructions.uri.path.includes('user-instructions.instructions.md'));
+			assert.deepStrictEqual({
+				allInstructions: summarize(allInstructions),
+				userInstructions: summarize(userInstructions),
+				workspaceInstructions: summarize(workspaceInstructions),
+			}, {
+				allInstructions: [
+					{ file: 'user-instructions.instructions.md', storage: PromptsStorage.user, source: PromptFileSource.UserData },
+					{ file: 'workspace-instructions.instructions.md', storage: PromptsStorage.local, source: PromptFileSource.GitHubWorkspace },
+				],
+				userInstructions: [
+					{ file: 'user-instructions.instructions.md', storage: PromptsStorage.user, source: PromptFileSource.UserData },
+				],
+				workspaceInstructions: [
+					{ file: 'workspace-instructions.instructions.md', storage: PromptsStorage.local, source: PromptFileSource.GitHubWorkspace },
+				],
+			});
 		});
 	});
 
@@ -2361,6 +2526,80 @@ suite('PromptsService', () => {
 			// After disposal, the agent should no longer be listed
 			const actualAfterDispose = await service.getCustomAgents(CancellationToken.None);
 			assert.strictEqual(actualAfterDispose.length, 0);
+		});
+
+		test('Canceled prompt file provider is skipped without logging', async () => {
+			const extension = {
+				identifier: { value: 'test.my-extension' },
+				enabledApiProposals: ['chatParticipantPrivate']
+			} as unknown as IExtensionDescription;
+			const logErrorSpy = sinon.spy(logService, 'error');
+			const registered = service.registerPromptFileProvider(extension, PromptsType.instructions, {
+				providePromptFiles: async () => { throw new CancellationError(); }
+			});
+
+			try {
+				const files = await service.listPromptFilesForStorage(PromptsType.instructions, PromptsStorage.extension, CancellationToken.None);
+				assert.deepStrictEqual({ files, errorCalls: logErrorSpy.callCount }, { files: [], errorCalls: 0 });
+			} finally {
+				registered.dispose();
+				logErrorSpy.restore();
+			}
+		});
+
+		test('Prompt file provider error is logged and skipped', async () => {
+			const extension = {
+				identifier: { value: 'test.my-extension' },
+				enabledApiProposals: ['chatParticipantPrivate']
+			} as unknown as IExtensionDescription;
+			const logErrorSpy = sinon.spy(logService, 'error');
+			const registered = service.registerPromptFileProvider(extension, PromptsType.instructions, {
+				providePromptFiles: async () => { throw new Error('provider failed'); }
+			});
+
+			try {
+				const files = await service.listPromptFilesForStorage(PromptsType.instructions, PromptsStorage.extension, CancellationToken.None);
+				assert.deepStrictEqual({ files, errorCalls: logErrorSpy.callCount }, { files: [], errorCalls: 1 });
+			} finally {
+				registered.dispose();
+				logErrorSpy.restore();
+			}
+		});
+
+		test('Canceled provider listing stops without logging an error', async () => {
+			const extension = {
+				identifier: { value: 'test.my-extension' },
+				enabledApiProposals: ['chatParticipantPrivate']
+			} as unknown as IExtensionDescription;
+			const cancellationTokenSource = disposables.add(new CancellationTokenSource());
+			let secondProviderCalled = false;
+			disposables.add(service.registerPromptFileProvider(extension, PromptsType.agent, {
+				providePromptFiles: async () => {
+					cancellationTokenSource.cancel();
+					throw new CancellationError();
+				}
+			}));
+			disposables.add(service.registerPromptFileProvider(extension, PromptsType.agent, {
+				providePromptFiles: async () => {
+					secondProviderCalled = true;
+					return [];
+				}
+			}));
+			const errorSpy = sinon.spy(logService, 'error');
+
+			try {
+				await service.listPromptFiles(PromptsType.agent, cancellationTokenSource.token);
+
+				assert.deepStrictEqual({
+					secondProviderCalled,
+					errorCount: errorSpy.callCount,
+				}, {
+					secondProviderCalled: false,
+					errorCount: 0,
+				});
+			} finally {
+				errorSpy.restore();
+			}
 		});
 
 		test('Contributed agent file that does not exist should not crash', async () => {
@@ -3715,6 +3954,34 @@ suite('PromptsService', () => {
 			assert.strictEqual(skill.description, 'A skill with mismatched name');
 
 			registered.dispose();
+		});
+	});
+
+	suite('getPromptSlashCommands - prompt discovery', () => {
+		teardown(() => {
+			sinon.restore();
+		});
+
+		test('CancellationError from parseNew is skipped without logging', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, false);
+
+			const promptUri = URI.parse('file://extensions/my-extension/cancelled.prompt.md');
+			const logErrorSpy = sinon.spy(logService, 'error');
+			sinon.stub(service, 'listPromptFiles').callsFake(async (type: PromptsType) => {
+				return type === PromptsType.prompt
+					? [{ uri: promptUri, storage: PromptsStorage.local, type: PromptsType.prompt } as IPromptPath]
+					: [];
+			});
+			sinon.stub(service, 'parseNew').rejects(new CancellationError());
+
+			const slashCommands = await service.getPromptSlashCommands(CancellationToken.None);
+			const discoveryInfo = await service.getDiscoveryInfo(PromptsType.prompt, CancellationToken.None);
+
+			assert.deepStrictEqual(slashCommands, []);
+			assert.strictEqual(logErrorSpy.called, false);
+			assert.strictEqual(discoveryInfo.files.length, 1);
+			assert.strictEqual(discoveryInfo.files[0].status, 'skipped');
+			assert.strictEqual(discoveryInfo.files[0].skipReason, 'parse-error');
 		});
 	});
 

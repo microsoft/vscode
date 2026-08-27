@@ -118,7 +118,7 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 	},
 	{
 		id: 'sessions.customization.harnessSettings',
-		label: localize('harnessSettings', "Codex Settings"),
+		label: localize('harnessSettings', "Codex"),
 		icon: Codicon.openai,
 		section: AICustomizationManagementSection.HarnessSettings,
 	},

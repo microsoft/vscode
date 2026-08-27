@@ -24,6 +24,7 @@ export interface IChatAttachmentsContentPartOptions {
 	readonly resolvedModelId?: string;
 	readonly domNode?: HTMLElement;
 	readonly limit?: number;
+	readonly showImageInHover?: boolean;
 }
 
 export class ChatAttachmentsContentPart extends Disposable {
@@ -38,6 +39,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 	private readonly modelId?: string;
 	private readonly resolvedModelId?: string;
 	private readonly limit?: number;
+	private readonly showImageInHover: boolean;
 	public readonly domNode: HTMLElement | undefined;
 
 	public contextMenuHandler?: (attachment: IChatRequestVariableEntry, event: MouseEvent) => void;
@@ -54,6 +56,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 		this.modelId = options.modelId;
 		this.resolvedModelId = options.resolvedModelId;
 		this.limit = options.limit;
+		this.showImageInHover = options.showImageInHover ?? true;
 		this.domNode = options.domNode ?? dom.$('.chat-attached-context');
 
 		this._contextResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event }));
@@ -227,7 +230,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 			const renderedAttachment = isAttachmentPartialOrOmitted || this.currentModelDoesNotSupportImages()
 				? { ...attachment, omittedState: OmittedState.Full }
 				: attachment;
-			widget = this.instantiationService.createInstance(ImageAttachmentWidget, resource, renderedAttachment, this.getCurrentLanguageModel(), { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels);
+			widget = this.instantiationService.createInstance(ImageAttachmentWidget, resource, renderedAttachment, this.getCurrentLanguageModel(), { shouldFocusClearButton: false, supportsDeletion: false, showImageInHover: this.showImageInHover }, container, this._contextResourceLabels);
 		} else if (isPromptFileVariableEntry(attachment)) {
 			if (attachment.automaticallyAdded) {
 				return; // Skip automatically added prompt files

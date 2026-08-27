@@ -7,10 +7,10 @@ import assert from 'assert';
 import { isHTMLElement } from '../../../../../../../base/browser/dom.js';
 import { ActionViewItem, IActionViewItemOptions } from '../../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Action, IAction } from '../../../../../../../base/common/actions.js';
+import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
-import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 // eslint-disable-next-line local/code-no-deep-import-of-internal
 import { BaseObservable } from '../../../../../../../base/common/observableInternal/observables/baseObservable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -20,7 +20,7 @@ import { TestMenuService, workbenchInstantiationService } from '../../../../../.
 import { IChatWidgetService } from '../../../../browser/chat.js';
 import { ChatCollapsibleContentPart } from '../../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
 import { ChatSubagentContentPart } from '../../../../browser/widget/chatContentParts/chatSubagentContentPart.js';
-import { IChatMarkdownContent, IChatSubagentToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
+import { IChatHookPart, IChatMarkdownContent, IChatSubagentToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { ChatResponseModelChangeReason } from '../../../../common/model/chatModel.js';
@@ -44,7 +44,7 @@ import { IMenuActionOptions, IMenuService, MenuId, MenuItemAction } from '../../
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatConfiguration } from '../../../../common/constants.js';
-import { formatCompactSubagentDuration, getSubagentEditorResource, OpenSubagentChatActionViewItem, shouldAnimateSubagentToolTransition } from '../../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
+import { formatCompactSubagentDuration, getSubagentEditorResource, IOpenSubagentChatContext, OpenSubagentChatActionViewItem, shouldAnimateSubagentToolTransition } from '../../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
 
 class TestOpenChatActionViewItem extends ActionViewItem {
 	constructor(sourceAction: IAction, options: IActionViewItemOptions) {
@@ -122,6 +122,7 @@ suite('ChatSubagentContentPart', () => {
 	let announcedToolProgressKeys: Set<string>;
 	let actionViewItemService: TestActionViewItemService;
 	let menuService: TestSubagentMenuService;
+	let markdownRenderCount: number;
 
 	function createMockRenderContext(isComplete: boolean = false, sessionResource: URI = URI.parse('chat-session://test/session1')): IChatContentPartRenderContext {
 		const mockElement: Partial<IChatResponseViewModel> = {
@@ -286,10 +287,12 @@ suite('ChatSubagentContentPart', () => {
 	setup(() => {
 		disposables = store.add(new DisposableStore());
 		instantiationService = workbenchInstantiationService(undefined, store);
+		markdownRenderCount = 0;
 
 		// Create a mock markdown renderer
 		mockMarkdownRenderer = {
 			render: (_markdown: IMarkdownString, _options?: MarkdownRenderOptions, outElement?: HTMLElement): IRenderedMarkdown => {
+				markdownRenderCount++;
 				const element = outElement ?? mainWindow.document.createElement('div');
 				const content = typeof _markdown === 'string' ? _markdown : (_markdown.value ?? '');
 				element.textContent = content;
@@ -371,7 +374,6 @@ suite('ChatSubagentContentPart', () => {
 		return part;
 	}
 
-
 	function getCollapseButton(part: ChatSubagentContentPart): HTMLElement | undefined {
 		const button = part.domNode.querySelector('.chat-used-context-label > .monaco-button');
 		return isHTMLElement(button) ? button : undefined;
@@ -392,8 +394,8 @@ suite('ChatSubagentContentPart', () => {
 		return isHTMLElement(wrapper) ? wrapper : undefined;
 	}
 
-	function getOpenChatContext(part: ChatSubagentContentPart): { chatResource: string; confirmationCount: number; confirmationActive?: boolean; startedAt?: number; duration?: number; modelName?: string; activeToolCallId?: string; activeToolLabel?: string; activeToolIcon?: ThemeIcon } | undefined {
-		return (part as unknown as { _openChatToolbar?: { actionBar?: { context?: { chatResource: string; confirmationCount: number; confirmationActive?: boolean; startedAt?: number; duration?: number; modelName?: string; activeToolCallId?: string; activeToolLabel?: string; activeToolIcon?: ThemeIcon } } } })._openChatToolbar?.actionBar?.context;
+	function getOpenChatContext(part: ChatSubagentContentPart): IOpenSubagentChatContext | undefined {
+		return (part as unknown as { _openChatToolbar?: { actionBar?: { context?: IOpenSubagentChatContext } } })._openChatToolbar?.actionBar?.context;
 	}
 
 	function setOpenChatOnlyMode(part: ChatSubagentContentPart, enabled: boolean): void {
@@ -439,6 +441,35 @@ suite('ChatSubagentContentPart', () => {
 				hasChatClass: true,
 				toolbarParentIsHeader: true,
 				toolbarPrecedesCollapseButton: true,
+			});
+		});
+
+		test('should publish only specialized subagent types to the rich pill', () => {
+			const specialized = createPart(createMockToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Audit narrative against captures',
+					agentDisplayName: 'Code Reviewer',
+					agentName: 'code-reviewer',
+					chatResource: 'ahp-chat://subagent/test/explore',
+				}
+			}), createMockRenderContext(false));
+			const generic = createPart(createMockToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Install npm dependencies',
+					agentDisplayName: 'Task',
+					agentName: 'task',
+					chatResource: 'ahp-chat://subagent/test/task',
+				}
+			}), createMockRenderContext(false), 'generic-subagent');
+
+			assert.deepStrictEqual({
+				specialized: getOpenChatContext(specialized)?.agentType,
+				generic: getOpenChatContext(generic)?.agentType,
+			}, {
+				specialized: 'Code Reviewer',
+				generic: undefined,
 			});
 		});
 
@@ -493,15 +524,50 @@ suite('ChatSubagentContentPart', () => {
 			});
 		});
 
+		test('should render the specialized subagent type before the title', () => {
+			const action = store.add(new Action('openSubagent', 'Open Subagent'));
+			const viewItem = store.add(instantiationService.createInstance(
+				OpenSubagentChatActionViewItem,
+				{
+					chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/tool-call',
+					parentSessionResource: 'agent-host-copilotcli:/session',
+					title: 'Audit narrative against captures',
+					agentType: 'Explore',
+				},
+				action,
+				{},
+				false,
+			));
+			const container = mainWindow.document.createElement('div');
+			viewItem.render(container);
+			const pill = container.querySelector('.chat-subagent-pill-content');
+			const agentType = pill?.querySelector('.chat-subagent-pill-agent-type');
+			const title = pill?.querySelector('.chat-subagent-pill-label');
+
+			assert.deepStrictEqual({
+				agentType: agentType?.textContent,
+				agentTypePrecedesTitle: agentType?.nextElementSibling === title,
+				ariaLabel: container.getAttribute('aria-label'),
+			}, {
+				agentType: 'Explore',
+				agentTypePrecedesTitle: true,
+				ariaLabel: 'Open subagent chat: Audit narrative against captures. Subagent type Explore',
+			});
+		});
+
 		test('should animate only when the active tool call changes', () => {
 			assert.deepStrictEqual({
-				sameTool: shouldAnimateSubagentToolTransition('tool-1', 'tool-1'),
-				differentTool: shouldAnimateSubagentToolTransition('tool-1', 'tool-2'),
-				unknownTool: shouldAnimateSubagentToolTransition(undefined, 'tool-1'),
+				workingToWorking: shouldAnimateSubagentToolTransition(undefined, false, undefined, false),
+				workingToTool: shouldAnimateSubagentToolTransition(undefined, false, 'tool-1', true),
+				sameTool: shouldAnimateSubagentToolTransition('tool-1', true, 'tool-1', true),
+				differentTool: shouldAnimateSubagentToolTransition('tool-1', true, 'tool-2', true),
+				toolToWorking: shouldAnimateSubagentToolTransition('tool-1', true, undefined, false),
 			}, {
+				workingToWorking: false,
+				workingToTool: true,
 				sameTool: false,
 				differentTool: true,
-				unknownTool: true,
+				toolToWorking: true,
 			});
 		});
 
@@ -537,6 +603,134 @@ suite('ChatSubagentContentPart', () => {
 			}, {
 				displayedLabel: 'Reading package.json',
 				transitionPhase: 'idle',
+			});
+		});
+
+		test('should reserve an activity row before the first tool call', () => {
+			const action = store.add(new Action('openSubagent', 'Open Subagent'));
+			const viewItem = store.add(instantiationService.createInstance(
+				OpenSubagentChatActionViewItem,
+				{
+					chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/tool-call',
+					parentSessionResource: 'agent-host-copilotcli:/session',
+					isActive: true,
+				},
+				action,
+				{},
+				false,
+			));
+			const container = mainWindow.document.createElement('div');
+			viewItem.render(container);
+			const activity = container.querySelector<HTMLElement>('.chat-subagent-pill-active-tool');
+
+			assert.deepStrictEqual({
+				hidden: activity?.classList.contains('hidden'),
+				label: activity?.querySelector('.chat-subagent-pill-active-tool-label')?.textContent,
+				hasWorkingIcon: activity?.querySelector('.chat-subagent-pill-active-tool-icon')?.classList.contains('codicon-comment-compact'),
+				ariaLabel: container.getAttribute('aria-label'),
+			}, {
+				hidden: false,
+				label: 'Working on it...',
+				hasWorkingIcon: true,
+				ariaLabel: 'Open Subagent. Subagent is working',
+			});
+		});
+
+		test('should hide the activity row while a confirmation is shown', () => {
+			const action = store.add(new Action('openSubagent', 'Open Subagent'));
+			const viewItem = store.add(instantiationService.createInstance(
+				OpenSubagentChatActionViewItem,
+				{
+					chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/tool-call',
+					parentSessionResource: 'agent-host-copilotcli:/session',
+					isActive: true,
+					confirmationCount: 1,
+					activeToolCallId: 'tool-1',
+					activeToolLabel: 'Run npm i in VS Code repository',
+					activeToolIcon: Codicon.terminal,
+				},
+				action,
+				{},
+				false,
+			));
+			const container = mainWindow.document.createElement('div');
+			viewItem.render(container);
+			const activity = container.querySelector<HTMLElement>('.chat-subagent-pill-active-tool');
+
+			assert.deepStrictEqual({
+				hidden: activity?.classList.contains('hidden'),
+				ariaLabel: container.getAttribute('aria-label'),
+			}, {
+				hidden: true,
+				ariaLabel: 'Open Subagent. Subagent is waiting for input',
+			});
+		});
+
+		test('should sanitize agent-provided markdown in active tool labels', () => {
+			const action = store.add(new Action('openSubagent', 'Open Subagent'));
+			const viewItem = store.add(instantiationService.createInstance(
+				OpenSubagentChatActionViewItem,
+				{
+					chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/tool-call',
+					parentSessionResource: 'agent-host-copilotcli:/session',
+					isActive: true,
+					activeToolCallId: 'tool-1',
+					activeToolLabel: '![remote](https://example.com/image.png)',
+					activeToolIcon: Codicon.search,
+				},
+				action,
+				{},
+				false,
+			));
+			const container = mainWindow.document.createElement('div');
+			viewItem.render(container);
+
+			assert.strictEqual(container.querySelectorAll('.chat-subagent-pill-active-tool-label img').length, 0);
+		});
+
+		test('should transition between generic and tool activity semantics', () => {
+			const baseContext = {
+				chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/tool-call',
+				parentSessionResource: 'agent-host-copilotcli:/session',
+				isActive: true,
+			};
+			const action = store.add(new Action('openSubagent', 'Open Subagent'));
+			const viewItem = store.add(instantiationService.createInstance(
+				OpenSubagentChatActionViewItem,
+				baseContext,
+				action,
+				{},
+				false,
+			));
+			const container = mainWindow.document.createElement('div');
+			viewItem.render(container);
+			const internals = viewItem as unknown as { _finishToolTransition(): void };
+
+			viewItem.setActionContext({
+				...baseContext,
+				activeToolCallId: 'tool-1',
+				activeToolLabel: 'Search Tools',
+				activeToolIcon: Codicon.search,
+			});
+			internals._finishToolTransition();
+			const toolState = {
+				label: container.querySelector('.chat-subagent-pill-active-tool-label')?.textContent,
+				ariaLabel: container.getAttribute('aria-label'),
+			};
+			viewItem.setActionContext(baseContext);
+			internals._finishToolTransition();
+
+			assert.deepStrictEqual({
+				toolState,
+				workingLabel: container.querySelector('.chat-subagent-pill-active-tool-label')?.textContent,
+				workingAriaLabel: container.getAttribute('aria-label'),
+			}, {
+				toolState: {
+					label: 'Search Tools',
+					ariaLabel: 'Open Subagent. Subagent is working. Active tool Search Tools',
+				},
+				workingLabel: 'Working on it...',
+				workingAriaLabel: 'Open Subagent. Subagent is working',
 			});
 		});
 
@@ -782,6 +976,120 @@ suite('ChatSubagentContentPart', () => {
 				secondToolIcon: 'book',
 				completedTool: undefined,
 				completedToolIcon: undefined,
+			});
+		});
+
+		test('should retain the most recent child tool after it completes', () => {
+			const part = createPart(createMockToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					chatResource: 'ahp-chat://subagent/test/tool-call',
+				}
+			}), createMockRenderContext(false));
+			const state = observableValue('state', createState(IChatToolInvocation.StateKind.Executing));
+			const childTool = {
+				...createMockToolInvocation({
+					toolCallId: 'child-tool',
+					toolId: 'search',
+					invocationMessage: 'Search the codebase',
+				}),
+				state,
+			};
+
+			part.trackToolState(childTool);
+			const executing = getOpenChatContext(part);
+			state.set(createState(IChatToolInvocation.StateKind.Completed), undefined);
+			const completed = getOpenChatContext(part);
+
+			assert.deepStrictEqual({
+				executingToolCallId: executing?.activeToolCallId,
+				executingToolLabel: executing?.activeToolLabel,
+				completedToolCallId: completed?.activeToolCallId,
+				completedToolLabel: completed?.activeToolLabel,
+			}, {
+				executingToolCallId: 'child-tool',
+				executingToolLabel: 'Search the codebase',
+				completedToolCallId: 'child-tool',
+				completedToolLabel: 'Search the codebase',
+			});
+		});
+
+		test('should restore an older active tool when the newest tool completes first', () => {
+			const part = createPart(createMockToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					chatResource: 'ahp-chat://subagent/test/tool-call',
+				}
+			}), createMockRenderContext(false));
+			const firstState = observableValue('firstState', createState(IChatToolInvocation.StateKind.Executing));
+			const secondState = observableValue('secondState', createState(IChatToolInvocation.StateKind.Executing));
+			part.trackToolState({
+				...createMockToolInvocation({
+					toolCallId: 'first-tool',
+					toolId: 'search',
+					invocationMessage: 'Search the codebase',
+				}),
+				state: firstState,
+			});
+			part.trackToolState({
+				...createMockToolInvocation({
+					toolCallId: 'second-tool',
+					toolId: 'read_file',
+					invocationMessage: 'Read package.json',
+				}),
+				state: secondState,
+			});
+
+			secondState.set(createState(IChatToolInvocation.StateKind.Completed), undefined);
+
+			assert.deepStrictEqual(getOpenChatContext(part) && {
+				activeToolCallId: getOpenChatContext(part)?.activeToolCallId,
+				activeToolLabel: getOpenChatContext(part)?.activeToolLabel,
+			}, {
+				activeToolCallId: 'first-tool',
+				activeToolLabel: 'Search the codebase',
+			});
+		});
+
+		test('should show working for markdown and preserve the most recent tool for reasoning', () => {
+			const parentData: IChatSubagentToolInvocationData = {
+				kind: 'subagent',
+				chatResource: 'ahp-chat://subagent/test/tool-call',
+				isActive: true,
+			};
+			const parentState = observableValue('parentState', createState(IChatToolInvocation.StateKind.Executing));
+			const parentTool = {
+				...createMockToolInvocation({ toolSpecificData: parentData }),
+				state: parentState,
+			};
+			const part = createPart(parentTool, createMockRenderContext(false));
+			const childState = observableValue('childState', createState(IChatToolInvocation.StateKind.Executing));
+			part.trackToolState({
+				...createMockToolInvocation({
+					toolCallId: 'child-tool',
+					toolId: 'search',
+					invocationMessage: 'Search the codebase',
+				}),
+				state: childState,
+			});
+			childState.set(createState(IChatToolInvocation.StateKind.Completed), undefined);
+			const afterTool = getOpenChatContext(part);
+
+			parentData.activity = 'reasoning';
+			parentState.set({ ...parentState.get() }, undefined);
+			const duringReasoning = getOpenChatContext(part);
+			parentData.activity = 'markdown';
+			parentState.set({ ...parentState.get() }, undefined);
+			const duringMarkdown = getOpenChatContext(part);
+
+			assert.deepStrictEqual({
+				afterTool: afterTool?.activeToolLabel,
+				duringReasoning: duringReasoning?.activeToolLabel,
+				duringMarkdown: duringMarkdown?.activeToolLabel,
+			}, {
+				afterTool: 'Search the codebase',
+				duringReasoning: 'Search the codebase',
+				duringMarkdown: undefined,
 			});
 		});
 
@@ -1068,6 +1376,37 @@ suite('ChatSubagentContentPart', () => {
 		function setToolSpecificData(toolInvocation: IChatToolInvocation, data: IChatSubagentToolInvocationData): void {
 			(toolInvocation as { toolSpecificData: IChatSubagentToolInvocationData }).toolSpecificData = data;
 		}
+
+		test('should publish a provider display name that arrives after initial rendering', () => {
+			const toolInvocation = createMockToolInvocation({
+				stateType: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Review current branch',
+					agentName: 'code-reviewer',
+					chatResource: 'ahp-chat://subagent/test/code-reviewer',
+				}
+			});
+			const part = createPart(toolInvocation, createMockRenderContext(false));
+			const before = getOpenChatContext(part)?.agentType;
+
+			setToolSpecificData(toolInvocation, {
+				kind: 'subagent',
+				description: 'Review current branch',
+				agentDisplayName: 'Code Reviewer',
+				agentName: 'code-reviewer',
+				chatResource: 'ahp-chat://subagent/test/code-reviewer',
+			});
+			getSettableState(toolInvocation).set(createState(IChatToolInvocation.StateKind.Executing), undefined);
+
+			assert.deepStrictEqual({
+				before,
+				after: getOpenChatContext(part)?.agentType,
+			}, {
+				before: undefined,
+				after: 'Code Reviewer',
+			});
+		});
 
 		test('updateTitle clears previous title file widget disposables', () => {
 			const toolInvocation = createMockToolInvocation({ invocationMessage: 'first' });
@@ -1374,7 +1713,7 @@ suite('ChatSubagentContentPart', () => {
 			const button = getCollapseButton(part);
 			assert.ok(button, 'Should have collapse button');
 			const iconElement = getCollapseButtonIcon(button);
-			assert.ok(iconElement?.classList.contains('codicon-check'), 'Should have check icon after finalization');
+			assert.ok(iconElement?.classList.contains('codicon-check-compact'), 'Should have check icon after finalization');
 		});
 	});
 
@@ -1477,7 +1816,7 @@ suite('ChatSubagentContentPart', () => {
 			const button = getCollapseButton(part);
 			assert.ok(button, 'Should have collapse button');
 			const loadingIcon = getCollapseButtonIcon(button);
-			assert.ok(loadingIcon?.classList.contains('codicon-circle-filled'), 'Should have circle-filled icon while streaming');
+			assert.ok(loadingIcon?.classList.contains('codicon-circle-filled-compact'), 'Should have circle-filled icon while streaming');
 		});
 	});
 
@@ -1618,6 +1957,99 @@ suite('ChatSubagentContentPart', () => {
 	});
 
 	suite('Current running tool in title', () => {
+		test('batches presentation while reconstructing terminal tool history', () => {
+			const parentTool = createMockToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Working on task',
+					agentName: 'TestAgent'
+				}
+			});
+			const part = createPart(parentTool, createMockRenderContext(false));
+			markdownRenderCount = 0;
+
+			part.beginToolPresentationBatch();
+			for (let index = 0; index < 128; index++) {
+				const tool = createMockToolInvocation({
+					toolId: 'readFile',
+					toolCallId: `child-${index}`,
+					subAgentInvocationId: parentTool.toolCallId,
+					stateType: IChatToolInvocation.StateKind.Completed,
+					invocationMessage: `Completed tool ${index}`
+				});
+				part.appendToolInvocation(tool, index);
+			}
+
+			const rendersDuringBatch = markdownRenderCount;
+			part.endToolPresentationBatch();
+			const rendersAfterBatch = markdownRenderCount;
+			const button = getCollapseButton(part);
+			assert.ok(button);
+			const titleAfterBatch = getCollapseButtonLabel(button)?.textContent ?? button.textContent ?? '';
+			const toolStateTracking = (part as unknown as { _toolStateTracking: { _toDispose: Set<object> } })._toolStateTracking;
+			const trackedTerminalToolCount = toolStateTracking._toDispose.size;
+
+			const liveTool = createMockToolInvocation({
+				toolId: 'searchFiles',
+				toolCallId: 'live-child',
+				subAgentInvocationId: parentTool.toolCallId,
+				stateType: IChatToolInvocation.StateKind.Executing,
+				invocationMessage: 'Searching live files'
+			});
+			part.appendToolInvocation(liveTool, 128);
+			const titleAfterLiveTool = getCollapseButtonLabel(button)?.textContent ?? button.textContent ?? '';
+
+			assert.deepStrictEqual({
+				rendersDuringBatch,
+				rendersAfterBatch,
+				trackedTerminalToolCount,
+				rendersAfterLiveTool: markdownRenderCount,
+				titleAfterBatchIncludesLatestTool: titleAfterBatch.includes('Completed tool 127'),
+				titleAfterLiveToolIncludesLatestTool: titleAfterLiveTool.includes('Searching live files'),
+			}, {
+				rendersDuringBatch: 0,
+				rendersAfterBatch: 1,
+				trackedTerminalToolCount: 0,
+				rendersAfterLiveTool: 2,
+				titleAfterBatchIncludesLatestTool: true,
+				titleAfterLiveToolIncludesLatestTool: true,
+			});
+		});
+
+		test('batches grouped hook presentation updates', () => {
+			const parentTool = createMockToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Working on task',
+					agentName: 'TestAgent'
+				}
+			});
+			const part = createPart(parentTool, createMockRenderContext(false));
+			const hookPart: IChatHookPart = {
+				kind: 'hook',
+				hookType: 'PreToolUse',
+				systemMessage: 'Warning',
+				toolDisplayName: 'Search',
+				subAgentInvocationId: parentTool.toolCallId,
+			};
+			markdownRenderCount = 0;
+
+			part.beginToolPresentationBatch();
+			for (let index = 0; index < 32; index++) {
+				part.appendHookItem(() => ({ domNode: mainWindow.document.createElement('div') }), hookPart);
+			}
+			const rendersDuringBatch = markdownRenderCount;
+			part.endToolPresentationBatch();
+
+			assert.deepStrictEqual({
+				rendersDuringBatch,
+				rendersAfterBatch: markdownRenderCount,
+			}, {
+				rendersDuringBatch: 0,
+				rendersAfterBatch: 1,
+			});
+		});
+
 		test('should update title with current running tool invocation message', () => {
 			const toolInvocation = createMockToolInvocation({
 				toolSpecificData: {
@@ -2094,6 +2526,30 @@ suite('ChatSubagentContentPart', () => {
 			}, {
 				pending: 1,
 				afterConfirmation: 0,
+			});
+		});
+
+		test('should stay collapsed when the carousel owns a rich subagent confirmation', () => {
+			const part = createPart(createMockToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Install npm dependencies',
+					chatResource: 'ahp-chat://subagent/test/tool-call',
+				}
+			}), createMockRenderContext(false));
+			const state = observableValue('state', createState(IChatToolInvocation.StateKind.Executing));
+			const childTool = { ...createMockToolInvocation({ toolId: 'terminal' }), state };
+			part.enableCarouselMode(() => { }, () => { }, (_tool, currentState) => currentState.type === IChatToolInvocation.StateKind.WaitingForConfirmation);
+			part.trackToolState(childTool);
+
+			state.set(createState(IChatToolInvocation.StateKind.WaitingForConfirmation), undefined);
+
+			assert.deepStrictEqual({
+				collapsed: part.domNode.classList.contains('chat-used-context-collapsed'),
+				confirmationCount: getOpenChatContext(part)?.confirmationCount,
+			}, {
+				collapsed: true,
+				confirmationCount: 1,
 			});
 		});
 

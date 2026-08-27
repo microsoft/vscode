@@ -91,6 +91,12 @@ declare module 'vscode' {
 		autoDismissOnMessage: boolean;
 
 		/**
+		 * Optional chat session types in which this notification is shown.
+		 * When omitted, the notification is shown for every chat session type.
+		 */
+		sessionTypes: readonly string[] | undefined;
+
+		/**
 		 * Shows the notification in the chat input area.
 		 */
 		show(): void;

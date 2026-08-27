@@ -37,6 +37,8 @@ export interface ISurveySegmentQuestion extends ISurveyQuestionBase {
 export interface ISurveyRadioQuestion extends ISurveyQuestionBase {
 	readonly type: SurveyQuestionType.Radio;
 	readonly columns?: number;
+	/** When true, randomize all options except the final option. */
+	readonly shuffleOptions?: boolean;
 }
 
 export type ISurveyQuestion = ISurveySegmentQuestion | ISurveyRadioQuestion;
@@ -78,6 +80,7 @@ export const CopilotPMFSurvey: ISurveyDefinition = {
 			telemetryKey: 'primaryBenefit',
 			label: localize('survey.copilotPmf.q2', "What has Copilot helped you with most recently?"),
 			columns: 2,
+			shuffleOptions: true,
 			options: [
 				{ id: 'shipping-faster', label: localize('survey.copilotPmf.q2.shippingFaster', "Shipping changes faster") },
 				{ id: 'getting-unstuck', label: localize('survey.copilotPmf.q2.gettingUnstuck', "Getting unstuck on bugs") },
@@ -96,6 +99,7 @@ export const CopilotPMFSurvey: ISurveyDefinition = {
 			telemetryKey: 'primaryFriction',
 			label: localize('survey.copilotPmf.q3', "What most gets in your way?"),
 			columns: 2,
+			shuffleOptions: true,
 			options: [
 				{ id: 'trust', label: localize('survey.copilotPmf.q3.trust', "Output is hard to trust") },
 				{ id: 'context', label: localize('survey.copilotPmf.q3.context', "Missing repo or project context") },

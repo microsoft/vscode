@@ -17,11 +17,13 @@ import { ChangesetKind } from '../../common/changesetUri.js';
 const nullGitStateService = new class implements IAgentHostGitStateService {
 	declare readonly _serviceBrand: undefined;
 	readonly onDidRefreshSessionGitState = Event.None;
+	readonly onDidChangeSessionGitHubState = Event.None;
 	async refreshSessionGitState(): Promise<void> { }
+	async resolveSessionBaseBranchName(): Promise<string | undefined> { return undefined; }
 	async getSessionGitHubState(): Promise<ISessionGitHubState | undefined> { return undefined; }
 	async setSessionGitHubState(): Promise<void> { }
+	async recordSessionMerge(): Promise<void> { }
 	async attachSessionGitHubPullRequest(): Promise<void> { }
-	async attachSessionGitHubIssues(): Promise<void> { }
 };
 
 const githubBranchWithUncommittedChanges: ISessionGitState = {
@@ -56,17 +58,18 @@ suite('AgentHostPullRequestOperationContribution', () => {
 		const actual = [
 			provider.getOperations({ sessionKey: 'agent:/session', gitState: { ...githubBranchWithUncommittedChanges, hasGitHubRemote: false }, changesetKind: ChangesetKind.Session, changesetUri: '' }),
 			provider.getOperations({ sessionKey: 'agent:/session', gitState: { ...githubBranchWithUncommittedChanges, uncommittedChanges: 0, outgoingChanges: 0 }, changesetKind: ChangesetKind.Session, changesetUri: '' }),
+			provider.getOperations({ sessionKey: 'agent:/session', gitState: { ...githubBranchWithUncommittedChanges, uncommittedChanges: 0, outgoingChanges: 2, hasBaseBranchChanges: false }, changesetKind: ChangesetKind.Session, changesetUri: '' }),
 		];
 
-		assert.deepStrictEqual(actual, [undefined, undefined]);
+		assert.deepStrictEqual(actual, [undefined, undefined, undefined]);
 	});
 
 	test('advertises PR operations again for a branch whose pull request is unknown', () => {
 		const provider = createContribution();
 
 		const actual = [
-			provider.getOperations({ sessionKey: 'agent:/session', gitState: githubBranchWithUncommittedChanges, gitHubState: { pullRequestUrl: 'https://github.com/microsoft/vscode/pull/1', pullRequestBranchName: 'feature/test' }, changesetKind: ChangesetKind.Session, changesetUri: '' }),
-			provider.getOperations({ sessionKey: 'agent:/session', gitState: githubBranchWithUncommittedChanges, gitHubState: { pullRequestUrl: 'https://github.com/microsoft/vscode/pull/1', pullRequestBranchName: 'feature/other' }, changesetKind: ChangesetKind.Session, changesetUri: '' }),
+			provider.getOperations({ sessionKey: 'agent:/session', gitState: githubBranchWithUncommittedChanges, gitHubState: { pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'], pullRequestBranchName: 'feature/test' }, changesetKind: ChangesetKind.Session, changesetUri: '' }),
+			provider.getOperations({ sessionKey: 'agent:/session', gitState: githubBranchWithUncommittedChanges, gitHubState: { pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'], pullRequestBranchName: 'feature/other' }, changesetKind: ChangesetKind.Session, changesetUri: '' }),
 		];
 
 		assert.deepStrictEqual(actual.map(operations => operations?.map(op => op.id)), [undefined, ['create-pr', 'create-pr-auto-merge', 'create-pr-auto-squash', 'create-pr-auto-rebase', 'create-draft-pr']]);

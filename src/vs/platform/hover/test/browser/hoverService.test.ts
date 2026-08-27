@@ -24,6 +24,8 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { NoMatchingKb } from '../../../keybinding/common/keybindingResolver.js';
 import { IMarkdownRendererService } from '../../../markdown/browser/markdownRenderer.js';
 import type { IHoverWidget } from '../../../../base/browser/ui/hover/hover.js';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
+import { AnchorAlignment } from '../../../../base/common/layout.js';
 
 suite('HoverService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -50,6 +52,7 @@ suite('HoverService', () => {
 		instantiationService.stub(IKeybindingService, {
 			mightProducePrintableCharacter() { return false; },
 			softDispatch() { return NoMatchingKb; },
+			lookupKeybinding() { return undefined; },
 			resolveKeyboardEvent() {
 				return {
 					getLabel() { return ''; },
@@ -180,6 +183,57 @@ suite('HoverService', () => {
 			assert.strictEqual(hover, undefined, 'Hover should not be created for empty content');
 		});
 
+		test('should align the right edge of a hover with its target', () => {
+			const target = createTarget();
+			target.getBoundingClientRect = () => new DOMRect(300, 100, 100, 20);
+			const hover = showHover('Right aligned hover', target, {
+				position: {
+					hoverPosition: HoverPosition.BELOW,
+					anchorAlignment: AnchorAlignment.RIGHT,
+				},
+				appearance: { showPointer: true }
+			});
+			const hoverWidget = asHoverWidget(hover);
+			Object.defineProperty(hoverWidget.domNode, 'clientWidth', { configurable: true, value: 200 });
+
+			hoverWidget.layout();
+
+			assert.strictEqual(hoverWidget.x, 198);
+			hover.dispose();
+		});
+
+		test('should constrain a right-aligned hover to the available width', () => {
+			const target = createTarget();
+			let targetLeft = 100;
+			target.getBoundingClientRect = () => new DOMRect(targetLeft, 100, 50, 20);
+			const hover = showHover('Constrained right aligned hover', target, {
+				position: {
+					hoverPosition: HoverPosition.BELOW,
+					anchorAlignment: AnchorAlignment.RIGHT,
+				},
+				appearance: { showPointer: true }
+			});
+			const hoverWidget = asHoverWidget(hover);
+			Object.defineProperty(hoverWidget.domNode, 'clientWidth', {
+				configurable: true,
+				get: () => Math.min(200, Number.parseFloat(hoverWidget.domNode.style.maxWidth) || 200)
+			});
+
+			hoverWidget.layout();
+			const constrainedMaxWidth = hoverWidget.domNode.style.maxWidth;
+			targetLeft = 300;
+			hoverWidget.layout();
+
+			assert.deepStrictEqual({
+				constrainedMaxWidth,
+				restoredMaxWidth: hoverWidget.domNode.style.maxWidth
+			}, {
+				constrainedMaxWidth: '146px',
+				restoredMaxWidth: ''
+			});
+			hover.dispose();
+		});
+
 		test('should call onDidShow callback when hover is shown', () => {
 			const target = createTarget();
 			let didShowCalled = false;
@@ -305,6 +359,20 @@ suite('HoverService', () => {
 			assert.strictEqual(hover.isDisposed, true, 'Locked hover should be disposed with force=true');
 			assertNotInDOM(hover, 'Locked hover should be removed from DOM with force');
 		});
+
+		test('should cancel a delayed hover that has not been shown yet', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration('workbench.hover.delay', 500);
+
+			const hover = hoverService.showDelayedHover({ content: 'Manage', target: createTarget() }, {});
+			assert.ok(hover, 'Hover should be created');
+			assertNotInDOM(hover, 'Hover should not be visible before the delay elapses');
+
+			// Simulates something else taking over, e.g. a context menu opening
+			hoverService.hideHover();
+
+			await timeout(500);
+			assertNotInDOM(hover, 'Cancelled delayed hover should never be shown');
+		}));
 	});
 
 	suite('nested hovers', () => {
@@ -514,6 +582,20 @@ suite('HoverService', () => {
 			disposable.dispose();
 			hoverService.hideHover(true);
 		}));
+
+		test('should not show a pending hover after the target was clicked', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const target = createTarget();
+			(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration('workbench.hover.delay', 500);
+
+			const disposable = hoverService.setupDelayedHover(target, { content: 'Manage' });
+			target.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+			target.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+			await timeout(500);
+			assert.strictEqual(mainWindow.document.querySelectorAll('.monaco-hover').length, 0, 'Pending hover should be cancelled by the click');
+
+			disposable.dispose();
+		}));
 	});
 
 	suite('setupManagedHover', () => {
@@ -550,6 +632,26 @@ suite('HoverService', () => {
 
 			hover.dispose();
 		});
+
+		test('should update options dynamically', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const target = createTarget();
+			const delegate = store.add(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', undefined, {}));
+			const hover = store.add(hoverService.setupManagedHover(delegate, target, 'Test', {
+				actions: [{ commandId: 'test.first', label: 'First', run: () => { } }]
+			}));
+
+			await hover.update('Test', {
+				actions: [{ commandId: 'test.second', label: 'Second', run: () => { } }]
+			});
+
+			target.dispatchEvent(new FocusEvent('focus', { bubbles: true, relatedTarget: document.body }));
+			await timeout(500);
+
+			assert.deepStrictEqual(
+				[...fixture.querySelectorAll('.monaco-hover .hover-row.status-bar .action-container')].map(e => e.textContent),
+				['Second']
+			);
+		}));
 
 		test('should not re-show hover on focus when relatedTarget is from a dismissed hover', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const target = createTarget();

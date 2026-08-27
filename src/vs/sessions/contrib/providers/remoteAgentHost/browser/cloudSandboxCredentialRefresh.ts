@@ -9,7 +9,7 @@ import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import {
-	ICloudSandboxCredentialsService,
+	ICloudSandboxApiService,
 	isRetryableCloudSandboxError,
 	type CloudSandboxConnectResult,
 	type ICloudSandboxClientToken,
@@ -109,7 +109,7 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 		private readonly _request: ICloudSandboxConnectionRequest,
 		private readonly _clientId: string,
 		private readonly _creds: ICloudSandboxCreds,
-		@ICloudSandboxCredentialsService private readonly _credentialsService: ICloudSandboxCredentialsService,
+		@ICloudSandboxApiService private readonly _apiService: ICloudSandboxApiService,
 		@ICloudSandboxTelemetryService private readonly _telemetry: ICloudSandboxTelemetryService,
 		@ILogService private readonly _logService: ILogService,
 	) {
@@ -149,7 +149,7 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 	private async _refresh(): Promise<void> {
 		let result: CloudSandboxConnectResult;
 		try {
-			result = await this._credentialsService.reconnect(this._request, this._clientId, this._cts.token);
+			result = await this._apiService.reconnect(this._request, this._clientId, this._cts.token);
 		} catch (err) {
 			// Teardown cancels the in-flight request, which is a disposal rather than a refresh
 			// failure: counting it would log a warning for an ordinary disconnect and could report

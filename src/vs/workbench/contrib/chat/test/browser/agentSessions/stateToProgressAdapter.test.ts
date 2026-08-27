@@ -4,19 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
+import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { fromAgentHostUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { createAgentHostResourceUriMapper, fromAgentHostUri, toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, createErrorResponsePart, MessageAttachmentKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, withMessageHiddenFromTranscript, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatTranscriptContextAttachmentDisplayKind, IChatRequestTranscriptContextVariableEntry, toChatTranscriptContextAttachmentMeta } from '../../../common/attachments/chatVariableEntries.js';
+import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, usageInfoToAutoModeResolution, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { getQuotaReset } from '../../../../../services/chat/common/chatEntitlementService.js';
 
 // ---- Helper factories -------------------------------------------------------
 
@@ -97,6 +102,7 @@ function makeLookup(prefix: string, displayNames: Record<string, string>, fallba
 			const r = resolveRaw(raw);
 			return r ? `${prefix}${r}` : undefined;
 		},
+		toModelDisplayName: raw => displayNames[raw],
 		toResponseDetails: (raw) => {
 			const r = resolveRaw(raw);
 			return r ? displayNames[r] : undefined;
@@ -108,8 +114,8 @@ function makeLookup(prefix: string, displayNames: Record<string, string>, fallba
 	};
 }
 
-function activeTurnToProgress(sessionResource: Parameters<typeof rawActiveTurnToProgress>[0], activeTurn: Parameters<typeof rawActiveTurnToProgress>[1], connectionAuthority?: Parameters<typeof rawActiveTurnToProgress>[2], options?: Parameters<typeof rawActiveTurnToProgress>[4]) {
-	return rawActiveTurnToProgress(sessionResource, activeTurn, connectionAuthority || 'local', undefined, options);
+function activeTurnToProgress(sessionResource: Parameters<typeof rawActiveTurnToProgress>[0], activeTurn: Parameters<typeof rawActiveTurnToProgress>[1], connectionAuthority?: Parameters<typeof rawActiveTurnToProgress>[2], options?: Parameters<typeof rawActiveTurnToProgress>[4], resourceUris?: Parameters<typeof rawActiveTurnToProgress>[6]) {
+	return rawActiveTurnToProgress(sessionResource, activeTurn, connectionAuthority || 'local', undefined, options, undefined, resourceUris);
 }
 
 function updateRunningToolSpecificData(existing: Parameters<typeof rawUpdateRunningToolSpecificData>[0], tc: Parameters<typeof rawUpdateRunningToolSpecificData>[1]) {
@@ -141,6 +147,75 @@ suite('stateToProgressAdapter', () => {
 				},
 			}),
 		], [true, false]);
+	});
+
+	test('restores transcript context attachments as their first-class kind', () => {
+		const original: IChatRequestTranscriptContextVariableEntry = {
+			kind: 'transcriptContext',
+			id: 'pr',
+			name: '#42 Improve sessions',
+			fullName: '#42 Improve sessions',
+			icon: Codicon.gitPullRequest,
+			tooltip: 'Pull request #42 by @author',
+			value: '{"number":42}',
+			uri: URI.parse('https://github.com/owner/repo/pull/42'),
+		};
+
+		const restored = messageAttachmentsToVariableData([{
+			type: MessageAttachmentKind.Simple,
+			label: original.name,
+			displayKind: ChatTranscriptContextAttachmentDisplayKind,
+			modelRepresentation: original.value,
+			_meta: toChatTranscriptContextAttachmentMeta(original),
+		}], 'local')?.variables[0];
+
+		assert.deepStrictEqual(restored && {
+			kind: restored.kind,
+			name: restored.name,
+			fullName: restored.fullName,
+			icon: restored.icon?.id,
+			value: restored.value,
+			uri: restored.kind === 'transcriptContext' ? restored.uri.toString() : undefined,
+			tooltip: restored.kind === 'transcriptContext' ? restored.tooltip : undefined,
+		}, {
+			kind: 'transcriptContext',
+			name: '#42 Improve sessions',
+			fullName: '#42 Improve sessions',
+			icon: 'git-pull-request',
+			value: '{"number":42}',
+			uri: 'https://github.com/owner/repo/pull/42',
+			tooltip: 'Pull request #42 by @author',
+		});
+	});
+
+	test('restores legacy transcript context attachments without a display kind', () => {
+		const restored = messageAttachmentsToVariableData([{
+			type: MessageAttachmentKind.Simple,
+			label: '#42 Improve sessions',
+			modelRepresentation: '{"number":42}',
+			_meta: {
+				'vscode.chat.transcriptContext': {
+					label: '#42 Improve sessions',
+					iconId: 'git-pull-request',
+					tooltip: 'Pull request #42 by @author',
+					uri: 'https://github.com/owner/repo/pull/42',
+				},
+			},
+		}], 'local')?.variables[0];
+
+		assert.deepStrictEqual(restored && {
+			kind: restored.kind,
+			name: restored.name,
+			icon: restored.icon?.id,
+			value: restored.value,
+			uri: restored.kind === 'transcriptContext' ? restored.uri.toString() : undefined,
+		}, {
+			kind: 'transcriptContext',
+			name: '#42 Improve sessions',
+			icon: 'git-pull-request',
+			value: '{"number":42}',
+			uri: 'https://github.com/owner/repo/pull/42',
+		});
 	});
 
 	suite('rewriteAgentHostLinkTarget', () => {
@@ -188,6 +263,8 @@ suite('stateToProgressAdapter', () => {
 					rewriteAgentHostLinkTarget('C:relative', 'my-host'),
 					rewriteAgentHostLinkTarget('git:foo', 'my-host'),
 					rewriteAgentHostLinkTarget('urn:isbn:123', 'my-host'),
+					rewriteAgentHostLinkTarget('agent-host-session://copilotcli/session-1', 'my-host'),
+					rewriteAgentHostLinkTarget('agent-host-session://copilotcli/session-1?chat=chat-2', 'my-host'),
 				],
 				[
 					'vscode-browser://example.com',
@@ -195,6 +272,8 @@ suite('stateToProgressAdapter', () => {
 					'C:relative',
 					'git:foo',
 					'urn:isbn:123',
+					'agent-host-session://copilotcli/session-1',
+					'agent-host-session://copilotcli/session-1?chat=chat-2',
 				],
 			);
 		});
@@ -244,6 +323,167 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(history[0].isSystemInitiated, true);
 			assert.strictEqual(history[0].prompt, '`sleep 6` completed');
 			assert.strictEqual(history[0].systemInitiatedLabel, undefined);
+		});
+
+		test('hidden turn remains hidden when restored from protocol history', () => {
+			const turn = createTurn({
+				message: withMessageHiddenFromTranscript(message('Inspect this pull request'), true),
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'participant-1');
+
+			assert.deepStrictEqual(history[0], {
+				id: turn.id,
+				type: 'request',
+				prompt: '<!-- vscode-hidden-from-transcript -->\nInspect this pull request',
+				participant: 'participant-1',
+				modelId: undefined,
+				variableData: undefined,
+				isHidden: true,
+			});
+		});
+
+		test('delegated turn retains a source session link without exposing provider metadata', () => {
+			const turn = createTurn({
+				message: {
+					text: 'Review this',
+					origin: { kind: MessageKind.User },
+					_meta: toAgentMessageDelegationMeta({ sourceThreadId: 'source-thread' }),
+				},
+			});
+
+			const history = turnsToHistory(URI.parse('codex:/child-thread'), [turn], 'agent-host-codex');
+
+			assert.deepStrictEqual(history[0], {
+				id: turn.id,
+				type: 'request',
+				prompt: 'Review this',
+				participant: 'agent-host-codex',
+				modelId: undefined,
+				variableData: undefined,
+				origin: {
+					kind: ChatRequestOriginKind.Delegation,
+					sourceSessionResource: URI.parse('agent-host-codex:/source-thread'),
+				},
+			});
+		});
+
+		test('created session annotates only its first request with the creating turn', () => {
+			const firstTurn = createTurn({
+				id: 'turn-1',
+				message: {
+					text: 'Hello',
+					origin: { kind: MessageKind.User },
+					_meta: toAgentMessageDelegationMeta({
+						sourceSession: 'copilot:/creator',
+						sourceChat: 'ahp-chat://default/Y29waWxvdDovY3JlYXRvcg',
+						sourceTurnId: 'creating-turn',
+					}),
+				},
+			});
+			const history = rawTurnsToHistory(
+				URI.parse('copilot:/created'),
+				[firstTurn, createTurn({ id: 'turn-2' })],
+				'agent-host-copilot',
+				'local',
+			);
+
+			assert.deepStrictEqual([
+				history[0].type === 'request' ? history[0].origin : undefined,
+				history[2].type === 'request' ? history[2].origin : undefined,
+			], [{
+				kind: ChatRequestOriginKind.Delegation,
+				sourceSessionResource: URI.parse('agent-host-session://copilot/creator?turn=creating-turn'),
+				delegationScope: 'session',
+			}, undefined]);
+		});
+
+		test('created session maps an aliased backend source to its logical provider', () => {
+			const turn = createTurn({
+				message: {
+					text: 'Hello',
+					origin: { kind: MessageKind.User },
+					_meta: toAgentMessageDelegationMeta({
+						sourceSession: 'ahp-session:/creator',
+						sourceChat: 'ahp-chat://default/YWhwLXNlc3Npb246L2NyZWF0b3I',
+					}),
+				},
+			});
+
+			const history = rawTurnsToHistory(
+				URI.parse('ahp-session:/created'),
+				[turn],
+				'copilot',
+				'remote',
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				'copilot',
+			);
+
+			assert.deepStrictEqual(history[0].type === 'request' ? history[0].origin : undefined, {
+				kind: ChatRequestOriginKind.Delegation,
+				sourceSessionResource: URI.parse('agent-host-session://copilot/creator'),
+				delegationScope: 'session',
+			});
+		});
+
+		test('thread coordination tools restore deterministic target-session chips', () => {
+			const createLink = 'agent-host-session://codex/created-thread';
+			const createChatLink = 'agent-host-session://codex/source-thread?chat=peer';
+			const sendLink = 'agent-host-session://codex/target-thread';
+			const turn = createTurn({
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall,
+					toolCall: createCompletedToolCall({
+						toolCallId: 'create',
+						toolName: 'create_session',
+						toolInput: JSON.stringify({ prompt: 'Remember this word: capybara' }),
+						content: [{ type: ToolResultContentType.Text, text: createLink }],
+					}),
+				}, {
+					kind: ResponsePartKind.ToolCall,
+					toolCall: createCompletedToolCall({
+						toolCallId: 'create-current',
+						toolName: 'create_session',
+						toolInput: JSON.stringify({ relationship: 'currentSession', prompt: 'Parallel task' }),
+						content: [{ type: ToolResultContentType.Text, text: createChatLink }],
+					}),
+				}, {
+					kind: ResponsePartKind.ToolCall,
+					toolCall: createCompletedToolCall({
+						toolCallId: 'send',
+						toolName: 'send_message',
+						toolInput: JSON.stringify({ prompt: 'foo' }),
+						content: [{ type: ToolResultContentType.Text, text: sendLink }],
+					}),
+				}],
+			});
+
+			const history = turnsToHistory(URI.parse('codex:/source-thread'), [turn], 'agent-host-codex');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') {
+				return;
+			}
+			assert.deepStrictEqual(response.parts.map(part => part.kind === 'toolInvocationSerialized' ? part.toolSpecificData : undefined), [{
+				kind: 'sessionCreated',
+				openLink: createLink,
+				label: 'Remember this word: capybara',
+				fullTitle: 'Remember this word: capybara',
+			}, {
+				kind: 'sessionCreated',
+				openLink: createChatLink,
+				label: 'Parallel task',
+				fullTitle: 'Parallel task',
+				isChat: true,
+			}, {
+				kind: 'sessionCreated',
+				openLink: sendLink,
+				label: 'foo',
+				fullTitle: 'foo',
+			}]);
 		});
 
 		test('system notification response part restores as system notification', () => {
@@ -430,6 +670,7 @@ suite('stateToProgressAdapter', () => {
 					mcpAppData: {
 						kind: 'agentHost',
 						resourceUri: 'ui://github-mcp-server/pr-write',
+						connectionAuthority: 'local',
 						serverId: 'github-customization',
 						channel: 'mcp://copilot/session/GitHub',
 					},
@@ -518,13 +759,21 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(response.type, 'response');
 			if (response.type !== 'response') { return; }
 
-			assert.deepStrictEqual(response.parts, [{
-				kind: 'autoModeResolution',
-				resolvedModel: 'gpt-5.4-mini',
-				resolvedModelName: 'GPT-5.4 mini',
-				predictedLabel: 'no_reasoning',
-				confidence: 0.98,
-			}]);
+			assert.deepStrictEqual(response.parts, [
+				{ kind: 'autoModeResolution', resolved: { id: 'gpt-5.4-mini', name: 'GPT-5.4 mini' } },
+			]);
+		});
+
+		test('drops a routing part that never resolved from restored history', () => {
+			const turn = createTurn({ message: message('first'), usage: { model: 'auto' } });
+			const lookup = makeLookup('agent-host-copilot:', { 'auto': 'Auto' }, 'auto');
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p', lookup);
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+
+			assert.deepStrictEqual(response.parts.filter(part => part.kind === 'autoModeResolution'), []);
 		});
 
 		test('falls back to session-level model when turn has no usage.model', () => {
@@ -545,21 +794,33 @@ suite('stateToProgressAdapter', () => {
 
 		test('maps turn usage to chat usage progress for restored history', () => {
 			const turn = createTurn({
-				usage: { inputTokens: 1200, outputTokens: 300, model: 'gpt-5' },
+				usage: {
+					inputTokens: 1200,
+					outputTokens: 300,
+					model: 'gpt-5',
+					_meta: {
+						turnTokenTotals: [{ model: 'gpt-5', inputTokens: 1200, cachedTokens: 400, outputTokens: 300 }],
+					},
+				},
 				responseParts: [{ kind: ResponsePartKind.Markdown, id: 'md-1', content: 'Done' }],
 			});
 
-			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const history = turnsToHistory(URI.file('/'), [turn], 'p', makeLookup('agent-host-copilot:', { 'gpt-5': 'GPT-5' }));
 			const response = history[1];
 			assert.strictEqual(response.type, 'response');
 			if (response.type !== 'response') { return; }
 
 			assert.deepStrictEqual(
 				response.parts.map(part => part.kind === 'usage'
-					? { kind: part.kind, promptTokens: part.promptTokens, completionTokens: part.completionTokens }
+					? { kind: part.kind, promptTokens: part.promptTokens, completionTokens: part.completionTokens, modelTotals: part.modelTotals }
 					: { kind: part.kind }),
 				[
-					{ kind: 'usage', promptTokens: 1200, completionTokens: 300 },
+					{
+						kind: 'usage',
+						promptTokens: 1200,
+						completionTokens: 300,
+						modelTotals: [{ model: 'GPT-5', inputTokens: 1200, cachedTokens: 400, outputTokens: 300 }],
+					},
 					{ kind: 'markdownContent' },
 				],
 			);
@@ -627,6 +888,36 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.commandLine.original, 'echo hello');
 			assert.strictEqual(termData.terminalCommandOutput.text, 'hello');
 			assert.strictEqual(termData.terminalCommandState.exitCode, 0);
+		});
+
+		test('image generation in history is marked as a durable image outcome', () => {
+			const turn = createTurn({
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall,
+					toolCall: createCompletedToolCall({
+						toolName: 'image_gen.imagegen',
+						toolInput: '{"prompt":"Draw a fox"}',
+						content: [{ type: ToolResultContentType.EmbeddedResource, data: 'aW1hZ2U=', contentType: 'image/png' }],
+					}),
+				} as ToolCallResponsePart],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+			const details = serialized.resultDetails;
+
+			assert.deepStrictEqual({
+				toolSpecificData: serialized.toolSpecificData,
+				input: isToolResultInputOutputDetails(details) ? details.input : undefined,
+				output: isToolResultInputOutputDetails(details) ? details.output : undefined,
+			}, {
+				toolSpecificData: { kind: 'generatedImage' },
+				input: '{"prompt":"Draw a fox"}',
+				output: [{ type: 'embed', value: 'aW1hZ2U=', mimeType: 'image/png' }],
+			});
 		});
 
 		test('terminal tool call in history carries autoApproveRuleResolvable only when stamped', () => {
@@ -760,6 +1051,7 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(serialized.toolSpecificData.kind, 'subagent');
 			assert.strictEqual(serialized.resultDetails, undefined);
 			if (serialized.toolSpecificData.kind === 'subagent') {
+				assert.strictEqual(serialized.toolSpecificData.agentDisplayName, 'Explore');
 				assert.strictEqual(serialized.toolSpecificData.agentName, 'explore');
 				// description is the TASK description from _meta, not the agent description
 				assert.strictEqual(serialized.toolSpecificData.description, 'Find related files');
@@ -875,7 +1167,7 @@ suite('stateToProgressAdapter', () => {
 		test('error turn produces error details in history', () => {
 			const turn = createTurn({
 				state: TurnState.Error,
-				error: { errorType: 'test', message: 'boom' },
+				responseParts: [createErrorResponsePart({ errorType: 'test', message: 'boom' })],
 			});
 
 			const history = turnsToHistory(URI.file('/'), [turn], 'p');
@@ -886,14 +1178,32 @@ suite('stateToProgressAdapter', () => {
 			assert.ok(!response.parts.some(p => p.kind === 'markdownContent' && (p as IChatMarkdownContent).content.value.includes('boom')), 'Error should not be duplicated as a markdown part');
 		});
 
+		test('historical resumable errors can restore Try Again without rendering completed errors', () => {
+			const resumableError = createErrorResponsePart({ errorType: 'test', message: 'boom' }, true);
+			const errorTurn = createTurn({ state: TurnState.Error, responseParts: [resumableError] });
+			const completeTurn = createTurn({ state: TurnState.Complete, responseParts: [resumableError] });
+			const errorDetails = {
+				message: 'boom',
+				confirmationButtons: [{ data: { resume: true }, label: 'Try Again' }],
+			};
+
+			const history = rawTurnsToHistory(URI.file('/'), [errorTurn, completeTurn], 'p', '', undefined, undefined, undefined, createAgentHostResourceUriMapper(''), undefined, () => errorDetails);
+			const responses = history.filter(item => item.type === 'response');
+
+			assert.deepStrictEqual(responses.map(response => response.type === 'response' ? response.errorDetails : undefined), [
+				errorDetails,
+				undefined,
+			]);
+		});
+
 		test('forwarded quota error turn produces quota-exceeded error details', () => {
 			const turn = createTurn({
 				state: TurnState.Error,
-				error: {
+				responseParts: [createErrorResponsePart({
 					errorType: 'quota',
 					message: 'raw',
 					_meta: { chatError: { fetchError: { type: 'quotaExceeded', capiError: { code: 'quota_exceeded' } } } },
-				},
+				})],
 			});
 
 			const history = turnsToHistory(URI.file('/'), [turn], 'p');
@@ -987,6 +1297,40 @@ suite('stateToProgressAdapter', () => {
 				})),
 				restoredPresentation: ToolInvocationPresentation.HiddenAfterComplete,
 				failedPresentation: undefined,
+			});
+		});
+
+		test('hides resolved automatic title renames but shows streaming, explicit, and failed renames', () => {
+			const automaticInput = JSON.stringify({ title: 'Automatic title', automatic: true });
+			const completed = completedToolCallToSerialized(createCompletedToolCall({ toolName: 'mcp__vscode__rename_chat', toolInput: automaticInput }), undefined, URI.file('/'), 'local');
+			const restoredFailure = completedToolCallToSerialized(createCompletedToolCall({ toolName: 'rename_chat', toolInput: automaticInput, success: false }), undefined, URI.file('/'), 'local');
+			const explicit = completedToolCallToSerialized(createCompletedToolCall({ toolName: 'rename_chat', toolInput: '{"title":"Explicit title"}' }), undefined, URI.file('/'), 'local');
+			const streaming = toolCallStateToStreamingInvocation({
+				toolCallId: 'streaming-rename',
+				toolName: 'rename_chat',
+				displayName: 'Rename Chat',
+				status: ToolCallStatus.Streaming,
+			}, undefined);
+			const liveSuccess = toolCallStateToInvocation(createToolCallState({ toolName: 'rename_chat', toolInput: automaticInput }));
+			const liveFailure = toolCallStateToInvocation(createToolCallState({ toolName: 'rename_chat', toolInput: automaticInput }));
+
+			finalizeToolInvocation(liveSuccess, createCompletedToolCall({ toolName: 'rename_chat', toolInput: automaticInput }));
+			finalizeToolInvocation(liveFailure, createCompletedToolCall({ toolName: 'rename_chat', toolInput: automaticInput, success: false }));
+
+			assert.deepStrictEqual({
+				completed: completed.presentation,
+				restoredFailure: restoredFailure.presentation,
+				explicit: explicit.presentation,
+				streaming: streaming.presentation,
+				liveSuccess: liveSuccess.presentation,
+				liveFailure: liveFailure.presentation,
+			}, {
+				completed: ToolInvocationPresentation.Hidden,
+				restoredFailure: undefined,
+				explicit: undefined,
+				streaming: ToolInvocationPresentation.Hidden,
+				liveSuccess: ToolInvocationPresentation.Hidden,
+				liveFailure: undefined,
 			});
 		});
 
@@ -1231,6 +1575,7 @@ suite('stateToProgressAdapter', () => {
 				mcpAppData: {
 					kind: 'agentHost',
 					resourceUri: 'ui://docs/app',
+					connectionAuthority: 'local',
 					serverId: 'docs-customization',
 					channel: 'mcp://copilot/test-session-1/docs',
 				},
@@ -1276,6 +1621,28 @@ suite('stateToProgressAdapter', () => {
 			}
 		});
 
+		test('observes only failed subagent tools that produced a child chat', () => {
+			const subagentContent: ToolResultContent = {
+				type: ToolResultContentType.Subagent,
+				resource: 'ahp-chat://subagent/session/tc-1',
+				title: 'Explore',
+				agentName: 'explore',
+				description: 'Explores the codebase',
+			};
+
+			assert.deepStrictEqual({
+				running: shouldObserveSubagentChat(createToolCallState({ toolName: 'task' })),
+				completed: shouldObserveSubagentChat(createCompletedToolCall({ toolName: 'task' })),
+				failedWithoutChild: shouldObserveSubagentChat(createCompletedToolCall({ toolName: 'task', success: false })),
+				failedWithChild: shouldObserveSubagentChat(createCompletedToolCall({ toolName: 'task', success: false, content: [subagentContent] })),
+			}, {
+				running: true,
+				completed: true,
+				failedWithoutChild: false,
+				failedWithChild: true,
+			});
+		});
+
 		test('prefers the host-stamped _meta.subagentChatUri over a discovery content block resource', () => {
 			const tc = createToolCallState({
 				_meta: { toolKind: 'subagent', subagentChatUri: 'ahp-chat://subagent/stamped/tc-1' },
@@ -1291,6 +1658,7 @@ suite('stateToProgressAdapter', () => {
 			const invocation = toolCallStateToInvocation(tc);
 			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
 			if (invocation.toolSpecificData?.kind === 'subagent') {
+				assert.strictEqual(invocation.toolSpecificData.agentDisplayName, 'Explore');
 				assert.strictEqual(invocation.toolSpecificData.chatResource, 'ahp-chat://subagent/stamped/tc-1');
 			}
 		});
@@ -1332,6 +1700,15 @@ suite('stateToProgressAdapter', () => {
 					isTrusted: { enabledCommands: ['_agentFeedbackReview.revealAt'] },
 				},
 			);
+		});
+
+		test('maps the reveal command resource through the Agent Host connection', () => {
+			const tc = createToolCallState({ toolName: 'addComment', invocationMessage: 'Adding comment', toolInput: addCommentInput('Remote note') });
+			const resourceUris = createAgentHostResourceUriMapper('remote-test');
+			const message = markdown(rawToolCallStateToInvocation(tc, undefined, URI.file('/'), 'local', undefined, undefined, resourceUris).invocationMessage);
+			const mappedResource = resourceUris.fromAgentHost(URI.parse('file:///workspace/a.ts')).toString();
+
+			assert.ok(message.value.includes(encodeURIComponent(JSON.stringify([mappedResource, commentRange]))), message.value);
 		});
 
 		test('does not truncate a short comment', () => {
@@ -1397,6 +1774,80 @@ suite('stateToProgressAdapter', () => {
 				partialInput: { command: 'npm test', description: 'Run' },
 				streamingMessage: 'Running npm test',
 				isComplete: false,
+			});
+		});
+
+		test('toolCallStateToStreamingInvocation defers partial input display for read tools', () => {
+			const invocation = toolCallStateToStreamingInvocation({
+				toolCallId: 'tc-read-stream',
+				toolName: 'view',
+				displayName: 'Read',
+				status: ToolCallStatus.Streaming,
+				partialInput: '{"path":"/repo/part',
+				invocationMessage: { markdown: 'Reading [part](file:///repo/part)' },
+				_meta: { toolKind: 'read' },
+			}, undefined);
+			const state = invocation.state.get();
+			assert.strictEqual(state.type, IChatToolInvocation.StateKind.Streaming);
+			if (state.type !== IChatToolInvocation.StateKind.Streaming) {
+				return;
+			}
+			assert.deepStrictEqual({
+				invocationMessage: invocation.invocationMessage,
+				partialInput: state.partialInput.get(),
+				streamingMessage: state.streamingMessage.get(),
+			}, {
+				invocationMessage: 'Read',
+				partialInput: undefined,
+				streamingMessage: 'Reading file',
+			});
+		});
+
+		test('updateStreamingToolInvocation clears edit progress when a legacy tool resolves to read', () => {
+			const invocation = toolCallStateToStreamingInvocation({
+				toolCallId: 'tc-legacy-read-stream',
+				toolName: 'str_replace_editor',
+				displayName: 'Edit File',
+				status: ToolCallStatus.Streaming,
+				partialInput: '{"path":"/repo/part',
+				invocationMessage: { markdown: 'Editing [part](file:///repo/part)' },
+			}, undefined);
+			const state = invocation.state.get();
+			assert.strictEqual(state.type, IChatToolInvocation.StateKind.Streaming);
+			if (state.type !== IChatToolInvocation.StateKind.Streaming) {
+				return;
+			}
+			const beforeStreamingMessage = state.streamingMessage.get();
+			const before = {
+				partialInput: state.partialInput.get(),
+				streamingMessage: typeof beforeStreamingMessage === 'string' ? beforeStreamingMessage : beforeStreamingMessage?.value,
+			};
+
+			updateStreamingToolInvocation(invocation, {
+				toolCallId: 'tc-legacy-read-stream',
+				toolName: 'str_replace_editor',
+				displayName: 'Edit File',
+				status: ToolCallStatus.Streaming,
+				partialInput: '{"command":"view","path":"/repo/part',
+				invocationMessage: { markdown: 'Reading [part](file:///repo/part)' },
+				_meta: { toolKind: 'read' },
+			}, '');
+
+			assert.deepStrictEqual({
+				before,
+				after: {
+					partialInput: state.partialInput.get(),
+					streamingMessage: state.streamingMessage.get(),
+				},
+			}, {
+				before: {
+					partialInput: { path: '/repo/part' },
+					streamingMessage: 'Editing [part](file:///repo/part)',
+				},
+				after: {
+					partialInput: undefined,
+					streamingMessage: 'Reading file',
+				},
 			});
 		});
 
@@ -1500,6 +1951,41 @@ suite('stateToProgressAdapter', () => {
 			streaming.requestConfirmation(toolCallStateToPreparedInvocation(pending));
 			assert.strictEqual(streaming.state.get().type, IChatToolInvocation.StateKind.WaitingForConfirmation);
 			assert.strictEqual(streaming.toolSpecificData?.kind, 'terminal');
+		});
+
+		test('a same-state pending refresh replaces the visible terminal command without replacing its gate', () => {
+			const first: AnyToolCallState = {
+				toolCallId: 'tc-term',
+				toolName: 'bash',
+				displayName: 'Bash',
+				invocationMessage: 'Running `npm config get registry`',
+				toolInput: 'npm config get registry',
+				status: ToolCallStatus.PendingConfirmation,
+				_meta: { toolKind: 'terminal' },
+				confirmationTitle: 'Run command?',
+			};
+			const invocation = toolCallStateToInvocation(first);
+			const initialState = invocation.state.get();
+			assert.strictEqual(initialState.type, IChatToolInvocation.StateKind.WaitingForConfirmation);
+			const initialGate = initialState.type === IChatToolInvocation.StateKind.WaitingForConfirmation ? initialState.confirm : undefined;
+
+			const refreshed: AnyToolCallState = {
+				...first,
+				invocationMessage: 'Running `npm install --registry=https://registry.npmjs.org`',
+				toolInput: 'npm install --registry=https://registry.npmjs.org',
+			};
+			invocation.updatePreparedInvocation(toolCallStateToPreparedInvocation(refreshed), invocation.parameters);
+
+			const state = invocation.state.get();
+			const terminalData = invocation.toolSpecificData;
+			assert.ok(terminalData?.kind === 'terminal' && hasKey(terminalData, { commandLine: true }));
+			assert.deepStrictEqual({
+				command: terminalData.commandLine.original,
+				gatePreserved: state.type === IChatToolInvocation.StateKind.WaitingForConfirmation && state.confirm === initialGate,
+			}, {
+				command: 'npm install --registry=https://registry.npmjs.org',
+				gatePreserved: true,
+			});
 		});
 
 		test('requestConfirmation no-ops on a completed invocation', () => {
@@ -1864,6 +2350,7 @@ suite('stateToProgressAdapter', () => {
 
 			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
 			if (invocation.toolSpecificData?.kind === 'subagent') {
+				assert.strictEqual(invocation.toolSpecificData.agentDisplayName, 'Explore');
 				assert.deepStrictEqual({
 					credits: invocation.toolSpecificData.credits,
 					isActive: invocation.toolSpecificData.isActive,
@@ -1936,6 +2423,29 @@ suite('stateToProgressAdapter', () => {
 			assert.deepStrictEqual(result[0], {
 				kind: 'warning',
 				content: new MarkdownString('Worktree creation failed'),
+			});
+		});
+
+		test('gives each Agent Merge notice an icon that matches what it reports', () => {
+			const notice = (kind: AgentSystemNotificationKind) => activeTurnToProgress(URI.file('/'), createActiveTurnState([{
+				kind: ResponsePartKind.SystemNotification,
+				content: 'Agent Merge changed state',
+				_meta: toAgentSystemNotificationMeta({ kind }),
+			}]), undefined)[0];
+
+			assert.deepStrictEqual({
+				enabled: notice(AgentSystemNotificationKind.AgentMergeEnabled),
+				disabled: notice(AgentSystemNotificationKind.AgentMergeDisabled),
+				// An unrecognized kind must still render, using the default check.
+				unknown: activeTurnToProgress(URI.file('/'), createActiveTurnState([{
+					kind: ResponsePartKind.SystemNotification,
+					content: 'Agent Merge changed state',
+					_meta: { kind: 'somethingNewer' },
+				}]), undefined)[0],
+			}, {
+				enabled: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.gitMerge },
+				disabled: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.circleSlash },
+				unknown: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state') },
 			});
 		});
 
@@ -2162,7 +2672,7 @@ suite('stateToProgressAdapter', () => {
 					uri: URI.file('/workspace/package.json'),
 					editKind: 'create',
 					originalUri: undefined,
-					modifiedContentUri: toAgentHostUri(URI.parse('pending-edit-content://session/tc-create/package.json'), 'local'),
+					modifiedContentUri: toAgentHostContentUri(URI.parse('pending-edit-content://session/tc-create/package.json'), 'local'),
 					originalContentUri: undefined,
 					insertions: undefined,
 					deletions: undefined,
@@ -2258,13 +2768,14 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.terminalCommandOutput, undefined);
 		});
 
-		test('uses terminal completion exit code for completed SDK shell tool history', () => {
+		test('uses tool completion text for truncated SDK shell output', () => {
 			const tc = createCompletedToolCall({
 				_meta: { toolKind: 'terminal' },
-				toolInput: 'gti status',
+				toolInput: 'cat large-output.txt',
 				content: [
-					{ type: ToolResultContentType.Text, text: 'command not found\n<shellId: 104 completed with exit code 127>' },
-					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/copilotNonPtyShells/tc-1', title: 'Run Shell Command', isPty: false, result: { exitCode: 127, preview: 'preview only\n', truncated: true } },
+					// TODO: Prefer shell_exit once the SDK exposes the saved output file path as structured data.
+					{ type: ToolResultContentType.Text, text: 'Output too large to read at once (25 KB). Saved to: /tmp/output.txt\nUse view with view_range to examine portions of the output.<shellId: 104 completed with exit code -1>' },
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/copilotNonPtyShells/tc-1', title: 'Run Shell Command', isPty: false, result: { exitCode: 0, preview: 'preview only\n', truncated: true } },
 				],
 				success: true,
 			});
@@ -2279,10 +2790,16 @@ suite('stateToProgressAdapter', () => {
 			if (response.type !== 'response') { return; }
 			const serialized = response.parts[0] as IChatToolInvocationSerialized;
 			const termData = getSerializedTerminalData(serialized);
-			assert.strictEqual(termData.terminalCommandState?.exitCode, 127);
-			assert.strictEqual(termData.terminalCommandOutput?.text, 'preview only\r\n');
-			assert.strictEqual(termData.terminalCommandOutput?.truncated, true);
-			assert.ok(!termData.terminalCommandOutput?.text.includes('shellId'));
+			assert.deepStrictEqual({
+				output: termData.terminalCommandOutput,
+				state: termData.terminalCommandState,
+			}, {
+				output: {
+					text: 'Output too large to read at once (25 KB). Saved to: /tmp/output.txt\r\nUse view with view_range to examine portions of the output.',
+					truncated: true,
+				},
+				state: { exitCode: 0 },
+			});
 		});
 
 		test('preserves an explicitly empty non-PTY retained completion snapshot', () => {
@@ -2579,6 +3096,7 @@ suite('stateToProgressAdapter', () => {
 			assert.notStrictEqual(invocation.toolSpecificData, before, 'toolSpecificData should be replaced');
 			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
 			if (invocation.toolSpecificData?.kind === 'subagent') {
+				assert.strictEqual(invocation.toolSpecificData.agentDisplayName, 'Explore');
 				assert.strictEqual(invocation.toolSpecificData.agentName, 'explore');
 				// description is the TASK description from _meta, not the agent description
 				assert.strictEqual(invocation.toolSpecificData.description, 'Find related files');
@@ -2696,6 +3214,7 @@ suite('stateToProgressAdapter', () => {
 				mcpAppData: {
 					kind: 'agentHost',
 					resourceUri: 'ui://docs/app',
+					connectionAuthority: 'local',
 					serverId: 'docs-customization',
 					channel: 'mcp://copilot/test-session-1/docs',
 				},
@@ -2816,13 +3335,16 @@ suite('stateToProgressAdapter', () => {
 				premiumChat: {
 					percentRemaining: 75,
 					unlimited: false,
+					usageBasedBilling: undefined,
 					entitlement: 300,
 					quotaRemaining: 225,
-					resetAt: Date.parse('2026-07-01T00:00:00.000Z'),
+					// `resetAt` is epoch seconds, not milliseconds.
+					resetAt: Date.parse('2026-07-01T00:00:00.000Z') / 1000,
 				},
 				chat: {
 					percentRemaining: 100,
 					unlimited: true,
+					usageBasedBilling: undefined,
 					entitlement: undefined,
 					quotaRemaining: undefined,
 					resetAt: undefined,
@@ -2830,6 +3352,70 @@ suite('stateToProgressAdapter', () => {
 				additionalUsageEnabled: true,
 				additionalUsageCount: 1.5,
 				resetDate: '2026-07-01T00:00:00.000Z',
+			});
+		});
+
+		test('prefers the premium_models snapshot key over premium_interactions', () => {
+			// Missing the alias left agent-host premium quota stale, so no banners. #332787
+			const result = usageInfoToQuotas({
+				_meta: {
+					quotaSnapshots: {
+						premium_models: {
+							isUnlimitedEntitlement: false,
+							entitlementRequests: 1200,
+							usedRequests: 1056,
+							remainingPercentage: 12,
+							overage: 0,
+							overageAllowedWithExhaustedQuota: false,
+							tokenBasedBilling: true,
+							overageEntitlement: 5000,
+						},
+						premium_interactions: {
+							isUnlimitedEntitlement: false,
+							entitlementRequests: 1200,
+							usedRequests: 0,
+							remainingPercentage: 100,
+						},
+					},
+				},
+			});
+
+			assert.deepStrictEqual(result, {
+				premiumChat: {
+					percentRemaining: 12,
+					unlimited: false,
+					usageBasedBilling: true,
+					entitlement: 1200,
+					quotaRemaining: 144,
+					resetAt: undefined,
+				},
+				additionalUsageEnabled: false,
+				additionalUsageCount: 0,
+				additionalUsageEntitlement: 5000,
+				usageBasedBilling: true,
+			});
+		});
+
+		test('maps the session and weekly rate limits', () => {
+			const result = usageInfoToQuotas({
+				_meta: {
+					quotaSnapshots: {
+						session: {
+							isUnlimitedEntitlement: false,
+							remainingPercentage: 20,
+							resetDate: '2026-07-01T00:00:00.000Z',
+						},
+						weekly: {
+							isUnlimitedEntitlement: false,
+							remainingPercentage: 45,
+						},
+					},
+				},
+			});
+
+			assert.deepStrictEqual(result, {
+				sessionRateLimit: { percentRemaining: 20, unlimited: false, resetDate: '2026-07-01T00:00:00.000Z' },
+				weeklyRateLimit: { percentRemaining: 45, unlimited: false, resetDate: undefined },
 			});
 		});
 
@@ -2872,6 +3458,29 @@ suite('stateToProgressAdapter', () => {
 
 			assert.strictEqual(result, undefined);
 		});
+
+		test('produces a resetAt the entitlement service resolves back to the reported date', () => {
+			// `getQuotaReset` treats `resetAt` as epoch seconds, so a snapshot mapped from an ISO
+			// date must round-trip to that same instant rather than a far-future one.
+			const result = usageInfoToQuotas({
+				_meta: {
+					quotaSnapshots: {
+						premium_interactions: {
+							isUnlimitedEntitlement: false,
+							entitlementRequests: 300,
+							usedRequests: 75,
+							remainingPercentage: 75,
+							resetDate: '2026-07-01T00:00:00.000Z',
+						},
+					},
+				},
+			});
+
+			assert.deepStrictEqual(getQuotaReset(result?.premiumChat, { resetDate: result?.resetDate }), {
+				date: new Date('2026-07-01T00:00:00.000Z'),
+				hasTime: true,
+			});
+		});
 	});
 
 	suite('formatTurnResponseDetails', () => {
@@ -2910,6 +3519,29 @@ suite('stateToProgressAdapter', () => {
 				concreteWithCredits: 'Claude Sonnet 4.5 • 2 credits',
 				unknown: undefined,
 			});
+		});
+	});
+
+	suite('usageInfoToChatUsage', () => {
+		test('carries whole-turn per-model token totals and resolves display names', () => {
+			const turnTokenTotals = [{ model: 'claude-opus-4.8', inputTokens: 110, cachedTokens: 4, outputTokens: 220 }];
+
+			assert.deepStrictEqual(usageInfoToChatUsage(
+				{ inputTokens: 30, outputTokens: 40, _meta: { turnTokenTotals } },
+				model => model === 'claude-opus-4.8' ? 'Claude Opus 4.8' : undefined,
+			), {
+				kind: 'usage',
+				promptTokens: 30,
+				completionTokens: 40,
+				copilotCredits: undefined,
+				sessionCopilotCredits: undefined,
+				promptTokenDetails: undefined,
+				modelTotals: [{ ...turnTokenTotals[0], model: 'Claude Opus 4.8' }],
+			} satisfies IChatUsage);
+		});
+
+		test('reports no totals when the provider did not supply any', () => {
+			assert.strictEqual(usageInfoToChatUsage({ inputTokens: 30, outputTokens: 40 })?.modelTotals, undefined);
 		});
 	});
 });

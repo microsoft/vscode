@@ -9,9 +9,11 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
+import { withEphemeralSessionMeta } from '../../../../../../platform/agentHost/common/meta/agentEphemeralSessionMeta.js';
 import type { ChangesSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { SessionStatus, readSessionEhcliAdoptable, SESSION_META_EHCLI_ADOPTABLE_KEY, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IChatService } from '../../../common/chatService/chatService.js';
 import { ChatSessionStatus, IChatNewSessionRequest, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../../common/chatSessionsService.js';
 import { getAgentSessionProviderIcon } from '../agentSessions.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
@@ -52,9 +54,18 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
 		@IAgentHostImportConversationStore private readonly _importConversationStore: IAgentHostImportConversationStore,
+		@IChatService chatService: IChatService,
 	) {
 		super();
 		void _connectionAuthority;
+
+		this._register(chatService.onDidDisposeSession(event => {
+			for (const resource of event.sessionResources) {
+				if (resource.scheme === this._sessionType) {
+					this._sessionListStore.clearPendingNewSession(this._provider, AgentSession.id(resource));
+				}
+			}
+		}));
 
 		// Project the store's provider-agnostic delta down to this provider's
 		// chat-session-item delta, dropping events that don't touch us. Both
@@ -77,6 +88,12 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			&& this._sessionListStore.isPendingNewSession(this._provider, resource.path.substring(1));
 	}
 
+	notifySessionMaterialized(resource: URI): void {
+		if (resource.scheme === this._sessionType) {
+			this._sessionListStore.clearPendingNewSession(this._provider, AgentSession.id(resource));
+		}
+	}
+
 	async newChatSessionItem(request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatSessionItem | undefined> {
 		if (token.isCancellationRequested) {
 			return undefined;
@@ -90,6 +107,10 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			createdAt: now,
 			modifiedAt: now,
 		});
+		const metadata = withEphemeralSessionMeta(request._meta, request.isEphemeral ? true : undefined);
+		if (metadata) {
+			this._provisional.setSessionCreationMetadata(item.resource, metadata);
+		}
 
 		// Bridge any pre-creation provisional session the user built up
 		// against the untitled chat-input URI to the freshly-minted real
@@ -115,7 +136,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			// untitled chat-input resource to the freshly-minted real resource so
 			// the provisional `getOrCreate` for the real resource seeds it.
 			this._importConversationStore.rename(request.untitledResource, item.resource);
-			await this._provisional.tryRebind(request.untitledResource, item.resource, this._provider, workingDirectory);
+			await this._provisional.tryRebind(request.untitledResource, item.resource, this._provider);
 		}
 
 		return item;
@@ -192,6 +213,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			createdAt: Date.parse(summary.createdAt),
 			modifiedAt: Date.parse(summary.modifiedAt),
 			changesSummary: summary.changes,
+			adoptable: readSessionEhcliAdoptable(summary._meta),
 		});
 	}
 
@@ -205,9 +227,14 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		createdAt: number;
 		modifiedAt: number;
 		changesSummary?: ChangesSummary;
+		/** Un-adopted legacy Copilot CLI session surfaced as adoptable; must not be passively restored. */
+		adoptable?: boolean;
 	}): IChatSessionItem {
 		const inProgress = opts.status !== undefined && (opts.status & SessionStatus.InProgress) !== 0;
 		const description = inProgress && opts.activity ? opts.activity : this._description;
+		const metadata = opts.adoptable
+			? { ...(this._buildMetadata(opts.workingDirectory) ?? {}), [SESSION_META_EHCLI_ADOPTABLE_KEY]: true }
+			: this._buildMetadata(opts.workingDirectory);
 		return {
 			resource: this._resource(rawId),
 			label: opts.title || `Session ${rawId.substring(0, 8)}`,
@@ -221,7 +248,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			isRead: opts.status !== undefined && opts.statusKnown !== false
 				? (opts.status & SessionStatus.IsRead) === SessionStatus.IsRead
 				: undefined,
-			metadata: this._buildMetadata(opts.workingDirectory),
+			metadata,
 			timing: {
 				created: opts.createdAt,
 				lastRequestStarted: opts.modifiedAt,

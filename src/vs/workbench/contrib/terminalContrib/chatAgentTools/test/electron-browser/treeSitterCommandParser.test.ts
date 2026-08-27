@@ -255,6 +255,50 @@ suite('TreeSitterCommandParser', () => {
 				{ subCommands: ['git log --format="%h|%s" -5'], hasUnanalyzableSyntax: false },
 			]);
 		});
+
+		test('marks incomplete PowerShell parses as unanalyzable for auto-approve', async () => {
+			const results = await Promise.all([
+				parser.extractAutoApprovalSubCommands(
+					TreeSitterCommandParserLanguage.PowerShell,
+					'Write-Output before; "unterminated',
+				),
+				parser.extractAutoApprovalSubCommands(
+					TreeSitterCommandParserLanguage.PowerShell,
+					'Write-Output before; `Write-Output after',
+				),
+			]);
+			deepStrictEqual(results.map(result => result.hasUnanalyzableSyntax), [true, true]);
+			ok(results.every(result => result.subCommands.some(command => /Write-Output/i.test(command))));
+		});
+
+		test('marks PowerShell method invocations as unanalyzable for auto-approve', async () => {
+			const results = await Promise.all([
+				parser.extractAutoApprovalSubCommands(
+					TreeSitterCommandParserLanguage.PowerShell,
+					'Write-Output ([Math]::Max(1, 2))',
+				),
+				parser.extractAutoApprovalSubCommands(
+					TreeSitterCommandParserLanguage.PowerShell,
+					'[Math]::Max(1, 2) | Out-String',
+				),
+				parser.extractAutoApprovalSubCommands(
+					TreeSitterCommandParserLanguage.PowerShell,
+					`Out-String -InputObject ([scriptblock]::Create('Write-Output ok').Invoke())`,
+				),
+			]);
+			deepStrictEqual(results.map(result => result.hasUnanalyzableSyntax), [true, true, true]);
+		});
+
+		test('keeps clean PowerShell commands analyzable', async () => {
+			const result = await parser.extractAutoApprovalSubCommands(
+				TreeSitterCommandParserLanguage.PowerShell,
+				'Get-ChildItem -Recurse',
+			);
+			deepStrictEqual(result, {
+				subCommands: ['Get-ChildItem -Recurse'],
+				hasUnanalyzableSyntax: false,
+			});
+		});
 	});
 
 	suite('extractCommands', () => {

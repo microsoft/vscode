@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from '../../../base/common/event.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
+import { getErrorMessage } from '../../../base/common/errors.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
 import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
+import { ILogService } from '../../log/common/log.js';
 import { INativeManagedSettingsService, ManagedSettingsData } from './copilotManagedSettings.js';
 import { PolicyDefinition } from './policy.js';
 
@@ -27,7 +29,7 @@ export class NativeManagedSettingsChannel implements IServerChannel {
 
 	call<T>(_: unknown, command: string, arg?: unknown): Promise<T> {
 		switch (command) {
-			case 'getManagedSettings': return Promise.resolve(this.service.managedSettings as T);
+			case 'getManagedSettings': return this.service.initialize() as Promise<T>;
 			case 'updatePolicyDefinitions': return this.service.updatePolicyDefinitions(arg as IStringDictionary<PolicyDefinition>) as Promise<T>;
 		}
 
@@ -49,15 +51,44 @@ export class NativeManagedSettingsChannelClient extends Disposable implements IN
 
 	private readonly _onDidChangeManagedSettings = this._register(new Emitter<ManagedSettingsData>());
 	readonly onDidChangeManagedSettings = this._onDidChangeManagedSettings.event;
+	private initializationPromise: Promise<void> | undefined;
 
-	constructor(private readonly channel: IChannel) {
+	constructor(
+		private readonly channel: IChannel,
+		private readonly logService: ILogService,
+	) {
 		super();
 		this._register(this.channel.listen<ManagedSettingsData>('onDidChangeManagedSettings')(managedSettings => this.updateManagedSettings(managedSettings, true)));
-		this.channel.call<ManagedSettingsData>('getManagedSettings').then(managedSettings => {
-			if (!this.hasReceivedManagedSettings) {
-				this.updateManagedSettings(managedSettings, true);
+		void this.initializeInBackground();
+	}
+
+	private async initializeInBackground(): Promise<void> {
+		try {
+			await this.initialize();
+		} catch (error) {
+			this.logService.warn('NativeManagedSettingsChannelClient#initialize - Failed to initialize native managed settings', getErrorMessage(error));
+		}
+	}
+
+	async initialize(): Promise<ManagedSettingsData> {
+		const initializationPromise = this.initializationPromise ?? this.initializeFromChannel();
+		this.initializationPromise = initializationPromise;
+		try {
+			await initializationPromise;
+		} catch (error) {
+			if (this.initializationPromise === initializationPromise) {
+				this.initializationPromise = undefined;
 			}
-		});
+			throw error;
+		}
+		return this._managedSettings;
+	}
+
+	private async initializeFromChannel(): Promise<void> {
+		const managedSettings = await this.channel.call<ManagedSettingsData>('getManagedSettings');
+		if (!this.hasReceivedManagedSettings) {
+			this.updateManagedSettings(managedSettings, true);
+		}
 	}
 
 	async updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<ManagedSettingsData> {
