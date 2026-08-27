@@ -16,10 +16,10 @@ export class QuickInput {
 	private static QUICK_INPUT_INPUT = `${QuickInput.QUICK_INPUT} .quick-input-box input`;
 	private static QUICK_INPUT_ROW = `${QuickInput.QUICK_INPUT} .quick-input-list .monaco-list-row`;
 	private static QUICK_INPUT_FOCUSED_ENTRY = `${QuickInput.QUICK_INPUT_ROW}.focused .quick-input-list-entry`;
-	private static QUICK_INPUT_FOCUSED_ELEMENT = `${QuickInput.QUICK_INPUT_ROW}.focused .monaco-highlighted-label`;
-	private static QUICK_INPUT_FOCUSED_ELEMENTS = `${QuickInput.QUICK_INPUT_FOCUSED_ENTRY}, ${QuickInput.QUICK_INPUT_FOCUSED_ELEMENT}`;
 	// Note: this only grabs the label and not the description or detail
 	private static QUICK_INPUT_ENTRY_LABEL = `${QuickInput.QUICK_INPUT_ROW} .quick-input-list-row > .monaco-icon-label .label-name`;
+	private static QUICK_INPUT_FOCUSED_LABEL = `${QuickInput.QUICK_INPUT_ROW}.focused .quick-input-list-row > .monaco-icon-label .label-name`;
+	private static QUICK_INPUT_FOCUSED_ELEMENTS = `${QuickInput.QUICK_INPUT_FOCUSED_ENTRY}, ${QuickInput.QUICK_INPUT_FOCUSED_LABEL}`;
 
 	constructor(private code: Code) { }
 
