@@ -10,6 +10,7 @@ import { IChatSessionService } from '../../../platform/chat/common/chatSessionSe
 import { IInteractionService } from '../../../platform/chat/common/interactionService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
+import { ILogService } from '../../../platform/log/common/logService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { ChatExtPerfMark, clearChatExtMarks, markChatExt } from '../../../util/common/performance';
@@ -17,7 +18,7 @@ import { DisposableStore, IDisposable } from '../../../util/vs/base/common/lifec
 import { autorun } from '../../../util/vs/base/common/observableInternal';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { ChatRequest } from '../../../vscodeTypes';
+import { ChatRequest, ChatRequestTurn, ChatRequestTurn2, ChatResponseTurn } from '../../../vscodeTypes';
 import { Intent, agentsToCommands } from '../../common/constants';
 import { ICopilotChatResultIn } from '../../prompt/common/conversation';
 import { getSwitchToAutoOnRateLimitConfirmation, isContinueOnError } from '../../prompt/common/specialRequestTypes';
@@ -28,6 +29,7 @@ import { ChatSummarizerProvider } from '../../prompt/node/summarizer';
 import { ChatTitleProvider } from '../../prompt/node/title';
 import { IUserFeedbackService } from './userActions';
 import { getAdditionalWelcomeMessage } from './welcomeMessageProvider';
+import { getChatRecoveryAttempt } from './chatRecovery';
 
 export class ChatAgentService implements IChatAgentService {
 	declare readonly _serviceBrand: undefined;
@@ -62,6 +64,7 @@ class ChatAgents implements IDisposable {
 	constructor(
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ILogService private readonly logService: ILogService,
 		@IUserFeedbackService private readonly userFeedbackService: IUserFeedbackService,
 		@IEndpointProvider private readonly endpointProvider: IEndpointProvider,
 		@IFeedbackReporter private readonly feedbackReporter: IFeedbackReporter,
@@ -205,6 +208,10 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 		return async (request, context, stream, token): Promise<vscode.ChatResult> => {
 			markChatExt(request.sessionId, ChatExtPerfMark.WillHandleParticipant);
 			try {
+				const sentRequests = context.history.filter((turn): turn is ChatRequestTurn2 => turn instanceof ChatRequestTurn);
+				const sentResponses = context.history.filter((turn): turn is ChatResponseTurn => turn instanceof ChatResponseTurn);
+				const recoveryAttempt = getChatRecoveryAttempt(sentRequests.at(-1), sentResponses.at(-1), request);
+
 				// If we need to switch to the base model, this function will handle it
 				// Otherwise it just returns the same request passed into it
 				request = await this.switchToBaseModel(request, stream);
@@ -265,6 +272,35 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 						const retryHandler = this.instantiationService.createInstance(ChatParticipantRequestHandler, context.history, request, stream, token, { agentName: name, agentId: id, intentId }, () => context.yieldRequested, telemetryMessageId);
 						result = await retryHandler.getResult();
 					}
+				}
+
+				if (recoveryAttempt) {
+					// TODO: Remove - Show notification with metrics
+					vscode.window.showInformationMessage(`[ChatAgentService/FailedRequest] Detected a chat recovery attempt. ${JSON.stringify(recoveryAttempt)}`);
+					this.logService.info(`[ChatAgentService/FailedRequest] Detected a chat recovery attempt. ${JSON.stringify(recoveryAttempt)}`);
+					/* __GDPR__
+						"chatRecoveryAttempt" : {
+							"owner": "eduardovil",
+							"comment": "Reports detected attempts to recover from an unsuccessful chat interaction.",
+							"modelId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model used to handle the recovery attempt." },
+							"scoringVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The version of the recovery scoring rules." },
+							"documentUserDeleted": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the user deleted a generated document. Present only when true." },
+							"documentUserRejected": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the user rejected a generated document change. Present only when true." },
+							"documentUserModified": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the user modified a generated document change. Present only when true." },
+							"documentHasMergeConflicts": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether a generated document contains merge conflicts. Present only when true." },
+							"documentGeneratedProblems": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether a generated document contains error diagnostics. Present only when true." },
+							"documentGeneratedTestsFail": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether tests targeting generated changes failed. Present only when true." },
+							"lastRequestRepeated": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the request substantially repeated the previous request. Present only when true." },
+							"lastResponseErrored": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the previous response reported an error. Present only when true." },
+							"requestRetried": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the request was retried. Present only when true." },
+							"requestEdited": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the previous request was edited. Present only when true." },
+							"requestChangedModel": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the user changed models. Present only when true." },
+							"requestReducedPermissions": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the user selected a more restrictive permission level. Present only when true." },
+							"planReviewRejected": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the latest plan review was rejected. Present only when true." },
+							"totalScore": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The weighted recovery-attempt score." }
+						}
+					*/
+					// this.telemetryService.sendMSFTTelemetryEvent('chatRecoveryAttempt', recoveryAttempt);
 				}
 
 				return result;

@@ -1598,6 +1598,7 @@ export class ChatService extends Disposable implements IChatService {
 							enableCommandDetection,
 							isParticipantDetected,
 							attempt,
+							editedRequestId: options?.editedRequestId,
 							location,
 							locationData: thisRequest.locationData,
 							acceptedConfirmationData: options?.acceptedConfirmationData,
@@ -2023,6 +2024,8 @@ export class ChatService extends Disposable implements IChatService {
 				location: ChatAgentLocation.Chat,
 				editedFileEvents: request.editedFileEvents,
 				modeInstructions: request.modeInfo?.modeInstructions,
+				modelId: request.modelId,
+				permissionLevel: request.modeInfo?.permissionLevel,
 			};
 			history.push({ request: historyRequest, response: toChatHistoryContent(request.response.response.value), result: request.response.result ?? {} });
 		}

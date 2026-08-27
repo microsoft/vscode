@@ -2854,6 +2854,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 		const isEditing = this.viewModel?.editing;
+		const editedRequestId = isEditing?.id;
 		const editedModelRequestOptions = isEditing && this.configurationService.getValue<string>('chat.editRequests') !== 'input'
 			? this.getSelectedModelRequestOptions()
 			: undefined;
@@ -2989,6 +2990,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			parserContext: { selectedAgent: this._lastSelectedAgent, mode: modeKind, attachmentCapabilities: this._lastSelectedAgent?.capabilities ?? this.attachmentCapabilities },
 			attachedContext: requestInputs.attachedContext.asArray(),
 			resolvedVariables: resolvedImageVariables,
+			editedRequestId,
 			noCommandDetection: options?.noCommandDetection,
 			isVoiceModeInput: options?.isVoiceModeInput,
 			...this.getModeRequestOptions(),

@@ -42,7 +42,7 @@ import { ProgressLocation as MainProgressLocation } from '../../../platform/prog
 import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from '../../common/editor.js';
 import { IViewBadge } from '../../common/views.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/participants/chatAgents.js';
-import { IChatRequestModeInstructions } from '../../contrib/chat/common/model/chatModel.js';
+import { IChatRequestModeInstructions, IChatTextEditGroup } from '../../contrib/chat/common/model/chatModel.js';
 import { IChatAgentMarkdownContentWithVulnerability, IChatAutoModeResolutionPart, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatExternalToolInvocationUpdate, IChatFollowup, IChatHookPart, IChatMarkdownContent, IChatMoveMessage, IChatMultiDiffDataSerialized, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTerminalToolInvocationData, IChatTextEdit, IChatThinkingPart, IChatToolInvocationSerialized, IChatTreeData, IChatUserActionEvent, IChatVoiceProgressPart, IChatWarningMessage, IChatInfoMessage, IChatWorkspaceEdit } from '../../contrib/chat/common/chatService/chatService.js';
 import { LocalChatSessionUri } from '../../contrib/chat/common/model/chatUri.js';
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
@@ -3272,6 +3272,11 @@ export namespace ChatResponseTextEditPart {
 		result.isDone = part.done;
 		return result;
 	}
+	export function toHistory(part: Dto<IChatTextEditGroup>): vscode.ChatResponseTextEditPart {
+		const result = new types.ChatResponseTextEditPart(URI.revive(part.uri), part.edits.flatMap(edits => edits.map(edit => TextEdit.to(edit))));
+		result.isDone = part.done;
+		return result;
+	}
 
 }
 
@@ -3455,13 +3460,16 @@ export namespace ChatResponsePart {
 		return undefined;
 	}
 
-	export function toContent(part: extHostProtocol.IChatContentProgressDto, commandsConverter: CommandsConverter): vscode.ChatResponseMarkdownPart | vscode.ChatResponseFileTreePart | vscode.ChatResponseAnchorPart | vscode.ChatResponseCommandButtonPart | undefined {
+	export function toContent(part: extHostProtocol.IChatContentProgressDto, commandsConverter: CommandsConverter): vscode.ChatResponseMarkdownPart | vscode.ChatResponseFileTreePart | vscode.ChatResponseAnchorPart | vscode.ChatResponseCommandButtonPart | undefined;
+	export function toContent(part: extHostProtocol.IChatContentProgressDto, commandsConverter: CommandsConverter, includePrivateParts: boolean): vscode.ChatResponseMarkdownPart | vscode.ChatResponseFileTreePart | vscode.ChatResponseAnchorPart | vscode.ChatResponseCommandButtonPart | vscode.ChatResponseTextEditPart | undefined;
+	export function toContent(part: extHostProtocol.IChatContentProgressDto, commandsConverter: CommandsConverter, includePrivateParts = false): vscode.ChatResponseMarkdownPart | vscode.ChatResponseFileTreePart | vscode.ChatResponseAnchorPart | vscode.ChatResponseCommandButtonPart | vscode.ChatResponseTextEditPart | undefined {
 		switch (part.kind) {
 			case 'markdownContent': return ChatResponseMarkdownPart.to(part);
 			case 'inlineReference': return ChatResponseAnchorPart.to(part);
 			case 'progressMessage': return undefined;
 			case 'treeData': return ChatResponseFilesPart.to(part);
 			case 'command': return ChatResponseCommandButtonPart.to(part, commandsConverter);
+			case 'textEditGroup': return includePrivateParts ? ChatResponseTextEditPart.toHistory(part) : undefined;
 		}
 
 		return undefined;
@@ -3489,6 +3497,7 @@ export namespace ChatAgentRequest {
 			prompt: request.message,
 			command: request.command,
 			attempt: request.attempt ?? 0,
+			editedRequestId: request.editedRequestId,
 			enableCommandDetection: request.enableCommandDetection ?? true,
 			isParticipantDetected: request.isParticipantDetected ?? false,
 			isVoiceModeInput: request.isVoiceModeInput,
@@ -3504,6 +3513,7 @@ export namespace ChatAgentRequest {
 			toolInvocationToken: Object.freeze<IToolInvocationContext>({ sessionResource: request.sessionResource, workingDirectory: URI.revive(request.workingDirectory) }) as never,
 			tools,
 			model,
+			modelId: request.userSelectedModelId,
 			modelConfiguration,
 			editedFileEvents: request.editedFileEvents,
 			modeInstructions: request.modeInstructions?.content,
@@ -3542,6 +3552,8 @@ export namespace ChatAgentRequest {
 			delete (requestWithAllProps as any).subAgentName;
 			// eslint-disable-next-line local/code-no-any-casts
 			delete (requestWithAllProps as any).parentRequestId;
+			// eslint-disable-next-line local/code-no-any-casts
+			delete (requestWithAllProps as any).modelId;
 			// eslint-disable-next-line local/code-no-any-casts
 			delete (requestWithAllProps as any).hasHooksEnabled;
 			// eslint-disable-next-line local/code-no-any-casts

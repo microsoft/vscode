@@ -3575,17 +3575,21 @@ export class ChatRequestTurn implements vscode.ChatRequestTurn2 {
 		readonly id?: string,
 		readonly modelId?: string,
 		readonly modeInstructions2?: vscode.ChatRequestModeInstructions,
+		readonly permissionLevel?: string,
 	) { }
 }
 
 export class ChatResponseTurn implements vscode.ChatResponseTurn {
+	readonly response: ReadonlyArray<ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>;
 
 	constructor(
-		readonly response: ReadonlyArray<ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>,
+		response: ReadonlyArray<ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart | ChatResponseTextEditPart>,
 		readonly result: vscode.ChatResult,
 		readonly participant: string,
 		readonly command?: string
-	) { }
+	) {
+		this.response = response as ReadonlyArray<ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>;
+	}
 }
 
 export class ChatResponseTurn2 implements vscode.ChatResponseTurn2 {

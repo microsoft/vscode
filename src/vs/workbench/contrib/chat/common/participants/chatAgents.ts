@@ -147,6 +147,7 @@ export interface IChatAgentRequest {
 	command?: string;
 	message: string;
 	attempt?: number;
+	editedRequestId?: string;
 	enableCommandDetection?: boolean;
 	isParticipantDetected?: boolean;
 	variables: IChatRequestVariableData;
@@ -155,6 +156,7 @@ export interface IChatAgentRequest {
 	acceptedConfirmationData?: unknown[];
 	rejectedConfirmationData?: unknown[];
 	agentHostSessionConfig?: Record<string, unknown>;
+	modelId?: string;
 	userSelectedModelId?: string;
 	modelConfiguration?: IStringDictionary<unknown>;
 	userSelectedTools?: UserSelectedTools;

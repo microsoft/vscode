@@ -475,7 +475,7 @@ suite('ChatService', () => {
 		const historyLengthAgent: IChatAgentImplementation = {
 			async invoke(request, progress, history, token) {
 				return {
-					metadata: { historyLength: history.length }
+					metadata: { historyLength: history.length, historyModelIds: history.map(entry => entry.request.modelId) }
 				};
 			},
 		};
@@ -490,7 +490,7 @@ suite('ChatService', () => {
 		const model = modelRef.object;
 
 		// Send a request to default agent
-		const response = await testService.sendRequest(model.sessionResource, `test request`, { agentId: 'defaultAgent' });
+		const response = await testService.sendRequest(model.sessionResource, `test request`, { agentId: 'defaultAgent', userSelectedModelId: 'copilot/model-a' });
 		ChatSendResult.assertSent(response);
 		await response.data.responseCompletePromise;
 		assert.strictEqual(model.getRequests().length, 1);
@@ -509,6 +509,7 @@ suite('ChatService', () => {
 		await response3.data.responseCompletePromise;
 		assert.strictEqual(model.getRequests().length, 3);
 		assert.strictEqual(model.getRequests()[2].response?.result?.metadata?.historyLength, 2);
+		assert.deepStrictEqual(model.getRequests()[2].response?.result?.metadata?.historyModelIds, ['copilot/model-a', undefined]);
 	});
 
 	test('can serialize', async () => {

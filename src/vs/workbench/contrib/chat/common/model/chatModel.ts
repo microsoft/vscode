@@ -71,6 +71,7 @@ export interface ISerializableSendOptions {
 	location?: ChatAgentLocation;
 	locationData?: IChatLocationData;
 	attempt?: number;
+	editedRequestId?: string;
 	noCommandDetection?: boolean;
 	isVoiceModeInput?: boolean;
 	agentId?: string;
@@ -3334,6 +3335,7 @@ export function serializeSendOptions(options: IChatSendRequestOptions): ISeriali
 		location: options.location,
 		locationData: options.locationData,
 		attempt: options.attempt,
+		editedRequestId: options.editedRequestId,
 		noCommandDetection: options.noCommandDetection,
 		isVoiceModeInput: options.isVoiceModeInput,
 		agentId: options.agentId,
