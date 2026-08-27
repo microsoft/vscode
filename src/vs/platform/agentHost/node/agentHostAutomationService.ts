@@ -775,6 +775,10 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	}
 
 	private _handleEnvelope(envelope: ActionEnvelope): void {
+		// A rejected action never reached host state, so it must not finalize a run.
+		if (envelope.rejectionReason) {
+			return;
+		}
 		if (!isDefaultChatUri(envelope.channel)) {
 			return;
 		}
