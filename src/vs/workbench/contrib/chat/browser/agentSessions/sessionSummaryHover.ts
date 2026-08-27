@@ -41,6 +41,8 @@ export interface ISessionSummaryHoverPullRequest {
 	readonly title: string;
 	/** Icon carrying the pull request's state (and its color). */
 	readonly icon?: ThemeIcon;
+	/** Opens the pull request. The row reads as a link when this is present. */
+	readonly onOpen?: () => void;
 }
 
 /**
@@ -60,10 +62,10 @@ export interface ISessionSummaryHoverData {
 	 */
 	readonly pullRequests?: readonly ISessionSummaryHoverPullRequest[];
 	/**
-	 * Session type and provider, most specific first, rendered as
-	 * "Claude · Local Agent Host".
+	 * The kind of agent serving the session, e.g. "Claude", shown beside the
+	 * title as "Fix the redirect loop · Claude".
 	 */
-	readonly providerLabels?: readonly string[];
+	readonly providerLabel?: string;
 	/** Session that created this session, when available. */
 	readonly createdBy?: {
 		readonly title: string;
@@ -75,10 +77,10 @@ export interface ISessionSummaryHoverData {
  * The hover shown for a session, wherever a session is surfaced: rows in the
  * Agents window sessions list, and `agent-host-session://` pills in chat output.
  *
- * Owns the whole presentation — icons, the ordering of rows, the separators and
- * the muted provider footer — so every surface shows the same thing. Callers
- * supply data through {@link update} and place {@link domNode}; the widget is
- * pure DOM and holds no listeners, so it needs no disposal.
+ * Owns the whole presentation — icons, the ordering of rows and the separators —
+ * so every surface shows the same thing. Callers supply data through
+ * {@link update} and place {@link domNode}; the widget is pure DOM and holds no
+ * listeners, so it needs no disposal.
  */
 export class SessionSummaryHoverWidget {
 
@@ -88,7 +90,6 @@ export class SessionSummaryHoverWidget {
 	private readonly _location: HTMLElement;
 	private readonly _pullRequests: HTMLElement;
 	private readonly _createdBy: HTMLElement;
-	private readonly _provider: HTMLElement;
 
 	constructor(data?: ISessionSummaryHoverData) {
 		this.domNode = dom.$('.session-summary-hover');
@@ -96,14 +97,20 @@ export class SessionSummaryHoverWidget {
 		this._location = dom.append(this.domNode, dom.$('.session-summary-hover-section.session-summary-hover-location'));
 		this._pullRequests = dom.append(this.domNode, dom.$('.session-summary-hover-section.session-summary-hover-pull-requests'));
 		this._createdBy = dom.append(this.domNode, dom.$('.session-summary-hover-section.session-summary-hover-created-by'));
-		this._provider = dom.append(this.domNode, dom.$('.session-summary-hover-section.session-summary-hover-provider'));
 		if (data) {
 			this.update(data);
 		}
 	}
 
 	update(data: ISessionSummaryHoverData): void {
-		this._title.textContent = data.title;
+		dom.clearNode(this._title);
+		dom.append(this._title, dom.$('span.session-summary-hover-title-text', undefined, data.title));
+		// The agent is part of the session's identity, so it reads on the title
+		// line rather than as a footnote below everything else.
+		if (data.providerLabel) {
+			appendSeparator(this._title);
+			dom.append(this._title, dom.$('span.session-summary-hover-provider', undefined, data.providerLabel));
+		}
 
 		dom.clearNode(this._location);
 		this._renderLocation(data.location);
@@ -111,24 +118,20 @@ export class SessionSummaryHoverWidget {
 
 		dom.clearNode(this._pullRequests);
 		for (const pullRequest of data.pullRequests ?? []) {
-			this._appendRow(this._pullRequests, pullRequest.icon ?? Codicon.gitPullRequest, pullRequest.title);
+			const icon = pullRequest.icon ?? Codicon.gitPullRequest;
+			if (pullRequest.onOpen) {
+				this._appendLinkRow(this._pullRequests, icon, pullRequest.onOpen, pullRequest.title);
+			} else {
+				this._appendRow(this._pullRequests, icon, pullRequest.title);
+			}
 		}
 		this._pullRequests.classList.toggle('hidden', !this._pullRequests.hasChildNodes());
 
 		dom.clearNode(this._createdBy);
 		if (data.createdBy) {
-			const button = dom.append(this._createdBy, dom.$<HTMLButtonElement>('button.session-summary-hover-row.session-summary-hover-link'));
-			button.type = 'button';
-			button.onclick = data.createdBy.onOpen;
-			this._appendRowContent(button, Codicon.reply, localize('sessionSummaryHover.createdBy', "Created by"), data.createdBy.title);
+			this._appendLinkRow(this._createdBy, Codicon.reply, data.createdBy.onOpen, localize('sessionSummaryHover.createdBy', "Created by"), data.createdBy.title);
 		}
 		this._createdBy.classList.toggle('hidden', !this._createdBy.hasChildNodes());
-
-		dom.clearNode(this._provider);
-		if (data.providerLabels?.length) {
-			dom.append(this._provider, dom.$('.session-summary-hover-row', undefined, data.providerLabels.join(SEPARATOR)));
-		}
-		this._provider.classList.toggle('hidden', !this._provider.hasChildNodes());
 	}
 
 	private _renderLocation(location: ISessionSummaryHoverLocation | undefined): void {
@@ -140,28 +143,26 @@ export class SessionSummaryHoverWidget {
 			this._appendRow(this._location, location.workspaceIcon ?? Codicon.folder, location.workspace);
 		}
 
-		// A worktree is named explicitly: an isolated checkout is the single most
-		// consequential thing to know about where a session's edits land.
+		// An isolated checkout is carried by its icon alone: the path is the
+		// thing to read, and naming it "worktree" only crowds the row.
 		if (location.worktreePending) {
 			this._appendRow(this._location, Codicon.worktree, localize('sessionSummaryHover.worktreePending', "Creating worktree…"));
 		} else if (location.worktree) {
-			this._appendRow(this._location, Codicon.worktree, localize('sessionSummaryHover.worktree', "Worktree"), location.worktree);
+			this._appendRow(this._location, Codicon.worktree, location.worktree);
+		}
+
+		if (location.branch) {
+			this._appendRow(this._location, Codicon.gitBranch, location.branch);
 		}
 
 		const changes = location.changes;
-		if (location.branch || changes) {
-			const text = this._appendRow(this._location, location.branch ? Codicon.gitBranch : Codicon.diffMultiple, location.branch);
-			if (changes) {
-				if (location.branch) {
-					appendSeparator(text);
-				}
-				const files = changes.files === 1
-					? localize('sessionSummaryHover.fileChanged', "1 file changed")
-					: localize('sessionSummaryHover.filesChanged', "{0} files changed", changes.files);
-				dom.append(text, dom.$('span.session-summary-hover-detail', undefined, files));
-				appendCount(text, 'session-summary-hover-insertions', chatLinesAddedForeground, `+${changes.insertions}`);
-				appendCount(text, 'session-summary-hover-deletions', chatLinesRemovedForeground, `-${changes.deletions}`);
-			}
+		if (changes) {
+			const files = changes.files === 1
+				? localize('sessionSummaryHover.fileChanged', "1 file changed")
+				: localize('sessionSummaryHover.filesChanged', "{0} files changed", changes.files);
+			const text = this._appendRow(this._location, Codicon.diffMultiple, files);
+			appendCount(text, 'session-summary-hover-insertions', chatLinesAddedForeground, `+${changes.insertions}`);
+			appendCount(text, 'session-summary-hover-deletions', chatLinesRemovedForeground, `-${changes.deletions}`);
 		}
 	}
 
@@ -173,6 +174,14 @@ export class SessionSummaryHoverWidget {
 	private _appendRow(parent: HTMLElement, icon: ThemeIcon, label?: string, detail?: string): HTMLElement {
 		const row = dom.append(parent, dom.$('.session-summary-hover-row'));
 		return this._appendRowContent(row, icon, label, detail);
+	}
+
+	/** The same row, made actionable: it reads and behaves as a link. */
+	private _appendLinkRow(parent: HTMLElement, icon: ThemeIcon, onOpen: () => void, label?: string, detail?: string): HTMLElement {
+		const button = dom.append(parent, dom.$<HTMLButtonElement>('button.session-summary-hover-row.session-summary-hover-link'));
+		button.type = 'button';
+		button.onclick = onOpen;
+		return this._appendRowContent(button, icon, label, detail);
 	}
 
 	private _appendRowContent(row: HTMLElement, icon: ThemeIcon, label?: string, detail?: string): HTMLElement {

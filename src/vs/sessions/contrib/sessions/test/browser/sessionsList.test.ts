@@ -20,6 +20,8 @@ import { ContextKeyService } from '../../../../../platform/contextkey/browser/co
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
@@ -548,6 +550,8 @@ suite('Sessions - SessionsList', () => {
 			new class extends mock<ISessionsProvidersService>() {
 				override getProvider() { return undefined; }
 			},
+			new class extends mock<IOpenerService>() { },
+			new class extends mock<ILabelService>() { },
 			{
 				title: 'Creator session',
 				onOpen,
