@@ -11,11 +11,67 @@ This runbook exercises the recovery signals implemented in `chatRecovery.ts`. It
 - Autopilot, subagent, system-initiated, and first-turn requests are excluded.
 - Telemetry is not sent. Results are visible in the debugger and Copilot Chat log only.
 
+## Generate the Demo Workspace
+
+The failed-test scenario requires a test provider registered with VS Code's Testing API. The following PowerShell commands create a disposable Python workspace under `%TEMP%`, install pytest in a virtual environment, and verify the passing baseline:
+
+```powershell
+$demoWorkspace = Join-Path $env:TEMP 'chat-recovery-demo'
+Remove-Item $demoWorkspace -Recurse -Force -ErrorAction SilentlyContinue
+New-Item $demoWorkspace -ItemType Directory | Out-Null
+New-Item (Join-Path $demoWorkspace '.vscode') -ItemType Directory | Out-Null
+
+@'
+def add(left: int, right: int) -> int:
+  return left + right
+'@ | Set-Content (Join-Path $demoWorkspace 'calculator.py') -Encoding utf8
+
+@'
+from calculator import add
+
+
+def test_add() -> None:
+  assert add(2, 3) == 5
+'@ | Set-Content (Join-Path $demoWorkspace 'test_calculator.py') -Encoding utf8
+
+@'
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
+  "python.testing.pytestEnabled": true,
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestArgs": ["test_calculator.py"]
+}
+'@ | Set-Content (Join-Path $demoWorkspace '.vscode/settings.json') -Encoding utf8
+
+$pythonCommand = if (Get-Command py -ErrorAction SilentlyContinue) {
+  'py'
+} elseif (Get-Command python -ErrorAction SilentlyContinue) {
+  'python'
+} else {
+  throw 'Install Python and make either py or python available on PATH.'
+}
+
+& $pythonCommand -m venv (Join-Path $demoWorkspace '.venv')
+$venvPython = Join-Path $demoWorkspace '.venv/Scripts/python.exe'
+& $venvPython -m pip install pytest
+
+Push-Location $demoWorkspace
+try {
+  & $venvPython -m pytest test_calculator.py
+} finally {
+  Pop-Location
+}
+
+Write-Output "Demo workspace: $demoWorkspace"
+```
+
+In the development instance, install or enable the **Python** extension, open the printed folder with **File > Open Folder**, and wait for `test_add` to appear in the Testing view. Run it once from the Testing view and confirm that it passes. Re-run the commands above whenever a clean workspace is needed.
+
 ## Before the Demo
 
 1. Build the client and Copilot extension.
 2. Launch the development instance of VS Code.
-3. Open a small disposable workspace with source code and at least one test command that the agent can run.
+3. Generate and open the demo workspace described above.
 4. Sign in to Copilot and confirm that Agent mode works.
 5. Open `extensions/copilot/src/extension/conversation/vscode-node/chatRecovery.ts` in the source window.
 6. Set a breakpoint on the final line of `addSignal`, after `totalScore` is updated.
