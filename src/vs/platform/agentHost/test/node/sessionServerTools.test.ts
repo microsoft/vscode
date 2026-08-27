@@ -595,6 +595,39 @@ suite('SessionServerTools', () => {
 		store.dispose();
 	});
 
+	test('create_session and send_message results are neutral, non-terminal statements (issue #330138)', async () => {
+		const store = new DisposableStore();
+		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+		const accessor = createAccessor({
+			listSessions: async () => [sessionMeta('s1', SessionStatus.Idle, workspace), sessionMeta('s2', SessionStatus.Idle, workspace)],
+		});
+		const group = createSessionServerToolGroup(accessor);
+
+		const independent = await group.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.CreateSession, { relationship: 'independent', workspace: workspace.toString(), prompt: 'do it', title: 'New Task' });
+		const peer = await group.execute(stateManager, { sessionUri: 'copilot:/s1', chatUri: buildDefaultChatUri('copilot:/s1'), turnId: 'turn-1' }, SessionServerToolName.CreateSession, { relationship: 'currentSession', prompt: 'do it', title: 'Task A' });
+		const message = await applySendMessageTool(accessor, { session: 'copilot:/s2', message: 'hi' }, buildDefaultChatUri('copilot:/s1'), 'turn-1');
+
+		// The result must be a neutral statement of fact, not an imperative that
+		// reads as "reply once and stop" (issue #330138: the parent halted after
+		// creating a session instead of continuing with the rest of the request).
+		for (const result of [independent, peer, message]) {
+			assert.doesNotMatch(result, /Reply with one short sentence/, 'result no longer instructs the agent to stop and just confirm');
+			assert.doesNotMatch(result, /confirm/i, 'result carries no confirm-and-stop imperative');
+			assert.match(result, /^[^.]+\(agent-host-session:\/\/[^)]+\)\.$/, 'result is a single factual statement carrying the open link');
+		}
+
+		// The persistent tool contract stays purely functional: it must not carry
+		// the same reply-and-stop signal (a description that tells the model to
+		// reply with a short sentence after the call is arguably the stronger
+		// driver of the early stop), nor leak UI-presentation policy.
+		for (const name of [SessionServerToolName.CreateSession, SessionServerToolName.SendMessage]) {
+			const description = sessionServerToolDefinitions.find(definition => definition.name === name)?.description ?? '';
+			assert.doesNotMatch(description, /reply with a single short sentence/i, `${name} description no longer tells the agent to reply-and-stop`);
+			assert.doesNotMatch(description, /\bthe UI\b|print the (session )?URL|click (a|the) (link|button)/i, `${name} description does not leak UI-presentation policy`);
+		}
+		store.dispose();
+	});
+
 	test('create_session inherits the calling chat model and permission config', async () => {
 		const source = URI.parse(buildChatUri('copilot:/caller', 'peer'));
 		let creationSource: URI | undefined;
