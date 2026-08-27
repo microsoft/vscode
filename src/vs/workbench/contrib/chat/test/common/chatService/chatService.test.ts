@@ -9,7 +9,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { constObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { constObservable, ISettableObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mockObject } from '../../../../../../base/test/common/mock.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
@@ -1152,19 +1152,62 @@ suite('ChatService', () => {
 
 		const firstRequest = model.getRequests()[0];
 		assert.ok(firstRequest, 'Expected the initial request to exist before resend');
+		const structuralChanges: string[] = [];
+		testDisposables.add(model.onDidChange(event => {
+			if (event.kind === 'removeRequest' || event.kind === 'addRequest') {
+				structuralChanges.push(event.kind);
+			}
+		}));
 
 		// Resend the original request: now disabled hooks are present (simulates resend after setup)
-		await testService.resendRequest(firstRequest);
+		await testService.resendRequest(firstRequest, undefined, true);
 
 		// Now the flag should be set and the hint shown
 		assert.strictEqual(storageService.getBoolean(disabledHintsKey, StorageScope.WORKSPACE), true, 'Flag should be set after showing the hint');
 
 		const requests = model.getRequests();
 		assert.strictEqual(requests.length, 1, 'Resend should replace the original request');
+		assert.strictEqual(requests[0].id, firstRequest.id, 'Preserved resend should keep the original request id');
+		assert.strictEqual(requests[0], firstRequest, 'Preserved resend should reuse the original request model');
+		assert.deepStrictEqual(structuralChanges, [], 'Preserved resend should not remove and recreate the transcript row');
 		const responseParts2 = requests[0].response?.response.value ?? [];
 		const hasHookHint2 = responseParts2.some(part => part.kind === 'disabledClaudeHooks');
 		assert.ok(hasHookHint2, 'Response should contain the disabledClaudeHooks hint on second request');
 	});
+
+	test('resendRequest honors an agent selected outside the parsed request', async () => {
+		const retryAgentId = 'retryAgent';
+		const invokedRequestIds: string[] = [];
+		testDisposables.add(chatAgentService.registerAgent(retryAgentId, getAgentData(retryAgentId)));
+		testDisposables.add(chatAgentService.registerAgentImplementation(retryAgentId, {
+			async invoke(request) {
+				invokedRequestIds.push(request.requestId);
+				return {};
+			},
+		}));
+		testDisposables.add(chatAgentService.registerChatParticipantDetectionProvider(1, {
+			provideParticipantDetection: async () => ({ participant: 'testAgent' }),
+		}));
+
+		const testService = createChatService();
+		const modelRef = testDisposables.add(startSessionModel(testService));
+		const model = modelRef.object;
+		const response = await testService.sendRequest(model.sessionResource, 'retry me', { agentIdSilent: retryAgentId });
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+		const firstRequest = model.getRequests()[0];
+
+		await testService.resendRequest(firstRequest, { agentId: retryAgentId }, true);
+
+		assert.deepStrictEqual({
+			invokedRequestIds,
+			requestIds: model.getRequests().map(request => request.id),
+		}, {
+			invokedRequestIds: [firstRequest.id, firstRequest.id],
+			requestIds: [firstRequest.id],
+		});
+	});
+
 	test('cancelCurrentRequestForSession waits for response completion', async () => {
 		const requestStarted = new DeferredPromise<void>();
 		const completeRequest = new DeferredPromise<void>();
@@ -2795,6 +2838,52 @@ suite('ChatService', () => {
 				{ id: 'turn-1', message: 'hello' },
 				{ id: 'turn-2', message: 'server request' },
 			]);
+		});
+
+		test('remote resume reopens the existing request without duplicating it', async () => {
+			const onDidStartServerRequest = testDisposables.add(new Emitter<IChatSessionServerRequest>());
+			const progressObs = observableValue<IChatProgress[]>('progress', []);
+			const isCompleteObs = observableValue<boolean>('complete', true);
+			const { resource } = setupRemoteProvider({
+				history: [
+					{ id: 'turn-1', type: 'request', prompt: 'hello', participant: remoteScheme },
+					{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('partial') }], participant: remoteScheme, errorDetails: { message: 'failed' } },
+				],
+				progressObs,
+				isCompleteObs,
+				interruptActiveResponseCallback: async () => true,
+				onDidStartServerRequest: onDidStartServerRequest.event,
+			});
+
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			transaction(tx => {
+				isCompleteObs.set(false, tx);
+				onDidStartServerRequest.fire({ id: 'turn-1', prompt: 'hello', resume: true });
+			});
+
+			const request = ref.object.getRequests()[0];
+			assert.deepStrictEqual({
+				requestCount: ref.object.getRequests().length,
+				id: request.id,
+				state: request.response?.state,
+				errorDetails: request.response?.result?.errorDetails,
+				content: request.response?.response.value,
+			}, {
+				requestCount: 1,
+				id: 'turn-1',
+				state: ResponseModelState.Pending,
+				errorDetails: undefined,
+				content: [],
+			});
+
+			progressObs.set([{ kind: 'markdownContent', content: new MarkdownString('continued') }], undefined);
+			isCompleteObs.set(true, undefined);
+
+			assert.deepStrictEqual(request.response?.response.value.map(part => part.kind === 'markdownContent' ? part.content.value : part.kind), ['continued']);
 		});
 
 		test('already-complete session at load time: no initial pending request, response is completed via autorun', async () => {

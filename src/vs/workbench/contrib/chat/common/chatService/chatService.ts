@@ -52,6 +52,10 @@ export interface IChatResponseErrorDetailsConfirmationButton {
 	data: any;
 	label: string;
 	isSecondary?: boolean;
+	/** Replace and resend the request associated with this response instead of adding a new request. */
+	resend?: boolean;
+	/** Reuse the existing request model and identifier when resending. */
+	preserveRequestId?: boolean;
 }
 
 export interface IChatResponseErrorDetails {
@@ -589,20 +593,15 @@ export interface IChatThinkingPart {
 }
 
 /**
- * A progress part representing an auto-mode model routing resolution.
- * Shown as a collapsible widget in the chat stream: collapsed displays
- * "Routed to <model>", expanded shows routing details and confidence.
+ * Explains what the "Auto" model routed a turn to, as a single status line.
+ *
+ * A resolved part replaces the row that is still routing; Auto can route more
+ * than once per turn, and each later route gets its own row.
  */
 export interface IChatAutoModeResolutionPart {
 	kind: 'autoModeResolution';
-	/** The model ID that was selected by the router */
-	resolvedModel: string;
-	/** The user-facing display name of the resolved model */
-	resolvedModelName: string;
-	/** The router's classification label */
-	predictedLabel: 'needs_reasoning' | 'no_reasoning' | 'fallback';
-	/** Confidence score (0-1) from the router */
-	confidence: number;
+	/** The model the router picked, or `undefined` while routing is in flight. */
+	resolved?: { readonly id: string; readonly name: string };
 }
 
 /**
@@ -1209,18 +1208,19 @@ export interface IChatToolResourcesInvocationData {
 }
 
 /**
- * Tool-specific data for a completed `create_session` / `create_chat`
- * agent-host tool call. Carries a clickable link so the renderer can show a
- * deterministic confirmation + "open" button instead of relying on the model
- * to echo a markdown link.
+ * Tool-specific data for a completed `create_session`, `create_chat`, or
+ * `send_message` agent-host tool call. Carries a clickable link so the renderer
+ * can show the target title without relying on the model to echo a markdown link.
  */
 export interface IChatSessionCreatedData {
 	readonly kind: 'sessionCreated';
 	/** The `agent-host-session://` link that opens the created/owning session. */
 	readonly openLink: string;
-	/** Label for the button (e.g. the session title / prompt). */
+	/** The session title / prompt shown as the link label. */
 	readonly label: string;
-	/** Whether this is a `create_chat` result (vs `create_session`); selects the pill icon. */
+	/** The unabbreviated session title / prompt shown when hovering over the link. */
+	readonly fullTitle?: string;
+	/** Whether the link targets a specific chat rather than its owning session. */
 	readonly isChat?: boolean;
 }
 
@@ -2029,7 +2029,7 @@ export interface IChatService {
 	setSessionTitle(sessionResource: URI, title: string): void;
 
 	appendProgress(request: IChatRequestModel, progress: IChatProgress): void;
-	resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions): Promise<void>;
+	resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions, preserveRequestId?: boolean): Promise<void>;
 	adoptRequest(sessionResource: URI, request: IChatRequestModel): Promise<void>;
 	removeRequest(sessionResource: URI, requestId: string): Promise<void>;
 	cancelCurrentRequestForSession(sessionResource: URI, source?: string): Promise<void>;
