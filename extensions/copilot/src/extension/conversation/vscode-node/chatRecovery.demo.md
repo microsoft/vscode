@@ -1,25 +1,58 @@
 # Chat Recovery Detection Demo
 
-This runbook exercises the recovery signals implemented in `chatRecovery.ts`. It is written for a live demo, but it can also be used as a manual regression checklist.
+This runbook demonstrates chat recovery detection through the information notification shown by VS Code. No debugger or output channel is required for the main demo.
 
-## What the Demo Proves
+## What the Demo Shows
 
-- Recovery evidence is collected from the current request and the previous response.
-- Each detected signal appears as a sparse boolean property.
-- Signal weights are added once per signal.
-- A recovery attempt is reported only when its total score is at least `1`.
-- Autopilot, subagent, system-initiated, and first-turn requests are excluded.
-- Telemetry is not sent. Results are visible in the debugger and Copilot Chat log only.
+- A recovery signal is detected from a Copilot interaction or response action.
+- After the recovery response finishes, VS Code shows an information notification containing the detected signals and total score.
+- Signal properties are sparse: detected signals are present as `true`, while undetected signals are absent.
+- A signal contributes its weight only once, even when it applies to multiple files.
+- First-turn, Autopilot, subagent, and system-initiated requests are excluded.
 
-## Generate the Demo Workspace
+The current threshold is `0.2`, so every signal in the following table is sufficient to show a notification.
 
-The failed-test scenario requires a test provider registered with VS Code's Testing API. The following PowerShell commands create a disposable JavaScript workspace under `%TEMP%`, add a dependency-free test provider extension, and verify the passing baseline with Node's built-in test runner:
+| Signal | Weight |
+| --- | ---: |
+| `requestRetried` | 0.25 |
+| `requestEdited` | 0.5 |
+| `requestChangedModel` | 0.25 |
+| `requestReducedPermissions` | 0.5 |
+| `lastRequestRepeated` | 0.25 |
+| `lastResponseErrored` | 0.75 |
+| `documentUserDeleted` | 0.75 |
+| `documentUserRejected` | 0.75 |
+| `documentUserModified` | 0.5 |
+| `documentGeneratedProblems` | 0.5 |
+| `documentHasMergeConflicts` | 0.75 |
+| `documentGeneratedTestsFail` | 0.75 |
+| `planReviewRejected` | 0.75 |
+
+## Create the Demo Workspace
+
+Run the following PowerShell block once. It creates a disposable JavaScript workspace under `%TEMP%` with all files needed by the demo. The local extension exposes `calculator.test.js` through VS Code's Testing API so Copilot can use the `runTests` tool without installing another extension.
 
 ```powershell
 $demoWorkspace = Join-Path $env:TEMP 'chat-recovery-demo'
 Remove-Item $demoWorkspace -Recurse -Force -ErrorAction SilentlyContinue
 New-Item $demoWorkspace -ItemType Directory | Out-Null
 New-Item (Join-Path $demoWorkspace '.vscode/javascript-test-provider') -ItemType Directory | Out-Null
+
+@'
+# Chat Recovery Demo
+
+A small JavaScript calculator used to demonstrate Copilot chat recovery signals.
+'@ | Set-Content (Join-Path $demoWorkspace 'README.md') -Encoding utf8
+
+@'
+{
+  "name": "chat-recovery-demo",
+  "private": true,
+  "scripts": {
+    "test": "node --test calculator.test.js"
+  }
+}
+'@ | Set-Content (Join-Path $demoWorkspace 'package.json') -Encoding utf8
 
 @'
 function add(left, right) {
@@ -131,339 +164,269 @@ try {
 Write-Output "Demo workspace: $demoWorkspace"
 ```
 
-From the VS Code repository root, launch the development instance with the local test provider and generated workspace:
-
-```powershell
-.\scripts\code.bat --extensionDevelopmentPath="$demoWorkspace\.vscode\javascript-test-provider" $demoWorkspace
-```
-
-Trust the disposable workspace if prompted, then wait for `calculator.test.js` to appear in the Testing view. Run it once from the Testing view and confirm that it passes. Re-run the generation commands whenever a clean workspace is needed.
-
-## Before the Demo
-
-1. Build the client and Copilot extension.
-2. Launch the development instance of VS Code.
-3. Generate and open the demo workspace described above.
-4. Sign in to Copilot and confirm that Agent mode works.
-5. Open `extensions/copilot/src/extension/conversation/vscode-node/chatRecovery.ts` in the source window.
-6. Set a breakpoint on the final line of `addSignal`, after `totalScore` is updated.
-7. Set another breakpoint immediately after `addResponseSignals` in `getChatRecoveryAttempt`.
-8. Open the **GitHub Copilot Chat** output channel in the development instance.
-9. Keep the source debugger and the development instance visible side by side.
-
-At the `addSignal` breakpoint, inspect:
+The generated workspace contains:
 
 ```text
-signal
-recoveryAttempt
-recoveryAttempt.totalScore
+chat-recovery-demo/
+|-- README.md
+|-- package.json
+|-- calculator.js
+|-- calculator.test.js
+`-- .vscode/
+    `-- javascript-test-provider/
+        |-- package.json
+        `-- extension.js
 ```
 
-At the breakpoint after `addResponseSignals`, inspect the complete sparse result. Continue execution and wait for the current response to finish. If the score reached `1`, the GitHub Copilot Chat output contains:
+The setup command must finish with one passing test.
+
+## Launch the Demo
+
+1. Build the client and Copilot extension from the VS Code repository root:
+
+   ```powershell
+   npm run compile
+   ```
+
+2. In the same PowerShell session used to create the workspace, launch the development instance:
+
+   ```powershell
+   .\scripts\code.bat --extensionDevelopmentPath="$demoWorkspace\.vscode\javascript-test-provider" $demoWorkspace
+   ```
+
+3. Trust the disposable workspace if prompted.
+4. Sign in to GitHub Copilot.
+5. Open Chat and select Agent mode with **Default permissions**.
+6. Confirm that the Testing activity icon is present. No manual test run is needed.
+7. Dismiss any existing notifications so the recovery notification is easy to see.
+
+## Read the Notification
+
+Each scenario starts with **New Chat** to avoid carrying signals from another scenario. The first request establishes history and does not show a recovery notification. The next interaction produces one or more recovery signals.
+
+Wait for the recovery response to finish. VS Code then shows an information notification in this form:
 
 ```text
-[ChatAgentService/FailedRequest] Detected a chat recovery attempt. {...}
+[ChatAgentService/FailedRequest] Detected a chat recovery attempt. {"modelId":"...","scoringVersion":"2","totalScore":0.5,"requestRetried":true,"lastRequestRepeated":true}
 ```
 
-The log is written after the recovery request finishes. No log is expected for a score below `1`.
+For each notification, verify:
 
-The result snippets below list the signals required by each scenario. Normal UI actions can produce additional valid signals. For example, **Retry** usually adds `lastRequestRepeated` because it resubmits the same prompt. When extra signals appear, verify that `totalScore` is the sum of all properties actually present.
+- `scoringVersion` is `"2"`.
+- `totalScore` equals the sum of all signal properties shown.
+- Every shown signal is `true`.
+- Signals that were not detected are absent, not `false`.
 
-## Signal Weights
+Normal Copilot actions can add valid signals. For example, **Retry** normally adds both `requestRetried` and `lastRequestRepeated`. Verify the signals that are present rather than requiring the payload to contain only the minimum expected signals.
 
-| Signal | Weight |
-| --- | ---: |
-| `requestRetried` | 0.25 |
-| `requestEdited` | 0.5 |
-| `requestChangedModel` | 0.25 |
-| `requestReducedPermissions` | 0.5 |
-| `lastRequestRepeated` | 0.25 |
-| `lastResponseErrored` | 0.75 |
-| `documentUserDeleted` | 0.75 |
-| `documentUserRejected` | 0.75 |
-| `documentUserModified` | 0.5 |
-| `documentGeneratedProblems` | 0.5 |
-| `documentHasMergeConflicts` | 0.75 |
-| `documentGeneratedTestsFail` | 0.75 |
-| `planReviewRejected` | 0.75 |
+## Recommended Demo
 
-## Recommended Live Demo
+The first three scenarios are enough for a short presentation. They require only Copilot Chat prompts and controls.
 
-These scenarios use ordinary UI actions and are the most suitable for a short presentation. Start each scenario with **New Chat** so state from an earlier scenario does not affect the result.
+### 1. Retry a Response
 
-### 1. Threshold and Sparse Signals
+1. Select **New Chat**.
+2. Submit:
 
-1. Start a new chat with **Default permissions**.
-2. Submit: `Create a file named recovery-demo.ts that exports the number 1.`
+   ```text
+   Read README.md and reply with the project name only. Do not change files.
+   ```
+
+3. Wait for the response to finish. Confirm that no recovery notification appears for this first turn.
+4. Select **Retry** in the response footer.
+5. Wait for the retried response to finish.
+6. Verify that the notification contains at least:
+
+   ```json
+   {
+     "requestRetried": true,
+     "lastRequestRepeated": true,
+     "totalScore": 0.5
+   }
+   ```
+
+### 2. Edit a Request
+
+1. Select **New Chat**.
+2. Submit:
+
+   ```text
+   Read calculator.js and describe it in one sentence. Do not change files.
+   ```
+
 3. Wait for the response to finish.
-4. Change the model in the model picker.
-5. Submit a dissimilar follow-up: `List the names of the top-level workspace folders.`
-6. At the breakpoints, confirm:
+4. Open the request's **More Actions** menu and select **Edit Request**.
+5. Replace the request with:
 
-```json
-{
-  "requestChangedModel": true
-}
-```
+   ```text
+   Read package.json and reply with the test command only. Do not change files.
+   ```
 
-7. Confirm `totalScore` is `0.25` and no recovery log is emitted.
-8. Start another new chat and select a model.
-9. Submit: `Explain what the scripts folder contains.`
-10. Wait for the response to finish.
-11. Select **Edit Request**, switch to a different model, and resubmit as: `  EXPLAIN   what the scripts folder contains.  `
-12. Confirm `requestEdited`, `requestChangedModel`, and `lastRequestRepeated` are present.
-13. Confirm `totalScore` is `1`.
-14. After the response finishes, show the recovery log and point out that only detected signal properties are present.
+6. Submit the edited request and wait for its response to finish.
+7. Verify that the notification contains:
 
-### 2. Reduced Permissions
+   ```json
+   {
+     "requestEdited": true,
+     "totalScore": 0.5
+   }
+   ```
 
-1. Start a new chat.
-2. Set the permission picker to **Allow all**.
-3. Submit: `Inspect package.json and tell me the package name.`
-4. Wait for the response to finish.
-5. Select **Edit Request**.
-6. Set the permission picker to **Default permissions**.
-7. Replace the prompt with the dissimilar request `List the names of the top-level workspace folders.` and submit.
-8. Confirm:
+### 3. Change the Model
 
-```json
-{
-  "requestEdited": true,
-  "requestReducedPermissions": true,
-  "totalScore": 1
-}
-```
+1. Select **New Chat** and choose a specific model rather than **Auto**.
+2. Submit:
 
-9. Show the recovery log after the response finishes.
-10. Repeat in a new chat from **Default permissions** to **Allow all**.
-11. Confirm `requestReducedPermissions` is absent for the increase.
+   ```text
+   Read README.md and reply with its heading only. Do not change files.
+   ```
 
-Valid reductions are:
+3. Wait for the response to finish.
+4. Choose a different model from the model picker.
+5. Submit this dissimilar follow-up:
+
+   ```text
+   List the names of the top-level workspace files. Do not change files.
+   ```
+
+6. Wait for the response to finish.
+7. Verify that the notification contains:
+
+   ```json
+   {
+     "requestChangedModel": true,
+     "totalScore": 0.25
+   }
+   ```
+
+## Additional Copilot-Driven Scenarios
+
+### 4. Reduce Permissions
+
+1. Select **New Chat** and set the permission picker to **Allow all**.
+2. Submit:
+
+   ```text
+   Read README.md and reply with its heading only. Do not change files.
+   ```
+
+3. Wait for the response to finish.
+4. Change the permission picker to **Default permissions**.
+5. Submit:
+
+   ```text
+   Read package.json and reply with the package name only. Do not change files.
+   ```
+
+6. Wait for the response to finish.
+7. Verify that the notification contains `"requestReducedPermissions": true` and a minimum `totalScore` of `0.5`.
+
+Permission reductions follow this order:
 
 ```text
 Autopilot -> Allow all -> Assisted permissions -> Default permissions
 ```
 
-The exact options shown depend on product configuration. Do not use Autopilot as the current level when demonstrating the result because current Autopilot requests are intentionally excluded.
+Do not use Autopilot as the current permission level for the recovery request because current Autopilot requests are excluded.
 
-### 3. Repeated Request and Model Change
+### 5. Reject a Generated Change
 
-1. Start a new chat.
-2. Submit: `Explain what the scripts folder contains.`
-3. Wait for the response to finish.
-4. Select **Edit Request**.
-5. Switch to a different model.
-6. Resubmit as: `  EXPLAIN   what the scripts folder contains.  `
-7. Confirm:
+1. Select **New Chat** in Agent mode.
+2. Submit:
 
-```json
-{
-  "requestEdited": true,
-  "requestChangedModel": true,
-  "lastRequestRepeated": true,
-  "totalScore": 1
-}
-```
+   ```text
+   Create rejected-demo.js exporting a function named rejectedDemo. Do not change any other file.
+   ```
 
-8. Show that prompt comparison ignores case and repeated whitespace.
-9. Show the recovery log after the response finishes.
+3. Wait for the generated edit controls to appear.
+4. Reject the generated change from the response.
+5. Select **Retry** in the response footer.
+6. Wait for the response to finish.
+7. Verify that the notification contains at least:
 
-### 4. Rejected Generated Change
+   ```json
+   {
+     "requestRetried": true,
+     "documentUserRejected": true
+   }
+   ```
 
-1. Start a new chat in Agent mode.
-2. Submit: `Create recovery-rejected.ts with an exported function named rejectedDemo.`
-3. Wait for the file edit controls to appear.
-4. Reject the generated change.
-5. Select **Retry** on the response.
-6. Confirm the required signals:
+`lastRequestRepeated` can also be present. The expected minimum score is `1.0`.
 
-```json
-{
-  "requestRetried": true,
-  "documentUserRejected": true
-}
-```
+### 6. Fail a Generated Test
 
-7. Confirm the minimum score is `1`. A repeated-request signal can raise it to `1.25`.
-8. Show the recovery log after the retry finishes.
+1. Select **New Chat** in Agent mode.
+2. Submit:
 
-### 5. Generated Error Diagnostic
+   ```text
+   Change calculator.test.js to expect add(2, 3) to equal 6. Run that specific file with the test tool and leave the failing assertion in place.
+   ```
 
-1. Start a new chat in Agent mode.
-2. Submit: `Create recovery-problem.ts containing: export const count: number = "wrong"; Do not fix the type error.`
-3. Wait until the generated file has an error in the Problems view.
-4. Select **Edit Request** on the request.
-5. Replace the prompt with the dissimilar request: `Without changing files, summarize README.md.`
-6. Submit the edited request while the error diagnostic is still present.
-7. Confirm:
+3. Allow the edit and test run if Copilot asks for confirmation.
+4. Wait for the response to show a test result with a nonzero failed count.
+5. Select **Retry** in the response footer.
+6. Wait for the response to finish.
+7. Verify that the notification contains at least:
 
-```json
-{
-  "requestEdited": true,
-  "documentGeneratedProblems": true,
-  "totalScore": 1
-}
-```
+   ```json
+   {
+     "requestRetried": true,
+     "documentGeneratedTestsFail": true
+   }
+   ```
 
-8. Show the recovery log after the response finishes.
+The expected minimum score is `1.0`. `lastRequestRepeated` can raise it to `1.25`.
 
-Possible incidental signal: `documentUserModified` if the generated file was manually changed.
+8. Reset the workspace for another run by asking Copilot:
 
-## Extended Manual Coverage
+   ```text
+   Restore calculator.test.js so add(2, 3) is expected to equal 5, then run that test file and confirm it passes.
+   ```
 
-Run these scenarios when time and environment permit. They depend more heavily on editor state, model behavior, or tool availability.
+Only the latest relevant test run counts. After the passing run, a later recovery request should not include `documentGeneratedTestsFail` for the earlier failure.
 
-### 6. Retried Request
+### 7. Leave a Generated Diagnostic
 
-1. Start a new chat.
-2. Submit any request and wait for its response.
-3. Select **Retry** in the response footer.
-4. At `addSignal`, confirm `requestRetried` is added with weight `0.25`.
-5. Confirm a retry may also produce `lastRequestRepeated`.
-6. If the combined score is below `1`, confirm no recovery log is emitted.
+1. Select **New Chat** in Agent mode.
+2. Submit:
 
-### 7. Previous Response Error
+   ```text
+   Create recovery-problem.ts containing exactly: export const count: number = "wrong"; Leave the type error in place and do not change other files.
+   ```
 
-1. Start a new chat using a repeatable setup that produces a real request error, such as a test model configured to fail or a known unavailable endpoint.
-2. Submit a request and confirm the response ends in an error rather than a normal refusal or unsuccessful answer.
-3. Select **Retry**.
-4. Confirm the required signals:
+3. Wait for the response and generated edit to finish.
+4. Select **Retry** in the response footer.
+5. Wait for the response to finish.
+6. Verify that the notification contains `"documentGeneratedProblems": true`. A retry and repeated request can add `requestRetried` and `lastRequestRepeated`.
 
-```json
-{
-  "requestRetried": true,
-  "lastResponseErrored": true
-}
-```
+### 8. Reject a Plan
 
-5. Confirm the minimum score is `1`; `lastRequestRepeated` can raise it to `1.25`.
-6. Show the recovery log after the retry finishes.
+1. Select **New Chat** and switch to Plan mode.
+2. Submit:
 
-Do not rely on an incorrect answer to trigger this signal. The previous response must contain `errorDetails`.
+   ```text
+   Plan how to add subtraction to calculator.js and calculator.test.js. Do not implement the plan.
+   ```
 
-### 8. User-Modified Generated File
+3. When the plan review appears, select **Reject**.
+4. Select **Retry** in the response footer.
+5. Wait for the response to finish.
+6. Verify that the notification contains `"planReviewRejected": true`. A retry and repeated request can add other signals.
 
-1. Start a new chat in Agent mode.
-2. Submit: `Create recovery-modified.ts exporting const original = 1.`
-3. Wait for the generated edit to finish.
-4. Manually change `1` to `2` in the generated file and save it.
-5. Select **Edit Request** on the previous request.
-6. Change `original` to `updated` in the prompt and submit.
-7. Confirm `documentUserModified` and `requestEdited` are present.
-8. Confirm their combined score is `1`.
+## Exclusion Check
 
-### 9. Merge Conflict
+The simplest exclusion to demonstrate does not require debugging:
 
-1. Start a new chat in Agent mode.
-2. Ask the agent to create or edit `recovery-conflict.ts`.
-3. After the edit, replace its contents with:
+1. Select **New Chat**.
+2. Submit any first request.
+3. Confirm that no recovery notification appears. A first turn has no previous request or response to recover from.
 
-```text
-<<<<<<< HEAD
-export const value = 1;
-=======
-export const value = 2;
->>>>>>> demo
-```
+Autopilot, subagent, and system-initiated requests are also excluded, but they are not part of the recommended notification demo because they require product-specific workflows or debugger inspection.
 
-4. Save the file and keep it open.
-5. Select **Retry** on the previous response.
-6. Confirm `documentHasMergeConflicts` and `requestRetried` are present.
-7. Confirm their minimum combined score is `1`. The manual edit and repeated prompt can add other signals.
+## Troubleshooting
 
-### 10. Failed Tests for a Generated Change
-
-1. Generate and open the JavaScript demo workspace described above.
-2. Start a new chat in Agent mode.
-3. Submit: `Change calculator.test.js to expect add(2, 3) to equal 6, run that specific test with the test tool, and leave the failing assertion in place.`
-4. Confirm the response includes a test-tool result with a nonzero failed count.
-5. Select **Retry** on the response.
-6. Confirm `documentGeneratedTestsFail` and `requestRetried` are present.
-7. Confirm their minimum combined score is `1`. A repeated-request signal can raise it to `1.25`.
-8. Run a follow-up variant in which a failed run is followed by a passing run for the same changed file.
-9. Confirm `documentGeneratedTestsFail` is absent because only the latest relevant test run counts.
-
-The test run must target a file recorded in the previous generated working set. A failure for an unrelated file is ignored.
-
-### 11. Rejected Plan Review
-
-1. Start a new chat in Plan mode.
-2. Submit a task that causes the agent to produce a plan for review.
-3. Select **Reject** in the plan review UI.
-4. Select **Retry** on the associated response.
-5. Confirm `planReviewRejected` and `requestRetried` are present.
-6. Confirm their minimum combined score is `1`. A repeated-request signal can raise it to `1.25`.
-7. In a second run, accept the latest plan review.
-8. Confirm `planReviewRejected` is absent even if an earlier review was rejected.
-
-### 12. Generated Document No Longer Open
-
-1. Start a new chat in Agent mode.
-2. Ask the agent to generate two files.
-3. Wait for the response to finish, then close one generated file without deleting it from disk.
-4. Select **Retry** on the response.
-5. Confirm `documentUserDeleted` and `requestRetried` are present.
-6. Confirm their minimum combined score is `1`. A repeated-request signal can raise it to `1.25`.
-
-Important: the current implementation treats a changed document missing from `vscode.workspace.textDocuments` as deleted. This scenario demonstrates the implemented behavior, not reliable filesystem deletion detection. Call out this limitation during the demo.
-
-## Exclusion Checks
-
-Use the breakpoint at the start of `getChatRecoveryAttempt` for these checks. Each scenario must return `undefined` before signal collection.
-
-### First Turn
-
-1. Start a new chat.
-2. Submit the first request.
-3. Confirm both previous-turn arguments are absent and the function returns `undefined`.
-
-### Current Autopilot Request
-
-1. Submit one request using a non-Autopilot permission level.
-2. Change the current permission level to **Autopilot (Preview)**.
-3. Submit another request.
-4. Confirm the function returns `undefined`.
-
-### Subagent and System-Initiated Requests
-
-1. Run an agent workflow that delegates to a subagent.
-2. Confirm requests with `subAgentInvocationId` return `undefined`.
-3. Run a workflow that produces a system-initiated continuation.
-4. Confirm requests with `isSystemInitiated` return `undefined`.
-
-These two scenarios are easiest to verify in the debugger because they may not have a direct user-facing control.
-
-## Final Result Checklist
-
-For every reported recovery attempt, verify:
-
-```json
-{
-  "modelId": "<current model id>",
-  "scoringVersion": "2",
-  "totalScore": "<sum of unique detected signal weights>",
-  "<detected signal>": true
-}
-```
-
-- The score is at least `1`.
-- Every present signal property is `true`.
-- Signals that were not detected are absent rather than `false`.
-- A signal affecting multiple files contributes its weight only once.
-- Unknown permission-level strings do not produce `requestReducedPermissions`.
-- The log appears only after the recovery response completes.
-- No `chatRecoveryAttempt` telemetry event is sent.
-
-## Suggested Presentation Order
-
-For a 10-minute demo, use this order:
-
-1. Explain sparse signals, weights, and the threshold using the weights table.
-2. Run **Threshold and Sparse Signals**.
-3. Run **Reduced Permissions**.
-4. Run **Repeated Request and Model Change**.
-5. Run **Rejected Generated Change**.
-6. Show the generated-error scenario if time permits.
-7. Finish with the exclusion checks and the note that telemetry remains disabled.
-
-Before presenting, rehearse with the exact model and workspace intended for the demo. Model-generated file and test behavior can vary, while the request-edit, model-change, permission-change, retry, and rejection UI actions are deterministic.
+- If Testing does not appear, confirm the launch command includes `--extensionDevelopmentPath` and reload the development instance.
+- If Copilot uses a terminal command instead of the test tool, repeat the prompt with: `Use the VS Code test tool and pass the absolute path to calculator.test.js.`
+- If no notification appears, confirm this is not the first turn, the current request is not using Autopilot, and the recovery response has completely finished.
+- If a notification includes extra signals, add their weights to `totalScore`; extra valid signals are not a failure.
+- The same payload is written to the **GitHub Copilot Chat** output channel, which can be used as a fallback if the notification disappears before it can be read.
