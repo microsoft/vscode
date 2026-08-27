@@ -1078,21 +1078,25 @@ suite('SessionsManagementService', () => {
 			isVirtualWorkspace: false,
 		};
 		const originalStatus = observableValue('originalStatus', SessionStatus.Untitled);
+		const originalRequestInProgress = observableValue('originalRequestInProgress', false);
 		const originalChat: IChat = { ...stubChat, status: originalStatus };
 		const original = stubSession({
 			sessionId: 'local-draft',
 			providerId: 'local',
 			status: originalStatus,
+			isNewSessionRequestInProgress: originalRequestInProgress,
 			chats: constObservable([originalChat]),
 			mainChat: constObservable(originalChat),
 			workspace: constObservable(workspace),
 		});
 		const replacementStatus = observableValue('replacementStatus', SessionStatus.Untitled);
+		const replacementRequestInProgress = observableValue('replacementRequestInProgress', false);
 		const replacementChat: IChat = { ...stubChat, resource: URI.parse('dev:///chat'), status: replacementStatus };
 		const replacement = stubSession({
 			sessionId: 'dev-draft',
 			providerId: 'dev',
 			status: replacementStatus,
+			isNewSessionRequestInProgress: replacementRequestInProgress,
 			chats: constObservable([replacementChat]),
 			mainChat: constObservable(replacementChat),
 			workspace: constObservable(workspace),
@@ -1105,12 +1109,8 @@ suite('SessionsManagementService', () => {
 			override resolveWorkspace(): ISessionWorkspace { return workspace; }
 			override createNewSession(): ISession { return original; }
 			override startNewSessionRequest() {
-				originalStatus.set(SessionStatus.InProgress, undefined);
-				return toDisposable(() => {
-					if (originalStatus.get() === SessionStatus.InProgress) {
-						originalStatus.set(SessionStatus.Untitled, undefined);
-					}
-				});
+				originalRequestInProgress.set(true, undefined);
+				return toDisposable(() => originalRequestInProgress.set(false, undefined));
 			}
 			override async prepareNewSession() {
 				await preparation.p;
@@ -1123,12 +1123,8 @@ suite('SessionsManagementService', () => {
 			override readonly id = 'dev';
 			constructor() { super(replacement); }
 			override startNewSessionRequest() {
-				replacementStatus.set(SessionStatus.InProgress, undefined);
-				return toDisposable(() => {
-					if (replacementStatus.get() === SessionStatus.InProgress) {
-						replacementStatus.set(SessionStatus.Untitled, undefined);
-					}
-				});
+				replacementRequestInProgress.set(true, undefined);
+				return toDisposable(() => replacementRequestInProgress.set(false, undefined));
 			}
 			override async createNewChat(): Promise<IChat> {
 				sent.push('createNewChat');
@@ -1148,10 +1144,16 @@ suite('SessionsManagementService', () => {
 		const send = service.sendNewChatRequest(original, { query: 'hi' });
 		assert.deepStrictEqual({
 			statusDuringPreparation: original.status.get(),
+			requestInProgressDuringPreparation: original.isNewSessionRequestInProgress?.get(),
 			activeSessionDuringPreparation: view.activeSession.get()?.sessionId,
+			activeRequestInProgressDuringPreparation: view.activeSession.get()?.isNewSessionRequestInProgress?.get(),
+			activeSessionCreatedDuringPreparation: view.activeSession.get()?.isCreated.get(),
 		}, {
-			statusDuringPreparation: SessionStatus.InProgress,
+			statusDuringPreparation: SessionStatus.Untitled,
+			requestInProgressDuringPreparation: true,
 			activeSessionDuringPreparation: 'local-draft',
+			activeRequestInProgressDuringPreparation: true,
+			activeSessionCreatedDuringPreparation: false,
 		});
 		preparation.complete();
 		await send;
@@ -1163,6 +1165,7 @@ suite('SessionsManagementService', () => {
 			visibleSessions: view.visibleSessions.get().map(session => session?.sessionId ?? null),
 			activeSession: view.activeSession.get()?.sessionId,
 			replacementStatus: replacement.status.get(),
+			replacementRequestInProgress: replacement.isNewSessionRequestInProgress?.get(),
 		}, {
 			deleted: ['local-draft'],
 			replacements: ['local-draft->dev-draft'],
@@ -1170,6 +1173,7 @@ suite('SessionsManagementService', () => {
 			visibleSessions: ['dev-draft'],
 			activeSession: 'dev-draft',
 			replacementStatus: SessionStatus.Untitled,
+			replacementRequestInProgress: false,
 		});
 	});
 
@@ -1184,29 +1188,39 @@ suite('SessionsManagementService', () => {
 			mainChat: constObservable(chat),
 		});
 		const preparation = new DeferredPromise<void>();
+		const requestInProgress = observableValue('requestInProgress', false);
+		const sessionWithRequestState = { ...session, isNewSessionRequestInProgress: requestInProgress };
 		const provider = new class extends TestSessionsProvider {
 			override startNewSessionRequest() {
-				status.set(SessionStatus.InProgress, undefined);
-				return toDisposable(() => status.set(SessionStatus.Untitled, undefined));
+				requestInProgress.set(true, undefined);
+				return toDisposable(() => requestInProgress.set(false, undefined));
 			}
 			override async prepareNewSession(): Promise<never> {
 				await preparation.p;
 				throw new Error('prepare failed');
 			}
-		}(session);
-		const { service, view } = createSessionsManagementService(session, disposables, provider);
-		await view.openSession(session.resource);
+		}(sessionWithRequestState);
+		const { service, view } = createSessionsManagementService(sessionWithRequestState, disposables, provider);
+		await view.openSession(sessionWithRequestState.resource);
 
-		const send = service.sendNewChatRequest(session, { query: 'hi' });
-		assert.strictEqual(status.get(), SessionStatus.InProgress);
+		const send = service.sendNewChatRequest(sessionWithRequestState, { query: 'hi' });
+		assert.deepStrictEqual({
+			status: status.get(),
+			requestInProgress: requestInProgress.get(),
+		}, {
+			status: SessionStatus.Untitled,
+			requestInProgress: true,
+		});
 		preparation.complete();
 		await assert.rejects(send, /prepare failed/);
 
 		assert.deepStrictEqual({
 			status: status.get(),
+			requestInProgress: requestInProgress.get(),
 			activeSession: view.activeSession.get()?.sessionId,
 		}, {
 			status: SessionStatus.Untitled,
+			requestInProgress: false,
 			activeSession: 'draft',
 		});
 	});
