@@ -953,6 +953,97 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		function sessionRowSnapshot(container: HTMLElement) {
+			const row = container.querySelector<HTMLElement>('.session-item');
+			assert.ok(row);
+			return {
+				inProgress: row.classList.contains('in-progress'),
+				needsInput: row.classList.contains('needs-input'),
+				ariaLabel: row.closest('.monaco-list-row')?.getAttribute('aria-label') ?? null,
+			};
+		}
+
+		test('parent session row reflects the main chat status, not a non-main chat NeedsInput that drives the aggregate session status', () => {
+			const main = createChat('Main chat', undefined, ChatInteractivity.Full, SessionStatus.Completed);
+			const peer = createChat('Peer chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.NeedsInput);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				status: constObservable(SessionStatus.NeedsInput),
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+
+			const container = renderSessionChats(session);
+
+			const peerRow = [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
+				.find(element => element.textContent?.includes('Peer chat'));
+			assert.ok(peerRow);
+
+			assert.deepStrictEqual({
+				session: sessionRowSnapshot(container),
+				peerChatNeedsInput: peerRow.closest('.monaco-list-row')?.getAttribute('aria-label'),
+				aggregateStatus: session.status.get(),
+			}, {
+				session: { inProgress: false, needsInput: false, ariaLabel: 'Session, updated now, in Workspace' },
+				peerChatNeedsInput: 'Peer chat, chat, updated now, State: Input Needed',
+				aggregateStatus: SessionStatus.NeedsInput,
+			});
+		});
+
+		test('parent session row still shows NeedsInput when the main chat itself needs input', () => {
+			const main = createChat('Main chat', undefined, ChatInteractivity.Full, SessionStatus.NeedsInput);
+			const peer = createChat('Peer chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.Completed);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				status: constObservable(SessionStatus.NeedsInput),
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+
+			const container = renderSessionChats(session);
+
+			assert.deepStrictEqual(sessionRowSnapshot(container), {
+				inProgress: false,
+				needsInput: true,
+				ariaLabel: 'Session, updated now',
+			});
+		});
+
+		test('parent session row updates reactively when the main chat status changes independently of a non-main chat', () => {
+			const mainStatus = observableValue('main-status', SessionStatus.Completed);
+			const main = upcastPartial<IChat>({
+				resource: URI.parse('test-chat://Main-chat'),
+				title: constObservable('Main chat'),
+				updatedAt: constObservable(new Date()),
+				status: mainStatus,
+				interactivity: constObservable(ChatInteractivity.Full),
+			});
+			const peer = createChat('Peer chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.NeedsInput);
+			const aggregateStatus = observableValue('aggregate-status', SessionStatus.NeedsInput);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				status: aggregateStatus,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+
+			const container = renderSessionChats(session);
+			const before = sessionRowSnapshot(container);
+
+			mainStatus.set(SessionStatus.NeedsInput, undefined);
+
+			assert.deepStrictEqual({ before, after: sessionRowSnapshot(container) }, {
+				before: { inProgress: false, needsInput: false, ariaLabel: 'Session, updated now, in Workspace' },
+				after: { inProgress: false, needsInput: true, ariaLabel: 'Session, updated now' },
+			});
+		});
+
 		test('updates rendered chat row heights across phone layout changes', () => {
 			const main = createChat('Main chat');
 			const peer = createChat('Peer chat', ChatOriginKind.User);

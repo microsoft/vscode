@@ -211,6 +211,11 @@ function getSessionListChats(session: ISession, reader?: IReader): readonly ICha
 	);
 }
 
+/** Returns the main-chat status for trees with chat rows, otherwise the aggregate session status. */
+function getSessionRowStatus(session: ISession, reader: IReader | undefined, deriveFromMainChat: boolean): SessionStatus {
+	return deriveFromMainChat ? session.mainChat.read(reader).status.read(reader) : session.status.read(reader);
+}
+
 function isSessionGroupItem(item: SessionListItem): item is ISessionGroupItem {
 	return 'group' in item;
 }
@@ -728,7 +733,11 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	readonly onDidApproveSession: Event<IApprovedSession> = this._onDidApproveSession.event;
 
 	constructor(
-		private readonly options: { grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; useCompactQuickChatRows: boolean; approvalRowMaxLines: number; aggregateChatApprovals: boolean; toolbarMenuId: MenuId | undefined; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>; onDidRequestRename?: (session: ISession) => void; activeGuideSessionIds?: IObservable<ReadonlySet<string>> },
+		private readonly options: {
+			grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; useCompactQuickChatRows: boolean; approvalRowMaxLines: number; aggregateChatApprovals: boolean; toolbarMenuId: MenuId | undefined; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>; onDidRequestRename?: (session: ISession) => void; activeGuideSessionIds?: IObservable<ReadonlySet<string>>;
+			/** Whether status presentation derives from the main chat instead of the aggregate session. */
+			deriveStatusFromMainChat?: boolean;
+		},
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly ciFixModel: ISessionCIFixModel | undefined,
 		private readonly instantiationService: IInstantiationService,
@@ -939,7 +948,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		// resets to undefined and the DOM is rebuilt every time, restarting the
 		// CSS spin animation.
 		template.elementDisposables.add(autorun(reader => {
-			const sessionStatus = element.status.read(reader);
+			const sessionStatus = getSessionRowStatus(element, reader, !!this.options.deriveStatusFromMainChat);
 			template.statusContext.set(sessionStatus);
 			const isRead = element.isRead.read(reader);
 			template.isReadContext.set(isRead);
@@ -971,7 +980,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		const timeDisposable = template.elementDisposables.add(new MutableDisposable());
 		const descriptionDisposable = template.elementDisposables.add(new MutableDisposable());
 		template.elementDisposables.add(autorun(reader => {
-			const sessionStatus = element.status.read(reader);
+			const sessionStatus = getSessionRowStatus(element, reader, !!this.options.deriveStatusFromMainChat);
 			const workspace = element.workspace.read(reader);
 			const description = element.description.read(reader);
 			const isQuickChat = element.isQuickChat?.read(reader) ?? false;
@@ -1710,6 +1719,8 @@ interface ISessionsAccessibilityProviderOptions {
 	readonly isPinned: (session: ISession) => boolean;
 	readonly isRenderedInCustomGroup?: (session: ISession) => boolean;
 	readonly includeQuickChatInAriaLabel?: boolean;
+	/** Mirrors {@link SessionItemRenderer}'s option of the same name — see there for rationale. */
+	readonly deriveStatusFromMainChat?: boolean;
 }
 
 class SessionsAccessibilityProvider {
@@ -1782,7 +1793,7 @@ class SessionsAccessibilityProvider {
 			} else {
 				label = localize('sessionItemAria', "{0}, updated {1}", title, updated);
 			}
-			const status = element.status.read(reader);
+			const status = getSessionRowStatus(element, reader, !!this.options?.deriveStatusFromMainChat);
 			const workspace = element.workspace.read(reader);
 			const workspaceLabel = workspace ? getWorkspaceBadgeLabel(workspace) : undefined;
 			if (
@@ -2448,6 +2459,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					this.commandService.executeCommand(RENAME_SESSION_COMMAND_ID, session).catch(onUnexpectedError);
 				},
 				activeGuideSessionIds: this.activeGuideSessionIds,
+				deriveStatusFromMainChat: true,
 			},
 			approvalModel,
 			undefined,
@@ -2504,6 +2516,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					grouping: this.options.grouping,
 					isPinned: session => this.isSessionPinned(session),
 					isRenderedInCustomGroup: session => this.isRenderedInCustomGroup(session),
+					deriveStatusFromMainChat: true,
 				}),
 				dnd: this._register(new SessionsListDragAndDrop({
 					isReorderable: session => this.isReorderable(session),

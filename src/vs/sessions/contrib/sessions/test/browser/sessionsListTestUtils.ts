@@ -97,6 +97,10 @@ export function createTestSession(title: string, options: ITestSessionOptions = 
 	const resource = URI.parse(`test-session://${resourceId}`);
 	const capabilities = observableValue<ISessionCapabilities>(`capabilities-${resourceId}`, { supportsMultipleChats: false, supportsRename: true });
 	const status = observableValue(`status-${resourceId}`, options.status ?? SessionStatus.Completed);
+	const mainChat = new class extends mock<IChat>() {
+		override readonly resource = resource.with({ fragment: 'main' });
+		override readonly status = status;
+	}();
 	const isArchived = observableValue(`archived-${resourceId}`, options.isArchived ?? false);
 	const workspaceLabel = options.workspaceLabel ?? 'Workspace';
 	const isQuickChat = options.isQuickChat ?? false;
@@ -130,7 +134,7 @@ export function createTestSession(title: string, options: ITestSessionOptions = 
 		description: constObservable(undefined),
 		lastTurnEnd: constObservable(undefined),
 		chats: constObservable<readonly IChat[]>([]),
-		mainChat: constObservable(new class extends mock<IChat>() { }),
+		mainChat: constObservable(mainChat),
 		capabilities,
 	};
 	return { session, capabilities, status, isArchived };
