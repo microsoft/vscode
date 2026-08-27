@@ -72,6 +72,14 @@
 	display: none;
 }
 
+.new-chat-widget-content .new-session-quick-chat-header {
+	display: none;
+}
+
+.new-chat-widget-content.quick-chat .new-session-quick-chat-header {
+	display: flex;
+}
+
 .new-chat-widget-content {
 	width: 100%;
 	max-width: 800px;
@@ -108,11 +116,6 @@
 	gap: 2px;
 	min-width: 0;
 	overflow: hidden;
-}
-
-/* Collapse the controls-row picker host when empty so it adds no flex gap. */
-.new-chat-widget-container .new-chat-bottom-container .new-chat-session-type-picker-host:empty {
-	display: none;
 }
 
 .new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container {
@@ -305,12 +308,6 @@
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
-.sessions-chat-picker-slot.sessions-workspace-category-picker-slot:last-child .action-label {
-	justify-content: center;
-	min-width: var(--vscode-spacing-size320);
-	padding-inline: var(--vscode-spacing-size80);
-}
-
 .sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label:hover,
 .sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label[aria-expanded='true'] {
 	background-color: var(--vscode-toolbar-hoverBackground);
@@ -320,11 +317,15 @@
 
 .sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: var(--vscode-spacing-size20);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
 .sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label > .codicon {
 	font-size: var(--vscode-codiconFontSize);
+}
+
+.sessions-workspace-category-picker .sessions-chat-dropdown-label {
+	margin-left: 0;
 }
 
 .sessions-workspace-category-picker:empty {
@@ -332,6 +333,7 @@
 }
 
 .sessions-chat-dropdown-label {
+	margin-left: 6px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -449,28 +451,6 @@
 
 .sessions-chat-picker-slot .action-label span + .chat-session-option-label {
 	margin-left: 2px;
-}
-
-/* Session control pills (mode "Interactive", permission "Manual permissions")
- * and the repo-config pills render an icon span directly before their
- * .sessions-chat-dropdown-label inside a flex .action-label. Unlike the
- * workspace category pills they have no `gap`, so the icon smashes into the
- * label. Add the same small gap here (scoped to these toolbars so the model
- * picker and workspace category pills keep their own spacing). */
-.new-chat-widget-container .new-chat-session-controls .sessions-chat-picker-slot .action-label,
-.new-chat-widget-container .new-chat-repo-config-container .sessions-chat-picker-slot .action-label {
-	gap: var(--vscode-spacing-size40);
-}
-
-.new-chat-input-area .sessions-chat-input-session-type-picker .action-label {
-	gap: var(--vscode-spacing-size40);
-	height: var(--vscode-spacing-size160);
-	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
-	font-size: var(--vscode-fontSize-label2);
-}
-
-.new-chat-input-area .sessions-chat-input-session-type-picker .action-label > .codicon {
-	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .sessions-chat-picker-slot .action-label.warning {

@@ -1296,6 +1296,61 @@ suite('WorkspacePicker - Category Triggers', () => {
 		});
 	});
 
+	test('unified workspace trigger reflects the selected local or remote workspace', () => {
+		const providersService = disposables.add(new MockSessionsProvidersService());
+		const localProvider = createMockProvider('local-1');
+		const remoteProvider = createMockProvider('remote-1');
+		providersService.setProviders([
+			{
+				...localProvider,
+				resolveWorkspace: uri => uri.scheme === 'file'
+					? { ...localProvider.resolveWorkspace(uri)!, group: SESSION_WORKSPACE_GROUP_LOCAL, icon: Codicon.folder }
+					: undefined,
+			},
+			{
+				...remoteProvider,
+				resolveWorkspace: uri => uri.scheme === 'vscode-remote'
+					? { ...remoteProvider.resolveWorkspace(uri)!, group: SESSION_WORKSPACE_GROUP_REMOTE, icon: Codicon.remote }
+					: undefined,
+			},
+		]);
+		const picker = createTestPicker(disposables, providersService);
+		const container = document.createElement('div');
+		picker.renderCategoryTriggers(container, [{
+			label: 'Workspace',
+			ariaLabel: 'Choose a workspace',
+			icon: Codicon.project,
+			reflectsWorkspace: true,
+		}]);
+		const trigger = container.querySelector<HTMLElement>('.action-label');
+		const icon = trigger?.querySelector<HTMLElement>('.codicon');
+		const label = trigger?.querySelector<HTMLElement>('.sessions-chat-dropdown-label');
+
+		const snapshots = [{
+			icon: icon?.className,
+			label: label?.textContent,
+			ariaLabel: trigger?.getAttribute('aria-label'),
+		}];
+		picker.setSelectedWorkspace(URI.file('/local/project'), { fireEvent: false, persist: false });
+		snapshots.push({
+			icon: icon?.className,
+			label: label?.textContent,
+			ariaLabel: trigger?.getAttribute('aria-label'),
+		});
+		picker.setSelectedWorkspace(URI.parse('vscode-remote://ssh-remote+host/home/project'), { fireEvent: false, persist: false });
+		snapshots.push({
+			icon: icon?.className,
+			label: label?.textContent,
+			ariaLabel: trigger?.getAttribute('aria-label'),
+		});
+
+		assert.deepStrictEqual(snapshots, [
+			{ icon: 'codicon codicon-project', label: 'Workspace', ariaLabel: 'Choose a workspace' },
+			{ icon: 'codicon codicon-folder', label: 'local/project', ariaLabel: 'Workspace: local/project' },
+			{ icon: 'codicon codicon-remote', label: 'home/project', ariaLabel: 'Workspace: home/project' },
+		]);
+	});
+
 	test('keeps the selected remote workspace visible in the remote trigger', () => {
 		const providersService = disposables.add(new MockSessionsProvidersService());
 		const baseProvider = createMockProvider('agenthost-remote-1', {
@@ -2020,15 +2075,34 @@ suite('WorkspacePicker - Category Triggers', () => {
 		picker.setDirectFilter(SESSION_WORKSPACE_GROUP_GITHUB, false);
 
 		await picker.dispatchItem({ browseActionIndex: 0 });
-
-		assert.deepStrictEqual({
+		const firstSelection = {
 			selectedFolder: picker.selectedFolderUri?.toString(),
 			selectedProvider: picker.selectedResolved?.providerId,
 			attachedContextWorkspaces: picker.attachedContextWorkspaces,
+		};
+
+		picker.setSelectedWorkspace(URI.file('/copilot/current'), { fireEvent: false, persist: false });
+		picker.setDirectFilter(undefined);
+		await picker.dispatchItem({ browseActionIndex: 0 });
+
+		assert.deepStrictEqual({
+			firstSelection,
+			replacementSelection: {
+				selectedFolder: picker.selectedFolderUri?.toString(),
+				selectedProvider: picker.selectedResolved?.providerId,
+				attachedContextWorkspaces: picker.attachedContextWorkspaces,
+			},
 		}, {
-			selectedFolder: repositoryUri.toString(),
-			selectedProvider: provider.id,
-			attachedContextWorkspaces: [],
+			firstSelection: {
+				selectedFolder: repositoryUri.toString(),
+				selectedProvider: provider.id,
+				attachedContextWorkspaces: [],
+			},
+			replacementSelection: {
+				selectedFolder: repositoryUri.toString(),
+				selectedProvider: provider.id,
+				attachedContextWorkspaces: [],
+			},
 		});
 	});
 

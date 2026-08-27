@@ -100,6 +100,7 @@ export interface IWorkspacePickerTrigger {
 	readonly label?: string;
 	readonly ariaLabel: string;
 	readonly icon: ThemeIcon;
+	readonly reflectsWorkspace?: boolean;
 	readonly group?: string;
 	readonly attachesContext?: boolean;
 	readonly hideWhenWorkspaceSelected?: boolean;
@@ -467,6 +468,7 @@ export class WorkspacePicker extends Disposable {
 		}
 		for (const options of triggers) {
 			const slot = dom.append(row, dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot'));
+			slot.classList.toggle('sessions-workspace-picker-trigger', options.reflectsWorkspace === true);
 			if (options.group === SESSION_WORKSPACE_GROUP_LOCAL) {
 				this._folderTriggerOptions = options;
 			} else if (options.group === SESSION_WORKSPACE_GROUP_GITHUB && options.attachesContext === false) {
@@ -770,6 +772,8 @@ export class WorkspacePicker extends Disposable {
 	 * selection semantics. Treats unavailable workspaces as a no-op.
 	 */
 	protected async _dispatchPickerItem(item: IWorkspacePickerItem): Promise<boolean> {
+		const attachesRepositoryContext = this._directPickerGroup === SESSION_WORKSPACE_GROUP_GITHUB
+			&& this._directPickerAttachesContext === false;
 		const generation = ++this._selectionGeneration;
 		this._reportPickerClosed(item);
 		if (item.run) {
@@ -811,6 +815,7 @@ export class WorkspacePicker extends Disposable {
 			}
 			if (action?.group === SESSION_WORKSPACE_GROUP_GITHUB
 				&& action.attachesContext !== true
+				&& attachesRepositoryContext
 				&& this._attachAdditionalRepository(selection.workspace, selection.providerId)) {
 				return true;
 			}
@@ -840,6 +845,7 @@ export class WorkspacePicker extends Disposable {
 			}
 			const resolved = this._resolveFolder(item.folderUri, item.providerId);
 			if (resolved?.workspace.group === SESSION_WORKSPACE_GROUP_GITHUB
+				&& attachesRepositoryContext
 				&& this._attachAdditionalRepository(resolved.workspace, resolved.providerId)) {
 				return true;
 			}
@@ -1516,6 +1522,7 @@ export class WorkspacePicker extends Disposable {
 		}
 		if (options) {
 			const workspace = this._selectedResolved?.workspace;
+			const reflectsWorkspace = options.reflectsWorkspace === true;
 			const isSelectedCategory = options.attachesContext !== true
 				&& options.group !== undefined
 				&& options.group === workspace?.group;
@@ -1535,8 +1542,9 @@ export class WorkspacePicker extends Disposable {
 				&& options.hideWhenNoGitHubRepository === true
 				&& this._getCurrentRepositoryId() === undefined;
 			trigger.parentElement?.toggleAttribute('hidden', hideForSelectedWorkspace || hideForMissingWorkspace || hideForMissingGitHubRepository);
-			trigger.classList.toggle('selected', selectedWorkspace !== undefined || isSelectedCategory || contextCount > 0 || relatedGitHubInfo !== undefined);
+			trigger.classList.toggle('selected', selectedWorkspace !== undefined || (reflectsWorkspace && workspace !== undefined) || isSelectedCategory || contextCount > 0 || relatedGitHubInfo !== undefined);
 			const icon = selectedWorkspace?.icon
+				?? (reflectsWorkspace ? workspace?.icon : undefined)
 				?? (contextCount > 0 ? Codicon.attach : undefined)
 				?? (relatedGitHubInfo ? Codicon.repo : (isSelectedCategory && workspace ? workspace.icon : options.icon));
 			if (!contents.icon) {
@@ -1545,6 +1553,7 @@ export class WorkspacePicker extends Disposable {
 			}
 			contents.icon.className = ThemeIcon.asClassName(icon);
 			const label = selectedWorkspace?.label
+				?? (reflectsWorkspace ? workspace?.label : undefined)
 				?? (contextCount > 0 ? localize('workspacePicker.attachedContextCount', "Attached {0}", contextCount) : undefined)
 				?? (relatedGitHubInfo ? `${relatedGitHubInfo.owner}/${relatedGitHubInfo.repo}` : (isSelectedCategory && workspace ? workspace.label : options.label));
 			trigger.setAttribute('aria-label', label && label !== options.label && !selectedWorkspace
