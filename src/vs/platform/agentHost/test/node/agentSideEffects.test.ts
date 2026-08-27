@@ -2829,13 +2829,20 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(changed.length, 2, 'restored session must receive its customizations');
 		});
 
-		test('does not publish customizations after the session is removed during discovery', async () => {
+		test('does not publish stale customizations after the session is removed and restored during discovery', async () => {
 			setupSession();
 			const discoveryStarted = new DeferredPromise<void>();
 			const discoveryResult = new DeferredPromise<readonly Customization[]>();
+			const staleCustomization: Customization = { type: CustomizationType.Plugin, id: customizationId('file:///stale'), uri: 'file:///stale', name: 'Stale', load: { kind: CustomizationLoadStatus.Loaded } };
+			const freshCustomization: Customization = { type: CustomizationType.Plugin, id: customizationId('file:///fresh'), uri: 'file:///fresh', name: 'Fresh', load: { kind: CustomizationLoadStatus.Loaded } };
+			let fetchCalls = 0;
 			agent.getSessionCustomizations = async () => {
-				discoveryStarted.complete();
-				return discoveryResult.p;
+				fetchCalls++;
+				if (fetchCalls === 1) {
+					discoveryStarted.complete();
+					return discoveryResult.p;
+				}
+				return [freshCustomization];
 			};
 			const changed: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => {
@@ -2848,10 +2855,14 @@ suite('AgentSideEffects', () => {
 			agent.fireCustomizationsChange();
 			await discoveryStarted.p;
 			stateManager.removeSession(sessionUri.toString());
-			discoveryResult.complete([]);
+			setupSession();
+			discoveryResult.complete([staleCustomization]);
 			await sideEffects['_pendingSessionCustomizationPublishes'].get(sessionUri.toString());
 
-			assert.deepStrictEqual(changed, []);
+			agent.fireCustomizationsChange();
+			await waitForState(stateManager, () => changed.length === 1 || undefined);
+
+			assert.deepStrictEqual(changed.map(envelope => envelope.action.type === ActionType.SessionCustomizationsChanged ? envelope.action.customizations : undefined), [[freshCustomization]]);
 		});
 	});
 

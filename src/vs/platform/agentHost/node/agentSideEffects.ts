@@ -196,6 +196,7 @@ export class AgentSideEffects extends Disposable {
 	private readonly _cancelledTurnIds = new Map<ProtocolURI, Set<string>>();
 	/** Serializes refreshes per session so state-based deduplication observes the preceding dispatch. */
 	private readonly _pendingSessionCustomizationPublishes = new Map<ProtocolURI, Promise<void>>();
+	private readonly _sessionCustomizationIncarnations = new Map<ProtocolURI, object>();
 	private readonly _pendingCustomizationEnablementRefreshes = new Set<ProtocolURI>();
 
 	/**
@@ -240,6 +241,7 @@ export class AgentSideEffects extends Disposable {
 		this._inputRequestTracker = new AgentHostInputRequestTracker(this._telemetryReporter, undefined, (session, turnId) => this._turnTracker.getClientTelemetryContext(session, turnId));
 		this._permissionManager = this._register(instantiationService.createInstance(SessionPermissionManager, this._stateManager, {}));
 		this._register(this._stateManager.onDidSnapshotDefaultChatTitle(event => this._persistDefaultChatTitleSnapshot(event.session, event.chat, event.title)));
+		this._register(this._stateManager.onDidRemoveSession(session => this._sessionCustomizationIncarnations.delete(session)));
 		this._register(this._chatContributions.registerHost({
 			hostLaunchKind: this._options.hostLaunchKind ?? AgentHostLaunchKind.Unknown,
 			sendTurnMessage: options => void this._sendTurnMessage(options),
@@ -452,6 +454,8 @@ export class AgentSideEffects extends Disposable {
 		if (!stateBeforeFetch) {
 			return;
 		}
+		const incarnation = this._sessionCustomizationIncarnations.get(session) ?? {};
+		this._sessionCustomizationIncarnations.set(session, incarnation);
 		const currentBeforeFetch = stateBeforeFetch.customizations;
 		const chat = URI.parse(stateBeforeFetch.defaultChat ?? buildDefaultChatUri(session));
 		const customizations = await agent.getChatCustomizations(chat, this._chatContext(session, chat.toString()), currentBeforeFetch);
@@ -470,7 +474,7 @@ export class AgentSideEffects extends Disposable {
 		// published) never equals a resolved array, so the initial publish
 		// always goes through.
 		const currentState = this._stateManager.getSessionState(session);
-		if (!currentState) {
+		if (!currentState || this._sessionCustomizationIncarnations.get(session) !== incarnation) {
 			return;
 		}
 		const current = currentState.customizations;
