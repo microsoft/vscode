@@ -194,13 +194,9 @@ export class QuickAccess {
 			// open commands picker
 			await this.openQuickAccessWithRetry(QuickAccessKind.Commands, `>${command}`);
 
-			// wait for best choice to be focused
-			await this.quickInput.waitForQuickInputElementFocused();
+			const element = await this.quickInput.waitForQuickInputElement();
 
-			// Retry for as long as the command not found
-			const text = await this.quickInput.waitForQuickInputElementText();
-
-			if (text === 'No matching commands') {
+			if (element.label === 'No matching commands') {
 				return false;
 			}
 
@@ -209,11 +205,10 @@ export class QuickAccess {
 			}
 
 			if (match === 'exactLabel') {
-				return text === command;
+				return element.label === command;
 			}
 
-			const focusedAutomationId = await this.quickInput.waitForQuickInputAutomationId();
-			return focusedAutomationId === command;
+			return element.uiAutomationId === command;
 		};
 
 		let hasCommandFound = await openCommandPalletteAndTypeCommand();
@@ -240,13 +235,6 @@ export class QuickAccess {
 			}
 		}
 
-		let expectedItem: { type: 'automationId' | 'label'; value: string } | undefined;
-		if (match === 'exactCommandId') {
-			expectedItem = { type: 'automationId', value: command };
-		} else if (match === 'exactLabel') {
-			expectedItem = { type: 'label', value: command };
-		}
-
 		// Wait and click on best choice. Focus can be stolen away from the
 		// quick input between opening the palette and now (e.g. by an async
 		// UI event from a previously opened editor), which causes the
@@ -255,7 +243,7 @@ export class QuickAccess {
 		let selectRetries = 0;
 		while (true) {
 			try {
-				await this.quickInput.selectQuickInputElement(0, keepOpen, expectedItem);
+				await this.quickInput.selectQuickInputElement(0, keepOpen);
 				break;
 			} catch (err) {
 				if (++selectRetries > 3) {
@@ -283,10 +271,10 @@ export class QuickAccess {
 			// open quick outline via keybinding
 			await this.openQuickAccessWithRetry(QuickAccessKind.Symbols);
 
-			const text = await this.quickInput.waitForQuickInputElementText();
+			const { label } = await this.quickInput.waitForQuickInputElement();
 
 			// Retry for as long as no symbols are found
-			if (text === 'No symbol information for the file') {
+			if (label === 'No symbol information for the file') {
 				this.code.logger.log(`QuickAccess: openQuickOutline indicated 'No symbol information for the file', will retry...`);
 
 				// close and retry

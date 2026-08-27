@@ -5,6 +5,11 @@
 
 import { Code } from './code';
 
+interface IQuickInputElementInfo {
+	label: string;
+	uiAutomationId?: string;
+}
+
 export class QuickInput {
 
 	private static QUICK_INPUT = '.quick-input-widget';
@@ -25,17 +30,15 @@ export class QuickInput {
 		await this.code.waitForSetValue(QuickInput.QUICK_INPUT_INPUT, value);
 	}
 
-	async waitForQuickInputElementFocused(): Promise<void> {
-		await this.code.waitForTextContent(QuickInput.QUICK_INPUT_FOCUSED_ELEMENT);
-	}
-
-	async waitForQuickInputElementText(): Promise<string> {
-		return this.code.waitForTextContent(QuickInput.QUICK_INPUT_FOCUSED_ELEMENT);
-	}
-
-	async waitForQuickInputAutomationId(): Promise<string | undefined> {
-		const element = await this.code.waitForElement(QuickInput.QUICK_INPUT_FOCUSED_ENTRY);
-		return element.attributes['data-quick-input-automation-id'];
+	async waitForQuickInputElement(): Promise<IQuickInputElementInfo> {
+		const [label, element] = await Promise.all([
+			this.code.waitForTextContent(QuickInput.QUICK_INPUT_FOCUSED_ELEMENT),
+			this.code.waitForElement(QuickInput.QUICK_INPUT_FOCUSED_ENTRY)
+		]);
+		return {
+			label,
+			uiAutomationId: element.attributes['data-quick-input-automation-id']
+		};
 	}
 
 	async closeQuickInput(): Promise<void> {
@@ -50,21 +53,10 @@ export class QuickInput {
 		await this.code.waitForElement(QuickInput.QUICK_INPUT, r => !!r && r.attributes.style.indexOf('display: none;') !== -1);
 	}
 
-	async selectQuickInputElement(index: number, keepOpen?: boolean, expectedItem?: { type: 'automationId' | 'label'; value: string }): Promise<void> {
+	async selectQuickInputElement(index: number, keepOpen?: boolean): Promise<void> {
 		await this.waitForQuickInputOpened();
 		for (let from = 0; from < index; from++) {
 			await this.code.dispatchKeybinding('down', async () => { });
-		}
-		if (expectedItem?.type === 'automationId') {
-			const value = await this.waitForQuickInputAutomationId();
-			if (value !== expectedItem.value) {
-				throw new Error(`Focused Quick Input automation ID '${value}' does not match expected ID '${expectedItem.value}'.`);
-			}
-		} else if (expectedItem?.type === 'label') {
-			const value = await this.waitForQuickInputElementText();
-			if (value !== expectedItem.value) {
-				throw new Error(`Focused Quick Input label '${value}' does not match expected label '${expectedItem.value}'.`);
-			}
 		}
 		await this.code.dispatchKeybinding('enter', async () => {
 			if (!keepOpen) {
