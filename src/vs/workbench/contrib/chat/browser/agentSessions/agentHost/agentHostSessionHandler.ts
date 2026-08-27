@@ -2274,7 +2274,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * {@link activate} runs after the session is known to exist and before this
 	 * client is published: session-scoped tools are registered off the *active
 	 * session*, so publishing first would settle on an inventory that is about
-	 * to change.
+	 * to change. Those registrations are themselves debounced, so the tool
+	 * registry is flushed before this client is composed.
 	 */
 	async claimExternalSession(backendSession: URI, activate: AgentSessionClaimActivation, token: CancellationToken): Promise<IDisposable> {
 		const sessionKey = backendSession.toString();
@@ -2309,6 +2310,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
+			// Tools registered during activation only *schedule* the service's
+			// change event, and the customization scope reads a cached
+			// observable fed by it — so composing this client now would use the
+			// pre-activation set and correct itself a debounce later. Flush
+			// instead of settling on an inventory that is about to be replaced.
+			this._toolsService.flushToolUpdates();
 
 			// Arm tool serving before publishing, so a request queued the instant
 			// the host sees this client is already watched for.

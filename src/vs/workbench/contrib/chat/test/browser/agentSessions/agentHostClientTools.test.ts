@@ -472,6 +472,15 @@ suite('AgentHostClientTools', () => {
 
 		function createMockToolsService(disposables: DisposableStore, tools: IToolData[], options?: { requireConfirmation?: boolean; throwBeforeConfirmation?: Error; invokeResult?: DeferredPromise<IToolResult> }) {
 			const onDidChangeTools = disposables.add(new Emitter<void>());
+			// The real service hands every consumer one cached observable and
+			// only *schedules* `onDidChangeTools` on registration, behind a
+			// 750ms `RunOnceScheduler`. Model both: `registerToolDeferred` makes
+			// a tool visible to lookups immediately but leaves the observable on
+			// its previous value until `flushToolUpdates` runs. Nothing here
+			// ever fires on a timer, so a test that sees a deferred tool in an
+			// inventory can only have got there through an explicit flush.
+			const observedTools = observableValue<readonly IToolData[]>('tools', [...tools]);
+			let toolsDirty = false;
 			const pendingToolCalls = new Map<string, ChatToolInvocation>();
 			const begunToolCalls: ChatToolInvocation[] = [];
 			const invokedToolCalls: IToolInvocation[] = [];
@@ -481,7 +490,7 @@ suite('AgentHostClientTools', () => {
 			return {
 				onDidChangeTools: onDidChangeTools.event,
 				getToolByName: (name: string) => tools.find(t => t.toolReferenceName === name),
-				observeTools: () => observableValue('tools', tools),
+				observeTools: () => observedTools,
 				registerToolData: () => toDisposable(() => { }),
 				registerToolImplementation: () => toDisposable(() => { }),
 				registerTool: () => toDisposable(() => { }),
@@ -576,7 +585,13 @@ suite('AgentHostClientTools', () => {
 				},
 				updateToolStream: async () => { },
 				cancelToolCallsForRequest: () => { },
-				flushToolUpdates: () => { },
+				flushToolUpdates: () => {
+					if (toolsDirty) {
+						toolsDirty = false;
+						observedTools.set([...tools], undefined);
+						onDidChangeTools.fire();
+					}
+				},
 				toolSets: observableValue<IToolSet[]>('sets', []),
 				getToolSetsForModel: () => [],
 				getToolSet: () => undefined,
@@ -598,12 +613,17 @@ suite('AgentHostClientTools', () => {
 				onDidInvokeTool: Event.None,
 				_serviceBrand: undefined,
 				fireOnDidChangeTools: () => onDidChangeTools.fire(),
+				/** Registers a tool the way the real service does: event deferred. */
+				registerToolDeferred: (tool: IToolData) => {
+					tools.push(tool);
+					toolsDirty = true;
+				},
 				begunToolCalls,
 				invokedToolCalls,
 				executedToolCalls,
 				invocationTokens,
 				recordedStateKinds,
-			} satisfies ILanguageModelToolsService & { fireOnDidChangeTools: () => void; begunToolCalls: ChatToolInvocation[]; invokedToolCalls: IToolInvocation[]; executedToolCalls: IToolInvocation[]; invocationTokens: CancellationToken[]; recordedStateKinds: Map<string, IChatToolInvocation.StateKind[]> };
+			} satisfies ILanguageModelToolsService & { fireOnDidChangeTools: () => void; registerToolDeferred: (tool: IToolData) => void; begunToolCalls: ChatToolInvocation[]; invokedToolCalls: IToolInvocation[]; executedToolCalls: IToolInvocation[]; invocationTokens: CancellationToken[]; recordedStateKinds: Map<string, IChatToolInvocation.StateKind[]> };
 		}
 
 		class MockAgentHostConnection extends mock<IAgentHostService>() {
@@ -3378,6 +3398,40 @@ suite('AgentHostClientTools', () => {
 				assert.strictEqual(published.length, 1, 'one settled publish, not one per inventory revision');
 				assert.deepStrictEqual(published[0].tools?.map(tool => tool.name), ['runTask'],
 					'the claim must not return before the post-activation inventory is published');
+			});
+
+			test('settles on tools registered during activation, without waiting for the debounce', async () => {
+				// The window registers its session-scoped tools once the session
+				// is active, and the service defers the change event behind a
+				// scheduler while every consumer reads one cached observable. The
+				// mock never fires that event on a clock, so `runTests` can only
+				// reach the published inventory if the claim flushed the registry.
+				const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+				toolsService.toolSets.set([toolSetWith(testRunTaskTool), toolSetWith(testRunTestsTool)], undefined);
+
+				await claim(handler, async () => {
+					toolsService.registerToolDeferred(testRunTestsTool);
+				});
+
+				const published = publishedClients(connection);
+				assert.strictEqual(published.length, 1, 'one settled publish, not a correction a debounce later');
+				assert.deepStrictEqual(
+					published[0].tools?.map(tool => tool.name).sort(),
+					['runTask', 'runTests'],
+					'the first settled publish must carry the post-activation inventory');
+			});
+
+			test('a tool registered before the claim is published without a flush', async () => {
+				// The flush must not be what makes an *already delivered* tool
+				// visible: this one is in the observable from the start.
+				const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+				toolsService.toolSets.set([toolSetWith(testRunTaskTool)], undefined);
+
+				await claim(handler);
+
+				assert.deepStrictEqual(
+					publishedClients(connection)[0].tools?.map(tool => tool.name),
+					['runTask']);
 			});
 
 			test('republishes the whole inventory when it changes after the claim', async () => {
