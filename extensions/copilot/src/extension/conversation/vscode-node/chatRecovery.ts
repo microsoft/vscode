@@ -50,12 +50,27 @@ const chatRecoverySignalRules = {
 	[ChatRecoverySignal.PlanReviewRejected]: { weight: 0.75 },
 } satisfies Record<ChatRecoverySignal, { readonly weight: number }>;
 
-export interface IChatRecoveryAttemptScore {
-	readonly signals: readonly ChatRecoverySignal[];
-	readonly score: number;
-}
+type ChatRecoverySignalProperties = Partial<Record<ChatRecoverySignal, true>>;
+
+export type ChatRecoveryAttempt = ChatRecoverySignalProperties & {
+	readonly modelId: string;
+	readonly scoringVersion: string;
+	readonly totalScore: string;
+};
 
 const chatRecoveryScoreThreshold = 1;
+const chatRecoveryScoringVersion = '1';
+
+function addSignal(signalProperties: ChatRecoverySignalProperties, signal: ChatRecoverySignal): number {
+	if (!chatRecoverySignalRules[signal]) {
+		return 0;
+	}
+	if (signalProperties[signal]) {
+		return 0;
+	}
+	signalProperties[signal] = true;
+	return chatRecoverySignalRules[signal].weight;
+}
 
 export function arePromptsSimilar(previousPrompt: string, currentPrompt: string): boolean {
 	const normalizedPreviousPrompt = previousPrompt.trim().replace(/\s+/g, ' ').toLowerCase();
@@ -121,29 +136,31 @@ export function wasLastPlanReviewRejected(metadata: Partial<IResultMetadata> | u
 /**
  * Determines whether the current chat request is an attempt to recover from a previous failed request.
  */
-export function getChatRecoveryAttemptScore(previousRequest: ChatRequestTurn2 | undefined, previousResponse: ChatResponseTurn | undefined, request: vscode.ChatRequest, environment?: IChatRecoveryEnvironment): IChatRecoveryAttemptScore | undefined {
+export function getChatRecoveryAttempt(previousRequest: ChatRequestTurn2 | undefined, previousResponse: ChatResponseTurn | undefined, request: vscode.ChatRequest, environment?: IChatRecoveryEnvironment): ChatRecoveryAttempt | undefined {
 	if ((!previousRequest && !previousResponse) || request.permissionLevel === 'autopilot' || request.subAgentInvocationId || request.isSystemInitiated) {
 		return undefined;
 	}
 
-	const signals: ChatRecoverySignal[] = [];
+	const signalProperties: ChatRecoverySignalProperties = {};
+	let totalScore = 0;
+
 	if (request.attempt > 0) {
-		signals.push(ChatRecoverySignal.RequestRetried);
+		totalScore += addSignal(signalProperties, ChatRecoverySignal.RequestRetried);
 	}
 	if (request.editedRequestId) {
-		signals.push(ChatRecoverySignal.RequestEdited);
+		totalScore += addSignal(signalProperties, ChatRecoverySignal.RequestEdited);
 	}
 	if (previousRequest?.modelId && previousRequest.modelId !== request.model.id) {
-		signals.push(ChatRecoverySignal.RequestChangedModel);
+		totalScore += addSignal(signalProperties, ChatRecoverySignal.RequestChangedModel);
 	}
 	if (previousRequest?.permissionLevel === 'autopilot' && request.permissionLevel !== 'autopilot') {
-		signals.push(ChatRecoverySignal.RequestTurnedOffAutopilot);
+		totalScore += addSignal(signalProperties, ChatRecoverySignal.RequestTurnedOffAutopilot);
 	}
 	if (previousRequest && arePromptsSimilar(previousRequest.prompt, request.prompt)) {
-		signals.push(ChatRecoverySignal.LastRequestRepeated);
+		totalScore += addSignal(signalProperties, ChatRecoverySignal.LastRequestRepeated);
 	}
 	if (previousResponse?.result.errorDetails) {
-		signals.push(ChatRecoverySignal.LastResponseErrored);
+		totalScore += addSignal(signalProperties, ChatRecoverySignal.LastResponseErrored);
 	}
 
 	const editStep = previousResponse ? PreviousEditCodeStep.fromChatResultMetaData(previousResponse.result) : undefined;
@@ -154,7 +171,7 @@ export function getChatRecoveryAttemptScore(previousRequest: ChatRequestTurn2 | 
 		) === true
 	);
 	if (documentUserRejected) {
-		signals.push(ChatRecoverySignal.DocumentUserRejected);
+		totalScore += addSignal(signalProperties, ChatRecoverySignal.DocumentUserRejected);
 	}
 	const documentUserModified = changedFiles.some(entry =>
 		request.editedFileEvents?.some(event =>
@@ -162,33 +179,35 @@ export function getChatRecoveryAttemptScore(previousRequest: ChatRequestTurn2 | 
 		) === true
 	);
 	if (documentUserModified) {
-		signals.push(ChatRecoverySignal.DocumentUserModified);
+		totalScore += addSignal(signalProperties, ChatRecoverySignal.DocumentUserModified);
 	}
 	const documentGeneratedProblems = changedFiles.some(entry =>
 		(environment?.getDiagnostics(entry.document.uri) ?? vscode.languages.getDiagnostics(entry.document.uri)).some(diagnostic => diagnostic.severity === vscode.DiagnosticSeverity.Error)
 	);
 	if (documentGeneratedProblems) {
-		signals.push(ChatRecoverySignal.DocumentGeneratedProblems);
+		totalScore += addSignal(signalProperties, ChatRecoverySignal.DocumentGeneratedProblems);
 	}
 	const documentHasMergeConflicts = changedFiles.some(entry => environment
 		? environment.hasMergeConflicts(entry.document.uri)
 		: vscode.workspace.textDocuments.some(document => isEqual(document.uri, entry.document.uri) && MergeConflictParser.scanDocument(document).length > 0));
 	if (documentHasMergeConflicts) {
-		signals.push(ChatRecoverySignal.DocumentHasMergeConflicts);
+		totalScore += addSignal(signalProperties, ChatRecoverySignal.DocumentHasMergeConflicts);
 	}
 	if (didLastTestRunFail(previousResponse?.result.metadata, changedFiles.map(entry => entry.document.uri))) {
-		signals.push(ChatRecoverySignal.DocumentGeneratedTestsFail);
+		totalScore += addSignal(signalProperties, ChatRecoverySignal.DocumentGeneratedTestsFail);
 	}
 	if (wasLastPlanReviewRejected(previousResponse?.result.metadata)) {
-		signals.push(ChatRecoverySignal.PlanReviewRejected);
+		totalScore += addSignal(signalProperties, ChatRecoverySignal.PlanReviewRejected);
 	}
 
-	const score = signals.reduce((total, signal) => total + chatRecoverySignalRules[signal].weight, 0);
-	if (score < chatRecoveryScoreThreshold) {
+	if (totalScore < chatRecoveryScoreThreshold) {
 		return undefined;
 	}
+
 	return {
-		score,
-		signals,
+		modelId: request.model.id,
+		scoringVersion: chatRecoveryScoringVersion,
+		totalScore: String(totalScore),
+		...signalProperties,
 	};
 }

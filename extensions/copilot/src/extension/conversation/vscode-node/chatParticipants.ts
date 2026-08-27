@@ -29,7 +29,7 @@ import { ChatSummarizerProvider } from '../../prompt/node/summarizer';
 import { ChatTitleProvider } from '../../prompt/node/title';
 import { IUserFeedbackService } from './userActions';
 import { getAdditionalWelcomeMessage } from './welcomeMessageProvider';
-import { getChatRecoveryAttemptScore } from './chatRecovery';
+import { getChatRecoveryAttempt } from './chatRecovery';
 
 export class ChatAgentService implements IChatAgentService {
 	declare readonly _serviceBrand: undefined;
@@ -210,7 +210,7 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 			try {
 				const sentRequests = context.history.filter((turn): turn is ChatRequestTurn2 => turn instanceof ChatRequestTurn);
 				const sentResponses = context.history.filter((turn): turn is ChatResponseTurn => turn instanceof ChatResponseTurn);
-				const isRecoveryAttempt = getChatRecoveryAttemptScore(sentRequests.at(-1), sentResponses.at(-1), request);
+				const recoveryAttempt = getChatRecoveryAttempt(sentRequests.at(-1), sentResponses.at(-1), request);
 
 				// If we need to switch to the base model, this function will handle it
 				// Otherwise it just returns the same request passed into it
@@ -274,9 +274,30 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 					}
 				}
 
-				if (isRecoveryAttempt) {
-					this.logService.info('[ChatAgentService/FailedRequest] Detected a chat recovery attempt.');
-					// this.telemetryService.sendMSFTTelemetryEvent('chatRecoveryAttempt', { modelId: request.model?.id });
+				if (recoveryAttempt) {
+					this.logService.info(`[ChatAgentService/FailedRequest] Detected a chat recovery attempt. ${JSON.stringify(recoveryAttempt)}`);
+					/* __GDPR__
+						"chatRecoveryAttempt" : {
+							"owner": "eduardovil",
+							"comment": "Reports detected attempts to recover from an unsuccessful chat interaction.",
+							"modelId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model used to handle the recovery attempt." },
+							"scoringVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The version of the recovery scoring rules." },
+							"documentUserRejected": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the user rejected a generated document change. Present only when true." },
+							"documentUserModified": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the user modified a generated document change. Present only when true." },
+							"documentHasMergeConflicts": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether a generated document contains merge conflicts. Present only when true." },
+							"documentGeneratedProblems": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether a generated document contains error diagnostics. Present only when true." },
+							"documentGeneratedTestsFail": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether tests targeting generated changes failed. Present only when true." },
+							"lastRequestRepeated": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the request substantially repeated the previous request. Present only when true." },
+							"lastResponseErrored": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the previous response reported an error. Present only when true." },
+							"requestRetried": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the request was retried. Present only when true." },
+							"requestEdited": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the previous request was edited. Present only when true." },
+							"requestChangedModel": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the user changed models. Present only when true." },
+							"requestTurnedOffAutopilot": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the user turned off autopilot. Present only when true." },
+							"planReviewRejected": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the latest plan review was rejected. Present only when true." },
+							"totalScore": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The weighted recovery-attempt score." }
+						}
+					*/
+					// this.telemetryService.sendMSFTTelemetryEvent('chatRecoveryAttempt', recoveryAttempt);
 				}
 
 				return result;

@@ -11,7 +11,7 @@ import { PreviousEditCodeStep } from '../../../intents/node/editCodeStep';
 import { IResultMetadata } from '../../../prompt/common/conversation';
 import { WorkingSetEntryState } from '../../../prompt/common/intents';
 import { ToolName } from '../../../tools/common/toolNames';
-import { arePromptsSimilar, didLastTestRunFail, getChatRecoveryAttemptScore, wasLastPlanReviewRejected } from '../chatRecovery';
+import { arePromptsSimilar, didLastTestRunFail, getChatRecoveryAttempt, wasLastPlanReviewRejected } from '../chatRecovery';
 
 const changedTestFile = URI.file('/workspace/new.test.ts');
 
@@ -108,15 +108,15 @@ suite('Chat recovery', () => {
 	test('requires the normalized recovery score to reach the threshold', () => {
 		const previousRequest = { prompt: 'previous request', modelId: 'model' } as ChatRequestTurn2;
 		expect([
-			getChatRecoveryAttemptScore(previousRequest, undefined, chatRequest({ attempt: 1 })),
-			getChatRecoveryAttemptScore(previousRequest, undefined, chatRequest({ attempt: 1, editedRequestId: 'request-id' })),
-			getChatRecoveryAttemptScore({ ...previousRequest, modelId: 'other-model' }, undefined, chatRequest({ attempt: 1, editedRequestId: 'request-id' })),
-			getChatRecoveryAttemptScore({ ...previousRequest, permissionLevel: 'autopilot' }, undefined, chatRequest({ attempt: 1, editedRequestId: 'request-id' })),
+			getChatRecoveryAttempt(previousRequest, undefined, chatRequest({ attempt: 1 })),
+			getChatRecoveryAttempt(previousRequest, undefined, chatRequest({ attempt: 1, editedRequestId: 'request-id' })),
+			getChatRecoveryAttempt({ ...previousRequest, modelId: 'other-model' }, undefined, chatRequest({ attempt: 1, editedRequestId: 'request-id' })),
+			getChatRecoveryAttempt({ ...previousRequest, permissionLevel: 'autopilot' }, undefined, chatRequest({ attempt: 1, editedRequestId: 'request-id' })),
 		]).toEqual([
 			undefined,
 			undefined,
-			{ score: 1, signals: ['requestRetried', 'requestEdited', 'requestChangedModel'] },
-			{ score: 1.25, signals: ['requestRetried', 'requestEdited', 'requestTurnedOffAutopilot'] },
+			{ modelId: 'model', scoringVersion: '1', totalScore: '1', requestRetried: true, requestEdited: true, requestChangedModel: true },
+			{ modelId: 'model', scoringVersion: '1', totalScore: '1.25', requestRetried: true, requestEdited: true, requestTurnedOffAutopilot: true },
 		]);
 	});
 
@@ -125,10 +125,10 @@ suite('Chat recovery', () => {
 		const previousResponse = chatResponse(undefined, true);
 
 		expect({
-			noHistory: getChatRecoveryAttemptScore(undefined, undefined, chatRequest({ attempt: 1, editedRequestId: 'request-id' })),
-			autopilot: getChatRecoveryAttemptScore(previousRequest, previousResponse, chatRequest({ attempt: 1, permissionLevel: 'autopilot' })),
-			subagent: getChatRecoveryAttemptScore(previousRequest, previousResponse, chatRequest({ attempt: 1, subAgentInvocationId: 'subagent-id' })),
-			systemInitiated: getChatRecoveryAttemptScore(previousRequest, previousResponse, chatRequest({ attempt: 1, isSystemInitiated: true })),
+			noHistory: getChatRecoveryAttempt(undefined, undefined, chatRequest({ attempt: 1, editedRequestId: 'request-id' })),
+			autopilot: getChatRecoveryAttempt(previousRequest, previousResponse, chatRequest({ attempt: 1, permissionLevel: 'autopilot' })),
+			subagent: getChatRecoveryAttempt(previousRequest, previousResponse, chatRequest({ attempt: 1, subAgentInvocationId: 'subagent-id' })),
+			systemInitiated: getChatRecoveryAttempt(previousRequest, previousResponse, chatRequest({ attempt: 1, isSystemInitiated: true })),
 		}).toEqual({ noHistory: undefined, autopilot: undefined, subagent: undefined, systemInitiated: undefined });
 	});
 
@@ -138,21 +138,21 @@ suite('Chat recovery', () => {
 		const noWorkspaceSignals = { getDiagnostics: () => [], hasMergeConflicts: () => false };
 
 		expect({
-			editedRequest: getChatRecoveryAttemptScore(previousRequest, chatResponse(undefined, true), chatRequest({ editedRequestId: 'request-id' })),
-			changedModel: getChatRecoveryAttemptScore({ ...previousRequest, modelId: 'other-model' }, chatResponse(undefined, true), chatRequest({})),
-			turnedOffAutopilot: getChatRecoveryAttemptScore({ ...previousRequest, permissionLevel: 'autopilot' }, chatResponse(undefined, true), chatRequest({})),
-			repeatedRequest: getChatRecoveryAttemptScore(previousRequest, chatResponse(undefined, true), chatRequest({ prompt: 'Fix  the parser error' })),
-			responseError: getChatRecoveryAttemptScore(previousRequest, chatResponse(undefined, true), chatRequest(retry)),
-			failedTests: getChatRecoveryAttemptScore(previousRequest, chatResponse(metadataWithChangedFile(changedTestFile, metadataWithTestRuns({ failedCount: 1 }))), chatRequest(retry), noWorkspaceSignals),
-			rejectedPlan: getChatRecoveryAttemptScore(previousRequest, chatResponse(metadataWithPlanReviews('{"rejected":true}')), chatRequest(retry)),
+			editedRequest: getChatRecoveryAttempt(previousRequest, chatResponse(undefined, true), chatRequest({ editedRequestId: 'request-id' })),
+			changedModel: getChatRecoveryAttempt({ ...previousRequest, modelId: 'other-model' }, chatResponse(undefined, true), chatRequest({})),
+			turnedOffAutopilot: getChatRecoveryAttempt({ ...previousRequest, permissionLevel: 'autopilot' }, chatResponse(undefined, true), chatRequest({})),
+			repeatedRequest: getChatRecoveryAttempt(previousRequest, chatResponse(undefined, true), chatRequest({ prompt: 'Fix  the parser error' })),
+			responseError: getChatRecoveryAttempt(previousRequest, chatResponse(undefined, true), chatRequest(retry)),
+			failedTests: getChatRecoveryAttempt(previousRequest, chatResponse(metadataWithChangedFile(changedTestFile, metadataWithTestRuns({ failedCount: 1 }))), chatRequest(retry), noWorkspaceSignals),
+			rejectedPlan: getChatRecoveryAttempt(previousRequest, chatResponse(metadataWithPlanReviews('{"rejected":true}')), chatRequest(retry)),
 		}).toEqual({
-			editedRequest: { score: 1.25, signals: ['requestEdited', 'lastResponseErrored'] },
-			changedModel: { score: 1, signals: ['requestChangedModel', 'lastResponseErrored'] },
-			turnedOffAutopilot: { score: 1.25, signals: ['requestTurnedOffAutopilot', 'lastResponseErrored'] },
-			repeatedRequest: { score: 1, signals: ['lastRequestRepeated', 'lastResponseErrored'] },
-			responseError: { score: 1, signals: ['requestRetried', 'lastResponseErrored'] },
-			failedTests: { score: 1, signals: ['requestRetried', 'documentGeneratedTestsFail'] },
-			rejectedPlan: { score: 1, signals: ['requestRetried', 'planReviewRejected'] },
+			editedRequest: { modelId: 'model', scoringVersion: '1', totalScore: '1.25', requestEdited: true, lastResponseErrored: true },
+			changedModel: { modelId: 'model', scoringVersion: '1', totalScore: '1', requestChangedModel: true, lastResponseErrored: true },
+			turnedOffAutopilot: { modelId: 'model', scoringVersion: '1', totalScore: '1.25', requestTurnedOffAutopilot: true, lastResponseErrored: true },
+			repeatedRequest: { modelId: 'model', scoringVersion: '1', totalScore: '1', lastRequestRepeated: true, lastResponseErrored: true },
+			responseError: { modelId: 'model', scoringVersion: '1', totalScore: '1', requestRetried: true, lastResponseErrored: true },
+			failedTests: { modelId: 'model', scoringVersion: '1', totalScore: '1', requestRetried: true, documentGeneratedTestsFail: true },
+			rejectedPlan: { modelId: 'model', scoringVersion: '1', totalScore: '1', requestRetried: true, planReviewRejected: true },
 		});
 	});
 
@@ -168,15 +168,15 @@ suite('Chat recovery', () => {
 		const previousRequest = { prompt: 'previous request', modelId: 'model' } as ChatRequestTurn2;
 
 		expect({
-			userRejected: getChatRecoveryAttemptScore(previousRequest, chatResponse(metadataWithChangedFile(changedDocument)), chatRequest({ attempt: 1, editedFileEvents: [{ uri: changedDocument, eventKind: ChatRequestEditedFileEventKind.Undo }] }), noWorkspaceSignals),
-			userModified: getChatRecoveryAttemptScore(previousRequest, chatResponse(metadataWithChangedFile(changedDocument)), chatRequest({ attempt: 1, editedRequestId: 'request-id', editedFileEvents: [{ uri: changedDocument, eventKind: ChatRequestEditedFileEventKind.UserModification }] }), noWorkspaceSignals),
-			generatedProblems: getChatRecoveryAttemptScore(previousRequest, chatResponse(metadataWithChangedFile(changedDocument)), chatRequest({ attempt: 1, editedRequestId: 'request-id' }), diagnosticSignals),
-			mergeConflicts: getChatRecoveryAttemptScore(previousRequest, chatResponse(metadataWithChangedFile(conflictDocument)), chatRequest({ attempt: 1 }), conflictSignals),
+			userRejected: getChatRecoveryAttempt(previousRequest, chatResponse(metadataWithChangedFile(changedDocument)), chatRequest({ attempt: 1, editedFileEvents: [{ uri: changedDocument, eventKind: ChatRequestEditedFileEventKind.Undo }] }), noWorkspaceSignals),
+			userModified: getChatRecoveryAttempt(previousRequest, chatResponse(metadataWithChangedFile(changedDocument)), chatRequest({ attempt: 1, editedRequestId: 'request-id', editedFileEvents: [{ uri: changedDocument, eventKind: ChatRequestEditedFileEventKind.UserModification }] }), noWorkspaceSignals),
+			generatedProblems: getChatRecoveryAttempt(previousRequest, chatResponse(metadataWithChangedFile(changedDocument)), chatRequest({ attempt: 1, editedRequestId: 'request-id' }), diagnosticSignals),
+			mergeConflicts: getChatRecoveryAttempt(previousRequest, chatResponse(metadataWithChangedFile(conflictDocument)), chatRequest({ attempt: 1 }), conflictSignals),
 		}).toEqual({
-			userRejected: { score: 1, signals: ['requestRetried', 'documentUserRejected'] },
-			userModified: { score: 1.25, signals: ['requestRetried', 'requestEdited', 'documentUserModified'] },
-			generatedProblems: { score: 1.25, signals: ['requestRetried', 'requestEdited', 'documentGeneratedProblems'] },
-			mergeConflicts: { score: 1, signals: ['requestRetried', 'documentHasMergeConflicts'] },
+			userRejected: { modelId: 'model', scoringVersion: '1', totalScore: '1', requestRetried: true, documentUserRejected: true },
+			userModified: { modelId: 'model', scoringVersion: '1', totalScore: '1.25', requestRetried: true, requestEdited: true, documentUserModified: true },
+			generatedProblems: { modelId: 'model', scoringVersion: '1', totalScore: '1.25', requestRetried: true, requestEdited: true, documentGeneratedProblems: true },
+			mergeConflicts: { modelId: 'model', scoringVersion: '1', totalScore: '1', requestRetried: true, documentHasMergeConflicts: true },
 		});
 	});
 });
