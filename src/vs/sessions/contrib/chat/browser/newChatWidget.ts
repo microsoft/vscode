@@ -78,6 +78,8 @@ export class NewChatWidget extends Disposable {
 	 * the visible heading instead of the (hidden) chat input.
 	 */
 	private _activeEmptyState: NoAgentHostEmptyState | undefined;
+	private _workspacePickerRow: HTMLElement | undefined;
+	private _quickChatHeaderPickerHost: HTMLElement | undefined;
 
 	private readonly _session: IObservable<IActiveSession | undefined>;
 
@@ -205,6 +207,7 @@ export class NewChatWidget extends Disposable {
 			loading,
 			historyKey: constObservable(undefined), // no persisted history for the new-session view
 			placeholder: localize('newSessionPromptPlaceholder', "Pitch your idea"),
+			sessionTypePickerOptions: { showChevron: false },
 			supportsBackground: true,
 			deferredNotificationsEnabled,
 			petHostPreferred: this.options.petHostPreferred,
@@ -404,6 +407,10 @@ export class NewChatWidget extends Disposable {
 			? this._renderEmptyStateGate(workspacePickerContainer, chatWidgetContent)
 			: this._renderWorkspacePicker(workspacePickerContainer));
 
+		if (!isWeb) {
+			this._quickChatHeaderPickerHost = dom.append(chatWidgetContent, dom.$('.new-session-quick-chat-header.sessions-workspace-category-picker'));
+		}
+
 		this._renderFeedbackBanner(chatWidgetContent);
 		this._newChatInput.render(chatWidgetContent, parent);
 
@@ -446,6 +453,22 @@ export class NewChatWidget extends Disposable {
 				this._workspacePickerVisibleKey.set(!isQuickChat);
 			}
 		}));
+
+		if (!isWeb) {
+			this._register(autorun(reader => {
+				const isQuickChat = this._isQuickChatComposer.read(reader);
+				const target = isQuickChat ? this._quickChatHeaderPickerHost : this._workspacePickerRow;
+				if (!target) {
+					return;
+				}
+				this._newChatInput.sessionTypePicker.render(target, {
+					className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot',
+				});
+				if (!isQuickChat && target.lastElementChild) {
+					target.insertBefore(target.lastElementChild, target.firstElementChild);
+				}
+			}));
+		}
 
 		// Create initial session for any workspace already selected at construct time.
 		// If the selection arrives later (provider registers asynchronously), the
@@ -698,14 +721,19 @@ export class NewChatWidget extends Disposable {
 			attachesContext: true,
 			hideWhenNoGitHubRepository: true,
 		};
-		this._workspacePicker.renderCategoryTriggers(container, [
+		const row = this._workspacePicker.renderCategoryTriggers(container, [
 			isWeb ? { ...folderTrigger, group: SESSION_WORKSPACE_GROUP_REMOTE, hideWhenNoWorkspaceSelected: true } : folderTrigger,
 			repositoryTrigger,
 			gitHubContextTrigger,
 			remoteTrigger,
 			moreTrigger,
 		]);
-		return Disposable.None;
+		this._workspacePickerRow = row;
+		return toDisposable(() => {
+			if (this._workspacePickerRow === row) {
+				this._workspacePickerRow = undefined;
+			}
+		});
 	}
 
 	private _renderEmptyState(container: HTMLElement): IDisposable {

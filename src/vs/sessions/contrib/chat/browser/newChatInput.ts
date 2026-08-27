@@ -1027,9 +1027,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		this._createAttachButton(toolbar);
 
-		const sessionTypePickerHost = dom.append(toolbar, dom.$('.new-chat-session-type-picker-host'));
-		this.sessionTypePicker.render(sessionTypePickerHost, { className: 'sessions-chat-session-type-picker sessions-chat-input-session-type-picker' });
-
 		// Session config pickers (such as model) — rendered via MenuWorkbenchToolBar
 		// Visibility controlled by context keys (isActiveSessionBackgroundProvider, isNewChatSession)
 		const configContainer = dom.append(toolbar, dom.$('.sessions-chat-config-toolbar'));
