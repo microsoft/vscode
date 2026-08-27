@@ -714,7 +714,6 @@ export class RenameAgentSessionAction extends BaseAgentSessionAction {
 		super({
 			id: AGENT_SESSION_RENAME_ACTION_ID,
 			title: localize2('rename', "Rename..."),
-			precondition: ChatContextKeys.hasMultipleAgentSessionsSelected.negate(),
 			keybinding: [{
 				primary: KeyCode.F2,
 				mac: {
@@ -724,6 +723,7 @@ export class RenameAgentSessionAction extends BaseAgentSessionAction {
 				when: ContextKeyExpr.and(
 					ChatContextKeys.agentSessionsViewerFocused,
 					renameSupportedSessionTypes,
+					ChatContextKeys.hasMultipleAgentSessionsSelected.negate(),
 				),
 			}, {
 				primary: KeyCode.F2,
@@ -734,7 +734,10 @@ export class RenameAgentSessionAction extends BaseAgentSessionAction {
 				id: MenuId.AgentSessionsContext,
 				group: '1_edit',
 				order: 3,
-				when: renameSupportedSessionTypes
+				when: ContextKeyExpr.and(
+					renameSupportedSessionTypes,
+					ChatContextKeys.hasMultipleAgentSessionsSelected.negate(),
+				),
 			}
 		});
 	}

@@ -85,6 +85,16 @@ suite('RenameAgentSessionAction', () => {
 			editorTranscript: lookup([...regularChat, [ChatContextKeys.inChatEditor.key, true]]),
 			editorInput: lookup([...regularChat, [ChatContextKeys.inChatEditor.key, true], [ChatContextKeys.inChatInput.key, true]]),
 			agentHostEditorInput: lookup([...agentHostChat, [ChatContextKeys.inChatEditor.key, true], [ChatContextKeys.inChatInput.key, true]]),
+			panelInputAfterListMultiSelection: lookup([
+				...regularChat,
+				[ChatContextKeys.hasMultipleAgentSessionsSelected.key, true],
+				[ChatContextKeys.inChatInput.key, true],
+			]),
+			sessionsListMultiSelection: lookup([
+				[ChatContextKeys.agentSessionsViewerFocused.key, true],
+				[ChatContextKeys.agentSessionType.key, AgentSessionProviders.Local],
+				[ChatContextKeys.hasMultipleAgentSessionsSelected.key, true],
+			]),
 			emptyAgentHostEditorInput: lookup([
 				...agentHostChat,
 				[ChatContextKeys.chatSessionSupportsRename.key, false],
@@ -126,6 +136,8 @@ suite('RenameAgentSessionAction', () => {
 			editorTranscript: expectedChatKeybinding,
 			editorInput: expectedChatKeybinding,
 			agentHostEditorInput: expectedChatKeybinding,
+			panelInputAfterListMultiSelection: expectedChatKeybinding,
+			sessionsListMultiSelection: null,
 			emptyAgentHostEditorInput: null,
 			renameableContributedInput: expectedChatKeybinding,
 			cloudEditorInput: null,
