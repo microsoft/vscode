@@ -127,6 +127,7 @@ function createSession(spec: ISessionSpec, approvals: Map<string, IAgentSessionA
 	}
 	const mainChat = new class extends mock<IChat>() {
 		override readonly resource = mainChatResource;
+		override readonly status: IObservable<SessionStatus> = constObservable(spec.status ?? SessionStatus.Completed);
 		override readonly interactivity: IObservable<ChatInteractivity> = constObservable(ChatInteractivity.Full);
 	}();
 	const nestedChats = (spec.chats ?? []).map(chatSpec => createChat(spec.id, chatSpec, updatedAt, approvals));
