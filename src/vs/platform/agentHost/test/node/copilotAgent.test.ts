@@ -5469,6 +5469,43 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('getChatMetadata restores registered sessions from host metadata without an SDK lookup', async () => {
+		const sessionDataService = disposables.add(new TestSessionDataService());
+		const session = AgentSession.uri('copilotcli', 'target');
+		const workingDirectory = URI.file('/workspace');
+		const db = sessionDataService.openDatabase(session);
+		await db.object.setMetadata('copilot.workingDirectory', workingDirectory.toString());
+		db.dispose();
+
+		const client = new TestCopilotClient([sdkSession('target')]);
+		const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
+		try {
+			const chat = defaultChatUri(session);
+			const metadata = await agent.getChatMetadata(chat, exactChatContext(session, chat, session), undefined, {
+				activation: 'restore',
+				registryFallback: { startTime: 10, modifiedTime: 20 },
+			});
+
+			assert.deepStrictEqual({
+				metadata: metadata && {
+					...withoutUndefinedProperties(metadata),
+					workingDirectories: metadata.workingDirectories?.map(directory => directory.toString()),
+				},
+				getSessionMetadataCalls: client.getSessionMetadataCalls,
+			}, {
+				metadata: {
+					chat,
+					startTime: 10,
+					modifiedTime: 20,
+					workingDirectories: [workingDirectory.toString()],
+				},
+				getSessionMetadataCalls: [],
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('getChatMetadata returns a provider-native session without a database', async () => {
 		const sessionDataService = disposables.add(new TestSessionDataService());
 		const session = AgentSession.uri('copilotcli', 'external');
@@ -11172,7 +11209,13 @@ suite('CopilotAgent', () => {
 			try {
 				await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
 				await internals._resumeSession('s1');
-				assert.deepStrictEqual(resumeAgents, [undefined]);
+				assert.deepStrictEqual({
+					resumeAgents,
+					getSessionMetadataCalls: client.getSessionMetadataCalls,
+				}, {
+					resumeAgents: [undefined],
+					getSessionMetadataCalls: [],
+				});
 			} finally {
 				await fs.rm(workingDirectory, { recursive: true, force: true });
 				await disposeAgent(agent);

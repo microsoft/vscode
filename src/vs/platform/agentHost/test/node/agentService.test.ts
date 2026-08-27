@@ -7278,10 +7278,12 @@ suite('AgentService (node dispatcher)', () => {
 			class LazyMetadataAgent extends MockAgent {
 				ambientReads = 0;
 				restoreReads = 0;
+				restoreRegistryFallback = false;
 
 				override async getChatMetadata(chat: URI, context: URI | IAgentChatContext, _providerData?: string, options?: IAgentChatMetadataOptions): Promise<IAgentChatMetadata | undefined> {
 					if (options?.activation === 'restore') {
 						this.restoreReads++;
+						this.restoreRegistryFallback = options.registryFallback !== undefined;
 					} else {
 						this.ambientReads++;
 					}
@@ -7305,9 +7307,11 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({
 				readsAfterAmbientListing,
 				readsAfterRestore: { ambient: agent.ambientReads, restore: agent.restoreReads },
+				restoreRegistryFallback: agent.restoreRegistryFallback,
 			}, {
 				readsAfterAmbientListing: { ambient: 1, restore: 0 },
 				readsAfterRestore: { ambient: 1, restore: 1 },
+				restoreRegistryFallback: true,
 			});
 		});
 
