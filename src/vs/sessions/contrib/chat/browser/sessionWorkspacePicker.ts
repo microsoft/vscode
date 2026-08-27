@@ -772,6 +772,8 @@ export class WorkspacePicker extends Disposable {
 	 * selection semantics. Treats unavailable workspaces as a no-op.
 	 */
 	protected async _dispatchPickerItem(item: IWorkspacePickerItem): Promise<boolean> {
+		const attachesRepositoryContext = this._directPickerGroup === SESSION_WORKSPACE_GROUP_GITHUB
+			&& this._directPickerAttachesContext === false;
 		const generation = ++this._selectionGeneration;
 		this._reportPickerClosed(item);
 		if (item.run) {
@@ -813,7 +815,7 @@ export class WorkspacePicker extends Disposable {
 			}
 			if (action?.group === SESSION_WORKSPACE_GROUP_GITHUB
 				&& action.attachesContext !== true
-				&& this._directPickerGroup === SESSION_WORKSPACE_GROUP_GITHUB
+				&& attachesRepositoryContext
 				&& this._attachAdditionalRepository(selection.workspace, selection.providerId)) {
 				return true;
 			}
@@ -843,7 +845,7 @@ export class WorkspacePicker extends Disposable {
 			}
 			const resolved = this._resolveFolder(item.folderUri, item.providerId);
 			if (resolved?.workspace.group === SESSION_WORKSPACE_GROUP_GITHUB
-				&& this._directPickerGroup === SESSION_WORKSPACE_GROUP_GITHUB
+				&& attachesRepositoryContext
 				&& this._attachAdditionalRepository(resolved.workspace, resolved.providerId)) {
 				return true;
 			}
