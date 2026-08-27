@@ -11,7 +11,7 @@ class SpacesDiffResult {
 	public spacesDiff: number = 0;
 	public looksLikeAlignment: boolean = false;
 }
-
+// TODO: reread
 interface IndentationSample {
 	readonly tabsCount: number;
 	readonly spacesCount: number;

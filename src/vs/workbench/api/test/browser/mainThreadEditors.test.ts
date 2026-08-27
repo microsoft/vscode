@@ -103,7 +103,6 @@ suite('MainThreadEditors', () => {
 		const notificationService = new TestNotificationService();
 		const undoRedoService = new UndoRedoService(dialogService, notificationService);
 		const themeService = new TestThemeService();
-		const clipboardService = new TestClipboardService();
 
 		const services = new ServiceCollection();
 		services.set(IBulkEditService, new SyncDescriptor(BulkEditService));
@@ -126,7 +125,7 @@ suite('MainThreadEditors', () => {
 		services.set(ILifecycleService, new TestLifecycleService());
 		services.set(IWorkingCopyService, new TestWorkingCopyService());
 		services.set(IEditorGroupsService, new TestEditorGroupsService());
-		services.set(IClipboardService, clipboardService);
+		services.set(IClipboardService, new TestClipboardService());
 		services.set(ITextFileService, new class extends mock<ITextFileService>() {
 			override isDirty() { return false; }
 			// eslint-disable-next-line local/code-no-any-casts
@@ -222,14 +221,13 @@ suite('MainThreadEditors', () => {
 		const model = modelService.createModel('Hello world!', null, existingResource);
 		const testCodeEditor = disposables.add(createTestCodeEditor(model));
 
-		testEditor = disposables.add(new MainThreadTextEditor(
+		testEditor = disposables.add(instaService.createInstance(
+			MainThreadTextEditor,
 			editorId,
 			model,
 			testCodeEditor,
 			{ onGainedFocus() { }, onLostFocus() { } },
-			documents,
-			modelService,
-			clipboardService
+			documents
 		));
 	});
 
