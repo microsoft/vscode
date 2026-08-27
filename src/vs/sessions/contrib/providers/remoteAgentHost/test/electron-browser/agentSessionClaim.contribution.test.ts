@@ -14,6 +14,7 @@ import type { RecordedTimerEvent } from '../../../../../../base/test/common/virt
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { timeout } from '../../../../../../base/common/async.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
+import { IContextKeyService, type IContextKeyChangeEvent } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
@@ -30,6 +31,7 @@ import { observableValue, type ISettableObservable } from '../../../../../../bas
 import type { ISession } from '../../../../../services/sessions/common/session.js';
 import { ISessionsManagementService, type IActiveSession, type ISessionsChangeEvent } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
+import { IsAgentHostSession } from '../../../agentHost/browser/agentHostSkillButtons.js';
 import { AGENT_SESSION_CLAIM_BUDGET_MS, AgentSessionClaimContribution } from '../../electron-browser/agentSessionClaim.contribution.js';
 
 const SESSION_TYPE = 'remote-127-0-0-1-9001-copilot';
@@ -71,6 +73,8 @@ suite('AgentSessionClaimContribution', () => {
 	/** Resolves when the stubbed `openSession` has been called. */
 	let whenOpened: Promise<void>;
 	let signalOpened: () => void;
+	let agentHostSessionContext: boolean | undefined;
+	let contextChanged: Emitter<IContextKeyChangeEvent>;
 
 	setup(() => {
 		claimedSessions = [];
@@ -82,6 +86,8 @@ suite('AgentSessionClaimContribution', () => {
 		activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
 		activatesOnOpen = true;
 		whenOpened = new Promise<void>(resolve => { signalOpened = resolve; });
+		contextChanged = store.add(new Emitter<IContextKeyChangeEvent>());
+		agentHostSessionContext = true;
 		storageService = store.add(new InMemoryStorageService());
 		targetRegistration = store.add(registerTarget());
 	});
@@ -112,7 +118,14 @@ suite('AgentSessionClaimContribution', () => {
 				signalOpened();
 				if (activatesOnOpen) {
 					activeSession.set({ resource } as IActiveSession, undefined);
+					publishAgentHostSessionContext();
 				}
+			}
+		});
+		instantiationService.stub(IContextKeyService, new class extends mock<IContextKeyService>() {
+			override readonly onDidChangeContext = contextChanged.event;
+			override getContextKeyValue<T>(key: string): T | undefined {
+				return (key === IsAgentHostSession.key ? agentHostSessionContext : undefined) as T | undefined;
 			}
 		});
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
@@ -123,6 +136,12 @@ suite('AgentSessionClaimContribution', () => {
 		});
 		disposables.add(instantiationService.createInstance(AgentSessionClaimContribution));
 		return { disposables };
+	}
+
+	/** Publishes the active-session context key the claim waits on. */
+	function publishAgentHostSessionContext(): void {
+		agentHostSessionContext = true;
+		contextChanged.fire({ affectsSome: keys => keys.has(IsAgentHostSession.key) } as IContextKeyChangeEvent);
 	}
 
 	function claimCommand(): IDisposable & { run(request: unknown): Promise<void> } {
@@ -382,6 +401,7 @@ suite('AgentSessionClaimContribution', () => {
 			assert.strictEqual(activatedSessions.length, 0, 'the claim must not proceed past the open');
 
 			activeSession.set({ resource: SESSION_RESOURCE } as IActiveSession, undefined);
+			publishAgentHostSessionContext();
 			await claimed;
 			assert.deepStrictEqual(activatedSessions.map(uri => uri.toString()), [SESSION_RESOURCE.toString()]);
 		});
@@ -395,6 +415,7 @@ suite('AgentSessionClaimContribution', () => {
 			assert.strictEqual(activatedSessions.length, 0, 'a different active session must not settle the wait');
 
 			activeSession.set({ resource: SESSION_RESOURCE } as IActiveSession, undefined);
+			publishAgentHostSessionContext();
 			await claimed;
 			assert.strictEqual(activatedSessions.length, 1);
 		});

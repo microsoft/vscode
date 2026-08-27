@@ -11,6 +11,7 @@ import { autorun } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -27,6 +28,7 @@ import {
 import { INativeWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/electron-browser/environmentService.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { IsAgentHostSession } from '../../agentHost/browser/agentHostSkillButtons.js';
 
 /**
  * Terminal guard for a whole claim. Every wait below is event-driven; this only
@@ -42,6 +44,7 @@ const enum AgentSessionClaimPhase {
 	Listing = 'listing',
 	Open = 'open',
 	Active = 'active',
+	Context = 'context',
 	Publish = 'publish',
 }
 
@@ -143,12 +146,15 @@ export class AgentSessionClaimContribution extends Disposable implements IWorkbe
 	 * bridge can invoke the claim before the remote session list has caught up,
 	 * so the exact resource is awaited first.
 	 *
-	 * It resolves once the session has *loaded*, which is not the same as
-	 * everything derived from `activeSession` having observed it — and the
-	 * session-scoped tools this claim exists to publish are registered from a
-	 * context key bound to that observable. So the observable itself is awaited
-	 * too; the continuation runs after that binding's autorun, which is what
-	 * makes the inventory the claim then publishes the final one.
+	 * It resolves once the session has *loaded*, which is not the same as the
+	 * window's session-scoped context having been published. Session-scoped
+	 * tools — the integrated browser's agentic set among them — are registered
+	 * by listeners on {@link IContextKeyService.onDidChangeContext}, one hop
+	 * further out than the observable `openSession` settles. So both are
+	 * awaited: the observable for *which* session is active, and the context key
+	 * for the context derived from it having been delivered. Listeners run in
+	 * registration order and this one is added last, so by the time it resolves
+	 * the registrations it is waiting on have already happened.
 	 *
 	 * The services are resolved on use rather than injected: this contribution
 	 * is constructed in every window at `BlockStartup`, and an ungated one must
@@ -156,8 +162,11 @@ export class AgentSessionClaimContribution extends Disposable implements IWorkbe
 	 */
 	private _activateSession(sessionResource: URI, token: CancellationToken, enter: (phase: AgentSessionClaimPhase) => void): Promise<void> {
 		return this._instantiationService.invokeFunction(accessor => {
+			// Every service is resolved before the first `await`: the accessor is
+			// only valid for the synchronous body of `invokeFunction`.
 			const sessionsService = accessor.get(ISessionsService);
 			const managementService = accessor.get(ISessionsManagementService);
+			const contextKeyService = accessor.get(IContextKeyService);
 			enter(AgentSessionClaimPhase.Listing);
 			return whenSessionListed(managementService, sessionResource, token)
 				.then(() => {
@@ -167,6 +176,10 @@ export class AgentSessionClaimContribution extends Disposable implements IWorkbe
 				.then(() => {
 					enter(AgentSessionClaimPhase.Active);
 					return whenSessionActive(sessionsService, sessionResource, token);
+				})
+				.then(() => {
+					enter(AgentSessionClaimPhase.Context);
+					return whenActiveSessionContext(contextKeyService, token);
 				})
 				.then(() => enter(AgentSessionClaimPhase.Publish));
 		});
@@ -209,6 +222,35 @@ async function whenSessionActive(sessionsService: ISessionsService, sessionResou
 			store.add(autorun(reader => {
 				const active = sessionsService.activeSession.read(reader);
 				if (active && isEqual(active.resource, sessionResource)) {
+					resolve();
+				}
+			}));
+			store.add(token.onCancellationRequested(() => reject(new CancellationError())));
+			if (token.isCancellationRequested) {
+				reject(new CancellationError());
+			}
+		});
+	} finally {
+		store.dispose();
+	}
+}
+
+/**
+ * Resolves once the window publishes the agent-host active-session context key.
+ * That key is what session-scoped surfaces are gated on, and it is delivered by
+ * the context key service's own event rather than with the observable it is
+ * bound to.
+ */
+async function whenActiveSessionContext(contextKeyService: IContextKeyService, token: CancellationToken): Promise<void> {
+	if (contextKeyService.getContextKeyValue<boolean>(IsAgentHostSession.key) === true) {
+		return;
+	}
+	const store = new DisposableStore();
+	const keys = new Set([IsAgentHostSession.key]);
+	try {
+		await new Promise<void>((resolve, reject) => {
+			store.add(contextKeyService.onDidChangeContext(e => {
+				if (e.affectsSome(keys) && contextKeyService.getContextKeyValue<boolean>(IsAgentHostSession.key) === true) {
 					resolve();
 				}
 			}));
