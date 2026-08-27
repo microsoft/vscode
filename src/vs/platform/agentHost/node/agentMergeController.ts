@@ -118,9 +118,15 @@ export class AgentMergeController extends Disposable {
 		this._register(this._stateManager.onDidChangeSessionConfig(event => {
 			const previous = readAgentMergeSessionState(event.previous?.values);
 			const current = readAgentMergeSessionState(event.current?.values);
-			if (!structuralEquals(previous, current)) {
-				this._syncSession(event.session.toString());
+			if (structuralEquals(previous, current)) {
+				return;
 			}
+			const session = event.session.toString();
+			if (this._resetRepairBaselineOnReselection(session, previous, current)) {
+				// The reset re-enters this listener, which then syncs.
+				return;
+			}
+			this._syncSession(session);
 		}));
 		this._register(this._stateManager.onDidChangeSessionActiveTurn(event => {
 			if (event.active) {
@@ -839,6 +845,35 @@ export class AgentMergeController extends Disposable {
 			// this very same commit.
 			[SessionConfigKey.AgentMergeController]: toControllerState(agentMerge, { repairBaseCommit: undefined }),
 		});
+		return true;
+	}
+
+	/**
+	 * Drops the repair baseline when the user selects "merge only while
+	 * unchanged" afresh.
+	 *
+	 * The client writes only its own Agent Merge state, so a baseline recorded
+	 * by an earlier repair turn survives the selection. Without this reset the
+	 * next evaluation would immediately demote the choice back to `never`
+	 * against work the user has already seen, and the option could never be
+	 * turned back on. Returns whether a reset was written.
+	 */
+	private _resetRepairBaselineOnReselection(
+		session: string,
+		previous: AgentMergeSessionState | undefined,
+		current: AgentMergeSessionState | undefined,
+	): boolean {
+		if (!current || current.repairBaseCommit === undefined) {
+			return false;
+		}
+		if (this._getConfiguration(current).mergePullRequest !== 'ifUnchanged') {
+			return false;
+		}
+		if (previous && this._getConfiguration(previous).mergePullRequest === 'ifUnchanged') {
+			return false;
+		}
+		this._logService.info(`[AgentMergeController] Starting a fresh unchanged-merge baseline after the choice was reselected: session=${session}`);
+		this._updateAgentMergeState(session, current, { repairBaseCommit: undefined });
 		return true;
 	}
 

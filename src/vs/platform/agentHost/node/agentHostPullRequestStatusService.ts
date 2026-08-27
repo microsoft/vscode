@@ -10,6 +10,8 @@ import { autorun } from '../../../base/common/observable.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import type { PullRequestRef, PullRequestSnapshot, PullRequestSubscription } from '../../github/common/githubPullRequestService.js';
+import type { GitHubCredentialInvalidation } from '../../github/common/githubCredentialService.js';
+import type { GitHubAccountHandle } from '../../github/common/githubTypes.js';
 import { IGitHubService } from '../../github/common/githubService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
@@ -120,6 +122,32 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 				this._sync(envelope.channel);
 			}
 		}));
+		this._register(this._gitHubService.credentials.onDidInvalidate(event => this._handleCredentialInvalidation(event)));
+	}
+
+	/**
+	 * Rebuilds watches whose backing pull request resource the resource service
+	 * has thrown away.
+	 *
+	 * An account or endpoint change disposes the resource outright, leaving a
+	 * subscription whose snapshot can never update — the button bar would then
+	 * advertise stale operations until some unrelated git or subscription event
+	 * happened to trigger a resync. A replaced or re-authenticated credential
+	 * keeps the resource and refreshes it in place, so those need nothing here.
+	 */
+	private _handleCredentialInvalidation(event: GitHubCredentialInvalidation): void {
+		if (event.reason === 'replacement' || event.reason === 'authentication') {
+			return;
+		}
+		for (const [sessionKey, watch] of [...this._watches]) {
+			if (event.credential && !sameAccount(event.credential.account, watch.ref)) {
+				continue;
+			}
+			this._stopWatch(sessionKey, `the GitHub credential was invalidated (${event.reason})`);
+			if (event.reason !== 'shutdown') {
+				this._sync(sessionKey);
+			}
+		}
 	}
 
 	getPullRequestStatus(sessionKey: string): IAgentHostPullRequestStatus | undefined {
@@ -377,4 +405,8 @@ function sameRef(left: PullRequestRef, right: { readonly owner: string; readonly
 	return left.owner.toLowerCase() === right.owner.toLowerCase()
 		&& left.repo.toLowerCase() === right.repo.toLowerCase()
 		&& left.number === right.number;
+}
+
+function sameAccount(left: GitHubAccountHandle, right: GitHubAccountHandle): boolean {
+	return left.host.toLowerCase() === right.host.toLowerCase() && left.accountId === right.accountId;
 }

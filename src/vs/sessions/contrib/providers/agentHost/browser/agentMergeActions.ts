@@ -8,7 +8,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { Action2, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, ISubmenuItem, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { AgentMergeConfiguration, AgentMergeMergePullRequest, AgentMergeRepairAction, AgentMergeSessionOverrides, AgentMergeSettingId, agentMergeMergePullRequestValues, AGENT_MERGE_SETTING_TAG, defaultAgentMergeConfiguration, isAgentMergeMergePullRequest, resolveAgentMergeConfiguration } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { AgentHostPullRequestOperationId } from '../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -22,8 +22,9 @@ import { IsSessionsWindowContext } from '../../../../../workbench/common/context
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { ANY_AGENT_HOST_PROVIDER_RE, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { SessionIsArchivedContext, SessionPrimaryPullRequestOperationContext, SessionProviderIdContext } from '../../../../common/contextkeys.js';
+import { SessionIsArchivedContext, SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext, SessionProviderIdContext } from '../../../../common/contextkeys.js';
 import { CHANGES_OPERATIONS_DROPDOWN_PRIMARY_GROUP } from '../../../changes/browser/changesView.js';
+import { Menus } from '../../../../browser/menus.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 
@@ -36,11 +37,17 @@ const agentMergeCommandPrecondition = ContextKeyExpr.and(
 );
 
 /**
- * Agent Merge only has something to offer once the session's branch has a pull
- * request, which the agent host signals by advertising a pull request
- * operation for it.
+ * Agent Merge only has something to offer once the session's branch has an
+ * open pull request.
+ *
+ * An advertised operation implies an open pull request, but not the reverse:
+ * a blocked pull request in a repository without auto-merge has no operation
+ * to offer, and that is precisely when Agent Merge's repair actions matter.
+ * Both signals are accepted so neither pipeline resolving first can hide the
+ * entries.
  */
 const agentMergeHasPullRequest = ContextKeyExpr.or(
+	SessionHasOpenPullRequestContext,
 	...Object.values(AgentHostPullRequestOperationId).map(id => ContextKeyExpr.equals(SessionPrimaryPullRequestOperationContext.key, id)),
 );
 
@@ -49,11 +56,12 @@ const agentMergeMenuPrecondition = ContextKeyExpr.and(agentMergeCommandPrecondit
 /**
  * Agent Merge owns the primary button only when neither marking the pull
  * request ready nor merging it applies — the states the user is otherwise left
- * waiting in.
+ * waiting in, including a blocked pull request that offers no operation at all.
  */
 const agentMergeOwnsPrimaryButton = ContextKeyExpr.or(
 	ContextKeyExpr.equals(SessionPrimaryPullRequestOperationContext.key, AgentHostPullRequestOperationId.EnableAutoMerge),
 	ContextKeyExpr.equals(SessionPrimaryPullRequestOperationContext.key, AgentHostPullRequestOperationId.DisableAutoMerge),
+	ContextKeyExpr.and(SessionHasOpenPullRequestContext, ContextKeyExpr.equals(SessionPrimaryPullRequestOperationContext.key, '')),
 );
 
 /** Whether Agent Merge is currently enabled on the active session. */
@@ -202,8 +210,8 @@ abstract class AgentMergeActionBase extends Action2 {
 // The primary button only names the Agent Merge actions, so it is contributed
 // as a submenu: the changes button bar opens exactly these entries as a context
 // menu rather than its own dropdown, which also carries pull request operations.
-MenuRegistry.appendMenuItem(MenuId.AgentsChangesOperationsDropdown, {
-	submenu: MenuId.AgentsChangesAgentMerge,
+MenuRegistry.appendMenuItem(Menus.ChangesOperationsDropdown, {
+	submenu: Menus.ChangesAgentMerge,
 	title: localize2('agentMerge.primary', "Agent Merge"),
 	group: CHANGES_OPERATIONS_DROPDOWN_PRIMARY_GROUP,
 	order: 1,
@@ -211,7 +219,7 @@ MenuRegistry.appendMenuItem(MenuId.AgentsChangesOperationsDropdown, {
 });
 
 /** Menus the Agent Merge entries appear on: the operations dropdown, and their own context menu. */
-const agentMergeMenus = [MenuId.AgentsChangesOperationsDropdown, MenuId.AgentsChangesAgentMerge];
+const agentMergeMenus = [Menus.ChangesOperationsDropdown, Menus.ChangesAgentMerge];
 
 registerAction2(class EnableAgentMergeInSessionAction extends AgentMergeActionBase {
 	constructor() {
@@ -299,14 +307,14 @@ for (const [index, action] of agentMergeRepairActions.entries()) {
 // One submenu entry per value, so the title can name the current choice without
 // the user having to open it. Exactly one is ever visible.
 for (const value of agentMergeMergePullRequestValues) {
-	MenuRegistry.appendMenuItem(MenuId.AgentsChangesOperationsDropdown, mergePullRequestSubmenuItem(value));
-	MenuRegistry.appendMenuItem(MenuId.AgentsChangesAgentMerge, mergePullRequestSubmenuItem(value));
+	MenuRegistry.appendMenuItem(Menus.ChangesOperationsDropdown, mergePullRequestSubmenuItem(value));
+	MenuRegistry.appendMenuItem(Menus.ChangesAgentMerge, mergePullRequestSubmenuItem(value));
 }
 
 function mergePullRequestSubmenuItem(value: AgentMergeMergePullRequest): ISubmenuItem {
 	const title = localize('agentMerge.merge.submenu', "Merge Pull Request ({0})", agentMergeMergePullRequestLabels[value]);
 	return {
-		submenu: MenuId.AgentsChangesAgentMergeMergePullRequest,
+		submenu: Menus.ChangesAgentMergeMergePullRequest,
 		title: { value: title, original: title },
 		group: '2_agentMergeActions',
 		order: agentMergeRepairActions.length,
@@ -324,7 +332,7 @@ for (const [index, value] of agentMergeMergePullRequestValues.entries()) {
 				toggled: AgentMergeSessionMergePullRequestContext.isEqualTo(value),
 				f1: false,
 				menu: [{
-					id: MenuId.AgentsChangesAgentMergeMergePullRequest,
+					id: Menus.ChangesAgentMergeMergePullRequest,
 					group: 'navigation',
 					order: index,
 				}],

@@ -291,7 +291,7 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 // --- ButtonBar widget (Agent Host)
 
 /**
- * Menu group on {@link MenuId.AgentsChangesOperationsDropdown} whose action
+ * Menu group on {@link Menus.ChangesOperationsDropdown} whose action
  * takes over the primary button of the changes button bar. Every other group
  * on that menu only contributes dropdown entries.
  */
@@ -319,7 +319,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 		super();
 
 		const menu = this._register(menuService.createMenu(MenuId.AgentsChangesToolbar, contextKeyService, { emitEventsForSubmenuChanges: true }));
-		const dropdownMenu = this._register(menuService.createMenu(MenuId.AgentsChangesOperationsDropdown, contextKeyService, { emitEventsForSubmenuChanges: true }));
+		const dropdownMenu = this._register(menuService.createMenu(Menus.ChangesOperationsDropdown, contextKeyService, { emitEventsForSubmenuChanges: true }));
 
 		const buttonBar = this._buttonBar = this._register(instantiationService.createInstance(
 			WorkbenchButtonBar,

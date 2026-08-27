@@ -29,7 +29,7 @@ import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus } from '../../../browser/menus.js';
 import { ChatPillActionViewItem } from '../../../../workbench/browser/chatPills.js';
 import { AGENT_HOST_PULL_REQUEST_OPERATION_IDS } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
-import { SessionHasCachedChangesContext, SessionHasChangesContext, SessionHasWorkspaceContext, SessionPrimaryPullRequestOperationContext } from '../../../common/contextkeys.js';
+import { SessionHasCachedChangesContext, SessionHasChangesContext, SessionHasOpenPullRequestContext, SessionHasWorkspaceContext, SessionPrimaryPullRequestOperationContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { SessionChangesetOperationScope } from '../../../services/sessions/common/session.js';
@@ -454,6 +454,14 @@ class ChangesetOperationsActionControllerContribution extends Disposable impleme
 				logService.info(`[ChangesetOperationsActionController] Primary pull request operation: ${primary || 'none'}`);
 			}
 			return primary;
+		}));
+
+		// Bound globally, unlike the Changes view's scoped copy, so title bar
+		// menus can tell "has an open pull request" apart from "has a pull
+		// request operation to offer" — the two differ for a blocked pull
+		// request in a repository that does not allow auto-merge.
+		this._register(bindContextKey<boolean>(SessionHasOpenPullRequestContext, contextKeyService, reader => {
+			return changesViewService.activeSessionStateObs.read(reader)?.hasOpenPullRequest === true;
 		}));
 
 		this._register(autorun(reader => {

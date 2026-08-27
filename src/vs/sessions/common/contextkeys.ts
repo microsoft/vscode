@@ -87,6 +87,14 @@ export const AutomationsHasItemsContext = new RawContextKey<boolean>('automation
  */
 export const SessionPrimaryPullRequestOperationContext = new RawContextKey<string>('sessionPrimaryPullRequestOperation', '', localize('sessionPrimaryPullRequestOperation', "The id of the first pull request operation advertised for the active session, or empty when there is none"));
 
+/**
+ * Whether the active session has an open pull request, independent of whether
+ * the agent host has any operation to offer for it. A pull request that is
+ * open but blocked — and whose repository does not allow auto-merge — offers
+ * no operation, yet is exactly when Agent Merge has work to do.
+ */
+export const SessionHasOpenPullRequestContext = new RawContextKey<boolean>('sessionHasOpenPullRequest', false, localize('sessionHasOpenPullRequest', "Whether the active session's branch has an open pull request"));
+
 //#endregion
 
 //#region < --- Welcome --- >
