@@ -10,6 +10,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { mcpAccessConfig, McpAccessValue } from '../../../../platform/mcp/common/mcpManagement.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { isStrictPluginOnlyCustomizationEnabled, StrictPluginOnlyCustomization } from '../../chat/common/customizationLockdown.js';
@@ -22,11 +23,16 @@ export class McpDiscovery extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IStorageService storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super();
 
-		const telemetry = new McpDiscoveryTelemetry(telemetryService);
+		const telemetry = new McpDiscoveryTelemetry(telemetryService, configurationService, storageService);
+		telemetry.logConfiguration();
+		this._register(configurationService.onDidChangeConfiguration(() => telemetry.logConfiguration()));
+		this._register(storageService.onDidChangeValue(StorageScope.PROFILE, 'mcp.enablement', this._store)(() => telemetry.logConfiguration()));
+		this._register(storageService.onDidChangeValue(StorageScope.WORKSPACE, 'mcp.enablement', this._store)(() => telemetry.logConfiguration()));
 		const mcpAccessValue = observableConfigValue(mcpAccessConfig, McpAccessValue.All, configurationService);
 		const strictPluginOnly = observableConfigValue<StrictPluginOnlyCustomization>(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, undefined, configurationService);
 		const store = this._register(new DisposableStore());

@@ -6,9 +6,10 @@
 import assert from 'assert';
 import { constObservable, waitForState } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { McpDiscoveryFormat, McpDiscoveryHost, McpDiscoveryScope, McpDiscoverySource, McpInstallProvenance } from '../../../../../platform/mcp/common/mcpDiscoveryMetadata.js';
-import { StorageScope } from '../../../../../platform/storage/common/storage.js';
+import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { ExtensionHostKind } from '../../../../services/extensions/common/extensionHostKind.js';
@@ -28,6 +29,16 @@ class TestTelemetryService extends NullTelemetryServiceShape {
 		if (eventName) {
 			this.events.push({ name: eventName, data });
 		}
+	}
+}
+
+class LayeredConfigurationService extends TestConfigurationService {
+	constructor(private readonly values: Readonly<Record<string, IConfigurationValue<unknown>>>) {
+		super();
+	}
+
+	override inspect<T>(key: string): IConfigurationValue<T> {
+		return (this.values[key] ?? {}) as IConfigurationValue<T>;
 	}
 }
 
@@ -78,7 +89,7 @@ suite('McpDiscoveryTelemetry', () => {
 			configurationOutcomes,
 		};
 		const telemetryService = new TestTelemetryService();
-		const reporter = new McpDiscoveryTelemetry(telemetryService);
+		const reporter = new McpDiscoveryTelemetry(telemetryService, new TestConfigurationService(), store.add(new TestStorageService()));
 		reporter.logDiscovery([snapshot]);
 		reporter.logDiscovery([snapshot]);
 
@@ -118,12 +129,22 @@ suite('McpDiscoveryTelemetry', () => {
 		});
 	});
 
-	test('emits one zero row with deduplication', () => {
+	test('emits one zero row and privacy-safe explicit gate counts', () => {
 		const telemetryService = new TestTelemetryService();
-		const reporter = new McpDiscoveryTelemetry(telemetryService);
+		const configurationService = new TestConfigurationService({
+			'chat.mcp.access': 'none',
+			'chat.mcp.discovery.enabled': { 'claude-desktop': true, windsurf: false },
+			'chat.mcp.allowedServers': ['private-server'],
+			'chat.mcp.gallery.enabled': false,
+		});
+		const storageService = store.add(new TestStorageService());
+		storageService.store('mcp.enablement', JSON.stringify([['private-server', false]]), StorageScope.PROFILE, StorageTarget.MACHINE);
+		const reporter = new McpDiscoveryTelemetry(telemetryService, configurationService, storageService);
 		reporter.logDiscovery([{ candidates: [mcpCandidate(McpDiscoverySource.VSCodeUserConfig, McpDiscoveryFormat.VSCodeServers, McpDiscoveryScope.Profile, McpDiscoveryHost.Local, 'loaded')], configurationOutcomes: [] }]);
 		reporter.logDiscovery([]);
 		reporter.logDiscovery([]);
+		reporter.logConfiguration();
+		reporter.logConfiguration();
 
 		assert.deepStrictEqual(telemetryService.events.reduce<Record<string, number>>((counts, event) => {
 			counts[event.name] = (counts[event.name] ?? 0) + 1;
@@ -131,6 +152,7 @@ suite('McpDiscoveryTelemetry', () => {
 		}, {}), {
 			'mcp/serversFound': 3,
 			'mcp/configurationFound': 1,
+			'mcp/discoveryConfigured': 5,
 		});
 		const zeroDiscovery = telemetryService.events.map(event => event.data).filter(isServersFoundRow).find(event => event.source === 'all');
 		assert.deepStrictEqual(zeroDiscovery, {
@@ -150,9 +172,48 @@ suite('McpDiscoveryTelemetry', () => {
 		});
 	});
 
+	test('uses registered configuration layers and caps the absent default snapshot', () => {
+		const telemetryService = new TestTelemetryService();
+		const reporter = new McpDiscoveryTelemetry(telemetryService, new LayeredConfigurationService({
+			'chat.mcp.access': { userValue: 'all', workspaceValue: 'none', policyValue: 'registry' },
+			'chat.mcp.allowedServers': { applicationValue: ['application'], policyValue: ['policy'] },
+			'chat.mcp.deniedServers': { applicationValue: ['application'], policyValue: ['policy'] },
+			'chat.mcp.allowManagedServersOnly': { applicationValue: true, policyValue: false },
+			'chat.customizations.strictPluginOnlyCustomization': { applicationValue: { mcp: true }, policyValue: { mcp: false } },
+			'chat.mcp.gallery.enabled': { userValue: true, workspaceValue: false, policyValue: true },
+		}), store.add(new TestStorageService()));
+
+		reporter.logConfiguration();
+
+		const rows = telemetryService.events
+			.filter(event => event.name === 'mcp/discoveryConfigured')
+			.map(event => event.data as Record<string, unknown>);
+		assert.deepStrictEqual({
+			access: rows.filter(row => row.entryPoint === 'access').map(row => row.scope),
+			allowed: rows.filter(row => row.entryPoint === 'allowedServers').map(row => row.scope),
+			denied: rows.filter(row => row.entryPoint === 'deniedServers').map(row => row.scope),
+			managed: rows.filter(row => row.entryPoint === 'managedServersOnly').map(row => row.scope),
+			strict: rows.filter(row => row.entryPoint === 'strictPluginOnly').map(row => row.scope),
+			gallery: rows.filter(row => row.entryPoint === 'galleryEnabled').map(row => row.scope),
+		}, {
+			access: ['policy', 'user', 'workspace'],
+			allowed: ['application', 'policy'],
+			denied: ['application', 'policy'],
+			managed: ['application', 'policy'],
+			strict: ['application', 'policy'],
+			gallery: ['policy', 'user', 'workspace'],
+		});
+
+		const emptyTelemetry = new TestTelemetryService();
+		const emptyReporter = new McpDiscoveryTelemetry(emptyTelemetry, new TestConfigurationService(), store.add(new TestStorageService()));
+		emptyReporter.logConfiguration();
+		emptyReporter.logConfiguration();
+		assert.deepStrictEqual(emptyTelemetry.events.map(event => event.name), ['mcp/discoveryConfigured']);
+	});
+
 	test('emits configuration tombstones and an all-zero marker when the last source disappears', () => {
 		const telemetryService = new TestTelemetryService();
-		const reporter = new McpDiscoveryTelemetry(telemetryService);
+		const reporter = new McpDiscoveryTelemetry(telemetryService, new TestConfigurationService(), store.add(new TestStorageService()));
 		const configuration: IMcpConfigurationOutcome = {
 			source: McpDiscoverySource.WorkspaceDotMcp,
 			format: McpDiscoveryFormat.ClaudeMcpServers,
