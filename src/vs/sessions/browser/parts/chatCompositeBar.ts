@@ -133,6 +133,7 @@ export class ChatCompositeBar extends Disposable {
 	}
 
 	constructor(
+		resizeObserverCtor: typeof ResizeObserver | undefined,
 		@IThemeService private readonly _themeService: IThemeService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
@@ -203,14 +204,17 @@ export class ChatCompositeBar extends Disposable {
 
 		// Report actual height changes without forcing measurement on every layout.
 		const heightObserver = this._register(new DisposableResizeObserver('ChatCompositeBar.height', entries => {
-			const entry = entries[0];
-			const height = entry?.borderBoxSize[0]?.blockSize ?? entry?.contentRect.height ?? 0;
+			const entry = entries.find(entry => entry.target === this._container);
+			if (!entry) {
+				return;
+			}
+			const height = entry.borderBoxSize[0]?.blockSize ?? entry.contentRect.height;
 			if (this._height !== height) {
 				this._height = height;
 				this._onDidChangeHeight.fire();
 			}
-		}));
-		this._register(heightObserver.observe(this._container));
+		}, getWindow(this._container), { resizeObserverCtor }));
+		this._register(heightObserver.observe(this._container, { box: 'border-box' }));
 
 		this._setVisible(false);
 		this._updateStyles();
