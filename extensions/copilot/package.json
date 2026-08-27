@@ -7016,7 +7016,7 @@
     "esbuild": "0.28.1",
     "fastq": "^1.19.1",
     "glob": "^11.1.0",
-    "js-yaml": "^4.3.0",
+    "js-yaml": "^4.3.2",
     "minimist": "^1.2.8",
     "mobx": "^6.13.7",
     "mobx-react-lite": "^4.1.0",
@@ -7038,7 +7038,7 @@
     "shiki": "~1.15.0",
     "sinon": "^21.0.0",
     "source-map-support": "^0.5.21",
-    "tar": "^7.5.16",
+    "tar": "^7.5.22",
     "ts-dedent": "^2.2.0",
     "tsx": "^4.22.4",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
@@ -7052,7 +7052,7 @@
     "zod": "3.25.76"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.82.0",
+    "@anthropic-ai/sdk": "^0.121.0",
     "@github/blackbird-external-ingest-utils": "^0.3.0",
     "@github/copilot": "^1.0.73",
     "@google/genai": "1.30.0",
@@ -7094,7 +7094,7 @@
     "lru-cache": "^11.1.0",
     "markdown-it": "^14.2.0",
     "minimatch": "^10.2.1",
-    "undici": "^7.24.1",
+    "undici": "^7.29.0",
     "vscode-tas-client": "^0.3.1",
     "web-tree-sitter": "^0.23.0"
   },
