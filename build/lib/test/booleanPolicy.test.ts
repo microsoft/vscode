@@ -178,6 +178,17 @@ test('should render profile manifest correctly', () => {
 	});
 
 	 
+	 test('should render profile manifest correctly', () => {
+		const policy = BooleanPolicy.from(mockCategory, mockPolicy);
+
+		assert.ok(policy);
+
+		const manifest = policy.renderProfileManifest();
+
+		assert.strictEqual(manifest, '<dict>\n<key>pfm_default</key>\n<false/>\n<key>pfm_description</key>\n<string>Test policy description</string>\n<key>pfm_name</key>\n<string>TestBooleanPolicy</string>\n<key>pfm_title</key>\n<string>TestBooleanPolicy</string>\n<key>pfm_type</key>\n<string>boolean</string>\n</dict>');
+	});
+
+	 
 	test('should handle special characters in policy name and description correctly', () => {
 		const specialCategory: CategoryDto = {
 			key: 'test.category',
@@ -202,8 +213,8 @@ test('should render profile manifest correctly', () => {
 		const admlStrings = policy.renderADMLStrings();
 
 		assert.deepStrictEqual(admlStrings, [
-			'<string id="Policy <Test> & Co">Policy <Test> & Co</string>',
-			'<string id="Policy <Test> & Co_test_special_description">Description with <tag> & special chars</string>'
+			'<string id="Policy &lt;Test&gt; &amp; Co">Policy &lt;Test&gt; &amp; Co</string>',
+			'<string id="Policy &lt;Test&gt; &amp; Co_test_special_description">Description with &lt;tag&gt; &amp; special chars</string>'
 		]);
 	});
-}); 
+});  
