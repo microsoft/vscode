@@ -28,7 +28,7 @@ import { execSync } from 'child_process';
 import * as ts from 'typescript';
 
 const ROOT = path.resolve(__dirname, '..');
-const PROTOCOL_REPO = path.resolve(ROOT, '../agent-host-protocol');
+const PROTOCOL_REPO = process.env['AHP_PROTOCOL_REPO'] ?? path.resolve(ROOT, '../agent-host-protocol');
 const TYPES_DIR = path.join(PROTOCOL_REPO, 'types');
 const DEST_DIR = path.join(ROOT, 'src/vs/platform/agentHost/common/state/protocol');
 
