@@ -94,7 +94,8 @@ suite('EntraTokenExchange', () => {
 	 * signs in, the account maps, and both exchanges succeed.
 	 */
 	function createHarness(overrides: {
-		tokenExchange?: string | undefined;
+		/** Stands in for a host that has no exchange endpoint at all, such as Enterprise Server. */
+		noExchangeEndpoint?: boolean;
 		microsoftToken?: (call: number) => string | undefined;
 		microsoftError?: Error;
 		respond?: (call: number) => IHttpResponse;
@@ -173,7 +174,7 @@ suite('EntraTokenExchange', () => {
 		const exchange = new EntraTokenExchange(
 			logger,
 			{
-				tokenExchange: 'tokenExchange' in overrides ? overrides.tokenExchange : TOKEN_EXCHANGE_URL,
+				tokenExchange: overrides.noExchangeEndpoint ? undefined : TOKEN_EXCHANGE_URL,
 				userInfo: USER_INFO_URL
 			},
 			microsoft,
@@ -267,7 +268,7 @@ suite('EntraTokenExchange', () => {
 		}, {
 			// The discovery token never becomes the session and is never seen again.
 			lookups: ['token gho_discovery'],
-			confirmations: ["Your organization's Microsoft sign-in is linked to this GitHub account:\n\n@mona_contoso\n\nSign in to GitHub with this account?"],
+			confirmations: ['Your organization\'s Microsoft sign-in is linked to this GitHub account:\n\n@mona_contoso\n\nSign in to GitHub with this account?'],
 			// The label, not the id: `getAccounts` collapses accounts that share a label, so an id
 			// stored here is not necessarily one we could find again.
 			linked: 'mona@contoso.com',
@@ -416,7 +417,7 @@ suite('EntraTokenExchange', () => {
 	test('refuses to exchange against a host that has no exchange endpoint', async () => {
 		// Self-hosted GitHub Enterprise Server: the identity mapping is a service GitHub runs, so
 		// there is nothing to exchange against.
-		const harness = createHarness({ tokenExchange: undefined });
+		const harness = createHarness({ noExchangeEndpoint: true });
 
 		assert.deepStrictEqual({
 			failure: await failureOf(harness),
@@ -562,7 +563,7 @@ suite('EntraTokenExchange', () => {
 	});
 
 	test('refuses to renew against a host or a build that cannot exchange at all', async () => {
-		const noEndpoint = createHarness({ tokenExchange: undefined });
+		const noEndpoint = createHarness({ noExchangeEndpoint: true });
 		const noSecret = createHarness();
 		Config.gitHubClientSecret = undefined;
 		let withoutSecret: string;
