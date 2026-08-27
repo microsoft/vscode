@@ -7,6 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { getAccessibilityHelpText } from '../../../browser/actions/chatAccessibilityHelp.js';
+import { AGENT_SESSION_RENAME_ACTION_ID } from '../../../browser/agentSessions/agentSessions.js';
 
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -131,6 +132,31 @@ suite('Chat Accessibility Help', () => {
 			editsView: true,
 			quickChat: false,
 			inlineChat: false,
+		});
+	});
+
+	test('documents session rename where the focused-chat keybinding is enabled', () => {
+		const keybindingService = {
+			lookupKeybindings: () => [],
+		} as unknown as IKeybindingService;
+		const keybinding = `<keybinding:${AGENT_SESSION_RENAME_ACTION_ID}>`;
+
+		assert.deepStrictEqual({
+			panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes(keybinding),
+			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes(keybinding),
+			editsView: getAccessibilityHelpText('editsView', keybindingService, true).includes(keybinding),
+			afterFirstRequest: getAccessibilityHelpText('agentView', keybindingService, true).includes('Agent Host sessions can be renamed after sending the first request'),
+			quickChat: getAccessibilityHelpText('quickChat', keybindingService, true).includes(keybinding),
+			inlineChat: getAccessibilityHelpText('inlineChat', keybindingService, true).includes(keybinding),
+			sessionsWindow: getAccessibilityHelpText('agentView', keybindingService, true, true).includes(keybinding),
+		}, {
+			panelChat: true,
+			agentView: true,
+			editsView: true,
+			afterFirstRequest: true,
+			quickChat: false,
+			inlineChat: false,
+			sessionsWindow: false,
 		});
 	});
 });

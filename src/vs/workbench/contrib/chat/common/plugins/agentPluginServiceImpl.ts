@@ -361,6 +361,13 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		// re-read whenever the manifest changes on disk.
 		const initialManifest = await readPluginManifest(uri, format, this._fileService);
 		const manifest = observableValue<IPluginManifest | undefined>('agentPluginManifest', initialManifest);
+		const pluginVersion = derived(reader => {
+			const manifestVersion = manifest.read(reader)?.version;
+			if (typeof manifestVersion === 'string' && manifestVersion.trim()) {
+				return manifestVersion.trim();
+			}
+			return fromMarketplace?.version || undefined;
+		}).recomputeInitiallyAndOnChange(store);
 
 		const observeComponent = <T>(
 			prop: PluginComponent,
@@ -475,6 +482,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			uri,
 			format: format.format,
 			label: fromMarketplace?.name ?? manifestName ?? basename(uri),
+			version: pluginVersion,
 			enablement,
 			policyBlocked,
 			remove: removeCallback,
