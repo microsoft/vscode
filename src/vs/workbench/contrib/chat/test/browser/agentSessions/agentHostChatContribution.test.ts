@@ -2426,6 +2426,49 @@ suite('AgentHostChatContribution', () => {
 			assert.ok(agentHostService.getSubscriptionUnmanaged(StateComponents.Chat, peerChatUri), 'peer chat subscription must stay live after the sibling default chat is disposed');
 			assert.ok(agentHostService.getSubscriptionUnmanaged(StateComponents.Session, backendSession), 'shared session subscription must stay live while the peer chat is still open');
 		});
+
+		test('a cancelled resolution that completes late does not strand the live session', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/late-cancel' });
+			const backendSession = AgentSession.uri('copilot', 'late-cancel');
+			const summary: SessionSummary = {
+				resource: backendSession.toString(),
+				provider: 'copilot',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			};
+			const defaultChatUri = buildDefaultChatUri(backendSession.toString());
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState(summary),
+				lifecycle: SessionLifecycle.Ready,
+				defaultChat: defaultChatUri,
+				chats: [createDefaultChatSummary(summary, defaultChatUri)],
+			});
+
+			const liveSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => liveSession.dispose()));
+
+			// Hydration is not aborted on cancellation, so a resolution whose
+			// callers all gave up still produces a session. `ChatSessionsService`
+			// disposes it. That disposal must not evict the live session or
+			// release the subscriptions it is still using.
+			const cts = new CancellationTokenSource();
+			cts.cancel();
+			const lateSession = await sessionHandler.provideChatSessionContent(sessionResource, cts.token);
+			cts.dispose();
+			lateSession.dispose();
+
+			assert.deepStrictEqual({
+				sessionSubscriptionLive: !!agentHostService.getSubscriptionUnmanaged(StateComponents.Session, backendSession),
+				chatSubscriptionLive: !!agentHostService.getSubscriptionUnmanaged(StateComponents.Chat, URI.parse(defaultChatUri)),
+			}, {
+				sessionSubscriptionLive: true,
+				chatSubscriptionLive: true,
+			});
+		});
 	});
 
 	// ---- Session list (IChatSessionItemController) ----------------------
@@ -11872,6 +11915,63 @@ suite('AgentHostChatContribution', () => {
 				isComplete: false,
 				markdown: ['new response'],
 			});
+		}));
+
+		test('stale client completion does not complete a server-initiated steering response', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, chatSession, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const steeringTurnId = 'server-steering-turn';
+			const serverRequestIds: string[] = [];
+			disposables.add(chatSession.onDidStartServerRequest!(request => serverRequestIds.push(request.id)));
+
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			agentHostService.fireAction({
+				channel: session!,
+				action: {
+					type: 'chat/turnStarted',
+					startedAt: '2025-01-01T00:00:00.000Z',
+					session,
+					turnId: steeringTurnId,
+					message: { text: 'Steering', origin: { kind: MessageKind.User } },
+				} as ChatAction,
+				serverSeq: 3,
+				origin: undefined,
+			});
+			await timeout(10);
+			agentHostService.fireAction({
+				channel: session!,
+				action: {
+					type: 'chat/responsePart',
+					session,
+					turnId: steeringTurnId,
+					part: { kind: 'markdown', id: 'steering-markdown', content: 'Steering response' },
+				} as ChatAction,
+				serverSeq: 4,
+				origin: undefined,
+			});
+
+			assert.deepStrictEqual({
+				serverRequestIds,
+				isComplete: chatSession.isCompleteObs!.get(),
+				markdown: chatSession.progressObs!.get()
+					.filter((part): part is IChatMarkdownContent => part.kind === 'markdownContent')
+					.map(part => part.content.value),
+			}, {
+				serverRequestIds: [steeringTurnId],
+				isComplete: false,
+				markdown: ['Steering response'],
+			});
+
+			agentHostService.fireAction({
+				channel: session!,
+				action: { type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId: steeringTurnId } as ChatAction,
+				serverSeq: 5,
+				origin: undefined,
+			});
+			await turnPromise;
+			await timeout(10);
+
+			assert.strictEqual(chatSession.isCompleteObs!.get(), true);
 		}));
 
 		test('disposing chat session does not call disposeSession on connection', async () => {

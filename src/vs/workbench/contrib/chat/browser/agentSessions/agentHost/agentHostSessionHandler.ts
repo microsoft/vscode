@@ -1602,6 +1602,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				initialProgress,
 				historySubagentObservations,
 				() => {
+					// Only tear down when this session still owns the entry. The state
+					// below is keyed by session resource and shared with any replacement,
+					// so a late-arriving session that never registered (or was displaced)
+					// must not release the live session's subscriptions.
+					if (this._activeSessions.get(sessionResource) !== session) {
+						return;
+					}
 					this._activeSessions.delete(sessionResource);
 					this._disposeActiveClientEntry(sessionResource);
 					this._pendingMessageSubscriptions.deleteAndDispose(sessionResource);
@@ -1641,6 +1648,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			historySubagentObservations.dispose();
 			this._disposeActiveClientEntry(sessionResource);
 			throw err;
+		}
+		// Hydration is not aborted when the token is cancelled, so a cancelled
+		// resolution can still arrive here after a retry registered its own
+		// session. Its session is disposed by the caller, so it must neither
+		// displace the live session nor rewire this resource's shared state.
+		if (this._activeSessions.has(sessionResource)) {
+			if (token.isCancellationRequested) {
+				this._logService.warn(`[AgentHost] Discarding cancelled session resolution for ${sessionResource.toString()}`);
+				return session;
+			}
+			this._logService.error(`[AgentHost] provideChatSessionContent overwriting active session for ${sessionResource.toString()}`);
 		}
 		this._activeSessions.set(sessionResource, session);
 		this._configureActiveClientReconciliation(sessionResource, resolvedSession, sessionSubscription);
@@ -2886,9 +2904,19 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						?.response;
 					response?.setResult({ ...response.result, errorDetails });
 				}
-				chatSession.isCompleteObs.set(true, undefined);
+				this._completeSessionTurn(backendSession, chatSession.sessionResource, turnId, chatSession);
 			},
 		}));
+	}
+
+	private _completeSessionTurn(backendSession: URI, sessionResource: URI, turnId: string, chatSession = this._activeSessions.get(sessionResource)): void {
+		if (!chatSession) {
+			return;
+		}
+		const activeTurnId = this._getSessionState(backendSession.toString(), this._getChatURI(sessionResource))?.activeTurn?.id;
+		if (activeTurnId === undefined || activeTurnId === turnId) {
+			chatSession.complete();
+		}
 	}
 
 	private _turnStopWatchKey(chatURI: string, turnId: string): string {
@@ -3036,7 +3064,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				onTurnEnded: (lastTurn) => {
 					store.dispose();
 					this._clientDispatchedTurnIds.delete(turnId);
-					this._activeSessions.get(request.sessionResource)?.isCompleteObs.set(true, undefined);
+					this._completeSessionTurn(session, request.sessionResource, turnId);
 					resolve(lastTurn);
 				},
 				onFileEdits: (tc) => {
@@ -3120,7 +3148,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				onTurnEnded: lastTurn => {
 					store.dispose();
 					this._clientDispatchedTurnIds.delete(turnId);
-					this._activeSessions.get(request.sessionResource)?.isCompleteObs.set(true, undefined);
+					this._completeSessionTurn(session, request.sessionResource, turnId);
 					resolve(lastTurn);
 				},
 				onFileEdits: toolCall => {
@@ -5093,7 +5121,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			seedEmittedLengths,
 			initialResponsePartCount,
 			onTurnEnded: () => {
-				chatSession.complete();
+				this._completeSessionTurn(backendSession, chatSession.sessionResource, turnId, chatSession);
 				reconnectStore.dispose();
 			},
 		}));

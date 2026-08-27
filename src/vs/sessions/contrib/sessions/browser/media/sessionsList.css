@@ -15,12 +15,14 @@
 	}
 
 	/* Suppressed while selected so the selection highlight is not overpainted. */
-	.monaco-list-row:not(.selected):not(.focused):not(:hover):has(.session-item.needs-input) {
+	.monaco-list-row:not(.selected):not(.focused):not(:hover):has(.session-item.needs-input),
+	.monaco-list-row:not(.selected):not(.focused):not(:hover) .session-chat-item.needs-input {
 		animation: session-needs-input-accent-pulse 3s ease-in-out infinite;
 	}
 
 	@media (prefers-reduced-motion: reduce) {
-		.monaco-list-row:not(.selected):not(.focused):not(:hover):has(.session-item.needs-input) {
+		.monaco-list-row:not(.selected):not(.focused):not(:hover):has(.session-item.needs-input),
+		.monaco-list-row:not(.selected):not(.focused):not(:hover) .session-chat-item.needs-input {
 			animation: none;
 			background-color: color-mix(in srgb, var(--vscode-list-warningForeground) 8%, transparent);
 		}
@@ -69,12 +71,15 @@
 		}
 	}
 
-	.monaco-list-row.selected .session-title {
+	.monaco-list-row.selected .session-title,
+	.monaco-list-row.selected .session-chat-title {
 		color: unset;
 	}
 
 	.monaco-list:focus .monaco-list-row.selected .session-icon > .codicon,
-	.monaco-list:focus .monaco-list-row.selected .session-icon > .monaco-pixel-spinner {
+	.monaco-list:focus .monaco-list-row.selected .session-icon > .monaco-pixel-spinner,
+	.monaco-list:focus .monaco-list-row.selected .session-chat-icon > .codicon,
+	.monaco-list:focus .monaco-list-row.selected .session-chat-icon > .monaco-pixel-spinner {
 		color: var(--vscode-list-activeSelectionForeground) !important;
 	}
 
@@ -440,7 +445,7 @@
 .monaco-list-row[aria-expanded="true"] .session-item::after {
 	content: '';
 	position: absolute;
-	top: var(--vscode-spacing-size160);
+	top: var(--vscode-spacing-size280);
 	bottom: 0;
 	left: var(--vscode-spacing-size200);
 	border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-inactiveIndentGuidesStroke);
@@ -478,11 +483,10 @@
 	&::after {
 		content: '';
 		position: absolute;
-		/* Align the horizontal connector with the title row's vertical center,
-			independent of any approval row stacked below it. */
+		/* Align with the title row and stop before the status icon. */
 		top: calc(var(--session-chat-base-height) / 2);
 		left: var(--vscode-spacing-size200);
-		width: var(--vscode-spacing-size240);
+		width: var(--vscode-spacing-size120);
 		border-top: var(--vscode-strokeThickness) solid var(--vscode-tree-inactiveIndentGuidesStroke);
 		opacity: 0;
 	}
@@ -499,7 +503,7 @@
 			/* Stop the vertical guide at the title row's center (its connector),
 				not at the middle of the taller approval-augmented row. */
 			bottom: calc(100% - var(--session-chat-base-height) / 2);
-			width: var(--vscode-spacing-size240);
+			width: var(--vscode-spacing-size120);
 			border-bottom: var(--vscode-strokeThickness) solid var(--vscode-tree-inactiveIndentGuidesStroke);
 			border-bottom-left-radius: var(--vscode-cornerRadius-small);
 		}
@@ -531,6 +535,20 @@
 			width: var(--vscode-spacing-size120);
 			height: var(--vscode-spacing-size120);
 		}
+
+		&.session-icon-pulse > .codicon {
+			animation: session-needs-input-pulse 2s ease-in-out infinite;
+		}
+
+		@media (prefers-reduced-motion: reduce) {
+			&.session-icon-pulse > .codicon {
+				animation: none;
+			}
+		}
+	}
+
+	&.needs-input .session-chat-title {
+		color: var(--vscode-strongForeground);
 	}
 
 	.session-chat-title {
@@ -922,7 +940,7 @@
 	}
 
 	.monaco-list-row[aria-expanded="true"] .session-item::after {
-		top: var(--vscode-spacing-size200);
+		top: var(--vscode-spacing-size320);
 	}
 
 	.monaco-list-row .session-chat-twistie.collapsible {
