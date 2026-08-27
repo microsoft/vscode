@@ -11419,7 +11419,8 @@ suite('AgentService (node dispatcher)', () => {
 			const delegatedMessage = createdSessionUri
 				? getStateManager(localService).getChatState(buildDefaultChatUri(createdSessionUri))?.activeTurn?.message
 				: undefined;
-			await agent.serverToolHost!.executeTool(sourceChat.toString(), SessionServerToolName.CreateChat, {
+			await agent.serverToolHost!.executeTool(sourceChat.toString(), SessionServerToolName.CreateSession, {
+				relationship: 'currentSession',
 				prompt: 'new chat',
 				title: 'New Chat',
 			});
