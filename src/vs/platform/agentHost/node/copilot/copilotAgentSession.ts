@@ -1262,7 +1262,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Pops the buffered steering message whose text matches the SDK
+	 * Pops the buffered steering message whose text is contained in the SDK
 	 * `user.message` content we just observed. Matching by content (rather
 	 * than just popping FIFO) keeps us robust against the SDK reordering
 	 * or coalescing entries — concurrent steering messages with different
@@ -1274,11 +1274,21 @@ export class CopilotAgentSession extends Disposable {
 		if (this._pendingSteeringFlips.size === 0) {
 			return undefined;
 		}
+		let substringMatch: [string, PendingMessage] | undefined;
 		for (const [id, msg] of this._pendingSteeringFlips) {
 			if (msg.message.text === content) {
 				this._pendingSteeringFlips.delete(id);
 				return msg;
 			}
+			if (msg.message.text.length > 0
+				&& content.includes(msg.message.text)
+				&& (!substringMatch || msg.message.text.length > substringMatch[1].message.text.length)) {
+				substringMatch = [id, msg];
+			}
+		}
+		if (substringMatch) {
+			this._pendingSteeringFlips.delete(substringMatch[0]);
+			return substringMatch[1];
 		}
 		return undefined;
 	}
