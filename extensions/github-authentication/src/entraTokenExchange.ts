@@ -32,6 +32,15 @@ export const enum EntraTokenExchangeFailure {
 	Configuration = 'configuration',
 	/** GitHub could not map the Microsoft identity onto a GitHub account. */
 	Identity = 'identity',
+	/**
+	 * The token GitHub minted turned out to belong to a different account than the one asked for.
+	 *
+	 * Kept apart from {@link Identity}, which is the catch-all for everything that went wrong on the
+	 * way to an identity: an unmapped account, a rejected grant, an unreachable `GET /user`. Only
+	 * this one is a positive answer that names somebody else, so only this one is grounds for
+	 * throwing away what the user agreed to.
+	 */
+	AccountMismatch = 'accountMismatch',
 	/** GitHub could not be reached. Retrying may help. */
 	Network = 'network',
 	/** GitHub answered with something that is not a valid RFC 8693 response. */
@@ -198,10 +207,16 @@ export class EntraTokenExchange {
 			}
 			// Only now. A row is what lets a later window mint a token for this identity with nothing
 			// shown to the user, so it must not exist until the user has said yes to being it.
-			await this.linkAccounts(microsoft.account.label, account);
-
 			const granted = await this.exchange(endpoint, microsoft.token, scopes);
-			return { token: granted.token, expiresIn: granted.expiresIn, account };
+			// The modal above can stay open for as long as the user likes, and which GitHub account a
+			// Microsoft identity maps onto is state GitHub holds and can repoint at any time. So the
+			// token that is about to become a session is checked against the identity that was
+			// actually agreed to, rather than against the one the discovery token happened to resolve
+			// however long ago.
+			const verified = await this.verifyAccount(granted.token, account.id);
+			await this.linkAccounts(microsoft.account.label, verified);
+
+			return { token: granted.token, expiresIn: granted.expiresIn, account: verified };
 		}
 	}
 
@@ -249,15 +264,19 @@ export class EntraTokenExchange {
 	 * The Entra to GitHub mapping lives on GitHub's side and can be repointed without us hearing
 	 * about it. Publishing the result unchecked would leave every extension holding this session
 	 * acting as a different person under the original person's label, silently, which is worth one
-	 * extra request per renewal to rule out. `GET /user` answers for any valid token, so the check
-	 * works whatever scopes the session happens to carry.
+	 * extra request per minted token to rule out. `GET /user` answers for any valid token, so the
+	 * check works whatever scopes the session happens to carry.
+	 *
+	 * @throws {@link EntraTokenExchangeFailure.AccountMismatch}, and only that, when GitHub named a
+	 * different account. Anything that went wrong on the way to an answer stays {@link
+	 * EntraTokenExchangeFailure.Identity}, because a caller acts on the two very differently.
 	 */
 	private async verifyAccount(token: string, gitHubAccountId: string): Promise<IGitHubUserInfo> {
 		const account = await this.discoverAccount(token);
 		if (account.id !== gitHubAccountId) {
-			this._logger.error('The renewed GitHub token is for a different account than the session being renewed. Discarding it.');
+			this._logger.error('The GitHub token is for a different account than the one that was asked for. Discarding it.');
 			throw new EntraTokenExchangeError(
-				EntraTokenExchangeFailure.Identity,
+				EntraTokenExchangeFailure.AccountMismatch,
 				vscode.l10n.t('Your Microsoft account is now linked to a different GitHub account.'));
 		}
 		return account;
@@ -439,12 +458,24 @@ export class EntraTokenExchange {
 		// spaces RFC 6749 asks for, and this is the one place a silent narrowing would be visible.
 		this._logger.info(`The GitHub token exchange granted the scopes: ${scope ?? 'unreported'}`);
 
+		// Split on both separators for the same reason: GitHub uses commas here, the RFC uses
+		// spaces, and a caller that asked for no scopes has nothing else to label a session with.
+		const grantedScopes = scope?.split(/[\s,]+/).filter(Boolean);
+		// A narrowed grant is the one shape of success that leaves the caller worse off than a
+		// failure would: the session says it can do something the token cannot, so the extension
+		// holding it fails later, somewhere else, with a permissions error nobody can trace back to
+		// here. It is not treated as fatal, because the granted list is GitHub's own vocabulary and
+		// an implied scope may legitimately be reported under a different name than it was asked
+		// for, but it is the loudest thing in the log when it happens.
+		const missing = requestedScopes?.filter(requested => grantedScopes && !grantedScopes.includes(requested));
+		if (missing?.length) {
+			this._logger.warn(`The GitHub token exchange did not grant every requested scope. Missing: ${missing.join(' ')}`);
+		}
+
 		return {
 			token: access_token,
 			expiresIn: expires_in,
-			// Split on both separators for the same reason: GitHub uses commas here, the RFC uses
-			// spaces, and a caller that asked for no scopes has nothing else to label a session with.
-			grantedScopes: scope?.split(/[\s,]+/).filter(Boolean)
+			grantedScopes
 		};
 	}
 

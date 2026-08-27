@@ -56,6 +56,18 @@ export interface IAccountLink {
  */
 export class AccountLinks {
 
+	/**
+	 * The GitHub accounts whose row could not be deleted, so that a failed write cannot leave a
+	 * signed-out account signed in.
+	 *
+	 * Signing out drops the token and then deletes the row. If only the first half lands, the row
+	 * still authorizes minting a fresh token with nothing shown, so the very next read would sign
+	 * the user back in and there would be no way for them to stop it. Holding the deletion in memory
+	 * makes sign out stick for this window, which is the window the user did it in, and the next
+	 * successful write of any kind takes the row with it for good.
+	 */
+	private readonly _unlinkedButStillStored = new Set<string>();
+
 	constructor(
 		private readonly memento: vscode.Memento,
 		private readonly storageKey: string,
@@ -63,7 +75,10 @@ export class AccountLinks {
 	) { }
 
 	private get links(): readonly IAccountLink[] {
-		return this.memento.get<IAccountLink[]>(this.storageKey, []);
+		const stored = this.memento.get<IAccountLink[]>(this.storageKey, []);
+		return this._unlinkedButStillStored.size
+			? stored.filter(link => !this._unlinkedButStillStored.has(link.gitHubAccountLabel))
+			: stored;
 	}
 
 	/** Every mapping the user has agreed to, in the order they were agreed to. */
@@ -87,6 +102,9 @@ export class AccountLinks {
 	async link(microsoftAccountLabel: string, gitHubAccount: vscode.AuthenticationSessionAccountInformation): Promise<void> {
 		const kept = this.links.filter(link =>
 			link.gitHubAccountLabel !== gitHubAccount.label && link.microsoftAccountLabel !== microsoftAccountLabel);
+		// The user has just agreed to this account again, which is the one thing that undoes an
+		// earlier sign out of it.
+		this._unlinkedButStillStored.delete(gitHubAccount.label);
 		await this.write([...kept, {
 			microsoftAccountLabel,
 			gitHubAccountLabel: gitHubAccount.label,
@@ -97,18 +115,27 @@ export class AccountLinks {
 	/** Forgets the row for a GitHub account the user has signed out of. */
 	async unlinkGitHubAccount(gitHubAccountLabel: string): Promise<void> {
 		const kept = this.links.filter(link => link.gitHubAccountLabel !== gitHubAccountLabel);
-		if (kept.length !== this.links.length) {
-			await this.write(kept);
+		if (kept.length === this.links.length) {
+			return;
+		}
+		// Recorded before the write, and only cleared by it, so that the deletion holds whether or
+		// not the write does.
+		this._unlinkedButStillStored.add(gitHubAccountLabel);
+		if (await this.write(kept)) {
+			this._unlinkedButStillStored.delete(gitHubAccountLabel);
 		}
 	}
 
-	private async write(links: readonly IAccountLink[]): Promise<void> {
+	/** Whether the links reached storage, so a caller can tell a lost hint from a lost deletion. */
+	private async write(links: readonly IAccountLink[]): Promise<boolean> {
 		try {
 			await this.memento.update(this.storageKey, links);
+			return true;
 		} catch (e) {
 			// A lost hint costs the user an account picker, so it is never worth failing a sign in
 			// or a sign out over.
 			this.logger.error(`Could not update the Microsoft account links: ${e}`);
+			return false;
 		}
 	}
 }

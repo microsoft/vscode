@@ -92,4 +92,45 @@ suite('AccountLinks', () => {
 			{ microsoftAccountLabel: 'hubot@contoso.com', gitHubAccountId: '2', gitHubAccountLabel: 'hubot_contoso' }
 		]);
 	});
+
+	test('a sign out that could not be written still holds, and the next write finishes it', async () => {
+		await links.link('mona@contoso.com', account('1', 'mona_contoso'));
+		await links.link('hubot@contoso.com', account('2', 'hubot_contoso'));
+
+		// A row is what authorizes minting a token for an account with nothing shown to the user, so
+		// a sign out that only half landed would sign them straight back in on the next read.
+		memento.updateError = new Error('storage is full');
+		await links.unlinkGitHubAccount('mona_contoso');
+		const whileFailing = links.linkedAccounts().map(link => link.gitHubAccountLabel);
+		const stillStored = memento.get<{ gitHubAccountLabel: string }[]>(STORAGE_KEY, []).map(link => link.gitHubAccountLabel);
+
+		memento.updateError = undefined;
+		await links.link('hubot@contoso.com', account('2', 'hubot_contoso'));
+
+		assert.deepStrictEqual({
+			whileFailing,
+			stillStored,
+			// Any later write takes the row with it, so the deletion stops depending on memory.
+			afterAWriteSucceeds: memento.get<{ gitHubAccountLabel: string }[]>(STORAGE_KEY, []).map(link => link.gitHubAccountLabel)
+		}, {
+			whileFailing: ['hubot_contoso'],
+			stillStored: ['mona_contoso', 'hubot_contoso'],
+			afterAWriteSucceeds: ['hubot_contoso']
+		});
+	});
+
+	test('signing back in to an account undoes a sign out that never reached storage', async () => {
+		await links.link('mona@contoso.com', account('1', 'mona_contoso'));
+		memento.updateError = new Error('storage is full');
+		await links.unlinkGitHubAccount('mona_contoso');
+
+		// The user agreeing to the account again is the one thing that outranks having signed out
+		// of it, whether or not the sign out was ever written down.
+		memento.updateError = undefined;
+		await links.link('mona@contoso.com', account('1', 'mona_contoso'));
+
+		assert.deepStrictEqual(links.linkedAccounts(), [
+			{ microsoftAccountLabel: 'mona@contoso.com', gitHubAccountId: '1', gitHubAccountLabel: 'mona_contoso' }
+		]);
+	});
 });

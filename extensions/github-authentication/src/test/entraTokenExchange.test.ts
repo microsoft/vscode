@@ -100,8 +100,8 @@ suite('EntraTokenExchange', () => {
 		microsoftError?: Error;
 		respond?: (call: number) => IHttpResponse;
 		requestError?: Error;
-		/** What `GET /user` answers, shaped exactly as GitHub shapes it. */
-		userInfo?: () => Record<string, unknown>;
+		/** What `GET /user` answers, shaped exactly as GitHub shapes it, per call. */
+		userInfo?: (call: number) => Record<string, unknown>;
 		userInfoError?: Error;
 		storageError?: Error;
 		choose?: (call: number) => Action;
@@ -141,7 +141,7 @@ suite('EntraTokenExchange', () => {
 						throw overrides.userInfoError;
 					}
 					// Answered exactly as GitHub answers it, so the real parsing runs.
-					return jsonResponse(overrides.userInfo?.() ?? { id: 42, login: 'mona_contoso', name: 'Mona Lisa' });
+					return jsonResponse(overrides.userInfo?.(lookups.length - 1) ?? { id: 42, login: 'mona_contoso', name: 'Mona Lisa' });
 				}
 				requests.push(request);
 				if (overrides.requestError) {
@@ -266,8 +266,9 @@ suite('EntraTokenExchange', () => {
 			linked: harness.accountLinks.microsoftAccountFor('mona_contoso'),
 			result
 		}, {
-			// The discovery token never becomes the session and is never seen again.
-			lookups: ['token gho_discovery'],
+			// The discovery token never becomes the session and is never seen again, and the token
+			// that does become the session is checked against the identity that was agreed to.
+			lookups: ['token gho_discovery', 'token gho_granted'],
 			confirmations: ['Your organization\'s Microsoft sign-in is linked to this GitHub account:\n\n@mona_contoso\n\nSign in to GitHub with this account?'],
 			// The label, not the id: `getAccounts` collapses accounts that share a label, so an id
 			// stored here is not necessarily one we could find again.
@@ -539,9 +540,33 @@ suite('EntraTokenExchange', () => {
 			exchanges: harness.requests.length,
 			lookups: harness.lookups
 		}, {
-			failure: EntraTokenExchangeFailure.Identity,
+			// Its own classification, and not the catch-all one shared with an unmapped identity or
+			// an unreachable lookup: this is the only failure that names somebody else, and it is the
+			// only one a caller may throw away the user's remembered consent over.
+			failure: EntraTokenExchangeFailure.AccountMismatch,
 			exchanges: 1,
 			lookups: ['token gho_granted']
+		});
+	});
+
+	test('refuses a granted token that maps somewhere other than the account the user confirmed', async () => {
+		// The confirmation can stay open for as long as the user likes, and what it was answered
+		// about is state GitHub holds, so the token that is about to become the session is checked
+		// rather than assumed to still be for the account that was shown.
+		const harness = createHarness({
+			userInfo: call => call === 0 ? { id: 42, login: 'mona_contoso' } : { id: 99, login: 'someone_else' }
+		});
+
+		assert.deepStrictEqual({
+			failure: await failureOf(harness),
+			lookups: harness.lookups,
+			// Neither account may be remembered. The user never agreed to @someone_else, and no token
+			// was published for @mona_contoso.
+			links: harness.accountLinks.linkedAccounts()
+		}, {
+			failure: EntraTokenExchangeFailure.AccountMismatch,
+			lookups: ['token gho_discovery', 'token gho_granted'],
+			links: []
 		});
 	});
 

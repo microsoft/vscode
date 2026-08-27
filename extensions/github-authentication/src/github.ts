@@ -184,6 +184,15 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 	 * acted on would put those two requests on the wire on every single read, forever.
 	 */
 	private readonly _restoresTried = new Set<string>();
+	/**
+	 * Bumped every time the Microsoft account list moves.
+	 *
+	 * A mint reads the Microsoft account list, spends two round trips, and then publishes. Signing
+	 * out of Microsoft in the middle of that window evicts sessions that do not exist yet, so
+	 * without this the mint would land afterwards and put back the session the user had just
+	 * removed the only way in to. See {@link microsoftAccountStillSignedIn}.
+	 */
+	private _microsoftGeneration = 0;
 
 	constructor(
 		private readonly context: vscode.ExtensionContext,
@@ -243,6 +252,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			// Signing out leaves sessions that cannot renew, so they go.
 			vscode.authentication.onDidChangeSessions(async e => {
 				if (e.provider.id === MICROSOFT_PROVIDER_ID) {
+					this._microsoftGeneration++;
 					this._restoresTried.clear();
 					await this.evictUnreachable();
 				}
@@ -341,6 +351,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 	}
 
 	private async restoreNow(link: IAccountLink, scopes: readonly string[], key: string): Promise<vscode.AuthenticationSession | undefined> {
+		const generation = this._microsoftGeneration;
 		const microsoftAccount = (await this._microsoft.getAccounts())
 			.find(candidate => candidate.label === link.microsoftAccountLabel);
 		if (!microsoftAccount) {
@@ -360,10 +371,16 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		} catch (e) {
 			this._logger.error(`Could not restore the session for ${link.gitHubAccountLabel}: ${e?.message ?? e}`);
 			this._restoresTried.add(key);
-			if (e instanceof EntraTokenExchangeError && e.failure === EntraTokenExchangeFailure.Identity) {
-				// The Microsoft account now maps onto somebody else, so the row does not describe an
-				// identity the user ever agreed to. Keeping it would leave every later restore
-				// reaching for the wrong person.
+			if (e instanceof EntraTokenExchangeError && e.failure === EntraTokenExchangeFailure.AccountMismatch) {
+				// GitHub has answered for somebody else, so the row does not describe an identity the
+				// user ever agreed to. Keeping it would leave every later restore reaching for the
+				// wrong person.
+				//
+				// Only this one failure. It is the single case where GitHub positively named a
+				// different account; everything else that lands here, from an unmapped identity to a
+				// `GET /user` that could not be reached, says nothing about who the row points at.
+				// The row is global state shared by every window, so acting on an ambiguous failure
+				// would sign the user out everywhere with no way back.
 				await this._accountLinks.unlinkGitHubAccount(link.gitHubAccountLabel);
 			}
 			return undefined;
@@ -373,6 +390,10 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			// lookup, so publishing it would leave the user looking signed in and nothing working.
 			this._logger.error(`Could not restore the session for ${link.gitHubAccountLabel}: GitHub did not say what the token can do.`);
 			this._restoresTried.add(key);
+			return undefined;
+		}
+
+		if (!await this.microsoftAccountStillSignedIn(generation, microsoftAccount.label, `the restored session for ${link.gitHubAccountLabel}`)) {
 			return undefined;
 		}
 
@@ -407,15 +428,17 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 				stale.push(session);
 			}
 		}
-		// Renewal costs a round trip to Microsoft and one to GitHub, so it only happens when the
-		// caller would otherwise be told to sign in again.
-		if (usable.length || !stale.length) {
+		// Every stale session is one the caller asked for, and each one left unprocessed stays in the
+		// map for the lifetime of the window: never handed out, never renewed, never reported as
+		// removed, and counted as a candidate on every read from here on. So they are all settled,
+		// whether or not there is something usable to hand back alongside them.
+		if (!stale.length) {
 			return usable;
 		}
 
 		const renewed = await Promise.all(stale.map(session => this.renew(session)));
 		this.evict(stale.filter((_, index) => !renewed[index]), 'their token ran out and could not be renewed');
-		return renewed.filter(<T>(session?: T): session is T => Boolean(session));
+		return [...usable, ...renewed.filter(<T>(session?: T): session is T => Boolean(session))];
 	}
 
 	/**
@@ -481,6 +504,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 	 * `offline_access`, so such a session never also holds a refresh token to spend instead.
 	 */
 	private async renewNow(session: vscode.AuthenticationSession): Promise<vscode.AuthenticationSession | undefined> {
+		const generation = this._microsoftGeneration;
 		// Which Microsoft identity this GitHub account was reached through. Renewing against any
 		// other one hands back a token for a different person, so no account means no renewal.
 		const microsoftAccount = await this.rememberedMicrosoftAccount(session.account.label);
@@ -501,6 +525,10 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			return undefined;
 		}
 
+		if (!await this.microsoftAccountStillSignedIn(generation, microsoftAccount.label, `the renewal of session ${session.id}`)) {
+			return undefined;
+		}
+
 		// The same session with a new token, so it keeps its id and is reported as changed rather
 		// than as one session going away and another arriving.
 		const next: vscode.AuthenticationSession = { ...session, accessToken: renewed.token };
@@ -508,6 +536,32 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		this._logger.info(`Renewed session ${session.id}.`);
 		this._sessionChangeEmitter.fire({ added: [], removed: [], changed: [next] });
 		return next;
+	}
+
+	/**
+	 * Whether the Microsoft account a mint was made against is still signed in, asked just before
+	 * the mint publishes.
+	 *
+	 * {@link evictUnreachable} only removes sessions that exist when it runs, so a mint that started
+	 * before the user signed out of Microsoft would otherwise finish afterwards and put a session
+	 * back that nothing can renew and that the user has just taken away the only way in to.
+	 *
+	 * The generation only decides whether it is worth asking. The event behind it says the account
+	 * list moved and nothing about how: a token being refreshed under a session that is still
+	 * perfectly signed in fires it too, and reading that as a sign out would make every renewal
+	 * discard the token it just minted and mint another one that races the same way. So the answer
+	 * comes from the account list, and the generation is only there to keep us from reading it on
+	 * every publish.
+	 */
+	private async microsoftAccountStillSignedIn(generation: number, label: string, what: string): Promise<boolean> {
+		if (this._microsoftGeneration === generation) {
+			return true;
+		}
+		if ((await this._microsoft.getAccounts()).some(account => account.label === label)) {
+			return true;
+		}
+		this._logger.info(`Discarding ${what}: its Microsoft account was signed out of while it was in flight.`);
+		return false;
 	}
 
 	private async afterSessionLoad(session: vscode.AuthenticationSession): Promise<void> {
