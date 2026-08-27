@@ -983,6 +983,7 @@
 		"--activity-bar-icon-size",
 		"--activity-bar-width",
 		"--agent-sessions-editor-tab-padding",
+		"--session-chat-base-height",
 		"--editor-font-size",
 		"--background-dark",
 		"--background-light",

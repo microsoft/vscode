@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IManagedHoverContent } from '../../../../base/browser/ui/hover/hover.js';
+import { IManagedHoverContent, IManagedHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { $ } from '../../../../base/browser/dom.js';
+import { toAction } from '../../../../base/common/actions.js';
 import { arrayEquals } from '../../../../base/common/equals.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedOpts, IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -16,6 +17,8 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuItemAction, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -34,12 +37,18 @@ import { IGitHubIssueRef, ISession } from '../../../services/sessions/common/ses
 import { computeAggregateIssueIcon, computeIssueIcon, GitHubIssueState, IGitHubIssue, OPEN_ISSUE_ACTION_ID } from '../common/types.js';
 import { IGitHubService } from './githubService.js';
 import { createIssueHoverElement } from './issueHover.js';
-import { createGitHubReferenceListElement } from './githubReferenceList.js';
+import { GitHubReferenceList, IGitHubReferenceListEntry } from './githubReferenceList.js';
 
 /** A session issue paired with its live details, once they have been fetched. */
 interface IResolvedSessionIssue {
 	readonly ref: IGitHubIssueRef;
 	readonly issue: IGitHubIssue | undefined;
+}
+
+interface IIssueListEntry extends IGitHubReferenceListEntry {
+	readonly owner: string;
+	readonly repo: string;
+	readonly uri: URI;
 }
 
 // --- Open Issue action
@@ -49,6 +58,19 @@ const openIssueWebviewPath = '/open-issue-webview';
 
 class IssueActionContext {
 	constructor(readonly issue: IGitHubIssueRef) { }
+}
+
+function isIssueActionContext(target: unknown): target is IssueActionContext {
+	if (!target || typeof target !== 'object') {
+		return false;
+	}
+
+	const candidate = target as { readonly issue?: IGitHubIssueRef };
+	return !!candidate.issue &&
+		typeof candidate.issue.owner === 'string' &&
+		typeof candidate.issue.repo === 'string' &&
+		typeof candidate.issue.number === 'number' &&
+		URI.isUri(candidate.issue.uri);
 }
 
 class OpenIssueAction extends Action2 {
@@ -77,7 +99,7 @@ class OpenIssueAction extends Action2 {
 		const urlService = accessor.get(IURLService);
 
 		const target = (Array.isArray(sessionOrContext) ? sessionOrContext[0] : sessionOrContext) ?? sessionsService.activeSession.get();
-		const issue = target instanceof IssueActionContext ? target.issue : getSessionIssues(target)[0];
+		const issue = isIssueActionContext(target) ? target.issue : getSessionIssues(target)[0];
 		if (!issue) {
 			return;
 		}
@@ -106,6 +128,36 @@ function getSessionIssues(session: ISession | undefined): readonly IGitHubIssueR
 	return session?.workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get()?.issues ?? [];
 }
 
+/**
+ * Copies the URL of an issue. Invoked with an {@link IssueActionContext} from the issue pill,
+ * so the issue that was hovered or picked is the one that gets copied.
+ */
+class CopyIssueUrlAction extends Action2 {
+	static readonly ID = 'workbench.agentSessions.action.copyIssueUrl';
+
+	constructor() {
+		super({
+			id: CopyIssueUrlAction.ID,
+			title: localize2('agentSessions.copyIssueUrl', "Copy Issue URL"),
+			f1: false,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, sessionOrContext?: IActiveSession | ISession | ISession[] | IssueActionContext): Promise<void> {
+		const clipboardService = accessor.get(IClipboardService);
+		const sessionsService = accessor.get(ISessionsService);
+
+		const target = (Array.isArray(sessionOrContext) ? sessionOrContext[0] : sessionOrContext) ?? sessionsService.activeSession.get();
+		const issue = isIssueActionContext(target) ? target.issue : getSessionIssues(target)[0];
+		if (!issue) {
+			return;
+		}
+
+		await clipboardService.writeText(issue.uri.toString(true));
+	}
+}
+registerAction2(CopyIssueUrlAction);
+
 // --- Open Issue action view item
 
 /**
@@ -124,12 +176,14 @@ export class OpenIssueActionViewItem extends ChatPillActionViewItem {
 
 	private readonly _issueRefsObs: IObservable<readonly IGitHubIssueRef[]>;
 	private readonly _issuesObs: IObservable<readonly IResolvedSessionIssue[]>;
+	private readonly _issueList = this._register(new MutableDisposable<GitHubReferenceList<IIssueListEntry>>());
 	private _issuePickerVisible = false;
 
 	constructor(
 		action: MenuItemAction,
 		options: IActionViewItemOptions,
 		@ISessionContext sessionContext: ISessionContext,
+		@ICommandService private readonly _commandService: ICommandService,
 		@IGitHubService private readonly _gitHubService: IGitHubService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IHoverService private readonly _hoverService: IHoverService,
@@ -171,7 +225,8 @@ export class OpenIssueActionViewItem extends ChatPillActionViewItem {
 		}));
 
 		this._register(autorun(reader => {
-			this._issuesObs.read(reader);
+			const issues = this._issuesObs.read(reader);
+			this._issueList.value?.update(this._getIssueListEntries(issues));
 			this.updateLabel();
 			this.updateTooltip();
 		}));
@@ -236,6 +291,23 @@ export class OpenIssueActionViewItem extends ChatPillActionViewItem {
 		};
 	}
 
+	protected override getHoverOptions(): IManagedHoverOptions | undefined {
+		const issues = this._issuesObs.get();
+		if (issues.length !== 1) {
+			return undefined;
+		}
+
+		const ref = issues[0].ref;
+		return {
+			actions: [{
+				commandId: CopyIssueUrlAction.ID,
+				label: localize('agentSessions.issueHover.copyLink', "Copy Link"),
+				iconClass: ThemeIcon.asClassName(Codicon.copy),
+				run: () => this._copyIssueLink(ref),
+			}],
+		};
+	}
+
 	protected override getTooltip(): string {
 		const issues = this._issuesObs.get();
 		if (issues.length > 1) {
@@ -256,6 +328,10 @@ export class OpenIssueActionViewItem extends ChatPillActionViewItem {
 		return computeAggregateIssueIcon(issues.map(({ issue }) => issue));
 	}
 
+	private _copyIssueLink(ref: IGitHubIssueRef): void {
+		this._commandService.executeCommand(CopyIssueUrlAction.ID, new IssueActionContext(ref));
+	}
+
 	/**
 	 * Shows the referenced issues below the pill. A sticky hover is used rather than a
 	 * context menu because menu items render their icon on the label element, which would
@@ -267,31 +343,47 @@ export class OpenIssueActionViewItem extends ChatPillActionViewItem {
 			return;
 		}
 
-		const entries = issues.map(({ ref, issue }) => ({
+		const list = this._issueList.value = new GitHubReferenceList(this._getIssueListEntries(issues), entry => {
+			this._hoverService.hideHover();
+			this.actionRunner.run(this._action, new IssueActionContext(entry));
+		});
+
+		this._issuePickerVisible = true;
+		const hover = this._hoverService.showInstantHover({
+			content: list.element,
+			target,
+			position: { hoverPosition: HoverPosition.BELOW },
+			persistence: { sticky: true, hideOnKeyDown: true },
+			appearance: { showPointer: false, skipFadeInAnimation: true },
+			trapFocus: true,
+			onDidHide: () => {
+				this._issuePickerVisible = false;
+				if (this._issueList.value === list) {
+					this._issueList.clear();
+				}
+			},
+		}, true);
+		if (!hover) {
+			this._issuePickerVisible = false;
+			this._issueList.clear();
+		}
+	}
+
+	private _getIssueListEntries(issues: readonly IResolvedSessionIssue[]): readonly IIssueListEntry[] {
+		return issues.map(({ ref, issue }) => ({
 			owner: ref.owner,
 			repo: ref.repo,
 			number: ref.number,
 			title: issue?.title,
 			icon: issue ? computeIssueIcon(issue.state, issue.stateReason) : computeIssueIcon(GitHubIssueState.Open, undefined),
 			uri: ref.uri,
+			toolbarActions: [toAction({
+				id: CopyIssueUrlAction.ID,
+				label: localize('agentSessions.issueList.copyLink', "Copy Issue Link"),
+				class: ThemeIcon.asClassName(Codicon.copy),
+				run: () => this._copyIssueLink(ref),
+			})],
 		}));
-
-		this._issuePickerVisible = true;
-		const hover = this._hoverService.showInstantHover({
-			content: createGitHubReferenceListElement(entries, entry => {
-				this._hoverService.hideHover();
-				this.actionRunner.run(this._action, new IssueActionContext(entry));
-			}),
-			target,
-			position: { hoverPosition: HoverPosition.BELOW },
-			persistence: { sticky: true, hideOnKeyDown: true },
-			appearance: { showPointer: false, skipFadeInAnimation: true },
-			trapFocus: true,
-			onDidHide: () => this._issuePickerVisible = false,
-		}, true);
-		if (!hover) {
-			this._issuePickerVisible = false;
-		}
 	}
 
 	private _getRepositoryUri(ref: IGitHubIssueRef): URI {

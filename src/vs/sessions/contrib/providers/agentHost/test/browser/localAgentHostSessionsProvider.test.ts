@@ -2587,6 +2587,45 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(agentHost.sessionUnsubscribeCounts.get(changesetUri), 1);
 	});
 
+	test('subscribes to the session channel for a catalogue published relative to the session', async () => {
+		// Verbatim, `changeset/uncommitted` parses to `file:///changeset/uncommitted`.
+		const activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
+		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
+		const sessionTypeId = provider.sessionTypes[0].id;
+		const session = provider.createNewSession(URI.parse('file:///home/user/proj'), sessionTypeId);
+		await timeout(0);
+
+		activeSession.set(new class extends mock<IActiveSession>() {
+			override readonly resource = session.resource;
+		}(), undefined);
+		disposables.add(autorun(reader => {
+			for (const changeset of session.changesets?.read(reader) ?? []) {
+				changeset.changes.read(reader);
+			}
+		}));
+
+		const backendUri = agentHost.createdSessionUris.at(-1)!;
+		agentHost.setSessionState(AgentSession.id(backendUri), sessionTypeId, {
+			provider: sessionTypeId,
+			title: '',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			changesets: [
+				{ label: 'Uncommitted Changes', uriTemplate: 'changeset/uncommitted', changeKind: 'uncommitted' },
+			],
+		});
+
+		assert.deepStrictEqual({
+			resolved: agentHost.sessionSubscribeCounts.get(`${backendUri}/changeset/uncommitted`),
+			verbatim: agentHost.sessionSubscribeCounts.get('file:///changeset/uncommitted'),
+		}, {
+			resolved: 1,
+			verbatim: undefined,
+		});
+	});
+
 	test('NewSession dispose clears _lastSessionStates entry and fires onDidChangeCustomAgents', async () => {
 		const provider = createProvider(disposables, agentHost);
 		const sessionTypeId = provider.sessionTypes[0].id;
@@ -4842,6 +4881,49 @@ suite('LocalAgentHostSessionsProvider', () => {
 				sourceOnPeer: ChatModelSource.Chosen,
 				peerInputSelectedModels: ['agent-host-copilotcli:peer-model'],
 				peerInputModes: ['agent://peer'],
+			});
+		}));
+
+		test('createSideChat retains its prepared model through the first send', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true, sideChat: true } } } as AgentInfo]);
+			let acquireCount = 0;
+			let disposeCount = 0;
+			const provider = createProvider(disposables, agentHost, undefined, {
+				acquireOrLoadSession: async () => {
+					acquireCount++;
+					const inputModel = new class extends mock<IInputModel>() {
+						override readonly state = constObservable<IChatModelInputState | undefined>(undefined);
+						override setState(): void { }
+						override clearState(): void { }
+						override toJSON(): undefined { return undefined; }
+					}();
+					return {
+						object: new class extends mock<IChatModel>() {
+							override readonly inputModel = inputModel;
+						}(),
+						dispose: () => { disposeCount++; },
+					};
+				},
+			});
+			const session = setupMultiChatSession(provider, 'retained-side-chat');
+			const sessionUri = AgentSession.uri('copilotcli', 'retained-side-chat').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			agentHost.setSessionState('retained-side-chat', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+			], { defaultChat }));
+
+			const sideChat = await provider.createSideChat(session.sessionId, session.resource, 'turn-1');
+			const disposedBeforeSend = disposeCount;
+			await provider.sendRequest(session.sessionId, sideChat.resource, { query: 'Side question' });
+
+			assert.deepStrictEqual({
+				acquireCount,
+				disposedBeforeSend,
+				disposeCount,
+			}, {
+				acquireCount: 1,
+				disposedBeforeSend: 0,
+				disposeCount: 1,
 			});
 		}));
 

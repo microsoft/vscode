@@ -1211,11 +1211,30 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			additionalProperties: {
 				type: 'object',
 				additionalProperties: {
-					type: 'string',
-					enum: ['r', 'rw'],
-					enumDescriptions: [
-						nls.localize('chat.agentHost.localFilePermissions.read', "Read-only access."),
-						nls.localize('chat.agentHost.localFilePermissions.readWrite', "Read and write access."),
+					oneOf: [
+						{
+							type: 'string',
+							enum: ['r', 'rw'],
+							enumDescriptions: [
+								nls.localize('chat.agentHost.localFilePermissions.read', "Read-only access."),
+								nls.localize('chat.agentHost.localFilePermissions.readWrite', "Read and write access."),
+							],
+						},
+						{
+							type: 'object',
+							properties: {
+								mode: {
+									type: 'string',
+									enum: ['r', 'rw'],
+								},
+								lexicalUri: {
+									type: 'string',
+									description: nls.localize('chat.agentHost.localFilePermissions.lexicalUri', "Original resource URI used to display accessible directory entries."),
+								},
+							},
+							required: ['mode', 'lexicalUri'],
+							additionalProperties: false,
+						},
 					],
 				},
 			},

@@ -22,7 +22,7 @@ import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportK
 import type { SessionMode } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType, type ChatAction, type ChatUsageAction } from '../../common/state/sessionActions.js';
-import { buildDefaultChatUri, buildSubagentChatUri, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, buildSubagentChatUri, createErrorResponsePart, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus } from '../../common/state/sessionState.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
@@ -30,7 +30,8 @@ import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostL
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
-import { AgentHostProviderLocator, IAgentHostProviderLocator } from '../../node/agentHostProviderLocator.js';
+import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
+import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
@@ -227,7 +228,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		const chatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 		services.set(IAgentHostChatContributions, chatContributions);
 		services.set(IAgentHostSessionTitleController, disposables.add(new AgentHostSessionTitleController(stateManager, { sessionDataService }, logService)));
-		services.set(IAgentHostProviderLocator, new AgentHostProviderLocator(() => agent));
+		services.set(IAgentHostProviderService, createTestAgentHostProviderService(() => agent));
 		const telemetryReporter = new AgentHostTelemetryReporter(telemetryService);
 		services.set(IAgentHostTelemetryReporter, telemetryReporter);
 		const turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
@@ -294,7 +295,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			devDeviceId: 'client-dev-device-id',
 		};
 		startTurn('t-client', 'hello', undefined, defaultChatUri, clientContext);
-		fire({ type: ActionType.ChatError, turnId: 't-client', duration: 100, part: { kind: ResponsePartKind.Error, error: { errorType: 'providerFailed', message: 'failed' } } });
+		fire({ type: ActionType.ChatError, turnId: 't-client', duration: 100, part: createErrorResponsePart({ errorType: 'providerFailed', message: 'failed' }) });
 
 		assert.deepStrictEqual([completedEvents()[0], failedEvents()[0]].map(event => {
 			const data = event.data as Record<string, unknown>;
@@ -560,7 +561,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		startTurn('turn-success');
 		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-success', duration: 1000 });
 		startTurn('turn-error');
-		fire({ type: ActionType.ChatError, turnId: 'turn-error', duration: 1000, part: { kind: ResponsePartKind.Error, error: { errorType: 'oops', message: 'fail' } } });
+		fire({ type: ActionType.ChatError, turnId: 'turn-error', duration: 1000, part: createErrorResponsePart({ errorType: 'oops', message: 'fail' }) });
 		startTurn('turn-cancelled');
 		fire({ type: ActionType.ChatTurnCancelled, turnId: 'turn-cancelled', duration: 1000 });
 
@@ -754,7 +755,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	test('emits result=error on ChatError', () => {
 		setupSession();
 		startTurn('turn-1');
-		fire({ type: ActionType.ChatError, turnId: 'turn-1', duration: 1000, part: { kind: ResponsePartKind.Error, error: { errorType: 'oops', message: 'fail' } } });
+		fire({ type: ActionType.ChatError, turnId: 'turn-1', duration: 1000, part: createErrorResponsePart({ errorType: 'oops', message: 'fail' }) });
 
 		const events = completedEvents();
 		assert.strictEqual(events.length, 1);
@@ -769,21 +770,18 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			type: ActionType.ChatError,
 			turnId: 'turn-1',
 			duration: 1000,
-			part: {
-				kind: ResponsePartKind.Error,
-				error: {
-					errorType: 'quota',
-					message: 'quota exceeded',
-					_meta: {
-						chatError: {
-							fetchError: {
-								requestId: 'provider-request-id',
-								serverRequestId: 'service-request-id',
-							},
+			part: createErrorResponsePart({
+				errorType: 'quota',
+				message: 'quota exceeded',
+				_meta: {
+					chatError: {
+						fetchError: {
+							requestId: 'provider-request-id',
+							serverRequestId: 'service-request-id',
 						},
 					},
 				},
-			},
+			}),
 		});
 
 		assert.deepStrictEqual(failedEvents().map(event => {
@@ -814,7 +812,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		startTurn('subagent-complete', 'hello', undefined, subagentChatUri);
 		fire({ type: ActionType.ChatTurnComplete, turnId: 'subagent-complete', duration: 1000 }, subagentChatUri);
 		startTurn('subagent-failed', 'hello', undefined, subagentChatUri);
-		fire({ type: ActionType.ChatError, turnId: 'subagent-failed', duration: 1000, part: { kind: ResponsePartKind.Error, error: { errorType: 'oops', message: 'fail' } } }, subagentChatUri);
+		fire({ type: ActionType.ChatError, turnId: 'subagent-failed', duration: 1000, part: createErrorResponsePart({ errorType: 'oops', message: 'fail' }) }, subagentChatUri);
 
 		assert.deepStrictEqual({
 			completed: completedEvents().map(event => {
