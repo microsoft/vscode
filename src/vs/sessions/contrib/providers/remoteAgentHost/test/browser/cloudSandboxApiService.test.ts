@@ -9,8 +9,8 @@ import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.j
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
-import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { IRequestContext, type IHeaders, type IRequestOptions } from '../../../../../../base/parts/request/common/request.js';
 import { CLOUD_SANDBOX_AGENT_SLUG, CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -347,6 +347,35 @@ suite('CloudSandboxApiService discovery rate limiting', () => {
 		}, {
 			kind: 'complete',
 			sessions: ['sess-1'],
+		});
+	}));
+
+	test('waits out a long Retry-After rather than re-issuing inside the window the server asked for', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// Trimming a server delay to fit a local cap re-issues the request while the server is
+		// still refusing it: every retry earns another 429, the session is dropped anyway, and the
+		// rate limit that caused it gets fed. A delay that does not fit the budget must end the
+		// retries instead, leaving the scan `partial` for a later pass to pick up.
+		const { service, requestedUrls } = createService(store, {
+			tasks: [
+				task('task-1', 'deferred', undefined, 'sess-1', 'env-1'),
+				task('task-2', 'kept', undefined, 'sess-2', 'env-2'),
+			],
+			repositories: new Map(),
+			rateLimitedTaskFetches: new Map([['task-1', 1]]),
+			retryAfterSeconds: 60,
+		});
+
+		const result = await service.listSessions(CancellationToken.None);
+
+		assert.deepStrictEqual({
+			kind: result.kind,
+			sessions: result.kind === 'failed' ? [] : result.sessions.map(s => s.sessionId),
+			// One attempt only: a 60s wait exceeds the budget, so it is not retried early.
+			taskOneAttempts: requestedUrls.filter(u => u.endsWith('/tasks/task-1')).length,
+		}, {
+			kind: 'partial',
+			sessions: ['sess-2'],
+			taskOneAttempts: 1,
 		});
 	}));
 

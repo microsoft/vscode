@@ -111,8 +111,22 @@ const RATE_LIMIT_MAX_RETRIES = 3;
 /** First backoff step (ms) for a rate-limited read whose response names no `Retry-After`. */
 const RATE_LIMIT_BASE_DELAY_MS = 1_000;
 
-/** Cap (ms) on a single rate-limit wait, so a large `Retry-After` cannot stall a whole pass. */
-const RATE_LIMIT_MAX_DELAY_MS = 8_000;
+/**
+ * Cap (ms) on a backoff this client computes for itself. It deliberately does not apply to a
+ * server-supplied `Retry-After`: shortening that would re-issue the request inside the window the
+ * server just asked us to stay out of, earning another 429 and adding to the very traffic that
+ * caused it.
+ */
+const RATE_LIMIT_MAX_BACKOFF_MS = 8_000;
+
+/**
+ * Total time (ms) a single read may spend waiting out rate limits before it gives up.
+ *
+ * Bounds the pass without ever shortening a wait: a `Retry-After` longer than what is left is not
+ * trimmed to fit, it ends the retries. The read then reports its 429 and leaves the scan `partial`,
+ * so the caller keeps the sessions it could not resolve and a later pass picks them up.
+ */
+const RATE_LIMIT_WAIT_BUDGET_MS = 15_000;
 
 /** Fallback scopes when the product does not configure `defaultChatAgent.providerScopes`. */
 const FALLBACK_SCOPES = ['read:user', 'user:email', 'repo', 'workflow'];
@@ -460,16 +474,24 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	 * resolved for the rest of the window, because nothing re-runs a pass that otherwise succeeded.
 	 */
 	private async _retryWhileRateLimited(action: string, token: CancellationToken, send: () => Promise<IRequestContext>): Promise<IRequestContext> {
+		let waited = 0;
 		for (let attempt = 0; ; attempt++) {
 			const context = await send();
 			if (context.res.statusCode !== HTTP_TOO_MANY_REQUESTS || attempt >= RATE_LIMIT_MAX_RETRIES || token.isCancellationRequested) {
 				return context;
 			}
+			const delay = rateLimitDelay(context.res.headers?.['retry-after'], attempt);
+			// Waiting less than asked would re-issue inside the server's window, so a delay that
+			// does not fit ends the retries rather than being trimmed to fit.
+			if (waited + delay > RATE_LIMIT_WAIT_BUDGET_MS) {
+				this._logService.warn(`${LOG_PREFIX} ${action} was rate limited and asks for another ${delay}ms, beyond what is left of its ${RATE_LIMIT_WAIT_BUDGET_MS}ms budget; giving up so the pass stays bounded. A later pass retries it.`);
+				return context;
+			}
 			// Nothing reads the body on this path, and an unconsumed stream holds its connection.
 			await asText(context).catch(() => undefined);
-			const delay = rateLimitDelay(context.res.headers?.['retry-after'], attempt);
 			this._logService.warn(`${LOG_PREFIX} ${action} was rate limited; retrying in ${delay}ms (attempt ${attempt + 1} of ${RATE_LIMIT_MAX_RETRIES}).`);
 			await timeout(delay, token);
+			waited += delay;
 		}
 	}
 
@@ -648,14 +670,16 @@ function parseRetryAfter(value: string | string[] | undefined): number {
 }
 
 /**
- * How long to wait before re-issuing a rate-limited request: `Retry-After` when the response names
- * one, otherwise an exponential backoff. Capped so a single large header value cannot hold a
- * discovery pass open for minutes.
+ * How long to wait before re-issuing a rate-limited request: the server's `Retry-After` verbatim
+ * when it names one, otherwise an exponential backoff of our own, capped. A server delay is never
+ * shortened — the caller decides whether it still fits its budget, since retrying early only earns
+ * another 429.
  */
 function rateLimitDelay(retryAfter: string | string[] | undefined, attempt: number): number {
 	const seconds = retryAfterSeconds(retryAfter);
-	const delay = seconds !== undefined ? seconds * 1000 : RATE_LIMIT_BASE_DELAY_MS * Math.pow(2, attempt);
-	return Math.min(delay, RATE_LIMIT_MAX_DELAY_MS);
+	return seconds !== undefined
+		? seconds * 1000
+		: Math.min(RATE_LIMIT_BASE_DELAY_MS * Math.pow(2, attempt), RATE_LIMIT_MAX_BACKOFF_MS);
 }
 
 /**
