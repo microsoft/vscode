@@ -748,6 +748,9 @@ export interface IAgentChats {
 	 */
 	sendMessage(chat: URI, prompt: string, workingDirectoriesOrDirectory: readonly URI[] | URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientTypeOrContext?: AgentHostClientType | URI | IAgentChatContext, context?: URI | IAgentChatContext): Promise<void>;
 
+	/** Resume a failed turn without adding another user message. */
+	resumeTurn?(chat: URI, turnId: string, context: AgentChatOperationContext, senderClientId?: string, clientType?: AgentHostClientType): Promise<void>;
+
 	/** Abort the in-flight turn for `chat`. */
 	abort(chat: URI, context: AgentChatOperationContext): Promise<void>;
 
@@ -1237,7 +1240,7 @@ export interface IAgent {
 	getManagedSettingsDiagnostics?(): Promise<IAgentHostManagedSettingsSnapshot>;
 
 	/** Return the provider-owned state file for a session, when one exists. */
-	getSessionStateFile?(session: URI): Promise<URI | undefined>;
+	getSessionStateFile?(session: URI, chat?: URI): Promise<URI | undefined>;
 
 	/** Add provider-owned diagnostics to an Agent Host debug-log staging directory. */
 	collectDebugLogs?(session: URI | undefined, outputDirectory: URI, chat?: URI): Promise<boolean>;

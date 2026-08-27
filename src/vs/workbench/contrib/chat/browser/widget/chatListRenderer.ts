@@ -3553,7 +3553,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			} else if (content.kind === 'externalEdit') {
 				return this.renderExternalEdit(content, context, templateData);
 			} else if (content.kind === 'autoModeResolution') {
-				return this.instantiationService.createInstance(ChatAutoModeResolutionContentPart, content, context, this.chatContentMarkdownRenderer);
+				// A row that never resolved (cancelled or errored turn) has nothing
+				// left to say, so drop it instead of leaving a stuck "Auto routing task".
+				if (!content.resolved && context.element.isComplete) {
+					return this.renderNoContent(other => other.kind === content.kind && !other.resolved);
+				}
+				return this.instantiationService.createInstance(ChatAutoModeResolutionContentPart, content, context);
 			}
 
 			return this.renderNoContent(other => content.kind === other.kind);

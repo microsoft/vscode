@@ -2374,8 +2374,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return processLogsTarget.collectDebugLogs(outputDirectory, false);
 	}
 
-	async getSessionStateFile(session: URI): Promise<URI | undefined> {
-		const resource = URI.file(join(getCopilotHomePath(this._environmentService.userHome.fsPath, process.env), 'session-state', this._sdkConversationId(session), 'events.jsonl'));
+	async getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined> {
+		const sdkConversationId = chat && !isDefaultChatUri(chat)
+			? this._findChatByUri(chat)?.sessionId ?? this._chatBackings.get(chat.toString())?.sdkSessionId
+			: this._sdkConversationId(session);
+		if (!sdkConversationId) {
+			return undefined;
+		}
+		const resource = URI.file(join(getCopilotHomePath(this._environmentService.userHome.fsPath, process.env), 'session-state', sdkConversationId, 'events.jsonl'));
 		return await this._fileService.exists(resource) ? resource : undefined;
 	}
 
@@ -2917,6 +2923,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		changeModel: (chatUri: URI, model: ModelSelection, context: URI | IAgentChatContext): Promise<void> => {
 			return this._changeModel(chatUri, model, context);
 		},
+		resumeTurn: (chatUri: URI, turnId: string, context: URI | IAgentChatContext, senderClientId?: string, clientType?: AgentHostClientType): Promise<void> => {
+			return this._resumeTurn(chatUri, turnId, context, senderClientId, clientType);
+		},
 		changeAgent: (chatUri: URI, agent: AgentSelection | undefined, context: URI | IAgentChatContext): Promise<void> => {
 			return this._changeAgent(chatUri, agent, context);
 		},
@@ -3100,6 +3109,42 @@ export class CopilotAgent extends Disposable implements IAgent {
 			...(project ? { project } : {}),
 			...this._chatBackingResult(sessionId, { sdkSessionId: reserved?.sdkSessionId ?? sdkSessionId }),
 		};
+	}
+
+	private async _resumeTurn(chat: URI, turnId: string, operationContext: URI | IAgentChatContext, senderClientId?: string, clientType = AgentHostClientType.Unknown): Promise<void> {
+		try {
+			await this._resumeTurnOnce(chat, turnId, operationContext, senderClientId, clientType);
+		} catch (error) {
+			const recovery = await this._handleClientOperationFailure(error, 'resumeTurn', this._clientFailureCorrelation(chat, turnId, operationContext));
+			if (recovery?.failedTurnIds.has(turnId)) {
+				return;
+			}
+			throw error;
+		}
+	}
+
+	private async _resumeTurnOnce(chat: URI, turnId: string, operationContext: URI | IAgentChatContext, senderClientId?: string, clientType = AgentHostClientType.Unknown): Promise<void> {
+		const context = this._resolveChatContext(chat, operationContext);
+		const clientTelemetryContext = URI.isUri(operationContext) ? undefined : operationContext.clientTelemetryContext;
+		await this._queueChat(context.configurationId, context.sequencerKey, async () => {
+			const current = this._resolveChatContext(chat, operationContext);
+			let entry = current.target ?? await this._ensureResolvedChatSession(current);
+			if (!entry) {
+				throw new Error(`[Copilot] resumeTurn for unknown chat: ${chat.toString()}`);
+			}
+			const activeClient = this._activeClients.get(current.configurationResource);
+			const currentSnapshot = activeClient ? await activeClient.snapshot(current.chatKey) : undefined;
+			if (activeClient && currentSnapshot && await activeClient.requiresRestart(entry.appliedSnapshot, current.chatKey, currentSnapshot)) {
+				await this._destroyLiveSession(entry, true);
+				entry = entry.sessionId === current.configurationId
+					? await this._resumeSession(current.configurationId, current.chat)
+					: await this._ensureResolvedChatSession(current);
+			}
+			if (!entry) {
+				throw new Error(`[Copilot] resumeTurn for unavailable chat: ${chat.toString()}`);
+			}
+			await entry.resume(turnId, this._resolveSdkMode(current.configurationResource), senderClientId, clientType, clientTelemetryContext);
+		});
 	}
 
 	/** Mints the chat's backing from an imported conversation supplied by Agent Host. */

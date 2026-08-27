@@ -215,10 +215,10 @@ export class SessionsView extends ViewPane {
 				const mainChat = session.mainChat.get();
 				if (sideBySide) {
 					// Alt-click: open the session to the right of the last visible session in the grid.
-					this.sessionsService.openSessionToSide(session, { preserveFocus, chatResource: mainChat.resource }).then(onOpened).catch(onUnexpectedError);
+					this.sessionsService.openSessionToSide(session, { preserveFocus, chatResource: mainChat.resource, source: 'sessionsList' }).then(onOpened).catch(onUnexpectedError);
 					return;
 				}
-				this.sessionsService.openChat(session, mainChat.resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
+				this.sessionsService.openChat(session, mainChat.resource, { preserveFocus, source: 'sessionsList' }).then(onOpened).catch(onUnexpectedError);
 			},
 			canOpenSession: session => this.sessionsService.canOpenSession(session),
 			onChatOpen: (session, chat, preserveFocus, sideBySide) => {
