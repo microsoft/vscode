@@ -22,9 +22,24 @@ import { AICustomizationManagementSection, AICustomizationSources } from '../../
 import type { ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
 import { CustomizationMigrationCategoryId } from '../../../browser/aiCustomization/customizationMigrationCategories.js';
 import type { ICustomizationMigrationCategorySummary } from '../../../browser/aiCustomization/aiCustomizationWelcomePage.js';
+import { AICustomizationManagementEditorInput } from '../../../browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 
 suite('aiCustomizationManagementEditor', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('includes the customization target in the modal title', () => {
+		const input = store.add(new AICustomizationManagementEditorInput());
+		const names = [input.getName()];
+		input.setTargetLabel('Copilot');
+		names.push(input.getName());
+		input.setTargetLabel(undefined);
+		names.push(input.getName());
+		assert.deepStrictEqual(names, [
+			'Agent Customizations',
+			'Agent Customizations - Copilot',
+			'Agent Customizations',
+		]);
+	});
 
 	type TestableEditor = {
 		currentEditingPromptType: PromptsType | undefined;
@@ -49,9 +64,7 @@ suite('aiCustomizationManagementEditor', () => {
 		migrationDescriptionElement: HTMLElement | undefined;
 		migrationBannerContainer: HTMLElement | undefined;
 		migrationLinkElement: HTMLAnchorElement | undefined;
-		migrationSearchQuery: string;
 		selectedCustomizationMigrationItems: ResourceMap<Set<PromptsStorage>>;
-		collapsedCustomizationMigrationGroups: Set<string>;
 		migrationPageDisposables: DisposableStore;
 		labelService: { getUriLabel(uri: URI, options?: { relative?: boolean }): string };
 		showEmbeddedEditor(...args: unknown[]): Promise<void>;
@@ -117,15 +130,13 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.migrationDescriptionElement = undefined;
 		editor.migrationBannerContainer = undefined;
 		editor.migrationLinkElement = undefined;
-		editor.migrationSearchQuery = '';
 		editor.selectedCustomizationMigrationItems = new ResourceMap();
-		editor.collapsedCustomizationMigrationGroups = new Set();
 		editor.migrationPageDisposables = editor.editorPreviewDisposables.add(new DisposableStore());
 		editor.labelService = {
 			getUriLabel: uri => uri.path,
 		};
 		editor.showEmbeddedEditor = async () => { };
-		editor.getActiveHarnessLabel = () => 'Copilot [Agent Host]';
+		editor.getActiveHarnessLabel = () => 'Copilot';
 		editor.welcomePage = undefined;
 		editor.contributedSectionContainers = new Map();
 		editor.editorPreviewRenderScheduler = {
@@ -394,7 +405,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.editorPreviewDisposables.dispose();
 	});
 
-	test('user data migration banner states the Settings Sync trade-off and replaces the description', () => {
+	test('migration banners include destination consequences when applicable', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
 			[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: true,
 			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
@@ -442,12 +453,11 @@ suite('aiCustomizationManagementEditor', () => {
 		document.body.appendChild(editor.migrationListContainer);
 
 		const readBanner = () => ({
-			title: editor.migrationBannerContainer!.querySelector('.customization-migration-banner-title')?.textContent ?? '',
 			message: editor.migrationBannerContainer!.querySelector('.customization-migration-banner-message')?.textContent ?? '',
 			consequence: editor.migrationBannerContainer!.querySelector('.customization-migration-banner-consequence')?.textContent ?? '',
-			consequenceMentionsSync: (editor.migrationBannerContainer!.querySelector('.customization-migration-banner-consequence')?.textContent ?? '').includes('Settings Sync'),
 			bannerHidden: editor.migrationBannerContainer!.style.display === 'none',
 			descriptionHidden: editor.migrationDescriptionElement!.style.display === 'none',
+			linkInBanner: editor.migrationLinkElement!.closest('.customization-migration-banner-content') !== null,
 		});
 
 		try {
@@ -455,27 +465,24 @@ suite('aiCustomizationManagementEditor', () => {
 			editor.renderCustomizationMigrationPage();
 			const userData = readBanner();
 
-			// The prompt-file migration keeps its plain description, with no banner.
 			editor.activeMigrationCategoryId = CustomizationMigrationCategoryId.PromptFiles;
 			editor.renderCustomizationMigrationPage();
 			const prompts = readBanner();
 
 			assert.deepStrictEqual({ userData, prompts }, {
 				userData: {
-					title: '2 customizations are not available to Copilot [Agent Host]',
 					message: 'They are stored in user data, which only VS Code reads. Move them to \'~/.copilot\' so both VS Code and this harness can use them, keeping their name, type, and content.',
 					consequence: 'Migrated files aren\'t currently included in Settings Sync.',
-					consequenceMentionsSync: true,
 					bannerHidden: false,
 					descriptionHidden: true,
+					linkInBanner: true,
 				},
 				prompts: {
-					title: '',
-					message: '',
+					message: 'Prompts are no longer supported by Copilot. Convert them to skills to keep them available in both VS Code and this harness.',
 					consequence: '',
-					consequenceMentionsSync: false,
-					bannerHidden: true,
-					descriptionHidden: false,
+					bannerHidden: false,
+					descriptionHidden: true,
+					linkInBanner: true,
 				},
 			});
 		} finally {
@@ -603,7 +610,7 @@ suite('aiCustomizationManagementEditor', () => {
 					groupChecked: 'false',
 					itemCheckboxes: ['false', 'false'],
 					selectedItems: [false, false],
-					migrateButton: { enabled: false, label: 'Migrate' },
+					migrateButton: { enabled: false, label: 'Convert to Skills' },
 				},
 				afterReselecting: {
 					groupRetainedFocus: true,
@@ -611,7 +618,7 @@ suite('aiCustomizationManagementEditor', () => {
 					groupChecked: 'true',
 					itemCheckboxes: ['true', 'true'],
 					selectedItems: [true, true],
-					migrateButton: { enabled: true, label: 'Migrate (2)' },
+					migrateButton: { enabled: true, label: 'Convert 2 to Skills' },
 				},
 			});
 		} finally {
@@ -621,7 +628,7 @@ suite('aiCustomizationManagementEditor', () => {
 		}
 	});
 
-	test('customization migration groups can be collapsed independently', () => {
+	test('customization migration groups render as flat source sections', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
 			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
 		}));
@@ -670,22 +677,16 @@ suite('aiCustomizationManagementEditor', () => {
 		try {
 			editor.renderCustomizationMigrationPage();
 
-			const groupToggles = [...editor.migrationListContainer.querySelectorAll('.prompt-migration-group-toggle')] as HTMLButtonElement[];
-			assert.deepStrictEqual(groupToggles.map(button => button.getAttribute('aria-expanded')), ['true', 'true']);
-
-			groupToggles[0].click();
-
 			const groupContainers = [...editor.migrationListContainer.querySelectorAll('.prompt-migration-group-items')] as HTMLElement[];
-			assert.deepStrictEqual(groupContainers.map(container => container.style.display), ['none', '']);
-			assert.deepStrictEqual(
-				[...editor.migrationListContainer.querySelectorAll('.prompt-migration-group-toggle')].map(button => button.getAttribute('aria-expanded')),
-				['false', 'true'],
-			);
-
-			editor.renderCustomizationMigrationPage();
-
-			const rerenderedContainers = [...editor.migrationListContainer.querySelectorAll('.prompt-migration-group-items')] as HTMLElement[];
-			assert.deepStrictEqual(rerenderedContainers.map(container => container.style.display), ['none', '']);
+			assert.deepStrictEqual({
+				groupTitles: [...editor.migrationListContainer.querySelectorAll('.prompt-migration-group-title')].map(element => element.textContent),
+				groupContainers: groupContainers.map(container => container.style.display),
+				collapseButtons: editor.migrationListContainer.querySelectorAll('.prompt-migration-group-toggle').length,
+			}, {
+				groupTitles: ['Workspace', 'User'],
+				groupContainers: ['', ''],
+				collapseButtons: 0,
+			});
 		} finally {
 			editor.migrationListContainer.remove();
 			editor.migrationPageDisposables.dispose();
@@ -733,7 +734,7 @@ suite('aiCustomizationManagementEditor', () => {
 			const readGroupChecked = () => groupCheckbox?.getAttribute('aria-checked');
 
 			const initiallyChecked = readGroupChecked();
-			// Unchecking only one item already breaks "all selected", so the group checkbox should clear.
+			// Unchecking only one item leaves a partial group selection.
 			itemCheckboxes[0].click();
 			const afterFirstUncheck = readGroupChecked();
 			// Unchecking the last remaining item must keep the group checkbox cleared (issue #331330).
@@ -753,7 +754,7 @@ suite('aiCustomizationManagementEditor', () => {
 			}, {
 				itemCount: 2,
 				initiallyChecked: 'true',
-				afterFirstUncheck: 'false',
+				afterFirstUncheck: 'mixed',
 				afterLastUncheck: 'false',
 				afterRecheckingAll: 'true',
 			});

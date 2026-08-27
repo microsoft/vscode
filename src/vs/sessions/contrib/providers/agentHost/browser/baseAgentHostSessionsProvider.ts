@@ -2646,7 +2646,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * the provider itself is disposed.
 	 */
 	private readonly _newSessions = this._register(new DisposableMap<string, NewSession>());
-	private readonly _firstSendModelReferences = this._register(new DisposableMap<string, IChatModelReference>());
 
 	/** The in-flight new session with the given id, if any. */
 	protected _getNewSession(sessionId: string): NewSession | undefined {
@@ -2708,6 +2707,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * refcount to the agent host.
 	 */
 	private readonly _sessionStateIdleTimers = this._register(new DisposableMap<string, IDisposable>());
+	private readonly _chatModelRetentionLeases = this._register(new DisposableMap<string, IDisposable>());
 
 	/**
 	 * Session ids whose views are currently visible in the Agents window. Their
@@ -4362,8 +4362,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		cached.setChatModelId(chat.resource, selectedModelId, ChatModelSource.CarriedOver);
 		cached.setChatAgent(chat.resource, selectedAgentUri ? { uri: selectedAgentUri, name: '' } : undefined);
 
-		await this._chatSessionsService.getOrCreateChatSession(chat.resource, CancellationToken.None);
-		await this._updateChatSessionState(chat.resource, selectedModelId, selectedAgentUri);
+		await this._retainChatSessionModel(chat.resource, selectedModelId, selectedAgentUri);
 		return chat;
 	}
 
@@ -4412,8 +4411,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		cached.setChatModelId(chat.resource, selectedModelId, ChatModelSource.CarriedOver);
 		cached.setChatAgent(chat.resource, selectedAgentUri ? { uri: selectedAgentUri, name: '' } : undefined);
 
-		await this._chatSessionsService.getOrCreateChatSession(chat.resource, CancellationToken.None);
-		await this._updateChatSessionState(chat.resource, selectedModelId, selectedAgentUri);
+		await this._retainChatSessionModel(chat.resource, selectedModelId, selectedAgentUri);
 		return chat;
 	}
 
@@ -4464,7 +4462,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		cached.setChatModelId(chat.resource, selectedModelId, ChatModelSource.CarriedOver);
 		cached.setChatAgent(chat.resource, selectedAgentUri ? { uri: selectedAgentUri, name: '' } : undefined);
 
-		await this._prepareFirstSendChatModel(chat.resource, selectedModelId, selectedAgentUri);
+		await this._retainChatSessionModel(chat.resource, selectedModelId, selectedAgentUri);
 		return chat;
 	}
 
@@ -4527,8 +4525,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			hideFromTranscript: options.hideFromTranscript,
 		};
 
-		const modelRef = this._firstSendModelReferences.deleteAndLeak(chatResource.toString())
-			?? await this._chatService.acquireOrLoadSession(chatResource, ChatAgentLocation.Chat, CancellationToken.None);
+		const modelRef = await this._chatService.acquireOrLoadSession(chatResource, ChatAgentLocation.Chat, CancellationToken.None);
 		if (!modelRef) {
 			throw new Error(`[${this.id}] Unable to load chat session ${chatResource.toString()}`);
 		}
@@ -4552,15 +4549,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return cached;
 	}
 
-	private async _prepareFirstSendChatModel(chatResource: URI, modelId: string | undefined, agentUri: string | undefined): Promise<void> {
-		const modelRef = await this._chatService.acquireOrLoadSession(chatResource, ChatAgentLocation.Chat, CancellationToken.None);
-		if (!modelRef) {
-			return;
-		}
-		this._applyChatSessionState(modelRef, modelId, agentUri);
-		this._firstSendModelReferences.set(chatResource.toString(), modelRef);
-	}
-
 	private async _updateChatSessionState(chatResource: URI, modelId: string | undefined, agentUri: string | undefined, options?: { readonly clearDraft?: boolean }): Promise<void> {
 		const modelRef = await this._chatService.acquireOrLoadSession(chatResource, ChatAgentLocation.Chat, CancellationToken.None);
 		if (!modelRef) {
@@ -4571,6 +4559,20 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		} finally {
 			modelRef.dispose();
 		}
+	}
+
+	private async _retainChatSessionModel(chatResource: URI, modelId: string | undefined, agentUri: string | undefined): Promise<void> {
+		const modelRef = await this._chatService.acquireOrLoadSession(chatResource, ChatAgentLocation.Chat, CancellationToken.None);
+		if (!modelRef) {
+			return;
+		}
+
+		this._applyChatSessionState(modelRef, modelId, agentUri);
+		const resourceKey = chatResource.toString();
+		const lease = new DisposableStore();
+		lease.add(modelRef);
+		lease.add(disposableTimeout(() => this._chatModelRetentionLeases.deleteAndDispose(resourceKey), BaseAgentHostSessionsProvider.CHAT_MODEL_RETENTION_MS));
+		this._chatModelRetentionLeases.set(resourceKey, lease);
 	}
 
 	private _applyChatSessionState(modelRef: IChatModelReference, modelId: string | undefined, agentUri: string | undefined, options?: { readonly clearDraft?: boolean }): void {
@@ -4815,6 +4817,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * so, allowing the agent host to evict their cached restored state.
 	 */
 	private static readonly SESSION_STATE_SUBSCRIPTION_IDLE_MS = 30_000;
+	private static readonly CHAT_MODEL_RETENTION_MS = 10_000;
 
 	/**
 	 * Pin the state subscription of every currently-visible session (so
