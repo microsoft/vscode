@@ -8,7 +8,7 @@ import { addDisposableListener, EventType } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { Event } from '../../../base/common/event.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
-import { constObservable, IObservable } from '../../../base/common/observable.js';
+import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import { isLinux } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { mock } from '../../../base/test/common/mock.js';
@@ -81,6 +81,9 @@ interface IChatCompositeBarHarness {
 	readonly bar: ChatCompositeBar;
 	readonly session: IActiveSession;
 	readonly tabs: readonly HTMLElement[];
+	readonly chats: ISettableObservable<readonly IChat[]>;
+	readonly activeChatResource: ISettableObservable<string>;
+	readonly visible: ISettableObservable<boolean>;
 }
 
 function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { readonly isQuickChat?: boolean }): IChatCompositeBarHarness {
@@ -91,6 +94,11 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 	const mainChat = createChat('main', 'Main Chat');
 	const secondaryChat = createChat('secondary', 'Secondary Chat');
 	const session = createSession([mainChat, secondaryChat], mainChat, options?.isQuickChat);
+	const chats = observableValue<readonly IChat[]>('test.chats', [mainChat, secondaryChat]);
+	const activeChatResource = observableValue('test.activeChatResource', mainChat.resource.toString());
+	const mainChatResource = observableValue('test.mainChatResource', mainChat.resource.toString());
+	const visible = observableValue('test.visible', true);
+	const showSessionActions = observableValue('test.showSessionActions', true);
 
 	instantiationService.stub(ICommandService, commandService);
 	instantiationService.stub(ISessionsService, sessionsService);
@@ -106,11 +114,11 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 	const bar = store.add(instantiationService.createInstance(ChatCompositeBar));
 	const delegate: IChatCompositeBarDelegate = {
 		session,
-		chats: session.visibleChatTabs,
-		activeChatResource: constObservable(session.activeChat.get().resource.toString()),
-		mainChatResource: constObservable(session.mainChat.get().resource.toString()),
-		visible: session.shouldShowChatTabs,
-		showSessionActions: session.shouldShowChatTabs,
+		chats,
+		activeChatResource,
+		mainChatResource,
+		visible,
+		showSessionActions,
 		openChat: resource => { sessionsService.openChat(session, resource); },
 	};
 	bar.setGroup(delegate);
@@ -118,7 +126,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 	container.appendChild(bar.element);
 	const tabs = Array.from(bar.element.querySelectorAll<HTMLElement>('.chat-composite-bar-tab'));
 
-	return { store, instantiationService, commandService, sessionsService, bar, session, tabs };
+	return { store, instantiationService, commandService, sessionsService, bar, session, tabs, chats, activeChatResource, visible };
 }
 
 suite('Sessions - ChatCompositeBar', () => {
@@ -149,6 +157,55 @@ suite('Sessions - ChatCompositeBar', () => {
 		const { bar } = createHarness(disposables);
 
 		assert.strictEqual(bar.element.querySelector('.chat-composite-bar-new-chat'), null);
+	});
+
+	test('updates active and visibility state without rebuilding tabs', () => {
+		const { activeChatResource, bar, tabs, visible } = createHarness(disposables);
+		const secondaryResource = tabs[1].dataset.chatResource!;
+
+		activeChatResource.set(secondaryResource, undefined);
+		const tabsAfterActiveChange = Array.from(bar.element.querySelectorAll<HTMLElement>('.chat-composite-bar-tab'));
+		visible.set(false, undefined);
+		const tabsAfterHidden = Array.from(bar.element.querySelectorAll<HTMLElement>('.chat-composite-bar-tab'));
+		const displayWhileHidden = bar.element.style.display;
+		visible.set(true, undefined);
+		const tabsAfterVisible = Array.from(bar.element.querySelectorAll<HTMLElement>('.chat-composite-bar-tab'));
+
+		assert.deepStrictEqual({
+			activeTab: bar.element.querySelector<HTMLElement>('.chat-composite-bar-tab.active')?.dataset.chatResource,
+			ariaSelected: tabsAfterActiveChange.map(tab => tab.getAttribute('aria-selected')),
+			tabsPreserved: tabsAfterVisible.map((tab, index) => tab === tabs[index]),
+			tabsPreservedWhileHidden: tabsAfterHidden.map((tab, index) => tab === tabs[index]),
+			displayWhileHidden,
+		}, {
+			activeTab: secondaryResource,
+			ariaSelected: ['false', 'true'],
+			tabsPreserved: [true, true],
+			tabsPreservedWhileHidden: [true, true],
+			displayWhileHidden: 'none',
+		});
+	});
+
+	test('applies the active state when chat membership rebuilds tabs', () => {
+		const { activeChatResource, bar, chats } = createHarness(disposables);
+		const tertiaryChat = createChat('tertiary', 'Tertiary Chat');
+
+		chats.set([...chats.get(), tertiaryChat], undefined);
+		const tabs = Array.from(bar.element.querySelectorAll<HTMLElement>('.chat-composite-bar-tab'));
+
+		assert.deepStrictEqual({
+			chatResources: tabs.map(tab => tab.dataset.chatResource),
+			activeTab: bar.element.querySelector<HTMLElement>('.chat-composite-bar-tab.active')?.dataset.chatResource,
+			ariaSelected: tabs.map(tab => tab.getAttribute('aria-selected')),
+		}, {
+			chatResources: [
+				'test-chat://main',
+				'test-chat://secondary',
+				'test-chat://tertiary',
+			],
+			activeTab: activeChatResource.get(),
+			ariaSelected: ['true', 'false', 'false'],
+		});
 	});
 
 	test('middle-click closes the targeted inactive non-main chat', () => {
