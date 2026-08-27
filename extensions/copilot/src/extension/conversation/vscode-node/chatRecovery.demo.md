@@ -13,51 +13,118 @@ This runbook exercises the recovery signals implemented in `chatRecovery.ts`. It
 
 ## Generate the Demo Workspace
 
-The failed-test scenario requires a test provider registered with VS Code's Testing API. The following PowerShell commands create a disposable Python workspace under `%TEMP%`, install pytest in a virtual environment, and verify the passing baseline:
+The failed-test scenario requires a test provider registered with VS Code's Testing API. The following PowerShell commands create a disposable JavaScript workspace under `%TEMP%`, add a dependency-free test provider extension, and verify the passing baseline with Node's built-in test runner:
 
 ```powershell
 $demoWorkspace = Join-Path $env:TEMP 'chat-recovery-demo'
 Remove-Item $demoWorkspace -Recurse -Force -ErrorAction SilentlyContinue
 New-Item $demoWorkspace -ItemType Directory | Out-Null
-New-Item (Join-Path $demoWorkspace '.vscode') -ItemType Directory | Out-Null
+New-Item (Join-Path $demoWorkspace '.vscode/javascript-test-provider') -ItemType Directory | Out-Null
 
 @'
-def add(left: int, right: int) -> int:
-  return left + right
-'@ | Set-Content (Join-Path $demoWorkspace 'calculator.py') -Encoding utf8
+function add(left, right) {
+  return left + right;
+}
+
+module.exports = { add };
+'@ | Set-Content (Join-Path $demoWorkspace 'calculator.js') -Encoding utf8
 
 @'
-from calculator import add
+const assert = require('node:assert/strict');
+const test = require('node:test');
+const { add } = require('./calculator');
 
-
-def test_add() -> None:
-  assert add(2, 3) == 5
-'@ | Set-Content (Join-Path $demoWorkspace 'test_calculator.py') -Encoding utf8
+test('add returns the sum', () => {
+  assert.equal(add(2, 3), 5);
+});
+'@ | Set-Content (Join-Path $demoWorkspace 'calculator.test.js') -Encoding utf8
 
 @'
 {
-  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
-  "python.testing.pytestEnabled": true,
-  "python.testing.unittestEnabled": false,
-  "python.testing.pytestArgs": ["test_calculator.py"]
+  "name": "chat-recovery-demo-test-provider",
+  "displayName": "Chat Recovery Demo Test Provider",
+  "version": "0.0.1",
+  "publisher": "demo",
+  "engines": {
+    "vscode": "^1.133.0"
+  },
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./extension.js"
 }
-'@ | Set-Content (Join-Path $demoWorkspace '.vscode/settings.json') -Encoding utf8
+'@ | Set-Content (Join-Path $demoWorkspace '.vscode/javascript-test-provider/package.json') -Encoding utf8
 
-$pythonCommand = if (Get-Command py -ErrorAction SilentlyContinue) {
-  'py'
-} elseif (Get-Command python -ErrorAction SilentlyContinue) {
-  'python'
-} else {
-  throw 'Install Python and make either py or python available on PATH.'
+@'
+const { spawn } = require('node:child_process');
+const path = require('node:path');
+const vscode = require('vscode');
+
+function activate(context) {
+  const controller = vscode.tests.createTestController('chat-recovery-demo-tests', 'Chat Recovery Demo Tests');
+
+  const discoverTests = async () => {
+    const files = await vscode.workspace.findFiles('**/*.test.js', '**/node_modules/**');
+    controller.items.replace(files.map(uri => controller.createTestItem(uri.toString(), path.basename(uri.fsPath), uri)));
+  };
+
+  controller.refreshHandler = discoverTests;
+  const profile = controller.createRunProfile('Run', vscode.TestRunProfileKind.Run, async (request, token) => {
+    const run = controller.createTestRun(request);
+    const tests = request.include ?? [...controller.items].map(([, item]) => item);
+
+    for (const item of tests) {
+      if (!item.uri || token.isCancellationRequested) {
+        run.skipped(item);
+        continue;
+      }
+
+      run.enqueued(item);
+      run.started(item);
+      const result = await runNodeTest(item.uri.fsPath, token);
+      run.appendOutput(result.output.replace(/\r?\n/g, '\r\n'), undefined, item);
+      if (result.exitCode === 0) {
+        run.passed(item);
+      } else {
+        run.failed(item, new vscode.TestMessage(result.output || `node --test exited with code ${result.exitCode}`));
+      }
+    }
+
+    run.end();
+  }, true);
+
+  const watcher = vscode.workspace.createFileSystemWatcher('**/*.test.js');
+  watcher.onDidCreate(discoverTests, undefined, context.subscriptions);
+  watcher.onDidDelete(discoverTests, undefined, context.subscriptions);
+  watcher.onDidChange(() => controller.invalidateTestResults(), undefined, context.subscriptions);
+  context.subscriptions.push(controller, profile, watcher);
+  void discoverTests();
 }
 
-& $pythonCommand -m venv (Join-Path $demoWorkspace '.venv')
-$venvPython = Join-Path $demoWorkspace '.venv/Scripts/python.exe'
-& $venvPython -m pip install pytest
+function runNodeTest(file, token) {
+  return new Promise(resolve => {
+    const child = spawn('node', ['--test', file], { cwd: path.dirname(file), windowsHide: true });
+    let output = '';
+    child.stdout.on('data', data => output += data.toString());
+    child.stderr.on('data', data => output += data.toString());
+    const cancellation = token.onCancellationRequested(() => child.kill());
+    child.on('close', exitCode => {
+      cancellation.dispose();
+      resolve({ exitCode, output });
+    });
+    child.on('error', error => {
+      cancellation.dispose();
+      resolve({ exitCode: 1, output: error.message });
+    });
+  });
+}
+
+exports.activate = activate;
+'@ | Set-Content (Join-Path $demoWorkspace '.vscode/javascript-test-provider/extension.js') -Encoding utf8
 
 Push-Location $demoWorkspace
 try {
-  & $venvPython -m pytest test_calculator.py
+  node --test calculator.test.js
 } finally {
   Pop-Location
 }
@@ -65,7 +132,13 @@ try {
 Write-Output "Demo workspace: $demoWorkspace"
 ```
 
-In the development instance, install or enable the **Python** extension, open the printed folder with **File > Open Folder**, and wait for `test_add` to appear in the Testing view. Run it once from the Testing view and confirm that it passes. Re-run the commands above whenever a clean workspace is needed.
+From the VS Code repository root, launch the development instance with the local test provider and generated workspace:
+
+```powershell
+.\scripts\code.bat --extensionDevelopmentPath="$demoWorkspace\.vscode\javascript-test-provider" $demoWorkspace
+```
+
+Trust the disposable workspace if prompted, then wait for `calculator.test.js` to appear in the Testing view. Run it once from the Testing view and confirm that it passes. Re-run the generation commands whenever a clean workspace is needed.
 
 ## Before the Demo
 
