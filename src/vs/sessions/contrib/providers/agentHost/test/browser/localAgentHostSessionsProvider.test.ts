@@ -2709,16 +2709,61 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const preparation = provider.startNewSessionRequest(session.sessionId, activity);
 		const duringDescription = session.description.get();
 		const during = duringDescription ? renderAsPlaintext(duringDescription) : undefined;
+		const duringStatus = session.status.get();
+		const requestInProgressDuring = session.isNewSessionRequestInProgress?.get();
 		preparation.dispose();
 
 		assert.deepStrictEqual({
 			status: session.status.get(),
+			duringStatus,
 			during,
 			after: session.description.get()?.value,
+			requestInProgressDuring,
+			requestInProgressAfter: session.isNewSessionRequestInProgress?.get(),
 		}, {
 			status: SessionStatus.Untitled,
+			duringStatus: SessionStatus.Untitled,
 			during: activity,
 			after: undefined,
+			requestInProgressDuring: true,
+			requestInProgressAfter: false,
+		});
+	});
+
+	test('startNewSessionRequest keeps overlapping request activity until the final request is disposed', () => {
+		const provider = createProvider(disposables, agentHost);
+		const session = provider.createNewSession(URI.parse('file:///home/user/my-project'), provider.sessionTypes[0].id);
+
+		const first = provider.startNewSessionRequest(session.sessionId, 'First request');
+		const second = provider.startNewSessionRequest(session.sessionId, 'Second request');
+		first.dispose();
+		const afterFirstDescription = session.description.get();
+		const afterFirst = {
+			status: session.status.get(),
+			inProgress: session.isNewSessionRequestInProgress?.get(),
+			activity: afterFirstDescription ? renderAsPlaintext(afterFirstDescription) : undefined,
+		};
+		second.dispose();
+		const afterSecondDescription = session.description.get();
+
+		assert.deepStrictEqual({
+			afterFirst,
+			afterSecond: {
+				status: session.status.get(),
+				inProgress: session.isNewSessionRequestInProgress?.get(),
+				activity: afterSecondDescription ? renderAsPlaintext(afterSecondDescription) : undefined,
+			},
+		}, {
+			afterFirst: {
+				status: SessionStatus.Untitled,
+				inProgress: true,
+				activity: 'Second request',
+			},
+			afterSecond: {
+				status: SessionStatus.Untitled,
+				inProgress: false,
+				activity: undefined,
+			},
 		});
 	});
 
@@ -3658,7 +3703,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			},
 			resolved: {
 				sendCalls: 1,
-				statusAtLoad: SessionStatus.InProgress,
+				statusAtLoad: SessionStatus.Untitled,
 				wireOpsAtLoad: [`createSession:${backendKey}`, `subscribe:${backendKey}`],
 				wireOpsAtSend: [`createSession:${backendKey}`, `subscribe:${backendKey}`],
 				title: 'Eager Created',
