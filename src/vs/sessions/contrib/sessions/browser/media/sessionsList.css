@@ -478,11 +478,10 @@
 	&::after {
 		content: '';
 		position: absolute;
-		/* Align the horizontal connector with the title row's vertical center,
-			independent of any approval row stacked below it. */
+		/* Align with the title row and stop before the status icon. */
 		top: calc(var(--session-chat-base-height) / 2);
 		left: var(--vscode-spacing-size200);
-		width: var(--vscode-spacing-size240);
+		width: var(--vscode-spacing-size120);
 		border-top: var(--vscode-strokeThickness) solid var(--vscode-tree-inactiveIndentGuidesStroke);
 		opacity: 0;
 	}
@@ -499,7 +498,7 @@
 			/* Stop the vertical guide at the title row's center (its connector),
 				not at the middle of the taller approval-augmented row. */
 			bottom: calc(100% - var(--session-chat-base-height) / 2);
-			width: var(--vscode-spacing-size240);
+			width: var(--vscode-spacing-size120);
 			border-bottom: var(--vscode-strokeThickness) solid var(--vscode-tree-inactiveIndentGuidesStroke);
 			border-bottom-left-radius: var(--vscode-cornerRadius-small);
 		}
