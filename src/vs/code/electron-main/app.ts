@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, desktopCapturer, Details, globalShortcut, GPUFeatureStatus, powerMonitor, protocol, screen as electronScreen, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { app, BrowserWindow, desktopCapturer, Details, globalShortcut, GPUFeatureStatus, net, powerMonitor, protocol, screen as electronScreen, session, Session, systemPreferences, WebFrameMain } from 'electron';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
 import { hostname, release } from 'os';
@@ -834,29 +834,34 @@ export class CodeApplication extends Disposable {
 	}
 
 	private setupManagedRemoteResourceUrlHandler(mainProcessElectronServer: ElectronIPCServer) {
-		const notFound = (): Electron.ProtocolResponse => ({ statusCode: 404, data: 'Not found' });
+		const notFound = (): GlobalResponse => new Response('Not found', { status: 404 });
 		const remoteResourceChannel = new Lazy(() => mainProcessElectronServer.getChannel(
 			NODE_REMOTE_RESOURCE_CHANNEL_NAME,
 			new NodeRemoteResourceRouter(),
 		));
 
-		protocol.registerBufferProtocol(Schemas.vscodeManagedRemoteResource, (request, callback) => {
+		protocol.handle(Schemas.vscodeManagedRemoteResource, async request => {
 			const url = URI.parse(request.url);
 			if (!url.authority.startsWith('window:')) {
-				return callback(notFound());
+				return notFound();
 			}
 
 			if (!request.referrer || request.referrer.startsWith(`${Schemas.vscodeWebview}://`)) {
-				return callback(notFound());
+				return notFound();
 			}
 
-			remoteResourceChannel.value.call<NodeRemoteResourceResponse>(NODE_REMOTE_RESOURCE_IPC_METHOD_NAME, [url]).then(
-				r => callback({ ...r, data: Buffer.from(r.body, 'base64') }),
-				err => {
-					this.logService.warn('error dispatching remote resource call', err);
-					callback({ statusCode: 500, data: String(err) });
+			try {
+				const response = await remoteResourceChannel.value.call<NodeRemoteResourceResponse>(NODE_REMOTE_RESOURCE_IPC_METHOD_NAME, [url]);
+				return new Response(Buffer.from(response.body, 'base64'), {
+					status: response.statusCode,
+					headers: response.mimeType ? { 'Content-Type': response.mimeType } : undefined
 				});
+			} catch (error) {
+				this.logService.warn('error dispatching remote resource call', error);
+				return new Response(String(error), { status: 500 });
+			}
 		});
+		this._register(toDisposable(() => protocol.unhandle(Schemas.vscodeManagedRemoteResource)));
 	}
 
 	private async resolveInitialProtocolUrls(windowsMainService: IWindowsMainService, dialogMainService: IDialogMainService): Promise<IInitialProtocolUrls | undefined> {
@@ -1619,12 +1624,23 @@ export class CodeApplication extends Disposable {
 		this.installMutex();
 
 		// Remote Authorities
-		protocol.registerHttpProtocol(Schemas.vscodeRemoteResource, (request, callback) => {
-			callback({
-				url: request.url.replace(/^vscode-remote-resource:/, 'http:'),
-				method: request.method
-			});
+		protocol.handle(Schemas.vscodeRemoteResource, async request => {
+			try {
+				return await net.fetch(
+					request.url.replace(/^vscode-remote-resource:/, 'http:'),
+					{
+						method: request.method,
+						headers: request.headers,
+						body: request.body,
+						bypassCustomProtocolHandlers: true
+					}
+				);
+			} catch (error) {
+				this.logService.warn('error loading remote resource', error);
+				return Response.error();
+			}
 		});
+		this._register(toDisposable(() => protocol.unhandle(Schemas.vscodeRemoteResource)));
 
 		// Start to fetch shell environment (if needed) after window has opened
 		// Since this operation can take a long time, we want to warm it up while
