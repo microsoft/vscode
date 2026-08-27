@@ -4,19 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore } from '../../../base/common/lifecycle.js';
-import { observableValue, type ISettableObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import type { GitHubServiceOptions } from '../../github/common/githubTypes.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IRequestService } from '../../request/common/request.js';
-import type { IAgent } from '../common/agent.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { AgentHostProxyConfigKey } from '../common/agentHostSchema.js';
 import type { IAgentServiceCallbacks, IAgentServiceCallbackBinder } from './agentService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
-import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
+import { AgentHostAuthenticationService, IAgentHostAuthenticationController, IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { AgentHostGitHubEndpointService, IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { AgentHostProxyResolver, IAgentHostProxyResolver } from './agentHostProxyResolver.js';
 import { AgentHostRequestService } from './agentHostRequestService.js';
@@ -35,7 +33,7 @@ export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder 
 		createSession: config => this.value.sessionServerToolAccessor.createSession(config),
 		getModels: () => this.value.sessionServerToolAccessor.getModels(),
 		getCreationDefaults: source => this.value.sessionServerToolAccessor.getCreationDefaults(source),
-		startPrompt: (session, chat, prompt) => this.value.sessionServerToolAccessor.startPrompt(session, chat, prompt),
+		startPrompt: (session, chat, prompt, delegation) => this.value.sessionServerToolAccessor.startPrompt(session, chat, prompt, delegation),
 		createChat: (session, chat, options) => this.value.sessionServerToolAccessor.createChat(session, chat, options),
 		renameChat: (session, chat, title) => this.value.sessionServerToolAccessor.renameChat(session, chat, title),
 		reportToolError: (toolName, error) => this.value.sessionServerToolAccessor.reportToolError(toolName, error),
@@ -43,7 +41,6 @@ export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder 
 		getChatContext: (session, chatId) => this.value.sessionServerToolAccessor.getChatContext(session, chatId),
 		getSessionSpawnDepth: session => this.value.sessionServerToolAccessor.getSessionSpawnDepth(session),
 		setSessionSpawnDepth: (session, depth) => this.value.sessionServerToolAccessor.setSessionSpawnDepth(session, depth),
-		setSessionOrchestration: (session, orchestration) => this.value.sessionServerToolAccessor.setSessionOrchestration(session, orchestration),
 	};
 
 	readonly artifactServerToolAccessor: IArtifactServerToolAccessor = {
@@ -72,7 +69,6 @@ export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder 
 
 export interface IAgentServiceFoundation {
 	readonly callbackAdapter: AgentServiceCallbackAdapter;
-	readonly agents: ISettableObservable<readonly IAgent[]>;
 	readonly stateManager: AgentHostStateManager;
 	readonly configurationService: AgentConfigurationService;
 	readonly authenticationService: AgentHostAuthenticationService;
@@ -97,7 +93,6 @@ export interface ICreateAgentServiceFoundationOptions {
 
 export function createAgentServiceFoundation(options: ICreateAgentServiceFoundationOptions): IAgentServiceFoundation {
 	const callbackAdapter = new AgentServiceCallbackAdapter();
-	const agents = observableValue<readonly IAgent[]>(callbackAdapter, []);
 	const stateManager = options.owned.add(new AgentHostStateManager(options.logService, {
 		hostBuildInfo: hostBuildInfoFromProduct(options.productService),
 		changesetStateRetention: {
@@ -124,13 +119,13 @@ export function createAgentServiceFoundation(options: ICreateAgentServiceFoundat
 	options.services.set(IAgentHostStateManager, stateManager);
 	options.services.set(IAgentConfigurationService, configurationService);
 	options.services.set(IAgentHostAuthenticationService, authenticationService);
+	options.services.set(IAgentHostAuthenticationController, authenticationService);
 	options.services.set(IAgentHostGitHubEndpointService, gitHubEndpointService);
 	options.services.set(IAgentHostProxyResolver, proxyResolver);
 	options.services.set(IRequestService, requestService);
 
 	return {
 		callbackAdapter,
-		agents,
 		stateManager,
 		configurationService,
 		authenticationService,

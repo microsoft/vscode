@@ -14,7 +14,7 @@ import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { Delayer } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, IObservable } from '../../../../../base/common/observable.js';
+import { autorun, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService, type IActionViewItemFactory } from '../../../../../platform/actions/browser/actionViewItemService.js';
@@ -34,6 +34,7 @@ import { ChatContextKeyExprs, ChatContextKeys } from '../../../../../workbench/c
 import { markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { type IChatInputPickerOptions } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
+import { IChatInputPickerResponsiveState } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
 import { Menus } from '../../../../browser/menus.js';
 import { SessionProviderIdContext, IsPhoneLayoutContext, IsQuickChatSessionContext } from '../../../../common/contextkeys.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
@@ -211,18 +212,20 @@ async function confirmAutoApproveLevel(value: string, label: string, dialogServi
 	return maybeConfirmElevatedPermissionLevel(value, dialogService, storageService, { defaultSettingKey: ChatConfiguration.DefaultConfiguration, levelLabel: label });
 }
 
-/**
- * Applies warning/info CSS classes to a trigger element for auto-approve levels.
- */
-function applyAutoApproveTriggerStyles(trigger: HTMLElement, property: string | undefined, value: unknown | undefined): void {
-	if (property === SessionConfigKey.AutoApprove) {
-		trigger.classList.toggle('warning', value === 'autopilot' || value === 'assisted');
-		trigger.classList.toggle('info', value === 'autoApprove');
+function triggerAriaLabel(title: string, label: string, isReadOnly: boolean, hasUncommittedChanges: boolean): string {
+	if (hasUncommittedChanges) {
+		return isReadOnly
+			? localize('agentHostSessionConfig.triggerAriaReadOnlyUncommitted', "{0}: {1}, Uncommitted Changes, Read-Only", title, label)
+			: localize('agentHostSessionConfig.triggerAriaUncommitted', "{0}: {1}, Uncommitted Changes", title, label);
 	}
+
+	return isReadOnly
+		? localize('agentHostSessionConfig.triggerAriaReadOnly', "{0}: {1}, Read-Only", title, label)
+		: localize('agentHostSessionConfig.triggerAria', "{0}: {1}", title, label);
 }
 
-class IsolationCheckboxControl extends Disposable {
-	readonly slot = dom.$('.sessions-chat-picker-slot.sessions-chat-isolation-checkbox');
+class ConfigCheckboxControl extends Disposable {
+	readonly slot: HTMLElement;
 	readonly checkbox: Checkbox;
 
 	private readonly _row: HTMLElement;
@@ -233,18 +236,24 @@ class IsolationCheckboxControl extends Disposable {
 	constructor(
 		readonly sessionId: string,
 		label: string,
+		className: string,
 		private readonly _hoverService: IHoverService,
 		onToggle: (checked: boolean) => void,
+		onboardingTarget?: string,
 	) {
 		super();
 
+		this.slot = dom.$('.sessions-chat-picker-slot.sessions-chat-config-checkbox');
+		this.slot.classList.add(className);
 		this._row = dom.append(this.slot, dom.$('.action-label'));
 		this.checkbox = this._register(new Checkbox(label, false, { ...defaultCheckboxStyles, size: 14 }));
 		dom.append(this._row, this.checkbox.domNode);
 		const labelSpan = dom.append(this._row, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = label;
 
-		this._register(markOnboardingTarget(this.slot, 'sessions.newSession.isolation'));
+		if (onboardingTarget) {
+			this._register(markOnboardingTarget(this.slot, onboardingTarget));
+		}
 		this._register(this.checkbox.onChange(() => onToggle(this.checkbox.checked)));
 		this._register(Gesture.addTarget(this._row));
 		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
@@ -287,7 +296,8 @@ export class AgentHostSessionConfigPicker extends Disposable {
 
 	protected readonly _renderDisposables = this._register(new DisposableStore());
 	private readonly _providerListeners = this._register(new DisposableMap<string>());
-	private readonly _isolationCheckbox = this._register(new MutableDisposable<IsolationCheckboxControl>());
+	private readonly _devContainerCheckbox = this._register(new MutableDisposable<ConfigCheckboxControl>());
+	private readonly _isolationCheckbox = this._register(new MutableDisposable<ConfigCheckboxControl>());
 	protected readonly _filterDelayer = this._register(new Delayer<readonly IActionListItem<IConfigPickerItem>[]>(200));
 	private _container: HTMLElement | undefined;
 
@@ -360,6 +370,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	}
 
 	render(container: HTMLElement): void {
+		this._devContainerCheckbox.clear();
 		this._isolationCheckbox.clear();
 		this._container = dom.append(container, dom.$('.sessions-chat-agent-host-config'));
 		this._renderConfigPickers();
@@ -371,9 +382,12 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		}
 
 		this._renderDisposables.clear();
-		const isolationSlot = this._isolationCheckbox.value?.slot;
+		const checkboxSlots = new Set([
+			this._devContainerCheckbox.value?.slot,
+			this._isolationCheckbox.value?.slot,
+		]);
 		for (const child of Array.from(this._container.children)) {
-			if (child !== isolationSlot) {
+			if (!checkboxSlots.has(child as HTMLElement)) {
 				child.remove();
 			}
 		}
@@ -383,6 +397,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		const provider = session ? this._getProvider(session.providerId) : undefined;
 		const resolvedConfig = session && provider?.getSessionConfig(session.sessionId);
 		if (!session || !provider || !resolvedConfig) {
+			this._devContainerCheckbox.clear();
 			this._isolationCheckbox.clear();
 			return;
 		}
@@ -463,18 +478,20 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			if (property === SessionConfigKey.Isolation) {
 				this._renderDisposables.add(markOnboardingTarget(slot, 'sessions.newSession.isolation'));
 			}
+
 			// `renderPickerTrigger`'s `disabled` flag means "read-only"
 			// (renders a `<span>` with `aria-readonly`). The resolving
 			// state is transient and uses `aria-disabled` while preserving
 			// the trigger's appearance. The click handler bails when resolving
 			// in `_showPicker`.
 			const trigger = renderPickerTrigger(slot, isReadOnly, this._renderDisposables, () => this._showPicker(provider, session.sessionId, property, schema, trigger));
-			// The read-only Branch chip skips the hover: it just mirrors the
-			// current/default branch name (already visible as the label),
-			// and the schema description reads awkwardly as a hover for a
-			// fixed value. The editable Branch chip (worktree isolation)
-			// keeps its description, which is useful context there.
-			const tooltip = (property === SessionConfigKey.Branch && isReadOnly) ? undefined : (schema.description ?? schema.title);
+
+			// The Branch chip owns its own hover in `_renderTrigger`, because
+			// the content depends on the repository's uncommitted-changes
+			// state and therefore has to be re-evaluated without a re-render.
+			const tooltip = property !== SessionConfigKey.Branch
+				? (schema.description ?? schema.title)
+				: undefined;
 			if (tooltip) {
 				this._renderDisposables.add(this._hoverService.setupDelayedHover(trigger, { content: tooltip }));
 			}
@@ -487,6 +504,13 @@ export class AgentHostSessionConfigPicker extends Disposable {
 
 		if (!renderedIsolationCheckbox) {
 			this._isolationCheckbox.clear();
+		}
+		if (isPhoneLayout(this._layoutService)) {
+			this._devContainerCheckbox.clear();
+		} else if (provider.isDevContainerAvailable?.(session.sessionId) && provider.isDevContainerEnabled && provider.setDevContainerEnabled) {
+			this._renderDevContainerCheckbox(provider, session.sessionId);
+		} else {
+			this._devContainerCheckbox.clear();
 		}
 	}
 
@@ -549,16 +573,80 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		dom.clearNode(trigger);
 
 		const icon = getConfigIcon(property, value);
-		if (icon) {
-			dom.append(trigger, renderIcon(icon));
-		}
+		const iconElement = icon
+			? dom.append(trigger, renderIcon(icon))
+			: undefined;
+
 		const labelSpan = dom.append(trigger, dom.$('span.sessions-chat-dropdown-label'));
 		const label = this._getLabel(sessionId, property, schema, value);
 		labelSpan.textContent = label;
-		trigger.setAttribute('aria-label', isReadOnly
-			? localize('agentHostSessionConfig.triggerAriaReadOnly', "{0}: {1}, Read-Only", schema.title, label)
-			: localize('agentHostSessionConfig.triggerAria', "{0}: {1}", schema.title, label));
-		applyAutoApproveTriggerStyles(trigger, property, value);
+
+		trigger.setAttribute('aria-label', triggerAriaLabel(schema.title, label, isReadOnly, false));
+
+		if (property === SessionConfigKey.Branch && icon && iconElement) {
+			this._trackBranchRepositoryState(trigger, iconElement, icon, schema, label, isReadOnly);
+		} else if (property === SessionConfigKey.AutoApprove) {
+			trigger.classList.toggle('warning', value === 'autopilot' || value === 'assisted');
+			trigger.classList.toggle('info', value === 'autoApprove');
+		}
+	}
+
+	/**
+	 * Keeps the Branch chip's glyph, aria label, and hover in sync with the
+	 * uncommitted-changes count reported by the agent host.
+	 *
+	 * Dirtiness is ambient repository state rather than a property of the
+	 * selected branch, which is why it is applied to the chip here instead of
+	 * inside {@link getConfigIcon} — that function also renders every row of
+	 * the branch dropdown and of the mobile repository sheet, where a
+	 * repository-level glyph would be meaningless.
+	 *
+	 * The state is patched onto the existing nodes rather than routed through
+	 * `_renderConfigPickers`, which tears the whole chip row down: the host
+	 * re-probes git whenever it observes a file change, so a flip while the
+	 * user has the branch dropdown open would otherwise destroy its anchor.
+	 */
+	private _trackBranchRepositoryState(trigger: HTMLElement, iconElement: HTMLElement, icon: ThemeIcon, schema: SessionConfigPropertySchema, label: string, isReadOnly: boolean): void {
+		let appliedHoverContent: string | undefined;
+		const hover = this._renderDisposables.add(new MutableDisposable<IDisposable>());
+
+		this._renderDisposables.add(autorun(reader => {
+			// Only a positive count counts as uncommitted changes. `undefined`
+			// means the host has not reported git state — an untrusted folder,
+			// no connection, a folder that isn't a repository, or a worktree
+			// still resolving its directory — and an unknown state must never
+			// render as if the repository were dirty.
+			const session = this._session.read(reader);
+			const uncommittedChanges = session?.workspace.read(reader)?.folders[0]?.gitRepository?.uncommittedChanges;
+			const hasUncommittedChanges = (uncommittedChanges ?? 0) > 0;
+
+			iconElement.className = '';
+			iconElement.classList.add(...ThemeIcon.asClassNameArray(hasUncommittedChanges ? Codicon.gitBranchChanges : icon));
+			trigger.setAttribute('aria-label', triggerAriaLabel(schema.title, label, isReadOnly, hasUncommittedChanges));
+
+			const branchName = schema.description ?? schema.title;
+			const content = !hasUncommittedChanges
+				? branchName
+				: uncommittedChanges === 1
+					? localize('agentHostSessionConfig.branchHoverUncommittedChangeWithDescription', "{0}, {1} uncommitted change", branchName, uncommittedChanges)
+					: localize('agentHostSessionConfig.branchHoverUncommittedChangesWithDescription', "{0}, {1} uncommitted changes", branchName, uncommittedChanges);
+
+			// This autorun re-runs for any workspace change, not just an
+			// uncommitted-changes flip, so only touch the hover when the text
+			// actually changed — and clear the old one *before* registering the
+			// replacement. `IHoverService` keys its keyboard-accessible hovers
+			// by target element and the outgoing disposable deletes that key
+			// unconditionally, so registering first would leave the trigger
+			// unreachable via `workbench.action.showHover`.
+			if (appliedHoverContent !== content) {
+				appliedHoverContent = content;
+				hover.clear();
+
+				hover.value = content
+					? this._hoverService.setupDelayedHover(trigger, { content })
+					: undefined;
+			}
+		}));
 	}
 
 	/**
@@ -580,11 +668,40 @@ export class AgentHostSessionConfigPicker extends Disposable {
 
 		let control = this._isolationCheckbox.value;
 		if (!control || control.sessionId !== sessionId) {
-			control = new IsolationCheckboxControl(sessionId, label, this._hoverService, checked => this._applyIsolationValue(sessionId, checked));
+			control = new ConfigCheckboxControl(
+				sessionId,
+				label,
+				'sessions-chat-isolation-checkbox',
+				this._hoverService,
+				checked => this._applyIsolationValue(sessionId, checked),
+				'sessions.newSession.isolation',
+			);
 			this._isolationCheckbox.value = control;
 			this._container?.prepend(control.slot);
 		}
 		control.update(value === 'worktree', isReadOnly, isLoading, tooltip);
+	}
+
+	private _renderDevContainerCheckbox(provider: IAgentHostSessionsProvider, sessionId: string): void {
+		const label = localize('agentHostSessionConfig.devContainer', "Dev Container");
+		let control = this._devContainerCheckbox.value;
+		if (!control || control.sessionId !== sessionId) {
+			control = new ConfigCheckboxControl(
+				sessionId,
+				label,
+				'sessions-chat-dev-container-checkbox',
+				this._hoverService,
+				enabled => provider.setDevContainerEnabled?.(sessionId, enabled),
+			);
+			this._devContainerCheckbox.value = control;
+		}
+		const isolationSlot = this._isolationCheckbox.value?.slot;
+		if (this._container && isolationSlot?.parentElement === this._container) {
+			this._container.insertBefore(control.slot, isolationSlot);
+		} else {
+			this._container?.prepend(control.slot);
+		}
+		control.update(provider.isDevContainerEnabled?.(sessionId) === true, false, false, undefined);
 	}
 
 	private _applyIsolationValue(sessionId: string, checked: boolean): void {
@@ -989,9 +1106,12 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 
 interface IConfigPickerWidget extends IDisposable {
 	render(container: HTMLElement): void;
+	showPicker?(anchor: HTMLElement, onHide?: () => void): boolean | void;
 }
 
-export class PickerActionViewItem extends BaseActionViewItem {
+export class PickerActionViewItem extends BaseActionViewItem implements IChatInputPickerResponsiveState {
+	private _compact = false;
+
 	constructor(private readonly _picker: IConfigPickerWidget, disposable?: IDisposable) {
 		super(undefined, { id: '', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } });
 		if (disposable) {
@@ -1000,7 +1120,25 @@ export class PickerActionViewItem extends BaseActionViewItem {
 	}
 
 	override render(container: HTMLElement): void {
+		this.element = container;
 		this._picker.render(container);
+		container.classList.toggle('compact-picker', this._compact);
+	}
+
+	isCompact(): boolean {
+		return this._compact;
+	}
+
+	setCompact(compact: boolean): void {
+		this._compact = compact;
+		this.element?.classList.toggle('compact-picker', compact);
+	}
+
+	show(anchor?: HTMLElement): void {
+		const target = anchor ?? this.element;
+		if (target) {
+			this._picker.showPicker?.(target);
+		}
 	}
 
 	override dispose(): void {
@@ -1126,10 +1264,10 @@ class AgentHostSessionConfigPickerContribution extends Disposable implements IWo
 				return undefined;
 			}
 			const { session } = instantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
-			const pickerOptions: IChatInputPickerOptions = {
-				compact: constObservable(true),
+			const pickerOptions = {
+				compact: observableValue<boolean, void>(action, false),
 				listOptions: { minWidth: 255 },
-			};
+			} satisfies IChatInputPickerOptions;
 			return instantiationService.createInstance(
 				AgentHostPermissionPickerActionItem,
 				action,

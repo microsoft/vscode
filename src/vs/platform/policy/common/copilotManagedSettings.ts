@@ -150,16 +150,24 @@ export function managedSettingValue(key: string): (policyData: IPolicyData) => M
 	return callback;
 }
 
+export type IForceRemoteSettingsRefreshResolution =
+	| { readonly effective: true; readonly source: ManagedSettingsChannel }
+	| { readonly effective: false };
+
 /**
- * Resolves the startup refresh control with native MDM taking precedence over the cached server
- * response. A malformed native value is treated as absent, matching the managed-settings schema.
+ * Resolve the fail-closed startup refresh control across every delivery channel, reusing
+ * {@link pickManagedSettings} precedence rather than re-implementing it. A non-boolean value is
+ * treated as absent, so a malformed high-precedence value cannot mask a well-formed lower one.
  */
-export function shouldForceRemoteSettingsRefresh(nativeMdm: ManagedSettingsData | undefined, server: ManagedSettingsData | undefined): boolean {
-	const nativeValue = nativeMdm?.[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY];
-	if (typeof nativeValue === 'boolean') {
-		return nativeValue;
+export function resolveForceRemoteSettingsRefresh(nativeMdm: ManagedSettingsData | undefined, server: ManagedSettingsData | undefined, file: ManagedSettingsData | undefined): IForceRemoteSettingsRefreshResolution {
+	const resolution = pickManagedSettings(nativeMdm, server, file).resolutions.get(COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY);
+	const contribution = resolution?.contributions.find(candidate => typeof candidate.value === 'boolean');
+	if (!contribution) {
+		return { effective: false };
 	}
-	return server?.[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY] === true;
+	return contribution.value === true
+		? { effective: true, source: contribution.channel }
+		: { effective: false };
 }
 
 export const IManagedSettingsService = createDecorator<IManagedSettingsService>('managedSettingsService');
@@ -681,6 +689,7 @@ export interface IFileManagedSettingsService {
 	readonly managedSettings: ManagedSettingsData;
 	readonly onDidChangeRawManagedSettings: Event<RawManagedSettingsData>;
 	readonly onDidChangeManagedSettings: Event<ManagedSettingsData>;
+	initialize(): Promise<ManagedSettingsData>;
 }
 
 export class NullFileManagedSettingsService implements IFileManagedSettingsService {
@@ -689,4 +698,6 @@ export class NullFileManagedSettingsService implements IFileManagedSettingsServi
 	readonly managedSettings: ManagedSettingsData = {};
 	readonly onDidChangeRawManagedSettings = Event.None;
 	readonly onDidChangeManagedSettings = Event.None;
+
+	async initialize(): Promise<ManagedSettingsData> { return this.managedSettings; }
 }

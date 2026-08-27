@@ -173,8 +173,8 @@
 
 			/* Label in list item */
 			.chat-question-list-label {
-				font-size: var(--vscode-agents-fontSize-body2);
-				font-weight: var(--vscode-agents-fontWeight-semiBold);
+				font-size: var(--vscode-fontSize-body2);
+				font-weight: var(--vscode-fontWeight-semiBold);
 				flex: 1;
 				word-wrap: break-word;
 				overflow-wrap: break-word;
@@ -183,12 +183,12 @@
 			}
 
 			.chat-question-list-label-title {
-				font-weight: var(--vscode-agents-fontWeight-semiBold);
+				font-weight: var(--vscode-fontWeight-semiBold);
 				line-height: 1.4;
 			}
 
 			.chat-question-list-label-desc {
-				font-weight: var(--vscode-agents-fontWeight-regular);
+				font-weight: var(--vscode-fontWeight-regular);
 				color: var(--vscode-descriptionForeground);
 			}
 		}
@@ -198,8 +198,8 @@
 
 			.chat-question-list-number {
 				line-height: 1.4;
-				font-size: var(--vscode-agents-fontSize-body2);
-				font-weight: var(--vscode-agents-fontWeight-semiBold);
+				font-size: var(--vscode-fontSize-body2);
+				font-weight: var(--vscode-fontWeight-semiBold);
 			}
 
 			.chat-question-list-checkbox {
@@ -244,10 +244,6 @@
 			background-color: var(--vscode-list-activeSelectionBackground, var(--vscode-list-hoverBackground));
 			color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
 
-			.chat-question-label {
-				color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
-			}
-
 			.chat-question-list-label-desc {
 				color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
 			}
@@ -291,12 +287,6 @@
 			height: fit-content;
 		}
 
-		/* this is probably legacy too */
-		.chat-question-freeform-label {
-			font-size: var(--vscode-chat-font-size-body-s);
-			color: var(--vscode-descriptionForeground);
-		}
-
 		.chat-question-freeform-textarea {
 			width: 100%;
 			min-height: 24px;
@@ -328,8 +318,8 @@
 	/* todo: change to use keybinding service so we don't have to recreate this */
 	.chat-question-list-number,
 	.chat-question-freeform-number {
-		font-size: var(--vscode-agents-fontSize-body2);
-		font-weight: var(--vscode-agents-fontWeight-semiBold);
+		font-size: var(--vscode-fontSize-body2);
+		font-weight: var(--vscode-fontWeight-semiBold);
 		color: var(--vscode-descriptionForeground);
 		flex-shrink: 0;
 		min-width: 1ch;
@@ -380,7 +370,7 @@
 	}
 
 	.chat-question-submit-hint {
-		font-size: var(--vscode-agents-fontSize-body2);
+		font-size: var(--vscode-fontSize-body2);
 		color: var(--vscode-descriptionForeground);
 	}
 
@@ -464,12 +454,6 @@
 		overflow-wrap: break-word;
 	}
 
-	.chat-question-summary-answer-desc {
-		color: var(--vscode-foreground);
-		word-wrap: break-word;
-		overflow-wrap: break-word;
-	}
-
 	.chat-question-summary-skipped,
 	.chat-question-summary-answered {
 		color: var(--vscode-descriptionForeground);
@@ -502,7 +486,7 @@
 	.chat-question-summary-item {
 		gap: var(--vscode-spacing-size60);
 		padding: var(--vscode-spacing-size40) 0 0;
-		font-size: var(--vscode-agents-fontSize-body1);
+		font-size: var(--vscode-fontSize-body1);
 	}
 
 	.chat-question-summary-question {
@@ -513,7 +497,7 @@
 
 	.chat-question-summary-prefix {
 		flex-shrink: 0;
-		font-weight: var(--vscode-agents-fontWeight-semiBold);
+		font-weight: var(--vscode-fontWeight-semiBold);
 	}
 
 	.chat-question-summary-question-value,
@@ -602,7 +586,7 @@
 		padding: 0 var(--vscode-spacing-size80) var(--vscode-spacing-size40);
 		border-bottom: var(--vscode-strokeThickness) solid color-mix(in srgb, var(--vscode-widget-border) 70%, transparent);
 		color: var(--vscode-foreground);
-		font-size: var(--vscode-agents-fontSize-label1);
+		font-size: var(--vscode-fontSize-label1);
 	}
 
 	.chat-question-summary-option-list {

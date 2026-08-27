@@ -108,7 +108,7 @@ export class VisibleSession extends Disposable implements IActiveSession {
 		});
 		// Tab strip contents: the open chats in the provider's order, with subagent
 		// (tool-origin) chats hidden by default. A subagent surfaces as a tab only
-		// once explicitly opened (e.g. from the Conversations menu), tracked in
+		// once explicitly opened (e.g. via its chat-transcript pill), tracked in
 		// `_shownSubagentUris`. Hidden and closed chats are excluded by `openChats`.
 		this.visibleChatTabs = derived(this, reader => {
 			const shownSubagents = this._shownSubagentUris.read(reader);
@@ -119,7 +119,8 @@ export class VisibleSession extends Disposable implements IActiveSession {
 		// Shown only when there is more than one chat actually showing as a tab.
 		// A single visible tab (even if other chats are closed, or its title
 		// diverged from the session title, or subagents exist) always hides the
-		// strip; the Conversations menu surfaces in the session header instead.
+		// strip; side chats remain reachable from the Side Chats menu in the
+		// session header, and subagents from their chat-transcript pills.
 		this.shouldShowChatTabs = derived(this, reader => {
 			return this.visibleChatTabs.read(reader).length > 1;
 		});
@@ -136,7 +137,7 @@ export class VisibleSession extends Disposable implements IActiveSession {
 			return;
 		}
 		// Closing a subagent (tool-origin) tab just hides it again; it stays
-		// reachable from the Conversations menu and is not added to the
+		// reachable from its chat-transcript pill and is not added to the
 		// reopenable closed set.
 		if (chat.origin?.kind === ChatOriginKind.Tool) {
 			const shown = this._shownSubagentUris.get();
@@ -242,6 +243,7 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	get isQuickChat() { return this._session.isQuickChat; }
 	get isAutomation() { return this._session.isAutomation; }
 	get isExternal() { return this._session.isExternal; }
+	get createdBySession() { return this._session.createdBySession; }
 	get title() { return this._session.title; }
 	get updatedAt() { return this._session.updatedAt; }
 	get status() { return this._session.status; }
@@ -249,11 +251,11 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	get changesSummary() { return this._session.changesSummary; }
 	get changesets() { return this._session.changesets; }
 	get changes() { return this._session.changes; }
-	get externalChanges() { return this._session.externalChanges; }
 	get artifacts() { return this._session.artifacts; }
 	get modelId() { return this._activeChatModelId; }
 	get mode() { return this._activeChatMode; }
 	get loading() { return this._session.loading; }
+	get isNewSessionRequestInProgress() { return this._session.isNewSessionRequestInProgress; }
 	get isArchived() { return this._session.isArchived; }
 	get isRead() { return this._session.isRead; }
 	get description() { return this._session.description; }
@@ -292,6 +294,7 @@ class ResourceOverrideSession implements ISession {
 	get isQuickChat() { return this._session.isQuickChat; }
 	get isAutomation() { return this._session.isAutomation; }
 	get isExternal() { return this._session.isExternal; }
+	get createdBySession() { return this._session.createdBySession; }
 	get title() { return this._session.title; }
 	get updatedAt() { return this._session.updatedAt; }
 	get status() { return this._session.status; }
@@ -299,11 +302,11 @@ class ResourceOverrideSession implements ISession {
 	get changesSummary() { return this._session.changesSummary; }
 	get changes() { return this._session.changes; }
 	get changesets() { return this._session.changesets; }
-	get externalChanges() { return this._session.externalChanges; }
 	get artifacts() { return this._session.artifacts; }
 	get modelId() { return this._session.modelId; }
 	get mode() { return this._session.mode; }
 	get loading() { return this._session.loading; }
+	get isNewSessionRequestInProgress() { return this._session.isNewSessionRequestInProgress; }
 	get isArchived() { return this._session.isArchived; }
 	get isRead() { return this._session.isRead; }
 	get description() { return this._session.description; }

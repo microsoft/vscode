@@ -20,6 +20,7 @@ import {
 	parseChangesetUri,
 	parseCompareTurnsChangesetUri,
 	parseTurnChangesetUri,
+	resolveChangesetUriTemplate,
 } from '../../common/changesetUri.js';
 
 suite('changesetUri', () => {
@@ -90,6 +91,25 @@ suite('changesetUri', () => {
 		assert.strictEqual(parseCompareTurnsChangesetUri(buildSessionChangesetUri(sessionUri)), undefined);
 		assert.strictEqual(parseCompareTurnsChangesetUri(buildTurnChangesetUri(sessionUri, 't1')), undefined);
 		assert.strictEqual(parseCompareTurnsChangesetUri(buildCompareTurnsChangesetUriTemplate(sessionUri)), undefined);
+	});
+
+	test('resolveChangesetUriTemplate joins a relative template onto the session channel', () => {
+		assert.strictEqual(resolveChangesetUriTemplate(sessionUri, 'changeset/branch'), `${sessionUri}/changeset/branch`);
+		assert.strictEqual(resolveChangesetUriTemplate(sessionUri, 'changeset/session'), buildSessionChangesetUri(sessionUri));
+		assert.strictEqual(resolveChangesetUriTemplate(sessionUri, 'changeset/uncommitted'), buildUncommittedChangesetUri(sessionUri));
+		// The variable survives resolution.
+		assert.strictEqual(resolveChangesetUriTemplate(sessionUri, 'changeset/turn/{turnId}'), buildTurnChangesetUriTemplate(sessionUri));
+	});
+
+	test('resolveChangesetUriTemplate leaves an already-absolute template alone', () => {
+		assert.strictEqual(resolveChangesetUriTemplate(sessionUri, buildSessionChangesetUri(sessionUri)), buildSessionChangesetUri(sessionUri));
+		assert.strictEqual(resolveChangesetUriTemplate(sessionUri, buildTurnChangesetUriTemplate(sessionUri)), buildTurnChangesetUriTemplate(sessionUri));
+		assert.strictEqual(resolveChangesetUriTemplate(sessionUri, 'copilot:/other/changeset/branch'), 'copilot:/other/changeset/branch');
+	});
+
+	test('resolveChangesetUriTemplate does not double up separators', () => {
+		assert.strictEqual(resolveChangesetUriTemplate(sessionUri, '/changeset/branch'), `${sessionUri}/changeset/branch`);
+		assert.strictEqual(resolveChangesetUriTemplate(`${sessionUri}/`, 'changeset/branch'), `${sessionUri}/changeset/branch`);
 	});
 
 	test('predicates match the parser semantics', () => {

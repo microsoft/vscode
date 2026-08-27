@@ -16,6 +16,7 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentHostClientState, AgentHostProtocolClient } from '../../browser/agentHostProtocolClient.js';
+import { getAgentHostExtensionInitializeResultMeta } from '../../common/agentHostExtensionProtocol.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { ConfigurationTarget, type IConfigurationValue } from '../../../configuration/common/configuration.js';
@@ -27,7 +28,7 @@ import { ActionType, type ChatTurnStartedAction, type SessionActiveClientSetActi
 import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, customizationId, withSessionExternal, withSessionWorkspaceless } from '../../common/state/sessionState.js';
+import { buildChatUri, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, customizationId, withSessionExternal, withSessionWorkspaceless } from '../../common/state/sessionState.js';
 import { NonReconnectableTransportError, type IClientTransport, type IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
@@ -324,7 +325,7 @@ suite('AgentHostProtocolClient', () => {
 		return createClientForIdentity('test.example:1234', transport, permissionService, loadEstimator, logService, configurationService, clientId, clientInfo);
 	}
 
-	async function connectClient(client: AgentHostProtocolClient, transport: TestProtocolTransport): Promise<void> {
+	async function connectClient(client: AgentHostProtocolClient, transport: TestProtocolTransport, meta?: Record<string, unknown>): Promise<void> {
 		const connectPromise = client.connect();
 		while (transport.sentMessages.length === 0) {
 			await Promise.resolve();
@@ -333,7 +334,7 @@ suite('AgentHostProtocolClient', () => {
 		transport.fireMessage({
 			jsonrpc: '2.0',
 			id: sent.id,
-			result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
+			result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [], _meta: meta },
 		});
 		await connectPromise;
 	}
@@ -380,9 +381,9 @@ suite('AgentHostProtocolClient', () => {
 		}
 	}
 
-	function fireConfigurationChange(configurationService: TestConfigurationService, settingId: string): void {
+	function fireConfigurationChange(configurationService: TestConfigurationService, settingId: string, source = ConfigurationTarget.USER): void {
 		configurationService.onDidChangeConfigurationEmitter.fire({
-			source: ConfigurationTarget.USER,
+			source,
 			affectedKeys: new Set([settingId]),
 			change: { keys: [settingId], overrides: [] },
 			affectsConfiguration: configuration => configuration === settingId,
@@ -1147,6 +1148,19 @@ suite('AgentHostProtocolClient', () => {
 		});
 	});
 
+	test('ignores configuration changes from layers excluded by global mirroring', async () => {
+		const configurationService = new TestConfigurationService({ [SYNC_SETTING_A]: true });
+		const { client, transport } = createClient(disposables.add(new TestProtocolTransport()), createPermissionService(), undefined, new NullLogService(), configurationService);
+		await connectClient(client, transport);
+		transport.sentMessages.length = 0;
+
+		fireConfigurationChange(configurationService, SYNC_SETTING_A, ConfigurationTarget.WORKSPACE);
+		fireConfigurationChange(configurationService, SYNC_SETTING_A, ConfigurationTarget.WORKSPACE_FOLDER);
+		fireConfigurationChange(configurationService, SYNC_SETTING_A, ConfigurationTarget.MEMORY);
+
+		assert.deepStrictEqual(transport.sentMessages, []);
+	});
+
 	test('applies local and ambient configuration scopes to the target Agent Host', async () => {
 		const local = createClientForIdentity(LOCAL_AGENT_HOST_RESOURCE_IDENTITY);
 		const remoteExtensionHost = createClientForIdentity('vscode-remote://ssh-remote+host');
@@ -1369,13 +1383,14 @@ suite('AgentHostProtocolClient', () => {
 	test('collectDebugLogs maps the returned host resource', async () => {
 		const { client, transport } = createClient();
 		const session = URI.parse('copilotcli:/session-1');
-		const resultPromise = client.collectDebugLogs(session, 'archive');
+		const chat = URI.parse(buildChatUri(session, 'peer-1'));
+		const resultPromise = client.collectDebugLogs(session, 'archive', chat);
 
 		assert.deepStrictEqual(transport.sentMessages[0], {
 			jsonrpc: '2.0',
 			id: 1,
 			method: 'vscode/collectAgentHostDebugLogs',
-			params: { session: session.toString(), kind: 'archive' },
+			params: { session: session.toString(), chat: chat.toString(), kind: 'archive' },
 		});
 
 		transport.fireMessage({
@@ -1407,19 +1422,22 @@ suite('AgentHostProtocolClient', () => {
 
 	test('getSessionStateFile maps the returned host resource', async () => {
 		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta());
+		transport.sentMessages.length = 0;
 		const session = URI.parse('copilotcli:/session-1');
-		const resultPromise = client.getSessionStateFile(session);
+		const chat = URI.parse(buildChatUri(session, 'peer-1'));
+		const resultPromise = client.getSessionStateFile(session, chat);
 
 		assert.deepStrictEqual(transport.sentMessages[0], {
 			jsonrpc: '2.0',
-			id: 1,
+			id: 2,
 			method: 'vscode/getAgentHostSessionStateFile',
-			params: { session: session.toString() },
+			params: { session: session.toString(), chat: chat.toString() },
 		});
 
 		transport.fireMessage({
 			jsonrpc: '2.0',
-			id: 1,
+			id: 2,
 			result: { resource: 'file:///state/sdk-session/events.jsonl' },
 		});
 
@@ -1427,6 +1445,16 @@ suite('AgentHostProtocolClient', () => {
 			(await resultPromise)?.toString(),
 			'vscode-agent-host://test.example__1234/state/sdk-session/events.jsonl?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0',
 		);
+	});
+
+	test('getSessionStateFile returns undefined when the host does not advertise chat targeting', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport);
+		transport.sentMessages.length = 0;
+		const session = URI.parse('copilotcli:/session-1');
+		const result = await client.getSessionStateFile(session, URI.parse(buildChatUri(session, 'peer-1')));
+
+		assert.deepStrictEqual({ result, sentMessages: transport.sentMessages }, { result: undefined, sentMessages: [] });
 	});
 
 	test('getSessionStateFile rejects a non-file host resource', async () => {
@@ -1770,8 +1798,8 @@ suite('AgentHostProtocolClient', () => {
 			assert.deepStrictEqual(
 				calls.map(c => ({ address: c.address, uri: c.uri.toString() })),
 				[
-					{ address: 'test.example:1234', uri: 'file:///plugins' },
-					{ address: 'test.example:1234', uri: 'file:///other' },
+					{ address: 'test.example:1234', uri: 'file:///plugins/foo' },
+					{ address: 'test.example:1234', uri: 'file:///other/bar' },
 				],
 			);
 		});
@@ -1837,7 +1865,7 @@ suite('AgentHostProtocolClient', () => {
 			assert.deepStrictEqual(calls.map(call => call.uri.toString()), ['file:///attachments/queued.txt']);
 		});
 
-		test('multiple customizations in the same directory dedupe to one grant', () => {
+		test('multiple customizations in the same directory receive individual grants', () => {
 			const { service, calls } = createCapturingPermissionService();
 			const { client } = createClient(undefined, service);
 			const sessionUri = URI.parse('ahp-session:/test');
@@ -1856,7 +1884,7 @@ suite('AgentHostProtocolClient', () => {
 
 			assert.deepStrictEqual(
 				calls.map(c => c.uri.toString()),
-				['file:///plugins'],
+				['file:///plugins/foo', 'file:///plugins/bar'],
 			);
 		});
 
@@ -1945,7 +1973,7 @@ suite('AgentHostProtocolClient', () => {
 
 			assert.deepStrictEqual(
 				calls.map(c => c.uri.toString()),
-				['file:///plugins'],
+				['file:///plugins/foo'],
 			);
 		});
 	});

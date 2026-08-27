@@ -84,21 +84,28 @@
 		}
 
 		.codicon {
-			font-size: 12px;
+			font-size: var(--vscode-codiconFontSize-compact);
 		}
 	}
 
 }
 
-/* Collapse agent host picker labels to icon-only when the secondary toolbar gets narrow. */
-.interactive-session .chat-secondary-toolbar {
-	container-type: inline-size;
+/* Individual secondary pickers collapse from right to left as the lane narrows. */
+.interactive-session .compact-picker .agent-host-chat-input-picker-label {
+	display: none;
 }
 
-@container (max-width: 350px) {
-	.agent-host-chat-input-picker-label {
-		display: none;
-	}
+.interactive-session .compact-picker .agent-host-chat-input-picker-slot .action-label {
+	box-sizing: border-box;
+	width: 22px;
+	min-width: 22px;
+	padding: 2px 2px 2px 8px;
+	justify-content: flex-start;
+}
+
+.interactive-session .compact-picker .agent-host-chat-input-picker-slot .action-label .codicon {
+	width: auto;
+	height: auto;
 }
 
 /*
@@ -132,9 +139,9 @@
 }
 
 .agent-host-chat-input-picker-label {
-	max-width: 16em;
-	overflow: hidden;
-	text-overflow: ellipsis;
+	flex-shrink: 0;
+	overflow: visible;
+	text-overflow: clip;
 	white-space: nowrap;
 }
 
