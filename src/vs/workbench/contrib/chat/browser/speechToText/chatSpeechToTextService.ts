@@ -130,10 +130,12 @@ const LLM_CLEANUP_MODEL_SELECTOR = { vendor: 'copilot', id: 'copilot-utility-sma
 
 const LLM_CLEANUP_MODEL_TREATMENT = 'dictationLlmCleanupModel';
 const LLM_CLEANUP_MODEL_SETTING = 'dictation.experimental.llmCleanupModel';
+const LLM_CLEANUP_NANO_MODEL_ID = 'gpt-5.4-nano';
+const LLM_CLEANUP_NANO_MODEL_SELECTOR = { vendor: 'copilot', id: 'copilot-dictation-cleanup-nano' } as const;
 const LLM_CLEANUP_LUNA_MODEL_ID = 'gpt-5.6-luna';
 const LLM_CLEANUP_LUNA_MODEL_SELECTOR = { vendor: 'copilot', id: 'copilot-dictation-cleanup-luna' } as const;
 
-type DictationCleanupModel = 'none' | 'copilot-utility-small' | 'gpt-5.6-luna';
+type DictationCleanupModel = 'none' | 'copilot-utility-small' | 'gpt-5.4-nano' | 'gpt-5.6-luna';
 
 /**
  * Which backend transcribes dictation audio:
@@ -577,12 +579,16 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 
 	private _getLlmCleanupModel(): Exclude<DictationCleanupModel, 'none'> {
 		const configuredModel = this._configurationService.getValue<string>(LLM_CLEANUP_MODEL_SETTING);
-		if (configuredModel === LLM_CLEANUP_LUNA_MODEL_ID || configuredModel === LLM_CLEANUP_MODEL_SELECTOR.id) {
+		if (configuredModel === LLM_CLEANUP_NANO_MODEL_ID || configuredModel === LLM_CLEANUP_LUNA_MODEL_ID || configuredModel === LLM_CLEANUP_MODEL_SELECTOR.id) {
 			return configuredModel;
 		}
-		return this._llmCleanupModelTreatment === LLM_CLEANUP_LUNA_MODEL_ID
-			? LLM_CLEANUP_LUNA_MODEL_ID
-			: LLM_CLEANUP_MODEL_SELECTOR.id;
+		switch (this._llmCleanupModelTreatment) {
+			case LLM_CLEANUP_NANO_MODEL_ID:
+			case LLM_CLEANUP_LUNA_MODEL_ID:
+				return this._llmCleanupModelTreatment;
+			default:
+				return LLM_CLEANUP_MODEL_SELECTOR.id;
+		}
 	}
 
 	/** Read the configured dictation backend, derived from the selected model. */
@@ -1410,9 +1416,11 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		}, LLM_CLEANUP_TIMEOUT_MS);
 		try {
 			const cleanupModel = this._getLlmCleanupModel();
-			const modelSelector = cleanupModel === LLM_CLEANUP_LUNA_MODEL_ID
-				? LLM_CLEANUP_LUNA_MODEL_SELECTOR
-				: LLM_CLEANUP_MODEL_SELECTOR;
+			const modelSelector = cleanupModel === LLM_CLEANUP_NANO_MODEL_ID
+				? LLM_CLEANUP_NANO_MODEL_SELECTOR
+				: cleanupModel === LLM_CLEANUP_LUNA_MODEL_ID
+					? LLM_CLEANUP_LUNA_MODEL_SELECTOR
+					: LLM_CLEANUP_MODEL_SELECTOR;
 			let models = await raceCancellation(
 				this._languageModelsService.selectLanguageModels(modelSelector),
 				cts.token,
@@ -1423,8 +1431,8 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 				this._logService.info(`[chat-stt] skipped language model cleanup (reason=${timedOut ? 'timeout' : 'cancelledBeforeRequest'}, phase=${phase}, elapsedMs=${Date.now() - cleanupStartMs}); using raw transcript`);
 				return undefined;
 			}
-			if (!models.length && cleanupModel === LLM_CLEANUP_LUNA_MODEL_ID) {
-				this._logService.info('[chat-stt] Luna cleanup model unavailable; falling back to copilot-utility-small');
+			if (!models.length && cleanupModel !== LLM_CLEANUP_MODEL_SELECTOR.id) {
+				this._logService.info(`[chat-stt] ${cleanupModel} cleanup model unavailable; falling back to copilot-utility-small`);
 				models = await raceCancellation(
 					this._languageModelsService.selectLanguageModels(LLM_CLEANUP_MODEL_SELECTOR),
 					cts.token,
@@ -1464,7 +1472,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			this._sessionCleanupModel = selectedCleanupModel;
 			phase = 'startRequest';
 			this._logService.trace(`[chat-stt] language model cleanup sending request (elapsedMs=${Date.now() - cleanupStartMs})`);
-			const requestOptions = selectedCleanupModel === LLM_CLEANUP_LUNA_MODEL_ID
+			const requestOptions = selectedCleanupModel === LLM_CLEANUP_NANO_MODEL_ID || selectedCleanupModel === LLM_CLEANUP_LUNA_MODEL_ID
 				? { configuration: { reasoningEffort: 'none' } }
 				: {};
 			const response = await raceCancellation(

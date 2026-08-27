@@ -287,7 +287,7 @@ suite('ChatSpeechToTextService', () => {
 		}
 	});
 
-	test('selects the configured or treated cleanup model and falls back when Luna is unavailable', async () => {
+	test('selects the configured or treated cleanup model and falls back when a dedicated model is unavailable', async () => {
 		const selectors: ILanguageModelChatSelector[] = [];
 		const createService = (treatment: string | undefined, configuredModel = 'auto'): CleanupTestService => {
 			const service = Object.create(ChatSpeechToTextService.prototype) as CleanupTestService;
@@ -314,15 +314,21 @@ suite('ChatSpeechToTextService', () => {
 		};
 
 		await createService(undefined)._cleanupWithLanguageModel('control transcript', CancellationToken.None);
+		await createService('gpt-5.4-nano')._cleanupWithLanguageModel('Nano treatment transcript', CancellationToken.None);
 		await createService('gpt-5.6-luna')._cleanupWithLanguageModel('treatment transcript', CancellationToken.None);
 		await createService('unexpected-model')._cleanupWithLanguageModel('unknown treatment transcript', CancellationToken.None);
+		await createService(undefined, 'gpt-5.4-nano')._cleanupWithLanguageModel('configured Nano transcript', CancellationToken.None);
 		await createService(undefined, 'gpt-5.6-luna')._cleanupWithLanguageModel('configured Luna transcript', CancellationToken.None);
 		await createService('gpt-5.6-luna', 'copilot-utility-small')._cleanupWithLanguageModel('configured utility transcript', CancellationToken.None);
 
 		assert.deepStrictEqual(selectors, [
 			{ vendor: 'copilot', id: 'copilot-utility-small' },
+			{ vendor: 'copilot', id: 'copilot-dictation-cleanup-nano' },
+			{ vendor: 'copilot', id: 'copilot-utility-small' },
 			{ vendor: 'copilot', id: 'copilot-dictation-cleanup-luna' },
 			{ vendor: 'copilot', id: 'copilot-utility-small' },
+			{ vendor: 'copilot', id: 'copilot-utility-small' },
+			{ vendor: 'copilot', id: 'copilot-dictation-cleanup-nano' },
 			{ vendor: 'copilot', id: 'copilot-utility-small' },
 			{ vendor: 'copilot', id: 'copilot-dictation-cleanup-luna' },
 			{ vendor: 'copilot', id: 'copilot-utility-small' },
@@ -330,7 +336,7 @@ suite('ChatSpeechToTextService', () => {
 		]);
 	});
 
-	test('disables reasoning for Luna cleanup only', async () => {
+	test('disables reasoning for dedicated cleanup models only', async () => {
 		const requestConfigurations: Array<ILanguageModelChatRequestOptions['configuration']> = [];
 		const createService = (configuredModel: string): CleanupTestService => {
 			const service = Object.create(ChatSpeechToTextService.prototype) as CleanupTestService;
@@ -361,6 +367,7 @@ suite('ChatSpeechToTextService', () => {
 			return service;
 		};
 
+		await createService('gpt-5.4-nano')._cleanupWithLanguageModel('Nano transcript', CancellationToken.None);
 		await createService('gpt-5.6-luna')._cleanupWithLanguageModel('Luna transcript', CancellationToken.None);
 		const fallbackService = createService('gpt-5.6-luna');
 		let selectionCall = 0;
@@ -368,6 +375,7 @@ suite('ChatSpeechToTextService', () => {
 		await fallbackService._cleanupWithLanguageModel('utility fallback transcript', CancellationToken.None);
 
 		assert.deepStrictEqual(requestConfigurations, [
+			{ reasoningEffort: 'none' },
 			{ reasoningEffort: 'none' },
 			undefined,
 		]);
