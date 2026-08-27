@@ -36,8 +36,6 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 
 	private readonly _elements;
 
-	private readonly _objectPool;
-
 	private readonly _optionsOverride: IObservable<IDiffEditorOptions>;
 
 	public readonly scrollTop;
@@ -128,7 +126,6 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 				return viewItems;
 			},
 		));
-		this._objectPool = objectPool;
 		this._viewItemsInfo = viewItemsInfo;
 		this._viewItems = viewItems;
 		this.scrollTop = this._scrollView.scrollTop;
