@@ -338,7 +338,6 @@ app.on('ready', () => {
 			nodeIntegration: true,
 			contextIsolation: false,
 			backgroundThrottling: false,
-			enableWebSQL: false,
 			spellcheck: false
 		}
 	});

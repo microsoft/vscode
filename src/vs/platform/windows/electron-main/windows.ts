@@ -151,7 +151,6 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 		height: windowState.height,
 		webPreferences: {
 			...webPreferences,
-			enableWebSQL: false,
 			spellcheck: false,
 			zoomFactor: zoomLevelToZoomFactor(windowState.zoomLevel ?? windowSettings?.zoomLevel),
 			autoplayPolicy: 'user-gesture-required',
