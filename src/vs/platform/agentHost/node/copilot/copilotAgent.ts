@@ -2632,25 +2632,30 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return undefined;
 		}
 		const storedMetadata = await this._readStoredSessionMetadata(session);
-		const registryFallback = options?.activation === 'restore' && storedMetadata?.workingDirectories?.length ? options.registryFallback : undefined;
-		const sessionMetadata = registryFallback
-			? undefined
-			: await this._retryAfterClosedConnection('getSessionMetadata', client => client.getSessionMetadata(sessionId), createCopilotFailureCorrelation(session, chat, undefined, sessionId));
-		if (!sessionMetadata && !registryFallback) {
-			return undefined;
+		if (options?.activation === 'restore' && options.registryFallback && storedMetadata?.workingDirectories?.length) {
+			let project = storedMetadata.project;
+			if (!storedMetadata.resolved) {
+				const projectLimiter = new Limiter<IAgentSessionProjectInfo | undefined>(1);
+				project = await this._resolveSessionProject({ cwd: storedMetadata.workingDirectories[0].fsPath }, projectLimiter, new Map<string, Promise<IAgentSessionProjectInfo | undefined>>());
+				void this._storeSessionProjectResolution(session, project);
+			}
+			return {
+				chat,
+				...options.registryFallback,
+				project,
+				workingDirectories: storedMetadata.workingDirectories,
+			};
 		}
-		const timestamps = sessionMetadata
-			? { startTime: sessionMetadata.startTime.getTime(), modifiedTime: sessionMetadata.modifiedTime.getTime() }
-			: registryFallback;
-		if (!timestamps) {
+
+		const sessionMetadata = await this._retryAfterClosedConnection('getSessionMetadata', client => client.getSessionMetadata(sessionId), createCopilotFailureCorrelation(session, chat, undefined, sessionId));
+		if (!sessionMetadata) {
 			return undefined;
 		}
 
 		let project = storedMetadata?.project;
 		if (!storedMetadata?.resolved) {
 			const projectLimiter = new Limiter<IAgentSessionProjectInfo | undefined>(1);
-			const projectContext = sessionMetadata?.context ?? (registryFallback && storedMetadata?.workingDirectory ? { cwd: storedMetadata.workingDirectory.fsPath } : undefined);
-			project = await this._resolveSessionProject(projectContext, projectLimiter, new Map<string, Promise<IAgentSessionProjectInfo | undefined>>());
+			project = await this._resolveSessionProject(sessionMetadata?.context, projectLimiter, new Map<string, Promise<IAgentSessionProjectInfo | undefined>>());
 			if (storedMetadata) {
 				void this._storeSessionProjectResolution(session, project);
 			}
@@ -2660,8 +2665,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const adoptable = !storedMetadata && await this._isExtensionHostCliSession(sessionId);
 		return {
 			chat,
-			startTime: timestamps.startTime,
-			modifiedTime: timestamps.modifiedTime,
+			startTime: sessionMetadata?.startTime.getTime() ?? Date.now(),
+			modifiedTime: sessionMetadata?.modifiedTime.getTime() ?? Date.now(),
 			project,
 			summary: sessionMetadata?.summary,
 			workingDirectories,
@@ -4900,12 +4905,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		const sessionUri = AgentSession.uri(this.id, sessionId);
 		const storedMetadata = await this._readSessionMetadata(sessionUri);
-		const storedWorkingDirectory = storedMetadata.workingDirectory ?? storedMetadata.workingDirectories?.[0];
-		const sessionMetadata = storedWorkingDirectory ? undefined : await client.getSessionMetadata(sessionId).catch(err => {
+		const sessionMetadata = storedMetadata.workingDirectory ? undefined : await client.getSessionMetadata(sessionId).catch(err => {
 			this._logService.warn(`[Copilot:${sessionId}] getSessionMetadata failed`, err);
 			return undefined;
 		});
-		const workingDirectory = storedWorkingDirectory ?? (typeof sessionMetadata?.context?.workingDirectory === 'string' ? URI.file(sessionMetadata.context.workingDirectory) : undefined);
+		const workingDirectory = storedMetadata.workingDirectory ?? (typeof sessionMetadata?.context?.workingDirectory === 'string' ? URI.file(sessionMetadata.context.workingDirectory) : undefined);
 		if (!workingDirectory) {
 			throw new Error(`workingDirectory is required to resume Copilot session '${sessionId}'`);
 		}
