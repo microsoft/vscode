@@ -33,6 +33,19 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 export const AGENT_SESSION_CLAIM_BUDGET_MS = 60_000;
 const BUDGET_EXCEEDED_OUTCOME = 'budgetExceeded';
 
+/**
+ * How far a claim had got when the guard fired. A closed vocabulary — no paths,
+ * no product error text — so it is safe to report to the caller that is waiting
+ * on it, and precise enough to say *which* wait never ended.
+ */
+const enum AgentSessionClaimPhase {
+	Readiness = 'readiness',
+	Hydration = 'hydration',
+	Listing = 'listing',
+	Open = 'open',
+	Publish = 'publish',
+}
+
 /** Storage key prefix marking a commitment as spent, so a reload cannot replay it. */
 const SPENT_CLAIM_STORAGE_PREFIX = 'agentHost.sessionClaim.spent.';
 
@@ -99,19 +112,25 @@ export class AgentSessionClaimContribution extends Disposable implements IWorkbe
 		const pending = new DisposableStore();
 		const budget = pending.add(new CancellationTokenSource());
 		let budgetExceeded = false;
+		let phase = AgentSessionClaimPhase.Readiness;
+		const enter = (next: AgentSessionClaimPhase) => {
+			phase = next;
+			this._logService.info(`[AgentSessionClaim] ${next}`);
+		};
 		pending.add(disposableTimeout(() => { budgetExceeded = true; budget.cancel(); }, AGENT_SESSION_CLAIM_BUDGET_MS));
 		try {
 			const readiness = await agentSessionClaimTargets.whenTargetReady(request.sessionType, budget.token);
 			if (readiness.outcome !== AgentSessionClaimReadiness.Ready) {
 				throw new Error(`Agent session claim ${readiness.outcome}: no handler registered for ${request.sessionType}`);
 			}
-			this._claim.value = await readiness.target(URI.parse(request.sessionUri), (sessionResource, activationToken) => this._activateSession(sessionResource, activationToken), budget.token);
+			enter(AgentSessionClaimPhase.Hydration);
+			this._claim.value = await readiness.target(URI.parse(request.sessionUri), (sessionResource, activationToken) => this._activateSession(sessionResource, activationToken, enter), budget.token);
 			this._logService.info(`[AgentSessionClaim] Claimed ${request.sessionUri}`);
 		} catch (err) {
-			// Classified once: the guard can interrupt readiness, hydration, or
-			// the settle, and must read the same whichever it was.
+			// Classified once: the guard can interrupt any of the waits, and
+			// must read the same whichever it was — naming the one it caught.
 			throw budgetExceeded
-				? new Error(`Agent session claim ${BUDGET_EXCEEDED_OUTCOME}: ${request.sessionType} did not become claimable within ${AGENT_SESSION_CLAIM_BUDGET_MS}ms`)
+				? new Error(`Agent session claim ${BUDGET_EXCEEDED_OUTCOME}: ${request.sessionType} did not become claimable within ${AGENT_SESSION_CLAIM_BUDGET_MS}ms (phase: ${phase})`)
 				: err;
 		} finally {
 			pending.dispose();
@@ -134,12 +153,17 @@ export class AgentSessionClaimContribution extends Disposable implements IWorkbe
 	 * contribution is constructed in *every* window at `BlockStartup`, and an
 	 * ungated one must not pull the sessions view up with it.
 	 */
-	private _activateSession(sessionResource: URI, token: CancellationToken): Promise<void> {
+	private _activateSession(sessionResource: URI, token: CancellationToken, enter: (phase: AgentSessionClaimPhase) => void): Promise<void> {
 		return this._instantiationService.invokeFunction(accessor => {
 			const sessionsService = accessor.get(ISessionsService);
 			const managementService = accessor.get(ISessionsManagementService);
+			enter(AgentSessionClaimPhase.Listing);
 			return whenSessionListed(managementService, sessionResource, token)
-				.then(() => sessionsService.openSession(sessionResource, { preserveFocus: false }));
+				.then(() => {
+					enter(AgentSessionClaimPhase.Open);
+					return sessionsService.openSession(sessionResource, { preserveFocus: false });
+				})
+				.then(() => enter(AgentSessionClaimPhase.Publish));
 		});
 	}
 }
