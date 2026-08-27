@@ -14,10 +14,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
 import type { IMcpServerDefinition, INamedPluginResource, IParsedAgent, IParsedHookCommand, IParsedHookGroup, IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import { type AgentCustomization, type ChildCustomization } from '../../common/state/protocol/state.js';
-import type { ReasoningEffortLevel } from '../../common/reasoningEffort.js';
-import { dirname } from '../../../../base/common/path.js';
 import { resolveMcpServerWorkingDirectory } from '../shared/mcpServerWorkingDirectory.js';
-
 
 type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
 type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
@@ -117,19 +114,11 @@ function toStringEnv(env: Record<string, string | number | null>): Record<string
 // Custom agents
 // ---------------------------------------------------------------------------
 
-const CustomAgentReasoningEfforts = ['low', 'medium', 'high', 'xhigh', 'max'] as const satisfies readonly ReasoningEffortLevel[];
-type CustomAgentReasoningEffort = (typeof CustomAgentReasoningEfforts)[number];
+const customAgentReasoningEfforts = ['low', 'medium', 'high', 'xhigh', 'max'] as const satisfies readonly NonNullable<CustomAgentConfig['reasoningEffort']>[];
+type CustomAgentReasoningEffort = (typeof customAgentReasoningEfforts)[number];
 
 function isCustomAgentReasoningEffort(value: string | undefined): value is CustomAgentReasoningEffort {
-	return CustomAgentReasoningEfforts.some(reasoningEffort => reasoningEffort === value);
-}
-
-/**
- * The runtime accepts `max`, but the pinned SDK's declared union lags behind.
- * Forward supported runtime values unchanged, matching session-level handling.
- */
-function toSdkCustomAgentReasoningEffort(effort: CustomAgentReasoningEffort): CustomAgentConfig['reasoningEffort'] {
-	return effort as CustomAgentConfig['reasoningEffort'];
+	return customAgentReasoningEfforts.some(reasoningEffort => reasoningEffort === value);
 }
 
 /**
@@ -181,7 +170,7 @@ export async function toSdkCustomAgents(agents: readonly INamedPluginResource[],
 					name,
 					...(description ? { description } : {}),
 					...(model ? { model } : {}),
-					...(isCustomAgentReasoningEffort(reasoningEffort) ? { reasoningEffort: toSdkCustomAgentReasoningEffort(reasoningEffort) } : {}),
+					...(isCustomAgentReasoningEffort(reasoningEffort) ? { reasoningEffort } : {}),
 					tools: tools && tools.length > 0 ? tools : null,
 					...(skills !== undefined ? { skills } : {}),
 					...(infer !== undefined ? { infer } : {}),
