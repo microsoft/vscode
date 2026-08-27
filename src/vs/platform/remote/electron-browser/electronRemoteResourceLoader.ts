@@ -40,12 +40,17 @@ export class ElectronRemoteResourceLoader extends Disposable {
 	}
 
 	private async doRequest(uri: URI): Promise<NodeRemoteResourceResponse> {
+		const params = new URLSearchParams(uri.query);
+		const authority = params.get('authority');
+		if (!authority) {
+			return { statusCode: 404, body: '' };
+		}
+
 		let content: IFileContent;
 		try {
-			const params = new URLSearchParams(uri.query);
 			const actual = uri.with({
-				scheme: params.get('scheme')!,
-				authority: params.get('authority')!,
+				scheme: Schemas.vscodeRemote,
+				authority,
 				query: '',
 			});
 			content = await this.fileService.readFile(actual);

@@ -13,6 +13,7 @@ import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { isMultiRootSession } from '../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
+import { resolveChangesetUriTemplate } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { ChangesetOperationTargetKind } from '../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { ChangesetOperation, ChangesetOperationScope, type ChangesetFile, ChangesetOperationStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -90,11 +91,16 @@ export function createChangesets(
 
 	const sessionChangesets: ISessionChangeset[] = [];
 
-	// Select the "Branch Changes" changeset as the default, if it exists; otherwise just the first one.
-	const defaultChangeset = changesets.find(c => c.changeKind === ChangesetKind.Branch) ?? changesets[0];
+	const defaultKind = options.defaultChangesetKind ?? ChangesetKind.Branch;
+	const defaultChangeset = changesets.find(c => c.changeKind === defaultKind) ?? changesets[0];
 
-	for (const changeset of changesets) {
-		const isDefault = changeset === defaultChangeset;
+	for (const catalogueEntry of changesets) {
+		const isDefault = catalogueEntry === defaultChangeset;
+		// A relative template parses to a local filesystem path, so resolve before use.
+		const changeset = {
+			...catalogueEntry,
+			uriTemplate: resolveChangesetUriTemplate(sessionUri.toString(), catalogueEntry.uriTemplate),
+		};
 
 		if (
 			changeset.changeKind === ChangesetKind.Branch ||

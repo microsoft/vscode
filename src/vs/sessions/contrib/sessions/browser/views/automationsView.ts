@@ -868,7 +868,7 @@ class AutomationHistorySection extends Disposable {
 			return;
 		}
 		try {
-			await this.sessionsService.openSession(resource, { preserveFocus: false });
+			await this.sessionsService.openSession(resource, { preserveFocus: false, source: 'automation' });
 		} catch (error) {
 			this.logService.error('[AutomationsCards] Failed to open automation run', error);
 			await this.dialogService.error(

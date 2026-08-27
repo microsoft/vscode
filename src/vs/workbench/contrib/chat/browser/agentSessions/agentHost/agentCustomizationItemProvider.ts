@@ -244,26 +244,9 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		const items = new Map<string, ICustomizationItem>();
 		const workingDirectories = this._customAgentsService.getWorkingDirectories(sessionResource);
 
-		for (const agent of this.getCustomAgents(sessionResource)) {
-			const source = isUnderAnyRoot(workingDirectories, agent.uri) ? AICustomizationSources.local : AICustomizationSources.user;
-			items.set(agent.id, {
-				itemKey: agent.id,
-				uri: this.toRemoteUri(agent.uri),
-				type: PromptsType.agent,
-				name: agent.name,
-				description: agent.description,
-				source,
-				extensionId: undefined,
-				pluginUri: undefined,
-				enabled: agent.enabled !== false,
-				userInvocable: readAgentCustomizationMeta(agent).userInvocable !== false,
-			});
-		}
-
 		// Build parent plugin items keyed by customization ref
 		const plugins: PluginMeta[] = [];
 		const expandPromises: Promise<readonly ICustomizationItem[]>[] = [];
-
 
 		const customizations = this.getCustomizations(sessionResource);
 

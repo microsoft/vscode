@@ -152,7 +152,7 @@ import { ChatArtifactsWidget } from '../chatArtifactsWidget.js';
 import { handleTerminalCommandPaste, isTerminalCommandInput, isTerminalCommandPaste as isTerminalCommandPasteContent } from '../../chatTerminalCommandPaste.js';
 import { ChatDynamicVariableModel } from '../../attachments/chatDynamicVariables.js';
 import { ChatDragAndDrop } from '../chatDragAndDrop.js';
-import { getChatPetPillPlatformTop } from '../chatPetWidget.js';
+import { getChatPetPillPlatformTop, getChatPetStackPlatformTop } from '../chatPetWidget.js';
 import { ChatFollowups } from './chatFollowups.js';
 import { IChatInputNotificationService } from './chatInputNotificationService.js';
 import { ChatGoalBannerWidget } from './chatGoalBannerWidget.js';
@@ -560,7 +560,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	getChatPetPlatformTop(petCenterX?: number): number {
-		const inputTop = this.inputContainer.getBoundingClientRect().top;
 		if (petCenterX !== undefined) {
 			const pillBounds: DOMRect[] = [];
 			for (const provider of this._chatPetHorizontalPlatformProviders) {
@@ -576,35 +575,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				return pillTop;
 			}
 		}
-		let container = this.container;
-		let previousElement: Element | undefined = this.persistentContentContainer;
-		while (true) {
-			const children = Array.from(container.children);
-			const startIndex = previousElement ? children.indexOf(previousElement) + 1 : 0;
-			let nestedContainer: HTMLElement | undefined;
-			for (let index = startIndex; index < children.length; index++) {
-				const child = children[index];
-				if (!dom.isHTMLElement(child)) {
-					continue;
-				}
-				if (child === this.inputContainer) {
-					return inputTop;
-				}
-				if (child.contains(this.inputContainer)) {
-					nestedContainer = child;
-					break;
-				}
-				const bounds = child.getBoundingClientRect();
-				if (bounds.height > 0 && bounds.top <= inputTop) {
-					return bounds.top;
-				}
-			}
-			if (!nestedContainer) {
-				return inputTop;
-			}
-			container = nestedContainer;
-			previousElement = undefined;
-		}
+		// Skips the persistent content, which floats above the input part rather than sitting in the stack.
+		return getChatPetStackPlatformTop(this.container, this.inputContainer, this.persistentContentContainer);
 	}
 
 	readonly height = observableValue<number>(this, 0);
@@ -2879,6 +2851,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				deferredNotificationsEnabled: this._deferredNotificationsEnabled,
 				isTransientChat: this.options.isTransientChat,
 				sessionStarted: this._sessionStarted,
+				selectedLanguageModel: this.selectedLanguageModel,
 				openModelPicker: () => this.openModelPicker(),
 				switchToModel: modelIdentifier => this.switchModelByIdentifier(modelIdentifier, /* storeSelection */ true, /* isUserAction */ true),
 				onDidChangeVisibility: (visible, focusTarget) => this.noticeHost.setOccupied(ChatInputNoticeLane.Notification, visible, focusTarget),
