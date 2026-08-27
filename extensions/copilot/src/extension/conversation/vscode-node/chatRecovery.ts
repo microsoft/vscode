@@ -15,21 +15,19 @@ import { getToolName, ToolName } from '../../tools/common/toolNames';
 
 const testRunSummaryPattern = /<summary passed=\d+ failed=(?<failed>\d+) \/>/;
 
-export const chatRecoverySignalNames = [
-	'documentUserRejected',
-	'documentUserModified',
-	'documentHasMergeConflicts',
-	'documentGeneratedProblems',
-	'documentGeneratedTestsFail',
-	'lastRequestRepeated',
-	'lastResponseErrored',
-	'requestRetried',
-	'requestEdited',
-	'requestChangedModel',
-	'planReviewRejected',
-] as const;
-
-export type ChatRecoverySignalName = typeof chatRecoverySignalNames[number];
+export enum ChatRecoverySignal {
+	DocumentUserRejected = 'documentUserRejected',
+	DocumentUserModified = 'documentUserModified',
+	DocumentHasMergeConflicts = 'documentHasMergeConflicts',
+	DocumentGeneratedProblems = 'documentGeneratedProblems',
+	DocumentGeneratedTestsFail = 'documentGeneratedTestsFail',
+	LastRequestRepeated = 'lastRequestRepeated',
+	LastResponseErrored = 'lastResponseErrored',
+	RequestRetried = 'requestRetried',
+	RequestEdited = 'requestEdited',
+	RequestChangedModel = 'requestChangedModel',
+	PlanReviewRejected = 'planReviewRejected',
+}
 
 export function arePromptsSimilar(previousPrompt: string, currentPrompt: string): boolean {
 	const normalizedPreviousPrompt = previousPrompt.trim().replace(/\s+/g, ' ').toLowerCase();
@@ -100,21 +98,21 @@ export function isChatRecoveryAttempt(previousRequest: ChatRequestTurn2 | undefi
 		return false;
 	}
 
-	const signals: ChatRecoverySignalName[] = [];
+	const signals: ChatRecoverySignal[] = [];
 	if (request.attempt > 0) {
-		signals.push('requestRetried');
+		signals.push(ChatRecoverySignal.RequestRetried);
 	}
 	if (request.editedRequestId) {
-		signals.push('requestEdited');
+		signals.push(ChatRecoverySignal.RequestEdited);
 	}
 	if (previousRequest?.modelId && previousRequest.modelId !== request.model.id) {
-		signals.push('requestChangedModel');
+		signals.push(ChatRecoverySignal.RequestChangedModel);
 	}
 	if (previousRequest && arePromptsSimilar(previousRequest.prompt, request.prompt)) {
-		signals.push('lastRequestRepeated');
+		signals.push(ChatRecoverySignal.LastRequestRepeated);
 	}
 	if (previousResponse?.result.errorDetails) {
-		signals.push('lastResponseErrored');
+		signals.push(ChatRecoverySignal.LastResponseErrored);
 	}
 
 	const editStep = previousResponse ? PreviousEditCodeStep.fromChatResultMetaData(previousResponse.result) : undefined;
@@ -125,7 +123,7 @@ export function isChatRecoveryAttempt(previousRequest: ChatRequestTurn2 | undefi
 		) === true
 	);
 	if (documentUserRejected) {
-		signals.push('documentUserRejected');
+		signals.push(ChatRecoverySignal.DocumentUserRejected);
 	}
 	const documentUserModified = changedFiles.some(entry =>
 		request.editedFileEvents?.some(event =>
@@ -133,26 +131,26 @@ export function isChatRecoveryAttempt(previousRequest: ChatRequestTurn2 | undefi
 		) === true
 	);
 	if (documentUserModified) {
-		signals.push('documentUserModified');
+		signals.push(ChatRecoverySignal.DocumentUserModified);
 	}
 	const documentGeneratedProblems = changedFiles.some(entry =>
 		vscode.languages.getDiagnostics(entry.document.uri).some(diagnostic => diagnostic.severity === vscode.DiagnosticSeverity.Error)
 	);
 	if (documentGeneratedProblems) {
-		signals.push('documentGeneratedProblems');
+		signals.push(ChatRecoverySignal.DocumentGeneratedProblems);
 	}
 	const documentHasMergeConflicts = changedFiles.some(entry => {
 		const document = vscode.workspace.textDocuments.find(document => isEqual(document.uri, entry.document.uri));
 		return document !== undefined && MergeConflictParser.scanDocument(document).length > 0;
 	});
 	if (documentHasMergeConflicts) {
-		signals.push('documentHasMergeConflicts');
+		signals.push(ChatRecoverySignal.DocumentHasMergeConflicts);
 	}
 	if (didLastTestRunFail(previousResponse?.result.metadata, changedFiles.map(entry => entry.document.uri))) {
-		signals.push('documentGeneratedTestsFail');
+		signals.push(ChatRecoverySignal.DocumentGeneratedTestsFail);
 	}
 	if (wasLastPlanReviewRejected(previousResponse?.result.metadata)) {
-		signals.push('planReviewRejected');
+		signals.push(ChatRecoverySignal.PlanReviewRejected);
 	}
 
 	return signals.length > 1;
