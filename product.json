@@ -31,7 +31,8 @@
 	"linuxIconName": "code-oss",
 	"licenseFileName": "LICENSE.txt",
 	"reportIssueUrl": "https://github.com/microsoft/vscode/issues/new",
-	"nodejsRepository": "https://nodejs.org",
+	"nodejsArtifactFeed": "",
+	"electronArtifactFeed": "",
 	"urlProtocol": "code-oss",
 	"agentsTelemetryAppName": "agents",
 	"webviewContentExternalBaseUrlTemplate": "https://{{uuid}}.vscode-cdn.net/insider/ef65ac1ba57f57f2a3961bfe94aa20481caca4c6/out/vs/workbench/contrib/webview/browser/pre/",
@@ -70,8 +71,8 @@
 		},
 		{
 			"name": "ms-vscode.vscode-js-profile-table",
-			"version": "1.0.10",
-			"sha256": "7361748ddf9fd09d8a2ed1f2a2d7376a2cf9aae708692820b799708385c38e08",
+			"version": "1.0.11",
+			"sha256": "a962a1e6a3baf74c9354b7f47fa96e6d6f0423a63bff55d7f976b6134a748ae9",
 			"repo": "https://github.com/microsoft/vscode-js-profile-visualizer",
 			"metadata": {
 				"id": "7e52b41b-71ad-457b-ab7e-0620f1fc4feb",
@@ -94,6 +95,7 @@
 		"termsStatementUrl": "https://aka.ms/github-copilot-terms-statement",
 		"privacyStatementUrl": "https://aka.ms/github-copilot-privacy-statement",
 		"skusDocumentationUrl": "https://aka.ms/github-copilot-plans",
+		"optimizeUsageDocumentationUrl": "https://aka.ms/token-usage-tips",
 		"publicCodeMatchesUrl": "https://aka.ms/github-copilot-match-public-code",
 		"managePlanUrl": "https://aka.ms/github-copilot-manage-plan",
 		"upgradePlanUrl": "https://aka.ms/github-copilot-upgrade-plan",
@@ -234,5 +236,6 @@
 	"builtInExtensionsEnabledWithAutoUpdates": [
 		"GitHub.copilot-chat"
 	],
-	"sessionsWindowAllowedExtensions": []
+	"sessionsWindowAllowedExtensions": [],
+	"voiceWsUrl": "wss://falcon-caas.mai.microsoft.com/voice-code/api/v1/realtime/voice"
 }

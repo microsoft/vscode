@@ -1,0 +1,43 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Call list_sessions exactly once with workspace "${workdir}" and createdAfter "2000-01-01T00:00:00Z", then reply exactly "filtered".
+    response:
+      content:
+        - type: text
+          text: Running the requested `list_sessions` call with the exact filters now, then I will return the exact required response.
+        - type: tool_use
+          id: toolcall_0
+          name: list_sessions
+          input:
+            workspace: ${workdir}
+            createdAfter: '2000-01-01T00:00:00Z'
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Call list_sessions exactly once with workspace "${workdir}" and createdAfter "2000-01-01T00:00:00Z", then reply exactly "filtered".
+        - role: assistant
+          content: Running the requested `list_sessions` call with the exact filters now, then I will return the exact required response.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: list_sessions
+              input:
+                workspace: ${workdir}
+                createdAfter: '2000-01-01T00:00:00Z'
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '{"sessions":[{"session":"codex:/${uuid_0}","title":"Call list_sessions exactly once with workspace \"${workdir}\" and createdAfter \"2000-01-01T00:00:00Z\", then reply exa","status":"inProgress","workingDirectory":"file://${workdir}","unread":true,"createdAt":"2026-08-02T04:56:41.000Z","modifiedAt":"2026-08-02T04:56:40.387Z","changesets":[{"label":"All Changes","changeKind":"session","uriTemplate":"codex:/${uuid_0}/changeset/session","description":"Show all changes made in this session"},{"label":"This Turn","changeKind":"turn","uriTemplate":"codex:/${uuid_0}/changeset/turn/{turnId}","description":"Show changes made in this turn"}]}]}'
+    response:
+      content: filtered
+      stopReason: end_turn

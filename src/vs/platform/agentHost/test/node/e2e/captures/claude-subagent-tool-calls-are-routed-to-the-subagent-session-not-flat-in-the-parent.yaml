@@ -1,0 +1,119 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Use the `Task` tool to spawn a subagent to list the files in the current working directory. The subagent should call a single read-only tool (e.g. `view` or shell with `ls`) to enumerate the directory. Do not enumerate the directory yourself — delegate to the subagent.
+    response:
+      content:
+        - type: text
+          text: I'll delegate this to a subagent using the Explore agent, which is read-only.
+        - type: tool_use
+          id: toolcall_0
+          name: Agent
+          input:
+            description: List files in working directory
+            prompt: List the files and directories in the current working directory (${workdir}). Call a single read-only tool exactly once — run `ls -la` in the shell (or use a view/list tool) to enumerate the directory. Then report back the list of entries you found. Do not call any other tools.
+            subagent_type: Explore
+            run_in_background: false
+      stopReason: tool_use
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: List the files and directories in the current working directory (${workdir}). Call a single read-only tool exactly once — run `ls -la` in the shell (or use a view/list tool) to enumerate the directory. Then report back the list of entries you found. Do not call any other tools.
+    response:
+      content:
+        - type: text
+          text: I'll run `ls -la` to enumerate the directory.
+        - type: tool_use
+          id: toolcall_1
+          name: Bash
+          input:
+            command: ls -la ${workdir}
+            description: List all entries in the working directory
+      stopReason: tool_use
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: List the files and directories in the current working directory (${workdir}). Call a single read-only tool exactly once — run `ls -la` in the shell (or use a view/list tool) to enumerate the directory. Then report back the list of entries you found. Do not call any other tools.
+        - role: assistant
+          content:
+            - type: text
+              text: I'll run `ls -la` to enumerate the directory.
+            - type: tool_use
+              name: Bash
+              input:
+                command: ls -la ${workdir}
+                description: List all entries in the working directory
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: |-
+                total 16
+                drwx------     4 ${user}  staff     128 ${timestamp} .
+                drwx------@ 3522 ${user}  staff  112704 ${timestamp} ..
+                -rw-r--r--     1 ${user}  staff       5 ${timestamp} file-a.txt
+                -rw-r--r--     1 ${user}  staff       4 ${timestamp} file-b.txt
+    response:
+      content: |-
+        Here are the entries in `${workdir}`:
+
+        Directories:
+        - `.` (current directory)
+        - `..` (parent directory)
+
+        Files:
+        - `file-a.txt` (5 bytes)
+        - `file-b.txt` (4 bytes)
+
+        The directory contains two regular files (`file-a.txt` and `file-b.txt`) and no subdirectories.
+      stopReason: end_turn
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Use the `Task` tool to spawn a subagent to list the files in the current working directory. The subagent should call a single read-only tool (e.g. `view` or shell with `ls`) to enumerate the directory. Do not enumerate the directory yourself — delegate to the subagent.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: text
+              text: I'll delegate this to a subagent using the Explore agent, which is read-only.
+            - type: tool_use
+              name: Agent
+              input:
+                description: List files in working directory
+                prompt: List the files and directories in the current working directory (${workdir}). Call a single read-only tool exactly once — run `ls -la` in the shell (or use a view/list tool) to enumerate the directory. Then report back the list of entries you found. Do not call any other tools.
+                subagent_type: Explore
+                run_in_background: false
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Here are the entries in `${workdir}`:
+
+                Directories:
+                - `.` (current directory)
+                - `..` (parent directory)
+
+                Files:
+                - `file-a.txt` (5 bytes)
+                - `file-b.txt` (4 bytes)
+
+                The directory contains two regular files (`file-a.txt` and `file-b.txt`) and no subdirectories.
+    response:
+      content: |-
+        The subagent enumerated the directory with a single `ls -la` call. The working directory contains two files and no subdirectories:
+
+        - `file-a.txt` (5 bytes)
+        - `file-b.txt` (4 bytes)
+      stopReason: end_turn

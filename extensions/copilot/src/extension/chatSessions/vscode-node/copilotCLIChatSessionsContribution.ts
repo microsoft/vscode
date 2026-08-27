@@ -60,7 +60,7 @@ import { CopilotCloudSessionsProvider } from './copilotCloudSessionsProvider';
 import { IPullRequestCreationService } from './pullRequestCreationService';
 import { getBlockingSiblingSessionsForFolder } from './worktreeSharing';
 import { convertReferenceToVariable } from '../copilotcli/vscode-node/copilotCLIPromptReferences';
-import { clearChangesCacheForAffectedSessions } from './chatSessionRepositoryTracker';
+import { clearChangesCacheForAffectedSessions } from './chatSessionChangesCache';
 
 const REPOSITORY_OPTION_ID = 'repository';
 const PERMISSION_LEVEL_OPTION_ID = 'permissionLevel';
@@ -205,12 +205,6 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 	) {
 		super();
 		this._register(this.terminalIntegration);
-		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ConfigKey.Advanced.CLIShowExternalSessions.fullyQualifiedId)) {
-				this._onDidChangeChatSessionItems.fire();
-			}
-		}));
-
 		if (configurationService.getConfig(ConfigKey.Advanced.CLIChatLazyLoadSessionItem)) {
 			this.resolveChatSessionItem = async (item: vscode.ChatSessionItem, token: vscode.CancellationToken): Promise<vscode.ChatSessionItem | undefined> => {
 				const sessionId = SessionIdForCLI.parse(item.resource);
@@ -332,13 +326,10 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 		}
 
 		// Statistics (only returned for trusted workspace/worktree folders).
-		// `getWorktreeChanges`/`getWorkspaceChanges` shell out to `git diff` and dominate the cost
-		// of building an item — defer to `resolveChatSessionItem` for visible items.
-		// `buildChanges` runs `git diff` and is the slow leg of populating an item. Skip it on the
-		// eager pass and let `resolveChatSessionItem` fill it in lazily for visible items.
-		// But if computing changes is easy (cached or the like), then include them right away to avoid a second update pass.
+		// Building changes is expensive, so defer it to explicit resolve and refresh paths
+		// when lazy loading is enabled. Preserve eager loading when it is disabled.
 		let changes: vscode.ChatSessionChangedFile[] | undefined;
-		if (!token.isCancellationRequested && (options?.includeChanges || (await this.hasCachedChanges(session.id, worktreeProperties)))) {
+		if (!token.isCancellationRequested && (options?.includeChanges || !this.configurationService.getConfig(ConfigKey.Advanced.CLIChatLazyLoadSessionItem))) {
 			changes = await this.buildChanges(session.id, worktreeProperties, workingDirectory, token);
 			// We need to get an updated version of worktree properties here because when the
 			// changes are being computed, the worktree properties are also updated with the
@@ -452,18 +443,6 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 			metadata,
 		} satisfies vscode.ChatSessionItem;
 	}
-
-	private async hasCachedChanges(sessionId: string, worktreeProperties: Awaited<ReturnType<IChatSessionWorktreeService['getWorktreeProperties']>>): Promise<boolean> {
-		if (!this.configurationService.getConfig(ConfigKey.Advanced.CLIChatLazyLoadSessionItem)) {
-			return true;
-		}
-		const [hasCachedWorktreeChanges, hasCachedWorkspaceChanges] = await Promise.all([
-			this.worktreeManager.hasCachedChanges(sessionId),
-			this.workspaceFolderService.hasCachedChanges(sessionId)
-		]);
-		return hasCachedWorktreeChanges || hasCachedWorkspaceChanges;
-	}
-
 
 	private async buildChanges(
 		sessionId: string,
@@ -1375,9 +1354,12 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		let worktreeTurnIndex = 1;
 		let worktreeAgeBucketMs: string | undefined = undefined;
 		if (chatSessionContext) {
-			const existingSessionId = this.sessionItemProvider.untitledSessionIdMapping.get(SessionIdForCLI.parse(chatSessionContext.chatSessionItem.resource));
-			const id = existingSessionId ?? SessionIdForCLI.parse(chatSessionContext.chatSessionItem.resource);
-			const isNewSession = chatSessionContext.isUntitled && !existingSessionId;
+			const parsedId = SessionIdForCLI.parse(chatSessionContext.chatSessionItem.resource);
+			const existingSessionId = this.sessionItemProvider.untitledSessionIdMapping.get(parsedId);
+			const id = existingSessionId ?? parsedId;
+			// Mirror the guard in `getOrCreateSession`: only count as a new
+			// session when the resource is actually an untitled placeholder.
+			const isNewSession = chatSessionContext.isUntitled && isUntitledSessionId(parsedId) && !existingSessionId;
 			// isolationMode mode will be initialized only for new sessions.
 			const isolationMode = _sessionIsolation.get(id);
 			isolation = isNewSession ? isolationMode : undefined;
@@ -1665,7 +1647,15 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			// Delete old information stored for untitled session id.
 			_sessionBranch.delete(untitledSessionId);
 			_sessionIsolation.delete(untitledSessionId);
-			this.sessionItemProvider.untitledSessionIdMapping.delete(untitledSessionId);
+			// IMPORTANT: keep `untitledSessionIdMapping[untitledSessionId] -> sdkSessionId`.
+			// The workbench's open chat widget remains bound to the untitled
+			// URI even after the swap event, so a follow-up message arrives
+			// at `getOrCreateSession` with the untitled URI. We rely on this
+			// mapping to forward that follow-up to the existing SDK session
+			// instead of spawning a brand new one. The reverse mapping
+			// (`sdkToUntitledUriMapping`) must still be cleared so that
+			// `toChatSessionItem` reports the canonical SDK URI for the
+			// session after the swap.
 			this.sessionItemProvider.sdkToUntitledUriMapping.delete(sdkSessionId);
 			this.folderRepositoryManager.deleteNewSessionFolder(untitledSessionId);
 			this.sessionItemProvider.swap(chatSessionItem, { resource: SessionIdForCLI.getResource(sdkSessionId), label: requestPrompt });
@@ -1919,7 +1909,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 	}
 
 	private async getPromptInfoFromRequest(request: vscode.ChatRequest, token: vscode.CancellationToken): Promise<ParsedPromptFile | undefined> {
-		const promptFile = new ChatVariablesCollection(request.references).find(isPromptFile);
+		const promptFile = new ChatVariablesCollection(request.references).find(v => isPromptFile(v.reference));
 		if (!promptFile || !URI.isUri(promptFile.reference.value)) {
 			return undefined;
 		}
@@ -1933,9 +1923,16 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 
 	private async getOrCreateSession(request: vscode.ChatRequest, chatSessionContext: vscode.ChatSessionContext, stream: vscode.ChatResponseStream, options: { model: { model: string; reasoningEffort?: string; contextTier?: 'default' | 'long_context' } | undefined; agent: SweCustomAgent | undefined; newBranch?: Promise<string | undefined>; sessionParentId?: string; permissionLevel?: string }, disposables: DisposableStore, token: vscode.CancellationToken): Promise<{ session: IReference<ICopilotCLISession> | undefined; trusted: boolean }> {
 		const { resource } = chatSessionContext.chatSessionItem;
-		const existingSessionId = this.sessionItemProvider.untitledSessionIdMapping.get(SessionIdForCLI.parse(resource));
-		const id = existingSessionId ?? SessionIdForCLI.parse(resource);
-		const isNewSession = chatSessionContext.isUntitled && !existingSessionId;
+		const parsedId = SessionIdForCLI.parse(resource);
+		const existingSessionId = this.sessionItemProvider.untitledSessionIdMapping.get(parsedId);
+		const id = existingSessionId ?? parsedId;
+		// Only treat the request as a new session when the resource is actually
+		// an untitled placeholder. Without this guard, a stale `isUntitled`
+		// flag combined with a swap-mapping that has already been cleaned up
+		// (see `scheduleUntitledSessionSwap`) causes a follow-up turn against
+		// a real session id to spawn a brand-new SDK session.
+		const isResourceUntitled = isUntitledSessionId(parsedId);
+		const isNewSession = chatSessionContext.isUntitled && isResourceUntitled && !existingSessionId;
 
 		const { workspaceInfo, cancelled, trusted } = await this.getOrInitializeWorkingDirectory(chatSessionContext, stream, request.toolInvocationToken, token, options.newBranch);
 		const workingDirectory = getWorkingDirectory(workspaceInfo);
@@ -2042,9 +2039,12 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 	}> {
 		let folderInfo: FolderRepositoryInfo;
 		if (chatSessionContext) {
-			const existingSessionId = this.sessionItemProvider.untitledSessionIdMapping.get(SessionIdForCLI.parse(chatSessionContext.chatSessionItem.resource));
-			const id = existingSessionId ?? SessionIdForCLI.parse(chatSessionContext.chatSessionItem.resource);
-			const isNewSession = chatSessionContext.isUntitled && !existingSessionId;
+			const parsedId = SessionIdForCLI.parse(chatSessionContext.chatSessionItem.resource);
+			const existingSessionId = this.sessionItemProvider.untitledSessionIdMapping.get(parsedId);
+			const id = existingSessionId ?? parsedId;
+			// Mirror the guard in `getOrCreateSession`: only count as a new
+			// session when the resource is actually an untitled placeholder.
+			const isNewSession = chatSessionContext.isUntitled && isUntitledSessionId(parsedId) && !existingSessionId;
 
 			if (isNewSession) {
 				// Use FolderRepositoryManager to initialize folder/repository with worktree creation
@@ -2203,7 +2203,7 @@ export function registerCLIChatCommands(
 		);
 		return siblings.length > 0;
 	}
-	async function deleteSessionById(sessionId: string, options?: { keepWorktree?: boolean }): Promise<void> {
+	async function deleteSessionById(sessionId: string, options?: { keepWorktree?: boolean; sessionLabel?: string }): Promise<void> {
 		const worktree = await copilotCLIWorktreeManagerService.getWorktreeProperties(sessionId);
 		const worktreePath = await copilotCLIWorktreeManagerService.getWorktreePath(sessionId);
 
@@ -2218,7 +2218,7 @@ export function registerCLIChatCommands(
 					if (!repository) {
 						throw new Error(l10n.t('No active repository found to delete worktree.'));
 					}
-					await gitService.deleteWorktree(repository.rootUri, worktreePath.fsPath);
+					await gitService.deleteWorktree(repository.rootUri, worktreePath.fsPath, { label: options?.sessionLabel });
 				} catch (error) {
 					vscode.window.showErrorMessage(l10n.t('Failed to delete worktree: {0}', error instanceof Error ? error.message : String(error)));
 				}
@@ -2244,7 +2244,7 @@ export function registerCLIChatCommands(
 			);
 
 			if (result === deleteLabel) {
-				await deleteSessionById(sessionId, { keepWorktree });
+				await deleteSessionById(sessionId, { keepWorktree, sessionLabel: sessionItem.label });
 				copilotcliSessionItemProvider.notifySessionsChange();
 			}
 		}
@@ -2275,7 +2275,7 @@ export function registerCLIChatCommands(
 				const sessionId = copilotcliSessionItemProvider.untitledSessionIdMapping.get(id) ?? id;
 				const worktreePath = await copilotCLIWorktreeManagerService.getWorktreePath(sessionId);
 				const keepWorktree = !!worktreePath && await shouldKeepWorktreeForOtherSessions(sessionId, worktreePath);
-				await deleteSessionById(sessionId, { keepWorktree });
+				await deleteSessionById(sessionId, { keepWorktree, sessionLabel: sessionItem.label });
 			}
 		}
 

@@ -3,19 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { safeIntl } from '../../../../base/common/date.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { ChatEntitlement, IChatEntitlementService, IQuotaSnapshot, IRateLimitSnapshot } from '../../../services/chat/common/chatEntitlementService.js';
-import { getSelectedModelVendor, SELECTED_MODEL_STORAGE_KEY_PREFIX } from '../common/chatSelectedModel.js';
-import { COPILOT_VENDOR_ID, ILanguageModelsService } from '../common/languageModels.js';
-import { ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from './widget/input/chatInputNotificationService.js';
+import { getSelectedModelIdentifier, getSelectedModelMetadata, SELECTED_MODEL_STORAGE_KEY_PREFIX, SELECTED_MODEL_STORAGE_SCOPE } from '../common/chatSelectedModel.js';
+import { ILanguageModelsService, isAutoLanguageModel } from '../common/languageModels.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from './widget/input/chatInputNotificationService.js';
 
 const QUOTA_NOTIFICATION_ID = 'copilot.quotaStatus';
 const THRESHOLDS = [50, 75, 90, 95];
+const SWITCH_TO_AUTO_TREATMENT_NAME = 'config.chatQuotaWarningSwitchToAuto';
+
+/**
+ * Persisted flag remembering that the user dismissed the quota-exceeded
+ * notification. Kept until quota recovers (credit becomes available again) so
+ * the banner does not re-appear on every window reload while quota is still
+ * exhausted.
+ */
+const QUOTA_EXHAUSTED_DISMISSED_STORAGE_KEY = 'chat.quotaNotification.exhaustedDismissed';
 
 /**
  * Core-side workbench contribution that shows chat input notifications for
@@ -45,6 +56,9 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	private _prevAdditionalUsageEnabled: boolean | undefined;
 	private _prevSessionPercentUsed: number | undefined;
 	private _prevWeeklyPercentUsed: number | undefined;
+	private _switchToAutoTreatment: boolean | undefined;
+	private _switchToAutoAssignmentRequested = false;
+	private _activeQuotaWarning: { percentUsed: number; threshold: number } | undefined;
 
 	constructor(
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
@@ -52,25 +66,55 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IWorkbenchAssignmentService private readonly _assignmentService: IWorkbenchAssignmentService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 
 		this._register(this._chatEntitlementService.onDidChangeQuotaRemaining(() => this._update()));
 		this._register(this._chatEntitlementService.onDidChangeQuotaExceeded(() => this._update()));
 		this._register(this._chatEntitlementService.onDidChangeEntitlement(() => this._update()));
+		this._register(this._languageModelsService.onDidChangeLanguageModels(() => this._refreshActiveQuotaApproachingWarning()));
 
-		// Re-evaluate when the selected model changes (e.g. switching between Copilot and BYOK).
-		// The chatModelId context key is widget-scoped and may not bubble to the global
-		// service, so we also listen for storage changes on the persisted model selection key.
+		// Keeps the "Switch to Auto" action honest. Whether a banner renders at all is decided
+		// per chat input via `hideForByokModels`.
 		const storageListener = this._register(new DisposableStore());
-		this._register(this._storageService.onDidChangeValue(StorageScope.APPLICATION, undefined, storageListener)(e => {
+		this._register(this._storageService.onDidChangeValue(SELECTED_MODEL_STORAGE_SCOPE, undefined, storageListener)(e => {
 			if (e.key.startsWith(SELECTED_MODEL_STORAGE_KEY_PREFIX)) {
+				this._refreshActiveQuotaApproachingWarning();
 				this._update();
+			}
+		}));
+
+		// Remember when the user dismisses the quota-exceeded notification so it
+		// does not re-appear on the next window reload while quota is still
+		// exhausted. The flag is cleared from `_update` once quota recovers.
+		this._register(this._chatInputNotificationService.onDidDismiss(id => {
+			if (id === QUOTA_NOTIFICATION_ID && this._showingExhausted) {
+				this._setExhaustedDismissed();
 			}
 		}));
 
 		// Check initial state in case quota is already exhausted at startup
 		this._update();
+	}
+
+	private async _resolveSwitchToAutoTreatment(): Promise<void> {
+		const treatment = await this._assignmentService.getTreatment<boolean>(SWITCH_TO_AUTO_TREATMENT_NAME);
+		this._switchToAutoTreatment = treatment;
+		if (treatment === true) {
+			this._refreshActiveQuotaApproachingWarning();
+		}
+	}
+
+	private _requestSwitchToAutoTreatment(): void {
+		if (!this._switchToAutoAssignmentRequested) {
+			this._switchToAutoAssignmentRequested = true;
+			void this._resolveSwitchToAutoTreatment().catch(error => {
+				this._logService.error(`Failed to resolve ${SWITCH_TO_AUTO_TREATMENT_NAME}`, error);
+				this._switchToAutoAssignmentRequested = false;
+			});
+		}
 	}
 
 	private _getRelevantSnapshot(): IQuotaSnapshot | undefined {
@@ -99,13 +143,11 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	private _update(): void {
 		const entitlement = this._chatEntitlementService.entitlement;
-		const isCopilot = this._isCopilotModelSelected();
 
-		// Defer new notifications when a BYOK model is selected or the model
-		// selection hasn't loaded yet — quota only applies to Copilot models.
-		// Already-shown notifications stay visible.
-		if (!isCopilot) {
-			return;
+		// Drop the persisted dismissal once quota recovers, so the banner can show again.
+		// Requires a real snapshot, so "no data yet" at startup doesn't wipe the flag.
+		if (this._isQuotaKnownAvailable()) {
+			this._clearExhaustedDismissed();
 		}
 
 		// Skip quota notifications for PRU users — only show for UBB.
@@ -115,7 +157,9 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		// authoritative signal that the org has exceeded its budget, regardless of
 		// overages or remaining quota.
 		if (this._isManagedPlan(entitlement) && this._isManagedPlanBlocked()) {
-			this._showManagedPlanBlockedNotification();
+			if (!this._isExhaustedDismissed()) {
+				this._showManagedPlanBlockedNotification();
+			}
 			return;
 		}
 
@@ -126,14 +170,16 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			const wasAdditionalUsageEnabled = this._prevAdditionalUsageEnabled;
 			this._prevAdditionalUsageEnabled = additionalUsageEnabled;
 
-			if (additionalUsageEnabled) {
-				// Show overage notification on a live transition to 100%,
-				// or when overages are enabled while already at 100%.
-				if (this._prevQuotaPercentUsed !== undefined || wasAdditionalUsageEnabled === false) {
-					this._showOverageActivationNotification();
+			if (!this._isExhaustedDismissed()) {
+				if (additionalUsageEnabled) {
+					// Show overage notification on a live transition to 100%,
+					// or when overages are enabled while already at 100%.
+					if (this._prevQuotaPercentUsed !== undefined || wasAdditionalUsageEnabled === false) {
+						this._showOverageActivationNotification();
+					}
+				} else {
+					this._showExhaustedNotification();
 				}
-			} else {
-				this._showExhaustedNotification();
 			}
 
 			// Keep the baseline up-to-date so that recovery from exhaustion
@@ -171,7 +217,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	// --- Threshold crossing detection ----------------------------------------
 
-	private _computeQuotaWarning(): { percentUsed: number } | undefined {
+	private _computeQuotaWarning(): { percentUsed: number; threshold: number } | undefined {
 		const snapshot = this._getRelevantSnapshot();
 		if (!snapshot || snapshot.unlimited) {
 			this._prevQuotaPercentUsed = undefined;
@@ -181,7 +227,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		const crossed = this._findCrossedThreshold(percentUsed, this._prevQuotaPercentUsed);
 		this._prevQuotaPercentUsed = percentUsed;
 		if (crossed !== undefined) {
-			return { percentUsed: Math.floor(percentUsed) };
+			return { percentUsed: Math.floor(percentUsed), threshold: crossed };
 		}
 		return undefined;
 	}
@@ -216,23 +262,24 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 		if (entitlement === ChatEntitlement.Unknown) {
 			description = localize('quota.exhausted.anonymous', "Sign in to keep going.");
-			actions = [{ label: localize('signIn', "Sign In"), commandId: 'workbench.action.chat.triggerSetup' }];
+			actions = [{ kind: ChatInputNotificationActionKind.Command, label: localize('signIn', "Sign In"), commandId: 'workbench.action.chat.triggerSetup' }];
 		} else if (entitlement === ChatEntitlement.Free) {
 			description = localize('quota.exhausted.free', "Upgrade to keep going.");
-			actions = [{ label: localize('upgrade', "Upgrade"), commandId: 'workbench.action.chat.upgradePlan' }];
+			actions = [{ kind: ChatInputNotificationActionKind.Command, label: localize('upgrade', "Upgrade"), commandId: 'workbench.action.chat.upgradePlan' }];
 		} else if (this._isManagedPlan(entitlement)) {
 			description = localize('quota.exhausted.managed', "Contact your admin to increase your limits.");
 			actions = [];
 		} else if (hadOverage) {
 			description = localize('quota.exhausted.hadOverage', "Increase your budget to keep building.");
-			actions = [{ label: localize('manageBudget', "Manage Budget"), commandId: 'workbench.action.chat.manageAdditionalSpend' }];
+			actions = [{ kind: ChatInputNotificationActionKind.Command, label: localize('manageBudget', "Manage Budget"), commandId: 'workbench.action.chat.manageAdditionalSpend' }];
 		} else {
 			description = localize('quota.exhausted.default', "Manage your budget to keep building.");
-			actions = [{ label: localize('manageBudget2', "Manage Budget"), commandId: 'workbench.action.chat.manageAdditionalSpend' }];
+			actions = [{ kind: ChatInputNotificationActionKind.Command, label: localize('manageBudget2', "Manage Budget"), commandId: 'workbench.action.chat.manageAdditionalSpend' }];
 		}
 
 		this._setNotification({
 			id: QUOTA_NOTIFICATION_ID,
+			telemetryId: 'quotaExhausted',
 			severity: ChatInputNotificationSeverity.Info,
 			message: localize('quota.exhausted.title', "Credit Limit Reached"),
 			description,
@@ -249,6 +296,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 		this._setNotification({
 			id: QUOTA_NOTIFICATION_ID,
+			telemetryId: 'overageActivation',
 			severity: ChatInputNotificationSeverity.Info,
 			message: localize('quota.overage.title', "Credit Limit Reached"),
 			description: localize('quota.overage.desc', "Additional budget is now covering extra usage."),
@@ -260,8 +308,9 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	// --- Quota approaching --------------------------------------------------
 
-	private _showQuotaApproachingWarning(warning: { percentUsed: number }): void {
+	private _showQuotaApproachingWarning(warning: { percentUsed: number; threshold: number }): void {
 		this._showingExhausted = false;
+		this._activeQuotaWarning = warning;
 
 		const entitlement = this._chatEntitlementService.entitlement;
 		const quotas = this._chatEntitlementService.quotas;
@@ -271,7 +320,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 		if (entitlement === ChatEntitlement.Unknown || entitlement === ChatEntitlement.Free) {
 			description = localize('quota.approaching.free', "Upgrade to continue past the limit.");
-			actions = [{ label: localize('upgrade2', "Upgrade"), commandId: 'workbench.action.chat.upgradePlan' }];
+			actions = [{ kind: ChatInputNotificationActionKind.Command, label: localize('upgrade2', "Upgrade"), commandId: 'workbench.action.chat.upgradePlan' }];
 		} else if (this._isManagedPlan(entitlement)) {
 			description = localize('quota.approaching.managed', "Contact your admin to increase your limits.");
 			actions = [];
@@ -279,12 +328,23 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			description = localize('quota.approaching.overageEnabled', "Additional budget is enabled to cover extra usage.");
 			actions = [];
 		} else {
-			description = localize('quota.approaching.default', "Set additional budget to cover extra usage.");
-			actions = [{ label: localize('manageBudget3', "Manage Budget"), commandId: 'workbench.action.chat.manageAdditionalSpend' }];
+			const autoModelIdentifier = this._getAutoModelIdentifier();
+			const canSwitchToAuto = !!autoModelIdentifier && !this._isAutoModelSelected(autoModelIdentifier);
+			if (canSwitchToAuto) {
+				this._requestSwitchToAutoTreatment();
+			}
+			if (this._switchToAutoTreatment === true && canSwitchToAuto) {
+				description = localize('quota.approaching.switchToAuto', "Switch to Auto to reduce credit usage.");
+				actions = [{ kind: ChatInputNotificationActionKind.SwitchToModel, label: localize('switchToAuto', "Switch to Auto"), modelIdentifier: autoModelIdentifier }];
+			} else {
+				description = localize('quota.approaching.default', "Set additional budget to cover extra usage.");
+				actions = [{ kind: ChatInputNotificationActionKind.Command, label: localize('manageBudget3', "Manage Budget"), commandId: 'workbench.action.chat.manageAdditionalSpend' }];
+			}
 		}
 
 		this._setNotification({
 			id: QUOTA_NOTIFICATION_ID,
+			telemetryId: `quotaApproaching${warning.threshold}`,
 			severity: ChatInputNotificationSeverity.Info,
 			message: localize('quota.approaching.title', "Credits at {0}%", warning.percentUsed),
 			description,
@@ -344,6 +404,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 		this._setNotification({
 			id: QUOTA_NOTIFICATION_ID,
+			telemetryId: warning.type === 'session' ? 'sessionRateLimitWarning' : 'weeklyRateLimitWarning',
 			severity: ChatInputNotificationSeverity.Info,
 			message,
 			description,
@@ -355,17 +416,35 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	// --- Helpers ------------------------------------------------------------
 
-	/**
-	 * Returns `true` only when a Copilot model is actively selected.
-	 * Returns `false` if no model is selected yet (widget not initialized)
-	 * or if the selected model is from a non-Copilot vendor (BYOK).
-	 */
-	private _isCopilotModelSelected(): boolean {
-		const vendor = getSelectedModelVendor(this._contextKeyService, this._storageService, this._languageModelsService);
-		if (!vendor) {
+	private _getAutoModelIdentifier(): string | undefined {
+		for (const identifier of this._languageModelsService.getLanguageModelIds()) {
+			const metadata = this._languageModelsService.lookupLanguageModel(identifier);
+			if (metadata && isAutoLanguageModel({ identifier, metadata })) {
+				return identifier;
+			}
+		}
+		return undefined;
+	}
+
+	private _isAutoModelSelected(autoModelIdentifier: string): boolean {
+		const identifier = getSelectedModelIdentifier(this._contextKeyService, this._storageService);
+		const autoModel = this._languageModelsService.lookupLanguageModel(autoModelIdentifier);
+		if (identifier === autoModelIdentifier || identifier === autoModel?.id) {
 			return true;
 		}
-		return vendor === COPILOT_VENDOR_ID;
+		const metadata = getSelectedModelMetadata(this._contextKeyService, this._storageService, this._languageModelsService);
+		return !!metadata && isAutoLanguageModel({ identifier: identifier ?? '', metadata });
+	}
+
+	private _refreshActiveQuotaApproachingWarning(): void {
+		const warning = this._activeQuotaWarning;
+		if (!warning) {
+			return;
+		}
+		const notification = this._chatInputNotificationService.getActiveNotification(candidate => candidate.id === QUOTA_NOTIFICATION_ID);
+		if (notification?.telemetryId === `quotaApproaching${warning.threshold}`) {
+			this._showQuotaApproachingWarning(warning);
+		}
 	}
 
 	private _isManagedPlan(entitlement: ChatEntitlement): boolean {
@@ -382,6 +461,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 		this._setNotification({
 			id: QUOTA_NOTIFICATION_ID,
+			telemetryId: 'managedPlanBlocked',
 			severity: ChatInputNotificationSeverity.Info,
 			message: localize('quota.blocked.managed.title', "Usage Blocked"),
 			description: localize('quota.blocked.managed', "Your organization or enterprise has exceeded its Copilot budget. Contact your admin to resume usage."),
@@ -402,11 +482,37 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	}
 
 	private _setNotification(notification: IChatInputNotification): void {
-		this._chatInputNotificationService.setNotification(notification);
+		// Quota is a Copilot concern, but only each input knows its own model — this
+		// contribution sees the global context key service, which resolves the panel's. #332787
+		this._chatInputNotificationService.setNotification({ ...notification, hideForByokModels: true });
 	}
 
 	private _hideNotification(): void {
 		this._showingExhausted = false;
 		this._chatInputNotificationService.deleteNotification(QUOTA_NOTIFICATION_ID);
+	}
+
+	// --- Exhausted dismissal persistence ------------------------------------
+
+	/**
+	 * Returns `true` only when there is an actual quota snapshot indicating that
+	 * credit is available (i.e. quota is not used up). Returns `false` when no
+	 * snapshot has loaded yet, so the transient "no data" state at startup/reload
+	 * is not mistaken for recovery.
+	 */
+	private _isQuotaKnownAvailable(): boolean {
+		return !!this._getRelevantSnapshot() && !this._isQuotaUsedUp();
+	}
+
+	private _isExhaustedDismissed(): boolean {
+		return this._storageService.getBoolean(QUOTA_EXHAUSTED_DISMISSED_STORAGE_KEY, StorageScope.APPLICATION, false);
+	}
+
+	private _setExhaustedDismissed(): void {
+		this._storageService.store(QUOTA_EXHAUSTED_DISMISSED_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+	}
+
+	private _clearExhaustedDismissed(): void {
+		this._storageService.remove(QUOTA_EXHAUSTED_DISMISSED_STORAGE_KEY, StorageScope.APPLICATION);
 	}
 }

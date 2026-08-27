@@ -6,7 +6,6 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import {
-	BASELINE_TURN_ID,
 	ChangesetKind,
 	buildChangesetUri,
 	buildCompareTurnsChangesetUri,
@@ -21,6 +20,7 @@ import {
 	parseChangesetUri,
 	parseCompareTurnsChangesetUri,
 	parseTurnChangesetUri,
+	resolveChangesetUriTemplate,
 } from '../../common/changesetUri.js';
 
 suite('changesetUri', () => {
@@ -44,19 +44,10 @@ suite('changesetUri', () => {
 		assert.throws(() => buildChangesetUri(sessionUri, 'with/slash'));
 		assert.throws(() => buildTurnChangesetUri(sessionUri, ''));
 		assert.throws(() => buildTurnChangesetUri(sessionUri, 'a/b'));
-		assert.throws(() => buildTurnChangesetUri(sessionUri, BASELINE_TURN_ID));
 		assert.throws(() => buildCompareTurnsChangesetUri(sessionUri, '', 't2'));
 		assert.throws(() => buildCompareTurnsChangesetUri(sessionUri, 't1', ''));
 		assert.throws(() => buildCompareTurnsChangesetUri(sessionUri, 'a/b', 't2'));
 		assert.throws(() => buildCompareTurnsChangesetUri(sessionUri, 't1', 'a/b'));
-		assert.throws(() => buildCompareTurnsChangesetUri(sessionUri, 't1', BASELINE_TURN_ID));
-	});
-
-	test('compare URI accepts BASELINE_TURN_ID on the original side', () => {
-		const uri = buildCompareTurnsChangesetUri(sessionUri, BASELINE_TURN_ID, 't2');
-		assert.strictEqual(uri, 'copilot:/abc-123/changeset/compare/baseline/t2');
-		assert.deepStrictEqual(parseCompareTurnsChangesetUri(uri),
-			{ sessionUri, originalTurnId: BASELINE_TURN_ID, modifiedTurnId: 't2' });
 	});
 
 	test('parseChangesetUri identifies the well-known kinds', () => {
@@ -100,6 +91,25 @@ suite('changesetUri', () => {
 		assert.strictEqual(parseCompareTurnsChangesetUri(buildSessionChangesetUri(sessionUri)), undefined);
 		assert.strictEqual(parseCompareTurnsChangesetUri(buildTurnChangesetUri(sessionUri, 't1')), undefined);
 		assert.strictEqual(parseCompareTurnsChangesetUri(buildCompareTurnsChangesetUriTemplate(sessionUri)), undefined);
+	});
+
+	test('resolveChangesetUriTemplate joins a relative template onto the session channel', () => {
+		assert.strictEqual(resolveChangesetUriTemplate(sessionUri, 'changeset/branch'), `${sessionUri}/changeset/branch`);
+		assert.strictEqual(resolveChangesetUriTemplate(sessionUri, 'changeset/session'), buildSessionChangesetUri(sessionUri));
+		assert.strictEqual(resolveChangesetUriTemplate(sessionUri, 'changeset/uncommitted'), buildUncommittedChangesetUri(sessionUri));
+		// The variable survives resolution.
+		assert.strictEqual(resolveChangesetUriTemplate(sessionUri, 'changeset/turn/{turnId}'), buildTurnChangesetUriTemplate(sessionUri));
+	});
+
+	test('resolveChangesetUriTemplate leaves an already-absolute template alone', () => {
+		assert.strictEqual(resolveChangesetUriTemplate(sessionUri, buildSessionChangesetUri(sessionUri)), buildSessionChangesetUri(sessionUri));
+		assert.strictEqual(resolveChangesetUriTemplate(sessionUri, buildTurnChangesetUriTemplate(sessionUri)), buildTurnChangesetUriTemplate(sessionUri));
+		assert.strictEqual(resolveChangesetUriTemplate(sessionUri, 'copilot:/other/changeset/branch'), 'copilot:/other/changeset/branch');
+	});
+
+	test('resolveChangesetUriTemplate does not double up separators', () => {
+		assert.strictEqual(resolveChangesetUriTemplate(sessionUri, '/changeset/branch'), `${sessionUri}/changeset/branch`);
+		assert.strictEqual(resolveChangesetUriTemplate(`${sessionUri}/`, 'changeset/branch'), `${sessionUri}/changeset/branch`);
 	});
 
 	test('predicates match the parser semantics', () => {

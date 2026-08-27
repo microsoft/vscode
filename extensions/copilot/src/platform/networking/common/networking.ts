@@ -75,7 +75,7 @@ export interface IEndpointBody {
 	prediction?: Prediction;
 	messages?: any[];
 	n?: number;
-	reasoning?: { effort?: string; summary?: string; context?: 'current_turn' | 'all_turns' };
+	reasoning?: { effort?: string; summary?: string };
 	tool_choice?: OptionalChatRequestParams['tool_choice'] | { type: 'function'; name: string } | string;
 	top_logprobs?: number;
 	intent?: boolean;
@@ -107,6 +107,7 @@ export interface IEndpointBody {
 	input?: readonly any[];
 	truncation?: 'auto' | 'disabled';
 	prompt_cache_key?: string;
+	prompt_cache_options?: { mode: 'implicit' | 'explicit' };
 	include?: ['reasoning.encrypted_content'];
 	store?: boolean;
 	text?: {
@@ -119,7 +120,8 @@ export interface IEndpointBody {
 		budget_tokens?: number;
 	};
 	output_config?: {
-		effort?: 'low' | 'medium' | 'high';
+		/** Validated against the endpoint's declared `reasoning_effort` levels, not a hardcoded set. */
+		effort?: string;
 	};
 
 	/** ChatCompletions API for Anthropic models */
@@ -205,6 +207,8 @@ export interface IMakeChatRequestOptions {
 	source?: Source;
 	/** Conversation identifier used for request-scoped state (for example WebSocket connection reuse). */
 	conversationId?: string;
+	/** Optional identifier for an independent WebSocket connection within a conversation. */
+	webSocketConnectionId?: string;
 	/** Identifier for a single tool-calling turn within a conversation. */
 	turnId?: string;
 	/** Additional request options */
@@ -291,10 +295,12 @@ export interface ITokenPriceTier {
 	/** Cost in AICs per million output tokens */
 	readonly outputPrice: number;
 	/** Cost in AICs per million cached (read) tokens */
-	readonly cacheReadTokenPrice: number;
+	readonly cacheReadTokenPrice: number | undefined;
+	/** Cost in AICs per million cache-write tokens */
+	readonly cacheWriteTokenPrice: number | undefined;
 	/**
 	 * The largest prompt size (in tokens) billed at this tier's rates.
-	 * Derived from CAPI `billing.token_prices.<tier>.context_max`.
+	 * Derived from CAPI `billing.token_prices.<tier>.max_prompt_tokens`.
 	 * Present only when CAPI provides a `long_context` tier.
 	 */
 	readonly contextMax?: number;
@@ -314,6 +320,9 @@ export interface IChatEndpointTokenPricing {
 	 */
 	readonly longContext?: ITokenPriceTier;
 }
+
+/** CAPI notice code that shows as a warning banner and also flags the model picker row. */
+export const PENDING_DEPRECATION_CODE = 'model_pending_deprecation';
 
 export interface IChatEndpoint extends IEndpoint {
 	readonly maxOutputTokens: number;
@@ -335,8 +344,18 @@ export interface IChatEndpoint extends IEndpoint {
 	readonly showInModelPicker: boolean;
 	readonly isPremium?: boolean;
 	readonly degradationReason?: string;
+	/** Category-keyed warning banners for the model picker. */
+	readonly warningText?: Record<string, string>;
+	/** Category-keyed info banners for the model picker. Unlike {@link warningText} these never signal a problem. */
+	readonly infoText?: Record<string, string>;
+	readonly promo?: { id: string; discountPercent: number; endsAt?: string; message: string };
 	readonly multiplier?: number;
 	readonly restrictedToSkus?: string[];
+	/**
+	 * Discount applied when this model is reached through Auto, as a fraction
+	 * (e.g. `0.1` for 10% off). Only set on models Auto can route to.
+	 */
+	readonly autoDiscount?: number;
 	/**
 	 * Normalized token pricing in AICs per million tokens.
 	 * Computed from the raw billing token_prices and normalized
@@ -344,6 +363,7 @@ export interface IChatEndpoint extends IEndpoint {
 	 */
 	readonly tokenPricing?: IChatEndpointTokenPricing;
 	readonly priceCategory?: string;
+	readonly modelPickerCategory?: string;
 	readonly isFallback: boolean;
 	readonly customModel?: CustomModel;
 	readonly isExtensionContributed?: boolean;

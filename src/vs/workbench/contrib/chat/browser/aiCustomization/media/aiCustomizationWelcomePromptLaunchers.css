@@ -24,19 +24,19 @@
 }
 
 .ai-customization-management-editor .welcome-prompts-heading {
-	font-size: var(--vscode-agents-fontSize-heading2);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-heading2);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	margin: 0 0 6px;
 	color: var(--vscode-foreground);
 }
 
 .ai-customization-management-editor .welcome-prompts-subtitle {
-	font-size: var(--vscode-agents-fontSize-body1);
+	font-size: var(--vscode-fontSize-body1);
 	color: var(--vscode-descriptionForeground);
 	margin: 0 0 8px;
 	padding-bottom: 8px;
 	line-height: 1.45;
-	min-height: calc(var(--vscode-agents-fontSize-body1) * 1.45 * 2);
+	min-height: calc(var(--vscode-fontSize-body1) * 1.45 * 2);
 }
 
 .ai-customization-management-editor .welcome-prompts-primary {
@@ -58,8 +58,8 @@
 	gap: 8px;
 	margin: 0;
 	padding: 0 4px;
-	font-size: var(--vscode-agents-fontSize-body1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 }
 
@@ -84,7 +84,7 @@
 	min-width: 0;
 	height: 36px;
 	padding: 0;
-	font-size: var(--vscode-agents-fontSize-body1);
+	font-size: var(--vscode-fontSize-body1);
 	font-family: inherit;
 	border: none;
 	outline: none;
@@ -195,6 +195,17 @@
 .ai-customization-management-editor .welcome-prompts-card:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px;
+}
+
+.ai-customization-management-editor .welcome-prompts-migration-card {
+	grid-column: span 2;
+	background: color-mix(in srgb, var(--vscode-inputValidation-warningBackground) 35%, var(--vscode-sideBar-background));
+	border-color: color-mix(in srgb, var(--vscode-inputValidation-warningBorder) 70%, var(--vscode-widget-border));
+	cursor: default;
+}
+
+.ai-customization-management-editor .welcome-prompts-migration-card:hover {
+	background: color-mix(in srgb, var(--vscode-inputValidation-warningBackground) 35%, var(--vscode-sideBar-background));
 }
 
 .ai-customization-management-editor .welcome-prompts-card-header {

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from '../../../base/common/arrays.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
@@ -104,6 +103,12 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 	private _configurationModel: ConfigurationModel;
 	get configurationModel() { return this._configurationModel; }
 
+	/** Last definition submitted per policy name; avoids redundant re-registration. */
+	private readonly _submittedPolicyDefinitions = new Map<PolicyName, PolicyDefinition>();
+
+	/** Maps each policy-controlled setting key to its policy name, so removed keys can be re-resolved. */
+	private readonly _policyNameByKey = new Map<string, PolicyName>();
+
 	constructor(
 		private readonly defaultConfiguration: DefaultConfiguration,
 		@IPolicyService private readonly policyService: IPolicyService,
@@ -124,46 +129,106 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 		return this._configurationModel;
 	}
 
+	private toPolicyDefinitionType(configType: unknown, policyName: PolicyName): 'string' | 'number' | 'boolean' | undefined {
+		// `configType` may be a single type or a union (e.g. `['array', 'null']`).
+		// Normalize to an array and keep only the types we can represent as policies.
+		const configTypes = Array.isArray(configType) ? configType : [configType];
+		const supportedTypes = configTypes.filter(type => type === 'string' || type === 'number' || type === 'array' || type === 'object' || type === 'boolean');
+		if (supportedTypes.length === 0) {
+			this.logService.warn(`PolicyConfiguration#updatePolicyDefinitions - policy '${policyName}' has unsupported type '${configType}'`);
+			return undefined;
+		}
+		return supportedTypes.includes('number') ? 'number' : supportedTypes.includes('boolean') ? 'boolean' : 'string';
+	}
+
 	private async updatePolicyDefinitions(properties: string[]): Promise<string[]> {
 		this.logService.trace('PolicyConfiguration#updatePolicyDefinitions', properties);
-		const policyDefinitions: IStringDictionary<PolicyDefinition> = {};
 		const keys: string[] = [];
+		const policyNames = new Set<PolicyName>();
 		const configurationProperties = this.configurationRegistry.getConfigurationProperties();
 		const excludedConfigurationProperties = this.configurationRegistry.getExcludedConfigurationProperties();
 
 		for (const key of properties) {
 			const config = configurationProperties[key] ?? excludedConfigurationProperties[key];
 			if (!config) {
-				// Config is removed. So add it to the list if in case it was registered as policy before
-				keys.push(key);
+				keys.push(key); // deregistered — update() will clear this key's applied policy value
+				const removedPolicyName = this._policyNameByKey.get(key);
+				if (removedPolicyName !== undefined) {
+					this._policyNameByKey.delete(key);
+					policyNames.add(removedPolicyName);
+				}
 				continue;
 			}
-			if (config.policy) {
-				if (config.type !== 'string' && config.type !== 'number' && config.type !== 'array' && config.type !== 'object' && config.type !== 'boolean') {
-					this.logService.warn(`Policy ${config.policy.name} has unsupported type ${config.type}`);
-					continue;
-				}
-				const { value, restrictedValue } = config.policy;
+			const policyName = config.policy?.name ?? config.policyReference?.name;
+			if (policyName) {
 				keys.push(key);
-				policyDefinitions[config.policy.name] = {
-					type: config.type === 'number' ? 'number' : config.type === 'boolean' ? 'boolean' : 'string',
-					value,
-					restrictedValue,
-				};
+				policyNames.add(policyName);
+				this._policyNameByKey.set(key, policyName);
 			}
 		}
 
-		if (!isEmptyObject(policyDefinitions)) {
-			await this.policyService.updatePolicyDefinitions(policyDefinitions);
+		const changedDefinitions: IStringDictionary<PolicyDefinition> = {};
+		for (const policyName of policyNames) {
+			const definition = this.resolvePolicyDefinition(policyName);
+			if (definition && !this.isSamePolicyDefinition(this._submittedPolicyDefinitions.get(policyName), definition)) {
+				this._submittedPolicyDefinitions.set(policyName, definition);
+				changedDefinitions[policyName] = definition;
+			}
+		}
+
+		if (!isEmptyObject(changedDefinitions)) {
+			await this.policyService.updatePolicyDefinitions(changedDefinitions);
 		}
 
 		return keys;
 	}
 
+	private isSamePolicyDefinition(a: PolicyDefinition | undefined, b: PolicyDefinition): boolean {
+		return !!a && a.type === b.type && a.value === b.value && a.managedSettings === b.managedSettings && a.restrictedValue === b.restrictedValue;
+	}
+
+	/** Resolve the authoritative definition: owner wins; references provide a bare type fallback. */
+	private resolvePolicyDefinition(policyName: PolicyName): PolicyDefinition | undefined {
+		const configurationProperties = this.configurationRegistry.getConfigurationProperties();
+		const excludedConfigurationProperties = this.configurationRegistry.getExcludedConfigurationProperties();
+
+		const ownerKey = this.configurationRegistry.getPolicyConfigurations().get(policyName);
+		if (ownerKey !== undefined) {
+			const config = configurationProperties[ownerKey] ?? excludedConfigurationProperties[ownerKey];
+			if (config?.policy) {
+				const type = this.toPolicyDefinitionType(config.type, policyName);
+				const { value, managedSettings, restrictedValue } = config.policy;
+				return type ? { type, value, managedSettings, restrictedValue } : undefined;
+			}
+		}
+
+		const referenceKeys = this.configurationRegistry.getPolicyReferenceConfigurations().get(policyName);
+		for (const referenceKey of referenceKeys ?? []) {
+			const config = configurationProperties[referenceKey] ?? excludedConfigurationProperties[referenceKey];
+			if (config?.policyReference) {
+				const type = this.toPolicyDefinitionType(config.type, policyName);
+				return type ? { type } : undefined;
+			}
+		}
+
+		return undefined;
+	}
+
 	private onDidChangePolicies(policyNames: readonly PolicyName[]): void {
 		this.logService.trace('PolicyConfiguration#onDidChangePolicies', policyNames);
 		const policyConfigurations = this.configurationRegistry.getPolicyConfigurations();
-		const keys = coalesce(policyNames.map(policyName => policyConfigurations.get(policyName)));
+		const policyReferenceConfigurations = this.configurationRegistry.getPolicyReferenceConfigurations();
+		const keys: string[] = [];
+		for (const policyName of policyNames) {
+			const owner = policyConfigurations.get(policyName);
+			if (owner) {
+				keys.push(owner);
+			}
+			const references = policyReferenceConfigurations.get(policyName);
+			if (references) {
+				keys.push(...references);
+			}
+		}
 		this.update(keys, true);
 	}
 
@@ -175,11 +240,15 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 		const wasEmpty = this._configurationModel.isEmpty();
 
 		for (const key of keys) {
-			const proprety = configurationProperties[key] ?? excludedConfigurationProperties[key];
-			const policyName = proprety?.policy?.name;
+			const property = configurationProperties[key] ?? excludedConfigurationProperties[key];
+			const policyName = property?.policy?.name ?? property?.policyReference?.name;
 			if (policyName) {
 				let policyValue: PolicyValue | ParsedType | undefined = this.policyService.getPolicyValue(policyName);
-				if (isString(policyValue) && proprety.type !== 'string') {
+				// `property.type` may be a single type or a union (e.g. `['array', 'null']`).
+				// A string policy value carries a JSON payload that must be parsed unless the
+				// setting itself is (or can be) a plain string.
+				const acceptsStringType = Array.isArray(property.type) ? property.type.includes('string') : property.type === 'string';
+				if (isString(policyValue) && !acceptsStringType) {
 					try {
 						policyValue = this.parse(policyValue);
 					} catch (e) {

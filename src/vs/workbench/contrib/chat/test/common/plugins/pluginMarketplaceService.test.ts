@@ -4,27 +4,59 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../../base/common/async.js';
+import * as sinon from 'sinon';
+import { DeferredPromise, installFakeRunWhenIdle, timeout } from '../../../../../../base/common/async.js';
 import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
+import { isWeb } from '../../../../../../base/common/platform.js';
+import { joinPath } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { AGENT_PLUGIN_SCHEMA } from '../../../../../../platform/agentPlugins/common/agentPluginParser.js';
+import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IFileService, IFileSystemWatcher } from '../../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { IMeteredConnectionService } from '../../../../../../platform/meteredConnection/common/meteredConnection.js';
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
-import { IExtensionsWorkbenchService } from '../../../../extensions/common/extensions.js';
+import { AutoUpdateConfigurationValue, IExtensionsWorkbenchService } from '../../../../extensions/common/extensions.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IAgentPluginRepositoryService } from '../../../common/plugins/agentPluginRepositoryService.js';
 import { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, MarketplaceReferenceKind, MarketplaceType, PluginMarketplaceService, PluginSourceKind, extraKnownMarketplacesToConfigDict, getPluginSourceLabel, parseMarketplaceReference, parseMarketplaceReferences, parsePluginSource, readConfiguredMarketplaces } from '../../../common/plugins/pluginMarketplaceService.js';
 import { IWorkspacePluginSettingsService } from '../../../common/plugins/workspacePluginSettingsService.js';
+
+class TestMeteredConnectionService extends Disposable implements IMeteredConnectionService {
+	declare readonly _serviceBrand: undefined;
+
+	private readonly _onDidChangeIsConnectionMetered = this._register(new Emitter<boolean>());
+	readonly onDidChangeIsConnectionMetered = this._onDidChangeIsConnectionMetered.event;
+
+	constructor(public isConnectionMetered: boolean) {
+		super();
+	}
+
+	setIsConnectionMetered(isConnectionMetered: boolean): void {
+		this.isConnectionMetered = isConnectionMetered;
+		this._onDidChangeIsConnectionMetered.fire(isConnectionMetered);
+	}
+}
+
+const unmeteredConnectionService: IMeteredConnectionService = {
+	_serviceBrand: undefined,
+	isConnectionMetered: false,
+	onDidChangeIsConnectionMetered: Event.None,
+};
+
+function stubMeteredConnectionService(instantiationService: TestInstantiationService, service: IMeteredConnectionService = unmeteredConnectionService): void {
+	instantiationService.stub(IMeteredConnectionService, service);
+}
 
 suite('PluginMarketplaceService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -178,9 +210,10 @@ suite('PluginMarketplaceService', () => {
 	test('readConfiguredMarketplaces converts policy dict to named marketplace entries', () => {
 		const configService = new TestConfigurationService({
 			[ChatConfiguration.ExtraMarketplaces]: {
-				'acme-internal': 'https://plugins.internal.acme.com',
-				'acme-public': 'https://copilot-plugins.acme.io',
+				'acme-internal': '{"source":"https://plugins.internal.acme.com","autoUpdate":true}',
+				'acme-public': '{"source":"https://copilot-plugins.acme.io","autoUpdate":false}',
 				'vscode-team-kit': 'microsoft/vscode-team-kit',
+				'invalid': null,
 			},
 		});
 		const { extraValues, effectiveValues } = readConfiguredMarketplaces(configService as unknown as IConfigurationService);
@@ -189,6 +222,7 @@ suite('PluginMarketplaceService', () => {
 		assert.deepStrictEqual(refs.map(r => r.displayLabel), ['acme-internal', 'acme-public', 'vscode-team-kit']);
 		assert.strictEqual(refs[0].kind, MarketplaceReferenceKind.GitUri);
 		assert.strictEqual(refs[2].kind, MarketplaceReferenceKind.GitHubShorthand);
+		assert.deepStrictEqual(refs.map(r => r.autoUpdate), [true, false, undefined]);
 		// Effective values union user + extra
 		assert.strictEqual(effectiveValues.length, extraValues.length);
 	});
@@ -203,6 +237,31 @@ suite('PluginMarketplaceService', () => {
 			{ name: 'vscode-team-kit', source: { source: 'github', repo: 'microsoft/vscode-team-kit' } },
 		]);
 		assert.deepStrictEqual(dict, { 'vscode-team-kit': 'microsoft/vscode-team-kit' });
+	});
+
+	test('extraKnownMarketplacesToConfigDict: preserves explicit autoUpdate values', () => {
+		const dict = extraKnownMarketplacesToConfigDict([
+			{ name: 'always', autoUpdate: true, source: { source: 'github', repo: 'microsoft/always' } },
+			{ name: 'never', autoUpdate: false, source: { source: 'github', repo: 'microsoft/never' } },
+			{ name: 'default', source: { source: 'github', repo: 'microsoft/default' } },
+		]);
+		assert.deepStrictEqual(dict, {
+			always: '{"source":"microsoft/always","autoUpdate":true}',
+			never: '{"source":"microsoft/never","autoUpdate":false}',
+			default: 'microsoft/default',
+		});
+	});
+
+	test('managed autoUpdate survives a duplicate user marketplace reference', () => {
+		const configService = new TestConfigurationService({
+			[ChatConfiguration.PluginMarketplaces]: ['microsoft/plugins'],
+			[ChatConfiguration.ExtraMarketplaces]: {
+				managed: '{"source":"microsoft/plugins","autoUpdate":true}',
+			},
+		});
+		const refs = parseMarketplaceReferences(readConfiguredMarketplaces(configService as unknown as IConfigurationService).effectiveValues);
+		assert.strictEqual(refs.length, 1);
+		assert.strictEqual(refs[0].autoUpdate, true);
 	});
 
 	test('extraKnownMarketplacesToConfigDict: github source with ref appends #ref', () => {
@@ -400,8 +459,9 @@ suite('PluginMarketplaceService - GitHub marketplace refs', () => {
 			onDidChangeTrust: Event.None,
 		} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService);
 		instantiationService.stub(IExtensionsWorkbenchService, {
-			getAutoUpdateValue: () => true,
+			getAutoUpdateValue: () => 'on',
 		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
+		stubMeteredConnectionService(instantiationService);
 
 		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
 		await service.fetchMarketplacePlugins(CancellationToken.None);
@@ -410,6 +470,126 @@ suite('PluginMarketplaceService - GitHub marketplace refs', () => {
 		assert.ok(requestUrls.every(url => url.includes('/marketplace/')));
 		assert.ok(requestUrls.every(url => !url.includes('/main/')));
 	});
+
+	test('a cancelled fetch does not clear the last fetched plugins', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+			[ChatConfiguration.PluginMarketplaces]: ['microsoft/vscode'],
+			[ChatConfiguration.PluginsEnabled]: true,
+		}));
+		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as Partial<IEnvironmentService> as IEnvironmentService);
+		instantiationService.stub(IFileService, {} as unknown as IFileService);
+		instantiationService.stub(IAgentPluginRepositoryService, {
+			agentPluginsHome: URI.file('/agent-plugins'),
+			ensureRepository: async () => URI.file('/agent-plugins/github.com/microsoft/vscode'),
+		} as Partial<IAgentPluginRepositoryService> as IAgentPluginRepositoryService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IRequestService, {
+			request: async () => ({ res: { headers: {}, statusCode: 404 }, stream: bufferToStream(VSBuffer.fromString('')) }),
+		} as Partial<IRequestService> as IRequestService);
+		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
+		instantiationService.stub(IWorkspacePluginSettingsService, {
+			extraMarketplaces: observableValue('test.extraMarketplaces', []),
+			enabledPlugins: observableValue('test.enabledPlugins', new Map()),
+		} as Partial<IWorkspacePluginSettingsService> as IWorkspacePluginSettingsService);
+		instantiationService.stub(IWorkspaceTrustManagementService, {
+			isWorkspaceTrusted: () => true,
+			onDidChangeTrust: Event.None,
+		} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService);
+		instantiationService.stub(IExtensionsWorkbenchService, {
+			getAutoUpdateValue: () => 'on',
+		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
+		stubMeteredConnectionService(instantiationService);
+
+		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
+		const seeded = service.lastFetchedPlugins.get();
+
+		const cts = store.add(new CancellationTokenSource());
+		cts.cancel();
+		await service.fetchMarketplacePlugins(cts.token);
+
+		assert.deepStrictEqual(service.lastFetchedPlugins.get(), seeded);
+	});
+});
+
+suite('PluginMarketplaceService - Agent Plugin direct install probes', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	class ProbeFileService {
+		readonly files = new Map<string, string>();
+
+		async exists(resource: URI): Promise<boolean> {
+			return this.files.has(resource.toString());
+		}
+
+		async readFile(resource: URI): Promise<{ value: VSBuffer }> {
+			const value = this.files.get(resource.toString());
+			if (value === undefined) {
+				throw new Error(`Missing file: ${resource.toString()}`);
+			}
+			return { value: VSBuffer.fromString(value) };
+		}
+
+		createWatcher(): IFileSystemWatcher {
+			return { onDidChange: Event.None, dispose: () => { } };
+		}
+	}
+
+	function createService(fileService: ProbeFileService): PluginMarketplaceService {
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+			[ChatConfiguration.PluginMarketplaces]: [],
+			[ChatConfiguration.PluginsEnabled]: true,
+		}));
+		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as Partial<IEnvironmentService> as IEnvironmentService);
+		instantiationService.stub(IFileService, fileService as unknown as IFileService);
+		instantiationService.stub(IAgentPluginRepositoryService, { agentPluginsHome: URI.file('/agent-plugins') } as unknown as IAgentPluginRepositoryService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IRequestService, {} as unknown as IRequestService);
+		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
+		instantiationService.stub(IWorkspacePluginSettingsService, {
+			extraMarketplaces: observableValue('test.extraMarketplaces', []),
+			enabledPlugins: observableValue('test.enabledPlugins', new Map()),
+		} as Partial<IWorkspacePluginSettingsService> as IWorkspacePluginSettingsService);
+		instantiationService.stub(IWorkspaceTrustManagementService, {
+			isWorkspaceTrusted: () => true,
+			onDidChangeTrust: Event.None,
+		} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService);
+		instantiationService.stub(IExtensionsWorkbenchService, {
+			getAutoUpdateValue: () => 'off',
+		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
+		stubMeteredConnectionService(instantiationService);
+		return store.add(instantiationService.createInstance(PluginMarketplaceService));
+	}
+
+	function seedCompatibleManifest(fileService: ProbeFileService, repoDir: URI): void {
+		fileService.files.set(joinPath(repoDir, 'plugin.json').toString(), JSON.stringify({
+			$schema: AGENT_PLUGIN_SCHEMA.replace('/1.0.0/', '/1.0.1/'),
+			name: 'compatible-plugin',
+		}));
+	}
+
+	test('reads a Git direct-source manifest with a compatible schema revision', async () => {
+		const fileService = new ProbeFileService();
+		const repoDir = URI.file('/repos/compatible');
+		seedCompatibleManifest(fileService, repoDir);
+		const service = createService(fileService);
+
+		const result = await service.readSinglePluginManifest(repoDir, parseMarketplaceReference('owner/compatible')!);
+
+		assert.strictEqual(result?.name, 'compatible-plugin');
+	});
+
+	test('recognizes a local directory with a compatible schema revision', async () => {
+		const fileService = new ProbeFileService();
+		const repoDir = URI.file('/plugins/compatible');
+		seedCompatibleManifest(fileService, repoDir);
+		const service = createService(fileService);
+
+		const result = await service.isPluginDirectory(repoDir);
+
+		assert.strictEqual(result, true);
+	});
 });
 
 suite('PluginMarketplaceService - getMarketplacePluginMetadata', () => {
@@ -417,11 +597,12 @@ suite('PluginMarketplaceService - getMarketplacePluginMetadata', () => {
 
 	const marketplaceRef = parseMarketplaceReference('microsoft/plugins')!;
 
-	function createService(): PluginMarketplaceService {
+	function createService(autoUpdate: AutoUpdateConfigurationValue = 'on', extraMarketplaces: Record<string, unknown> = {}): PluginMarketplaceService {
 		const instantiationService = store.add(new TestInstantiationService());
 
 		instantiationService.stub(IConfigurationService, new TestConfigurationService({
 			[ChatConfiguration.PluginMarketplaces]: ['microsoft/plugins'],
+			[ChatConfiguration.ExtraMarketplaces]: extraMarketplaces,
 			[ChatConfiguration.PluginsEnabled]: true,
 		}));
 		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as Partial<IEnvironmentService> as IEnvironmentService);
@@ -439,8 +620,9 @@ suite('PluginMarketplaceService - getMarketplacePluginMetadata', () => {
 			onDidChangeTrust: Event.None,
 		} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService);
 		instantiationService.stub(IExtensionsWorkbenchService, {
-			getAutoUpdateValue: () => true,
+			getAutoUpdateValue: () => autoUpdate,
 		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
+		stubMeteredConnectionService(instantiationService);
 
 		return store.add(instantiationService.createInstance(PluginMarketplaceService));
 	}
@@ -476,6 +658,26 @@ suite('PluginMarketplaceService - getMarketplacePluginMetadata', () => {
 		const result = service.getMarketplacePluginMetadata(URI.file('/any/path'));
 		assert.strictEqual(result, undefined);
 	});
+
+	test('managed marketplace autoUpdate overrides the global setting by canonical identity', () => {
+		const service = createService('off', {
+			always: '{"source":"microsoft/always","autoUpdate":true}',
+			never: '{"source":"microsoft/never","autoUpdate":false}',
+			inherited: 'microsoft/inherited',
+		});
+
+		assert.deepStrictEqual({
+			always: service.isMarketplaceAutoUpdateEnabled(parseMarketplaceReference('https://github.com/microsoft/always.git')!),
+			never: service.isMarketplaceAutoUpdateEnabled(parseMarketplaceReference('microsoft/never')!),
+			inherited: service.isMarketplaceAutoUpdateEnabled(parseMarketplaceReference('microsoft/inherited')!),
+			unmanaged: service.isMarketplaceAutoUpdateEnabled(parseMarketplaceReference('microsoft/unmanaged')!),
+		}, {
+			always: true,
+			never: false,
+			inherited: false,
+			unmanaged: false,
+		});
+	});
 });
 
 suite('PluginMarketplaceService - installed plugins lifecycle', () => {
@@ -483,29 +685,36 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 
 	const marketplaceRef = parseMarketplaceReference('microsoft/plugins')!;
 
-	function makePlugin(name: string, source: string): IMarketplacePlugin {
+	function makePlugin(name: string, source: string, reference = marketplaceRef): IMarketplacePlugin {
 		return {
 			name,
 			description: `${name} description`,
 			version: '1.0.0',
 			source,
 			sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: source } as const,
-			marketplace: marketplaceRef.displayLabel,
-			marketplaceReference: marketplaceRef,
+			marketplace: reference.displayLabel,
+			marketplaceReference: reference,
 			marketplaceType: MarketplaceType.Copilot,
 		};
 	}
 
-	function createService(): PluginMarketplaceService {
+	function createService(options?: {
+		configurationService?: TestConfigurationService;
+		meteredConnectionService?: IMeteredConnectionService;
+		pluginRepositoryService?: Partial<IAgentPluginRepositoryService>;
+	}): PluginMarketplaceService {
 		const instantiationService = store.add(new TestInstantiationService());
 
-		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+		instantiationService.stub(IConfigurationService, options?.configurationService ?? new TestConfigurationService({
 			[ChatConfiguration.PluginMarketplaces]: ['microsoft/plugins'],
 			[ChatConfiguration.PluginsEnabled]: true,
 		}));
 		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as Partial<IEnvironmentService> as IEnvironmentService);
 		instantiationService.stub(IFileService, {} as unknown as IFileService);
-		instantiationService.stub(IAgentPluginRepositoryService, { agentPluginsHome: URI.file('/agent-plugins') } as unknown as IAgentPluginRepositoryService);
+		instantiationService.stub(IAgentPluginRepositoryService, {
+			agentPluginsHome: URI.file('/agent-plugins'),
+			...options?.pluginRepositoryService,
+		} as IAgentPluginRepositoryService);
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IRequestService, {} as unknown as IRequestService);
 		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
@@ -518,8 +727,9 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 			onDidChangeTrust: Event.None,
 		} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService);
 		instantiationService.stub(IExtensionsWorkbenchService, {
-			getAutoUpdateValue: () => true,
+			getAutoUpdateValue: () => 'on',
 		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
+		stubMeteredConnectionService(instantiationService, options?.meteredConnectionService);
 
 		return store.add(instantiationService.createInstance(PluginMarketplaceService));
 	}
@@ -539,6 +749,273 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 		const installed = service.installedPlugins.get();
 		assert.strictEqual(installed.length, 1);
 		assert.strictEqual(installed[0].plugin.name, 'my-plugin');
+	});
+
+	test('periodic update checking pauses while metered and resumes when unmetered', async () => {
+		let runIdle: ((idle: IdleDeadline) => void) | undefined;
+		store.add(installFakeRunWhenIdle((_target, runner) => {
+			runIdle = runner;
+			return Disposable.None;
+		}));
+		const meteredConnectionService = store.add(new TestMeteredConnectionService(true));
+		let fetchCount = 0;
+		const service = createService({
+			meteredConnectionService,
+			pluginRepositoryService: {
+				fetchRepository: async () => {
+					fetchCount++;
+					return false;
+				},
+			},
+		});
+		service.addInstalledPlugin(
+			URI.file('/agent-plugins/github.com/microsoft/plugins/my-plugin'),
+			makePlugin('my-plugin', 'my-plugin'),
+		);
+
+		assert.ok(runIdle);
+		runIdle({ didTimeout: false, timeRemaining: () => 50 });
+		await timeout(0);
+		assert.strictEqual(fetchCount, 0);
+
+		meteredConnectionService.setIsConnectionMetered(false);
+		await timeout(0);
+		await timeout(0);
+		assert.strictEqual(fetchCount, 1);
+	});
+
+	test('defers an overdue check until queued updates are acknowledged', async () => {
+		const updateCheckInterval = 24 * 60 * 60 * 1000;
+		const clock = sinon.useFakeTimers({ now: updateCheckInterval + 1 });
+		try {
+			let runIdle: ((idle: IdleDeadline) => void) | undefined;
+			store.add(installFakeRunWhenIdle((_target, runner) => {
+				runIdle = runner;
+				return Disposable.None;
+			}));
+			const meteredConnectionService = store.add(new TestMeteredConnectionService(false));
+			let fetchCount = 0;
+			const service = createService({
+				meteredConnectionService,
+				pluginRepositoryService: {
+					fetchRepository: async () => ++fetchCount === 1,
+				},
+			});
+			service.addInstalledPlugin(
+				URI.file('/agent-plugins/github.com/microsoft/plugins/my-plugin'),
+				makePlugin('my-plugin', 'my-plugin'),
+			);
+
+			assert.ok(runIdle);
+			runIdle({ didTimeout: false, timeRemaining: () => 50 });
+			await clock.tickAsync(0);
+			assert.deepStrictEqual({
+				fetchCount,
+				marketplacesWithUpdates: [...service.marketplacesWithUpdates.get()],
+			}, {
+				fetchCount: 1,
+				marketplacesWithUpdates: [marketplaceRef.canonicalId],
+			});
+
+			meteredConnectionService.setIsConnectionMetered(true);
+			await clock.tickAsync(updateCheckInterval);
+			meteredConnectionService.setIsConnectionMetered(false);
+			await clock.tickAsync(0);
+			assert.strictEqual(fetchCount, 1);
+
+			service.clearUpdatesAvailable(new Set([marketplaceRef.canonicalId]));
+			await clock.tickAsync(0);
+			assert.strictEqual(fetchCount, 2);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('unmetering before startup idle does not start an update check', async () => {
+		let runIdle: ((idle: IdleDeadline) => void) | undefined;
+		store.add(installFakeRunWhenIdle((_target, runner) => {
+			runIdle = runner;
+			return Disposable.None;
+		}));
+		const meteredConnectionService = store.add(new TestMeteredConnectionService(true));
+		let fetchCount = 0;
+		const service = createService({
+			meteredConnectionService,
+			pluginRepositoryService: {
+				fetchRepository: async () => {
+					fetchCount++;
+					return false;
+				},
+			},
+		});
+		service.addInstalledPlugin(
+			URI.file('/agent-plugins/github.com/microsoft/plugins/my-plugin'),
+			makePlugin('my-plugin', 'my-plugin'),
+		);
+
+		meteredConnectionService.setIsConnectionMetered(false);
+		await timeout(0);
+		await timeout(0);
+		assert.strictEqual(fetchCount, 0);
+
+		assert.ok(runIdle);
+		runIdle({ didTimeout: false, timeRemaining: () => 50 });
+		await timeout(0);
+		await timeout(0);
+		assert.strictEqual(fetchCount, 1);
+	});
+
+	test('cancelling a scheduled update check does not cause an unhandled rejection', async () => {
+		let runIdle: ((idle: IdleDeadline) => void) | undefined;
+		store.add(installFakeRunWhenIdle((_target, runner) => {
+			runIdle = runner;
+			return Disposable.None;
+		}));
+		const meteredConnectionService = store.add(new TestMeteredConnectionService(false));
+		createService({ meteredConnectionService });
+		const unhandledRejections: unknown[] = [];
+		const onUnhandledRejection = (reason: unknown) => unhandledRejections.push(reason);
+		const onBrowserUnhandledRejection = (event: PromiseRejectionEvent) => onUnhandledRejection(event.reason);
+		if (isWeb) {
+			globalThis.addEventListener('unhandledrejection', onBrowserUnhandledRejection);
+		} else {
+			process.on('unhandledRejection', onUnhandledRejection);
+		}
+
+		try {
+			assert.ok(runIdle);
+			runIdle({ didTimeout: false, timeRemaining: () => 50 });
+			meteredConnectionService.setIsConnectionMetered(true);
+			await timeout(0);
+
+			assert.deepStrictEqual(unhandledRejections, []);
+		} finally {
+			if (isWeb) {
+				globalThis.removeEventListener('unhandledrejection', onBrowserUnhandledRejection);
+			} else {
+				process.off('unhandledRejection', onUnhandledRejection);
+			}
+		}
+	});
+
+	test('unmetering while a check is in flight does not start a concurrent check', async () => {
+		let runIdle: ((idle: IdleDeadline) => void) | undefined;
+		store.add(installFakeRunWhenIdle((_target, runner) => {
+			runIdle = runner;
+			return Disposable.None;
+		}));
+		const meteredConnectionService = store.add(new TestMeteredConnectionService(false));
+		const firstFetch = new DeferredPromise<boolean>();
+		let activeFetches = 0;
+		let maxActiveFetches = 0;
+		let fetchCount = 0;
+		const service = createService({
+			meteredConnectionService,
+			pluginRepositoryService: {
+				fetchRepository: async () => {
+					fetchCount++;
+					activeFetches++;
+					maxActiveFetches = Math.max(maxActiveFetches, activeFetches);
+					try {
+						return fetchCount === 1 ? await firstFetch.p : false;
+					} finally {
+						activeFetches--;
+					}
+				},
+			},
+		});
+		service.addInstalledPlugin(
+			URI.file('/agent-plugins/github.com/microsoft/plugins/my-plugin'),
+			makePlugin('my-plugin', 'my-plugin'),
+		);
+
+		assert.ok(runIdle);
+		runIdle({ didTimeout: false, timeRemaining: () => 50 });
+		await timeout(0);
+		meteredConnectionService.setIsConnectionMetered(true);
+		meteredConnectionService.setIsConnectionMetered(false);
+		await timeout(0);
+
+		assert.deepStrictEqual({ fetchCount, maxActiveFetches }, { fetchCount: 1, maxActiveFetches: 1 });
+
+		firstFetch.complete(false);
+		await timeout(0);
+		await timeout(0);
+
+		assert.deepStrictEqual({ fetchCount, maxActiveFetches }, { fetchCount: 1, maxActiveFetches: 1 });
+	});
+
+	test('configuration changes during a check queue one rerun without overlapping fetches', async () => {
+		let runIdle: ((idle: IdleDeadline) => void) | undefined;
+		store.add(installFakeRunWhenIdle((_target, runner) => {
+			runIdle = runner;
+			return Disposable.None;
+		}));
+		const skippedRef = parseMarketplaceReference('microsoft/skipped')!;
+		const deferredRef = parseMarketplaceReference('microsoft/deferred')!;
+		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.PluginMarketplaces]: [skippedRef.canonicalId, deferredRef.canonicalId],
+			[ChatConfiguration.PluginsEnabled]: true,
+			[ChatConfiguration.StrictMarketplaces]: [{ source: 'github', repo: 'microsoft/deferred' }],
+		});
+		const firstFetch = new DeferredPromise<boolean>();
+		const fetched: string[] = [];
+		let activeFetches = 0;
+		let maxActiveFetches = 0;
+		const service = createService({
+			configurationService,
+			pluginRepositoryService: {
+				fetchRepository: async reference => {
+					fetched.push(reference.canonicalId);
+					activeFetches++;
+					maxActiveFetches = Math.max(maxActiveFetches, activeFetches);
+					try {
+						return fetched.length === 1 ? await firstFetch.p : false;
+					} finally {
+						activeFetches--;
+					}
+				},
+			},
+		});
+		service.addInstalledPlugin(
+			URI.file('/agent-plugins/github.com/microsoft/skipped/plugin'),
+			makePlugin('skipped', 'plugin', skippedRef),
+		);
+		service.addInstalledPlugin(
+			URI.file('/agent-plugins/github.com/microsoft/deferred/plugin'),
+			makePlugin('deferred', 'plugin', deferredRef),
+		);
+
+		assert.ok(runIdle);
+		runIdle({ didTimeout: false, timeRemaining: () => 50 });
+		await timeout(0);
+		assert.deepStrictEqual(fetched, [deferredRef.canonicalId]);
+
+		await configurationService.setUserConfiguration(ChatConfiguration.StrictMarketplaces, [
+			{ source: 'github', repo: 'microsoft/skipped' },
+			{ source: 'github', repo: 'microsoft/deferred' },
+		]);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([ChatConfiguration.StrictMarketplaces]),
+			change: { keys: [ChatConfiguration.StrictMarketplaces], overrides: [] },
+			affectsConfiguration: key => key === ChatConfiguration.StrictMarketplaces,
+		} satisfies IConfigurationChangeEvent);
+		await timeout(0);
+		assert.deepStrictEqual({ fetched, maxActiveFetches }, { fetched: [deferredRef.canonicalId], maxActiveFetches: 1 });
+
+		firstFetch.complete(false);
+		for (let i = 0; i < 5 && fetched.length < 3; i++) {
+			await timeout(0);
+		}
+
+		assert.deepStrictEqual({
+			fetched,
+			maxActiveFetches,
+		}, {
+			fetched: [deferredRef.canonicalId, skippedRef.canonicalId, deferredRef.canonicalId],
+			maxActiveFetches: 1,
+		});
 	});
 
 	test('removeInstalledPlugin removes plugin from installedPlugins and metadata', () => {
@@ -738,8 +1215,9 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 			onDidChangeTrust: Event.None,
 		} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService);
 		instantiationService.stub(IExtensionsWorkbenchService, {
-			getAutoUpdateValue: () => true,
+			getAutoUpdateValue: () => 'on',
 		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
+		stubMeteredConnectionService(instantiationService);
 
 		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
 
@@ -791,8 +1269,9 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 				onDidChangeTrust: Event.None,
 			} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService);
 			instantiationService.stub(IExtensionsWorkbenchService, {
-				getAutoUpdateValue: () => true,
+				getAutoUpdateValue: () => 'on',
 			} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
+			stubMeteredConnectionService(instantiationService);
 			return store.add(instantiationService.createInstance(PluginMarketplaceService));
 		}
 

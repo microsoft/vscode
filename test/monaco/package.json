@@ -5,13 +5,14 @@
   "license": "MIT",
   "private": true,
   "scripts": {
-    "compile": "node ../../node_modules/typescript/bin/tsc",
+    "compile": "node ../../node_modules/typescript/bin/tsc6",
     "bundle-webpack": "webpack --config ./webpack.config.js --bail",
     "esm-check": "node esm-check/esm-check.js",
     "test": "node runner.js"
   },
   "devDependencies": {
     "@types/chai": "^4.2.14",
+    "@types/node": "24.12.4",
     "axe-playwright": "^2.1.0",
     "chai": "^4.2.0",
     "css-loader": "^6.9.1",

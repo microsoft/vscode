@@ -5,32 +5,94 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { EMPTY_TREE_OBJECT, formatGitError, getBranchCompletions, parseDefaultBranchRef, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseHasGitHubRemote, parseUntrackedPaths, summarizeStderrForError } from '../../node/agentHostGitService.js';
+import { formatGitError, getRemoteTrackingRef, GitCheckoutProgressParser, isRetryableWorktreeRemovalError, parseChangedPaths, parseDefaultBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, summarizeStderrForError } from '../../node/agentHostGitService.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { URI } from '../../../../base/common/uri.js';
+import { EMPTY_TREE_OBJECT, getBranchCompletions, resolveDiffBaseBranchName } from '../../common/agentHostGitService.js';
+import { needsSessionGitStateRefresh } from '../../common/state/sessionState.js';
 
 suite('AgentHostGitService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('sorts common branch names to the top before applying limit', () => {
+	test('maps branches and GitHub pull request refs to origin tracking refs', () => {
+		assert.deepStrictEqual({
+			branch: getRemoteTrackingRef('feature'),
+			pullRequest: getRemoteTrackingRef('refs/pull/42/head'),
+		}, {
+			branch: {
+				branchName: 'feature',
+				remoteBranch: 'origin/feature',
+				remoteRef: 'refs/remotes/origin/feature',
+				sourceRef: 'refs/heads/feature',
+			},
+			pullRequest: {
+				branchName: 'pull/42/head',
+				remoteBranch: 'origin/pull/42/head',
+				remoteRef: 'refs/remotes/origin/pull/42/head',
+				sourceRef: 'refs/pull/42/head',
+			},
+		});
+	});
+
+	test('sorts the current and default branches before recent branches and applying the limit', () => {
 		assert.deepStrictEqual(
-			getBranchCompletions(['feature/recent', 'release', 'master', 'main', 'feature/older'], { limit: 3 }),
-			['main', 'master', 'feature/recent'],
+			getBranchCompletions(
+				['feature/recent', 'dev', 'feature/current', 'main', 'feature/older'],
+				{ currentBranch: 'feature/current', defaultBranch: 'dev', limit: 3 },
+			),
+			['feature/current', 'dev', 'feature/recent'],
 		);
 	});
 
-	test('preserves git order for non-common branches', () => {
+	test('preserves git order for branches other than the current and default branches', () => {
 		assert.deepStrictEqual(
-			getBranchCompletions(['feature/recent', 'release', 'feature/older']),
+			getBranchCompletions(
+				['feature/recent', 'release', 'feature/older'],
+				{ currentBranch: 'other', defaultBranch: 'main' },
+			),
 			['feature/recent', 'release', 'feature/older'],
 		);
 	});
 
-	test('filters before sorting common branch names', () => {
+	test('filters before prioritizing the current and default branches', () => {
 		assert.deepStrictEqual(
-			getBranchCompletions(['feature/recent', 'master', 'main', 'maintenance'], { query: 'ma' }),
-			['main', 'master', 'maintenance'],
+			getBranchCompletions(
+				['feature/recent', 'maintenance', 'main', 'feature/current'],
+				{ currentBranch: 'feature/current', defaultBranch: 'maintenance', query: 'ma' },
+			),
+			['maintenance', 'main'],
 		);
+	});
+
+	suite('GitCheckoutProgressParser', () => {
+		function collect(chunks: readonly string[]): { filesDone: number; filesTotal: number }[] {
+			const reported: { filesDone: number; filesTotal: number }[] = [];
+			const parser = new GitCheckoutProgressParser(progress => reported.push(progress));
+			for (const chunk of chunks) {
+				parser.push(chunk);
+			}
+			return reported;
+		}
+
+		test('forwards every complete sample and ignores non-progress output', () => {
+			assert.deepStrictEqual(collect([
+				'Preparing worktree (new branch agents/foo)\n',
+				'Updating files:   1% (8/800)\rUpdating files:   2% (16/800)\r',
+				'Updating files:   2% (20/800)\r',
+				'Updating files: 100% (800/800), done.\n',
+			]), [
+				{ filesDone: 8, filesTotal: 800 },
+				{ filesDone: 16, filesTotal: 800 },
+				{ filesDone: 20, filesTotal: 800 },
+				{ filesDone: 800, filesTotal: 800 },
+			]);
+		});
+
+		test('holds back a sample split across chunk boundaries until it completes', () => {
+			assert.deepStrictEqual(collect(['Updating files:  42% (33', '6/800)\r']), [
+				{ filesDone: 336, filesTotal: 800 },
+			]);
+		});
 	});
 
 	suite('parseGitStatusV2', () => {
@@ -43,6 +105,7 @@ suite('AgentHostGitService', () => {
 			].join('\n');
 			assert.deepStrictEqual(parseGitStatusV2(out), {
 				branchName: 'main',
+				isDetachedHead: undefined,
 				upstreamBranchName: 'origin/main',
 				outgoingChanges: 0,
 				incomingChanges: 0,
@@ -62,6 +125,7 @@ suite('AgentHostGitService', () => {
 			].join('\n');
 			assert.deepStrictEqual(parseGitStatusV2(out), {
 				branchName: 'feature',
+				isDetachedHead: undefined,
 				upstreamBranchName: 'origin/feature',
 				outgoingChanges: 3,
 				incomingChanges: 2,
@@ -76,6 +140,7 @@ suite('AgentHostGitService', () => {
 			].join('\n');
 			assert.deepStrictEqual(parseGitStatusV2(out), {
 				branchName: undefined,
+				isDetachedHead: true,
 				upstreamBranchName: undefined,
 				outgoingChanges: undefined,
 				incomingChanges: undefined,
@@ -85,6 +150,24 @@ suite('AgentHostGitService', () => {
 
 		test('returns empty object for undefined input', () => {
 			assert.deepStrictEqual(parseGitStatusV2(undefined), {});
+		});
+	});
+
+	suite('needsSessionGitStateRefresh', () => {
+		test('separates a branch-less probe failure from a detached HEAD', () => {
+			assert.deepStrictEqual({
+				neverComputed: needsSessionGitStateRefresh(undefined),
+				// The residue of a failed `git status`, as persisted before the
+				// probe learned to withhold state it could not compute.
+				probeFailureRemnant: needsSessionGitStateRefresh({ baseBranchName: 'main' }),
+				detachedHead: needsSessionGitStateRefresh({ isDetachedHead: true, baseBranchName: 'main' }),
+				onABranch: needsSessionGitStateRefresh({ branchName: 'feature', baseBranchName: 'main' }),
+			}, {
+				neverComputed: true,
+				probeFailureRemnant: true,
+				detachedHead: false,
+				onABranch: false,
+			});
 		});
 	});
 
@@ -120,6 +203,22 @@ suite('AgentHostGitService', () => {
 	});
 
 	suite('parseGitHubRepoFromRemote', () => {
+		test('parses only the requested fork remote', () => {
+			const out = [
+				'origin\tgit@github.com:base-owner/repo.git (fetch)',
+				'fork\thttps://github.com/fork-owner/repo.git (fetch)',
+			].join('\n');
+			assert.deepStrictEqual(parseGitHubRepoFromRemote(out, 'fork'), { owner: 'fork-owner', repo: 'repo' });
+		});
+
+		test('does not fall back when the requested remote is not GitHub', () => {
+			const out = [
+				'origin\tgit@github.com:base-owner/repo.git (fetch)',
+				'fork\thttps://gitlab.com/fork-owner/repo.git (fetch)',
+			].join('\n');
+			assert.strictEqual(parseGitHubRepoFromRemote(out, 'fork'), undefined);
+		});
+
 		test('parses ssh (scp-like) origin remote', () => {
 			const out = 'origin\tgit@github.com:microsoft/vscode.git (fetch)\norigin\tgit@github.com:microsoft/vscode.git (push)\n';
 			assert.deepStrictEqual(parseGitHubRepoFromRemote(out), { owner: 'microsoft', repo: 'vscode' });
@@ -154,6 +253,27 @@ suite('AgentHostGitService', () => {
 		});
 	});
 
+	test('orders fetch remote URLs with origin first and excludes push URLs', () => {
+		assert.deepStrictEqual(parseFetchRemoteUrls([
+			'upstream\tgit@github.com:microsoft/vscode.git (fetch)',
+			'origin\thttps://github.com/me/vscode.git (push)',
+			'origin\thttps://github.com/me/vscode.git (fetch)',
+		].join('\n')), [
+			'https://github.com/me/vscode.git',
+			'git@github.com:microsoft/vscode.git',
+		]);
+	});
+
+	test('prefers the branch upstream remote before origin', () => {
+		assert.deepStrictEqual(parseFetchRemoteUrls([
+			'origin\thttps://github.com/me/vscode.git (fetch)',
+			'upstream\thttps://github.com/microsoft/vscode.git (fetch)',
+		].join('\n'), 'upstream'), [
+			'https://github.com/microsoft/vscode.git',
+			'https://github.com/me/vscode.git',
+		]);
+	});
+
 	suite('parseUntrackedPaths', () => {
 		test('returns empty for empty/undefined output', () => {
 			assert.deepStrictEqual(parseUntrackedPaths(undefined), []);
@@ -166,6 +286,55 @@ suite('AgentHostGitService', () => {
 			// must be skipped.
 			const out = '?? new.txt\x00 M edited.txt\x00R  to.txt\x00from.txt\x00?? other.txt\x00';
 			assert.deepStrictEqual(parseUntrackedPaths(out), ['new.txt', 'other.txt']);
+		});
+	});
+
+	suite('parseChangedPaths', () => {
+		test('returns every changed path including delete and index rename/copy sources', () => {
+			const out = [
+				' M modified.txt',
+				'A  added.txt',
+				' D deleted.txt',
+				'?? untracked.txt',
+				'R  renamed-new.txt',
+				'renamed-old.txt',
+				' C copied-new.txt',
+				'copied-old.txt',
+				'AD deleted-index-addition.txt',
+				'RD deleted-rename-destination.txt',
+				'rename-source.txt',
+				' M modified.txt',
+				'',
+			].join('\x00');
+
+			assert.deepStrictEqual(parseChangedPaths(out), [
+				'modified.txt',
+				'added.txt',
+				'deleted.txt',
+				'untracked.txt',
+				'renamed-new.txt',
+				'renamed-old.txt',
+				'copied-new.txt',
+				'copied-old.txt',
+				'rename-source.txt',
+			]);
+		});
+
+		test('returns worktree rename/copy source paths too', () => {
+			const out = [
+				' R worktree-renamed-new.txt',
+				'worktree-renamed-old.txt',
+				' C worktree-copied-new.txt',
+				'worktree-copied-old.txt',
+				'',
+			].join('\x00');
+
+			assert.deepStrictEqual(parseChangedPaths(out), [
+				'worktree-renamed-new.txt',
+				'worktree-renamed-old.txt',
+				'worktree-copied-new.txt',
+				'worktree-copied-old.txt',
+			]);
 		});
 	});
 
@@ -318,6 +487,26 @@ suite('AgentHostGitService', () => {
 		});
 	});
 
+	suite('isRetryableWorktreeRemovalError', () => {
+		test('retries transient lock / dir-not-empty races but not fatal removal errors', () => {
+			assert.deepStrictEqual({
+				dirNotEmpty: isRetryableWorktreeRemovalError(new Error(`git worktree exited with code 255: error: failed to delete '.git/worktrees/reply-exactly-materialized': Directory not empty`)),
+				indexLock: isRetryableWorktreeRemovalError(new Error('git worktree exited with code 128: fatal: Unable to create \'.git/worktrees/x/index.lock\': File exists')),
+				couldNotLock: isRetryableWorktreeRemovalError(new Error('git worktree exited with code 1: fatal: could not lock config file')),
+				dirtyTree: isRetryableWorktreeRemovalError(new Error(`git worktree exited with code 1: fatal: 'wt' contains modified or untracked files, use --force to delete it`)),
+				notAWorktree: isRetryableWorktreeRemovalError(new Error(`git worktree exited with code 128: fatal: 'wt' is not a working tree`)),
+				nonError: isRetryableWorktreeRemovalError('boom'),
+			}, {
+				dirNotEmpty: true,
+				indexLock: true,
+				couldNotLock: true,
+				dirtyTree: false,
+				notAWorktree: false,
+				nonError: false,
+			});
+		});
+	});
+
 	suite('summarizeStderrForError', () => {
 		test('returns empty string for empty input', () => {
 			assert.strictEqual(summarizeStderrForError(''), '');
@@ -343,5 +532,39 @@ suite('AgentHostGitService', () => {
 			assert.ok(result.endsWith('…'), 'expected trailing ellipsis');
 		});
 	});
-});
 
+	suite('resolveDiffBaseBranchName', () => {
+		test('prefers the persisted base branch, then git state, then undefined', () => {
+			assert.deepStrictEqual(
+				[
+					resolveDiffBaseBranchName('persisted', 'gitState'),
+					resolveDiffBaseBranchName(undefined, 'gitState'),
+					resolveDiffBaseBranchName('persisted', undefined),
+					resolveDiffBaseBranchName('origin/main', undefined),
+					resolveDiffBaseBranchName('refs/remotes/origin/release', undefined),
+					resolveDiffBaseBranchName(undefined, undefined),
+				],
+				['persisted', 'gitState', 'persisted', 'main', 'release', undefined],
+			);
+		});
+	});
+
+	suite('parseSingleLsTreeEntry', () => {
+		test('parses mode/oid and treats empty output as absent', () => {
+			assert.deepStrictEqual(
+				[
+					parseSingleLsTreeEntry('100644 blob e69de29bb2d1d6434b8b29ae775ad8c2e48c5391\ta.txt\x00'),
+					parseSingleLsTreeEntry('100755 blob abc123\tdir/with space.txt\x00'),
+					parseSingleLsTreeEntry(''),
+					parseSingleLsTreeEntry(undefined),
+				],
+				[
+					{ mode: '100644', oid: 'e69de29bb2d1d6434b8b29ae775ad8c2e48c5391' },
+					{ mode: '100755', oid: 'abc123' },
+					undefined,
+					undefined,
+				],
+			);
+		});
+	});
+});

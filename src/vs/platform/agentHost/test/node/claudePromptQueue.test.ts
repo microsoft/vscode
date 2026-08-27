@@ -7,6 +7,7 @@ import type { SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
@@ -45,6 +46,7 @@ function makeEntry(id: string, opts?: { steeringPendingId?: string; turnId?: str
 		sdkMessage,
 		sdkUuid: id,
 		turnId: opts?.turnId ?? 'turn-1',
+		stopWatch: StopWatch.create(false),
 		deferred: new DeferredPromise<void>(),
 		steeringPendingId: opts?.steeringPendingId,
 	};

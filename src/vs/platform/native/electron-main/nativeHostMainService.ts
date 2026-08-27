@@ -14,8 +14,8 @@ import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../
 import { matchesSomeScheme, Schemas } from '../../../base/common/network.js';
 import { dirname, join, posix, resolve, win32 } from '../../../base/common/path.js';
 import { isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
-import { AddFirstParameterToFunctions } from '../../../base/common/types.js';
-import { URI, UriComponents } from '../../../base/common/uri.js';
+import { AddFirstParameterToFunctions, hasKey } from '../../../base/common/types.js';
+import { URI } from '../../../base/common/uri.js';
 import { virtualMachineHint } from '../../../base/node/id.js';
 import { Promises, SymlinkSupport } from '../../../base/node/pfs.js';
 import { findFreePort, isPortFree } from '../../../base/node/ports.js';
@@ -27,7 +27,8 @@ import { IEnvironmentMainService } from '../../environment/electron-main/environ
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILifecycleMainService, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
-import { FocusMode, ICommonNativeHostService, INativeHostOptions, IOSProperties, IOSStatistics, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
+import { FocusMode, ICommonNativeHostService, INativeHostOptions, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, INativeZipOptions, IOpenAgentsWindowOptions, IOSProperties, IOSProxy, IOSProxyConfig, IOSStatistics, IStartTracingOptions, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
+import { IGlobalKeybindingsMainService } from '../../globalKeybindings/electron-main/globalKeybindingsMainService.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
@@ -43,17 +44,16 @@ import { IV8Profile } from '../../profiling/common/profiling.js';
 import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
 import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
 import { CancellationError } from '../../../base/common/errors.js';
-import { zip } from '../../../base/node/zip.js';
+import { extract, validateZip, zip, type IFile } from '../../../base/node/zip.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IProxyAuthService } from './auth.js';
 import { AuthInfo, Credentials, IRequestService } from '../../request/common/request.js';
 import { randomPath } from '../../../base/common/extpath.js';
-import { CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
 export const INativeHostMainService = createDecorator<INativeHostMainService>('nativeHostMainService');
-
 export class NativeHostMainService extends Disposable implements INativeHostMainService {
 
 	declare readonly _serviceBrand: undefined;
@@ -71,7 +71,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IRequestService private readonly requestService: IRequestService,
 		@IProxyAuthService private readonly proxyAuthService: IProxyAuthService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IGlobalKeybindingsMainService private readonly globalKeybindingsMainService: IGlobalKeybindingsMainService
 	) {
 		super();
 
@@ -275,7 +276,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	private async doOpenWindow(windowId: number | undefined, toOpen: IWindowOpenable[], options: IOpenWindowOptions = Object.create(null)): Promise<void> {
 		if (toOpen.length > 0) {
-			await this.windowsMainService.open({
+			const windows = await this.windowsMainService.open({
 				context: OpenContext.API,
 				contextWindowId: windowId,
 				urisToOpen: toOpen,
@@ -294,6 +295,15 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				forceProfile: options.forceProfile,
 				forceTempProfile: options.forceTempProfile,
 			});
+
+			// Hand off a chat session to the opened window so it restores both the
+			// folder and the session (e.g. the Agents window "Open in VS Code" flow).
+			// Only meaningful when exactly one window is opened so the session is
+			// not sent to an ambiguous target.
+			const chatSessionToOpen = options.chatSessionToOpen;
+			if (chatSessionToOpen && windows.length === 1) {
+				windows[0].sendWhenReady('vscode:openChatSession', CancellationToken.None, URI.revive(chatSessionToOpen).toString());
+			}
 		}
 	}
 
@@ -304,15 +314,22 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}, options);
 	}
 
-	async openAgentsWindow(windowId: number | undefined, options?: { folderUri?: UriComponents; initialQuery?: string; sessionResource?: UriComponents; preferredSessionType?: { providerId?: string; sessionTypeId: string } }): Promise<void> {
+	async openAgentsWindow(windowId: number | undefined, options?: IOpenAgentsWindowOptions): Promise<void> {
 		const windows = await this.windowsMainService.openAgentsWindow({
 			context: OpenContext.API,
 			contextWindowId: windowId,
 			cli: this.environmentMainService.args,
-		}, options?.folderUri ? URI.revive(options.folderUri) : undefined, options?.initialQuery, options?.sessionResource ? URI.revive(options.sessionResource) : undefined, options?.preferredSessionType);
+		}, options?.folderUri ? URI.revive(options.folderUri) : undefined, options?.sessionResource ? URI.revive(options.sessionResource) : undefined, options?.source);
 		if (windows.length > 0) {
 			windows[0].focus();
 		}
+	}
+
+	async syncSystemWideKeybindings(windowId: number | undefined, keybindings: INativeSystemWideKeybinding[]): Promise<INativeSystemWideKeybindingResult> {
+		if (typeof windowId !== 'number') {
+			return { failed: [] };
+		}
+		return this.globalKeybindingsMainService.updateKeybindings(windowId, keybindings);
 	}
 
 	async isFullScreen(windowId: number | undefined, options?: INativeHostOptions): Promise<boolean> {
@@ -1128,6 +1145,16 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return session?.resolveProxy(url);
 	}
 
+	async resolveProxyWithPackage(_windowId: number | undefined, url: string): Promise<IOSProxy[]> {
+		const { resolveProxy } = await import('@vscode/os-proxy-resolver');
+		return resolveProxy(url);
+	}
+
+	async readProxyConfigWithPackage(_windowId: number | undefined): Promise<IOSProxyConfig> {
+		const { readProxyConfig } = await import('@vscode/os-proxy-resolver');
+		return readProxyConfig();
+	}
+
 	async lookupAuthorization(_windowId: number | undefined, authInfo: AuthInfo): Promise<Credentials | undefined> {
 		return this.proxyAuthService.lookupAuthorization(authInfo);
 	}
@@ -1251,17 +1278,31 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	private _isTracing = false;
 
-	async startTracing(windowId: number | undefined, categories: string): Promise<void> {
+	async startTracing(windowId: number | undefined, categories: string, options?: IStartTracingOptions): Promise<void> {
 		if (this._isTracing) {
 			throw new Error(localize('tracing.alreadyInProgress', 'A tracing session is already in progress. Use command `"{0}"` to stop it first.', 'workbench.action.stopTracing'));
 		}
 
-		const traceOptions = ['record-until-full', 'enable-sampling'];
+		if (options?.enableHeapProfiling) {
+			await contentTracing.enableHeapProfiling();
+			await contentTracing.startRecording({
+				recording_mode: 'record-until-full',
+				included_categories: categories.split(','),
+				memory_dump_config: {
+					triggers: [
+						{ mode: 'detailed', type: 'periodic_interval', periodic_interval_ms: 10000 }
+					]
+				}
+			});
+		} else {
+			const traceOptions = ['record-until-full', 'enable-sampling'];
 
-		await contentTracing.startRecording({
-			categoryFilter: categories,
-			traceOptions: traceOptions.join(',')
-		});
+			await contentTracing.startRecording({
+				categoryFilter: categories,
+				traceOptions: traceOptions.join(',')
+			});
+		}
+
 		this._isTracing = true;
 	}
 
@@ -1380,8 +1421,87 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#region Zip
 
-	async createZipFile(windowId: number | undefined, zipPath: URI, files: { path: string; contents: string }[]): Promise<void> {
-		await zip(zipPath.fsPath, files);
+	async createZipFile(windowId: number | undefined, zipPath: URI, files: INativeZipFile[], options?: INativeZipOptions): Promise<void> {
+		const zipFiles: IFile[] = [];
+		const temporaryDirectories: string[] = [];
+		const maxSize = options?.maxSize;
+		try {
+			for (const file of files) {
+				if (hasKey(file, { contents: true })) {
+					zipFiles.push(file);
+					continue;
+				}
+				if (hasKey(file, { sourceArchive: true })) {
+					const sourceArchive = URI.revive(file.sourceArchive);
+					if (sourceArchive.scheme !== Schemas.file) {
+						throw new Error(`Cannot merge non-local archive '${sourceArchive.toString()}'`);
+					}
+					const temporaryDirectory = join(this.environmentMainService.tmpDir.fsPath, `vscode-zip-merge-${randomPath()}`);
+					temporaryDirectories.push(temporaryDirectory);
+					const archiveSize = (await fs.promises.stat(sourceArchive.fsPath)).size;
+					if (maxSize !== undefined && archiveSize > maxSize) {
+						throw new Error(`ZIP is too large to merge (${archiveSize} bytes; limit ${maxSize} bytes)`);
+					}
+					if (options) {
+						await validateZip(sourceArchive.fsPath, {
+							maxEntries: options.maxEntries,
+							maxUncompressedSize: maxSize,
+						});
+					}
+					await extract(sourceArchive.fsPath, temporaryDirectory, {}, CancellationToken.None);
+					zipFiles.push(...await collectZipFiles(temporaryDirectory));
+					continue;
+				}
+				const source = URI.revive(file.source);
+				if (source.scheme !== Schemas.file) {
+					throw new Error(`Cannot add non-local resource '${source.toString()}' to a zip file`);
+				}
+				zipFiles.push({ path: file.path, localPath: source.fsPath, localPathSize: file.size, skipSourceErrors: file.skipSourceErrors });
+			}
+
+			const paths = new Set<string>();
+			let uncompressedSize = 0;
+			const availableZipFiles: IFile[] = [];
+			for (const file of zipFiles) {
+				let fileSize = 0;
+				if (file.contents !== undefined) {
+					fileSize = typeof file.contents === 'string' ? Buffer.byteLength(file.contents) : file.contents.byteLength;
+				} else if (file.localPath) {
+					try {
+						const size = (await fs.promises.stat(file.localPath)).size;
+						fileSize = file.localPathSize === undefined ? size : Math.min(size, file.localPathSize);
+					} catch (error) {
+						if (file.skipSourceErrors) {
+							this.logService.warn(`[NativeHostMainService] Skipping ZIP entry '${file.path}' because its source could not be read: ${error instanceof Error ? error.message : String(error)}`);
+							continue;
+						}
+						throw error;
+					}
+				}
+				if (paths.has(file.path)) {
+					throw new Error(`Duplicate ZIP entry '${file.path}'`);
+				}
+				paths.add(file.path);
+				availableZipFiles.push(file);
+				uncompressedSize += fileSize;
+				if (maxSize !== undefined && uncompressedSize > maxSize) {
+					throw new Error(`ZIP expands beyond the allowed size (${uncompressedSize} bytes; limit ${maxSize} bytes)`);
+				}
+			}
+			if (options && availableZipFiles.length > options.maxEntries) {
+				throw new Error(`ZIP contains too many entries (${availableZipFiles.length}; limit ${options.maxEntries})`);
+			}
+			await zip(zipPath.fsPath, availableZipFiles);
+			if (maxSize !== undefined) {
+				const zipSize = (await fs.promises.stat(zipPath.fsPath)).size;
+				if (zipSize > maxSize) {
+					await fs.promises.rm(zipPath.fsPath, { force: true });
+					throw new Error(`ZIP is too large (${zipSize} bytes; limit ${maxSize} bytes)`);
+				}
+			}
+		} finally {
+			await Promise.all(temporaryDirectories.map(directory => Promises.rm(directory)));
+		}
 	}
 
 	//#endregion
@@ -1443,4 +1563,18 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 		return this.auxiliaryWindowsMainService.getWindowByWebContents(contents);
 	}
+}
+
+async function collectZipFiles(root: string, relative = ''): Promise<IFile[]> {
+	const entries = await fs.promises.readdir(join(root, relative), { withFileTypes: true });
+	const files: IFile[] = [];
+	for (const entry of entries) {
+		const path = relative ? posix.join(relative, entry.name) : entry.name;
+		if (entry.isDirectory()) {
+			files.push(...await collectZipFiles(root, path));
+		} else if (entry.isFile()) {
+			files.push({ path, localPath: join(root, path) });
+		}
+	}
+	return files;
 }

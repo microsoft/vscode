@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import type { Terminal, TerminalOptions } from 'vscode';
 import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
 import { IEnvService } from '../../../../platform/env/common/envService';
@@ -68,16 +68,16 @@ import { PythonTerminalService } from '../copilotCLIPythonTerminalService';
 import { CopilotCLITerminalIntegration } from '../copilotCLITerminalIntegration';
 
 interface MockTerminal extends Pick<Terminal, 'show' | 'sendText' | 'dispose'> {
-	show: ReturnType<typeof vi.fn>;
-	sendText: ReturnType<typeof vi.fn>;
-	dispose: ReturnType<typeof vi.fn>;
+	show: Mock;
+	sendText: Mock;
+	dispose: Mock;
 	shellIntegration: undefined;
 }
 
 class TestTerminalService extends NullTerminalService {
 	public mockTerminal: MockTerminal;
-	public createTerminalSpy: ReturnType<typeof vi.fn>;
-	public contributePathSpy: ReturnType<typeof vi.fn>;
+	public createTerminalSpy: Mock;
+	public contributePathSpy: Mock;
 
 	constructor() {
 		super();

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { notStrictEqual, strictEqual } from 'assert';
+import { deepStrictEqual, notStrictEqual, strictEqual } from 'assert';
 import { Schemas } from '../../../../base/common/network.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -17,7 +17,9 @@ import product from '../../../product/common/product.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { SaveStrategy, StateService } from '../../../state/node/stateService.js';
 import { IS_NEW_KEY, StorageScope } from '../../common/storage.js';
+import { IBaseSerializableStorageRequest, ISerializableCompareAndSwapRequest, ISerializableCompareAndSwapResult, ISerializableUpdateRequest } from '../../common/storageIpc.js';
 import { IStorageChangeEvent, IStorageMain, IStorageMainOptions } from '../../electron-main/storageMain.js';
+import { StorageDatabaseChannel } from '../../electron-main/storageIpc.js';
 import { StorageMainService } from '../../electron-main/storageMainService.js';
 import { currentSessionDateStorageKey, firstSessionDateStorageKey } from '../../../telemetry/common/telemetry.js';
 import { UriIdentityService } from '../../../uriIdentity/common/uriIdentityService.js';
@@ -149,6 +151,90 @@ suite('StorageMainService', function () {
 		const storageMainService = createStorageService();
 
 		return testStorage(storageMainService.workspaceStorage(workspace), StorageScope.WORKSPACE);
+	});
+
+	test('storage channel compareAndSwap isolates keys and storage scopes', async function () {
+		const storageMainService = createStorageService();
+		const channel = disposables.add(new StorageDatabaseChannel(new NullLogService(), storageMainService));
+		const workspace = { id: generateUuid() };
+		const applicationSharedStorage = disposables.add(storageMainService.applicationSharedStorage);
+		const profileStorage = disposables.add(storageMainService.profileStorage(inMemoryProfile));
+		const workspaceStorage = disposables.add(storageMainService.workspaceStorage(workspace));
+		const cases: Array<{ readonly name: string; readonly request: IBaseSerializableStorageRequest; readonly storage: IStorageMain }> = [
+			{
+				name: 'application',
+				request: { profile: undefined, workspace: undefined },
+				storage: storageMainService.applicationStorage,
+			},
+			{
+				name: 'applicationShared',
+				request: { profile: undefined, workspace: undefined, applicationShared: true },
+				storage: applicationSharedStorage,
+			},
+			{
+				name: 'profile',
+				request: { profile: inMemoryProfile, workspace: undefined },
+				storage: profileStorage,
+			},
+			{
+				name: 'workspace',
+				request: { profile: undefined, workspace },
+				storage: workspaceStorage,
+			},
+		];
+		for (const testCase of cases) {
+			const request: ISerializableUpdateRequest = {
+				...testCase.request,
+				insert: [
+					['key', `${testCase.name}-first`],
+					['unrelated', `${testCase.name}-sentinel`],
+				],
+			};
+			await channel.call(undefined, 'updateItems', request);
+		}
+
+		const compareAndSwap = (request: ISerializableCompareAndSwapRequest): Promise<ISerializableCompareAndSwapResult> => channel.call(undefined, 'compareAndSwap', request);
+		const results: ISerializableCompareAndSwapResult[] = [];
+		for (const testCase of cases) {
+			const request: ISerializableCompareAndSwapRequest = {
+				...testCase.request,
+				key: 'key',
+				expectedValue: `${testCase.name}-first`,
+				newValue: `${testCase.name}-second`,
+			};
+			results.push(await compareAndSwap(request));
+		}
+		const rejectedRequest: ISerializableCompareAndSwapRequest = {
+			...cases[0].request,
+			key: 'key',
+			expectedValue: 'stale',
+			newValue: 'should-not-write',
+		};
+		const rejected = await compareAndSwap(rejectedRequest);
+		const stored = cases.map(testCase => ({
+			name: testCase.name,
+			value: testCase.storage.get('key'),
+			unrelated: testCase.storage.get('unrelated'),
+		}));
+		await Promise.all([
+			applicationSharedStorage.close(),
+			profileStorage.close(),
+			workspaceStorage.close(),
+		]);
+
+		deepStrictEqual({
+			results,
+			rejected,
+			stored,
+		}, {
+			results: cases.map(testCase => ({ swapped: true, currentValue: `${testCase.name}-second` })),
+			rejected: { swapped: false, currentValue: 'application-second' },
+			stored: cases.map(testCase => ({
+				name: testCase.name,
+				value: `${testCase.name}-second`,
+				unrelated: `${testCase.name}-sentinel`,
+			})),
+		});
 	});
 
 	test('storage closed onWillShutdown', async function () {

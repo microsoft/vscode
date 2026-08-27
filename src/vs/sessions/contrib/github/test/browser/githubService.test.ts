@@ -7,6 +7,8 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { NullLogService, ILogService } from '../../../../../platform/log/common/log.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { GitHubService } from '../../browser/githubService.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -20,6 +22,7 @@ suite('GitHubService', () => {
 	setup(() => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IStorageService, store.add(new TestStorageService()));
 
 		service = store.add(instantiationService.createInstance(GitHubService));
 	});

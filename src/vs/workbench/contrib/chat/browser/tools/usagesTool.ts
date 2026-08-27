@@ -26,7 +26,7 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ISearchService, QueryType, resultIsMatch } from '../../../../services/search/common/search.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, } from '../../common/tools/languageModelToolsService.js';
 import { createToolSimpleTextResult } from '../../common/tools/builtinTools/toolHelpers.js';
-import { errorResult, findLineNumber, findSymbolColumn, ISymbolToolInput, resolveToolUri } from './toolHelpers.js';
+import { errorResult, findLineNumber, findSymbolColumn, ISymbolToolInput, resolveSymbolToolFileUri } from './toolHelpers.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ICodeUsageService } from './usagesService.js';
 
@@ -221,7 +221,7 @@ export class UsagesTool extends Disposable implements IToolImpl {
 		const input = invocation.parameters as ISymbolToolInput;
 
 		// --- resolve URI ---
-		const uri = resolveToolUri(input, this._workspaceContextService, invocation.context?.workingDirectory);
+		const uri = resolveSymbolToolFileUri(input, this._workspaceContextService, invocation.context?.workingDirectory);
 		if (!uri) {
 			return errorResult('Provide either "uri" (a full URI) or "filePath" (a workspace-relative path) to identify the file.');
 		}
