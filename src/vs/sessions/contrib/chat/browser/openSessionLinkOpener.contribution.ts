@@ -28,8 +28,10 @@ import { getSessionSummaryHoverData } from '../../sessions/browser/sessionHoverC
  * backend session URI; the owning session in the window uses a client scheme
  * (e.g. `agent-host-copilotcli`), so matching goes through
  * {@link IAgentHostConnectionsService.resolveSessionResource}. When the link
- * carries a chat id (from `create_chat`), the specific peer chat is opened via
- * {@link ISessionsService.openChat} instead of the whole session.
+ * carries a chat id (from `create_chat`), that specific peer chat is opened;
+ * otherwise the session's main/default chat is opened, via
+ * {@link ISessionsService.openChat} in both cases so the correct chat becomes
+ * active even when a different chat of the same session is currently showing.
  */
 export class OpenSessionLinkOpenerContribution extends Disposable implements IWorkbenchContribution {
 
@@ -84,13 +86,14 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		if (!session) {
 			return false;
 		}
+		// An absent chat id means the default chat (see buildOpenSessionLinkUri),
+		// so it must still resolve to a concrete chat rather than merely focusing
+		// the session: when a different chat of this same session is already
+		// active (e.g. a delegated request's source is the default chat), opening
+		// just the session would leave the wrong chat showing.
 		const chatId = parseOpenSessionLinkChatId(resource);
-		if (chatId) {
-			const chatResource = session.resource.with({ fragment: chatId });
-			await this._sessionsService.openChat(session, chatResource);
-			return true;
-		}
-		await this._sessionsService.openSession(session.resource, { source: 'link' });
+		const chatResource = chatId ? session.resource.with({ fragment: chatId }) : session.mainChat.get().resource;
+		await this._sessionsService.openChat(session, chatResource, { source: 'link' });
 		return true;
 	}
 }

@@ -53,8 +53,80 @@ suite('OpenSessionLinkOpenerContribution', () => {
 		};
 		const sessionResource = URI.parse('copilotcli:/session-1');
 		const chatResource = sessionResource.with({ fragment: 'chat-2' });
+		const mainChat = upcastPartial<IChat>({ resource: sessionResource });
 		const chat = upcastPartial<IChat>({ resource: chatResource });
-		const session = upcastPartial<ISession>({ resource: sessionResource, chats: observableValue('chats', [chat]) });
+		const session = upcastPartial<ISession>({ resource: sessionResource, mainChat: observableValue('mainChat', mainChat), chats: observableValue('chats', [chat]) });
+		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
+			override getSessions(): ISession[] {
+				return [session];
+			}
+		};
+		const opened: string[] = [];
+		const sessionsService = new class extends mock<ISessionsService>() {
+			override async openChat(_session: ISession, resource: URI): Promise<void> {
+				opened.push(`chat:${resource.toString()}`);
+			}
+		};
+		const connectionsService = new class extends mock<IAgentHostConnectionsService>() {
+			override resolveSessionResource() {
+				return undefined;
+			}
+		};
+		const linkPresentationService = new class extends mock<ILinkPresentationService>() {
+			override registerLinkPresentationProvider(): IDisposable {
+				return Disposable.None;
+			}
+		};
+		const sessionSummaryHoverService = createSessionSummaryHoverService().service;
+		store.add(new OpenSessionLinkOpenerContribution(
+			openerService,
+			sessionsManagementService,
+			sessionsService,
+			connectionsService,
+			linkPresentationService,
+			sessionsProvidersService,
+			sessionSummaryHoverService,
+		));
+
+		if (!registeredOpener) {
+			throw new Error('Expected the contribution to register an opener');
+		}
+
+		assert.deepStrictEqual({
+			results: [
+				await registeredOpener.open(buildOpenSessionLinkUri(sessionResource)),
+				await registeredOpener.open(buildOpenSessionLinkUri(sessionResource, 'chat-2', 'turn-1')),
+			],
+			opened,
+		}, {
+			results: [true, true],
+			opened: [
+				// No chat id resolves to the session's main/default chat (whose
+				// resource has no fragment), not a bare "focus the session" call,
+				// so it still switches away from whatever chat was showing.
+				'chat:copilotcli:/session-1',
+				'chat:copilotcli:/session-1#chat-2',
+			],
+		});
+	});
+
+	test('a request-origin link to the default chat switches away from a different active chat', async () => {
+		// Regression test: a delegated request whose source is the session's
+		// default chat produces a link with no chat id (buildOpenSessionLinkUri
+		// omits it for the default chat). Opening it must still land on the
+		// default chat via openChat, not merely re-focus the session with
+		// openSession, which leaves whatever chat is currently showing (e.g. the
+		// peer/subagent chat that received the delegated message) unchanged.
+		let registeredOpener: IOpener | undefined;
+		const openerService = new class extends mock<IOpenerService>() {
+			override registerOpener(opener: IOpener): IDisposable {
+				registeredOpener = opener;
+				return Disposable.None;
+			}
+		};
+		const sessionResource = URI.parse('copilotcli:/session-1');
+		const mainChat = upcastPartial<IChat>({ resource: sessionResource });
+		const session = upcastPartial<ISession>({ resource: sessionResource, mainChat: observableValue('mainChat', mainChat), chats: observableValue('chats', [mainChat]) });
 		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
 			override getSessions(): ISession[] {
 				return [session];
@@ -95,19 +167,11 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			throw new Error('Expected the contribution to register an opener');
 		}
 
-		assert.deepStrictEqual({
-			results: [
-				await registeredOpener.open(buildOpenSessionLinkUri(sessionResource)),
-				await registeredOpener.open(buildOpenSessionLinkUri(sessionResource, 'chat-2', 'turn-1')),
-			],
-			opened,
-		}, {
-			results: [true, true],
-			opened: [
-				'session:copilotcli:/session-1',
-				'chat:copilotcli:/session-1#chat-2',
-			],
-		});
+		// Mirrors messageToRequestOrigin's output for a delegation whose source
+		// is the default chat: a turn id, but no chat id.
+		const result = await registeredOpener.open(buildOpenSessionLinkUri(sessionResource, undefined, 'turn-1'));
+
+		assert.deepStrictEqual({ result, opened }, { result: true, opened: ['chat:copilotcli:/session-1'] });
 	});
 
 	test('uses a contextual placeholder without opening the linked chat', () => {

@@ -13,11 +13,12 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import { LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { AGENT_HOST_SESSION_LINK_PATTERN, AgentSessionLinkStatus, buildAgentSessionLinkPresentation, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
+import { AGENT_HOST_SESSION_LINK_PATTERN, AGENT_HOST_SESSION_LINK_SCHEME, AgentSessionLinkStatus, buildAgentSessionLinkPresentation, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { ILinkPresentation, ILinkPresentationService, ILinkPresentationWatcher } from '../../../../../../platform/dataChannel/common/dataChannel.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
+import { IChatRequestOriginService } from '../../../common/chatRequestOrigin.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../chat.js';
@@ -36,6 +37,14 @@ import { ISessionSummaryHoverService } from '../sessionSummaryHoverService.js';
  * whose client scheme is `agent-host-<provider>`. We rebuild that client
  * resource and open it through {@link IChatWidgetService.openSession}.
  *
+ * Also registers an {@link IChatRequestOriginService} opener so a delegated
+ * request's "Sent from another chat" / "Sent by another session" origin —
+ * whose `sourceSessionResource` is the same `agent-host-session://` link — opens
+ * correctly here too, mirroring the Agents window's
+ * `SessionsChatRequestOriginProviderContribution`. Without it, `ChatRequestOriginPart`
+ * finds no registered opener and falls back to treating the opaque link as a
+ * session resource directly, which fails to open anything.
+ *
  * Registered only from the workbench's electron-browser chat contribution (never
  * loaded by the Agents window), so it never competes with the Agents-window
  * opener.
@@ -48,6 +57,7 @@ export class AgentHostOpenSessionLinkOpenerContribution extends Disposable imple
 		@IOpenerService openerService: IOpenerService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
+		@IChatRequestOriginService requestOriginService: IChatRequestOriginService,
 		@ILinkPresentationService linkPresentationService: ILinkPresentationService,
 		@ILogService logService: ILogService,
 		@ISessionSummaryHoverService sessionSummaryHoverService: ISessionSummaryHoverService,
@@ -55,6 +65,11 @@ export class AgentHostOpenSessionLinkOpenerContribution extends Disposable imple
 		super();
 		this._register(openerService.registerOpener({
 			open: async resource => this._open(resource),
+		}));
+		this._register(requestOriginService.registerOpener({
+			open: async origin => origin.sourceSessionResource.scheme === AGENT_HOST_SESSION_LINK_SCHEME
+				? this._open(origin.sourceSessionResource)
+				: false,
 		}));
 		this._register(linkPresentationService.registerLinkPresentationProvider({
 			id: 'workbench.agentSessionLinkPresentation',
