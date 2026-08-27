@@ -16,9 +16,10 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { FocusMode } from '../../../../../platform/native/common/native.js';
 import { IChatWidget, IChatWidgetService } from '../../browser/chat.js';
 import { ChatWindowNotifier } from '../../browser/chatWindowNotifier.js';
-import { IChatService } from '../../common/chatService/chatService.js';
+import { IChatResponseErrorDetails, IChatService } from '../../common/chatService/chatService.js';
 import { ChatConfiguration, ChatNotificationMode } from '../../common/constants.js';
-import { IChatModel, IChatPendingRequest, IChatRequestModel, IChatRequestNeedsInputInfo } from '../../common/model/chatModel.js';
+import { IChatModel, IChatPendingRequest, IChatRequestModel, IChatRequestNeedsInputInfo, IChatResponseModel, IResponse } from '../../common/model/chatModel.js';
+import { IChatAgentResult } from '../../common/participants/chatAgents.js';
 import { IHostService, IToastOptions, IToastResult } from '../../../../services/host/browser/host.js';
 
 class TestHostService extends mock<IHostService>() {
@@ -64,16 +65,28 @@ function createModel(store: Pick<DisposableStore, 'add'>, id: string, options: {
 	requestInProgress: ReturnType<typeof observableValue<boolean>>;
 	requestNeedsInput: ReturnType<typeof observableValue<IChatRequestNeedsInputInfo | undefined>>;
 	setPendingRequestCount: (count: number) => void;
+	endLastResponse: (outcome: { isCanceled?: boolean; errorDetails?: IChatResponseErrorDetails }) => void;
 } {
 	const requestInProgress = observableValue<boolean>(`in-progress-${id}`, options.requestInProgress ?? true);
 	const requestNeedsInput = observableValue<IChatRequestNeedsInputInfo | undefined>(`needs-input-${id}`, undefined);
 	const onDidChangePendingRequests = store.add(new Emitter<void>());
 	let pendingRequests: readonly IChatPendingRequest[] = [];
-	const lastRequest = options.hasRequest === false ? undefined : new class extends mock<IChatRequestModel>() { };
+	const response = new class extends mock<IChatResponseModel>() {
+		override isCanceled = false;
+		override result: IChatAgentResult | undefined = undefined;
+		override readonly response = new class extends mock<IResponse>() {
+			override readonly value = [];
+		};
+	};
+	const lastRequest = options.hasRequest === false ? undefined : new class extends mock<IChatRequestModel>() {
+		override readonly response = response;
+	};
+	const lastRequestObs = observableValue<IChatRequestModel | undefined>(`last-request-${id}`, lastRequest);
 	const model = new class extends mock<IChatModel>() {
 		override readonly sessionResource = URI.parse(`test:///${id}`);
 		override readonly title = `Fix ${id}`;
 		override readonly lastRequest = lastRequest;
+		override readonly lastRequestObs = lastRequestObs;
 		override readonly requestInProgress = requestInProgress;
 		override readonly requestNeedsInput = requestNeedsInput;
 		override readonly onDidChangePendingRequests = onDidChangePendingRequests.event;
@@ -85,7 +98,12 @@ function createModel(store: Pick<DisposableStore, 'add'>, id: string, options: {
 		pendingRequests = Array.from({ length: count }, () => new class extends mock<IChatPendingRequest>() { });
 		onDidChangePendingRequests.fire();
 	};
-	return { model, requestInProgress, requestNeedsInput, setPendingRequestCount };
+	const endLastResponse = (outcome: { isCanceled?: boolean; errorDetails?: IChatResponseErrorDetails }) => {
+		response.isCanceled = outcome.isCanceled ?? false;
+		response.result = outcome.errorDetails ? { errorDetails: outcome.errorDetails } : undefined;
+		requestInProgress.set(false, undefined);
+	};
+	return { model, requestInProgress, requestNeedsInput, setPendingRequestCount, endLastResponse };
 }
 
 suite('ChatWindowNotifier', () => {
@@ -125,6 +143,27 @@ suite('ChatWindowNotifier', () => {
 		await timeout(600);
 
 		assert.deepStrictEqual(host.toasts, []);
+	});
+
+	test('notifies when a queue is left blocked by an error or a cancellation', async () => {
+		const failed = createModel(store, 'failed');
+		const failedHost = createNotifier(failed.model);
+		const cancelled = createModel(store, 'cancelled');
+		const cancelledHost = createNotifier(cancelled.model);
+
+		failed.setPendingRequestCount(1);
+		failed.endLastResponse({ errorDetails: { message: 'boom' } });
+		cancelled.setPendingRequestCount(1);
+		cancelled.endLastResponse({ isCanceled: true });
+		await timeout(600);
+
+		assert.deepStrictEqual([
+			failedHost.toasts.map(toast => toast.dedupeKey),
+			cancelledHost.toasts.map(toast => toast.dedupeKey),
+		], [
+			['chat-session:test:/failed:idle'],
+			['chat-session:test:/cancelled:idle'],
+		]);
 	});
 
 	test('notifies after a model becomes fully idle', async () => {

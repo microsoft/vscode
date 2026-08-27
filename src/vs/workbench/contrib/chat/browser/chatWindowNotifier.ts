@@ -24,15 +24,25 @@ import { IChatWidgetService } from './chat.js';
 
 /**
  * Observes whether a session has nothing left to do: no request running, no
- * input needed, and nothing queued or steering waiting to be sent. Queued
- * requests are event-based on the model, so they are lifted into an observable
- * as a count, which is stable across the array being mutated in place.
+ * input needed, and no queued work that is still going to run. Queued requests
+ * are event-based on the model, so they are lifted into an observable as a
+ * count, which is stable across the array being mutated in place.
  */
 function observeIsIdle(model: IChatModel): IObservable<boolean> {
 	const pendingRequestCount = observableFromEvent(model.onDidChangePendingRequests, () => model.getPendingRequests().length);
-	return derived(reader => !model.requestInProgress.read(reader)
-		&& !model.requestNeedsInput.read(reader)
-		&& pendingRequestCount.read(reader) === 0);
+	return derived(reader => {
+		if (model.requestInProgress.read(reader) || model.requestNeedsInput.read(reader)) {
+			return false;
+		}
+		if (pendingRequestCount.read(reader) === 0) {
+			return true;
+		}
+		// A queue only keeps the session busy while it can still drain. Both the chat
+		// service and the agent host stop draining after an error or a cancellation, so
+		// a session left in either state has no more work to do despite the queue.
+		const response = model.lastRequestObs.read(reader)?.response;
+		return !!response && (response.isCanceled || !!response.result?.errorDetails);
+	});
 }
 
 /**

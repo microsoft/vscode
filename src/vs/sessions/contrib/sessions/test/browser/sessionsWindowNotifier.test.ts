@@ -109,6 +109,10 @@ suite('SessionsWindowNotifier', () => {
 		protected override _getCompletedNotificationDelay(): number {
 			return 0;
 		}
+
+		protected override _getBackgroundNotificationDelay(): number {
+			return 0;
+		}
 	}
 
 	function createNotifier(
@@ -132,6 +136,16 @@ suite('SessionsWindowNotifier', () => {
 		return { notifier, sessions, host };
 	}
 
+	/**
+	 * Drains the chained zero-delay timers a notification passes through: the
+	 * completed-status debounce and the background-window delay.
+	 */
+	async function flushNotifications(): Promise<void> {
+		await timeout(0);
+		await timeout(0);
+		await timeout(0);
+	}
+
 	test('uses confirmation setting for needs-input transitions', async () => {
 		const { session, status } = createSession('needs-input', SessionStatus.InProgress);
 		const { host } = createNotifier(session, {
@@ -139,7 +153,7 @@ suite('SessionsWindowNotifier', () => {
 		});
 
 		status.set(SessionStatus.NeedsInput, undefined);
-		await timeout(0);
+		await flushNotifications();
 
 		assert.deepStrictEqual({
 			toasts: host.toasts,
@@ -163,10 +177,10 @@ suite('SessionsWindowNotifier', () => {
 		host.hasFocus = true;
 
 		status.set(SessionStatus.Completed, undefined);
-		await timeout(0);
+		await flushNotifications();
 		status.set(SessionStatus.InProgress, undefined);
 		status.set(SessionStatus.Error, undefined);
-		await timeout(0);
+		await flushNotifications();
 
 		assert.deepStrictEqual(host.toasts.map(toast => toast.body), [
 			'Completed in vscode.',
@@ -183,7 +197,7 @@ suite('SessionsWindowNotifier', () => {
 
 		status.set(SessionStatus.InProgress, undefined);
 		status.set(SessionStatus.NeedsInput, undefined);
-		await timeout(0);
+		await flushNotifications();
 
 		assert.deepStrictEqual(host.toasts, []);
 	});
@@ -196,7 +210,7 @@ suite('SessionsWindowNotifier', () => {
 		host.toastResult = { supported: true, clicked: true };
 
 		status.set(SessionStatus.Completed, undefined);
-		await timeout(0);
+		await flushNotifications();
 
 		assert.deepStrictEqual({
 			opened: sessions.opened.map(resource => resource.toString()),
@@ -215,9 +229,9 @@ suite('SessionsWindowNotifier', () => {
 
 		status.set(SessionStatus.Completed, undefined);
 		status.set(SessionStatus.InProgress, undefined);
-		await timeout(0);
+		await flushNotifications();
 		status.set(SessionStatus.Completed, undefined);
-		await timeout(0);
+		await flushNotifications();
 
 		assert.deepStrictEqual(host.toasts.map(toast => toast.body), [
 			'Completed in vscode.',
@@ -244,7 +258,7 @@ suite('SessionsWindowNotifier', () => {
 		store.add(management);
 
 		status.set(SessionStatus.Completed, undefined);
-		await timeout(0);
+		await flushNotifications();
 
 		assert.deepStrictEqual(host.toasts, []);
 	});
