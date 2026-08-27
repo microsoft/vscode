@@ -3170,9 +3170,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!newSession) {
 			throw new Error('Cannot start a session that is no longer pending.');
 		}
+		const previousStatus = newSession.session.status.get();
 		newSession.setStatus(SessionStatus.InProgress);
 		newSession.setActivity(activity);
-		return toDisposable(() => newSession.setActivity(undefined));
+		return toDisposable(() => {
+			newSession.setActivity(undefined);
+			if (this._getNewSession(sessionId) === newSession && newSession.session.status.get() === SessionStatus.InProgress) {
+				newSession.setStatus(previousStatus);
+			}
+		});
 	}
 
 	createQuickChat(sessionTypeId: string): ISession {

@@ -300,12 +300,16 @@ suite('Sessions rename', () => {
 			assert.deepStrictEqual({
 				hasDoubleClick: content.includes('double-click its title'),
 				hasContextMenu: content.includes('open its context menu'),
+				hasDevContainerAvailability: content.includes('Docker is available') && content.includes('selected local folder contains a Dev Container configuration'),
+				hasDevContainerExecution: content.includes('run the session on an Agent Host inside that folder\'s Dev Container'),
 				hasPetAchievements: content.includes('View Achievements'),
 				activeElement: mainWindow.document.activeElement,
 				fallbackFocusCount: fallbackFocusCount(),
 			}, {
 				hasDoubleClick: true,
 				hasContextMenu: true,
+				hasDevContainerAvailability: true,
+				hasDevContainerExecution: true,
 				hasPetAchievements: true,
 				activeElement: origin,
 				fallbackFocusCount: 0,

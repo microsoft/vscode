@@ -7,6 +7,7 @@ import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -1066,6 +1067,150 @@ suite('SessionsManagementService', () => {
 		assert.strictEqual(view.activeSession.get()?.sessionId, 's1');
 	});
 
+	test('sendNewChatRequest routes a prepared draft through its replacement provider', async () => {
+		const folder = URI.file('/workspace');
+		const workspace: ISessionWorkspace = {
+			uri: folder,
+			label: 'Workspace',
+			icon: Codicon.vm,
+			folders: [{ root: folder, workingDirectory: folder, name: 'Workspace', description: undefined }],
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
+		};
+		const originalStatus = observableValue('originalStatus', SessionStatus.Untitled);
+		const originalChat: IChat = { ...stubChat, status: originalStatus };
+		const original = stubSession({
+			sessionId: 'local-draft',
+			providerId: 'local',
+			status: originalStatus,
+			chats: constObservable([originalChat]),
+			mainChat: constObservable(originalChat),
+			workspace: constObservable(workspace),
+		});
+		const replacementStatus = observableValue('replacementStatus', SessionStatus.Untitled);
+		const replacementChat: IChat = { ...stubChat, resource: URI.parse('dev:///chat'), status: replacementStatus };
+		const replacement = stubSession({
+			sessionId: 'dev-draft',
+			providerId: 'dev',
+			status: replacementStatus,
+			chats: constObservable([replacementChat]),
+			mainChat: constObservable(replacementChat),
+			workspace: constObservable(workspace),
+		});
+		const preparation = new DeferredPromise<void>();
+		const deleted: string[] = [];
+		const originalProvider = new class extends TestSessionsProvider {
+			override readonly id = 'local';
+			constructor() { super(original); }
+			override resolveWorkspace(): ISessionWorkspace { return workspace; }
+			override createNewSession(): ISession { return original; }
+			override startNewSessionRequest() {
+				originalStatus.set(SessionStatus.InProgress, undefined);
+				return toDisposable(() => {
+					if (originalStatus.get() === SessionStatus.InProgress) {
+						originalStatus.set(SessionStatus.Untitled, undefined);
+					}
+				});
+			}
+			override async prepareNewSession() {
+				await preparation.p;
+				return { session: replacement };
+			}
+			override deleteNewSession(sessionId: string): void { deleted.push(sessionId); }
+		}();
+		const sent: string[] = [];
+		const replacementProvider = new class extends TestSessionsProvider {
+			override readonly id = 'dev';
+			constructor() { super(replacement); }
+			override startNewSessionRequest() {
+				replacementStatus.set(SessionStatus.InProgress, undefined);
+				return toDisposable(() => {
+					if (replacementStatus.get() === SessionStatus.InProgress) {
+						replacementStatus.set(SessionStatus.Untitled, undefined);
+					}
+				});
+			}
+			override async createNewChat(): Promise<IChat> {
+				sent.push('createNewChat');
+				return replacementChat;
+			}
+			override async sendRequest(sessionId: string): Promise<ISession> {
+				sent.push(`sendRequest:${sessionId}`);
+				return replacement;
+			}
+		}();
+		const { service, view } = createSessionsManagementService(original, disposables, [originalProvider, replacementProvider]);
+		service.createNewSession(folder, { providerId: originalProvider.id, sessionTypeId: 'test' });
+		await view.openSession(original.resource);
+		const replacements: string[] = [];
+		disposables.add(service.onDidReplaceNewDraftSession(({ from, to }) => replacements.push(`${from.sessionId}->${to.sessionId}`)));
+
+		const send = service.sendNewChatRequest(original, { query: 'hi' });
+		assert.deepStrictEqual({
+			statusDuringPreparation: original.status.get(),
+			activeSessionDuringPreparation: view.activeSession.get()?.sessionId,
+		}, {
+			statusDuringPreparation: SessionStatus.InProgress,
+			activeSessionDuringPreparation: 'local-draft',
+		});
+		preparation.complete();
+		await send;
+
+		assert.deepStrictEqual({
+			deleted,
+			replacements,
+			sent,
+			visibleSessions: view.visibleSessions.get().map(session => session?.sessionId ?? null),
+			activeSession: view.activeSession.get()?.sessionId,
+			replacementStatus: replacement.status.get(),
+		}, {
+			deleted: ['local-draft'],
+			replacements: ['local-draft->dev-draft'],
+			sent: ['createNewChat', 'sendRequest:dev-draft'],
+			visibleSessions: ['dev-draft'],
+			activeSession: 'dev-draft',
+			replacementStatus: SessionStatus.Untitled,
+		});
+	});
+
+	test('sendNewChatRequest restores an untitled draft when preparation fails', async () => {
+		const status = observableValue('status', SessionStatus.Untitled);
+		const chat: IChat = { ...stubChat, status };
+		const session = stubSession({
+			sessionId: 'draft',
+			providerId: 'test',
+			status,
+			chats: constObservable([chat]),
+			mainChat: constObservable(chat),
+		});
+		const preparation = new DeferredPromise<void>();
+		const provider = new class extends TestSessionsProvider {
+			override startNewSessionRequest() {
+				status.set(SessionStatus.InProgress, undefined);
+				return toDisposable(() => status.set(SessionStatus.Untitled, undefined));
+			}
+			override async prepareNewSession(): Promise<never> {
+				await preparation.p;
+				throw new Error('prepare failed');
+			}
+		}(session);
+		const { service, view } = createSessionsManagementService(session, disposables, provider);
+		await view.openSession(session.resource);
+
+		const send = service.sendNewChatRequest(session, { query: 'hi' });
+		assert.strictEqual(status.get(), SessionStatus.InProgress);
+		preparation.complete();
+		await assert.rejects(send, /prepare failed/);
+
+		assert.deepStrictEqual({
+			status: status.get(),
+			activeSession: view.activeSession.get()?.sessionId,
+		}, {
+			status: SessionStatus.Untitled,
+			activeSession: 'draft',
+		});
+	});
+
 	test('sendNewChatRequest tracks a foreground first request until it settles', async () => {
 		const session = stubSession({
 			sessionId: 's1',
@@ -1180,7 +1325,7 @@ suite('SessionsManagementService', () => {
 		assert.deepStrictEqual(service.getInFlightNewSessionRequests(), []);
 	});
 
-	test('sendNewChatRequest with background resolves before provider send commits', async () => {
+	test('sendNewChatRequest with background resolves before preparation and routes the replacement in the background', async () => {
 		const chat: IChat = { ...stubChat, resource: URI.parse('test:///chat') };
 		const session = stubSession({
 			sessionId: 's1',
@@ -1189,31 +1334,80 @@ suite('SessionsManagementService', () => {
 			mainChat: constObservable(chat),
 			status: constObservable(SessionStatus.Untitled),
 		});
+		const replacementChat: IChat = { ...stubChat, resource: URI.parse('replacement:///chat') };
+		const replacement = stubSession({
+			sessionId: 's2',
+			providerId: 'replacement',
+			chats: constObservable([replacementChat]),
+			mainChat: constObservable(replacementChat),
+		});
 		let completeSendRequest: (() => void) | undefined;
+		const preparation = new DeferredPromise<void>();
+		const sendRequestStartedBarrier = new DeferredPromise<void>();
+		const deleted: string[] = [];
+		const replacements: string[] = [];
+		let preparationStarted = false;
 		let sendRequestStarted = false;
 		const sendRequestFinished = new DeferredPromise<void>();
-		const provider = new class extends TestSessionsProvider {
-			override async sendRequest(_sessionId: string, _chatResource: URI, _options: ISendRequestOptions): Promise<ISession> {
+		let sentSessionId: string | undefined;
+		const originalProvider = new class extends TestSessionsProvider {
+			override async prepareNewSession() {
+				preparationStarted = true;
+				await preparation.p;
+				return { session: replacement };
+			}
+			override deleteNewSession(sessionId: string): void {
+				deleted.push(sessionId);
+			}
+		}(session);
+		const replacementProvider = new class extends TestSessionsProvider {
+			override readonly id = 'replacement';
+			override async sendRequest(sessionId: string, _chatResource: URI, _options: ISendRequestOptions): Promise<ISession> {
 				try {
+					sentSessionId = sessionId;
 					sendRequestStarted = true;
+					await sendRequestStartedBarrier.complete();
 					await new Promise<void>(resolve => {
 						completeSendRequest = resolve;
 					});
-					return session;
+					return replacement;
 				} finally {
 					sendRequestFinished.complete();
 				}
 			}
-		}(session);
-		const { service } = createSessionsManagementService(session, disposables, provider);
+		}(replacement);
+		const { service } = createSessionsManagementService(session, disposables, [originalProvider, replacementProvider]);
+		disposables.add(service.onDidReplaceNewDraftSession(({ from, to }) => replacements.push(`${from.sessionId}->${to.sessionId}`)));
 
-		// The background send is fire-and-forget: the promise resolves before
-		// the provider's `sendRequest` commits.
 		const sendPromise = service.sendNewChatRequest(session, { query: 'hi', background: true });
 		await sendPromise;
 
+		const whilePreparing = service.getInFlightNewSessionRequests().map(session => session.sessionId);
+		assert.deepStrictEqual({
+			preparationStarted,
+			sendRequestStarted,
+			deleted,
+			whilePreparing,
+		}, {
+			preparationStarted: true,
+			sendRequestStarted: false,
+			deleted: [],
+			whilePreparing: ['s1'],
+		});
+		await preparation.complete();
+		await preparation.complete();
+		await timeout(0);
+		await sendRequestStartedBarrier.p;
 		const whileSending = service.getInFlightNewSessionRequests().map(session => session.sessionId);
-
+		assert.deepStrictEqual({
+			deleted,
+			replacements,
+			sentSessionId,
+		}, {
+			deleted: ['s1'],
+			replacements: [],
+			sentSessionId: 's2',
+		});
 		completeSendRequest?.();
 		await sendRequestFinished.p;
 		await timeout(0);
