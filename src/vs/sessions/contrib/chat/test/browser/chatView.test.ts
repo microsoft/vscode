@@ -189,7 +189,7 @@ suite('Sessions - Chat View', () => {
 		assert.deepStrictEqual({
 			enabled: part.classList.contains('has-chat-background'),
 			imageEnabled: part.classList.contains('has-chat-background-image'),
-			backgroundImage: part.style.backgroundImage,
+			backgroundImage: backgroundLayer?.style.backgroundImage,
 			backgroundLayerHidden: backgroundLayer?.hidden,
 			layerHidden: layer?.hidden,
 			layerAriaHidden: layer?.ariaHidden,
