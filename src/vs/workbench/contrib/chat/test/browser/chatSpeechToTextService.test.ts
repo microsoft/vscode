@@ -118,6 +118,8 @@ suite('ChatSpeechToTextService', () => {
 			emptyFinal: selectFinalDictationTranscript('complete visible transcript', '', true),
 			extendedFinal: selectFinalDictationTranscript('complete visible transcript', 'complete visible transcript with tail', true),
 			differentFinal: selectFinalDictationTranscript('complete visible transcript', 'rewritten complete visible transcript', true),
+			fillerBeforeExtendedFinal: selectFinalDictationTranscript('um hello', 'hello world', true),
+			fillerOnlyLiveTranscript: selectFinalDictationTranscript('um', 'hello world', true),
 			noLiveTranscript: selectFinalDictationTranscript('', 'backend transcript', true),
 			hiddenLiveTranscript: selectFinalDictationTranscript('interim transcript', 'backend transcript', false),
 		}, {
@@ -125,6 +127,8 @@ suite('ChatSpeechToTextService', () => {
 			emptyFinal: 'complete visible transcript',
 			extendedFinal: 'complete visible transcript with tail',
 			differentFinal: 'complete visible transcript',
+			fillerBeforeExtendedFinal: 'hello world',
+			fillerOnlyLiveTranscript: 'hello world',
 			noLiveTranscript: 'backend transcript',
 			hiddenLiveTranscript: 'backend transcript',
 		});

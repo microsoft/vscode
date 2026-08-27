@@ -64,7 +64,8 @@ export function stripDictationFillers(text: string): string {
 }
 
 export function selectFinalDictationTranscript(liveTranscript: string, backendTranscript: string | undefined, preserveLiveTranscript: boolean): string {
-	if (preserveLiveTranscript && liveTranscript && !backendTranscript?.startsWith(liveTranscript)) {
+	const visibleLiveTranscript = stripDictationFillers(liveTranscript);
+	if (preserveLiveTranscript && visibleLiveTranscript && !stripDictationFillers(backendTranscript ?? '').startsWith(visibleLiveTranscript)) {
 		return liveTranscript;
 	}
 	return backendTranscript || liveTranscript;
