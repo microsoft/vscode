@@ -11,7 +11,7 @@ import { ITextModel } from '../../../../../../editor/common/model.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatModeInstructions, IVariableReference } from '../../chatModes.js';
-import { PromptFileSource, PromptsType, Target } from '../promptTypes.js';
+import { PromptFileFormat, PromptFileSource, PromptRootKind, PromptsType, Target } from '../promptTypes.js';
 import { IHandOff, ParsedPromptFile } from '../promptFileParser.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { IResolvedPromptSourceFolder } from '../config/promptFileLocations.js';
@@ -176,6 +176,16 @@ export interface IPromptPathBase {
 	 * The source that produced this prompt path.
 	 */
 	readonly source?: PromptFileSource;
+
+	/**
+	 * Fixed format metadata assigned by the source provider.
+	 */
+	readonly format?: PromptFileFormat;
+
+	/**
+	 * Fixed placement metadata assigned by the source provider.
+	 */
+	readonly rootKind?: PromptRootKind;
 
 	readonly name?: string;
 
@@ -498,6 +508,17 @@ export interface IAgentInstructionFile {
 	 */
 	readonly realPath: URI | undefined;
 	readonly type: AgentInstructionFileType;
+	readonly source?: AgentInstructionFileSource;
+	readonly rootKind?: PromptRootKind;
+}
+
+export enum AgentInstructionFileSource {
+	WorkspaceRoot = 'workspaceRoot',
+	ParentRepository = 'parentRepository',
+	ClaudeWorkspace = 'claudeWorkspace',
+	ClaudePersonal = 'claudePersonal',
+	GitHubWorkspace = 'githubWorkspace',
+	CopilotPersonal = 'copilotPersonal',
 }
 
 export interface Logger {

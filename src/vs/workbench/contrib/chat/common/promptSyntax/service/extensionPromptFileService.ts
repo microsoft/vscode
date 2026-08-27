@@ -18,7 +18,7 @@ import { IExtensionService } from '../../../../../services/extensions/common/ext
 import { IFilesConfigurationService } from '../../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { getSkillFolderName } from '../config/promptFileLocations.js';
 import { ParsedPromptFile, PromptFileParser } from '../promptFileParser.js';
-import { PromptFileSource, PromptsType } from '../promptTypes.js';
+import { PromptFileFormat, PromptFileSource, PromptRootKind, PromptsType } from '../promptTypes.js';
 import {
 	CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT,
 	IExtensionPromptPath,
@@ -51,6 +51,20 @@ const ALL_PROMPT_TYPES: readonly PromptsType[] = [
 	PromptsType.skill,
 	PromptsType.hook,
 ];
+
+function getExtensionPromptFormat(type: PromptsType): PromptFileFormat {
+	switch (type) {
+		case PromptsType.prompt:
+			return PromptFileFormat.PromptMarkdown;
+		case PromptsType.skill:
+			return PromptFileFormat.SkillMarkdown;
+		case PromptsType.agent:
+		case PromptsType.instructions:
+			return PromptFileFormat.ExtensionDeclared;
+		case PromptsType.hook:
+			return PromptFileFormat.HookJson;
+	}
+}
 
 /**
  * Owns the registry of prompt files contributed by extensions, both via
@@ -173,7 +187,19 @@ export class ExtensionPromptFileService extends Disposable {
 				}
 			}
 
-			return { uri, name, description, when, sessionTypes, storage: PromptsStorage.extension, type, extension, source: PromptFileSource.ExtensionContribution } satisfies IExtensionPromptPath;
+			return {
+				uri,
+				name,
+				description,
+				when,
+				sessionTypes,
+				storage: PromptsStorage.extension,
+				type,
+				extension,
+				source: PromptFileSource.ExtensionContribution,
+				format: getExtensionPromptFormat(type),
+				rootKind: PromptRootKind.Extension,
+			} satisfies IExtensionPromptPath;
 		})();
 		bucket.set(uri, entryPromise);
 
@@ -269,6 +295,8 @@ export class ExtensionPromptFileService extends Disposable {
 						type,
 						extension: providerEntry.extension,
 						source: PromptFileSource.ExtensionAPI,
+						format: getExtensionPromptFormat(type),
+						rootKind: PromptRootKind.Extension,
 						name: file.name,
 						description: file.description,
 						when: file.when,

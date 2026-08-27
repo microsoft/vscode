@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { TelemetryConfiguration, TelemetryLevel } from '../../common/telemetry.js';
-import { cleanRemoteAuthority, getTelemetryLevel } from '../../common/telemetryUtils.js';
+import { cleanRemoteAuthority, countConfigurationValue, getKeyedChanges, getTelemetryLevel } from '../../common/telemetryUtils.js';
 
 suite('TelemetryUtils', () => {
 
@@ -35,6 +35,46 @@ suite('TelemetryUtils', () => {
 			TelemetryLevel.NONE,
 			TelemetryLevel.NONE,
 		]);
+	});
+
+	test('counts explicit configuration values with caller-defined enablement', () => {
+		const classifyEntry = (entry: unknown, value: unknown) => Array.isArray(value)
+			? true
+			: typeof entry === 'boolean' ? entry : undefined;
+
+		assert.deepStrictEqual([
+			countConfigurationValue(undefined, classifyEntry),
+			countConfigurationValue([], classifyEntry),
+			countConfigurationValue(['one', 'two'], classifyEntry),
+			countConfigurationValue({ enabled: true, disabled: false, other: 'value' }, classifyEntry),
+			countConfigurationValue(false, classifyEntry),
+			countConfigurationValue('value', classifyEntry),
+		], [
+			{ configurationPresent: 0, configuredEntryCount: 0, enabledEntryCount: 0, disabledEntryCount: 0 },
+			{ configurationPresent: 1, configuredEntryCount: 0, enabledEntryCount: 0, disabledEntryCount: 0 },
+			{ configurationPresent: 1, configuredEntryCount: 2, enabledEntryCount: 2, disabledEntryCount: 0 },
+			{ configurationPresent: 1, configuredEntryCount: 3, enabledEntryCount: 1, disabledEntryCount: 1 },
+			{ configurationPresent: 1, configuredEntryCount: 1, enabledEntryCount: 0, disabledEntryCount: 1 },
+			{ configurationPresent: 1, configuredEntryCount: 1, enabledEntryCount: 0, disabledEntryCount: 0 },
+		]);
+	});
+
+	test('returns changed and removed keyed values', () => {
+		const previous = new Map([
+			['same', { count: 1 }],
+			['changed', { count: 1 }],
+			['removed', { count: 1 }],
+		]);
+		const current = new Map([
+			['same', { count: 1 }],
+			['changed', { count: 2 }],
+			['added', { count: 1 }],
+		]);
+
+		assert.deepStrictEqual(getKeyedChanges(previous, current), {
+			changed: [{ count: 2 }, { count: 1 }],
+			removed: [{ count: 1 }],
+		});
 	});
 
 	suite('cleanRemoteAuthority', () => {

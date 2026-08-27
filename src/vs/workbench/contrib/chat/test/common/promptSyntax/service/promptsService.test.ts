@@ -30,7 +30,7 @@ import { TestInstantiationService } from '../../../../../../../platform/instanti
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
-import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
 import { testWorkspace } from '../../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
@@ -90,6 +90,23 @@ class TestPromptContextKeyService extends MockContextKeyService {
 	}
 }
 
+class TestTelemetryService extends NullTelemetryServiceShape {
+	readonly events: { readonly name: string; readonly data: unknown }[] = [];
+
+	override publicLog2(eventName?: string, data?: unknown): void {
+		if (eventName) {
+			this.events.push({ name: eventName, data });
+		}
+	}
+}
+
+function isDiscoveryCountEvent(value: unknown): value is { readonly candidateCount: number; readonly disabledCount: number; readonly parseErrorCount: number } {
+	return typeof value === 'object' && value !== null
+		&& Object.hasOwn(value, 'candidateCount')
+		&& Object.hasOwn(value, 'disabledCount')
+		&& Object.hasOwn(value, 'parseErrorCount');
+}
+
 suite('PromptsService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -101,6 +118,7 @@ suite('PromptsService', () => {
 	let testPluginsObservable: ISettableObservable<readonly IAgentPlugin[]>;
 	let workspaceTrustService: TestWorkspaceTrustManagementService;
 	let logService: NullLogService;
+	let telemetryService: TestTelemetryService;
 
 	setup(async () => {
 		instaService = disposables.add(new TestInstantiationService());
@@ -125,8 +143,9 @@ suite('PromptsService', () => {
 		instaService.stub(IConfigurationService, testConfigService);
 		instaService.stub(IWorkbenchEnvironmentService, {});
 		instaService.stub(IUserDataProfileService, new TestUserDataProfileService());
-		instaService.stub(ITelemetryService, NullTelemetryService);
-		instaService.stub(IStorageService, InMemoryStorageService);
+		telemetryService = new TestTelemetryService();
+		instaService.stub(ITelemetryService, telemetryService);
+		instaService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 		instaService.stub(IExtensionService, {
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true),
 			activateByEvent: () => Promise.resolve()
@@ -218,6 +237,45 @@ suite('PromptsService', () => {
 
 		service = disposables.add(instaService.createInstance(PromptsService));
 		instaService.stub(IPromptsService, service);
+	});
+
+	test('cancellation does not emit parse-error discovery snapshots', async () => {
+		const extension = { identifier: { value: 'test.cancellation' } } as IExtensionDescription;
+		const registrations = [
+			service.registerPromptFileProvider(extension, PromptsType.prompt, { providePromptFiles: async () => [{ uri: URI.file('/extension/cancel.prompt.md') }] }),
+			service.registerPromptFileProvider(extension, PromptsType.agent, { providePromptFiles: async () => [{ uri: URI.file('/extension/cancel.agent.md') }] }),
+		];
+		registrations.forEach(registration => disposables.add(registration));
+		sinon.stub(service, 'parseNew').rejects(new CancellationError());
+
+		await service.getPromptSlashCommands(CancellationToken.None);
+		await service.getCustomAgents(CancellationToken.None);
+
+		assert.deepStrictEqual(telemetryService.events.filter(event =>
+			event.name === 'promptFilesFound'
+			|| event.name === 'customAgentsFound'
+		), []);
+	});
+
+	test('disabled malformed agents are reported as disabled rather than parse errors', async () => {
+		const agentUri = URI.file('/extension/disabled.agent.md');
+		const extension = { identifier: { value: 'test.disabled-agent' } } as IExtensionDescription;
+		disposables.add(service.registerPromptFileProvider(extension, PromptsType.agent, { providePromptFiles: async () => [{ uri: agentUri }] }));
+		service.setDisabledPromptFiles(PromptsType.agent, new ResourceSet([agentUri]));
+		assert.strictEqual(service.getDisabledPromptFiles(PromptsType.agent).has(agentUri), true);
+		sinon.stub(service, 'parseNew').rejects(new Error('malformed'));
+
+		await service.getCustomAgents(CancellationToken.None);
+
+		const event = telemetryService.events.filter(candidate => candidate.name === 'customAgentsFound').at(-1)?.data;
+		assert.ok(isDiscoveryCountEvent(event));
+		assert.deepStrictEqual({
+			disabledCount: event.disabledCount,
+			parseErrorCount: event.parseErrorCount,
+		}, {
+			disabledCount: 1,
+			parseErrorCount: 0,
+		});
 	});
 
 	test('lists local prompt files relative to an explicit root and its parent repository', async () => {
@@ -3962,7 +4020,7 @@ suite('PromptsService', () => {
 			sinon.restore();
 		});
 
-		test('CancellationError from parseNew is skipped without logging', async () => {
+		test('CancellationError from parseNew does not emit discovery telemetry', async () => {
 			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, false);
 
 			const promptUri = URI.parse('file://extensions/my-extension/cancelled.prompt.md');
@@ -3974,14 +4032,9 @@ suite('PromptsService', () => {
 			});
 			sinon.stub(service, 'parseNew').rejects(new CancellationError());
 
-			const slashCommands = await service.getPromptSlashCommands(CancellationToken.None);
-			const discoveryInfo = await service.getDiscoveryInfo(PromptsType.prompt, CancellationToken.None);
-
-			assert.deepStrictEqual(slashCommands, []);
+			assert.deepStrictEqual(await service.getPromptSlashCommands(CancellationToken.None), []);
 			assert.strictEqual(logErrorSpy.called, false);
-			assert.strictEqual(discoveryInfo.files.length, 1);
-			assert.strictEqual(discoveryInfo.files[0].status, 'skipped');
-			assert.strictEqual(discoveryInfo.files[0].skipReason, 'parse-error');
+			assert.strictEqual(telemetryService.events.some(event => event.name === 'promptFilesFound'), false);
 		});
 	});
 

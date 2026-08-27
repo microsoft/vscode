@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { cloneAndChange, safeStringify } from '../../../base/common/objects.js';
+import { cloneAndChange, equals, safeStringify } from '../../../base/common/objects.js';
 import { isObject } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
@@ -66,6 +66,55 @@ export interface ITelemetryAppender {
 }
 
 export const NullAppender: ITelemetryAppender = { log: () => null, flush: () => Promise.resolve(undefined) };
+
+export interface IConfigurationPresenceCounts {
+	readonly configurationPresent: number;
+	readonly configuredEntryCount: number;
+	readonly enabledEntryCount: number;
+	readonly disabledEntryCount: number;
+}
+
+export function countConfigurationValue(value: unknown, classifyEntry: (entry: unknown, value: unknown) => boolean | undefined): IConfigurationPresenceCounts {
+	const entries = value === undefined
+		? []
+		: Array.isArray(value)
+			? value
+			: value !== null && typeof value === 'object'
+				? Object.values(value)
+				: [value];
+	let enabledEntryCount = 0;
+	let disabledEntryCount = 0;
+	for (const entry of entries) {
+		const enabled = classifyEntry(entry, value);
+		if (enabled === true) {
+			enabledEntryCount++;
+		} else if (enabled === false) {
+			disabledEntryCount++;
+		}
+	}
+	return {
+		configurationPresent: value === undefined ? 0 : 1,
+		configuredEntryCount: entries.length,
+		enabledEntryCount,
+		disabledEntryCount,
+	};
+}
+
+export function getKeyedChanges<K, V>(previous: ReadonlyMap<K, V> | undefined, current: ReadonlyMap<K, V>): { readonly changed: readonly V[]; readonly removed: readonly V[] } {
+	const changed: V[] = [];
+	const removed: V[] = [];
+	for (const [key, value] of current) {
+		if (!equals(previous?.get(key), value)) {
+			changed.push(value);
+		}
+	}
+	for (const [key, value] of previous ?? []) {
+		if (!current.has(key)) {
+			removed.push(value);
+		}
+	}
+	return { changed, removed };
+}
 
 
 /* __GDPR__FRAGMENT__

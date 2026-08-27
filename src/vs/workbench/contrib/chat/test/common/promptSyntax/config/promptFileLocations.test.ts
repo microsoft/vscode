@@ -6,8 +6,8 @@
 import assert from 'assert';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { getPromptFileType, getCleanPromptName, isPromptOrInstructionsFile, isSkillFilename } from '../../../../common/promptSyntax/config/promptFileLocations.js';
-import { PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
+import { getPromptFileFormat, getPromptFileType, getCleanPromptName, isPromptOrInstructionsFile, isSkillFilename } from '../../../../common/promptSyntax/config/promptFileLocations.js';
+import { PromptFileFormat, PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
 
 suite('promptFileLocations', function () {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -16,6 +16,29 @@ suite('promptFileLocations', function () {
 		test('.prompt.md files', () => {
 			const uri = URI.file('/workspace/test.prompt.md');
 			assert.strictEqual(getPromptFileType(uri), PromptsType.prompt);
+		});
+
+		test('maps every accepted filesystem format at the locator boundary', () => {
+			const cases: readonly (readonly [string, PromptsType])[] = [
+				['/workspace/.github/prompts/test.prompt.md', PromptsType.prompt],
+				['/workspace/.github/agents/test.agent.md', PromptsType.agent],
+				['/workspace/.github/agents/test.chatmode.md', PromptsType.agent],
+				['/workspace/.github/agents/test.md', PromptsType.agent],
+				['/workspace/.github/skills/test/SKILL.md', PromptsType.skill],
+				['/workspace/.github/instructions/test.instructions.md', PromptsType.instructions],
+				['/workspace/.github/copilot-instructions.md', PromptsType.instructions],
+				['/workspace/.claude/rules/test.md', PromptsType.instructions],
+			];
+			assert.deepStrictEqual(cases.map(([path, type]) => getPromptFileFormat(URI.file(path), type)), [
+				PromptFileFormat.PromptMarkdown,
+				PromptFileFormat.AgentMarkdown,
+				PromptFileFormat.LegacyChatModeMarkdown,
+				PromptFileFormat.PlainMarkdown,
+				PromptFileFormat.SkillMarkdown,
+				PromptFileFormat.InstructionsMarkdown,
+				PromptFileFormat.CopilotInstructionsMarkdown,
+				PromptFileFormat.ClaudeRuleMarkdown,
+			]);
 		});
 
 		test('.instructions.md files', () => {

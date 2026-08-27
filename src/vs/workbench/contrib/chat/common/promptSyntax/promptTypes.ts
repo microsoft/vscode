@@ -149,12 +149,49 @@ export enum PromptFileSource {
 	ClaudeWorkspaceLocal = 'claude-workspace-local',
 	AgentsWorkspace = 'agents-workspace',
 	AgentsPersonal = 'agents-personal',
+	/** A configured path that does not start with `~/`; this is not a configuration scope. */
 	ConfigWorkspace = 'config-workspace',
+	/** A configured path that starts with `~/`; this is not a configuration scope. */
 	ConfigPersonal = 'config-personal',
 	UserData = 'user-data',
 	ExtensionContribution = 'extension-contribution',
 	ExtensionAPI = 'extension-api',
 	Plugin = 'plugin',
+	BuiltIn = 'built-in',
+}
+
+/**
+ * Fixed format metadata attached when a prompt customization enters discovery.
+ */
+export enum PromptFileFormat {
+	PromptMarkdown = 'promptMarkdown',
+	AgentMarkdown = 'agentMarkdown',
+	LegacyChatModeMarkdown = 'legacyChatModeMarkdown',
+	PlainMarkdown = 'plainMarkdown',
+	SkillMarkdown = 'skillMarkdown',
+	InstructionsMarkdown = 'instructionsMarkdown',
+	CopilotInstructionsMarkdown = 'copilotInstructionsMarkdown',
+	ClaudeRuleMarkdown = 'claudeRuleMarkdown',
+	PluginCommandMarkdown = 'pluginCommandMarkdown',
+	PluginAgentMarkdown = 'pluginAgentMarkdown',
+	PluginInstructionsMarkdown = 'pluginInstructionsMarkdown',
+	PluginMdc = 'pluginMdc',
+	PluginMarkdown = 'pluginMarkdown',
+	ExtensionDeclared = 'extensionDeclared',
+	HookJson = 'hookJson',
+}
+
+/**
+ * Fixed placement metadata attached by customization locators and providers.
+ */
+export enum PromptRootKind {
+	Workspace = 'workspace',
+	ParentRepository = 'parentRepository',
+	UserHome = 'userHome',
+	Profile = 'profile',
+	Extension = 'extension',
+	Plugin = 'plugin',
+	BuiltIn = 'builtIn',
 }
 
 /**

@@ -5,7 +5,7 @@
 
 import { URI } from '../../../../../../base/common/uri.js';
 import { basename, dirname } from '../../../../../../base/common/resources.js';
-import { PromptFileSource, PromptsType } from '../promptTypes.js';
+import { PromptFileFormat, PromptFileSource, PromptRootKind, PromptsType } from '../promptTypes.js';
 import { PromptsStorage } from '../service/promptsService.js';
 import { compareIgnoreCase } from '../../../../../../base/common/strings.js';
 
@@ -135,7 +135,7 @@ export const HOOKS_SOURCE_FOLDER = '.github/hooks';
  * Subset of {@link PromptFileSource} values that can appear on folder-based
  * prompt source configurations (excludes extension/plugin-only sources).
  */
-export type PromptFolderSource = Exclude<PromptFileSource, PromptFileSource.ExtensionContribution | PromptFileSource.ExtensionAPI | PromptFileSource.Plugin>;
+export type PromptFolderSource = Exclude<PromptFileSource, PromptFileSource.ExtensionContribution | PromptFileSource.ExtensionAPI | PromptFileSource.Plugin | PromptFileSource.BuiltIn>;
 
 /**
  * Prompt source folder path with source and storage type.
@@ -155,6 +155,7 @@ export interface IResolvedPromptSourceFolder {
 	readonly filePattern: string | undefined; // the part of the path with the glob pattern, or undefined if no glob pattern is used
 	readonly source: PromptFolderSource;
 	readonly storage: PromptsStorage.local | PromptsStorage.user;
+	readonly rootKind?: PromptRootKind;
 	/**
 	 * The original path string before resolution (e.g., '~/.copilot/agents' or '.github/agents').
 	 * Used for display purposes.
@@ -296,6 +297,37 @@ export function getPromptFileType(fileUri: URI): PromptsType | undefined {
 	}
 
 	return undefined;
+}
+
+/**
+ * Returns fixed format metadata for a customization accepted by file discovery.
+ */
+export function getPromptFileFormat(fileUri: URI, type: PromptsType): PromptFileFormat {
+	const filename = basename(fileUri);
+	switch (type) {
+		case PromptsType.prompt:
+			return PromptFileFormat.PromptMarkdown;
+		case PromptsType.agent:
+			if (filename.endsWith(LEGACY_MODE_FILE_EXTENSION)) {
+				return PromptFileFormat.LegacyChatModeMarkdown;
+			}
+			if (filename.endsWith(AGENT_FILE_EXTENSION)) {
+				return PromptFileFormat.AgentMarkdown;
+			}
+			return PromptFileFormat.PlainMarkdown;
+		case PromptsType.skill:
+			return PromptFileFormat.SkillMarkdown;
+		case PromptsType.instructions:
+			if (filename === COPILOT_CUSTOM_INSTRUCTIONS_FILENAME) {
+				return PromptFileFormat.CopilotInstructionsMarkdown;
+			}
+			if (isInClaudeRulesFolder(fileUri) && !filename.endsWith(INSTRUCTION_FILE_EXTENSION)) {
+				return PromptFileFormat.ClaudeRuleMarkdown;
+			}
+			return PromptFileFormat.InstructionsMarkdown;
+		case PromptsType.hook:
+			return PromptFileFormat.HookJson;
+	}
 }
 
 /**
