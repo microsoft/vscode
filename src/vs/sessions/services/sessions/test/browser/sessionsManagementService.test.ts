@@ -22,7 +22,8 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { IProgress, IProgressService, IProgressStep } from '../../../../../platform/progress/common/progress.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatRequestVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatModelReference, IChatRequestSubmittedEvent, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -37,6 +38,7 @@ import { ISessionChangeEvent, ISendRequestOptions, ISessionModelsSnapshot, ISess
 import { SessionsManagementService } from '../../browser/sessionsManagementService.js';
 import { ISessionsManagementService, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
 import { SessionsService } from '../../browser/sessionsService.js';
+import { ISessionOpenTelemetryService, SessionOpenTelemetryService } from '../../browser/sessionOpenTelemetryService.js';
 import { ISessionsPartService } from '../../browser/sessionsPartService.js';
 import { CustomViewService, ICustomViewService } from '../../../customView/browser/customViewService.js';
 import { ISessionsProvidersService } from '../../browser/sessionsProvidersService.js';
@@ -275,6 +277,7 @@ function createView(instantiationService: TestInstantiationService, service: ISe
 	instantiationService.stub(ISessionsPartService, new TestSessionsPartService());
 	instantiationService.stub(ICustomViewService, disposables.add(new CustomViewService(new NullLogService(), disposables.add(new InMemoryStorageService()))));
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
+	instantiationService.stub(ISessionOpenTelemetryService, disposables.add(new SessionOpenTelemetryService(NullTelemetryService)));
 	return disposables.add(instantiationService.createInstance(SessionsService));
 }
 
@@ -717,6 +720,109 @@ suite('SessionsManagementService', () => {
 		}, {
 			createNewSessionCalled: false,
 			activeSession: null,
+		});
+	});
+
+	test('canOpenSession grants a worktree trust from a trusted base repo before prompting', async () => {
+		const repoRoot = URI.file('/repo');
+		const worktree = URI.file('/repo.worktrees/feature');
+		const session = stubSession({
+			sessionId: 'wt-open',
+			providerId: 'test',
+			workspace: constObservable({
+				uri: repoRoot,
+				label: 'repo',
+				icon: Codicon.vm,
+				folders: [{
+					root: repoRoot,
+					workingDirectory: worktree,
+					name: 'feature',
+					description: undefined,
+					gitRepository: { uri: repoRoot, workTreeUri: worktree, baseBranchName: undefined, gitHubInfo: constObservable(undefined) },
+				}],
+				requiresWorkspaceTrust: true,
+				isVirtualWorkspace: false,
+			} satisfies ISessionWorkspace),
+		});
+
+		// The user trusts the base repo but not the worktree itself.
+		const trusted = new Set<string>([repoRoot.toString()]);
+		const setUrisTrustCalls: string[][] = [];
+		const trustManagement = new class extends TestWorkspaceTrustManagementService {
+			override async getUriTrustInfo(uri: URI) { return { uri, trusted: trusted.has(uri.toString()) }; }
+			override async setUrisTrust(uris: URI[], isTrusted: boolean) {
+				setUrisTrustCalls.push(uris.map(uri => uri.toString()));
+				if (isTrusted) { for (const uri of uris) { trusted.add(uri.toString()); } }
+			}
+		};
+		const resourcesTrustUris: string[] = [];
+		const trustRequest = new class extends mock<IWorkspaceTrustRequestService>() {
+			override async requestResourcesTrust(options: ResourceTrustRequestOptions) { resourcesTrustUris.push(options.uri.toString()); return true; }
+		};
+
+		const { view } = createSessionsManagementService(session, disposables, new TestSessionsProvider(session), trustManagement, trustRequest);
+
+		const canOpen = await view.canOpenSession(session);
+
+		// Worktree trust is inherited (granted) from the trusted base repo before the
+		// folder-trust check, so the open gate never prompts.
+		assert.deepStrictEqual({
+			canOpen,
+			granted: setUrisTrustCalls,
+			prompts: resourcesTrustUris,
+		}, {
+			canOpen: true,
+			granted: [[worktree.toString()]],
+			prompts: [],
+		});
+	});
+
+	test('canOpenSession still prompts for a worktree when the base repo is untrusted', async () => {
+		const repoRoot = URI.file('/repo-untrusted');
+		const worktree = URI.file('/repo-untrusted.worktrees/feature');
+		const session = stubSession({
+			sessionId: 'wt-open-untrusted',
+			providerId: 'test',
+			workspace: constObservable({
+				uri: repoRoot,
+				label: 'repo',
+				icon: Codicon.vm,
+				folders: [{
+					root: repoRoot,
+					workingDirectory: worktree,
+					name: 'feature',
+					description: undefined,
+					gitRepository: { uri: repoRoot, workTreeUri: worktree, baseBranchName: undefined, gitHubInfo: constObservable(undefined) },
+				}],
+				requiresWorkspaceTrust: true,
+				isVirtualWorkspace: false,
+			} satisfies ISessionWorkspace),
+		});
+
+		// Nothing is trusted: no inheritance, so the worktree must be prompted for
+		// and the declined open is refused.
+		const setUrisTrustCalls: string[][] = [];
+		const trustManagement = new class extends TestWorkspaceTrustManagementService {
+			override async getUriTrustInfo(uri: URI) { return { uri, trusted: false }; }
+			override async setUrisTrust(uris: URI[]) { setUrisTrustCalls.push(uris.map(uri => uri.toString())); }
+		};
+		const resourcesTrustUris: string[] = [];
+		const trustRequest = new class extends mock<IWorkspaceTrustRequestService>() {
+			override async requestResourcesTrust(options: ResourceTrustRequestOptions) { resourcesTrustUris.push(options.uri.toString()); return false; }
+		};
+
+		const { view } = createSessionsManagementService(session, disposables, new TestSessionsProvider(session), trustManagement, trustRequest);
+
+		const canOpen = await view.canOpenSession(session);
+
+		assert.deepStrictEqual({
+			canOpen,
+			granted: setUrisTrustCalls,
+			prompts: resourcesTrustUris,
+		}, {
+			canOpen: false,
+			granted: [],
+			prompts: [worktree.toString()],
 		});
 	});
 
@@ -2505,6 +2611,32 @@ suite('SessionsManagementService', () => {
 		}, {
 			visible: ['active', 'committed'],
 			active: 'active',
+		});
+	});
+
+	test('opens a session and targeted chat to the side', async () => {
+		const firstChat = { ...stubChat, resource: URI.parse('test:///first/main') };
+		const targetMain = { ...stubChat, resource: URI.parse('test:///target/main') };
+		const targetPeer = { ...stubChat, resource: URI.parse('test:///target/peer') };
+		const first = stubSession({ sessionId: 'first', providerId: 'test', chats: constObservable([firstChat]), mainChat: constObservable(firstChat) });
+		const target = stubSession({ sessionId: 'target', providerId: 'test', chats: constObservable([targetMain, targetPeer]), mainChat: constObservable(targetMain) });
+		const provider = new class extends TestSessionsProvider {
+			constructor() { super(first); }
+			override getSessions(): ISession[] { return [first, target]; }
+		};
+		const { view } = createSessionsManagementService(first, disposables, provider);
+		await view.openSession(first.resource);
+
+		await view.openSessionToSide(target, { chatResource: targetPeer.resource });
+
+		assert.deepStrictEqual({
+			visible: view.visibleSessions.get().map(session => session?.sessionId),
+			activeSession: view.activeSession.get()?.sessionId,
+			activeChat: view.activeSession.get()?.activeChat.get().resource.toString(),
+		}, {
+			visible: ['first', 'target'],
+			activeSession: 'target',
+			activeChat: targetPeer.resource.toString(),
 		});
 	});
 

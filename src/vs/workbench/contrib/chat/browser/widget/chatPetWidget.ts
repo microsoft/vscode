@@ -44,6 +44,9 @@ export interface IChatPetWidgetHost {
 	readonly onDidChangePlatform: Event<void>;
 }
 
+/** The layer the pet is positioned in, spanning its host. */
+export const CHAT_PET_OVERLAY_CLASS = 'chat-pet-overlay';
+
 export const CHAT_PET_IDLE_SLEEP_DELAY = 20_000;
 export const CHAT_PET_CONFIRMATION_ATTENTION_DURATION = 2_000;
 export const CHAT_PET_ACHIEVEMENT_UNLOCKED_DURATION = 10_000;
@@ -968,6 +971,41 @@ export function getChatPetPillPlatformTop(petCenterX: number, pillBounds: readon
 	return undefined;
 }
 
+/** Top of the topmost surface showing above the input, else the input's own top. */
+export function getChatPetStackPlatformTop(container: HTMLElement, inputContainer: HTMLElement, startAfter?: Element): number {
+	const inputTop = inputContainer.getBoundingClientRect().top;
+	let current = container;
+	let previousElement = startAfter;
+	while (true) {
+		const children = Array.from(current.children);
+		const startIndex = previousElement ? children.indexOf(previousElement) + 1 : 0;
+		let nestedContainer: HTMLElement | undefined;
+		for (let index = startIndex; index < children.length; index++) {
+			const child = children[index];
+			// The pet's own overlay spans the host, so it is never a platform.
+			if (!dom.isHTMLElement(child) || child.classList.contains(CHAT_PET_OVERLAY_CLASS)) {
+				continue;
+			}
+			if (child === inputContainer) {
+				return inputTop;
+			}
+			if (child.contains(inputContainer)) {
+				nestedContainer = child;
+				break;
+			}
+			const bounds = child.getBoundingClientRect();
+			if (bounds.height > 0 && bounds.top <= inputTop) {
+				return bounds.top;
+			}
+		}
+		if (!nestedContainer) {
+			return inputTop;
+		}
+		current = nestedContainer;
+		previousElement = undefined;
+	}
+}
+
 export function shouldPlaceChatPetSpeechBubbleLeft(state: ChatPetState | undefined, buttonRight: number, inputRight: number, scale = 1): boolean {
 	return state === 'rendering' && buttonRight + CHAT_PET_SPEECH_BUBBLE_RIGHT_OVERHANG * scale > inputRight;
 }
@@ -1159,6 +1197,7 @@ export class ChatPetWidget extends Disposable {
 
 	constructor(
 		host: IChatPetWidgetHost,
+		resizeObserverCtor: typeof ResizeObserver | undefined,
 		@IChatPetService private readonly chatPetService: IChatPetService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
@@ -1176,7 +1215,7 @@ export class ChatPetWidget extends Disposable {
 		this._selectedAccessory = this.chatPetService.selectedAccessory.get();
 		this._searchScheduler = this._register(new RunOnceScheduler(() => this._trySearch(), SEARCH_INTERVAL));
 		this.parent.classList.add('chat-pet-host');
-		this._overlay = dom.$('.chat-pet-overlay');
+		this._overlay = dom.$(`.${CHAT_PET_OVERLAY_CLASS}`);
 		this.parent.prepend(this._overlay);
 		this._register(toDisposable(() => {
 			this.parent.classList.remove('chat-pet-host');
@@ -1244,7 +1283,7 @@ export class ChatPetWidget extends Disposable {
 		speechBubbleImage.alt = '';
 		speechBubbleImage.setAttribute('aria-hidden', 'true');
 		this._speechBubble = { container: speechBubbleContainer, image: speechBubbleImage, canvas: speechBubbleCanvas };
-		this._resizeObserver = this._register(new dom.DisposableResizeObserver('ChatPetWidget.dragBounds', () => this._handleHostLayoutChange(), dom.getWindow(this._button.element)));
+		this._resizeObserver = this._register(new dom.DisposableResizeObserver('ChatPetWidget.dragBounds', () => this._handleHostLayoutChange(), dom.getWindow(this._button.element), { resizeObserverCtor }));
 		this._observeHost(host);
 		if (this._getHorizontalBounds() !== undefined) {
 			this._restoreHorizontalPosition();
@@ -1277,6 +1316,8 @@ export class ChatPetWidget extends Disposable {
 		const onTransitionComplete = (event: TransitionEvent) => {
 			if (event.propertyName === 'top' && this._button.element.classList.contains('falling')) {
 				this._finishFall();
+			} else if (event.target === this._button.element && event.propertyName === 'transform') {
+				this._button.element.classList.remove('returning-from-run');
 			}
 		};
 		this._register(dom.addDisposableListener(this._button.element, 'transitionend', onTransitionComplete));
@@ -1417,6 +1458,11 @@ export class ChatPetWidget extends Disposable {
 			}
 			const onTheRun = this.chatPetService.onTheRun.read(reader);
 			const isDead = this._isDead.read(reader);
+			if (onTheRun || this._motionReduced) {
+				this._button.element.classList.remove('returning-from-run');
+			} else if (this._enabled && this._button.element.classList.contains('on-the-run')) {
+				this._button.element.classList.add('returning-from-run');
+			}
 			this._button.element.classList.toggle('on-the-run', onTheRun);
 			const currentHost = this._host.read(reader);
 			const chatModel = currentHost.model.read(reader);
@@ -1444,6 +1490,7 @@ export class ChatPetWidget extends Disposable {
 				const wasInitialized = this._enablementInitialized;
 				this._enablementInitialized = true;
 				this._enabled = enabled;
+				this._observeHost(this._host.read(undefined));
 				if (enabled) {
 					if (isDead) {
 						this._showRespawnSequence();
@@ -1551,9 +1598,11 @@ export class ChatPetWidget extends Disposable {
 
 	private _observeHost(host: IChatPetWidgetHost): void {
 		const store = new DisposableStore();
-		store.add(this._resizeObserver.observe(host.dragBounds));
-		store.add(this._resizeObserver.observe(host.movementBounds));
-		store.add(this._resizeObserver.observe(host.parent));
+		if (this._enabled) {
+			store.add(this._resizeObserver.observe(host.dragBounds));
+			store.add(this._resizeObserver.observe(host.movementBounds));
+			store.add(this._resizeObserver.observe(host.parent));
+		}
 		store.add(host.onDidChangePlatform(() => this._updatePlatformPosition()));
 		this._hostLayoutDisposables.value = store;
 	}
@@ -2433,7 +2482,7 @@ export class ChatPetWidget extends Disposable {
 		this._throwAnimation.clear();
 		this._throwGeometryDirty = false;
 		this._button.element.style.transform = '';
-		this._button.element.classList.remove('entering', 'exiting', 'falling', 'throwing', 'dragging', 'resisting', 'soft-resisting');
+		this._button.element.classList.remove('entering', 'exiting', 'falling', 'throwing', 'dragging', 'resisting', 'soft-resisting', 'returning-from-run');
 		this._button.element.style.transitionDuration = '';
 		this._button.element.classList.add('hidden');
 		this._respawnEffectScheduler.cancel();

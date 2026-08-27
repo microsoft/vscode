@@ -49,6 +49,7 @@ import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWor
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
+import { getCompactCodicon } from '../../chatIcons.js';
 
 const FILTER_THRESHOLD = 10;
 
@@ -415,6 +416,10 @@ export class AgentHostChatInputPicker extends Disposable {
 		this._renderChip();
 	}
 
+	show(anchor: HTMLElement): void {
+		void this._showPicker(anchor);
+	}
+
 	private _reattach(): void {
 		const sessionResource = this._widget.viewModel?.sessionResource;
 		const provisionalBackend = sessionResource ? this._provisional.get(sessionResource) : undefined;
@@ -503,6 +508,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		this._trigger = undefined;
 		this._renderDisposables.clear();
 		dom.clearNode(this._container);
+		this._container.classList.remove('agent-host-chat-input-picker-has-icon');
 
 		const ctx = this._readContext();
 		// For sessions that have already started (i.e. no longer untitled —
@@ -547,8 +553,9 @@ export class AgentHostChatInputPicker extends Disposable {
 		dom.clearNode(trigger);
 
 		const icon = getConfigIcon(this._property, value);
+		this._container?.classList.toggle('agent-host-chat-input-picker-has-icon', !!icon);
 		if (icon) {
-			dom.append(trigger, renderIcon(icon));
+			dom.append(trigger, renderIcon(getCompactCodicon(icon)));
 		}
 		// Mirror the sessions-side picker: elevated approval levels get themed colors.
 		if (this._property === SessionConfigKey.AutoApprove) {

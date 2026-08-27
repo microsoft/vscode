@@ -1866,7 +1866,7 @@ suite('ChatThinkingContentPart', () => {
 			part.finalizeTitleIfDefault();
 
 			// The button should now show a check icon
-			const iconElement = part.domNode.querySelector('.codicon-check');
+			const iconElement = part.domNode.querySelector('.codicon-check-compact');
 			assert.ok(iconElement, 'Should have check icon after finalization');
 			assert.ok(part.domNode.classList.contains('chat-collapsible-content-animated'), 'Should enable content animation after finalization');
 		});
@@ -2150,7 +2150,7 @@ suite('ChatThinkingContentPart', () => {
 			disposables.add(toDisposable(() => part.domNode.remove()));
 
 			// Should have circle-filled icon (not loading spinner) while streaming
-			const circleIcon = part.domNode.querySelector('.codicon-circle-filled');
+			const circleIcon = part.domNode.querySelector('.codicon-circle-filled-compact');
 			assert.ok(circleIcon, 'Should have circle-filled icon while streaming');
 		});
 
@@ -2747,7 +2747,7 @@ suite('ChatThinkingContentPart', () => {
 				childClasses: [
 					'monaco-button monaco-icon-button monaco-text-button chat-thinking-title-with-diff',
 					'monaco-button chat-thinking-title-diff',
-					'chat-collapsible-hover-chevron codicon codicon-chevron-right expanded',
+					'chat-collapsible-hover-chevron codicon codicon-chevron-right-compact expanded',
 				],
 				initialExpanded: 'false',
 				expandedAfterChevronClick: 'true',

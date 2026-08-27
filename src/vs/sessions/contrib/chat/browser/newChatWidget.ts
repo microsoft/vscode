@@ -50,6 +50,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTracker.js';
 import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
+import { Menus } from '../../../browser/menus.js';
 
 // #region --- New Chat Widget ---
 
@@ -361,6 +362,8 @@ export class NewChatWidget extends Disposable {
 			petAction.checked = this.chatPetService.enabled.get();
 			const anchor = new StandardMouseEvent(dom.getWindow(element), e);
 			this.contextMenuService.showContextMenu({
+				menuId: Menus.SessionChatBackgroundContext,
+				contextKeyService: this.contextKeyService,
 				getAnchor: () => anchor,
 				getActions: () => [aquariumAction, petAction],
 				getCheckedActionsRepresentation: () => 'checkbox',

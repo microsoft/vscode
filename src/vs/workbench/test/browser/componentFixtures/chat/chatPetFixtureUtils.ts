@@ -72,6 +72,10 @@ export class FixtureChatPetService extends Disposable implements IChatPetService
 		this.scaleValue.set(scale, undefined);
 	}
 
+	resetScale(): void {
+		this.scaleValue.set(1, undefined);
+	}
+
 	setHorizontalPosition(position: number): void {
 		this.horizontalPositionValue.set(position, undefined);
 	}
@@ -108,4 +112,22 @@ export function configureChatPetFixtureFileRoot(disposableStore: DisposableStore
 	const previousFileRoot = globalThis._VSCODE_FILE_ROOT;
 	globalThis._VSCODE_FILE_ROOT = `${mainWindow.location.origin}/src/`;
 	disposableStore.add(toDisposable(() => globalThis._VSCODE_FILE_ROOT = previousFileRoot));
+}
+
+/** Fails loudly when the pet is missing, unpainted or cropped, which the screenshot alone would bake in as correct. */
+export function assertChatPetInScreenshot(container: HTMLElement): void {
+	const pet = container.querySelector('.chat-pet-button');
+	if (!pet) {
+		throw new Error('Chat pet fixture: the pet did not render.');
+	}
+	// A sprite stays hidden until its image loads and passes dimension validation.
+	const sprite = container.querySelector<HTMLImageElement>('.chat-pet-sprite:not(.hidden) img.chat-pet-spritesheet');
+	if (!sprite?.complete || sprite.naturalWidth === 0) {
+		throw new Error('Chat pet fixture: no pet sprite was painted, so the screenshot would show an empty pet.');
+	}
+	const petBounds = pet.getBoundingClientRect();
+	const bounds = container.getBoundingClientRect();
+	if (petBounds.top < bounds.top || petBounds.bottom > bounds.bottom || petBounds.left < bounds.left || petBounds.right > bounds.right) {
+		throw new Error(`Chat pet fixture: the pet falls outside the screenshot. Pet ${JSON.stringify(petBounds)}, container ${JSON.stringify(bounds)}.`);
+	}
 }

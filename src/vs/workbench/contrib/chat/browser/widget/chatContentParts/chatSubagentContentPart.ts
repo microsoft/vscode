@@ -40,7 +40,8 @@ import { IChatContentPart, IChatContentPartRenderContext } from './chatContentPa
 import { renderFileWidgets } from './chatInlineAnchorWidget.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { CollapsibleListPool } from './chatReferencesContentPart.js';
-import { buildPhrasePool, createThinkingIcon, getToolInvocationIcon } from './chatThinkingContentPart.js';
+import { buildPhrasePool, getToolInvocationIcon } from './chatThinkingContentPart.js';
+import { ChatThinkingStyleContentPart, createThinkingIcon } from './chatThinkingStyleContentPart.js';
 import { ChatToolInvocationPart } from './toolInvocationParts/chatToolInvocationPart.js';
 import './media/chatSubagentContent.css';
 
@@ -94,7 +95,7 @@ type ILazyItem = ILazyToolItem | ILazyMarkdownItem | ILazyHookItem;
  * This is generally copied from ChatThinkingContentPart. We are still experimenting with both UIs so I'm not
  * trying to refactor to share code. Both could probably be simplified when stable.
  */
-export class ChatSubagentContentPart extends ChatCollapsibleContentPart implements IChatContentPart {
+export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implements IChatContentPart {
 	private wrapper!: HTMLElement;
 	private isActive: boolean;
 	private isExternallyActive: boolean;
@@ -167,11 +168,9 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 
 	// Working spinner elements for expanded state
 	private workingSpinnerElement: HTMLElement | undefined;
-	private workingSpinnerLabel: HTMLElement | undefined;
 	private availableMessages: string[] | undefined;
 
 	// Persistent title elements for shimmer
-	private titleShimmerSpan: HTMLElement | undefined;
 	private titleDetailContainer: HTMLElement | undefined;
 	private readonly _titleDetailRendered = this._register(new MutableDisposable<IRenderedMarkdown>());
 
@@ -480,7 +479,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		}
 
 		const node = this.domNode;
-		node.classList.add('chat-thinking-box', 'chat-thinking-fixed-mode', 'chat-subagent-part');
+		node.classList.add('chat-thinking-fixed-mode', 'chat-subagent-part');
 		const animationContainer = this.contentAnimationContainer;
 		if (animationContainer) {
 			const pendingAnimationCleanup = this._register(new MutableDisposable<IDisposable>());
@@ -507,35 +506,10 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		// subagent's own (read-only) chat when it runs as a distinct chat.
 		this._updateOpenChatLink();
 
+		this.setThinkingActive(this.isActive);
 		if (this.isActive) {
-			node.classList.add('chat-thinking-active');
+			this.setShimmerTitle(initialTitle);
 		}
-
-		// Apply shimmer to the initial title when still active
-		if (this.isActive && this._collapseButton) {
-			const labelElement = this._collapseButton.labelElement;
-			labelElement.textContent = '';
-			this.titleShimmerSpan = $('span.chat-thinking-title-shimmer');
-			this.titleShimmerSpan.textContent = initialTitle;
-			labelElement.appendChild(this.titleShimmerSpan);
-		}
-
-		// Note: wrapper is created lazily in initContent(), so we can't set its style here
-
-		if (this._collapseButton && this.isActive) {
-			this._collapseButton.icon = Codicon.circleFilled;
-		}
-
-		this._register(autorun(r => {
-			this.expanded.read(r);
-			if (this._collapseButton) {
-				if (this.isActive) {
-					this._collapseButton.icon = Codicon.circleFilled;
-				} else {
-					this._collapseButton.icon = Codicon.check;
-				}
-			}
-		}));
 
 		// Materialize lazy items when first expanded
 		this._register(autorun(r => {
@@ -594,12 +568,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		if (this.workingSpinnerElement || !this.wrapper) {
 			return;
 		}
-		this.workingSpinnerElement = $('.chat-thinking-item.chat-thinking-spinner-item');
-		const spinnerIcon = createThinkingIcon(Codicon.circleFilled);
-		this.workingSpinnerElement.appendChild(spinnerIcon);
-		this.workingSpinnerLabel = $('span.chat-thinking-spinner-label');
-		this.workingSpinnerLabel.textContent = this.getRandomWorkingMessage();
-		this.workingSpinnerElement.appendChild(this.workingSpinnerLabel);
+		this.workingSpinnerElement = this.createThinkingSpinnerRow(this.getRandomWorkingMessage()).row;
 		this.wrapper.appendChild(this.workingSpinnerElement);
 	}
 
@@ -607,7 +576,6 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		if (this.workingSpinnerElement) {
 			this.workingSpinnerElement.remove();
 			this.workingSpinnerElement = undefined;
-			this.workingSpinnerLabel = undefined;
 		}
 	}
 
@@ -620,7 +588,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	protected override initContent(): HTMLElement {
-		this.wrapper = $('.chat-used-context-list.chat-thinking-collapsible');
+		this.wrapper = this.createThinkingBody();
 
 		// Hide initially until there are tool calls
 		if (!this.hasToolItems) {
@@ -786,10 +754,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		}
 		this.isActive = false;
 		this._updateOpenChatToolbarContext();
-		this.domNode.classList.remove('chat-thinking-active');
-		if (this._collapseButton) {
-			this._collapseButton.icon = Codicon.check;
-		}
+		this.setThinkingActive(false);
 
 		this.removeWorkingSpinner();
 		this.hideConfirmationPlaceholder();
@@ -809,10 +774,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		}
 		this.isActive = true;
 		this.setContentAnimationEnabled(false);
-		this.domNode.classList.add('chat-thinking-active');
-		if (this._collapseButton) {
-			this._collapseButton.icon = Codicon.circleFilled;
-		}
+		this.setThinkingActive(true);
 		if (this.wrapper && !this.hasToolsWaitingForConfirmation) {
 			this.showWorkingSpinner();
 		}
@@ -838,9 +800,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 
 	public finalizeTitle(): void {
 		this.updateTitle();
-		if (this._collapseButton) {
-			this._collapseButton.icon = Codicon.check;
-		}
+		this.setThinkingActive(false);
 	}
 
 	private updateTitle(): void {
@@ -857,7 +817,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 
 		if (!this.isActive) {
 			labelElement.textContent = '';
-			this.titleShimmerSpan = undefined;
+			this.forgetShimmerTitle();
 
 			this._titleDetailRendered.clear();
 			this._titleFileWidgetStore.clear();
@@ -876,13 +836,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			return;
 		}
 
-		// Ensure the persistent shimmer span exists
-		if (!this.titleShimmerSpan || !this.titleShimmerSpan.parentElement) {
-			labelElement.textContent = '';
-			this.titleShimmerSpan = $('span.chat-thinking-title-shimmer');
-			labelElement.appendChild(this.titleShimmerSpan);
-		}
-		this.titleShimmerSpan.textContent = shimmerText;
+		this.setShimmerTitle(shimmerText);
 
 		// Dispose previous detail rendering
 		this._titleDetailRendered.clear();

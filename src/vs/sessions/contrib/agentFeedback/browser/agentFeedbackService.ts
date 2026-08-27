@@ -13,12 +13,13 @@ import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { isEqual, isEqualOrParent } from '../../../../base/common/resources.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { editingEntriesContainResource } from '../../../../workbench/contrib/chat/browser/sessionResourceMatching.js';
 import { changeMatchesResource, getActiveResourceCandidates, IAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
@@ -210,8 +211,8 @@ export interface IAgentFeedbackService {
 	 * Resolve the session that owns the given file resource. Returns the
 	 * session that was active when the file's editor was first opened; if the
 	 * file has never been tracked, falls back to the currently active session.
-	 * Returns `undefined` when the file is not in scope for the session (e.g.
-	 * the Output view or files outside the session's workspace folders).
+	 * Returns `undefined` when the file is not eligible for feedback (an
+	 * output-channel resource) or when there is no created session to scope to.
 	 */
 	getSessionForFile(resourceUri: URI): ISession | undefined;
 
@@ -324,6 +325,14 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	private readonly _fileToSession = new ResourceMap<URI>();
 	private readonly _explicitResourceScopes = new ResourceMap<URI>();
 
+	/**
+	 * The last {@link _resolveSession} lookup, hit or miss. Feedback resolution
+	 * runs once per resource of the active editor, so a Changes multi-diff asks
+	 * for the same session thousands of times in a row. A single entry is enough
+	 * to collapse that run; it is dropped whenever the session catalog changes.
+	 */
+	private _lastResolvedSession: { readonly sessionResource: URI; readonly session: ISession | undefined } | undefined;
+
 	/** Workspace the shared new-session comments are bound to; `undefined` when there are none. */
 	private _boundNewSessionWorkspaceKey: string | undefined;
 
@@ -339,6 +348,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@ILogService private readonly _logService: ILogService,
@@ -391,6 +401,11 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		}));
 
 		this._register(this._sessionsManagementService.onDidDeleteSession(session => this._forgetSession(session.resource)));
+		// Both the sessions of a provider and the set of providers itself decide
+		// what `getSession` resolves to, and a provider registration does not
+		// surface as a session change.
+		this._register(this._sessionsManagementService.onDidChangeSessions(() => this._lastResolvedSession = undefined));
+		this._register(this._sessionsProvidersService.onDidChangeProviders(() => this._lastResolvedSession = undefined));
 	}
 
 	/**
@@ -400,6 +415,9 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	 */
 	private _forgetSession(sessionResource: URI): void {
 		const key = sessionResource.toString();
+		if (this._lastResolvedSession && isEqual(this._lastResolvedSession.sessionResource, sessionResource)) {
+			this._lastResolvedSession = undefined;
+		}
 		this._sessionUpdatedOrder.delete(key);
 		this._navigationAnchorBySession.delete(key);
 		this._visibleResolvedFeedbackIds.delete(sessionResource);
@@ -496,16 +514,37 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		}
 	}
 
+	/**
+	 * Resolves a session by resource, answering from the active session facade
+	 * whenever it is the one asked for and otherwise from the last lookup.
+	 * `ISessionsManagementService.getSession` rebuilds every provider's session
+	 * catalog and then scans it linearly, which is far too expensive for the
+	 * per-resource lookups this service performs while a Changes editor with
+	 * thousands of resources is open.
+	 */
+	private _resolveSession(sessionResource: URI): ISession | undefined {
+		const activeSession = this._sessionsService.activeSession.get();
+		if (activeSession && isEqual(activeSession.resource, sessionResource)) {
+			return activeSession;
+		}
+		if (this._lastResolvedSession && isEqual(this._lastResolvedSession.sessionResource, sessionResource)) {
+			return this._lastResolvedSession.session;
+		}
+		const session = this._sessionsManagementService.getSession(sessionResource);
+		this._lastResolvedSession = { sessionResource, session };
+		return session;
+	}
+
 	getSessionForFile(resourceUri: URI): ISession | undefined {
+		if (!this._isFileEligibleForFeedback(resourceUri)) {
+			return undefined;
+		}
 		const sessionResource = this._fileToSession.get(resourceUri) ?? this._sessionsService.activeSession.get()?.resource;
 		if (!sessionResource) {
 			return undefined;
 		}
-		const session = this._sessionsManagementService.getSession(sessionResource);
+		const session = this._resolveSession(sessionResource);
 		if (!session || session.status.get() === SessionStatus.Untitled) {
-			return undefined;
-		}
-		if (!this._isFileInSessionScope(session, resourceUri)) {
 			return undefined;
 		}
 		return session;
@@ -516,18 +555,12 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		if (explicitScope) {
 			return explicitScope;
 		}
-		if (resourceUri.scheme === Schemas.outputChannel) {
+		if (!this._isFileEligibleForFeedback(resourceUri)) {
 			return undefined;
 		}
 
 		const activeSession = this._sessionsService.activeSession.get();
 		if (!activeSession || !activeSession.isCreated.get()) {
-			// A draft that already has a workspace scopes its comments the same
-			// way a created session does; a draft without one (nothing picked
-			// yet) has nothing to scope against, so allow any file.
-			if (activeSession && !this._isFileInSessionScope(activeSession, resourceUri)) {
-				return undefined;
-			}
 			return AGENT_FEEDBACK_NEW_SESSION_RESOURCE;
 		}
 
@@ -548,37 +581,12 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	}
 
 	/**
-	 * Whether the given file belongs to the session and is therefore eligible
-	 * for agent feedback. This keeps the feedback affordances scoped to the
-	 * session's own files and excludes editors that merely happen to be open
-	 * while the session is active (e.g. user settings opened from the user
-	 * data directory, or the Output view which is not backed by a real file).
+	 * Whether the given file is eligible for agent feedback. The Output view
+	 * renders into a code editor but is not a real file the user can give
+	 * feedback on, so it is the one thing excluded here.
 	 */
-	private _isFileInSessionScope(session: ISession, resourceUri: URI): boolean {
-		// The Output view renders into a code editor but is not a real file the
-		// user can give feedback on, so always exclude it.
-		if (resourceUri.scheme === Schemas.outputChannel) {
-			return false;
-		}
-
-		// Files that are part of the session's changes or external changes are
-		// always in scope, regardless of where they live on disk.
-		if (session.changes.get().some(change => changeMatchesResource(change, resourceUri))) {
-			return true;
-		}
-		if (session.externalChanges?.get().some(file => isEqual(file.uri, resourceUri))) {
-			return true;
-		}
-
-		// Otherwise the file must live within one of the session's workspace
-		// folders. When the session has no workspace information we cannot make
-		// that determination, so fall back to allowing the file.
-		const workspace = session.workspace.get();
-		if (!workspace) {
-			return true;
-		}
-		return workspace.folders.some(folder =>
-			isEqualOrParent(resourceUri, folder.root) || isEqualOrParent(resourceUri, folder.workingDirectory));
+	private _isFileEligibleForFeedback(resourceUri: URI): boolean {
+		return resourceUri.scheme !== Schemas.outputChannel;
 	}
 
 	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, kind: AgentFeedbackKind = AgentFeedbackKind.UserReview, state: AgentFeedbackState = AgentFeedbackState.Accepted): IAgentFeedback {
@@ -765,7 +773,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			}
 		}
 
-		const session = this._sessionsManagementService.getSession(sessionResource);
+		const session = this._resolveSession(sessionResource);
 		if (!session) {
 			return false;
 		}
@@ -935,7 +943,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	}
 
 	private _isAgentHostSession(sessionResource: URI): boolean {
-		const session = this._sessionsManagementService.getSession(sessionResource);
+		const session = this._resolveSession(sessionResource);
 		return session ? isAgentHostProviderId(session.providerId) : false;
 	}
 
