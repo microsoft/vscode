@@ -30,6 +30,7 @@ import {
 	type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallStartAction,
 } from '../../../../common/state/sessionActions.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
+import type { SessionMode } from '../../../../common/agentHostSchema.js';
 import { AgentHostSessionResidencyLimitEnvVar } from '../../../../common/agentService.js';
 import { CapiReplayMode, type ICapiReplayResponse } from './capiReplayProxy.js';
 import {
@@ -295,8 +296,16 @@ export interface IAgentHostE2EProviderConfig {
 	readonly streamingFileCreateToolName?: string;
 	/** Alternate model used to verify a client-selected model reaches the provider. */
 	readonly modelSwitchTarget?: string;
+	/** Model id expected on the provider wire for {@link modelSwitchTarget}. Defaults to the selection id. */
+	readonly modelSwitchWireTarget?: string;
 	/** Model used to switch an already-running provider session a second time. */
 	readonly modelSwitchReturnTarget?: string;
+	/** Model id expected on the provider wire for {@link modelSwitchReturnTarget}. Defaults to the selection id. */
+	readonly modelSwitchWireReturnTarget?: string;
+	/** Advertised model selected by the `create_session` child-session scenario. */
+	readonly createSessionModelTarget?: string;
+	/** Model id expected on the child provider wire for {@link createSessionModelTarget}. Defaults to the selection id. */
+	readonly createSessionModelWireTarget?: string;
 	/** Provider-specific prompt that reliably triggers one interactive input request. */
 	readonly interactiveInputPrompt?: string;
 	/** Provider-specific prompt that expects a cancelled interactive input request. */
@@ -305,6 +314,8 @@ export interface IAgentHostE2EProviderConfig {
 	readonly textInputPrompt?: string;
 	/** Provider-specific prompt that triggers a multi-select input request. */
 	readonly multiSelectInputPrompt?: string;
+	/** Session mode required before running provider input-request scenarios. */
+	readonly inputRequestMode?: SessionMode;
 	/** Provider supports a session with no working directory through the full model path. */
 	readonly supportsWorkspacelessE2E?: boolean;
 	/** Provider exposes runtime slash commands through AHP completions after materialization. */
@@ -317,6 +328,14 @@ export interface IAgentHostE2EProviderConfig {
 	readonly supportsWorktreeIncludeFilesE2E?: boolean;
 	/** Provider can deterministically replay cancellation while paused on input or approval. */
 	readonly supportsPausedTurnCancellationE2E?: boolean;
+	/** Provider supports the shared customization discovery and file-watching scenarios. */
+	readonly supportsCustomizationDiscoveryE2E?: boolean;
+	/** Provider surfaces fixed workspace instruction files in customization discovery. */
+	readonly supportsFixedInstructionDiscoveryE2E?: boolean;
+	/** Provider expands client plugins into their discovered customization children. */
+	readonly supportsPluginCustomizationDiscoveryE2E?: boolean;
+	/** Provider publishes live workspace-agent file changes through customization state. */
+	readonly supportsWorkspaceAgentWatchE2E?: boolean;
 	/** Provider's denied file-creation flow mutates the workspace during replay on Linux. */
 	readonly fileToolDenialReplayUnstableOnLinux?: boolean;
 	/**
@@ -365,8 +384,6 @@ export interface IAgentHostE2EProviderConfig {
 	 * notifications there. Recording and other platforms keep full coverage.
 	 */
 	readonly shellToolReplayUnstableOnLinux?: boolean;
-	/** Provider intermittently completes successful shell calls without exposing result text. */
-	readonly shellToolResultTextUnreliable?: boolean;
 	/**
 	 * When set, the subagent-reopen ("replay path") test is skipped on Windows for
 	 * this provider, which rebuilds the reopened transcript from the bundled SDK's
@@ -376,14 +393,8 @@ export interface IAgentHostE2EProviderConfig {
 	 * are unaffected and stay enabled on Windows.
 	 */
 	readonly subagentReplayUnstableOnWindows?: boolean;
-	/**
-	 * Whether the provider's plan-mode flow matches the shared test's
-	 * expectations (auto-approve session-state writes; reach the
-	 * exit-plan-mode tool as an `inputRequested`). Currently true only for
-	 * Copilot — Claude's plan-mode prompt conventions differ enough that the
-	 * shared test prompt doesn't reliably drive it to `ExitPlanMode`.
-	 */
-	readonly supportsPlanMode: boolean;
+	/** Provider-specific observable used to exercise entering and leaving plan mode. */
+	readonly planModeStyle?: 'session-state' | 'input-request';
 	/** Whether the provider supports additional peer chats and chat forks. */
 	readonly supportsMultipleChats: boolean;
 	/** Whether model-backed multiple-chat parity scenarios have deterministic fixtures. */
