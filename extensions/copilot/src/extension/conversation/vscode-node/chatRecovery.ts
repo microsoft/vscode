@@ -34,6 +34,22 @@ export enum ChatRecoverySignal {
 	PlanReviewRejected = 'planReviewRejected',
 }
 
+const chatRecoverySignalRules = {
+	[ChatRecoverySignal.DocumentUserRejected]: { weight: 0.75 },
+	[ChatRecoverySignal.DocumentUserModified]: { weight: 0.5 },
+	[ChatRecoverySignal.DocumentHasMergeConflicts]: { weight: 0.75 },
+	[ChatRecoverySignal.DocumentGeneratedProblems]: { weight: 0.5 },
+	[ChatRecoverySignal.DocumentGeneratedTestsFail]: { weight: 0.75 },
+	[ChatRecoverySignal.LastRequestRepeated]: { weight: 0.25 },
+	[ChatRecoverySignal.LastResponseErrored]: { weight: 0.75 },
+	[ChatRecoverySignal.RequestRetried]: { weight: 0.25 },
+	[ChatRecoverySignal.RequestEdited]: { weight: 0.5 },
+	[ChatRecoverySignal.RequestChangedModel]: { weight: 0.25 },
+	[ChatRecoverySignal.PlanReviewRejected]: { weight: 0.75 },
+} satisfies Record<ChatRecoverySignal, { readonly weight: number }>;
+
+const chatRecoveryScoreThreshold = 1;
+
 export function arePromptsSimilar(previousPrompt: string, currentPrompt: string): boolean {
 	const normalizedPreviousPrompt = previousPrompt.trim().replace(/\s+/g, ' ').toLowerCase();
 	const normalizedCurrentPrompt = currentPrompt.trim().replace(/\s+/g, ' ').toLowerCase();
@@ -158,5 +174,6 @@ export function isChatRecoveryAttempt(previousRequest: ChatRequestTurn2 | undefi
 		signals.push(ChatRecoverySignal.PlanReviewRejected);
 	}
 
-	return signals.length > 1;
+	const score = signals.reduce((total, signal) => total + chatRecoverySignalRules[signal].weight, 0);
+	return score >= chatRecoveryScoreThreshold;
 }
