@@ -637,6 +637,21 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
+	test('automation catalogue subscription rejects an inactive client before adding it', async () => {
+		stateManager.setAutomationCatalogState({ automations: [] });
+		let subscriberAdded = false;
+		agentService.addSubscriber = () => subscriberAdded = true;
+		const target = handler as unknown as {
+			_subscribeStateChannel(channel: string, clientId: string, isActive?: () => boolean): Promise<IStateSnapshot>;
+		};
+
+		await assert.rejects(
+			target._subscribeStateChannel(AUTOMATION_CATALOG_URI, 'inactive-client', () => false),
+			/Subscription cancelled/,
+		);
+		assert.strictEqual(subscriberAdded, false);
+	});
+
 	test('handshake retains an initial subscription whose state has not materialized', () => {
 		const transport = connectClient('client-1', [defaultChatUri]);
 		const response = findResponse(transport.sent, 1) as { result: InitializeResult };

@@ -704,6 +704,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		if (!isAhpAutomationCatalogChannel(channel)) {
 			return this._agentService.subscribe(URI.parse(channel), clientId, isActive);
 		}
+		if (isActive && !isActive()) {
+			throw new Error(`Subscription cancelled: ${channel}`);
+		}
 		const snapshot = this._stateManager.getSnapshot(channel);
 		if (!snapshot) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Automation catalogue is unavailable: ${channel}`);
