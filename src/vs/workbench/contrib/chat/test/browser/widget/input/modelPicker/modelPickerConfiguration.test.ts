@@ -266,7 +266,7 @@ suite('ModelPickerConfiguration', () => {
 	});
 
 	test('hides picker upon selection with multiple configuration sections', async () => {
-		const result = render(createTierModel());
+		const result = render(createModel());
 
 		const action = result.shownItems.find(item => item.kind === ActionListItemKind.Action)?.item;
 
