@@ -15,9 +15,10 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { agentHostUri } from '../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
-import { AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority, type AgentHostUriMapper, fromAgentHostUri, toAgentHostContentUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import { type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import type { ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -81,6 +82,8 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly omitHostFromWorkspaceLabel?: boolean;
 	/** Type icon for this host's workspaces. See {@link ISessionWorkspace.typeIcon}. */
 	readonly workspaceTypeIcon?: ThemeIcon;
+	/** See {@link IAgentHostAdapterOptions.defaultChangesetKind}. */
+	readonly defaultChangesetKind?: ChangesetKind.Branch | ChangesetKind.Uncommitted | ChangesetKind.Session;
 }
 
 /**
@@ -161,6 +164,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	private readonly _sessionSchemeAlias: ISessionSchemeAlias | undefined;
 	private readonly _omitHostFromWorkspaceLabel: boolean;
 	private readonly _workspaceTypeIcon: ThemeIcon | undefined;
+	private readonly _defaultChangesetKind: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind'];
 	/** Storage key used for persisting {@link _sessionCache} snapshots. */
 	private readonly _storageKey: string;
 	/**
@@ -201,6 +205,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this._sessionSchemeAlias = config.sessionSchemeAlias;
 		this._omitHostFromWorkspaceLabel = config.omitHostFromWorkspaceLabel === true;
 		this._workspaceTypeIcon = config.workspaceTypeIcon;
+		this._defaultChangesetKind = config.defaultChangesetKind;
 		this.onDidReportConnectProgress = config.onDidReportConnectProgress;
 		this.canConnectOnDemand = !!config.connectOnDemand;
 		const displayName = config.name || config.address;
@@ -249,6 +254,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		const typeIcon = this._workspaceTypeIcon;
 		return {
 			readOnly: this._readOnly,
+			defaultChangesetKind: this._defaultChangesetKind,
 			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectories: readonly URI[] | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined) => {
 				const primary = workingDirectories?.[0];
 				const uriForDescription = project?.uri ?? primary;
@@ -275,8 +281,10 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		return toLocalProjectUri(uri, this._connectionAuthority);
 	}
 
-	protected override _diffUriMapper(): (uri: URI) => URI {
-		return uri => toAgentHostUri(uri, this._connectionAuthority);
+	protected override _diffUriMapper(): AgentHostUriMapper {
+		return (uri, options) => options?.contentRef
+			? toAgentHostContentUri(uri, this._connectionAuthority)
+			: toAgentHostUri(uri, this._connectionAuthority);
 	}
 
 	protected override _validateBeforeCreate(_sessionType: ISessionType): void {
@@ -392,6 +400,11 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	protected override _backendSessionScheme(agentProvider: string): string {
 		const alias = this._sessionSchemeAlias;
 		return alias && agentProvider === alias.ui ? alias.backend : agentProvider;
+	}
+
+	protected override _logicalSessionTypeForBackendScheme(backendScheme: string): string {
+		const alias = this._sessionSchemeAlias;
+		return alias && backendScheme === alias.backend ? alias.ui : backendScheme;
 	}
 
 	setAuthenticationPending(pending: boolean): void {

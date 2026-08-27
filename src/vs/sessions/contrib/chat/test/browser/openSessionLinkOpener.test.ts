@@ -14,6 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { ILinkPresentationProvider, ILinkPresentationService } from '../../../../../platform/dataChannel/common/dataChannel.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IOpener, IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ISessionSummaryHoverProvider, ISessionSummaryHoverService } from '../../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHoverService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -52,7 +53,9 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			}
 		};
 		const sessionResource = URI.parse('copilotcli:/session-1');
-		const session = upcastPartial<ISession>({ resource: sessionResource });
+		const chatResource = sessionResource.with({ fragment: 'chat-2' });
+		const chat = upcastPartial<IChat>({ resource: chatResource });
+		const session = upcastPartial<ISession>({ resource: sessionResource, chats: observableValue('chats', [chat]) });
 		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
 			override getSessions(): ISession[] {
 				return [session];
@@ -87,6 +90,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			linkPresentationService,
 			sessionsProvidersService,
 			sessionSummaryHoverService,
+			new class extends mock<ILabelService>() { },
 		));
 
 		if (!registeredOpener) {
@@ -96,7 +100,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 		assert.deepStrictEqual({
 			results: [
 				await registeredOpener.open(buildOpenSessionLinkUri(sessionResource)),
-				await registeredOpener.open(buildOpenSessionLinkUri(sessionResource, 'chat-2')),
+				await registeredOpener.open(buildOpenSessionLinkUri(sessionResource, 'chat-2', 'turn-1')),
 			],
 			opened,
 		}, {
@@ -151,6 +155,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			linkPresentationService,
 			sessionsProvidersService,
 			sessionSummaryHoverService,
+			new class extends mock<ILabelService>() { },
 		));
 
 		const watcher = presentationProvider?.createLinkPresentationWatcher(URI.parse(buildOpenSessionLinkUri(sessionResource, 'chat-2')));
@@ -214,6 +219,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			},
 			sessionsProvidersService,
 			hover.service,
+			new class extends mock<ILabelService>() { },
 		));
 
 		const provider = hover.provider();
@@ -229,7 +235,8 @@ suite('OpenSessionLinkOpenerContribution', () => {
 				title: 'Fix authentication redirect loop',
 				location: undefined,
 				pullRequests: undefined,
-				providerLabels: ['Local Agent Host'],
+				createdBy: undefined,
+				providerLabel: 'Local Agent Host',
 			},
 			unknown: undefined,
 		});

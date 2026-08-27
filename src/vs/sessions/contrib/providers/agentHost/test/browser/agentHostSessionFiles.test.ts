@@ -4,19 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Event } from '../../../../../../base/common/event.js';
+import { DisposableStore, IReference } from '../../../../../../base/common/lifecycle.js';
+import { autorun, constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import {
+	buildChatUri,
 	FileEditKind,
 	ResponsePartKind,
+	StateComponents,
 	ToolCallConfirmationReason,
 	ToolCallStatus,
 	ToolResultContentType,
 	type ResponsePart,
 } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { IAgentHostAdapterOptions } from '../../browser/baseAgentHostSessionsProvider.js';
 import {
 	createIncrementalChatFileEditsParser,
+	createSessionOutputObs,
 	IParsedFileEdit,
+	ISessionOutputObs,
 	parseResponseParts,
 	reduceTurnChanges,
 } from '../../browser/agentHostSessionFiles.js';
@@ -277,5 +288,99 @@ suite('agentHostSessionFiles', () => {
 		assert.deepStrictEqual(changes, [
 			{ uri: '/repo/renamed.ts', modified: '/repo/renamed.ts', original: '/repo/old.ts.before', isOutsideWorkspace: false, insertions: 1, deletions: 2 },
 		]);
+	});
+});
+
+suite('agentHostSessionFiles - per-chat subscriptions', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const SESSION_URI = URI.parse('ahp-session://session-1');
+	const CHAT_A = URI.parse(buildChatUri(SESSION_URI, 'chat-a'));
+	const CHAT_B = URI.parse(buildChatUri(SESSION_URI, 'chat-b'));
+
+	/**
+	 * A connection that records which resources were subscribed to and how many
+	 * of those references are still open, so a test can assert both that an
+	 * unread chat never subscribes and that an unobserved one is released.
+	 */
+	function createRecordingConnection() {
+		const acquired: string[] = [];
+		const open = new Set<string>();
+		const connection = new class extends mock<IAgentConnection>() {
+			override getSubscription<T>(_kind: StateComponents, resource: URI, _owner: string): IReference<IAgentSubscription<T>> {
+				const key = resource.toString();
+				acquired.push(key);
+				open.add(key);
+				const subscription = new class extends mock<IAgentSubscription<T>>() {
+					override readonly value = undefined;
+					override readonly onDidChange = Event.None;
+				}();
+				return { object: subscription, dispose: () => open.delete(key) };
+			}
+		}();
+		return { connection, acquired, openKeys: () => [...open] };
+	}
+
+	function createOptions(connection: IAgentConnection): IAgentHostAdapterOptions {
+		return new class extends mock<IAgentHostAdapterOptions>() {
+			override readonly getConnection = () => connection;
+		}();
+	}
+
+	function createOutput(connection: IAgentConnection): ISessionOutputObs {
+		return createSessionOutputObs(
+			SESSION_URI,
+			createOptions(connection),
+			constObservable(true),
+			constObservable(false),
+			constObservable(undefined),
+			new Map<string, unknown>(),
+		);
+	}
+
+	test('a chat that is never observed opens no subscription', () => {
+		const { connection, acquired } = createRecordingConnection();
+		const output = createOutput(connection);
+
+		// Merely asking for the observables must not subscribe: only reading
+		// them does, so peer chats the UI never renders cost nothing.
+		output.getLastTurnChanges(CHAT_A);
+		output.getChatCustomizations(CHAT_B);
+
+		assert.deepStrictEqual(acquired, []);
+	});
+
+	test('observing one chat subscribes to that chat alone and releases it when unobserved', () => {
+		const { connection, acquired, openKeys } = createRecordingConnection();
+		const output = createOutput(connection);
+		output.getLastTurnChanges(CHAT_B);
+
+		const observer = store.add(new DisposableStore());
+		observer.add(autorun(reader => {
+			output.getLastTurnChanges(CHAT_A).read(reader);
+		}));
+		const whileObserved = openKeys();
+		observer.clear();
+
+		assert.deepStrictEqual(
+			{ whileObserved, afterDispose: openKeys(), everAcquired: acquired },
+			{ whileObserved: [CHAT_A.toString()], afterDispose: [], everAcquired: [CHAT_A.toString()] },
+		);
+	});
+
+	test('releaseChat drops the cached observables for a removed chat', () => {
+		const { connection } = createRecordingConnection();
+		const output = createOutput(connection);
+
+		const before = output.getLastTurnChanges(CHAT_A);
+		const cached = output.getLastTurnChanges(CHAT_A);
+		output.releaseChat(CHAT_A);
+		const afterRelease = output.getLastTurnChanges(CHAT_A);
+
+		assert.deepStrictEqual(
+			{ reusedWhileLive: cached === before, reusedAfterRelease: afterRelease === before },
+			{ reusedWhileLive: true, reusedAfterRelease: false },
+		);
 	});
 });

@@ -23,7 +23,7 @@ import { IGitHubPullRequestRef, ISession, ISessionWorkspace } from '../../../../
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import '../../browser/pullRequestActions.js';
 
-function createSessionWithPullRequest(pullRequestUri: URI | undefined, pullRequestRef?: IGitHubPullRequestRef): ISession {
+function createSessionWithPullRequest(pullRequestUri: URI | undefined, pullRequestRefs?: readonly IGitHubPullRequestRef[]): ISession {
 	const workspaceUri = URI.from({ scheme: 'test', path: '/workspace' });
 	const workspace: ISessionWorkspace = {
 		uri: workspaceUri,
@@ -42,7 +42,7 @@ function createSessionWithPullRequest(pullRequestUri: URI | undefined, pullReque
 					owner: 'owner',
 					repo: 'repo',
 					pullRequest: { number: 1, uri: pullRequestUri },
-					pullRequests: pullRequestRef ? [pullRequestRef] : undefined,
+					pullRequests: pullRequestRefs,
 				}),
 			} : undefined,
 		}],
@@ -168,12 +168,12 @@ suite('Pull Request Actions', () => {
 
 	test('Open Pull Request prefers the explicit pull request repository identity', async () => {
 		const pullRequestUri = URI.parse('https://github.com/upstream/project/pull/7');
-		const session = createSessionWithPullRequest(pullRequestUri, {
+		const session = createSessionWithPullRequest(pullRequestUri, [{
 			owner: 'upstream',
 			repo: 'project',
 			number: 7,
 			uri: pullRequestUri,
-		});
+		}]);
 		const instantiationService = new TestInstantiationService();
 		const urlService = new TestURLService();
 		instantiationService.stub(IExtensionService, new class extends mock<IExtensionService>() {
@@ -194,6 +194,27 @@ suite('Pull Request Actions', () => {
 			repo: 'project',
 			pullRequestNumber: 7,
 		});
+	});
+
+	test('Copy Pull Request URL uses an explicit contextual pull request', async () => {
+		const secondPullRequestUri = URI.parse('https://github.com/upstream/project/pull/7');
+		const secondPullRequest = { owner: 'upstream', repo: 'project', number: 7, uri: secondPullRequestUri };
+
+		const instantiationService = new TestInstantiationService();
+		const clipboardService = new class extends mock<IClipboardService>() {
+			readonly writes: string[] = [];
+			override async writeText(text: string): Promise<void> {
+				this.writes.push(text);
+			}
+		};
+		instantiationService.stub(IClipboardService, clipboardService);
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable(undefined);
+		});
+
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.copyPullRequestUrl')!.handler(accessor, { pullRequest: secondPullRequest }));
+
+		assert.deepStrictEqual(clipboardService.writes, [secondPullRequestUri.toString(true)]);
 	});
 
 	test('Open Pull Request uses the GitHub Pull Requests extension when available', async () => {

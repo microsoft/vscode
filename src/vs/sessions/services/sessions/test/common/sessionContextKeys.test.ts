@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IChatSessionFileChange } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { SessionActiveChatHasSubagentsContext, SessionHasCachedChangesContext, SessionHasChangesContext, SessionHasGitRepositoryContext, SessionHasMultipleCommittedChatsContext, SessionIsActiveContext, SessionSupportsSideChatContext } from '../../../../common/contextkeys.js';
+import { SessionHasCachedChangesContext, SessionHasChangesContext, SessionHasGitRepositoryContext, SessionHasMultipleCommittedChatsContext, SessionHasSideChatsContext, SessionIsActiveContext, SessionSupportsSideChatContext } from '../../../../common/contextkeys.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, SessionStatus } from '../../common/session.js';
 import { IActiveSession } from '../../common/sessionsManagement.js';
 import { setActiveSessionContextKeys, setSessionContextKeys } from '../../common/sessionContextKeys.js';
@@ -223,7 +223,8 @@ suite('setSessionContextKeys - side chat', () => {
 			shouldShowChatTabs: constObservable(true),
 		});
 		setActiveSessionContextKeys(withSideChat, contextKeyService, undefined);
-		assert.strictEqual(SessionHasMultipleCommittedChatsContext.getValue(contextKeyService), true);
+		const withSideChatCommittedChats = SessionHasMultipleCommittedChatsContext.getValue(contextKeyService);
+		const withSideChatHasSideChats = SessionHasSideChatsContext.getValue(contextKeyService);
 
 		const withToolChat = upcastPartial<IActiveSession>({
 			...stubSession({ sessionId: 'tool', chats: constObservable([mainChat, toolChat]), mainChat: constObservable(mainChat) }),
@@ -234,35 +235,16 @@ suite('setSessionContextKeys - side chat', () => {
 			shouldShowChatTabs: constObservable(false),
 		});
 		setActiveSessionContextKeys(withToolChat, contextKeyService, undefined);
-		assert.strictEqual(SessionHasMultipleCommittedChatsContext.getValue(contextKeyService), false);
-	});
-
-	test('shows subagents only for the active chat scope', () => {
-		const contextKeyService = disposables.add(new MockContextKeyService());
-		const mainChat = { ...stubChat, resource: URI.parse('test:///chat/main') };
-		const otherChat = { ...stubChat, resource: URI.parse('test:///chat/other') };
-		const firstSubagent = { ...stubChat, resource: URI.parse('test:///chat/tool-1'), origin: { kind: ChatOriginKind.Tool, parentChat: mainChat.resource } };
-		const secondSubagent = { ...stubChat, resource: URI.parse('test:///chat/tool-2'), origin: { kind: ChatOriginKind.Tool, parentChat: mainChat.resource } };
-		const createActiveSession = (activeChat: IChat) => upcastPartial<IActiveSession>({
-			...stubSession({ sessionId: 'tool', chats: constObservable([mainChat, otherChat, firstSubagent, secondSubagent]), mainChat: constObservable(mainChat) }),
-			isCreated: constObservable(true),
-			sticky: constObservable(false),
-			activeChat: constObservable(activeChat),
-			visibleChatTabs: constObservable([mainChat]),
-			shouldShowChatTabs: constObservable(true),
-		});
-
-		setActiveSessionContextKeys(createActiveSession(mainChat), contextKeyService, undefined);
-		const parentActive = SessionActiveChatHasSubagentsContext.getValue(contextKeyService);
-		setActiveSessionContextKeys(createActiveSession(otherChat), contextKeyService, undefined);
-		const unrelatedChatActive = SessionActiveChatHasSubagentsContext.getValue(contextKeyService);
-		setActiveSessionContextKeys(createActiveSession(firstSubagent), contextKeyService, undefined);
-		const subagentActive = SessionActiveChatHasSubagentsContext.getValue(contextKeyService);
-
-		assert.deepStrictEqual({ parentActive, unrelatedChatActive, subagentActive }, {
-			parentActive: true,
-			unrelatedChatActive: false,
-			subagentActive: true,
+		assert.deepStrictEqual({
+			withSideChatCommittedChats,
+			withSideChatHasSideChats,
+			withToolChatCommittedChats: SessionHasMultipleCommittedChatsContext.getValue(contextKeyService),
+			withToolChatHasSideChats: SessionHasSideChatsContext.getValue(contextKeyService),
+		}, {
+			withSideChatCommittedChats: true,
+			withSideChatHasSideChats: true,
+			withToolChatCommittedChats: false,
+			withToolChatHasSideChats: false,
 		});
 	});
 });

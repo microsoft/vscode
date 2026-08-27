@@ -297,13 +297,14 @@ export function getAgentHostCopilotSandboxSettingId(customTerminalToolEnabled: b
 export const CodexPreferAgentHostEditorSettingId = 'chat.editor.codex.preferAgentHost';
 
 export function affectsAgentHostProviderPreference(event: IConfigurationChangeEvent, isSessionsWindow: boolean): boolean {
-	return event.affectsConfiguration(isSessionsWindow ? AgentHostCodexAgentEnabledSettingId : CodexPreferAgentHostEditorSettingId);
+	return event.affectsConfiguration(AgentHostClaudeAgentEnabledSettingId)
+		|| event.affectsConfiguration(isSessionsWindow ? AgentHostCodexAgentEnabledSettingId : CodexPreferAgentHostEditorSettingId);
 }
 
 export function shouldSurfaceLocalAgentHostProvider(provider: AgentProvider, configurationService: IConfigurationService, isSessionsWindow: boolean): boolean {
 	switch (provider) {
 		case CLAUDE_AGENT_PROVIDER_ID:
-			return true;
+			return configurationService.getValue<boolean>(AgentHostClaudeAgentEnabledSettingId) !== false;
 		case CODEX_AGENT_PROVIDER_ID:
 			return configurationService.getValue<boolean>(isSessionsWindow ? AgentHostCodexAgentEnabledSettingId : CodexPreferAgentHostEditorSettingId) === true;
 		default:
@@ -777,7 +778,7 @@ export interface IAgentHostManagementService {
 	getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo>;
 	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult>;
-	getSessionStateFile(session: URI): Promise<URI | undefined>;
+	getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined>;
 	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact>;
 	readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk>;
 	startWebSocketServer(): Promise<IAgentHostSocketInfo>;
@@ -909,7 +910,7 @@ export interface IAgentService {
 	 */
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult>;
 
-	getSessionStateFile?(session: URI): Promise<URI | undefined>;
+	getSessionStateFile?(session: URI, chat?: URI): Promise<URI | undefined>;
 
 	collectDebugLogs?(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact>;
 
@@ -923,9 +924,11 @@ export interface IAgentService {
 	 * resource arrive via {@link onDidAction}. Registers `clientId` against
 	 * the resource so the server-side refcount knows who is watching, so the
 	 * caller does not need to invoke {@link addSubscriber} separately. Pair
-	 * with {@link unsubscribe} when the subscription is released.
+	 * with {@link unsubscribe} when the subscription is released. When
+	 * provided, `isActive` is checked before registering the subscriber so a
+	 * request cancelled during asynchronous resolution cannot pin the resource.
 	 */
-	subscribe(resource: URI, clientId: string): Promise<IStateSnapshot>;
+	subscribe(resource: URI, clientId: string, isActive?: () => boolean): Promise<IStateSnapshot>;
 
 	/**
 	 * Counterpart to {@link subscribe}. Drops `clientId` from the refcount
@@ -1143,7 +1146,7 @@ export interface IAgentConnection {
 	 */
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult>;
 
-	getSessionStateFile(session: URI): Promise<URI | undefined>;
+	getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined>;
 
 	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact>;
 

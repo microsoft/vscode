@@ -14,7 +14,7 @@ import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { Delayer } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, IObservable } from '../../../../../base/common/observable.js';
+import { autorun, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService, type IActionViewItemFactory } from '../../../../../platform/actions/browser/actionViewItemService.js';
@@ -34,6 +34,7 @@ import { ChatContextKeyExprs, ChatContextKeys } from '../../../../../workbench/c
 import { markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { type IChatInputPickerOptions } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
+import { IChatInputPickerResponsiveState } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
 import { Menus } from '../../../../browser/menus.js';
 import { SessionProviderIdContext, IsPhoneLayoutContext, IsQuickChatSessionContext } from '../../../../common/contextkeys.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
@@ -221,8 +222,8 @@ function applyAutoApproveTriggerStyles(trigger: HTMLElement, property: string | 
 	}
 }
 
-class IsolationCheckboxControl extends Disposable {
-	readonly slot = dom.$('.sessions-chat-picker-slot.sessions-chat-isolation-checkbox');
+class ConfigCheckboxControl extends Disposable {
+	readonly slot: HTMLElement;
 	readonly checkbox: Checkbox;
 
 	private readonly _row: HTMLElement;
@@ -233,18 +234,24 @@ class IsolationCheckboxControl extends Disposable {
 	constructor(
 		readonly sessionId: string,
 		label: string,
+		className: string,
 		private readonly _hoverService: IHoverService,
 		onToggle: (checked: boolean) => void,
+		onboardingTarget?: string,
 	) {
 		super();
 
+		this.slot = dom.$('.sessions-chat-picker-slot.sessions-chat-config-checkbox');
+		this.slot.classList.add(className);
 		this._row = dom.append(this.slot, dom.$('.action-label'));
 		this.checkbox = this._register(new Checkbox(label, false, { ...defaultCheckboxStyles, size: 14 }));
 		dom.append(this._row, this.checkbox.domNode);
 		const labelSpan = dom.append(this._row, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = label;
 
-		this._register(markOnboardingTarget(this.slot, 'sessions.newSession.isolation'));
+		if (onboardingTarget) {
+			this._register(markOnboardingTarget(this.slot, onboardingTarget));
+		}
 		this._register(this.checkbox.onChange(() => onToggle(this.checkbox.checked)));
 		this._register(Gesture.addTarget(this._row));
 		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
@@ -287,7 +294,8 @@ export class AgentHostSessionConfigPicker extends Disposable {
 
 	protected readonly _renderDisposables = this._register(new DisposableStore());
 	private readonly _providerListeners = this._register(new DisposableMap<string>());
-	private readonly _isolationCheckbox = this._register(new MutableDisposable<IsolationCheckboxControl>());
+	private readonly _devContainerCheckbox = this._register(new MutableDisposable<ConfigCheckboxControl>());
+	private readonly _isolationCheckbox = this._register(new MutableDisposable<ConfigCheckboxControl>());
 	protected readonly _filterDelayer = this._register(new Delayer<readonly IActionListItem<IConfigPickerItem>[]>(200));
 	private _container: HTMLElement | undefined;
 
@@ -360,6 +368,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	}
 
 	render(container: HTMLElement): void {
+		this._devContainerCheckbox.clear();
 		this._isolationCheckbox.clear();
 		this._container = dom.append(container, dom.$('.sessions-chat-agent-host-config'));
 		this._renderConfigPickers();
@@ -371,9 +380,12 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		}
 
 		this._renderDisposables.clear();
-		const isolationSlot = this._isolationCheckbox.value?.slot;
+		const checkboxSlots = new Set([
+			this._devContainerCheckbox.value?.slot,
+			this._isolationCheckbox.value?.slot,
+		]);
 		for (const child of Array.from(this._container.children)) {
-			if (child !== isolationSlot) {
+			if (!checkboxSlots.has(child as HTMLElement)) {
 				child.remove();
 			}
 		}
@@ -383,6 +395,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		const provider = session ? this._getProvider(session.providerId) : undefined;
 		const resolvedConfig = session && provider?.getSessionConfig(session.sessionId);
 		if (!session || !provider || !resolvedConfig) {
+			this._devContainerCheckbox.clear();
 			this._isolationCheckbox.clear();
 			return;
 		}
@@ -488,6 +501,13 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		if (!renderedIsolationCheckbox) {
 			this._isolationCheckbox.clear();
 		}
+		if (isPhoneLayout(this._layoutService)) {
+			this._devContainerCheckbox.clear();
+		} else if (provider.isDevContainerAvailable?.(session.sessionId) && provider.isDevContainerEnabled && provider.setDevContainerEnabled) {
+			this._renderDevContainerCheckbox(provider, session.sessionId);
+		} else {
+			this._devContainerCheckbox.clear();
+		}
 	}
 
 	private _isPickable(schema: SessionConfigPropertySchema): boolean {
@@ -580,11 +600,40 @@ export class AgentHostSessionConfigPicker extends Disposable {
 
 		let control = this._isolationCheckbox.value;
 		if (!control || control.sessionId !== sessionId) {
-			control = new IsolationCheckboxControl(sessionId, label, this._hoverService, checked => this._applyIsolationValue(sessionId, checked));
+			control = new ConfigCheckboxControl(
+				sessionId,
+				label,
+				'sessions-chat-isolation-checkbox',
+				this._hoverService,
+				checked => this._applyIsolationValue(sessionId, checked),
+				'sessions.newSession.isolation',
+			);
 			this._isolationCheckbox.value = control;
 			this._container?.prepend(control.slot);
 		}
 		control.update(value === 'worktree', isReadOnly, isLoading, tooltip);
+	}
+
+	private _renderDevContainerCheckbox(provider: IAgentHostSessionsProvider, sessionId: string): void {
+		const label = localize('agentHostSessionConfig.devContainer', "Dev Container");
+		let control = this._devContainerCheckbox.value;
+		if (!control || control.sessionId !== sessionId) {
+			control = new ConfigCheckboxControl(
+				sessionId,
+				label,
+				'sessions-chat-dev-container-checkbox',
+				this._hoverService,
+				enabled => provider.setDevContainerEnabled?.(sessionId, enabled),
+			);
+			this._devContainerCheckbox.value = control;
+		}
+		const isolationSlot = this._isolationCheckbox.value?.slot;
+		if (this._container && isolationSlot?.parentElement === this._container) {
+			this._container.insertBefore(control.slot, isolationSlot);
+		} else {
+			this._container?.prepend(control.slot);
+		}
+		control.update(provider.isDevContainerEnabled?.(sessionId) === true, false, false, undefined);
 	}
 
 	private _applyIsolationValue(sessionId: string, checked: boolean): void {
@@ -989,9 +1038,12 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 
 interface IConfigPickerWidget extends IDisposable {
 	render(container: HTMLElement): void;
+	showPicker?(anchor: HTMLElement, onHide?: () => void): boolean | void;
 }
 
-export class PickerActionViewItem extends BaseActionViewItem {
+export class PickerActionViewItem extends BaseActionViewItem implements IChatInputPickerResponsiveState {
+	private _compact = false;
+
 	constructor(private readonly _picker: IConfigPickerWidget, disposable?: IDisposable) {
 		super(undefined, { id: '', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } });
 		if (disposable) {
@@ -1000,7 +1052,25 @@ export class PickerActionViewItem extends BaseActionViewItem {
 	}
 
 	override render(container: HTMLElement): void {
+		this.element = container;
 		this._picker.render(container);
+		container.classList.toggle('compact-picker', this._compact);
+	}
+
+	isCompact(): boolean {
+		return this._compact;
+	}
+
+	setCompact(compact: boolean): void {
+		this._compact = compact;
+		this.element?.classList.toggle('compact-picker', compact);
+	}
+
+	show(anchor?: HTMLElement): void {
+		const target = anchor ?? this.element;
+		if (target) {
+			this._picker.showPicker?.(target);
+		}
 	}
 
 	override dispose(): void {
@@ -1126,10 +1196,10 @@ class AgentHostSessionConfigPickerContribution extends Disposable implements IWo
 				return undefined;
 			}
 			const { session } = instantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
-			const pickerOptions: IChatInputPickerOptions = {
-				compact: constObservable(true),
+			const pickerOptions = {
+				compact: observableValue<boolean, void>(action, false),
 				listOptions: { minWidth: 255 },
-			};
+			} satisfies IChatInputPickerOptions;
 			return instantiationService.createInstance(
 				AgentHostPermissionPickerActionItem,
 				action,
