@@ -440,7 +440,7 @@
 .monaco-list-row[aria-expanded="true"] .session-item::after {
 	content: '';
 	position: absolute;
-	top: var(--vscode-spacing-size160);
+	top: var(--vscode-spacing-size280);
 	bottom: 0;
 	left: var(--vscode-spacing-size200);
 	border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-inactiveIndentGuidesStroke);
@@ -921,7 +921,7 @@
 	}
 
 	.monaco-list-row[aria-expanded="true"] .session-item::after {
-		top: var(--vscode-spacing-size200);
+		top: var(--vscode-spacing-size320);
 	}
 
 	.monaco-list-row .session-chat-twistie.collapsible {
