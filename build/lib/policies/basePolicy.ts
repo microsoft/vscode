@@ -35,8 +35,9 @@ export abstract class BasePolicy implements Policy {
 	}
 
 	renderADMX(regKey: string) {
+		const safeName = escapeXml(this.name);
 		return [
-			`<policy name="${this.name}" class="Both" displayName="$(string.${this.name})" explainText="$(string.${this.name}_${this.description.nlsKey.replace(/\./g, '_')})" key="Software\\Policies\\Microsoft\\${regKey}" presentation="$(presentation.${this.name})">`,
+			`<policy name="${safeName}" class="Both" displayName="$(string.${safeName})" explainText="$(string.${safeName}_${this.description.nlsKey.replace(/\./g, '_')})" key="Software\\Policies\\Microsoft\\${regKey}" presentation="$(presentation.${safeName})">`,
 			`	<parentCategory ref="${this.category.name.nlsKey}" />`,
 			`	<supportedOn ref="Supported_${this.minimumVersion.replace(/\./g, '_')}" />`,
 			`	<elements>`,
@@ -44,6 +45,19 @@ export abstract class BasePolicy implements Policy {
 			`	</elements>`,
 			`</policy>`
 		];
+	}
+
+	renderADMLStrings(translations?: LanguageTranslations) {
+		const safeName = escapeXml(this.name);
+		return [
+			`<string id="${safeName}">${safeName}</string>`,
+			this.renderADMLString(this.description, translations)
+		];
+	}
+
+	renderADMLPresentation(): string {
+		const safeName = escapeXml(this.name);
+		return `<presentation id="${safeName}">${this.renderADMLPresentationContents()}</presentation>`;
 	}
 
 	protected abstract renderADMXElements(): string[];
