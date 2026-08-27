@@ -53,6 +53,7 @@ const GROUPING_STORAGE_KEY = 'sessionsViewPane.grouping';
 const SORTING_STORAGE_KEY = 'sessionsViewPane.sorting';
 const CUSTOMIZATIONS_MIN_HEIGHT = 129;
 const SESSIONS_SECTION_MIN_HEIGHT = 120;
+const SESSIONS_HEADER_ELLIPSIS_MIN_WIDTH = 8;
 
 export const SessionsViewFilterSubMenu = new MenuId('SessionsViewPaneFilterSubMenu');
 export const SessionsViewFilterOptionsSubMenu = new MenuId('SessionsViewPaneFilterOptionsSubMenu');
@@ -648,6 +649,9 @@ export class SessionsView extends ViewPane {
 
 		this.headerLabel.style.display = '';
 		this.headerActions.style.display = '';
+		if (this.headerLabel.clientWidth < SESSIONS_HEADER_ELLIPSIS_MIN_WIDTH) {
+			this.headerLabel.style.display = 'none';
+		}
 	}
 
 	/**
