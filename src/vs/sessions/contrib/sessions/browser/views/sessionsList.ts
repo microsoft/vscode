@@ -46,6 +46,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { ChatInteractivity, ChatOriginKind, getChatCapabilities, getSessionStatusMessage, getSessionWorkspaceKind, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionWorkspace, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
 import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
@@ -749,6 +750,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		private readonly sessionsManagementService: ISessionsManagementService,
 		private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 		private readonly openerService: IOpenerService,
+		private readonly labelService: ILabelService,
 		// TEMPORARY — see the note on the `IAgentSessionsService` import above (#320480).
 		private readonly agentSessionsService: IAgentSessionsService,
 		private readonly _voicePlaybackService: IVoicePlaybackService,
@@ -887,7 +889,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		if (this.options.showHover) {
 			// Rich hover on the row: the same widget session pills use in chat output.
 			template.elementDisposables.add(this.hoverService.setupDelayedHover(template.container, () => ({
-				content: new SessionSummaryHoverWidget(getSessionSummaryHoverData(element, this.sessionsProvidersService, this.getCreatorHoverData(element))).domNode,
+				content: new SessionSummaryHoverWidget(getSessionSummaryHoverData(element, this.sessionsProvidersService, this.openerService, this.labelService, this.getCreatorHoverData(element))).domNode,
 				appearance: { showPointer: true },
 				position: { hoverPosition: HoverPosition.RIGHT, forcePosition: true },
 				persistence: { hideOnHover: false },
@@ -2390,6 +2392,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 		@IOpenerService private readonly openerService: IOpenerService,
+		@ILabelService private readonly labelService: ILabelService,
 	) {
 		super();
 
@@ -2472,6 +2475,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this._sessionsManagementService,
 			this.agentHostConnectionsService,
 			this.openerService,
+			this.labelService,
 			agentSessionsService,
 			voicePlaybackService,
 		);
@@ -4458,6 +4462,7 @@ export class SessionsFlatList extends Disposable {
 		@IVoicePlaybackService voicePlaybackService: IVoicePlaybackService,
 		@IAgentHostConnectionsService agentHostConnectionsService: IAgentHostConnectionsService,
 		@IOpenerService openerService: IOpenerService,
+		@ILabelService labelService: ILabelService,
 	) {
 		super();
 
@@ -4498,6 +4503,7 @@ export class SessionsFlatList extends Disposable {
 			this._sessionsManagementService,
 			agentHostConnectionsService,
 			openerService,
+			labelService,
 			agentSessionsService,
 			voicePlaybackService,
 		);

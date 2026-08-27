@@ -14,6 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { ILinkPresentationProvider, ILinkPresentationService } from '../../../../../platform/dataChannel/common/dataChannel.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IOpener, IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ISessionSummaryHoverProvider, ISessionSummaryHoverService } from '../../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHoverService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -89,6 +90,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			linkPresentationService,
 			sessionsProvidersService,
 			sessionSummaryHoverService,
+			new class extends mock<ILabelService>() { },
 		));
 
 		if (!registeredOpener) {
@@ -153,6 +155,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			linkPresentationService,
 			sessionsProvidersService,
 			sessionSummaryHoverService,
+			new class extends mock<ILabelService>() { },
 		));
 
 		const watcher = presentationProvider?.createLinkPresentationWatcher(URI.parse(buildOpenSessionLinkUri(sessionResource, 'chat-2')));
@@ -216,6 +219,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			},
 			sessionsProvidersService,
 			hover.service,
+			new class extends mock<ILabelService>() { },
 		));
 
 		const provider = hover.provider();
@@ -232,7 +236,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 				location: undefined,
 				pullRequests: undefined,
 				createdBy: undefined,
-				providerLabels: ['Local Agent Host'],
+				providerLabel: 'Local Agent Host',
 			},
 			unknown: undefined,
 		});

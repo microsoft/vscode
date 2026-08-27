@@ -20,6 +20,8 @@ import { ContextKeyService } from '../../../../../platform/contextkey/browser/co
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { IOpenerService, OpenExternalOptions, OpenInternalOptions } from '../../../../../platform/opener/common/opener.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
@@ -548,6 +550,8 @@ suite('Sessions - SessionsList', () => {
 			new class extends mock<ISessionsProvidersService>() {
 				override getProvider() { return undefined; }
 			},
+			new class extends mock<IOpenerService>() { },
+			new class extends mock<ILabelService>() { },
 			{
 				title: 'Creator session',
 				onOpen,
@@ -557,6 +561,71 @@ suite('Sessions - SessionsList', () => {
 		assert.deepStrictEqual(hover.createdBy, {
 			title: 'Creator session',
 			onOpen,
+		});
+	});
+
+	test('session hover links each pull request and opens it externally', () => {
+		const pullRequestUri = URI.parse('https://github.com/microsoft/vscode/pull/241533');
+		const root = URI.file('/home/user/projects/vscode');
+		const session = upcastPartial<ISession>({
+			providerId: 'test',
+			sessionType: 'test',
+			title: constObservable('Fix the redirect loop'),
+			isQuickChat: constObservable(false),
+			worktreePending: constObservable(false),
+			changes: constObservable([]),
+			workspace: constObservable({
+				uri: root,
+				label: 'vscode',
+				icon: Codicon.folder,
+				requiresWorkspaceTrust: false,
+				isVirtualWorkspace: false,
+				folders: [{
+					root,
+					workingDirectory: root,
+					name: 'vscode',
+					description: undefined,
+					gitRepository: {
+						uri: root,
+						workTreeUri: undefined,
+						baseBranchName: 'main',
+						gitHubInfo: constObservable({
+							owner: 'microsoft',
+							repo: 'vscode',
+							pullRequests: [
+								{ owner: 'microsoft', repo: 'vscode', number: 241533, uri: pullRequestUri, title: 'Fix the redirect loop', createdByThisSession: true },
+								// Inherited from the checkout, so never listed.
+								{ owner: 'microsoft', repo: 'vscode', number: 9001, uri: URI.parse('https://github.com/microsoft/vscode/pull/9001'), createdByThisSession: false },
+							],
+						}),
+					},
+				}],
+			}),
+		});
+		const opened: { resource: URI | string; openExternal: boolean | undefined }[] = [];
+		const hover = getSessionSummaryHoverData(
+			session,
+			new class extends mock<ISessionsProvidersService>() {
+				override getProvider() { return undefined; }
+			},
+			new class extends mock<IOpenerService>() {
+				override async open(resource: URI | string, options?: OpenInternalOptions | OpenExternalOptions): Promise<boolean> {
+					opened.push({ resource, openExternal: (options as OpenExternalOptions | undefined)?.openExternal });
+					return true;
+				}
+			},
+			new class extends mock<ILabelService>() {
+				override getUriLabel(resource: URI): string { return resource.path; }
+			},
+		);
+		hover.pullRequests?.forEach(pullRequest => pullRequest.onOpen?.());
+
+		assert.deepStrictEqual({
+			pullRequests: hover.pullRequests?.map(pullRequest => ({ title: pullRequest.title, uri: pullRequest.uri?.toString() })),
+			opened,
+		}, {
+			pullRequests: [{ title: 'Fix the redirect loop', uri: pullRequestUri.toString() }],
+			opened: [{ resource: pullRequestUri, openExternal: true }],
 		});
 	});
 
