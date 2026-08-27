@@ -187,9 +187,9 @@ export class Menubar extends Disposable {
 		// the current state (e.g. "Restart to Update" instead of "Check for Updates...").
 		this._register(this.updateService.onStateChange(() => this.scheduleUpdateMenu()));
 
-		// Drop stale Open Recent entries from the cached native menu when the MRU list changes
-		// (e.g. after opening a deleted folder with no windows open).
+		// Prune stale Open Recent entries when the MRU list changes (#332665).
 		this._register(this.workspacesHistoryMainService.onDidChangeRecentlyOpened(() => this.pruneStaleRecentMenuItems()));
+		this.pruneStaleRecentMenuItems();
 	}
 
 	private get currentEnableMenuBarMnemonics(): boolean {
@@ -256,7 +256,7 @@ export class Menubar extends Disposable {
 			return;
 		}
 
-		this.stateService.setItem<IMenubarData>(Menubar.lastKnownMenubarStorageKey, {
+		this.stateService.setItem(Menubar.lastKnownMenubarStorageKey, {
 			menus: this.menubarMenus,
 			keybindings: this.keybindings
 		});

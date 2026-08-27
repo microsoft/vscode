@@ -38,7 +38,11 @@ suite('Menubar', () => {
 			const pruned = pruneRecentMenuItems(menus, item => item.uri.toString() === folderUri.toString());
 
 			assert.strictEqual(pruned, true);
-			assert.deepStrictEqual(menus['File'].items.map(item => 'uri' in item ? item.label : item.id), ['folder', 'vscode.menubar.separator', 'workbench.action.clearRecentFiles']);
+			assert.deepStrictEqual(menus['File'].items, [
+				recentFolder,
+				{ id: 'vscode.menubar.separator' },
+				{ id: 'workbench.action.clearRecentFiles', label: 'Clear Recently Opened' }
+			]);
 		});
 
 		test('prunes nested recent items in submenus', () => {
@@ -62,7 +66,7 @@ suite('Menubar', () => {
 			assert.strictEqual(pruned, true);
 			const submenu = menus['File'].items[0];
 			assert.ok(isMenubarMenuItemSubmenu(submenu));
-			assert.deepStrictEqual(submenu.submenu.items.map(item => item.label), ['workspace', 'file']);
+			assert.deepStrictEqual(submenu.submenu.items, [recentWorkspace, recentFile]);
 		});
 
 		test('returns false when nothing was pruned', () => {
