@@ -250,7 +250,7 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 			// its own. Rendering it inside the span of the character below would make that character fixed
 			// width as well. Several such injections can sit at the same offset.
 			while (fixedWidthRange && fixedWidthRange.startOffset === charIndex && fixedWidthRange.endOffset === charIndex) {
-				sb.appendString('<span style="display:inline-block;box-sizing:border-box;width:');
+				sb.appendString('<span style="display:inline-block;box-sizing:border-box;white-space:nowrap;width:');
 				sb.appendString(String(fixedWidthRange.widthInEm));
 				sb.appendString('em;">');
 				sb.appendString('</span>');
@@ -261,7 +261,7 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 			// otherwise. At most one such range can start here: injections at the same column are laid
 			// out one after the other, so only an empty one leaves the next starting at the same offset.
 			if (fixedWidthRange && fixedWidthRange.startOffset === charIndex) {
-				sb.appendString('<span style="display:inline-block;box-sizing:border-box;width:');
+				sb.appendString('<span style="display:inline-block;box-sizing:border-box;white-space:nowrap;width:');
 				sb.appendString(String(fixedWidthRange.widthInEm));
 				sb.appendString('em;">');
 			} else {
