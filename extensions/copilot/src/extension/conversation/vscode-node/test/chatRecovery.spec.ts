@@ -115,8 +115,8 @@ suite('Chat recovery', () => {
 		]).toEqual([
 			undefined,
 			undefined,
-			{ modelId: 'model', scoringVersion: '1', totalScore: '1', requestRetried: true, requestEdited: true, requestChangedModel: true },
-			{ modelId: 'model', scoringVersion: '1', totalScore: '1.25', requestRetried: true, requestEdited: true, requestTurnedOffAutopilot: true },
+			{ modelId: 'model', scoringVersion: '1', totalScore: 1, requestRetried: true, requestEdited: true, requestChangedModel: true },
+			{ modelId: 'model', scoringVersion: '1', totalScore: 1.25, requestRetried: true, requestEdited: true, requestTurnedOffAutopilot: true },
 		]);
 	});
 
@@ -146,13 +146,13 @@ suite('Chat recovery', () => {
 			failedTests: getChatRecoveryAttempt(previousRequest, chatResponse(metadataWithChangedFile(changedTestFile, metadataWithTestRuns({ failedCount: 1 }))), chatRequest(retry), noWorkspaceSignals),
 			rejectedPlan: getChatRecoveryAttempt(previousRequest, chatResponse(metadataWithPlanReviews('{"rejected":true}')), chatRequest(retry)),
 		}).toEqual({
-			editedRequest: { modelId: 'model', scoringVersion: '1', totalScore: '1.25', requestEdited: true, lastResponseErrored: true },
-			changedModel: { modelId: 'model', scoringVersion: '1', totalScore: '1', requestChangedModel: true, lastResponseErrored: true },
-			turnedOffAutopilot: { modelId: 'model', scoringVersion: '1', totalScore: '1.25', requestTurnedOffAutopilot: true, lastResponseErrored: true },
-			repeatedRequest: { modelId: 'model', scoringVersion: '1', totalScore: '1', lastRequestRepeated: true, lastResponseErrored: true },
-			responseError: { modelId: 'model', scoringVersion: '1', totalScore: '1', requestRetried: true, lastResponseErrored: true },
-			failedTests: { modelId: 'model', scoringVersion: '1', totalScore: '1', requestRetried: true, documentGeneratedTestsFail: true },
-			rejectedPlan: { modelId: 'model', scoringVersion: '1', totalScore: '1', requestRetried: true, planReviewRejected: true },
+			editedRequest: { modelId: 'model', scoringVersion: '1', totalScore: 1.25, requestEdited: true, lastResponseErrored: true },
+			changedModel: { modelId: 'model', scoringVersion: '1', totalScore: 1, requestChangedModel: true, lastResponseErrored: true },
+			turnedOffAutopilot: { modelId: 'model', scoringVersion: '1', totalScore: 1.25, requestTurnedOffAutopilot: true, lastResponseErrored: true },
+			repeatedRequest: { modelId: 'model', scoringVersion: '1', totalScore: 1, lastRequestRepeated: true, lastResponseErrored: true },
+			responseError: { modelId: 'model', scoringVersion: '1', totalScore: 1, requestRetried: true, lastResponseErrored: true },
+			failedTests: { modelId: 'model', scoringVersion: '1', totalScore: 1, requestRetried: true, documentGeneratedTestsFail: true },
+			rejectedPlan: { modelId: 'model', scoringVersion: '1', totalScore: 1, requestRetried: true, planReviewRejected: true },
 		});
 	});
 
@@ -173,10 +173,10 @@ suite('Chat recovery', () => {
 			generatedProblems: getChatRecoveryAttempt(previousRequest, chatResponse(metadataWithChangedFile(changedDocument)), chatRequest({ attempt: 1, editedRequestId: 'request-id' }), diagnosticSignals),
 			mergeConflicts: getChatRecoveryAttempt(previousRequest, chatResponse(metadataWithChangedFile(conflictDocument)), chatRequest({ attempt: 1 }), conflictSignals),
 		}).toEqual({
-			userRejected: { modelId: 'model', scoringVersion: '1', totalScore: '1', requestRetried: true, documentUserRejected: true },
-			userModified: { modelId: 'model', scoringVersion: '1', totalScore: '1.25', requestRetried: true, requestEdited: true, documentUserModified: true },
-			generatedProblems: { modelId: 'model', scoringVersion: '1', totalScore: '1.25', requestRetried: true, requestEdited: true, documentGeneratedProblems: true },
-			mergeConflicts: { modelId: 'model', scoringVersion: '1', totalScore: '1', requestRetried: true, documentHasMergeConflicts: true },
+			userRejected: { modelId: 'model', scoringVersion: '1', totalScore: 1, requestRetried: true, documentUserRejected: true },
+			userModified: { modelId: 'model', scoringVersion: '1', totalScore: 1.25, requestRetried: true, requestEdited: true, documentUserModified: true },
+			generatedProblems: { modelId: 'model', scoringVersion: '1', totalScore: 1.25, requestRetried: true, requestEdited: true, documentGeneratedProblems: true },
+			mergeConflicts: { modelId: 'model', scoringVersion: '1', totalScore: 1, requestRetried: true, documentHasMergeConflicts: true },
 		});
 	});
 });

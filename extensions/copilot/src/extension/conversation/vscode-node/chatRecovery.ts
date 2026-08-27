@@ -13,63 +13,61 @@ import { IResultMetadata } from '../../prompt/common/conversation';
 import { IToolCall, WorkingSetEntryState } from '../../prompt/common/intents';
 import { getToolName, ToolName } from '../../tools/common/toolNames';
 
-const testRunSummaryPattern = /<summary passed=\d+ failed=(?<failed>\d+) \/>/;
-
 interface IChatRecoveryEnvironment {
 	readonly getDiagnostics: (uri: vscode.Uri) => readonly vscode.Diagnostic[];
 	readonly hasMergeConflicts: (uri: vscode.Uri) => boolean;
 }
 
-export enum ChatRecoverySignal {
-	DocumentUserRejected = 'documentUserRejected',
-	DocumentUserModified = 'documentUserModified',
-	DocumentHasMergeConflicts = 'documentHasMergeConflicts',
-	DocumentGeneratedProblems = 'documentGeneratedProblems',
-	DocumentGeneratedTestsFail = 'documentGeneratedTestsFail',
-	LastRequestRepeated = 'lastRequestRepeated',
-	LastResponseErrored = 'lastResponseErrored',
+enum ChatRecoverySignal {
 	RequestRetried = 'requestRetried',
 	RequestEdited = 'requestEdited',
 	RequestChangedModel = 'requestChangedModel',
 	RequestTurnedOffAutopilot = 'requestTurnedOffAutopilot',
+	LastRequestRepeated = 'lastRequestRepeated',
+	LastResponseErrored = 'lastResponseErrored',
+	DocumentUserRejected = 'documentUserRejected',
+	DocumentUserModified = 'documentUserModified',
+	DocumentGeneratedProblems = 'documentGeneratedProblems',
+	DocumentHasMergeConflicts = 'documentHasMergeConflicts',
+	DocumentGeneratedTestsFail = 'documentGeneratedTestsFail',
 	PlanReviewRejected = 'planReviewRejected',
 }
 
 const chatRecoverySignalRules = {
-	[ChatRecoverySignal.DocumentUserRejected]: { weight: 0.75 },
-	[ChatRecoverySignal.DocumentUserModified]: { weight: 0.5 },
-	[ChatRecoverySignal.DocumentHasMergeConflicts]: { weight: 0.75 },
-	[ChatRecoverySignal.DocumentGeneratedProblems]: { weight: 0.5 },
-	[ChatRecoverySignal.DocumentGeneratedTestsFail]: { weight: 0.75 },
-	[ChatRecoverySignal.LastRequestRepeated]: { weight: 0.25 },
-	[ChatRecoverySignal.LastResponseErrored]: { weight: 0.75 },
 	[ChatRecoverySignal.RequestRetried]: { weight: 0.25 },
 	[ChatRecoverySignal.RequestEdited]: { weight: 0.5 },
 	[ChatRecoverySignal.RequestChangedModel]: { weight: 0.25 },
 	[ChatRecoverySignal.RequestTurnedOffAutopilot]: { weight: 0.5 },
+	[ChatRecoverySignal.LastRequestRepeated]: { weight: 0.25 },
+	[ChatRecoverySignal.LastResponseErrored]: { weight: 0.75 },
+	[ChatRecoverySignal.DocumentUserRejected]: { weight: 0.75 },
+	[ChatRecoverySignal.DocumentUserModified]: { weight: 0.5 },
+	[ChatRecoverySignal.DocumentGeneratedProblems]: { weight: 0.5 },
+	[ChatRecoverySignal.DocumentHasMergeConflicts]: { weight: 0.75 },
+	[ChatRecoverySignal.DocumentGeneratedTestsFail]: { weight: 0.75 },
 	[ChatRecoverySignal.PlanReviewRejected]: { weight: 0.75 },
 } satisfies Record<ChatRecoverySignal, { readonly weight: number }>;
 
+// Signal properties are sparse: an absent key means that the signal was not detected.
 type ChatRecoverySignalProperties = Partial<Record<ChatRecoverySignal, true>>;
 
-export type ChatRecoveryAttempt = ChatRecoverySignalProperties & {
+type ChatRecoveryAttempt = ChatRecoverySignalProperties & {
 	readonly modelId: string;
 	readonly scoringVersion: string;
-	readonly totalScore: string;
+	totalScore: number;
 };
 
+const testRunSummaryPattern = /<summary passed=\d+ failed=(?<failed>\d+) \/>/;
 const chatRecoveryScoreThreshold = 1;
+// Increment when changing signal weights, the threshold, or scoring semantics.
 const chatRecoveryScoringVersion = '1';
 
-function addSignal(signalProperties: ChatRecoverySignalProperties, signal: ChatRecoverySignal): number {
-	if (!chatRecoverySignalRules[signal]) {
-		return 0;
+function addSignal(recoveryAttempt: ChatRecoveryAttempt, signal: ChatRecoverySignal): void {
+	if (recoveryAttempt[signal]) {
+		return;
 	}
-	if (signalProperties[signal]) {
-		return 0;
-	}
-	signalProperties[signal] = true;
-	return chatRecoverySignalRules[signal].weight;
+	recoveryAttempt[signal] = true;
+	recoveryAttempt.totalScore += chatRecoverySignalRules[signal].weight;
 }
 
 export function arePromptsSimilar(previousPrompt: string, currentPrompt: string): boolean {
@@ -100,6 +98,7 @@ function testRunTargetsChangedFile(toolCall: IToolCall, changedFileUris: readonl
 }
 
 export function didLastTestRunFail(metadata: Partial<IResultMetadata> | undefined, changedFileUris: readonly vscode.Uri[]): boolean {
+	// Earlier failures no longer matter after a newer relevant test run passes.
 	const lastTestRun = metadata?.toolCallRounds
 		?.flatMap(round => round.toolCalls)
 		.filter(toolCall => testRunTargetsChangedFile(toolCall, changedFileUris))
@@ -133,34 +132,27 @@ export function wasLastPlanReviewRejected(metadata: Partial<IResultMetadata> | u
 	}
 }
 
-/**
- * Determines whether the current chat request is an attempt to recover from a previous failed request.
- */
-export function getChatRecoveryAttempt(previousRequest: ChatRequestTurn2 | undefined, previousResponse: ChatResponseTurn | undefined, request: vscode.ChatRequest, environment?: IChatRecoveryEnvironment): ChatRecoveryAttempt | undefined {
-	if ((!previousRequest && !previousResponse) || request.permissionLevel === 'autopilot' || request.subAgentInvocationId || request.isSystemInitiated) {
-		return undefined;
-	}
-
-	const signalProperties: ChatRecoverySignalProperties = {};
-	let totalScore = 0;
-
+function addRequestSignals(recoveryAttempt: ChatRecoveryAttempt, previousRequest: ChatRequestTurn2 | undefined, request: vscode.ChatRequest): void {
 	if (request.attempt > 0) {
-		totalScore += addSignal(signalProperties, ChatRecoverySignal.RequestRetried);
+		addSignal(recoveryAttempt, ChatRecoverySignal.RequestRetried);
 	}
 	if (request.editedRequestId) {
-		totalScore += addSignal(signalProperties, ChatRecoverySignal.RequestEdited);
+		addSignal(recoveryAttempt, ChatRecoverySignal.RequestEdited);
 	}
 	if (previousRequest?.modelId && previousRequest.modelId !== request.model.id) {
-		totalScore += addSignal(signalProperties, ChatRecoverySignal.RequestChangedModel);
+		addSignal(recoveryAttempt, ChatRecoverySignal.RequestChangedModel);
 	}
 	if (previousRequest?.permissionLevel === 'autopilot' && request.permissionLevel !== 'autopilot') {
-		totalScore += addSignal(signalProperties, ChatRecoverySignal.RequestTurnedOffAutopilot);
+		addSignal(recoveryAttempt, ChatRecoverySignal.RequestTurnedOffAutopilot);
 	}
 	if (previousRequest && arePromptsSimilar(previousRequest.prompt, request.prompt)) {
-		totalScore += addSignal(signalProperties, ChatRecoverySignal.LastRequestRepeated);
+		addSignal(recoveryAttempt, ChatRecoverySignal.LastRequestRepeated);
 	}
+}
+
+function addResponseSignals(recoveryAttempt: ChatRecoveryAttempt, previousResponse: ChatResponseTurn | undefined, request: vscode.ChatRequest, environment: IChatRecoveryEnvironment | undefined): void {
 	if (previousResponse?.result.errorDetails) {
-		totalScore += addSignal(signalProperties, ChatRecoverySignal.LastResponseErrored);
+		addSignal(recoveryAttempt, ChatRecoverySignal.LastResponseErrored);
 	}
 
 	const editStep = previousResponse ? PreviousEditCodeStep.fromChatResultMetaData(previousResponse.result) : undefined;
@@ -171,7 +163,7 @@ export function getChatRecoveryAttempt(previousRequest: ChatRequestTurn2 | undef
 		) === true
 	);
 	if (documentUserRejected) {
-		totalScore += addSignal(signalProperties, ChatRecoverySignal.DocumentUserRejected);
+		addSignal(recoveryAttempt, ChatRecoverySignal.DocumentUserRejected);
 	}
 	const documentUserModified = changedFiles.some(entry =>
 		request.editedFileEvents?.some(event =>
@@ -179,35 +171,48 @@ export function getChatRecoveryAttempt(previousRequest: ChatRequestTurn2 | undef
 		) === true
 	);
 	if (documentUserModified) {
-		totalScore += addSignal(signalProperties, ChatRecoverySignal.DocumentUserModified);
+		addSignal(recoveryAttempt, ChatRecoverySignal.DocumentUserModified);
 	}
 	const documentGeneratedProblems = changedFiles.some(entry =>
 		(environment?.getDiagnostics(entry.document.uri) ?? vscode.languages.getDiagnostics(entry.document.uri)).some(diagnostic => diagnostic.severity === vscode.DiagnosticSeverity.Error)
 	);
 	if (documentGeneratedProblems) {
-		totalScore += addSignal(signalProperties, ChatRecoverySignal.DocumentGeneratedProblems);
+		addSignal(recoveryAttempt, ChatRecoverySignal.DocumentGeneratedProblems);
 	}
 	const documentHasMergeConflicts = changedFiles.some(entry => environment
 		? environment.hasMergeConflicts(entry.document.uri)
 		: vscode.workspace.textDocuments.some(document => isEqual(document.uri, entry.document.uri) && MergeConflictParser.scanDocument(document).length > 0));
 	if (documentHasMergeConflicts) {
-		totalScore += addSignal(signalProperties, ChatRecoverySignal.DocumentHasMergeConflicts);
+		addSignal(recoveryAttempt, ChatRecoverySignal.DocumentHasMergeConflicts);
 	}
 	if (didLastTestRunFail(previousResponse?.result.metadata, changedFiles.map(entry => entry.document.uri))) {
-		totalScore += addSignal(signalProperties, ChatRecoverySignal.DocumentGeneratedTestsFail);
+		addSignal(recoveryAttempt, ChatRecoverySignal.DocumentGeneratedTestsFail);
 	}
 	if (wasLastPlanReviewRejected(previousResponse?.result.metadata)) {
-		totalScore += addSignal(signalProperties, ChatRecoverySignal.PlanReviewRejected);
+		addSignal(recoveryAttempt, ChatRecoverySignal.PlanReviewRejected);
 	}
+}
 
-	if (totalScore < chatRecoveryScoreThreshold) {
+/**
+ * Detects and scores attempts to recover from a previous failed request.
+ * Returns recovery details only when the score reaches the recovery threshold.
+ */
+export function getChatRecoveryAttempt(previousRequest: ChatRequestTurn2 | undefined, previousResponse: ChatResponseTurn | undefined, request: vscode.ChatRequest, environment?: IChatRecoveryEnvironment): ChatRecoveryAttempt | undefined {
+	if ((!previousRequest && !previousResponse) || request.permissionLevel === 'autopilot' || request.subAgentInvocationId || request.isSystemInitiated) {
 		return undefined;
 	}
 
-	return {
+	const recoveryAttempt: ChatRecoveryAttempt = {
 		modelId: request.model.id,
 		scoringVersion: chatRecoveryScoringVersion,
-		totalScore: String(totalScore),
-		...signalProperties,
+		totalScore: 0,
 	};
+	addRequestSignals(recoveryAttempt, previousRequest, request);
+	addResponseSignals(recoveryAttempt, previousResponse, request, environment);
+
+	if (recoveryAttempt.totalScore < chatRecoveryScoreThreshold) {
+		return undefined;
+	}
+
+	return recoveryAttempt;
 }
