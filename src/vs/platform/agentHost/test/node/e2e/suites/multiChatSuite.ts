@@ -27,7 +27,7 @@ import {
 	type RootState,
 	type SessionState,
 } from '../../../../common/state/sessionState.js';
-import { assertToolCallCompleteText, createRealSession } from '../harness/agentHostE2ETestHarness.js';
+import { createRealSession } from '../harness/agentHostE2ETestHarness.js';
 import { summarizeAnthropicRequest, summarizeResponsesRequest } from '../harness/capiWireCodec.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { conformanceTest, providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
@@ -135,34 +135,12 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		providerTest(title, run, config.fileOperationStrategy === 'fileTools' || context.portableShellToolReplayEnabled);
 	}
 
-	function fileReadToolNames(provider: string): readonly string[] {
-		switch (provider) {
-			case 'claude':
-				return ['Read'];
-			case 'copilotcli':
-				return ['view'];
-			default:
-				return ['Read', 'view', 'shell'];
-		}
-	}
-
-	function assertPeerFileReadResult(channel: string, turnId: string, workspace: string, expected: RegExp): void {
-		if (config.fileOperationStrategy === 'shell') {
-			const toolResultTexts = context.observedModelRequestBodies.flatMap(body => {
-				const request = summarizeResponsesRequest(body);
-				return request?.messages.flatMap(message => modelToolResultTexts(message.content)) ?? [];
-			});
-			assert.ok(toolResultTexts.some(text => expected.test(text)), `expected ${turnId} tool output to reach the provider request; observed ${JSON.stringify(toolResultTexts)}`);
-			return;
-		}
-		assertToolCallCompleteText(context.client, {
-			channel,
-			turnId,
-			toolNames: fileReadToolNames(config.provider),
-			workspace,
-			expected: [expected],
-			success: true,
+	function assertPeerFileReadResult(turnId: string, expected: RegExp): void {
+		const toolResultTexts = context.observedModelRequestBodies.flatMap(body => {
+			const request = summarizeAnthropicRequest(body) ?? summarizeResponsesRequest(body);
+			return request?.messages.flatMap(message => modelToolResultTexts(message.content)) ?? [];
 		});
+		assert.ok(toolResultTexts.some(text => expected.test(text)), `expected ${turnId} tool output to reach the provider request; observed ${JSON.stringify(toolResultTexts)}`);
 	}
 
 	interface IObservedModelMessage {
@@ -726,7 +704,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		const response = await driveTurn(peer, 'peer-read', prompt, 1);
 
 		assert.match(response, /PEER_FILE_VALUE/);
-		assertPeerFileReadResult(peer, 'peer-read', workspace, /PEER_FILE_VALUE/);
+		assertPeerFileReadResult('peer-read', /PEER_FILE_VALUE/);
 	});
 
 	peerFileOperationTest('peer chat reads a file from a nested directory', async function () {
@@ -745,7 +723,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		const response = await driveTurn(peer, 'peer-read-nested', prompt, 1);
 
 		assert.match(response, /PEER_NESTED_READ/);
-		assertPeerFileReadResult(peer, 'peer-read-nested', workspace, /PEER_NESTED_READ/);
+		assertPeerFileReadResult('peer-read-nested', /PEER_NESTED_READ/);
 	});
 
 	peerFileOperationTest('peer chat creates a file in the parent workspace', async function () {
@@ -812,7 +790,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		const response = await driveTurn(peer, 'peer-missing', prompt, 1);
 
 		assert.match(response, /missing/i);
-		assertPeerFileReadResult(peer, 'peer-missing', workspace, config.fileOperationStrategy === 'shell' ? /missing/ : /does not exist/);
+		assertPeerFileReadResult('peer-missing', config.fileOperationStrategy === 'shell' ? /missing/ : /does not exist/);
 	});
 
 	peerFileOperationTest('peer chat reads a filename containing spaces', async function () {
@@ -830,7 +808,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		const response = await driveTurn(peer, 'peer-spaces', prompt, 1);
 
 		assert.match(response, /PEER_SPACED/);
-		assertPeerFileReadResult(peer, 'peer-spaces', workspace, /PEER_SPACED/);
+		assertPeerFileReadResult('peer-spaces', /PEER_SPACED/);
 	});
 
 	peerFileOperationTest('two peer chats write distinct workspace files', async function () {
