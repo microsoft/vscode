@@ -23,7 +23,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { localize } from '../../../../nls.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISession, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../services/sessions/common/session.js';
+import { ISession, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../services/sessions/common/session.js';
 import { IOpenNewSessionResult, ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { isAllowSignedOutWhenUsableEnabled, shouldShowGitHubWorkspaceGroupSignIn } from '../../../browser/sessionsAuthGate.js';
 import { AGENTIC_SIGN_IN_COMMAND_ID } from '../../../common/sessionCommands.js';
@@ -689,29 +689,11 @@ export class NewChatWidget extends Disposable {
 
 	private _renderWorkspacePicker(container: HTMLElement): IDisposable {
 		this._workspacePickerVisibleKey.set(true);
-		const remoteTrigger: IWorkspacePickerTrigger = {
-			label: localize('newSessionWorkspacePicker.remote', "Remote Setup"),
-			ariaLabel: localize('newSessionWorkspacePicker.remoteAriaLabel', "Choose a remote setup for the new session"),
-			icon: Codicon.add,
-			group: SESSION_WORKSPACE_GROUP_REMOTE,
-			hideWhenWorkspaceSelected: true,
-		};
-		const moreTrigger: IWorkspacePickerTrigger = {
-			ariaLabel: localize('newSessionWorkspacePicker.moreAriaLabel', "More workspace options"),
-			icon: Codicon.ellipsis,
-		};
-		const folderTrigger: IWorkspacePickerTrigger = {
-			label: localize('newSessionWorkspacePicker.folder', "Folder"),
-			ariaLabel: localize('newSessionWorkspacePicker.folderAriaLabel', "Choose a folder for the new session"),
-			icon: Codicon.add,
-			group: SESSION_WORKSPACE_GROUP_LOCAL,
-		};
-		const repositoryTrigger: IWorkspacePickerTrigger = {
-			label: localize('newSessionWorkspacePicker.githubRepository', "Repository"),
-			ariaLabel: localize('newSessionWorkspacePicker.githubRepositoryAriaLabel', "Choose a GitHub repository for the new session"),
-			icon: Codicon.add,
-			group: SESSION_WORKSPACE_GROUP_GITHUB,
-			attachesContext: false,
+		const workspaceTrigger: IWorkspacePickerTrigger = {
+			label: localize('newSessionWorkspacePicker.workspace', "Workspace"),
+			ariaLabel: localize('newSessionWorkspacePicker.workspaceAriaLabel', "Choose a workspace for the new session"),
+			icon: Codicon.project,
+			reflectsWorkspace: true,
 		};
 		const gitHubContextTrigger: IWorkspacePickerTrigger = {
 			label: localize('newSessionWorkspacePicker.githubContext', "Issue/PR"),
@@ -722,12 +704,15 @@ export class NewChatWidget extends Disposable {
 			hideWhenNoGitHubRepository: true,
 		};
 		const row = this._workspacePicker.renderCategoryTriggers(container, [
-			isWeb ? { ...folderTrigger, group: SESSION_WORKSPACE_GROUP_REMOTE, hideWhenNoWorkspaceSelected: true } : folderTrigger,
-			repositoryTrigger,
+			workspaceTrigger,
 			gitHubContextTrigger,
-			remoteTrigger,
-			moreTrigger,
 		]);
+		this._newChatInput.sessionTypePicker.render(row, {
+			className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot',
+		});
+		if (row.lastElementChild) {
+			row.insertBefore(row.lastElementChild, row.firstElementChild);
+		}
 		this._workspacePickerRow = row;
 		return toDisposable(() => {
 			if (this._workspacePickerRow === row) {

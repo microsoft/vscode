@@ -308,12 +308,6 @@
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
-.sessions-chat-picker-slot.sessions-workspace-category-picker-slot:last-child .action-label {
-	justify-content: center;
-	min-width: var(--vscode-spacing-size320);
-	padding-inline: var(--vscode-spacing-size80);
-}
-
 .sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label:hover,
 .sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label[aria-expanded='true'] {
 	background-color: var(--vscode-toolbar-hoverBackground);
