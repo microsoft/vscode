@@ -8,7 +8,7 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -173,6 +173,11 @@ class MockSessionsProvidersService extends Disposable {
 			added: providers.filter(p => !oldIds.has(p.id)),
 			removed: oldProviders.filter(p => !newIds.has(p.id)),
 		});
+	}
+
+	registerProvider(provider: ISessionsProvider): IDisposable {
+		this.setProviders([...this._providers, provider]);
+		return toDisposable(() => this.setProviders(this._providers.filter(p => p !== provider)));
 	}
 
 	getProviders(): ISessionsProvider[] {

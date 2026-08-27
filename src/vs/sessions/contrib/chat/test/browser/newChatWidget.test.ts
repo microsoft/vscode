@@ -18,7 +18,7 @@ import { ISendRequestOptions } from '../../../../services/sessions/common/sessio
 import { IOpenNewSessionOptions, IOpenNewSessionResult } from '../../../../services/sessions/browser/sessionsService.js';
 import { IPreferredSessionType } from '../../browser/sessionTypePicker.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
-import { IChatRequestVariableEntry, toFileVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { IChatRequestVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 
 /** The part of the active session `_recreateOnProviderChange` actually reads. */
@@ -324,12 +324,11 @@ suite('NewChatWidget', () => {
 			}),
 		});
 		const composerAttachment = toFileVariableEntry(URI.file('/explicit-file'));
-		const duplicateRepositoryAttachment = {
-			kind: 'paste' as const,
-			id: `github-context:https://github.com/microsoft/vscode`,
-			name: 'explicit repository context',
-			value: 'Explicit repository context',
-		};
+		const duplicateRepositoryAttachment = toPasteVariableEntry(
+			'explicit repository context',
+			'Explicit repository context',
+			{ id: `github-context:https://github.com/microsoft/vscode` },
+		);
 		const repositoryContext = upcastPartial<ISessionWorkspace>({
 			uri: URI.parse('https://github.com/microsoft/vscode'),
 			label: 'microsoft/vscode',
