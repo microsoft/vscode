@@ -806,6 +806,20 @@ export function setPrimaryMcpServerEnablement(
 	);
 }
 
+export function isPrimaryMcpServerEnabled(
+	mcpService: IMcpService,
+	localServerId: string | undefined,
+	activeSessionServer: AgentHostMcpServer | undefined,
+): boolean {
+	if (localServerId) {
+		return isContributionEnabled(mcpService.enablementModel.readEnabled(localServerId));
+	}
+	if (activeSessionServer) {
+		return getCustomizationScopeEnablement(activeSessionServer).global;
+	}
+	return true;
+}
+
 function createAgentHostMcpServerEnablementAction(agentHostCustomizations: IAgentHostCustomizationService, sessionResource: URI, server: AgentHostMcpServer, enabled: boolean, scope: AgentHostMcpServerEnablementScope): IAction {
 	const actionInfo = agentHostMcpServerEnablementActionInfo[scope];
 	return new Action(
@@ -1749,17 +1763,9 @@ export class McpListWidget extends Disposable {
 
 	private isInstalledEntryEnabled(entry: IMcpInstalledEntry): boolean {
 		const activeSessionServer = getActiveSessionServer(entry);
-		if (activeSessionServer) {
-			return activeSessionServer.enabled;
-		}
 		const localServer = entry.type === 'session-server-item' ? undefined : entry.localServer;
-		if (localServer) {
-			return isContributionEnabled(localServer.enablement.get());
-		}
-		if (entry.type === 'server-item') {
-			return isContributionEnabled(this.mcpService.enablementModel.readEnabled(entry.server.id));
-		}
-		return true;
+		const serverId = localServer?.definition.id ?? (entry.type === 'server-item' ? entry.server.id : undefined);
+		return isPrimaryMcpServerEnabled(this.mcpService, serverId, activeSessionServer);
 	}
 
 	private setInstalledEntryEnabled(entry: IMcpInstalledEntry, enabled: boolean): void {

@@ -38,6 +38,7 @@ import {
 	getMcpServerOutputHandler,
 	getMcpStatusPresentation,
 	isMcpServerCollectionVisible,
+	isPrimaryMcpServerEnabled,
 	getMcpStatusRenderSignature,
 	getServerItemContextMenuActions,
 	getToggledMcpEnablementState,
@@ -275,18 +276,27 @@ suite('mcpListWidget', () => {
 
 	test('uses durable enablement for the primary MCP switch', () => {
 		const sessionResource = URI.parse('vscode-agent-session:///session-1');
-		const activeSessionServer = createAgentHostServer();
-		const { service: mcpService, calls: localCalls } = createMcpService(ContributionEnablementState.EnabledProfile);
+		const activeSessionServer = createAgentHostServer({
+			enabled: false,
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
+		});
+		const { service: mcpService, calls: localCalls } = createMcpService(ContributionEnablementState.DisabledProfile);
 		const { service: agentHostService, calls: agentHostCalls } = createAgentHostCustomizations();
 
-		setPrimaryMcpServerEnablement(mcpService, agentHostService, sessionResource, 'server-1', activeSessionServer, false);
+		const localEnabled = isPrimaryMcpServerEnabled(mcpService, 'server-1', activeSessionServer);
+		const hostEnabled = isPrimaryMcpServerEnabled(mcpService, undefined, activeSessionServer);
+		setPrimaryMcpServerEnablement(mcpService, agentHostService, sessionResource, 'server-1', activeSessionServer, true);
 		setPrimaryMcpServerEnablement(mcpService, agentHostService, sessionResource, undefined, activeSessionServer, false);
 
 		assert.deepStrictEqual({
+			localEnabled,
+			hostEnabled,
 			localCalls,
 			agentHostCalls,
 		}, {
-			localCalls: [['server-1', ContributionEnablementState.DisabledProfile]],
+			localEnabled: false,
+			hostEnabled: true,
+			localCalls: [['server-1', ContributionEnablementState.EnabledProfile]],
 			agentHostCalls: [[sessionResource, activeSessionServer.id, activeSessionServer.enablement, CustomizationEnablementKind.Global, false]],
 		});
 	});

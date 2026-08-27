@@ -10,7 +10,7 @@ import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { isCancellationError } from '../../../../../base/common/errors.js';
+import { getErrorMessage, isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
@@ -29,7 +29,7 @@ import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPlu
 import { createPolicyBlockedEnableAction, createUninstallPluginAction, isPluginPolicyBlocked } from '../agentPluginActions.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { basename, dirname, joinPath } from '../../../../../base/common/resources.js';
+import { basename, dirname, isEqual, joinPath } from '../../../../../base/common/resources.js';
 import { AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
 import { FileOperationError, FileOperationResult, IFileService } from '../../../../../platform/files/common/files.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -40,7 +40,6 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import type { IContextMenuProvider } from '../../../../../base/browser/contextmenu.js';
 import { AnchorAlignment } from '../../../../../base/browser/ui/contextview/contextview.js';
 import { getPluginInclusionLabel } from './aiCustomizationPresentation.js';
-import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { autorun, waitForState } from '../../../../../base/common/observable.js';
 
 const $ = DOM.$;
@@ -106,11 +105,11 @@ export async function waitForInstalledPlugin(
 	try {
 		const plugins = await waitForState(
 			agentPluginService.plugins,
-			plugins => plugins.some(plugin => plugin.uri.toString() === expectedUri.toString()),
+			plugins => plugins.some(plugin => isEqual(plugin.uri, expectedUri)),
 			undefined,
 			token,
 		);
-		return plugins.find(plugin => plugin.uri.toString() === expectedUri.toString());
+		return plugins.find(plugin => isEqual(plugin.uri, expectedUri));
 	} catch (error) {
 		if (isCancellationError(error)) {
 			return undefined;
@@ -364,6 +363,9 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 				};
 				try {
 					await this.pluginInstallService.installPlugin(marketplacePlugin);
+					if (this._store.isDisposed || this.current !== item) {
+						return;
+					}
 					const waitDisposables = new DisposableStore();
 					this.installWaitDisposables.value = waitDisposables;
 					const waitCts = new CancellationTokenSource();
