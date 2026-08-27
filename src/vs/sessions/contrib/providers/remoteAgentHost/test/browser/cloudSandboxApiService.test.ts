@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../../base/common/async.js';
 import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IRequestContext, type IHeaders, type IRequestOptions } from '../../../../../../base/parts/request/common/request.js';
 import { CLOUD_SANDBOX_AGENT_SLUG, CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
@@ -41,6 +43,8 @@ function task(id: string, name: string, repositoryId: number | undefined, sessio
 interface ITestSetup {
 	readonly service: CloudSandboxApiService;
 	readonly requestedUrls: string[];
+	/** Peak number of task-detail fetches in flight at once during the run. */
+	readonly concurrency: { max: number; current: number };
 }
 
 function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T }, 'add'>, options: {
@@ -49,8 +53,24 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	readonly repositories: ReadonlyMap<number, { full_name?: string } | 'error'>;
 	/** Serve page 1 with fewer rows than requested while still advertising `rel="next"`. */
 	readonly shortFirstPage?: boolean;
+	/** Task id -> how many times its detail fetch answers 429 before succeeding. */
+	readonly rateLimitedTaskFetches?: ReadonlyMap<string, number>;
+	/** How many times the task list answers 429 before succeeding. */
+	readonly rateLimitedListPages?: number;
+	/** `Retry-After` (seconds) served with each 429; omitted leaves the caller to back off. */
+	readonly retryAfterSeconds?: number;
+	/** Suspend every task-detail response by this many ms, so overlapping fetches are observable. */
+	readonly taskFetchDelayMs?: number;
 }): ITestSetup {
 	const requestedUrls: string[] = [];
+	const concurrency = { max: 0, current: 0 };
+	const remainingTaskRateLimits = new Map(options.rateLimitedTaskFetches ?? []);
+	let remainingListRateLimits = options.rateLimitedListPages ?? 0;
+	const rateLimitedResponse = () => jsonResponse(
+		{ message: 'too many requests' },
+		429,
+		options.retryAfterSeconds !== undefined ? { 'retry-after': String(options.retryAfterSeconds) } : {},
+	);
 	const instantiationService = store.add(new TestInstantiationService());
 
 	instantiationService.stub(IRequestService, new class extends mock<IRequestService>() {
@@ -66,8 +86,26 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 				return jsonResponse(entry ?? {});
 			}
 			if (/\/tasks\/[^/]+$/.test(url)) {
-				const id = url.split('/').pop()!;
-				return jsonResponse(options.tasks.find(t => (t as { id: string }).id === decodeURIComponent(id)));
+				const id = decodeURIComponent(url.split('/').pop()!);
+				const remaining = remainingTaskRateLimits.get(id) ?? 0;
+				if (remaining > 0) {
+					remainingTaskRateLimits.set(id, remaining - 1);
+					return rateLimitedResponse();
+				}
+				concurrency.current++;
+				concurrency.max = Math.max(concurrency.max, concurrency.current);
+				try {
+					if (options.taskFetchDelayMs !== undefined) {
+						await timeout(options.taskFetchDelayMs);
+					}
+					return jsonResponse(options.tasks.find(t => (t as { id: string }).id === id));
+				} finally {
+					concurrency.current--;
+				}
+			}
+			if (remainingListRateLimits > 0) {
+				remainingListRateLimits--;
+				return rateLimitedResponse();
 			}
 			// Paginate like Mission Control does, advertising further pages via the `Link` header.
 			const perPage = Number(url.match(/[?&]per_page=(\d+)/)?.[1] ?? options.tasks.length);
@@ -93,7 +131,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 		override reportRequest(): void { }
 	}());
 
-	return { service: store.add(instantiationService.createInstance(CloudSandboxApiService)), requestedUrls };
+	return { service: store.add(instantiationService.createInstance(CloudSandboxApiService)), requestedUrls, concurrency };
 }
 
 suite('CloudSandboxApiService repository resolution', () => {
@@ -241,6 +279,102 @@ suite('CloudSandboxApiService repository resolution', () => {
 			listPages: 10,
 		});
 	});
+});
+
+suite('CloudSandboxApiService discovery rate limiting', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('resolves tasks in bounded batches rather than all at once', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// Fanning out over every task at once is what trips the rate limit: a user with dozens of
+		// sandbox tasks issued dozens of simultaneous requests, and each rejection dropped a
+		// session from the pass.
+		const tasks = Array.from({ length: 30 }, (_, i) => task(`t-${i}`, 'x', undefined, `s-${i}`, `e-${i}`));
+		const { service, concurrency } = createService(store, { tasks, repositories: new Map(), taskFetchDelayMs: 10 });
+
+		const result = await service.listSessions(CancellationToken.None);
+
+		assert.deepStrictEqual({
+			kind: result.kind,
+			sessions: result.kind === 'failed' ? -1 : result.sessions.length,
+			peakConcurrency: concurrency.max,
+		}, {
+			kind: 'complete',
+			sessions: 30,
+			peakConcurrency: 5,
+		});
+	}));
+
+	test('retries a rate-limited task fetch instead of dropping its session', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// A 429 that is merely reported loses the session for the life of the window, because
+		// nothing re-runs a pass that otherwise succeeded.
+		const { service } = createService(store, {
+			tasks: [
+				task('task-1', 'kept', undefined, 'sess-1', 'env-1'),
+				task('task-2', 'also kept', undefined, 'sess-2', 'env-2'),
+			],
+			repositories: new Map(),
+			rateLimitedTaskFetches: new Map([['task-1', 2]]),
+			retryAfterSeconds: 1,
+		});
+
+		const result = await service.listSessions(CancellationToken.None);
+
+		assert.deepStrictEqual({
+			// `complete`, not `partial`: the retry resolved it, so nothing was left unresolved.
+			kind: result.kind,
+			sessions: result.kind === 'failed' ? [] : result.sessions.map(s => s.sessionId).sort(),
+		}, {
+			kind: 'complete',
+			sessions: ['sess-1', 'sess-2'],
+		});
+	}));
+
+	test('retries a rate-limited task list rather than failing the whole pass', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// Page one failing is fatal — it returns `failed`, which seeds nothing and leaves the
+		// sessions list empty until something else triggers discovery.
+		const { service } = createService(store, {
+			tasks: [task('task-1', 'kept', undefined, 'sess-1', 'env-1')],
+			repositories: new Map(),
+			rateLimitedListPages: 2,
+		});
+
+		const result = await service.listSessions(CancellationToken.None);
+
+		assert.deepStrictEqual({
+			kind: result.kind,
+			sessions: result.kind === 'failed' ? [] : result.sessions.map(s => s.sessionId),
+		}, {
+			kind: 'complete',
+			sessions: ['sess-1'],
+		});
+	}));
+
+	test('gives up on a persistently rate-limited task, leaving the scan partial', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// Retrying forever would hold discovery open; the pass must end, but as `partial` so the
+		// caller does not treat the missing session as one that no longer exists.
+		const { service, requestedUrls } = createService(store, {
+			tasks: [
+				task('task-1', 'lost', undefined, 'sess-1', 'env-1'),
+				task('task-2', 'kept', undefined, 'sess-2', 'env-2'),
+			],
+			repositories: new Map(),
+			rateLimitedTaskFetches: new Map([['task-1', Number.MAX_SAFE_INTEGER]]),
+		});
+
+		const result = await service.listSessions(CancellationToken.None);
+
+		assert.deepStrictEqual({
+			kind: result.kind,
+			sessions: result.kind === 'failed' ? [] : result.sessions.map(s => s.sessionId),
+			// The original attempt plus RATE_LIMIT_MAX_RETRIES retries, then it stops.
+			taskOneAttempts: requestedUrls.filter(u => u.endsWith('/tasks/task-1')).length,
+		}, {
+			kind: 'partial',
+			sessions: ['sess-2'],
+			taskOneAttempts: 4,
+		});
+	}));
 });
 
 interface ICreateCall {
