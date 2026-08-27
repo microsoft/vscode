@@ -88,11 +88,7 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		if (!session) {
 			return false;
 		}
-		// An absent chat id means the default chat (see buildOpenSessionLinkUri),
-		// so it must still resolve to a concrete chat rather than merely focusing
-		// the session: when a different chat of this same session is already
-		// active (e.g. a delegated request's source is the default chat), opening
-		// just the session would leave the wrong chat showing.
+		// An absent chat id means the session's main/default chat, not "no target chat" (see buildOpenSessionLinkUri).
 		const chatId = parseOpenSessionLinkChatId(resource);
 		const chatResource = chatId ? session.resource.with({ fragment: chatId }) : session.mainChat.get().resource;
 		await this._sessionsService.openChat(session, chatResource, { source: 'link' });

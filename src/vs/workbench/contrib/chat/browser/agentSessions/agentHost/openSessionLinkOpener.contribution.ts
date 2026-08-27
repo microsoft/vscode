@@ -39,13 +39,7 @@ import { ISessionSummaryHoverService } from '../sessionSummaryHoverService.js';
  * whose client scheme is `agent-host-<provider>`. We rebuild that client
  * resource and open it through {@link IChatWidgetService.openSession}.
  *
- * Also registers an {@link IChatRequestOriginService} opener so a delegated
- * request's "Sent from another chat" / "Sent by another session" origin —
- * whose `sourceSessionResource` is the same `agent-host-session://` link — opens
- * correctly here too, mirroring the Agents window's
- * `SessionsChatRequestOriginProviderContribution`. Without it, `ChatRequestOriginPart`
- * finds no registered opener and falls back to treating the opaque link as a
- * session resource directly, which fails to open anything.
+ * Also registers an {@link IChatRequestOriginService} opener that reuses {@link _open} for delegated request-origin links (e.g. "Sent from another chat").
  *
  * Registered only from the workbench's electron-browser chat contribution (never
  * loaded by the Agents window), so it never competes with the Agents-window
