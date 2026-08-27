@@ -2871,6 +2871,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					state: this._notificationModelState,
 					openPicker: () => this.openModelPicker(),
 					selectModel: modelIdentifier => this.selectNotificationModel(modelIdentifier),
+					applyModelConfiguration: (modelIdentifier, values) => this._modelConfigStore.setModelConfiguration(modelIdentifier, values),
 				},
 				onDidChangeVisibility: (visible, focusTarget) => this.noticeHost.setOccupied(ChatInputNoticeLane.Notification, visible, focusTarget),
 				focusInput: () => this.focus(),

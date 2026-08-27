@@ -43,16 +43,30 @@ export function filterConfigurationToSchema(
 	}
 	const result: IStringDictionary<unknown> = {};
 	for (const [key, value] of Object.entries(values)) {
-		const propSchema = properties[key];
+		const propSchema = Object.hasOwn(properties, key) ? properties[key] : undefined;
 		if (!propSchema) {
 			continue;
 		}
 		if (Array.isArray(propSchema.enum) && !propSchema.enum.includes(value)) {
 			continue;
 		}
+		// Guards the non-enum case, where the only declared constraint is the type.
+		if (typeof propSchema.type === 'string' && !matchesJSONSchemaPrimitiveType(value, propSchema.type)) {
+			continue;
+		}
 		result[key] = value;
 	}
 	return result;
+}
+
+function matchesJSONSchemaPrimitiveType(value: unknown, type: string): boolean {
+	switch (type) {
+		case 'string': return typeof value === 'string';
+		case 'number': return typeof value === 'number' && Number.isFinite(value);
+		case 'integer': return typeof value === 'number' && Number.isInteger(value);
+		case 'boolean': return typeof value === 'boolean';
+		default: return true;
+	}
 }
 
 /**
