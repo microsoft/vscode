@@ -38,7 +38,7 @@ export class InstallPluginAction extends Action {
 			() => pluginInstallService.installPlugin({
 				name: item.name,
 				description: item.description,
-				version: '',
+				version: item.version ?? '',
 				source: item.source,
 				sourceDescriptor: item.sourceDescriptor,
 				marketplace: item.marketplace,

@@ -743,6 +743,15 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
   - `runs a deterministic shell command`
   - `reads a filename containing spaces`
   - `secondary workspace skill reaches the Codex model request`
+  - `peer chat reads a file from the parent workspace`
+  - `peer chat reads a file from a nested directory`
+  - `peer chat creates a file in the parent workspace`
+  - `peer chat edits an existing workspace file`
+  - `peer chat creates a file in a nested directory`
+  - `peer chat handles a missing workspace file without an error`
+  - `peer chat reads a filename containing spaces`
+  - `two peer chats write distinct workspace files`
+  - `session changeset aggregates provider edits from default and peer chats`
 - Reproduce:
 
   ```bash

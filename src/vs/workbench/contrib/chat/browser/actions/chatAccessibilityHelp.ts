@@ -20,6 +20,7 @@ import { ChatContextKeyExprs, ChatContextKeys } from '../../common/actions/chatC
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { isStickyPromptHeaderShown } from '../promptTimeline/promptTimelineWidgetContrib.js';
 import { FocusAgentSessionsAction } from '../agentSessions/agentSessionsActions.js';
+import { AGENT_SESSION_RENAME_ACTION_ID } from '../agentSessions/agentSessions.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from '../chatEditing/chatEditingActions.js';
 
@@ -174,6 +175,9 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 	// chat, inline chat or the input window (see `enableFind` in each host's view options).
 	if (type === 'panelChat' || type === 'editsView' || type === 'agentView') {
 		content.push(localize('chat.find', 'To search the chat transcript, invoke Find in Chat{0}. Find Next{1} and Find Previous{2} move between results, scrolling each one into view.', '<keybinding:workbench.action.chat.find>', '<keybinding:workbench.action.chat.findNext>', '<keybinding:workbench.action.chat.findPrevious>'));
+	}
+	if (!isSessionsWindow && (type === 'panelChat' || type === 'editsView' || type === 'agentView')) {
+		content.push(localize('chat.renameSession', 'To rename the current chat session when supported, invoke the Rename command{0}. Agent Host sessions can be renamed after sending the first request.', `<keybinding:${AGENT_SESSION_RENAME_ACTION_ID}>`));
 	}
 	content.push(localize('chat.attachments.pastedText', "Long pasted text is stored as an attached text item and replaced in the input with a numbered inline reference."));
 	content.push(localize('chat.paste.asText', "To paste the clipboard as plain text, without converting it to Markdown or storing it as an attachment, invoke Paste as Text{0}.", '<keybinding:editor.action.pasteAsText>'));

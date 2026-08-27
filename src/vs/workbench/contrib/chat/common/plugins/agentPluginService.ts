@@ -35,6 +35,8 @@ export interface IAgentPlugin {
 	readonly format: PluginFormat;
 	/** Human-readable display name for the plugin. */
 	readonly label: string;
+	/** Version declared by the plugin manifest, falling back to marketplace metadata. */
+	readonly version?: IObservable<string | undefined>;
 	readonly enablement: IObservable<ContributionEnablementState>;
 	/**
 	 * When `true`, the plugin is blocked by enterprise policy. It remains
