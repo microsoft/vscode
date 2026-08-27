@@ -70,9 +70,16 @@ suite('Chat Accessibility Help', () => {
 		const keybindingService = {
 			lookupKeybindings: () => [],
 		} as unknown as IKeybindingService;
-		const helpText = getAccessibilityHelpText('agentView', keybindingService, true);
+		const agentViewHelpText = getAccessibilityHelpText('agentView', keybindingService, true);
+		const panelChatHelpText = getAccessibilityHelpText('panelChat', keybindingService, true);
 
-		assert.strictEqual(helpText.includes('Configure tools button on the Default permissions option'), true);
+		assert.deepStrictEqual({
+			agentView: agentViewHelpText.includes('Configure tools button on the Default permissions option'),
+			panelChat: panelChatHelpText.includes('Configure tools button on the Default permissions option'),
+		}, {
+			agentView: true,
+			panelChat: false,
+		});
 	});
 
 	test('only describes the selection side chat affordance in the sessions window', () => {
