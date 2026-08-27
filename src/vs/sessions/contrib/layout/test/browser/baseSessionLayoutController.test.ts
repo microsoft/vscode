@@ -232,6 +232,27 @@ suite('BaseLayoutController', () => {
 		assert.deepStrictEqual(harness.openPaneCompositeCalls, [{ id: 'view.a', location: ViewContainerLocation.Panel }]);
 	});
 
+	test('[B6] carries a draft\'s remembered panel view to its committed session on submit', () => {
+		createWorkbenchPanelController();
+		harness.partVisibility.set(Parts.PANEL_PART, true);
+
+		const draft = makeSession(URI.parse('session:draft'));
+		const committed = makeSession(URI.parse('session:committed'));
+
+		// The user opens a view while on the draft — remembered against the draft.
+		harness.activeSessionObs.set(draft, undefined);
+		harness.activePaneCompositeId = 'view.a';
+		harness.onDidPaneCompositeOpen.fire({ composite: makePaneComposite('view.a'), viewContainerLocation: ViewContainerLocation.Panel });
+
+		// Submit atomically replaces the draft with its committed session: the
+		// remembered view transfers so the panel does not fall back to the Terminal.
+		harness.activeSessionObs.set(committed, undefined);
+		harness.openPaneCompositeCalls = [];
+		harness.onDidReplaceSession.fire({ from: draft, to: committed });
+
+		assert.deepStrictEqual(harness.openPaneCompositeCalls, [{ id: 'view.a', location: ViewContainerLocation.Panel }]);
+	});
+
 	// --- [B2] Editor working sets ---
 
 	test('[B2] does not reveal the editor part on reload when its working set is restored but the part was hidden', async () => {

@@ -79,13 +79,13 @@ const WORKING_SETS_STORAGE_KEY = 'sessions.workingSets';
 
 /**
  * Shared, platform-agnostic per-session layout state management. The behaviour
- * specified here is enumerated as rules **B1-B5** in
+ * specified here is enumerated as rules **B1-B6** in
  * [baseSessionLayoutController.md](./baseSessionLayoutController.md).
  *
- * It owns the panel visibility, editor working sets, persistence, and the
- * multi-session suppression that every layout needs. Auxiliary bar management
- * is platform-specific and supplied by subclasses through
- * {@link _registerViewStateManagement} (see the desktop / mobile controllers).
+ * It owns the panel visibility (or, in single-pane, the panel view), editor
+ * working sets, persistence, and the multi-session suppression that every layout
+ * needs. Auxiliary bar management is platform-specific and supplied by subclasses
+ * through {@link _registerViewStateManagement} (see the desktop / mobile controllers).
  */
 export abstract class BaseLayoutController extends Disposable {
 
@@ -495,22 +495,35 @@ export abstract class BaseLayoutController extends Disposable {
 	protected _registerViewStateManagement(): void { }
 
 	protected _onSessionReplaced(from: ISession, to: ISession): void {
-		if (!this._isEditorPartVisibilityPerSession) {
-			return;
-		}
 		// `onDidReplaceSession` fires only when an untitled draft is atomically
-		// replaced by its committed session on submit, so it always means "the
-		// committed session inherits the draft's on-screen side-pane layout".
-		// Persist the draft's live editor-part visibility onto the committed
-		// session so the delayed working-set apply restores it as-left (instead of
-		// the created-session default, which would reveal the docked editor) and it
-		// also survives a reload.
+		// replaced by its committed session on submit, so the committed session
+		// inherits the draft's on-screen layout.
 		const activeSession = this._sessionsService.activeSession.get();
 		const replacedSessionIsActive = isEqual(activeSession?.resource, from.resource) || isEqual(activeSession?.resource, to.resource);
-		const editorPartHidden = this._editorPartHiddenBySession.get(from.resource)
-			?? (replacedSessionIsActive ? !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow) : undefined);
-		if (editorPartHidden !== undefined) {
-			this._editorPartHiddenBySession.set(to.resource, editorPartHidden);
+
+		// [B2] Carry the draft's editor-part visibility over so the delayed
+		// working-set apply restores it as-left (instead of the created-session
+		// default, which would reveal the docked editor) and it survives a reload.
+		if (this._isEditorPartVisibilityPerSession) {
+			const editorPartHidden = this._editorPartHiddenBySession.get(from.resource)
+				?? (replacedSessionIsActive ? !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow) : undefined);
+			if (editorPartHidden !== undefined) {
+				this._editorPartHiddenBySession.set(to.resource, editorPartHidden);
+			}
+		}
+
+		// [B6] Carry the draft's remembered panel view over so the active-resource
+		// sync restores it rather than falling back to the Terminal, and resync now
+		// if the replacement is already active (the transfer may land after the
+		// active-resource autorun that switched to the committed session).
+		if (!this._isPanelVisibilityPerSession) {
+			const panelView = this._panelViewBySession.get(from.resource);
+			if (panelView !== undefined) {
+				this._panelViewBySession.set(to.resource, panelView);
+			}
+			if (replacedSessionIsActive) {
+				this._syncPanelView(to.resource);
+			}
 		}
 	}
 
