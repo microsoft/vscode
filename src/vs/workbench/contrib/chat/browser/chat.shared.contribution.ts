@@ -198,7 +198,7 @@ import { ChatVariablesService } from './attachments/chatVariables.js';
 import { ChatImageCarouselService, IChatImageCarouselService } from './chatImageCarouselService.js';
 import { ChatOutputRendererService, IChatOutputRendererService } from './chatOutputItemRenderer.js';
 import { ChatCompatibilityNotifier, ChatExtensionPointHandler } from './chatParticipant.contribution.js';
-import { ChatPetAchievementsAccessibilityHelp, ChatPetContextContribution, ChatPetCustomizationAchievementContribution } from './chatPetAchievements.contribution.js';
+import { ChatPetAchievementsAccessibilityHelp, ChatPetContextContribution, ChatPetCustomizationAchievementContribution, ChatPetEditingAchievementContribution } from './chatPetAchievements.contribution.js';
 import { ChatPetService, IChatPetService } from './chatPetService.js';
 import { ChatPetWidgetService, IChatPetWidgetService } from './widget/chatPetWidgetService.js';
 import { ChatPromoNotificationContribution } from './chatPromoNotification.js';
@@ -315,7 +315,28 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('dictation.model', "The model used for dictation. On-device models download on first use and run locally through Microsoft Foundry Local; the cloud option streams audio to the Microsoft AI voice service."),
 			default: DEFAULT_LOCAL_TRANSCRIPTION_MODEL,
 			tags: ['experimental'],
-			experiment: { mode: 'auto' }
+			experiment: { mode: 'auto' },
+			policy: {
+				name: 'DictationModel',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.136',
+				localization: {
+					description: {
+						key: 'dictation.model.policy',
+						value: nls.localize('dictation.model.policy', "Controls the transcription model used for dictation.")
+					},
+					enumDescriptions: [
+						{
+							key: 'dictation.model.nemotronMultilingual.policy',
+							value: nls.localize('dictation.model.nemotronMultilingual.policy', "Use the on-device transcription model. Audio does not leave the device.")
+						},
+						{
+							key: 'dictation.model.mai.policy',
+							value: nls.localize('dictation.model.mai.policy', "Use the cloud transcription service. Audio is streamed to the service.")
+						},
+					]
+				},
+			}
 		},
 		[DictationSettingId.ShowTranscript]: {
 			type: 'boolean',
@@ -333,11 +354,22 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			markdownDescription: nls.localize('dictation.experimental.llmCleanup', "Experimental: when dictation ends, the final transcript is passed through a small language model to restore punctuation, capitalization, paragraphs, and lists. Requires Copilot to be enabled; the transcript is sent to the language model for cleanup. Falls back to the raw transcript when no model is available. Use [dictation instructions](command:{0}) to customize terminology and formatting.", CONFIGURE_DICTATION_INSTRUCTIONS_ACTION_ID),
 			default: true,
-			tags: ['experimental']
+			tags: ['experimental'],
+			policy: {
+				name: 'DictationLLMCleanup',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.136',
+				localization: {
+					description: {
+						key: 'dictation.experimental.llmCleanup.policy',
+						value: nls.localize('dictation.experimental.llmCleanup.policy', "Controls whether final dictation transcripts are sent to a language model for cleanup.")
+					}
+				},
+			}
 		},
 		'dictation.experimental.llmCleanupModel': {
 			type: 'string',
-			enum: ['auto', 'copilot-utility-small', 'gpt-5.6-luna'],
+			enum: ['auto', 'copilot-utility-small', 'gpt-5.4-nano', 'gpt-5.6-luna'],
 			markdownDescription: nls.localize('dictation.experimental.llmCleanupModel', "Controls the language model used for experimental dictation cleanup. `auto` follows the active experiment treatment."),
 			default: 'auto',
 			tags: ['experimental']
@@ -565,7 +597,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.CollapseCompletedResponses]: {
 			type: 'boolean',
 			description: nls.localize('chat.agent.collapseCompletedResponses', "Controls whether completed chat responses collapse intermediate work while keeping the final response visible."),
-			default: product.quality !== 'stable',
+			default: true,
 		},
 		'chat.detectParticipant.enabled': {
 			type: 'boolean',
@@ -575,7 +607,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.ExperimentalStickyScrollEnabled]: {
 			type: 'boolean',
 			description: nls.localize('chat.experimental.stickyScroll.enabled', "Controls whether chat requests use experimental tree-based sticky scroll instead of the sticky prompt header."),
-			default: product.quality === 'insider',
+			default: true,
 			tags: ['experimental'],
 		},
 		[ChatConfiguration.InlineReferencesStyle]: {
@@ -3093,6 +3125,7 @@ registerWorkbenchContribution2(ChatReferenceAttachmentWidgetContribution.ID, Cha
 registerWorkbenchContribution2(TranscriptContextAttachmentWidgetContribution.ID, TranscriptContextAttachmentWidgetContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatPetContextContribution.ID, ChatPetContextContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatPetCustomizationAchievementContribution.ID, ChatPetCustomizationAchievementContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ChatPetEditingAchievementContribution.ID, ChatPetEditingAchievementContribution, WorkbenchPhase.AfterRestored);
 
 registerChatActions();
 registerChatAccessibilityActions();

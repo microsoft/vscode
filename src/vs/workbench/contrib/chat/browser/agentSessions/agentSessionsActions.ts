@@ -701,17 +701,11 @@ const renameSupportedSessionTypes = ContextKeyExpr.or(
 	ChatContextKeyExprs.isAgentHostSessionItem,
 );
 
-const renameAgentSessionKeybindingWhen = ContextKeyExpr.or(
-	ContextKeyExpr.and(
-		ChatContextKeys.agentSessionsViewerFocused,
-		renameSupportedSessionTypes,
-	),
-	ContextKeyExpr.and(
-		ChatContextKeys.inChatSession,
-		ChatContextKeys.inQuickChat.negate(),
-		IsSessionsWindowContext.negate(),
-		ChatContextKeys.chatSessionSupportsRename,
-	),
+const renameFocusedChatSessionKeybindingWhen = ContextKeyExpr.and(
+	ChatContextKeys.inChatSession,
+	ChatContextKeys.inQuickChat.negate(),
+	IsSessionsWindowContext.negate(),
+	ChatContextKeys.chatSessionSupportsRename,
 );
 
 export class RenameAgentSessionAction extends BaseAgentSessionAction {
@@ -721,14 +715,21 @@ export class RenameAgentSessionAction extends BaseAgentSessionAction {
 			id: AGENT_SESSION_RENAME_ACTION_ID,
 			title: localize2('rename', "Rename..."),
 			precondition: ChatContextKeys.hasMultipleAgentSessionsSelected.negate(),
-			keybinding: {
+			keybinding: [{
 				primary: KeyCode.F2,
 				mac: {
 					primary: KeyCode.Enter
 				},
 				weight: KeybindingWeight.WorkbenchContrib + 1,
-				when: renameAgentSessionKeybindingWhen,
-			},
+				when: ContextKeyExpr.and(
+					ChatContextKeys.agentSessionsViewerFocused,
+					renameSupportedSessionTypes,
+				),
+			}, {
+				primary: KeyCode.F2,
+				weight: KeybindingWeight.WorkbenchContrib + 1,
+				when: renameFocusedChatSessionKeybindingWhen,
+			}],
 			menu: {
 				id: MenuId.AgentSessionsContext,
 				group: '1_edit',

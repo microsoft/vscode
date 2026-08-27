@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { getActiveDocument } from '../../../../../../base/browser/dom.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { isMacintosh, OS } from '../../../../../../base/common/platform.js';
+import { isMacintosh, OperatingSystem, OS } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -36,13 +36,13 @@ suite('RenameAgentSessionAction', () => {
 
 	suiteTeardown(() => actionRegistration.dispose());
 
-	function buildResolver(): KeybindingResolver {
+	function buildResolver(operatingSystem = OS): KeybindingResolver {
 		const items: ResolvedKeybindingItem[] = [];
-		for (const item of KeybindingsRegistry.getDefaultKeybindingsForOS(OS)) {
+		for (const item of KeybindingsRegistry.getDefaultKeybindingsForOS(operatingSystem)) {
 			if (item.command !== AGENT_SESSION_RENAME_ACTION_ID || !item.keybinding) {
 				continue;
 			}
-			const resolved = USLayoutResolvedKeybinding.resolveKeybinding(item.keybinding, OS)[0];
+			const resolved = USLayoutResolvedKeybinding.resolveKeybinding(item.keybinding, operatingSystem)[0];
 			items.push(new ResolvedKeybindingItem(resolved, item.command, item.commandArgs, item.when ?? undefined, true, null, false));
 		}
 		return new KeybindingResolver(items, [], () => { });
@@ -52,7 +52,8 @@ suite('RenameAgentSessionAction', () => {
 		const store = disposables.add(new DisposableStore());
 		const contextKeyService = store.add(new ContextKeyService(new TestConfigurationService()));
 		const resolver = buildResolver();
-		const expectedKeybinding = isMacintosh ? 'Enter' : 'F2';
+		const expectedListKeybinding = isMacintosh ? 'Enter' : 'F2';
+		const expectedChatKeybinding = 'F2';
 		const lookup = (values: Array<[string, boolean | string]>): string | null => {
 			const overlay = contextKeyService.createOverlay(values);
 			return resolver.lookupPrimaryKeybinding(AGENT_SESSION_RENAME_ACTION_ID, overlay, true)?.resolvedKeybinding?.getDispatchChords()[0] ?? null;
@@ -119,18 +120,45 @@ suite('RenameAgentSessionAction', () => {
 				[ChatContextKeys.agentSessionType.key, AgentSessionProviders.Local],
 			]),
 		}, {
-			sessionsList: expectedKeybinding,
-			panelTranscript: expectedKeybinding,
-			panelInput: expectedKeybinding,
-			editorTranscript: expectedKeybinding,
-			editorInput: expectedKeybinding,
-			agentHostEditorInput: expectedKeybinding,
+			sessionsList: expectedListKeybinding,
+			panelTranscript: expectedChatKeybinding,
+			panelInput: expectedChatKeybinding,
+			editorTranscript: expectedChatKeybinding,
+			editorInput: expectedChatKeybinding,
+			agentHostEditorInput: expectedChatKeybinding,
 			emptyAgentHostEditorInput: null,
-			renameableContributedInput: expectedKeybinding,
+			renameableContributedInput: expectedChatKeybinding,
 			cloudEditorInput: null,
 			quickChatInput: null,
 			sessionsWindowInput: null,
 			outsideChat: null,
+		});
+	});
+
+	test('uses Enter only in the macOS sessions list and F2 in focused chat', () => {
+		const store = disposables.add(new DisposableStore());
+		const contextKeyService = store.add(new ContextKeyService(new TestConfigurationService()));
+		const resolver = buildResolver(OperatingSystem.Macintosh);
+		const lookup = (values: Array<[string, boolean | string]>): string | null => {
+			const overlay = contextKeyService.createOverlay(values);
+			return resolver.lookupPrimaryKeybinding(AGENT_SESSION_RENAME_ACTION_ID, overlay, true)?.resolvedKeybinding?.getDispatchChords()[0] ?? null;
+		};
+
+		assert.deepStrictEqual({
+			sessionsList: lookup([
+				[ChatContextKeys.agentSessionsViewerFocused.key, true],
+				[ChatContextKeys.agentSessionType.key, AgentSessionProviders.Local],
+			]),
+			focusedChat: lookup([
+				[ChatContextKeys.agentSessionsViewerFocused.key, false],
+				[ChatContextKeys.inChatSession.key, true],
+				[ChatContextKeys.inQuickChat.key, false],
+				[IsSessionsWindowContext.key, false],
+				[ChatContextKeys.chatSessionSupportsRename.key, true],
+			]),
+		}, {
+			sessionsList: 'Enter',
+			focusedChat: 'F2',
 		});
 	});
 

@@ -3384,7 +3384,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (submittedWithImage) {
 			this.chatPetService.unlockAchievement(ChatPetAchievementIds.ImageRequest);
 		}
-
 		if (!options.preserveInput) {
 			// Not a user submission; listeners would consume draft state. Also skips editor pinning.
 			this._onDidSubmitAgent.fire({ agent: sent.data.agent, slashCommand: sent.data.slashCommand });

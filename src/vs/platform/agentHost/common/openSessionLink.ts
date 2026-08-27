@@ -22,10 +22,12 @@ import { DEFAULT_CHAT_ID, isAhpChatChannel, parseChatUri } from './state/session
  */
 export const AGENT_HOST_SESSION_LINK_SCHEME = 'agent-host-session';
 export const AGENT_HOST_SESSION_LINK_PATTERN = /^agent-host-session:\/\/[^/?#]+\/[^?#]+(?:\?[^#]*)?(?:#.*)?$/i;
+export const AGENT_HOST_SESSION_ONLY_LINK_PATTERN = /^(?![^#]*[?&]chat=)agent-host-session:\/\/[^/?#]+\/[^?#]+(?:\?[^#]*)?(?:#.*)?$/i;
+export const AGENT_HOST_CHAT_LINK_PATTERN = /^(?=[^#]*[?&]chat=)agent-host-session:\/\/[^/?#]+\/[^?#]+(?:\?[^#]*)?(?:#.*)?$/i;
 
 export type AgentSessionLinkStatus = 'untitled' | 'inProgress' | 'needsInput' | 'completed' | 'error';
 
-export function createAgentSessionLinkPresentation(title: string, description: string | undefined, status: AgentSessionLinkStatus, kind: 'session' | 'chat' = 'session'): ILinkPresentation {
+export function buildAgentSessionLinkPresentation(title: string, description: string | undefined, status: AgentSessionLinkStatus, kind: 'session' | 'chat' = 'session'): ILinkPresentation {
 	const presentationStatus = getAgentSessionLinkPresentationStatus(status);
 	return {
 		kind,

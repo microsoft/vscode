@@ -7,17 +7,22 @@ import assert from 'assert';
 import { getWindow } from '../../../../../base/browser/dom.js';
 import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
 import { Pane } from '../../../../../base/browser/ui/splitview/paneview.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Color } from '../../../../../base/common/color.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
+import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { ContextKeyExpression, ContextKeyValue } from '../../../../../platform/contextkey/common/contextkey.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { editorBackground, Extensions as ColorRegistryExtensions, IColorRegistry, listHoverBackground, listHoverForeground, listInactiveSelectionBackground, listInactiveSelectionForeground, oneOf, opaque } from '../../../../../platform/theme/common/colorRegistry.js';
 import { foreground } from '../../../../../platform/theme/common/colors/baseColors.js';
 import { Extensions as ThemeServiceExtensions, IThemingRegistry } from '../../../../../platform/theme/common/themeService.js';
-import { EDITOR_BORDER, MODERN_ACTIVITY_BAR_ACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ACTIVE_FOREGROUND, MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_BORDER, MODERN_ACTIVITY_BAR_HOVER_BACKGROUND, MODERN_ACTIVITY_BAR_HOVER_FOREGROUND, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_FOREGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_FOREGROUND, MODERN_EDITOR_TAB_INACTIVE_BACKGROUND, MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND, MODERN_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_FOREGROUND, MODERN_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_FOREGROUND, SURFACE_BORDER, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_BORDER, TAB_ACTIVE_BORDER_TOP, TAB_ACTIVE_FOREGROUND, TAB_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_HOVER_FOREGROUND, TAB_INACTIVE_BACKGROUND, TAB_INACTIVE_FOREGROUND, TAB_LAST_PINNED_BORDER, TAB_SELECTED_BACKGROUND, TAB_UNFOCUSED_HOVER_BACKGROUND } from '../../../../common/theme.js';
+import { EDITOR_BORDER, MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_BORDER, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ITEM_ACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ITEM_ACTIVE_FOREGROUND, MODERN_ACTIVITY_BAR_ITEM_HOVER_BACKGROUND, MODERN_ACTIVITY_BAR_ITEM_HOVER_FOREGROUND, MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_FOREGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_FOREGROUND, MODERN_EDITOR_TAB_INACTIVE_BACKGROUND, MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND, MODERN_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_FOREGROUND, MODERN_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_FOREGROUND, SURFACE_BORDER, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_BORDER, TAB_ACTIVE_BORDER_TOP, TAB_ACTIVE_FOREGROUND, TAB_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_HOVER_FOREGROUND, TAB_INACTIVE_BACKGROUND, TAB_INACTIVE_FOREGROUND, TAB_LAST_PINNED_BORDER, TAB_SELECTED_BACKGROUND, TAB_UNFOCUSED_HOVER_BACKGROUND } from '../../../../common/theme.js';
 import { TestEnvironmentService, TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
 import { LayoutSettings, ModernUIDensity } from '../../../../services/layout/browser/layoutService.js';
 import { PRESERVE_MERGED_WORKSPACE_NAME_CASE_CLASS, PRESERVE_WORKSPACE_NAME_CASE_CLASS, shouldPreserveWorkspaceNameCase } from '../../../files/browser/views/explorerView.js';
@@ -112,6 +117,92 @@ suite('ModernUIContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const colorRegistry = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution);
 	const themingRegistry = Registry.as<IThemingRegistry>(ThemeServiceExtensions.ThemingContribution);
+
+	test('shows layout density options in the Settings menu only when Modern UI is enabled', () => {
+		const parent = MenuRegistry.getMenuItems(MenuId.GlobalActivity)
+			.filter(isISubmenuItem)
+			.find(item => (typeof item.title === 'string' ? item.title : item.title.value) === 'Layout Density');
+		const options = parent ? MenuRegistry.getMenuItems(parent.submenu).filter(isIMenuItem) : [];
+		const context = (modernUI: boolean, density: ModernUIDensity) => ({
+			getValue: <T extends ContextKeyValue = ContextKeyValue>(key: string) => (
+				key === `config.${LayoutSettings.MODERN_UI}` ? modernUI
+					: key === `config.${LayoutSettings.MODERN_UI_DENSITY}` ? density
+						: undefined
+			) as T,
+		});
+
+		assert.deepStrictEqual({
+			parent: parent && {
+				group: parent.group,
+				order: parent.order,
+				visibleWhenEnabled: parent.when?.evaluate(context(true, ModernUIDensity.Default)),
+				visibleWhenDisabled: parent.when?.evaluate(context(false, ModernUIDensity.Default)),
+			},
+			options: options.map(item => ({
+				title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
+				checkedForDefault: getToggledExpression(item.command.toggled)?.evaluate(context(true, ModernUIDensity.Default)),
+				checkedForCompact: getToggledExpression(item.command.toggled)?.evaluate(context(true, ModernUIDensity.Compact)),
+			})),
+		}, {
+			parent: {
+				group: '2_configuration',
+				order: 8,
+				visibleWhenEnabled: true,
+				visibleWhenDisabled: false,
+			},
+			options: [
+				{ title: 'Default', checkedForDefault: true, checkedForCompact: false },
+				{ title: 'Compact', checkedForDefault: false, checkedForCompact: true },
+			],
+		});
+	});
+
+	function getToggledExpression(toggled: ContextKeyExpression | { condition: ContextKeyExpression } | undefined): ContextKeyExpression | undefined {
+		return toggled ? (toggled as { condition?: ContextKeyExpression }).condition ?? toggled as ContextKeyExpression : undefined;
+	}
+
+	test('updates the layout density from the Settings menu', async () => {
+		const updates: { key: string; value: unknown }[] = [];
+		const updateComplete = new DeferredPromise<void>();
+		const configurationService = new class extends TestConfigurationService {
+			override updateValue(key: string, value: unknown): Promise<void> {
+				updates.push({ key, value });
+				return updateComplete.p;
+			}
+		}();
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, configurationService);
+		const parent = MenuRegistry.getMenuItems(MenuId.GlobalActivity)
+			.filter(isISubmenuItem)
+			.find(item => (typeof item.title === 'string' ? item.title : item.title.value) === 'Layout Density');
+		assert.ok(parent);
+		const compactOption = MenuRegistry.getMenuItems(parent.submenu)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === 'workbench.action.setLayoutDensity.compact');
+		assert.ok(compactOption);
+		const command = CommandsRegistry.getCommand(compactOption.command.id);
+		assert.ok(command);
+
+		let commandCompleted = false;
+		const commandCompletion = Promise.resolve(instantiationService.invokeFunction(accessor => command.handler(accessor))).then(() => commandCompleted = true);
+		await Promise.resolve();
+		const commandCompletedBeforeUpdate = commandCompleted;
+		updateComplete.complete();
+		await commandCompletion;
+
+		assert.deepStrictEqual({
+			updates,
+			commandCompletedBeforeUpdate,
+			commandCompleted,
+		}, {
+			updates: [{
+				key: LayoutSettings.MODERN_UI_DENSITY,
+				value: ModernUIDensity.Compact,
+			}],
+			commandCompletedBeforeUpdate: false,
+			commandCompleted: true,
+		});
+	});
 
 	test('applies startup density and relayouts when density or enablement changes', async () => {
 		const configurationService = new TestConfigurationService({
@@ -680,8 +771,8 @@ suite('ModernUIContribution', () => {
 		root.style.setProperty('--activity-bar-action-height', '36px');
 		root.style.setProperty('--activity-bar-width', '36px');
 		root.style.setProperty('--vscode-cornerRadius-small', '4px');
-		root.style.setProperty('--vscode-modernActivityBar-activeBackground', '#123456');
-		root.style.setProperty('--vscode-modernActivityBar-activeForeground', '#abcdef');
+		root.style.setProperty('--vscode-modernActivityBarItem-activeBackground', '#123456');
+		root.style.setProperty('--vscode-modernActivityBarItem-activeForeground', '#abcdef');
 		document.body.appendChild(root);
 		store.add(toDisposable(() => root.remove()));
 
@@ -708,7 +799,7 @@ suite('ModernUIContribution', () => {
 
 		const targetWindow = getWindow(root);
 		assert.deepStrictEqual({
-			activityColorsRegistered: [MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ACTIVE_FOREGROUND, MODERN_ACTIVITY_BAR_HOVER_BACKGROUND, MODERN_ACTIVITY_BAR_HOVER_FOREGROUND].map(id => colorRegistry.getColors().some(color => color.id === id)),
+			activityColorsRegistered: [MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ITEM_ACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ITEM_ACTIVE_FOREGROUND, MODERN_ACTIVITY_BAR_ITEM_HOVER_BACKGROUND, MODERN_ACTIVITY_BAR_ITEM_HOVER_FOREGROUND].map(id => colorRegistry.getColors().some(color => color.id === id)),
 			indicatorBackground: targetWindow.getComputedStyle(indicator).backgroundColor,
 			activityLabelColor: targetWindow.getComputedStyle(activityLabel).color,
 			horizontalIndicatorBackground: targetWindow.getComputedStyle(horizontalAction.indicator).backgroundColor,
@@ -956,6 +1047,43 @@ suite('ModernUIContribution', () => {
 		}, {
 			background: '#123456',
 			inactiveBackground: '#123456',
+		});
+	});
+
+	test('supports deprecated modern activity bar item colors', () => {
+		const theme = ColorThemeData.createUnloadedTheme('vs-dark');
+		const deprecatedColorIds = [
+			'modernActivityBar.activeBackground',
+			'modernActivityBar.activeForeground',
+			'modernActivityBar.hoverBackground',
+			'modernActivityBar.hoverForeground',
+		];
+		theme.setCustomColors({
+			[deprecatedColorIds[0]]: '#112233',
+			[deprecatedColorIds[1]]: '#223344',
+			[deprecatedColorIds[2]]: '#334455',
+			[deprecatedColorIds[3]]: '#445566',
+		});
+
+		const itemColorIds = [
+			MODERN_ACTIVITY_BAR_ITEM_ACTIVE_BACKGROUND,
+			MODERN_ACTIVITY_BAR_ITEM_ACTIVE_FOREGROUND,
+			MODERN_ACTIVITY_BAR_ITEM_HOVER_BACKGROUND,
+			MODERN_ACTIVITY_BAR_ITEM_HOVER_FOREGROUND,
+		];
+		assert.deepStrictEqual({
+			itemColorIds,
+			resolvedColors: itemColorIds.map(id => theme.getColor(id)?.toString()),
+			deprecated: deprecatedColorIds.map(id => Boolean(colorRegistry.getColors().find(color => color.id === id)?.deprecationMessage)),
+		}, {
+			itemColorIds: [
+				'modernActivityBarItem.activeBackground',
+				'modernActivityBarItem.activeForeground',
+				'modernActivityBarItem.hoverBackground',
+				'modernActivityBarItem.hoverForeground',
+			],
+			resolvedColors: ['#112233', '#223344', '#334455', '#445566'],
+			deprecated: [true, true, true, true],
 		});
 	});
 

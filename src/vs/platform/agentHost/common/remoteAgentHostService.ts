@@ -107,6 +107,7 @@ export const enum RemoteAgentHostEntryType {
 	WSL = 'wsl',
 	Tunnel = 'tunnel',
 	CloudSandbox = 'cloudSandbox',
+	DevContainer = 'devContainer',
 }
 
 export interface IRemoteAgentHostWebSocketConnection {
@@ -183,7 +184,18 @@ export interface IRemoteAgentHostCloudSandboxConnection {
 	readonly sessionId?: string;
 }
 
-export type RemoteAgentHostConnection = IRemoteAgentHostWebSocketConnection | IRemoteAgentHostSSHConnection | IRemoteAgentHostWSLConnection | IRemoteAgentHostTunnelConnection | IRemoteAgentHostCloudSandboxConnection;
+/**
+ * A runtime-only connection to an agent host running inside a Dev Container.
+ * The owning Dev Container integration establishes the transport and registers
+ * the connected client through {@link IRemoteAgentHostService.addManagedConnection}.
+ */
+export interface IRemoteAgentHostDevContainerConnection {
+	readonly type: RemoteAgentHostEntryType.DevContainer;
+	/** Stable address for the container connection. */
+	readonly address: string;
+}
+
+export type RemoteAgentHostConnection = IRemoteAgentHostWebSocketConnection | IRemoteAgentHostSSHConnection | IRemoteAgentHostWSLConnection | IRemoteAgentHostTunnelConnection | IRemoteAgentHostCloudSandboxConnection | IRemoteAgentHostDevContainerConnection;
 
 /** A configured remote agent host entry. WebSocket entries are persisted in {@link RemoteAgentHostsSettingId}; SSH entries are persisted in storage. */
 export interface IRemoteAgentHostEntry {
@@ -283,6 +295,7 @@ function runtimeEntryTypeConfig<TConnection extends RemoteAgentHostConnection>(t
 const WSL_ENTRY_TYPE_CONFIG = runtimeEntryTypeConfig<IRemoteAgentHostWSLConnection>(RemoteAgentHostEntryType.WSL, true, connection => connection.address);
 const TUNNEL_ENTRY_TYPE_CONFIG = runtimeEntryTypeConfig<IRemoteAgentHostTunnelConnection>(RemoteAgentHostEntryType.Tunnel, false, connection => `${TUNNEL_ADDRESS_PREFIX}${connection.tunnelId}`);
 const CLOUD_SANDBOX_ENTRY_TYPE_CONFIG = runtimeEntryTypeConfig<IRemoteAgentHostCloudSandboxConnection>(RemoteAgentHostEntryType.CloudSandbox, true, connection => connection.address);
+const DEV_CONTAINER_ENTRY_TYPE_CONFIG = runtimeEntryTypeConfig<IRemoteAgentHostDevContainerConnection>(RemoteAgentHostEntryType.DevContainer, true, connection => connection.address);
 
 const ENTRY_TYPE_CONFIGS: { readonly [K in RemoteAgentHostEntryType]: IRemoteAgentHostEntryTypeConfig<Extract<RemoteAgentHostConnection, { type: K }>> } = {
 	[RemoteAgentHostEntryType.WebSocket]: WEBSOCKET_ENTRY_TYPE_CONFIG,
@@ -290,6 +303,7 @@ const ENTRY_TYPE_CONFIGS: { readonly [K in RemoteAgentHostEntryType]: IRemoteAge
 	[RemoteAgentHostEntryType.WSL]: WSL_ENTRY_TYPE_CONFIG,
 	[RemoteAgentHostEntryType.Tunnel]: TUNNEL_ENTRY_TYPE_CONFIG,
 	[RemoteAgentHostEntryType.CloudSandbox]: CLOUD_SANDBOX_ENTRY_TYPE_CONFIG,
+	[RemoteAgentHostEntryType.DevContainer]: DEV_CONTAINER_ENTRY_TYPE_CONFIG,
 };
 
 /** Gets the static persistence and connection policy for an entry type. */

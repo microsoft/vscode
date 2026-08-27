@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { decodeKeybinding } from '../../../../../base/common/keybindings.js';
-import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -38,9 +38,9 @@ function context(values: Record<string, ContextKeyValue>): IContext {
 	return { getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined };
 }
 
-function getKeybindingRule(commandId: string, keyCode: KeyCode) {
-	const hash = decodeKeybinding(keyCode, OperatingSystem.Windows)!.getHashCode();
-	return KeybindingsRegistry.getDefaultKeybindingsForOS(OperatingSystem.Windows)
+function getKeybindingRule(commandId: string, keybinding: number, operatingSystem = OperatingSystem.Windows) {
+	const hash = decodeKeybinding(keybinding, operatingSystem)!.getHashCode();
+	return KeybindingsRegistry.getDefaultKeybindingsForOS(operatingSystem)
 		.find(item => item.command === commandId && item.keybinding?.getHashCode() === hash);
 }
 
@@ -50,10 +50,12 @@ suite('Sessions - Session management actions', () => {
 	test('scopes Rename and Archive keybindings to their Agents Window surfaces', () => {
 		const renameRule = getKeybindingRule(RENAME_SESSION_COMMAND_ID, KeyCode.F2);
 		const archiveSessionRule = getKeybindingRule(ARCHIVE_SESSION_COMMAND_ID, KeyCode.Delete);
+		const archiveSessionMacRule = getKeybindingRule(ARCHIVE_SESSION_COMMAND_ID, KeyMod.CtrlCmd | KeyCode.Backspace, OperatingSystem.Macintosh);
 		const deleteSessionRule = getKeybindingRule('sessionsViewPane.deleteSession', KeyCode.Delete);
 		const deleteChatRule = getKeybindingRule(DELETE_CHAT_COMMAND_ID, KeyCode.Delete);
 		assert.ok(renameRule?.when);
 		assert.ok(archiveSessionRule?.when);
+		assert.ok(archiveSessionMacRule?.when);
 		assert.ok(deleteChatRule?.when);
 
 		const evaluate = (rule: NonNullable<typeof renameRule>, values: Record<string, ContextKeyValue>) => rule.when?.evaluate(context(values)) ?? true;
@@ -79,6 +81,7 @@ suite('Sessions - Session management actions', () => {
 			renameUnsupportedChat: evaluate(renameRule, { ...chatTranscript, [SessionSupportsRenameContext.key]: false }),
 			renameOutsideAgentsWindow: evaluate(renameRule, { [ChatContextKeys.inChatSession.key]: true, [SessionSupportsRenameContext.key]: true }),
 			archiveWeight: archiveSessionRule.weight1,
+			archiveMacWeight: archiveSessionMacRule.weight1,
 			archiveInList: evaluate(archiveSessionRule, sessionsList),
 			archiveInListFindInput: evaluate(archiveSessionRule, { ...sessionsList, [InputFocusedContext.key]: true }),
 			archiveInTranscript: evaluate(archiveSessionRule, chatTranscript),
@@ -95,6 +98,7 @@ suite('Sessions - Session management actions', () => {
 			renameUnsupportedChat: false,
 			renameOutsideAgentsWindow: false,
 			archiveWeight: KeybindingWeight.SessionsContrib,
+			archiveMacWeight: KeybindingWeight.SessionsContrib,
 			archiveInList: true,
 			archiveInListFindInput: false,
 			archiveInTranscript: false,

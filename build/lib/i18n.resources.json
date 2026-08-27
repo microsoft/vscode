@@ -111,6 +111,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/github",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/html",
 			"project": "vscode-workbench"
 		},
