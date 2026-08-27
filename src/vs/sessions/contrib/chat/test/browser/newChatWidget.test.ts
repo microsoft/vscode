@@ -11,11 +11,16 @@ import { IDisposable, MutableDisposable, toDisposable } from '../../../../../bas
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
+import { ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { ISendRequestOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IOpenNewSessionOptions, IOpenNewSessionResult } from '../../../../services/sessions/browser/sessionsService.js';
 import { IPreferredSessionType } from '../../browser/sessionTypePicker.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
+import { IChatRequestVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
 
 /** The part of the active session `_recreateOnProviderChange` actually reads. */
 interface IActiveDraft {
@@ -83,6 +88,7 @@ const recreateOnProviderChange = Reflect.get(NewChatWidget.prototype, '_recreate
 ) => void;
 const handlePromptOptionsWorkspaceChange = Reflect.get(NewChatWidget.prototype, '_handlePromptOptionsWorkspaceChange') as (this: IPromptOptionsWorkspaceHarness, previousFolderUri: URI | undefined, folderUri: URI | undefined) => void;
 const hasEnoughSessionsForFirstRunNotices = Reflect.get(NewChatWidget.prototype, '_hasEnoughSessionsForFirstRunNotices') as (this: ISessionCountHarness) => boolean;
+const send = Reflect.get(NewChatWidget.prototype, '_send') as (this: ISendHarness, query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean) => Promise<boolean>;
 
 interface IPromptOptionsWorkspaceHarness {
 	readonly uriIdentityService: { readonly extUri: typeof extUri };
@@ -92,6 +98,20 @@ interface IPromptOptionsWorkspaceHarness {
 
 interface ISessionCountHarness {
 	readonly storageService: { getNumber(key: string, scope: unknown, defaultValue: number): number };
+}
+
+interface ISendHarness {
+	readonly _session: IObservable<ISession | undefined>;
+	readonly _feedbackItems: IObservable<readonly never[]>;
+	readonly _workspacePicker: {
+		readonly selectedFolderUri: URI | undefined;
+		clearAttachedContext(): void;
+		showPicker(): void;
+	};
+	readonly _isQuickChatComposer: IObservable<boolean>;
+	readonly agentFeedbackService: { removeFeedback(resource: URI, id: string): void };
+	readonly sessionsManagementService: { sendNewChatRequest(session: ISession, options: ISendRequestOptions): Promise<void> };
+	readonly logService: { error(message: string, ...args: unknown[]): void };
 }
 
 function createHarness(
@@ -281,6 +301,143 @@ suite('NewChatWidget', () => {
 		}));
 
 		assert.deepStrictEqual(eligibility, [false, false, true, true]);
+	});
+
+	test('forwards every composer context pill to the first chat request', async () => {
+		const primaryFolder = URI.file('/primary');
+		const attachedFolder = URI.file('/additional');
+		const session = upcastPartial<ISession>({
+			workspace: constObservable({
+				uri: primaryFolder,
+				label: 'primary',
+				icon: Codicon.folder,
+				folders: [{
+					root: primaryFolder,
+					workingDirectory: primaryFolder,
+					name: 'primary',
+					description: undefined,
+					gitRepository: undefined,
+				}],
+				requiresWorkspaceTrust: false,
+				isVirtualWorkspace: false,
+			}),
+		});
+		const composerAttachment = toFileVariableEntry(URI.file('/explicit-file'));
+		const duplicateRepositoryAttachment = toPasteVariableEntry(
+			'explicit repository context',
+			'Explicit repository context',
+			{ id: `github-context:https://github.com/microsoft/vscode` },
+		);
+		const repositoryRoot = URI.parse('vscode-vfs://github/microsoft/vscode/HEAD');
+		const repositoryContext = upcastPartial<ISessionWorkspace>({
+			uri: URI.parse('https://github.com/microsoft/vscode'),
+			label: 'microsoft/vscode',
+			icon: Codicon.repo,
+			folders: [{
+				root: repositoryRoot,
+				workingDirectory: repositoryRoot,
+				name: 'vscode',
+				description: undefined,
+			}],
+		});
+		const issueContext = upcastPartial<ISessionWorkspace>({
+			uri: URI.parse('https://github.com/microsoft/vscode/issues/332805'),
+			label: 'microsoft/vscode#332805',
+			icon: Codicon.issues,
+		});
+		const attachedFolderContext: IChatRequestVariableEntry = {
+			kind: 'directory',
+			id: getAdditionalFolderContextId(attachedFolder),
+			name: 'additional',
+			value: attachedFolder,
+		};
+		const additionalRepositoryContext: IChatRequestVariableEntry = {
+			kind: 'generic',
+			id: getAdditionalRepositoryContextId(repositoryContext.uri),
+			name: repositoryContext.label,
+			value: repositoryRoot,
+			icon: repositoryContext.icon,
+		};
+		const issueAttachment = toPasteVariableEntry(
+			issueContext.label,
+			`GitHub context: ${issueContext.uri.toString()}`,
+			{ id: `github-context:${issueContext.uri.toString()}`, icon: issueContext.icon },
+		);
+		let sentOptions: ISendRequestOptions | undefined;
+		let clearAttachedContextCount = 0;
+
+		const result = await send.call({
+			_session: constObservable(session),
+			_feedbackItems: constObservable([]),
+			_workspacePicker: {
+				selectedFolderUri: primaryFolder,
+				clearAttachedContext: () => clearAttachedContextCount++,
+				showPicker: () => { },
+			},
+			_isQuickChatComposer: constObservable(false),
+			agentFeedbackService: { removeFeedback: () => { } },
+			sessionsManagementService: {
+				sendNewChatRequest: async (_session, options) => {
+					sentOptions = options;
+				},
+			},
+			logService: { error: () => { } },
+		}, 'work across contexts', [
+			composerAttachment,
+			duplicateRepositoryAttachment,
+			attachedFolderContext,
+			additionalRepositoryContext,
+			issueAttachment,
+		]);
+
+		assert.deepStrictEqual({
+			result,
+			clearAttachedContextCount,
+			attachments: sentOptions?.attachedContext?.map(attachment => ({
+				kind: attachment.kind,
+				id: attachment.id,
+				value: URI.isUri(attachment.value) ? attachment.value.toString() : attachment.value,
+			})),
+		}, {
+			result: true,
+			clearAttachedContextCount: 1,
+			attachments: [
+				{ kind: 'file', id: composerAttachment.id, value: URI.file('/explicit-file').toString() },
+				{ kind: 'paste', id: duplicateRepositoryAttachment.id, value: duplicateRepositoryAttachment.value },
+				{ kind: 'directory', id: attachedFolderContext.id, value: attachedFolder.toString() },
+				{ kind: 'generic', id: additionalRepositoryContext.id, value: repositoryRoot.toString() },
+				{ kind: 'paste', id: issueAttachment.id, value: issueAttachment.value },
+			],
+		});
+	});
+
+	test('opens the workspace picker without sending when no workspace is selected', async () => {
+		let pickerOpenCount = 0;
+		let sendCount = 0;
+
+		const result = await send.call({
+			_session: constObservable(undefined),
+			_feedbackItems: constObservable([]),
+			_workspacePicker: {
+				selectedFolderUri: undefined,
+				clearAttachedContext: () => { },
+				showPicker: () => pickerOpenCount++,
+			},
+			_isQuickChatComposer: constObservable(false),
+			agentFeedbackService: { removeFeedback: () => { } },
+			sessionsManagementService: {
+				sendNewChatRequest: async () => {
+					sendCount++;
+				},
+			},
+			logService: { error: () => { } },
+		}, 'work across contexts');
+
+		assert.deepStrictEqual({ result, pickerOpenCount, sendCount }, {
+			result: false,
+			pickerOpenCount: 1,
+			sendCount: 0,
+		});
 	});
 
 });

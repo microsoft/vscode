@@ -657,6 +657,9 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	border: 0;
+	padding: 0;
+	background: none;
 	cursor: pointer;
 	flex-shrink: 0;
 	color: var(--vscode-descriptionForeground);

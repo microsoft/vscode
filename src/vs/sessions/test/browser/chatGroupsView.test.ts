@@ -8,7 +8,7 @@ import { mainWindow } from '../../../base/browser/window.js';
 import { DeferredPromise } from '../../../base/common/async.js';
 import { Event } from '../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
-import { constObservable, derived, IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
+import { constObservable, derived, IObservable, ISettableObservable, observableValue, transaction } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
@@ -173,7 +173,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, tabsReplaceHea
 
 suite('Sessions - ChatGroupsView', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-	const options = { renderSessionTypePickerInControls: constObservable(false) };
+	const options = {};
 
 	test('opens a session with an active child chat after initial layout', () => {
 		const { view, chatViewFactory } = createHarness(disposables);
@@ -457,6 +457,52 @@ suite('Sessions - ChatGroupsView', () => {
 			groupCount: 1,
 			focusInRemainingGroup: true,
 			activeChat: main.resource.toString(),
+		});
+	});
+
+	test('removing an empty split group does not create a transient new chat view', () => {
+		const { chatViewFactory, view } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		const session = new TestActiveSession([main, secondary]);
+		view.setSession(session, options);
+		view.splitChatToSide(secondary.resource);
+		const viewCountBeforeClose = chatViewFactory.views.length;
+
+		session.visibleChatTabs.set([main], undefined);
+
+		assert.deepStrictEqual({
+			groupCount: view.groupCount.get(),
+			newViews: chatViewFactory.views.slice(viewCountBeforeClose).map(createdView => createdView.kind),
+		}, {
+			groupCount: 1,
+			newViews: [],
+		});
+	});
+
+	test('atomically replacing the active split chat preserves its group', () => {
+		const { view } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		const tertiary = createChat('tertiary');
+		const session = new TestActiveSession([main, secondary, tertiary], [main, secondary]);
+		view.setSession(session, options);
+		view.splitChatToSide(secondary.resource);
+
+		transaction(tx => {
+			session.visibleChatTabs.set([main, tertiary], tx);
+			session.activeChat.set(tertiary, tx);
+		});
+
+		const groups = Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view'));
+		assert.deepStrictEqual({
+			groupCount: view.groupCount.get(),
+			groupTabs: groups.map(group => Array.from(group.querySelectorAll<HTMLElement>('.chat-composite-bar-tab')).map(tab => tab.dataset.chatResource)),
+			activeChat: session.activeChat.get().resource.toString(),
+		}, {
+			groupCount: 2,
+			groupTabs: [[main.resource.toString()], [tertiary.resource.toString()]],
+			activeChat: tertiary.resource.toString(),
 		});
 	});
 
