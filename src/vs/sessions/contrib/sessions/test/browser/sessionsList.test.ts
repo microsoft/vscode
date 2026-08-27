@@ -919,7 +919,7 @@ suite('Sessions - SessionsList', () => {
 			return [...container.querySelectorAll<HTMLElement>('.session-chat-title')].map(element => element.textContent ?? '');
 		}
 
-		test('shows non-main and side chats and excludes the main chat, subagents, and hidden chats', () => {
+		test('shows non-main chats and excludes side chats, subagents, and hidden chats', () => {
 			const main = createChat('Main chat');
 			const peer = createChat('Peer chat', ChatOriginKind.User);
 			const fork = createChat('Forked chat', ChatOriginKind.Fork);
@@ -943,8 +943,7 @@ suite('Sessions - SessionsList', () => {
 				})),
 				[
 					{ title: 'Peer chat', last: false },
-					{ title: 'Forked chat', last: false },
-					{ title: 'Side chat', last: true },
+					{ title: 'Forked chat', last: true },
 				]
 			);
 		});
@@ -1161,7 +1160,10 @@ suite('Sessions - SessionsList', () => {
 			const selectedChat = container.querySelector('.monaco-list-row.selected .session-chat-title')?.textContent;
 			activeChat.set(side, undefined);
 			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			// Side chats are not shown as nested rows, so activating one falls
+			// back to selecting the parent session rather than a chat row.
 			const selectedSideChat = container.querySelector('.monaco-list-row.selected .session-chat-title')?.textContent;
+			const parentDuringSideChat = container.querySelector('.monaco-list-row.selected .session-title')?.textContent;
 			activeChat.set(main, undefined);
 			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
 
@@ -1173,6 +1175,7 @@ suite('Sessions - SessionsList', () => {
 				parentBeforeFrame,
 				selectedChat,
 				selectedSideChat,
+				parentDuringSideChat,
 				mainSelection: container.querySelector('.monaco-list-row.selected .session-title')?.textContent,
 				expanded: twistie.closest('.monaco-list-row')?.getAttribute('aria-expanded'),
 				activeElement: mainWindow.document.activeElement,
@@ -1183,7 +1186,8 @@ suite('Sessions - SessionsList', () => {
 				selectionBeforeFrame: undefined,
 				parentBeforeFrame: undefined,
 				selectedChat: 'Second chat',
-				selectedSideChat: 'Side chat',
+				selectedSideChat: undefined,
+				parentDuringSideChat: 'Session',
 				mainSelection: 'Session',
 				expanded: 'true',
 				activeElement: focusTarget,
@@ -1356,6 +1360,204 @@ suite('Sessions - SessionsList', () => {
 				expanded: 'false',
 				isCollapsed: true,
 				visibleChats: [],
+			});
+		});
+
+		suite('hierarchy indent/connector guides', () => {
+
+			function twoSessionContainer(): { readonly container: HTMLElement; readonly session: ISession; readonly other: ISession } {
+				const main = createChat('Main chat');
+				const peer = createChat('Peer chat', ChatOriginKind.User);
+				const base = createTestSession('Session').session;
+				const session: ISession = {
+					...base,
+					chats: constObservable([main, peer]),
+					mainChat: constObservable(main),
+					capabilities: constObservable({ supportsMultipleChats: true }),
+				};
+				const otherBase = createTestSession('Other session').session;
+				const other: ISession = {
+					...otherBase,
+					chats: constObservable([createChat('Other main chat'), createChat('Other peer chat', ChatOriginKind.User)]),
+					mainChat: constObservable(createChat('Other main chat')),
+					capabilities: constObservable({ supportsMultipleChats: true }),
+				};
+				const harness = createListHarness(disposables, [session, other]);
+				const container = harness.createContainer();
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+					grouping: () => SessionsGrouping.Date,
+					sorting: () => SessionsSorting.Created,
+					onSessionOpen: () => { },
+					onChatOpen: () => { },
+				}));
+				list.layout(300, 400);
+				return { container, session, other };
+			}
+
+			/** Reads guide visibility for a session row and the run of chat rows immediately following it. */
+			function guidesVisible(container: HTMLElement, title: string): { session: boolean; chats: boolean[] } {
+				const sessionItem = [...container.querySelectorAll<HTMLElement>('.session-item')]
+					.find(item => item.querySelector('.session-title')?.textContent === title);
+				const sessionRow = sessionItem?.closest<HTMLElement>('.monaco-list-row');
+				const sessionIndex = sessionRow ? Number(sessionRow.getAttribute('data-index')) : -1;
+
+				const ownChats: HTMLElement[] = [];
+				for (const row of [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]) {
+					if (Number(row.getAttribute('data-index')) <= sessionIndex) {
+						continue;
+					}
+					const chatItem = row.querySelector<HTMLElement>('.session-chat-item');
+					if (!chatItem) {
+						break;
+					}
+					ownChats.push(chatItem);
+				}
+
+				return {
+					session: !!sessionItem?.classList.contains('session-hierarchy-guides-visible'),
+					chats: ownChats.map(chatItem => chatItem.classList.contains('session-hierarchy-guides-visible')),
+				};
+			}
+
+			test('guides are hidden at rest', () => {
+				const { container } = twoSessionContainer();
+				assert.deepStrictEqual(guidesVisible(container, 'Session'), { session: false, chats: [false] });
+			});
+
+			test('hovering the parent session row reveals its own guides only', () => {
+				const { container } = twoSessionContainer();
+				const sessionItem = [...container.querySelectorAll<HTMLElement>('.session-item')]
+					.find(item => item.querySelector('.session-title')?.textContent === 'Session');
+				assert.ok(sessionItem);
+
+				sessionItem.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+
+				assert.deepStrictEqual(guidesVisible(container, 'Session'), { session: true, chats: [true] });
+				assert.deepStrictEqual(guidesVisible(container, 'Other session'), { session: false, chats: [false] });
+			});
+
+			test('hovering a chat child reveals its parent session hierarchy guides only', () => {
+				const { container } = twoSessionContainer();
+				const chatItem = [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
+					.find(item => item.textContent === 'Peer chat');
+				assert.ok(chatItem);
+
+				chatItem.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+
+				assert.deepStrictEqual(guidesVisible(container, 'Session'), { session: true, chats: [true] });
+				assert.deepStrictEqual(guidesVisible(container, 'Other session'), { session: false, chats: [false] });
+			});
+
+			test('moving the pointer away hides the guides again', () => {
+				const { container } = twoSessionContainer();
+				const sessionItem = [...container.querySelectorAll<HTMLElement>('.session-item')]
+					.find(item => item.querySelector('.session-title')?.textContent === 'Session');
+				assert.ok(sessionItem);
+				const sessionRow = sessionItem.closest<HTMLElement>('.monaco-list-row');
+				assert.ok(sessionRow);
+
+				sessionItem.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+				assert.deepStrictEqual(guidesVisible(container, 'Session'), { session: true, chats: [true] });
+
+				sessionRow.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
+				assert.deepStrictEqual(guidesVisible(container, 'Session'), { session: false, chats: [false] });
+			});
+
+			test('selecting the parent session keeps guides visible without hover', () => {
+				const { container } = twoSessionContainer();
+				const sessionItem = [...container.querySelectorAll<HTMLElement>('.session-item')]
+					.find(item => item.querySelector('.session-title')?.textContent === 'Session');
+				assert.ok(sessionItem);
+
+				sessionItem.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+				sessionItem.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0 }));
+				sessionItem.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+
+				assert.deepStrictEqual(guidesVisible(container, 'Session'), { session: true, chats: [true] });
+				assert.deepStrictEqual(guidesVisible(container, 'Other session'), { session: false, chats: [false] });
+			});
+
+			test('selecting a chat child keeps only its parent session guides visible', () => {
+				const { container } = twoSessionContainer();
+				const chatItem = [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
+					.find(item => item.textContent === 'Peer chat');
+				assert.ok(chatItem);
+
+				chatItem.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+				chatItem.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0 }));
+				chatItem.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+
+				assert.deepStrictEqual(guidesVisible(container, 'Session'), { session: true, chats: [true] });
+				assert.deepStrictEqual(guidesVisible(container, 'Other session'), { session: false, chats: [false] });
+			});
+
+			/** Moves tree focus without changing selection, matching keyboard navigation. */
+			function focusOnly(element: HTMLElement): void {
+				element.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 2 }));
+			}
+
+			test('keyboard/focus-only navigation to the parent session row reveals its own guides only', () => {
+				const { container } = twoSessionContainer();
+				const sessionItem = [...container.querySelectorAll<HTMLElement>('.session-item')]
+					.find(item => item.querySelector('.session-title')?.textContent === 'Session');
+				assert.ok(sessionItem);
+				const sessionRow = sessionItem.closest<HTMLElement>('.monaco-list-row');
+				assert.ok(sessionRow);
+
+				focusOnly(sessionItem);
+
+				assert.deepStrictEqual({
+					guides: guidesVisible(container, 'Session'),
+					// Focus-only navigation must not also select the row.
+					isSelected: sessionRow.classList.contains('selected'),
+				}, {
+					guides: { session: true, chats: [true] },
+					isSelected: false,
+				});
+				assert.deepStrictEqual(guidesVisible(container, 'Other session'), { session: false, chats: [false] });
+			});
+
+			test('keyboard/focus-only navigation to a chat child reveals its parent session hierarchy guides only', () => {
+				const { container } = twoSessionContainer();
+				const chatItem = [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
+					.find(item => item.textContent === 'Peer chat');
+				assert.ok(chatItem);
+
+				focusOnly(chatItem);
+
+				assert.deepStrictEqual(guidesVisible(container, 'Session'), { session: true, chats: [true] });
+				assert.deepStrictEqual(guidesVisible(container, 'Other session'), { session: false, chats: [false] });
+			});
+
+			test('moving focus-only navigation away hides the previous guides', () => {
+				const { container } = twoSessionContainer();
+				const sessionItem = [...container.querySelectorAll<HTMLElement>('.session-item')]
+					.find(item => item.querySelector('.session-title')?.textContent === 'Session');
+				const otherItem = [...container.querySelectorAll<HTMLElement>('.session-item')]
+					.find(item => item.querySelector('.session-title')?.textContent === 'Other session');
+				assert.ok(sessionItem);
+				assert.ok(otherItem);
+
+				focusOnly(sessionItem);
+				assert.deepStrictEqual(guidesVisible(container, 'Session'), { session: true, chats: [true] });
+
+				focusOnly(otherItem);
+				assert.deepStrictEqual(guidesVisible(container, 'Session'), { session: false, chats: [false] });
+				assert.deepStrictEqual(guidesVisible(container, 'Other session'), { session: true, chats: [true] });
+			});
+
+			test('blurring the list hides focus-only guides', () => {
+				const { container } = twoSessionContainer();
+				const sessionItem = [...container.querySelectorAll<HTMLElement>('.session-item')]
+					.find(item => item.querySelector('.session-title')?.textContent === 'Session');
+				assert.ok(sessionItem);
+
+				focusOnly(sessionItem);
+				const tree = container.querySelector<HTMLElement>('.monaco-list');
+				assert.ok(tree);
+				tree.dispatchEvent(new FocusEvent('blur'));
+
+				assert.deepStrictEqual(guidesVisible(container, 'Session'), { session: false, chats: [false] });
 			});
 		});
 

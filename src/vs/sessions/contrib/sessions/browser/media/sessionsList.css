@@ -444,6 +444,11 @@
 	bottom: 0;
 	left: var(--vscode-spacing-size200);
 	border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-inactiveIndentGuidesStroke);
+	opacity: 0;
+}
+
+.monaco-list-row[aria-expanded="true"] .session-item.session-hierarchy-guides-visible::after {
+	opacity: 1;
 }
 
 .session-chat-item {
@@ -467,6 +472,7 @@
 		bottom: 0;
 		left: var(--vscode-spacing-size200);
 		border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-inactiveIndentGuidesStroke);
+		opacity: 0;
 	}
 
 	&::after {
@@ -478,6 +484,14 @@
 		left: var(--vscode-spacing-size200);
 		width: var(--vscode-spacing-size240);
 		border-top: var(--vscode-strokeThickness) solid var(--vscode-tree-inactiveIndentGuidesStroke);
+		opacity: 0;
+	}
+
+	&.session-hierarchy-guides-visible {
+		&::before,
+		&::after {
+			opacity: 1;
+		}
 	}
 
 	&.last-chat {
