@@ -20,7 +20,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { IQuickInputButton, IQuickInputService, IQuickTreeItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickTreeItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { InstalledAgentPluginsViewId } from '../chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
@@ -49,6 +49,15 @@ export function validatePluginName(name: string): string | undefined {
 }
 
 type ResourceType = 'instruction' | 'prompt' | 'agent' | 'skill' | 'hook' | 'mcp';
+
+export const enum PluginCreationFormat {
+	AgentPlugin,
+	AgentPluginWithLegacyCompatibility,
+}
+
+interface IPluginCreationFormatPick extends IQuickPickItem {
+	readonly format: PluginCreationFormat;
+}
 
 export interface IResourceTreeItem extends IQuickTreeItem {
 	readonly resourceType: ResourceType;
@@ -258,7 +267,28 @@ class CreatePluginAction extends Action2 {
 
 		const selected = selectedItems.filter((i): i is IResourceTreeItem => !!i.resourceType);
 
-		// Step 4: Ask for plugin name
+		// Step 4: Ask which plugin format to create
+		const formatPick = await quickInputService.pick<IPluginCreationFormatPick>([
+			{
+				label: localize('agentPluginFormat', "Agent Plugin"),
+				description: localize('agentPluginFormatDescription', "Standard plugin format"),
+				format: PluginCreationFormat.AgentPlugin,
+			},
+			{
+				label: localize('agentPluginLegacyCompatibilityFormat', "Agent Plugin with Legacy Compatibility"),
+				description: localize('agentPluginLegacyCompatibilityFormatDescription', "Also supports older clients"),
+				format: PluginCreationFormat.AgentPluginWithLegacyCompatibility,
+			},
+		], {
+			title: localize('selectPluginFormatTitle', "Select Plugin Format"),
+			placeHolder: localize('selectPluginFormatPlaceholder', "Select how the plugin should be created"),
+		});
+
+		if (!formatPick) {
+			return;
+		}
+
+		// Step 5: Ask for plugin name
 		const pluginName = await quickInputService.input({
 			prompt: localize('pluginNamePrompt', "Enter a name for the plugin"),
 			placeHolder: 'my-plugin',
@@ -269,7 +299,7 @@ class CreatePluginAction extends Action2 {
 			return;
 		}
 
-		// Step 5: Ask where to save
+		// Step 6: Ask where to save
 		const folderUris = await fileDialogService.showOpenDialog({
 			canSelectFiles: false,
 			canSelectFolders: true,
@@ -291,14 +321,14 @@ class CreatePluginAction extends Action2 {
 			return;
 		}
 
-		// Step 6: Create plugin structure
+		// Step 7: Create plugin structure
 		try {
-			await writePluginToDisk(fileService, pluginRoot, pluginName, selected);
+			await writePluginToDisk(fileService, pluginRoot, pluginName, selected, formatPick.format);
 
-			// Step 7: Check for marketplace.json and update it
+			// Step 8: Check for marketplace.json and update it
 			await updateMarketplaceIfNeeded(fileService, targetDir, pluginName);
 
-			// Step 8: Reveal the plugin directory in the OS file explorer
+			// Step 9: Reveal the plugin directory in the OS file explorer
 			try {
 				await commandService.executeCommand('revealFileInOS', pluginRoot);
 			} catch {
@@ -321,6 +351,7 @@ export async function writePluginToDisk(
 	pluginRoot: URI,
 	pluginName: string,
 	selected: readonly IResourceTreeItem[],
+	format: PluginCreationFormat = PluginCreationFormat.AgentPlugin,
 ): Promise<void> {
 	const byType = {
 		instruction: selected.filter(i => i.resourceType === 'instruction'),
@@ -347,12 +378,24 @@ export async function writePluginToDisk(
 		description: '',
 	};
 	await fileService.writeFile(joinPath(pluginRoot, 'plugin.json'), VSBuffer.fromString(JSON.stringify(manifest, null, '\t')));
+	if (format === PluginCreationFormat.AgentPluginWithLegacyCompatibility) {
+		const legacyManifestDir = joinPath(pluginRoot, '.plugin');
+		await fileService.createFolder(legacyManifestDir);
+		await fileService.writeFile(joinPath(legacyManifestDir, 'plugin.json'), VSBuffer.fromString(JSON.stringify({
+			name: pluginName,
+			version: '1.0.0',
+			description: '',
+		}, null, '\t')));
+	}
 
 	const copilotExtensionDir = joinPath(pluginRoot, 'com.github.copilot');
 
 	if (byType.instruction.length > 0) {
-		const rulesDir = joinPath(copilotExtensionDir, 'rules');
-		await fileService.createFolder(rulesDir);
+		const rulesDirs = [joinPath(copilotExtensionDir, 'rules')];
+		if (format === PluginCreationFormat.AgentPluginWithLegacyCompatibility) {
+			rulesDirs.push(joinPath(pluginRoot, 'rules'));
+		}
+		await Promise.all(rulesDirs.map(dir => fileService.createFolder(dir)));
 		for (const item of byType.instruction) {
 			if (!item.promptPath) {
 				continue;
@@ -362,13 +405,16 @@ export async function writePluginToDisk(
 				? name
 				: name + '.instructions.md';
 			const content = await fileService.readFile(item.promptPath.uri);
-			await fileService.writeFile(joinPath(rulesDir, fileName), content.value);
+			await Promise.all(rulesDirs.map(dir => fileService.writeFile(joinPath(dir, fileName), content.value)));
 		}
 	}
 
 	if (byType.prompt.length > 0) {
-		const commandsDir = joinPath(copilotExtensionDir, 'commands');
-		await fileService.createFolder(commandsDir);
+		const commandsDirs = [joinPath(copilotExtensionDir, 'commands')];
+		if (format === PluginCreationFormat.AgentPluginWithLegacyCompatibility) {
+			commandsDirs.push(joinPath(pluginRoot, 'commands'));
+		}
+		await Promise.all(commandsDirs.map(dir => fileService.createFolder(dir)));
 		for (const item of byType.prompt) {
 			if (!item.promptPath) {
 				continue;
@@ -376,13 +422,16 @@ export async function writePluginToDisk(
 			const name = getResourceFileName(item.promptPath);
 			const fileName = name.endsWith('.md') ? name : name + '.md';
 			const content = await fileService.readFile(item.promptPath.uri);
-			await fileService.writeFile(joinPath(commandsDir, fileName), content.value);
+			await Promise.all(commandsDirs.map(dir => fileService.writeFile(joinPath(dir, fileName), content.value)));
 		}
 	}
 
 	if (byType.agent.length > 0) {
-		const agentsDir = joinPath(copilotExtensionDir, 'agents');
-		await fileService.createFolder(agentsDir);
+		const agentsDirs = [joinPath(copilotExtensionDir, 'agents')];
+		if (format === PluginCreationFormat.AgentPluginWithLegacyCompatibility) {
+			agentsDirs.push(joinPath(pluginRoot, 'agents'));
+		}
+		await Promise.all(agentsDirs.map(dir => fileService.createFolder(dir)));
 		for (const item of byType.agent) {
 			if (!item.promptPath) {
 				continue;
@@ -390,7 +439,7 @@ export async function writePluginToDisk(
 			const name = getResourceFileName(item.promptPath);
 			const fileName = name.endsWith('.md') ? name : name + '.md';
 			const content = await fileService.readFile(item.promptPath.uri);
-			await fileService.writeFile(joinPath(agentsDir, fileName), content.value);
+			await Promise.all(agentsDirs.map(dir => fileService.writeFile(joinPath(dir, fileName), content.value)));
 		}
 	}
 
@@ -416,8 +465,11 @@ export async function writePluginToDisk(
 	}
 
 	if (byType.hook.length > 0) {
-		const hooksDir = joinPath(copilotExtensionDir, 'hooks');
-		await fileService.createFolder(hooksDir);
+		const hooksDirs = [joinPath(copilotExtensionDir, 'hooks')];
+		if (format === PluginCreationFormat.AgentPluginWithLegacyCompatibility) {
+			hooksDirs.push(joinPath(pluginRoot, 'hooks'));
+		}
+		await Promise.all(hooksDirs.map(dir => fileService.createFolder(dir)));
 
 		const mergedHooks: Record<string, Record<string, unknown>[]> = {};
 		for (const item of byType.hook) {
@@ -446,10 +498,8 @@ export async function writePluginToDisk(
 		}
 
 		const hooksJson = { hooks: mergedHooks };
-		await fileService.writeFile(
-			joinPath(hooksDir, 'hooks.json'),
-			VSBuffer.fromString(JSON.stringify(hooksJson, null, '\t'))
-		);
+		const hooksContent = VSBuffer.fromString(JSON.stringify(hooksJson, null, '\t'));
+		await Promise.all(hooksDirs.map(dir => fileService.writeFile(joinPath(dir, 'hooks.json'), hooksContent)));
 	}
 
 	if (Object.keys(mcpServers).length > 0) {
@@ -458,6 +508,19 @@ export async function writePluginToDisk(
 			joinPath(pluginRoot, 'mcp.json'),
 			VSBuffer.fromString(JSON.stringify(mcpJson, null, '\t'))
 		);
+		if (format === PluginCreationFormat.AgentPluginWithLegacyCompatibility) {
+			const legacyMcpServers: Record<string, object> = {};
+			for (const item of byType.mcp) {
+				if (item.mcpServer) {
+					const definition = item.mcpServer.definition;
+					legacyMcpServers[definition.label] = serializeLegacyMcpLaunch(definition.launch, definition.label);
+				}
+			}
+			await fileService.writeFile(
+				joinPath(pluginRoot, '.mcp.json'),
+				VSBuffer.fromString(JSON.stringify({ mcpServers: legacyMcpServers }, null, '\t'))
+			);
+		}
 	}
 }
 
@@ -492,6 +555,7 @@ export function serializeMcpLaunch(launch: McpServerDefinition['launch'], server
 		if (!isPortableMcpCommand(launch.command)) {
 			throw new Error(localize('pluginMcpCommandNotPortable', "MCP server '{0}' cannot be exported because its command is not a bare executable name or a plugin-relative path.", serverLabel));
 		}
+
 		if (launch.cwd && !isPortableMcpWorkingDirectory(launch.cwd)) {
 			throw new Error(localize('pluginMcpCwdNotPortable', "MCP server '{0}' cannot be exported because its working directory is not plugin-relative.", serverLabel));
 		}
@@ -535,6 +599,18 @@ export function serializeMcpLaunch(launch: McpServerDefinition['launch'], server
 		};
 		return result;
 	}
+}
+
+export function serializeLegacyMcpLaunch(launch: McpServerDefinition['launch'], serverLabel = ''): object {
+	const portableLaunch = serializeMcpLaunch(launch, serverLabel);
+	if (launch.type === McpServerTransportType.Stdio) {
+		return portableLaunch;
+	}
+	return {
+		type: 'http',
+		...(launch.transport === 'sse' ? { transport: 'sse' } : {}),
+		url: launch.uri.toString(true),
+	};
 }
 
 function isPortableMcpCommand(command: string): boolean {
