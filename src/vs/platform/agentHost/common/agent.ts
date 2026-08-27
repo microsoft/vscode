@@ -144,7 +144,7 @@ export interface IAgentChatMetadata {
 export interface IAgentChatMetadataOptions {
 	/** A session restore needs authoritative provider data and may start its runtime. */
 	readonly activation?: 'restore';
-	/** Stable host-owned timestamps a lazy provider may use for passive catalogue metadata. */
+	/** Stable host-owned timestamps a provider may use when its persisted metadata is otherwise sufficient. */
 	readonly registryFallback?: Pick<IAgentChatMetadata, 'startTime' | 'modifiedTime'>;
 }
 

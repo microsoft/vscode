@@ -5465,6 +5465,44 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('getChatMetadata restores registered sessions from stored metadata without an SDK lookup', async () => {
+		const sessionDataService = disposables.add(new TestSessionDataService());
+		const session = AgentSession.uri('copilotcli', 'target');
+		const workingDirectory = URI.file('/workspace');
+		const db = sessionDataService.openDatabase(session);
+		await db.object.setMetadata('copilot.workingDirectory', workingDirectory.toString());
+		await db.object.setMetadata('copilot.project.resolved', 'true');
+		await db.object.setMetadata('customTitle', 'Stored title');
+		db.dispose();
+
+		const client = new TestCopilotClient([sdkSession('target')]);
+		const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+
+			const chat = defaultChatUri(session);
+			const metadata = await agent.getChatMetadata(chat, exactChatContext(session, chat, session), undefined, {
+				activation: 'restore',
+				registryFallback: { startTime: 1000, modifiedTime: 2000 },
+			});
+			assert.deepStrictEqual({
+				metadata: metadata ? withoutUndefinedProperties(metadata) : undefined,
+				getSessionMetadataCalls: client.getSessionMetadataCalls,
+			}, {
+				metadata: {
+					chat,
+					startTime: 1000,
+					modifiedTime: 2000,
+					summary: 'Stored title',
+					workingDirectories: [workingDirectory],
+				},
+				getSessionMetadataCalls: [],
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('getChatMetadata returns a provider-native session without a database', async () => {
 		const sessionDataService = disposables.add(new TestSessionDataService());
 		const session = AgentSession.uri('copilotcli', 'external');
@@ -10937,10 +10975,12 @@ suite('CopilotAgent', () => {
 				assert.deepStrictEqual({
 					resumeCalls,
 					resumeAdditionalDirectories,
+					getSessionMetadataCalls: client.getSessionMetadataCalls,
 					persistedWorkingDirectories: persistedWorkingDirectories ? JSON.parse(persistedWorkingDirectories) : undefined,
 				}, {
 					resumeCalls: [sessionId],
 					resumeAdditionalDirectories: [[]],
+					getSessionMetadataCalls: [],
 					persistedWorkingDirectories: [primary.toString()],
 				});
 			} finally {

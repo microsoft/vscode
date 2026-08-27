@@ -7278,10 +7278,12 @@ suite('AgentService (node dispatcher)', () => {
 			class LazyMetadataAgent extends MockAgent {
 				ambientReads = 0;
 				restoreReads = 0;
+				restoreFallback: IAgentChatMetadataOptions['registryFallback'];
 
 				override async getChatMetadata(chat: URI, context: URI | IAgentChatContext, _providerData?: string, options?: IAgentChatMetadataOptions): Promise<IAgentChatMetadata | undefined> {
 					if (options?.activation === 'restore') {
 						this.restoreReads++;
+						this.restoreFallback = options.registryFallback;
 					} else {
 						this.ambientReads++;
 					}
@@ -7293,7 +7295,8 @@ suite('AgentService (node dispatcher)', () => {
 			const agent = disposables.add(new LazyMetadataAgent('codex'));
 			registerTestAgentProvider(svc, agent);
 			const session = await svc.createSession({ provider: agent.id });
-			await svc.listSessions();
+			const registered = (await svc.listSessions()).find(candidate => candidate.session.toString() === session.toString());
+			assert.ok(registered);
 			agent.ambientReads = 0;
 			agent.restoreReads = 0;
 			getStateManager(svc).deleteSession(session.toString());
@@ -7305,9 +7308,11 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({
 				readsAfterAmbientListing,
 				readsAfterRestore: { ambient: agent.ambientReads, restore: agent.restoreReads },
+				restoreFallback: agent.restoreFallback,
 			}, {
 				readsAfterAmbientListing: { ambient: 1, restore: 0 },
 				readsAfterRestore: { ambient: 1, restore: 1 },
+				restoreFallback: { startTime: registered.startTime, modifiedTime: registered.modifiedTime },
 			});
 		});
 
