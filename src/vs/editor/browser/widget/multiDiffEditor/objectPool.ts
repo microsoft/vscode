@@ -32,6 +32,7 @@ export class ObjectPool<TData extends IObjectData, T extends IPooledObject<TData
 			dispose: () => {
 				this._used.delete(obj);
 				if (this._unused.size > 5) {
+					this._itemData.delete(obj);
 					obj.dispose();
 				} else {
 					this._unused.add(obj);
@@ -49,6 +50,7 @@ export class ObjectPool<TData extends IObjectData, T extends IPooledObject<TData
 		}
 		this._used.clear();
 		this._unused.clear();
+		this._itemData.clear();
 	}
 }
 
