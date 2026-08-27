@@ -471,6 +471,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 				undefined,
 				element.chat.resource,
 			);
+			template.container.classList.toggle('needs-input', status === SessionStatus.NeedsInput);
 		}));
 		template.elementDisposables.add(autorun(reader => {
 			const showGuides = this.activeGuideSessionIds.read(reader).has(element.session.sessionId);

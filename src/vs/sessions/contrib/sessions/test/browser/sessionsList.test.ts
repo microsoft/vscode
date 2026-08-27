@@ -953,6 +953,26 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('needs-input chat row gets the same accent-pulse feedback class as a needs-input session row', () => {
+			const main = createChat('Main chat');
+			const waiting = createChat('Waiting chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.NeedsInput);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, waiting]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+
+			const container = renderSessionChats(session);
+
+			const waitingRow = [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
+				.find(element => element.textContent?.includes('Waiting chat'));
+			assert.ok(waitingRow);
+
+			assert.strictEqual(waitingRow.classList.contains('needs-input'), true);
+		});
+
 		function sessionRowSnapshot(container: HTMLElement) {
 			const row = container.querySelector<HTMLElement>('.session-item');
 			assert.ok(row);
