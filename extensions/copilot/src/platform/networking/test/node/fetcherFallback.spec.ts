@@ -10,6 +10,7 @@ import { DefaultsOnlyConfigurationService } from '../../../configuration/common/
 import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
 import { NullExperimentationService } from '../../../telemetry/common/nullExperimentationService';
 import { NullTelemetryService } from '../../../telemetry/common/nullTelemetryService';
+import { SpyingTelemetryService } from '../../../telemetry/node/spyingTelemetryService';
 import { FakeHeaders } from '../../../test/node/fetcher';
 import { TestLogService } from '../../../testing/common/testLogService';
 import { FetcherId, FetchOptions, PaginationOptions, Response } from '../../common/fetcherService';
@@ -48,7 +49,8 @@ suite('FetcherFallback Test Suite', function () {
 			{ name: 'fetcher1', response: createFakeResponse(200, someHTML) },
 		];
 		const testFetchers = createTestFetchers(fetcherSpec);
-		const { response, updatedFetchers, updatedKnownBadFetchers } = await fetchWithFallbacks(testFetchers.fetchers, 'https://example.com', { callSite: 'test', expectJSON: true, retryFallbacks: true }, knownBadFetchers, configurationService, logService, telemetryService, experimentationService);
+		const spyingTelemetryService = new SpyingTelemetryService();
+		const { response, updatedFetchers, updatedKnownBadFetchers } = await fetchWithFallbacks(testFetchers.fetchers, 'https://example.com', { callSite: 'test', expectJSON: true, retryFallbacks: true }, knownBadFetchers, configurationService, logService, spyingTelemetryService, experimentationService);
 		assert.deepStrictEqual(testFetchers.calls.map(c => c.name), fetcherSpec.map(f => f.name));
 		assert.ok(updatedFetchers);
 		assert.strictEqual(updatedFetchers[0], testFetchers.fetchers[1]);
@@ -59,6 +61,7 @@ suite('FetcherFallback Test Suite', function () {
 		assert.strictEqual(response.status, 200);
 		const json = await response.json();
 		assert.deepStrictEqual(json, JSON.parse(someJSON));
+		assert.deepStrictEqual(spyingTelemetryService.getEvents().telemetryServiceEvents.map(event => event.eventName), ['fetcherFallback']);
 	});
 
 	test.each([302, 401, 500])('HTTP %i response falls back to another fetcher', async status => {
@@ -120,17 +123,33 @@ suite('FetcherFallback Test Suite', function () {
 			{ name: 'node-http', response: createFakeResponse(200, someJSON) },
 		];
 		const testFetchers = createTestFetchers(fetcherSpec);
-		const { response, updatedFetchers, updatedKnownBadFetchers } = await fetchWithFallbacks(testFetchers.fetchers, 'https://example.com', { callSite: 'test', expectJSON: true, retryFallbacks: true }, knownBadFetchers, configurationService, logService, telemetryService, experimentationService);
+		const spyingTelemetryService = new SpyingTelemetryService();
+		const { response, updatedFetchers, updatedKnownBadFetchers } = await fetchWithFallbacks(testFetchers.fetchers, 'https://example.com', { callSite: 'test', expectJSON: true, retryFallbacks: true }, knownBadFetchers, configurationService, logService, spyingTelemetryService, experimentationService);
 		assert.deepStrictEqual({
 			calls: testFetchers.calls.map(c => c.name),
 			responseIsUnchanged: response === serverResponse,
 			updatedFetchers: updatedFetchers?.map(fetcher => fetcher.getUserAgentLibrary()),
 			updatedKnownBadFetchers: Array.from(updatedKnownBadFetchers ?? []),
+			telemetryEvents: spyingTelemetryService.getEvents().telemetryServiceEvents.map(event => ({
+				eventName: event.eventName,
+				properties: event.properties,
+				measurements: event.measurements,
+			})),
 		}, {
 			calls: ['electron-fetch', 'node-fetch'],
 			responseIsUnchanged: true,
 			updatedFetchers: ['node-fetch', 'electron-fetch', 'node-http'],
 			updatedKnownBadFetchers: ['electron-fetch'],
+			telemetryEvents: [{
+				eventName: 'fetcherFallbackFailure',
+				properties: {
+					attemptedFetchers: 'electron-fetch,node-fetch',
+					failureReasons: 'transport-error,503',
+				},
+				measurements: {
+					attemptCount: 2,
+				},
+			}],
 		});
 	});
 
@@ -140,13 +159,34 @@ suite('FetcherFallback Test Suite', function () {
 			{ name: 'fetcher2', response: new Error('fetcher2 error') },
 		];
 		const testFetchers = createTestFetchers(fetcherSpec);
+		const spyingTelemetryService = new SpyingTelemetryService();
 		try {
-			await fetchWithFallbacks(testFetchers.fetchers, 'https://example.com', { callSite: 'test', expectJSON: true, retryFallbacks: true }, knownBadFetchers, configurationService, logService, telemetryService, experimentationService);
+			await fetchWithFallbacks(testFetchers.fetchers, 'https://example.com', { callSite: 'test', expectJSON: true, retryFallbacks: true }, knownBadFetchers, configurationService, logService, spyingTelemetryService, experimentationService);
 			assert.fail('Expected to throw');
 		} catch (err) {
 			assert.ok(err instanceof Error);
-			assert.strictEqual(err.message, 'fetcher1 error');
-			assert.deepStrictEqual(testFetchers.calls.map(c => c.name), fetcherSpec.map(f => f.name));
+			assert.deepStrictEqual({
+				message: err.message,
+				calls: testFetchers.calls.map(c => c.name),
+				telemetryEvents: spyingTelemetryService.getEvents().telemetryServiceEvents.map(event => ({
+					eventName: event.eventName,
+					properties: event.properties,
+					measurements: event.measurements,
+				})),
+			}, {
+				message: 'fetcher1 error',
+				calls: fetcherSpec.map(f => f.name),
+				telemetryEvents: [{
+					eventName: 'fetcherFallbackFailure',
+					properties: {
+						attemptedFetchers: 'fetcher1,fetcher2',
+						failureReasons: 'transport-error,transport-error',
+					},
+					measurements: {
+						attemptCount: 2,
+					},
+				}],
+			});
 		}
 	});
 

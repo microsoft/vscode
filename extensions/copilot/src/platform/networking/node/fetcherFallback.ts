@@ -24,9 +24,17 @@ export async function fetchWithFallbacks(availableFetchers: readonly IFetcher[],
 	if (options.retryFallbacks && availableFetchers.length > 1) {
 		let firstResult: { ok: boolean; response: Response } | { ok: false; err: any } | undefined;
 		const updatedKnownBadFetchers = new Set<string>();
+		const attemptedFetchers: string[] = [];
+		const failureReasons: string[] = [];
 		let lastError: string | undefined;
-		const useFallbackFetcher = (fetcher: IFetcher, response: Response) => {
+		const promoteFallbackFetcher = (fetcher: IFetcher, response: Response) => {
 			logService.info(`FetcherService: using ${fetcher.getUserAgentLibrary()} from now on`);
+			const updatedFetchers = availableFetchers.slice();
+			updatedFetchers.splice(updatedFetchers.indexOf(fetcher), 1);
+			updatedFetchers.unshift(fetcher);
+			return { response, updatedFetchers, updatedKnownBadFetchers };
+		};
+		const reportFallback = (fetcher: IFetcher) => {
 			/* __GDPR__
 				"fetcherFallback" : {
 					"owner": "chrmarti",
@@ -44,27 +52,45 @@ export async function fetchWithFallbacks(availableFetchers: readonly IFetcher[],
 			}, {
 				knownBadFetchersCount: updatedKnownBadFetchers.size,
 			});
-			const updatedFetchers = availableFetchers.slice();
-			updatedFetchers.splice(updatedFetchers.indexOf(fetcher), 1);
-			updatedFetchers.unshift(fetcher);
-			return { response, updatedFetchers, updatedKnownBadFetchers };
+		};
+		const reportFallbackFailure = () => {
+			/* __GDPR__
+				"fetcherFallbackFailure" : {
+					"owner": "chrmarti",
+					"comment": "Sent once when a fetcher fallback sweep ends without a successful response",
+					"attemptedFetchers": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Comma-separated identifiers of the fetchers attempted" },
+					"failureReasons": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Comma-separated bounded outcomes corresponding to the attempted fetchers: an HTTP status code, invalid-json, or transport-error" },
+					"attemptCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Number of fetch attempts aggregated into this event" }
+				}
+			*/
+			telemetryService?.sendTelemetryEvent('fetcherFallbackFailure', { github: true, microsoft: true }, {
+				attemptedFetchers: attemptedFetchers.join(','),
+				failureReasons: failureReasons.join(','),
+			}, {
+				attemptCount: attemptedFetchers.length,
+			});
 		};
 		for (const fetcher of availableFetchers) {
 			const result = await tryFetch(fetcher, url, options, logService);
 			if (fetcher === availableFetchers[0]) {
 				firstResult = result;
 			}
-			if ('response' in result && TERMINAL_RESPONSE_STATUS_CODES.has(result.response.status)) {
-				return fetcher === availableFetchers[0]
-					? { response: result.response }
-					: useFallbackFetcher(fetcher, result.response);
-			}
 			if (!result.ok) {
 				const fetcherId = fetcher.getUserAgentLibrary();
+				attemptedFetchers.push(fetcherId);
 				if ('response' in result) {
 					lastError = `${fetcherId}: ${result.response.status} ${result.response.statusText}`;
+					failureReasons.push(result.response.ok ? 'invalid-json' : String(result.response.status));
 				} else {
 					lastError = `${fetcherId}: ${collectSingleLineErrorMessage(result.err, true)}`;
+					failureReasons.push('transport-error');
+				}
+				if ('response' in result && TERMINAL_RESPONSE_STATUS_CODES.has(result.response.status)) {
+					if (fetcher === availableFetchers[0]) {
+						return { response: result.response };
+					}
+					reportFallbackFailure();
+					return promoteFallbackFetcher(fetcher, result.response);
 				}
 				updatedKnownBadFetchers.add(fetcherId);
 				continue;
@@ -74,10 +100,12 @@ export async function fetchWithFallbacks(availableFetchers: readonly IFetcher[],
 				if (retry.ok) {
 					return { response: retry.response };
 				}
-				return useFallbackFetcher(fetcher, result.response);
+				reportFallback(fetcher);
+				return promoteFallbackFetcher(fetcher, result.response);
 			}
 			return { response: result.response };
 		}
+		reportFallbackFailure();
 		if ('response' in firstResult!) {
 			return { response: firstResult.response };
 		}
