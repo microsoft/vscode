@@ -70,7 +70,7 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 		}
 		return {
 			customizations: provider.getCustomizations(session.sessionId),
-			resourceUris: provider.getFeedbackAnnotationsChannel(session.sessionId)?.connection.resourceUris ?? identityAgentHostResourceUriMapper,
+			resourceUris: provider.getFeedbackAnnotationsChannel?.(session.sessionId)?.connection.resourceUris ?? identityAgentHostResourceUriMapper,
 			workingDirectory: provider.getWorkingDirectory(session.sessionId),
 			workingDirectories: provider.getWorkingDirectories(session.sessionId),
 			rootConfig: provider.getRootConfig(),
