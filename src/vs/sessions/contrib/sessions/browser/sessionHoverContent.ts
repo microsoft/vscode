@@ -107,6 +107,7 @@ function getPullRequests(session: ISession, openerService: IOpenerService): read
 		? refs.map(ref => ({
 			title: ref.title ?? `#${ref.number}`,
 			icon: ref.icon,
+			uri: ref.uri,
 			onOpen: () => openerService.open(ref.uri, { openExternal: true }).catch(onUnexpectedError),
 		}))
 		: undefined;
