@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { ProtocolRequest, ProtocolResponse } from 'electron';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -14,40 +13,19 @@ import { createManagedRemoteResourceRequestHandler } from '../../electron-main/m
 suite('ProtocolMainService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createRequest(authority: string): ProtocolRequest {
-		return {
-			url: URI.from({
-				scheme: Schemas.vscodeManagedRemoteResource,
-				authority,
-				path: '/resource.txt',
-			}).toString(),
-			referrer: '',
-			method: 'GET',
-			headers: {},
-		};
+	function createRequest(authority: string): GlobalRequest {
+		return new Request(URI.from({
+			scheme: Schemas.vscodeManagedRemoteResource,
+			authority,
+			path: '/resource.txt',
+		}).toString());
 	}
 
-	function invoke(
-		handler: ReturnType<typeof createManagedRemoteResourceRequestHandler>,
-		request: ProtocolRequest,
-	): Promise<ProtocolResponse> {
-		return new Promise((resolve, reject) => handler(request, response => {
-			if (Buffer.isBuffer(response)) {
-				reject(new Error('Expected a protocol response'));
-			} else {
-				resolve(response);
-			}
-		}));
-	}
-
-	function summarize(response: ProtocolResponse) {
-		if (!Buffer.isBuffer(response.data)) {
-			throw new Error('Expected response data to be a buffer');
-		}
+	async function summarize(response: GlobalResponse) {
 		return {
-			statusCode: response.statusCode,
-			data: response.data.toString(),
-			mimeType: response.mimeType,
+			statusCode: response.status,
+			data: await response.text(),
+			mimeType: response.headers.get('Content-Type'),
 		};
 	}
 
@@ -62,10 +40,10 @@ suite('ProtocolMainService', () => {
 			};
 		}, store.add(new NullLogService()));
 
-		const response = await invoke(handler, createRequest('window:7'));
+		const response = await handler(createRequest('window:7'));
 
 		assert.deepStrictEqual({
-			response: summarize(response),
+			response: await summarize(response),
 			requested: requested.map(url => url.toString()),
 		}, {
 			response: {
@@ -84,23 +62,23 @@ suite('ProtocolMainService', () => {
 			throw new Error('failed');
 		}, store.add(new NullLogService()));
 
-		const notFound = await invoke(handler, createRequest('invalid'));
-		const failed = await invoke(handler, createRequest('window:7'));
+		const notFound = await handler(createRequest('invalid'));
+		const failed = await handler(createRequest('window:7'));
 
 		assert.deepStrictEqual({
-			notFound: summarize(notFound),
-			failed: summarize(failed),
+			notFound: await summarize(notFound),
+			failed: await summarize(failed),
 			requestCount,
 		}, {
 			notFound: {
 				statusCode: 404,
 				data: 'Not found',
-				mimeType: undefined,
+				mimeType: 'text/plain;charset=UTF-8',
 			},
 			failed: {
 				statusCode: 500,
 				data: 'Error: failed',
-				mimeType: undefined,
+				mimeType: 'text/plain;charset=UTF-8',
 			},
 			requestCount: 1,
 		});
