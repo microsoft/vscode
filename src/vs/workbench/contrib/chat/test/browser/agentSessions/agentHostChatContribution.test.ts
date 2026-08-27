@@ -2426,6 +2426,49 @@ suite('AgentHostChatContribution', () => {
 			assert.ok(agentHostService.getSubscriptionUnmanaged(StateComponents.Chat, peerChatUri), 'peer chat subscription must stay live after the sibling default chat is disposed');
 			assert.ok(agentHostService.getSubscriptionUnmanaged(StateComponents.Session, backendSession), 'shared session subscription must stay live while the peer chat is still open');
 		});
+
+		test('a cancelled resolution that completes late does not strand the live session', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/late-cancel' });
+			const backendSession = AgentSession.uri('copilot', 'late-cancel');
+			const summary: SessionSummary = {
+				resource: backendSession.toString(),
+				provider: 'copilot',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			};
+			const defaultChatUri = buildDefaultChatUri(backendSession.toString());
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState(summary),
+				lifecycle: SessionLifecycle.Ready,
+				defaultChat: defaultChatUri,
+				chats: [createDefaultChatSummary(summary, defaultChatUri)],
+			});
+
+			const liveSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => liveSession.dispose()));
+
+			// Hydration is not aborted on cancellation, so a resolution whose
+			// callers all gave up still produces a session. `ChatSessionsService`
+			// disposes it. That disposal must not evict the live session or
+			// release the subscriptions it is still using.
+			const cts = new CancellationTokenSource();
+			cts.cancel();
+			const lateSession = await sessionHandler.provideChatSessionContent(sessionResource, cts.token);
+			cts.dispose();
+			lateSession.dispose();
+
+			assert.deepStrictEqual({
+				sessionSubscriptionLive: !!agentHostService.getSubscriptionUnmanaged(StateComponents.Session, backendSession),
+				chatSubscriptionLive: !!agentHostService.getSubscriptionUnmanaged(StateComponents.Chat, URI.parse(defaultChatUri)),
+			}, {
+				sessionSubscriptionLive: true,
+				chatSubscriptionLive: true,
+			});
+		});
 	});
 
 	// ---- Session list (IChatSessionItemController) ----------------------
