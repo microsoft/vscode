@@ -32,9 +32,17 @@ If starting the server from a terminal instead of the task, note two things:
 
 - **The port is chosen at startup and drifts between runs** (5123, 5124, 5125 are all common). Read
   the actual URL from the server's output rather than assuming a port.
-- **Port 5337 is a singleton redirection server.** A stale daemon from *another worktree* will hold
-  it and the new server dies with `EADDRINUSE ::1:5337`. Find it with
-  `lsof -nP -iTCP:5337 -sTCP:LISTEN` and stop that process first.
+- **Port 5337 is a singleton redirection server.** A daemon from *another worktree* will hold it and
+  your server dies with `EADDRINUSE ::1:5337`. Identify the holder with
+  `lsof -nP -iTCP:5337 -sTCP:LISTEN` and then `ps -p <pid> -o etime,command` to see **which worktree
+  it belongs to and how old it is**. If it is genuinely abandoned you can stop it, but if another
+  worktree is actively using it, do not: pass `--redirectionPort <free port>` and run your own
+  alongside it. The two daemons keep separate sockets (the socket name is a hash of the config path),
+  so they coexist fine once the redirection port no longer collides.
+- **A server on the expected port may belong to a different checkout.** Symptom: the explorer loads,
+  the title is right, but your fixture renders blank or is missing from the tree, because you are
+  looking at another worktree's fixtures. Confirm with the `lsof` plus `ps` check above rather than
+  assuming your own build is broken.
 
 ## File Structure
 
