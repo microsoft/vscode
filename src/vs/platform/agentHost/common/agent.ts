@@ -869,7 +869,7 @@ export interface IAgentToolPendingConfirmationSignal {
 	/** Protocol-shaped pending-confirmation state, dispatched verbatim into `ChatToolCallReady`. */
 	readonly state: ToolCallPendingConfirmationState;
 	/** Host-only auto-approval kind (not part of the dispatched action). */
-	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'skill' | 'custom-tool' | 'hook' | 'memory' | 'factory' | 'extension-management' | 'extension-permission-access';
+	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'skill' | 'custom-tool' | 'hook' | 'memory' | 'factory' | 'extension-management' | 'extension-permission-access' | 'extension-env-access';
 	/** Host-only auto-approval path target (not part of the dispatched action). */
 	readonly permissionPath?: string;
 	/**
