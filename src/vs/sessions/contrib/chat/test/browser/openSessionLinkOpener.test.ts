@@ -89,6 +89,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			sessionsProvidersService,
 			sessionSummaryHoverService,
 			new class extends mock<ILabelService>() { },
+			new class extends mock<IPreferencesService>() { },
 		));
 
 		if (!registeredOpener) {
