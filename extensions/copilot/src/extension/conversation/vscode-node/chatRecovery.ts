@@ -67,7 +67,7 @@ type ChatRecoveryAttempt = ChatRecoverySignalProperties & {
 };
 
 const testRunSummaryPattern = /<summary passed=\d+ failed=(?<failed>\d+) \/>/;
-const chatRecoveryScoreThreshold = 1;
+const chatRecoveryScoreThreshold = 0.2; // The minimum score required to consider a recovery attempt valid.
 // Increment when changing signal weights, the threshold, or scoring semantics.
 const chatRecoveryScoringVersion = '2';
 const chatPermissionLevelRanks: Readonly<Partial<Record<string, number>>> = {
