@@ -537,8 +537,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().diagnosticsFetch(url);
 	}
 
-	getSessionStateFile(session: URI): Promise<URI | undefined> {
-		return this._getManagementService().getSessionStateFile(session);
+	getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined> {
+		return this._getManagementService().getSessionStateFile(session, chat);
 	}
 
 	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact> {

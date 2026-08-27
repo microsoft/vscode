@@ -10,12 +10,14 @@ import { ChatDraftContribution } from './chatDraft/chatDraftContribution.js';
 import { ChatSurfaceContribution } from './chatSurface/chatSurfaceContribution.js';
 import { CheckpointAndChangesetContribution } from './checkpointAndChangeset/checkpointAndChangesetContribution.js';
 import { GitHubReferencesContribution } from './githubReferences/githubReferencesContribution.js';
+import { LocalCommandContribution } from './localCommand/localCommandContribution.js';
 import { MarkdownPlanRichLinksContribution } from './markdownPlanRichLinks/markdownPlanRichLinksContribution.js';
 import { MarkUnreadContribution } from './markUnread/markUnreadContribution.js';
 import { PersistedTurnUsageContribution } from './persistedTurnUsage/persistedTurnUsageContribution.js';
 import { QueueDrainContribution } from './queueDrain/queueDrainContribution.js';
 import { SessionTitleContribution } from './sessionTitle/sessionTitleContribution.js';
 import { SideChatContribution } from './sideChat/sideChatContribution.js';
+import { TurnAdmissionContribution } from './turnAdmission/turnAdmissionContribution.js';
 import { TurnDelegationContribution } from './turnDelegation/turnDelegationContribution.js';
 import { WorktreeAnnouncementContribution } from './worktreeAnnouncement/worktreeAnnouncementContribution.js';
 
@@ -24,6 +26,8 @@ export function registerBuiltInChatContributions(
 	contributions: IAgentHostChatContributions,
 ): IDisposable {
 	const registrations = new DisposableStore();
+	registrations.add(contributions.registerContribution(LocalCommandContribution));
+	registrations.add(contributions.registerContribution(TurnAdmissionContribution));
 	registrations.add(contributions.registerContribution(TurnDelegationContribution));
 	registrations.add(contributions.registerContribution(PersistedTurnUsageContribution));
 	registrations.add(contributions.registerContribution(WorktreeAnnouncementContribution));

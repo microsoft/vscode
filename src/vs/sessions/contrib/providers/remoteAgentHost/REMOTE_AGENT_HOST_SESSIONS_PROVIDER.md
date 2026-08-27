@@ -63,6 +63,12 @@ Transport-specific fallback and retry algorithms belong in the owning SSH, tunne
 
 Focused tests live beside the remote provider and remote-host services. Tests own connection races, authentication paths, routing identifiers, fallback, and regressions.
 
+## Dev Container connections
+
+`DevContainerAgentHostService` provides the desktop-only connection boundary for an Agent Host running inside a Dev Container. VS Code bundles `@devcontainers/cli` and runs that pinned version through its Electron-as-Node runtime; Docker and related tools are still resolved from the user's shell environment. The desktop connector runs `devcontainer up` for the selected local workspace, installs the matching VS Code remote CLI inside the container, and reuses or launches a dedicated standalone Agent Host. A shared-process relay carries the Agent Host WebSocket protocol over `devcontainer exec` standard input/output.
+
+The service registers the connected client as a runtime-only `DevContainer` managed remote connection and creates a `RemoteAgentHostSessionsProvider` around it. The shared remote Agent Host contribution observes the managed connection and supplies connection-level filesystem, model, terminal, and log integration. Dev Container CLI output is streamed into one stable `Dev Container (<workspace>)` Output channel per source workspace, which is reused across connection attempts.
+
 ## Change policy
 
 Update this specification only when connection/provider ownership, routing identity, or the shared Agent Host lifecycle boundary changes. Do not append transport algorithms, telemetry schemas, retry narratives, or incident history.

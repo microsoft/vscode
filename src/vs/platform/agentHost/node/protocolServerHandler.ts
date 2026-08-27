@@ -20,7 +20,7 @@ import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportK
 import { AgentSession, type IAgentCreateChatRequestOptions, type IMcpNotification } from '../common/agent.js';
 import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { type IAgentService } from '../common/agentService.js';
-import { collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod } from '../common/agentHostExtensionProtocol.js';
+import { collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, type IAgentHostExtensionInitializeResult } from '../common/agentHostExtensionProtocol.js';
 import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
 import { ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
@@ -573,7 +573,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		params: InitializeParams,
 		transport: IProtocolTransport,
 		disposables: DisposableStore,
-	): { client: IConnectedClient; response: unknown } {
+	): { client: IConnectedClient; response: IAgentHostExtensionInitializeResult } {
 		const offered = Array.isArray(params.protocolVersions) ? params.protocolVersions : [];
 		this._logService.info(`[ProtocolServer] Initialize: clientId=${params.clientId}, protocolVersions=[${offered.join(', ')}]`);
 
@@ -650,9 +650,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				response: {
 					protocolVersion: negotiated,
 					serverSeq: this._stateManager.serverSeq,
+					_meta: getAgentHostExtensionInitializeResultMeta(),
 					snapshots,
 					defaultDirectory: this._config.defaultDirectory,
-					completionTriggerCharacters: this._config.completionTriggerCharacters,
+					completionTriggerCharacters: this._config.completionTriggerCharacters ? [...this._config.completionTriggerCharacters] : undefined,
 					terminalCommandPrefix: this._config.terminalCommandPrefix,
 					telemetry: this._config.otlpLogEmitter ? { logs: OTLP_LOGS_CHANNEL_TEMPLATE } : undefined,
 					automations: this._agentService.automationCapabilities,
@@ -1780,7 +1781,23 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				if (!AgentSession.provider(session)) {
 					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be an Agent Session URI'));
 				}
-				return this._agentService.getSessionStateFile(session).then(resource => ({ resource: resource?.toString() }));
+				const chatParam = params['chat'];
+				let chat: URI | undefined;
+				if (chatParam !== undefined) {
+					if (typeof chatParam !== 'string') {
+						return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must be a URI string'));
+					}
+					try {
+						chat = URI.parse(chatParam, true);
+					} catch {
+						return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must be a valid URI string'));
+					}
+					const parsedChat = parseChatUri(chat);
+					if (!parsedChat || parsedChat.session !== session.toString()) {
+						return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must belong to the requested Agent Session'));
+					}
+				}
+				return this._agentService.getSessionStateFile(session, chat).then(resource => ({ resource: resource?.toString() }));
 			}
 			case CollectAgentHostDebugLogsExtensionMethod: {
 				if (!this._agentService.collectDebugLogs) {

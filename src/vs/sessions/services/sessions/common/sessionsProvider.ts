@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -25,6 +26,12 @@ export interface ISessionChangeEvent {
 
 /** Why a session resource is being resolved, so a provider can pick a latency budget. */
 export type SessionResourceResolveReason = 'open' | 'restore';
+
+/** A provider-prepared replacement draft and its rollback operation. */
+export interface IPreparedNewSession {
+	readonly session: ISession;
+	discard?(): Promise<void>;
+}
 
 /**
  * Options for sending a request to a session.
@@ -262,6 +269,13 @@ export interface ISessionsProvider {
 	 * @param options Optional metadata and other provider creation inputs.
 	 */
 	createNewSession(workspaceUri: URI, sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession;
+
+	/**
+	 * Asynchronously replace a draft before its first chat is created.
+	 * Providers use this to materialize execution environments that can change
+	 * the provider or workspace backing the session.
+	 */
+	prepareNewSession?(sessionId: string, token: CancellationToken): Promise<IPreparedNewSession>;
 
 	/**
 	 * Mark a new session as preparing its first request before asynchronous

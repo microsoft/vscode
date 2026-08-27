@@ -10,7 +10,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { AgentSession, CODEX_AGENT_PROVIDER_ID, type AgentProvider, type IAgentChatContext, type IAgentDiscoveredChat } from '../../../common/agent.js';
+import { AgentChatMigrationDeferred, AgentSession, CODEX_AGENT_PROVIDER_ID, type AgentProvider, type IAgentChatContext, type IAgentDiscoveredChat } from '../../../common/agent.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerStatus, type McpServerCustomization } from '../../../common/state/protocol/channels-session/state.js';
 import { buildDefaultChatUri, parseRequiredSessionUriFromChatUri } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
@@ -444,10 +444,10 @@ suite('CodexAgent', () => {
 			listChatsToMigrate(this: {
 				_activated: boolean;
 				_isSdkResolvableWithoutDownload(): Promise<boolean>;
-				_listCodexChats(): Promise<typeof chats>;
+				_listCodexChats(): Promise<typeof chats | undefined>;
 				_isKnownCodexChat(chat: (typeof chats)[number]): Promise<boolean>;
 				_logService: { info(message: string): void };
-			}): Promise<typeof chats | undefined>;
+			}): Promise<typeof chats | undefined | typeof AgentChatMigrationDeferred>;
 		}).listChatsToMigrate;
 		// Deferred while the SDK is absent: the catalog it reads lives inside one,
 		// and fetching it is the user's call.
@@ -468,8 +468,15 @@ suite('CodexAgent', () => {
 		sdkIsLocal = true;
 		const result = await listChatsToMigrate.call(harness);
 		const empty = await listChatsToMigrate.call({ ...harness, _listCodexChats: async () => [], _isKnownCodexChat: async () => false });
+		const unavailable = await listChatsToMigrate.call({ ...harness, _listCodexChats: async () => undefined });
 
-		assert.deepStrictEqual({ inactive, cold, result, empty }, { inactive: [], cold: undefined, result: chats.slice(0, 2), empty: [] });
+		assert.deepStrictEqual({ inactive, cold, result, empty, unavailable }, {
+			inactive: [],
+			cold: AgentChatMigrationDeferred,
+			result: chats.slice(0, 2),
+			empty: [],
+			unavailable: undefined,
+		});
 	});
 
 	test('activated discovery classifies known Codex chats as internal and unknown chats as external', async () => {

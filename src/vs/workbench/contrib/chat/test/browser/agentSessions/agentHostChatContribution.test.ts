@@ -1267,6 +1267,7 @@ suite('AgentHostChatContribution', () => {
 
 			assert.ok(chatAgentService.registeredAgents.has('agent-host-copilot'));
 		});
+
 	});
 
 	// ---- Download progress notification (editor window) -----------------
@@ -12657,6 +12658,38 @@ suite('AgentHostChatContribution', () => {
 						customizations: (action.action as { activeClient: { customizations: readonly ClientPluginCustomization[] } }).activeClient.customizations.map(customization => customization.uri),
 					})),
 				[{ channel: AgentSession.uri('copilot', 'scope-a').toString(), customizations: ['file:///scope-a-plugin'] }],
+			);
+		});
+
+		test('does not republish activeClientSet after the chat session is disposed', async () => {
+			const { instantiationService, agentHostService, chatAgentService, seedActiveClient } = createTestServices(disposables);
+			const customizations = observableValue<readonly ClientPluginCustomization[]>('customizations', []);
+			disposables.add(seedActiveClient('agent-host-copilot', { customizations }));
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/disposed-session' });
+			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'agent-host-copilot',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host - Copilot',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+			}));
+
+			const turn = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+			turn.fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session: turn.session, turnId: turn.turnId } as ChatAction);
+			await turn.turnPromise;
+
+			agentHostService.dispatchedActions.length = 0;
+			turn.chatSession.dispose();
+			customizations.set([
+				{ type: CustomizationType.Plugin, id: 'file:///plugin', uri: 'file:///plugin', name: 'Plugin', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }] },
+			], undefined);
+			await timeout(10);
+
+			assert.deepStrictEqual(
+				agentHostService.dispatchedActions.filter(action => action.action.type === ActionType.SessionActiveClientSet),
+				[],
 			);
 		});
 

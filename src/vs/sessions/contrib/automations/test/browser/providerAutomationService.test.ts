@@ -238,13 +238,17 @@ suite('ProviderAutomationService', () => {
 
 		await service.updateAutomation(created.id, { target: legacyTarget });
 		const legacyLedger = JSON.parse(storage.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION)!);
+		const finalLegacyTarget = legacyLedger.automations.find((automation: { id: string }) => automation.id === created.id)?.target;
 
 		assert.deepStrictEqual({
 			claimRunId: claim.run.id,
 			afterProviderTransfer,
 			finalProviderAutomation: providerStore.getAutomation(created.id),
 			finalProviderRunIds: providerStore.runs.get().map(run => run.id),
-			finalLegacyTarget: legacyLedger.automations.find((automation: { id: string }) => automation.id === created.id)?.target,
+			finalLegacyTarget: finalLegacyTarget ? {
+				...finalLegacyTarget,
+				folderUri: URI.revive(finalLegacyTarget.folderUri).toString(),
+			} : undefined,
 			finalLegacyRunIds: legacyLedger.runs.map((run: { id: string }) => run.id),
 		}, {
 			claimRunId: claim.run.id,
@@ -258,7 +262,7 @@ suite('ProviderAutomationService', () => {
 			finalProviderRunIds: [],
 			finalLegacyTarget: {
 				kind: 'workspace',
-				folderUri: FOLDER.toJSON(),
+				folderUri: FOLDER.toString(),
 				providerId: 'provider-without-storage',
 				sessionTypeId: 'other',
 				isolation: { kind: 'default' },

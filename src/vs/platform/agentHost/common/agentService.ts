@@ -779,7 +779,7 @@ export interface IAgentHostManagementService {
 	getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo>;
 	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult>;
-	getSessionStateFile(session: URI): Promise<URI | undefined>;
+	getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined>;
 	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact>;
 	readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk>;
 	startWebSocketServer(): Promise<IAgentHostSocketInfo>;
@@ -911,7 +911,7 @@ export interface IAgentService {
 	 */
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult>;
 
-	getSessionStateFile?(session: URI): Promise<URI | undefined>;
+	getSessionStateFile?(session: URI, chat?: URI): Promise<URI | undefined>;
 
 	collectDebugLogs?(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact>;
 
@@ -1157,7 +1157,7 @@ export interface IAgentConnection {
 	 */
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult>;
 
-	getSessionStateFile(session: URI): Promise<URI | undefined>;
+	getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined>;
 
 	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact>;
 

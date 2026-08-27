@@ -18,14 +18,14 @@ import { IAgentHostChangesetService } from '../../common/agentHostChangesetServi
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
-import { createChatMementoKey, createSessionMementoKey, IAgentHostChatContributions, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IAgentHostChatContributionHost, type IHydrationContext, type IObservedAction, type IOutgoingTurn, type IRestoredChat, type ITurnEnd } from '../../common/agentHostChatContributionsService.js';
+import { createChatMementoKey, createSessionMementoKey, IAgentHostChatContributions, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IAgentHostChatContributionHost, type IHydrationContext, type IIncomingRequest, type IObservedAction, type IOutgoingTurn, type IRestoredChat, type ITurnEnd, type IncomingRequestDisposition } from '../../common/agentHostChatContributionsService.js';
 import { AgentHostArtifactToolsConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, type ISchema, type SchemaDefinition, type SchemaValue } from '../../common/agentHostSchema.js';
 import { withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { ChatOriginKind } from '../../common/state/protocol/state.js';
-import { buildChatUri, buildDefaultChatUri, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, TurnState, type ISessionGitHubState, type Message, type PendingMessage, type Turn } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, ChatInteractivity, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, TurnState, type ISessionGitHubState, type Message, type PendingMessage, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
@@ -39,6 +39,7 @@ import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from '../../n
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
+import { LocalCommandContribution } from '../../node/chatContributions/localCommand/localCommandContribution.js';
 import { QueueDrainContribution } from '../../node/chatContributions/queueDrain/queueDrainContribution.js';
 import { SessionTitleContribution } from '../../node/chatContributions/sessionTitle/sessionTitleContribution.js';
 import { SideChatContribution } from '../../node/chatContributions/sideChat/sideChatContribution.js';
@@ -377,6 +378,80 @@ class EmptyOutgoingTurnContribution extends TestContribution {
 	}
 }
 
+class UndefinedIncomingRequestContribution extends TestContribution {
+	static readonly id = 'undefinedIncomingRequest';
+
+	onIncomingRequest(): undefined {
+		return undefined;
+	}
+}
+
+class AcceptingIncomingRequestContribution extends TestContribution {
+	static readonly id = 'acceptingIncomingRequest';
+
+	onIncomingRequest(): IncomingRequestDisposition {
+		return { kind: 'accept' };
+	}
+}
+
+class HandlingIncomingRequestContribution extends TestContribution {
+	static readonly id = 'handlingIncomingRequest';
+	readonly order = 10;
+
+	onIncomingRequest(): IncomingRequestDisposition {
+		calls.push('handled');
+		return { kind: 'handled' };
+	}
+}
+
+class SourceRecordingIncomingRequestContribution extends TestContribution {
+	static readonly id = 'sourceRecordingIncomingRequest';
+
+	onIncomingRequest(request: IIncomingRequest): IncomingRequestDisposition {
+		calls.push(request.source);
+		return { kind: 'accept' };
+	}
+}
+
+class FirstRejectingIncomingRequestContribution extends TestContribution {
+	static readonly id = 'firstRejectingIncomingRequest';
+	readonly order = 10;
+
+	onIncomingRequest(): IncomingRequestDisposition {
+		calls.push('first');
+		return { kind: 'reject', error: { errorType: 'first', message: 'first rejection' }, stage: 'validation' };
+	}
+}
+
+class SecondRejectingIncomingRequestContribution extends TestContribution {
+	static readonly id = 'secondRejectingIncomingRequest';
+	readonly order = 20;
+
+	onIncomingRequest(): IncomingRequestDisposition {
+		calls.push('second');
+		return { kind: 'reject', error: { errorType: 'second', message: 'second rejection' }, stage: 'validation' };
+	}
+}
+
+class ThrowingIncomingRequestContribution extends TestContribution {
+	static readonly id = 'throwingIncomingRequest';
+	readonly order = 10;
+
+	onIncomingRequest(): IncomingRequestDisposition {
+		throw new Error('expected');
+	}
+}
+
+class FollowingIncomingRequestContribution extends TestContribution {
+	static readonly id = 'followingIncomingRequest';
+	readonly order = 20;
+
+	onIncomingRequest(): IncomingRequestDisposition {
+		calls.push('following');
+		return { kind: 'accept' };
+	}
+}
+
 class FirstMessageReplacementContribution extends TestContribution {
 	static readonly id = 'firstMessageReplacement';
 	readonly order = 10;
@@ -649,14 +724,14 @@ function createTurnDelegationContributions(disposables: ReturnType<typeof ensure
 	return { service, database, session, chat: buildDefaultChatUri(session) };
 }
 
-function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, observed?: string[], enableSendInstructions = false): { readonly service: AgentHostChatContributions; readonly stateManager: AgentHostStateManager; readonly database: TestSessionDatabase; readonly session: string } {
+function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, observed?: string[], enableSendInstructions = false, sessionStatus = SessionStatus.IsRead): { readonly service: AgentHostChatContributions; readonly stateManager: AgentHostStateManager; readonly database: TestSessionDatabase; readonly session: string } {
 	const logService = new NullLogService();
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	stateManager.createSession({
 		resource: 'agent-host-session://test',
 		provider: 'test',
 		title: 'Test',
-		status: SessionStatus.IsRead,
+		status: sessionStatus,
 		createdAt: '2025-01-01T00:00:00.000Z',
 		modifiedAt: '2025-01-01T00:00:00.000Z',
 		_meta: withChatSurfaceMeta(undefined, enableSendInstructions ? { surface: 'terminal', osName: 'Linux' } : undefined),
@@ -760,6 +835,7 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 		hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
 		sendTurnMessage: options => admitted.push({ channel: options.turnChannel, message: options.message, clientId: options.senderClientId, hostLaunchKind: options.clientContext.hostLaunchKind }),
 	}));
+	disposables.add(service.registerContribution(LocalCommandContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
 	disposables.add(service.registerContribution(QueueDrainContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
 	return { service, stateManager, session, chat, pendingMessages, admitted, titleController, telemetryService, clearAgent: () => agent = undefined };
 }
@@ -788,6 +864,19 @@ function outgoingTurn(turnId: string, text = turnId): IOutgoingTurn {
 		chat: 'agent-host-session://test',
 		message: { text, origin: { kind: MessageKind.User } },
 		turnId,
+	};
+}
+
+function incomingRequest(session = 'agent-host-session://test', chat = buildDefaultChatUri(session), source: IIncomingRequest['source'] = 'direct'): IIncomingRequest {
+	return {
+		session,
+		chat,
+		turnChannel: chat,
+		message: { text: 'incoming request', origin: { kind: MessageKind.User } },
+		turnId: 'incoming-request',
+		source,
+		clientId: 'client',
+		clientContext: createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow),
 	};
 }
 
@@ -1373,6 +1462,113 @@ suite('AgentHostChatContributions', () => {
 		});
 		assert.deepStrictEqual(await contributions.outgoingTurn(outgoingTurn('send-empty-object')), {
 			message: { text: 'send-empty-object', origin: { kind: MessageKind.User } },
+		});
+	});
+
+	test('accepts incoming requests when no contribution objects', () => {
+		const contributions = disposables.add(createContributions(disposables, UndefinedIncomingRequestContribution, AcceptingIncomingRequestContribution));
+
+		assert.deepStrictEqual(contributions.incomingRequest(incomingRequest()), { kind: 'accept' });
+	});
+
+	test('stops at a handled incoming-request disposition in contribution order', () => {
+		const contributions = disposables.add(createContributions(disposables, FollowingIncomingRequestContribution, HandlingIncomingRequestContribution));
+
+		assert.deepStrictEqual({
+			disposition: contributions.incomingRequest(incomingRequest()),
+			calls,
+		}, {
+			disposition: { kind: 'handled' },
+			calls: ['handled'],
+		});
+	});
+
+	test('passes incoming request sources to contributions', () => {
+		const contributions = disposables.add(createContributions(disposables, SourceRecordingIncomingRequestContribution));
+		contributions.incomingRequest(incomingRequest(undefined, undefined, 'queued'));
+		contributions.incomingRequest(incomingRequest());
+
+		assert.deepStrictEqual(calls, ['queued', 'direct']);
+	});
+
+	test('stops at the first non-accept incoming-request disposition in contribution order', () => {
+		const contributions = disposables.add(createContributions(disposables, SecondRejectingIncomingRequestContribution, FirstRejectingIncomingRequestContribution));
+
+		assert.deepStrictEqual(contributions.incomingRequest(incomingRequest()), {
+			kind: 'reject',
+			error: { errorType: 'first', message: 'first rejection' },
+			stage: 'validation',
+		});
+		assert.deepStrictEqual(calls, ['first']);
+	});
+
+	test('fails closed when an incoming-request contribution throws', () => {
+		const contributions = disposables.add(createContributions(disposables, ThrowingIncomingRequestContribution, FollowingIncomingRequestContribution));
+
+		assert.deepStrictEqual(contributions.incomingRequest(incomingRequest()), {
+			kind: 'reject',
+			error: {
+				errorType: 'internalError',
+				message: 'Turn admission contribution \'throwingIncomingRequest\' failed',
+			},
+			stage: 'validation',
+		});
+		assert.deepStrictEqual(calls, []);
+	});
+
+	test('skips contributions without an onIncomingRequest hook', () => {
+		const contributions = disposables.add(createContributions(disposables, OrderedFirstContribution));
+
+		assert.deepStrictEqual(contributions.incomingRequest(incomingRequest()), { kind: 'accept' });
+	});
+
+	test('rejects incoming requests for archived sessions and read-only chats', () => {
+		const archived = createBuiltInContributions(disposables, undefined, false, SessionStatus.IsRead | SessionStatus.IsArchived);
+		const readOnly = createBuiltInContributions(disposables);
+		const readOnlyChat = buildChatUri(readOnly.session, 'read-only');
+		readOnly.stateManager.addChat(readOnly.session, readOnlyChat, { title: 'Read-only', interactivity: ChatInteractivity.ReadOnly });
+
+		assert.deepStrictEqual({
+			archived: archived.service.incomingRequest(incomingRequest(archived.session)),
+			readOnly: readOnly.service.incomingRequest(incomingRequest(readOnly.session, readOnlyChat)),
+		}, {
+			archived: {
+				kind: 'reject',
+				error: {
+					errorType: 'archived',
+					message: 'This session is archived and read-only. Restore the session to continue the conversation.',
+				},
+				stage: 'validation',
+			},
+			readOnly: {
+				kind: 'reject',
+				error: {
+					errorType: 'readOnly',
+					message: 'This chat is read-only.',
+				},
+				stage: 'validation',
+			},
+		});
+	});
+
+	test('handles local commands before rejecting archived and read-only chats', () => {
+		const archived = createBuiltInContributions(disposables, undefined, false, SessionStatus.IsRead | SessionStatus.IsArchived);
+		const readOnly = createBuiltInContributions(disposables);
+		const readOnlyChat = buildChatUri(readOnly.session, 'read-only');
+		readOnly.stateManager.addChat(readOnly.session, readOnlyChat, { title: 'Read-only', interactivity: ChatInteractivity.ReadOnly });
+
+		assert.deepStrictEqual({
+			archived: archived.service.incomingRequest({
+				...incomingRequest(archived.session),
+				message: { text: '/rename Archived', origin: { kind: MessageKind.User } },
+			}),
+			readOnly: readOnly.service.incomingRequest({
+				...incomingRequest(readOnly.session, readOnlyChat),
+				message: { text: '/rename Read-only', origin: { kind: MessageKind.User } },
+			}),
+		}, {
+			archived: { kind: 'handled' },
+			readOnly: { kind: 'handled' },
 		});
 	});
 

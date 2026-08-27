@@ -242,6 +242,15 @@ export interface InitializeResult {
 	 * software behind it.
 	 */
 	serverInfo?: Implementation;
+	/**
+	 * Optional implementation-specific extension metadata advertised by the host.
+	 *
+	 * Hosts and clients MAY agree on namespaced keys for capabilities that are not
+	 * part of the standardized protocol. Clients MUST ignore keys they do not
+	 * understand. Capabilities needed for interoperable behavior SHOULD use typed
+	 * fields on {@link InitializeResult} instead.
+	 */
+	_meta?: Record<string, unknown>;
 	/** Snapshots for each `initialSubscriptions` URI */
 	snapshots: Snapshot[];
 	/** Suggested default directory for remote filesystem browsing */
