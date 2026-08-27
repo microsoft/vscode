@@ -466,9 +466,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// one disappears.
 		this._register(this.sessionsManagementService.onDidChangeSessions(e => this._onDidChangeSessions(e)));
 
-		// Reflect provider session replacement (e.g. a draft graduating into a
-		// committed session) onto the grid slot.
+		// Reflect both provider session replacement (e.g. a draft graduating)
+		// and pre-send draft replacement onto the same visible grid slot.
 		this._register(this.sessionsManagementService.onDidReplaceSession(({ from, to }) => this._onDidReplaceSession(from, to)));
+		this._register(this.sessionsManagementService.onDidReplaceNewDraftSession(({ from, to }) => this._onDidReplaceSession(from, to)));
 
 		// While a foreground send materialises new chats, keep the newest chat
 		// active in the visible slot so the user sees the chat being sent.

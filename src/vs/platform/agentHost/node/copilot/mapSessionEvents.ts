@@ -658,7 +658,7 @@ export async function mapSessionEvents(
 					rootRequestActive = false;
 					parentTurnState = TurnState.Error;
 					parentTurnTerminated = true;
-					parentBuilder.responseParts.push(createErrorResponsePart(buildChatErrorInfoFromCopilotSdkFields(e.data), true));
+					parentBuilder.responseParts.push(createErrorResponsePart(buildChatErrorInfoFromCopilotSdkFields(e.data)));
 					parentBuilder.waitingStartedAt = currentEventTimestamp;
 					touch(parentBuilder);
 				}
@@ -770,7 +770,7 @@ export async function mapSessionEvents(
 	}
 
 	if (options && !(options instanceof URI) && options.interruptedTurnError && parentBuilder && rootRequestActive && parentTurnState !== TurnState.Error) {
-		parentBuilder.responseParts.push(createErrorResponsePart(options.interruptedTurnError, true));
+		parentBuilder.responseParts.push(createErrorResponsePart(options.interruptedTurnError));
 		parentTurnState = TurnState.Error;
 	}
 	flushParent();

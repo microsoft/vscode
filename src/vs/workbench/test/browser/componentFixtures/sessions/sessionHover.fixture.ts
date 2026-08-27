@@ -6,10 +6,15 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
+import { tildify } from '../../../../../base/common/labels.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 // eslint-disable-next-line local/code-import-patterns
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../../../sessions/contrib/github/common/types.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -115,6 +120,21 @@ const SESSIONS_PROVIDERS_SERVICE = new class extends mock<ISessionsProvidersServ
 	}
 }();
 
+const OPENER_SERVICE = new class extends mock<IOpenerService>() {
+	override async open(): Promise<boolean> {
+		return true;
+	}
+}();
+
+/** Stands in for the workbench label service: a POSIX home, tildified. */
+const LABEL_SERVICE = new class extends mock<ILabelService>() {
+	override getUriLabel(resource: URI): string {
+		return resource.scheme === Schemas.file
+			? tildify(resource.path, '/home/user', OperatingSystem.Linux)
+			: resource.toString(true);
+	}
+}();
+
 function pullRequest(number: number, title: string | undefined, state: GitHubPullRequestState | 'draft', createdByThisSession = true): IGitHubPullRequestRef {
 	return {
 		owner: 'microsoft',
@@ -158,7 +178,7 @@ function renderInHover(ctx: ComponentFixtureContext, content: HTMLElement): void
 
 /** The Agents window path: ISession → hover data → shared widget. */
 function renderSessionHover(ctx: ComponentFixtureContext, spec: ISessionSpec): void {
-	const data = getSessionSummaryHoverData(createSession(spec), SESSIONS_PROVIDERS_SERVICE);
+	const data = getSessionSummaryHoverData(createSession(spec), SESSIONS_PROVIDERS_SERVICE, OPENER_SERVICE, LABEL_SERVICE);
 	renderInHover(ctx, new SessionSummaryHoverWidget(data).domNode);
 }
 

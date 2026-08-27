@@ -24,9 +24,14 @@ Agent Host providers implement `IAgentHostSessionsProvider`, which extends `ISes
 
 - optional remote connection state and connect/disconnect operations;
 - observable host-declared session configuration;
-- configuration mutation and completion APIs.
+- configuration mutation and completion APIs;
+- optional local-draft Dev Container availability and selection.
 
 Consumers use the extended type guard rather than matching provider IDs. Provider-neutral features continue to depend on `ISessionsProvider`.
+
+## Dev Container handoff
+
+The desktop-only Dev Container target is local draft state rather than host-declared session configuration. Before the first request, the local provider starts or reuses the container Agent Host, trusts the mapped workspace only after the source folder passes trust, and replaces the local draft with an equivalent draft owned by the dynamic remote provider. Compatible configuration, model, and custom-agent selections transfer to the replacement.
 
 ## Registration
 

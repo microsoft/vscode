@@ -12,7 +12,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { ChatEntitlement, IChatEntitlementService, IQuotaSnapshot, IRateLimitSnapshot } from '../../../services/chat/common/chatEntitlementService.js';
-import { getSelectedModelIdentifier, getSelectedModelMetadata, isSelectedModelCopilot, SELECTED_MODEL_STORAGE_KEY_PREFIX, SELECTED_MODEL_STORAGE_SCOPE } from '../common/chatSelectedModel.js';
+import { getSelectedModelIdentifier, getSelectedModelMetadata, SELECTED_MODEL_STORAGE_KEY_PREFIX, SELECTED_MODEL_STORAGE_SCOPE } from '../common/chatSelectedModel.js';
 import { ILanguageModelsService, isAutoLanguageModel } from '../common/languageModels.js';
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from './widget/input/chatInputNotificationService.js';
 
@@ -76,9 +76,8 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		this._register(this._chatEntitlementService.onDidChangeEntitlement(() => this._update()));
 		this._register(this._languageModelsService.onDidChangeLanguageModels(() => this._refreshActiveQuotaApproachingWarning()));
 
-		// Re-evaluate when the selected model changes (e.g. switching between Copilot and BYOK).
-		// The chatModelId context key is widget-scoped and may not bubble to the global
-		// service, so we also listen for storage changes on the persisted model selection key.
+		// Keeps the "Switch to Auto" action honest. Whether a banner renders at all is decided
+		// per chat input via `hideForByokModels`.
 		const storageListener = this._register(new DisposableStore());
 		this._register(this._storageService.onDidChangeValue(SELECTED_MODEL_STORAGE_SCOPE, undefined, storageListener)(e => {
 			if (e.key.startsWith(SELECTED_MODEL_STORAGE_KEY_PREFIX)) {
@@ -144,23 +143,11 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	private _update(): void {
 		const entitlement = this._chatEntitlementService.entitlement;
-		const isCopilot = this._isCopilotModelSelected();
 
-		// Once quota recovers (credit is positively available again) drop any
-		// persisted dismissal so the quota-exceeded notification can show the next
-		// time quota runs out. Done before the Copilot/BYOK gate so a recovery is
-		// always observed, even while a BYOK model is selected. Guarded on a
-		// present snapshot so the transient "no quota data yet" state at
-		// startup/reload does not wipe the flag.
+		// Drop the persisted dismissal once quota recovers, so the banner can show again.
+		// Requires a real snapshot, so "no data yet" at startup doesn't wipe the flag.
 		if (this._isQuotaKnownAvailable()) {
 			this._clearExhaustedDismissed();
-		}
-
-		// Defer new notifications when a BYOK model is selected or the model
-		// selection hasn't loaded yet — quota only applies to Copilot models.
-		// Already-shown notifications stay visible.
-		if (!isCopilot) {
-			return;
 		}
 
 		// Skip quota notifications for PRU users — only show for UBB.
@@ -429,15 +416,6 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	// --- Helpers ------------------------------------------------------------
 
-	/**
-	 * Returns `true` only when a Copilot model is actively selected.
-	 * Returns `false` if no model is selected yet (widget not initialized)
-	 * or if the selected model is from a non-Copilot vendor (BYOK).
-	 */
-	private _isCopilotModelSelected(): boolean {
-		return isSelectedModelCopilot(this._contextKeyService, this._storageService, this._languageModelsService);
-	}
-
 	private _getAutoModelIdentifier(): string | undefined {
 		for (const identifier of this._languageModelsService.getLanguageModelIds()) {
 			const metadata = this._languageModelsService.lookupLanguageModel(identifier);
@@ -460,7 +438,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	private _refreshActiveQuotaApproachingWarning(): void {
 		const warning = this._activeQuotaWarning;
-		if (!warning || !this._isCopilotModelSelected()) {
+		if (!warning) {
 			return;
 		}
 		const notification = this._chatInputNotificationService.getActiveNotification(candidate => candidate.id === QUOTA_NOTIFICATION_ID);
@@ -504,7 +482,9 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	}
 
 	private _setNotification(notification: IChatInputNotification): void {
-		this._chatInputNotificationService.setNotification(notification);
+		// Quota is a Copilot concern, but only each input knows its own model — this
+		// contribution sees the global context key service, which resolves the panel's. #332787
+		this._chatInputNotificationService.setNotification({ ...notification, hideForByokModels: true });
 	}
 
 	private _hideNotification(): void {

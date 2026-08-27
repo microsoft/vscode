@@ -2851,6 +2851,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				deferredNotificationsEnabled: this._deferredNotificationsEnabled,
 				isTransientChat: this.options.isTransientChat,
 				sessionStarted: this._sessionStarted,
+				selectedLanguageModel: this.selectedLanguageModel,
 				openModelPicker: () => this.openModelPicker(),
 				switchToModel: modelIdentifier => this.switchModelByIdentifier(modelIdentifier, /* storeSelection */ true, /* isUserAction */ true),
 				onDidChangeVisibility: (visible, focusTarget) => this.noticeHost.setOccupied(ChatInputNoticeLane.Notification, visible, focusTarget),
