@@ -10,7 +10,7 @@ import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
-import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IExtensionDescription } from '../../../../../platform/extensions/common/extensions.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -19,11 +19,12 @@ import { IOpenURLOptions, IURLService } from '../../../../../platform/url/common
 import { IExtensionService } from '../../../../../workbench/services/extensions/common/extensions.js';
 import { Menus } from '../../../../browser/menus.js';
 import { SessionHasPullRequestContext } from '../../../../common/contextkeys.js';
-import { IGitHubPullRequestRef, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { IGitHubPullRequestRef, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import '../../browser/pullRequestActions.js';
 
-function createSessionWithPullRequest(pullRequestUri: URI | undefined, pullRequestRefs?: readonly IGitHubPullRequestRef[]): ISession {
+function createSessionWithPullRequest(pullRequestUri: URI | undefined, pullRequestRefs?: readonly IGitHubPullRequestRef[]): IActiveSession {
 	const workspaceUri = URI.from({ scheme: 'test', path: '/workspace' });
 	const workspace: ISessionWorkspace = {
 		uri: workspaceUri,
@@ -49,7 +50,7 @@ function createSessionWithPullRequest(pullRequestUri: URI | undefined, pullReque
 		requiresWorkspaceTrust: false,
 		isVirtualWorkspace: false,
 	};
-	return new class extends mock<ISession>() {
+	return new class extends mock<IActiveSession>() {
 		override readonly workspace = constObservable<ISessionWorkspace | undefined>(workspace);
 	};
 }
@@ -68,10 +69,13 @@ class TestURLService extends mock<IURLService>() {
 }
 
 class TestOpenerService extends mock<IOpenerService>() {
-	readonly opened: { readonly resource: URI; readonly openExternal: boolean | undefined }[] = [];
+	readonly opened: { readonly resource: URI; readonly openExternal: boolean | undefined; readonly allowContributedOpeners?: boolean | string }[] = [];
 
-	override async open(resource: URI, options?: { readonly openExternal?: boolean }): Promise<boolean> {
-		this.opened.push({ resource, openExternal: options?.openExternal });
+	override async open(resource: URI, options?: { readonly openExternal?: boolean; readonly allowContributedOpeners?: boolean | string }): Promise<boolean> {
+		const opened = { resource, openExternal: options?.openExternal };
+		this.opened.push(options?.allowContributedOpeners === undefined
+			? opened
+			: { ...opened, allowContributedOpeners: options.allowContributedOpeners });
 		return true;
 	}
 }
@@ -94,6 +98,59 @@ suite('Pull Request Actions', () => {
 			{ id: 'workbench.agentSessions.action.openPullRequest', group: '2_pullRequest', order: 0, hasPullRequestGate: true },
 			{ id: 'workbench.agentSessions.action.copyPullRequestUrl', group: '2_pullRequest', order: 1, hasPullRequestGate: true },
 		]);
+	});
+
+	test('Open Pull Request in Browser is contributed to pull request editor actions with a globe icon', () => {
+		const commandId = 'workbench.agentSessions.action.openPullRequestInBrowser';
+		const items = [
+			{ menu: 'sessions', item: MenuRegistry.getMenuItems(Menus.SessionsEditorTitle).filter(isIMenuItem).find(item => item.command.id === commandId) },
+			{ menu: 'classic', item: MenuRegistry.getMenuItems(MenuId.EditorTitle).filter(isIMenuItem).find(item => item.command.id === commandId) },
+		];
+
+		assert.deepStrictEqual(items.map(({ menu, item }) => {
+			const when = item?.when?.serialize() ?? '';
+			return {
+				menu,
+				group: item?.group,
+				order: item?.order,
+				usesGlobeIcon: item?.command.icon === Codicon.globe,
+				hasPullRequestGate: when.includes(SessionHasPullRequestContext.key),
+				hasPullRequestOverviewGate: when.includes('activeWebviewPanelId') && when.includes('PullRequestOverview'),
+			};
+		}), [{
+			menu: 'sessions',
+			group: 'navigation',
+			order: 1,
+			usesGlobeIcon: true,
+			hasPullRequestGate: true,
+			hasPullRequestOverviewGate: true,
+		}, {
+			menu: 'classic',
+			group: 'navigation',
+			order: 1,
+			usesGlobeIcon: true,
+			hasPullRequestGate: true,
+			hasPullRequestOverviewGate: true,
+		}]);
+	});
+
+	test('Open Pull Request in Browser bypasses contributed openers', async () => {
+		const pullRequestUri = URI.parse('https://github.com/owner/repo/pull/1');
+		const session = createSessionWithPullRequest(pullRequestUri);
+		const instantiationService = new TestInstantiationService();
+		const openerService = new TestOpenerService();
+		instantiationService.stub(IOpenerService, openerService);
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable(session);
+		});
+
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.openPullRequestInBrowser')!.handler(accessor));
+
+		assert.deepStrictEqual(openerService.opened, [{
+			resource: pullRequestUri,
+			openExternal: true,
+			allowContributedOpeners: false,
+		}]);
 	});
 
 	test('Copy Pull Request URL writes the pull request URL to the clipboard', async () => {

@@ -17,9 +17,10 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
-import { Action2, MenuItemAction, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuItemAction, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -138,6 +139,47 @@ class OpenPullRequestAction extends Action2 {
 	}
 }
 registerAction2(OpenPullRequestAction);
+
+const pullRequestOverviewEditorWhen = ContextKeyExpr.and(
+	SessionHasPullRequestContext,
+	ContextKeyExpr.equals('activeWebviewPanelId', 'PullRequestOverview'),
+);
+
+class OpenPullRequestInBrowserAction extends Action2 {
+	static readonly ID = 'workbench.agentSessions.action.openPullRequestInBrowser';
+
+	constructor() {
+		super({
+			id: OpenPullRequestInBrowserAction.ID,
+			title: localize2('agentSessions.openPullRequestInBrowser', "Open Pull Request in Browser"),
+			icon: Codicon.globe,
+			f1: false,
+			precondition: pullRequestOverviewEditorWhen,
+			menu: [{
+				id: Menus.SessionsEditorTitle,
+				group: 'navigation',
+				order: 1,
+				when: pullRequestOverviewEditorWhen,
+			}, {
+				id: MenuId.EditorTitle,
+				group: 'navigation',
+				order: 1,
+				when: pullRequestOverviewEditorWhen,
+			}],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const pullRequest = getSessionPullRequest(accessor.get(ISessionsService).activeSession.get());
+		if (pullRequest) {
+			await accessor.get(IOpenerService).open(pullRequest.uri, {
+				openExternal: true,
+				allowContributedOpeners: false,
+			});
+		}
+	}
+}
+registerAction2(OpenPullRequestInBrowserAction);
 
 // --- Copy Pull Request URL action
 
