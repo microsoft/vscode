@@ -34,7 +34,15 @@ export const AUTO_MODE_TIER_PROPERTY = 'tier';
  * picker offers. `fast` is rejected so it stays an internal default rather than
  * something a caller can select.
  */
-export function isSelectableAutoModeTier(value: unknown): value is AutoModeTier {
-    return typeof value === 'string' && (selectableAutoModeTiers as readonly string[]).includes(value.trim().toLowerCase());
+ export function isSelectableAutoModeTier(value: unknown): value is AutoModeTier {
+    return typeof value === 'string' && (selectableAutoModeTiers as readonly string[]).includes(value);
+}
+
+export function parseSelectableAutoModeTier(value: unknown): AutoModeTier | undefined {
+    if (typeof value !== 'string') {
+        return undefined;
+    }
+    const normalized = value.trim().toLowerCase();
+    return isSelectableAutoModeTier(normalized) ? normalized : undefined;
 }
 
