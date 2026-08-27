@@ -98,8 +98,16 @@ export async function computeAgentSessionClaimCommitment(request: IAgentSessionC
 	return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
+/**
+ * Makes the claimed session the window's active session, on the ordinary
+ * sessions-view path. Supplied by the sessions layer because the chat layer
+ * cannot reach it, and awaited by the claim so the inventory it settles on is
+ * the session-scoped one an ordinary open produces.
+ */
+export type AgentSessionClaimActivation = (sessionResource: URI, token: CancellationToken) => Promise<void>;
+
 /** Joins an existing session as an active client; never creates one. */
-export type AgentSessionClaimTarget = (backendSession: URI, token: CancellationToken) => Promise<IDisposable>;
+export type AgentSessionClaimTarget = (backendSession: URI, activate: AgentSessionClaimActivation, token: CancellationToken) => Promise<IDisposable>;
 
 /** Why a readiness wait ended. A closed vocabulary, safe to log and assert on. */
 export const enum AgentSessionClaimReadiness {

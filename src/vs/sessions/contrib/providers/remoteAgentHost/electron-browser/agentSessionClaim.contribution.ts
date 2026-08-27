@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { disposableTimeout } from '../../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from '../../../../../workbench/common/contributions.js';
@@ -21,6 +23,8 @@ import {
 	parseAgentSessionClaimRequest,
 } from '../../../../../workbench/contrib/chat/common/agentHostSessionClaim.js';
 import { INativeWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/electron-browser/environmentService.js';
+import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 
 /**
  * Terminal guard for a whole claim — readiness, hydration, and the settle. Each
@@ -50,6 +54,7 @@ export class AgentSessionClaimContribution extends Disposable implements IWorkbe
 		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@ILogService private readonly _logService: ILogService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -100,7 +105,7 @@ export class AgentSessionClaimContribution extends Disposable implements IWorkbe
 			if (readiness.outcome !== AgentSessionClaimReadiness.Ready) {
 				throw new Error(`Agent session claim ${readiness.outcome}: no handler registered for ${request.sessionType}`);
 			}
-			this._claim.value = await readiness.target(URI.parse(request.sessionUri), budget.token);
+			this._claim.value = await readiness.target(URI.parse(request.sessionUri), (sessionResource, activationToken) => this._activateSession(sessionResource, activationToken), budget.token);
 			this._logService.info(`[AgentSessionClaim] Claimed ${request.sessionUri}`);
 		} catch (err) {
 			// Classified once: the guard can interrupt readiness, hydration, or
@@ -112,6 +117,56 @@ export class AgentSessionClaimContribution extends Disposable implements IWorkbe
 			pending.dispose();
 		}
 	}
+
+	/**
+	 * Makes the claimed session active the one way the sidebar does — a single
+	 * {@link ISessionsService.openSession} on the existing resource — so the
+	 * window's session-scoped surfaces come up exactly as they do for a user who
+	 * clicked the row. It shows a session that already exists and resolves once
+	 * it has loaded: nothing here creates, composes, or submits.
+	 *
+	 * `openSession` throws for a resource no provider has listed yet, and the
+	 * bridge can invoke the claim before the remote session list has caught up,
+	 * so the exact resource is first awaited on the management service's own
+	 * change event — the same reason the handler wait is event-driven.
+	 *
+	 * The services are resolved here rather than injected because this
+	 * contribution is constructed in *every* window at `BlockStartup`, and an
+	 * ungated one must not pull the sessions view up with it.
+	 */
+	private _activateSession(sessionResource: URI, token: CancellationToken): Promise<void> {
+		return this._instantiationService.invokeFunction(accessor => {
+			const sessionsService = accessor.get(ISessionsService);
+			const managementService = accessor.get(ISessionsManagementService);
+			return whenSessionListed(managementService, sessionResource, token)
+				.then(() => sessionsService.openSession(sessionResource, { preserveFocus: false }));
+		});
+	}
+}
+
+/**
+ * Resolves as soon as {@link sessionResource} is one of the sessions the
+ * providers list, driven purely by `onDidChangeSessions`: it schedules nothing
+ * and polls nothing, and an already-listed session resolves with no clock
+ * involved at all. The caller supplies its deadline through {@link token}.
+ */
+function whenSessionListed(managementService: ISessionsManagementService, sessionResource: URI, token: CancellationToken): Promise<void> {
+	if (managementService.getSession(sessionResource)) {
+		return Promise.resolve();
+	}
+	return new Promise((resolve, reject) => {
+		const store = new DisposableStore();
+		const settle = (settled: () => void) => { store.dispose(); settled(); };
+		store.add(managementService.onDidChangeSessions(() => {
+			if (managementService.getSession(sessionResource)) {
+				settle(resolve);
+			}
+		}));
+		store.add(token.onCancellationRequested(() => settle(() => reject(new CancellationError()))));
+		if (token.isCancellationRequested) {
+			settle(() => reject(new CancellationError()));
+		}
+	});
 }
 
 // Ahead of `RemoteAgentHostContribution` (`AfterRestored`) so the command

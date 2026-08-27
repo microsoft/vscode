@@ -10,6 +10,7 @@ import { CancellationError, getErrorCode, isCancellationError } from '../../../.
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { getChatErrorDetailsFromMeta, getCopilotPlanFromEntitlement, IChatErrorContext } from '../../../common/chatErrorMessages.js';
+import type { AgentSessionClaimActivation } from '../../../common/agentHostSessionClaim.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IReference, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -2268,18 +2269,25 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	/**
 	 * Joins an **existing** backend session as an additional active client,
-	 * without opening a chat model and without originating anything.
+	 * without originating anything.
 	 *
 	 * An evaluation controller owns every turn; this window only contributes its
 	 * inventory and serves the client tools the host asks for. Unlike
 	 * {@link provideChatSessionContent} it never creates a session — one that has
-	 * not hydrated is a hard failure — and opens no chat model, so nothing
-	 * dispatches a draft, pending message, or turn. Its one watcher,
+	 * not hydrated is a hard failure — and it dispatches no draft, pending
+	 * message, or turn of its own. Its one watcher,
 	 * {@link _watchForSessionInputNeeded}, runs from a bare session subscription;
 	 * it, the active-client entry, and the subscription are shared with any chat
 	 * on the same session and reference-counted.
+	 *
+	 * {@link activate} runs once the session is known to exist and before this
+	 * client is published, because a session-scoped surface is registered from
+	 * the *active session*, not from the claim: with none, the window would
+	 * advertise the surface an ordinary window has with no session open at all.
+	 * Publishing after it means {@link ActiveClientEntry.whenSettled} settles on
+	 * the final inventory rather than on one that is about to change.
 	 */
-	async claimExternalSession(backendSession: URI, token: CancellationToken): Promise<IDisposable> {
+	async claimExternalSession(backendSession: URI, activate: AgentSessionClaimActivation, token: CancellationToken): Promise<IDisposable> {
 		const sessionKey = backendSession.toString();
 		// Require the round trip to land back on the backend session, so a claim
 		// belonging to another handler is rejected rather than retargeted.
@@ -2306,6 +2314,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 			if (!this._getRawSessionState(sessionKey)) {
 				throw new Error(`Agent host session ${sessionKey} does not exist`);
+			}
+
+			await raceCancellation(activate(sessionResource, token), token);
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
 			}
 
 			// Arm tool serving before publishing, so a request queued the instant

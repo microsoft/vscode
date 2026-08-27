@@ -1025,7 +1025,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		// Reachable by the private claim command, which exists only in a window
 		// launched with a claim commitment.
 		agentStore.add(agentSessionClaimTargets.register(sessionType,
-			(backendSession, token) => sessionHandler.claimExternalSession(backendSession, token)));
+			(backendSession, activate, token) => sessionHandler.claimExternalSession(backendSession, activate, token)));
 
 		// Language model provider.
 		// Order matters: `updateModels` must be called after

@@ -28,7 +28,7 @@ import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatStat
 import { chatReducer, sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { ContentEncoding } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { ConfirmationOptionKind, McpAuthRequiredReason, SessionInputRequestKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ConfirmationOptionKind, McpAuthRequiredReason, SessionInputRequestKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type SessionActiveClient } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { IChatProgress, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
@@ -41,6 +41,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
 import { AgentHostSessionHandler, toolDataToDefinition, toolResultToProtocol, UNOBSERVED_CLIENT_TOOL_GRACE_MS } from '../../../browser/agentSessions/agentHost/agentHostSessionHandler.js';
+import type { AgentSessionClaimActivation } from '../../../common/agentHostSessionClaim.js';
 import { AgentHostActiveClientService, IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostCustomizationService, NullAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, IAgentHostToolSetEnablementService, IToolEnablementState } from '../../../browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
@@ -3236,11 +3237,54 @@ suite('AgentHostClientTools', () => {
 		suite('external session claim', () => {
 
 			const claimedSession = AgentSession.uri('copilot', 'session-1');
+			/** Exactly the resource the handler derives and asks to be activated. */
+			const claimedResource = URI.parse('agent-host-copilotcli:/session-1');
 
-			async function claim(handler: AgentHostSessionHandler) {
-				const claimDisposable = await handler.claimExternalSession(claimedSession, CancellationToken.None);
+			/** Session resources the claim asked the window to make active. */
+			let activated: string[];
+
+			setup(() => { activated = []; });
+
+			async function claim(handler: AgentHostSessionHandler, activate?: AgentSessionClaimActivation) {
+				const claimDisposable = await handler.claimExternalSession(claimedSession, async (sessionResource, token) => {
+					activated.push(sessionResource.toString());
+					await activate?.(sessionResource, token);
+				}, CancellationToken.None);
 				disposables.add(claimDisposable);
 				return claimDisposable;
+			}
+
+			/** Every active-client publish this handler has made, in order. */
+			function publishedClients(connection: MockAgentHostConnection): SessionActiveClient[] {
+				return connection.dispatchedActions.flatMap(entry =>
+					isSessionAction(entry.action) && entry.action.type === ActionType.SessionActiveClientSet
+						? [entry.action.activeClient]
+						: []);
+			}
+
+			/** Resolves once {@link count} active-client publishes have happened. */
+			function whenPublished(connection: MockAgentHostConnection, count: number): Promise<void> {
+				if (publishedClients(connection).length >= count) {
+					return Promise.resolve();
+				}
+				return new Promise<void>(resolve => {
+					const listener = connection.onDidDispatch(() => {
+						if (publishedClients(connection).length >= count) {
+							listener.dispose();
+							resolve();
+						}
+					});
+					disposables.add(listener);
+				});
+			}
+
+			/** A tool set carrying {@link tool}, as a real registration publishes one. */
+			function toolSetWith(tool: IToolData): IToolSet {
+				return new class extends mock<IToolSet>() {
+					override readonly id = `set-${tool.id}`;
+					override readonly deprecated = false;
+					override getTools(): Iterable<IToolData> { return [tool]; }
+				}();
 			}
 
 			/**
@@ -3309,13 +3353,70 @@ suite('AgentHostClientTools', () => {
 				assert.deepStrictEqual(connection.createSessionCalls, []);
 			});
 
+			test('makes the exact claimed session active before publishing this client', async () => {
+				const { handler, connection } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+
+				let publishesAtActivation = -1;
+				await claim(handler, async () => { publishesAtActivation = publishedClients(connection).length; });
+
+				assert.deepStrictEqual(activated, [claimedResource.toString()],
+					'the claim must activate the resource it derives from the backend session, and only it');
+				assert.strictEqual(publishesAtActivation, 0,
+					'a session-scoped surface comes up with the active session, so nothing may be published before it');
+				assert.strictEqual(publishedClients(connection).length, 1);
+			});
+
+			test('settles on the inventory the active session brings up', async () => {
+				const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+
+				// Stands in for the session-scoped tools a real window registers
+				// off the back of its active session: they exist only afterwards.
+				await claim(handler, async () => {
+					toolsService.toolSets.set([toolSetWith(testRunTaskTool)], undefined);
+				});
+
+				const published = publishedClients(connection);
+				assert.strictEqual(published.length, 1, 'one settled publish, not one per inventory revision');
+				assert.deepStrictEqual(published[0].tools?.map(tool => tool.name), ['runTask'],
+					'the claim must not return before the post-activation inventory is published');
+			});
+
+			test('republishes the whole inventory when it changes after the claim', async () => {
+				const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool, testRunTestsTool]);
+
+				await claim(handler, async () => {
+					toolsService.toolSets.set([toolSetWith(testRunTaskTool)], undefined);
+				});
+				toolsService.toolSets.set([toolSetWith(testRunTaskTool), toolSetWith(testRunTestsTool)], undefined);
+				await whenPublished(connection, 2);
+
+				const published = publishedClients(connection);
+				assert.deepStrictEqual(published[published.length - 1].tools?.map(tool => tool.name).sort(), ['runTask', 'runTests'],
+					'a later inventory change must re-reconcile, publishing the complete set');
+			});
+
+			test('an activation that fails takes the whole claim down', async () => {
+				const { handler, connection } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+
+				await assert.rejects(
+					() => handler.claimExternalSession(claimedSession, async () => { throw new Error('no sessions view'); }, CancellationToken.None),
+					/no sessions view/);
+
+				assert.deepStrictEqual(connection.dispatchedActions, [],
+					'a claim that never became active must publish nothing, not even a removal');
+				// The hold is released too, so the window is free to try again.
+				await claim(handler);
+				assert.deepStrictEqual(activated, [claimedResource.toString()]);
+			});
+
 			test('rejects a session that does not belong to this handler', async () => {
 				const { handler, connection } = createHandlerWithMocks(disposables, [testRunTaskTool]);
 
 				await assert.rejects(
-					() => handler.claimExternalSession(URI.parse('other-provider:/session-1'), CancellationToken.None),
+					() => handler.claimExternalSession(URI.parse('other-provider:/session-1'), async () => { }, CancellationToken.None),
 					/does not belong to session type/);
 				assert.deepStrictEqual(connection.dispatchedActions, []);
+				assert.deepStrictEqual(activated, [], 'a session this handler does not own must not be activated');
 			});
 
 			test('refuses to claim the same session twice', async () => {
@@ -3323,7 +3424,7 @@ suite('AgentHostClientTools', () => {
 
 				await claim(handler);
 				await assert.rejects(
-					() => handler.claimExternalSession(claimedSession, CancellationToken.None),
+					() => handler.claimExternalSession(claimedSession, async () => { }, CancellationToken.None),
 					/already claimed/);
 			});
 

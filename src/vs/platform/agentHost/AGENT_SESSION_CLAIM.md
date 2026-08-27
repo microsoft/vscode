@@ -30,7 +30,8 @@ bridge invokes ------------------> workbench.action.agentHost.claimExternalSessi
                                       bridgeExtensionId, bridgeExtensionVersion }
                                   burn gate (+ persist spent marker), re-hash,
                                   compare, await the exact handler (bounded),
-                                  require existing session, claim() + whenSettled
+                                  require existing session, openSession(exact),
+                                  claim() + whenSettled
 observe activeClient inventory
 start the evaluated turn
 ```
@@ -123,14 +124,57 @@ state and resolves on it, so nothing here treats elapsed time as an outcome.
 `AgentHostSessionHandler.claimExternalSession` joins an already-existing
 session. It hydrates a bare session subscription and fails if the session did
 not hydrate — it never creates or materializes one — and requires the session to
-round-trip through that handler's own session type. It then publishes the active
-client through the existing `claim()` path and awaits `whenSettled`.
+round-trip through that handler's own session type. It then makes that session
+active (below), publishes the active client through the existing `claim()` path,
+and awaits `whenSettled`.
 
-It opens no chat model, so there is no draft synchronization, no pending-message
-projection, no server-turn watcher, and no MCP authentication watcher. The only
-watcher it installs is the existing session-scoped `inputNeeded` watcher, which
-already runs from a bare `IAgentSubscription<SessionState>`; without it the
-published tool inventory could never be exercised.
+The only watcher the claim itself installs is the existing session-scoped
+`inputNeeded` watcher, which already runs from a bare
+`IAgentSubscription<SessionState>`; without it the published tool inventory
+could never be exercised. The claim originates nothing: no prompt, no turn, no
+draft or pending-message action of its own.
+
+## Active session
+
+Some of the window's most valuable surfaces are registered from the **active
+session**, not from a claim. `BrowserViewWorkbenchService`'s sharing-available
+context requires, inside a sessions window, `sessionType == local` or
+`sessions.isAgentHostSession`, and the latter is bound to
+`ISessionsService.activeSession`. With no active session the window registers
+`OpenBrowserToolNonAgentic` — whose own result says the page contents are
+withheld — instead of the agentic `readPage`/`navigatePage`/`screenshotPage`
+set. Measured, not inferred: the first credentialed run of this branch published
+exactly `["openBrowserPage", "toolSearch"]`.
+
+The claim therefore establishes ordinary active-session UI context, on the one
+call a sidebar click makes:
+`ISessionsService.openSession(sessionResource, { preserveFocus: false })`. It
+shows a session that already exists and resolves once it has loaded; it creates
+nothing, composes nothing, and submits nothing.
+
+Ordering follows from that. `openSession` runs after the existence check, so a
+session that does not exist fails before any UI moves, and *before* the active
+client is published, so `whenSettled` settles on the inventory the active
+session brings up rather than on one that is about to change. The command
+therefore does not return until both the active session and the final
+`activeClient` inventory have settled; a later inventory change still
+re-reconciles through the bound subscription.
+
+`openSession` throws for a resource no provider has listed yet, and the bridge
+can invoke the claim before the remote session list has caught up, so the exact
+resource is first awaited on `ISessionsManagementService.onDidChangeSessions`.
+Like every other wait here it schedules nothing and polls nothing, and an
+already-listed session resolves with no clock involved. The sessions services
+are resolved on use rather than injected, because the claim contribution is
+constructed in *every* window at `BlockStartup` and an ungated one must not pull
+the sessions view up with it.
+
+Opening the session does open a chat model, which is what a sidebar click does.
+That brings the ordinary per-chat machinery — draft synchronization,
+pending-message projection, the server-turn watcher — under the same
+reference-counted holders described below. It spends no model request: the
+credentialed run reports `modelRequests: 0` for the claim and one evaluated turn
+for the whole session.
 
 A chat opened on the same session addresses the same session resource, so the
 `inputNeeded` watcher, the `ActiveClientEntry`, and the session subscription are
@@ -146,10 +190,11 @@ and a failure to say goodbye must not take the window down.
 
 ## Client tool approval
 
-A claimed session has no chat surface, so nothing can answer a confirmation. A
-client tool that declares `canRequestPreApproval` would otherwise be denied once
-its grace window expired, which would make the published evaluation inventory
-unusable — the window would advertise tools it could never run.
+A claim answers no confirmation: the controller drives every turn and no user is
+watching this window. A client tool that declares `canRequestPreApproval` would
+otherwise be denied once its grace window expired, which would make the
+published evaluation inventory unusable — the window would advertise tools it
+could never run.
 
 Such tools are therefore approved from the claim itself: a window launched with a
 claim commitment is an evaluation window whose effects are expected and
