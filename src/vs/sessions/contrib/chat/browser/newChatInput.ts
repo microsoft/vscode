@@ -58,6 +58,7 @@ import { inactiveSessionViewBackground, inactiveSessionViewForeground } from '..
 import { INewChatVoiceTargetService, isNewChatVoiceSessionActive, NEW_CHAT_VOICE_SENTINEL, NewChatVoiceController } from './newChatVoice.js';
 import { ISessionTypePickerOptions, SessionTypePicker } from './sessionTypePicker.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { MobileSessionTypePicker } from './mobile/mobileSessionTypePicker.js';
 import { installMobileChipLaneScroll } from '../../../browser/parts/mobile/mobileChipLaneScroll.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
@@ -86,6 +87,7 @@ import { registerAndCreateHistoryNavigationContext, IHistoryNavigationContext } 
 import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ChatInputNotificationWidget } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationWidget.js';
+import { IChatInputNotificationContext, IChatInputNotificationService } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationService.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
 import { registerChatInputOnboardingHosts } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputOnboardingHosts.js';
 import { IChatInputNoticeHubService } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHub.js';
@@ -493,6 +495,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		@INewChatVoiceTargetService private readonly newChatVoiceTargetService: INewChatVoiceTargetService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IChatPetWidgetService private readonly chatPetWidgetService: IChatPetWidgetService,
+		@IChatInputNotificationService private readonly chatInputNotificationService: IChatInputNotificationService,
 	) {
 		super();
 		this._modelSelection = this._register(this.instantiationService.createInstance(SessionModelSelection, this.options.session));
@@ -580,10 +583,18 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			ChatInputNotificationWidget,
 			{
 				modelTargetChatSessionType: this.sessionTypePicker.modelTargetChatSessionType,
+				sessionResource: derived(this, reader => this.options.session.read(reader)?.activeChat.read(reader).resource),
 				deferredNotificationsEnabled: this.options.deferredNotificationsEnabled,
-				selectedLanguageModel: derived(this, reader => this._modelSelection.state.read(reader).currentModel),
-				openModelPicker: () => this._newChatModelPickerService.openModelPicker(),
-				switchToModel: modelIdentifier => this._newChatModelPickerService.switchToModel(modelIdentifier),
+				isTransientChat: derived(this, reader => this.options.session.read(reader)?.isQuickChat?.read(reader) ?? false),
+				sessionStarted: derived(this, reader => {
+					const session = this.options.session.read(reader);
+					return session ? session.activeChat.read(reader).status.read(reader) !== SessionStatus.Untitled : false;
+				}),
+				modelSelection: {
+					state: this._modelSelection.state,
+					openPicker: () => this._newChatModelPickerService.openModelPicker(),
+					selectModel: modelIdentifier => this._newChatModelPickerService.switchToModel(modelIdentifier),
+				},
 				onDidChangeVisibility: (visible, focusTarget) => this.noticeHost.setOccupied(ChatInputNoticeLane.Notification, visible, focusTarget),
 				focusInput: () => this.focus(),
 			},
@@ -1432,6 +1443,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			? attachments
 			: undefined;
 		const request = query;
+		const notificationContext = this._getNotificationContext();
 
 		if (this._draftState) {
 			this._history.append(this._toHistoryEntry(this._draftState));
@@ -1449,6 +1461,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			if (!sent) {
 				return false;
 			}
+			this.chatInputNotificationService.handleMessageSent(notificationContext);
 			this._contextAttachments.clear();
 			this._editor.getModel()?.setValue('');
 		} catch (e) {
@@ -1462,6 +1475,20 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			this._updateInputLoadingState();
 		}
 		return sent;
+	}
+
+	private _getNotificationContext(): IChatInputNotificationContext {
+		const session = this.options.session.get();
+		const activeChat = session?.activeChat.get();
+		const modelSelection = this._modelSelection.state.get();
+		return {
+			sessionType: this.sessionTypePicker.modelTargetChatSessionType.get(),
+			sessionResource: activeChat?.resource,
+			deferredNotificationsEnabled: this.options.deferredNotificationsEnabled?.get() ?? true,
+			isTransientChat: session?.isQuickChat?.get() ?? false,
+			sessionStarted: activeChat ? activeChat.status.get() !== SessionStatus.Untitled : false,
+			modelState: modelSelection,
+		};
 	}
 
 	private _updateSendButtonState(): void {
