@@ -69,10 +69,6 @@ parameters:
     displayName: "🎯 Web"
     type: boolean
     default: true
-  - name: VSCODE_STEP_ON_IT
-    displayName: "Skip tests"
-    type: boolean
-    default: false
   - name: VSCODE_USE_LEGACY_OSS_NOTICE
     displayName: "Use legacy OSS Notice"
     type: boolean
@@ -132,8 +128,6 @@ variables:
     value: $[format('{0:yyyyMMdd}-{1}-{2}', pipeline.startTime, variables['VSCODE_QUALITY'], variables['Build.SourceBranch'])]
   - name: VSCODE_PUBLISH_COUNTER
     value: $[counter(variables['VSCODE_PUBLISH_COUNTER_PREFIX'], 1)]
-  - name: VSCODE_STEP_ON_IT
-    value: ${{ eq(parameters.VSCODE_STEP_ON_IT, true) }}
   # Derived as an explicit lowercase string literal so downloadNotice.ts's
   # case-sensitive JS check (process.env['VSCODE_OVERWRITE_TPN'] === 'false')
   # works. ${{ eq(...) }} would emit 'True'/'False' (capitalized) and silently
