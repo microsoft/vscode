@@ -102,7 +102,7 @@ interface ISessionCountHarness {
 interface ISendHarness {
 	readonly _session: IObservable<ISession | undefined>;
 	readonly _feedbackItems: IObservable<readonly never[]>;
-	readonly _workspacePicker: { readonly selectedFolderUri: URI | undefined };
+	readonly _workspacePicker: { readonly selectedFolderUri: URI | undefined; showPicker(): void };
 	readonly _isQuickChatComposer: IObservable<boolean>;
 	readonly agentFeedbackService: { removeFeedback(resource: URI, id: string): void };
 	readonly sessionsManagementService: { sendNewChatRequest(session: ISession, options: ISendRequestOptions): Promise<void> };
@@ -327,7 +327,7 @@ suite('NewChatWidget', () => {
 		const result = await send.call({
 			_session: constObservable(session),
 			_feedbackItems: constObservable([]),
-			_workspacePicker: { selectedFolderUri: primaryFolder },
+			_workspacePicker: { selectedFolderUri: primaryFolder, showPicker: () => { } },
 			_isQuickChatComposer: constObservable(false),
 			agentFeedbackService: { removeFeedback: () => { } },
 			sessionsManagementService: {
@@ -346,6 +346,34 @@ suite('NewChatWidget', () => {
 			result: true,
 			attachmentIds: attachments.map(attachment => attachment.id),
 			attachmentValues: attachments.map(attachment => attachment.value),
+		});
+	});
+
+	test('opens the workspace picker without sending when no workspace is selected', async () => {
+		let pickerOpenCount = 0;
+		let sendCount = 0;
+
+		const result = await send.call({
+			_session: constObservable(undefined),
+			_feedbackItems: constObservable([]),
+			_workspacePicker: {
+				selectedFolderUri: undefined,
+				showPicker: () => pickerOpenCount++,
+			},
+			_isQuickChatComposer: constObservable(false),
+			agentFeedbackService: { removeFeedback: () => { } },
+			sessionsManagementService: {
+				sendNewChatRequest: async () => {
+					sendCount++;
+				},
+			},
+			logService: { error: () => { } },
+		}, 'work across contexts');
+
+		assert.deepStrictEqual({ result, pickerOpenCount, sendCount }, {
+			result: false,
+			pickerOpenCount: 1,
+			sendCount: 0,
 		});
 	});
 

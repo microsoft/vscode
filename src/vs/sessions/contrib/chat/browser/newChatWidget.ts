@@ -183,7 +183,7 @@ export class NewChatWidget extends Disposable {
 			return session?.loading.read(reader) ?? false;
 		});
 		const hasFeedback = derived(this, reader => this._feedbackItems.read(reader).length > 0);
-		const canSubmitWithoutSession = derived(this, reader => !this._session.read(reader) && hasFeedback.read(reader));
+		const canSubmitWithoutSession = derived(this, reader => !this._session.read(reader));
 		const deferredNotificationsEnabled = observableFromEvent(
 			this,
 			this.storageService.onDidChangeValue(StorageScope.APPLICATION, TOTAL_SESSIONS_KEY, this._store),

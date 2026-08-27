@@ -1410,6 +1410,52 @@ suite('WorkspacePicker - Category Triggers', () => {
 		);
 	});
 
+	test('selects the first browsed folder as the primary workspace without attaching it', async () => {
+		const providersService = disposables.add(new MockSessionsProvidersService());
+		const baseProvider = createMockProvider('local-1');
+		providersService.setProviders([{
+			...baseProvider,
+			supportsLocalWorkspaces: true,
+			resolveWorkspace: uri => {
+				const workspace = baseProvider.resolveWorkspace(uri);
+				return workspace ? { ...workspace, group: SESSION_WORKSPACE_GROUP_LOCAL } : undefined;
+			},
+		}]);
+		const folder = URI.file('/local/project');
+		const picker = createTestPicker(
+			disposables,
+			providersService,
+			undefined,
+			new TestNotificationService(),
+			DispatchingWorkspacePicker,
+			{ showOpenDialog: async () => [folder] },
+		) as DispatchingWorkspacePicker;
+		const container = document.createElement('div');
+		picker.renderCategoryTriggers(container, [
+			{ label: 'Folder', ariaLabel: 'Choose a folder', icon: Codicon.add, group: SESSION_WORKSPACE_GROUP_LOCAL },
+			{ label: 'Repository', ariaLabel: 'Choose a repository', icon: Codicon.add, group: SESSION_WORKSPACE_GROUP_GITHUB, attachesContext: false },
+		]);
+		const workspaceSelections: URI[] = [];
+		const folderContexts: URI[] = [];
+		disposables.add(picker.onDidSelectWorkspace(uri => uri && workspaceSelections.push(uri)));
+		disposables.add(picker.onDidSelectFolderContext(uri => folderContexts.push(uri)));
+
+		picker.setDirectFilter(SESSION_WORKSPACE_GROUP_LOCAL, false);
+		await picker.dispatchItem({ browseActionIndex: 0 });
+
+		assert.deepStrictEqual({
+			selectedFolder: picker.selectedFolderUri?.toString(),
+			pills: Array.from(container.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')).map(element => element.textContent),
+			workspaceSelections: workspaceSelections.map(uri => uri.toString()),
+			folderContexts: folderContexts.map(uri => uri.toString()),
+		}, {
+			selectedFolder: folder.toString(),
+			pills: ['local/project', 'Repository'],
+			workspaceSelections: [folder.toString()],
+			folderContexts: [],
+		});
+	});
+
 	test('keeps the primary folder and adds later folders as pills and context', async () => {
 		const providersService = disposables.add(new MockSessionsProvidersService());
 		const baseProvider = createMockProvider('local-1');
@@ -2548,7 +2594,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 			executedCommands,
 		}, {
 			tabs: [SESSION_WORKSPACE_GROUP_GITHUB],
-			itemLabels: ['Sign in to GitHub', 'Clear Workspace'],
+			itemLabels: ['Sign in to GitHub'],
 			executedCommands: [AGENTIC_SIGN_IN_COMMAND_ID],
 		});
 	});
@@ -2582,12 +2628,12 @@ suite('WorkspacePicker - Tab discovery', () => {
 			repositoryItems,
 			contextItems,
 		}, {
-			repositoryItems: ['microsoft/vscode/HEAD', 'Add Repository...', 'Clear Workspace'],
+			repositoryItems: ['microsoft/vscode/HEAD', 'Add Repository...'],
 			contextItems: ['Issue...', 'Pull Request...'],
 		});
 	});
 
-	test('offers Clear Workspace in execution pickers but not the context picker', () => {
+	test('does not offer clear actions in workspace pickers', () => {
 		providersService.setProviders([{
 			...createMockProvider('p1', {
 				browseActions: [
@@ -2612,8 +2658,8 @@ suite('WorkspacePicker - Tab discovery', () => {
 			repositoryItems,
 			contextItems,
 		}, {
-			folderItems: ['Add Folder...', 'Clear Workspace'],
-			repositoryItems: ['Repository...', 'Clear Workspace'],
+			folderItems: ['Add Folder...'],
+			repositoryItems: ['Repository...'],
 			contextItems: ['Issue...'],
 		});
 	});

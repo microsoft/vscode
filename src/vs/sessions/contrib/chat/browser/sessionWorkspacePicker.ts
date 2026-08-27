@@ -878,6 +878,7 @@ export class WorkspacePicker extends Disposable {
 		}
 		this._updateTriggerLabel();
 		this._onDidChangeSelection.fire();
+		this._onDidSelectWorkspace.fire(undefined);
 	}
 
 	/**
@@ -1159,11 +1160,6 @@ export class WorkspacePicker extends Disposable {
 		// in the Manage submenu on the Remote tab.
 		const remoteProviders = allProviders.filter(isAgentHostProvider).filter(p => p.connectionStatus !== undefined);
 		const includeRemoteProviders = this._activeTab === SESSION_WORKSPACE_GROUP_REMOTE;
-		const includeClearWorkspace = this._selectedFolderUri !== undefined
-			&& this._directPickerGroup !== undefined
-			&& this._directPickerAttachesContext !== true
-			&& (this._activeTab === SESSION_WORKSPACE_GROUP_LOCAL || this._activeTab === SESSION_WORKSPACE_GROUP_GITHUB);
-
 		if (items.length > 0 && (workspaceGroupAction || allBrowseActions.length > 0)) {
 			items.push({ kind: ActionListItemKind.Separator, label: '' });
 		}
@@ -1215,18 +1211,6 @@ export class WorkspacePicker extends Disposable {
 				});
 			}
 		});
-
-		if (includeClearWorkspace) {
-			if (items.length > 0 && items[items.length - 1].kind !== ActionListItemKind.Separator) {
-				items.push({ kind: ActionListItemKind.Separator, label: '' });
-			}
-			items.push({
-				kind: ActionListItemKind.Action,
-				label: localize('workspacePicker.clearWorkspace', "Clear Workspace"),
-				group: { title: '', icon: Codicon.close },
-				item: { run: () => this.clearSelection() },
-			});
-		}
 
 		// Inline "Manage" entries: dynamic remote provider rows (scoped to
 		// the Remote tab) + menu-contributed actions (filtered by the
