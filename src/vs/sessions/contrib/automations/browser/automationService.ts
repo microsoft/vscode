@@ -47,6 +47,8 @@ interface ISerializedAutomationBase {
 	readonly modelId?: string;
 	readonly mode?: string;
 	readonly permissionLevel?: string;
+	readonly agentId?: string;
+	readonly configuration?: Record<string, unknown>;
 	readonly enabled: boolean;
 	readonly createdAt: string;
 	readonly updatedAt: string;
@@ -187,6 +189,8 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 			modelId: options.modelId,
 			mode: options.mode,
 			permissionLevel: isChatPermissionLevel(options.permissionLevel) ? options.permissionLevel : undefined,
+			agentId: options.agentId,
+			configuration: options.configuration,
 			enabled: options.enabled ?? true,
 			createdAt: nowIso,
 			updatedAt: nowIso,
@@ -620,6 +624,8 @@ function serializeAutomation(a: IAutomationDescriptor): ISerializedAutomation {
 		modelId: a.modelId,
 		mode: a.mode,
 		permissionLevel: a.permissionLevel,
+		agentId: a.agentId,
+		configuration: a.configuration,
 		enabled: a.enabled,
 		createdAt: a.createdAt,
 		updatedAt: a.updatedAt,
@@ -693,6 +699,8 @@ function createAutomationFromSerialized(s: ISerializedAutomationBase, target: Au
 		modelId: s.modelId,
 		mode: s.mode,
 		permissionLevel,
+		agentId: s.agentId,
+		configuration: s.configuration,
 		enabled: s.enabled,
 		createdAt: s.createdAt,
 		updatedAt: s.updatedAt,
@@ -724,6 +732,8 @@ function mergeAutomation(current: IAutomationDescriptor, patch: IUpdateAutomatio
 		modelId: patch.modelId === null ? undefined : (patch.modelId ?? current.modelId),
 		mode: patch.mode === null ? undefined : (patch.mode ?? current.mode),
 		permissionLevel: patch.permissionLevel === null ? undefined : (patch.permissionLevel && isChatPermissionLevel(patch.permissionLevel) ? patch.permissionLevel : current.permissionLevel),
+		agentId: patch.agentId === null ? undefined : (patch.agentId ?? current.agentId),
+		configuration: patch.configuration === null ? undefined : (patch.configuration ?? current.configuration),
 		enabled: patch.enabled ?? current.enabled,
 	};
 }

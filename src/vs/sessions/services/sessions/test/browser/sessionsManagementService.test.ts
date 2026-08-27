@@ -2668,6 +2668,7 @@ suite('SessionsManagementService', () => {
 			stubSession({ sessionId: 'automation-replacement', providerId: 'test' }),
 		];
 		const deleted: string[] = [];
+		let quickChatOptions: ISessionsProviderCreateSessionOptions | undefined;
 		let createIndex = 0;
 		const provider = new class extends TestSessionsProvider {
 			override readonly supportsQuickChats = true;
@@ -2682,7 +2683,10 @@ suite('SessionsManagementService', () => {
 				};
 			}
 			override createNewSession(): ISession { return drafts[createIndex++]; }
-			override createQuickChat(): ISession { return drafts[createIndex++]; }
+			override createQuickChat(_sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession {
+				quickChatOptions = options;
+				return drafts[createIndex++];
+			}
 			override deleteNewSession(sessionId: string): void { deleted.push(sessionId); }
 		}(drafts[0]);
 		const { service } = createSessionsManagementService(drafts[0], disposables, provider);
@@ -2690,7 +2694,11 @@ suite('SessionsManagementService', () => {
 
 		const firstAutomationSession = service.createAutomationSession(folderUri);
 		service.createNewSession(folderUri);
-		service.createAutomationQuickChat();
+		service.createAutomationQuickChat({
+			modelId: 'test-model',
+			agentId: 'file:///agents/test.agent.md',
+			configuration: { customSetting: true },
+		});
 		service.discardAutomationSession(firstAutomationSession);
 		service.createAutomationSession(folderUri);
 		service.discardAutomationSession();
@@ -2698,10 +2706,16 @@ suite('SessionsManagementService', () => {
 		assert.deepStrictEqual({
 			newSession: service.newSession.get()?.sessionId,
 			automationSession: service.automationSession.get()?.sessionId,
+			quickChatOptions,
 			deleted,
 		}, {
 			newSession: 'new-session',
 			automationSession: undefined,
+			quickChatOptions: {
+				modelId: 'test-model',
+				agentId: 'file:///agents/test.agent.md',
+				configuration: { customSetting: true },
+			},
 			deleted: ['automation-workspace', 'automation-quick-chat', 'automation-replacement'],
 		});
 	});

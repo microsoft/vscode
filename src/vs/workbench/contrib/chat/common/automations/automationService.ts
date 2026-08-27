@@ -27,6 +27,8 @@ export interface ICreateAutomationOptions {
 	readonly modelId?: string;
 	readonly mode?: string;
 	readonly permissionLevel?: string;
+	readonly agentId?: string;
+	readonly configuration?: Record<string, unknown>;
 	readonly enabled?: boolean;
 }
 
@@ -42,6 +44,8 @@ export interface IUpdateAutomationOptions {
 	readonly modelId?: string | null;
 	readonly mode?: string | null;
 	readonly permissionLevel?: string | null;
+	readonly agentId?: string | null;
+	readonly configuration?: Record<string, unknown> | null;
 	readonly enabled?: boolean;
 }
 
@@ -87,6 +91,8 @@ export function serializeAutomationEditableState(automation: IAutomationDescript
 		modelId: automation.modelId,
 		mode: automation.mode,
 		permissionLevel: automation.permissionLevel ?? ChatPermissionLevel.Default,
+		agentId: automation.agentId,
+		configuration: automation.configuration,
 		enabled: automation.enabled,
 	});
 }

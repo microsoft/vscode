@@ -51,6 +51,12 @@ export interface ISendRequestOptions {
 export interface ISessionsProviderCreateSessionOptions {
 	/** Initial provider metadata to associate with the session. */
 	readonly metadata?: Record<string, unknown>;
+	/** Initial model selected for an automation draft. */
+	readonly modelId?: string;
+	/** Initial custom agent selected for an automation draft. */
+	readonly agentId?: string;
+	/** Initial provider-owned configuration for an automation draft. */
+	readonly configuration?: Record<string, unknown>;
 }
 
 /** Programmatic worktree settings applied together before a new session starts. */
@@ -294,7 +300,7 @@ export interface ISessionsProvider {
 	 * support quick chats must throw.
 	 * @param sessionTypeId The ID of the session type to create.
 	 */
-	createQuickChat(sessionTypeId: string): ISession;
+	createQuickChat(sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession;
 
 	/**
 	 * Delete a new (untitled, not-yet-sent) session previously created via

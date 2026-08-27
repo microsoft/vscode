@@ -145,6 +145,7 @@ function createWorkspace(requiresWorkspaceTrust: boolean): ISessionWorkspace {
 function createAutomationDraftService() {
 	const automationSession = observableValue<ISession | undefined>('automationSession', undefined);
 	const created: Array<{ kind: 'workspace' | 'quickChat'; providerId: string | undefined; sessionTypeId: string; folderUri?: string }> = [];
+	const creationOptions: Array<{ readonly modelId?: string; readonly agentId?: string; readonly configuration?: Record<string, unknown> }> = [];
 	const discarded: string[] = [];
 	let nextId = 1;
 	const createDraft = (kind: 'workspace' | 'quickChat', providerId: string | undefined, sessionTypeId: string, folderUri?: URI): ISession => {
@@ -163,8 +164,14 @@ function createAutomationDraftService() {
 	};
 	const service = upcastPartial<ISessionsManagementService>({
 		automationSession,
-		createAutomationSession: (folderUri, options) => createDraft('workspace', options?.providerId, options?.sessionTypeId ?? 'default', folderUri),
-		createAutomationQuickChat: options => createDraft('quickChat', options?.providerId, options?.sessionTypeId ?? 'default'),
+		createAutomationSession: (folderUri, options) => {
+			creationOptions.push({ modelId: options?.modelId, agentId: options?.agentId, configuration: options?.configuration });
+			return createDraft('workspace', options?.providerId, options?.sessionTypeId ?? 'default', folderUri);
+		},
+		createAutomationQuickChat: options => {
+			creationOptions.push({ modelId: options?.modelId, agentId: options?.agentId, configuration: options?.configuration });
+			return createDraft('quickChat', options?.providerId, options?.sessionTypeId ?? 'default');
+		},
 		discardAutomationSession: session => {
 			const current = automationSession.get();
 			if (!current || (session && session.sessionId !== current.sessionId)) {
@@ -174,7 +181,7 @@ function createAutomationDraftService() {
 			automationSession.set(undefined, undefined);
 		},
 	});
-	return { service, created, discarded };
+	return { service, created, creationOptions, discarded };
 }
 
 suite('Automation session draft synchronization', () => {
@@ -214,6 +221,27 @@ suite('Automation session draft synchronization', () => {
 			discarded: ['automation-1', 'automation-2', 'automation-3', 'automation-4'],
 			currentSession: undefined,
 			errorCount: 0,
+		});
+
+		test('seeds automation drafts with saved provider selections', async () => {
+			const { service, creationOptions } = createAutomationDraftService();
+			const synchronizer = disposables.add(new AutomationSessionDraftSynchronizer(service, async () => true, () => { }));
+
+			synchronizer.update({
+				kind: 'quickChat',
+				providerId: 'provider-a',
+				sessionTypeId: 'type-a',
+				modelId: 'model-a',
+				agentId: 'file:///agent.md',
+				configuration: { permission: 'autoApprove' },
+			});
+			await synchronizer.waitForSync();
+
+			assert.deepStrictEqual(creationOptions, [{
+				modelId: 'model-a',
+				agentId: 'file:///agent.md',
+				configuration: { permission: 'autoApprove' },
+			}]);
 		});
 	});
 

@@ -116,6 +116,8 @@ export class AutomationDialogService implements IAutomationDialogService {
 		let getMode: () => string | undefined = () => initial?.mode;
 		let getPermissionLevel: () => string | undefined = () => initial?.permissionLevel;
 		let getModelId: () => string | undefined = () => initial?.modelId;
+		let getAgentId: () => string | undefined = () => initial?.agentId;
+		let getConfiguration: () => Record<string, unknown> | undefined = () => initial?.configuration;
 		let getBranch: () => string | undefined = () => initialWorkspaceTarget?.isolation.kind === 'worktree' ? initialWorkspaceTarget.isolation.branch : undefined;
 		let waitForAutomationSessionSync: () => Promise<void> = async () => { };
 		let getFocusableElements: () => readonly HTMLElement[] = () => [];
@@ -169,11 +171,13 @@ export class AutomationDialogService implements IAutomationDialogService {
 
 					const formPane = DOM.append(container, $('.automation-form-pane'));
 					const form = DOM.append(formPane, $('.automation-form'));
-					const handle = renderForm(form, state, disposables, validation, () => revalidate(), this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.languageModelsService, this.layoutService, this.logService, this.productService, this.sessionsManagementService, this.sessionsProvidersService, this.workspaceTrustRequestService, initial?.prompt ?? '', initial?.mode, initial?.permissionLevel, initial?.modelId);
+					const handle = renderForm(form, state, disposables, validation, () => revalidate(), this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.languageModelsService, this.layoutService, this.logService, this.productService, this.sessionsManagementService, this.sessionsProvidersService, this.workspaceTrustRequestService, initial?.prompt ?? '', initial?.mode, initial?.permissionLevel, initial?.modelId, initial?.agentId, initial?.configuration);
 					getPrompt = handle.getPrompt;
 					getMode = handle.getMode;
 					getPermissionLevel = handle.getPermissionLevel;
 					getModelId = handle.getModelId;
+					getAgentId = handle.getAgentId;
+					getConfiguration = handle.getConfiguration;
 					getBranch = handle.getBranch;
 					waitForAutomationSessionSync = handle.waitForAutomationSessionSync;
 					getFocusableElements = handle.getFocusableElements;
@@ -232,6 +236,8 @@ export class AutomationDialogService implements IAutomationDialogService {
 			const mode = getMode();
 			const permissionLevel = getPermissionLevel();
 			const modelId = getModelId();
+			const agentId = getAgentId();
+			const configuration = getConfiguration();
 			const branch = getBranch();
 			const target = createAutomationTarget(state, branch);
 			if (!target) {
@@ -247,6 +253,8 @@ export class AutomationDialogService implements IAutomationDialogService {
 					modelId: modelId ?? null,
 					mode: mode ?? null,
 					permissionLevel: permissionLevel ?? null,
+					agentId: agentId ?? null,
+					configuration: configuration ?? null,
 					enabled: state.enabled,
 				};
 				return { kind: 'update', id: initial.id, value: patch };
@@ -260,6 +268,8 @@ export class AutomationDialogService implements IAutomationDialogService {
 				modelId,
 				mode,
 				permissionLevel,
+				agentId,
+				configuration,
 				enabled: state.enabled,
 			};
 			return { kind: 'create', value: create };

@@ -74,6 +74,12 @@ export interface IAutomationDescriptor {
 	/** Optional permission level (`default`/`autoApprove`/`autopilot`). Overrides only for scheduled runs; defaults to provider's default. */
 	readonly permissionLevel?: string;
 
+	/** Optional provider custom-agent identifier to seed the new session with. */
+	readonly agentId?: string;
+
+	/** Provider-owned session configuration captured by the automation editor. */
+	readonly configuration?: Record<string, unknown>;
+
 	readonly enabled: boolean;
 
 	/** ISO-8601 UTC timestamp. */

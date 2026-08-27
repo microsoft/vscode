@@ -16,7 +16,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, waitForState } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
@@ -199,6 +199,8 @@ interface IRenderFormHandle {
 	readonly getMode: () => string | undefined;
 	readonly getPermissionLevel: () => string | undefined;
 	readonly getModelId: () => string | undefined;
+	readonly getAgentId: () => string | undefined;
+	readonly getConfiguration: () => Record<string, unknown> | undefined;
 	readonly getBranch: () => string | undefined;
 	/** True while the embedded composer's draft session is still resolving. */
 	readonly loading: IObservable<boolean>;
@@ -207,8 +209,8 @@ interface IRenderFormHandle {
 }
 
 export type AutomationSessionDraftTarget =
-	| { readonly kind: 'workspace'; readonly folderUri: URI; readonly providerId: string | undefined; readonly sessionTypeId: string }
-	| { readonly kind: 'quickChat'; readonly providerId: string; readonly sessionTypeId: string };
+	| { readonly kind: 'workspace'; readonly folderUri: URI; readonly providerId: string | undefined; readonly sessionTypeId: string; readonly modelId?: string; readonly agentId?: string; readonly configuration?: Record<string, unknown> }
+	| { readonly kind: 'quickChat'; readonly providerId: string; readonly sessionTypeId: string; readonly modelId?: string; readonly agentId?: string; readonly configuration?: Record<string, unknown> };
 
 type AutomationSessionDraftService = Pick<
 	ISessionsManagementService,
@@ -283,10 +285,16 @@ export class AutomationSessionDraftSynchronizer extends Disposable {
 				? this.sessionsManagementService.createAutomationQuickChat({
 					providerId: target.providerId,
 					sessionTypeId: target.sessionTypeId,
+					modelId: target.modelId,
+					agentId: target.agentId,
+					configuration: target.configuration,
 				})
 				: this.sessionsManagementService.createAutomationSession(target.folderUri, {
 					providerId: target.providerId,
 					sessionTypeId: target.sessionTypeId,
+					modelId: target.modelId,
+					agentId: target.agentId,
+					configuration: target.configuration,
 				});
 			this.appliedTarget = target;
 		} catch (error) {
@@ -796,7 +804,18 @@ export function renderForm(
 	initialMode: string | undefined,
 	initialPermissionLevel: string | undefined,
 	initialModelId: string | undefined,
+	initialAgentId: string | undefined,
+	initialConfiguration: Record<string, unknown> | undefined,
 ): IRenderFormHandle {
+	const initialProviderId = state.providerId;
+	const initialSessionTypeId = state.sessionTypeId;
+	const initialIsQuickChat = state.isQuickChat;
+	const initialFolderUri = state.folderUri;
+	const matchesInitialTarget = (providerId: string | undefined, sessionTypeId: string | undefined, isQuickChat: boolean, folderUri: URI | undefined) =>
+		providerId === initialProviderId
+		&& sessionTypeId === initialSessionTypeId
+		&& isQuickChat === initialIsQuickChat
+		&& (isQuickChat || isEqual(folderUri, initialFolderUri));
 	const nameRow = DOM.append(form, $('.automation-form-row'));
 	DOM.append(nameRow, $('span.automation-form-label', undefined, localize('automation.form.name', "Name")));
 	const nameInputContainer = DOM.append(nameRow, $('.automation-form-input-host'));
@@ -922,19 +941,54 @@ export function renderForm(
 		setActiveSessionContextKeys(automationActiveSession.read(reader), scopedContextKeyService, reader);
 	}));
 
+	let lastResolvedConfigSessionId: string | undefined;
+	let lastResolvedConfigValues: Record<string, unknown> | undefined;
+	disposables.add(autorun(reader => {
+		const draft = sessionsManagementService.automationSession.read(reader);
+		lastResolvedConfigSessionId = draft?.sessionId;
+		lastResolvedConfigValues = undefined;
+		if (!draft) {
+			return;
+		}
+		const provider = sessionsProvidersService.getProvider(draft.providerId);
+		if (!provider || !isAgentHostProvider(provider)) {
+			return;
+		}
+		const isResolving = provider.isSessionConfigResolving(draft.sessionId);
+		const captureConfig = () => {
+			if (isResolving.read(undefined)) {
+				return;
+			}
+			const values = provider.getSessionConfig(draft.sessionId)?.values;
+			if (values) {
+				lastResolvedConfigValues = { ...values };
+			}
+		};
+		isResolving.read(reader);
+		captureConfig();
+		reader.store.add(provider.onDidChangeSessionConfig(sessionId => {
+			if (sessionId === draft.sessionId) {
+				captureConfig();
+			}
+		}));
+	}));
+	const readDraftConfigValues = (draft: ISession): Record<string, unknown> | undefined => {
+		const provider = sessionsProvidersService.getProvider(draft.providerId);
+		if (!provider || !isAgentHostProvider(provider)) {
+			return undefined;
+		}
+		return provider.getSessionConfig(draft.sessionId)?.values
+			?? (lastResolvedConfigSessionId === draft.sessionId ? lastResolvedConfigValues : undefined);
+	};
+
 	// Reads isolation/branch selected in the provider's repository-config
-	// picker back off the draft. A minimal bridge until the provider-owned
-	// configuration snapshot lands.
+	// picker back off the draft.
 	const readDraftRepositoryConfig = (): { isolationMode: string | undefined; branch: string | undefined } => {
 		const draft = sessionsManagementService.automationSession.get();
 		if (!draft || draft.isQuickChat?.get()) {
 			return { isolationMode: undefined, branch: undefined };
 		}
-		const provider = sessionsProvidersService.getProvider(draft.providerId);
-		if (!provider || !isAgentHostProvider(provider)) {
-			return { isolationMode: undefined, branch: undefined };
-		}
-		const values = provider.getSessionConfig(draft.sessionId)?.values;
+		const values = readDraftConfigValues(draft);
 		const isolation = values?.[SessionConfigKey.Isolation];
 		const rawBranch = values?.[SessionConfigKey.Branch];
 		return {
@@ -943,7 +997,15 @@ export function renderForm(
 		};
 	};
 
-	const loading = derived(reader => automationActiveSession.read(reader)?.loading.read(reader) ?? false);
+	const loading = derived(reader => {
+		const session = automationActiveSession.read(reader);
+		if (!session) {
+			return false;
+		}
+		const provider = sessionsProvidersService.getProvider(session.providerId);
+		return session.loading.read(reader)
+			|| (provider && isAgentHostProvider(provider) ? provider.isSessionConfigResolving(session.sessionId).read(reader) : false);
+	});
 
 	const chatInput = disposables.add(scopedInstantiationService.createInstance(NewChatInputWidget, {
 		session: automationActiveSession,
@@ -995,6 +1057,12 @@ export function renderForm(
 		const folderUri = isolationModel.folderUriObs.get();
 		const pick = sessionTypePicker.selectedPick;
 		const isQuickChat = isolationModel.isQuickChatObs.get();
+		const restoreInitialConfiguration = matchesInitialTarget(pick?.providerId, pick?.sessionTypeId, isQuickChat, folderUri);
+		const draftOptions = restoreInitialConfiguration ? {
+			modelId: initialModelId,
+			agentId: initialAgentId,
+			configuration: initialConfiguration,
+		} : {};
 		if (!pick || (isQuickChat && !pick.providerId) || (!isQuickChat && !folderUri)) {
 			automationSessionDraftSynchronizer.update(undefined);
 			return;
@@ -1002,10 +1070,10 @@ export function renderForm(
 		if (isQuickChat) {
 			const providerId = pick.providerId;
 			if (providerId) {
-				automationSessionDraftSynchronizer.update({ kind: 'quickChat', providerId, sessionTypeId: pick.sessionTypeId });
+				automationSessionDraftSynchronizer.update({ kind: 'quickChat', providerId, sessionTypeId: pick.sessionTypeId, ...draftOptions });
 			}
 		} else if (folderUri) {
-			automationSessionDraftSynchronizer.update({ kind: 'workspace', folderUri, providerId: pick.providerId, sessionTypeId: pick.sessionTypeId });
+			automationSessionDraftSynchronizer.update({ kind: 'workspace', folderUri, providerId: pick.providerId, sessionTypeId: pick.sessionTypeId, ...draftOptions });
 		}
 	};
 	// Covers both explicit user picks and recomputes (e.g. an agent host
@@ -1085,15 +1153,48 @@ export function renderForm(
 
 	return {
 		getPrompt: () => chatInput.inputEditor?.getValue() ?? '',
-		// TODO(phase5): read mode/permission from the provider draft snapshot.
-		getMode: () => automationActiveSession.get()?.mode.get()?.id,
-		getPermissionLevel: () => initialPermissionLevel,
-		getModelId: () => automationActiveSession.get()?.modelId.get(),
+		getMode: () => {
+			const draft = sessionsManagementService.automationSession.get();
+			const provider = draft && sessionsProvidersService.getProvider(draft.providerId);
+			const mode = provider && isAgentHostProvider(provider)
+				? readDraftConfigValues(draft)?.[SessionConfigKey.Mode]
+				: automationActiveSession.get()?.mode.get()?.id;
+			return typeof mode === 'string' ? mode : matchesInitialTarget(state.providerId, state.sessionTypeId, state.isQuickChat, state.folderUri) ? initialMode : undefined;
+		},
+		getPermissionLevel: () => {
+			const draft = sessionsManagementService.automationSession.get();
+			const provider = draft && sessionsProvidersService.getProvider(draft.providerId);
+			const permission = provider && isAgentHostProvider(provider)
+				? readDraftConfigValues(draft)?.[SessionConfigKey.AutoApprove]
+				: undefined;
+			return typeof permission === 'string' ? permission : matchesInitialTarget(state.providerId, state.sessionTypeId, state.isQuickChat, state.folderUri) ? initialPermissionLevel : undefined;
+		},
+		getModelId: () => automationActiveSession.get()?.modelId.get()
+			?? (matchesInitialTarget(state.providerId, state.sessionTypeId, state.isQuickChat, state.folderUri) ? initialModelId : undefined),
+		getAgentId: () => {
+			const draft = sessionsManagementService.automationSession.get();
+			const provider = draft && sessionsProvidersService.getProvider(draft.providerId);
+			return provider && isAgentHostProvider(provider)
+				? automationActiveSession.get()?.mode.get()?.id
+				: matchesInitialTarget(state.providerId, state.sessionTypeId, state.isQuickChat, state.folderUri) ? initialAgentId : undefined;
+		},
+		getConfiguration: () => {
+			const draft = sessionsManagementService.automationSession.get();
+			const values = draft ? readDraftConfigValues(draft) : undefined;
+			return values
+				? { ...values }
+				: matchesInitialTarget(state.providerId, state.sessionTypeId, state.isQuickChat, state.folderUri) ? initialConfiguration : undefined;
+		},
 		getBranch: () => readDraftRepositoryConfig().branch,
 		loading,
 		waitForAutomationSessionSync: async () => {
 			updateAutomationSessionTarget();
 			await automationSessionDraftSynchronizer.waitForSync();
+			const draft = sessionsManagementService.automationSession.get();
+			const provider = draft && sessionsProvidersService.getProvider(draft.providerId);
+			if (provider && isAgentHostProvider(provider)) {
+				await waitForState(provider.isSessionConfigResolving(draft.sessionId), resolving => !resolving);
+			}
 			// Bridge isolation from the provider draft into the form state so
 			// `createAutomationTarget` produces the correct target at Save.
 			state.isolationMode = readDraftRepositoryConfig().isolationMode;

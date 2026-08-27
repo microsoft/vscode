@@ -514,7 +514,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	createAutomationSession(folderUri: URI, options?: ICreateNewSessionOptions): ISession {
 		const { provider, sessionTypeId } = this._resolveProviderForNewSession(folderUri, options);
 		const previousAutomationSession = this._automationSession.get();
-		const session = provider.createNewSession(folderUri, sessionTypeId);
+		const session = provider.createNewSession(folderUri, sessionTypeId, {
+			modelId: options?.modelId,
+			agentId: options?.agentId,
+			configuration: options?.configuration,
+		});
 		if (previousAutomationSession && previousAutomationSession.sessionId !== session.sessionId) {
 			this._getProvider(previousAutomationSession)?.deleteNewSession(previousAutomationSession.sessionId);
 		}
@@ -582,7 +586,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const { provider, sessionTypeId } = this._resolveProviderForQuickChat(options);
 
 		const previousNewSession = this._newSession.get();
-		const session = provider.createQuickChat(sessionTypeId);
+		const session = provider.createQuickChat(sessionTypeId, {
+			modelId: options?.modelId,
+			agentId: options?.agentId,
+			configuration: options?.configuration,
+		});
 		this._newSession.set(session, undefined);
 		this.storageService.store(LAST_USED_QUICK_CHAT_SESSION_TYPE_STORAGE_KEY, sessionTypeId, StorageScope.PROFILE, StorageTarget.USER);
 
@@ -598,7 +606,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	createAutomationQuickChat(options?: ICreateNewSessionOptions): ISession {
 		const { provider, sessionTypeId } = this._resolveProviderForQuickChat(options);
 		const previousAutomationSession = this._automationSession.get();
-		const session = provider.createQuickChat(sessionTypeId);
+		const session = provider.createQuickChat(sessionTypeId, {
+			modelId: options?.modelId,
+			agentId: options?.agentId,
+			configuration: options?.configuration,
+		});
 		if (previousAutomationSession && previousAutomationSession.sessionId !== session.sessionId) {
 			this._getProvider(previousAutomationSession)?.deleteNewSession(previousAutomationSession.sessionId);
 		}

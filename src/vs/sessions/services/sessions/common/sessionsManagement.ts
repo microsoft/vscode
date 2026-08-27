@@ -74,6 +74,10 @@ export interface ICreateNewSessionOptions {
 	readonly sessionTypeId?: string;
 	/** Initial provider metadata to associate with the session. */
 	readonly metadata?: Record<string, unknown>;
+	/** Initial provider-owned configuration for an automation draft. */
+	readonly configuration?: Record<string, unknown>;
+	/** Initial custom agent identifier for an automation draft. */
+	readonly agentId?: string;
 	/**
 	 * Optional model identifier to apply to the new session via
 	 * {@link ISessionsProvider.setModel}. If the provider throws, the
