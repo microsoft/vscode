@@ -27,6 +27,15 @@ moving a node Agent Host service. It is the canonical guide for service
 placement, static constructor arguments, activation, test overrides, and
 disposal ownership.
 
+## Protocol Metadata
+
+Treat `common/meta` as the validation boundary for the protocol's open `_meta`
+bags. Raw field access is allowed only in that directory. Each reader must take
+the parent protocol object, validate every value it returns, and expose typed
+data; code outside the boundary must call those readers instead of inspecting
+`_meta` fields directly. Prefer shared type guards such as `hasKey` for dynamic
+properties; do not bypass type narrowing or lint rules with `Reflect.get`.
+
 ## End to End Testing
 
 You can run `node ./scripts/code-agent-host.js` to start an agent host. If you pass `--enable-mock-agent`, then the `ScriptedMockAgent` will be used.

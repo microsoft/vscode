@@ -371,6 +371,12 @@ export default defineConfig(
 			'**/test/**',
 			'**/*.test.ts',
 			'**/*.integrationTest.ts',
+			// This directory is the validation boundary for typed metadata
+			// readers. Callers elsewhere must consume those readers.
+			'src/vs/platform/agentHost/common/meta/**',
+			// Copilot SDK metadata is already typed and is not an AHP `_meta`
+			// bag. Keep its access isolated in one adapter.
+			'src/vs/platform/agentHost/node/copilot/copilotSdkMeta.ts',
 			// Codex's own generated app-server protocol (not AHP `_meta`).
 			'src/vs/platform/agentHost/node/codex/protocol/**',
 		],

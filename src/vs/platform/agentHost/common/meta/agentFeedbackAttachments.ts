@@ -59,7 +59,6 @@ export function getAgentFeedbackAttachmentMetadata(attachment: MessageAttachment
 	if (!isAgentFeedbackAttachment(attachment) && !isAgentFeedbackAnnotationsAttachment(attachment)) {
 		return undefined;
 	}
-	// eslint-disable-next-line local/code-no-untyped-meta-access -- sanctioned first hop into the namespaced feedback slot; validated below.
 	const metadata = attachment._meta?.[AgentFeedbackAttachmentMetadataKey];
 	if (!isRecord(metadata) || !isString(metadata.sessionResource) || !Array.isArray(metadata.feedbackItems)) {
 		return undefined;
