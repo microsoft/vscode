@@ -298,7 +298,7 @@ A user can contribute lifecycle hooks through a client-pushed Copilot plugin to 
 - Expected: providers that consume client-pushed plugin customizations expose the parsed plugin and can execute its MCP tools through deterministic replay.
 - Observed:
   - Claude does not publish the client-pushed plugin through this customization path; its native customization discovery uses separate `.claude` roots.
-  - Codex publishes the plugin catalog, but its model-backed recording path is unavailable in this harness because live Responses requests fail before the model turn with a malformed authorization-header response.
+  - Codex publishes the plugin catalog, and catalog/toggle/removal coverage runs in deterministic replay. Model-backed plugin MCP scenarios are still registered only for Copilot and have no Codex captures.
 - Gate: the suite excludes Claude; Codex runs host-only catalog/toggle coverage while model-backed MCP scenarios run only for Copilot.
 - Reproduce:
 
@@ -308,11 +308,9 @@ A user can contribute lifecycle hooks through a client-pushed Copilot plugin to 
     --grep "client plugin exposes"
   ```
 
-  ```bash
-  AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
-    --grep "plugin MCP tool executes"
-  ```
+  To evaluate the Codex model-backed path, include Codex in `modelBackedEnabled`
+  in `mcpPluginSuite.ts`, record one scenario at a time, and review the resulting
+  Responses fixtures before enabling the group.
 
 ### Claude paused-turn cancellation is not replay-stable
 
@@ -322,28 +320,13 @@ A user can contribute lifecycle hooks through a client-pushed Copilot plugin to 
 - Scope: Claude replay.
 - Expected: cancelling while the turn waits for input or tool approval ends that turn and allows a fresh replacement turn to complete.
 - Observed: replay either continues the cancelled input turn's response or reports a chat error before the replacement can complete.
-- Gate: `supportsPausedTurnCancellationE2E` is enabled only for Copilot.
+- Gate: `supportsPausedTurnCancellationE2E` is enabled for Copilot and for Codex input requests. Codex has no native file-approval variant.
 - Reproduce:
 
   ```bash
   ./scripts/test-integration.sh --run \
     src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts \
     --grep "cancelling a turn paused"
-  ```
-
-### Codex retains a client plugin after the active client is removed
-
-- Test: `removing the active client removes its plugin customization`.
-- Scope: Codex.
-- Expected: `session/activeClientRemoved` removes the departing client's plugin from the session customization catalog.
-- Observed: the active client is removed but the plugin customization remains in session state.
-- Gate: the Codex variant is disabled at the `providerHostOnlyTest` declaration in `mcpPluginSuite.ts`.
-- Reproduce:
-
-  ```bash
-  ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
-    --grep "removing the active client removes its plugin customization"
   ```
 
 ### Claude truncation does not produce a replay-stable follow-up request
@@ -591,12 +574,12 @@ A client can request arbitrary file bytes from the Agent Host in base64 so binar
     --grep "per-turn changeset reports a file created"
   ```
 
-### `create_session` resolves Claude and Codex models to the Copilot provider
+### `create_session` resolves a Claude model to the Copilot provider
 
 - Test: `server tool: create_session materializes a selected-model child session and starts its prompt`.
-- Scope: Claude and Codex.
+- Scope: Claude.
 - Expected: passing a model advertised by the calling agent creates a child session for that model's provider.
-- Observed: both providers create the child session with provider `copilotcli`. The selected model id is present in more than one provider's global model list, and the session tool does not carry a provider-qualified model selection. Codex also executes `create_session` without surfacing its required pending confirmation.
+- Observed: Claude creates the child session with provider `copilotcli`. The selected model id is present in more than one provider's global model list, and the session tool does not carry a provider-qualified model selection.
 - Gate: `supportsProviderModelSessionCreation` in `serverToolsSuite.ts`.
 - Reproduce:
 
@@ -605,8 +588,6 @@ A client can request arbitrary file bytes from the Agent Host in base64 so binar
     src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts \
     --grep "server tool: create_session materializes"
   ```
-
-  Substitute `codexAgentHostE2E.integrationTest.ts` to reproduce the Codex variant.
 
 ### Claude current-session creation turns do not complete
 
@@ -670,43 +651,6 @@ For all three Claude tests:
 AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
   src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts \
   --grep "server tool: (get_session_context full|delete_session removes|send_message refuses)"
-```
-
-### Codex cannot complete several workflows that refer to another session
-
-Agent Host gives sessions stable links so an agent can look up a particular session, send work to another session, or delete another session. In the affected Codex workflows, the provider fails a model request with `Authorization header is badly formatted` before the requested session tool can run.
-
-Users may be unable to use session links or ask a Codex agent to coordinate with or remove another session. The failure currently appears as an authentication error rather than a useful explanation of which cross-session operation could not be completed. It is not yet known whether the malformed authorization originates in Codex's handling of additional sessions or in the Agent Host integration.
-
-- Tests:
-  - `server tool: list_sessions direct lookup accepts an open-session link`
-  - `server tool: send_message starts a turn in another session`
-  - `server tool: delete_session removes a non-current session`
-- Scope: Codex.
-- Expected: Codex completes the model turn and invokes the requested session tool with the referenced session.
-- Observed: direct lookup fails its first model request; send and delete fail while preparing the additional target session. Each failure reports `Authorization header is badly formatted`.
-- Gates: `supportsDirectSessionLookup`, `supportsCrossSessionSend`, and `supportsCrossSessionDelete` in `serverToolsSuite.ts`.
-- Reproduce: record the affected tests with the Codex provider.
-
-### Codex can send a message to the chat that is already running the tool
-
-As with Claude, Codex does not enforce the `send_message` protection that prevents an active chat from messaging itself. Instead of rejecting the call, Codex starts another turn in the current chat.
-
-This can produce unexpected duplicate or recursive agent work for users and defeats the host's loop-prevention contract.
-
-- Test: `server tool: send_message refuses to target the invoking chat`.
-- Scope: Codex.
-- Expected: the tool fails with an error explaining that it cannot send a message to the current chat.
-- Observed: another turn starts in the current chat instead of the tool returning the safety error.
-- Gate: `supportsSelfSendRejection` in `serverToolsSuite.ts`.
-- Reproduce: record the exact test with the Codex provider.
-
-For the affected Codex tests:
-
-```bash
-AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
-  src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
-  --grep "server tool: (list_sessions direct lookup|send_message|delete_session removes)"
 ```
 
 ### Claude provider-context fork
@@ -808,29 +752,6 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
 
   Temporarily clear `shellToolReplayUnstableOnLinux`.
 
-### Codex successful shell result text
-
-- Tests:
-  - `worktree session uses the resolved worktree as working directory`
-  - `reads an existing text file`
-  - `reads a file from a nested directory`
-  - `lists workspace entries`
-  - `reads a value from JSON`
-  - `counts lines in a file`
-  - `handles a missing file without a session error`
-  - `runs a deterministic shell command`
-  - `inspects git status`
-- Scope: Codex.
-- Expected: successful shell tool completions include the command output in their result text.
-- Observed: the turn response contains the expected value, but the successful tool completion can have an empty `text` field.
-- Gate: these nine tests remain enabled for other providers and are skipped for Codex.
-- Tracking issue: [#329512](https://github.com/microsoft/vscode/issues/329512).
-- Failing runs:
-  - [PR #329485](https://github.com/microsoft/vscode/actions/runs/31132506547/job/92724492870?pr=329485)
-  - [PR #329492](https://github.com/microsoft/vscode/actions/runs/31130785836/job/92718953820?pr=329492)
-  - [PR #329517](https://github.com/microsoft/vscode/actions/runs/31148098482/job/92771783938?pr=329517)
-  - [PR #329867](https://github.com/microsoft/vscode/actions/runs/31342377741/job/93319069992?pr=329867)
-
 ### Claude subagent replay on Windows
 
 - Test: `reopening a session keeps sub-agent messages out of the parent transcript (replay path)`.
@@ -885,26 +806,6 @@ Copilot errors currently end a turn without offering an in-place retry. The retr
     --grep "restores and resumes a turn interrupted by host shutdown"
   ```
 
-### Codex model-backed multiple-chat recording
-
-- Tests: the model-backed peer-chat and fork scenarios in `multiChatSuite.ts`, and `side chat receives bounded source context without copied history`.
-- Scope: Codex recording and strict replay only. Codex advertises `multipleChats.fork` and `multipleChats.sideChat`; host-only capability checks and conformance catalog/lifecycle scenarios run.
-- Expected: focused `AGENT_HOST_UPDATE_SNAPSHOTS=1` recording produces Codex peer/fork/side-chat captures that replay without cache misses.
-- Observed: on the current live recording path, even the existing simple Codex recording fails before producing a usable model response; peer turns report a CAPI malformed authorization-header error. The side-chat scenario shares that recording path and has no accepted capture. No fixtures are accepted or hand-edited.
-- Gate: `supportsMultipleChatsE2E: false`, `supportsChatForkE2E: false`, and `supportsSideChatsE2E: false`.
-- Reproduce:
-
-  ```bash
-  unset GITHUB_TOKEN
-  AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
-    --grep "peer chat completes a simple turn"
-
-  AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
-    --grep "side chat receives bounded source context without copied history"
-  ```
-
 ## Test-design limitations
 
 ### Claude plan-mode prompt
@@ -913,9 +814,9 @@ Copilot errors currently end a turn without offering an in-place retry. The retr
 - Scope: Claude.
 - Expected: the prompt drives the provider to invoke `ExitPlanMode`.
 - Observed: plan mode is wired, but the Copilot-oriented prompt does not reliably cause Claude to invoke the tool.
-- Gate: `supportsPlanMode: false`.
+- Gate: `planModeStyle` is unset.
 - Next step: use a provider-neutral or Claude-specific prompt without weakening the plan-mode assertions.
-- Reproduce: temporarily enable `supportsPlanMode` and record the exact title.
+- Reproduce: set the appropriate `planModeStyle` and record the exact title.
 
 ### Cumulative state assertions
 
@@ -925,12 +826,13 @@ A test that checks only its final dispatch can miss an earlier action that was e
 
 | Capability | Gate | Provider(s) skipped | Effect |
 |---|---|---|---|
-| Model-backed multiple chats | `supportsMultipleChatsE2E` | Codex | Capability and conformance scenarios run; provider/model peer turns skip until focused Codex captures can be recorded. |
-| Provider-backed fork parity | `supportsChatForkE2E` | Claude, Codex | Fork capability remains advertised; model-backed fork-context assertions skip. |
-| Side-chat context parity | `supportsSideChatsE2E` | Codex | Side-chat capability remains advertised; model-backed hidden-context assertions skip pending focused Codex captures. |
+| Provider-backed fork parity | `supportsChatForkE2E` | Claude | Fork capability remains advertised; model-backed fork-context assertions skip. |
 | Subagents | `supportsSubagents` | Codex | Subagent routing and reopen scenarios skip. |
 | Streaming file creation | `streamingFileCreateToolName` | Codex | Argument-delta coverage requires a native file-creation tool; shell-backed file behavior is covered separately. |
-| Plan mode | `supportsPlanMode` | Codex | The plan-mode scenario skips. Claude's use of the same gate is the prompt limitation above. |
+| Freeform input | `textInputPrompt` | Codex | Codex `request_user_input` requires non-empty options, so a freeform answer cannot be requested through that tool. |
+| Multi-select input | `multiSelectInputPrompt` | Codex | Codex `request_user_input` exposes mutually exclusive choices and maps the answer to one selected option. |
+| Workspace-agent watching | `supportsWorkspaceAgentWatchE2E` | Codex | Initial workspace customization discovery runs, but adding, editing, or deleting an agent is not published live. |
+| Plan mode | `planModeStyle` | Claude | Claude's plan-mode scenario remains disabled for the prompt limitation above; Codex uses the input-request style. |
 
 The entire Claude or Codex suite also skips when its bundled SDK package is unavailable; that is an environment prerequisite, not a product gap.
 
@@ -940,21 +842,3 @@ The entire Claude or Codex suite also skips when its bundled SDK package is unav
 2. Reevaluate broad provider gates one title at a time and check whether a capture exists.
 3. Re-record narrowly after SDK/CLI behavior changes and review every generated artifact.
 4. Remove fixed gates, entries, comments, and orphaned captures together.
-### Codex provider context restoration can time out
-
-A user can restart Agent Host and continue an existing Codex conversation. The restored turn can start
-without ever completing, so the user cannot continue the conversation after the host restart. This has
-reproduced in replay on Windows and Linux.
-
-- Test: `session metadata history and provider context survive a host restart`
-- Scope: Codex.
-- Expected: the restored session retains its transcript and provider context, and a follow-up turn completes.
-- Observed: the follow-up emits `chat/turnStarted` but no completion before the 90-second timeout.
-- Gate: skipped for Codex unless `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
-- Reproduce:
-
-  ```bash
-  AGENT_HOST_RUN_KNOWN_ISSUES=1 ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
-    --grep "session metadata history and provider context survive"
-  ```

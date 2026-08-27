@@ -90,6 +90,7 @@ class TestActiveSession extends mock<IActiveSession>() {
 	override readonly mainChat: IObservable<IChat>;
 	override readonly capabilities: IObservable<ISessionCapabilities> = constObservable({ supportsMultipleChats: true });
 	override readonly isCreated: IObservable<boolean>;
+	override readonly isNewSessionRequestInProgress = observableValue(this, false);
 	override readonly isArchived: IObservable<boolean> = constObservable(false);
 	override readonly loading: IObservable<boolean> = constObservable(false);
 
@@ -266,6 +267,25 @@ suite('Sessions - ChatGroupsView', () => {
 		}, {
 			groupCount: 1,
 			viewKind: 'newSession',
+		});
+	});
+
+	test('new session request activity switches the draft to the chat view', () => {
+		const { view } = createHarness(disposables);
+		const draft = new TestActiveSession([createChat('draft', SessionStatus.Untitled)], undefined, false);
+		view.setSession(draft, options);
+		const viewKinds = () => Array.from(view.element.querySelectorAll<HTMLElement>('.chat-view')).map(element => element.dataset.kind);
+
+		const before = viewKinds();
+		draft.isNewSessionRequestInProgress.set(true, undefined);
+		const during = viewKinds();
+		draft.isNewSessionRequestInProgress.set(false, undefined);
+		const after = viewKinds();
+
+		assert.deepStrictEqual({ before, during, after }, {
+			before: ['newSession'],
+			during: ['chat'],
+			after: ['newSession'],
 		});
 	});
 
