@@ -78,7 +78,7 @@ import { VariableCompletionHandler } from './variableCompletions.js';
 import { SessionReferenceCompletionHandler } from './sessionReferenceCompletions.js';
 import { AgentHostInputCompletionHandler } from './agentHostInputCompletions.js';
 import { IChatModelInputState } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
-import { IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, toFileVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ChatHistoryNavigator } from '../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
@@ -113,6 +113,7 @@ import { toAction } from '../../../../base/common/actions.js';
 import { runDictationShortcut } from '../../../../workbench/contrib/chat/browser/actions/chatSpeechToTextActions.js';
 import { isDictationActiveForEditor, notifyDictationSubmitted, onDidChangeDictationEditor } from '../../../../workbench/contrib/chat/browser/speechToText/dictationSession.js';
 import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceInputUtils.js';
+import { parse, stringify } from '../../../../base/common/marshalling.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { DictationDownloadRing, getDictationDownloadHoverMarkdown, getDictationPreparingLabel } from '../../../../workbench/contrib/chat/browser/speechToText/dictationDownloadRing.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
@@ -203,6 +204,10 @@ KeybindingsRegistry.registerKeybindingRule({
 interface IDraftState {
 	inputText: string;
 	attachments: readonly IChatRequestVariableEntry[];
+}
+
+export function hasSendableNewChatContent(query: string, attachments: readonly IChatRequestVariableEntry[], hasAdditionalSendContent = false): boolean {
+	return !!query.trim() || attachments.some(isExplicitFileOrImageVariableEntry) || hasAdditionalSendContent;
 }
 
 class NewChatInputStatusActionViewItem extends MenuEntryActionViewItem {
@@ -455,7 +460,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			historyKey?: IObservable<string | undefined>;
 			minEditorHeight?: number;
 			placeholder?: string;
-			renderSessionTypePickerInControls?: boolean;
 			renderSendButton?: boolean;
 			sessionTypePickerOptions?: ISessionTypePickerOptions;
 			supportsBackground?: boolean;
@@ -671,10 +675,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		const newChatBottomContainer = dom.append(parent, dom.$('.new-chat-bottom-container'));
 		const newChatControlsContainer = dom.append(newChatBottomContainer, dom.$('.new-chat-controls-container'));
-		if (this.options.renderSessionTypePickerInControls !== false) {
-			const sessionTypePickerHost = dom.append(newChatControlsContainer, dom.$('.new-chat-session-type-picker-host'));
-			this.sessionTypePicker.render(sessionTypePickerHost);
-		}
 		const sessionControlsContainer = this._sessionControlsContainer = dom.append(newChatControlsContainer, dom.$('.new-chat-session-controls'));
 		this._register(this._scopedInstantiationService.createInstance(MenuWorkbenchToolBar, sessionControlsContainer, Menus.NewSessionControl, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
@@ -1026,6 +1026,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		};
 
 		this._createAttachButton(toolbar);
+
+		const sessionTypePickerHost = dom.append(toolbar, dom.$('.new-chat-session-type-picker-host'));
+		this.sessionTypePicker.render(sessionTypePickerHost, { className: 'sessions-chat-session-type-picker sessions-chat-input-session-type-picker' });
 
 		// Session config pickers (such as model) — rendered via MenuWorkbenchToolBar
 		// Visibility controlled by context keys (isActiveSessionBackgroundProvider, isNewChatSession)
@@ -1410,9 +1413,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		const rawQuery = this._editor.getModel()?.getValue() ?? '';
 		const query = rawQuery.trim();
 		const queryOffset = rawQuery.length - rawQuery.trimStart().length;
-		const hasSendableAttachment = this._contextAttachments.attachments.some(isExplicitFileOrImageVariableEntry);
 		const hasAdditionalSendContent = this.options.hasAdditionalSendContent?.get() ?? false;
-		if ((!query && !hasSendableAttachment && !hasAdditionalSendContent) || this._sending) {
+		if (!hasSendableNewChatContent(query, this._contextAttachments.attachments, hasAdditionalSendContent) || this._sending) {
 			return false;
 		}
 
@@ -1495,10 +1497,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		if (!this._sendButton) {
 			return;
 		}
-		const hasText = !!this._editor?.getModel()?.getValue().trim();
-		const hasSendableAttachment = this._contextAttachments.attachments.some(isExplicitFileOrImageVariableEntry);
 		const hasAdditionalSendContent = this.options.hasAdditionalSendContent?.get() ?? false;
-		this._sendButton.enabled = !this._sending && (hasText || hasSendableAttachment || hasAdditionalSendContent) && this._canSendRequest.get();
+		this._sendButton.enabled = !this._sending
+			&& hasSendableNewChatContent(this._editor?.getModel()?.getValue() ?? '', this._contextAttachments.attachments, hasAdditionalSendContent)
+			&& this._canSendRequest.get();
 	}
 
 	private _restoreState(): void {
@@ -1517,7 +1519,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			return undefined;
 		}
 		try {
-			return JSON.parse(raw);
+			return parse(raw) as IDraftState;
 		} catch {
 			return undefined;
 		}
@@ -1525,7 +1527,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 	private _clearDraftState(): void {
 		this._draftState = { inputText: '', attachments: [] };
-		this.storageService.store(STORAGE_KEY_DRAFT_STATE, JSON.stringify(this._draftState), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this.storageService.store(STORAGE_KEY_DRAFT_STATE, stringify(this._draftState), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	saveState(): void {
@@ -1534,7 +1536,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				...this._draftState,
 				attachments: this._draftState.attachments.map(IChatRequestVariableEntry.toExport),
 			};
-			this.storageService.store(STORAGE_KEY_DRAFT_STATE, JSON.stringify(state), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			this.storageService.store(STORAGE_KEY_DRAFT_STATE, stringify(state), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}
 	}
 
@@ -1738,6 +1740,29 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 	attach(uris: URI[]): void {
 		this._contextAttachments.addAttachments(...uris.map(uri => toFileVariableEntry(uri)));
+	}
+
+	attachTextContext(name: string, content: string, icon: ThemeIcon, id = `context:${content}`): void {
+		this._contextAttachments.addAttachments(toPasteVariableEntry(name, content, {
+			id,
+			icon,
+		}));
+	}
+
+	addAttachments(...attachments: IChatRequestVariableEntry[]): void {
+		this._contextAttachments.addAttachments(...attachments);
+	}
+
+	removeAttachment(id: string): void {
+		this._contextAttachments.removeAttachment(id);
+	}
+
+	get onDidChangeAttachments(): Event<void> {
+		return this._contextAttachments.onDidChangeContext;
+	}
+
+	get attachments(): readonly IChatRequestVariableEntry[] {
+		return this._contextAttachments.attachments;
 	}
 
 	getVoiceModels() {
