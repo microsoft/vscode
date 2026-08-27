@@ -919,7 +919,7 @@ per-word capitalization does not survive translation. */
 .ai-customization-overview .overview-section .section-count {
 	flex-shrink: 0;
 	font-size: 9px;
-	font-weight: 500;
+	font-weight: var(--vscode-fontWeight-semiBold);
 	padding: 1px 5px;
 	background-color: var(--vscode-list-inactiveSelectionBackground);
 	color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
@@ -2221,7 +2221,7 @@ per-word capitalization does not survive translation. */
 
 .mcp-list-widget .mcp-empty-state .empty-text {
 	font-size: 16px;
-	font-weight: 500;
+	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 }
 
@@ -2285,7 +2285,7 @@ per-word capitalization does not survive translation. */
 
 .mcp-list-widget .mcp-disabled-state .empty-text {
 	font-size: 16px;
-	font-weight: 500;
+	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 }
 
@@ -3151,7 +3151,7 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-management-editor .editor-item-name {
 	font-size: 14px;
-	font-weight: 500;
+	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 	overflow: hidden;
 	text-overflow: ellipsis;
