@@ -586,6 +586,11 @@ describe('ToolCallingLoop autopilot', () => {
 			expect(loop.testShouldAutoRetry(mockResponse(ChatFetchResponseType.OffTopic))).toBe(false);
 		});
 
+		it('should not retry on Refusal', () => {
+			const loop = createLoop('autopilot');
+			expect(loop.testShouldAutoRetry(mockResponse(ChatFetchResponseType.Refusal))).toBe(false);
+		});
+
 		it('should not retry on Success', () => {
 			const loop = createLoop('autoApprove');
 			expect(loop.testShouldAutoRetry(mockResponse(ChatFetchResponseType.Success))).toBe(false);

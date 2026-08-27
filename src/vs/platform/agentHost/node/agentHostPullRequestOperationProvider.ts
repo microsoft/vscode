@@ -8,7 +8,7 @@ import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
-import { ChangesetOperationScope, ChangesetOperationStatus, hasSessionPullRequestForBranch, readSessionGitHubState, SessionLifecycle, withMostRecentSessionPullRequest, type ChangesetOperation } from '../common/state/sessionState.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, hasSessionPullRequestForBranch, readSessionGitHubState, SessionLifecycle, withMostRecentRelatedSessionPullRequest, type ChangesetOperation } from '../common/state/sessionState.js';
 import { AgentHostPullRequestOperationHandler, type PullRequestCreatedEvent } from './agentHostPullRequestOperationHandler.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 
@@ -28,12 +28,13 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		this._registry = registry;
 		const store = new DisposableStore();
 		const getSessionState = (sessionKey: string) => this._stateManager.getSessionState(sessionKey);
+		const resolveBaseBranchName = (sessionKey: string) => this._gitStateService.resolveSessionBaseBranchName(sessionKey);
 		const onCreated = (event: PullRequestCreatedEvent) => this._onPullRequestCreated(event);
-		const createPrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, false, undefined, getSessionState, onCreated);
-		const createDraftPrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, true, undefined, getSessionState, onCreated);
-		const createAutoMergePrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, false, 'MERGE', getSessionState, onCreated);
-		const createAutoSquashPrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, false, 'SQUASH', getSessionState, onCreated);
-		const createAutoRebasePrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, false, 'REBASE', getSessionState, onCreated);
+		const createPrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, false, undefined, getSessionState, resolveBaseBranchName, onCreated);
+		const createDraftPrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, true, undefined, getSessionState, resolveBaseBranchName, onCreated);
+		const createAutoMergePrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, false, 'MERGE', getSessionState, resolveBaseBranchName, onCreated);
+		const createAutoSquashPrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, false, 'SQUASH', getSessionState, resolveBaseBranchName, onCreated);
+		const createAutoRebasePrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, false, 'REBASE', getSessionState, resolveBaseBranchName, onCreated);
 		store.add(registry.registerChangesetOperationHandler(AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR, createPrHandler));
 		store.add(registry.registerChangesetOperationHandler(AgentHostPullRequestOperationHandler.OPERATION_CREATE_DRAFT_PR, createDraftPrHandler));
 		store.add(registry.registerChangesetOperationHandler(AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR_AUTO_MERGE, createAutoMergePrHandler));
@@ -55,9 +56,9 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 			return undefined;
 		}
 
-		const outgoingChanges = gitState?.outgoingChanges ?? 0;
+		const hasBranchChanges = gitState?.hasBaseBranchChanges ?? (gitState?.outgoingChanges ?? 0) > 0;
 		const uncommittedChanges = gitState?.uncommittedChanges ?? 0;
-		const hasChanges = outgoingChanges > 0 || uncommittedChanges > 0;
+		const hasChanges = hasBranchChanges || uncommittedChanges > 0;
 		if (!gitState?.hasGitHubRemote || !hasChanges) {
 			return undefined;
 		}
@@ -111,6 +112,6 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		this._registry?.refreshSessionGitState(sessionKey);
 
 		const gitHubState = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta);
-		this._gitStateService.setSessionGitHubState(sessionKey, withMostRecentSessionPullRequest(gitHubState, event.pullRequestUrl, event.branchName));
+		this._gitStateService.setSessionGitHubState(sessionKey, withMostRecentRelatedSessionPullRequest(gitHubState, event.pullRequestUrl, event.branchName));
 	}
 }

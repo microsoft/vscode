@@ -1271,7 +1271,7 @@ suite('AgentSessions', () => {
 
 			const backgroundSession = createSession({ providerType: AgentSessionProviders.Background });
 			const cloudSession = createSession({ providerType: AgentSessionProviders.Cloud });
-			const claudeSession = createSession({ providerType: AgentSessionProviders.Claude });
+			const claudeSession = createSession({ providerType: AgentSessionProviders.AgentHostClaude });
 			const codexSession = createSession({ providerType: AgentSessionProviders.Codex });
 			const localSession = createSession({ providerType: AgentSessionProviders.Local });
 
@@ -1288,7 +1288,7 @@ suite('AgentSessions', () => {
 				{ filterMenuId: MenuId.ViewTitle }
 			));
 
-			const claudeSession = createSession({ providerType: AgentSessionProviders.Claude });
+			const claudeSession = createSession({ providerType: AgentSessionProviders.AgentHostClaude });
 			const codexSession = createSession({ providerType: AgentSessionProviders.Codex });
 			const unknownSession = createSession({ providerType: 'some-unknown-type' });
 
@@ -1318,7 +1318,7 @@ suite('AgentSessions', () => {
 
 			const backgroundSession = createSession({ providerType: AgentSessionProviders.Background });
 			const cloudSession = createSession({ providerType: AgentSessionProviders.Cloud });
-			const claudeSession = createSession({ providerType: AgentSessionProviders.Claude });
+			const claudeSession = createSession({ providerType: AgentSessionProviders.AgentHostClaude });
 
 			assert.strictEqual(filter.exclude(backgroundSession), false, 'Background is allowed and not user-excluded');
 			assert.strictEqual(filter.exclude(cloudSession), true, 'Cloud is allowed but user-excluded');
@@ -2756,6 +2756,11 @@ suite('AgentSessions', () => {
 
 	suite('AgentSessionsViewModel - getAgentCanContinueIn', () => {
 		ensureNoDisposablesAreLeakedInTestSuite();
+
+		test('should return false for Local provider', () => {
+			const result = getAgentCanContinueIn(AgentSessionProviders.Local);
+			assert.strictEqual(result, false);
+		});
 
 		test('should return true for Cloud provider', () => {
 			const result = getAgentCanContinueIn(AgentSessionProviders.Cloud);

@@ -18,6 +18,7 @@ import { ChatRequestTextPart } from '../../../../contrib/chat/common/requestPars
 import { ChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
 import { ChatViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
 import { ChatListWidget } from '../../../../contrib/chat/browser/widget/chatListWidget.js';
+import { chatFloatingPersistentContentClass, chatPersistentContentHeightVariable } from '../../../../contrib/chat/browser/widget/chatWidget.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../../../contrib/chat/browser/widget/input/chatInputPart.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatWidget, IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
@@ -27,6 +28,7 @@ import { ChatToolInvocation } from '../../../../contrib/chat/common/model/chatPr
 import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
 import { IChatToolRiskAssessmentService, IToolRiskAssessment, ToolRiskLevel } from '../../../../contrib/chat/browser/tools/chatToolRiskAssessmentService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ILinkPresentationService } from '../../../../../platform/dataChannel/common/dataChannel.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../../contrib/chat/common/constants.js';
 import { SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
@@ -36,6 +38,7 @@ import { MockChatService } from '../../../../contrib/chat/test/common/chatServic
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import { FixtureMenuService, registerChatFixtureServices } from './chatFixtureUtils.js';
 import { ChatTurnStatusPillsSetting, isChatTurnStatusPillsEnabled } from '../../../../contrib/chat/browser/widget/chatTurnPills.js';
+import { ChatPetWidget } from '../../../../contrib/chat/browser/widget/chatPetWidget.js';
 
 import '../../../../contrib/chat/browser/widget/media/chat.css';
 
@@ -71,6 +74,7 @@ export interface IChatWidgetFixtureOptions {
 	readonly messages: ReadonlyArray<IFixtureMessage>;
 	readonly width?: number;
 	readonly height?: number;
+	readonly listHeight?: number;
 	/** Whether to render the main chat input. Defaults to `true`. */
 	readonly inputVisible?: boolean;
 	/** Whether to populate the response footer with an action. */
@@ -97,9 +101,12 @@ export interface IChatWidgetFixtureOptions {
 	 * Markdown previews under the response.
 	 */
 	readonly turnStatusPills?: ChatTurnStatusPillsSetting;
+	readonly linkPresentationService?: ILinkPresentationService;
 	readonly onRendered?: (handle: IChatWidgetFixtureHandle) => void;
 	/** Selects the input-height consumer used by the ResizeObserver harness. */
 	readonly hostLayoutMode?: 'none' | 'listOnly' | 'stackedFull' | 'stackedTargeted';
+	/** Mirrors `IChatWidgetViewOptions.persistentContentHeight` for content mounted by {@link IChatWidgetFixtureOptions.decorateInputPart}. */
+	readonly persistentContentHeight?: number;
 }
 
 interface IChatWidgetFixtureHandle {
@@ -156,6 +163,9 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 		colorTheme: context.theme,
 		additionalServices: (reg) => {
 			registerChatFixtureServices(reg);
+			if (options.linkPresentationService) {
+				reg.defineInstance(ILinkPresentationService, options.linkPresentationService);
+			}
 			// Override widget service so the chat list renderer can route tool
 			// confirmations to the carousel attached to our input part.
 			reg.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() {
@@ -302,6 +312,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 
 	const width = options.width ?? 720;
 	const height = options.height ?? 600;
+	const listBackground = 'var(--vscode-editor-background)';
 	container.style.width = `${width}px`;
 	container.style.height = `${height}px`;
 	container.style.backgroundColor = 'var(--vscode-sideBar-background, var(--vscode-editor-background))';
@@ -320,6 +331,12 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	container.appendChild(auxBar);
 
 	const session = dom.$('.interactive-session');
+	session.style.setProperty('--vscode-chat-list-background', listBackground);
+	if (options.persistentContentHeight) {
+		// Same switch `ChatWidget.render` flips.
+		session.classList.add(chatFloatingPersistentContentClass);
+		session.style.setProperty(chatPersistentContentHeightVariable, `${options.persistentContentHeight}px`);
+	}
 	auxContent.appendChild(session);
 
 	// Build the input part FIRST so the widget (with its inputPart) is registered
@@ -350,7 +367,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	const inputStyles: IChatInputStyles = {
 		overlayBackground: 'var(--vscode-editor-background)',
 		listForeground: 'var(--vscode-foreground)',
-		listBackground: 'var(--vscode-editor-background)',
+		listBackground,
 	};
 
 	const inputPart = disposableStore.add(instantiationService.createInstance(ChatInputPart, ChatAgentLocation.Chat, inputOptions, inputStyles, false));
@@ -386,9 +403,10 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 			defaultElementHeight: 120,
 			styles: {
 				listForeground: 'var(--vscode-foreground)',
-				listBackground: 'var(--vscode-editor-background)',
+				listBackground,
 			},
 			location: ChatAgentLocation.Chat,
+			paddingBottom: options.persistentContentHeight,
 			rendererOptions: {
 				progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask,
 			},
@@ -399,7 +417,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	listWidget.setVisible(true);
 	listWidget.refresh();
 
-	const listHeight = 420;
+	const listHeight = options.listHeight ?? 420;
 	listWidget.layout(listHeight, width);
 	listWidget.scrollTop = 0;
 
@@ -466,6 +484,74 @@ const SIMPLE_QA: IFixtureMessage[] = [
 		],
 	},
 ];
+
+const SCROLL_TO_BOTTOM_ACTION: IFixtureMessage[] = [
+	{
+		user: [
+			'Please investigate why the chat transcript sometimes stops following a long-running agent response after I scroll upward to review an earlier step. Trace the list scroll state, the lock that controls automatic scrolling, and the event that reveals the action for returning to the newest content.',
+			'Start by reproducing the behavior with a response that grows over several updates. Record how the rendered height, scroll height, and scroll position change when new markdown, progress messages, and tool output arrive while the transcript is both locked to the bottom and intentionally paused above it.',
+			'Then compare mouse-wheel, keyboard, and programmatic scrolling. Make sure each path preserves the user decision to stay in place, but that selecting the return action reliably restores the bottom lock without causing the final response to jump or become obscured.',
+			'Review the floating action itself in light and dark themes. It should remain legible over transcript content, use the transcript surface at rest, show the secondary action treatment on hover and focus, and expose a descriptive label to keyboard and screen reader users.',
+			'Finally, add focused coverage for the scroll-state calculation and an isolated component fixture that renders enough real chat content to overflow. Position the list away from the bottom so the action is visible over content and future visual regressions are caught.',
+		].join('\n\n'),
+	},
+];
+
+async function renderScrollToBottomAction(context: ComponentFixtureContext): Promise<void> {
+	let handle: IChatWidgetFixtureHandle | undefined;
+	await renderChatWidget(context, {
+		messages: SCROLL_TO_BOTTOM_ACTION,
+		height: 240,
+		listHeight: 240,
+		inputVisible: false,
+		onRendered: value => handle = value,
+	});
+
+	if (!handle) {
+		throw new Error('Scroll-to-bottom fixture did not initialize');
+	}
+
+	const targetWindow = dom.getWindow(context.container);
+	const nextFrame = () => new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
+	await nextFrame();
+	await nextFrame();
+
+	const maximumScrollTop = handle.listWidget.scrollHeight - handle.listWidget.renderHeight;
+	if (maximumScrollTop <= 0) {
+		throw new Error('Scroll-to-bottom fixture content does not overflow');
+	}
+
+	handle.listWidget.scrollTop = maximumScrollTop / 2;
+	await nextFrame();
+
+	const scrollDownButton = context.container.querySelector<HTMLElement>('.chat-scroll-down');
+	if (!scrollDownButton) {
+		throw new Error('Scroll-to-bottom button was not rendered');
+	}
+
+	const buttonStyle = targetWindow.getComputedStyle(scrollDownButton);
+	if (buttonStyle.display !== 'flex') {
+		throw new Error(`Scroll-to-bottom button is not visible: ${buttonStyle.display}`);
+	}
+	if (handle.listWidget.isScrolledToBottom) {
+		throw new Error('Scroll-to-bottom fixture unexpectedly remained at the bottom');
+	}
+	if (!buttonStyle.backgroundColor || buttonStyle.backgroundColor === 'transparent' || buttonStyle.backgroundColor === 'rgba(0, 0, 0, 0)') {
+		throw new Error(`Scroll-to-bottom button background is transparent: ${buttonStyle.backgroundColor}`);
+	}
+
+	const buttonBounds = scrollDownButton.getBoundingClientRect();
+	const contentUnderButton = Array.from(context.container.querySelectorAll<HTMLElement>('.monaco-list-row')).some(row => {
+		const rowBounds = row.getBoundingClientRect();
+		return rowBounds.left < buttonBounds.right
+			&& rowBounds.right > buttonBounds.left
+			&& rowBounds.top < buttonBounds.bottom
+			&& rowBounds.bottom > buttonBounds.top;
+	});
+	if (!contentUnderButton) {
+		throw new Error('Scroll-to-bottom button does not overlay transcript content');
+	}
+}
 
 const LAST_RESPONSE_HOVER: IFixtureMessage[] = [
 	{
@@ -597,30 +683,29 @@ const MULTI_TURN: IFixtureMessage[] = [
 ];
 
 // Code blocks that follow or are nested in list items should have symmetric spacing
-// above and below. Covers the two DOM shapes markdown produces: a code block that is a
-// sibling after a list, and a code block nested inside a list item (indented fence).
+// above and below. This also covers tight lists, where prose before a code block is a
+// text node and the code block is therefore still the first element child.
 const CODE_BLOCK_IN_LIST: IFixtureMessage[] = [
 	{
-		user: 'How do I set up the project?',
+		user: 'Why do the files appear while diffs fail?',
 		assistant: [
 			{
 				kind: 'markdown', text: [
-					'Follow these steps:',
+					'## Root cause',
 					'',
-					'- Clone the repository',
-					'- Install the dependencies',
+					'Git is unusable on this Mac because the Xcode license has not been accepted. Both `git --version` and `/usr/bin/git --version` currently exit with code 69 and report:',
 					'',
-					'```bash',
-					'npm install',
-					'```',
+					'> You have not agreed to the Xcode license agreements.',
 					'',
-					'- Then start the build watcher:',
+					'### Why files appear but diffs fail',
 					'',
-					'  ```bash',
-					'  npm run watch',
-					'  ```',
-					'',
-					'- Finally, launch the app',
+					'1. The session restores/caches the change-set metadata, so VS Code can display the filenames and change counts.',
+					'2. Opening a diff requires loading its original side using a `git-blob:` URI.',
+					'3. Agent Host executes roughly:',
+					'   ```bash',
+					'   git show 1e393d7b352de7927a98d0321e51ae63046c8652:<path>',
+					'   ```',
+					'4. Git refuses to run because of the Xcode license.',
 				].join('\n')
 			},
 		],
@@ -745,8 +830,73 @@ async function renderResizeObserverLoopHarness(context: ComponentFixtureContext,
 	}));
 }
 
+async function renderDisabledPetResizeObserverProbe(context: ComponentFixtureContext): Promise<void> {
+	const targetWindow = dom.getWindow(context.container);
+	const instantiationService = createEditorServices(context.disposableStore, {
+		colorTheme: context.theme,
+		additionalServices: registerChatFixtureServices,
+	});
+	context.container.style.width = '720px';
+	context.container.style.height = '600px';
+	const movementBounds = dom.append(context.container, dom.$('.disabled-pet-movement-bounds'));
+	const petHost = dom.append(movementBounds, dom.$('.disabled-pet-host'));
+	const dragBounds = dom.append(petHost, dom.$('.disabled-pet-drag-bounds'));
+	const trigger = dom.append(dragBounds, dom.$('.disabled-pet-resize-observer-trigger'));
+	movementBounds.style.width = '100%';
+	movementBounds.style.height = '200px';
+	petHost.style.width = '100%';
+	petHost.style.height = '100px';
+	dragBounds.style.width = '100%';
+	dragBounds.style.height = '100%';
+	trigger.style.width = '10px';
+	trigger.style.height = '10px';
+	context.disposableStore.add(instantiationService.createInstance(
+		ChatPetWidget,
+		{
+			parent: petHost,
+			dragBounds,
+			movementBounds,
+			model: constObservable(undefined),
+			hasInput: constObservable(false),
+			inputChanged: Event.None,
+			getPlatformTop: () => undefined,
+			onDidChangePlatform: Event.None,
+		},
+		undefined,
+	));
+
+	const status = dom.append(context.container, dom.$('.disabled-pet-resize-observer-status'));
+	status.role = 'status';
+	status.textContent = 'Running disabled pet observer probe';
+	status.dataset['warningCount'] = '0';
+	context.disposableStore.add(dom.addDisposableListener(targetWindow, dom.EventType.ERROR, event => {
+		if (event instanceof ErrorEvent && event.message.includes('ResizeObserver loop')) {
+			status.dataset['warningCount'] = String(Number(status.dataset['warningCount']) + 1);
+			status.dataset['observerContext'] = dom.getRecentDisposableResizeObserverContextForLoopError(event.message, targetWindow) ?? event.message;
+		}
+	}));
+
+	let triggerCallbacks = 0;
+	const triggerObserver = context.disposableStore.add(new dom.DisposableResizeObserver('DisabledPetFixture.deepTrigger', () => {
+		triggerCallbacks++;
+		if (triggerCallbacks === 2) {
+			dragBounds.style.height = `${dragBounds.getBoundingClientRect().height + 1}px`;
+		}
+	}, targetWindow));
+	context.disposableStore.add(triggerObserver.observe(trigger));
+
+	const nextFrame = () => new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
+	await nextFrame();
+	await nextFrame();
+	trigger.style.width = '11px';
+	await nextFrame();
+	await nextFrame();
+	status.textContent = 'Completed disabled pet observer probe';
+}
+
 export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 	SimpleQA: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: SIMPLE_QA }) }),
+	ScrollToBottomAction: defineComponentFixture({ render: renderScrollToBottomAction }),
 	Streaming: defineComponentFixture({ labels: { kind: 'animated' }, render: ctx => renderChatWidget(ctx, { messages: STREAMING }) }),
 	PendingToolApproval: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: PENDING_TOOL_APPROVAL }) }),
 	ResizeObserverLoopHarness: defineComponentFixture({
@@ -768,6 +918,11 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 		labels: { kind: 'animated' },
 		virtualTime: { enabled: false },
 		render: context => renderResizeObserverLoopHarness(context, 'none'),
+	}),
+	DisabledPetResizeObserverProbe: defineComponentFixture({
+		labels: { kind: 'animated' },
+		virtualTime: { enabled: false },
+		render: renderDisabledPetResizeObserverProbe,
 	}),
 	CodeBlockInList: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: CODE_BLOCK_IN_LIST }) }),
 	bugs: defineThemedFixtureGroup({

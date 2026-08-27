@@ -16,14 +16,12 @@ import {
 	AgentTaskListEventsResponse,
 	AgentTaskListResponse,
 	AgentTaskSessionEvent,
-	AgentTaskState,
 	AgentTaskSteerRequest,
 	RequestType,
 } from '@vscode/copilot-api';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { ICAPIClientService } from '../../../platform/endpoint/common/capiClient';
 import { GithubRepoId } from '../../../platform/git/common/gitService';
-import { SessionInfo } from '../../../platform/github/common/githubAPI';
 import { IOctoKitService } from '../../../platform/github/common/githubService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { ICloudBackendInstrumentation } from './cloudBackendTelemetry';
@@ -34,35 +32,16 @@ import {
 } from '../common/taskApiTypes';
 import {
 	CloudDelegationResult,
+	CloudAgentBackend,
 	CloudSessionData,
-	CloudSessionIdentity,
 	CreateCloudSessionParams,
-	FollowUpResult,
 	PullArtifactRef,
-	TaskCloudAgentBackend,
 	TaskContent,
 } from '../vscode/cloudAgentBackend';
-import { extractTitle, SessionIdForPr, SessionIdForTask } from '../vscode/copilotCodingAgentUtils';
+import { extractTitle } from '../vscode/copilotCodingAgentUtils';
 
 const TASK_SESSION_POLL_INTERVAL_MS = 2_000;
 const TASK_SESSION_POLL_TIMEOUT_MS = 60_000;
-
-function mapTaskStateToSessionState(state: AgentTaskState): SessionInfo['state'] {
-	switch (state) {
-		case 'queued':
-			return 'queued';
-		case 'in_progress':
-		case 'idle':
-		case 'waiting_for_user':
-			return 'in_progress';
-		case 'completed':
-			return 'completed';
-		case 'failed':
-		case 'timed_out':
-		case 'cancelled':
-			return 'failed';
-	}
-}
 
 /**
  * Agent integration slugs that identify the Copilot cloud coding agent. CMC/CAPI returns
@@ -110,31 +89,6 @@ function findBranchArtifact(task: AgentTask): (AgentTaskArtifact & { data: Agent
 			&& a.type === 'branch'
 			&& typeof (a.data as AgentTaskBranchResourceData).head_ref === 'string',
 	);
-}
-
-/** Convert a Task into the SessionInfo shape the existing UI layer expects. */
-function taskToSessionInfo(task: AgentTask): SessionInfo {
-	return {
-		id: task.id,
-		name: task.name ?? '',
-		user_id: task.creator?.id ?? 0,
-		agent_id: 0,
-		logs: '',
-		logs_blob_id: '',
-		state: mapTaskStateToSessionState(task.state),
-		owner_id: task.owner?.id ?? 0,
-		repo_id: task.repository?.id ?? 0,
-		resource_type: 'task',
-		resource_id: 0,
-		last_updated_at: task.updated_at ?? task.created_at,
-		created_at: task.created_at,
-		completed_at: task.state === 'completed' ? (task.updated_at ?? task.created_at) : '',
-		event_type: 'task',
-		workflow_run_id: 0,
-		premium_requests: 0,
-		error: task.state === 'failed' ? 'Task failed' : null,
-		resource_global_id: '',
-	};
 }
 
 /**
@@ -208,14 +162,10 @@ function taskToDiffRefs(
 }
 
 /**
- * Cloud agent backend backed by Mission Control's Task API (v2). Selected via the
- * `github.copilot.chat.cloudAgentBackend.version` setting set to `v2`. HTTP requests
- * route through {@link TaskApiHttpClient} below, which uses `ICAPIClientService` for
- * GHE-aware URL construction and auth.
+ * Cloud agent backend backed by Mission Control's Task API. HTTP requests route through
+ * {@link TaskApiHttpClient}, which uses `ICAPIClientService` for GHE-aware URL construction and auth.
  */
-export class TaskApiBackend implements TaskCloudAgentBackend {
-
-	readonly kind = 'task' as const;
+export class TaskApiBackend implements CloudAgentBackend {
 
 	constructor(
 		private readonly _taskApiClient: ITaskApiClient,
@@ -224,27 +174,13 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 		private readonly _instrumentation: ICloudBackendInstrumentation,
 	) { }
 
-	parseSessionId(resource: vscode.Uri): CloudSessionIdentity | undefined {
-		const taskParsed = SessionIdForTask.parse(resource);
-		if (taskParsed) {
-			return { type: 'task', taskId: taskParsed.taskId };
-		}
-		// Fall back to PR parsing for backward compat with sessions created under v1.
-		const prParsed = SessionIdForPr.parse(resource);
-		const prNumber = prParsed?.prNumber ?? SessionIdForPr.parsePullRequestNumber(resource);
-		if (prParsed || prNumber) {
-			return { type: 'pr', prNumber, sessionIndex: prParsed?.sessionIndex };
-		}
-		return undefined;
-	}
-
-	async createSession(params: CreateCloudSessionParams, _stream: vscode.ChatResponseStream, _token: vscode.CancellationToken): Promise<CloudDelegationResult> {
+	async createSession(params: CreateCloudSessionParams): Promise<CloudDelegationResult> {
 		const request: AgentTaskCreateRequest = {
 			prompt: params.prompt,
 			event_content: params.prompt,
 			problem_statement: params.problemStatement,
 			base_ref: params.baseRef,
-			// v2 default: don't auto-create a PR. The provider surfaces a "Create pull
+			// Tasks do not auto-create a PR. The provider surfaces a "Create pull
 			// request" toolbar action in the chat input when the task completes without an
 			// attached pull artifact, so the user can opt in. See
 			// `CopilotCloudSessionsProvider.handleCreatePullRequestForTaskCommand`.
@@ -270,16 +206,14 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 		// resolves it asynchronously via `resolvePullArtifactWithRetry` so creation isn't
 		// gated on PR materialization. PR-less tasks are first-class in the Task API.
 		return {
-			kind: 'task',
 			taskId: task.id,
 			taskUrl: task.html_url ?? '',
 			title: task.name ?? extractTitle(params.prompt, params.problemStatement) ?? params.title ?? 'Copilot task',
 			sessionId: task.id,
-			pullArtifact: taskToPullArtifactRef(task),
 		};
 	}
 
-	async fetchSessionList(repoIds: GithubRepoId[] | undefined, isAgentWorkspace: boolean, _refresh: boolean): Promise<CloudSessionData[]> {
+	async fetchSessionList(repoIds: GithubRepoId[] | undefined, isAgentWorkspace: boolean): Promise<CloudSessionData[]> {
 		const listOpts: ListTasksOptions = { per_page: 100 };
 		const tasksWithRepo: { task: AgentTask; repo: CloudSessionData['repo'] }[] = [];
 
@@ -356,11 +290,14 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 				.map(async ({ task, repo }): Promise<CloudSessionData> => {
 					const resolvedRepo = await resolveRepo(task, repo);
 					return {
-						latestSession: taskToSessionInfo(task),
+						taskId: task.id,
+						title: task.name ?? '',
+						state: task.state,
+						createdAt: task.created_at,
+						completedAt: task.state === 'completed' ? (task.updated_at ?? task.created_at) : undefined,
 						pullArtifact: taskToPullArtifactRef(task),
 						diffRefs: taskToDiffRefs(task, resolvedRepo),
 						repo: resolvedRepo,
-						taskState: task.state,
 					};
 				}),
 		);
@@ -428,8 +365,7 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 				const latestTurnState = task.sessions?.[turnCount - 1]?.state;
 				const latestTurnSettled = latestTurnState && latestTurnState !== 'in_progress' && latestTurnState !== 'queued' && latestTurnState !== 'idle' && latestTurnState !== 'waiting_for_user';
 				if (turnCount > since.turnCount || updatedAtChanged || latestTurnSettled) {
-					// First turn appearing (baseline had none) is the v2 "session activated" signal —
-					// the task has started producing output. Mirrors v1's PR-ready activation.
+					// The first turn appearing marks the task as active and producing output.
 					if (since.turnCount === 0 && turnCount >= 1) {
 						const createdAtMs = task.created_at ? Date.parse(task.created_at) : NaN;
 						this._instrumentation.sessionActivated(Number.isNaN(createdAtMs) ? 0 : Math.max(0, Date.now() - createdAtMs));
@@ -449,32 +385,15 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 		return undefined;
 	}
 
-	async sendFollowUpToTask(taskId: string, prompt: string): Promise<FollowUpResult | undefined> {
+	async sendFollowUpToTask(taskId: string, prompt: string): Promise<boolean> {
 		try {
 			await this._taskApiClient.steerTask(taskId, { content: prompt, type: 'user_message' });
 			this._instrumentation.followUp('success');
-			return {};
+			return true;
 		} catch (e) {
 			this._logService.error(`Failed to steer task ${taskId}: ${e}`);
 			this._instrumentation.followUp('failure', e);
-			return undefined;
-		}
-	}
-
-	async findTaskIdForPullRequest(owner: string, repo: string, prNumber: number): Promise<string | undefined> {
-		try {
-			const response = await this._taskApiClient.listTasksForRepo(owner, repo, {
-				artifact_type: 'pull',
-				artifact_id: prNumber,
-				sort: 'created_at',
-				direction: 'desc',
-				per_page: 1,
-			});
-			return response.tasks[0]?.id;
-		} catch (e) {
-			this._logService.warn(`Failed to find task for ${owner}/${repo}#${prNumber}: ${e}`);
-			this._instrumentation.operationFailed('findTaskForPullRequest', e);
-			return undefined;
+			return false;
 		}
 	}
 
@@ -515,7 +434,7 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 
 /**
  * Error thrown by {@link TaskApiHttpClient} for non-2xx Task API responses. Carries the HTTP
- * `status` so backend catch sites can surface it to telemetry (the per-backend-version guardrail dimension).
+ * `status` so backend catch sites can surface it to telemetry.
  */
 export class TaskApiError extends Error {
 	constructor(message: string, readonly status: number, readonly action: string) {
@@ -529,7 +448,7 @@ export class TaskApiError extends Error {
  * `ICAPIClientService.makeRequest({...}, { type: RequestType.AgentTask, ... })`.
  * The CAPI client maps the `action` discriminator to a URL under `api.github.com/agents/...`
  * (GHE-aware via the shared `dotcomAPIURL`). Auth is the same permissive GitHub
- * session used by `IOctoKitService` for Jobs API calls.
+ * session used by the GitHub service.
  */
 export class TaskApiHttpClient implements ITaskApiClient {
 

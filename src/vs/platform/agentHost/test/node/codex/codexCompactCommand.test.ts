@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { CODEX_AGENT_PROVIDER_ID } from '../../../common/agentService.js';
+import { CODEX_AGENT_PROVIDER_ID } from '../../../common/agent.js';
 import { CompletionItemKind } from '../../../common/state/protocol/commands.js';
 import { MessageAttachmentKind } from '../../../common/state/protocol/state.js';
 import { CODEX_COMPACT_SLASH_COMMAND, CodexCompactCompletionProvider } from '../../../node/codexCompactCommand.js';

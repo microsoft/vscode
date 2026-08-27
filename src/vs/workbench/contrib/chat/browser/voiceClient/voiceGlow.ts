@@ -21,12 +21,17 @@ import { chatVoiceGlowBaseColor, chatVoiceListeningGlow, chatVoiceSpeakingGlow }
 export type VoiceGlowState = 'idle' | 'listening' | 'processing' | 'speaking' | 'error';
 
 /**
- * Glow states that render the audio-reactive rim. Only the two talking states do:
- * connected-idle and thinking deliberately render nothing, so the glow means
- * "someone is talking" rather than "voice is on".
+ * Glow states that render the audio-reactive rim.
  */
 export function isGlowingVoiceState(voiceState: VoiceGlowState): boolean {
 	return voiceState === 'listening' || voiceState === 'speaking';
+}
+
+/**
+ * Whether the input glow should be rendered for the current voice state.
+ */
+export function shouldRenderVoiceInputGlow(connected: boolean, active: boolean, ownsVoice: boolean, voiceState: VoiceGlowState): boolean {
+	return connected && active && ownsVoice && isGlowingVoiceState(voiceState);
 }
 
 /**
@@ -119,7 +124,7 @@ export type VoiceRimMood = 'cool' | 'warm';
 /** Whether the surrounding surface is light or dark. */
 export type GlowThemeKind = 'light' | 'dark';
 
-/** Saturation (%) bounds for an active (listening / speaking) rim. */
+/** Saturation (%) bounds for an active rim. */
 const RIM_SAT_MIN = 70;
 const RIM_SAT_MAX = 96;
 

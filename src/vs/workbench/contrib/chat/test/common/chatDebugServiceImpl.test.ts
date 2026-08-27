@@ -9,7 +9,8 @@ import { errorHandler } from '../../../../../base/common/errors.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugGenericEvent, IChatDebugLogProvider, IChatDebugModelTurnEvent, IChatDebugResolvedEventContent, IChatDebugToolCallEvent } from '../../common/chatDebugService.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { CHAT_DEBUG_ACTIVE_SESSION_IS_AGENT_HOST, CHAT_DEBUG_HAS_ACTIVE_SESSION, ChatDebugLogLevel, IChatDebugEvent, IChatDebugGenericEvent, IChatDebugLogProvider, IChatDebugModelTurnEvent, IChatDebugResolvedEventContent, IChatDebugToolCallEvent } from '../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../common/chatDebugServiceImpl.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 
@@ -17,6 +18,7 @@ suite('ChatDebugServiceImpl', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let service: ChatDebugServiceImpl;
+	let contextKeyService: MockContextKeyService;
 
 	const session1 = URI.parse('vscode-chat-session://local/session-1');
 	const session2 = URI.parse('vscode-chat-session://local/session-2');
@@ -25,10 +27,50 @@ suite('ChatDebugServiceImpl', () => {
 	const sessionGeneric = URI.parse('vscode-chat-session://local/session');
 	const nonLocalSession = URI.parse('some-other-scheme://authority/session-1');
 	const copilotCliSession = URI.parse('copilotcli:/test-session-id');
-	const claudeCodeSession = URI.parse('claude-code:/test-session-id');
+	const agentHostSession = URI.parse('agent-host-copilotcli:/test-session-id');
 
 	setup(() => {
-		service = disposables.add(new ChatDebugServiceImpl(new TestConfigurationService()));
+		contextKeyService = disposables.add(new MockContextKeyService());
+		service = disposables.add(new ChatDebugServiceImpl(new TestConfigurationService(), contextKeyService));
+	});
+
+	test('updates the active session context key', () => {
+		const states = [[
+			contextKeyService.getContextKeyValue(CHAT_DEBUG_HAS_ACTIVE_SESSION.key),
+			contextKeyService.getContextKeyValue(CHAT_DEBUG_ACTIVE_SESSION_IS_AGENT_HOST.key),
+		]];
+		service.activeSessionResource = session1;
+		states.push([
+			contextKeyService.getContextKeyValue(CHAT_DEBUG_HAS_ACTIVE_SESSION.key),
+			contextKeyService.getContextKeyValue(CHAT_DEBUG_ACTIVE_SESSION_IS_AGENT_HOST.key),
+		]);
+		service.activeSessionResource = agentHostSession;
+		states.push([
+			contextKeyService.getContextKeyValue(CHAT_DEBUG_HAS_ACTIVE_SESSION.key),
+			contextKeyService.getContextKeyValue(CHAT_DEBUG_ACTIVE_SESSION_IS_AGENT_HOST.key),
+		]);
+		service.activeSessionResource = undefined;
+		states.push([
+			contextKeyService.getContextKeyValue(CHAT_DEBUG_HAS_ACTIVE_SESSION.key),
+			contextKeyService.getContextKeyValue(CHAT_DEBUG_ACTIVE_SESSION_IS_AGENT_HOST.key),
+		]);
+
+		assert.deepStrictEqual(states, [
+			[false, false],
+			[true, false],
+			[true, true],
+			[false, false],
+		]);
+	});
+
+	test('resets the active session context keys on dispose', () => {
+		service.activeSessionResource = agentHostSession;
+		service.dispose();
+
+		assert.deepStrictEqual([
+			contextKeyService.getContextKeyValue(CHAT_DEBUG_HAS_ACTIVE_SESSION.key),
+			contextKeyService.getContextKeyValue(CHAT_DEBUG_ACTIVE_SESSION_IS_AGENT_HOST.key),
+		], [false, false]);
 	});
 
 	suite('addEvent and getEvents', () => {
@@ -174,15 +216,6 @@ suite('ChatDebugServiceImpl', () => {
 			assert.strictEqual(service.getEvents(copilotCliSession).length, 1);
 		});
 
-		test('should log events for claude-code sessions', () => {
-			const firedEvents: IChatDebugEvent[] = [];
-			disposables.add(service.onDidAddEvent(e => firedEvents.push(e)));
-
-			service.log(claudeCodeSession, 'claude-event', 'details');
-
-			assert.strictEqual(firedEvents.length, 1);
-			assert.strictEqual(service.getEvents(claudeCodeSession).length, 1);
-		});
 	});
 
 	suite('getSessionResources', () => {
@@ -499,29 +532,6 @@ suite('ChatDebugServiceImpl', () => {
 
 			assert.strictEqual(providerCalled, true);
 			assert.ok(service.getEvents(copilotCliSession).length > 0);
-		});
-
-		test('should invoke providers for claude-code sessions', async () => {
-			let providerCalled = false;
-
-			const provider: IChatDebugLogProvider = {
-				provideChatDebugLog: async () => {
-					providerCalled = true;
-					return [{
-						kind: 'generic',
-						sessionResource: claudeCodeSession,
-						created: new Date(),
-						name: 'claude-provider-event',
-						level: ChatDebugLogLevel.Info,
-					}];
-				},
-			};
-
-			disposables.add(service.registerProvider(provider));
-			await service.invokeProviders(claudeCodeSession);
-
-			assert.strictEqual(providerCalled, true);
-			assert.ok(service.getEvents(claudeCodeSession).length > 0);
 		});
 
 		test('newly registered provider should be invoked for active sessions', async () => {

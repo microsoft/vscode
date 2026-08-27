@@ -410,6 +410,12 @@
 
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .update-toolbar-container {
 	margin-left: auto;
+	margin-right: var(--vscode-spacing-size40);
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .center-adjacent-toolbar-container:not(.has-no-actions):not(.overflowing) + .update-toolbar-container,
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .update-toolbar-container:not(.has-no-actions):not(.overflowing) + .action-toolbar-container {
+	margin-left: 0;
 }
 
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .center-adjacent-toolbar-container.has-no-actions,
@@ -440,11 +446,9 @@
 	margin-left: auto;
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container:not(.has-no-actions) + .update-toolbar-container:not(.has-no-actions):not(.overflowing) {
-	margin-left: 4px;
-}
-
-.monaco-workbench.mac:not(.web) .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container {
+.monaco-workbench.mac:not(.web) .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container,
+.monaco-workbench.mac:not(.web) .part.titlebar > .titlebar-container > .titlebar-right > .update-toolbar-container {
+	position: relative;
 	right: 8px;
 }
 
@@ -515,4 +519,18 @@
 	padding: 0 2px;
 	border-radius: 16px;
 	text-align: center;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container .monaco-action-bar .action-item.icon .badge.compact.progress-badge .badge-content {
+	width: 12px;
+	padding: 0;
+	border-radius: var(--vscode-cornerRadius-circle);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container .monaco-action-bar .action-item.icon .badge.compact.progress-badge .badge-content::before {
+	width: 12px;
+	height: 12px;
 }

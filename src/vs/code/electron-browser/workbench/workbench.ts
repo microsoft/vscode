@@ -16,6 +16,7 @@
 	type INativeWindowConfiguration = import('../../../platform/window/common/window.ts').INativeWindowConfiguration;
 	type IMainWindowSandboxGlobals = import('../../../base/parts/sandbox/electron-browser/globals.js').IMainWindowSandboxGlobals;
 	type IDesktopMain = import('../../../workbench/electron-browser/desktop.main.js').IDesktopMain;
+	type IPartsSplashPartBounds = import('../../../platform/theme/common/themeService.js').IPartsSplashPartBounds;
 
 	const preloadGlobals = (window as unknown as { vscode: IMainWindowSandboxGlobals }).vscode; // defined by preload.ts
 	const safeProcess = preloadGlobals.process;
@@ -91,9 +92,13 @@
 		if (data?.layoutInfo) {
 			const { layoutInfo, colorInfo } = data;
 			const modernUI = layoutInfo.modernUI === true;
-			const floatingMargin = 4;
-			const floatingOuterMargin = floatingMargin * 2;
+			const floatingMargin = layoutInfo.modernUICompact === true ? 0 : 4;
+			// The cluster perimeter is the same in both densities; only the inter-card gap differs.
+			const floatingOuterMargin = 4;
 			const floatingBorderWidth = 1;
+			const floatingBorderRadius = 8;
+			const contentTop = layoutInfo.titleBarHeight;
+			const contentBottom = layoutInfo.statusBarHeight;
 
 			const splash = document.createElement('div');
 			splash.id = 'monaco-parts-splash';
@@ -143,18 +148,97 @@
 				element.style.height = `${bounds.height}px`;
 			};
 
-			const applyFloatingCardStyles = (element: HTMLElement, backgroundColor: string | undefined) => {
+			const fallbackActivityBarBounds: IPartsSplashPartBounds | undefined = layoutInfo.modernUICompact === true && layoutInfo.activityBarWidth > 0 ? {
+				top: contentTop + (contentTop === 0 ? floatingOuterMargin : 0),
+				left: layoutInfo.sideBarSide === 'left' ? floatingOuterMargin : window.innerWidth - layoutInfo.activityBarWidth,
+				width: Math.max(0, layoutInfo.activityBarWidth - floatingOuterMargin),
+				height: window.innerHeight - contentTop - contentBottom - floatingOuterMargin - (contentTop === 0 ? floatingOuterMargin : 0),
+			} : undefined;
+			const compactPartBounds = layoutInfo.modernUICompact === true ? [
+				layoutInfo.partBounds?.activityBar,
+				layoutInfo.partBounds?.sideBar,
+				layoutInfo.partBounds?.auxiliaryBar,
+				layoutInfo.partBounds?.editor,
+				layoutInfo.partBounds?.panel,
+			].filter((bounds): bounds is IPartsSplashPartBounds => !!bounds) : [];
+			const compactHorizontalBounds = layoutInfo.modernUICompact === true ? [
+				layoutInfo.partBounds?.activityBar ?? fallbackActivityBarBounds,
+				layoutInfo.partBounds?.sideBar,
+				layoutInfo.partBounds?.auxiliaryBar,
+				layoutInfo.partBounds?.editor,
+				layoutInfo.partBounds?.panel,
+			].filter((bounds): bounds is IPartsSplashPartBounds => !!bounds) : [];
+			const compactClusterEdges = compactPartBounds.length > 0 && compactHorizontalBounds.length > 0 ? {
+				left: Math.min(...compactHorizontalBounds.map(bounds => bounds.left)),
+				right: Math.max(...compactHorizontalBounds.map(bounds => bounds.left + bounds.width)),
+				top: Math.min(...compactPartBounds.map(bounds => bounds.top)),
+				bottom: Math.max(...compactPartBounds.map(bounds => bounds.top + bounds.height)),
+			} : undefined;
+
+			// Without saved `partBounds` (they are cleared whenever the resolved bar widths differ
+			// from the ones stored for the workspace) the cluster edges cannot be measured, so
+			// derive ownership from the fallback order instead: the outermost visible card on each
+			// side owns that edge, and every card spans the content region vertically.
+			const fallbackClusterOrder: readonly ('activityBar' | 'sideBar' | 'editor' | 'auxiliaryBar')[] = layoutInfo.sideBarSide === 'left'
+				? ['activityBar', 'sideBar', 'editor', 'auxiliaryBar']
+				: ['auxiliaryBar', 'editor', 'sideBar', 'activityBar'];
+			const fallbackClusterVisible = {
+				activityBar: layoutInfo.activityBarWidth > 0,
+				sideBar: layoutInfo.sideBarWidth > 0,
+				editor: true,
+				auxiliaryBar: layoutInfo.auxiliaryBarWidth > 0,
+			};
+			const fallbackLeftOwner = fallbackClusterOrder.find(part => fallbackClusterVisible[part]);
+			const fallbackRightOwner = [...fallbackClusterOrder].reverse().find(part => fallbackClusterVisible[part]);
+			const fallbackOuterEdgesFor = (part: 'activityBar' | 'sideBar' | 'editor' | 'auxiliaryBar') => ({
+				left: fallbackLeftOwner === part,
+				right: fallbackRightOwner === part,
+				top: true,
+				bottom: true,
+			});
+			const fallbackInsetFor = (part: 'activityBar' | 'sideBar' | 'editor' | 'auxiliaryBar', edge: 'left' | 'right' | 'top' | 'bottom') =>
+				modernUI ? fallbackOuterEdgesFor(part)[edge] ? floatingOuterMargin : floatingMargin : 0;
+
+			const railBorderColor = colorInfo.modernActivityBarBorder ?? colorInfo.surfaceBorder ?? colorInfo.agentsPanelBorder ?? colorInfo.editorGroupBorder ?? 'transparent';
+
+			const applyFloatingCardStyles = (
+				element: HTMLElement,
+				backgroundColor: string | undefined,
+				partBounds?: IPartsSplashPartBounds,
+				fallbackOuterEdges = { left: true, right: true, top: true, bottom: true },
+				compactBorderColor = colorInfo.surfaceBorder ?? colorInfo.agentsPanelBorder ?? colorInfo.editorGroupBorder ?? 'transparent'
+			) => {
 				element.style.boxSizing = 'border-box';
-				element.style.border = `${floatingBorderWidth}px solid ${colorInfo.agentsPanelBorder ?? colorInfo.editorGroupBorder ?? 'transparent'}`;
-				element.style.borderRadius = '8px';
+				if (layoutInfo.modernUICompact === true) {
+					const outerEdges = partBounds?.outerEdges ?? (partBounds && compactClusterEdges ? {
+						left: partBounds.left === compactClusterEdges.left,
+						right: partBounds.left + partBounds.width === compactClusterEdges.right,
+						top: partBounds.top === compactClusterEdges.top,
+						bottom: partBounds.top + partBounds.height === compactClusterEdges.bottom,
+					} : fallbackOuterEdges);
+					element.style.borderStyle = 'solid';
+					element.style.borderColor = compactBorderColor;
+					element.style.borderWidth = `${outerEdges.top ? floatingBorderWidth : 0}px ${floatingBorderWidth}px ${floatingBorderWidth}px ${outerEdges.left ? floatingBorderWidth : 0}px`;
+					element.style.borderRadius = [
+						outerEdges.top && outerEdges.left ? floatingBorderRadius : 0,
+						outerEdges.top && outerEdges.right ? floatingBorderRadius : 0,
+						outerEdges.bottom && outerEdges.right ? floatingBorderRadius : 0,
+						outerEdges.bottom && outerEdges.left ? floatingBorderRadius : 0,
+					].map(radius => `${radius}px`).join(' ');
+				} else {
+					element.style.border = `${floatingBorderWidth}px solid ${colorInfo.agentsPanelBorder ?? colorInfo.editorGroupBorder ?? 'transparent'}`;
+					element.style.borderRadius = `${floatingBorderRadius}px`;
+				}
 				element.style.backgroundColor = backgroundColor ?? colorInfo.editorBackground ?? colorInfo.background;
 				element.style.overflow = 'hidden';
 			};
 
-			const contentTop = layoutInfo.titleBarHeight;
-			const contentBottom = layoutInfo.statusBarHeight;
 			const contentHeight = `calc(100% - ${contentTop + contentBottom}px)`;
 			const activityHeight = modernUI ? `calc(100% - ${contentTop + contentBottom + floatingMargin}px)` : contentHeight;
+			const modernActivityBarBackground = (window.document.hasFocus()
+				? colorInfo.modernActivityBarBackground
+				: colorInfo.modernActivityBarInactiveBackground ?? colorInfo.modernActivityBarBackground)
+				?? colorInfo.activityBarBackground;
 
 			if (layoutInfo.auxiliaryBarWidth === Number.MAX_SAFE_INTEGER) {
 				// if auxiliary bar is maximized, it goes as wide as the
@@ -193,16 +277,42 @@
 			// part: activity bar
 			if (layoutInfo.activityBarWidth > 0) {
 				const activityDiv = document.createElement('div');
-				activityDiv.style.position = 'absolute';
-				activityDiv.style.width = `${layoutInfo.activityBarWidth}px`;
-				activityDiv.style.height = activityHeight;
-				activityDiv.style.top = `${contentTop}px`;
-				if (layoutInfo.sideBarSide === 'left') {
-					activityDiv.style.left = '0';
+				const activityBarBounds = layoutInfo.partBounds?.activityBar;
+				if (modernUI && activityBarBounds) {
+					setPartBounds(activityDiv, activityBarBounds);
+				} else if (layoutInfo.modernUICompact === true) {
+					setBounds(activityDiv, {
+						top: contentTop + (contentTop === 0 ? floatingOuterMargin : 0),
+						bottom: contentBottom + floatingOuterMargin,
+						...(layoutInfo.sideBarSide === 'left' ? { left: floatingOuterMargin } : { right: floatingOuterMargin }),
+						width: Math.max(0, layoutInfo.activityBarWidth - floatingOuterMargin),
+					});
 				} else {
-					activityDiv.style.right = '0';
+					activityDiv.style.position = 'absolute';
+					activityDiv.style.width = `${layoutInfo.activityBarWidth}px`;
+					activityDiv.style.height = activityHeight;
+					activityDiv.style.top = `${contentTop}px`;
+					if (layoutInfo.sideBarSide === 'left') {
+						activityDiv.style.left = '0';
+					} else {
+						activityDiv.style.right = '0';
+					}
 				}
-				activityDiv.style.backgroundColor = modernUI ? 'transparent' : `${colorInfo.activityBarBackground}`;
+				if (layoutInfo.modernUICompact === true) {
+					applyFloatingCardStyles(activityDiv, modernActivityBarBackground, activityBarBounds, fallbackOuterEdgesFor('activityBar'), railBorderColor);
+				} else if (modernUI) {
+					// The rail is a card here too: rounded on the window side, and square where it
+					// meets the primary side bar so the two read as one connected surface.
+					const radius = `${floatingBorderRadius}px`;
+					activityDiv.style.boxSizing = 'border-box';
+					activityDiv.style.backgroundColor = modernActivityBarBackground ?? 'transparent';
+					activityDiv.style.border = `${floatingBorderWidth}px solid ${railBorderColor}`;
+					activityDiv.style.borderRadius = layoutInfo.sideBarWidth === 0 ? radius
+						: layoutInfo.sideBarSide === 'left' ? `${radius} 0 0 ${radius}` : `0 ${radius} ${radius} 0`;
+					activityDiv.style.overflow = 'hidden';
+				} else {
+					activityDiv.style.backgroundColor = `${colorInfo.activityBarBackground}`;
+				}
 				splash.appendChild(activityDiv);
 
 				if (!modernUI && colorInfo.activityBarBorder) {
@@ -224,26 +334,30 @@
 
 			// part: side bar
 			if (layoutInfo.sideBarWidth > 0) {
+				// The side bar meets the activity bar rail flush; with no rail it is the outermost
+				// card on that edge and takes the cluster's outer gutter instead.
+				const sideBarFallbackOuterEdges = fallbackOuterEdgesFor('sideBar');
+				const sideBarClusterInset = modernUI && sideBarFallbackOuterEdges[layoutInfo.sideBarSide === 'left' ? 'left' : 'right'] ? floatingOuterMargin : 0;
 				const sideDiv = document.createElement('div');
 				if (modernUI && layoutInfo.partBounds?.sideBar) {
 					setPartBounds(sideDiv, layoutInfo.partBounds.sideBar);
 				} else if (layoutInfo.sideBarSide === 'left') {
 					setBounds(sideDiv, {
-						top: contentTop,
-						bottom: modernUI ? contentBottom + floatingMargin : contentBottom,
-						left: layoutInfo.activityBarWidth + (modernUI ? floatingMargin : 0),
-						width: modernUI ? Math.max(0, layoutInfo.sideBarWidth - floatingOuterMargin - floatingBorderWidth * 2) : layoutInfo.sideBarWidth
+						top: contentTop + (contentTop === 0 ? fallbackInsetFor('sideBar', 'top') : 0),
+						bottom: contentBottom + fallbackInsetFor('sideBar', 'bottom'),
+						left: layoutInfo.activityBarWidth + sideBarClusterInset,
+						width: modernUI ? Math.max(0, layoutInfo.sideBarWidth - sideBarClusterInset - floatingBorderWidth * 2) : layoutInfo.sideBarWidth
 					});
 				} else {
 					setBounds(sideDiv, {
-						top: contentTop,
-						bottom: modernUI ? contentBottom + floatingMargin : contentBottom,
-						right: layoutInfo.activityBarWidth + (modernUI ? floatingMargin : 0),
-						width: modernUI ? Math.max(0, layoutInfo.sideBarWidth - floatingOuterMargin - floatingBorderWidth * 2) : layoutInfo.sideBarWidth
+						top: contentTop + (contentTop === 0 ? fallbackInsetFor('sideBar', 'top') : 0),
+						bottom: contentBottom + fallbackInsetFor('sideBar', 'bottom'),
+						right: layoutInfo.activityBarWidth + sideBarClusterInset,
+						width: modernUI ? Math.max(0, layoutInfo.sideBarWidth - sideBarClusterInset - floatingBorderWidth * 2) : layoutInfo.sideBarWidth
 					});
 				}
 				if (modernUI) {
-					applyFloatingCardStyles(sideDiv, colorInfo.agentsPanelBackground ?? colorInfo.sideBarBackground);
+					applyFloatingCardStyles(sideDiv, colorInfo.surfaceBackground ?? colorInfo.agentsPanelBackground ?? colorInfo.sideBarBackground, layoutInfo.partBounds?.sideBar, sideBarFallbackOuterEdges);
 				} else {
 					sideDiv.style.backgroundColor = `${colorInfo.sideBarBackground}`;
 				}
@@ -268,26 +382,27 @@
 
 			// part: auxiliary sidebar
 			if (layoutInfo.auxiliaryBarWidth > 0) {
+				const auxiliaryBarFallbackOuterEdges = fallbackOuterEdgesFor('auxiliaryBar');
 				const auxSideDiv = document.createElement('div');
 				if (modernUI && layoutInfo.partBounds?.auxiliaryBar) {
 					setPartBounds(auxSideDiv, layoutInfo.partBounds.auxiliaryBar);
 				} else if (layoutInfo.sideBarSide === 'left') {
 					setBounds(auxSideDiv, {
-						top: contentTop,
-						bottom: modernUI ? contentBottom + floatingMargin : contentBottom,
-						right: modernUI ? floatingOuterMargin : 0,
-						width: modernUI ? Math.max(0, layoutInfo.auxiliaryBarWidth - floatingOuterMargin - floatingMargin - floatingBorderWidth * 2) : layoutInfo.auxiliaryBarWidth
+						top: contentTop + (contentTop === 0 ? fallbackInsetFor('auxiliaryBar', 'top') : 0),
+						bottom: contentBottom + fallbackInsetFor('auxiliaryBar', 'bottom'),
+						right: fallbackInsetFor('auxiliaryBar', 'right'),
+						width: modernUI ? Math.max(0, layoutInfo.auxiliaryBarWidth - fallbackInsetFor('auxiliaryBar', 'right') - floatingMargin - floatingBorderWidth * 2) : layoutInfo.auxiliaryBarWidth
 					});
 				} else {
 					setBounds(auxSideDiv, {
-						top: contentTop,
-						bottom: modernUI ? contentBottom + floatingMargin : contentBottom,
-						left: modernUI ? floatingOuterMargin : 0,
-						width: modernUI ? Math.max(0, layoutInfo.auxiliaryBarWidth - floatingOuterMargin - floatingMargin - floatingBorderWidth * 2) : layoutInfo.auxiliaryBarWidth
+						top: contentTop + (contentTop === 0 ? fallbackInsetFor('auxiliaryBar', 'top') : 0),
+						bottom: contentBottom + fallbackInsetFor('auxiliaryBar', 'bottom'),
+						left: fallbackInsetFor('auxiliaryBar', 'left'),
+						width: modernUI ? Math.max(0, layoutInfo.auxiliaryBarWidth - fallbackInsetFor('auxiliaryBar', 'left') - floatingMargin - floatingBorderWidth * 2) : layoutInfo.auxiliaryBarWidth
 					});
 				}
 				if (modernUI) {
-					applyFloatingCardStyles(auxSideDiv, colorInfo.sideBarBackground);
+					applyFloatingCardStyles(auxSideDiv, colorInfo.sideBarBackground, layoutInfo.partBounds?.auxiliaryBar, auxiliaryBarFallbackOuterEdges);
 				} else {
 					auxSideDiv.style.backgroundColor = `${colorInfo.sideBarBackground}`;
 				}
@@ -311,27 +426,28 @@
 			}
 
 			if (modernUI && (layoutInfo.partBounds?.editor || !layoutInfo.partBounds)) {
+				const editorFallbackOuterEdges = fallbackOuterEdgesFor('editor');
 				const editorDiv = document.createElement('div');
 				if (layoutInfo.partBounds?.editor) {
 					setPartBounds(editorDiv, layoutInfo.partBounds.editor);
 				} else {
-					const editorLeft = (layoutInfo.sideBarSide === 'left' ? layoutInfo.activityBarWidth + layoutInfo.sideBarWidth : layoutInfo.auxiliaryBarWidth) + floatingMargin;
-					const editorRight = (layoutInfo.sideBarSide === 'left' ? layoutInfo.auxiliaryBarWidth : layoutInfo.activityBarWidth + layoutInfo.sideBarWidth) + floatingMargin;
+					const editorLeft = (layoutInfo.sideBarSide === 'left' ? layoutInfo.activityBarWidth + layoutInfo.sideBarWidth : layoutInfo.auxiliaryBarWidth) + fallbackInsetFor('editor', 'left');
+					const editorRight = (layoutInfo.sideBarSide === 'left' ? layoutInfo.auxiliaryBarWidth : layoutInfo.activityBarWidth + layoutInfo.sideBarWidth) + fallbackInsetFor('editor', 'right');
 					setBounds(editorDiv, {
-						top: contentTop,
-						bottom: contentBottom + floatingMargin,
+						top: contentTop + (contentTop === 0 ? fallbackInsetFor('editor', 'top') : 0),
+						bottom: contentBottom + fallbackInsetFor('editor', 'bottom'),
 						left: editorLeft,
 						right: editorRight
 					});
 				}
-				applyFloatingCardStyles(editorDiv, colorInfo.editorBackground);
+				applyFloatingCardStyles(editorDiv, colorInfo.editorBackground, layoutInfo.partBounds?.editor, editorFallbackOuterEdges, colorInfo.editorBorder ?? colorInfo.surfaceBorder ?? colorInfo.editorGroupBorder ?? 'transparent');
 				splash.appendChild(editorDiv);
 			}
 
 			if (modernUI && layoutInfo.partBounds?.panel) {
 				const panelDiv = document.createElement('div');
 				setPartBounds(panelDiv, layoutInfo.partBounds.panel);
-				applyFloatingCardStyles(panelDiv, colorInfo.panelBackground ?? colorInfo.editorBackground);
+				applyFloatingCardStyles(panelDiv, colorInfo.panelBackground ?? colorInfo.editorBackground, layoutInfo.partBounds.panel);
 				splash.appendChild(panelDiv);
 			}
 

@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationError } from '../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { IProtocolTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
-import { RemoteAgentHostProtocolClient } from '../../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
+import { AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { editorWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
 import { WebPubSubRelayTransport } from '../../../../../platform/agentHost/browser/webPubSubRelayTransport.js';
-import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../../../../platform/agentHost/common/agentService.js';
+import { AhpJsonlLogger } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
+import { GITHUB_COPILOT_PROTECTED_RESOURCE, AgentHostAhpJsonlLoggingSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import {
 	buildWpsUrl,
 	cloudSandboxAddress,
@@ -20,11 +21,13 @@ import {
 	ICloudSandboxConnectOptions,
 	ICloudSandboxApiService,
 	isCloudSandboxSealedToken,
+	type CloudSandboxConnectResult,
 	type ICloudSandboxClientToken,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { PROTOCOL_VERSION } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { CloudSandboxCredentialRefresher, MAX_WAKING_DELAY_MS, type ICloudSandboxCreds } from './cloudSandboxCredentialRefresh.js';
@@ -35,11 +38,20 @@ const LOG_PREFIX = '[CloudSandboxAgentHost]';
 const MAX_WAKING_RETRIES = 20;
 
 /**
+ * Maximum number of `/connect` re-mints while the sealed token is missing, sized to cover the
+ * backend's own registration retry cycle.
+ */
+export const MAX_SEALED_TOKEN_RETRIES = 12;
+
+/** Delay between `/connect` re-mints while waiting for complete credentials. */
+const SEALED_TOKEN_RETRY_DELAY_MS = 5_000;
+
+/**
  * Renderer-side coordinator for Copilot cloud sandbox connections.
  *
  * Mirrors {@link WebTunnelAgentHostService}: establishes a connection
  * out-of-band (mint creds → open a {@link WebPubSubRelayTransport} → drive the
- * AHP handshake) and hands the pre-connected {@link RemoteAgentHostProtocolClient}
+ * AHP handshake) and hands the pre-connected {@link AgentHostProtocolClient}
  * to {@link IRemoteAgentHostService.addManagedConnection}, so the existing
  * remote-agent-host contribution surfaces it as a native, interactive session.
  */
@@ -52,11 +64,15 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 	/** Current Web PubSub credentials per connection address, including the sealed GitHub token. */
 	private readonly _creds = new Map<string, ICloudSandboxCreds>();
 
+	/** Overridable so tests can exercise the re-mint loop without waiting on real delays. */
+	protected readonly sealedTokenRetryDelayMs: number = SEALED_TOKEN_RETRY_DELAY_MS;
+
 	constructor(
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@ICloudSandboxApiService private readonly _apiService: ICloudSandboxApiService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -109,24 +125,33 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 	 * Open the relay with an already-minted token, drive the AHP handshake, and register the
 	 * connection.
 	 */
-	private async _establish(options: ICloudSandboxConnectOptions, address: string, clientToken: ICloudSandboxClientToken, token: CancellationToken): Promise<string> {
+	protected async _establish(options: ICloudSandboxConnectOptions, address: string, clientToken: ICloudSandboxClientToken, token: CancellationToken): Promise<string> {
 		// Mutable holder read by the transport factory: the protocol client re-invokes the factory to
 		// soft-reconnect, picking up whatever credentials the refresh scheduler last wrote.
 		const creds: ICloudSandboxCreds = { token: clientToken };
 		// Three per-client relay lanes: publish to `to_host`; receive replies on `to_client` and
 		// unsolicited session state on `broadcast`. `groupValidation` drops inbound frames whose
 		// group name doesn't carry our own client id.
+		// Each soft reconnect gets a transport-owned logger keyed by connection id.
+		const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
 		const transportFactory = (): IProtocolTransport => new WebPubSubRelayTransport({
 			url: buildWpsUrl(creds.token),
 			toHostGroup: creds.token.groups.to_host,
 			joinGroups: [creds.token.groups.broadcast, creds.token.groups.to_client],
 			groupValidation: { expected: { cid: creds.token.client_id } },
+			ahpLogger: ahpLoggingEnabled
+				? this._instantiationService.createInstance(AhpJsonlLogger, {
+					logsHome: this._environmentService.logsHome,
+					connectionId: clientToken.client_id,
+					transport: 'webpubsub',
+				})
+				: undefined,
 		});
 
 		// Mission Control mints the client id and binds the relay lane to it, so the AHP identity
 		// must match or the host rejects requests on that lane.
 		const protocolClient = this._instantiationService.createInstance(
-			RemoteAgentHostProtocolClient, address, transportFactory, undefined, clientToken.client_id, editorWindowAgentHostClientInfo,
+			AgentHostProtocolClient, address, transportFactory, undefined, clientToken.client_id, editorWindowAgentHostClientInfo,
 		);
 
 		let status: RemoteAgentHostConnectionStatus = RemoteAgentHostConnectionStatus.connected;
@@ -160,6 +185,9 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 					this._logService.warn(`${LOG_PREFIX} Sealed-token authenticate failed for ${address}`, err);
 				}
 			}
+		} else if (!connectError) {
+			// Without an envelope every later request answers `-32007 AuthRequired`.
+			this._logService.error(`${LOG_PREFIX} Mission Control returned no sealed token for ${address}; this session will not be able to make authenticated requests.`);
 		}
 
 		try {
@@ -205,12 +233,47 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 			}
 			const result = await this._apiService.connect({ environmentId: options.environmentId, sessionId: options.sessionId }, token);
 			if (result.kind === 'token') {
-				return result.token;
+				return await this._awaitSealedToken(options, result.token, token);
 			}
 			const delayMs = Math.min(result.waking.retryAfterSeconds * 1000, MAX_WAKING_DELAY_MS);
 			this._logService.info(`${LOG_PREFIX} Environment ${options.environmentId} waking; retrying in ${delayMs}ms (attempt ${attempt + 1}/${MAX_WAKING_RETRIES})`);
 			await timeout(delayMs, token);
 		}
 		throw new Error(`Timed out waiting for sandbox environment ${options.environmentId} to wake.`);
+	}
+
+	/**
+	 * Re-mint credentials until they carry a sealed token, which a freshly provisioned environment
+	 * can omit for a short window after it comes up. Returns the last credentials either way, since
+	 * an environment may legitimately never seal one.
+	 */
+	private async _awaitSealedToken(options: ICloudSandboxConnectOptions, minted: ICloudSandboxClientToken, token: CancellationToken): Promise<ICloudSandboxClientToken> {
+		let clientToken = minted;
+		// Match what `_establish` accepts: an unsealed value would wrongly end the loop.
+		for (let attempt = 0; attempt < MAX_SEALED_TOKEN_RETRIES && !isCloudSandboxSealedToken(clientToken.encrypted_github_token); attempt++) {
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			this._logService.info(`${LOG_PREFIX} Environment ${options.environmentId} has no sealed GitHub token yet; re-minting in ${this.sealedTokenRetryDelayMs}ms (attempt ${attempt + 1}/${MAX_SEALED_TOKEN_RETRIES})`);
+			await timeout(this.sealedTokenRetryDelayMs, token);
+
+			let result: CloudSandboxConnectResult;
+			try {
+				result = await this._apiService.connect({ environmentId: options.environmentId, sessionId: options.sessionId }, token);
+			} catch (err) {
+				if (isCancellationError(err) || token.isCancellationRequested) {
+					throw err;
+				}
+				// The initial mint still works, so degrade rather than discard it.
+				this._logService.warn(`${LOG_PREFIX} Re-mint for ${options.environmentId} failed; continuing without a sealed token`, err);
+				break;
+			}
+			if (result.kind !== 'token') {
+				// Went back to waking mid-wait; the handshake watchdog covers a host that is gone.
+				break;
+			}
+			clientToken = result.token;
+		}
+		return clientToken;
 	}
 }

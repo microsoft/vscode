@@ -95,7 +95,7 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 
 	private _toServerDefinition(
 		collectionId: string,
-		{ name, configuration }: IAgentPluginMcpServerDefinition,
+		{ name, configuration, defaultCwd }: IAgentPluginMcpServerDefinition,
 	): McpServerDefinition | undefined {
 		const launch = this._toLaunch(configuration);
 		if (!launch) {
@@ -106,6 +106,7 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 			id: `${collectionId}.${name}`,
 			label: name,
 			launch,
+			defaultCwd,
 			variableReplacement: { target: ConfigurationTarget.USER },
 			cacheNonce: String(hash(launch)),
 		};

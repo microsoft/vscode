@@ -109,6 +109,11 @@ export class AgentsWindow {
 		await this.code.waitForElement(SESSION_TYPE_PICKER_VISIBLE, undefined, retryCount);
 	}
 
+	private async isSessionTypeSelected(label: string): Promise<boolean> {
+		const picker = this.code.driver.currentPage.locator(SESSION_TYPE_PICKER_VISIBLE).first();
+		return ((await picker.textContent()) ?? '').trim().toLowerCase() === label.trim().toLowerCase();
+	}
+
 	/**
 	 * Returns whether the given session type appears in the new-session picker.
 	 *
@@ -126,6 +131,10 @@ export class AgentsWindow {
 	async isSessionTypeAvailable(label: string, timeoutMs: number = 30_000): Promise<boolean> {
 		await this.code.waitForElement(SESSION_TYPE_PICKER_VISIBLE);
 
+		if (await this.isSessionTypeSelected(label)) {
+			return true;
+		}
+
 		const itemSel = `.action-widget .monaco-list-row`;
 		const needle = label.toLowerCase();
 		const isEnabledAction = (el: { className: string }) => el.className.includes('action') && !el.className.includes('option-disabled');
@@ -136,6 +145,10 @@ export class AgentsWindow {
 		const deadline = Date.now() + timeoutMs;
 
 		while (Date.now() < deadline) {
+			if (await this.isSessionTypeSelected(label)) {
+				return true;
+			}
+
 			// (Re-)open the dropdown so its rows reflect the current provider set.
 			await this.code.waitAndClick(SESSION_TYPE_PICKER_VISIBLE);
 
@@ -177,6 +190,10 @@ export class AgentsWindow {
 	async selectSessionType(label: string): Promise<void> {
 		await this.code.waitForElement(SESSION_TYPE_PICKER_VISIBLE);
 
+		if (await this.isSessionTypeSelected(label)) {
+			return;
+		}
+
 		const itemSel = `.action-widget .monaco-list-row`;
 		const maxAttempts = 3;
 		const needle = label.toLowerCase();
@@ -196,6 +213,10 @@ export class AgentsWindow {
 		// appears, instead of just waiting for "any item".
 		let lastSeen: string[] = [];
 		outer: for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+			if (await this.isSessionTypeSelected(label)) {
+				return;
+			}
+
 			await this.code.waitAndClick(SESSION_TYPE_PICKER_VISIBLE);
 			const deadline = Date.now() + 10_000;
 			while (Date.now() < deadline) {

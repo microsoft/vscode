@@ -100,7 +100,11 @@ export const ChatPasteAttachmentMetadata = {
 	Language: 'vscode.chat.attachment.language',
 	FileName: 'vscode.chat.attachment.fileName',
 	PastedLines: 'vscode.chat.attachment.pastedLines',
+	TextArtifact: 'vscode.chat.attachment.textArtifact',
 } as const;
+
+const ChatTranscriptContextMetadataKey = 'vscode.chat.transcriptContext';
+export const ChatTranscriptContextAttachmentDisplayKind = 'transcriptContext';
 
 export interface IRestorablePasteAttachment {
 	readonly label: string;
@@ -271,6 +275,13 @@ export interface IChatRequestStringVariableEntry extends IBaseChatRequestVariabl
 	 */
 	readonly commandId?: string;
 	readonly handle: number;
+}
+
+export interface IChatRequestTranscriptContextVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'transcriptContext';
+	readonly value: string;
+	readonly uri: URI;
+	readonly tooltip?: string;
 }
 
 export interface IChatRequestWorkspaceVariableEntry extends IBaseChatRequestVariableEntry {
@@ -718,7 +729,8 @@ export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChat
 	| IPromptFileVariableEntry | IPromptTextVariableEntry
 	| ISCMHistoryItemVariableEntry | ISCMHistoryItemChangeVariableEntry | ISCMHistoryItemChangeRangeVariableEntry | ITerminalVariableEntry
 	| IChatRequestStringVariableEntry | IChatRequestWorkspaceVariableEntry | IDebugVariableEntry | IAgentFeedbackVariableEntry
-	| IChatRequestDebugEventsVariableEntry | IChatRequestSessionReferenceVariableEntry | IBrowserViewVariableEntry | IChatRequestChatReferenceVariableEntry;
+	| IChatRequestDebugEventsVariableEntry | IChatRequestSessionReferenceVariableEntry | IBrowserViewVariableEntry | IChatRequestChatReferenceVariableEntry
+	| IChatRequestTranscriptContextVariableEntry;
 
 export namespace IChatRequestVariableEntry {
 
@@ -792,6 +804,44 @@ export function isStringVariableEntry(obj: IChatRequestVariableEntry): obj is IC
 	return obj.kind === 'string';
 }
 
+export function isChatTranscriptContextVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestTranscriptContextVariableEntry {
+	return obj.kind === 'transcriptContext';
+}
+
+export function toChatTranscriptContextAttachmentMeta(entry: IChatRequestTranscriptContextVariableEntry): Record<string, unknown> {
+	return {
+		...entry._meta,
+		[ChatTranscriptContextMetadataKey]: {
+			uri: entry.uri.toString(),
+			iconId: entry.icon?.id,
+			tooltip: entry.tooltip,
+			fullName: entry.fullName,
+		},
+	};
+}
+
+export function restoreChatTranscriptContextVariableEntry(label: string, value: string, meta: Record<string, unknown> | undefined): IChatRequestTranscriptContextVariableEntry | undefined {
+	const raw = meta?.[ChatTranscriptContextMetadataKey];
+	if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+		return undefined;
+	}
+	const record = raw as Record<string, unknown>;
+	if (typeof record.uri !== 'string') {
+		return undefined;
+	}
+	return {
+		kind: 'transcriptContext',
+		id: generateUuid(),
+		name: label,
+		...(typeof record.fullName === 'string' ? { fullName: record.fullName } : {}),
+		...(typeof record.iconId === 'string' ? { icon: ThemeIcon.fromId(record.iconId) } : {}),
+		...(typeof record.tooltip === 'string' ? { tooltip: record.tooltip } : {}),
+		value,
+		uri: URI.parse(record.uri),
+		_meta: meta,
+	};
+}
+
 export function isTerminalVariableEntry(obj: IChatRequestVariableEntry): obj is ITerminalVariableEntry {
 	return obj.kind === 'terminalCommand';
 }
@@ -806,6 +856,10 @@ export function isAgentFeedbackVariableEntry(obj: IChatRequestVariableEntry): ob
 
 export function isPasteVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestPasteVariableEntry {
 	return obj.kind === 'paste';
+}
+
+export function isPastedTextArtifact(obj: IChatRequestVariableEntry): obj is IChatRequestPasteVariableEntry {
+	return isPasteVariableEntry(obj) && obj._meta?.[ChatPasteAttachmentMetadata.TextArtifact] === true;
 }
 
 export function isWorkspaceVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestWorkspaceVariableEntry {

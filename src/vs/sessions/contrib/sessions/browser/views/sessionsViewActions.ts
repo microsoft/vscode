@@ -24,10 +24,10 @@ import { EditorsVisibleContext, EditorAreaFocusContext, IsSessionsWindowContext 
 import { SessionsCategories } from '../../../../common/categories.js';
 import { RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
-import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem } from './sessionsList.js';
+import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID } from './sessionsList.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
-import { IsWorkspaceGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext, openSessionToTheSide } from './sessionsView.js';
+import { IsWorkspaceGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from './sessionsView.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -36,10 +36,10 @@ import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHos
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
+import { registerExternalSessionsFilterMenu } from '../../../../../workbench/contrib/chat/browser/agentSessions/externalSessionsFilterMenu.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { AUTOMATIONS_CUSTOM_VIEW_ID } from './automationsView.js';
+import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
 
 const CLOSE_SESSION_COMMAND_ID = 'sessionsViewPane.closeSession';
 registerAction2(class CloseSessionAction extends Action2 {
@@ -85,7 +85,7 @@ function digitToKeyCode(digit: number): KeyCode {
 	}
 }
 
-const openSessionAtIndex = (accessor: ServicesAccessor, sessionIndex: unknown): void => {
+const openSessionAtIndex = async (accessor: ServicesAccessor, sessionIndex: unknown): Promise<void> => {
 	if (typeof sessionIndex !== 'number') {
 		return;
 	}
@@ -103,7 +103,9 @@ const openSessionAtIndex = (accessor: ServicesAccessor, sessionIndex: unknown): 
 	if (!target) {
 		return;
 	}
-	sessionsService.openSession(target.resource);
+	if (await sessionsService.canOpenSession(target)) {
+		await sessionsService.openChat(target, target.mainChat.get().resource, { source: 'sessionsList' });
+	}
 };
 
 CommandsRegistry.registerCommand({
@@ -162,7 +164,9 @@ const navigateSessionInList = async (accessor: ServicesAccessor, direction: 'pre
 
 	const target = visible[targetIndex];
 	if (target) {
-		await sessionsService.openSession(target.resource);
+		if (await sessionsService.canOpenSession(target)) {
+			await sessionsService.openChat(target, target.mainChat.get().resource, { source: 'navigation' });
+		}
 	}
 };
 
@@ -185,7 +189,7 @@ registerAction2(class NavigatePreviousSessionAction extends Action2 {
 				secondary: [KeyMod.Alt | KeyCode.UpArrow],
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.LeftArrow,
-					secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.BracketLeft, KeyMod.Alt | KeyCode.UpArrow],
+					secondary: [KeyMod.Alt | KeyCode.UpArrow],
 				},
 			},
 			menu: [{
@@ -219,7 +223,7 @@ registerAction2(class NavigateNextSessionAction extends Action2 {
 				secondary: [KeyMod.Alt | KeyCode.DownArrow],
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.RightArrow,
-					secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.BracketRight, KeyMod.Alt | KeyCode.DownArrow],
+					secondary: [KeyMod.Alt | KeyCode.DownArrow],
 				},
 			},
 			menu: [{
@@ -260,6 +264,8 @@ MenuRegistry.appendMenuItem(SessionsViewFilterSubMenu, {
 	group: '0_filter',
 	order: 0,
 });
+
+registerExternalSessionsFilterMenu(SessionsViewFilterOptionsSubMenu, Menus.SessionsViewExternalFilter, '2_external');
 
 //  Sort / Group Actions
 
@@ -437,15 +443,31 @@ registerAction2(class FindSessionAction extends Action2 {
 registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 	constructor() {
 		super({
-			id: 'sessionsView.sectionNewSession',
+			id: NEW_SESSION_FOR_WORKSPACE_ACTION_ID,
 			title: localize2('newSessionForWorkspace', "New Session"),
 			icon: Codicon.plus,
-			menu: [{
-				id: SessionSectionToolbarMenuId,
-				group: 'navigation',
-				order: 1,
-				when: ContextKeyExpr.equals(SessionSectionTypeContext.key, 'workspace'),
-			}]
+			menu: [
+				{
+					id: SessionSectionToolbarMenuId,
+					group: 'navigation',
+					order: 0,
+					when: ContextKeyExpr.and(
+						ChatContextKeys.enabled,
+						SessionSectionHasNonCloudRepositoryContext,
+						ContextKeyExpr.equals(SessionSectionTypeContext.key, 'workspace'))
+				},
+				{
+					id: SessionSectionToolbarMenuId,
+					group: 'navigation',
+					order: 0,
+					when: ContextKeyExpr.and(
+						ContextKeyExpr.equals(SessionSectionTypeContext.key, 'workspace'),
+						ContextKeyExpr.or(
+							ChatContextKeys.enabled.negate(),
+							SessionSectionHasNonCloudRepositoryContext.negate()),
+					),
+				},
+			]
 		});
 	}
 	async run(accessor: ServicesAccessor, context?: ISessionSection): Promise<void> {
@@ -567,7 +589,7 @@ abstract class BaseArchiveSectionAction extends Action2 {
 			menu: [{
 				id: SessionSectionToolbarMenuId,
 				group: 'navigation',
-				order: 0,
+				order: 1,
 				// Not on Done itself, and not on the "Chats" (quick chats) section.
 				// Also not on Automations.
 				when: ContextKeyExpr.and(
@@ -862,8 +884,8 @@ abstract class BaseArchiveSessionAction extends Action2 {
 				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
 			}, {
 				id: Menus.SessionBarToolbar,
-				group: '1_session',
-				order: 5,
+				group: 'secondary/1_session',
+				order: 30,
 				when: ContextKeyExpr.and(SessionIsCreatedContext, ContextKeyExpr.equals(SessionIsArchivedContext.key, false)),
 			}]
 		});
@@ -911,7 +933,7 @@ abstract class BaseUnarchiveSessionAction extends Action2 {
 				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, true),
 			}, {
 				id: Menus.SessionBarToolbar,
-				group: 'navigation',
+				group: 'secondary/1_session',
 				order: 5,
 				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, true),
 			}]
@@ -951,6 +973,7 @@ registerAction2(class RenameSessionAction extends Action2 {
 		super({
 			id: RENAME_SESSION_COMMAND_ID,
 			title: localize2('renameSession', "Rename..."),
+			icon: Codicon.edit,
 			menu: [{
 				id: SessionItemContextMenuId,
 				group: '1_edit',
@@ -1132,7 +1155,7 @@ registerAction2(class OpenSessionToTheSideAction extends Action2 {
 		}
 
 		const lastRequested = sessions[sessions.length - 1];
-		await openSessionToTheSide(sessionsService, lastRequested);
+		await sessionsService.openSessionToSide(lastRequested, { source: 'sessionsList' });
 
 		const visibleAfterOpen = sessionsService.visibleSessions.get();
 		const opened = visibleAfterOpen.find(s => s?.sessionId === lastRequested.sessionId);
@@ -1283,7 +1306,7 @@ registerAction2(class MarkAllAutomationRunsReadAction extends Action2 {
 		const sessions = new Map<string, ISession>();
 		for (const run of runs) {
 			if ((run.status === 'completed' || run.status === 'failed') && run.sessionResource) {
-				const session = sessionsManagementService.getSession(URI.parse(run.sessionResource));
+				const session = sessionsManagementService.getSession(run.sessionResource);
 				if (session && !session.isRead.get()) {
 					sessions.set(session.resource.toString(), session);
 				}

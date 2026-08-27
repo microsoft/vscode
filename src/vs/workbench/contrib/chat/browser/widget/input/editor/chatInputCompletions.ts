@@ -735,7 +735,7 @@ class StartParameterizedPromptAction extends Action2 {
 				after: {
 					content: ' ',
 					inlineClassNameAffectsLetterSpacing: true,
-					inlineClassName: ThemeIcon.asClassName(ThemeIcon.modify(Codicon.loading, 'spin')) + ' chat-prompt-spinner',
+					inlineClassName: ThemeIcon.asClassName(ThemeIcon.modify(Codicon.loadingCompact, 'spin')) + ' chat-prompt-spinner',
 				}
 			});
 			store.add(toDisposable(() => {
@@ -1038,7 +1038,7 @@ class BuiltinDynamicCompletions extends Disposable {
 				// User has typed #session: — fetch all sessions and show them inline
 				const allSessions: { title: string; sessionResource: URI; lastMessageDate: number; icon: ThemeIcon }[] = [];
 
-				const sessionProviderFilter = [AgentSessionProviders.Local, AgentSessionProviders.Background, AgentSessionProviders.Claude, AgentSessionProviders.AgentHostCopilot];
+				const sessionProviderFilter = [AgentSessionProviders.Local, AgentSessionProviders.Background, AgentSessionProviders.AgentHostCopilot];
 				for await (const group of this.chatSessionsService.getChatSessionItems(sessionProviderFilter, token)) {
 					if (token.isCancellationRequested) {
 						return;

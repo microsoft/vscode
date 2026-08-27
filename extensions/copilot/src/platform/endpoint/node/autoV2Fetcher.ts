@@ -51,9 +51,9 @@ export class AutoV2Error extends Error {
 }
 
 /**
- * Fetches a model selection from `POST /auto`, which collapses the legacy
- * two-call flow (`/models/session` then `/models/session/intent`) into one
- * request and embeds the chosen model's metadata.
+ * Fetches a model selection from `POST /auto`, which picks the model for a
+ * prompt, mints the session token the chat request bills against, and embeds
+ * the chosen model's metadata — all in a single request.
  */
 export class AutoV2Fetcher {
 	private static readonly TIMEOUT_MS = 5000;
@@ -75,11 +75,6 @@ export class AutoV2Fetcher {
 			vscodeRequestId?: string;
 			/** Routing profile for the session. Omitted lets the server pick its own default. */
 			tier?: AutoModeTier;
-			/**
-			 * Set when the call only reads `discounted_costs` for the picker.
-			 * Keeps the placeholder prompt out of telemetry and the request log.
-			 */
-			isDiscountProbe?: boolean;
 		} = {},
 	): Promise<AutoV2Response> {
 		const startTime = Date.now();
@@ -123,11 +118,6 @@ export class AutoV2Fetcher {
 
 		const result = await response.json() as AutoV2Response;
 		const e2eLatencyMs = Date.now() - startTime;
-		if (options.isDiscountProbe) {
-			// Only `discounted_costs` is consumed; the selection is discarded.
-			this._logService.trace(`[AutoV2Fetcher] Discount probe resolved in ${e2eLatencyMs}ms`);
-			return result;
-		}
 		if (!result.selected_model?.id) {
 			throw new AutoV2Error('Auto response did not contain a selected model', response.status);
 		}

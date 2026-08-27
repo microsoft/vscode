@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/voiceGlow.css';
+import { $ } from '../../../../../base/browser/dom.js';
 import { Color } from '../../../../../base/common/color.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { DEFAULT_VOICE_GLOW_COLORS, GlowThemeKind, IVoiceGlowColors, resolveVoiceRimAccent, voiceGlowStateColor, VoiceGlowState, VoiceRimMood } from './voiceGlow.js';
@@ -13,9 +14,8 @@ export type { GlowThemeKind };
 /**
  * The DOM applier for the Voice Mode ambient glow.
  *
- * `listening` and `speaking` render an audio-reactive interior RIM — cool while
- * the user speaks, warm while the agent speaks. Every other state renders
- * nothing, so the glow means "someone is talking" rather than "voice is on".
+ * `listening` and `speaking` render an audio-reactive interior rim. Every other
+ * state renders nothing.
  *
  * Every state change is a true cross-fade between two buffered slots, so
  * `listening -> speaking` dissolves cool -> warm rather than snapping. Colors are
@@ -170,14 +170,13 @@ function mountRimLayers(host: HTMLElement, options: {
 	readonly size?: number;
 }): IMountedLayer {
 	const store = new DisposableStore();
-	const doc = host.ownerDocument;
 
 	const moodClass = `voice-glow-rim-${options.mood}`;
 	host.classList.add('voice-glow-rim', moodClass);
 	store.add(toDisposable(() => host.classList.remove('voice-glow-rim', moodClass)));
 
 	for (const cls of ['voice-glow-rim-corners', 'voice-glow-rim-bloom']) {
-		const el = doc.createElement('div');
+		const el = $('div');
 		el.className = cls;
 		host.appendChild(el);
 		store.add(toDisposable(() => el.remove()));
@@ -279,13 +278,11 @@ const RIM_SIZE_FLOOR = 0.35;
  */
 export function createVoiceRimLight(target: HTMLElement, accent: Color, theme: GlowThemeKind, mood: VoiceRimMood = 'cool', background?: Color): IVoiceRimLight {
 	const store = new DisposableStore();
-	const doc = target.ownerDocument;
 
 	if (!target.style.position) {
 		target.style.position = 'relative';
 	}
-	const slot = doc.createElement('div');
-	slot.className = 'voice-glow-slot voice-glow-slot-inline';
+	const slot = $('.voice-glow-slot.voice-glow-slot-inline');
 	target.appendChild(slot);
 	store.add(toDisposable(() => slot.remove()));
 
@@ -351,31 +348,35 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 		private readonly _colorsProvider: () => IVoiceGlowColors = () => DEFAULT_VOICE_GLOW_COLORS,
 	) {
 		super();
-		this._colors = this._colorsProvider();
-		_target.style.position = _target.style.position || 'relative';
+		try {
+			this._colors = this._colorsProvider();
+			_target.style.position = _target.style.position || 'relative';
 
-		const doc = _target.ownerDocument;
-		const createSlot = (): HTMLElement => {
-			const el = doc.createElement('div');
-			el.className = 'voice-glow-slot';
-			// Above the transcript overlay, which is opaque and would otherwise
-			// paint over the top of the box and leave the glow visible only along
-			// the bottom toolbar strip.
-			el.style.zIndex = '11';
-			_target.appendChild(el);
-			this._register(toDisposable(() => el.remove()));
-			this._mounts.set(el, this._register(new MutableDisposable<IMountedLayer>()));
-			return el;
-		};
-		this._slots = [createSlot(), createSlot()];
+			const createSlot = (): HTMLElement => {
+				const el = $('div');
+				el.className = 'voice-glow-slot';
+				// Above the transcript overlay, which is opaque and would otherwise
+				// paint over the top of the box and leave the glow visible only along
+				// the bottom toolbar strip.
+				el.style.zIndex = '11';
+				_target.appendChild(el);
+				this._register(toDisposable(() => el.remove()));
+				this._mounts.set(el, this._register(new MutableDisposable<IMountedLayer>()));
+				return el;
+			};
+			this._slots = [createSlot(), createSlot()];
 
-		this._register(toDisposable(() => {
-			this._disposed = true;
-			if (this._clearTimer !== undefined) {
-				clearTimeout(this._clearTimer);
-				this._clearTimer = undefined;
-			}
-		}));
+			this._register(toDisposable(() => {
+				this._disposed = true;
+				if (this._clearTimer !== undefined) {
+					clearTimeout(this._clearTimer);
+					this._clearTimer = undefined;
+				}
+			}));
+		} catch (error) {
+			this.dispose();
+			throw error;
+		}
 	}
 
 	override dispose(): void {
@@ -510,7 +511,8 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 
 	private _mount(host: HTMLElement, mood: RimMood): IMountedLayer {
 		const theme = this._themeKind();
-		const accent = resolveVoiceRimAccent(mood === 'warm' ? this._colors.speaking : this._colors.listening, mood, theme, this._colors.background);
+		const accentColor = mood === 'warm' ? this._colors.speaking : this._colors.listening;
+		const accent = resolveVoiceRimAccent(accentColor, mood, theme, this._colors.background);
 		return mountRimLayers(host, {
 			theme,
 			mood,
@@ -530,8 +532,7 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 
 /**
  * Map a voice state to the rim mood that renders it, or `undefined` for no glow.
- * Only the talking states glow: thinking and connected-idle render nothing, so
- * the light means "someone is talking" rather than "voice is on".
+ * Thinking and connected-idle render nothing.
  */
 function resolveMood(state: VoiceGlowState): RimMood | undefined {
 	switch (state) {

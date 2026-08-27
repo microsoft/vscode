@@ -5,7 +5,6 @@
 
 import { URI } from '../../../../../base/common/uri.js';
 import { constObservable } from '../../../../../base/common/observable.js';
-import { posix, win32 } from '../../../../../base/common/path.js';
 import { localize } from '../../../../../nls.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
@@ -19,13 +18,9 @@ import { IChatModel } from '../../common/model/chatModel.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../common/languageModels.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
-import { IVoiceDispatchResult, IVoiceModelReference, IVoiceToolCall, peekPendingId } from '../../common/voiceClient/voiceClientService.js';
+import { IVoiceDispatchResult, IVoiceModelReference, IVoiceToolCall, markPendingIdResolved, peekPendingId } from '../../common/voiceClient/voiceClientService.js';
 import { getVoiceConfirmationType } from '../../common/voiceClient/voiceConfirmation.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
-import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { isExplicitFileOrImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 
 /**
@@ -45,8 +40,6 @@ export interface IVoiceToolDispatchDelegate {
 	getTargetSessionResource(): URI | undefined;
 	/** Select a model in the currently shown voice input. */
 	selectModel(requestedModel: string): Promise<IVoiceModelSelectionResult>;
-	/** Attach files to the currently shown voice input. */
-	attachFiles(resources: readonly URI[]): Promise<IVoiceAttachmentResult>;
 	/** Get the set of auto-approved session resource strings. */
 	getAutoApprovedSessions(): Set<string>;
 	/** Mark all current sessions as auto-approved. */
@@ -62,13 +55,6 @@ export interface IVoiceModelSelectionResult {
 	readonly reason?: 'no_input' | 'model_not_found' | 'ambiguous_model' | 'selection_failed';
 	readonly selected_model?: IVoiceModelReference;
 	readonly available_models?: readonly IVoiceModelReference[];
-}
-
-export interface IVoiceAttachmentResult {
-	readonly ok: boolean;
-	readonly reason?: 'no_input' | 'no_file' | 'file_not_found' | 'ambiguous_file' | 'attachment_failed';
-	readonly attached?: readonly string[];
-	readonly candidates?: readonly string[];
 }
 
 function voiceModelReference(model: ILanguageModelChatMetadataAndIdentifier): IVoiceModelReference {
@@ -143,15 +129,12 @@ export const IVoiceToolDispatchService = createDecorator<IVoiceToolDispatchServi
 /** Action labels displayed in the status bar during tool execution. */
 const ACTION_LABELS: Record<string, string> = {
 	send_to_chat: localize('agentsVoice.action.sendToChat', "Sending to chat..."),
-	new_sessions: localize('agentsVoice.action.newSessions', "Starting new sessions..."),
 	get_session_info: localize('agentsVoice.action.getSessionInfo', "Checking sessions..."),
 	get_session_changes: localize('agentsVoice.action.getSessionChanges', "Checking changes..."),
 	get_session_thread: localize('agentsVoice.action.getSessionThread', "Checking conversation..."),
 	respond_to_session: localize('agentsVoice.action.respond', "Responding..."),
 	focus_session: localize('agentsVoice.action.focusSession', "Focusing session..."),
 	set_model: localize('agentsVoice.action.setModel', "Changing model..."),
-	attach_file: localize('agentsVoice.action.attachFile', "Attaching file..."),
-	attach_files: localize('agentsVoice.action.attachFiles', "Attaching files..."),
 	auto_approve_session: localize('agentsVoice.action.autoApprove', "Auto-approving session..."),
 	revoke_auto_approve: localize('agentsVoice.action.revokeAutoApprove', "Revoking auto-approve..."),
 };
@@ -166,9 +149,6 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IChatService private readonly chatService: IChatService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IFileService private readonly fileService: IFileService,
 	) { }
 
 	setDelegate(delegate: IVoiceToolDispatchDelegate): void {
@@ -230,29 +210,6 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 				}
 				break;
 			}
-			case 'new_sessions': {
-				const sessions = args['sessions'];
-				const items: { text?: string }[] = Array.isArray(sessions) ? sessions : [{ text: argString('text') }];
-				let firstResource: URI | undefined;
-				for (const item of items) {
-					const text = item.text;
-					if (text) {
-						const ref = this.chatService.startNewLocalSession(ChatAgentLocation.Chat);
-						const resource = ref.object.sessionResource;
-						if (!firstResource) {
-							firstResource = resource;
-						}
-						await this.chatService.sendRequest(resource, text, this._agentModeOptions);
-						ref.dispose();
-					}
-				}
-				if (firstResource) {
-					if (await delegate.switchToSession(firstResource)) {
-						delegate.setTargetSession(firstResource);
-					}
-				}
-				break;
-			}
 			case 'focus_session': {
 				const targetSessionId = argString('coding_session_id');
 				const targetResource = this._findSessionResource(targetSessionId);
@@ -277,18 +234,6 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 					return JSON.stringify(target);
 				}
 				return JSON.stringify(await delegate.selectModel(requestedModel));
-			}
-			case 'attach_file':
-			case 'attach_files': {
-				const target = await this._showActionTarget(argString('coding_session_id'));
-				if (!target.ok) {
-					return JSON.stringify(target);
-				}
-				const resolved = await this._resolveAttachmentResources(args);
-				if (!resolved.ok) {
-					return JSON.stringify(resolved);
-				}
-				return JSON.stringify(await delegate.attachFiles(resolved.resources));
 			}
 			case 'auto_approve_session': {
 				delegate.addAllAutoApprovedSessions();
@@ -358,62 +303,6 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 			delegate.setTargetSession(resource);
 		}
 		return { ok: true, resource };
-	}
-
-	private async _resolveAttachmentResources(args: Record<string, unknown>): Promise<
-		{ ok: true; resources: readonly URI[] }
-		| { ok: false; reason: NonNullable<IVoiceAttachmentResult['reason']>; candidates?: readonly string[] }
-	> {
-		const uriValues = [args['uri'], ...(Array.isArray(args['uris']) ? args['uris'] : [])]
-			.filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
-		const pathValues = [args['path'], ...(Array.isArray(args['paths']) ? args['paths'] : [])]
-			.filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
-		if (uriValues.length === 0 && pathValues.length === 0) {
-			const activeResource = EditorResourceAccessor.getCanonicalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
-			return activeResource ? { ok: true, resources: [activeResource] } : { ok: false, reason: 'no_file' };
-		}
-
-		const resources: URI[] = [];
-		for (const rawValue of uriValues) {
-			const value = rawValue.trim();
-			let resource: URI;
-			try {
-				resource = URI.parse(value, true);
-			} catch {
-				return { ok: false, reason: 'file_not_found', candidates: [value] };
-			}
-			if (!await this.fileService.exists(resource)) {
-				return { ok: false, reason: 'file_not_found', candidates: [value] };
-			}
-			resources.push(resource);
-		}
-
-		for (const rawValue of pathValues) {
-			const value = rawValue.trim();
-			const isWindowsPath = win32.isAbsolute(value);
-			if (isWindowsPath || posix.isAbsolute(value)) {
-				const resource = URI.file(isWindowsPath ? value.replaceAll('\\', '/') : value);
-				if (!await this.fileService.exists(resource)) {
-					return { ok: false, reason: 'file_not_found', candidates: [value] };
-				}
-				resources.push(resource);
-				continue;
-			}
-
-			const relativePath = value.replace(/^\.[\\/]/, '').replaceAll('\\', '/');
-			const candidates = this.workspaceContextService.getWorkspace().folders
-				.map(folder => URI.joinPath(folder.uri, relativePath));
-			const exists = await Promise.all(candidates.map(candidate => this.fileService.exists(candidate)));
-			const matches = candidates.filter((_candidate, index) => exists[index]);
-			if (matches.length === 0) {
-				return { ok: false, reason: 'file_not_found', candidates: [value] };
-			}
-			if (matches.length > 1) {
-				return { ok: false, reason: 'ambiguous_file', candidates: matches.map(match => match.toString()) };
-			}
-			resources.push(matches[0]);
-		}
-		return { ok: true, resources };
 	}
 
 	/**
@@ -498,6 +387,10 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 			if (getVoiceConfirmationType([part]) !== 'tool') {
 				return { ok: false, reason: 'unsupported' };
 			}
+			// A provider may keep multiple rehydrated copies pending while it sends
+			// this response. Retire the shared occurrence before invoking the callback
+			// so none of those copies can submit the same approval a second time.
+			markPendingIdResolved(pendingId);
 			const confirmed = IChatToolInvocation.confirmWith(
 				part as IChatToolInvocation,
 				approve ? { type: ToolConfirmKind.UserAction } : { type: ToolConfirmKind.Denied },

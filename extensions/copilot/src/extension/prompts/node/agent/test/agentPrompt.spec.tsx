@@ -243,38 +243,6 @@ testFamilies.forEach(family => {
 			expect(rendered).not.toContain('repoMemory');
 		});
 
-		test('semantic search preference instructions render only in preferred mode', async () => {
-			const toolsService = accessor.get(IToolsService);
-			const configurationService = accessor.get(IConfigurationService);
-			const promptContext = {
-				chatVariables: new ChatVariablesCollection(),
-				history: [],
-				query: 'hello',
-				tools: {
-					availableTools: toolsService.tools,
-					toolInvocationToken: null as never,
-					toolReferences: [],
-				}
-			};
-			const withoutSemanticSearch = {
-				...promptContext,
-				tools: { ...promptContext.tools, availableTools: toolsService.tools.filter(t => t.name !== ToolName.Codebase) }
-			};
-			const rendersBlock = async (context: IBuildPromptContext) => (await agentPromptToString(accessor, context, undefined)).includes('semantic_search_requirements');
-
-			try {
-				const defaultMode = await rendersBlock(promptContext);
-				await configurationService.setConfig(ConfigKey.SemanticSearchToolMode, 'preferred');
-				expect({
-					defaultMode,
-					preferredMode: await rendersBlock(promptContext),
-					preferredModeWithoutTool: await rendersBlock(withoutSemanticSearch),
-				}).toEqual({ defaultMode: false, preferredMode: true, preferredModeWithoutTool: false });
-			} finally {
-				await configurationService.setConfig(ConfigKey.SemanticSearchToolMode, 'enabled');
-			}
-		});
-
 		test('one attachment', async () => {
 			await expect(await agentPromptToString(accessor, {
 				chatVariables: new ChatVariablesCollection([{ id: 'vscode.file', name: 'file', value: fileTsUri }]),

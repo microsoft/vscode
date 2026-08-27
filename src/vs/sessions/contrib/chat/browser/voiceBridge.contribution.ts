@@ -6,14 +6,14 @@
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { basename, isEqual } from '../../../../base/common/resources.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
 import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceInputUtils.js';
-import { IVoiceAttachmentResult, IVoiceModelSelectionResult, resolveVoiceModel } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceToolDispatchService.js';
+import { IVoiceModelSelectionResult, resolveVoiceModel } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceToolDispatchService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL } from './newChatVoice.js';
@@ -116,25 +116,6 @@ class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchCo
 			return selected ? resolved : { ok: false, reason: 'selection_failed', available_models: resolved.available_models };
 		}));
 
-		this._commandDisposables.add(CommandsRegistry.registerCommand('_chat.voice.attachFiles', async (_accessor, resourceStrings: readonly string[]): Promise<IVoiceAttachmentResult> => {
-			const composer = this._activeComposerTarget();
-			const widget = composer ? undefined : this._activeSessionWidget() ?? this.chatWidgetService.lastFocusedWidget;
-			if (!composer && !widget) {
-				return { ok: false, reason: 'no_input' };
-			}
-			try {
-				const resources = resourceStrings.map(resource => URI.parse(resource));
-				if (composer) {
-					composer.attach(resources);
-				} else {
-					await Promise.all(resources.map(resource => widget!.attachmentModel.addFile(resource)));
-				}
-				return { ok: true, attached: resources.map(resource => basename(resource)) };
-			} catch {
-				return { ok: false, reason: 'attachment_failed' };
-			}
-		}));
-
 		// Reveal the session that owns the given chat resource.
 		this._commandDisposables.add(CommandsRegistry.registerCommand('_chat.voice.switchToSession', async (_accessor, resourceStr: string): Promise<boolean> => {
 			if (!resourceStr) {
@@ -156,7 +137,7 @@ class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchCo
 			// Chat resources map to their owning session and chat.
 			const owner = this.sessionsManagementService.getSessionForChatResource(resource);
 			if (owner) {
-				await this.sessionsService.openSession(owner.session.resource, { preserveFocus: true });
+				await this.sessionsService.openSession(owner.session.resource, { preserveFocus: true, source: 'voice' });
 				if (!isEqual(owner.chat.resource, owner.session.resource)) {
 					await this.sessionsService.openChat(owner.session, owner.chat.resource);
 				}
@@ -166,12 +147,12 @@ class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchCo
 			// Otherwise, treat it as a session resource.
 			const session = this.sessionsManagementService.getSession(resource);
 			if (session) {
-				await this.sessionsService.openSession(session.resource, { preserveFocus: true });
+				await this.sessionsService.openSession(session.resource, { preserveFocus: true, source: 'voice' });
 				return true;
 			}
 
 			try {
-				await this.sessionsService.openSession(resource, { preserveFocus: true });
+				await this.sessionsService.openSession(resource, { preserveFocus: true, source: 'voice' });
 				return true;
 			} catch {
 				return false;

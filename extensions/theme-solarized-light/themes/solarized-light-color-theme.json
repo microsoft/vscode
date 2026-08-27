@@ -502,7 +502,11 @@
 		// terminal is in the side bar
 		"terminal.background": "#FDF6E3",
 		// Interactive Playground
-		"walkThrough.embeddedEditorBackground": "#00000014"
+		"walkThrough.embeddedEditorBackground": "#00000014",
+		// modern ui
+		"surface.border": "#ddd6c1",
+		"modernActivityBarItem.activeBackground": "#DFCA88",
+		"modernActivityBar.background": "#00000000",
 	},
 	"semanticHighlighting": true
 }

@@ -429,6 +429,20 @@ export class CodeApplication extends Disposable {
 				}
 			}
 
+			if (uri.scheme === Schemas.vscodeManagedRemoteResource) {
+				let frame: WebFrameMain | null | undefined = details.frame;
+				if (!frame || frame.isDestroyed()) {
+					this.logService.error('Blocked vscode-managed-remote-resource request', details.url);
+					return callback({ cancel: true });
+				}
+				for (; frame; frame = frame.parent) {
+					if (frame.isDestroyed() || frame.url.startsWith(`${Schemas.vscodeWebview}://`)) {
+						this.logService.error('Blocked vscode-managed-remote-resource request', details.url);
+						return callback({ cancel: true });
+					}
+				}
+			}
+
 			// Block most svgs
 			if (uri.path.endsWith('.svg')) {
 				const isSafeResourceUrl = supportedSvgSchemes.has(uri.scheme);
@@ -736,8 +750,9 @@ export class CodeApplication extends Disposable {
 		// request. The renderer only requests a connection when the runtime is
 		// available and AI features are enabled there, which the main process
 		// cannot fully observe.
-		const agentHostStarter = new ElectronAgentHostStarter({ machineId, sqmId, devDeviceId }, this.configurationService, this.environmentMainService, this.lifecycleMainService, this.logService);
-		this._register(appInstantiationService.createInstance(AgentHostProcessManager, agentHostStarter));
+		const agentHostStarter = appInstantiationService.createInstance(ElectronAgentHostStarter, { machineId, sqmId, devDeviceId });
+		// This manager self-disposes after its lifecycle join; CodeApplication disposes before later shutdown listeners run.
+		appInstantiationService.createInstance(AgentHostProcessManager, agentHostStarter, process.platform);
 
 		// Metered connection telemetry
 		appInstantiationService.invokeFunction(accessor => {
@@ -828,6 +843,10 @@ export class CodeApplication extends Disposable {
 		protocol.registerBufferProtocol(Schemas.vscodeManagedRemoteResource, (request, callback) => {
 			const url = URI.parse(request.url);
 			if (!url.authority.startsWith('window:')) {
+				return callback(notFound());
+			}
+
+			if (!request.referrer || request.referrer.startsWith(`${Schemas.vscodeWebview}://`)) {
 				return callback(notFound());
 			}
 
