@@ -14,7 +14,7 @@ import { EditorExtensions, EditorInputCapabilities, IEditorFactoryRegistry } fro
 import { URI } from '../../../../../base/common/uri.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { IKeybindingService, IKeyboardEvent } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ResultKind, ResolutionResult } from '../../../../../platform/keybinding/common/keybindingResolver.js';
 import { MockKeybindingService, MockScopableContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
@@ -28,7 +28,7 @@ import { EditorService } from '../../browser/editorService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { Memento } from '../../../../common/memento.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService, IContextKeyServiceTarget } from '../../../../../platform/contextkey/common/contextkey.js';
 import { EditorPartModalVisibleContext } from '../../../../common/contextkeys.js';
 import { CLOSE_MODAL_EDITOR_COMMAND_ID } from '../../../../browser/parts/editor/editorCommands.js';
 
@@ -126,7 +126,7 @@ suite('Modal Editor Group', () => {
 			override softDispatch(): ResolutionResult {
 				return { kind: ResultKind.KbFound, commandId: CLOSE_MODAL_EDITOR_COMMAND_ID, commandArgs: undefined, isBubble: true };
 			}
-			override dispatchEvent(): boolean {
+			override dispatchEvent(_event: IKeyboardEvent, _target: IContextKeyServiceTarget): boolean {
 				dispatchCount++;
 				return false;
 			}
