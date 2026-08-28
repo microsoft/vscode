@@ -13,6 +13,7 @@ import { IMcpSandboxConfiguration, IMcpServerConfiguration, McpServerType } from
 import { IWorkspaceFolderData } from '../../../../../../platform/workspace/common/workspace.js';
 import { AICustomizationSource, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
+import { IAgentHostMcpServerSupportCoverage } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { ExternalDiscoverySource } from '../../../../mcp/common/mcpConfiguration.js';
 import { CURSOR_WORKSPACE_MCP_COLLECTION_ID_PREFIX, extensionMcpCollectionPrefix, extensionPrefixedIdentifier, getMcpCollectionProvenance, IMcpConfigPath, IMcpServer, LazyCollectionState, MCP_CONFIGURATION_COLLECTION_ID_PREFIX, MCP_PLUGIN_COLLECTION_ID_PREFIX, McpCollectionDefinition, McpCollectionProvenance, McpServerDefinition, McpServerEnablementState, McpServerLaunch, McpServerTransportType, WORKSPACE_DOT_MCP_COLLECTION_ID_PREFIX } from '../../../../mcp/common/mcpTypes.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
@@ -124,12 +125,7 @@ export interface IAgentHostMcpServerSupportAssessment {
 }
 
 export interface IAgentHostMcpServerSupportSnapshot extends IAgentHostMcpServerSupportAssessment {
-	readonly coverage: {
-		/** Some installed servers may be absent or disabled because MCP access is restricted. */
-		readonly restrictedByMcpAccess: boolean;
-		/** Customization policy may prevent otherwise supported servers from reaching the host. */
-		readonly restrictedByCustomizationPolicy: boolean;
-	};
+	readonly coverage: IAgentHostMcpServerSupportCoverage;
 }
 
 /** Internal delivery data shared by support reporting and the actual forwarding path. */
