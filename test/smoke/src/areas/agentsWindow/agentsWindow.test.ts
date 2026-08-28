@@ -39,6 +39,7 @@ const CODEX_WARMUP_REPLY = 'MOCKED_CODEX_WARMUP_RESPONSE';
 
 const AGENT_HOST_SCENARIO_ID = 'smoke-hello-agent-host';
 const AGENT_HOST_REPLY = 'MOCKED_AGENT_HOST_RESPONSE';
+const AGENT_HOST_MODEL = 'gpt-5.3-codex';
 
 const AGENT_HOST_SANDBOX_SCENARIO_ID = 'smoke-hello-agent-host-sandbox';
 const AGENT_HOST_SANDBOX_REPLY = 'MOCKED_AGENT_HOST_SANDBOX_RESPONSE';
@@ -520,7 +521,6 @@ function setupAgentHostSuite(logger: Logger, config: {
 			extraEnv: {
 				...(opts.extraEnv ?? {}),
 				...getCopilotSmokeTestEnv(mockServer, { userDataDir: opts.userDataDir }),
-				COPILOT_ENABLE_ALT_PROVIDERS: 'true',
 				COPILOT_API_URL: getMockLlmServerUrl(mockServer),
 				COPILOT_DEBUG_GITHUB_API_URL: getMockLlmServerUrl(mockServer),
 				GITHUB_COPILOT_API_TOKEN: 'smoketest-fake-agent-host-token',
@@ -548,6 +548,8 @@ function setupAgentHostSuite(logger: Logger, config: {
 				'chat.agentHost.unsafeTestToken': 'smoketest-fake-agent-host-token',
 				// Verbose Copilot runtime logging for capturable failure diagnostics.
 				'chat.agentHost.copilotSdk.logLevel': 'trace',
+				// These suites exercise Agent Host and sandbox behavior, not Auto routing.
+				'chat.defaultModel': AGENT_HOST_MODEL,
 				...config.settings,
 			}, null, 2);
 			for (const settingsPath of [
