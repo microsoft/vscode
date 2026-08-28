@@ -31,11 +31,17 @@ suite('AgentHostSessionOpenTelemetry', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const session = AgentSession.uri('copilotcli', 'session');
 	const defaultChat = URI.parse(buildDefaultChatUri(session));
+	const createService = (telemetryService: TestTelemetryService, providers: readonly string[] = ['copilotcli']) => disposables.add(new AgentHostSessionOpenTelemetry(telemetryService, {
+		getProviderForSession: session => {
+			const provider = AgentSession.provider(session);
+			return provider && providers.includes(provider) ? { id: provider } : undefined;
+		},
+	}));
 
 	test('emits ordered subscribe, restore, and SDK resume milestones', async () => {
 		await runWithFakedTimers({ useFakeTimers: true, startTime: 1_000 }, async () => {
 			const telemetryService = new TestTelemetryService();
-			const service = disposables.add(new AgentHostSessionOpenTelemetry(telemetryService));
+			const service = createService(telemetryService);
 			await service.withSubscription(defaultChat, async telemetry => {
 				telemetry.setServedFromMemory(false);
 				await timeout(5);
@@ -71,7 +77,7 @@ suite('AgentHostSessionOpenTelemetry', () => {
 	test('records warm subscriptions without restore or SDK resume milestones', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const telemetryService = new TestTelemetryService();
-			const service = disposables.add(new AgentHostSessionOpenTelemetry(telemetryService));
+			const service = createService(telemetryService);
 			await service.withSubscription(session, async telemetry => telemetry.setServedFromMemory(true));
 
 			assert.deepStrictEqual(telemetryService.events.map(event => event.data), [{
@@ -95,7 +101,7 @@ suite('AgentHostSessionOpenTelemetry', () => {
 	test('accumulates retries and reports fallback creation without duplicate emission', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const telemetryService = new TestTelemetryService();
-			const service = disposables.add(new AgentHostSessionOpenTelemetry(telemetryService));
+			const service = createService(telemetryService);
 			await service.withSubscription(session, async telemetry => {
 				telemetry.setServedFromMemory(false);
 				telemetry.restoreStarted(true);
@@ -129,7 +135,7 @@ suite('AgentHostSessionOpenTelemetry', () => {
 	test('does not attribute an in-flight SDK resume to a late subscriber', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const telemetryService = new TestTelemetryService();
-			const service = disposables.add(new AgentHostSessionOpenTelemetry(telemetryService));
+			const service = createService(telemetryService);
 			const first = service.withSubscription(session, async telemetry => {
 				telemetry.setServedFromMemory(false);
 				await service.withSdkResume(session, () => timeout(20));
@@ -155,7 +161,7 @@ suite('AgentHostSessionOpenTelemetry', () => {
 
 	test('emits one failure outcome and rethrows the subscription error', async () => {
 		const telemetryService = new TestTelemetryService();
-		const service = disposables.add(new AgentHostSessionOpenTelemetry(telemetryService));
+		const service = createService(telemetryService);
 		const expectedError = new Error('Restore failed');
 
 		await assert.rejects(service.withSubscription(defaultChat, async telemetry => {
@@ -177,7 +183,8 @@ suite('AgentHostSessionOpenTelemetry', () => {
 
 	test('emits subscription telemetry for current and future providers', async () => {
 		const telemetryService = new TestTelemetryService();
-		const service = disposables.add(new AgentHostSessionOpenTelemetry(telemetryService));
+		const providers = [CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, 'future'];
+		const service = createService(telemetryService, providers);
 		for (const provider of [CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, 'future']) {
 			await service.withSubscription(AgentSession.uri(provider, 'session'), async telemetry => {
 				telemetry.setServedFromMemory(false);
@@ -185,9 +192,13 @@ suite('AgentHostSessionOpenTelemetry', () => {
 				telemetry.restoreCompleted();
 			});
 		}
+		const terminalResult = await service.withSubscription(URI.parse('agenthost-terminal:/terminal'), async () => 'terminal');
+		const unknownResult = await service.withSubscription(AgentSession.uri('unknown', 'session'), async () => 'unknown');
 
-		assert.deepStrictEqual(
-			telemetryService.events.map(event => ({
+		assert.deepStrictEqual({
+			terminalResult,
+			unknownResult,
+			events: telemetryService.events.map(event => ({
 				name: event.name,
 				provider: event.data.provider,
 				channel: event.data.channel,
@@ -195,18 +206,21 @@ suite('AgentHostSessionOpenTelemetry', () => {
 				sdkResumeOutcome: event.data.sdkResumeOutcome,
 				sdkResumeAttemptCount: event.data.sdkResumeAttemptCount,
 			})),
-			[
+		}, {
+			terminalResult: 'terminal',
+			unknownResult: 'unknown',
+			events: [
 				{ name: 'agentHost.sessionSubscribe', provider: 'claude', channel: 'session', outcome: 'success', sdkResumeOutcome: undefined, sdkResumeAttemptCount: undefined },
 				{ name: 'agentHost.sessionSubscribe', provider: 'codex', channel: 'session', outcome: 'success', sdkResumeOutcome: undefined, sdkResumeAttemptCount: undefined },
 				{ name: 'agentHost.sessionSubscribe', provider: 'future', channel: 'session', outcome: 'success', sdkResumeOutcome: undefined, sdkResumeAttemptCount: undefined },
 			],
-		);
+		});
 	});
 
 	test('emits a bounded timeout', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const telemetryService = new TestTelemetryService();
-			const service = disposables.add(new AgentHostSessionOpenTelemetry(telemetryService));
+			const service = createService(telemetryService);
 			const resume = new DeferredPromise<void>();
 			const subscription = service.withSubscription(session, async telemetry => {
 				telemetry.setServedFromMemory(false);

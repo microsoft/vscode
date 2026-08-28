@@ -9,8 +9,9 @@ import { StopWatch } from '../../../base/common/stopwatch.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { AgentSession, type AgentProvider } from '../common/agent.js';
+import type { AgentProvider } from '../common/agent.js';
 import { isAhpChatChannel, isDefaultChatUri, parseRequiredSessionUriFromChatUri } from '../common/state/sessionState.js';
+import { IAgentHostProviderService } from './agentHostProviderService.js';
 
 export const AgentHostSessionSubscribeTimeoutMs = 60_000;
 
@@ -70,6 +71,10 @@ type AgentHostSessionSubscribeClassification = {
 	totalDurationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds from subscribe receipt until the terminal outcome.' };
 };
 
+interface IAgentHostSessionProviderResolver {
+	getProviderForSession(session: URI | string): { readonly id: AgentProvider } | undefined;
+}
+
 class AgentHostSessionOpenTelemetryAttempt extends Disposable {
 	readonly stopwatch = StopWatch.create(false);
 	readonly resources = this._register(new DisposableStore());
@@ -104,6 +109,7 @@ export class AgentHostSessionOpenTelemetry extends Disposable implements IAgentH
 
 	constructor(
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IAgentHostProviderService private readonly _providerService: IAgentHostSessionProviderResolver,
 	) {
 		super();
 		this._register(toDisposable(() => {
@@ -291,7 +297,7 @@ export class AgentHostSessionOpenTelemetry extends Disposable implements IAgentH
 		const session = isAhpChatChannel(resourceString)
 			? URI.parse(parseRequiredSessionUriFromChatUri(resourceString))
 			: resource;
-		const provider = AgentSession.provider(session);
+		const provider = this._providerService.getProviderForSession(session)?.id;
 		if (!provider) {
 			return undefined;
 		}
