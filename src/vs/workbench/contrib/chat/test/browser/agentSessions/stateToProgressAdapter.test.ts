@@ -15,7 +15,7 @@ import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHo
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createAgentHostResourceUriMapper, fromAgentHostUri, toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, createErrorResponsePart, MessageAttachmentKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, withMessageHiddenFromTranscript, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, createErrorResponsePart, MessageAttachmentKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, withMessageHiddenFromTranscript, ToolCallCancellationReason, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, type Message, type ToolResultContent, type MessageEmbeddedResourceAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatTranscriptContextAttachmentDisplayKind, IChatRequestTranscriptContextVariableEntry, toChatTranscriptContextAttachmentMeta } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
@@ -131,6 +131,47 @@ function assertInputOutputDetails(details: unknown): asserts details is IToolRes
 suite('stateToProgressAdapter', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('embedded attachments without a content type', () => {
+
+		// A pasted image persisted with no `contentType`. Reading it unguarded
+		// threw, so the attachment rendered as a broken image.
+		//
+		// The protocol declares `contentType` required and every current producer
+		// sets it, so this record is only expressible by asserting past the
+		// declared type. That is exactly what it is: a record written by an older
+		// build, still on disk, that the type system says cannot exist.
+		const pastedImage = {
+			type: MessageAttachmentKind.EmbeddedResource,
+			label: 'Pasted Image',
+			displayKind: 'image',
+			data: 'iVBORw0KGgo=',
+		} as unknown as MessageEmbeddedResourceAttachment;
+
+		test('an image attachment with no content type still restores as an image', () => {
+			const restored = messageAttachmentsToVariableData([pastedImage], 'local')?.variables[0];
+
+			assert.strictEqual(restored?.kind, 'image');
+			assert.strictEqual(restored?.name, 'Pasted Image');
+		});
+
+		test('a declared content type still wins', () => {
+			const restored = messageAttachmentsToVariableData([{ ...pastedImage, contentType: 'image/gif' }], 'local')?.variables[0];
+
+			assert.ok(restored?.kind === 'image');
+			assert.strictEqual(restored.mimeType, 'image/gif');
+		});
+
+		test('a non-image attachment with no content type restores as generic, not as an image', () => {
+			const restored = messageAttachmentsToVariableData([{
+				type: MessageAttachmentKind.EmbeddedResource,
+				label: 'notes.txt',
+				data: 'aGVsbG8=',
+			} as unknown as MessageEmbeddedResourceAttachment], 'local')?.variables[0];
+
+			assert.strictEqual(restored?.kind, 'generic');
+		});
+	});
 
 	test('detects the canonical automatic reply answer', () => {
 		assert.deepStrictEqual([
