@@ -68,6 +68,7 @@ import { AICustomizationManagementCommands, getCustomizationMigrationHintDismiss
 import { ICustomizationMigrationService } from '../promptSyntax/service/customizationMigrationService.js';
 
 const serializedChatKey = 'interactive.sessions';
+const customizationMigrationHintShownStateKey = 'customizationMigrationHintShown';
 
 /**
  * True when the user has typed text or attached non-trivial context to the input
@@ -184,7 +185,6 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _queuedRequestDeferreds = new Map<string, DeferredPromise<ChatSendResult>>();
 	/** Pending requests that are synthetic streamed-turn trackers (not real in-flight requests). */
 	private readonly _syntheticPendingRequests = new WeakSet<CancellableRequest>();
-	private readonly _customizationMigrationHintShownSessions = new WeakSet<ChatModel>();
 
 	/**
 	 * In-flight untitled→real materializations, keyed by the original untitled
@@ -1568,29 +1568,21 @@ export class ChatService extends Disposable implements IChatService {
 			const collectCustomizationMigrationHint = async (): Promise<string | undefined> => {
 				const sessionType = getChatSessionType(sessionResource);
 				const hintMode = this.configurationService.getValue<CustomizationMigrationHintMode>(ChatConfiguration.ChatCustomizationsMigrationHint);
+				const hintAlreadyShown = model.inputModel.state.get()?.contrib[customizationMigrationHintShownStateKey] === true;
 				if (!isAgentHostTarget(sessionType)
 					|| (hintMode !== CustomizationMigrationHintMode.Once && hintMode !== CustomizationMigrationHintMode.Always)
 					|| this.storageService.getBoolean(getCustomizationMigrationHintDismissedStorageKey(sessionType), StorageScope.WORKSPACE)
-					|| (hintMode === CustomizationMigrationHintMode.Once && this._customizationMigrationHintShownSessions.has(model))) {
+					|| (hintMode === CustomizationMigrationHintMode.Once && hintAlreadyShown)) {
 					return undefined;
 				}
 
-				if (hintMode === CustomizationMigrationHintMode.Once) {
-					this._customizationMigrationHintShownSessions.add(model);
-				}
 				try {
 					const message = await this.customizationMigrationService.computeMigrationHint(sessionResource);
 					if (message && !token.isCancellationRequested) {
 						return message;
 					}
-					if (hintMode === CustomizationMigrationHintMode.Once) {
-						this._customizationMigrationHintShownSessions.delete(model);
-					}
 					return undefined;
 				} catch (error) {
-					if (hintMode === CustomizationMigrationHintMode.Once) {
-						this._customizationMigrationHintShownSessions.delete(model);
-					}
 					this.logService.warn('[ChatService] Failed to compute customization migration hint:', error);
 					return undefined;
 				}
@@ -1796,7 +1788,17 @@ export class ChatService extends Disposable implements IChatService {
 						}
 					}
 
-					if (customizationMigrationHint && !token.isCancellationRequested) {
+					const hintMode = this.configurationService.getValue<CustomizationMigrationHintMode>(ChatConfiguration.ChatCustomizationsMigrationHint);
+					const hintAlreadyShown = model.inputModel.state.get()?.contrib[customizationMigrationHintShownStateKey] === true;
+					if (customizationMigrationHint
+						&& !token.isCancellationRequested
+						&& (hintMode !== CustomizationMigrationHintMode.Once || !hintAlreadyShown)) {
+						if (hintMode === CustomizationMigrationHintMode.Once) {
+							model.inputModel.setState({
+								contrib: { ...model.inputModel.state.get()?.contrib, [customizationMigrationHintShownStateKey]: true }
+							});
+						}
+
 						const reviewLink = createMarkdownCommandLink({
 							id: AICustomizationManagementCommands.OpenEditor,
 							text: localize('customizationMigrationHint.review', "Review customizations"),

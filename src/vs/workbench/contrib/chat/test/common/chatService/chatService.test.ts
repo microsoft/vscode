@@ -2219,6 +2219,60 @@ suite('ChatService', () => {
 		});
 	});
 
+	test('once customization migration hint remains shown after the session is reloaded', async () => {
+		const sessionType = SessionType.AgentHostCopilot;
+		const sessionResource = URI.from({ scheme: sessionType, path: '/restored-session' });
+		const migrationService = mockObject<ICustomizationMigrationService>()({ _serviceBrand: undefined });
+		migrationService.computeMigrationHint.resolves('Found customization files that could be migrated.');
+		instantiationService.stub(ICustomizationMigrationService, migrationService);
+
+		const mockSessionsService = new MockChatSessionsService();
+		mockSessionsService.setContributions([{
+			type: sessionType,
+			name: 'Agent Host',
+			displayName: 'Agent Host',
+			description: 'Agent Host',
+		}]);
+		testDisposables.add(mockSessionsService.registerChatSessionContentProvider(sessionType, {
+			provideChatSessionContent: resource => Promise.resolve({
+				sessionResource: resource,
+				history: [],
+				onWillDispose: Event.None,
+				dispose: () => { },
+			}),
+		}));
+		instantiationService.stub(IChatSessionsService, mockSessionsService);
+		testDisposables.add(chatAgentService.registerAgent(sessionType, { ...getAgentData(sessionType), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, { async invoke() { return {}; } }));
+
+		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		await configurationService.setUserConfiguration(ChatConfiguration.ChatCustomizationsMigrationHint, CustomizationMigrationHintMode.Once);
+		const testService = createChatService();
+		const firstRef = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+		assert.ok(firstRef);
+		const firstResponse = await testService.sendRequest(sessionResource, 'first', { agentId: sessionType });
+		ChatSendResult.assertSent(firstResponse);
+		await firstResponse.data.responseCompletePromise;
+		const firstHintCount = firstRef.object.getRequests()[0].response?.response.value.filter(part => part.kind === 'systemNotification').length;
+
+		firstRef.dispose();
+		await testService.waitForModelDisposals();
+
+		const restoredRef = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+		assert.ok(restoredRef);
+		testDisposables.add(restoredRef);
+		const secondResponse = await testService.sendRequest(sessionResource, 'second', { agentId: sessionType });
+		ChatSendResult.assertSent(secondResponse);
+		await secondResponse.data.responseCompletePromise;
+		const restoredHintCount = restoredRef.object.getRequests()[0].response?.response.value.filter(part => part.kind === 'systemNotification').length;
+
+		assert.deepStrictEqual({ computeCalls: migrationService.computeMigrationHint.callCount, firstHintCount, restoredHintCount }, {
+			computeCalls: 1,
+			firstHintCount: 1,
+			restoredHintCount: 0,
+		});
+	});
+
 	test('customization migration hint is not computed for local sessions', async () => {
 		const migrationService = mockObject<ICustomizationMigrationService>()({ _serviceBrand: undefined });
 		instantiationService.stub(ICustomizationMigrationService, migrationService);
