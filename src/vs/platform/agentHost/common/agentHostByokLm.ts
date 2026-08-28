@@ -163,8 +163,27 @@ export interface IByokLmModelInfo {
  * Returns the provider-local selection id used by the agent host. Configured
  * provider groups remain part of the id so models with the same vendor and
  * provider-local id do not collide.
+ *
+ * The id is lower-cased because the agent runtime matches a requested subagent
+ * model against the session's model list case-insensitively on one side only:
+ * it folds the candidate ids but not the requested id, so any selection id
+ * carrying an upper-case character (typically a configured provider group such
+ * as `Tokengate`) can never match itself and is reported as unavailable — even
+ * though the same error lists it as available. Emitting a folded id keeps both
+ * sides of that comparison equal. Model ids are treated case-insensitively
+ * throughout the BYOK bridge, so folding cannot merge two distinct models that
+ * were previously addressable.
  */
 export function getByokLmSelectionModelId(model: IByokLmModelInfo): string {
+	return getByokLmUnfoldedSelectionModelId(model).toLowerCase();
+}
+
+/**
+ * The selection id before case folding. Only for reading state persisted
+ * against the pre-folding id (such as model visibility); new call sites want
+ * {@link getByokLmSelectionModelId}.
+ */
+export function getByokLmUnfoldedSelectionModelId(model: IByokLmModelInfo): string {
 	const vendorPrefix = `${model.vendor}/`;
 	return model.modelIdentifier?.startsWith(vendorPrefix)
 		? model.modelIdentifier.slice(vendorPrefix.length)
@@ -174,6 +193,11 @@ export function getByokLmSelectionModelId(model: IByokLmModelInfo): string {
 /** Returns the provider-qualified model id advertised by the agent host. */
 export function getByokLmAgentModelId(model: IByokLmModelInfo): string {
 	return `${model.vendor}/${getByokLmSelectionModelId(model)}`;
+}
+
+/** The pre-folding counterpart of {@link getByokLmAgentModelId}. */
+export function getByokLmUnfoldedAgentModelId(model: IByokLmModelInfo): string {
+	return `${model.vendor}/${getByokLmUnfoldedSelectionModelId(model)}`;
 }
 
 /** Resolves BYOK enablement and trace context from synchronized root configuration. */

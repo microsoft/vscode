@@ -913,6 +913,117 @@ suite('RunSubagentTool', () => {
 				}
 			);
 		});
+
+		test('resolves an explicit custom model by its identifier', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1);
+			const customMeta = createMetadata('Claude Haiku 4.5', 1);
+			const models = new Map([
+				['main-model-id', mainMeta],
+				['customendpoint/Tokengate/claude-haiku-4-5', customMeta],
+			]);
+
+			// Custom endpoint models are not reachable by qualified name.
+			const tool = createTool({ models, qualifiedNameMap: new Map() });
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test task', model: 'customendpoint/Tokengate/claude-haiku-4-5' },
+				toolCallId: 'model-call-byok-1',
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			assert.deepStrictEqual(result.toolSpecificData, {
+				kind: 'subagent',
+				description: 'test task',
+				agentName: undefined,
+				prompt: 'test',
+				modelName: 'Claude Haiku 4.5',
+			});
+		});
+
+		test('advertises identifiers for custom models whose qualified names collide', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1);
+			// Two distinct models registered under one custom endpoint vendor, sharing a name.
+			const first = createMetadata('Claude Haiku 4.5', 1);
+			const second = createMetadata('Claude Haiku 4.5', 1);
+			const models = new Map([
+				['main-model-id', mainMeta],
+				['customendpoint/Tokengate/claude-haiku-4-5', first],
+				['customendpoint/Other/claude-haiku-4-5', second],
+			]);
+
+			const tool = createTool({ models, qualifiedNameMap: new Map() });
+
+			await assert.rejects(
+				() => tool.prepareToolInvocation({
+					parameters: { prompt: 'test', description: 'test task', model: 'Nope (TestVendor)' },
+					toolCallId: 'model-call-byok-2',
+					modelId: 'main-model-id',
+					chatSessionResource: URI.parse('test://session'),
+				}, CancellationToken.None),
+				(err: Error) => {
+					// The unique name stays a qualified name; the colliding pair is
+					// listed by identifier so the caller can address them unambiguously.
+					assert.ok(err.message.includes('GPT-4o (TestVendor)'), err.message);
+					assert.ok(err.message.includes('customendpoint/Tokengate/claude-haiku-4-5'), err.message);
+					assert.ok(err.message.includes('customendpoint/Other/claude-haiku-4-5'), err.message);
+					assert.ok(!err.message.includes('Claude Haiku 4.5 (TestVendor)'), err.message);
+					return true;
+				}
+			);
+		});
+
+		test('resolves an agent-pinned custom model by its identifier', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1);
+			const customMeta = createMetadata('Claude Haiku 4.5', 1);
+			const models = new Map([
+				['main-model-id', mainMeta],
+				['customendpoint/Tokengate/claude-haiku-4-5', customMeta],
+			]);
+
+			const agent = createAgent('MyAgent', ['customendpoint/Tokengate/claude-haiku-4-5']);
+			const tool = createTool({ models, qualifiedNameMap: new Map(), customAgents: [agent] });
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test task', agentName: 'MyAgent' },
+				toolCallId: 'model-call-byok-3',
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			assert.deepStrictEqual(result.toolSpecificData, {
+				kind: 'subagent',
+				description: 'test task',
+				agentName: 'MyAgent',
+				prompt: 'test',
+				modelName: 'Claude Haiku 4.5',
+			});
+		});
+
+		test('prefers the qualified name over a same-named identifier', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1);
+			const byName = createMetadata('Shared', 1);
+			const models = new Map([
+				['main-model-id', mainMeta],
+				['by-name-id', byName],
+			]);
+			const qualifiedNameMap = new Map([
+				['Shared (TestVendor)', { metadata: byName, identifier: 'by-name-id' }],
+			]);
+
+			const tool = createTool({ models, qualifiedNameMap });
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test task', model: 'Shared (TestVendor)' },
+				toolCallId: 'model-call-byok-4',
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.strictEqual(result?.toolSpecificData?.kind === 'subagent' ? result.toolSpecificData.modelName : undefined, 'Shared');
+		});
 	});
 
 	suite('nested subagent depth tracking', () => {
