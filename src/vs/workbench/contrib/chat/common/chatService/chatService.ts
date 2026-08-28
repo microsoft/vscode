@@ -2056,7 +2056,12 @@ export interface IChatService {
 	 * Atomically reconciles the pending queue with messages authored by another client.
 	 * Preserves remote ids and existing matching requests, and no-ops when already equal.
 	 */
-	syncPendingRequestsFromRemote(sessionResource: URI, requests: readonly IRemotePendingRequest[]): void;
+	/**
+	 * Reconcile the pending queue against the provider's. `consumedRequestId`
+	 * names a message that left the queue because the provider started running
+	 * it, so it is retired rather than rejected: it was delivered, not withdrawn.
+	 */
+	syncPendingRequestsFromRemote(sessionResource: URI, requests: readonly IRemotePendingRequest[], consumedRequestId?: string): void;
 	/**
 	 * Ensures pending requests for the session are processing. If restoring from
 	 * storage or after an error, pending requests may be present without an
