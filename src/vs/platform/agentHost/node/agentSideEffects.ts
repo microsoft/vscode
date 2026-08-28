@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../nls.js';
 import { getErrorCode } from '../../../base/common/errors.js';
 import type { Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, IReference } from '../../../base/common/lifecycle.js';
@@ -20,7 +21,9 @@ import { IAgentHostCheckpointService } from '../common/agentHostCheckpointServic
 import { IAgentHostChatContributions, type ISendTurnMessageOptions } from '../common/agentHostChatContributionsService.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
-import { AgentSession, AgentSignal, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, type IAgentModelCallCompletedSignal } from '../common/agent.js';
+
+import { AgentSession, AgentSignal, IAgent, IAgentChatContext, IAgentClientToolInvokedSignal, IAgentToolPendingConfirmationSignal, type IAgentModelCallCompletedSignal } from '../common/agent.js';
+
 import { readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
@@ -28,7 +31,7 @@ import { ISessionDatabase, ISessionDataService } from '../common/sessionDataServ
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { resolveChatAttachment } from '../common/state/chatAttachmentContext.js';
 import { buildOpenSessionLinkForChatResource } from '../common/openSessionLink.js';
-import { SessionInputRequestKind, ToolCallContributorKind, type AgentInfo, type SessionActiveClient, type SessionInputRequest } from '../common/state/protocol/state.js';
+import { type AgentInfo, type SessionActiveClient, type SessionInputRequest, SessionInputRequestKind, ToolCallConfirmationReason, ToolCallContributorKind } from '../common/state/protocol/state.js';
 import type { CustomizationEnablement } from '../common/state/protocol/channels-session/state.js';
 import { ActionType, isChatAction, StateAction, type ChatAction, type ChatToolCallCompleteAction } from '../common/state/sessionActions.js';
 import {
@@ -863,6 +866,17 @@ export class AgentSideEffects extends Disposable {
 			}
 		}
 
+		// Same legacy path for a replayed client-tool invocation: the SDK supplies
+		// no parent for it, but the call is still registered under its subagent chat.
+		if (signal.kind === 'client_tool_invoked') {
+			const subagentChatUri = this._findSubagentChatForToolCall(sessionKey, signal.toolCallId);
+			const subTurnId = subagentChatUri ? this._stateManager.getActiveTurnId(subagentChatUri) : undefined;
+			if (subagentChatUri && subTurnId) {
+				this._handleClientToolInvoked(signal, subagentChatUri, subTurnId);
+				return;
+			}
+		}
+
 		const turnId = this._stateManager.getActiveTurnId(sessionKey);
 		if (turnId) {
 			if (signal.kind === 'model_call_completed') {
@@ -905,6 +919,53 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	/**
+	 * Requests client execution for an invoked tool call, synthesizing the
+	 * start/ready pair when the call never streamed.
+	 */
+	private _handleClientToolInvoked(signal: IAgentClientToolInvokedSignal, sessionKey: ProtocolURI, turnId: string): void {
+		if (this._findToolCall(sessionKey, turnId, signal.toolCallId)) {
+			// Cancelling a turn drops the execution request but leaves the call running.
+			this._syncToolInputNeeded(sessionKey, turnId, signal.toolCallId);
+			return;
+		}
+		const sessionUri = parseRequiredSessionUriFromChatUri(sessionKey);
+		const owner = this._stateManager.getSessionState(sessionUri)?.activeClients.find(client => client.tools.some(tool => tool.name === signal.toolName));
+		if (!owner) {
+			// The runtime is parked on this call, so failing it is the only way to unwind the turn.
+			this._logService.warn(`[AgentSideEffects] No active client provides replayed tool ${signal.toolName}; failing ${signal.toolCallId}`);
+			const error = { message: localize('agentHost.clientTool.noOwner', "No connected client provides the tool \"{0}\".", signal.toolName), code: 'toolUnavailable' };
+			this._stateManager.dispatchServerAction(sessionKey, {
+				type: ActionType.ChatToolCallComplete,
+				turnId,
+				toolCallId: signal.toolCallId,
+				result: { success: false, pastTenseMessage: error.message, error },
+			});
+			this._options.getAgent(sessionUri)?.onClientToolCallComplete(
+				URI.parse(sessionKey), signal.toolCallId, { success: false, pastTenseMessage: error.message, error },
+				this._chatContext(sessionUri, sessionKey),
+			);
+			return;
+		}
+		this._logService.info(`[AgentSideEffects] Requesting client execution for replayed tool call ${signal.toolCallId} (${signal.toolName})`);
+		this._stateManager.dispatchServerAction(sessionKey, {
+			type: ActionType.ChatToolCallStart,
+			turnId,
+			toolCallId: signal.toolCallId,
+			toolName: signal.toolName,
+			displayName: signal.toolName,
+			contributor: { kind: ToolCallContributorKind.Client, clientId: owner.clientId },
+		});
+		this._stateManager.dispatchServerAction(sessionKey, {
+			type: ActionType.ChatToolCallReady,
+			turnId,
+			toolCallId: signal.toolCallId,
+			invocationMessage: signal.toolName,
+			toolInput: signal.toolInput,
+			confirmed: ToolCallConfirmationReason.NotNeeded,
+		});
+	}
+
+	/**
 	 * Dispatches a signal to a resolved chat, preserving top-level turn identity or remapping cross-channel subagent actions.
 	 */
 	private _dispatchActionForSession(signal: AgentSignal, sessionKey: ProtocolURI, turnId: string, turnIdRouting: AgentSignalTurnIdRouting, agent?: IAgent): void {
@@ -914,6 +975,10 @@ export class AgentSideEffects extends Disposable {
 					this._logService.error('[AgentSideEffects] _handleToolReady failed', err);
 				});
 			}
+			return;
+		}
+		if (signal.kind === 'client_tool_invoked') {
+			this._handleClientToolInvoked(signal, sessionKey, turnId);
 			return;
 		}
 		if (signal.kind !== 'action') {

@@ -12,7 +12,6 @@ import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 import { AiAgentEnvValue, AiAgentEnvVar } from '../../../chat/common/aiAgentEnv.js';
 import { ClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { resolveClaudeEffort } from '../../common/claudeModelConfig.js';
-import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import type { ModelSelection } from '../../common/state/protocol/state.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
 import { buildClientToolMcpServer } from './clientTools/claudeClientToolMcpServer.js';
@@ -212,14 +211,14 @@ export async function buildOptions(
  */
 export async function buildClientMcpServers(
 	toolDiff: SessionClientToolsDiff,
-	registry: PendingRequestRegistry<CallToolResult>,
+	awaitResult: (toolUseId: string, toolName: string, args: unknown) => Promise<CallToolResult>,
 	sdkService: IClaudeAgentSdkService,
 ): Promise<Record<string, McpSdkServerConfigWithInstance> | undefined> {
 	const tools = toolDiff.consume();
 	if (tools.length === 0) {
 		return undefined;
 	}
-	const server = await buildClientToolMcpServer(tools, id => registry.register(id), sdkService);
+	const server = await buildClientToolMcpServer(tools, awaitResult, sdkService);
 	return { client: server };
 }
 

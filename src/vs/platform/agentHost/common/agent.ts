@@ -820,6 +820,7 @@ export type AgentSignal =
 	| IAgentActionSignal
 	| IAgentModelCallCompletedSignal
 	| IAgentToolPendingConfirmationSignal
+	| IAgentClientToolInvokedSignal
 	| IAgentSubagentStartedSignal
 	| IAgentSubagentResumedSignal
 	| IAgentSubagentCompletedSignal
@@ -904,6 +905,25 @@ export interface IAgentToolPendingConfirmationSignal {
 	 * action would land on the parent session, where there is no
 	 * matching `ChatToolCallStart`.
 	 */
+	readonly parentToolCallId?: string;
+}
+
+/**
+ * The runtime invoked a client-provided tool and is awaiting its result.
+ * Kept as a non-action signal because a call replayed from the transcript
+ * streams nothing, so the host must drive it for any client to execute it.
+ */
+export interface IAgentClientToolInvokedSignal {
+	readonly kind: 'client_tool_invoked';
+	/** Target chat channel URI the tool call belongs to. */
+	readonly chat: URI;
+	/** SDK `tool_use_id` of the invocation. */
+	readonly toolCallId: string;
+	/** Unprefixed client tool name. */
+	readonly toolName: string;
+	/** JSON-serialized tool input. */
+	readonly toolInput: string;
+	/** See {@link IAgentToolPendingConfirmationSignal.parentToolCallId}. */
 	readonly parentToolCallId?: string;
 }
 

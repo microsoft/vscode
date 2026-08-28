@@ -730,7 +730,10 @@ class FakeClaudeAgentSdkService implements IClaudeAgentSdkService {
 		readonly description: string;
 		readonly inputSchema: Record<string, any>;
 	}> = [];
-	readonly toolHandlers = new Map<string, (args: any, extra: unknown) => Promise<CallToolResult>>();
+	readonly toolHandlers: Array<{
+		readonly name: string;
+		readonly handler: (args: any, extra: unknown) => Promise<CallToolResult>;
+	}> = [];
 	readonly createSdkMcpServerCalls: Array<{
 		readonly name: string;
 		readonly toolNames: readonly string[];
@@ -740,10 +743,10 @@ class FakeClaudeAgentSdkService implements IClaudeAgentSdkService {
 		name: string,
 		description: string,
 		inputSchema: Record<string, any>,
-		_handler: (args: any, extra: unknown) => Promise<CallToolResult>,
+		handler: (args: any, extra: unknown) => Promise<CallToolResult>,
 	): Promise<SdkMcpToolDefinition<any>> {
 		this.toolCalls.push({ name, description, inputSchema });
-		this.toolHandlers.set(name, _handler);
+		this.toolHandlers.push({ name, handler });
 		return { name } as unknown as SdkMcpToolDefinition<any>;
 	}
 
@@ -5679,6 +5682,66 @@ suite('ClaudeAgent', () => {
 			startupCount: 1,
 			builtToolNames: ['echo'],
 		});
+	});
+
+	test('an SDK client tool invocation fires client_tool_invoked and resolves on completion', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+		const sessionId = created.sdkSessionId;
+		getOrCreateActiveClient(agent, defaultChatUri(created.session), 'client-1').tools = [{ name: 'echo', inputSchema: { type: 'object' } }];
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'go', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
+
+		const session = agent.getSessionForTesting(created.session)!;
+		const signals: AgentSignal[] = [];
+		disposables.add(session.onDidSessionProgress(s => signals.push(s)));
+
+		// A replayed invocation streams nothing, so the fired signal is the only cue.
+		const handler = sdk.toolHandlers.find(t => t.name === 'echo')!.handler;
+		const callPromise = handler({ msg: 'hi' }, { _meta: { 'claudecode/toolUseId': 'tu_replay' } });
+		const fired = signals.filter(s => s.kind === 'client_tool_invoked');
+		session.completeClientToolCall('tu_replay', { success: true, pastTenseMessage: 'ok', content: [{ type: ToolResultContentType.Text, text: 'done' }] });
+
+		assert.deepStrictEqual({ fired, resolvedContent: (await callPromise).content }, {
+			fired: [{
+				kind: 'client_tool_invoked',
+				chat: session.chatChannelUri,
+				toolCallId: 'tu_replay',
+				toolName: 'echo',
+				toolInput: '{"msg":"hi"}',
+			}],
+			resolvedContent: [{ type: 'text', text: 'done' }],
+		});
+	});
+
+	test('a client tool invoked inside a subagent carries its parent so the host routes it to the subagent chat', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+		const sessionId = created.sdkSessionId;
+		getOrCreateActiveClient(agent, defaultChatUri(created.session), 'client-1').tools = [{ name: 'echo', inputSchema: { type: 'object' } }];
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'go', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
+
+		const session = agent.getSessionForTesting(created.session)!;
+		session.subagents.recordSpawn('toolu_parent');
+		session.subagents.noteInnerTool('tu_inner', 'toolu_parent');
+		const signals: AgentSignal[] = [];
+		disposables.add(session.onDidSessionProgress(s => signals.push(s)));
+
+		const handler = sdk.toolHandlers.find(t => t.name === 'echo')!.handler;
+		const callPromise = handler({ msg: 'hi' }, { _meta: { 'claudecode/toolUseId': 'tu_inner' } });
+		session.completeClientToolCall('tu_inner', { success: true, pastTenseMessage: 'ok', content: [] });
+		await callPromise;
+
+		assert.deepStrictEqual(
+			signals.filter(s => s.kind === 'client_tool_invoked').map(s => ({
+				toolCallId: (s as { toolCallId: string }).toolCallId,
+				parentToolCallId: (s as { parentToolCallId?: string }).parentToolCallId,
+			})),
+			[{ toolCallId: 'tu_inner', parentToolCallId: 'toolu_parent' }],
+		);
 	});
 
 	test('setClientTools after materialize triggers yield-restart on next sendMessage with the new tool set', async () => {
@@ -10900,7 +10963,7 @@ suite('ClaudeAgent — host seams', () => {
 		sdk.nextQueryMessages = [makeSystemInitMessage(peerSdkId), makeResultSuccess(peerSdkId)];
 
 		await agent.chats.sendMessage(peerChat, 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(peerChat));
-		const result = await sdk.toolHandlers.get(toolName)!({}, undefined);
+		const result = await sdk.toolHandlers.find(t => t.name === toolName)!.handler({}, undefined);
 
 		assert.deepStrictEqual({
 			executedChatUri,
