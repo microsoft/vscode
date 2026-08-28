@@ -247,15 +247,6 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(updateScreenReaderBadge));
 		this.overflowManagedToolBarElements.push(screenReaderBadge);
 
-		// Update toolbar, rendered immediately right of the command center.
-		const updateToolBarElement = append(centerRightContainer, $('div.titlebar-actions-container.titlebar-update-container'));
-		const updateToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, updateToolBarElement, Menus.TitleBarUpdate, {
-			contextMenu: Menus.TitleBarContext,
-			hiddenItemStrategy: HiddenItemStrategy.NoHide,
-			telemetrySource: 'titlePart.update',
-			toolbarOptions: { primaryGroup: () => true },
-		}));
-
 		// Actions toolbar (Open in VS Code), rendered after the status badges.
 		const centerActionsContainer = append(centerRightContainer, $('div.titlebar-actions-container.titlebar-center-actions-container'));
 		const centerActionsToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerActionsContainer, Menus.TitleBarCenterRight, {
@@ -280,6 +271,15 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			contextMenu: Menus.TitleBarContext,
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			telemetrySource: 'titlePart.sessionActions',
+			toolbarOptions: { primaryGroup: () => true },
+		}));
+
+		// Update toolbar, rendered at the leading edge of the right-side actions.
+		const updateToolBarElement = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-update-container'));
+		const updateToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, updateToolBarElement, Menus.TitleBarUpdate, {
+			contextMenu: Menus.TitleBarContext,
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			telemetrySource: 'titlePart.update',
 			toolbarOptions: { primaryGroup: () => true },
 		}));
 
