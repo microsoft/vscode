@@ -5521,15 +5521,41 @@ suite('Editor Controller', () => {
 			viewModel.type('{', 'keyboard');
 			assert.strictEqual(model.getValue(), '{\n}');
 
+			model.setValue('');
+			viewModel.setSelections('test', [new Selection(1, 1, 1, 1)]);
+			viewModel.type('{', 'keyboard');
+			assert.strictEqual(model.getValue(), '{}');
+
 			model.setValue('{}');
 			viewModel.setSelections('test', [new Selection(1, 2, 1, 2)]);
 			viewModel.type('{', 'keyboard');
 			assert.strictEqual(model.getValue(), '{{}}');
 
+			model.setValue('{\n');
+			viewModel.setSelections('test', [new Selection(2, 1, 2, 1)]);
+			viewModel.type('{', 'keyboard');
+			assert.strictEqual(model.getValue(), '{\n{');
+
 			model.setValue('\n]');
 			viewModel.setSelections('test', [new Selection(1, 1, 1, 1)]);
 			viewModel.type('{', 'keyboard');
 			assert.strictEqual(model.getValue(), '{}\n]');
+		});
+
+		disposables.add(languageConfigurationService.register(autoClosingLanguageId, {
+			brackets: [['{', '}']],
+		}));
+		setupAutoClosingLanguageTokenization();
+		usingCursor({
+			text: [
+				'',
+				'"}"',
+			],
+			languageId: autoClosingLanguageId,
+		}, (editor, model, viewModel) => {
+			model.tokenization.forceTokenization(model.getLineCount());
+			viewModel.type('{', 'keyboard');
+			assert.strictEqual(model.getValue(), '{}\n"}"');
 		});
 	});
 

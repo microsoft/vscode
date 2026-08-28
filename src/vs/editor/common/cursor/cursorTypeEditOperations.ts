@@ -217,6 +217,9 @@ export class AutoClosingOpenCharTypeOperation {
 		if (autoCloseConfig === 'never') {
 			return null;
 		}
+		if (!chIsAlreadyTyped && !this._isBracketPairBalanced(model, pair)) {
+			return null;
+		}
 		// Sometimes, it is possible to have two auto-closing pairs that have a containment relationship
 		// e.g. when having [(,)] and [(*,*)]
 		// - when typing (, the resulting state is (|)
@@ -241,9 +244,6 @@ export class AutoClosingOpenCharTypeOperation {
 				if (!isBeforeCloseBrace && !shouldAutoCloseBefore(characterAfter)) {
 					return null;
 				}
-			}
-			if (!chIsAlreadyTyped && this._isBeforeUnmatchedClosingBracket(model, pair, new Position(lineNumber, afterColumn))) {
-				return null;
 			}
 			// Do not auto-close ' or " after a word character
 			if (pair.open.length === 1 && (ch === '\'' || ch === '"') && autoCloseConfig !== 'always') {
@@ -288,10 +288,15 @@ export class AutoClosingOpenCharTypeOperation {
 		}
 	}
 
-	private static _isBeforeUnmatchedClosingBracket(model: ITextModel, pair: StandardAutoClosingPairConditional, position: Position): boolean {
-		const searchRange = Range.fromPositions(position, model.getFullModelRange().getEndPosition());
-		const nextBracket = model.bracketPairs.getBracketsInRange(searchRange).findFirst(() => true);
-		return !!nextBracket && nextBracket.isInvalid && model.getValueInRange(nextBracket.range) === pair.close;
+	private static _isBracketPairBalanced(model: ITextModel, pair: StandardAutoClosingPairConditional): boolean {
+		const fullModelRange = model.getFullModelRange();
+		const hasUnclosedOpeningBracket = model.bracketPairs.getBracketPairsInRange(fullModelRange)
+			.some(bracketPair => bracketPair.openingBracketInfo.bracketText === pair.open && !bracketPair.closingBracketRange);
+		if (hasUnclosedOpeningBracket) {
+			return false;
+		}
+		return !model.bracketPairs.getBracketsInRange(fullModelRange)
+			.some(bracket => bracket.isInvalid && model.getValueInRange(bracket.range) === pair.close);
 	}
 
 	/**
