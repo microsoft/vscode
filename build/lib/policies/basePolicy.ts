@@ -47,6 +47,8 @@ export abstract class BasePolicy implements Policy {
 		];
 	}
 
+	  protected abstract renderADMXElements(): string[];
+
 	renderADMLStrings(translations?: LanguageTranslations) {
 		const safeName = escapeXml(this.name);
 		return [
@@ -60,15 +62,7 @@ export abstract class BasePolicy implements Policy {
 		return `<presentation id="${safeName}">${this.renderADMLPresentationContents()}</presentation>`;
 	}
 
-	protected abstract renderADMXElements(): string[];
-
-	renderADMLStrings(translations?: LanguageTranslations) {
-		return [
-			`<string id="${this.name}">${this.name}</string>`,
-			this.renderADMLString(this.description, translations)
-		];
-	}
-
+	protected abstract renderADMLPresentationContents(): string;
 	renderADMLPresentation(): string {
 		return `<presentation id="${this.name}">${this.renderADMLPresentationContents()}</presentation>`;
 	}
