@@ -602,8 +602,8 @@
 	align-items: center;
 	overflow: hidden;
 	font-size: var(--vscode-fontSize-body2, 11px);
-	padding: 0 4px 0 0;
-	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
+	padding: 0 var(--vscode-spacing-size20) 0 var(--vscode-spacing-size40);
+	border: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
 	border-radius: var(--vscode-cornerRadius-small);
 	height: 18px;
 	max-width: 200px;
@@ -625,9 +625,9 @@
 }
 
 .sessions-chat-attachment-pill .codicon {
-	font-size: 14px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	flex-shrink: 0;
-	padding: 0 3px;
+	padding: 0 var(--vscode-spacing-size20);
 }
 
 .sessions-chat-attachment-pill .monaco-icon-label {
@@ -657,16 +657,23 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	width: var(--vscode-spacing-size160);
+	height: var(--vscode-spacing-size160);
 	border: 0;
+	border-radius: var(--vscode-cornerRadius-xSmall);
 	padding: 0;
 	background: none;
 	cursor: pointer;
 	flex-shrink: 0;
 	color: var(--vscode-descriptionForeground);
-	margin-left: 4px;
+	margin-left: var(--vscode-spacing-size20);
 }
 
-.sessions-chat-attachment-pill:hover {
+.sessions-chat-attachment-pill.clickable {
+	cursor: pointer;
+}
+
+.sessions-chat-attachment-pill.clickable:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 

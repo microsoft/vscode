@@ -54,6 +54,8 @@ export interface INewChatAttachments {
 	removeAttachment(id: string): void;
 }
 
+const GITHUB_CONTEXT_ID_PREFIX = 'github-context:';
+
 /**
  * Manages context attachments for the sessions new-chat widget.
  *
@@ -132,6 +134,10 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 		for (const entry of visibleAttachments) {
 			const pill = dom.append(this._container, dom.$('.sessions-chat-attachment-pill'));
 			const resource = URI.isUri(entry.value) ? entry.value : isLocation(entry.value) ? entry.value.uri : undefined;
+			const githubContextResource = entry.id.startsWith(GITHUB_CONTEXT_ID_PREFIX)
+				? URI.parse(entry.id.slice(GITHUB_CONTEXT_ID_PREFIX.length))
+				: undefined;
+			const openResource = resource ?? githubContextResource;
 			if (entry.kind === 'image') {
 				const icon = dom.append(pill, renderIcon(Codicon.fileMedia));
 				dom.append(pill, dom.$('span.sessions-chat-attachment-name', undefined, entry.name));
@@ -171,7 +177,6 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 			// Click to open the resource or image
 			const imageData = entry.kind === 'image' ? coerceImageBuffer(entry.value) : undefined;
 			if (imageData) {
-				pill.style.cursor = 'pointer';
 				this._renderDisposables.add(registerOpenEditorListeners(pill, async () => {
 					if (this.configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)) {
 						const imageResource = resource ?? URI.from({ scheme: 'data', path: entry.name });
@@ -180,13 +185,11 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 						await this.openerService.open(resource, { fromUserGesture: true });
 					}
 				}));
-			} else if (resource) {
-				pill.style.cursor = 'pointer';
+			} else if (openResource) {
 				this._renderDisposables.add(registerOpenEditorListeners(pill, async () => {
-					await this.openerService.open(resource, { fromUserGesture: true });
+					await this.openerService.open(openResource, { fromUserGesture: true });
 				}));
 			} else if (isPastedTextArtifact(entry)) {
-				pill.style.cursor = 'pointer';
 				this._renderDisposables.add(registerOpenEditorListeners(pill, async () => {
 					await this.instantiationService.invokeFunction(openPastedTextArtifact, entry);
 				}));
@@ -195,9 +198,11 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 			// Only expose the pill itself as a focusable button when it has an open
 			// action; reference pills without a resource (e.g. `#session`) would
 			// otherwise be a focusable control that does nothing.
-			if (imageData || resource || isPastedTextArtifact(entry)) {
+			if (imageData || openResource || isPastedTextArtifact(entry)) {
+				pill.classList.add('clickable');
 				pill.tabIndex = 0;
 				pill.role = 'button';
+				pill.setAttribute('aria-label', localize('openNamedAttachment', "Open {0}", entry.name));
 			}
 
 			const removeButton = dom.append(pill, dom.$<HTMLButtonElement>('button.sessions-chat-attachment-remove'));
