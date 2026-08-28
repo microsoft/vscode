@@ -121,7 +121,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		this._barContainer = $('.chat-group-view-bar');
 		this.element.appendChild(this._barContainer);
 
-		this._compositeBar = this._register(instantiationService.createInstance(ChatCompositeBar));
+		this._compositeBar = this._register(instantiationService.createInstance(ChatCompositeBar, undefined));
 		this._barContainer.appendChild(this._compositeBar.element);
 
 		// Read-only status banner, shown flush below this group's tab bar when the

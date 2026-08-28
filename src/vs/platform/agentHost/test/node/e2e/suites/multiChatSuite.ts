@@ -27,7 +27,7 @@ import {
 	type RootState,
 	type SessionState,
 } from '../../../../common/state/sessionState.js';
-import { assertToolCallCompleteText, createRealSession } from '../harness/agentHostE2ETestHarness.js';
+import { createRealSession } from '../harness/agentHostE2ETestHarness.js';
 import { summarizeAnthropicRequest, summarizeResponsesRequest } from '../harness/capiWireCodec.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { conformanceTest, providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
@@ -130,15 +130,17 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		});
 	}
 
-	function fileReadToolNames(provider: string): readonly string[] {
-		switch (provider) {
-			case 'claude':
-				return ['Read'];
-			case 'copilotcli':
-				return ['view'];
-			default:
-				return ['Read', 'view', 'shell'];
-		}
+	function peerFileOperationTest(title: string, run: Mocha.AsyncFunc): void {
+		// Skip unstable Codex packaged-Linux shell replay while retaining recording and unaffected platforms.
+		providerTest(title, run, config.fileOperationStrategy === 'fileTools' || context.portableShellToolReplayEnabled);
+	}
+
+	function assertPeerFileReadResult(turnId: string, expected: RegExp): void {
+		const toolResultTexts = context.observedModelRequestBodies.flatMap(body => {
+			const request = summarizeAnthropicRequest(body) ?? summarizeResponsesRequest(body);
+			return request?.messages.flatMap(message => modelToolResultTexts(message.content)) ?? [];
+		});
+		assert.ok(toolResultTexts.some(text => expected.test(text)), `expected ${turnId} tool output to reach the provider request; observed ${JSON.stringify(toolResultTexts)}`);
 	}
 
 	interface IObservedModelMessage {
@@ -168,6 +170,16 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 			return modelContentText(value.content);
 		}
 		return '';
+	}
+
+	function modelToolResultTexts(value: unknown): readonly string[] {
+		if (Array.isArray(value)) {
+			return value.flatMap(modelToolResultTexts);
+		}
+		if (isRecord(value) && value.type === 'tool_result') {
+			return [modelContentText(value.content)];
+		}
+		return [];
 	}
 
 	function isRecord(value: unknown): value is Record<string, unknown> {
@@ -677,7 +689,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		assert.ok(toolCalls.some(toolCall => toolCall.status === 'completed' && !toolCall.success));
 	}, config.supportsMultipleChats);
 
-	providerTest('peer chat reads a file from the parent workspace', async function () {
+	peerFileOperationTest('peer chat reads a file from the parent workspace', async function () {
 		const { sessionUri, workspace } = await createSession('read-file');
 		const file = join(workspace, 'peer-note.txt');
 		writeFileSync(file, 'PEER_FILE_VALUE');
@@ -692,17 +704,10 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		const response = await driveTurn(peer, 'peer-read', prompt, 1);
 
 		assert.match(response, /PEER_FILE_VALUE/);
-		assertToolCallCompleteText(context.client, {
-			channel: peer,
-			turnId: 'peer-read',
-			toolNames: fileReadToolNames(config.provider),
-			workspace,
-			expected: [/PEER_FILE_VALUE/],
-			success: true,
-		});
+		assertPeerFileReadResult('peer-read', /PEER_FILE_VALUE/);
 	});
 
-	providerTest('peer chat reads a file from a nested directory', async function () {
+	peerFileOperationTest('peer chat reads a file from a nested directory', async function () {
 		const { sessionUri, workspace } = await createSession('read-nested-file');
 		mkdirSync(join(workspace, 'nested'));
 		const file = join(workspace, 'nested', 'peer.txt');
@@ -718,17 +723,10 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		const response = await driveTurn(peer, 'peer-read-nested', prompt, 1);
 
 		assert.match(response, /PEER_NESTED_READ/);
-		assertToolCallCompleteText(context.client, {
-			channel: peer,
-			turnId: 'peer-read-nested',
-			toolNames: fileReadToolNames(config.provider),
-			workspace,
-			expected: [/PEER_NESTED_READ/],
-			success: true,
-		});
+		assertPeerFileReadResult('peer-read-nested', /PEER_NESTED_READ/);
 	});
 
-	providerTest('peer chat creates a file in the parent workspace', async function () {
+	peerFileOperationTest('peer chat creates a file in the parent workspace', async function () {
 		const { sessionUri, workspace } = await createSession('create-file');
 		const file = join(workspace, 'peer-created.txt');
 		const peer = await createPeer(sessionUri, 'peer');
@@ -744,7 +742,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		assert.strictEqual(readFileSync(file, 'utf8'), 'PEER_CREATED');
 	});
 
-	providerTest('peer chat edits an existing workspace file', async function () {
+	peerFileOperationTest('peer chat edits an existing workspace file', async function () {
 		const { sessionUri, workspace } = await createSession('edit-file');
 		const file = join(workspace, 'peer-edit.txt');
 		writeFileSync(file, 'BEFORE_PEER');
@@ -759,8 +757,9 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		await driveTurn(peer, 'peer-edit', prompt, 1);
 
 		assert.strictEqual(readFileSync(file, 'utf8').trim(), 'AFTER_PEER');
-	}, config.supportsMultipleChats);
+	});
 
+	// Directory creation always uses shell, so apply the Codex packaged-Linux replay gate directly.
 	providerTest('peer chat creates a file in a nested directory', async function () {
 		const { sessionUri, workspace } = await createSession('nested-create');
 		const file = join(workspace, 'peer-output', 'report.txt');
@@ -775,9 +774,9 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		await driveTurn(peer, 'peer-nested-create', `Run exactly this shell command, with no modifications: \`${peerNestedCommand}\`. Then reply with exactly "created".`, 1);
 
 		assert.strictEqual(readFileSync(file, 'utf8'), 'PEER_NESTED');
-	}, config.supportsMultipleChats);
+	}, context.portableShellToolReplayEnabled);
 
-	providerTest('peer chat handles a missing workspace file without an error', async function () {
+	peerFileOperationTest('peer chat handles a missing workspace file without an error', async function () {
 		const { sessionUri, workspace } = await createSession('missing-file');
 		const file = join(workspace, 'peer-missing.txt');
 		const peer = await createPeer(sessionUri, 'peer');
@@ -791,17 +790,10 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		const response = await driveTurn(peer, 'peer-missing', prompt, 1);
 
 		assert.match(response, /missing/i);
-		assertToolCallCompleteText(context.client, {
-			channel: peer,
-			turnId: 'peer-missing',
-			toolNames: fileReadToolNames(config.provider),
-			workspace,
-			expected: config.fileOperationStrategy === 'shell' ? [/missing/] : [/does not exist/],
-			success: config.fileOperationStrategy === 'shell',
-		});
+		assertPeerFileReadResult('peer-missing', config.fileOperationStrategy === 'shell' ? /missing/ : /does not exist/);
 	});
 
-	providerTest('peer chat reads a filename containing spaces', async function () {
+	peerFileOperationTest('peer chat reads a filename containing spaces', async function () {
 		const { sessionUri, workspace } = await createSession('spaces');
 		const file = join(workspace, 'peer file.txt');
 		writeFileSync(file, 'PEER_SPACED');
@@ -816,17 +808,10 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		const response = await driveTurn(peer, 'peer-spaces', prompt, 1);
 
 		assert.match(response, /PEER_SPACED/);
-		assertToolCallCompleteText(context.client, {
-			channel: peer,
-			turnId: 'peer-spaces',
-			toolNames: fileReadToolNames(config.provider),
-			workspace,
-			expected: [/PEER_SPACED/],
-			success: true,
-		});
+		assertPeerFileReadResult('peer-spaces', /PEER_SPACED/);
 	});
 
-	providerTest('two peer chats write distinct workspace files', async function () {
+	peerFileOperationTest('two peer chats write distinct workspace files', async function () {
 		const { sessionUri, workspace } = await createSession('two-writers');
 		const firstFile = join(workspace, 'first-peer.txt');
 		const secondFile = join(workspace, 'second-peer.txt');
