@@ -1627,6 +1627,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._telemetryService.setRestrictedTelemetryEnabled(rtEnabled);
 			this._telemetryService.setCopilotTrackingId(context?.trackingId);
 			this._telemetryService.setRestrictedTelemetryEndpoint(context?.telemetryEndpoint);
+			// Marks the account as internal, which is separate from the `rt` opt-in above.
+			this._telemetryService.setInternalTelemetryContext(context && {
+				isInternal: context.isInternal === true,
+				trackingId: context.trackingId,
+				userName: context.userName,
+				isVscodeTeamMember: context.isVscodeTeamMember === true,
+			});
 		}
 	}
 

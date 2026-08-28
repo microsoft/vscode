@@ -66,6 +66,9 @@ async function ensureCompiled() {
 async function main() {
 	await ensureNodeModules();
 	await getElectron();
+	if (process.argv.includes('--only-electron')) {
+		return;
+	}
 	await ensureCompiled();
 
 	// Can't require this until after dependencies are installed

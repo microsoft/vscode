@@ -8,9 +8,10 @@ import { getActiveDocument } from '../../../../../../base/browser/dom.js';
 import { OS } from '../../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { EditorContextKeys } from '../../../../../../editor/common/editorContextKeys.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
-import { KeybindingResolver } from '../../../../../../platform/keybinding/common/keybindingResolver.js';
+import { KeybindingResolver, ResultKind } from '../../../../../../platform/keybinding/common/keybindingResolver.js';
 import { KeybindingsRegistry } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ResolvedKeybindingItem } from '../../../../../../platform/keybinding/common/resolvedKeybindingItem.js';
 import { USLayoutResolvedKeybinding } from '../../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
@@ -85,6 +86,45 @@ suite('Chat Find keybinding resolution', () => {
 		const previous = resolver.lookupPrimaryKeybinding(ChatFindCommandId.FindPrevious, overlay, true)?.resolvedKeybinding?.getDispatchChords()[0];
 
 		assert.deepStrictEqual({ next, previous }, { next: 'Enter', previous: 'shift+Enter' });
+
+		ctxService.dispose();
+	});
+
+	test('F3 finds next and Shift+F3 finds previous while transcript Find is hidden', () => {
+		const config = new TestConfigurationService();
+		const ctxService = new ContextKeyService(config);
+		const overlay = ctxService.createOverlay([
+			[ChatContextKeys.findSupported.key, true],
+			[ChatContextKeys.inChatSession.key, true],
+		]);
+		const resolver = buildResolverForCommands([ChatFindCommandId.FindNext, ChatFindCommandId.FindPrevious]);
+		const context = overlay.getContext(null);
+		const next = resolver.resolve(context, [], 'F3');
+		const previous = resolver.resolve(context, [], 'shift+F3');
+
+		assert.deepStrictEqual({
+			next: next.kind === ResultKind.KbFound ? next.commandId : undefined,
+			previous: previous.kind === ResultKind.KbFound ? previous.commandId : undefined,
+		}, {
+			next: ChatFindCommandId.FindNext,
+			previous: ChatFindCommandId.FindPrevious,
+		});
+
+		ctxService.dispose();
+	});
+
+	test('F3 does not override Find Next in an embedded editor', () => {
+		const config = new TestConfigurationService();
+		const ctxService = new ContextKeyService(config);
+		const overlay = ctxService.createOverlay([
+			[ChatContextKeys.findSupported.key, true],
+			[ChatContextKeys.inChatSession.key, true],
+			[EditorContextKeys.focus.key, true],
+		]);
+		const resolver = buildResolverForCommands([ChatFindCommandId.FindNext]);
+		const result = resolver.resolve(overlay.getContext(null), [], 'F3');
+
+		assert.strictEqual(result.kind === ResultKind.KbFound ? result.commandId : undefined, undefined);
 
 		ctxService.dispose();
 	});

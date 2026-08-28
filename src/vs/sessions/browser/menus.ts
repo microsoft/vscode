@@ -18,6 +18,7 @@ export const Menus = {
 	TitleBarCenterRight: new MenuId('SessionsTitleBarCenterRight'),
 	TitleBarSessionTitle: new MenuId('SessionsTitleBarSessionTitle'),
 	TitleBarSessionMenu: new MenuId('SessionsTitleBarSessionMenu'),
+	TitleBarAccessibility: new MenuId('SessionsTitleBarAccessibility'),
 	TitleBarUpdate: new MenuId('SessionsTitleBarUpdate'),
 	BlockedSessionsHeader: new MenuId('SessionsBlockedSessionsHeader'),
 	BlockedSessionsItem: new MenuId('SessionsBlockedSessionsItem'),
@@ -43,6 +44,8 @@ export const Menus = {
 	CustomViewAutomations: new MenuId('SessionsCustomViewAutomations'),
 	/** Unified toolbar for all session-backed Automation history rows. Actions are conditionally shown via sessionItem.status context key. */
 	AutomationsHistoryItem: new MenuId('SessionsAutomationsHistoryItem'),
+	/** Context menu for session-backed Automation history rows. */
+	AutomationsHistoryItemContext: new MenuId('SessionsAutomationsHistoryItemContext'),
 
 	NewSessionConfig: new MenuId('NewSessions.SessionConfigMenu'),
 	NewSessionControl: new MenuId('NewSessions.SessionControlMenu'),

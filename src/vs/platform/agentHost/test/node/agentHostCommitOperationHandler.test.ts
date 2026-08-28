@@ -47,6 +47,7 @@ class TestGitService implements IAgentHostGitService {
 	async addExistingWorktree(): Promise<void> { }
 	async removeWorktree(): Promise<void> { }
 	async branchExists(): Promise<boolean> { return false; }
+	async createBranch(): Promise<void> { }
 	async hasUncommittedChanges(): Promise<boolean> {
 		this.calls.push('hasUncommittedChanges');
 		return this.uncommitted;

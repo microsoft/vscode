@@ -6,8 +6,8 @@
 import { localize } from '../../../../../nls.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { isPromptFileMigrationCandidate, isUserDataMigrationCandidate } from '../../common/promptSyntax/service/customizationMigrationService.js';
-import { IPromptPath, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { isPromptFileMigrationCandidate, isUserDataMigrationCandidate, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 
 export const enum CustomizationMigrationCategoryId {
 	PromptFiles = 'promptFiles',
@@ -17,7 +17,7 @@ export const enum CustomizationMigrationCategoryId {
 export interface ICustomizationMigrationGroup {
 	readonly key: string;
 	readonly label: string;
-	readonly customizations: readonly IPromptPath[];
+	readonly customizations: readonly MigratableConfiguration[];
 }
 
 export interface ICustomizationMigrationConfirmation {
@@ -57,14 +57,14 @@ export interface ICustomizationMigrationCategory {
 	readonly migrateButtonTooltip: string;
 	readonly backLabel: string;
 	readonly noFilesMigratedMessage: string;
-	isCandidate(customization: IPromptPath): boolean;
-	group(customizations: readonly IPromptPath[]): readonly ICustomizationMigrationGroup[];
+	isCandidate(customization: MigratableConfiguration): boolean;
+	group(customizations: readonly MigratableConfiguration[]): readonly ICustomizationMigrationGroup[];
 	getShortcutAriaLabel(count: number): string;
-	getCardDescription(customizations: readonly IPromptPath[], harnessLabel: string): string;
-	getPageDescription(customizations: readonly IPromptPath[], harnessLabel: string): string;
+	getCardDescription(customizations: readonly MigratableConfiguration[], harnessLabel: string): string;
+	getPageDescription(customizations: readonly MigratableConfiguration[], harnessLabel: string): string;
 	/** When present, replaces the page description with a prominent banner. */
-	getBanner?(customizations: readonly IPromptPath[], harnessLabel: string, destinationLabel?: string): ICustomizationMigrationBanner;
-	getConfirmation(customizations: readonly IPromptPath[], harnessLabel: string, destinationLabel?: string): ICustomizationMigrationConfirmation;
+	getBanner?(customizations: readonly MigratableConfiguration[], harnessLabel: string, destinationLabel?: string): ICustomizationMigrationBanner;
+	getConfirmation(customizations: readonly MigratableConfiguration[], harnessLabel: string, destinationLabel?: string): ICustomizationMigrationConfirmation;
 	getMigratedMessage(migratedCount: number): string;
 	getMigratedWithReviewMessage?(migratedCount: number, unsupportedHeaderKeys: string): string;
 	getFailedMessage(failedFileNames: readonly string[], hiddenFileCount: number): string;
@@ -408,13 +408,13 @@ export function getCustomizationMigrationSourceTypes(categories: readonly ICusto
 	return Array.from(new Set(categories.flatMap(category => category.sourceTypes)));
 }
 
-function countPromptStorages(customizations: readonly IPromptPath[]): { workspaceCount: number; userCount: number; totalCount: number } {
+function countPromptStorages(customizations: readonly MigratableConfiguration[]): { workspaceCount: number; userCount: number; totalCount: number } {
 	const workspaceCount = customizations.filter(customization => customization.storage === PromptsStorage.local).length;
 	const userCount = customizations.filter(customization => customization.storage === PromptsStorage.user).length;
 	return { workspaceCount, userCount, totalCount: workspaceCount + userCount };
 }
 
-function countUserDataTypes(customizations: readonly IPromptPath[]): { agentCount: number; instructionsCount: number; totalCount: number } {
+function countUserDataTypes(customizations: readonly MigratableConfiguration[]): { agentCount: number; instructionsCount: number; totalCount: number } {
 	const agentCount = customizations.filter(customization => customization.type === PromptsType.agent).length;
 	const instructionsCount = customizations.filter(customization => customization.type === PromptsType.instructions).length;
 	return { agentCount, instructionsCount, totalCount: agentCount + instructionsCount };
