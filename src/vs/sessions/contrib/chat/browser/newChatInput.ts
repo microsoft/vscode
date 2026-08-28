@@ -953,7 +953,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				this._send(true);
 			}
 			// Cmd+/ / Ctrl+/ — open the context picker (same as the attach button)
-			if (e.equals(KeyMod.CtrlCmd | KeyCode.Slash)) {
+			if (!this.options.hideAttachments && e.equals(KeyMod.CtrlCmd | KeyCode.Slash)) {
 				e.preventDefault();
 				e.stopPropagation();
 				this._contextAttachments.showPicker(this.options.getContextFolderUri());
@@ -991,28 +991,30 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// Slash commands
 		this._register(this._scopedInstantiationService.createInstance(SlashCommandHandler, this._editor));
 
-		// Variable completions (#file, #folder)
-		this._register(this.instantiationService.createInstance(
-			VariableCompletionHandler, this._editor, this._contextAttachments, () => this.options.getContextFolderUri(),
-		));
+		if (!this.options.hideAttachments) {
+			// Variable completions (#file, #folder)
+			this._register(this.instantiationService.createInstance(
+				VariableCompletionHandler, this._editor, this._contextAttachments, () => this.options.getContextFolderUri(),
+			));
 
-		// Session reference completions (#session)
-		this._register(this.instantiationService.createInstance(
-			SessionReferenceCompletionHandler, this._editor, this._contextAttachments,
-		));
+			// Session reference completions (#session)
+			this._register(this.instantiationService.createInstance(
+				SessionReferenceCompletionHandler, this._editor, this._contextAttachments,
+			));
 
-		this._agentHostInputCompletionHandler = this._register(this._scopedInstantiationService.createInstance(
-			AgentHostInputCompletionHandler, this._editor, this._contextAttachments,
-		));
+			this._agentHostInputCompletionHandler = this._register(this._scopedInstantiationService.createInstance(
+				AgentHostInputCompletionHandler, this._editor, this._contextAttachments,
+			));
 
-		this._register(this.chatPasteTargetService.registerTarget(textModel.uri, new NewChatInputPasteTarget(
-			this._editor,
-			this._contextAttachments,
-			this._agentHostInputCompletionHandler,
-			() => this._getTerminalCommandPrefix(),
-			() => this.options.session.get()?.resource,
-			textModel.uri,
-		)));
+			this._register(this.chatPasteTargetService.registerTarget(textModel.uri, new NewChatInputPasteTarget(
+				this._editor,
+				this._contextAttachments,
+				this._agentHostInputCompletionHandler,
+				() => this._getTerminalCommandPrefix(),
+				() => this.options.session.get()?.resource,
+				textModel.uri,
+			)));
+		}
 
 		this._register(this._editor.onDidChangeModelContent(() => {
 			this._updateDraftState();
