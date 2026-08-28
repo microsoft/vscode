@@ -107,14 +107,14 @@ suite('AgentHostAutomationService', () => {
 		}, {
 			writeAttempts: 3,
 			capabilities: { create: {}, schedules: {}, runCancellation: {}, runHistoryLimit: 50 },
-			catalog: { automations: [], _meta: { [AGENT_HOST_AUTOMATION_CATALOG_MIGRATED_META_KEY]: true } },
+			catalog: { entries: [], _meta: { [AGENT_HOST_AUTOMATION_CATALOG_MIGRATED_META_KEY]: true } },
 		});
 	});
 
 	test('a future host automation storage version disables the capability without rewriting data', async () => {
 		storageService.set('automations', {
 			version: 2,
-			catalog: { automations: [] },
+			catalog: { entries: [] },
 		});
 		await storageService.whenIdle();
 		const service = createService();
@@ -138,13 +138,13 @@ suite('AgentHostAutomationService', () => {
 
 		await assert.rejects(service.handleCreate(createAction()), /storage unavailable/);
 		assert.deepStrictEqual(stateManager.getAutomationCatalogState(), {
-			automations: [],
+			entries: [],
 			_meta: { [AGENT_HOST_AUTOMATION_CATALOG_MIGRATED_META_KEY]: true },
 		});
 
 		await service.handleCreate(createAction());
 
-		assert.deepStrictEqual(stateManager.getAutomationCatalogState()?.automations.map(automation => ({
+		assert.deepStrictEqual(stateManager.getAutomationCatalogState()?.entries.map(automation => ({
 			resource: automation.resource,
 			operations: automation.operations,
 		})), [{
@@ -162,21 +162,21 @@ suite('AgentHostAutomationService', () => {
 			/1 expected automation resources are missing/,
 		);
 		await assert.rejects(service.runAutomation({
-			channel: 'ahp-automations://catalog',
+			channel: 'ahp-automations://',
 			automation: 'ahp-automation:/review-changes',
 			requestId: 'blocked-request',
 		}), /migration must complete/);
 
 		assert.deepStrictEqual({
 			capabilities: service.capabilities,
-			operations: stateManager.getAutomationCatalogState()?.automations[0].operations,
+			operations: stateManager.getAutomationCatalogState()?.entries[0].operations,
 		}, {
 			capabilities: { create: {}, schedules: {}, runCancellation: {}, runHistoryLimit: 50 },
 			operations: [AutomationOperation.Update, AutomationOperation.Remove],
 		});
 
 		await service.completeMigration(['ahp-automation:/review-changes']);
-		assert.deepStrictEqual(stateManager.getAutomationCatalogState()?.automations[0].operations, [
+		assert.deepStrictEqual(stateManager.getAutomationCatalogState()?.entries[0].operations, [
 			AutomationOperation.Update,
 			AutomationOperation.Remove,
 			AutomationOperation.Run,
@@ -193,11 +193,11 @@ suite('AgentHostAutomationService', () => {
 		await service.handleConfigurationChanged();
 
 		await assert.rejects(service.runAutomation({
-			channel: 'ahp-automations://catalog',
+			channel: 'ahp-automations://',
 			automation: 'ahp-automation:/review-changes',
 			requestId: 'disabled-request',
 		}), /Automations are disabled/);
-		assert.deepStrictEqual(stateManager.getAutomationCatalogState()?.automations[0].operations, [
+		assert.deepStrictEqual(stateManager.getAutomationCatalogState()?.entries[0].operations, [
 			AutomationOperation.Update,
 			AutomationOperation.Remove,
 		]);
@@ -207,7 +207,7 @@ suite('AgentHostAutomationService', () => {
 			config: { [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: true },
 		});
 		await service.handleConfigurationChanged();
-		assert.deepStrictEqual(stateManager.getAutomationCatalogState()?.automations[0].operations, [
+		assert.deepStrictEqual(stateManager.getAutomationCatalogState()?.entries[0].operations, [
 			AutomationOperation.Update,
 			AutomationOperation.Remove,
 			AutomationOperation.Run,
@@ -247,7 +247,7 @@ suite('AgentHostAutomationService', () => {
 		await enableAndCreate(service);
 
 		const params = {
-			channel: 'ahp-automations://catalog' as const,
+			channel: 'ahp-automations://' as const,
 			automation: 'ahp-automation:/review-changes',
 			requestId: 'manual-request',
 		};
@@ -265,7 +265,7 @@ suite('AgentHostAutomationService', () => {
 			status: running?.lifecycle.status,
 			sessions: running?.sessions,
 			primarySession: running?.primarySession,
-			catalogRuns: stateManager.getAutomationCatalogState()?.automations[0].runs.length,
+			catalogRuns: stateManager.getAutomationCatalogState()?.entries[0].runs.length,
 			startedMessageKind,
 		}, {
 			first: second,
@@ -296,7 +296,7 @@ suite('AgentHostAutomationService', () => {
 
 		assert.deepStrictEqual({
 			run: stateManager.getAutomationRunState(first.resource)?.lifecycle.status,
-			summary: stateManager.getAutomationCatalogState()?.automations[0].runs[0].lifecycle.status,
+			summary: stateManager.getAutomationCatalogState()?.entries[0].runs[0].lifecycle.status,
 		}, {
 			run: AutomationRunStatus.Completed,
 			summary: AutomationRunStatus.Completed,
@@ -315,14 +315,14 @@ suite('AgentHostAutomationService', () => {
 		writeFailures = 1;
 
 		await assert.rejects(service.runAutomation({
-			channel: 'ahp-automations://catalog',
+			channel: 'ahp-automations://',
 			automation: 'ahp-automation:/review-changes',
 			requestId: 'failed-request',
 		}), /storage unavailable/);
 
 		assert.deepStrictEqual({
 			createCalls,
-			runs: stateManager.getAutomationCatalogState()?.automations[0].runs,
+			runs: stateManager.getAutomationCatalogState()?.entries[0].runs,
 		}, {
 			createCalls: 0,
 			runs: [],
@@ -355,7 +355,7 @@ suite('AgentHostAutomationService', () => {
 		await enableAndCreate(service);
 
 		const result = await service.runAutomation({
-			channel: 'ahp-automations://catalog',
+			channel: 'ahp-automations://',
 			automation: 'ahp-automation:/review-changes',
 			requestId: 'deferred-request',
 		});
@@ -412,7 +412,7 @@ suite('AgentHostAutomationService', () => {
 		));
 
 		const result = await service.runAutomation({
-			channel: 'ahp-automations://catalog',
+			channel: 'ahp-automations://',
 			automation: 'ahp-automation:/review-changes',
 			requestId: 'hung-request',
 		});
@@ -423,7 +423,7 @@ suite('AgentHostAutomationService', () => {
 		assert.deepStrictEqual({
 			status: run?.lifecycle.status,
 			error: run?.lifecycle.status === AutomationRunStatus.Failed ? run.lifecycle.error.message : undefined,
-			removeAvailable: stateManager.getAutomationCatalogState()?.automations[0].operations.includes(AutomationOperation.Remove),
+			removeAvailable: stateManager.getAutomationCatalogState()?.entries[0].operations.includes(AutomationOperation.Remove),
 		}, {
 			status: AutomationRunStatus.Failed,
 			error: 'Automation run timed out.',
@@ -461,7 +461,7 @@ suite('AgentHostAutomationService', () => {
 		});
 		await enableAndCreate(service);
 		const result = await service.runAutomation({
-			channel: 'ahp-automations://catalog',
+			channel: 'ahp-automations://',
 			automation: 'ahp-automation:/review-changes',
 			requestId: 'cancel-request',
 		});
@@ -514,7 +514,7 @@ suite('AgentHostAutomationService', () => {
 		});
 		await enableAndCreate(service);
 		const result = await service.runAutomation({
-			channel: 'ahp-automations://catalog',
+			channel: 'ahp-automations://',
 			automation: 'ahp-automation:/review-changes',
 			requestId: 'cancel-failure',
 		});
@@ -540,7 +540,7 @@ suite('AgentHostAutomationService', () => {
 		};
 		storageService.set('automations', {
 			catalog: {
-				automations: [{
+				entries: [{
 					resource: automationResource,
 					definition: scheduledDefinition,
 					nextRunAt: scheduledFor,
@@ -584,7 +584,7 @@ suite('AgentHostAutomationService', () => {
 		});
 		await started.p;
 
-		const automation = stateManager.getAutomationCatalogState()?.automations[0];
+		const automation = stateManager.getAutomationCatalogState()?.entries[0];
 		const run = automation?.runs[0];
 		assert.deepStrictEqual({
 			origin: run?.origin,
@@ -630,7 +630,7 @@ suite('AgentHostAutomationService', () => {
 		};
 		storageService.set('automations', {
 			catalog: {
-				automations: [{
+				entries: [{
 					resource: automationResource,
 					definition: multiTriggerDefinition,
 					nextRunAt: firstScheduledFor,
@@ -672,7 +672,7 @@ suite('AgentHostAutomationService', () => {
 		});
 		await started.p;
 
-		const automation = stateManager.getAutomationCatalogState()?.automations[0];
+		const automation = stateManager.getAutomationCatalogState()?.entries[0];
 		const cursors = automation?._meta?.['vscode.scheduleCursors'] as Record<string, string> | undefined;
 		assert.deepStrictEqual({
 			runsClaimed: automation?.runs.length,
@@ -711,7 +711,7 @@ suite('AgentHostAutomationService', () => {
 		};
 		storageService.set('automations', {
 			catalog: {
-				automations: [{
+				entries: [{
 					resource: automationResource,
 					definition: multiTriggerDefinition,
 					nextRunAt: stale,
@@ -754,7 +754,7 @@ suite('AgentHostAutomationService', () => {
 		});
 		await started.p;
 
-		const automation = stateManager.getAutomationCatalogState()?.automations[0];
+		const automation = stateManager.getAutomationCatalogState()?.entries[0];
 		assert.deepStrictEqual({
 			runsClaimed: automation?.runs.length,
 			claimedTriggerId: automation?.runs[0]?.origin.kind === AutomationRunOriginKind.Trigger ? automation.runs[0].origin.triggerId : undefined,
@@ -783,7 +783,7 @@ suite('AgentHostAutomationService', () => {
 		});
 		storageService.set('automations', {
 			catalog: {
-				automations: [{
+				entries: [{
 					resource: automationResource,
 					definition: definition(),
 					runs: runs.map(run => ({
@@ -806,22 +806,22 @@ suite('AgentHostAutomationService', () => {
 		const service = createService();
 
 		assert.deepStrictEqual({
-			count: stateManager.getAutomationCatalogState()?.automations[0].runs.length,
-			cursor: stateManager.getAutomationCatalogState()?.automations[0].runsNextCursor,
+			count: stateManager.getAutomationCatalogState()?.entries[0].runs.length,
+			cursor: stateManager.getAutomationCatalogState()?.entries[0].runsNextCursor,
 		}, {
 			count: 50,
 			cursor: '50',
 		});
 
 		await service.fetchAutomationRuns({
-			channel: 'ahp-automations://catalog',
+			channel: 'ahp-automations://',
 			automation: automationResource,
 			cursor: '50',
 		});
 
 		assert.deepStrictEqual({
-			count: stateManager.getAutomationCatalogState()?.automations[0].runs.length,
-			cursor: stateManager.getAutomationCatalogState()?.automations[0].runsNextCursor,
+			count: stateManager.getAutomationCatalogState()?.entries[0].runs.length,
+			cursor: stateManager.getAutomationCatalogState()?.entries[0].runsNextCursor,
 		}, {
 			count: 51,
 			cursor: undefined,
@@ -841,11 +841,11 @@ suite('AgentHostAutomationService', () => {
 		});
 
 		await assert.rejects(service.runAutomation({
-			channel: 'ahp-automations://catalog',
+			channel: 'ahp-automations://',
 			automation: 'ahp-automation:/pending-import',
 			requestId: 'pending-request',
 		}), /not available/i);
-		assert.deepStrictEqual(stateManager.getAutomationCatalogState()?.automations[0].operations, [
+		assert.deepStrictEqual(stateManager.getAutomationCatalogState()?.entries[0].operations, [
 			AutomationOperation.Update,
 		]);
 	});
@@ -867,7 +867,7 @@ suite('AgentHostAutomationService', () => {
 			changes: { _meta: {} },
 		});
 
-		assert.deepStrictEqual(stateManager.getAutomationCatalogState()?.automations[0].operations, [
+		assert.deepStrictEqual(stateManager.getAutomationCatalogState()?.entries[0].operations, [
 			AutomationOperation.Update,
 			AutomationOperation.Remove,
 			AutomationOperation.Run,
@@ -888,7 +888,7 @@ suite('AgentHostAutomationService', () => {
 			changes: { _meta: { [AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY]: true } },
 		});
 
-		assert.deepStrictEqual(stateManager.getAutomationCatalogState()?.automations[0].operations, [
+		assert.deepStrictEqual(stateManager.getAutomationCatalogState()?.entries[0].operations, [
 			AutomationOperation.Update,
 		]);
 	});
@@ -911,7 +911,7 @@ suite('AgentHostAutomationService', () => {
 
 		await service.completeMigration();
 
-		const automations = stateManager.getAutomationCatalogState()?.automations ?? [];
+		const automations = stateManager.getAutomationCatalogState()?.entries ?? [];
 		const byResource = new Map(automations.map(automation => [automation.resource, automation.operations]));
 		assert.deepStrictEqual({
 			pending: byResource.get('ahp-automation:/pending-import'),
@@ -944,7 +944,7 @@ suite('AgentHostAutomationService', () => {
 		});
 		await service.handleConfigurationChanged();
 
-		assert.deepStrictEqual(stateManager.getAutomationCatalogState()?.automations[0].operations, [
+		assert.deepStrictEqual(stateManager.getAutomationCatalogState()?.entries[0].operations, [
 			AutomationOperation.Update,
 		]);
 	});
@@ -964,7 +964,7 @@ suite('AgentHostAutomationService', () => {
 		};
 		storageService.set('automations', {
 			catalog: {
-				automations: [{
+				entries: [{
 					resource: 'ahp-automation:/pending-scheduled',
 					definition: scheduledDefinition,
 					nextRunAt: scheduledFor,
@@ -995,7 +995,7 @@ suite('AgentHostAutomationService', () => {
 		});
 		await service.completeMigration();
 
-		const automation = stateManager.getAutomationCatalogState()?.automations[0];
+		const automation = stateManager.getAutomationCatalogState()?.entries[0];
 		assert.deepStrictEqual({
 			createCalls,
 			operations: automation?.operations,
@@ -1022,7 +1022,7 @@ suite('AgentHostAutomationService', () => {
 		};
 		storageService.set('automations', {
 			catalog: {
-				automations: [{
+				entries: [{
 					resource: 'ahp-automation:/pending-import',
 					definition: scheduledDefinition,
 					runs: [pendingRun],

@@ -2510,7 +2510,7 @@ suite('AgentHostProtocolClient', () => {
 			const initialSubscribe = await waitForRequest(transports[0], 'subscribe');
 			transports[0].fireMessage({
 				jsonrpc: '2.0', id: initialSubscribe.id,
-				result: { snapshot: { resource: AUTOMATION_CATALOG_URI, state: { automations: [] }, fromSeq: 5 } },
+				result: { snapshot: { resource: AUTOMATION_CATALOG_URI, state: { entries: [] }, fromSeq: 5 } },
 			});
 			await flushMicrotasks();
 
@@ -2541,10 +2541,12 @@ suite('AgentHostProtocolClient', () => {
 			await flushMicrotasks();
 
 			assert.deepStrictEqual({
-				channel: (restoredSubscribe.params as { channel: string }).channel,
+				initialChannel: (initialSubscribe.params as { channel: string }).channel,
+				restoredChannel: (restoredSubscribe.params as { channel: string }).channel,
 				valueIsError: catalogRef.object.value instanceof Error,
 			}, {
-				channel: AUTOMATION_CATALOG_URI,
+				initialChannel: URI.parse(AUTOMATION_CATALOG_URI).toString(),
+				restoredChannel: URI.parse(AUTOMATION_CATALOG_URI).toString(),
 				valueIsError: true,
 			});
 

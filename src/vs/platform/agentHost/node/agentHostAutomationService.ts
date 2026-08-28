@@ -13,11 +13,11 @@ import { localize } from '../../../nls.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { ActionType, type ActionEnvelope, type AutomationCreateRequestedAction, type AutomationRemovedAction, type AutomationRunCancelRequestedAction, type AutomationRunLifecycleChangedAction, type AutomationRunPrimarySessionChangedAction, type AutomationRunSessionSetAction, type AutomationUpdateRequestedAction } from '../common/state/sessionActions.js';
-import { AUTOMATION_CATALOG_URI, isDefaultChatUri, parseRequiredSessionUriFromChatUri, type AutomationCatalogState, type Message } from '../common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, isDefaultChatUri, parseRequiredSessionUriFromChatUri, type AutomationState, type Message } from '../common/state/sessionState.js';
 import { automationReducer } from '../common/state/sessionReducers.js';
 import type { AutomationCapabilities } from '../common/state/protocol/common/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../common/state/protocol/channels-automation/commands.js';
-import { AutomationMisfirePolicy, AutomationOperation, AutomationTriggerKind, type AutomationDefinition, type AutomationSessionTemplate, type AutomationState } from '../common/state/protocol/channels-automation/state.js';
+import { AutomationMisfirePolicy, AutomationOperation, AutomationTriggerKind, type AutomationDefinition, type AutomationEntry, type AutomationSessionTemplate } from '../common/state/protocol/channels-automation/state.js';
 import { AutomationRunOriginKind, AutomationRunStatus, type AutomationRunLifecycle, type AutomationRunOrigin, type AutomationRunState, type AutomationRunSummary } from '../common/state/protocol/channels-automation-run/state.js';
 import { MessageKind } from '../common/state/protocol/channels-chat/state.js';
 import { IAgentHostStateManager, type AgentHostStateManager } from './agentHostStateManager.js';
@@ -40,7 +40,7 @@ interface IStoredManualRunRequest {
 
 interface IStoredAutomations {
 	readonly version?: 1;
-	readonly catalog: AutomationCatalogState;
+	readonly catalog: AutomationState;
 	readonly runs?: readonly AutomationRunState[];
 	readonly manualRunRequests?: readonly IStoredManualRunRequest[];
 	readonly migration?: {
@@ -82,7 +82,7 @@ export interface IAgentHostAutomationService {
 export class AgentHostAutomationService extends Disposable implements IAgentHostAutomationService {
 	declare readonly _serviceBrand: undefined;
 
-	private _catalog: AutomationCatalogState | undefined;
+	private _catalog: AutomationState | undefined;
 	private _migrationCompletedAt: string | undefined;
 	private _runs = new Map<string, AutomationRunState>();
 	private _manualRunRequests = new Map<string, IStoredManualRunRequest>();
@@ -103,7 +103,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		this._runs = new Map(stored?.runs?.map(run => [run.resource, run]));
 		this._catalog = stored?.catalog ? {
 			...stored.catalog,
-			automations: stored.catalog.automations.map(automation => withRunWindow(automation, this._runs, RUN_HISTORY_PAGE_SIZE)),
+			entries: stored.catalog.entries.map(automation => withRunWindow(automation, this._runs, RUN_HISTORY_PAGE_SIZE)),
 			...(this._migrationCompletedAt ? { _meta: { ...stored.catalog._meta, [AGENT_HOST_AUTOMATION_CATALOG_MIGRATED_META_KEY]: true } } : {}),
 		} : undefined;
 		this._manualRunRequests = new Map(stored?.manualRunRequests?.map(request => [request.requestId, request]));
@@ -144,8 +144,8 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			if (this._migrationCompletedAt !== undefined) {
 				return;
 			}
-			const missing = (expectedResources ?? catalog.automations.map(automation => automation.resource))
-				.filter(resource => !catalog.automations.some(automation => automation.resource === resource));
+			const missing = (expectedResources ?? catalog.entries.map(automation => automation.resource))
+				.filter(resource => !catalog.entries.some(automation => automation.resource === resource));
 			if (missing.length > 0) {
 				throw new Error(`Automation migration is incomplete; ${missing.length} expected automation resources are missing.`);
 			}
@@ -155,12 +155,12 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			// fails to preserve the pre-migration invariants.
 			const priorCompletedAt = this._migrationCompletedAt;
 			this._migrationCompletedAt = completedAt;
-			let migratedCatalog: AutomationCatalogState;
+			let migratedCatalog: AutomationState;
 			try {
 				migratedCatalog = {
 					...catalog,
 					_meta: { ...catalog._meta, [AGENT_HOST_AUTOMATION_CATALOG_MIGRATED_META_KEY]: true },
-					automations: catalog.automations.map(automation => ({
+					entries: catalog.entries.map(automation => ({
 						...automation,
 						operations: this._migrationOperationsForItem(automation),
 					})),
@@ -172,16 +172,16 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			}
 			this._catalog = migratedCatalog;
 			this._stateManager.setAutomationCatalogState(migratedCatalog);
-			for (const automation of migratedCatalog.automations) {
+			for (const automation of migratedCatalog.entries) {
 				this._stateManager.dispatchServerAction(AUTOMATION_CATALOG_URI, { type: ActionType.AutomationSet, automation });
 			}
-			this._logService.info(`[AgentHostAutomationService] Automation migration completed: discovered=${expectedResources?.length ?? migratedCatalog.automations.length}, automations=${migratedCatalog.automations.length}, runs=${this._runs.size}.`);
+			this._logService.info(`[AgentHostAutomationService] Automation migration completed: discovered=${expectedResources?.length ?? migratedCatalog.entries.length}, automations=${migratedCatalog.entries.length}, runs=${this._runs.size}.`);
 			this._recoverRuns();
 			this._scheduleNext();
 		});
 	}
 
-	private _migrationOperationsForItem(automation: AutomationState): AutomationOperation[] {
+	private _migrationOperationsForItem(automation: AutomationEntry): AutomationOperation[] {
 		if (!this._canGrantRun(automation.definition)) {
 			// Pending imports or disabled automations must not receive Run or
 			// Remove: the browser scheduler still owns the legacy row until the
@@ -202,9 +202,9 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	async handleConfigurationChanged(): Promise<void> {
 		return this._enqueueMutation(async () => {
 			const catalog = this._requireCatalog();
-			const nextCatalog: AutomationCatalogState = {
+			const nextCatalog: AutomationState = {
 				...catalog,
-				automations: catalog.automations.map(automation => ({
+				entries: catalog.entries.map(automation => ({
 					...automation,
 					operations: this._canGrantRun(automation.definition)
 						? withOperation(automation.operations, AutomationOperation.Run)
@@ -215,7 +215,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			if (!equals(nextCatalog, catalog)) {
 				await this._persist(nextCatalog, this._runs, this._manualRunRequests);
 				this._catalog = nextCatalog;
-				for (const automation of nextCatalog.automations) {
+				for (const automation of nextCatalog.entries) {
 					this._stateManager.dispatchServerAction(AUTOMATION_CATALOG_URI, { type: ActionType.AutomationSet, automation });
 				}
 			}
@@ -245,7 +245,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		this._validateAutomationResource(action.resource);
 		const definition = action.definition;
 		this._validateDefinition(definition);
-		const existing = catalog.automations.find(automation => automation.resource === action.resource);
+		const existing = catalog.entries.find(automation => automation.resource === action.resource);
 		if (existing && equals(existing.definition, definition)) {
 			this._stateManager.dispatchServerAction(AUTOMATION_CATALOG_URI, { type: ActionType.AutomationSet, automation: existing });
 			return;
@@ -281,13 +281,13 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 
 	private async _handleUpdate(action: AutomationUpdateRequestedAction): Promise<void> {
 		const catalog = this._requireCatalog();
-		const existing = catalog.automations.find(automation => automation.resource === action.resource);
+		const existing = catalog.entries.find(automation => automation.resource === action.resource);
 		if (!existing) {
 			throw new Error(`Automation not found: ${action.resource}`);
 		}
 		this._requireOperation(existing, AutomationOperation.Update);
 
-		let automation: AutomationState = {
+		let automation: AutomationEntry = {
 			...existing,
 			definition: {
 				...existing.definition,
@@ -330,7 +330,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 
 	private async _handleRemove(action: AutomationRemovedAction): Promise<void> {
 		const catalog = this._requireCatalog();
-		const existing = catalog.automations.find(automation => automation.resource === action.resource);
+		const existing = catalog.entries.find(automation => automation.resource === action.resource);
 		if (!existing) {
 			return;
 		}
@@ -364,7 +364,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 
 	private async _fetchAutomationRuns(params: FetchAutomationRunsParams): Promise<FetchAutomationRunsResult> {
 		const catalog = this._requireAvailableCatalog();
-		const automation = catalog.automations.find(candidate => candidate.resource === params.automation);
+		const automation = catalog.entries.find(candidate => candidate.resource === params.automation);
 		if (!automation) {
 			throw new Error(`Automation not found: ${params.automation}`);
 		}
@@ -414,7 +414,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		}
 		const stored = this._storageService.get<IStoredAutomations>(STORAGE_KEY);
 		if (stored === undefined) {
-			return { catalog: { automations: [] } };
+			return { catalog: { entries: [] } };
 		}
 		if (!isStoredAutomations(stored)) {
 			this._logService.error('[AgentHostAutomationService] Automation storage is invalid; automation execution remains unavailable until it is recovered.');
@@ -424,7 +424,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	}
 
 	private async _persist(
-		catalog: AutomationCatalogState,
+		catalog: AutomationState,
 		runs: ReadonlyMap<string, AutomationRunState>,
 		manualRunRequests: ReadonlyMap<string, IStoredManualRunRequest>,
 		migrationCompletedAt = this._migrationCompletedAt,
@@ -438,14 +438,14 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		});
 	}
 
-	private _requireCatalog(): AutomationCatalogState {
+	private _requireCatalog(): AutomationState {
 		if (!this._catalog) {
 			throw new Error('Automation storage is unavailable and must be recovered before automations can run.');
 		}
 		return this._catalog;
 	}
 
-	private _requireAvailableCatalog(): AutomationCatalogState {
+	private _requireAvailableCatalog(): AutomationState {
 		const catalog = this._requireCatalog();
 		if (this._migrationCompletedAt === undefined) {
 			throw new Error('Automation migration must complete before automations can be accessed or run.');
@@ -460,7 +460,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		return this._stateManager.rootState.config?.values[AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY] === true;
 	}
 
-	private _withInitialScheduleState(automation: AutomationState, now: Date): AutomationState {
+	private _withInitialScheduleState(automation: AutomationEntry, now: Date): AutomationEntry {
 		const cursors: Record<string, string> = {};
 		if (automation.definition.enabled) {
 			for (const trigger of automation.definition.triggers) {
@@ -481,7 +481,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		if (!this._migrationCompletedAt || !this._catalog || !this._isAutomationsEnabled()) {
 			return;
 		}
-		const timestamps = this._catalog.automations
+		const timestamps = this._catalog.entries
 			.filter(automation => automation.definition.enabled
 				&& automation.operations.includes(AutomationOperation.Run)
 				&& automation.nextRunAt
@@ -513,10 +513,10 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		const createdAt = now.toISOString();
 		let nextCatalog = catalog;
 		const nextRuns = new Map(this._runs);
-		const changed = new Map<string, AutomationState>();
+		const changed = new Map<string, AutomationEntry>();
 		const claimed: { run: AutomationRunState; definition: AutomationDefinition }[] = [];
 
-		for (const current of catalog.automations) {
+		for (const current of catalog.entries) {
 			if (!current.definition.enabled) {
 				continue;
 			}
@@ -563,7 +563,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 				}
 				cursors[trigger.id] = scheduledFor.toISOString();
 			}
-			const nextAutomation: AutomationState = {
+			const nextAutomation: AutomationEntry = {
 				...automation,
 				nextRunAt: earliestCursor(cursors),
 				_meta: withScheduleCursors(automation._meta, cursors),
@@ -610,7 +610,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			if (run.lifecycle.status !== AutomationRunStatus.Pending) {
 				continue;
 			}
-			const automation = this._catalog?.automations.find(candidate => candidate.resource === run.automation);
+			const automation = this._catalog?.entries.find(candidate => candidate.resource === run.automation);
 			if (automation
 				&& automation.operations.includes(AutomationOperation.Run)
 				&& this._execution.isSessionTemplateAvailable(automation.definition.session)) {
@@ -636,7 +636,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			return { run: previousRun };
 		}
 
-		const automation = catalog.automations.find(candidate => candidate.resource === params.automation);
+		const automation = catalog.entries.find(candidate => candidate.resource === params.automation);
 		if (!automation) {
 			throw new Error(`Automation not found: ${params.automation}`);
 		}
@@ -852,8 +852,8 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		}
 	}
 
-	private _catalogWithRun(catalog: AutomationCatalogState, run: AutomationRunState): AutomationCatalogState {
-		const existing = catalog.automations.find(automation => automation.resource === run.automation);
+	private _catalogWithRun(catalog: AutomationState, run: AutomationRunState): AutomationState {
+		const existing = catalog.entries.find(automation => automation.resource === run.automation);
 		if (!existing) {
 			throw new Error(`Automation not found for run: ${run.automation}`);
 		}
@@ -863,8 +863,8 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		return automationReducer(catalog, { type: ActionType.AutomationSet, automation }, this._log);
 	}
 
-	private _publishAutomation(catalog: AutomationCatalogState, resource: string): void {
-		const automation = catalog.automations.find(candidate => candidate.resource === resource);
+	private _publishAutomation(catalog: AutomationState, resource: string): void {
+		const automation = catalog.entries.find(candidate => candidate.resource === resource);
 		if (automation) {
 			this._stateManager.dispatchServerAction(AUTOMATION_CATALOG_URI, { type: ActionType.AutomationSet, automation });
 		}
@@ -896,7 +896,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		}
 	}
 
-	private _requireOperation(automation: AutomationState, operation: AutomationOperation): void {
+	private _requireOperation(automation: AutomationEntry, operation: AutomationOperation): void {
 		if (!automation.operations.includes(operation)) {
 			throw new Error(`Automation operation '${operation}' is not available: ${automation.resource}`);
 		}
@@ -936,12 +936,12 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	private readonly _log = (message: string) => this._logService.warn(`[AgentHostAutomationService] ${message}`);
 }
 
-function isAutomationCatalogState(value: unknown): value is AutomationCatalogState {
+function isAutomationState(value: unknown): value is AutomationState {
 	if (!value || typeof value !== 'object' || Array.isArray(value)) {
 		return false;
 	}
-	const automations = (value as Record<string, unknown>)['automations'];
-	return Array.isArray(automations) && automations.every(isAutomationState);
+	const entries = (value as Record<string, unknown>)['entries'];
+	return Array.isArray(entries) && entries.every(isAutomationEntry);
 }
 
 function isStoredAutomations(value: unknown): value is IStoredAutomations {
@@ -950,13 +950,13 @@ function isStoredAutomations(value: unknown): value is IStoredAutomations {
 	}
 	const stored = value as Record<string, unknown>;
 	return (stored['version'] === undefined || stored['version'] === 1)
-		&& isAutomationCatalogState(stored['catalog'])
+		&& isAutomationState(stored['catalog'])
 		&& (stored['runs'] === undefined || Array.isArray(stored['runs']) && stored['runs'].every(isAutomationRunState))
 		&& (stored['manualRunRequests'] === undefined || Array.isArray(stored['manualRunRequests']) && stored['manualRunRequests'].every(isStoredManualRunRequest))
 		&& (stored['migration'] === undefined || isCompletedMigration(stored['migration']));
 }
 
-function isAutomationState(value: unknown): value is AutomationState {
+function isAutomationEntry(value: unknown): value is AutomationEntry {
 	if (!value || typeof value !== 'object' || Array.isArray(value)) {
 		return false;
 	}
@@ -1013,7 +1013,7 @@ function toRunSummary(run: AutomationRunState): AutomationRunSummary {
 	};
 }
 
-function withRunSummary(automation: AutomationState, allRuns: ReadonlyMap<string, AutomationRunState>): AutomationState {
+function withRunSummary(automation: AutomationEntry, allRuns: ReadonlyMap<string, AutomationRunState>): AutomationEntry {
 	const terminalLimit = Math.max(RUN_HISTORY_PAGE_SIZE, automation.runs.filter(candidate => isTerminalLifecycle(candidate.lifecycle)).length);
 	const window = withRunWindow(automation, allRuns, terminalLimit);
 	const runs = window.runs;
@@ -1026,7 +1026,7 @@ function withRunSummary(automation: AutomationState, allRuns: ReadonlyMap<string
 	};
 }
 
-function withRunWindow(automation: AutomationState, allRuns: ReadonlyMap<string, AutomationRunState>, terminalLimit: number): AutomationState {
+function withRunWindow(automation: AutomationEntry, allRuns: ReadonlyMap<string, AutomationRunState>, terminalLimit: number): AutomationEntry {
 	const summaries = [...allRuns.values()]
 		.filter(run => run.automation === automation.resource)
 		.map(toRunSummary)

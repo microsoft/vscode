@@ -123,6 +123,7 @@ async fn list_sessions(
 				channel: ROOT_RESOURCE_URI.to_string(),
 				limit: None,
 				cursor,
+				meta: None,
 			},
 		)
 		.await?;
@@ -412,6 +413,7 @@ mod tests {
 			modified_at: modified_at.to_string(),
 			project: None,
 			working_directories: None,
+			origin: None,
 			changes: None,
 			annotations: None,
 			meta: None,
