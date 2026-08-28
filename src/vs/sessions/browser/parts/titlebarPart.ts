@@ -16,7 +16,7 @@ import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { agentsBackground, agentsPanelForeground } from '../../common/theme.js';
 import { isMacintosh, isWeb, isNative, platformLocale } from '../../../base/common/platform.js';
-import { EventType, EventHelper, append, $, addDisposableListener, prepend, getWindow, getWindowId } from '../../../base/browser/dom.js';
+import { EventType, EventHelper, append, $, addDisposableListener, prepend, getWindow, getWindowId, setVisibility } from '../../../base/browser/dom.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
@@ -32,6 +32,8 @@ import { ITitlebarPart, ITitleProperties, ITitleVariable, IAuxiliaryTitlebarPart
 import { WindowTitle } from '../../../workbench/browser/parts/titlebar/windowTitle.js';
 import { Menus } from '../menus.js';
 import { IsNewChatSessionContext } from '../../common/contextkeys.js';
+import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
+import { localize } from '../../../nls.js';
 
 const commandCenterContextKeys = new Set([IsNewChatSessionContext.key]);
 
@@ -105,6 +107,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IHostService private readonly hostService: IHostService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
 		super(id, { hasTitle: false }, themeService, storageService, layoutService);
 
@@ -204,7 +207,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			toolbarOptions: { primaryGroup: () => true },
 		}));
 
-		// Center section: [nav toolbar] [command center box] [actions toolbar]
+		// Center section: [nav toolbar] [command center box] [status badges and actions]
 		// All live inside .titlebar-center so the cluster is window-centered.
 
 		// Navigation toolbar (Back/Forward), rendered left of the command center.
@@ -232,8 +235,28 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			}
 		}));
 
-		// Actions toolbar (Open in VS Code), rendered right of the command center.
-		const centerActionsContainer = append(this.centerContent, $('div.titlebar-actions-container.titlebar-center-actions-container'));
+		const centerRightContainer = append(this.centerContent, $('div.titlebar-center-right-container'));
+		const screenReaderBadge = append(centerRightContainer, $('span.titlebar-status-badge.screen-reader-optimized-badge'));
+		screenReaderBadge.textContent = localize('screenReaderOptimizedBadge', "Screen Reader Optimized");
+		const updateScreenReaderBadge = () => {
+			setVisibility(this.accessibilityService.isScreenReaderOptimized(), screenReaderBadge);
+			this.updateTitleBarToolBarOverflow();
+		};
+		updateScreenReaderBadge();
+		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(updateScreenReaderBadge));
+		this.overflowManagedToolBarElements.push(screenReaderBadge);
+
+		// Update toolbar, rendered immediately right of the command center.
+		const updateToolBarElement = append(centerRightContainer, $('div.titlebar-actions-container.titlebar-update-container'));
+		const updateToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, updateToolBarElement, Menus.TitleBarUpdate, {
+			contextMenu: Menus.TitleBarContext,
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			telemetrySource: 'titlePart.update',
+			toolbarOptions: { primaryGroup: () => true },
+		}));
+
+		// Actions toolbar (Open in VS Code), rendered after the status badges.
+		const centerActionsContainer = append(centerRightContainer, $('div.titlebar-actions-container.titlebar-center-actions-container'));
 		const centerActionsToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerActionsContainer, Menus.TitleBarCenterRight, {
 			contextMenu: Menus.TitleBarContext,
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
@@ -256,15 +279,6 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			contextMenu: Menus.TitleBarContext,
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			telemetrySource: 'titlePart.sessionActions',
-			toolbarOptions: { primaryGroup: () => true },
-		}));
-
-		// Update toolbar (leftmost in the right-side controls)
-		const updateToolBarElement = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-update-container'));
-		const updateToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, updateToolBarElement, Menus.TitleBarUpdate, {
-			contextMenu: Menus.TitleBarContext,
-			hiddenItemStrategy: HiddenItemStrategy.NoHide,
-			telemetrySource: 'titlePart.update',
 			toolbarOptions: { primaryGroup: () => true },
 		}));
 
@@ -395,8 +409,9 @@ export class MainTitlebarPart extends TitlebarPart {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService hostService: IHostService,
+		@IAccessibilityService accessibilityService: IAccessibilityService,
 	) {
-		super(Parts.TITLEBAR_PART, mainWindow, contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService);
+		super(Parts.TITLEBAR_PART, mainWindow, contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, accessibilityService);
 	}
 }
 
@@ -420,9 +435,10 @@ export class AuxiliaryTitlebarPart extends TitlebarPart implements IAuxiliaryTit
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService hostService: IHostService,
+		@IAccessibilityService accessibilityService: IAccessibilityService,
 	) {
 		const id = AuxiliaryTitlebarPart.COUNTER++;
-		super(`workbench.parts.auxiliaryTitle.${id}`, getWindow(container), contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService);
+		super(`workbench.parts.auxiliaryTitle.${id}`, getWindow(container), contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, accessibilityService);
 	}
 
 	override get preventZoom(): boolean {

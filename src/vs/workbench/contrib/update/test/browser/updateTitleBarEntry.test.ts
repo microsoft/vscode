@@ -104,6 +104,39 @@ suite('UpdateTitleBarEntry', () => {
 			hoverShowRequests: [{ focus: true, trapFocus: true }],
 		});
 	});
+
+	test('uses the action label for an actionable update', () => {
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+
+		const action = store.add(new Action('workbench.actions.updateIndicator', 'VS Code needs update'));
+		const entry = store.add(new UpdateTitleBarEntry(
+			action,
+			{},
+			new class extends mock<UpdateTooltip>() {
+				override readonly domNode = mainWindow.document.createElement('div');
+			},
+			() => { },
+			() => { },
+			store.add(new TestCommandService()),
+			new TestHoverService(),
+			new class extends mock<ITelemetryService>() { },
+			new class extends mock<IUpdateService>() {
+				override readonly onStateChange = Event.None;
+				override readonly state = State.Ready({ version: '1.0.0' }, false, false);
+			},
+		));
+		entry.render(container);
+
+		assert.deepStrictEqual({
+			text: container.textContent,
+			ariaLabel: container.getAttribute('aria-label'),
+		}, {
+			text: 'VS Code needs update',
+			ariaLabel: 'VS Code needs update',
+		});
+	});
 });
 
 suite('UpdateGlobalActivityBadgeVisibleContext', () => {

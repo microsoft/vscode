@@ -56,9 +56,13 @@
 	grid-column: 2;
 }
 
-.agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-center-actions-container {
+.agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-center-right-container {
 	grid-column: 3;
 	justify-self: start;
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
 }
 
 .agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center .window-title {
@@ -75,7 +79,8 @@
 }
 
 /* Center navigation / actions toolbars that flank the command center box. */
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-actions-container {
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-actions-container,
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-center-right-container > .titlebar-actions-container {
 	display: none;
 	flex-shrink: 0;
 	-webkit-app-region: no-drag;
@@ -83,12 +88,28 @@
 	align-items: center;
 }
 
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-actions-container:not(.has-no-actions) {
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-actions-container:not(.has-no-actions),
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-center-right-container > .titlebar-actions-container:not(.has-no-actions) {
 	display: flex;
 }
 
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-actions-container .monaco-action-bar .action-item:not(.disabled) .codicon {
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-actions-container .monaco-action-bar .action-item:not(.disabled) .codicon,
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-center-right-container .monaco-action-bar .action-item:not(.disabled) .codicon {
 	color: var(--vscode-icon-foreground);
+}
+
+.monaco-workbench .part.titlebar > .sessions-titlebar-container .titlebar-status-badge {
+	display: flex;
+	align-items: center;
+	height: 20px;
+	padding: 0 var(--vscode-spacing-size60);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-agentsBadge-background);
+	color: var(--vscode-agentsBadge-foreground);
+	font-size: var(--vscode-fontSize-label3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	white-space: nowrap;
+	-webkit-app-region: no-drag;
 }
 
 /* Session Title Actions Container (before right toolbar) */
@@ -104,11 +125,9 @@
 	align-items: center;
 }
 
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-update-container:not(.has-no-actions) {
-	margin-right: var(--vscode-spacing-size40);
-}
-
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-actions-container.overflowing,
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-center-right-container > .titlebar-actions-container.overflowing,
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-center-right-container > .titlebar-status-badge.overflowing,
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container.overflowing {
 	display: none;
 }
