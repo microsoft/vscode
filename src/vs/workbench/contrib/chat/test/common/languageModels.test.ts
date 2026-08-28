@@ -133,7 +133,7 @@ suite('LanguageModels', function () {
 
 	test('adds a source suffix only to ChatGPT subscription models', function () {
 		store.add(languageModelSourcePresentationRegistry.register({
-			ownerVendor: 'agent-host-codex',
+			ownerVendor: 'test-agent-host-codex',
 			sourceId: 'chatgptSubscription',
 			label: 'ChatGPT',
 			icon: Codicon.openai,
@@ -145,7 +145,7 @@ suite('LanguageModels', function () {
 				extension: nullExtensionDescription.identifier,
 				id: identifier,
 				name: 'GPT-5.6 Sol',
-				vendor: 'agent-host-codex',
+				vendor: 'test-agent-host-codex',
 				family: 'gpt-5.6-sol',
 				version: '1.0',
 				maxInputTokens: 1_000_000,
