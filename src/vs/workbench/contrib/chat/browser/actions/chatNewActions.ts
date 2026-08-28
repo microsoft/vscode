@@ -126,7 +126,7 @@ export function registerNewChatActions() {
 						primary: KeyMod.CtrlCmd | KeyCode.KeyN,
 						secondary: [KeyMod.WinCtrl | KeyCode.KeyL]
 					},
-					when: ChatContextKeys.inChatSession
+					when: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.inChatEditor.negate())
 				}
 			});
 		}
