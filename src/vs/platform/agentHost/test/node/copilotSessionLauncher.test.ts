@@ -874,6 +874,37 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 		}
 	});
 
+	test('enables script safety on a non-GPT-5.6 created session so managed permissions govern shell paths', async () => {
+		const updates: unknown[] = [];
+		const session = {
+			sessionId: 'session-1',
+			on: () => () => { },
+			disconnect: async () => { },
+			rpc: { options: { update: async (options: unknown) => updates.push(options) } },
+		} as unknown as CopilotSession;
+		const launcher = createTestLauncher();
+		const plan: CopilotSessionLaunchPlan = {
+			kind: 'create',
+			client: { createSession: async () => session } as unknown as CopilotClient,
+			sessionId: 'session-1',
+			workingDirectory: testWorkingDirectory,
+			resolvedAgentName: undefined,
+			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			activeClientToolSet: new ActiveClientToolSet(),
+			shellManager: undefined,
+			githubToken: undefined,
+			model: { id: 'claude-sonnet-4.5', config: {} },
+		};
+
+		const wrapper = await launcher.launch(plan, testRuntime);
+		try {
+			assert.deepStrictEqual(updates, [{ enableScriptSafety: true }]);
+		} finally {
+			wrapper.dispose();
+			await launcher.disposeByokProxyHandle();
+		}
+	});
+
 	test('applies GPT-5.6 customizations when resuming an existing session', async () => {
 		const updates: unknown[] = [];
 		const session = {
@@ -899,6 +930,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 		const wrapper = await launcher.launch(plan, testRuntime);
 		try {
 			assert.deepStrictEqual(updates, [
+				{ enableScriptSafety: true },
 				{ verbosity: 'medium' },
 				{ reasoningSummary: 'concise' },
 			]);

@@ -168,6 +168,35 @@ suite('copilotToolDisplay — markdown-rendered tools', () => {
 	});
 });
 
+suite('getPermissionDisplay — read confirmation title', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const wd = URI.file('/repo/project');
+
+	function readRequest(path: string, requestSandboxBypass?: boolean): PermissionRequest {
+		return { kind: 'read', intention: `Read file: ${path}`, path, ...(requestSandboxBypass ? { requestSandboxBypass } : {}) } as PermissionRequest;
+	}
+
+	test('claims "outside of workspace" only when the path really is outside', () => {
+		assert.deepStrictEqual({
+			inside: getPermissionDisplay(readRequest('/repo/project/src/app.ts'), wd).confirmationTitle,
+			insideDirectory: getPermissionDisplay(readRequest('/repo/project/src'), wd).confirmationTitle,
+			outside: getPermissionDisplay(readRequest('/etc/hosts'), wd).confirmationTitle,
+			relative: getPermissionDisplay(readRequest('README.md'), wd).confirmationTitle,
+			unknownWorkspace: getPermissionDisplay(readRequest('/repo/project/src/app.ts'), undefined).confirmationTitle,
+			sandboxBypass: getPermissionDisplay(readRequest('/repo/project/src/app.ts', true), wd).confirmationTitle,
+		}, {
+			inside: 'Allow reading file?',
+			insideDirectory: 'Allow reading file?',
+			outside: 'Allow reading file outside of workspace?',
+			relative: 'Allow reading file?',
+			unknownWorkspace: 'Allow reading file?',
+			sandboxBypass: 'Read file outside the sandbox?',
+		});
+	});
+});
+
 suite('getPermissionDisplay — cd-prefix stripping', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();

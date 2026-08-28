@@ -629,12 +629,35 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 
 	private async _finalizeSession(raw: CopilotSessionWrapper['session'], sandboxConfig: SandboxConfig | undefined, sessionId: string, modelId: string | undefined): Promise<CopilotSessionWrapper> {
 		await this._applySandboxConfig(raw, sandboxConfig, sessionId);
+		await this._applyScriptSafety(raw, sessionId);
 		// TODO: Remove these post-launch updates once the SDK exposes verbosity and
 		// reasoningSummary in SessionConfig, alongside launch options such as reasoningEffort.
 		if (isGpt56Model(modelId)) {
 			await this._applyGpt56Customizations(raw, sessionId);
 		}
 		return new CopilotSessionWrapper(raw);
+	}
+
+	/**
+	 * Enables the runtime's shell-script safety classifier, which managed permissions
+	 * depend on to govern shell operations.
+	 *
+	 * Without it the runtime short-circuits the classifier, so a shell command reaches
+	 * the permission layer with an empty `possiblePaths` and `hasWriteFileRedirection:
+	 * false`. Managed `Read(...)`/`Edit(...)` rules then cannot match a redirect target,
+	 * letting `echo ... >> denied/path` bypass a managed deny. The Copilot CLI opts in at
+	 * session creation; the SDK exposes it to hosts only through `options.update`, so it
+	 * is applied here to cover both created and resumed sessions.
+	 */
+	private async _applyScriptSafety(session: CopilotSessionWrapper['session'], sessionId: string): Promise<void> {
+		try {
+			const result = await session.rpc.options.update({ enableScriptSafety: true });
+			if (!result.success) {
+				this._logService.error(`[Copilot:${sessionId}] SDK rejected enabling script safety; managed permissions cannot govern shell paths`);
+			}
+		} catch (err) {
+			this._logService.error(err, `[Copilot:${sessionId}] Failed to enable script safety; managed permissions cannot govern shell paths`);
+		}
 	}
 
 	/** Applies the post-launch session options used by GPT-5.6 models. */

@@ -8,13 +8,14 @@ import { hasKey, isObject } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { hash } from '../../../../base/common/hash.js';
+import { isAbsolute } from '../../../../base/common/path.js';
 import { localize } from '../../../../nls.js';
 import type { IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
 import type { ToolKind } from '../../common/meta/agentToolCallMeta.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { parsePartialToolInput } from '../../common/partialToolInput.js';
 import { StringOrMarkdown } from '../../common/state/protocol/state.js';
-import { basename } from '../../../../base/common/resources.js';
+import { basename, extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { getStreamingCreateMessage, getStreamingInsertMessage, getStreamingPatchMessage, getStreamingReplaceMessage, streamingToolTextLineCount, type ToolPathResolver } from '../../common/streamingToolCallDisplay.js';
 import { getServerToolDisplay } from '../shared/serverToolGroups.js';
 
@@ -1093,6 +1094,30 @@ function str(value: unknown): string | undefined {
 }
 
 /**
+ * Chooses the confirmation title for a read request based on why approval is
+ * actually needed.
+ *
+ * A read is gated for several reasons — the path lies outside the workspace, a
+ * managed or scoped rule matched it, or the model asked to escape the sandbox.
+ * Only the first is about location, so the title is claimed only when the path
+ * is absolute and genuinely outside `workingDirectory`. A relative path, an
+ * unknown path, or an unknown workspace falls back to the neutral title rather
+ * than asserting a location the request does not establish.
+ */
+function readConfirmationTitle(path: string | undefined, workingDirectory: URI | undefined, requestSandboxBypass: boolean | undefined): string {
+	if (requestSandboxBypass) {
+		return localize('copilot.permission.read.bypass.title', "Read file outside the sandbox?");
+	}
+	const outsideWorkspace = path !== undefined
+		&& isAbsolute(path)
+		&& workingDirectory !== undefined
+		&& !extUriBiasedIgnorePathCase.isEqualOrParent(URI.file(path), workingDirectory);
+	return outsideWorkspace
+		? localize('copilot.permission.read.title', "Allow reading file outside of workspace?")
+		: localize('copilot.permission.read.generic.title', "Allow reading file?");
+}
+
+/**
  * Derives display fields from a permission request for the tool confirmation UI.
  */
 export function getPermissionDisplay(request: PermissionRequest, workingDirectory?: URI, isNewFile?: boolean): {
@@ -1186,7 +1211,7 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 		}
 		case 'read':
 			return {
-				confirmationTitle: localize('copilot.permission.read.title', "Allow reading file outside of workspace?"),
+				confirmationTitle: readConfirmationTitle(path, workingDirectory, requestSandboxBypass),
 				invocationMessage: getInvocationMessage(CopilotToolName.View, getToolDisplayName(CopilotToolName.View), path ? { path } : undefined),
 				permissionKind: 'read',
 				permissionPath: path,
