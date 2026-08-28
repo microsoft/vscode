@@ -260,8 +260,8 @@
 
 .sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label {
 	gap: var(--vscode-spacing-size80);
-	min-height: var(--vscode-spacing-size320);
-	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size120);
+	min-height: var(--vscode-spacing-size240);
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size120);
 	border: var(--vscode-strokeThickness) solid var(--vscode-commandCenter-inactiveBorder, var(--vscode-widget-border));
 	border-radius: var(--vscode-cornerRadius-circle);
 	box-sizing: border-box;
