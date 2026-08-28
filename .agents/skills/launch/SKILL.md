@@ -96,7 +96,19 @@ $bootstrap = Join-Path $skillDir 'scripts\bootstrap-profile.ps1'
 
 If the failed launch used a custom `--source-user-data-dir`, pass the same path as `--user-data-dir <path>` on macOS/Linux or `-UserDataDir <path>` on Windows.
 
-The bootstrap script returns after starting Code OSS directly against the persistent source profile; pre-launch preparation may delay the window briefly. It reports a log path for diagnosing startup failures. Ask the user to sign in to GitHub/Copilot in that window and close it, using **I have signed in** as the acknowledgement choice. Then run the normal launcher again; its isolated copy will inherit the stored authentication.
+The bootstrap script returns only after the persistent Code OSS window's CDP endpoint is ready. It reports a log path and fails with the log tail if the window cannot become usable. Ask the user to sign in to GitHub/Copilot in that window and close it, using **I have signed in** as the acknowledgement choice. On macOS, the user must quit Code OSS completely with Cmd+Q; closing its last window does not stop the application.
+
+After the user acknowledges, wait for the bootstrap process tree to release the persistent profile before launching again:
+
+```bash
+"$BOOTSTRAP" --wait-for-exit <exitMarker-from-bootstrap-json>
+```
+
+```powershell
+& $bootstrap -WaitForExit -ExitMarker <exitMarker-from-bootstrap-json>
+```
+
+Use the same profile path that bootstrap reported; omit the explicit path only when using the default profile. Once the wait succeeds, run the normal launcher again. Its isolated copy will inherit the stored authentication without racing files still held by the bootstrap window.
 
 Do not bootstrap without the user's explicit choice. The bootstrap window uses persistent profile and shared-authentication storage, unlike normal isolated launches.
 
