@@ -5,13 +5,12 @@
 
 import { localize } from '../../../../../nls.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { PromptFileSource, PromptsType } from '../../common/promptSyntax/promptTypes.js';
+import { CustomizationMigrationCategoryId } from '../../common/customizationMigrationService.js';
+import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptPath, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { isPromptFileMigrationCandidate, isUserDataMigrationCandidate } from './customizationMigration.js';
 
-export const enum CustomizationMigrationCategoryId {
-	PromptFiles = 'promptFiles',
-	UserData = 'userData',
-}
+export { CustomizationMigrationCategoryId };
 
 export interface ICustomizationMigrationGroup {
 	readonly key: string;
@@ -94,8 +93,7 @@ const promptFilesMigrationCategory: ICustomizationMigrationCategory = {
 	noFilesMigratedMessage: localize('promptMigrationNoFilesConverted', "No prompt files were converted."),
 
 	isCandidate(customization) {
-		return customization.type === PromptsType.prompt
-			&& (customization.storage === PromptsStorage.local || customization.storage === PromptsStorage.user);
+		return isPromptFileMigrationCandidate(customization);
 	},
 
 	group(customizations) {
@@ -234,8 +232,7 @@ const userDataMigrationCategory: ICustomizationMigrationCategory = {
 	noFilesMigratedMessage: localize('userDataMigrationNoFilesMigrated', "No user data customizations were migrated."),
 
 	isCandidate(customization) {
-		return customization.source === PromptFileSource.UserData
-			&& (customization.type === PromptsType.agent || customization.type === PromptsType.instructions);
+		return isUserDataMigrationCandidate(customization);
 	},
 
 	group(customizations) {

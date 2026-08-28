@@ -47,6 +47,8 @@ import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chat
 import { IChatTipService } from '../../../../workbench/contrib/chat/browser/chatTipService.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
+import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { CustomizationMigrationAttentionPresenter } from '../../../../workbench/contrib/chat/browser/aiCustomization/customizationMigrationAttentionPresenter.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTracker.js';
@@ -64,6 +66,7 @@ export class NewChatWidget extends Disposable {
 	private readonly _workspacePicker: WorkspacePicker;
 	private readonly _newChatInput: NewChatInputWidget;
 	private readonly _chatTipPresenter = this._register(new MutableDisposable<ChatInputTipPresenter>());
+	private readonly _customizationMigrationAttention = this._register(new MutableDisposable<CustomizationMigrationAttentionPresenter>());
 	private _isChatTipSessionInitialized = false;
 	private _aquariumToggle: IMountedToggleHandle | undefined;
 
@@ -434,6 +437,25 @@ export class NewChatWidget extends Disposable {
 			},
 			this._newChatInput.noticeHost,
 		);
+		const migrationAttentionContainer = this._newChatInput.hostNoticeContainerElement;
+		this._customizationMigrationAttention.value = migrationAttentionContainer && this.instantiationService.createInstance(
+			CustomizationMigrationAttentionPresenter,
+			migrationAttentionContainer,
+			this._newChatInput.noticeHost,
+		);
+		this._register(autorun(reader => {
+			const session = this._session.read(reader);
+			const workspaceRoot = session?.workspace.read(reader)?.folders[0]?.workingDirectory;
+			if (session?.sessionType === SessionType.AgentHostCopilot && workspaceRoot) {
+				void this._customizationMigrationAttention.value?.assess({
+					workspaceRoot,
+					sessionResource: session.resource,
+					trigger: 'agentsNewSession',
+				});
+			} else {
+				this._customizationMigrationAttention.value?.clearAssessment();
+			}
+		}));
 
 		// Quick chat composer: hide the workspace picker for workspace-less
 		// drafts (there is nothing to pick) and reflect it in the picker-visible

@@ -49,6 +49,12 @@ The service owns:
 
 Core workbench registrations may expose Local, Copilot CLI, and Claude harnesses when their backing agents are available. The Agents Window exposes harnesses backed by registered session content providers and does not assume a Local fallback.
 
+### `ICustomizationMigrationService`
+
+This shared workbench service assesses an explicit workspace for customizations that may need migration before the Copilot harness can use them. It returns categorized findings, severity, counts, and a bounded in-memory sample for presentation; telemetry contains only the trigger surface, category, severity, and count.
+
+Assessment is demand-driven from editor new-chat and Agents Window new-session, open, and restore lifecycles. Sessions passes explicit workspace and session context into the workbench-owned service; workbench code does not depend on Sessions state. Assessment, hint presentation, and migration actions have independent configuration gates.
+
 ### `IHarnessDescriptor`
 
 Descriptors declare presentation and discovery policy. Widgets consume the descriptor rather than branching on a harness identifier.

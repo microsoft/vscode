@@ -62,6 +62,7 @@ import { ChatRequestOriginService, IChatRequestOriginService } from '../common/c
 import { ChatService } from '../common/chatService/chatServiceImpl.js';
 import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSideChatService, IChatSideChatService } from '../common/chatSideChatService.js';
+import './aiCustomization/customizationMigrationService.js';
 import { BYOKUtilityModelDefault, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatDefaultPermissionLevel, ChatNotificationMode, ChatPermissionLevel } from '../common/constants.js';
 import { CodeMapperService, ICodeMapperService } from '../common/editing/chatCodeMapperService.js';
 import { IChatEditingService } from '../common/editing/chatEditingService.js';
@@ -2407,6 +2408,21 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			description: nls.localize('chat.customizations.userDataMigration.enabled', "Controls whether the Chat Customizations editor offers to move agents and instructions stored in user data to the active agent-host harness, which ignores the user data location. When disabled, the migration card and sidebar shortcut are hidden."),
 			default: false,
+		},
+		[ChatConfiguration.ChatCustomizationsMigrationAssessmentEnabled]: {
+			type: 'boolean',
+			tags: ['advanced'],
+			description: nls.localize('chat.customizations.migrationAssessment.enabled', "Controls whether VS Code checks for customizations that may need migration before they can be used by the Copilot harness."),
+			default: true,
+		},
+		[ChatConfiguration.ChatCustomizationsMigrationAttentionEnabled]: {
+			type: 'boolean',
+			tags: ['advanced'],
+			description: nls.localize('chat.customizations.migrationAttention.enabled', "Controls whether chat shows a notification when customizations may need migration for the Copilot harness."),
+			default: false,
+			experiment: {
+				mode: 'auto'
+			},
 		}
 	}
 });

@@ -12,7 +12,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { getCleanPromptName, getPromptFileExtension, SKILL_FILENAME, VALID_SKILL_NAME_REGEX } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { IHeaderAttribute, ParsedPromptFile, PromptFileParser, PromptHeaderAttributes } from '../../common/promptSyntax/promptFileParser.js';
 import { IPromptPath, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
-import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
+import { PromptFileSource, PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 
 export interface IMigratedPromptFile {
@@ -37,6 +37,16 @@ export type CustomizationMigrationTargetFolders = ReadonlyMap<PromptsType, Reado
 
 export interface ICustomizationMigrationOptions {
 	readonly deleteOriginalFiles?: boolean;
+}
+
+export function isPromptFileMigrationCandidate(customization: IPromptPath): boolean {
+	return customization.type === PromptsType.prompt
+		&& (customization.storage === PromptsStorage.local || customization.storage === PromptsStorage.user);
+}
+
+export function isUserDataMigrationCandidate(customization: IPromptPath): boolean {
+	return customization.source === PromptFileSource.UserData
+		&& (customization.type === PromptsType.agent || customization.type === PromptsType.instructions);
 }
 
 const retainedPromptHeaderKeys = new Set([

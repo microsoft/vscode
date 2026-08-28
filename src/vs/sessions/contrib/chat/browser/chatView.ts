@@ -42,6 +42,8 @@ import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFac
 import { NewChatWidget } from './newChatWidget.js';
 import { NewChatInSessionWidget } from './newChatInSessionWidget.js';
 import { SessionInputBanners } from '../../sessionInputBanners/browser/sessionInputBanners.js';
+import { CustomizationMigrationAttentionPresenter } from '../../../../workbench/contrib/chat/browser/aiCustomization/customizationMigrationAttentionPresenter.js';
+import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { SESSION_CHAT_INPUT_TOOLBAR_HEIGHT, SessionChatInputToolbar } from './sessionChatInputToolbar.js';
 import { ResponseSelectionSideChatController } from './responseSelectionSideChatController.js';
 import { ISessionChatPillsDebugService } from './sessionChatInputToolbarDebug.js';
@@ -158,6 +160,7 @@ export class ChatView extends AbstractChatView {
 
 	/** Session banners (CI failures, created comments) shown above the chat input. */
 	private readonly _banners: SessionInputBanners;
+	private readonly _customizationMigrationAttention: CustomizationMigrationAttentionPresenter;
 	/** Floating status pills (changes, preview, background activity) above the input. */
 	private readonly _chatPills: SessionChatInputToolbar;
 
@@ -257,6 +260,11 @@ export class ChatView extends AbstractChatView {
 			this._buildStyles(this._isActive)
 		));
 		this._widget.render(this._widgetContainer, undefined, this._isActiveObs);
+		this._customizationMigrationAttention = this._register(scopedInstantiationService.createInstance(
+			CustomizationMigrationAttentionPresenter,
+			this._widget.inputPart.gettingStartedTipContainerElement,
+			this._widget.inputPart.noticeHost,
+		));
 		const transcript = this._widget.transcriptDomNode;
 		this._register(addDisposableListener(transcript, EventType.CONTEXT_MENU, event => {
 			if (isHighContrast(this.themeService.getColorTheme().type)) {
@@ -401,6 +409,15 @@ export class ChatView extends AbstractChatView {
 		this.chatPillsDebugService.clear(this._chatPills);
 		const previousSession = this._currentSessionObs.get();
 		this._currentSessionObs.set(session, undefined);
+		const workspaceRoot = session?.workspace.get()?.folders[0]?.workingDirectory;
+		if (session?.sessionType === SessionType.AgentHostCopilot && workspaceRoot) {
+			void this._customizationMigrationAttention.assess({
+				workspaceRoot,
+				sessionResource: session.resource,
+			});
+		} else {
+			this._customizationMigrationAttention.clearAssessment();
+		}
 		this._externalSessionBanner.setSession(session);
 		const resource = chat.resource;
 		const previousChatResource = this._currentChatResource;
