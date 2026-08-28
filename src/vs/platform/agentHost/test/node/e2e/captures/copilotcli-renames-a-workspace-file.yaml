@@ -6,7 +6,7 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').renameSync(''before.txt'',''after.txt'')"`. Then reply with exactly "renamed".'
+          content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').renameSync(''before.txt'',''after.txt'')"`. Do not run any other command or tool. Then reply with exactly "renamed".'
     response:
       content:
         - type: tool_use
@@ -21,12 +21,11 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').renameSync(''before.txt'',''after.txt'')"`. Then reply with exactly "renamed".'
+          content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').renameSync(''before.txt'',''after.txt'')"`. Do not run any other command or tool. Then reply with exactly "renamed".'
         - role: assistant
           content:
-            - type: thinking
             - type: tool_use
-              name: bash
+              name: powershell
               input:
                 command: node -e "require('fs').renameSync('before.txt','after.txt')"
                 description: Rename before.txt to after.txt

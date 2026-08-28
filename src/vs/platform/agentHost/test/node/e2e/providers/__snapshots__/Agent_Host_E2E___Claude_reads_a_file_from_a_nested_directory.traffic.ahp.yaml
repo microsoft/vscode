@@ -27,13 +27,6 @@ rounds:
           type: session/ready
       - channel: ${chat_0}
         action:
-          type: chat/responsePart
-          turnId: ${turn_0}
-          part:
-            kind: markdown
-            content: I'll read the file for you.
-      - channel: ${chat_0}
-        action:
           type: chat/toolCallStart
           turnId: ${turn_0}
           toolCallId: ${toolCall_0}
