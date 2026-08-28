@@ -33,7 +33,6 @@ import { ITitlebarPart, ITitleProperties, ITitleVariable, IAuxiliaryTitlebarPart
 import { WindowTitle } from '../../../workbench/browser/parts/titlebar/windowTitle.js';
 import { Menus } from '../menus.js';
 import { IsNewChatSessionContext } from '../../common/contextkeys.js';
-import { localize } from '../../../nls.js';
 
 const commandCenterContextKeys = new Set([IsNewChatSessionContext.key]);
 
