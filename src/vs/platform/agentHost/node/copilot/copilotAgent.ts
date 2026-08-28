@@ -966,21 +966,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			);
 		}));
 		this._register(this._configurationService.onDidRootConfigChange(() => {
-			const enabled = this._isMigrateLegacyCopilotCliEnabled();
-			if (enabled !== this._lastMigrateLegacyEnabled) {
-				this._lastMigrateLegacyEnabled = enabled;
-				if (enabled) {
-					// Only the adoptable legacy extension-host half of discovery is
-					// gated on this setting, so a fresh pass is needed to surface it.
-					void this._runCopilotChatDiscovery();
-				} else {
-					for (const [chat, discovered] of this._discoveredChats) {
-						if (!discovered.external) {
-							this._discoveredChats.delete(chat);
-						}
-					}
-				}
-			}
+			// The migrate-legacy gate is snapshotted at startup (a change requires a
+			// window reload), so nothing reacts to it here; only BYOK models refresh.
 			this._refreshByokModels();
 		}));
 
@@ -1021,7 +1008,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _lastStartupConfig: CopilotAgentStartupConfig;
-	private _lastMigrateLegacyEnabled: boolean = this._isMigrateLegacyCopilotCliEnabled();
+	private _migrateLegacyEnabledSnapshot: boolean | undefined;
 
 	private _isSessionSyncEnabled(): boolean {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostSessionSyncEnabledConfigKey) === true;
@@ -1056,7 +1043,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _isMigrateLegacyCopilotCliEnabled(): boolean {
-		return this._configurationService.getRootValue(platformRootSchema, AgentHostMigrateLegacyCopilotCliEnabledConfigKey) === true;
+		// Frozen at startup: changing the setting requires a window reload, so a
+		// single discovery pass sees one stable gate value for the process lifetime.
+		return this._migrateLegacyEnabledSnapshot ??= this._configurationService.getRootValue(platformRootSchema, AgentHostMigrateLegacyCopilotCliEnabledConfigKey) === true;
 	}
 
 	private _readClientStartupConfig(): CopilotAgentStartupConfig {

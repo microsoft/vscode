@@ -593,16 +593,10 @@ registerAction2(class OpenSessionListChatToSideAction extends Action2 {
 			return;
 		}
 		const sessionsService = accessor.get(ISessionsService);
-		const sessionsPartService = accessor.get(ISessionsPartService);
 		if (!await sessionsService.canOpenSession(context.session)) {
 			return;
 		}
-		sessionsService.showSession(context.session.resource);
-		const sessionView = sessionsPartService.getSessionView(context.session.sessionId);
-		if (!sessionView) {
-			throw new Error(`Unable to open chat to the side because session view '${context.session.sessionId}' is not mounted`);
-		}
-		await sessionView.openChatToSide(context.chat.resource);
+		await sessionsService.openChatToSide(context.session, context.chat.resource);
 	}
 });
 

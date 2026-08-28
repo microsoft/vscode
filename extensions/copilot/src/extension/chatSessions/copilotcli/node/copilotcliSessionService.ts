@@ -471,10 +471,23 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 					if (!await this.shouldShowSession(metadata.sessionId, metadata.context)) {
 						return;
 					}
+					// A legacy session stays in this list until it is opened: opening adopts it
+					// into the agent host, which then owns it (and this provider drops it via
+					// `agentHostOwnedSessionIds` above). Until then the agent host does not
+					// surface un-adopted legacy rows, so there is nothing to stand down for here.
 					const id = metadata.sessionId;
 					const startTime = metadata.startTime.getTime();
 					const endTime = metadata.modifiedTime.getTime();
-					const label = await this.getSessionTitleImpl(metadata.sessionId, metadata, token);
+					// Never drop an on-disk session that passed `shouldShowSession` just because its
+					// title could not be resolved; fall back to its folder name / a generic label.
+					// A freshly-created, still-empty session is a live wrapper with no derivable
+					// title — leave it to the in-progress path below rather than surfacing it here
+					// with a synthetic label.
+					const resolvedTitle = await this.getSessionTitleImpl(metadata.sessionId, metadata, token);
+					const label = resolvedTitle
+						|| (this._sessionWrappers.has(metadata.sessionId)
+							? undefined
+							: metadata.context?.cwd?.split(/[\\/]/).filter(Boolean).pop() || l10n.t("Copilot CLI session"));
 					if (!label) {
 						return;
 					}

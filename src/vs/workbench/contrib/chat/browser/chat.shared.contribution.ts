@@ -427,9 +427,12 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.MigrateLegacyCopilotCliSessions]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.agentSessions.migrateLegacyCopilotCli', "Controls whether legacy extension host Copilot CLI chat sessions are migrated in place to the Agent host when opened, so their history becomes editable. When disabled, legacy sessions open as before."),
+			markdownDescription: nls.localize('chat.agentSessions.migrateLegacyCopilotCli', "Controls whether legacy extension host Copilot CLI chat sessions are migrated in place to the Agent host when opened, so their history becomes editable. When disabled, legacy sessions open as before.\n\nChanging this setting requires a restart to take effect."),
 			default: false,
 			tags: ['experimental'],
+			// Migration is a global, one-time behavior over the shared agent host, so it is a
+			// single value for all windows rather than a per-window preference.
+			scope: ConfigurationScope.APPLICATION,
 			experiment: {
 				mode: 'startup'
 			},
