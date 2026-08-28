@@ -141,6 +141,25 @@ export interface IConfigurationService {
 	getExperimentBasedConfigObservable<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService): IObservable<T>;
 
 	/**
+	 * Like {@link getExperimentBasedConfig}, but returns `undefined` when neither the user's settings
+	 * nor an experiment provide a value, instead of falling back to the setting's default.
+	 *
+	 * Use this when some other source supplies a default that must stay overridable by the user and by
+	 * experimentation, so that source can be consulted only when the setting is not explicitly driven.
+	 *
+	 * @remark Only meaningful for settings that are not contributed in `package.json`
+	 * ({@link BaseConfig.isPublic} is `false`). For contributed settings tagged `onExp`, VS Code folds
+	 * the treatment into `inspect().defaultValue`, so an experiment value is indistinguishable from the
+	 * default and this method reports it as unset.
+	 */
+	getExperimentBasedConfigIfSet<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService, scope?: ConfigurationScope): T | undefined;
+
+	/**
+	 * Gets the observable form of {@link getExperimentBasedConfigIfSet}.
+	 */
+	getExperimentBasedConfigIfSetObservable<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService): IObservable<T | undefined>;
+
+	/**
 	 * For object values, the user config will be mixed in with the default config.
 	 */
 	getConfigMixedWithDefaults<T>(key: Config<T>): T;
@@ -266,17 +285,17 @@ export abstract class AbstractConfigurationService extends Disposable implements
 	abstract dumpConfig(): { [key: string]: string };
 
 	public getExperimentBasedConfig<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService, scope?: ConfigurationScope): T {
+		const value = this.getExperimentBasedConfigIfSet(key, experimentationService, scope);
+		// Deliberately not `??`: a treatment may legitimately resolve to `null`.
+		return value === undefined ? this.getDefaultValue(key) : value;
+	}
+
+	public getExperimentBasedConfigIfSet<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService, scope?: ConfigurationScope): T | undefined {
 		const configuredValue = this._getUserConfiguredExperimentBasedValue(key, scope);
 		if (configuredValue !== undefined) {
 			return configuredValue;
 		}
-
-		const treatmentValue = this._getExperimentTreatment(key, experimentationService);
-		if (treatmentValue !== undefined) {
-			return treatmentValue;
-		}
-
-		return this.getDefaultValue(key);
+		return this._getExperimentTreatment(key, experimentationService);
 	}
 
 	/**
@@ -326,6 +345,7 @@ export abstract class AbstractConfigurationService extends Disposable implements
 
 		return undefined;
 	}
+
 	public updateExperimentBasedConfiguration(treatments: string[]): void {
 		if (treatments.length === 0) {
 			return;
@@ -359,17 +379,31 @@ export abstract class AbstractConfigurationService extends Disposable implements
 	}
 
 	public getConfigObservable<T>(key: Config<T>): IObservable<T> {
-		return this._getObservable_$show2FramesUp(key, () => this.getConfig(key));
+		return this._getObservable_$show2FramesUp('config', key, () => this.getConfig(key));
 	}
 
 	public getExperimentBasedConfigObservable<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService): IObservable<T> {
-		return this._getObservable_$show2FramesUp(key, () => this.getExperimentBasedConfig(key, experimentationService));
+		return this._getObservable_$show2FramesUp('exp', key, () => this.getExperimentBasedConfig(key, experimentationService));
 	}
 
+	public getExperimentBasedConfigIfSetObservable<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService): IObservable<T | undefined> {
+		return this._getObservable_$show2FramesUp('expIfSet', key, () => this.getExperimentBasedConfigIfSet(key, experimentationService));
+	}
+
+	/**
+	 * Cached observables, keyed by accessor *and* setting id.
+	 *
+	 * {@link getExperimentBasedConfigObservable} and {@link getExperimentBasedConfigIfSetObservable}
+	 * report different values for the same setting: the latter reports `undefined` where the former
+	 * reports the setting's default. Keying on the setting alone would hand whichever accessor asked
+	 * second the observable built for the first, so an unset setting would read as explicitly set to
+	 * its default -- silently reintroducing the precedence bug the `IfSet` accessor exists to fix.
+	 */
 	private observables = new Map<string, IObservable<any>>();
 
-	private _getObservable_$show2FramesUp<T>(key: BaseConfig<T>, getValue: () => T): IObservable<T> {
-		let observable = this.observables.get(key.id);
+	private _getObservable_$show2FramesUp<T>(kind: 'config' | 'exp' | 'expIfSet', key: BaseConfig<T>, getValue: () => T): IObservable<T> {
+		const cacheKey = `${kind}:${key.id}`;
+		let observable = this.observables.get(cacheKey);
 		if (!observable) {
 			observable = observableFromEventOpts(
 				{ debugName: () => `Configuration Key "${key.id}"` },
@@ -380,7 +414,7 @@ export abstract class AbstractConfigurationService extends Disposable implements
 				})),
 				getValue
 			);
-			this.observables.set(key.id, observable);
+			this.observables.set(cacheKey, observable);
 		}
 		return observable;
 	}
