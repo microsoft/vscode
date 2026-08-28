@@ -2500,13 +2500,13 @@ suite('AgentHostProtocolClient', () => {
 			client.dispose();
 		});
 
-		test('marks an exact-channel subscription missing when restore fails', async function () {
+		test('marks an Automation catalogue subscription missing when restore fails', async function () {
 			this.timeout(10_000);
 			const { client, transports } = createFactoryClient();
 			const connectPromise = client.connect();
 			await completeHandshake(transports[0], connectPromise);
 
-			const catalogRef = client.getSubscriptionByChannel(StateComponents.AutomationCatalog, AUTOMATION_CATALOG_URI, 'test');
+			const catalogRef = client.getSubscription(StateComponents.AutomationCatalog, URI.parse(AUTOMATION_CATALOG_URI), 'test');
 			const initialSubscribe = await waitForRequest(transports[0], 'subscribe');
 			transports[0].fireMessage({
 				jsonrpc: '2.0', id: initialSubscribe.id,

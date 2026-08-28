@@ -45,11 +45,13 @@ import { SyncDescriptor } from '../../../../../platform/instantiation/common/des
 import { Menus } from '../../../../browser/menus.js';
 import { Action2, MenuItemAction, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
+import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { BaseActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../../base/common/actions.js';
-import { AutomationsCustomViewFocusContext, AutomationsHasItemsContext, SessionSupportsDeleteContext } from '../../../../common/contextkeys.js';
+import { AutomationsCustomViewFocusContext, AutomationsHasItemsContext, SessionIsArchivedContext, SessionIsReadContext, SessionSupportsDeleteContext, SessionSupportsRenameContext } from '../../../../common/contextkeys.js';
 import { SessionsFlatList, SessionItemStatusContext } from './sessionsList.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
+import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 
 const $ = DOM.$;
 const STOP_AUTOMATION_RUN_SESSION_COMMAND_ID = 'sessions.automations.stopRunSession';
@@ -737,10 +739,12 @@ class AutomationHistorySection extends Disposable {
 			alwaysConsumeMouseWheel: false,
 			useCompactQuickChatRows: false,
 			toolbarMenuId: Menus.AutomationsHistoryItem,
+			contextMenuId: Menus.AutomationsHistoryItemContext,
 			markSessionReadOnOpen: false,
 			approvalModel: this.approvalModel,
 			onSessionOpen: resource => void this.openRunSession(resource),
-			onToolbarAction: (action, session) => this.handleSessionToolbarAction(action, session, entry.runsBySession),
+			onToolbarAction: (action, session) => this.handleSessionAction(action, session, entry.runsBySession),
+			onContextMenuAction: (action, session) => this.handleSessionAction(action, session, entry.runsBySession),
 		}));
 		disposables.add(list.onDidChangeContentHeight(() => this.layoutSessionList(entry.listContainer, list)));
 		entry.list = list;
@@ -847,7 +851,7 @@ class AutomationHistorySection extends Disposable {
 		list.layout(height, width);
 	}
 
-	private async handleSessionToolbarAction(action: IAction, session: ISession, runsBySession: ReadonlyMap<string, IAutomationRun>): Promise<boolean> {
+	private async handleSessionAction(action: IAction, session: ISession, runsBySession: ReadonlyMap<string, IAutomationRun>): Promise<boolean> {
 		const run = runsBySession.get(session.resource.toString());
 		if (!run) {
 			return false;
@@ -856,6 +860,9 @@ class AutomationHistorySection extends Disposable {
 			case STOP_AUTOMATION_RUN_SESSION_COMMAND_ID:
 				action.enabled = false;
 				await this.stopRunSession(session, this.getAutomationName(run), action);
+				return true;
+			case ARCHIVE_SESSION_COMMAND_ID:
+				await this.sessionsManagementService.archiveSession(session);
 				return true;
 			case DELETE_AUTOMATION_RUN_SESSION_COMMAND_ID:
 				await this.confirmDeleteRunSession(run, session, this.getAutomationName(run));
@@ -1125,16 +1132,26 @@ export class AutomationsCustomView extends AbstractCustomView {
 export class AutomationsCustomViewContribution extends Disposable {
 
 	static readonly ID = 'sessions.contrib.automationsCustomView';
+	private readonly historyItemActions = this._register(new MutableDisposable<IDisposable>());
 
 	constructor(
 		@ICustomViewService customViewService: ICustomViewService,
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IAutomationService automationService: IAutomationService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 
-		this._register(registerAutomationHistoryItemActions());
+		const registerHistoryItemActions = () => {
+			this.historyItemActions.value = registerAutomationHistoryItemActions(getChatSessionArchiveActionWording(configurationService));
+		};
+		registerHistoryItemActions();
+		this._register(configurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration(ChatSessionArchiveActionWordingSettingId)) {
+				registerHistoryItemActions();
+			}
+		}));
 
 		const hasItemsContext = AutomationsHasItemsContext.bindTo(contextKeyService);
 		this._register(autorun(reader => {
@@ -1168,7 +1185,8 @@ export class AutomationsCustomViewContribution extends Disposable {
 	}
 }
 
-function registerAutomationHistoryItemActions(): IDisposable {
+function registerAutomationHistoryItemActions(archiveWording: ChatSessionArchiveActionWording): IDisposable {
+	const archivePresentation = getChatSessionArchiveActionPresentation(archiveWording);
 	return combinedDisposable(
 		MenuRegistry.appendMenuItem(Menus.AutomationsHistoryItem, {
 			command: {
@@ -1190,6 +1208,66 @@ function registerAutomationHistoryItemActions(): IDisposable {
 				icon: Codicon.trash,
 			},
 			group: 'navigation',
+			order: 3,
+			when: ContextKeyExpr.and(
+				SessionSupportsDeleteContext,
+				ContextKeyExpr.or(
+					SessionItemStatusContext.isEqualTo(SessionStatus.Completed),
+					SessionItemStatusContext.isEqualTo(SessionStatus.Error),
+				),
+			),
+		}),
+		MenuRegistry.appendMenuItem(Menus.AutomationsHistoryItemContext, {
+			command: {
+				id: MARK_SESSION_READ_COMMAND_ID,
+				title: localize('markAutomationRunSessionReadAction', "Mark as Read"),
+			},
+			group: '0_read',
+			order: 1,
+			when: ContextKeyExpr.and(SessionIsReadContext.negate(), SessionIsArchivedContext.negate()),
+		}),
+		MenuRegistry.appendMenuItem(Menus.AutomationsHistoryItemContext, {
+			command: {
+				id: MARK_SESSION_UNREAD_COMMAND_ID,
+				title: localize('markAutomationRunSessionUnreadAction', "Mark as Unread"),
+			},
+			group: '0_read',
+			order: 1,
+			when: ContextKeyExpr.and(SessionIsReadContext, SessionIsArchivedContext.negate()),
+		}),
+		MenuRegistry.appendMenuItem(Menus.AutomationsHistoryItemContext, {
+			command: {
+				id: RENAME_SESSION_COMMAND_ID,
+				title: localize('renameAutomationRunSessionAction', "Rename..."),
+			},
+			group: '1_edit',
+			order: 1,
+			when: SessionSupportsRenameContext,
+		}),
+		MenuRegistry.appendMenuItem(Menus.AutomationsHistoryItemContext, {
+			command: {
+				id: ARCHIVE_SESSION_COMMAND_ID,
+				title: archivePresentation.archive.title,
+			},
+			group: '1_edit',
+			order: 2,
+			when: SessionIsArchivedContext.negate(),
+		}),
+		MenuRegistry.appendMenuItem(Menus.AutomationsHistoryItemContext, {
+			command: {
+				id: UNARCHIVE_SESSION_COMMAND_ID,
+				title: archivePresentation.unarchive.title,
+			},
+			group: '1_edit',
+			order: 2,
+			when: SessionIsArchivedContext,
+		}),
+		MenuRegistry.appendMenuItem(Menus.AutomationsHistoryItemContext, {
+			command: {
+				id: DELETE_AUTOMATION_RUN_SESSION_COMMAND_ID,
+				title: localize('deleteAutomationRunSessionContextAction', "Delete"),
+			},
+			group: '2_delete',
 			order: 1,
 			when: ContextKeyExpr.and(
 				SessionSupportsDeleteContext,

@@ -6,6 +6,7 @@
 import { Event } from '../../base/common/event.js';
 import { IObservable } from '../../base/common/observable.js';
 import { equals } from '../../base/common/objects.js';
+import { ThemeIcon } from '../../base/common/themables.js';
 import { URI } from '../../base/common/uri.js';
 import { AuthenticateParams, AuthenticateResult, IAgentConnection } from '../../platform/agentHost/common/agentService.js';
 import { RemoteAgentHostConnectionStatus } from '../../platform/agentHost/common/remoteAgentHostService.js';
@@ -22,6 +23,31 @@ import type { AgentMergeSessionOverrides, AgentMergeSessionState } from '../../p
 export interface IAgentHostConnectProgress {
 	readonly connectionKey: string;
 	readonly message: string;
+}
+
+/**
+ * Declares that a provider is one of many interchangeable members of a single
+ * user-facing host. Members collapse into one `IAgentHostFilterEntry` that
+ * scopes the sessions list to all of them; hosts that are a place of their own
+ * (a tunnel machine, a WSL distro, an SSH target) leave this undefined.
+ */
+export interface IAgentHostGroup {
+	/** Stable id shared by every member, and the filter key of the collapsed entry. */
+	readonly id: string;
+	/** Display name of the collapsed entry (e.g. "GitHub Sandboxes"). */
+	readonly label: string;
+	/** Icon for the collapsed entry. Falls back to the generic remote icon. */
+	readonly icon?: ThemeIcon;
+	/**
+	 * Sort rank of the collapsed entry among host filter entries; lower comes
+	 * first. Ungrouped hosts rank `0`. Defaults to `0`.
+	 */
+	readonly order?: number;
+	/**
+	 * Whether the collapsed entry offers a manual connect/disconnect toggle.
+	 * `false` for groups whose members connect implicitly. Defaults to `true`.
+	 */
+	readonly connectable?: boolean;
 }
 
 /**
@@ -62,6 +88,12 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	readonly onDidReportConnectProgress?: Event<IAgentHostConnectProgress>;
 	/** Remote address string, present on remote providers. */
 	readonly remoteAddress?: string;
+	/**
+	 * Set when this provider is one member of a larger user-facing host (see
+	 * {@link IAgentHostGroup}). Members share one host filter entry instead of
+	 * getting one each.
+	 */
+	readonly hostGroup?: IAgentHostGroup;
 	/**
 	 * Stable preference key used to persist/read a
 	 * {@link IRemoteAgentHostLocationPreferenceService} choice for this

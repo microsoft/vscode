@@ -174,9 +174,6 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	private readonly _activeStaticComputes = new Set<ProtocolURI>();
 	private static readonly _DIFF_DEBOUNCE_MS = 5000;
 
-	/** Sessions whose subscribed static changesets must be recomputed after materialization. */
-	private readonly _pendingMaterialization = new Set<ProtocolURI>();
-
 	private readonly _worktree: IAgentHostWorktreePendingState;
 
 	constructor(
@@ -385,7 +382,6 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	refreshBranchChangeset(session: ProtocolURI): void {
 		if (!this._hasWorkingDirectory(session)) {
-			this._pendingMaterialization.add(session);
 			return;
 		}
 		this._scheduleStaticRecompute(session, 'branch', undefined, this._markStaticChangesetComputing(session, 'branch'));
@@ -393,29 +389,23 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	refreshSessionChangeset(session: ProtocolURI): void {
 		if (!this._hasWorkingDirectory(session)) {
-			this._pendingMaterialization.add(session);
 			return;
 		}
 		this._scheduleStaticRecompute(session, 'session', undefined, this._markStaticChangesetComputing(session, 'session'));
 	}
 
 	/**
-	 * Drains static changeset refreshes that were deferred because the
-	 * session's working directory was not yet known. Called by the
-	 * coordinator once a session is materialized or restored. Recomputes
-	 * every changeset still subscribed for the session; subscriptions that
-	 * dropped while the working directory was unknown are naturally skipped.
+	 * Recomputes every changeset currently subscribed when a session is
+	 * materialized or restored.
 	 */
 	onWorkingDirectoryAvailable(session: ProtocolURI): void {
-		if (this._pendingMaterialization.delete(session)) {
-			this.recomputeSubscribedChangesets(session);
-		}
+		this.recomputeSubscribedChangesets(session);
 	}
 
 	/**
 	 * Recomputes every changeset currently subscribed for `session`. Each
 	 * subscribed changeset is dispatched to its kind-specific recompute; the
-	 * recomputes self-defer when the working directory is still unknown.
+	 * recomputes skip while the working directory is still unknown.
 	 */
 	recomputeSubscribedChangesets(session: ProtocolURI): void {
 		const subscriptions = this._changesetSubscriptions.getSessionSubscriptions(session);
@@ -450,14 +440,6 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 					break;
 			}
 		}
-	}
-
-	/**
-	 * Forgets any deferred static changeset refreshes queued for a session
-	 * that is being disposed.
-	 */
-	onSessionDisposed(session: ProtocolURI): void {
-		this._pendingMaterialization.delete(session);
 	}
 
 	computeTurnChangeset(session: ProtocolURI, turnId: string): Promise<ProtocolURI> {
@@ -625,13 +607,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 		const workingDirectory = this._stateManager.getSessionState(session)?.workingDirectories?.[0];
 		if (!workingDirectory) {
-			this._pendingMaterialization.add(session);
 			return uncommittedUri;
-		}
-
-		if (this._worktree.isWorkingDirectoryPending(AgentSession.id(session))) {
-			// Recompute the source-repository preview after the worktree replaces it.
-			this._pendingMaterialization.add(session);
 		}
 
 		const statusBeforeCompute = this._stateManager.getChangesetState(uncommittedUri)?.status;

@@ -40,9 +40,9 @@ export type IAgentHostAutomationConnection = Pick<IAgentConnection,
 	| 'onDidAction'
 	| 'runAutomation'
 > & {
-	getSubscriptionByChannel(
+	getSubscription(
 		kind: StateComponents.AutomationCatalog,
-		channel: string,
+		resource: URI,
 		owner: string,
 	): IReference<IAgentSubscription<AutomationCatalogState>>;
 };
@@ -98,9 +98,9 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		this._register(this._storageService.onDidChangeValue(StorageScope.APPLICATION, this._archiveKey, this._store)(() => {
 			this._archivedRuns.set(this._loadArchivedRuns(), undefined);
 		}));
-		this._catalogReference = this._register(_connection.getSubscriptionByChannel(
+		this._catalogReference = this._register(_connection.getSubscription(
 			StateComponents.AutomationCatalog,
-			AUTOMATION_CATALOG_URI,
+			URI.parse(AUTOMATION_CATALOG_URI),
 			'AgentHostAutomationStore',
 		));
 		this._catalog = this._catalogReference.object;

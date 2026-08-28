@@ -271,4 +271,50 @@ suite('NewChatInputWidget', () => {
 			removed: entry.id,
 		});
 	});
+
+	test('renders additional folder and repository context as attachment pills', () => {
+		const container = document.createElement('div');
+		const folder = URI.file('/workspace/docs');
+		const repositoryRoot = URI.parse('vscode-vfs://github/microsoft/typescript/HEAD');
+		const entries: readonly IChatRequestVariableEntry[] = [
+			{
+				kind: 'directory',
+				id: getAdditionalFolderContextId(folder),
+				name: 'docs',
+				value: folder,
+			},
+			{
+				kind: 'generic',
+				id: getAdditionalRepositoryContextId(URI.parse('https://github.com/microsoft/typescript')),
+				name: 'microsoft/typescript',
+				value: repositoryRoot,
+			},
+		];
+		const renderDisposables = disposables.add(new DisposableStore());
+		updateAttachmentRendering.call({
+			_container: container,
+			_attachedContext: entries,
+			_renderDisposables: renderDisposables,
+			_resourceLabels: {
+				clear: () => { },
+				create: pill => ({
+					dispose: () => { },
+					setLabel: label => pill.textContent = label,
+					setFile: (_resource, _options) => pill.textContent = 'docs',
+				}),
+			},
+			removeAttachment: () => { },
+		});
+
+		assert.deepStrictEqual(
+			Array.from(container.querySelectorAll<HTMLElement>('.sessions-chat-attachment-pill')).map(pill => ({
+				text: pill.textContent,
+				removeAriaLabel: pill.querySelector('.sessions-chat-attachment-remove')?.getAttribute('aria-label'),
+			})),
+			[
+				{ text: 'docs', removeAriaLabel: 'Remove docs' },
+				{ text: 'microsoft/typescript', removeAriaLabel: 'Remove microsoft/typescript' },
+			],
+		);
+	});
 });

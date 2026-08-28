@@ -345,7 +345,6 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 		this._revealScheduler.clear();
 		this._repaintScheduler.clear();
 		this._clearHighlights();
-		this._model.clear();
 		this._restoreFocus();
 	}
 
@@ -410,10 +409,16 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 	}
 
 	next(): void {
+		if (!this.visible) {
+			this.show(undefined, false);
+		}
 		this.find(false);
 	}
 
 	previous(): void {
+		if (!this.visible) {
+			this.show(undefined, false);
+		}
 		this.find(true);
 	}
 
