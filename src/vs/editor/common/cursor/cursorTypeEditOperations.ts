@@ -242,6 +242,9 @@ export class AutoClosingOpenCharTypeOperation {
 					return null;
 				}
 			}
+			if (!chIsAlreadyTyped && this._isBeforeUnmatchedClosingBracket(model, pair, new Position(lineNumber, afterColumn))) {
+				return null;
+			}
 			// Do not auto-close ' or " after a word character
 			if (pair.open.length === 1 && (ch === '\'' || ch === '"') && autoCloseConfig !== 'always') {
 				const wordSeparators = getMapForWordSeparators(config.wordSeparators, []);
@@ -283,6 +286,12 @@ export class AutoClosingOpenCharTypeOperation {
 		} else {
 			return pair.close;
 		}
+	}
+
+	private static _isBeforeUnmatchedClosingBracket(model: ITextModel, pair: StandardAutoClosingPairConditional, position: Position): boolean {
+		const searchRange = Range.fromPositions(position, model.getFullModelRange().getEndPosition());
+		const nextBracket = model.bracketPairs.getBracketsInRange(searchRange).findFirst(() => true);
+		return !!nextBracket && nextBracket.isInvalid && model.getValueInRange(nextBracket.range) === pair.close;
 	}
 
 	/**
