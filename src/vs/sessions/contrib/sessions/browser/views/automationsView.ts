@@ -48,6 +48,7 @@ import { IActionViewItemService } from '../../../../../platform/actions/browser/
 import { BaseActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../../base/common/actions.js';
 import { AutomationsCustomViewFocusContext, AutomationsHasItemsContext, SessionSupportsDeleteContext } from '../../../../common/contextkeys.js';
+import { ARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionsFlatList, SessionItemStatusContext } from './sessionsList.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
 
@@ -857,6 +858,9 @@ class AutomationHistorySection extends Disposable {
 				action.enabled = false;
 				await this.stopRunSession(session, this.getAutomationName(run), action);
 				return true;
+			case ARCHIVE_SESSION_COMMAND_ID:
+				await this.sessionsManagementService.archiveSession(session);
+				return true;
 			case DELETE_AUTOMATION_RUN_SESSION_COMMAND_ID:
 				await this.confirmDeleteRunSession(run, session, this.getAutomationName(run));
 				return true;
@@ -1190,7 +1194,7 @@ function registerAutomationHistoryItemActions(): IDisposable {
 				icon: Codicon.trash,
 			},
 			group: 'navigation',
-			order: 1,
+			order: 3,
 			when: ContextKeyExpr.and(
 				SessionSupportsDeleteContext,
 				ContextKeyExpr.or(
