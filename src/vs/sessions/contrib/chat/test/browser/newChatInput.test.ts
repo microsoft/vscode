@@ -235,17 +235,19 @@ suite('NewChatInputWidget', () => {
 		});
 		const removeButton = container.querySelector<HTMLButtonElement>('.sessions-chat-attachment-remove');
 		const pill = container.querySelector<HTMLElement>('.sessions-chat-attachment-pill');
+		const openButton = container.querySelector<HTMLButtonElement>('.sessions-chat-attachment-open');
 		let bubbledKeyDown = false;
 		pill?.addEventListener('keydown', () => bubbledKeyDown = true);
 		removeButton?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-		pill?.click();
+		openButton?.click();
 		await Promise.resolve();
 		removeButton?.click();
 
 		assert.deepStrictEqual({
-			pillRole: pill?.role,
+			pillRole: pill?.getAttribute('role'),
 			pillTabIndex: pill?.tabIndex,
-			pillAriaLabel: pill?.getAttribute('aria-label'),
+			openTagName: openButton?.tagName,
+			openAriaLabel: openButton?.getAttribute('aria-label'),
 			tagName: removeButton?.tagName,
 			tabIndex: removeButton?.tabIndex,
 			ariaLabel: removeButton?.getAttribute('aria-label'),
@@ -253,9 +255,10 @@ suite('NewChatInputWidget', () => {
 			opened,
 			removed,
 		}, {
-			pillRole: 'button',
-			pillTabIndex: 0,
-			pillAriaLabel: 'Open microsoft/vscode#332825',
+			pillRole: null,
+			pillTabIndex: -1,
+			openTagName: 'BUTTON',
+			openAriaLabel: 'Open microsoft/vscode#332825',
 			tagName: 'BUTTON',
 			tabIndex: 0,
 			ariaLabel: 'Remove microsoft/vscode#332825',

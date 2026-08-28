@@ -231,14 +231,18 @@ const OPEN_PULL_REQUEST_FOR_TASK_COMMAND_ID = 'github.copilot.chat.cloudSessions
 
 export function parseGitHubContextUrl(value: string, kind: 'issue' | 'pullRequest'): { readonly repoId: string; readonly url: string; readonly label: string } | undefined {
 	const match = /^https:\/\/(?:www\.)?github\.com\/(?<owner>[^/?#]+)\/(?<repository>[^/?#]+)\/(?<resource>issues|pull)\/(?<number>[1-9]\d*)\/?(?:[?#].*)?$/i.exec(value.trim());
-	if (!match?.groups || (match.groups.resource === 'issues') !== (kind === 'issue')) {
+	if (!match?.groups) {
+		return undefined;
+	}
+	const resource = match.groups.resource.toLowerCase();
+	if ((resource === 'issues') !== (kind === 'issue')) {
 		return undefined;
 	}
 
 	const repoId = `${match.groups.owner}/${match.groups.repository}`;
 	return {
 		repoId,
-		url: `https://github.com/${repoId}/${match.groups.resource}/${match.groups.number}`,
+		url: `https://github.com/${repoId}/${resource}/${match.groups.number}`,
 		label: `${repoId}#${match.groups.number}`,
 	};
 }
@@ -728,6 +732,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 						quickPick.items = [{
 							label: pastedSelection.label,
 							description: pastedSelection.repoId,
+							alwaysShow: true,
 							selection: pastedSelection,
 						}];
 						return;

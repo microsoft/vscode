@@ -62,7 +62,7 @@ describe('copilotCloudSessionsProvider helpers', () => {
 
 	it('parses pasted GitHub issue and pull request URLs for the matching picker', () => {
 		expect({
-			issue: parseGitHubContextUrl(' https://github.com/microsoft/vscode/issues/333149#issuecomment-1 ', 'issue'),
+			issue: parseGitHubContextUrl(' https://github.com/microsoft/vscode/ISSUES/333149#issuecomment-1 ', 'issue'),
 			pullRequest: parseGitHubContextUrl('https://www.github.com/microsoft/vscode/pull/333149/', 'pullRequest'),
 			wrongPicker: parseGitHubContextUrl('https://github.com/microsoft/vscode/pull/333149', 'issue'),
 			unrelated: parseGitHubContextUrl('https://example.com/microsoft/vscode/issues/333149', 'issue'),
