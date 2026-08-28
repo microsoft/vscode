@@ -31,7 +31,7 @@ export const SessionSupportsMultipleChatsContext = new RawContextKey<boolean>('s
 export const SessionSupportsForkContext = new RawContextKey<boolean>('sessionSupportsFork', false, localize('sessionSupportsFork', "Whether the session view's session supports forking a chat from a turn into a new peer chat"));
 export const SessionSupportsSideChatContext = new RawContextKey<boolean>('sessionSupportsSideChat', false, localize('sessionSupportsSideChat', "Whether the session view's session supports creating a side chat from a turn (via /btw)"));
 export const SessionHasMultipleCommittedChatsContext = new RawContextKey<boolean>('sessionHasMultipleCommittedChats', false, localize('sessionHasMultipleCommittedChats', "Whether the session view's session has more than one committed (non-draft) chat, which drives the Chats dropdown visibility"));
-export const SessionActiveChatHasSubagentsContext = new RawContextKey<boolean>('sessionActiveChatHasSubagents', false, localize('sessionActiveChatHasSubagents', "Whether the active chat has subagents, which are shown in the Chats dropdown"));
+export const SessionHasSideChatsContext = new RawContextKey<boolean>('sessionHasSideChats', false, localize('sessionHasSideChats', "Whether the session has side chats, which are shown in the Side Chats dropdown"));
 export const SessionShouldShowChatTabsContext = new RawContextKey<boolean>('sessionShouldShowChatTabs', false, localize('sessionShouldShowChatTabs', "Whether the session view's chat tab strip is shown, i.e. the session has more than one chat actually showing as a tab. A single visible tab always hides the strip"));
 export const SessionHasMultipleOpenChatsContext = new RawContextKey<boolean>('sessionHasMultipleOpenChats', false, localize('sessionHasMultipleOpenChats', "Whether the session view's session has more than one open chat (the tabs shown in the strip, including in-composer drafts). Used to scope chat-to-chat navigation (next/previous chat, the Ctrl+Tab chat switcher)"));
 export const SessionActiveChatIsClosableContext = new RawContextKey<boolean>('sessionActiveChatIsClosable', false, localize('sessionActiveChatIsClosable', "Whether the session's active chat can be closed (hidden) from the tab strip, i.e. it is not the main chat. Includes read-only subagent chats. Used to scope the close-chat keybinding so it closes the tab instead of the session"));
@@ -44,6 +44,9 @@ export const SessionHasCachedChangesContext = new RawContextKey<boolean>('sessio
 export const SessionHasPullRequestContext = new RawContextKey<boolean>('sessionHasPullRequest', false, localize('sessionHasPullRequest', "Whether the session view's session is associated with a GitHub pull request"));
 export const SessionHasIssuesContext = new RawContextKey<boolean>('sessionHasIssues', false, localize('sessionHasIssues', "Whether the session view's session references at least one GitHub issue"));
 export const SessionHasWorkspaceContext = new RawContextKey<boolean>('sessionHasWorkspace', false, localize('sessionHasWorkspace', "Whether the session view's session has an associated workspace folder"));
+export const SessionsChatBackgroundAvailableContext = new RawContextKey<boolean>('sessionsChatBackgroundAvailable', false, localize('sessionsChatBackgroundAvailable', "Whether chat background customization is available for the current color theme"));
+export const SessionsChatBackgroundConfiguredContext = new RawContextKey<boolean>('sessionsChatBackgroundConfigured', false, localize('sessionsChatBackgroundConfigured', "Whether a chat background is configured for the current color theme"));
+export const SessionsChatBackgroundImageConfiguredContext = new RawContextKey<boolean>('sessionsChatBackgroundImageConfigured', false, localize('sessionsChatBackgroundImageConfigured', "Whether a chat background image is configured for the current color theme"));
 export const IsQuickChatSessionContext = new RawContextKey<boolean>('isQuickChatSession', false, localize('isQuickChatSession', "Whether the session in scope is a workspace-less quick chat"));
 
 //#endregion
@@ -71,6 +74,29 @@ export const SessionsEditorScopeContext = ContextKeyExpr.or(EditorAreaFocusConte
 export const CustomViewVisibleContext = new RawContextKey<boolean>('customViewVisible', false, localize('customViewVisible', "Whether a custom view is shown in place of the sessions grid. The side panel and the panel are hidden while it is."));
 export const AutomationsCustomViewFocusContext = new RawContextKey<boolean>('automationsCustomViewFocus', false, localize('automationsCustomViewFocus', "Whether the Automations custom view has keyboard focus"));
 export const AutomationsHasItemsContext = new RawContextKey<boolean>('automationsHasItems', false, localize('automationsHasItems', "Whether there is at least one automation"));
+
+//#endregion
+
+//#region < --- Changes --- >
+
+/**
+ * Id of the first pull request operation the agent host currently advertises
+ * for the active session (for example `pr-merge`), or the empty string when
+ * none is advertised. Lets client-side contributions to the changes button bar
+ * react to the pull request's live state without duplicating it.
+ */
+export const SessionPrimaryPullRequestOperationContext = new RawContextKey<string>('sessionPrimaryPullRequestOperation', '', localize('sessionPrimaryPullRequestOperation', "The id of the first pull request operation advertised for the active session, or empty when there is none"));
+
+/** Whether Agent Merge is currently enabled on the active session. */
+export const SessionAgentMergeEnabledContext = new RawContextKey<boolean>('sessionAgentMergeEnabled', false, localize('sessionAgentMergeEnabled', "True when Agent Merge is enabled for the active agent session"));
+
+/**
+ * Whether the active session has an open pull request, independent of whether
+ * the agent host has any operation to offer for it. A pull request that is
+ * open but blocked — and whose repository does not allow auto-merge — offers
+ * no operation, yet is exactly when Agent Merge has work to do.
+ */
+export const SessionHasOpenPullRequestContext = new RawContextKey<boolean>('sessionHasOpenPullRequest', false, localize('sessionHasOpenPullRequest', "Whether the active session's branch has an open pull request"));
 
 //#endregion
 

@@ -8,6 +8,7 @@ import { getErrorMessage } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, toDisposable } from '../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { URI } from '../../../base/common/uri.js';
 import type { IAgent, IAgentTurnDiagnosticSnapshot } from '../common/agent.js';
 import type { SessionMode } from '../common/agentHostSchema.js';
@@ -18,7 +19,7 @@ import { ILogService } from '../../log/common/log.js';
 import { canRefineContributor, toolSourceKindFromContributor } from './agentHostToolCallTracker.js';
 import { SessionInputRequestKind } from '../common/state/protocol/state.js';
 import type { ITurnTokenTotal, ToolCallContributor } from '../common/state/sessionState.js';
-import type { AgentHostInitiatorClientConnectionState, AgentHostModelTelemetryKind, AgentHostProviderDiagnosticState, AgentHostTelemetryReporter, AgentHostTurnFailureStage, AgentHostTurnHangReason, AgentHostTurnResult, IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
+import { IAgentHostTelemetryReporter, type AgentHostInitiatorClientConnectionState, type AgentHostMessageOriginTelemetryKind, type AgentHostModelTelemetryKind, type AgentHostProviderDiagnosticState, type AgentHostTelemetryReporter, type AgentHostTurnFailureStage, type AgentHostTurnHangReason, type AgentHostTurnResult, type IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
 
 /**
  * How long a turn must go without any observed activity before the watchdog
@@ -66,6 +67,8 @@ interface ITurnTiming {
 	readonly modelSelectionKind: 'default' | 'auto' | 'explicit';
 	readonly permissionLevel: string | undefined;
 	readonly interactionMode: SessionMode | undefined;
+	/** Who produced the message that started the turn, when known. */
+	readonly messageOriginKind: AgentHostMessageOriginTelemetryKind | undefined;
 	readonly clientContext: IAgentHostClientTelemetryContext;
 	readonly initiatorClientId: string | undefined;
 	readonly completedModelCallIds: Set<string>;
@@ -125,7 +128,11 @@ interface ITurnUsage {
  * later completes, it also reports `agentHost.hungTurnCompleted` so permanent
  * hangs can be separated from merely slow ones.
  */
+export const IAgentHostTurnTracker = createDecorator<AgentHostTurnTracker>('agentHostTurnTracker');
+
 export class AgentHostTurnTracker extends Disposable {
+
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _turnTimings = new Map<string, ITurnTiming>();
 	private readonly _turnUsages = new Map<string, ITurnUsage>();
@@ -147,7 +154,7 @@ export class AgentHostTurnTracker extends Disposable {
 	readonly onDidStartTurn: Event<string> = this._onDidStartTurn.event;
 
 	constructor(
-		private readonly _reporter: AgentHostTelemetryReporter,
+		@IAgentHostTelemetryReporter private readonly _reporter: AgentHostTelemetryReporter,
 		@IAgentHostClientConnectionService private readonly _clientConnections: IAgentHostClientConnectionService,
 		@ILogService private readonly _logService: ILogService,
 	) {
@@ -159,7 +166,7 @@ export class AgentHostTurnTracker extends Disposable {
 		}));
 	}
 
-	turnStarted(agent: IAgent, session: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, modelSelectionKind: 'default' | 'auto' | 'explicit', permissionLevel: string | undefined, interactionMode: SessionMode | undefined, clientContext = createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown), initiatorClientId?: string, parentTurnId?: string, parentToolCallId?: string): void {
+	turnStarted(agent: IAgent, session: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, modelSelectionKind: 'default' | 'auto' | 'explicit', permissionLevel: string | undefined, interactionMode: SessionMode | undefined, clientContext = createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown), initiatorClientId?: string, parentTurnId?: string, parentToolCallId?: string, messageOriginKind?: AgentHostMessageOriginTelemetryKind): void {
 		const key = this._key(session, turnId);
 		this._turnTimings.set(key, {
 			stopWatch: StopWatch.create(false),
@@ -173,6 +180,7 @@ export class AgentHostTurnTracker extends Disposable {
 			modelSelectionKind,
 			permissionLevel,
 			interactionMode,
+			messageOriginKind,
 			clientContext,
 			initiatorClientId,
 			completedModelCallIds: new Set(),
@@ -390,6 +398,7 @@ export class AgentHostTurnTracker extends Disposable {
 			modelSelectionKind: timing.modelSelectionKind,
 			permissionLevel: timing.permissionLevel,
 			interactionMode: timing.interactionMode,
+			messageOriginKind: timing.messageOriginKind,
 			failure,
 			isMultiRoot: workspace?.isMultiRoot ?? false,
 			folderCount: workspace?.folderCount ?? 0,

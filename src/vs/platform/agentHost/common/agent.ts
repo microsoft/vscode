@@ -140,6 +140,14 @@ export interface IAgentChatMetadata {
 	readonly _meta?: SessionMeta;
 }
 
+/** Identifies metadata reads that may initialize an otherwise lazy provider. */
+export interface IAgentChatMetadataOptions {
+	/** A session restore needs authoritative provider data and may start its runtime. */
+	readonly activation?: 'restore';
+	/** Stable host-owned timestamps a lazy provider may use for passive catalogue metadata. */
+	readonly registryFallback?: Pick<IAgentChatMetadata, 'startTime' | 'modifiedTime'>;
+}
+
 /** A provider chat ready to be registered as an Agent Host session. */
 export interface IAgentDiscoveredChat extends IAgentChatMetadata {
 	readonly external: boolean;
@@ -188,9 +196,11 @@ export interface IAgentCreateSessionResult extends IAgentCreateChatResult {
 }
 
 /**
- * Payload of {@link IAgent.onDidMaterializeChat}. Fired once a previously
+ * Payload of {@link IAgent.onDidMaterializeChat}. Fired when a previously
  * {@link IAgentCreateSessionResult.provisional} chat has its SDK session,
- * worktree (if any), and on-disk metadata in place.
+ * worktree (if any), and on-disk metadata in place. A provider may fire the
+ * event again when it replaces or rematerializes an already-backed chat;
+ * consumers must treat each event as the chat's latest materialization receipt.
  */
 export interface IAgentMaterializeChatEvent {
 	readonly chat: URI;
@@ -492,6 +502,13 @@ export function resolveAgentHostInstructions(context?: URI | IAgentChatContext):
 export interface IAgentCreateChatOptions {
 	/** Whether the owning session is transient and should skip durable-only provider work. */
 	readonly isEphemeral?: boolean;
+	/**
+	 * Whether the owning chat surface is scoped to editing a single file (editor
+	 * inline chat). Blanket shell auto-approvals must not apply to such a
+	 * session, because a shell command can write anywhere the sandbox allows and
+	 * carries no destination the permission layer can check against the scope.
+	 */
+	readonly hasScopedEditSurface?: boolean;
 	/** Optional display title for the new chat. */
 	readonly title?: string;
 	/** Optional model override; defaults to the session's model. */
@@ -517,10 +534,17 @@ export interface IAgentCreateChatOptions {
 	 * is forked from the source so it can continue independently.
 	 */
 	readonly fork?: IAgentCreateChatForkSource;
+}
+
+/**
+ * Host-facing chat creation options. Providers receive the resolved
+ * {@link IAgentCreateChatOptions} and never receive side-chat provenance.
+ */
+export interface IAgentCreateChatRequestOptions extends IAgentCreateChatOptions {
 	/**
 	 * Create this new chat as a side chat branching from a turn in an existing
-	 * chat (via `/btw`). Unlike {@link fork}, inherited context is provider-owned
-	 * and must not appear in the chat's visible history.
+	 * chat (via `/btw`). The host resolves this into {@link fork} before calling
+	 * the provider, while retaining the side-chat provenance itself.
 	 */
 	readonly sideChat?: IAgentCreateChatSideChatSource;
 }
@@ -530,6 +554,12 @@ export interface IAgentCreateChatForkSource {
 	readonly source: URI;
 	/** Turn ID in the source chat; content up to and including this turn is copied. */
 	readonly turnId: string;
+	/**
+	 * Allows a fork to start without waiting for the source chat's queue.
+	 * Side chats branch from potentially active source turns and use this to
+	 * avoid blocking their own creation behind that turn.
+	 */
+	readonly independentQueue?: boolean;
 	/** Zero-based source turn index, when the provider needs it for import/fork mapping. */
 	readonly turnIndex?: number;
 	/**
@@ -554,12 +584,6 @@ export interface IAgentCreateChatSideChatSource {
 	readonly turnId: string;
 	/** Optional selected-text snapshot captured from the source chat transcript. */
 	readonly selection?: IAgentCreateChatSideChatSelection;
-	/** Concrete provider turn ID to fork/resume from when `turnId` names a host-only local turn. */
-	readonly providerAnchorTurnId?: string;
-	/** Bounded source-chat context captured from host state when the provider transcript lags. */
-	readonly sourceContext?: string;
-	/** User-visible assistant text captured while the source turn was active. */
-	readonly partialResponse?: string;
 }
 
 /** Result of {@link IAgentChats.createChat}: the opaque blob to persist for restore. */
@@ -567,6 +591,8 @@ export interface IAgentCreateChatResult {
 	readonly project?: IAgentSessionProjectInfo;
 	readonly resolvedWorkingDirectory?: URI;
 	readonly provisional?: boolean;
+	/** Id of the last provider turn copied into a newly created fork, when known. */
+	readonly inheritedTurnId?: string;
 	/**
 	 * Opaque, agent-owned token the orchestrator persists verbatim in the chat
 	 * catalog and hands back to {@link IAgent.materializeChat} on
@@ -599,6 +625,12 @@ export interface IAgentLegacyChat {
 	/** The opaque, agent-owned backing blob, encoded as {@link materializeChat} expects. */
 	readonly providerData?: string;
 }
+
+/** The native chat catalog requires an external readiness action before it can be enumerated. */
+export const AgentChatMigrationDeferred = Symbol('AgentChatMigrationDeferred');
+
+/** Provider-native chat catalog result used by registry migration. */
+export type AgentChatMigrationResult = readonly IAgentChatMetadata[] | undefined | typeof AgentChatMigrationDeferred;
 
 /**
  * Identifies the parent that spawned a chat. The orchestrator records
@@ -723,6 +755,9 @@ export interface IAgentChats {
 	 * providers must not retain it as chat membership state.
 	 */
 	sendMessage(chat: URI, prompt: string, workingDirectoriesOrDirectory: readonly URI[] | URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientTypeOrContext?: AgentHostClientType | URI | IAgentChatContext, context?: URI | IAgentChatContext): Promise<void>;
+
+	/** Resume a failed turn without adding another user message. */
+	resumeTurn?(chat: URI, turnId: string, context: AgentChatOperationContext, senderClientId?: string, clientType?: AgentHostClientType): Promise<void>;
 
 	/** Abort the in-flight turn for `chat`. */
 	abort(chat: URI, context: AgentChatOperationContext): Promise<void>;
@@ -1179,16 +1214,16 @@ export interface IAgent {
 	/** Optional recovery hook for providers with historical backings but no persisted provider data. */
 	recoverLegacyChat?(chat: URI, context: URI | IAgentChatContext): Promise<IAgentCreateChatResult | void>;
 
-	/** Enumerate provider-native chats for registry migration; `undefined` means the catalog is unavailable. */
-	listChatsToMigrate(): Promise<readonly IAgentChatMetadata[] | undefined>;
+	/** Enumerate provider-native chats for registry migration. */
+	listChatsToMigrate(): Promise<AgentChatMigrationResult>;
 
 	/** Optional migration codec for providers that persisted peer backings before the host catalog. */
 	listLegacyChatBackings?(configurationResource: URI): Promise<readonly IAgentLegacyChat[]>;
 
 	// ---- Metadata -----------------------------------------------------------
 
-	/** Retrieve metadata for an exact registered chat. */
-	getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string): Promise<IAgentChatMetadata | undefined>;
+	/** Retrieve metadata for an exact registered chat. Ambient catalogue reads never set {@link IAgentChatMetadataOptions.activation}. */
+	getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string, options?: IAgentChatMetadataOptions): Promise<IAgentChatMetadata | undefined>;
 
 	// ---- Authentication and diagnostics ------------------------------------
 
@@ -1213,10 +1248,10 @@ export interface IAgent {
 	getManagedSettingsDiagnostics?(): Promise<IAgentHostManagedSettingsSnapshot>;
 
 	/** Return the provider-owned state file for a session, when one exists. */
-	getSessionStateFile?(session: URI): Promise<URI | undefined>;
+	getSessionStateFile?(session: URI, chat?: URI): Promise<URI | undefined>;
 
 	/** Add provider-owned diagnostics to an Agent Host debug-log staging directory. */
-	collectDebugLogs?(session: URI | undefined, outputDirectory: URI): Promise<boolean>;
+	collectDebugLogs?(session: URI | undefined, outputDirectory: URI, chat?: URI): Promise<boolean>;
 
 	// ---- MCP and server tools -----------------------------------------------
 

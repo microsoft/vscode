@@ -254,7 +254,8 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 
 		const isCompletionsEnabled = this._isCompletionsEnabled(document);
 
-		const unification = this._configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsUnification, this._expService);
+		const unification = this._modelService.selectedModelConfiguration().supportsUnifiedCompletions
+			?? this._configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsUnification, this._expService);
 
 		const isInlineEditsEnabled = this._configurationService.getExperimentBasedConfig(ConfigKey.InlineEditsEnabled, this._expService, { languageId: document.languageId });
 
@@ -467,7 +468,7 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 			// re-surface in any other form. Suppress here without evicting the cache entry —
 			// when the cursor returns to an inline-renderable position, we'll serve it again.
 			if (
-				this._nesMimicGhostTextBehavior.get()
+				(this._modelService.selectedModelConfiguration().nesMimicGhostTextBehavior ?? this._nesMimicGhostTextBehavior.get())
 				&& !isInlineCompletion
 				&& isLlmCompletionInfo(suggestionInfo)
 				&& suggestionInfo.suggestion.result?.cacheEntry?.wasRenderedAsInlineSuggestion

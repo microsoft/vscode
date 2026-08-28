@@ -151,3 +151,25 @@ export function publishAutomationRunError(telemetryService: ITelemetryService, a
 		intervalKind: args.automation.schedule.interval,
 	});
 }
+
+type AutomationMigrationEvent = {
+	outcome: 'started' | 'completed' | 'failed';
+	discoveredCount: number;
+	migratedCount: number;
+	failedCount: number;
+	durationMs: number;
+};
+
+type AutomationMigrationClassification = {
+	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the migration started, completed, or failed.' };
+	discoveredCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of legacy Automation definitions discovered.' };
+	migratedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of Automation definitions durably present in the Agent Host catalogue.' };
+	failedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of Automation definitions that failed migration.' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Migration duration in milliseconds, or zero for the started event.' };
+	owner: 'ulugbekna';
+	comment: 'Tracks reliability of the one-time migration to Agent Host-owned Automations without collecting definition content or resource identifiers.';
+};
+
+export function publishAutomationMigration(telemetryService: ITelemetryService, event: AutomationMigrationEvent): void {
+	telemetryService.publicLog2<AutomationMigrationEvent, AutomationMigrationClassification>('automation.migration', event);
+}

@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
-import { Disposable, DisposableMap, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
 import { ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
 import { isMultiRootSession } from '../common/agentHostWorkingDirectories.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
@@ -45,7 +45,28 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		if (this._handlerRegistrations.has(contribution)) {
 			throw new Error('Changeset operation contribution already registered');
 		}
-		this._handlerRegistrations.set(contribution, contribution.registerHandlers(this._registry));
+		const handlerRegistrations = new DisposableStore();
+		const registeredHandlers = new Set<IDisposable>();
+		const registry: IChangesetOperationRegistry = {
+			...this._registry,
+			registerChangesetOperationHandler: (operationId, handler) => {
+				const registration = handlerRegistrations.add(this._registry.registerChangesetOperationHandler(operationId, handler));
+				registeredHandlers.add(registration);
+				return registration;
+			},
+		};
+		try {
+			const registration = contribution.registerHandlers(registry);
+			for (const registeredHandler of registeredHandlers) {
+				handlerRegistrations.deleteAndLeak(registeredHandler);
+			}
+			handlerRegistrations.dispose();
+			this._handlerRegistrations.set(contribution, registration);
+		} catch (error) {
+			handlerRegistrations.dispose();
+			contribution.dispose();
+			throw error;
+		}
 		return toDisposable(() => {
 			this._handlerRegistrations.deleteAndDispose(contribution);
 			contribution.dispose();

@@ -65,7 +65,7 @@ export function getModelHoverContent(
 
 	if (!isAuto && model.metadata.warningText) {
 		for (const message of Object.values(model.metadata.warningText)) {
-			container.appendChild(createMessageBanner(message, 'chat-model-hover-warning-text', Codicon.warning, disposables, openerService));
+			container.appendChild(createMessageBanner(message, 'chat-model-hover-warning-text', Codicon.warningCompact, disposables, openerService));
 		}
 	}
 
@@ -168,7 +168,8 @@ export function getModelHoverContent(
 		const seenGroups = new Set<string>();
 		for (const propSchema of Object.values(model.metadata.configurationSchema.properties)) {
 			if (propSchema.enum && propSchema.enum.length >= 2 && propSchema.group && SUPPORTED_CONFIG_GROUPS.includes(propSchema.group) && !seenGroups.has(propSchema.group)) {
-				const label = propSchema.title ?? propSchema.description;
+				// Auto's navigation option is its routing tier; the menu keeps the producer's "Optimize for…" title.
+				const label = isAuto && propSchema.group === 'navigation' ? localize('models.routingProfile', "Routing Profile") : propSchema.title ?? propSchema.description;
 				if (label) {
 					seenGroups.add(propSchema.group);
 					configButtons.push({ group: propSchema.group, label });

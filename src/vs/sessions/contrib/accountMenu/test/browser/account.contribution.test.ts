@@ -73,6 +73,13 @@ suite('Sessions - Account Menu', () => {
 				{ id: ChatPetAchievementIds.ModelSwitch, unlocked: false },
 				{ id: ChatPetAchievementIds.McpServerPresent, unlocked: false },
 				{ id: ChatPetAchievementIds.CustomSkillPresent, unlocked: false },
+				{ id: ChatPetAchievementIds.AgentsWindowOpened, unlocked: false },
+				{ id: ChatPetAchievementIds.CreatePullRequest, unlocked: false },
+				{ id: ChatPetAchievementIds.AgentEditKept, unlocked: false },
+				{ id: ChatPetAchievementIds.AgentChangesReviewed, unlocked: false },
+				{ id: ChatPetAchievementIds.ChatReferenceOpened, unlocked: false },
+				{ id: ChatPetAchievementIds.UsefulOutputCopied, unlocked: false },
+				{ id: ChatPetAchievementIds.AutopilotEnabled, unlocked: false },
 			],
 			partial: [
 				{ id: ChatPetAchievementIds.FirstChatMessage, unlocked: true },
@@ -81,6 +88,13 @@ suite('Sessions - Account Menu', () => {
 				{ id: ChatPetAchievementIds.ModelSwitch, unlocked: false },
 				{ id: ChatPetAchievementIds.McpServerPresent, unlocked: false },
 				{ id: ChatPetAchievementIds.CustomSkillPresent, unlocked: false },
+				{ id: ChatPetAchievementIds.AgentsWindowOpened, unlocked: false },
+				{ id: ChatPetAchievementIds.CreatePullRequest, unlocked: false },
+				{ id: ChatPetAchievementIds.AgentEditKept, unlocked: false },
+				{ id: ChatPetAchievementIds.AgentChangesReviewed, unlocked: false },
+				{ id: ChatPetAchievementIds.ChatReferenceOpened, unlocked: false },
+				{ id: ChatPetAchievementIds.UsefulOutputCopied, unlocked: false },
+				{ id: ChatPetAchievementIds.AutopilotEnabled, unlocked: false },
 			],
 		});
 	});

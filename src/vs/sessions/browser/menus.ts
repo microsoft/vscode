@@ -51,12 +51,26 @@ export const Menus = {
 	SessionBarToolbar: new MenuId('SessionsSessionBarToolbar'),
 	SessionConversations: new MenuId('SessionsSessionConversations'),
 	SessionChatTab: new MenuId('SessionsSessionChatTab'),
+	SessionChatItemContext: new MenuId('SessionsSessionChatItemContext'),
+	SessionChatBackgroundContext: new MenuId('SessionsSessionChatBackgroundContext'),
 	SessionsEditorHeaderPrimary: new MenuId('SessionsEditorHeaderPrimary'),
 	SessionsEditorHeaderLayout: new MenuId('SessionsEditorHeaderLayout'),
 	SessionsEditorTitle: new MenuId('SessionsEditorTitle'),
 	SessionsEditorTabsBarContext: new MenuId('SessionsEditorTabsBarContext'),
 	SessionsEditorTabsBarAddTab: new MenuId('SessionsEditorTabsBarAddTab'),
 	SessionHeaderMeta: new MenuId('SessionsSessionHeaderMeta'),
+
+	/**
+	 * Entries merged into the dropdown of the changes button bar's primary
+	 * button. A submenu contributed to its `primary` group names a group of
+	 * related actions and takes over the button when it applies.
+	 */
+	ChangesOperationsDropdown: new MenuId('SessionsChangesOperationsDropdown'),
+	/** Agent Merge's own entries, opened as a context menu from its button. */
+	ChangesAgentMerge: new MenuId('SessionsChangesAgentMerge'),
+	/** Choices for when Agent Merge may merge the pull request. */
+	ChangesAgentMergeMergePullRequest: new MenuId('SessionsChangesAgentMergeMergePullRequest'),
+
 	SessionHeaderContext: MenuId.SessionHeaderContext,
 	SessionItemContextMenu: MenuId.SessionItemContextMenu,
 } as const;

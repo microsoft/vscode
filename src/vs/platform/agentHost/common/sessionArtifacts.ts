@@ -6,8 +6,10 @@
 import type { SessionSummaryMeta } from './state/sessionState.js';
 
 /**
- * Artifact kinds an agent can record on its session. Each kind carries the one
- * field the client needs to open it, plus a label.
+ * The kinds an agent can record on its session, as either an artifact (the
+ * session produced it) or a reference (the session found it worth returning
+ * to). Each kind carries the one field the client needs to open it, plus a
+ * label.
  */
 export const enum SessionArtifactType {
 	PullRequest = 'pullRequest',
@@ -27,26 +29,30 @@ export const SESSION_ARTIFACT_TYPES: readonly SessionArtifactType[] = [
 	SessionArtifactType.Resource,
 ];
 
-/** A session artifact as stored by the host and published to clients. */
+/** A session artifact or reference as stored by the host and published to clients. */
 export interface ISessionArtifact {
 	readonly id: string;
 	readonly type: SessionArtifactType;
 	readonly label: string;
-	/** Link for pull request, issue, commit and website artifacts. */
+	/**
+	 * `true` for an artifact — something this session produced — and `false` for
+	 * a reference, something it only points the user at.
+	 */
+	readonly isArtifact: boolean;
+	/** Link for pull request, issue, commit and website entries. */
 	readonly link?: string;
-	/** Resource URI for file and resource artifacts. */
+	/** Resource URI for file and resource entries. */
 	readonly uri?: string;
-	/** Commit hash for commit artifacts. */
+	/** Commit hash for commit entries. */
 	readonly commitHash?: string;
 	/** Whether a pull request or issue link points at GitHub. Host-computed. */
 	readonly isGitHub?: boolean;
-	/** Whether this session created the pull request, rather than only referencing it. */
-	readonly createdByThisSession?: boolean;
 }
 
 /**
  * Reserved key under {@link SessionSummaryMeta} holding the session's agent-set
- * artifacts. VS Code convention layered on the protocol's generic `_meta` bag.
+ * artifacts and references. VS Code convention layered on the protocol's
+ * generic `_meta` bag.
  */
 export const SESSION_META_ARTIFACTS_KEY = 'agentHost/sessionArtifacts';
 
@@ -62,22 +68,33 @@ function parseSessionArtifact(value: unknown): ISessionArtifact | undefined {
 	if (typeof raw['id'] !== 'string' || typeof raw['label'] !== 'string' || !isSessionArtifactType(raw['type'])) {
 		return undefined;
 	}
+	// `isArtifact` is mandatory, so only its absence is tolerated — that is an
+	// entry recorded before artifacts and references were told apart, which was
+	// always an artifact. Any other value is malformed and rejects the entry.
+	const isArtifact = raw['isArtifact'];
+	if (isArtifact !== undefined && typeof isArtifact !== 'boolean') {
+		return undefined;
+	}
 	const artifact: {
 		id: string;
 		type: SessionArtifactType;
 		label: string;
+		isArtifact: boolean;
 		link?: string;
 		uri?: string;
 		commitHash?: string;
 		isGitHub?: boolean;
-		createdByThisSession?: boolean;
-	} = { id: raw['id'], type: raw['type'], label: raw['label'] };
+	} = {
+		id: raw['id'],
+		type: raw['type'],
+		label: raw['label'],
+		isArtifact: isArtifact ?? true,
+	};
 
 	if (typeof raw['link'] === 'string') { artifact.link = raw['link']; }
 	if (typeof raw['uri'] === 'string') { artifact.uri = raw['uri']; }
 	if (typeof raw['commitHash'] === 'string') { artifact.commitHash = raw['commitHash']; }
 	if (typeof raw['isGitHub'] === 'boolean') { artifact.isGitHub = raw['isGitHub']; }
-	if (typeof raw['createdByThisSession'] === 'boolean') { artifact.createdByThisSession = raw['createdByThisSession']; }
 	return artifact;
 }
 
@@ -113,20 +130,39 @@ export function stringifySessionArtifacts(artifacts: readonly ISessionArtifact[]
 	return JSON.stringify(artifacts);
 }
 
-/** Parses artifacts previously written by {@link stringifySessionArtifacts}. */
-export function parseSessionArtifacts(value: string | undefined): readonly ISessionArtifact[] {
-	if (!value) {
-		return [];
-	}
-	try {
-		return readSessionArtifacts({ [SESSION_META_ARTIFACTS_KEY]: JSON.parse(value) });
-	} catch {
-		return [];
-	}
+/** The outcome of reading persisted artifacts: what was read, and what was lost. */
+export interface IParsedSessionArtifacts {
+	readonly artifacts: readonly ISessionArtifact[];
+	/** Why nothing could be read, when the payload itself was unreadable. */
+	readonly error?: Error;
+	/** How many individual entries were rejected as malformed. */
+	readonly dropped: number;
 }
 
 /**
- * The value that identifies an artifact for de-duplication: its link, resource
+ * Parses artifacts previously written by {@link stringifySessionArtifacts}.
+ * Reports what could not be read rather than silently returning less, so a
+ * corrupt row does not empty a session's artifacts without a trace.
+ */
+export function parseSessionArtifacts(value: string | undefined): IParsedSessionArtifacts {
+	if (!value) {
+		return { artifacts: [], dropped: 0 };
+	}
+	let raw: unknown;
+	try {
+		raw = JSON.parse(value);
+	} catch (error) {
+		return { artifacts: [], error: error instanceof Error ? error : new Error(String(error)), dropped: 0 };
+	}
+	if (!Array.isArray(raw)) {
+		return { artifacts: [], error: new Error('expected an array of artifacts'), dropped: 0 };
+	}
+	const artifacts = readSessionArtifacts({ [SESSION_META_ARTIFACTS_KEY]: raw });
+	return { artifacts, dropped: raw.length - artifacts.length };
+}
+
+/**
+ * The value that identifies an entry for de-duplication: its link, resource
  * URI or commit hash, normalized for comparison.
  */
 export function getSessionArtifactValue(artifact: ISessionArtifact): string {

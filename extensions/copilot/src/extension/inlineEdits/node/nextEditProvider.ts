@@ -1136,8 +1136,9 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			return 0;
 		}
 
-		const cacheDelay = this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsCacheDelay, this._expService);
-		const rebasedCacheDelay = this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsRebasedCacheDelay, this._expService);
+		const modelConfig = this._modelService.selectedModelConfiguration();
+		const cacheDelay = modelConfig.cacheDelay ?? this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsCacheDelay, this._expService);
+		const rebasedCacheDelay = modelConfig.rebasedCacheDelay ?? this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsRebasedCacheDelay, this._expService);
 		const subsequentCacheDelay = this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsSubsequentCacheDelay, this._expService);
 		const speculativeRequestDelay = this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsSpeculativeRequestDelay, this._expService);
 
