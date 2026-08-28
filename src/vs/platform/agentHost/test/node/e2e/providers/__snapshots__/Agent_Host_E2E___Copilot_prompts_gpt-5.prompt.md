@@ -765,7 +765,7 @@
     },
     {
       "name": "create_session",
-      "description": "Create delegated work and start it with an initial prompt. Set `relationship` to `currentSession` when the task belongs to the current plan or deliverable; this creates a new chat that shares the current session's workspace, lifecycle, and aggregate diff. Set it to `independent` only for a separate deliverable that needs its own workspace, provider, or top-level lifecycle. The UI shows the created chat or session as a link, so reply with a single short sentence and do NOT print the session URL or tell the user to click the link.",
+      "description": "Create delegated work and start it with an initial prompt. Set `relationship` to `currentSession` when the task belongs to the current plan or deliverable; this creates a new chat that shares the current session's workspace, lifecycle, and aggregate diff. Set it to `independent` only for a separate deliverable that needs its own workspace, provider, or top-level lifecycle.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -805,7 +805,7 @@
     },
     {
       "name": "send_message",
-      "description": "Send a message to an existing session or chat, starting a new turn there. Provide a session URI from `list_sessions` or an `agent-host-session://` link; a link carrying a chat id targets that specific chat. The message is delivered asynchronously — this tool does not wait for or return the reply. The UI shows a confirmation with a button to open the target, so reply with a single short sentence and do NOT print the URL or tell the user to click a button.",
+      "description": "Send a message to an existing session or chat, starting a new turn there. Provide a session URI from `list_sessions` or an `agent-host-session://` link; a link carrying a chat id targets that specific chat. The message is delivered asynchronously — this tool does not wait for or return the reply.",
       "parameters": {
         "type": "object",
         "properties": {

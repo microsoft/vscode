@@ -265,6 +265,18 @@ suite('SSH Remote Agent Host Helpers', () => {
 			assert.deepStrictEqual(resolveRemotePlatform('Linux', 'armv7l'), { os: 'linux', arch: 'armhf' });
 		});
 
+		test('detects musl Linux x64 as Alpine', () => {
+			assert.deepStrictEqual(resolveRemotePlatform('Linux', 'x86_64', 'musl'), { os: 'alpine', arch: 'x64' });
+		});
+
+		test('detects musl Linux arm64 as Alpine', () => {
+			assert.deepStrictEqual(resolveRemotePlatform('Linux', 'aarch64', 'musl\n'), { os: 'alpine', arch: 'arm64' });
+		});
+
+		test('rejects musl Linux armhf because no Alpine CLI artifact exists', () => {
+			assert.strictEqual(resolveRemotePlatform('Linux', 'armv7l', 'musl'), undefined);
+		});
+
 		test('detects Darwin x64', () => {
 			assert.deepStrictEqual(resolveRemotePlatform('Darwin', 'x86_64'), { os: 'darwin', arch: 'x64' });
 		});
@@ -304,6 +316,13 @@ suite('SSH Remote Agent Host Helpers', () => {
 			assert.strictEqual(
 				buildCLIDownloadUrl('darwin', 'arm64', 'stable'),
 				'https://update.code.visualstudio.com/latest/cli-darwin-arm64/stable'
+			);
+		});
+
+		test('uses the Alpine artifact for musl Linux', () => {
+			assert.strictEqual(
+				buildCLIDownloadUrl('alpine', 'x64', 'insider'),
+				'https://update.code.visualstudio.com/latest/cli-alpine-x64/insider'
 			);
 		});
 

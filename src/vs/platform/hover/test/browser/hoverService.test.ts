@@ -693,6 +693,26 @@ suite('HoverService', () => {
 			hover.dispose();
 		});
 
+		test('should update options dynamically', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const target = createTarget();
+			const delegate = store.add(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', undefined, {}));
+			const hover = store.add(hoverService.setupManagedHover(delegate, target, 'Test', {
+				actions: [{ commandId: 'test.first', label: 'First', run: () => { } }]
+			}));
+
+			await hover.update('Test', {
+				actions: [{ commandId: 'test.second', label: 'Second', run: () => { } }]
+			});
+
+			target.dispatchEvent(new FocusEvent('focus', { bubbles: true, relatedTarget: document.body }));
+			await timeout(500);
+
+			assert.deepStrictEqual(
+				[...fixture.querySelectorAll('.monaco-hover .hover-row.status-bar .action-container')].map(e => e.textContent),
+				['Second']
+			);
+		}));
+
 		test('should not re-show hover on focus when relatedTarget is from a dismissed hover', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const target = createTarget();
 			const delegate = store.add(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', undefined, {}));

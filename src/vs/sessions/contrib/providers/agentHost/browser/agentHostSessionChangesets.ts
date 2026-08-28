@@ -91,8 +91,8 @@ export function createChangesets(
 
 	const sessionChangesets: ISessionChangeset[] = [];
 
-	// Select the "Branch Changes" changeset as the default, if it exists; otherwise just the first one.
-	const defaultChangeset = changesets.find(c => c.changeKind === ChangesetKind.Branch) ?? changesets[0];
+	const defaultKind = options.defaultChangesetKind ?? ChangesetKind.Branch;
+	const defaultChangeset = changesets.find(c => c.changeKind === defaultKind) ?? changesets[0];
 
 	for (const catalogueEntry of changesets) {
 		const isDefault = catalogueEntry === defaultChangeset;
