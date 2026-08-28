@@ -5,12 +5,6 @@ set ELECTRON_RUN_AS_NODE=
 
 pushd %~dp0\..
 
-:: Node modules
-if not exist node_modules (
-	call npm install
-	if errorlevel 1 exit /b 1
-)
-
 :: Get Code.exe location
 set "NAMESHORT="
 for /f "tokens=2 delims=:," %%a in ('findstr /R /C:"\"nameShort\":.*" product.json') do if not defined NAMESHORT set "NAMESHORT=%%~a"
@@ -53,6 +47,5 @@ if not "%INSTALLED_ELECTRON_VERSION%"=="%EXPECTED_ELECTRON_VERSION%" goto downlo
 exit /b 0
 
 :download_electron
-call node build\lib\electron.ts
-if errorlevel 1 node .\node_modules\gulp\bin\gulp.js electron
+call npm run electron
 exit /b %errorlevel%
