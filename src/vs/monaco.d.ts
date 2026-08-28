@@ -3888,6 +3888,11 @@ declare namespace monaco.editor {
 		 */
 		renderControlCharacters?: boolean;
 		/**
+		 * Enable rendering of an indicator at word wrap points.
+		 * Defaults to false.
+		 */
+		renderWordWrapIndicator?: boolean;
+		/**
 		 * Enable rendering of current line highlight.
 		 * Defaults to all.
 		 */
@@ -5245,19 +5250,20 @@ declare namespace monaco.editor {
 		inertialScroll = 158,
 		inlayHints = 159,
 		wrapOnEscapedLineFeeds = 160,
-		effectiveCursorStyle = 161,
-		editorClassName = 162,
-		pixelRatio = 163,
-		tabFocusMode = 164,
-		layoutInfo = 165,
-		wrappingInfo = 166,
-		defaultColorDecorators = 167,
-		colorDecoratorsActivatedOn = 168,
-		inlineCompletionsAccessibilityVerbose = 169,
-		effectiveEditContext = 170,
-		scrollOnMiddleClick = 171,
-		effectiveAllowVariableFonts = 172,
-		doubleClickSelectsBlock = 173
+		renderWordWrapIndicator = 161,
+		effectiveCursorStyle = 162,
+		editorClassName = 163,
+		pixelRatio = 164,
+		tabFocusMode = 165,
+		layoutInfo = 166,
+		wrappingInfo = 167,
+		defaultColorDecorators = 168,
+		colorDecoratorsActivatedOn = 169,
+		inlineCompletionsAccessibilityVerbose = 170,
+		effectiveEditContext = 171,
+		scrollOnMiddleClick = 172,
+		effectiveAllowVariableFonts = 173,
+		doubleClickSelectsBlock = 174
 	}
 
 	export const EditorOptions: {
@@ -5374,6 +5380,7 @@ declare namespace monaco.editor {
 		readOnlyMessage: IEditorOption<EditorOption.readOnlyMessage, any>;
 		renameOnType: IEditorOption<EditorOption.renameOnType, boolean>;
 		renderControlCharacters: IEditorOption<EditorOption.renderControlCharacters, boolean>;
+		renderWordWrapIndicator: IEditorOption<EditorOption.renderWordWrapIndicator, boolean>;
 		renderFinalNewline: IEditorOption<EditorOption.renderFinalNewline, 'on' | 'off' | 'dimmed'>;
 		renderLineHighlight: IEditorOption<EditorOption.renderLineHighlight, 'all' | 'line' | 'none' | 'gutter'>;
 		renderLineHighlightOnlyWhenFocus: IEditorOption<EditorOption.renderLineHighlightOnlyWhenFocus, boolean>;

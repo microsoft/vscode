@@ -12,7 +12,7 @@ import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { MetadataConsts } from '../../../common/encodedTokenAttributes.js';
 import { IViewLineTokens } from '../../../common/tokens/lineTokens.js';
 import { LineDecoration } from '../../../common/viewLayout/lineDecorations.js';
-import { CharacterMapping, DomPosition, IRenderLineInputOptions, RenderLineInput, RenderLineOutput2, renderViewLine2 as renderViewLine } from '../../../common/viewLayout/viewLineRenderer.js';
+import { CharacterMapping, DomPosition, ForeignElementType, IRenderLineInputOptions, RenderLineInput, RenderLineOutput2, renderViewLine2 as renderViewLine } from '../../../common/viewLayout/viewLineRenderer.js';
 import { InlineDecorationType } from '../../../common/viewModel/inlineDecorations.js';
 import { TestLineToken, TestLineTokens } from '../core/testLineToken.js';
 
@@ -77,7 +77,8 @@ const defaultRenderLineInputOptions: IRenderLineInputOptions = {
 	selectionsOnLine: null,
 	textDirection: null,
 	verticalScrollbarSize: 14,
-	renderNewLineWhenEmpty: false
+	renderNewLineWhenEmpty: false,
+	renderWordWrapIndicator: false
 };
 
 function createRenderLineInputOptions(opts: IRelaxedRenderLineInputOptions): IRenderLineInputOptions {
@@ -111,7 +112,8 @@ function createRenderLineInput(opts: IRelaxedRenderLineInputOptions): RenderLine
 		options.selectionsOnLine,
 		options.textDirection,
 		options.verticalScrollbarSize,
-		options.renderNewLineWhenEmpty
+		options.renderNewLineWhenEmpty,
+		options.renderWordWrapIndicator
 	);
 }
 
@@ -1384,6 +1386,39 @@ suite('renderViewLine2', () => {
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
 		await assertSnapshot(inflated.mapping);
+	});
+
+	test('issue-47855: renders word wrap indicator', () => {
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent: 'wrapped line',
+			continuesWithWrappedLine: true,
+			lineTokens: createViewLineTokens([createPart(12, 3)]),
+			renderWordWrapIndicator: true
+		}));
+
+		assert.deepStrictEqual({
+			html: actual.html,
+			containsForeignElements: actual.containsForeignElements,
+			mapping: actual.characterMapping.inflate()
+		}, {
+			html: '<span><span class="mtk3">wrapped\u00a0line</span></span><span class="mtkwrap" aria-hidden="true">\u21a9</span>',
+			containsForeignElements: ForeignElementType.After,
+			mapping: [
+				[0, 0, 0],
+				[0, 1, 1],
+				[0, 2, 2],
+				[0, 3, 3],
+				[0, 4, 4],
+				[0, 5, 5],
+				[0, 6, 6],
+				[0, 7, 7],
+				[0, 8, 8],
+				[0, 9, 9],
+				[0, 10, 10],
+				[0, 11, 11],
+				[0, 12, 12]
+			]
+		});
 	});
 
 	// issue #33525: Long line with ligatures takes a long time to paint decorations

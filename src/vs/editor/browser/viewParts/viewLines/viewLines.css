@@ -80,6 +80,13 @@
 	color: var(--vscode-editorWhitespace-foreground) !important;
 }
 
+.monaco-editor .mtkwrap {
+	color: var(--vscode-editorWhitespace-foreground) !important;
+	inset-inline-end: 0;
+	pointer-events: none;
+	user-select: none;
+}
+
 /* TODO@tokenization bootstrap fix */
 /*.monaco-editor .view-line > span > span {
 	float: none;

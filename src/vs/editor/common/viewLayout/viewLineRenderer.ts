@@ -45,6 +45,7 @@ export interface IRenderLineInputOptions {
 	textDirection: TextDirection | null;
 	verticalScrollbarSize: number;
 	renderNewLineWhenEmpty: boolean;
+	renderWordWrapIndicator: boolean;
 }
 
 export class RenderLineInput {
@@ -69,6 +70,7 @@ export class RenderLineInput {
 	public readonly fontLigatures: boolean;
 	public readonly textDirection: TextDirection | null;
 	public readonly verticalScrollbarSize: number;
+	public readonly renderWordWrapIndicator: boolean;
 
 	/**
 	 * Defined only when renderWhitespace is 'selection'. Selections are non-overlapping,
@@ -107,6 +109,7 @@ export class RenderLineInput {
 		textDirection: TextDirection | null,
 		verticalScrollbarSize: number,
 		renderNewLineWhenEmpty: boolean = false,
+		renderWordWrapIndicator: boolean = false,
 	) {
 		this.useMonospaceOptimizations = useMonospaceOptimizations;
 		this.canUseHalfwidthRightwardsArrow = canUseHalfwidthRightwardsArrow;
@@ -138,6 +141,7 @@ export class RenderLineInput {
 		this.renderNewLineWhenEmpty = renderNewLineWhenEmpty;
 		this.textDirection = textDirection;
 		this.verticalScrollbarSize = verticalScrollbarSize;
+		this.renderWordWrapIndicator = renderWordWrapIndicator;
 
 		const wsmiddotDiff = Math.abs(wsmiddotWidth - spaceWidth);
 		const middotDiff = Math.abs(middotWidth - spaceWidth);
@@ -196,6 +200,7 @@ export class RenderLineInput {
 			&& this.textDirection === other.textDirection
 			&& this.verticalScrollbarSize === other.verticalScrollbarSize
 			&& this.renderNewLineWhenEmpty === other.renderNewLineWhenEmpty
+			&& this.renderWordWrapIndicator === other.renderWordWrapIndicator
 		);
 	}
 }
@@ -398,8 +403,11 @@ export function renderViewLine(input: RenderLineInput, sb: StringBuilder): Rende
 					}
 				}
 			}
-
 			sb.appendString(`</span>`);
+			if (input.renderWordWrapIndicator && input.continuesWithWrappedLine) {
+				sb.appendString('<span class="mtkwrap" aria-hidden="true">\u21a9</span>');
+				containsForeignElements |= ForeignElementType.After;
+			}
 
 			const characterMapping = new CharacterMapping(1, beforeCount + afterCount);
 			characterMapping.setColumnInfo(1, beforeCount, 0, 0);
@@ -412,13 +420,17 @@ export function renderViewLine(input: RenderLineInput, sb: StringBuilder): Rende
 
 		// completely empty line
 		if (input.renderNewLineWhenEmpty) {
-			sb.appendString('<span><span>\n</span></span>');
+			sb.appendString('<span><span>\n</span>');
 		} else {
-			sb.appendString('<span><span></span></span>');
+			sb.appendString('<span><span></span>');
+		}
+		sb.appendString('</span>');
+		if (input.renderWordWrapIndicator && input.continuesWithWrappedLine) {
+			sb.appendString('<span class="mtkwrap" aria-hidden="true">\u21a9</span>');
 		}
 		return new RenderLineOutput(
 			new CharacterMapping(0, 0),
-			ForeignElementType.None
+			input.renderWordWrapIndicator && input.continuesWithWrappedLine ? ForeignElementType.After : ForeignElementType.None
 		);
 	}
 
@@ -457,6 +469,7 @@ class ResolvedRenderLineInput {
 		public readonly renderSpaceCharCode: number,
 		public readonly renderWhitespace: RenderWhitespace,
 		public readonly renderControlCharacters: boolean,
+		public readonly renderWordWrapIndicator: boolean,
 	) {
 		//
 	}
@@ -533,7 +546,8 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		input.spaceWidth,
 		input.renderSpaceCharCode,
 		input.renderWhitespace,
-		input.renderControlCharacters
+		input.renderControlCharacters,
+		input.renderWordWrapIndicator && input.continuesWithWrappedLine
 	);
 }
 
@@ -996,6 +1010,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 	const renderSpaceCharCode = input.renderSpaceCharCode;
 	const renderWhitespace = input.renderWhitespace;
 	const renderControlCharacters = input.renderControlCharacters;
+	const renderWordWrapIndicator = input.renderWordWrapIndicator;
 
 	const characterMapping = new CharacterMapping(len + 1, parts.length);
 	let lastCharacterMappingDefined = false;
@@ -1196,10 +1211,12 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 		sb.appendString(nls.localize('showMore', "Show more ({0})", renderOverflowingCharCount(overflowingCharCount)));
 		sb.appendString('</span>');
 	}
-
 	sb.appendString('</span>');
+	if (renderWordWrapIndicator) {
+		sb.appendString('<span class="mtkwrap" aria-hidden="true">\u21a9</span>');
+	}
 
-	return new RenderLineOutput(characterMapping, containsForeignElements);
+	return new RenderLineOutput(characterMapping, renderWordWrapIndicator ? containsForeignElements | ForeignElementType.After : containsForeignElements);
 }
 
 function to4CharHex(n: number): string {

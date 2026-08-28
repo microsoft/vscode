@@ -733,6 +733,11 @@ export interface IEditorOptions {
 	 */
 	renderControlCharacters?: boolean;
 	/**
+	 * Enable rendering of an indicator at word wrap points.
+	 * Defaults to false.
+	 */
+	renderWordWrapIndicator?: boolean;
+	/**
 	 * Enable rendering of current line highlight.
 	 * Defaults to all.
 	 */
@@ -5962,6 +5967,7 @@ export const enum EditorOption {
 	inertialScroll,
 	inlayHints,
 	wrapOnEscapedLineFeeds,
+	renderWordWrapIndicator,
 	// Leave these at the end (because they have dependencies!)
 	effectiveCursorStyle,
 	editorClassName,
@@ -6564,6 +6570,10 @@ export const EditorOptions = {
 	renderControlCharacters: register(new EditorBooleanOption(
 		EditorOption.renderControlCharacters, 'renderControlCharacters', true,
 		{ description: nls.localize('renderControlCharacters', "Controls whether the editor should render control characters."), restricted: true }
+	)),
+	renderWordWrapIndicator: register(new EditorBooleanOption(
+		EditorOption.renderWordWrapIndicator, 'renderWordWrapIndicator', false,
+		{ description: nls.localize('renderWordWrapIndicator', "Controls whether the editor should render an indicator at word wrap points.") }
 	)),
 	renderFinalNewline: register(new EditorStringEnumOption(
 		EditorOption.renderFinalNewline, 'renderFinalNewline',

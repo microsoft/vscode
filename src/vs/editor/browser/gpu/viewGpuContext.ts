@@ -164,7 +164,8 @@ export class ViewGpuContext extends Disposable {
 		// Check if the line has simple attributes that aren't supported
 		if (
 			data.containsRTL ||
-			data.maxColumn > this.maxGpuCols
+			data.maxColumn > this.maxGpuCols ||
+			(options.renderWordWrapIndicator && data.continuesWithWrappedLine)
 		) {
 			return false;
 		}
@@ -211,6 +212,9 @@ export class ViewGpuContext extends Disposable {
 		}
 		if (data.maxColumn > this.maxGpuCols) {
 			reasons.push('maxColumn > maxGpuCols');
+		}
+		if (options.renderWordWrapIndicator && data.continuesWithWrappedLine) {
+			reasons.push('renderWordWrapIndicator');
 		}
 		if (data.inlineDecorations.length > 0) {
 			let supported = true;

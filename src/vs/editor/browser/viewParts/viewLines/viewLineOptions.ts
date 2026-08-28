@@ -12,6 +12,7 @@ export class ViewLineOptions {
 	public readonly renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all';
 	public readonly experimentalWhitespaceRendering: 'svg' | 'font' | 'off';
 	public readonly renderControlCharacters: boolean;
+	public readonly renderWordWrapIndicator: boolean;
 	public readonly spaceWidth: number;
 	public readonly middotWidth: number;
 	public readonly wsmiddotWidth: number;
@@ -30,6 +31,7 @@ export class ViewLineOptions {
 		this.renderWhitespace = options.get(EditorOption.renderWhitespace);
 		this.experimentalWhitespaceRendering = options.get(EditorOption.experimentalWhitespaceRendering);
 		this.renderControlCharacters = options.get(EditorOption.renderControlCharacters);
+		this.renderWordWrapIndicator = options.get(EditorOption.renderWordWrapIndicator);
 		this.spaceWidth = fontInfo.spaceWidth;
 		this.middotWidth = fontInfo.middotWidth;
 		this.wsmiddotWidth = fontInfo.wsmiddotWidth;
@@ -51,6 +53,7 @@ export class ViewLineOptions {
 			&& this.renderWhitespace === other.renderWhitespace
 			&& this.experimentalWhitespaceRendering === other.experimentalWhitespaceRendering
 			&& this.renderControlCharacters === other.renderControlCharacters
+			&& this.renderWordWrapIndicator === other.renderWordWrapIndicator
 			&& this.spaceWidth === other.spaceWidth
 			&& this.middotWidth === other.middotWidth
 			&& this.wsmiddotWidth === other.wsmiddotWidth
