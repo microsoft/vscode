@@ -31,8 +31,14 @@ export class QuickAccess {
 	async openFileQuickAccessAndWait(searchValue: string, expectedFirstElementNameOrExpectedResultCount: string | number): Promise<void> {
 
 		// make sure the file quick access is not "polluted"
-		// with entries from the editor history when opening
-		await this.runCommand('workbench.action.clearEditorHistoryWithoutConfirm');
+		// with entries from the editor history when opening.
+		// Note: use `fuzzy` match here because this helper also runs
+		// against older (e.g. stable) builds during data-loss tests
+		// that do not yet expose the command `id` as DOM metadata
+		// (`data-quick-input-id`), which the default `exactCommandId`
+		// match relies on. The `>`-prefixed command id filters the
+		// command palette down to this exact command regardless.
+		await this.runCommand('workbench.action.clearEditorHistoryWithoutConfirm', { match: 'fuzzy' });
 
 		const PollingStrategy = {
 			Stop: true,
