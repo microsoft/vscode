@@ -16,7 +16,7 @@ import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiff
 import { MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { IMultiDiffEditorOptions } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
 import { ChatWidget } from '../widget/chatWidget.js';
-import { getAgentMergeRequestLabel } from '../widget/chatContentParts/chatAgentMergeContentPart.js';
+import { getChatRequestLabel } from '../chatRequestLabel.js';
 import { ChatTreeItem } from '../chat.js';
 import { IChatResponseFileChangesService } from '../chatResponseFileChangesService.js';
 import { IChatEditingService, IEditSessionEntryDiff } from '../../common/editing/chatEditingService.js';
@@ -92,21 +92,6 @@ function itemKind(item: ChatTreeItem): PromptItemKind {
 
 function isPromptTimelineRequest(item: ChatTreeItem): item is IChatRequestViewModel {
 	return isRequestVM(item) && !item.isSystemInitiated;
-}
-
-/**
- * Text the timeline should show for a request. A request whose transcript row
- * renders something other than its own text (an Agent Merge turn shows a
- * summary of its machine-facing state block) contributes a stand-in label here;
- * every other request falls back to its own text. Further kinds get their own
- * check as they appear.
- */
-function getRequestLabel(item: IChatRequestViewModel): string {
-	const agentMergeLabel = getAgentMergeRequestLabel(item);
-	if (agentMergeLabel !== undefined) {
-		return agentMergeLabel;
-	}
-	return item.messageText;
 }
 
 // Content "signal" = a cheap, unit-less size proxy (roughly the rendered line
@@ -389,7 +374,7 @@ export class PromptTimelineModel extends Disposable {
 		if (cached && cached.messageText === messageText) {
 			return cached.preview;
 		}
-		const preview = getPromptPreview(getRequestLabel(item));
+		const preview = getPromptPreview(getChatRequestLabel(item));
 		this._previewCache.set(item.id, { messageText, preview });
 		return preview;
 	}
