@@ -220,7 +220,7 @@ suite('ChangesetSessionCoordinator', () => {
 		});
 	});
 
-	test('forwards session changeset refresh to the changeset service and drains pending work on materialization', async () => {
+	test('forwards session changeset refresh and recomputes current subscriptions on materialization', async () => {
 		const session = AgentSession.uri('mock', 'session-1').toString();
 		const environment = createEnvironment();
 		createSession(environment.stateManager, session, undefined, false);
@@ -947,7 +947,6 @@ class TestChangesetService implements IAgentHostChangesetService {
 	readonly sessionRefreshes: string[] = [];
 	readonly workingDirectoryAvailable: string[] = [];
 	readonly recomputed: string[] = [];
-	readonly disposed: string[] = [];
 
 	constructor(private readonly _subscriptions: IAgentHostChangesetSubscriptionService) { }
 
@@ -990,9 +989,6 @@ class TestChangesetService implements IAgentHostChangesetService {
 					break;
 			}
 		}
-	}
-	onSessionDisposed(session: string): void {
-		this.disposed.push(session);
 	}
 	async computeUncommittedChangeset(session: string): Promise<string> {
 		if (this._subscriptions.getSessionSubscriptions(session).has(URI.parse(buildUncommittedChangesetUri(session)).toString())) {

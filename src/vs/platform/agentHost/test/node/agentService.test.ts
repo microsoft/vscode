@@ -13474,17 +13474,16 @@ suite('AgentService (node dispatcher)', () => {
 			localService.unsubscribe(sessionResource, 'client-2');
 		});
 
-		test('restoreSession drains a pending uncommitted refresh deferred by an earlier addSubscriber', async () => {
+		test('restoreSession recomputes an uncommitted subscription added before restore', async () => {
 			// Reproduces the cold-open race that broke §3:
 			// 1. Client subscribes to `<session>/changeset/uncommitted`
 			//    before the session has been restored on the server.
 			// 2. addSubscriber's 0→1 trigger fires `_triggerUncommittedRefresh`,
 			//    which reads `summary.workingDirectory` from live state
-			//    — finds nothing (session not restored yet) — and defers
-			//    via `_pendingUncommittedRefreshes`.
+			//    and skips computation because the session is not restored yet.
 			// 3. restoreSession then runs (driven by the chat-view path or
 			//    a separate subscribe), populates `summary.workingDirectory`
-			//    from disk, and MUST drain the pending refresh.
+			//    from disk, and recomputes the current subscriptions.
 			const workingDirectory = URI.from({ scheme: Schemas.inMemory, path: '/wd-restore-drain' });
 			copilotAgent.resolvedWorkingDirectory = workingDirectory;
 			copilotAgent.sessionMetadataOverrides = { workingDirectories: workingDirectory ? [workingDirectory] : undefined };
@@ -13508,7 +13507,7 @@ suite('AgentService (node dispatcher)', () => {
 			const sessionResource = sessions[0].session;
 			const uncommittedUri = URI.parse(buildUncommittedChangesetUri(sessionResource.toString()));
 
-			// Step 1+2: subscribe before restore. Trigger defers.
+			// Step 1+2: subscribe before restore. The initial compute is skipped.
 			localService.addSubscriber(uncommittedUri, 'client-1');
 			await new Promise(r => setTimeout(r, 20));
 			assert.strictEqual(
@@ -13518,8 +13517,8 @@ suite('AgentService (node dispatcher)', () => {
 			);
 
 			// Step 3: restoreSession runs (chat-view path / a parallel
-			// session-URI subscribe). After this, the pending refresh
-			// must drain and `_tryComputeGitDiffs` must run for the
+			// session-URI subscribe). After this, the subscription is
+			// recomputed and `_tryComputeGitDiffs` must run for the
 			// uncommitted slot.
 			copilotAgent.sessionMessages = [
 				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hi', toolRequests: [] },
@@ -13529,7 +13528,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			assert.ok(
 				computeCalls.some(c => c.baseBranch === undefined && c.wd === workingDirectory.toString()),
-				`restoreSession must drain the pending refresh; got compute calls: ${JSON.stringify(computeCalls)}`,
+				`restoreSession must recompute current subscriptions; got compute calls: ${JSON.stringify(computeCalls)}`,
 			);
 
 			localService.unsubscribe(uncommittedUri, 'client-1');
