@@ -4449,6 +4449,10 @@ export interface ISessionsFlatListOptions {
 	readonly toolbarMenuId?: MenuId;
 	/** Allows focused list surfaces to handle actions from their custom toolbar menu. */
 	readonly onToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>;
+	/** Optional context menu shown for each session row. */
+	readonly contextMenuId?: MenuId;
+	/** Allows focused list surfaces to handle actions from their custom context menu. */
+	readonly onContextMenuAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>;
 	/** Whether opening a row immediately marks its session as read. Defaults to `true`. */
 	readonly markSessionReadOnOpen?: boolean;
 	/**
@@ -4490,9 +4494,12 @@ export class SessionsFlatList extends Disposable {
 		@ISessionsListModelService private readonly _sessionsListModelService: ISessionsListModelService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
 		@IHoverService hoverService: IHoverService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IVoicePlaybackService voicePlaybackService: IVoicePlaybackService,
 		@IAgentHostConnectionsService agentHostConnectionsService: IAgentHostConnectionsService,
@@ -4584,6 +4591,9 @@ export class SessionsFlatList extends Disposable {
 			const preserveFocus = isLeftClick ? false : (e.editorOptions.preserveFocus ?? false);
 			this.options.onSessionOpen(element.resource, preserveFocus, e.sideBySide);
 		}));
+		if (this.options.contextMenuId) {
+			this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
+		}
 
 		this._register(sessionRenderer.onDidChangeItemHeight(session => {
 			if (this.tree.hasElement(session)) {
@@ -4593,6 +4603,40 @@ export class SessionsFlatList extends Disposable {
 		}));
 
 		this._register(sessionRenderer.onDidApproveSession(approved => this._onDidApproveSession.fire(approved)));
+	}
+
+	private onContextMenu(e: ITreeContextMenuEvent<SessionListItem | null>): void {
+		const session = e.element;
+		if (!session || !isSessionItem(session) || !this.options.contextMenuId) {
+			return;
+		}
+
+		const disposables = new DisposableStore();
+		const contextKeyService = this.contextKeyService.createOverlay([
+			[SessionIsArchivedContext.key, session.isArchived.get()],
+			[SessionIsReadContext.key, session.isRead.get()],
+			[SessionTypeContext.key, session.sessionType],
+			[SessionProviderIdContext.key, session.providerId],
+			[SessionSupportsRenameContext.key, session.capabilities.get().supportsRename ?? false],
+			[SessionSupportsDeleteContext.key, session.capabilities.get().supportsDelete ?? false],
+			[SessionItemStatusContext.key, session.status.get()],
+		]);
+		const menu = disposables.add(this.menuService.createMenu(this.options.contextMenuId, contextKeyService));
+		const actions = Separator.join(...menu.getActions({ shouldForwardArgs: true }).map(([, groupActions]) => groupActions));
+		if (actions.length === 0) {
+			disposables.dispose();
+			return;
+		}
+
+		const actionRunner = disposables.add(new SessionItemActionRunner(selected => [selected], this.options.onContextMenuAction));
+		this.contextMenuService.showContextMenu({
+			getActions: () => actions,
+			getActionsContext: () => session,
+			getAnchor: () => e.anchor,
+			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id, contextKeyService, true) ?? undefined,
+			actionRunner,
+			onHide: () => disposables.dispose(),
+		});
 	}
 
 	setSessions(sessions: readonly ISession[]): void {

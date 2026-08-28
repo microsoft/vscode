@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
 import { GestureEvent, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -20,14 +21,17 @@ import { IAccessibilityService } from '../../../../../platform/accessibility/com
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IConfirmation, IConfirmationResult, IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationRunTrigger, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
@@ -51,6 +55,8 @@ import { IChatService } from '../../../../../workbench/contrib/chat/common/chatS
 import { IMenuService, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { ArchiveSessionAction } from '../../browser/views/sessionsViewActions.js';
+import { MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { TestCommandService } from './sessionsListTestUtils.js';
 
 
 const AUTOMATION_ID = 'automation-1';
@@ -245,6 +251,25 @@ class FakeDialogService extends mock<IDialogService>() {
 	}
 }
 
+class TestContextMenuService extends mock<IContextMenuService>() {
+	override readonly onDidShowContextMenu = Event.None;
+	override readonly onDidHideContextMenu = Event.None;
+	delegate: IContextMenuDelegate | undefined;
+
+	override showContextMenu(delegate: IContextMenuDelegate): void {
+		this.delegate = delegate;
+	}
+}
+
+class TestKeybindingService extends MockKeybindingService {
+	readonly lookupCalls: { commandId: string; context: IContextKeyService | undefined; enforceContextCheck: boolean | undefined }[] = [];
+
+	override lookupKeybinding(commandId: string, context?: IContextKeyService, enforceContextCheck?: boolean) {
+		this.lookupCalls.push({ commandId, context, enforceContextCheck });
+		return undefined;
+	}
+}
+
 class FakeRunner extends mock<IAutomationRunner>() {
 	whenDispatched: Promise<IAutomationRunDispatch> = Promise.resolve({ kind: 'notStarted', reason: 'targetUnavailable' });
 	runCalls = 0;
@@ -289,7 +314,7 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 	readonly secondIsRead = observableValue<boolean>(this, false);
 	readonly isArchived = observableValue<boolean>(this, false);
 	readonly sessionStatus = observableValue<SessionStatus>(this, SessionStatus.Completed);
-	readonly capabilities = observableValue(this, { supportsMultipleChats: false, supportsDelete: true });
+	readonly capabilities = observableValue(this, { supportsMultipleChats: false, supportsDelete: true, supportsRename: true });
 	readonly session = upcastPartial<ISession>({
 		resource: SESSION_RESOURCE,
 		sessionId: 'test/session-1',
@@ -434,7 +459,11 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 	}
 
 	setSupportsDelete(supportsDelete: boolean): void {
-		this.capabilities.set({ supportsMultipleChats: false, supportsDelete }, undefined);
+		this.capabilities.set({ supportsMultipleChats: false, supportsDelete, supportsRename: true }, undefined);
+	}
+
+	setCapabilities(supportsDelete: boolean, supportsRename: boolean): void {
+		this.capabilities.set({ supportsMultipleChats: false, supportsDelete, supportsRename }, undefined);
 	}
 
 	addSession(resource: URI, title: string): void {
@@ -479,18 +508,22 @@ suite('AutomationsCardsWidget', () => {
 		return !!button && button.style.display !== 'none';
 	}
 
-	function setup() {
+	function setup(archiveWording: 'archive' | 'done' = 'archive') {
 		const automationService = new FakeAutomationService();
 		const automationDialogService = new FakeAutomationDialogService();
 		const dialogService = new FakeDialogService();
 		const runner = new FakeRunner();
 		const sessionsManagementService = disposables.add(new FakeSessionsManagementService());
 		const sessionsService = new FakeSessionsService(() => sessionsManagementService.markRead(sessionsManagementService.session));
-		const configurationService = new TestConfigurationService({ chat: { automations: { enabled: true } } });
+		const configurationService = new TestConfigurationService({ chat: { automations: { enabled: true }, experimental: { sessionArchiveActionWording: archiveWording } } });
 		const logService = new TestLogService();
+		const contextMenuService = new TestContextMenuService();
+		const commandService = new TestCommandService();
+		const keybindingService = new TestKeybindingService();
 		const store = disposables.add(new DisposableStore());
 		store.add(toDisposable(() => ModifierKeyEmitter.disposeInstance()));
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(ICommandService, commandService);
 		instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
 			override isMotionReduced(): boolean { return false; }
 		}());
@@ -503,6 +536,8 @@ suite('AutomationsCardsWidget', () => {
 		instantiationService.stub(ISessionsManagementService, sessionsManagementService);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IContextKeyService, store.add(new ContextKeyService(configurationService)));
+		instantiationService.stub(IContextMenuService, contextMenuService);
+		instantiationService.stub(IKeybindingService, keybindingService);
 		instantiationService.stub(IHoverService, NullHoverService);
 		instantiationService.stub(ILogService, logService);
 		instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
@@ -535,7 +570,11 @@ suite('AutomationsCardsWidget', () => {
 		const widget = disposables.add(instantiationService.createInstance(AutomationsCardsWidget));
 		document.body.append(widget.element);
 		disposables.add(toDisposable(() => widget.element.remove()));
-		return { automationService, automationDialogService, configurationService, dialogService, instantiationService, logService, runner, sessionsManagementService, sessionsService, widget };
+		return { automationService, automationDialogService, commandService, configurationService, contextMenuService, dialogService, instantiationService, keybindingService, logService, runner, sessionsManagementService, sessionsService, widget };
+	}
+
+	function dispatchContextMenu(target: HTMLElement): void {
+		target.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
 	}
 
 	test('renders localized schedules and shared session rows', () => {
@@ -1010,6 +1049,163 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
+	test('history context menu shows state-specific actions and forwards the session', async () => {
+		const { automationService, commandService, contextMenuService, sessionsManagementService, widget } = setup();
+		automationService.setAutomations([automation()]);
+		automationService.setRuns([run()]);
+		await waitForSessionActions();
+		const row = widget.element.querySelector<HTMLElement>('.automations-run-session-list .session-item');
+		assert.ok(row);
+
+		dispatchContextMenu(row);
+		const unreadDelegate = contextMenuService.delegate;
+		const unreadActions = unreadDelegate?.getActions() ?? [];
+		const archiveLabel = unreadActions.find(action => action.id === 'sessionsViewPane.archiveSession')?.label;
+		const markReadAction = unreadActions.find(action => action.id === MARK_SESSION_READ_COMMAND_ID);
+		assert.ok(markReadAction);
+		await unreadDelegate?.actionRunner?.run(markReadAction, unreadDelegate.getActionsContext?.());
+		unreadDelegate?.onHide?.(false);
+
+		sessionsManagementService.setRead(true);
+		dispatchContextMenu(row);
+		const readDelegate = contextMenuService.delegate;
+		const readActionIds = (readDelegate?.getActions() ?? []).map(action => action.id);
+		readDelegate?.onHide?.(false);
+
+		assert.deepStrictEqual({
+			unreadActionIds: unreadActions.map(action => action.id),
+			archiveLabel,
+			readActionIds,
+			commandCalls: commandService.calls.map(call => ({
+				commandId: call.commandId,
+				argCount: call.args.length,
+				hasExpectedSessions: Array.isArray(call.args[0]) && call.args[0].length === 1 && call.args[0][0] === sessionsManagementService.session,
+			})),
+		}, {
+			unreadActionIds: [
+				MARK_SESSION_READ_COMMAND_ID,
+				'vs.actions.separator',
+				'sessionsViewPane.renameSession',
+				'sessionsViewPane.archiveSession',
+				'vs.actions.separator',
+				'sessions.automations.deleteRunSession',
+			],
+			archiveLabel: 'Archive',
+			readActionIds: [
+				MARK_SESSION_UNREAD_COMMAND_ID,
+				'vs.actions.separator',
+				'sessionsViewPane.renameSession',
+				'sessionsViewPane.archiveSession',
+				'vs.actions.separator',
+				'sessions.automations.deleteRunSession',
+			],
+			commandCalls: [{
+				commandId: MARK_SESSION_READ_COMMAND_ID,
+				argCount: 1,
+				hasExpectedSessions: true,
+			}],
+		});
+	});
+
+	test('history context menu only shows keybindings valid for the row context', async () => {
+		const { automationService, contextMenuService, keybindingService, widget } = setup();
+		automationService.setAutomations([automation()]);
+		automationService.setRuns([run()]);
+		await waitForSessionActions();
+		const row = widget.element.querySelector<HTMLElement>('.automations-run-session-list .session-item');
+		assert.ok(row);
+
+		dispatchContextMenu(row);
+		const delegate = contextMenuService.delegate;
+		const renameAction = delegate?.getActions().find(action => action.id === 'sessionsViewPane.renameSession');
+		assert.ok(renameAction);
+		keybindingService.lookupCalls.length = 0;
+		delegate?.getKeyBinding?.(renameAction);
+		delegate?.onHide?.(false);
+
+		assert.deepStrictEqual(keybindingService.lookupCalls.map(call => ({
+			commandId: call.commandId,
+			hasContext: !!call.context,
+			enforceContextCheck: call.enforceContextCheck,
+		})), [{
+			commandId: 'sessionsViewPane.renameSession',
+			hasContext: true,
+			enforceContextCheck: true,
+		}]);
+	});
+
+	test('history context menu gates actions by session state and capabilities', async () => {
+		const { automationService, contextMenuService, sessionsManagementService, widget } = setup();
+		sessionsManagementService.sessionStatus.set(SessionStatus.InProgress, undefined);
+		sessionsManagementService.setCapabilities(false, false);
+		sessionsManagementService.isArchived.set(true, undefined);
+		automationService.setAutomations([automation()]);
+		automationService.setRuns([run({ status: 'running' })]);
+		await waitForSessionActions();
+		const row = widget.element.querySelector<HTMLElement>('.automations-run-session-list .session-item');
+		assert.ok(row);
+
+		dispatchContextMenu(row);
+		const delegate = contextMenuService.delegate;
+		const actionIds = (delegate?.getActions() ?? []).map(action => action.id);
+		delegate?.onHide?.(false);
+
+		assert.deepStrictEqual(actionIds, [UNARCHIVE_SESSION_COMMAND_ID]);
+	});
+
+	test('history context menu follows Mark as Done archive wording', async () => {
+		const { automationService, contextMenuService, sessionsManagementService, widget } = setup('done');
+		automationService.setAutomations([automation()]);
+		automationService.setRuns([run()]);
+		await waitForSessionActions();
+		const row = widget.element.querySelector<HTMLElement>('.automations-run-session-list .session-item');
+		assert.ok(row);
+
+		dispatchContextMenu(row);
+		const activeActions = contextMenuService.delegate?.getActions() ?? [];
+		const markAsDoneLabel = activeActions.find(action => action.id === 'sessionsViewPane.archiveSession')?.label;
+		contextMenuService.delegate?.onHide?.(false);
+
+		sessionsManagementService.isArchived.set(true, undefined);
+		dispatchContextMenu(row);
+		const archivedActions = contextMenuService.delegate?.getActions() ?? [];
+		const restoreLabel = archivedActions.find(action => action.id === UNARCHIVE_SESSION_COMMAND_ID)?.label;
+		contextMenuService.delegate?.onHide?.(false);
+
+		assert.deepStrictEqual({ markAsDoneLabel, restoreLabel }, {
+			markAsDoneLabel: 'Mark as Done',
+			restoreLabel: 'Restore',
+		});
+	});
+
+	test('history context menu deletion uses the run-only deletion flow', async () => {
+		const { automationService, contextMenuService, dialogService, sessionsManagementService, widget } = setup();
+		automationService.setAutomations([automation()]);
+		automationService.setRuns([run()]);
+		dialogService.confirmResult = { confirmed: true };
+		await waitForSessionActions();
+		const row = widget.element.querySelector<HTMLElement>('.automations-run-session-list .session-item');
+		assert.ok(row);
+
+		dispatchContextMenu(row);
+		const delegate = contextMenuService.delegate;
+		const deleteAction = delegate?.getActions().find(action => action.id === 'sessions.automations.deleteRunSession');
+		assert.ok(deleteAction);
+		await delegate?.actionRunner?.run(deleteAction, delegate.getActionsContext?.());
+		await automationService.deleteRunCompleted.p;
+		delegate?.onHide?.(false);
+
+		assert.deepStrictEqual({
+			deleteSessionCalls: sessionsManagementService.deleteSessionCalls,
+			deleteRunCalls: automationService.deleteRunCalls,
+			historyItemStillVisible: !!widget.element.querySelector('.automations-run-session-list .session-item'),
+		}, {
+			deleteSessionCalls: 1,
+			deleteRunCalls: 1,
+			historyItemStillVisible: false,
+		});
+	});
+
 	test('stops an active run without opening its session', async () => {
 		const { automationService, sessionsManagementService, sessionsService, widget } = setup();
 		sessionsManagementService.sessionStatus.set(SessionStatus.InProgress, undefined);
@@ -1319,6 +1515,7 @@ suite('AutomationsCustomViewContribution — context key', () => {
 		let restore: boolean | undefined;
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IAutomationService, automationService);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
 			override readonly activeCustomView = constObservable(undefined);

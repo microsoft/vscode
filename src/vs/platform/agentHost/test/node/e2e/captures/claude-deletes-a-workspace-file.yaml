@@ -2,11 +2,11 @@ version: 1
 dialect: anthropic
 exchanges:
   - request:
-      model: claude-opus-4.8
+      model: claude-opus-5
       system: ${system}
       messages:
         - role: user
-          content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').unlinkSync(''delete-me.txt'')"`. Then reply with exactly "deleted".'
+          content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').unlinkSync(''delete-me.txt'')"`. Do not run any other command or tool. Then reply with exactly "deleted".'
     response:
       content:
         - type: tool_use
@@ -14,14 +14,14 @@ exchanges:
           name: Bash
           input:
             command: node -e "require('fs').unlinkSync('delete-me.txt')"
-            description: Delete delete-me.txt file
+            description: Delete delete-me.txt via node
       stopReason: tool_use
   - request:
-      model: claude-opus-4.8
+      model: claude-opus-5
       system: ${system}
       messages:
         - role: user
-          content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').unlinkSync(''delete-me.txt'')"`. Then reply with exactly "deleted".'
+          content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').unlinkSync(''delete-me.txt'')"`. Do not run any other command or tool. Then reply with exactly "deleted".'
         - role: assistant
           content:
             - type: thinking
@@ -29,7 +29,7 @@ exchanges:
               name: Bash
               input:
                 command: node -e "require('fs').unlinkSync('delete-me.txt')"
-                description: Delete delete-me.txt file
+                description: Delete delete-me.txt via node
         - role: user
           content:
             - type: tool_result

@@ -276,21 +276,6 @@ A user can contribute lifecycle hooks through a client-pushed Copilot plugin to 
     --grep "plugin .* hook|failing plugin hook|non-JSON plugin hook"
   ```
 
-### File-tool denial mutates the workspace during Linux replay
-
-- Test: `declining a file creation tool prevents the mutation and completes the turn`.
-- Scope: Claude and Copilot on Linux.
-- Expected: declining the `Write` tool prevents `denied.txt` from being created and the replayed turn completes.
-- Observed: the turn completes, but `denied.txt` exists on Linux. For Copilot, the host auto-approves the in-workspace write before the synthetic denial reaches the permission request; both providers pass on macOS.
-- Gate: the Claude and Copilot variants are disabled on Linux through `fileToolDenialReplayUnstableOnLinux`.
-- Reproduce on Linux:
-
-  ```bash
-  ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/{claude,copilot}AgentHostE2E.integrationTest.ts \
-    --grep "declining a file creation tool"
-  ```
-
 ### Client-pushed plugin MCP coverage is provider-scoped
 
 - Tests: the `client plugin …` and `plugin MCP …` scenarios in `mcpPluginSuite.ts`.

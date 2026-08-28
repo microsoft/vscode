@@ -9,8 +9,6 @@ exchanges:
           content: Call addComment exactly once for untitled://server-tools/reviewed.ts with range startLineNumber 1, startColumn 7, endLineNumber 1, endColumn 13 and text "rename this", then reply exactly "added".
     response:
       content:
-        - type: text
-          text: I'll add the comment as specified.
         - type: tool_use
           id: toolcall_0
           name: mcp__host__addComment
@@ -31,8 +29,6 @@ exchanges:
           content: Call addComment exactly once for untitled://server-tools/reviewed.ts with range startLineNumber 1, startColumn 7, endLineNumber 1, endColumn 13 and text "rename this", then reply exactly "added".
         - role: assistant
           content:
-            - type: text
-              text: I'll add the comment as specified.
             - type: tool_use
               name: mcp__host__addComment
               input:
