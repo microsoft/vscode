@@ -46,14 +46,13 @@
 		z-index: 1;
 	}
 
-	.monaco-list-row:hover .session-chat-twistie.collapsible,
-	.monaco-list-row.focused .session-chat-twistie.collapsible {
+	/* Replace the status icon with the twistie only while hovering the session row. */
+	.monaco-list-row:hover .session-chat-twistie.collapsible {
 		opacity: 1;
 		pointer-events: auto;
 	}
 
-	.monaco-list-row:hover[aria-expanded] .session-item .session-icon,
-	.monaco-list-row.focused[aria-expanded] .session-item .session-icon {
+	.monaco-list-row:hover[aria-expanded] .session-item .session-icon {
 		visibility: hidden;
 	}
 
