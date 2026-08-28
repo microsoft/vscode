@@ -89,6 +89,7 @@ import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatAgentLocation, ChatConfiguratio
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { HIDE_AUTO_EXPLAINABILITY_TREATMENT } from '../../../common/chatAutoModeExplainability.js';
 import { AUTO_RAW_MODEL_ID, getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
+import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../common/languageModelSourcePresentation.js';
 import { ChatInputStateOrigin, reviveSerializableInputState, type IChatModel, type IChatModelInputState, type IChatRequestVariableData, type IInputModel, type ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -5769,9 +5770,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				// resolvedFromRaw=false means we fell back to the picked model; surface billedModelId so
 				// e.g. an "Auto" pick reads "Auto (raptor-mini)".
 				const billedModelId = resolved && !resolved.resolvedFromRaw ? billedId : undefined;
-				const responseModel = resolved ? {
-					name: getLanguageModelDisplayNameWithProvider({ identifier: resolved.identifier, metadata: resolved.model }, this._languageModelsService),
-					pricing: resolved.model.pricing,
+				const resolvedModel = resolved ? { identifier: resolved.identifier, metadata: resolved.model } : undefined;
+				const responseModel = resolvedModel ? {
+					name: getLanguageModelDisplayNameWithSubscriptionSource(
+						resolvedModel,
+						getLanguageModelDisplayNameWithProvider(resolvedModel, this._languageModelsService),
+					),
+					pricing: resolvedModel.metadata.pricing,
 				} : undefined;
 				return formatTurnResponseDetails(responseModel, billedModelId, usage);
 			},
