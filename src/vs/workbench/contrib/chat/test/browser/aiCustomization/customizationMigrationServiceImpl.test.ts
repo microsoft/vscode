@@ -247,7 +247,7 @@ suite('CustomizationMigrationService', () => {
 					},
 				},
 			],
-			hint: 'Found 3 customization files that are present but not used by Copilot and could be migrated.',
+			hint: 'Found 3 customization files that are present but not used by Copilot and could be migrated. Found 1 MCP server that is not fully supported by Copilot.',
 			localHint: undefined,
 			requestedTypes: [
 				PromptsType.agent, PromptsType.instructions, PromptsType.prompt,
@@ -279,5 +279,52 @@ suite('CustomizationMigrationService', () => {
 		const hint = await service.computeMigrationHint(URI.from({ scheme: SessionType.AgentHostClaude, path: '/session' }));
 
 		assert.strictEqual(hint, 'Found 1 customization file that is present but not used by Claude and could be migrated.');
+	});
+
+	test('reports unsupported MCP servers when there are no file migrations', async () => {
+		const promptsService = store.add(new TestPromptsService([]));
+		const harnessService = new TestCustomizationHarnessService();
+		const snapshot: IAgentHostMcpServerSupportSnapshot = {
+			servers: [0, 1].map(index => ({
+				id: `unsupported-${index}`,
+				name: `Unsupported server ${index}`,
+				collectionId: 'test',
+				source: {
+					group: undefined,
+					kind: AgentHostMcpServerSourceKind.UserProfile,
+					label: 'User',
+					collectionUri: undefined,
+					definitionLocation: undefined,
+					remoteAuthority: null,
+					extensionId: undefined,
+					pluginUri: undefined,
+				},
+				enablement: { enabled: true, state: AgentHostMcpServerEnablementState.EnabledProfile },
+				applicability: AgentHostMcpServerApplicability.Applicable,
+				delivery: AgentHostMcpServerDelivery.NotDelivered,
+				compatibility: { kind: 'unsupported', reasons: [AgentHostMcpSupportReason.LaunchNotRepresentable] },
+			})),
+			discoveryComplete: true,
+			coverage: {
+				restrictedByMcpAccess: false,
+				restrictedByCustomizationPolicy: false,
+			},
+		};
+		const activeClientService = {
+			acquireMcpServerSupportScope: () => ({
+				support: constObservable(snapshot),
+				isResolved: constObservable(true),
+				whenResolved: () => Promise.resolve(),
+				dispose: () => { },
+			}),
+		} as Partial<IAgentHostActiveClientService> as IAgentHostActiveClientService;
+		const agentHostCustomizationService = new class extends mock<IAgentHostCustomizationService>() {
+			override getWorkingDirectories() { return []; }
+		}();
+		const service = new CustomizationMigrationService(promptsService, harnessService, activeClientService, agentHostCustomizationService);
+
+		const hint = await service.computeMigrationHint(URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' }));
+
+		assert.strictEqual(hint, 'Found 2 MCP servers that are not fully supported by Copilot.');
 	});
 });

@@ -66,17 +66,27 @@ export class CustomizationMigrationService implements ICustomizationMigrationSer
 			return undefined;
 		}
 
-		const migrations = await Promise.all([
+		const [userDataMigration, promptFilesMigration, mcpServerMigration] = await Promise.all([
 			this.computeMigration(sessionResource, CustomizationMigrationType.UserData),
 			this.computeMigration(sessionResource, CustomizationMigrationType.PromptFiles),
+			this.computeMigration(sessionResource, CustomizationMigrationType.McpServers),
 		]);
-		const fileCount = migrations.reduce((total, migration) => total + migration.files.length, 0);
-		if (fileCount === 0) {
-			return undefined;
+		const fileCount = userDataMigration.files.length + promptFilesMigration.files.length;
+		const unsupportedMcpServerCount = mcpServerMigration.servers.filter(server => !server.supported).length;
+		const fileHint = fileCount === 0
+			? undefined
+			: fileCount === 1
+				? localize('customizationMigrationHintSingle', "Found 1 customization file that is present but not used by {0} and could be migrated.", harness.label)
+				: localize('customizationMigrationHintMultiple', "Found {0} customization files that are present but not used by {1} and could be migrated.", fileCount, harness.label);
+		const mcpHint = unsupportedMcpServerCount === 0
+			? undefined
+			: unsupportedMcpServerCount === 1
+				? localize('customizationMigrationHintMcpSingle', "Found 1 MCP server that is not fully supported by {0}.", harness.label)
+				: localize('customizationMigrationHintMcpMultiple', "Found {0} MCP servers that are not fully supported by {1}.", unsupportedMcpServerCount, harness.label);
+		if (fileHint && mcpHint) {
+			return localize('customizationMigrationHintCombined', "{0} {1}", fileHint, mcpHint);
 		}
-		return fileCount === 1
-			? localize('customizationMigrationHintSingle', "Found 1 customization file that is present but not used by {0} and could be migrated.", harness.label)
-			: localize('customizationMigrationHintMultiple', "Found {0} customization files that are present but not used by {1} and could be migrated.", fileCount, harness.label);
+		return fileHint ?? mcpHint;
 	}
 
 	private async createFileMigration(sessionResource: URI, type: FileCustomizationMigrationType, candidates: readonly MigratableConfiguration[]): Promise<FileCustomizationMigration> {
