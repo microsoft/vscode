@@ -9,6 +9,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILogService } from '../../log/common/log.js';
 import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
+import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, hasSessionPullRequestForBranch, readSessionGitHubState, SessionLifecycle, withMostRecentRelatedSessionPullRequest, type ChangesetOperation } from '../common/state/sessionState.js';
 import { AgentHostPullRequestOperationHandler, type PullRequestCreatedEvent } from './agentHostPullRequestOperationHandler.js';
 import { AgentHostPullRequestLifecycleOperationHandler } from './agentHostPullRequestLifecycleOperationHandler.js';
@@ -74,6 +75,12 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		// New Session
 		const state = this._stateManager.getSessionState(sessionKey);
 		if (state?.lifecycle === SessionLifecycle.Creating) {
+			return undefined;
+		}
+
+		// Folder session that has outgoing changes
+		const isFolderSession = state?.config?.values[SessionConfigKey.Isolation] === 'folder';
+		if (isFolderSession && gitState?.outgoingChanges && gitState.outgoingChanges > 0) {
 			return undefined;
 		}
 
