@@ -56,13 +56,9 @@
 	grid-column: 2;
 }
 
-.agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-center-right-container {
+.agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-center-actions-container {
 	grid-column: 3;
 	justify-self: start;
-	display: flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size40);
-	min-width: 0;
 }
 
 .agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center .window-title {
@@ -79,8 +75,7 @@
 }
 
 /* Center navigation / actions toolbars that flank the command center box. */
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-actions-container,
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-center-right-container > .titlebar-actions-container {
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-actions-container {
 	display: none;
 	flex-shrink: 0;
 	-webkit-app-region: no-drag;
@@ -88,13 +83,11 @@
 	align-items: center;
 }
 
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-actions-container:not(.has-no-actions),
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-center-right-container > .titlebar-actions-container:not(.has-no-actions) {
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-actions-container:not(.has-no-actions) {
 	display: flex;
 }
 
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-actions-container .monaco-action-bar .action-item:not(.disabled) .codicon,
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-center-right-container .monaco-action-bar .action-item:not(.disabled) .codicon {
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-actions-container .monaco-action-bar .action-item:not(.disabled) .codicon {
 	color: var(--vscode-icon-foreground);
 }
 
@@ -113,20 +106,15 @@
 	align-items: center;
 }
 
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-screen-reader-container:not(.has-no-actions),
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-update-container:not(.has-no-actions) {
 	margin-right: var(--vscode-spacing-size40);
 }
 
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-update-container .update-indicator {
-	height: 26px;
-	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
-	border-radius: var(--vscode-cornerRadius-small);
-	line-height: 16px;
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-screen-reader-container:not(.has-no-actions) {
+	margin-right: var(--vscode-spacing-size40);
 }
 
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-actions-container.overflowing,
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-center-right-container > .titlebar-actions-container.overflowing,
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container.overflowing {
 	display: none;
 }

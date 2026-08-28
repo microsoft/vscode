@@ -205,7 +205,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			toolbarOptions: { primaryGroup: () => true },
 		}));
 
-		// Center section: [nav toolbar] [command center box] [status badges and actions]
+		// Center section: [nav toolbar] [command center box] [actions toolbar]
 		// All live inside .titlebar-center so the cluster is window-centered.
 
 		// Navigation toolbar (Back/Forward), rendered left of the command center.
@@ -233,9 +233,8 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			}
 		}));
 
-		const centerRightContainer = append(this.centerContent, $('div.titlebar-center-right-container'));
-		// Actions toolbar (Open in VS Code), rendered after the status badges.
-		const centerActionsContainer = append(centerRightContainer, $('div.titlebar-actions-container.titlebar-center-actions-container'));
+		// Actions toolbar (Open in VS Code), rendered right of the command center.
+		const centerActionsContainer = append(this.centerContent, $('div.titlebar-actions-container.titlebar-center-actions-container'));
 		const centerActionsToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerActionsContainer, Menus.TitleBarCenterRight, {
 			contextMenu: Menus.TitleBarContext,
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
@@ -261,7 +260,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			toolbarOptions: { primaryGroup: () => true },
 		}));
 
-		// Update toolbar, rendered at the leading edge of the right-side actions.
+		// Update toolbar (leftmost in the right-side controls)
 		const updateToolBarElement = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-update-container'));
 		const updateToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, updateToolBarElement, Menus.TitleBarUpdate, {
 			contextMenu: Menus.TitleBarContext,

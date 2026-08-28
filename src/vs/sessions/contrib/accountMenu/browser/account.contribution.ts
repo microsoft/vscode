@@ -36,7 +36,7 @@ import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js'
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { getAccountProfileImageUrl, getAccountTitleBarBadgeKey, getAccountTitleBarState, IAccountTitleBarState, resolveAccountInfo } from '../../../browser/accountTitleBarState.js';
 import { observeAllowSignedOutWhenUsable } from '../../../browser/sessionsAuthGate.js';
-import { IsPhoneLayoutContext } from '../../../common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionHasChangesContext, SessionIsCreatedContext, SessionsWelcomeVisibleContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IAuthenticationAccessService } from '../../../../workbench/services/authentication/browser/authenticationAccessService.js';
 import { IAuthenticationUsageService } from '../../../../workbench/services/authentication/browser/authenticationUsageService.js';
@@ -75,9 +75,19 @@ export function shouldShowAccountPanelSummary(state: Pick<IAccountTitleBarState,
 	return !hasCopilotDashboard && !isAccountLoading && !(state.source === 'copilot' && state.kind === 'prominent');
 }
 
-// Register the shared VS Code update entry beside the Agents command center.
+const sessionsChangesPrimaryActionVisible = ContextKeyExpr.and(
+	SinglePaneLayoutEnabledContext,
+	SessionIsCreatedContext,
+	SessionHasChangesContext
+)!;
+
+// Register the shared VS Code update entry at the leading edge of the Agents titlebar actions.
 registerUpdateTitleBarMenuPlacement(Menus.TitleBarUpdate, {
-	when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), IsPhoneLayoutContext.negate()),
+	when: ContextKeyExpr.and(
+		IsAuxiliaryWindowContext.toNegated(),
+		SessionsWelcomeVisibleContext.toNegated(),
+		sessionsChangesPrimaryActionVisible.negate()
+	),
 });
 
 // Sign In (shown when signed out)

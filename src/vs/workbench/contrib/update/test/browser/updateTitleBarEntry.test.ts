@@ -24,7 +24,7 @@ import { IUpdateService, State } from '../../../../../platform/update/common/upd
 import { InEditorZenModeContext } from '../../../../common/contextkeys.js';
 import { getAdditionalUpdateTitleBarMenuWhen, UpdateTitleBarEntry } from '../../browser/updateTitleBarEntry.js';
 import { UpdateTooltip } from '../../browser/updateTooltip.js';
-import { UpdateGlobalActivityBadgeVisibleContext, UpdateTitleBarChatInProgressContext, UpdateTitleBarContext } from '../../common/update.js';
+import { UpdateGlobalActivityBadgeVisibleContext, UpdateTitleBarChatInProgressContext, UpdateTitleBarContext, UpdateTitleBarEditorVisibleContext } from '../../common/update.js';
 
 class TestCommandService extends mock<ICommandService>() {
 	private readonly _onDidExecuteCommand = new Emitter<ICommandEvent>();
@@ -104,41 +104,6 @@ suite('UpdateTitleBarEntry', () => {
 			hoverShowRequests: [{ focus: true, trapFocus: true }],
 		});
 	});
-
-	test('renders an actionable update as a tab stop', () => {
-		const container = mainWindow.document.createElement('div');
-		mainWindow.document.body.appendChild(container);
-		store.add(toDisposable(() => container.remove()));
-
-		const action = store.add(new Action('workbench.actions.updateIndicator', 'Update'));
-		const entry = store.add(new UpdateTitleBarEntry(
-			action,
-			{},
-			new class extends mock<UpdateTooltip>() {
-				override readonly domNode = mainWindow.document.createElement('div');
-			},
-			() => { },
-			() => { },
-			store.add(new TestCommandService()),
-			new TestHoverService(),
-			new class extends mock<ITelemetryService>() { },
-			new class extends mock<IUpdateService>() {
-				override readonly onStateChange = Event.None;
-				override readonly state = State.Ready({ version: '1.0.0' }, false, false);
-			},
-		));
-		entry.render(container);
-
-		assert.deepStrictEqual({
-			text: container.textContent,
-			ariaLabel: container.getAttribute('aria-label'),
-			tabIndex: container.tabIndex,
-		}, {
-			text: 'Update',
-			ariaLabel: 'Update',
-			tabIndex: 0,
-		});
-	});
 });
 
 suite('UpdateGlobalActivityBadgeVisibleContext', () => {
@@ -180,27 +145,20 @@ suite('UpdateTitleBarVisibleContexts', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('additional placements use the editor safety conditions', () => {
-		const scenarios = [
-			{ name: 'idle', chatInProgress: false, inDebugMode: false, expected: true },
-			{ name: 'chat in progress', chatInProgress: true, inDebugMode: false, expected: false },
-			{ name: 'debugging', chatInProgress: false, inDebugMode: true, expected: false },
-		];
+	test('shows an additional placement during an active chat while the editor hides it', () => {
+		const contextKeyService = new TestContextKeyService();
+		UpdateTitleBarContext.bindTo(contextKeyService).set(true);
+		UpdateTitleBarChatInProgressContext.bindTo(contextKeyService).set(true);
+		InEditorZenModeContext.bindTo(contextKeyService).set(false);
+		contextKeyService.createKey('inDebugMode', false);
 
-		const actual = scenarios.map(scenario => {
-			const contextKeyService = new TestContextKeyService();
-			UpdateTitleBarContext.bindTo(contextKeyService).set(true);
-			UpdateTitleBarChatInProgressContext.bindTo(contextKeyService).set(scenario.chatInProgress);
-			InEditorZenModeContext.bindTo(contextKeyService).set(false);
-			contextKeyService.createKey('inDebugMode', scenario.inDebugMode);
-
-			return {
-				name: scenario.name,
-				visible: contextKeyService.contextMatchesRules(getAdditionalUpdateTitleBarMenuWhen()),
-			};
+		assert.deepStrictEqual({
+			additional: contextKeyService.contextMatchesRules(getAdditionalUpdateTitleBarMenuWhen()),
+			editor: contextKeyService.contextMatchesRules(UpdateTitleBarEditorVisibleContext),
+		}, {
+			additional: true,
+			editor: false,
 		});
-
-		assert.deepStrictEqual(actual, scenarios.map(({ name, expected }) => ({ name, visible: expected })));
 	});
 });
 
