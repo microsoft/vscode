@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatSetup.css';
-import { $, releaseReservedWindowForExternalOpen, reserveWindowForExternalOpen } from '../../../../../base/browser/dom.js';
+import { $, getWindow, releaseReservedWindowForExternalOpen, reserveWindowForExternalOpen } from '../../../../../base/browser/dom.js';
 import { isSafari, isStandalone } from '../../../../../base/browser/browser.js';
 import { IButton } from '../../../../../base/browser/ui/button/button.js';
 import { Dialog, DialogContentsAlignment } from '../../../../../base/browser/ui/dialog/dialog.js';
@@ -95,6 +95,25 @@ export interface IChatSetupDialogOptions {
 	readonly renderFooter?: (container: HTMLElement) => IDisposable | undefined;
 }
 
+/**
+ * Whether picking this strategy sends the user to a provider's sign-in page in a
+ * browser window. `DefaultSetup` is deliberately excluded: for a user who is already
+ * signed in it installs and signs up without any browser round trip, so reserving a
+ * window for it would leave one covering the app for the whole of setup.
+ */
+function entersProviderAuthentication(strategy: ChatSetupStrategy): boolean {
+	switch (strategy) {
+		case ChatSetupStrategy.SetupWithEnterpriseProvider:
+		case ChatSetupStrategy.SetupWithoutEnterpriseProvider:
+		case ChatSetupStrategy.SetupWithGoogleProvider:
+		case ChatSetupStrategy.SetupWithAppleProvider:
+		case ChatSetupStrategy.SetupWithMicrosoftProvider:
+			return true;
+		default:
+			return false;
+	}
+}
+
 export class ChatSetupDialog extends Disposable {
 
 	private readonly dialog: Dialog;
@@ -147,7 +166,7 @@ export class ChatSetupDialog extends Disposable {
 					// installed it. In Safari the popup is blocked too, but a browser tab
 					// can recover via the "Retry" prompt. Everywhere else popups still work
 					// after the gesture, so nothing is reserved and behaviour is unchanged.
-					const opensBrowser = (isStandalone() || isSafari) && button.strategy !== ChatSetupStrategy.Canceled;
+					const opensBrowser = (isStandalone() || isSafari) && entersProviderAuthentication(button.strategy);
 					if (!classes && !opensBrowser) {
 						return undefined;
 					}
@@ -158,6 +177,7 @@ export class ChatSetupDialog extends Disposable {
 							}
 							if (opensBrowser) {
 								this._register(control.onDidClick(() => reserveWindowForExternalOpen(
+									getWindow(control.element),
 									localize('signingInPlaceholder', "Signing in…")
 								)));
 							}

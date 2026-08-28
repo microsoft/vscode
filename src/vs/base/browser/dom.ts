@@ -1664,15 +1664,17 @@ function isUsable(candidate: Window | undefined): candidate is Window {
  * {@link releaseReservedWindowForExternalOpen} — otherwise a blank window is left
  * covering the app.
  *
+ * @param targetWindow the window the click happened in. User activation belongs to
+ * that window, so opening from any other one can still be blocked.
  * @param placeholder text to show until the URL arrives. `vs/base` cannot localize,
  * so callers pass an already-translated string.
  */
-export function reserveWindowForExternalOpen(placeholder?: string): void {
+export function reserveWindowForExternalOpen(targetWindow: Window = mainWindow, placeholder?: string): void {
 	if (isUsable(reservedExternalWindow)) {
 		return; // already holding one
 	}
 
-	reservedExternalWindow = mainWindow.open() ?? undefined;
+	reservedExternalWindow = targetWindow.open() ?? undefined;
 	if (!isUsable(reservedExternalWindow)) {
 		reservedExternalWindow = undefined;
 		return;
@@ -1693,6 +1695,9 @@ export function reserveWindowForExternalOpen(placeholder?: string): void {
 function showMessageInWindow(target: Window, message: string): void {
 	try {
 		const doc = target.document;
+		// Without a title the window is announced as `about:blank` by screen readers
+		// and window switchers.
+		doc.title = message;
 		doc.documentElement.style.cssText = 'color-scheme:light dark';
 		doc.body.style.cssText = 'margin:0;height:100vh;display:flex;align-items:center;justify-content:center;background:Canvas;color:CanvasText;font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif';
 		doc.body.textContent = message;
@@ -1750,10 +1755,11 @@ export function releaseReservedWindowForExternalOpen(fallbackMessage?: string): 
  * @param url the url to open
  * @param noOpener whether or not to set the {@link window.opener} to null. You should leave the default
  * (true) unless you trust the url that is being opened.
+ * @param targetWindow the window to open from when no window was reserved.
  * @returns boolean indicating if the {@link window.open} call succeeded
  */
-export function windowOpenWithSuccess(url: string, noOpener = true): boolean {
-	const newTab = takeReservedWindowForExternalOpen() ?? mainWindow.open();
+export function windowOpenWithSuccess(url: string, noOpener = true, targetWindow: Window = mainWindow): boolean {
+	const newTab = takeReservedWindowForExternalOpen() ?? targetWindow.open();
 	if (newTab) {
 		if (noOpener) {
 			// see `windowOpenNoOpener` for details on why this is important
