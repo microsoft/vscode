@@ -24,10 +24,11 @@
 			"args": ["--extensionDevelopmentPath=${workspaceFolder}", "--extensionTestsPath=${workspaceFolder}/client/out/test" ],
 			"stopOnEntry": false,
 			"sourceMaps": true,
-			 "outFiles": [
-		    "${workspaceFolder}/client/out/**/*.js",
-		    "${workspaceFolder}/server/out/**/*.js"
-		]
+			"outFiles": [
+				"${workspaceFolder}/client/out/**/*.js",
+				"${workspaceFolder}/server/out/**/*.js"
+			]
+		},
 		{
 			"name": "Attach Language Server",
 			"type": "node",
