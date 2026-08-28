@@ -21,7 +21,7 @@ import { IConfigurationService } from '../../../platform/configuration/common/co
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../platform/contextkey/common/contextkey.js';
 import { Context } from '../../../platform/contextkey/browser/contextKeyService.js';
 import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
-import { raceTimeout, RunOnceScheduler } from '../../../base/common/async.js';
+import { RunOnceScheduler } from '../../../base/common/async.js';
 import { ILayoutService } from '../../../platform/layout/browser/layoutService.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
 import { registerAction2, Action2, MenuRegistry } from '../../../platform/actions/common/actions.js';
@@ -65,6 +65,7 @@ import { IAgentHostEnablementService } from '../../../platform/agentHost/common/
 import { IProgressService, ProgressLocation } from '../../../platform/progress/common/progress.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { markdownDetails, markdownJsonBlock, markdownTable, markdownText } from './policyDiagnosticsMarkdown.js';
+import { collectAgentRuntimeSection, describeProbeFailure, probeFailureMarkdown, probePolicyDiagnostics } from './policyDiagnosticsProbe.js';
 
 class InspectContextKeysAction extends Action2 {
 
@@ -732,6 +733,20 @@ function formatDiagnosticValue(value: unknown): string {
 
 const AGENT_RUNTIME_DIAGNOSTICS_TIMEOUT = 6000;
 
+/**
+ * Bound for account and authentication probes. Both can wait on infrastructure
+ * that may never settle (the default account init barrier, an authentication
+ * provider that never answers), so the report times them out instead of
+ * hanging the command.
+ */
+const ACCOUNT_DIAGNOSTICS_TIMEOUT = 6000;
+
+/**
+ * Absolute bound for generating the whole report. Guards against any future
+ * unbounded await inside a section: the command always opens an editor.
+ */
+const REPORT_GENERATION_TIMEOUT = 30000;
+
 interface IPolicyDiagnosticsSummary {
 	accountPolicyGate: string;
 	managedSettingsSources: string;
@@ -828,10 +843,63 @@ class PolicyDiagnosticsAction extends Action2 {
 	}
 
 	private async openPolicyDiagnostics(services: IPolicyDiagnosticsServices): Promise<void> {
+		const { editorService, commandService, notificationService } = services;
+
+		let report: string;
+		const reportProbe = await probePolicyDiagnostics(() => this.buildPolicyDiagnosticsReport(services), REPORT_GENERATION_TIMEOUT);
+		if (reportProbe.kind === 'ok') {
+			report = reportProbe.value;
+		} else {
+			// Every section is individually guarded and bounded, but a hard failure
+			// must still produce output rather than leaving the command a silent no-op.
+			report = '# VS Code Policy Diagnostics\n\n' +
+				`*The report could not be generated: ${markdownText(describeProbeFailure(reportProbe)!)}*\n\n`;
+		}
+
+		const resource = URI.from({
+			scheme: Schemas.untitled,
+			path: localize('policyDiagnostics.editorTitle', "Policy Diagnostics"),
+			query: generateUuid()
+		});
+
+		let editorPane;
+		try {
+			editorPane = await editorService.openEditor({
+				resource,
+				contents: report,
+				languageId: 'markdown',
+				options: { pinned: true }
+			});
+		} catch (error) {
+			notificationService.error(localize(
+				'policyDiagnostics.openError',
+				"Policy diagnostics could not be opened: {0}",
+				getErrorMessage(error)
+			));
+			return;
+		}
+
+		if (!editorPane) {
+			notificationService.warn(localize(
+				'policyDiagnostics.previewMissingResource',
+				"Policy diagnostics opened as Markdown source because the rendered preview could not be initialized."
+			));
+			return;
+		}
+
+		try {
+			await commandService.executeCommand('markdown.reopenAsPreview');
+		} catch (error) {
+			notificationService.warn(localize(
+				'policyDiagnostics.previewError',
+				"Policy diagnostics opened as Markdown source because the rendered preview could not be opened: {0}",
+				getErrorMessage(error)
+			));
+		}
+	}
+
+	private async buildPolicyDiagnosticsReport(services: IPolicyDiagnosticsServices): Promise<string> {
 		const {
-			editorService,
-			commandService,
-			notificationService,
 			configurationService,
 			productService,
 			defaultAccountService,
@@ -870,57 +938,63 @@ class PolicyDiagnosticsAction extends Action2 {
 
 		// Account information
 		content += '## Account Information\n\n';
-		try {
-			const account = await defaultAccountService.getDefaultAccount();
-			const sensitiveKeys = ['sessionId', 'analytics_tracking_id'];
-			if (account) {
-				// Try to get username/display info from the authentication session
-				let username = 'Unknown';
-				let accountLabel = 'Unknown';
-				try {
-					const providerIds = authenticationService.getProviderIds();
-					for (const providerId of providerIds) {
-						const sessions = await authenticationService.getSessions(providerId);
-						const matchingSession = sessions.find(session => session.id === account.sessionId);
-						if (matchingSession) {
-							username = matchingSession.account.id;
-							accountLabel = matchingSession.account.label;
-							break;
+		{
+			// `getDefaultAccount` waits on an init barrier that never settles when
+			// account resolution stalls; bound it so the report still renders.
+			const accountProbe = await probePolicyDiagnostics(() => defaultAccountService.getDefaultAccount(), ACCOUNT_DIAGNOSTICS_TIMEOUT);
+			if (accountProbe.kind !== 'ok') {
+				content += probeFailureMarkdown('Default account information', accountProbe);
+			} else {
+				const account = accountProbe.value;
+				const sensitiveKeys = ['sessionId', 'analytics_tracking_id'];
+				if (account) {
+					// Try to get username/display info from the authentication session
+					let username = 'Unknown';
+					let accountLabel = 'Unknown';
+					const sessionLookup = await probePolicyDiagnostics(async () => {
+						for (const providerId of authenticationService.getProviderIds()) {
+							const sessions = await authenticationService.getSessions(providerId);
+							const matchingSession = sessions.find(session => session.id === account.sessionId);
+							if (matchingSession) {
+								return matchingSession;
+							}
+						}
+						return undefined;
+					}, ACCOUNT_DIAGNOSTICS_TIMEOUT);
+					if (sessionLookup.kind === 'ok' && sessionLookup.value) {
+						username = sessionLookup.value.account.id;
+						accountLabel = sessionLookup.value.account.label;
+					}
+
+					content += '### Default Account Summary\n\n';
+					content += markdownTable(
+						['Property', 'Value'],
+						[
+							['Account ID/Username', username],
+							['Account Label', accountLabel]
+						]
+					);
+					content += probeFailureMarkdown('Authentication session lookup for the default account', sessionLookup);
+
+					const accountPropertyRows: string[][] = [];
+					for (const [key, value] of Object.entries(account)) {
+						if (value !== undefined && value !== null) {
+							const displayValue = sensitiveKeys.includes(key)
+								? '***'
+								: typeof value === 'object' ? formatDiagnosticValue(value) : String(value);
+							accountPropertyRows.push([key, displayValue]);
 						}
 					}
-				} catch (error) {
-					// Fallback to just session info
+					const policyData = defaultAccountService.policyData;
+					accountPropertyRows.push(['policyData', policyData ? formatDiagnosticValue(policyData) : 'No Policy Data']);
+					content += markdownDetails(
+						'Detailed account properties',
+						markdownTable(['Property', 'Value'], accountPropertyRows)
+					);
+				} else {
+					content += '*No default account configured*\n\n';
 				}
-
-				content += '### Default Account Summary\n\n';
-				content += markdownTable(
-					['Property', 'Value'],
-					[
-						['Account ID/Username', username],
-						['Account Label', accountLabel]
-					]
-				);
-
-				const accountPropertyRows: string[][] = [];
-				for (const [key, value] of Object.entries(account)) {
-					if (value !== undefined && value !== null) {
-						const displayValue = sensitiveKeys.includes(key)
-							? '***'
-							: typeof value === 'object' ? formatDiagnosticValue(value) : String(value);
-						accountPropertyRows.push([key, displayValue]);
-					}
-				}
-				const policyData = defaultAccountService.policyData;
-				accountPropertyRows.push(['policyData', policyData ? formatDiagnosticValue(policyData) : 'No Policy Data']);
-				content += markdownDetails(
-					'Detailed account properties',
-					markdownTable(['Property', 'Value'], accountPropertyRows)
-				);
-			} else {
-				content += '*No default account configured*\n\n';
 			}
-		} catch (error) {
-			content += `*Error retrieving account information: ${markdownText(getErrorMessage(error))}*\n\n`;
 		}
 
 		// Account Policy Gate (forces AI features off until an admin-approved
@@ -1128,31 +1202,12 @@ class PolicyDiagnosticsAction extends Action2 {
 				summary.agentRuntime = 'Agent Host disabled';
 				content += '*Agent Host is disabled; runtime managed-settings diagnostics were not queried.*\n\n';
 			} else {
-				try {
-					const runtimeDiagnostics = await raceTimeout(agentHostService.getManagedSettingsDiagnostics(), AGENT_RUNTIME_DIAGNOSTICS_TIMEOUT);
-					if (!runtimeDiagnostics) {
-						summary.agentRuntime = 'Timed out';
-						content += '*The Agent Host did not return provider diagnostics within 6 seconds. The report continued without a runtime snapshot; check the Agent Host log for a stalled provider.*\n\n';
-					} else if (runtimeDiagnostics.length === 0) {
-						summary.agentRuntime = 'No provider diagnostics';
-						content += '*No agent provider exposes managed-settings diagnostics.*\n\n';
-					} else {
-						const failedProviderCount = runtimeDiagnostics.filter(diagnostic => diagnostic.error).length;
-						summary.agentRuntime = `${runtimeDiagnostics.length} ${runtimeDiagnostics.length === 1 ? 'provider' : 'providers'}, ${failedProviderCount} failed`;
-						for (const diagnostic of runtimeDiagnostics) {
-							content += `#### ${markdownText(diagnostic.provider)}\n\n`;
-							if (diagnostic.error) {
-								content += `*Probe failed: ${markdownText(diagnostic.error)}*\n\n`;
-							} else {
-								content += markdownDetails('Resolved settings snapshot', markdownJsonBlock(diagnostic.snapshot));
-							}
-						}
-					}
-				} catch (error) {
-					const message = getErrorMessage(error);
-					summary.agentRuntime = `Unavailable (${message})`;
-					content += `*Agent runtime diagnostics unavailable: ${markdownText(message)}*\n\n`;
-				}
+				const section = await collectAgentRuntimeSection(
+					() => agentHostService.getManagedSettingsDiagnostics(),
+					AGENT_RUNTIME_DIAGNOSTICS_TIMEOUT
+				);
+				summary.agentRuntime = section.summary;
+				content += section.content;
 			}
 		} catch (error) {
 			content += `*Error rendering managed settings diagnostics: ${markdownText(getErrorMessage(error))}*\n\n`;
@@ -1283,35 +1338,36 @@ class PolicyDiagnosticsAction extends Action2 {
 				const providerRows: string[][] = [];
 				let sessionDetails = '';
 				for (const providerId of providerIds) {
-					try {
-						const sessions = await authenticationService.getSessions(providerId);
-						const accounts = sessions.map(session => session.account);
-						const uniqueAccounts = Array.from(new Set(accounts.map(account => account.label)));
-						providerRows.push([providerId, String(sessions.length), uniqueAccounts.join(', ') || 'None']);
-						if (sessions.length > 0) {
-							sessionDetails += `**${markdownText(providerId)}**\n\n`;
-							const sessionRows: string[][] = [];
-							for (const session of sessions) {
-								const accountName = session.account.label;
-								const scopes = session.scopes.join(', ') || 'Default';
-								try {
-									const allowedExtensions = authenticationAccessService.readAllowedExtensions(providerId, accountName);
-									const extensionNames = allowedExtensions
-										.filter(ext => ext.allowed !== false)
-										.map(ext => `${ext.name}${ext.trusted ? ' (trusted)' : ''}`)
-										.join(', ') || 'None';
+					const sessionsProbe = await probePolicyDiagnostics(() => authenticationService.getSessions(providerId), ACCOUNT_DIAGNOSTICS_TIMEOUT);
+					if (sessionsProbe.kind !== 'ok') {
+						const reason = describeProbeFailure(sessionsProbe)!;
+						providerRows.push([providerId, 'Error', reason]);
+						sessionDetails += `**${markdownText(providerId)}**\n\n*Error retrieving sessions: ${markdownText(reason)}*\n\n`;
+						continue;
+					}
+					const sessions = sessionsProbe.value;
+					const accounts = sessions.map(session => session.account);
+					const uniqueAccounts = Array.from(new Set(accounts.map(account => account.label)));
+					providerRows.push([providerId, String(sessions.length), uniqueAccounts.join(', ') || 'None']);
+					if (sessions.length > 0) {
+						sessionDetails += `**${markdownText(providerId)}**\n\n`;
+						const sessionRows: string[][] = [];
+						for (const session of sessions) {
+							const accountName = session.account.label;
+							const scopes = session.scopes.join(', ') || 'Default';
+							try {
+								const allowedExtensions = authenticationAccessService.readAllowedExtensions(providerId, accountName);
+								const extensionNames = allowedExtensions
+									.filter(ext => ext.allowed !== false)
+									.map(ext => `${ext.name}${ext.trusted ? ' (trusted)' : ''}`)
+									.join(', ') || 'None';
 
-									sessionRows.push([accountName, scopes, extensionNames]);
-								} catch (error) {
-									sessionRows.push([accountName, scopes, `Error: ${getErrorMessage(error)}`]);
-								}
+								sessionRows.push([accountName, scopes, extensionNames]);
+							} catch (error) {
+								sessionRows.push([accountName, scopes, `Error: ${getErrorMessage(error)}`]);
 							}
-							sessionDetails += markdownTable(['Account', 'Scopes', 'Extensions with Access'], sessionRows);
 						}
-					} catch (error) {
-						const message = getErrorMessage(error);
-						providerRows.push([providerId, 'Error', message]);
-						sessionDetails += `**${markdownText(providerId)}**\n\n*Error retrieving sessions: ${markdownText(message)}*\n\n`;
+						sessionDetails += markdownTable(['Account', 'Scopes', 'Extensions with Access'], sessionRows);
 					}
 				}
 				content += markdownTable(['Provider ID', 'Sessions', 'Accounts'], providerRows);
@@ -1342,34 +1398,7 @@ class PolicyDiagnosticsAction extends Action2 {
 			) +
 			content;
 
-		const resource = URI.from({
-			scheme: Schemas.untitled,
-			path: localize('policyDiagnostics.editorTitle', "Policy Diagnostics"),
-			query: generateUuid()
-		});
-		const editorPane = await editorService.openEditor({
-			resource,
-			contents: report,
-			languageId: 'markdown',
-			options: { pinned: true }
-		});
-		if (!editorPane) {
-			notificationService.warn(localize(
-				'policyDiagnostics.previewMissingResource',
-				"Policy diagnostics opened as Markdown source because the rendered preview could not be initialized."
-			));
-			return;
-		}
-
-		try {
-			await commandService.executeCommand('markdown.reopenAsPreview');
-		} catch (error) {
-			notificationService.warn(localize(
-				'policyDiagnostics.previewError',
-				"Policy diagnostics opened as Markdown source because the rendered preview could not be opened: {0}",
-				getErrorMessage(error)
-			));
-		}
+		return report;
 	}
 }
 
