@@ -3,19 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/*
- * The widget supplies its own padding and border-radius via `.sale-promo-widget`,
- * so we strip the compact hover's contents padding. The selector below is at least as
- * specific as `.monaco-hover.workbench-hover.compact .hover-contents` and loads after it,
- * so it wins without `!important`.
- */
-.monaco-workbench.sale-promo-pending #status.chat.statusBarEntry,
-.monaco-workbench.sale-promo-pending .part.statusbar .codicon-copilot,
-.monaco-workbench.sale-promo-pending .part.statusbar .codicon-copilot-warning,
-.monaco-workbench.sale-promo-pending .part.statusbar .codicon-copilot-unavailable {
-	position: relative;
-}
-
 .monaco-hover.workbench-hover.sale-promo-widget-hover,
 .monaco-hover.workbench-hover.sale-promo-widget-hover.with-pointer {
 	border-radius: var(--vscode-cornerRadius-large);
@@ -72,7 +59,6 @@
 }
 
 .sale-promo-widget .provider-icon,
-.sale-promo-widget .provider-icon-spacer,
 .sale-promo-widget .provider-icon.codicon {
 	display: flex;
 	align-items: center;
@@ -83,21 +69,6 @@
 	font-size: 24px;
 	line-height: 1;
 	color: var(--vscode-foreground);
-}
-
-.sale-promo-widget .microsoft-mark {
-	display: grid;
-	grid-template-columns: 1fr 1fr;
-	grid-template-rows: 1fr 1fr;
-	gap: 2px;
-	width: 24px;
-	height: 24px;
-}
-
-.sale-promo-widget .microsoft-mark-tile {
-	display: block;
-	width: 100%;
-	height: 100%;
 }
 
 .sale-promo-widget .title-row {
@@ -130,18 +101,6 @@
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-.sale-promo-widget .badge {
-	align-self: flex-start;
-	padding: 2px 8px;
-	border-radius: var(--vscode-cornerRadius-small);
-	background-color: var(--vscode-extensionBadge-remoteBackground, var(--vscode-badge-background));
-	color: var(--vscode-extensionBadge-remoteForeground, var(--vscode-badge-foreground));
-	font-size: 11px;
-	font-weight: 600;
-	line-height: 1.4;
-	text-transform: none;
-}
-
 .sale-promo-widget .copy {
 	display: flex;
 	flex: 1;
@@ -166,51 +125,6 @@
 	color: var(--vscode-descriptionForeground);
 }
 
-.sale-promo-widget .features {
-	display: flex;
-	flex-direction: column;
-	gap: 12px;
-}
-
-.sale-promo-widget .feature {
-	display: grid;
-	grid-template-columns: 20px 1fr;
-	column-gap: 12px;
-	align-items: start;
-}
-
-.sale-promo-widget .feature-icon {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	color: var(--vscode-foreground);
-	margin-top: 2px;
-	font-size: 16px;
-}
-
-.sale-promo-widget .feature-text {
-	display: flex;
-	flex-direction: column;
-	gap: 2px;
-	min-width: 0;
-}
-
-.sale-promo-widget .feature-title {
-	font-weight: 600;
-	color: var(--vscode-foreground);
-	font-size: var(--vscode-bodyFontSize-small);
-}
-
-.sale-promo-widget .feature-description {
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-bodyFontSize-small);
-	line-height: 1.4;
-}
-
-.sale-promo-widget .update-markdown {
-	color: var(--vscode-foreground);
-}
-
 .sale-promo-widget .button-bar {
 	display: flex;
 	flex-wrap: wrap;
@@ -229,20 +143,6 @@
 	white-space: nowrap;
 }
 
-.sale-promo-widget .update-button-secondary {
-	background-color: var(--vscode-button-secondaryBackground);
-	color: var(--vscode-button-secondaryForeground);
-	border: var(--vscode-strokeThickness) solid var(--vscode-button-border, transparent);
-}
-
-.sale-promo-widget .update-button-secondary:hover {
-	background-color: var(--vscode-button-secondaryHoverBackground);
-}
-
-.sale-promo-widget .update-button-leading-secondary {
-	margin-right: auto;
-}
-
 .sale-promo-widget .update-button-primary {
 	background-color: var(--vscode-button-background);
 	color: var(--vscode-button-foreground);
@@ -251,10 +151,4 @@
 
 .sale-promo-widget .update-button-primary:hover {
 	background-color: var(--vscode-button-hoverBackground);
-}
-
-.sale-promo-widget .update-button-full-width {
-	width: 100%;
-	justify-content: center;
-	text-align: center;
 }

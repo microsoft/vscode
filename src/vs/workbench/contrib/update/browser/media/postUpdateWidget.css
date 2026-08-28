@@ -17,8 +17,8 @@
 	position: relative;
 	display: flex;
 	flex-direction: column;
-	min-width: 0;
-	max-width: min(420px, calc(100vw - 32px));
+	min-width: 320px;
+	max-width: 420px;
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-bodyFontSize-small);
 	border-radius: var(--vscode-cornerRadius-medium);
@@ -121,7 +121,6 @@
 	display: flex;
 	flex-direction: column;
 	gap: 2px;
-	min-width: 0;
 }
 
 .post-update-widget .feature-title {
@@ -144,7 +143,6 @@
 /* Button bar */
 .post-update-widget .button-bar {
 	display: flex;
-	flex-wrap: wrap;
 	justify-content: flex-end;
 	align-items: center;
 	gap: 8px;

@@ -330,7 +330,7 @@ suite('ChatPromoNotificationContribution', () => {
 		assert.strictEqual(commands.executed[0]?.id, ARM_SALE_PROMO_COMMAND_ID);
 	});
 
-	test('shows the post-update card for a discounted promo when the setting is popup', () => {
+	test('shows the Copilot-icon popup for a discounted promo when the setting is popup', () => {
 		const notifService = createMockNotificationService(disposables);
 		const { service: lmService } = createMockLanguageModelsService([{
 			identifier: 'copilot:gpt-5.5',
@@ -359,20 +359,17 @@ suite('ChatPromoNotificationContribution', () => {
 			dismissCommandId: payload.dismissCommandId,
 			dismissArgs: payload.dismissArgs,
 			buttons: payload.buttons,
-			features: payload.features,
 		}, {
 			title: 'Get 20% off',
 			subtitle: ILanguageModelChatMetadata.getPromoEndsAtLabel('2026-07-20T23:59:59Z')?.replace(/\.+$/, ''),
-			providerIcon: '$(openai)',
+			providerIcon: 'chat-model-provider-openai',
 			dismissCommandId: CHAT_PROMO_DISMISS_COMMAND_ID,
 			dismissArgs: ['promo-1'],
 			buttons: [{
 				label: 'Try GPT-5.5',
 				commandId: CHAT_PROMO_TRY_MODEL_COMMAND_ID,
 				args: ['promo-1', 'copilot:gpt-5.5'],
-				style: 'primary',
 			}],
-			features: undefined,
 		});
 	});
 
@@ -752,12 +749,12 @@ suite('ChatPromoNotificationContribution', () => {
 			ChatClosedSaleNotification.CopilotIconPopup,
 		));
 
-		assert.ok(commands.executed.every(command => command.id === ARM_SALE_PROMO_COMMAND_ID));
+		assert.deepStrictEqual(commands.executed.map(command => command.id), [ARM_SALE_PROMO_COMMAND_ID]);
 		onDidChangeLanguageModels.fire('copilot');
-		assert.ok(commands.executed.every(command => command.id === ARM_SALE_PROMO_COMMAND_ID));
+		assert.deepStrictEqual(commands.executed.map(command => command.id), [ARM_SALE_PROMO_COMMAND_ID]);
 	});
 
-	test('reopens the sale card after sign-in', () => {
+	test('does not re-arm the sale pip on sign-in while it is already showing', () => {
 		const notifService = createMockNotificationService(disposables);
 		const { service: lmService } = createMockLanguageModelsService([{
 			identifier: 'copilot:gpt-5.5',
@@ -776,10 +773,36 @@ suite('ChatPromoNotificationContribution', () => {
 			entitlement.service,
 		));
 
-		assert.strictEqual(commands.executed.length, 1);
+		assert.deepStrictEqual(commands.executed.map(command => command.id), [ARM_SALE_PROMO_COMMAND_ID]);
 		entitlement.signOut();
 		entitlement.signIn();
-		assert.ok(commands.executed.every(command => command.id === ARM_SALE_PROMO_COMMAND_ID));
+		assert.deepStrictEqual(commands.executed.map(command => command.id), [ARM_SALE_PROMO_COMMAND_ID]);
+	});
+
+	test('keeps a Codex sale on the input banner when the Copilot-icon popup is on', () => {
+		const notifService = createMockNotificationService(disposables);
+		const { service: lmService } = createMockLanguageModelsService([{
+			identifier: 'codex:o4',
+			metadata: { name: 'o4', id: 'o4', targetChatSessionType: 'openai-codex', promo: { id: 'promo-codex', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Codex sale', showBanner: true } },
+		}], disposables);
+		const storageService = disposables.add(new InMemoryStorageService());
+		const commands = createMockCommandService();
+
+		disposables.add(createContribution(
+			lmService,
+			notifService.service,
+			storageService,
+			commands.service,
+			ChatClosedSaleNotification.CopilotIconPopup,
+		));
+
+		assert.deepStrictEqual({
+			banner: notifService.getNotificationForSession('openai-codex')?.message,
+			commands: commands.executed.map(command => command.id),
+		}, {
+			banner: 'Codex sale',
+			commands: [],
+		});
 	});
 
 	test('does not arm the sale pip when the chat bar is expanded', () => {

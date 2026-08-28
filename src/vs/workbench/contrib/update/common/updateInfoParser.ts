@@ -47,12 +47,6 @@ export interface IParsedUpdateInfoInput {
 	 * (currently 5) are displayed; any additional entries are silently dropped.
 	 */
 	readonly features?: IUpdateInfoFeature[];
-	/**
-	 * Optional command run when the widget is dismissed (close button, Escape,
-	 * or hover dispose). Used by callers that need shared persistent dismissal.
-	 */
-	readonly dismissCommandId?: string;
-	readonly dismissArgs?: unknown[];
 }
 
 /**
@@ -105,7 +99,7 @@ function tryParseUpdateInfoEnvelope(text: string): IParsedUpdateInfoInput | unde
 	}
 
 	try {
-		const value = JSON.parse(trimmed) as { markdown?: string; buttons?: unknown; bannerImageUrl?: unknown; badge?: unknown; title?: unknown; features?: unknown; dismissCommandId?: unknown; dismissArgs?: unknown };
+		const value = JSON.parse(trimmed) as { markdown?: string; buttons?: unknown; bannerImageUrl?: unknown; badge?: unknown; title?: unknown; features?: unknown };
 		if (typeof value.markdown !== 'string') {
 			return undefined;
 		}
@@ -116,7 +110,7 @@ function tryParseUpdateInfoEnvelope(text: string): IParsedUpdateInfoInput | unde
 	}
 }
 
-function buildParsedInput(markdown: string, meta: { buttons?: unknown; bannerImageUrl?: unknown; badge?: unknown; title?: unknown; features?: unknown; dismissCommandId?: unknown; dismissArgs?: unknown }): IParsedUpdateInfoInput {
+function buildParsedInput(markdown: string, meta: { buttons?: unknown; bannerImageUrl?: unknown; badge?: unknown; title?: unknown; features?: unknown }): IParsedUpdateInfoInput {
 	const result: Mutable<IParsedUpdateInfoInput> = {
 		markdown,
 		buttons: parseUpdateInfoButtons(meta.buttons),
@@ -124,8 +118,6 @@ function buildParsedInput(markdown: string, meta: { buttons?: unknown; bannerIma
 	if (typeof meta.bannerImageUrl === 'string') { result.bannerImageUrl = meta.bannerImageUrl; }
 	if (typeof meta.badge === 'string') { result.badge = meta.badge; }
 	if (typeof meta.title === 'string') { result.title = meta.title; }
-	if (typeof meta.dismissCommandId === 'string') { result.dismissCommandId = meta.dismissCommandId; }
-	if (Array.isArray(meta.dismissArgs)) { result.dismissArgs = meta.dismissArgs; }
 	const features = parseUpdateInfoFeatures(meta.features);
 	if (features) { result.features = features; }
 	return result;
@@ -147,7 +139,7 @@ function parseUpdateInfoFrontmatter(text: string): IParsedUpdateInfoInput {
 
 function parseUpdateInfoFrontmatterMatch(text: string, jsonText: string, markdown: string): IParsedUpdateInfoInput {
 	try {
-		const meta = JSON.parse(jsonText) as { buttons?: unknown; bannerImageUrl?: unknown; badge?: unknown; title?: unknown; features?: unknown; dismissCommandId?: unknown; dismissArgs?: unknown };
+		const meta = JSON.parse(jsonText) as { buttons?: unknown; bannerImageUrl?: unknown; badge?: unknown; title?: unknown; features?: unknown };
 		return buildParsedInput(markdown, meta);
 	} catch {
 		return { markdown: text };
