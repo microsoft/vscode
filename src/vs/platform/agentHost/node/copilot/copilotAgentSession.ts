@@ -4504,6 +4504,25 @@ export class CopilotAgentSession extends Disposable {
 			}
 		}));
 
+		// The bumped Copilot runtime registers a per-session host wildcard event
+		// forwarder, which now makes the runtime consider the host a listener for
+		// `sampling.requested`. As a result, MCP `sampling/createMessage` requests
+		// launched by runtime-hosted MCP servers (e.g. via `.mcp.json`) are routed
+		// to the host and awaited instead of being auto-cancelled. VS Code has no
+		// sampling UI for these runtime-hosted servers, so we must explicitly reject
+		// each pending sampling request; omitting `response` cancels it, which makes
+		// the runtime return the canned "The user cancelled the request." result to
+		// the MCP server instead of hanging (which previously surfaced as -32001).
+		this._register(wrapper.onSamplingRequested(e => {
+			const requestId = e.data.requestId;
+			if (!requestId) {
+				return;
+			}
+			void this._wrapper.session.rpc.ui.handlePendingSampling({ requestId }).catch(err => {
+				this._logService.trace(`[Copilot:${sessionId}] Failed to reject pending sampling ${requestId}: ${getErrorMessage(err)}`);
+			});
+		}));
+
 		this._register(wrapper.onToolCallDelta(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Tool call delta: ${e.data.toolName ?? '<pending>'} (${e.data.toolCallId})`);
 			this._resumeSubagentForEvent(e);
