@@ -260,10 +260,12 @@ export class WorkspacePicker extends Disposable {
 
 	syncAttachedContext(attachments: readonly IChatRequestVariableEntry[]): void {
 		this._attachedContext = attachments;
-		this._syncAttachedContext();
+		if (!this._syncAttachedContext()) {
+			this._updateTriggerLabel();
+		}
 	}
 
-	private _syncAttachedContext(): void {
+	private _syncAttachedContext(): boolean {
 		const attachmentIds = new Set(this._attachedContext.map(attachment => attachment.id));
 		let changed = false;
 		for (const [key, contexts] of this._contextSelections) {
@@ -313,6 +315,7 @@ export class WorkspacePicker extends Disposable {
 			this._updateTriggerLabel();
 			this._onDidChangeSelection.fire();
 		}
+		return changed;
 	}
 
 	get preselectionSource(): NewSessionWorkspacePreselectionSource {
