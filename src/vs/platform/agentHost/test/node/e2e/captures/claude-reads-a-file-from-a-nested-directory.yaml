@@ -2,7 +2,7 @@ version: 1
 dialect: anthropic
 exchanges:
   - request:
-      model: claude-opus-4.8
+      model: claude-opus-5
       system: ${system}
       messages:
         - role: user
@@ -10,15 +10,15 @@ exchanges:
     response:
       content:
         - type: text
-          text: I'll read the file for you.
+          text: I'll read the file.
         - type: tool_use
           id: toolcall_0
           name: Read
           input:
-            file_path: ${workdir}/nested/value.txt
+            file_path: ${workdir}\nested\value.txt
       stopReason: tool_use
   - request:
-      model: claude-opus-4.8
+      model: claude-opus-5
       system: ${system}
       messages:
         - role: user
@@ -26,11 +26,11 @@ exchanges:
         - role: assistant
           content:
             - type: text
-              text: I'll read the file for you.
+              text: I'll read the file.
             - type: tool_use
               name: Read
               input:
-                file_path: ${workdir}/nested/value.txt
+                file_path: ${workdir}\nested\value.txt
         - role: user
           content:
             - type: tool_result

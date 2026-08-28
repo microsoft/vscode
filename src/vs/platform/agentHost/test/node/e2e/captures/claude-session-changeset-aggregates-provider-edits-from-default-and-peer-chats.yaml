@@ -13,9 +13,8 @@ exchanges:
           id: toolcall_0
           name: Write
           input:
-            file_path: ${workdir}/default-provider.txt
-            content: |
-              DEFAULT_PROVIDER
+            file_path: ${workdir}\default-provider.txt
+            content: DEFAULT_PROVIDER
       stopReason: tool_use
   - request:
       model: claude-opus-5
@@ -28,14 +27,13 @@ exchanges:
             - type: tool_use
               name: Write
               input:
-                file_path: ${workdir}/default-provider.txt
-                content: |
-                  DEFAULT_PROVIDER
+                file_path: ${workdir}\default-provider.txt
+                content: DEFAULT_PROVIDER
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: 'File created successfully at: ${workdir}/default-provider.txt (file state is current in your context — no need to Read it back)'
+              content: 'File created successfully at: ${workdir}\default-provider.txt (file state is current in your context — no need to Read it back)'
     response:
       content: created
       stopReason: end_turn
@@ -47,13 +45,11 @@ exchanges:
           content: Create peer-provider.txt containing exactly PEER_PROVIDER using your file creation tool; do not run a shell command. Then reply exactly "created".
     response:
       content:
-        - type: text
-          text: I'll create the file with the Write tool.
         - type: tool_use
           id: toolcall_1
           name: Write
           input:
-            file_path: ${workdir}/peer-provider.txt
+            file_path: ${workdir}\peer-provider.txt
             content: PEER_PROVIDER
       stopReason: tool_use
   - request:
@@ -64,18 +60,16 @@ exchanges:
           content: Create peer-provider.txt containing exactly PEER_PROVIDER using your file creation tool; do not run a shell command. Then reply exactly "created".
         - role: assistant
           content:
-            - type: text
-              text: I'll create the file with the Write tool.
             - type: tool_use
               name: Write
               input:
-                file_path: ${workdir}/peer-provider.txt
+                file_path: ${workdir}\peer-provider.txt
                 content: PEER_PROVIDER
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_1
-              content: 'File created successfully at: ${workdir}/peer-provider.txt (file state is current in your context — no need to Read it back)'
+              content: 'File created successfully at: ${workdir}\peer-provider.txt (file state is current in your context — no need to Read it back)'
     response:
       content: created
       stopReason: end_turn
