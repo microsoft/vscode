@@ -218,13 +218,9 @@ export interface IAgentHostChangesetService {
 	refreshSessionChangeset(session: ProtocolURI): void;
 
 	/**
-	 * Drains static changeset refreshes (`branch` / `session` /
-	 * `uncommitted`) that were deferred because the session's working
-	 * directory was not yet known. Called when a session is materialized or
-	 * restored. Recomputes every changeset currently subscribed for the
-	 * session via {@link recomputeSubscribedChangesets}; subscriptions that
-	 * dropped while the working directory was unknown are naturally skipped.
-	 * Idempotent.
+	 * Recomputes every changeset currently subscribed when a session is
+	 * materialized or restored, including subscriptions added after worktree
+	 * resolution cleared its pending marker.
 	 */
 	onWorkingDirectoryAvailable(session: ProtocolURI): void;
 

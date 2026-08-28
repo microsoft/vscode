@@ -1269,6 +1269,68 @@ suite.skip('AgentHostChangesetService', () => {
 	});
 });
 
+suite('AgentHostChangesetService - materialization refresh', () => {
+
+	const disposables = new DisposableStore();
+
+	teardown(() => {
+		disposables.clear();
+	});
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('recomputes an uncommitted subscription added after worktree pending clears but before materialization', async () => {
+		const sessionStr = AgentSession.uri('mock', 'session-materialization').toString();
+		const sourceDirectory = 'file:///repo/source';
+		const worktreeDirectory = 'file:///repo/worktree';
+		const computedWorkingDirectories: string[] = [];
+		const gitService = createNoopGitService();
+		gitService.computeSessionFileDiffs = async workingDirectory => {
+			computedWorkingDirectories.push(workingDirectory.toString());
+			return [];
+		};
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const diffService = new TestDiffComputeService();
+		class TestableChangesetService extends TestAgentHostChangesetService {
+			protected override _createDiffComputeService() {
+				return diffService;
+			}
+		}
+		const subscriptionService = createSubscriptionService();
+		const service = disposables.add(new TestableChangesetService(
+			stateManager,
+			new NullLogService(),
+			createNullSessionDataService(),
+			gitService,
+			NULL_CHECKPOINT_SERVICE,
+			disposables.add(new AgentConfigurationService(stateManager, new NullLogService())),
+			createOperationService(),
+			subscriptionService,
+			NULL_REVIEW_SERVICE,
+			NullTelemetryService,
+		));
+		stateManager.createSession({
+			resource: sessionStr,
+			provider: 'mock',
+			title: 'Test',
+			status: SessionStatus.Idle,
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
+			workingDirectories: [sourceDirectory],
+		}, { emitNotification: false });
+
+		const uncommittedChangeset = buildUncommittedChangesetUri(sessionStr);
+		subscriptionService.addSubscription(sessionStr, uncommittedChangeset);
+		await service.computeUncommittedChangeset(sessionStr);
+
+		const summary = stateManager.getSessionSummary(sessionStr)!;
+		stateManager.markSessionPersisted(sessionStr, { ...summary, workingDirectories: [worktreeDirectory] });
+		service.onWorkingDirectoryAvailable(sessionStr);
+		await timeout(0);
+
+		assert.deepStrictEqual(computedWorkingDirectories, [sourceDirectory, worktreeDirectory]);
+	});
+});
+
 /**
  * A log service that records every warning/error message so multi-root tests
  * can assert the never-hard-fail path logged the expected per-folder failure.

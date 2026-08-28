@@ -400,16 +400,13 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	/**
-	 * Drains static changeset refreshes that were deferred because the
-	 * session's working directory was not yet known. Called by the
-	 * coordinator once a session is materialized or restored. Recomputes
-	 * every changeset still subscribed for the session; subscriptions that
-	 * dropped while the working directory was unknown are naturally skipped.
+	 * Recomputes every changeset currently subscribed when a session is
+	 * materialized or restored, including subscriptions added after worktree
+	 * resolution cleared its pending marker.
 	 */
 	onWorkingDirectoryAvailable(session: ProtocolURI): void {
-		if (this._pendingMaterialization.delete(session)) {
-			this.recomputeSubscribedChangesets(session);
-		}
+		this._pendingMaterialization.delete(session);
+		this.recomputeSubscribedChangesets(session);
 	}
 
 	/**
