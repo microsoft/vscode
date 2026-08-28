@@ -10,6 +10,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
+import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { modelSelectorAliases } from '../../common/expPayload.js';
 import { addDismissedNotificationId, IChatInputNotificationContext, IChatInputNotificationService, readDismissedNotificationIds } from '../widget/input/chatInputNotificationService.js';
@@ -43,6 +44,7 @@ export class ChatExpNotificationContribution extends Disposable implements IWork
 		@IChatInputNotificationService private readonly _notificationService: IChatInputNotificationService,
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IChatEntitlementService private readonly _entitlementService: IChatEntitlementService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@ILogService private readonly _logService: ILogService,
 	) {
@@ -52,6 +54,13 @@ export class ChatExpNotificationContribution extends Disposable implements IWork
 		this._register(this._assignmentService.onDidRefetchAssignments(() => void this._resolve()));
 		this._register(this._notificationService.onDidDismiss(id => this._handleDismissed(id)));
 		this._register(this._storageService.onDidChangeValue(StorageScope.APPLICATION, DISMISSED_STORAGE_KEY, this._store)(() => this._update()));
+		// `when` reads both gates, so mounted widgets must be told to re-evaluate when either flips.
+		this._register(this._entitlementService.onDidChangeSentiment(() => this._notificationService.refresh()));
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatAIDisabledSettingId)) {
+				this._notificationService.refresh();
+			}
+		}));
 	}
 
 	private async _resolve(): Promise<void> {
@@ -109,7 +118,8 @@ export class ChatExpNotificationContribution extends Disposable implements IWork
 	private _matches(match: IChatExpNotificationMatch, context: IChatInputNotificationContext): boolean {
 		// Checked here rather than by unregistering, so turning AI features off and on again
 		// does not discard a dismissal the service only holds in memory.
-		if (this._configurationService.getValue<boolean>(ChatAIDisabledSettingId) === true) {
+		if (this._configurationService.getValue<boolean>(ChatAIDisabledSettingId) === true
+			|| this._entitlementService.sentiment.hidden) {
 			return false;
 		}
 		const model = context.modelState.currentModel;

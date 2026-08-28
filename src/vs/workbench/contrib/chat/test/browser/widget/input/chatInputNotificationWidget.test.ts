@@ -478,6 +478,7 @@ suite('ChatInputNotificationWidget', () => {
 				}
 				return active;
 			},
+			refresh() { },
 			handleMessageSent() { },
 			announceRendered(notification, body) { announced.push({ notification, body }); },
 		};

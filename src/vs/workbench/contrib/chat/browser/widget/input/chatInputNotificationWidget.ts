@@ -375,7 +375,10 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 			case ChatInputNotificationActionKind.OpenModelPicker:
 				return !!this._delegate?.modelSelection;
 			case ChatInputNotificationActionKind.SwitchToModel:
-				return !!this._delegate?.modelSelection;
+				// An action carrying configuration is hidden where it cannot be applied, rather
+				// than switching the model and silently dropping the thinking level or tier.
+				return !!this._delegate?.modelSelection
+					&& (!action.config || !!this._delegate.modelSelection.applyModelConfiguration);
 		}
 	}
 

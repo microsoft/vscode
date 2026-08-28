@@ -21,6 +21,8 @@ export const CHAT_EXP_NOTIFICATION_VERSION = 1;
 const MAX_NOTIFICATIONS = 8;
 const MAX_ACTIONS = 3;
 const MAX_CONFIG_KEYS = 8;
+
+const MATCH_KEYS = ['sessionTypes', 'selectedModels', 'excludeSelectedModels'];
 const MAX_TITLE_LENGTH = 120;
 const MAX_DESCRIPTION_LENGTH = 500;
 const MAX_LABEL_LENGTH = 40;
@@ -144,6 +146,12 @@ function readNotification(raw: unknown, path: string): ChatExpNotification | str
 		return `${path}.dismissible and ${path}.autoDismissOnMessage must be booleans`;
 	}
 
+	// A notice with no dismiss, no action and no auto-dismiss can never be cleared, and would
+	// outrank the permission and setup prompts a user needs to get on with their work.
+	if (!dismissible && !autoDismissOnMessage && !actions.length) {
+		return `${path} must be dismissible, auto-dismiss on message, or offer an action`;
+	}
+
 	return {
 		id,
 		telemetryId: id,
@@ -167,6 +175,13 @@ function readMatch(raw: unknown, path: string): IChatExpNotificationMatch | stri
 		return `${path} must be an object`;
 	}
 	const source = isObject(raw) ? raw : {};
+
+	// A misspelled predicate would otherwise be ignored, silently widening the audience to
+	// everyone the remaining predicates allow.
+	const unknown = Object.keys(source).find(key => !MATCH_KEYS.includes(key));
+	if (unknown) {
+		return `${path} has unknown key ${JSON.stringify(unknown)}`;
+	}
 
 	const sessionTypes = readSelectorList(source.sessionTypes, `${path}.sessionTypes`);
 	if (typeof sessionTypes === 'string') {

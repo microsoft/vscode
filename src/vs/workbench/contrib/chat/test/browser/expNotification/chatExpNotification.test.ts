@@ -14,8 +14,12 @@ import { InMemoryStorageService } from '../../../../../../platform/storage/commo
 import { IAssignmentFilter, IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
 import { CHAT_EXP_NOTIFICATION_VERSION, IChatExpNotificationMatchContext, matchesChatExpNotification, parseChatExpNotifications } from '../../../browser/expNotification/chatExpNotificationConfig.js';
 import { ChatExpNotificationContribution } from '../../../browser/expNotification/chatExpNotificationContribution.js';
+import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationContext, IChatInputNotificationService } from '../../../browser/widget/input/chatInputNotificationService.js';
+import { getChatSessionType, LocalChatSessionUri } from '../../../common/model/chatUri.js';
+import { Schemas } from '../../../../../../base/common/network.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
 
 suite('ChatExpNotification', () => {
@@ -149,6 +153,19 @@ suite('ChatExpNotification', () => {
 				], [true, true, true, false, false, true]);
 			});
 
+			test('"local" selects the session type real in-editor chat resources produce', () => {
+				// Pins the authored selector against the resource schemes chat actually uses, so
+				// `local` cannot silently stop selecting normal chat.
+				const sessionTypeOf = (resource: URI) => getChatSessionType(resource);
+				assert.deepStrictEqual([
+					sessionTypeOf(URI.from({ scheme: Schemas.vscodeChatEditor, authority: 'x', path: '/untitled-1' })),
+					sessionTypeOf(LocalChatSessionUri.forSession('untitled-1')),
+					matches({ sessionTypes: ['local'] }, { sessionType: sessionTypeOf(LocalChatSessionUri.forSession('untitled-1')), harness: undefined }),
+					// Before any session exists there is nothing to match against.
+					matches({ sessionTypes: ['local'] }, { sessionType: undefined, harness: undefined }),
+				], ['local', 'local', true, false]);
+			});
+
 			test('an excluded model suppresses the notification', () => {
 				assert.deepStrictEqual([
 					matches({ sessionTypes: ['copilotcli'], excludeSelectedModels: ['auto'] }),
@@ -179,6 +196,8 @@ suite('ChatExpNotification', () => {
 			const notifications = new Map<string, IChatInputNotification>();
 			const setCalls: string[] = [];
 			const configurationService = new TestConfigurationService();
+			const onDidChangeSentiment = store.add(new Emitter<void>());
+			const entitlementSentiment = { hidden: false };
 
 			const notificationService: IChatInputNotificationService = {
 				_serviceBrand: undefined,
@@ -188,6 +207,7 @@ suite('ChatExpNotification', () => {
 				deleteNotification(id) { notifications.delete(id); },
 				dismissNotification(id) { onDidDismiss.fire(id); },
 				getActiveNotification() { return undefined; },
+				refresh() { },
 				handleMessageSent() { },
 				announceRendered() { },
 			};
@@ -203,13 +223,14 @@ suite('ChatExpNotification', () => {
 				notificationService,
 				{ getChatSessionContribution: (type: string) => type === 'agent-host-copilotcli' ? { agentHostProviderId: 'copilotcli' } : undefined } as IChatSessionsService,
 				configurationService,
+				{ sentiment: entitlementSentiment, onDidChangeSentiment: onDidChangeSentiment.event } as IChatEntitlementService,
 				store.add(new InMemoryStorageService()),
 				new NullLogService(),
 			));
 
 			const settled = () => new Promise<void>(resolve => setTimeout(resolve, 0));
 			return {
-				notifications, setCalls, configurationService, notificationService, settled,
+				notifications, setCalls, configurationService, notificationService, settled, entitlementSentiment,
 				refetch: () => { onDidRefetchAssignments.fire(); return settled(); },
 				ids: () => [...notifications.keys()],
 			};
@@ -298,6 +319,20 @@ suite('ChatExpNotification', () => {
 			await test.refetch();
 
 			assert.deepStrictEqual(test.ids(), []);
+		});
+
+		test('stops matching when chat UI is hidden by policy', async () => {
+			const test = createContribution([payload({ ...validNotification, match: { sessionTypes: ['copilotcli'] } })]);
+			await test.settled();
+			const registered = test.notifications.get('chat.expNotification.auto-tier-nudge');
+			const beforeHide = registered?.when?.(context());
+
+			test.entitlementSentiment.hidden = true;
+
+			assert.deepStrictEqual({ beforeHide, afterHide: registered?.when?.(context()) }, {
+				beforeHide: true,
+				afterHide: false,
+			});
 		});
 
 		test('stops matching when AI features are disabled, without unregistering', async () => {

@@ -196,6 +196,12 @@ export interface IChatInputNotificationService {
 	deleteNotification(id: string): void;
 
 	/**
+	 * Ask mounted inputs to re-evaluate what they render, without touching notification or
+	 * dismissal state. Use when something a `when` predicate reads has changed.
+	 */
+	refresh(): void;
+
+	/**
 	 * Mark a notification as dismissed by the user. It will no longer be returned
 	 * by {@link getActiveNotification} until it is re-pushed with new content.
 	 */
@@ -254,6 +260,10 @@ class ChatInputNotificationService extends Disposable implements IChatInputNotif
 		this._notifications.set(notification.id, notification);
 		this._dismissed.delete(notification.id);
 		this._insertionOrder.set(notification.id, this._insertionCounter++);
+		this._fireDidChange();
+	}
+
+	refresh(): void {
 		this._fireDidChange();
 	}
 
