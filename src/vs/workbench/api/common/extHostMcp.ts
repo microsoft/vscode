@@ -42,7 +42,7 @@ export interface IExtHostMpcService extends ExtHostMcpShape {
 	readonly mcpServerDefinitions: readonly vscode.McpServerDefinition[];
 
 	/** Starts an MCP gateway that exposes MCP servers via HTTP endpoints. */
-	startMcpGateway(): Promise<vscode.McpGateway | undefined>;
+	startMcpGateway(chatSessionResource?: URI): Promise<vscode.McpGateway | undefined>;
 }
 
 const serverDataValidation = vObj({
@@ -264,8 +264,8 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 	}
 
 	/** {@link vscode.lm.startMcpGateway} */
-	public async startMcpGateway(): Promise<vscode.McpGateway | undefined> {
-		const result = await this._proxy.$startMcpGateway();
+	public async startMcpGateway(chatSessionResource?: URI): Promise<vscode.McpGateway | undefined> {
+		const result = await this._proxy.$startMcpGateway(chatSessionResource?.toJSON());
 		if (!result) {
 			return undefined;
 		}
@@ -307,6 +307,19 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 	}
 }
 
+function stringifyError(err: unknown): string {
+	if (!(err instanceof Error)) {
+		return String(err);
+	}
+	let msg = String(err);
+	let cause: unknown = err.cause;
+	for (let depth = 0; cause !== undefined && depth < 5; depth++) {
+		msg += `: ${cause instanceof Error ? (cause.message || String(cause)) : String(cause)}`;
+		cause = cause instanceof Error ? cause.cause : undefined;
+	}
+	return msg;
+}
+
 const enum HttpMode {
 	Unknown,
 	Http,
@@ -320,6 +333,22 @@ type HttpModeT =
 
 const MAX_FOLLOW_REDIRECTS = 5;
 const REDIRECT_STATUS_CODES = [301, 302, 303, 307, 308];
+// MCP server URLs are restricted to http(s) at configuration time; the redirect
+// path must enforce the same so a Location header cannot reach unix://, pipe://,
+// file://, etc.
+const ALLOWED_REDIRECT_PROTOCOLS = new Set(['http:', 'https:']);
+// Credential-bearing headers that must not be replayed to a different origin
+// after a redirect (matches browser fetch / curl behavior). Compared case-insensitively.
+const CROSS_ORIGIN_STRIPPED_HEADERS = new Set(['authorization', 'cookie', 'proxy-authorization', 'mcp-session-id']);
+
+function setHostHeader(headers: Record<string, string>, name: string, value: string): void {
+	for (const configuredName of Object.keys(headers)) {
+		if (configuredName.toLowerCase() === name.toLowerCase()) {
+			delete headers[configuredName];
+		}
+	}
+	headers[name] = value;
+}
 
 /**
  * Implementation of both MCP HTTP Streaming as well as legacy SSE.
@@ -361,7 +390,7 @@ export class McpHTTPHandle extends Disposable {
 				await this._send(message);
 			}
 		} catch (err) {
-			const msg = `Error sending message to ${this._launch.uri}: ${String(err)}`;
+			const msg = `Error sending message to ${this._launch.uri}: ${stringifyError(err)}`;
 			this._proxy.$onDidChangeState(this._id, { state: McpConnectionState.Kind.Error, message: msg });
 		}
 	}
@@ -422,7 +451,6 @@ export class McpHTTPHandle extends Disposable {
 		const headers: Record<string, string> = {
 			...Object.fromEntries(this._launch.headers),
 			'Content-Type': 'application/json',
-			'Content-Length': String(asBytes.length),
 			Accept: 'text/event-stream, application/json',
 		};
 		if (sessionId) {
@@ -512,7 +540,7 @@ export class McpHTTPHandle extends Disposable {
 			try {
 				await this._doSSE(parser, res);
 			} catch (err) {
-				this._log(LogLevel.Warning, `Error reading SSE stream: ${String(err)}`);
+				this._log(LogLevel.Warning, `Error reading SSE stream: ${stringifyError(err)}`);
 			}
 		} else if (contentType.startsWith('application/json')) {
 			this._proxy.$onDidReceiveMessage(this._id, await res.text());
@@ -642,7 +670,7 @@ export class McpHTTPHandle extends Disposable {
 
 		this._register(toDisposable(() => postEndpoint.cancel()));
 		this._doSSE(parser, res).catch(err => {
-			this._proxy.$onDidChangeState(this._id, { state: McpConnectionState.Kind.Error, message: `Error reading SSE stream: ${String(err)}` });
+			this._proxy.$onDidChangeState(this._id, { state: McpConnectionState.Kind.Error, message: `Error reading SSE stream: ${stringifyError(err)}` });
 		});
 
 		return postEndpoint.p;
@@ -657,7 +685,6 @@ export class McpHTTPHandle extends Disposable {
 		const headers: Record<string, string> = {
 			...Object.fromEntries(this._launch.headers),
 			'Content-Type': 'application/json',
-			'Content-Length': String(asBytes.length),
 		};
 		await this._addAuthHeader(headers);
 		const res = await this._fetch(url, {
@@ -705,7 +732,9 @@ export class McpHTTPHandle extends Disposable {
 					authorizationServer: this._authMetadata.authorizationServer.toJSON(),
 					authorizationServerMetadata: this._authMetadata.serverMetadata,
 					resourceMetadata: this._authMetadata.resourceMetadata,
-					scopes: this._authMetadata.scopes
+					scopes: this._authMetadata.scopes,
+					clientId: this._launch.oauth?.clientId,
+					enterpriseManaged: this._launch.oauth?.enterpriseManaged,
 				};
 				const token = await this._proxy.$getTokenFromServerMetadata(
 					this._id,
@@ -715,7 +744,7 @@ export class McpHTTPHandle extends Disposable {
 						forceNewRegistration: options?.forceNewRegistration
 					});
 				if (token) {
-					headers['Authorization'] = `Bearer ${token}`;
+					setHostHeader(headers, 'Authorization', `Bearer ${token}`);
 				}
 			} catch (e) {
 				if (UserInteractionRequiredError.is(e)) {
@@ -734,11 +763,12 @@ export class McpHTTPHandle extends Disposable {
 					this._launch.authentication.scopes,
 					{
 						errorOnUserInteraction,
-						forceNewRegistration: options?.forceNewRegistration
+						forceNewRegistration: options?.forceNewRegistration,
+						clientId: this._launch.oauth?.clientId,
 					}
 				);
 				if (token) {
-					headers['Authorization'] = `Bearer ${token}`;
+					setHostHeader(headers, 'Authorization', `Bearer ${token}`);
 					this._log(LogLevel.Info, 'Successfully obtained token from provided authentication config');
 				}
 			} catch (e) {
@@ -816,7 +846,7 @@ export class McpHTTPHandle extends Disposable {
 	}
 
 	private async _fetch(url: string, init: MinimalRequestInit): Promise<CommonResponse> {
-		init.headers['user-agent'] = `${product.nameLong}/${product.version}`;
+		setHostHeader(init.headers, 'user-agent', `${product.nameLong}/${product.version}`);
 
 		if (canLog(this._logService.getLevel(), LogLevel.Trace)) {
 			const traceObj: any = { ...init, headers: { ...init.headers } };
@@ -848,7 +878,28 @@ export class McpHTTPHandle extends Disposable {
 				break;
 			}
 
-			const nextUrl = new URL(location, currentUrl).toString();
+			const currentUrlParsed = new URL(currentUrl);
+			const nextUrlParsed = new URL(location, currentUrl);
+
+			// Only follow redirects to http(s). Blocks a malicious Location header from
+			// reaching the unix:// / pipe:// socket dispatcher or other local schemes.
+			// Fail closed so the connection errors deterministically rather than the
+			// caller treating the 3xx response as final.
+			if (!ALLOWED_REDIRECT_PROTOCOLS.has(nextUrlParsed.protocol)) {
+				throw new Error(`MCP server redirected to a non-http(s) target (${nextUrlParsed.protocol}), which is not allowed`);
+			}
+
+			// On a cross-origin redirect, strip credential-bearing headers so tokens and
+			// session ids configured for the original origin are not replayed to another host.
+			if (currentUrlParsed.origin !== nextUrlParsed.origin) {
+				for (const name of Object.keys(init.headers)) {
+					if (CROSS_ORIGIN_STRIPPED_HEADERS.has(name.toLowerCase())) {
+						delete init.headers[name];
+					}
+				}
+			}
+
+			const nextUrl = nextUrlParsed.toString();
 			this._log(LogLevel.Trace, `Redirect (${response.status}) from ${currentUrl} to ${nextUrl}`);
 			currentUrl = nextUrl;
 			// Per fetch spec, for 303 always use GET, keep method unless original was POST and 301/302, then GET.

@@ -95,6 +95,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 			trustBehavior: McpServerTrust.Kind.Trusted,
 			scope: StorageScope.APPLICATION,
 			configTarget: ConfigurationTarget.USER,
+			order: 0,
 		};
 
 		// Create server definition

@@ -39,8 +39,8 @@ export enum ThemeSettings {
 }
 
 export namespace ThemeSettingDefaults {
-	export const COLOR_THEME_DARK = 'VS Code Dark';
-	export const COLOR_THEME_LIGHT = 'VS Code Light';
+	export const COLOR_THEME_DARK = 'Dark 2026';
+	export const COLOR_THEME_LIGHT = 'Light 2026';
 	export const COLOR_THEME_HC_DARK = 'Default High Contrast';
 	export const COLOR_THEME_HC_LIGHT = 'Default High Contrast Light';
 
@@ -59,8 +59,12 @@ export function migrateThemeSettingsId(settingsId: string): string {
 		case 'Default Light Modern': return 'Light Modern';
 		case 'Default Dark+': return 'Dark+';
 		case 'Default Light+': return 'Light+';
-		case 'Experimental Dark': return 'VS Code Dark';
-		case 'Experimental Light': return 'VS Code Light';
+		case 'Experimental Dark':
+		case 'VS Code Dark':
+			return ThemeSettingDefaults.COLOR_THEME_DARK;
+		case 'Experimental Light':
+		case 'VS Code Light':
+			return ThemeSettingDefaults.COLOR_THEME_LIGHT;
 	}
 	return settingsId;
 }
@@ -180,9 +184,9 @@ export const COLOR_THEME_DARK_INITIAL_COLORS = {
 	'tab.inactiveBackground': '#181818',
 	'tab.inactiveForeground': '#9D9D9D',
 	'tab.lastPinnedBorder': '#ccc3',
-	'tab.selectedBackground': '#222222',
+	'tab.selectedBackground': '#37373D',
 	'tab.selectedBorderTop': '#6caddf',
-	'tab.selectedForeground': '#ffffffa0',
+	'tab.selectedForeground': '#FFFFFF',
 	'tab.unfocusedActiveBorder': '#1F1F1F',
 	'tab.unfocusedActiveBorderTop': '#2B2B2B',
 	'tab.unfocusedHoverBackground': '#1F1F1F',
@@ -332,9 +336,9 @@ export const COLOR_THEME_LIGHT_INITIAL_COLORS = {
 	'tab.inactiveBackground': '#F8F8F8',
 	'tab.inactiveForeground': '#868686',
 	'tab.lastPinnedBorder': '#D4D4D4',
-	'tab.selectedBackground': '#ffffffa5',
+	'tab.selectedBackground': '#E4E6F1',
 	'tab.selectedBorderTop': '#68a3da',
-	'tab.selectedForeground': '#333333b3',
+	'tab.selectedForeground': '#333333',
 	'tab.unfocusedActiveBorder': '#F8F8F8',
 	'tab.unfocusedActiveBorderTop': '#E5E5E5',
 	'tab.unfocusedHoverBackground': '#F8F8F8',

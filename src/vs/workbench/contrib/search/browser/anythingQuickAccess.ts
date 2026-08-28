@@ -30,7 +30,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IWorkbenchEditorConfiguration, EditorResourceAccessor, isEditorInput } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from '../../../services/editor/common/editorService.js';
-import { Range, IRange } from '../../../../editor/common/core/range.js';
+import { IRange } from '../../../../editor/common/core/range.js';
 import { ThrottledDelayer } from '../../../../base/common/async.js';
 import { top } from '../../../../base/common/arrays.js';
 import { FileQueryCacheState } from '../common/cacheState.js';
@@ -59,7 +59,9 @@ import { IChatWidgetService, IQuickChatService } from '../../chat/browser/chat.j
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ICustomEditorLabelService } from '../../../services/editor/common/customEditorLabelService.js';
 
-interface IAnythingQuickPickItem extends IPickerQuickAccessItem, IQuickPickItemWithResource { }
+export interface IAnythingQuickPickItem extends IPickerQuickAccessItem, IQuickPickItemWithResource {
+	readonly editor?: EditorInput | IResourceEditorInput;
+}
 
 interface IEditorSymbolAnythingQuickPickItem extends IAnythingQuickPickItem {
 	resource: URI;
@@ -213,10 +215,10 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		return {
 			openEditorPinned: !editorConfig?.enablePreviewFromQuickOpen || !editorConfig?.enablePreview,
 			openSideBySideDirection: editorConfig?.openSideBySideDirection,
-			includeSymbols: searchConfig?.quickOpen.includeSymbols,
-			includeHistory: searchConfig?.quickOpen.includeHistory,
-			historyFilterSortOrder: searchConfig?.quickOpen.history.filterSortOrder,
-			preserveInput: quickAccessConfig.preserveInput
+			includeSymbols: searchConfig?.quickOpen?.includeSymbols,
+			includeHistory: searchConfig?.quickOpen?.includeHistory ?? true,
+			historyFilterSortOrder: searchConfig?.quickOpen?.history?.filterSortOrder,
+			preserveInput: quickAccessConfig?.preserveInput
 		};
 	}
 
@@ -428,7 +430,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 					}
 				}
 
-				let additionalPicks = await this.getAdditionalPicks(query, additionalPicksExcludes, this.configuration.includeSymbols, token);
+				let additionalPicks = await this.getAdditionalPicks(query, additionalPicksExcludes, Boolean(this.configuration?.includeSymbols), token);
 				if (options.filter) {
 					additionalPicks = additionalPicks.filter((p) => options.filter?.(p));
 				}
@@ -1060,9 +1062,11 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		return {
 			resource,
+			editor: !URI.isUri(resourceOrEditor) ? resourceOrEditor : undefined,
 			label,
 			ariaLabel: isDirty ? localize('filePickAriaLabelDirty', "{0} unsaved changes", labelAndDescription) : labelAndDescription,
 			description,
+			iconPath: URI.isUri(icon) ? { dark: icon } : undefined,
 			get iconClasses() { return iconClassesValue.value; },
 			get buttons() { return buttonsValue.value; },
 			trigger: (buttonIndex, keyMods) => {
@@ -1108,7 +1112,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		const editorOptions: ITextEditorOptions = {
 			preserveFocus: options.preserveFocus,
 			pinned: options.keyMods?.ctrlCmd || options.forcePinned || this.configuration.openEditorPinned,
-			selection: options.range ? Range.collapseToStart(options.range) : undefined
+			selection: options.range
 		};
 
 		const targetGroup = options.keyMods?.alt || (this.configuration.openEditorPinned && options.keyMods?.ctrlCmd) || options.forceOpenSideBySide ? SIDE_GROUP : ACTIVE_GROUP;

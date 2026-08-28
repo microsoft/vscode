@@ -12,7 +12,7 @@ import { ICurrentPartialCommand, isFullTerminalCommand } from '../../../../../pl
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { BufferContentTracker } from './bufferContentTracker.js';
-import { TerminalAccessibilitySettingId } from '../common/terminalAccessibilityConfiguration.js';
+import { TerminalAccessibilitySettingId, TerminalAccessibleViewPreserveCursorPosition } from '../common/terminalAccessibilityConfiguration.js';
 
 export class TerminalAccessibleBufferProvider extends Disposable implements IAccessibleViewContentProvider {
 	readonly id = AccessibleViewProviderId.Terminal;
@@ -24,6 +24,9 @@ export class TerminalAccessibleBufferProvider extends Disposable implements IAcc
 	private readonly _onDidRequestClearProvider = this._register(new Emitter<AccessibleViewProviderId>());
 	readonly onDidRequestClearLastProvider = this._onDidRequestClearProvider.event;
 
+	private readonly _onDidChangeContent = this._register(new Emitter<void>());
+	readonly onDidChangeContent = this._onDidChangeContent.event;
+
 	constructor(
 		private readonly _instance: Pick<ITerminalInstance, 'onDidExecuteText' | 'focus' | 'shellType' | 'capabilities' | 'onDidRequestFocus' | 'resource' | 'onDisposed'>,
 		private _bufferTracker: BufferContentTracker,
@@ -33,11 +36,11 @@ export class TerminalAccessibleBufferProvider extends Disposable implements IAcc
 	) {
 		super();
 		this.options.customHelp = customHelp;
-		this.options.position = configurationService.getValue(TerminalAccessibilitySettingId.AccessibleViewPreserveCursorPosition) ? 'initial-bottom' : 'bottom';
+		this._updatePosition(configurationService);
 		this._register(this._instance.onDisposed(() => this._onDidRequestClearProvider.fire(AccessibleViewProviderId.Terminal)));
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalAccessibilitySettingId.AccessibleViewPreserveCursorPosition)) {
-				this.options.position = configurationService.getValue(TerminalAccessibilitySettingId.AccessibleViewPreserveCursorPosition) ? 'initial-bottom' : 'bottom';
+				this._updatePosition(configurationService);
 			}
 		}));
 		this._focusedInstance = terminalService.activeInstance;
@@ -47,6 +50,15 @@ export class TerminalAccessibleBufferProvider extends Disposable implements IAcc
 				this._focusedInstance = terminalService.activeInstance;
 			}
 		}));
+	}
+
+	private _updatePosition(configurationService: IConfigurationService): void {
+		const preserveCursorPosition = configurationService.getValue<boolean | TerminalAccessibleViewPreserveCursorPosition>(TerminalAccessibilitySettingId.AccessibleViewPreserveCursorPosition);
+		this.options.position = preserveCursorPosition === TerminalAccessibleViewPreserveCursorPosition.Always ? 'initial-bottom-preserve' : preserveCursorPosition ? 'initial-bottom' : 'bottom';
+	}
+
+	refresh(): void {
+		this._onDidChangeContent.fire();
 	}
 
 	onClose() {
@@ -114,4 +126,3 @@ export class TerminalAccessibleBufferProvider extends Disposable implements IAcc
 	}
 }
 export interface ICommandWithEditorLine { command: ITerminalCommand | ICurrentPartialCommand; lineNumber: number; exitCode?: number }
-

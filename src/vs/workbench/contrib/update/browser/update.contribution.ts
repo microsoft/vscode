@@ -9,9 +9,11 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { ProductContribution, UpdateContribution, CONTEXT_UPDATE_STATE, SwitchProductQualityContribution, showReleaseNotesInEditor, DefaultAccountUpdateContribution } from './update.js';
-import { UpdateStatusBarContribution } from './updateStatusBarEntry.js';
 import { UpdateTitleBarContribution } from './updateTitleBarEntry.js';
+import { PostUpdateWidgetContribution } from './postUpdateWidget.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import product from '../../../../platform/product/common/product.js';
 import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
@@ -31,8 +33,8 @@ workbench.registerWorkbenchContribution(ProductContribution, LifecyclePhase.Rest
 workbench.registerWorkbenchContribution(UpdateContribution, LifecyclePhase.Restored);
 workbench.registerWorkbenchContribution(SwitchProductQualityContribution, LifecyclePhase.Restored);
 workbench.registerWorkbenchContribution(DefaultAccountUpdateContribution, LifecyclePhase.Eventually);
-workbench.registerWorkbenchContribution(UpdateStatusBarContribution, LifecyclePhase.Restored);
 workbench.registerWorkbenchContribution(UpdateTitleBarContribution, LifecyclePhase.Restored);
+workbench.registerWorkbenchContribution(PostUpdateWidgetContribution, LifecyclePhase.Restored);
 
 // Release notes
 
@@ -215,7 +217,7 @@ if (isWindows) {
 		constructor() {
 			super({
 				id: '_update.applyupdate',
-				title: localize2('applyUpdate', 'Apply Update...'),
+				title: localize2('applyUpdate', 'Apply Update from File...'),
 				category: Categories.Developer,
 				f1: true,
 				precondition: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Idle)
@@ -227,7 +229,7 @@ if (isWindows) {
 			const fileDialogService = accessor.get(IFileDialogService);
 
 			const updatePath = await fileDialogService.showOpenDialog({
-				title: localize('pickUpdate', "Apply Update"),
+				title: localize('pickUpdate', "Apply Update from File"),
 				filters: [{ name: 'Setup', extensions: ['exe'] }],
 				canSelectFiles: true,
 				openLabel: mnemonicButtonLabel(localize({ key: 'updateButton', comment: ['&& denotes a mnemonic'] }, "&&Update"))
@@ -243,3 +245,25 @@ if (isWindows) {
 
 	registerAction2(DeveloperApplyUpdateAction);
 }
+
+registerAction2(class ShowUpdateInfoAction extends Action2 {
+	constructor() {
+		super({
+			id: 'update.showUpdateInfo',
+			title: localize2('showUpdateInfo', "Show Update Info"),
+			category: Categories.Developer,
+			f1: true,
+			precondition: IsWebContext.negate(),
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const commandService = accessor.get(ICommandService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const markdown = await quickInputService.input({ prompt: localize('showUpdateInfo.prompt', "Enter markdown to render, or JSON with markdown/buttons (leave empty to load from URL)") });
+		if (markdown === undefined) {
+			return; // cancelled
+		}
+		await commandService.executeCommand('_update.showUpdateInfo', markdown || undefined);
+	}
+});

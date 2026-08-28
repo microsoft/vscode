@@ -13,10 +13,9 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatRequestQueueKind, IChatCodeCitation, IChatContentReference, IChatDisabledClaudeHooksPart, IChatFollowup, IChatMcpServersStarting, IChatProgressMessage, IChatQuestionCarousel, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from '../chatService/chatService.js';
+import { ChatAgentVoteDirection, ChatRequestQueueKind, IChatCodeCitation, IChatContentReference, IChatDisabledClaudeHooksPart, IChatFollowup, IChatMcpAuthenticationRequired, IChatMcpServersStarting, IChatMcpServersStartingSlow, IChatPlanReview, IChatProgressMessage, IChatQuestionCarousel, IChatResponseErrorDetails, IChatUsage, IChatUsedContext } from '../chatService/chatService.js';
 import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentResult } from '../participants/chatAgents.js';
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
-import { CodeBlockModelCollection } from '../widget/codeBlockModelCollection.js';
 import { IChatModel, IChatProgressRenderableResponseContent, IChatRequestDisablement, IChatRequestModel, IChatResponseModel, IChatTextEditGroup, IResponse } from './chatModel.js';
 import { ChatStreamStatsTracker, IChatStreamStats } from './chatStreamStats.js';
 import { countWords } from './chatWordCounter.js';
@@ -31,6 +30,31 @@ export function isResponseVM(item: unknown): item is IChatResponseViewModel {
 
 export function isPendingDividerVM(item: unknown): item is IChatPendingDividerViewModel {
 	return !!item && typeof item === 'object' && (item as IChatPendingDividerViewModel).kind === 'pendingDivider';
+}
+
+interface IChatViewModelItemWithPendingState {
+	readonly id: string;
+	readonly kind?: string;
+	readonly pendingKind?: ChatRequestQueueKind;
+}
+
+function isPendingChatViewModelItem(item: IChatViewModelItemWithPendingState): boolean {
+	return item.kind === 'pendingDivider' || item.pendingKind !== undefined;
+}
+
+/**
+ * The active response that content streams into: the last non-pending item, ignoring
+ * trailing queued/steering rows (and their dividers). Falls back to the last item when
+ * everything is pending.
+ */
+export function getStickyScrollTargetItem<T extends IChatViewModelItemWithPendingState>(items: readonly T[]): T | undefined {
+	for (let i = items.length - 1; i >= 0; i--) {
+		const item = items[i];
+		if (!isPendingChatViewModelItem(item)) {
+			return item;
+		}
+	}
+	return items.at(-1);
 }
 
 export function isChatTreeItem(item: unknown): item is IChatRequestViewModel | IChatResponseViewModel {
@@ -89,52 +113,23 @@ export interface IChatRequestViewModel {
 	readonly contentReferences?: ReadonlyArray<IChatContentReference>;
 	readonly confirmation?: string;
 	readonly shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
+	readonly isHiddenFromTranscript: boolean;
 	readonly isComplete: boolean;
 	readonly isCompleteAddedRequest: boolean;
+	readonly isTerminalCommand: boolean;
 	readonly slashCommand: IChatAgentCommand | undefined;
 	readonly agentOrSlashCommandDetected: boolean;
 	readonly shouldBeBlocked: IObservable<boolean>;
+	readonly attachedContext?: readonly IChatRequestVariableEntry[];
 	readonly modelId?: string;
+	readonly resolvedModelId?: string;
 	readonly timestamp: number;
+	readonly requestTimestamp: number | undefined;
 	/** The kind of pending request, or undefined if not pending */
 	readonly pendingKind?: ChatRequestQueueKind;
-}
-
-export interface IChatResponseMarkdownRenderData {
-	renderedWordCount: number;
-	lastRenderTime: number;
-	isFullyRendered: boolean;
-	originalMarkdown: IMarkdownString;
-}
-
-export interface IChatResponseMarkdownRenderData2 {
-	renderedWordCount: number;
-	lastRenderTime: number;
-	isFullyRendered: boolean;
-	originalMarkdown: IMarkdownString;
-}
-
-export interface IChatProgressMessageRenderData {
-	progressMessage: IChatProgressMessage;
-
-	/**
-	 * Indicates whether this is part of a group of progress messages that are at the end of the response.
-	 * (Not whether this particular item is the very last one in the response).
-	 * Need to re-render and add to partsToRender when this changes.
-	 */
-	isAtEndOfResponse: boolean;
-
-	/**
-	 * Whether this progress message the very last item in the response.
-	 * Need to re-render to update spinner vs check when this changes.
-	 */
-	isLast: boolean;
-}
-
-export interface IChatTaskRenderData {
-	task: IChatTask;
-	isSettled: boolean;
-	progressLength: number;
+	readonly isSystemInitiated?: boolean;
+	readonly systemInitiatedLabel?: string;
+	readonly origin?: IChatRequestModel['origin'];
 }
 
 export interface IChatResponseRenderData {
@@ -157,6 +152,7 @@ export interface IChatReferences {
  */
 export interface IChatWorkingProgress {
 	kind: 'working';
+	content?: IMarkdownString;
 }
 
 
@@ -180,10 +176,17 @@ export interface IChatChangesSummaryPart {
 	readonly sessionResource: URI;
 }
 
+export interface IChatTurnPillsPart {
+	readonly kind: 'turnPills';
+	readonly requestId: string;
+	readonly sessionResource: URI;
+	readonly isLastTurn: boolean;
+}
+
 /**
  * Type for content parts rendered by IChatListRenderer (not necessarily in the model)
  */
-export type IChatRendererContent = IChatProgressRenderableResponseContent | IChatReferences | IChatCodeCitations | IChatErrorDetailsPart | IChatChangesSummaryPart | IChatWorkingProgress | IChatMcpServersStarting | IChatQuestionCarousel | IChatDisabledClaudeHooksPart;
+export type IChatRendererContent = IChatProgressRenderableResponseContent | IChatReferences | IChatCodeCitations | IChatErrorDetailsPart | IChatChangesSummaryPart | IChatWorkingProgress | IChatMcpServersStarting | IChatMcpAuthenticationRequired | IChatMcpServersStartingSlow | IChatQuestionCarousel | IChatPlanReview | IChatDisabledClaudeHooksPart | IChatTurnPillsPart;
 
 export interface IChatResponseViewModel {
 	readonly model: IChatResponseModel;
@@ -206,18 +209,23 @@ export interface IChatResponseViewModel {
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
 	readonly isStale: boolean;
+	/** Whether this is the last row in the transcript. */
+	readonly isLast: boolean;
 	readonly vote: ChatAgentVoteDirection | undefined;
-	readonly voteDownReason: ChatAgentVoteDownReason | undefined;
 	readonly replyFollowups?: IChatFollowup[];
 	readonly errorDetails?: IChatResponseErrorDetails;
 	readonly result?: IChatAgentResult;
 	readonly contentUpdateTimings?: IChatStreamStats;
+	readonly confirmationAdjustedTimestamp: IObservable<number>;
+	readonly usageObs: IObservable<IChatUsage | undefined>;
+	readonly completionTokenCountObs: IObservable<number | undefined>;
 	readonly shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
+	readonly isHiddenFromTranscript: boolean;
 	readonly isCompleteAddedRequest: boolean;
+	readonly isTerminalCommand: boolean;
 	renderData?: IChatResponseRenderData;
 	currentRenderedHeight: number | undefined;
 	setVote(vote: ChatAgentVoteDirection): void;
-	setVoteDownReason(reason: ChatAgentVoteDownReason | undefined): void;
 	usedReferencesExpanded?: boolean;
 	vulnerabilitiesListExpanded: boolean;
 	setEditApplied(edit: IChatTextEditGroup, editCount: number): void;
@@ -230,6 +238,7 @@ export interface IChatPendingDividerViewModel {
 	readonly sessionResource: URI;
 	readonly isComplete: true;
 	readonly dividerKind: ChatRequestQueueKind;
+	readonly isSystemInitiated?: boolean;
 	currentRenderedHeight: number | undefined;
 }
 
@@ -276,7 +285,6 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 
 	constructor(
 		private readonly _model: IChatModel,
-		public readonly codeBlockModelCollection: CodeBlockModelCollection,
 		private readonly _options: IChatViewModelOptions | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
@@ -337,12 +345,17 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	}
 
 	getItems(): (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] {
-		let items: (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] = this._items.filter((item) => !item.shouldBeRemovedOnSend || item.shouldBeRemovedOnSend.afterUndoStop);
+		let items: (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] = this._items.filter((item) => {
+			if (item.isHiddenFromTranscript || (item.shouldBeRemovedOnSend && !item.shouldBeRemovedOnSend.afterUndoStop)) {
+				return false;
+			}
+			return true;
+		});
 		if (this._options?.maxVisibleItems !== undefined && items.length > this._options.maxVisibleItems) {
 			items = items.slice(-this._options.maxVisibleItems);
 		}
 
-		const pendingRequests = this._model.getPendingRequests();
+		const pendingRequests = this._model.getPendingRequests().filter(pending => !pending.request.isHiddenFromTranscript);
 		if (pendingRequests.length > 0) {
 			// Separate steering and queued requests
 			const steeringRequests = pendingRequests.filter(p => p.kind === ChatRequestQueueKind.Steering);
@@ -350,7 +363,8 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 
 			// Add steering requests with their divider first
 			if (steeringRequests.length > 0) {
-				items.push({ kind: 'pendingDivider', id: 'pending-divider-steering', sessionResource: this._model.sessionResource, isComplete: true, dividerKind: ChatRequestQueueKind.Steering, currentRenderedHeight: undefined });
+				const isSystemInitiated = steeringRequests.every(p => p.request.isSystemInitiated);
+				items.push({ kind: 'pendingDivider', id: 'pending-divider-steering', sessionResource: this._model.sessionResource, isComplete: true, dividerKind: ChatRequestQueueKind.Steering, isSystemInitiated, currentRenderedHeight: undefined });
 				for (const pending of steeringRequests) {
 					const requestVM = this.instantiationService.createInstance(ChatRequestViewModel, pending.request, pending.kind);
 					items.push(requestVM);
@@ -387,10 +401,11 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	override dispose() {
 		super.dispose();
 		dispose(this._items.filter((item): item is ChatResponseViewModel => item instanceof ChatResponseViewModel));
+		this._items.length = 0;
 	}
 }
 
-export class ChatRequestViewModel implements IChatRequestViewModel {
+class ChatRequestViewModel implements IChatRequestViewModel {
 	get id() {
 		return this._model.id;
 	}
@@ -446,8 +461,16 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 		return this._model.isCompleteAddedRequest;
 	}
 
+	get isTerminalCommand() {
+		return this._model.isTerminalCommand;
+	}
+
 	get shouldBeRemovedOnSend() {
 		return this._model.shouldBeRemovedOnSend;
+	}
+
+	get isHiddenFromTranscript() {
+		return this._model.isHiddenFromTranscript;
 	}
 
 	get shouldBeBlocked() {
@@ -464,16 +487,41 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 
 	currentRenderedHeight: number | undefined;
 
+	get attachedContext() {
+		return this._model.attachedContext;
+	}
+
 	get modelId() {
 		return this._model.modelId;
+	}
+
+	get resolvedModelId() {
+		const resolvedModel = this._model.response?.result?.metadata?.resolvedModel;
+		return typeof resolvedModel === 'string' ? resolvedModel : undefined;
 	}
 
 	get timestamp() {
 		return this._model.timestamp;
 	}
 
+	get requestTimestamp() {
+		return this._model.requestTimestamp;
+	}
+
+	get origin() {
+		return this._model.origin;
+	}
+
 	get pendingKind() {
 		return this._pendingKind;
+	}
+
+	get isSystemInitiated() {
+		return this._model.isSystemInitiated;
+	}
+
+	get systemInitiatedLabel() {
+		return this._model.systemInitiatedLabel;
 	}
 
 	constructor(
@@ -567,8 +615,16 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 		return this._model.shouldBeRemovedOnSend;
 	}
 
+	get isHiddenFromTranscript() {
+		return this._model.isHiddenFromTranscript;
+	}
+
 	get isCompleteAddedRequest() {
 		return this._model.isCompleteAddedRequest;
+	}
+
+	get isTerminalCommand() {
+		return this._model.request?.isTerminalCommand ?? false;
 	}
 
 	get replyFollowups() {
@@ -587,10 +643,6 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 		return this._model.vote;
 	}
 
-	get voteDownReason() {
-		return this._model.voteDownReason;
-	}
-
 	get requestId() {
 		return this._model.requestId;
 	}
@@ -600,6 +652,11 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 	}
 
 	get isLast(): boolean {
+		// NOTE: this is used in `dataId` to force a re-render when the response transitions
+		// between being the last row and not, e.g. when a queued/steering row is added below
+		// it. It must reflect the actual last row so the row re-renders and drops the
+		// reserved-space filler class. Progressive rendering targets the streaming response
+		// separately (see `getStickyScrollTargetItem`).
 		return this.session.getItems().at(-1) === this;
 	}
 
@@ -634,6 +691,18 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 		return this.liveUpdateTracker?.data;
 	}
 
+	get confirmationAdjustedTimestamp(): IObservable<number> {
+		return this._model.confirmationAdjustedTimestamp;
+	}
+
+	get usageObs(): IObservable<IChatUsage | undefined> {
+		return this._model.usageObs;
+	}
+
+	get completionTokenCountObs(): IObservable<number | undefined> {
+		return this._model.completionTokenCountObs;
+	}
+
 	constructor(
 		private readonly _model: IChatResponseModel,
 		public readonly session: IChatViewModel,
@@ -664,11 +733,6 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 	setVote(vote: ChatAgentVoteDirection): void {
 		this._modelChangeCount++;
 		this._model.setVote(vote);
-	}
-
-	setVoteDownReason(reason: ChatAgentVoteDownReason | undefined): void {
-		this._modelChangeCount++;
-		this._model.setVoteDownReason(reason);
 	}
 
 	setEditApplied(edit: IChatTextEditGroup, editCount: number) {

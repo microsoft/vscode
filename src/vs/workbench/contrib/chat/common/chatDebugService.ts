@@ -6,8 +6,12 @@
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+
+export const CHAT_DEBUG_HAS_ACTIVE_SESSION = new RawContextKey<boolean>('chatDebug.hasActiveSession', false);
+export const CHAT_DEBUG_ACTIVE_SESSION_IS_AGENT_HOST = new RawContextKey<boolean>('chatDebug.activeSessionIsAgentHost', false);
 
 /**
  * The severity level of a chat debug log event.
@@ -63,7 +67,9 @@ export interface IChatDebugModelTurnEvent extends IChatDebugEventCommon {
 	readonly requestName?: string;
 	readonly inputTokens?: number;
 	readonly outputTokens?: number;
+	readonly cachedTokens?: number;
 	readonly totalTokens?: number;
+	readonly copilotUsageNanoAiu?: number;
 	readonly durationInMillis?: number;
 }
 
@@ -141,6 +147,12 @@ export interface IChatDebugService extends IDisposable {
 	 * Fired when provider events are cleared for a session (before re-invoking providers).
 	 */
 	readonly onDidClearProviderEvents: Event<URI>;
+
+	/**
+	 * Fired when a debug session ends (see {@link endSession}), so providers
+	 * can release any per-session resources (e.g. live file watchers).
+	 */
+	readonly onDidEndSession: Event<URI>;
 
 	/**
 	 * Log a generic event to the debug service.
@@ -237,19 +249,36 @@ export interface IChatDebugService extends IDisposable {
 	getImportedSessionTitle(sessionResource: URI): string | undefined;
 
 	/**
-	 * Fired when debug data is attached to a session.
+	 * Fired when available session resources change (e.g. historical sessions discovered from disk).
 	 */
-	readonly onDidAttachDebugData: Event<URI>;
+	readonly onDidChangeAvailableSessionResources: Event<void>;
 
 	/**
-	 * Mark a session as having debug data attached.
+	 * Store session resources that have debug log data available on disk.
+	 * Called by the main thread after the extension reports historical sessions.
 	 */
-	markDebugDataAttached(sessionResource: URI): void;
+	addAvailableSessionResources(resources: readonly { uri: URI; title?: string }[]): void;
 
 	/**
-	 * Check whether a session has had debug data attached.
+	 * Get all session resources that have debug log data available,
+	 * including historical sessions persisted on disk by the provider.
+	 * Triggers a lazy fetch from the registered fetcher on first call.
 	 */
-	hasAttachedDebugData(sessionResource: URI): boolean;
+	getAvailableSessionResources(): readonly URI[];
+
+	/**
+	 * Register a callback that fetches available session resources from a provider.
+	 * Called lazily when `getAvailableSessionResources()` is first invoked. Multiple
+	 * fetchers may be registered (e.g. the extension host and local agent-host
+	 * discovery); each is invoked at most once. Dispose to unregister.
+	 */
+	registerAvailableSessionsFetcher(fetcher: (token: CancellationToken) => Promise<{ uri: URI; title?: string }[]>): IDisposable;
+
+	/**
+	 * Get the stored title for a historical session discovered from disk.
+	 */
+	getHistoricalSessionTitle(sessionResource: URI): string | undefined;
+
 }
 
 /**
@@ -294,6 +323,7 @@ export interface IChatDebugSourceFolderEntry {
 export interface IChatDebugEventFileListContent {
 	readonly kind: 'fileList';
 	readonly discoveryType: string;
+	readonly durationInMillis: number;
 	readonly files: readonly IChatDebugFileEntry[];
 	readonly sourceFolders?: readonly IChatDebugSourceFolderEntry[];
 }
@@ -333,12 +363,14 @@ export interface IChatDebugEventModelTurnContent {
 	readonly status?: string;
 	readonly durationInMillis?: number;
 	readonly timeToFirstTokenInMillis?: number;
+	readonly requestId?: string;
 	readonly maxInputTokens?: number;
 	readonly maxOutputTokens?: number;
 	readonly inputTokens?: number;
 	readonly outputTokens?: number;
 	readonly cachedTokens?: number;
 	readonly totalTokens?: number;
+	readonly requestOptions?: string;
 	readonly errorMessage?: string;
 	readonly sections?: readonly IChatDebugMessageSection[];
 }
@@ -360,9 +392,41 @@ export interface IChatDebugEventHookContent {
 }
 
 /**
+ * A single entry in the customization resolution log.
+ */
+export interface IChatDebugCustomizationLogEntry {
+	readonly category: 'applying' | 'skipped' | 'referenced' | 'skill' | 'custom-agent' | 'hook';
+	readonly name: string;
+	readonly uri?: URI;
+	readonly reason?: string;
+}
+
+/**
+ * Structured customization summary content for a resolved debug event.
+ * Contains per-file resolution logs showing how applyTo patterns, agent
+ * instructions, and referenced files were resolved by the instructions
+ * context computer.
+ */
+export interface IChatDebugEventCustomizationSummaryContent {
+	readonly kind: 'customizationSummary';
+	/** Per-file resolution detail entries. */
+	readonly resolutionLogs: readonly IChatDebugCustomizationLogEntry[];
+	/** Total wall-clock time of the collect() call in milliseconds. */
+	readonly durationInMillis: number;
+	/** Counts by type for the summary header. */
+	readonly counts: {
+		readonly instructions: number;
+		readonly skills: number;
+		readonly agents: number;
+		readonly hooks: number;
+		readonly skipped: number;
+	};
+}
+
+/**
  * Union of all resolved event content types.
  */
-export type IChatDebugResolvedEventContent = IChatDebugEventTextContent | IChatDebugEventFileListContent | IChatDebugEventMessageContent | IChatDebugEventToolCallContent | IChatDebugEventModelTurnContent | IChatDebugEventHookContent;
+export type IChatDebugResolvedEventContent = IChatDebugEventTextContent | IChatDebugEventFileListContent | IChatDebugEventMessageContent | IChatDebugEventToolCallContent | IChatDebugEventModelTurnContent | IChatDebugEventHookContent | IChatDebugEventCustomizationSummaryContent;
 
 /**
  * Provider interface for debug events.

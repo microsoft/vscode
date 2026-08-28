@@ -1,6 +1,8 @@
 ---
 name: chat-customizations-editor
 description: Use when working on the Chat Customizations editor — the management UI for agents, skills, instructions, hooks, prompts, MCP servers, and plugins.
+metadata:
+  allowed-tools: Bash(npx @playwright/cli:*)
 ---
 
 # Chat Customizations Editor
@@ -9,13 +11,13 @@ Split-view management pane for AI customization items across workspace, user, ex
 
 ## Spec
 
-**`src/vs/sessions/AI_CUSTOMIZATIONS.md`** — always read before making changes, always update after.
+**`src/vs/sessions/AI_CUSTOMIZATIONS.md`** — read for ownership and interface contracts. Update it only when those contracts change; behavior and regressions belong in focused tests.
 
 ## Key Folders
 
 | Folder | What |
 |--------|------|
-| `src/vs/workbench/contrib/chat/common/` | `ICustomizationHarnessService`, `ISectionOverride`, `IStorageSourceFilter` — shared interfaces and filter helpers |
+| `src/vs/workbench/contrib/chat/common/` | `ICustomizationHarnessService`, `ISectionOverride`, `ICustomizationItemProvider` — shared interfaces |
 | `src/vs/workbench/contrib/chat/browser/aiCustomization/` | Management editor, list widgets (prompts, MCP, plugins), harness service registration |
 | `src/vs/sessions/contrib/chat/browser/` | Sessions-window overrides (harness service, workspace service) |
 | `src/vs/sessions/contrib/sessions/browser/` | Sessions tree view counts and toolbar |
@@ -24,11 +26,25 @@ When changing harness descriptor interfaces or factory functions, verify both co
 
 ## Key Interfaces
 
-- **`IHarnessDescriptor`** — drives all UI behavior declaratively (hidden sections, button overrides, file filters, agent gating). See spec for full field reference.
+- **`IHarnessDescriptor`** — drives harness behavior declaratively (hidden sections, button overrides, item providers, agent gating). See spec for the stable ownership contract.
 - **`ISectionOverride`** — per-section button customization (command invocation, root file creation, type labels, file extensions).
-- **`IStorageSourceFilter`** — controls which storage sources and user roots are visible per harness/type.
+- **`ICustomizationItemProvider`** / **`ICustomizationItem`** — internal interfaces (in `customizationHarnessService.ts`) for extension-contributed providers that supply items directly. These mirror the proposed extension API types.
 
 Principle: the UI widgets read everything from the descriptor — no harness-specific conditionals in widget code.
+
+## Extension API (`chatSessionCustomizationProvider`)
+
+The proposed API in `src/vscode-dts/vscode.proposed.chatSessionCustomizationProvider.d.ts` lets extensions register customization providers. Changes to `ICustomizationItem` or `ICustomizationItemProvider` must be kept in sync across the full chain:
+
+| Layer | File | Type |
+|-------|------|------|
+| Extension API | `vscode.proposed.chatSessionCustomizationProvider.d.ts` | `ChatSessionCustomizationItem` |
+| IPC DTO | `extHost.protocol.ts` | `IChatSessionCustomizationItemDto` |
+| ExtHost mapping | `extHostChatAgents2.ts` | `$provideChatSessionCustomizations()` |
+| MainThread mapping | `mainThreadChatAgents2.ts` | `provideChatSessionCustomizations` callback |
+| Internal interface | `customizationHarnessService.ts` | `ICustomizationItem` |
+
+When adding fields to `ICustomizationItem`, update all five layers. The proposed API `.d.ts` is additive-only (new optional fields are backward-compatible and do not require a version bump).
 
 ## Testing
 
@@ -91,7 +107,7 @@ Without all three, built-in regrouping silently doesn't run and the fixture only
 ### Editor contribution service mocks
 
 The management editor embeds a `CodeEditorWidget`. Electron-side editor contributions (e.g., `AgentFeedbackEditorWidgetContribution`) are instantiated automatically and crash if their injected services aren't registered. The fixture must mock at minimum:
-- `IAgentFeedbackService` — needs `onDidChangeFeedback`, `onDidChangeNavigation` as `Event.None`
+- `IAgentFeedbackService` — needs `onDidChangeFeedback`, `onDidChangeNavigation`, `onDidAddFeedback`, `onDidConvertFeedback`, `onDidAddReply`, `onDidSubmitFeedback` as `Event.None`
 - `ICodeReviewService` — needs `getReviewState()` / `getPRReviewState()` returning idle observables
 - `IChatEditingService` — needs `editingSessionsObs` as empty observable
 - `IAgentSessionsService` — needs `model.sessions` as empty array
@@ -100,7 +116,7 @@ These are cross-layer imports from `vs/sessions/` — use `// eslint-disable-nex
 
 ### CI regression gates
 
-Key fixtures have `blocksCi: true` in their labels. The `screenshot-test.yml` GitHub Action captures screenshots on every PR to `main` and **fails the CI status check** if any `blocks-ci`-labeled fixture's screenshot changes. This catches layout regressions automatically.
+Key fixtures have `blocksCi: true` in their labels. The `component-fixtures.yml` GitHub Action captures screenshots on every PR to `main` and **fails the CI status check** if any `blocks-ci`-labeled fixture's screenshot changes. This catches layout regressions automatically.
 
 Currently gated fixtures: `LocalHarness`, `McpServersTab`, `McpServersTabNarrow`, `AgentsTabNarrow`. When adding a new section or layout-critical fixture, add `blocksCi: true`:
 
@@ -126,7 +142,7 @@ await new Promise(resolve => setTimeout(resolve, 2400));
 
 ```bash
 ./scripts/test.sh --grep "applyStorageSourceFilter|customizationCounts"
-npm run compile-check-ts-native && npm run valid-layers-check
+npm run typecheck-client && npm run valid-layers-check
 ```
 
 See the `sessions` skill for sessions-window specific guidance.
@@ -135,30 +151,29 @@ See the `sessions` skill for sessions-window specific guidance.
 
 Component fixtures use mock data and a fixed container size. Layout bugs caused by reflow timing, real data shapes, or narrow window sizes often **don't reproduce in fixtures**. When a user reports a broken layout, debug in the live Code OSS product.
 
-For launching Code OSS with CDP and connecting `agent-browser`, see the **`launch` skill**. Use `--user-data-dir /tmp/code-oss-debug` to avoid colliding with an already-running instance from another worktree.
+For launching Code OSS with CDP and connecting `@playwright/cli`, see the **`launch` skill**. Use `--user-data-dir /tmp/code-oss-debug` to avoid colliding with an already-running instance from another worktree.
 
 ### Navigating to the customizations editor
 
-After connecting, use `snapshot -i` to find the "Open Customizations" button (in the Chat panel header), then click it. To switch sections, use `eval` with a DOM click since sidebar items aren't interactive refs:
+After connecting, use `snapshot` to find the "Open Customizations" button (in the Chat panel header), then click it. To switch sections, use `eval` with a DOM click since sidebar items aren't interactive refs:
 
 ```bash
-npx agent-browser eval "const items = [...document.querySelectorAll('.section-list-item')]; \
-  items.find(el => el.textContent?.includes('MCP'))?.click();"
+npx @playwright/cli eval "(() => { const items = [...document.querySelectorAll('.section-list-item')]; items.find(el => el.textContent?.includes('MCP'))?.click(); })()"
 ```
 
 ### Inspecting widget layout
 
-`agent-browser eval` doesn't always print return values. Use `document.title` as a return channel:
+`@playwright/cli eval` wraps the expression in `() => (...)` — use an IIFE for multi-statement code. Use `document.title` as a return channel:
 
 ```bash
-npx agent-browser eval "const w = document.querySelector('.mcp-list-widget'); \
+npx @playwright/cli eval "(() => { const w = document.querySelector('.mcp-list-widget'); \
   const lc = w?.querySelector('.mcp-list-container'); \
   const rows = lc?.querySelectorAll('.monaco-list-row'); \
   document.title = 'DBG:rows=' + (rows?.length ?? -1) \
     + ',listH=' + (lc?.offsetHeight ?? -1) \
     + ',seStH=' + (lc?.querySelector('.monaco-scrollable-element')?.style?.height ?? '') \
-    + ',wH=' + (w?.offsetHeight ?? -1);"
-npx agent-browser eval "document.title" 2>&1
+    + ',wH=' + (w?.offsetHeight ?? -1); })()"
+npx @playwright/cli eval "document.title" 2>&1
 ```
 
 Key diagnostics:

@@ -13,10 +13,8 @@ import { themeColorFromId } from '../../../../platform/theme/common/themeService
 import { registerColor } from '../../../../platform/theme/common/colorRegistry.js';
 import { localize } from '../../../../nls.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IAgentFeedbackService } from './agentFeedbackService.js';
-import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
-import { getSessionForResource } from './agentFeedbackEditorUtils.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { AgentFeedbackState, IAgentFeedbackService } from './agentFeedbackService.js';
+import { isEqual } from '../../../../base/common/resources.js';
 
 const overviewRulerAgentFeedbackForeground = registerColor(
 	'editorOverviewRuler.agentFeedbackForeground',
@@ -34,14 +32,17 @@ export class AgentFeedbackOverviewRulerContribution extends Disposable implement
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IAgentFeedbackService private readonly _agentFeedbackService: IAgentFeedbackService,
-		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
-		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
 
 		this._decorations = this._editor.createDecorationsCollection();
 
 		this._store.add(this._agentFeedbackService.onDidChangeFeedback(() => this._updateDecorations()));
+		this._store.add(this._agentFeedbackService.onDidChangeFeedbackVisibility(() => this._updateDecorations()));
+		this._store.add(this._agentFeedbackService.onDidChangeFeedbackScope(() => {
+			this._resolveSession();
+			this._updateDecorations();
+		}));
 		this._store.add(this._editor.onDidChangeModel(() => {
 			this._resolveSession();
 			this._updateDecorations();
@@ -57,7 +58,7 @@ export class AgentFeedbackOverviewRulerContribution extends Disposable implement
 			this._sessionResource = undefined;
 			return;
 		}
-		this._sessionResource = getSessionForResource(model.uri, this._chatEditingService, this._sessionsManagementService);
+		this._sessionResource = this._agentFeedbackService.getFeedbackSessionResource(model.uri);
 	}
 
 	private _updateDecorations(): void {
@@ -73,11 +74,11 @@ export class AgentFeedbackOverviewRulerContribution extends Disposable implement
 		}
 
 		const feedbackItems = this._agentFeedbackService.getFeedback(this._sessionResource);
-		const modelUri = model.uri.toString();
+		const visibleResolvedFeedbackIds = this._agentFeedbackService.getVisibleResolvedFeedbackIds(this._sessionResource);
 
 		this._decorations.set(
 			feedbackItems
-				.filter(item => item.resourceUri.toString() === modelUri)
+				.filter(item => isEqual(item.resourceUri, model.uri) && (item.state !== AgentFeedbackState.Resolved || visibleResolvedFeedbackIds.has(item.id)))
 				.map(item => ({
 					range: item.range,
 					options: {

@@ -2,8 +2,11 @@
 .cache
 npm-debug.log
 Thumbs.db
-node_modules/
+# No trailing slash, so a symlinked node_modules is ignored too
+node_modules
+.tmp/
 .build/
+/extensionsCG/
 .vscode/extensions/**/out/
 extensions/**/dist/
 src/vs/base/browser/ui/codicons/codicon/codicon.ttf
@@ -12,6 +15,7 @@ src/vs/base/browser/ui/codicons/codicon/codicon.ttf
 build/node_modules
 build/darwin/.dmgbuild
 coverage/
+!/src/vs/platform/agentHost/test/node/e2e/coverage/
 test_data/
 test-results/
 test-results.xml
@@ -23,13 +27,15 @@ vscode.db
 product.overrides.json
 *.snap.actual
 *.tsbuildinfo
+.eslintcache
 .vscode-test
+.chat-simulation-data
 vscode-telemetry-docs/
 test-output.json
 test/componentFixtures/.screenshots/*
-!test/componentFixtures/.screenshots/baseline/
 dist
 .playwright-cli
+.playwright-mcp
 .claude/
 .agents/agents/*.local.md
 .github/agents/*.local.md
@@ -43,3 +49,8 @@ dist
 .github/prompts/*.local.prompt.md
 .agents/skills/.local/
 .github/skills/.local/
+
+# Throwaway Code OSS dev profiles created by the launch skill
+.v[0-9]*/
+# Local agent validation evidence
+.agent-validation/

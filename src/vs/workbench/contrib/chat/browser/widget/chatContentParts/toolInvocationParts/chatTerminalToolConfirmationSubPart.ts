@@ -3,23 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { append, h } from '../../../../../../../base/browser/dom.js';
+import { append, DisposableResizeObserver, getWindow, h } from '../../../../../../../base/browser/dom.js';
 import { HoverStyle } from '../../../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../../../base/browser/ui/hover/hoverWidget.js';
 import { Separator } from '../../../../../../../base/common/actions.js';
 import { asArray } from '../../../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
-import { ErrorNoTelemetry } from '../../../../../../../base/common/errors.js';
-import { createCommandUri, MarkdownString, type IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
-import { thenRegisterOrDispose, toDisposable } from '../../../../../../../base/common/lifecycle.js';
-import { Schemas } from '../../../../../../../base/common/network.js';
+import { ErrorNoTelemetry, onUnexpectedError } from '../../../../../../../base/common/errors.js';
+import { createCommandUri, escapeMarkdownSyntaxTokens, MarkdownString, type IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import Severity from '../../../../../../../base/common/severity.js';
 import { isObject } from '../../../../../../../base/common/types.js';
-import { URI } from '../../../../../../../base/common/uri.js';
-import { generateUuid } from '../../../../../../../base/common/uuid.js';
 import { ILanguageService } from '../../../../../../../editor/common/languages/language.js';
-import { IModelService } from '../../../../../../../editor/common/services/model.js';
-import { ITextModelService } from '../../../../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../../../../nls.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
@@ -34,16 +29,20 @@ import { ITerminalChatService } from '../../../../../terminal/browser/terminal.j
 import { TerminalContribCommandId, TerminalContribSettingId } from '../../../../../terminal/terminalContribExports.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../../common/chat.js';
+import { SessionType } from '../../../../common/chatSessionsService.js';
+import { getChatSessionType } from '../../../../common/model/chatUri.js';
 import { IChatToolInvocation, ToolConfirmKind, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../../common/chatService/chatService.js';
-import type { CodeBlockModelCollection } from '../../../../common/widget/codeBlockModelCollection.js';
+import { ILanguageModelToolsService } from '../../../../common/tools/languageModelToolsService.js';
 import { AcceptToolConfirmationActionId, SkipToolConfirmationActionId } from '../../../actions/chatToolActions.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../../chat.js';
+import { IChatToolRiskAssessmentService } from '../../../tools/chatToolRiskAssessmentService.js';
 import { ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
 import { EditorPool } from '../chatContentCodePools.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatMarkdownContentPart } from '../chatMarkdownContentPart.js';
-import { ICodeBlockRenderOptions } from '../codeBlockPart.js';
+import { CodeBlockPart, ICodeBlockRenderOptions } from '../codeBlockPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
+import { createApprovalReasonBadge, createToolRiskBadge } from './toolRiskBadgeHelper.js';
 
 export const enum TerminalToolConfirmationStorageKeys {
 	TerminalAutoApproveWarningAccepted = 'chat.tools.terminal.autoApprove.warningAccepted'
@@ -77,12 +76,10 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		private readonly renderer: IMarkdownRenderer,
 		private readonly editorPool: EditorPool,
 		private readonly currentWidthDelegate: () => number,
-		private readonly codeBlockModelCollection: CodeBlockModelCollection,
 		private readonly codeBlockStartIndex: number,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -90,8 +87,9 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ITerminalChatService private readonly terminalChatService: ITerminalChatService,
-		@ITextModelService textModelService: ITextModelService,
 		@IHoverService hoverService: IHoverService,
+		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
+		@IChatToolRiskAssessmentService private readonly riskAssessmentService: IChatToolRiskAssessmentService,
 	) {
 		super(toolInvocation);
 
@@ -113,10 +111,17 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		const isReadOnly = !!terminalData.presentationOverrides;
 
 		const autoApproveEnabled = this.configurationService.getValue(TerminalContribSettingId.EnableAutoApprove) === true;
-		const autoApproveWarningAccepted = this.storageService.getBoolean(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION, false);
-		let moreActions: (IChatConfirmationButton<TerminalNewAutoApproveButtonData> | Separator)[] | undefined = undefined;
-		if (autoApproveEnabled) {
-			moreActions = [];
+		// Custom actions typically come pre-computed from the run in terminal tool, but they can
+		// also be generated asynchronously for confirmations that arrive without them (eg. agent
+		// host sessions), so track them in a mutable local shared by the builder below and the
+		// button click handler.
+		let customActions = terminalCustomActions;
+		const buildMoreActions = (): (IChatConfirmationButton<TerminalNewAutoApproveButtonData> | Separator)[] | undefined => {
+			if (!autoApproveEnabled) {
+				return undefined;
+			}
+			const autoApproveWarningAccepted = this.storageService.getBoolean(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION, false);
+			const moreActions: (IChatConfirmationButton<TerminalNewAutoApproveButtonData> | Separator)[] = [];
 			if (!autoApproveWarningAccepted) {
 				moreActions.push({
 					label: localize('autoApprove.enable', 'Enable Auto Approve...'),
@@ -125,21 +130,19 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 					}
 				});
 				moreActions.push(new Separator());
-				if (terminalCustomActions) {
-					for (const action of terminalCustomActions) {
+				if (customActions) {
+					for (const action of customActions) {
 						if (!(action instanceof Separator)) {
 							action.disabled = true;
 						}
 					}
 				}
 			}
-			if (terminalCustomActions) {
-				moreActions.push(...terminalCustomActions);
+			if (customActions) {
+				moreActions.push(...customActions);
 			}
-			if (moreActions.length === 0) {
-				moreActions = undefined;
-			}
-		}
+			return moreActions.length === 0 ? undefined : moreActions;
+		};
 
 		const codeBlockRenderOptions: ICodeBlockRenderOptions = {
 			hideToolbar: true,
@@ -153,23 +156,17 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			}
 		};
 		const languageId = this.languageService.getLanguageIdByLanguageName(terminalData.presentationOverrides?.language ?? terminalData.language ?? 'sh') ?? 'shellscript';
-		const model = this._register(this.modelService.createModel(
-			initialContent,
-			this.languageService.createById(languageId),
-			this._getUniqueCodeBlockUri(),
-			true
-		));
-		thenRegisterOrDispose(textModelService.createModelReference(model.uri), this._store);
-		const editor = this._register(this.editorPool.get());
+		const key = CodeBlockPart.poolKey(this.context.element.id, this.codeBlockStartIndex);
+		const editor = this._register(this.editorPool.get(key));
 		editor.object.render({
 			codeBlockIndex: this.codeBlockStartIndex,
-			codeBlockPartIndex: 0,
 			element: this.context.element,
 			languageId,
+			text: initialContent,
 			renderOptions: codeBlockRenderOptions,
-			textModel: Promise.resolve(model),
 			chatSessionResource: this.context.element.sessionResource
 		}, this.currentWidthDelegate());
+		const model = editor.object.editor.getModel()!;
 		this.codeblocks.push({
 			codeBlockIndex: this.codeBlockStartIndex,
 			codemapperUri: undefined,
@@ -177,10 +174,9 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			focus: () => editor.object.focus(),
 			ownerMarkdownPartId: this.codeblocksPartId,
 			uri: model.uri,
-			uriPromise: Promise.resolve(model.uri),
 			chatSessionResource: this.context.element.sessionResource
 		});
-		this._register(model.onDidChangeContent(e => {
+		this._register(model.onDidChangeContent(() => {
 			const currentValue = model.getValue();
 			// Only set userEdited if the content actually differs from the initial value
 			// Prepend cd prefix back if it was extracted for display
@@ -195,11 +191,22 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			h('.chat-confirmation-message-terminal-disclaimer@disclaimer'),
 		]);
 		append(elements.editor, editor.object.element);
+		const editorResizeObserver = this._register(new DisposableResizeObserver('ChatTerminalToolConfirmationSubPart.editor', entries => {
+			const width = entries[0]?.contentRect.width;
+			if (width) {
+				editor.object.layout(width);
+			}
+		}, getWindow(this.context.container)));
+		this._register(editorResizeObserver.observe(elements.editor));
 		this._register(hoverService.setupDelayedHover(elements.editor, {
 			content: message || '',
 			style: HoverStyle.Pointer,
 			position: { hoverPosition: HoverPosition.LEFT },
 		}));
+
+		const riskBadge = createApprovalReasonBadge(this._store, this.instantiationService, state.confirmationMessages.approvalReason)
+			?? createToolRiskBadge(this._store, this.instantiationService, this.riskAssessmentService, this.languageModelToolsService, this.toolInvocation.toolId, state.parameters, 'terminal');
+
 		const confirmWidget = this._register(this.instantiationService.createInstance(
 			ChatCustomConfirmationWidget<TerminalNewAutoApproveButtonData | boolean>,
 			this.context,
@@ -207,28 +214,119 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 				title,
 				icon: Codicon.terminal,
 				message: elements.root,
-				buttons: this._createButtons(moreActions)
+				footerBanner: riskBadge?.domNode,
+				buttons: this._createButtons(buildMoreActions())
 			},
 		));
 
+		// Agent Host Copilot confirmations need client-generated persistent rule actions.
+		if (autoApproveEnabled && !customActions && terminalData.autoApproveRuleResolvable && getChatSessionType(this.context.element.sessionResource) === SessionType.AgentHostCopilot) {
+			const commandForAnalysis = terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
+			const analysisLanguage = terminalData.language === 'powershell' ? 'powershell' : 'shellscript';
+			this.terminalChatService.getAutoApproveActions(commandForAnalysis, analysisLanguage).then(actions => {
+				if (this._store.isDisposed || !actions?.length) {
+					return;
+				}
+				if (toolInvocation.state.get().type !== IChatToolInvocation.StateKind.WaitingForConfirmation) {
+					return;
+				}
+				customActions = actions;
+				confirmWidget.updateButtons(this._createButtons(buildMoreActions()));
+			}, onUnexpectedError);
+		}
+
+		// Build the unsandboxed-execution reason and disclaimer markdown. When
+		// the risk badge is shown, surface them via its details hover (with
+		// labelled prefixes) instead of the dedicated disclaimer row to keep
+		// the confirmation compact.
+		interface IDetailPart {
+			readonly inline: IMarkdownString;
+			readonly hoverLabel: string;
+			readonly hoverBody: string;
+			readonly isTrusted: IMarkdownString['isTrusted'];
+		}
+		const detailParts: IDetailPart[] = [];
 		if (terminalData.requestUnsandboxedExecution) {
 			const reasonText = (terminalData.requestUnsandboxedExecutionReason && terminalData.requestUnsandboxedExecutionReason.trim())
 				|| localize('chat.terminal.unsandboxedExecution.defaultReason', "The model did not provide a reason for requesting unsandboxed execution.");
-			const unsandboxedReasonMarkdown = new MarkdownString(undefined, { supportThemeIcons: true });
-			unsandboxedReasonMarkdown.appendMarkdown(`$(${Codicon.info.id}) `);
-			unsandboxedReasonMarkdown.appendText(reasonText);
-			this._appendMarkdownPart(elements.disclaimer, unsandboxedReasonMarkdown, codeBlockRenderOptions);
+			const inline = new MarkdownString(undefined, { supportThemeIcons: true });
+			inline.appendMarkdown(`$(${Codicon.info.id}) `);
+			inline.appendText(reasonText);
+			detailParts.push({
+				inline,
+				hoverLabel: localize('chat.terminal.detail.sandboxInsufficient', "Sandbox insufficient:"),
+				hoverBody: escapeMarkdownSyntaxTokens(reasonText),
+				isTrusted: undefined,
+			});
+		}
+		if (terminalData.requestAllowNetwork) {
+			const reasonText = (terminalData.requestAllowNetworkReason && terminalData.requestAllowNetworkReason.trim())
+				|| localize('chat.terminal.allowNetwork.defaultReason', "The model did not provide a reason for requesting unrestricted network access in the sandbox.");
+			const inline = new MarkdownString(undefined, { supportThemeIcons: true });
+			inline.appendMarkdown(`$(${Codicon.info.id}) `);
+			inline.appendText(reasonText);
+			detailParts.push({
+				inline,
+				hoverLabel: localize('chat.terminal.detail.unrestrictedNetwork', "Unrestricted network access:"),
+				hoverBody: escapeMarkdownSyntaxTokens(reasonText),
+				isTrusted: undefined,
+			});
+		}
+		if (disclaimer) {
+			const inline = typeof disclaimer === 'string' ? new MarkdownString(disclaimer) : disclaimer;
+			// For the hover, drop the leading `$(info) ` icon prefix that the
+			// disclaimer carries for inline rendering — the labelled prefix
+			// already conveys the same role.
+			const hoverBody = inline.value.replace(/^\s*\$\([^)]+\)\s*/, '');
+			detailParts.push({
+				inline,
+				hoverLabel: localize('chat.terminal.detail.approvalNeeded', "Approval needed:"),
+				hoverBody,
+				isTrusted: inline.isTrusted,
+			});
 		}
 
-		if (disclaimer) {
-			this._appendMarkdownPart(elements.disclaimer, disclaimer, codeBlockRenderOptions);
+		const renderInlineDisclaimers = () => {
+			elements.disclaimer.replaceChildren();
+			for (const part of detailParts) {
+				this._appendMarkdownPart(elements.disclaimer, part.inline, codeBlockRenderOptions);
+			}
+		};
+
+		if (riskBadge && detailParts.length) {
+			const combined = new MarkdownString(undefined, {
+				supportThemeIcons: true,
+				isTrusted: detailParts.reduce<MarkdownString['isTrusted']>((acc, part) => {
+					if (part.isTrusted === true || acc === true) {
+						return true;
+					}
+					if (typeof part.isTrusted === 'object' && part.isTrusted) {
+						const enabled = new Set([
+							...(typeof acc === 'object' && acc?.enabledCommands ? acc.enabledCommands : []),
+							...part.isTrusted.enabledCommands,
+						]);
+						return { enabledCommands: [...enabled] };
+					}
+					return acc;
+				}, undefined),
+			});
+			detailParts.forEach((part, i) => {
+				if (i > 0) {
+					combined.appendMarkdown('\n\n');
+				}
+				combined.appendMarkdown(`**${escapeMarkdownSyntaxTokens(part.hoverLabel)}** ${part.hoverBody}`);
+			});
+			riskBadge.setDetails(combined);
+			this._register(riskBadge.onDidHide(() => renderInlineDisclaimers()));
+		} else {
+			renderInlineDisclaimers();
 		}
 
 		const hasToolConfirmationKey = ChatContextKeys.Editing.hasToolConfirmation.bindTo(this.contextKeyService);
 		hasToolConfirmationKey.set(true);
 		this._register(toDisposable(() => hasToolConfirmationKey.reset()));
 
-		this._register(confirmWidget.onDidClick(async button => {
+		this._register(confirmWidget.onDidClick(async ({ button, isTouchClick }) => {
 			let doComplete = true;
 			const data = button.data;
 			let toolConfirmKind: ToolConfirmKind = ToolConfirmKind.Denied;
@@ -253,14 +351,16 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 							}
 							// If this would not have been auto approved, enable the options and
 							// do not complete
-							else if (terminalCustomActions) {
-								for (const action of terminalCustomActions) {
-									if (!(action instanceof Separator)) {
-										action.disabled = false;
+							else {
+								if (customActions) {
+									for (const action of customActions) {
+										if (!(action instanceof Separator)) {
+											action.disabled = false;
+										}
 									}
 								}
 
-								confirmWidget.updateButtons(this._createButtons(terminalCustomActions));
+								confirmWidget.updateButtons(this._createButtons(buildMoreActions()));
 								doComplete = false;
 							}
 						} else {
@@ -389,7 +489,9 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 
 			if (doComplete) {
 				IChatToolInvocation.confirmWith(toolInvocation, { type: toolConfirmKind });
-				this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.focusInput();
+				if (!isTouchClick) {
+					this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.focusInput();
+				}
 			}
 		}));
 
@@ -430,18 +532,11 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 				markdownDetails: [{
 					markdown: new MarkdownString(localize('autoApprove.markdown', 'This will enable a configurable subset of commands to run in the terminal autonomously. It provides *best effort protections* and assumes the agent is not acting maliciously.')),
 				}, {
-					markdown: new MarkdownString(`[${localize('autoApprove.markdown2', 'Learn more about the potential risks and how to avoid them.')}](https://code.visualstudio.com/docs/copilot/security#_security-considerations)`)
+					markdown: new MarkdownString(`[${localize('autoApprove.markdown2', 'Learn more about the potential risks and how to avoid them.')}](https://code.visualstudio.com/docs/agents/run/security?referrer=in-product#_security-risks-to-be-aware-of)`)
 				}],
 			}
 		});
 		return promptResult.result === true;
-	}
-
-	private _getUniqueCodeBlockUri() {
-		return URI.from({
-			scheme: Schemas.vscodeChatCodeBlock,
-			path: generateUuid(),
-		});
 	}
 
 	private _appendMarkdownPart(container: HTMLElement, message: string | IMarkdownString, codeBlockRenderOptions: ICodeBlockRenderOptions) {
@@ -457,7 +552,6 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			this.renderer,
 			undefined,
 			this.currentWidthDelegate(),
-			this.codeBlockModelCollection,
 			{ codeBlockRenderOptions },
 		));
 		append(container, part.domNode);

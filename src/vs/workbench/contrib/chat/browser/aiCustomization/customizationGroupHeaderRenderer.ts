@@ -61,9 +61,9 @@ export class CustomizationGroupHeaderRenderer<T extends ICustomizationGroupHeade
 		const icon = DOM.append(container, $('.group-icon'));
 		const labelGroup = DOM.append(container, $('.group-label-group'));
 		const label = DOM.append(labelGroup, $('.group-label'));
-		const infoIcon = DOM.append(labelGroup, $('.group-info'));
-		infoIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.info));
 		const count = DOM.append(container, $('.group-count'));
+		const infoIcon = DOM.append(container, $('.group-info'));
+		infoIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.info));
 
 		return { container, chevron, icon, label, count, infoIcon, disposables, elementDisposables };
 	}
@@ -72,7 +72,7 @@ export class CustomizationGroupHeaderRenderer<T extends ICustomizationGroupHeade
 		templateData.elementDisposables.clear();
 
 		templateData.chevron.className = 'group-chevron';
-		templateData.chevron.classList.add(...ThemeIcon.asClassNameArray(element.collapsed ? Codicon.chevronRight : Codicon.chevronDown));
+		templateData.chevron.classList.add(...ThemeIcon.asClassNameArray(element.collapsed ? Codicon.chevronRightCompact : Codicon.chevronDownCompact));
 
 		templateData.icon.className = 'group-icon';
 		templateData.icon.classList.add(...ThemeIcon.asClassNameArray(element.icon));

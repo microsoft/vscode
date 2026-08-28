@@ -12,11 +12,11 @@ import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { asJson, asText, IRequestService } from '../../request/common/request.js';
-import { GalleryMcpServerStatus, IGalleryMcpServer, IMcpGalleryService, IMcpServerArgument, IMcpServerInput, IMcpServerKeyValueInput, IMcpServerPackage, IQueryOptions, RegistryType, SseTransport, StreamableHttpTransport, Transport, TransportType } from './mcpManagement.js';
+import { asJson, asText, isSuccess, IRequestService } from '../../request/common/request.js';
+import { GalleryMcpServerStatus, IGalleryMcpServer, IMcpGalleryServerResolveResult, IMcpGalleryService, IMcpServerArgument, IMcpServerInput, IMcpServerKeyValueInput, IMcpServerPackage, IQueryOptions, McpGalleryResolveStatus, RegistryType, SseTransport, StreamableHttpTransport, Transport, TransportType } from './mcpManagement.js';
 import { IMcpGalleryManifestService, McpGalleryManifestStatus, getMcpGalleryManifestResourceUri, McpGalleryResourceType, IMcpGalleryManifest } from './mcpGalleryManifest.js';
 import { IIterativePager, IIterativePage } from '../../../base/common/paging.js';
-import { CancellationError } from '../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
 import { isObject, isString } from '../../../base/common/types.js';
 
 interface IMcpRegistryInfo {
@@ -749,45 +749,81 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 	}
 
 	async getMcpServersFromGallery(infos: { name: string; id?: string }[]): Promise<IGalleryMcpServer[]> {
-		const mcpGalleryManifest = await this.mcpGalleryManifestService.getMcpGalleryManifest();
-		if (!mcpGalleryManifest) {
-			return [];
-		}
-
+		const resolved = await this.resolveMcpServersFromGallery(infos);
 		const mcpServers: IGalleryMcpServer[] = [];
-		await Promise.allSettled(infos.map(async info => {
-			const mcpServer = await this.getMcpServerByName(info, mcpGalleryManifest);
-			if (mcpServer) {
-				mcpServers.push(mcpServer);
+		for (const result of resolved.values()) {
+			if (result.status === McpGalleryResolveStatus.Found) {
+				mcpServers.push(result.server);
 			}
-		}));
-
+		}
 		return mcpServers;
 	}
 
+	async resolveMcpServersFromGallery(infos: { name: string; id?: string }[]): Promise<Map<string, IMcpGalleryServerResolveResult>> {
+		const result = new Map<string, IMcpGalleryServerResolveResult>();
+		const mcpGalleryManifest = await this.mcpGalleryManifestService.getMcpGalleryManifest();
+		if (!mcpGalleryManifest) {
+			// Without a registry manifest we cannot determine membership; report as failed
+			// (undetermined) so callers do not treat this as a definitive "not found".
+			for (const info of infos) {
+				result.set(info.name, { status: McpGalleryResolveStatus.Failed });
+			}
+			return result;
+		}
+
+		await Promise.all(infos.map(async info => {
+			try {
+				const mcpServer = await this.getMcpServerByName(info, mcpGalleryManifest);
+				result.set(info.name, mcpServer
+					? { status: McpGalleryResolveStatus.Found, server: mcpServer }
+					: { status: McpGalleryResolveStatus.NotFound });
+			} catch (error) {
+				this.logService.warn(`Failed to resolve MCP server '${info.name}' from gallery: ${error}`);
+				result.set(info.name, { status: McpGalleryResolveStatus.Failed });
+			}
+		}));
+
+		return result;
+	}
+
 	private async getMcpServerByName({ name, id }: { name: string; id?: string }, mcpGalleryManifest: IMcpGalleryManifest): Promise<IGalleryMcpServer | undefined> {
-		const mcpServerUrl = this.getLatestServerVersionUrl(name, mcpGalleryManifest);
-		if (mcpServerUrl) {
-			const mcpServer = await this.getMcpServer(mcpServerUrl);
-			if (mcpServer) {
-				return mcpServer;
+		const urls = [
+			this.getLatestServerVersionUrl(name, mcpGalleryManifest),
+			this.getNamedServerUrl(name, mcpGalleryManifest),
+			id ? this.getServerIdUrl(id, mcpGalleryManifest) : undefined,
+		];
+
+		let attempted = false;
+		let lastError: unknown;
+		for (const url of urls) {
+			if (!url) {
+				continue;
+			}
+			attempted = true;
+			try {
+				const mcpServer = await this.getMcpServer(url);
+				if (mcpServer) {
+					if (mcpServer.name === name) {
+						return mcpServer;
+					}
+					lastError = new Error(`MCP server lookup for '${name}' returned '${mcpServer.name}'`);
+				}
+			} catch (error) {
+				// Transient/undetermined failure on this endpoint: remember it and still
+				// try the remaining endpoints before giving up.
+				lastError = error;
 			}
 		}
 
-		const byNameUrl = this.getNamedServerUrl(name, mcpGalleryManifest);
-		if (byNameUrl) {
-			const mcpServer = await this.getMcpServer(byNameUrl);
-			if (mcpServer) {
-				return mcpServer;
-			}
+		// Only report a definitive "not found" (undefined) when at least one endpoint
+		// was queried and every attempt returned an authoritative negative. If no
+		// endpoint could be queried, or any attempt failed transiently, surface an
+		// error so membership is treated as undetermined rather than absent.
+		if (!attempted) {
+			throw new Error(`Cannot resolve MCP server '${name}': registry manifest has no server lookup endpoint`);
 		}
-
-		const byIdUrl = id ? this.getServerIdUrl(id, mcpGalleryManifest) : undefined;
-		if (byIdUrl) {
-			const mcpServer = await this.getMcpServer(byIdUrl);
-			if (mcpServer) {
-				return mcpServer;
-			}
+		if (lastError !== undefined) {
+			throw lastError;
 		}
 
 		return undefined;
@@ -949,11 +985,25 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			url += `&search=${text}`;
 		}
 
-		const context = await this.requestService.request({
-			type: 'GET',
-			url,
-			callSite: 'mcpGalleryService.queryMcpServers'
-		}, token);
+		let context;
+		try {
+			context = await this.requestService.request({
+				type: 'GET',
+				url,
+				callSite: 'mcpGalleryService.queryMcpServers'
+			}, token);
+		} catch (error) {
+			if (isCancellationError(error)) {
+				throw error;
+			}
+			this.logService.error(`Failed to query MCP gallery: ${error}`);
+			return { servers: [], metadata: { count: 0 } };
+		}
+
+		if (!isSuccess(context)) {
+			this.logService.error(`Failed to query MCP gallery: Server returned ${context.res.statusCode}`);
+			return { servers: [], metadata: { count: 0 } };
+		}
 
 		const data = await asJson(context);
 
@@ -977,13 +1027,20 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			callSite: 'mcpGalleryService.getMcpServer'
 		}, CancellationToken.None);
 
-		if (context.res.statusCode && context.res.statusCode >= 400 && context.res.statusCode < 500) {
+		// A definitive 404 means the registry authoritatively does not contain this
+		// server. Any other error status (e.g. 401/403/429/5xx) is transient or
+		// undetermined and must throw so callers do not treat it as a "not found".
+		if (context.res.statusCode === 404) {
 			return undefined;
+		}
+
+		if (context.res.statusCode && context.res.statusCode >= 400) {
+			throw new Error(`Failed to fetch MCP server from ${mcpServerUrl}: server responded with ${context.res.statusCode}`);
 		}
 
 		const data = await asJson(context);
 		if (!data) {
-			return undefined;
+			throw new Error(`Failed to fetch MCP server from ${mcpServerUrl}: empty response`);
 		}
 
 		if (!mcpGalleryManifest) {

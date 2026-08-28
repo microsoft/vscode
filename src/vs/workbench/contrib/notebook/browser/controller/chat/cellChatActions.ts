@@ -13,7 +13,7 @@ import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/con
 import { InputFocusedContextKey } from '../../../../../../platform/contextkey/common/contextkeys.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_RESPONSE_TYPE, CTX_INLINE_CHAT_VISIBLE, InlineChatResponseType, MENU_INLINE_CHAT_WIDGET_STATUS } from '../../../../inlineChat/common/inlineChat.js';
+import { CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_VISIBLE } from '../../../../inlineChat/common/inlineChat.js';
 import { CTX_NOTEBOOK_CHAT_HAS_AGENT } from './notebookChatContext.js';
 import { INotebookActionContext, NotebookAction, getContextFromActiveEditor, getEditorFromArgsOrActivePane } from '../coreActions.js';
 import { insertNewCell } from '../insertCellActions.js';
@@ -236,14 +236,13 @@ export class AcceptChangesAndRun extends EditorAction2 {
 			),
 			keybinding: undefined,
 			menu: [{
-				id: MENU_INLINE_CHAT_WIDGET_STATUS,
+				id: MenuId.ChatEditorInlineExecute,
 				group: '0_main',
 				order: 2,
 				when: ContextKeyExpr.and(
 					NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
 					ChatContextKeys.inputHasText.toNegated(),
-					CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.toNegated(),
-					CTX_INLINE_CHAT_RESPONSE_TYPE.isEqualTo(InlineChatResponseType.MessagesAndEdits)
+					CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.toNegated()
 				)
 			}]
 		});
