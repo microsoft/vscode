@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DeferredPromise, raceTimeout } from '../../../base/common/async.js';
+import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { joinPath } from '../../../base/common/resources.js';
 import { localize } from '../../../nls.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
@@ -47,11 +48,38 @@ export class TunnelHostMainService extends Disposable implements ITunnelAgentHos
 	}
 
 	async startHosting(token: string, authProvider: 'github' | 'microsoft'): Promise<ITunnelHostInfo> {
-		this._request = { token };
-		const ready = this._waitForActiveStatus();
-		await this.tunnelProcessCoordinator.setAgentHostSharing({ token, authProvider, logLevel: this._logger.getLevel() });
-		const status = await ready;
-		return status.info;
+		const request = { token };
+		this._request = request;
+		// The readiness wait is created before the intent is handed over, so it
+		// can outlive a rejection from the coordinator. Owning its store here
+		// tears the wait down immediately instead of leaving it pending until
+		// the start timeout elapses.
+		const store = new DisposableStore();
+		try {
+			// Awaited together so the readiness promise always has a handler
+			// attached: disposing the store below rejects it, which would
+			// otherwise go unhandled on exactly the failure path this guards.
+			const [status] = await Promise.all([
+				this._waitForActiveStatus(store),
+				this.tunnelProcessCoordinator.setAgentHostSharing({ token, authProvider, logLevel: this._logger.getLevel() }),
+			]);
+			return status.info;
+		} catch (error) {
+			// Without this the caller sees a failure while the sharing intent
+			// survives, and a later reconcile brings hosting online anyway.
+			// A newer request owns the intent, so only roll back our own.
+			if (this._request === request) {
+				this._request = undefined;
+				try {
+					await this.tunnelProcessCoordinator.setAgentHostSharing(undefined);
+				} catch (rollbackError) {
+					this._logger.error(rollbackError);
+				}
+			}
+			throw error;
+		} finally {
+			store.dispose();
+		}
 	}
 
 	async stopHosting(): Promise<void> {
@@ -75,13 +103,12 @@ export class TunnelHostMainService extends Disposable implements ITunnelAgentHos
 		}
 	}
 
-	private async _waitForActiveStatus(): Promise<TunnelHostStatus & { active: true; info: ITunnelHostInfo }> {
+	private async _waitForActiveStatus(store: DisposableStore): Promise<TunnelHostStatus & { active: true; info: ITunnelHostInfo }> {
 		const current = this._getStatus(this.tunnelProcessCoordinator.getStatus());
 		if (current.active) {
 			return current;
 		}
 
-		const store = new DisposableStore();
 		const settled = new DeferredPromise<TunnelHostStatus & { active: true; info: ITunnelHostInfo }>();
 		store.add(this.tunnelProcessCoordinator.onDidChangeStatus(coordinatorStatus => {
 			const status = this._getStatus(coordinatorStatus);
@@ -91,27 +118,30 @@ export class TunnelHostMainService extends Disposable implements ITunnelAgentHos
 				settled.error(new Error(localize('tunnelHost.startFailed', "The agent host tunnel exited before it became ready.")));
 			}
 		}));
+		// Settles the race when the caller abandons the wait, so neither this
+		// promise nor `raceTimeout`'s timer outlives the store.
+		store.add(toDisposable(() => settled.error(new CancellationError())));
 
-		try {
-			const status = await raceTimeout(settled.p, AGENT_HOST_START_TIMEOUT_MS);
-			if (!status) {
-				throw new Error(localize('tunnelHost.startTimeout', "Timed out waiting for the agent host tunnel to start."));
-			}
-			return status;
-		} finally {
-			store.dispose();
+		const status = await raceTimeout(settled.p, AGENT_HOST_START_TIMEOUT_MS);
+		if (!status) {
+			throw new Error(localize('tunnelHost.startTimeout', "Timed out waiting for the agent host tunnel to start."));
 		}
+		return status;
 	}
 
 	private _getStatus(status: ITunnelProcessStatus): TunnelHostStatus {
 		if (!this._request || status.connectionState !== 'connected' || !status.tunnelName) {
 			return { active: false };
 		}
+		const info = {
+			tunnelName: status.tunnelName,
+			...(status.tunnelId === undefined ? {} : { tunnelId: status.tunnelId }),
+		};
 		if (status.mode === 'remoteAccess' || status.mode === 'service') {
-			return { active: true, info: { tunnelName: status.tunnelName, viaRemoteTunnelAccess: true } };
+			return { active: true, info: { ...info, viaRemoteTunnelAccess: true } };
 		}
 		if (status.mode === 'agentHost') {
-			return { active: true, info: { tunnelName: status.tunnelName } };
+			return { active: true, info };
 		}
 		return { active: false };
 	}
@@ -123,6 +153,7 @@ export class TunnelHostMainService extends Disposable implements ITunnelAgentHos
 		}
 		if (status.active && this._lastStatus.active
 			&& status.info.tunnelName === this._lastStatus.info.tunnelName
+			&& status.info.tunnelId === this._lastStatus.info.tunnelId
 			&& status.info.viaRemoteTunnelAccess === this._lastStatus.info.viaRemoteTunnelAccess) {
 			return;
 		}

@@ -29,7 +29,6 @@ export interface ActiveSessionState {
 export const IChangesViewService = createDecorator<IChangesViewService>('changesViewService');
 
 export interface IChangesViewSectionCollapseState {
-	readonly otherFiles: boolean;
 	readonly checks: boolean;
 }
 
@@ -67,6 +66,7 @@ export interface IChangesViewService {
 	readonly activeSessionSectionCollapseStateObs: IObservable<IChangesViewSectionCollapseState>;
 
 	setChangesetId(changesetId: string | undefined): void;
+	showChangeset(changeset: ISessionChangeset): void;
 
 	readonly viewModeObs: IObservable<ChangesViewMode>;
 	setViewMode(mode: ChangesViewMode): void;

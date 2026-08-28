@@ -10,14 +10,15 @@
 
 # Multi-Chat Architecture
 
+> Node runtime service construction is documented separately in
+> [`node/serviceBootstrapping.md`](node/serviceBootstrapping.md).
+
 > **Status: COMPLETE** (2026-07-01)
 > All waves A–D and gates G-B1, G-C1, G-C2, G-D1 are done. Codex, Claude, and
 > Copilot all use the unified orchestrator path.
 >
-> Codex advertises `multipleChats: { fork: true }`. Host-only capability checks
-> and provider-independent conformance scenarios run in replay; model-backed
-> Codex peer/fork parity remains gated by `supportsMultipleChatsE2E` /
-> `supportsChatForkE2E` until the documented live-recording defect is fixed.
+> Codex advertises `multipleChats: { fork: true, sideChat: true }`. Model-backed
+> peer, fork, and side-chat parity scenarios run in deterministic replay.
 >
 > The *operational* chat surface (send/abort/model/agent/history) is fully
 > chat-addressed and uniform across harnesses. Session ownership lives in the
@@ -116,8 +117,11 @@ Agents do **not** maintain the chat catalog, persist membership, know whether a 
 ### Orchestrator layer
 
 **`AgentService` (`node/agentService.ts`):**
-- Owns the `(session, chat)` → `(agent, session URI, chat URI)` mapping.
-- Owns `_providers`, `_sessionToProvider`, and `_findProviderForSession` (which falls back through the session URI's scheme when a session was restored without an `AgentService.createSession` call in this process lifetime).
+- Resolves the `(session, chat)` → `(agent, session URI, chat URI)` mapping for
+  orchestration.
+- Uses `IAgentHostProviderService` for provider ownership and session routing. Its
+  `getProviderForSession` path falls back through the session URI's scheme when
+  a restored session was not associated in this process lifetime.
 - Owns `AgentSessionRegistry`, the durable source of truth for which sessions exist. `listSessions` enumerates the registry, hydrates each initial chat through `IAgent.getChatMetadata`, and applies the existing DB/state overlays.
 - Dispatches user-driven chat lifecycle (`createChat`, `disposeChat`) to `chats.*`.
 - Disposes every catalog chat in stable order (peers first, initial chat last); releases every catalog chat on idle eviction.
@@ -184,16 +188,21 @@ A session URI (`ahp-copilot://`, `ahp-claude://`, …) identifies a session. A c
 The default chat URI is derived from the AH session URI, but its provider identity is opaque `providerData`. Claude and Copilot mint independent SDK ids, return them from `createChat`, and restore them through `materializeChat`; equality with the AH session id is never assumed and there is no identity-reuse bind fallback. Codex persists its explicit thread mapping. AH never depends on provider identity reuse for ownership or enumeration.
 
 **I4 — Single catalog path (spawn channel).**
-Both user-driven chats (`AgentService.createChat` → `addChat`) and harness-spawned chats (`AgentService._onChatSpawned` → `addChat`) go through `AgentHostStateManager.addChat`. The spawn-channel listener is registered **before** `AgentSideEffects` during `registerProvider` (`node/agentService.ts:registerProvider`) to guarantee the chat exists in the catalog before any turn actions arrive for it (DR1 deterministic sequencing).
+Both user-driven chats (`AgentService.createChat` → `addChat`) and harness-spawned chats (`AgentService._onChatSpawned` → `addChat`) go through `AgentHostStateManager.addChat`. `AgentService` installs the spawn-channel listener **before** the `AgentSideEffects` listener through the provider service's synchronous initializer to guarantee the chat exists in the catalog before any turn actions arrive for it (DR1 deterministic sequencing).
 
 **I5 — Orchestrator peer-chat catalog is the restore source of truth (with one-time legacy migration).**
-The orchestrator persists additional chats in `PEER_CHATS_METADATA_KEY` and the initial chat's opaque backing in `defaultChatProviderData`. Restore materializes both through the same provider-data contract — `materializeChat` is the *only* way a default chat is re-attached. When a legacy session has no persisted blob, whatever `materializeChat` recovers is persisted additively under `defaultChatProviderData` so later restores read it directly; an already-canonical blob is never rewritten. If neither a persisted nor a recovered backing exists, the host restores history and logs that the chat has no live backing rather than falling back to identity reuse. A missing additional-chat catalog triggers the one-time `listLegacyChatBackings` migration. Harness-spawned chats remain transient and are re-derived from tool-origin state. `_persistDefaultChatBacking`'s two writes — the `defaultChatProviderData` blob and the default chat's own `_markChatBacking` call (I7) — are independent: a failure persisting the blob is logged and swallowed rather than skipping the backing marker, since the marker is what keeps the default chat's backing session out of the top-level list and must not be held hostage to an unrelated write's success.
+The orchestrator persists additional chats in `PEER_CHATS_METADATA_KEY` and the initial chat's opaque backing in `defaultChatProviderData`. Restore materializes both through the same provider-data contract — `materializeChat` is the *only* way a default chat is re-attached. When a native catalog session has no persisted blob, the provider recovers its backing from the provider-native session id in the Agent Host session URI and returns canonical provider data, which the host persists additively for later restores; an already-canonical blob is never rewritten. A missing additional-chat catalog triggers the one-time `listLegacyChatBackings` migration. Harness-spawned chats remain transient and are re-derived from tool-origin state. `_persistDefaultChatBacking`'s two writes — the `defaultChatProviderData` blob and the default chat's own `_markChatBacking` call (I7) — are independent: a failure persisting the blob is logged and swallowed rather than skipping the backing marker, since the marker is what keeps the default chat's backing session out of the top-level list and must not be held hostage to an unrelated write's success.
 
-**I6 — `_findProviderForSession` not `_sessionToProvider`.**
-The `_sessionToProvider` map is populated only by `AgentService.createSession`. A restored session (alive in the state manager after a host restart but never created in this process) is absent from it. `_findProviderForSession` (`node/agentService.ts:AgentService._findProviderForSession`) falls back to the session URI scheme, which is what makes restored sessions work.
+**I6 — Route through `IAgentHostProviderService`.**
+The provider service's explicit session association is populated only by
+`AgentService.createSession`. A restored session (alive in the state manager
+after a host restart but never created in this process) is absent from it, so
+restore re-associates the durable `AgentSessionRegistry` provider before
+lookup. For unregistered provider-native sessions, `getProviderForSession`
+falls back to the session URI scheme. Do not read the association map directly.
 
 **I7 — A peer chat's backing SDK session must never surface as a top-level session.**
-Some agents store all SDK conversations in one catalog. `IAgentCreateChatResult.backingSession` lets the orchestrator mark any internal chat backing, including the default Claude backing, so one-time legacy discovery never registers it as a top-level AH session. Only `listLegacyChats` performs SDK discovery for one-time registry migration. Marking a backing session is a durable metadata write on the backing session's own DB (`_markChatBacking`); a transient failure is retried once, and if it keeps failing the session is suppressed from listing/backfill in-process (`_unpersistedChatBackings`) rather than failing the chat creation that triggered it — a chat is never orphaned from the catalog just because its own backing-marker write is unlucky. Restoring a peer chat goes through the same contract: `_materializeRestoredPeerChat` marks whatever `backingSession` `materializeChat` reports on first access, with the same retry/suppression semantics, so a peer chat restored on a fresh process cannot leak its backing session either. (The default chat's restore path does not yet mirror this — a `materializeChat` result there is only consumed for history, not backing-session marking — a narrower, pre-existing gap left out of this pass's scope.)
+Some agents store all SDK conversations in one catalog. `IAgentCreateChatResult.backingSession` lets the orchestrator mark any internal chat backing, including the default Claude backing, so continual external-chat discovery never registers it as a top-level AH session. Providers own native enumeration and push candidates through `onDidDiscoverChats`; Agent Host reconciles those candidates against its registry and suppresses separately enumerable internal backings. Existing AH-created rows retain their provenance. Marking a backing session is a durable metadata write on the backing session's own DB (`_markChatBacking`); a transient failure is retried once, and if it keeps failing the session is suppressed from listing/discovery in-process (`_unpersistedChatBackings`) rather than failing the chat creation that triggered it.
 
 **I8 — Providers are given host facts; they must not re-derive them.**
 Everything a provider needs about a chat and its owning session is published on
@@ -203,21 +212,58 @@ a chat URI. New provider code must consume the seams.
 
 ---
 
-## 3a. Session Registry and Backfill
+## 3a. Session Registry and External Chat Discovery
 
-`AgentSessionRegistry` (`node/agentSessionRegistry.ts`) stores `{ sessionUri → { provider, startTime } }` in the orchestrator-owned `agent-host.db`. Its normalized `sessions` table supports atomic registration/deletion without serializing a metadata blob; the `metadata` table records completion of *per-provider* backfill (below) and durable unregistration tombstones. Registration is idempotent and preserves the first observed start time.
+`AgentSessionRegistry` (`node/agentSessionRegistry.ts`) stores `{ sessionUri → { provider, startTime, external, source } }` in the orchestrator-owned `agent-host.db`. `external` is durable provenance: explicitly created Agent Host sessions are `false`; sessions first discovered in a provider-native catalog are `true`. Provider session databases do not duplicate this property.
 
-Two distinct registration entry points exist, and they must not be confused. `register` is reserved for genuinely **explicit** actions — a new `AgentService.createSession` — and clears any tombstone for that session URI, since reusing a previously-deleted URI there is an intentional, user-driven action. `registerIfNotTombstoned` is for paths that **revive** a session a provider or database still reports rather than explicitly creating one — provider backfill and session restore — and atomically declines to register (and never clears a tombstone) if the session is or concurrently becomes tombstoned; it returns whether the registration happened. `restoreSession` also tombstone-checks up front and rejects (`AHP_SESSION_NOT_FOUND`) before doing any work if the target is already deleted, so a stale restore request for a since-deleted session URI cannot resurrect it even before the atomic write is reached. The atomicity of `registerIfNotTombstoned` (a single `INSERT ... WHERE NOT EXISTS (tombstone) ... ON CONFLICT`, not a separate read-then-write) matters: backfill reads a provider's legacy chats, which takes time, so a plain upfront filter would still race a concurrent explicit delete landing in the window between the read and the write.
+`AgentSessionRegistry.list()` reads the registry once and passes every entry through the migration callback supplied by Agent Service. The callback returns a replacement only for legacy entries whose `external` column is `NULL`, resolving them through the `agentHost.workspaceless` classifier. The registry persists all replacements in one transaction and returns the computed list without rereading the database. Migration uses bounded concurrency. Explicit internal registration sources are preserved; externally classified rows become discovery entries.
 
-`AgentService` registers on successful create, `registerIfNotTombstoned`s on restore and backfill, unregisters on definitive delete, and enumerates the registry rather than unioning provider SDK catalogs. Per-session metadata still comes from the owning provider and then flows through the normal persisted/live overlays. Idle provisional sessions stay hidden until materialization or turn activity.
+`register` takes the resolved provenance and whether to check tombstones. Explicit `AgentService.createSession` calls skip the tombstone check and clear any tombstone for that session URI; restore and discovery calls atomically decline to register if the session is or concurrently becomes tombstoned. An explicit row is never rewritten by catalog discovery. A migration-time host-owned marker can correct a previously discovered row back to internal provenance.
 
-Backfill is tracked **per provider**, not by a single global marker: each provider registered at construction time (and any provider registered later, or that fires `onDidChangeChatList` before its own marker is set) gets its own durable sweep and its own `sessionRegistryBackfilled:<provider>` marker, so a provider that becomes available after other providers have already swept is never silently skipped. A provider's `listLegacyChats()` returning `undefined` means "cannot enumerate yet" (e.g. its SDK isn't downloaded) — the sweep leaves the provider unmarked and un-registered so a later trigger retries it; an empty array is a legitimate "no legacy chats" result and does mark it. `force` only ever originates from a provider's own live `onDidChangeChatList` signal — a late provider *registration* always runs a plain, non-forced first sweep like any other provider, never a forced one, so a late-registering provider on a database that only carries the legacy global marker (below) gets the same safe implicit-conversion treatment as any other provider rather than being forced into a real (riskier) sweep. A `force` re-sweep that arrives while a sweep for that provider is already in flight is never dropped: it chains a second forced attempt after the in-flight one settles. The queued-force flag is reset at the moment that chained attempt *starts* running (not when it is merely scheduled), so a further force arriving while the chained sweep is itself still in flight correctly chains its own follow-up rather than being coalesced away; a freshly-started entry (no attempt previously in flight for that provider) likewise always begins with the flag clear, even when that very first attempt is itself invoked with `force` — otherwise a fresh forced sweep would look like it already has a follow-up queued, and an overlapping second force arriving while it runs would be silently dropped instead of chaining its own follow-up. Force intent is thus preserved under arbitrarily repeated overlap, not just a single level of chaining. `listSessions` sweeps every not-yet-backfilled provider with `Promise.allSettled` and only warns on a per-provider failure — one provider's transient failure never hides another provider's already-registered sessions, and the failing provider is retried on the next call.
+Providers own discovery lifecycle and push unknown chats with provider-classified provenance through `onDidDiscoverChats`. Claude, Codex, and Copilot classify their unknown native chats as external, except that Copilot keeps an unknown *legacy extension-host* chat internal because it is adoptable in place rather than someone else's session. Agent Service preserves that classification when it additively registers the event payload. Every provider starts one memoized initial attempt when the first discovery-event listener is attached; that attempt retries internally, but once it settles it is not re-armed by SDK readiness, so the only later trigger is an explicit one (for Copilot, the migrate-legacy toggle). Ordinary list refreshes never enumerate provider catalogs. External discovery has no migration marker or Copilot migrate-legacy gate; only the adoptable legacy extension-host half of Copilot's payload is withheld while migrate-legacy is off. Discovery never prunes a registry row when a provider later omits it and filters subagents and marked internal chat backings.
 
-The legacy global `backfilled` marker (metadata key `sessionRegistryBackfilled`, no provider suffix) pre-dates per-provider tracking; it was only ever written by an intermediate development iteration of this migration, before per-provider markers existed, not by any long-shipped release. Current code never *writes* it (there is no reliable in-process signal for "every provider that will ever register has now registered," so mirroring it once some snapshot of providers looked backfilled would risk a late-registering provider being silently skipped by that older code re-opening the profile). It is, however, *read*: a database carrying only that global marker has no per-provider markers and, because tombstones did not exist at that point either, no protection against a fresh sweep resurrecting a session a user explicitly deleted back then. A non-forced per-provider backfill check therefore treats an already-`true` legacy marker as **implicit** completion for that provider — it durably converts to a real `sessionRegistryBackfilled:<provider>` marker without performing an additive sweep — so opening such a database never resurrects an old deletion. A `force` re-sweep (only ever a live `onDidChangeChatList` signal — never late registration itself, see above) still performs a real sweep despite the legacy marker; this is an accepted, deliberate tradeoff, not an oversight: it is what lets a provider whose legacy data genuinely was never migrated (e.g. Codex added after the old marker was already set) ever get discovered, at the cost of a narrow residual risk that a forced sweep specifically could re-surface a pre-tombstone-era deletion. Ordinary (non-forced) checks never carry that risk.
+Discovery is registry-first: Agent Service hands each provider an optional `setKnownSessionsFilter` seam that answers, for a whole candidate set in one registry query, which sessions the host already owns. A provider drops those candidates before any per-session database open, and Copilot additionally skips adoptable legacy classification work (project/Git resolution) while migrate-legacy is off, since those candidates would not be emitted. Agent Service in turn rejects an already-registered candidate before `_isChatBacking()` or any other per-session I/O; provenance of a registered row stays owned by the explicit create/restore paths. Tombstoned sessions are absent from the registry and therefore never reported as known, so an explicitly deleted session still reaches `register`, whose atomic tombstone check declines it.
 
-Durable unregistration tombstones (`markSessionTombstoned`/`isTombstoned`, cleared only by `register`'s explicit-create path) mean any backfill or restore registration — forced, repeated, or racing a concurrent delete — consults them and can never resurrect a session that was explicitly deleted, independent of whether the database predates per-provider tracking (see above for the one intentionally-accepted forced-sweep exception on legacy-marker-only databases).
+Claude and Codex each use one memoized initial path: resolve/download the SDK, enumerate once, classify the native catalog by stored session metadata, then emit only unknown chats as `external: true`. Provider session databases no longer persist a provider-local external property; legacy `claude.external` and `codex.external` values are recognized only as evidence that a chat was known. An empty or absent sidecar remains unknown.
 
-**Ordinary downgrade (new database opened by pre-per-provider code).** Per-provider markers and tombstones are meaningless to that older code — it understands only the single global marker and its own one-time enumeration, and current code never sets that global marker. Opening a database written by current code therefore looks, to that older code, exactly like a database that was never backfilled: it globally re-enumerates every provider's legacy chats from scratch and registers what it finds, with no tombstone concept to filter against. The result is **additive and non-destructive** — it does not delete or corrupt anything current code registered — but **not reconciled**: a session a user explicitly deleted under current code (and which therefore has no analog the older code would skip) can be re-added to the registry by that sweep, since the older code has no way to know it was ever deleted. This is a one-directional compatibility gap, not a round-trip guarantee; it is scoped to the unsupported concurrent-old/new-process contract in the same way (see `agentSessionRegistry.ts`'s class doc comment).
+If a provider cannot enumerate yet, its initial discovery attempt emits nothing; once ready, it emits the resulting chats through `onDidDiscoverChats`. Registry provenance is projected into `IAgentSessionMetadata._meta` with `readSessionExternal` / `withSessionExternal`, and the normal AHP listSessions round trip carries it to the Sessions provider. There is no external-specific UI behavior.
+
+`listSessions()` coalesces concurrent computations per external-sessions mode, so the burst of calls a multi-window restore produces shares one registry traversal instead of one per window. The shared entry records the registry epoch it started at and is invalidated by every registry mutation. A computation whose epoch changes restarts against the new registry, so both existing and later callers receive a complete post-mutation snapshot; each caller receives its own array.
+
+Legacy registry migration uses the `listChatsToMigrate()` contract. An array is authoritative even when empty. `undefined` means the catalog is unavailable and must not advance migration markers; Agent Service retries an unavailable registration-time catalog once before listing, and persistent unavailability rejects aggregate `listSessions()` with a typed provider-catalog error so clients preserve their last successful snapshots. `AgentChatMigrationDeferred` means the catalog cannot be enumerated until an external readiness action, such as downloading an optional SDK: it does not advance the provider marker and does not block healthy providers' aggregate listing. A provider's later discovery signal force-retries its migration partition before additively registering the signal's unknown/external entries, and a subsequent list refresh can retry a still-deferred provider. `BaseAgentHostSessionsProvider` retries failures with exponential backoff; `AgentHostSessionListStore` leaves its cache invalid and retries on the next controller, lifecycle, or workspace refresh trigger. Replacement retry ownership is compare-and-swap single-flight: overlapping list computations that observed the same failed attempt await the first caller's installed retry rather than queueing another provider enumeration. Successful providers retain their completed migration state when a sibling provider is unavailable.
+
+Session-list clients treat only a successful return as authoritative. `BaseAgentHostSessionsProvider` and `AgentHostSessionListStore` retain their last successful snapshots when `listSessions()` rejects; a successful empty array still clears the snapshot. This separation prevents transport, authentication, or catalog failures from becoming deletion deltas.
+
+Provider-private discovery helpers name their concrete source: Claude uses `_listClaudeCodeChats()` / `_emitClaudeCodeChats()`, Codex uses `_listCodexChats()` / `_emitCodexChats()`, and Copilot uses `_discoverCopilotChats()` / `_emitCopilotChats()`. Providers filter known session metadata before emitting; Agent Service still performs the authoritative additive registry write and atomic tombstone check. Copilot treats the existence of a per-session database (under `{userDataPath}/agentSessionData`, never the shared Copilot home) as "known", which also keeps peer-chat backings out of the payload; it additionally drops a chat whose SDK context carries no working directory, because `_doResumeSession` requires one and a discovered chat has no other source for it.
+
+For every provider, migration and discovery partition the same native catalog: migration returns known entries as plain metadata, while discovery emits unknown entries with provider-classified provenance (external for Claude and Codex, and for Copilot everything except an unknown legacy extension-host chat, which is emitted as internal and adoptable). The partition is not quite exhaustive for Copilot: a chat whose session database exists but holds none of the metadata keys `listChatsToMigrate` requires is rejected by both halves. That is deliberate — an empty database is how Agent Host records a chat it already touched — and is asserted by `copilotAgent.test.ts`'s "does not discover an extension-host chat with an empty Agent Host database". Central `agent-host.db` remains the durable provenance authority.
+
+### Server-tool creation provenance
+
+Treat a session as the user-visible unit of work. `create_session` requires a
+relationship: `currentSession` creates a peer chat for tasks in the current plan
+or deliverable, sharing its workspace, lifecycle, and aggregate diff;
+`independent` creates a top-level session for a separate deliverable that needs
+its own workspace, provider, or lifecycle. A title is required for both
+relationships and is applied before the initial prompt starts.
+
+Sessions created by the `create_session` server tool record only the creating
+session, chat, and turn as immutable, provider-neutral creation provenance in
+the initial session summary `_meta` bag, before the session is published or its
+first prompt starts. The reference supports related-session placement,
+source identification and session-list presentation; it does not define a
+hierarchy, grant communication privileges, or trigger lifecycle notifications.
+
+`list_sessions` exposes a session's configured project URI separately from its
+primary and additional working directories. `create_session` accepts those URIs
+directly and can resolve a unique project display name, preferring the
+configured project root over a transient worktree. Ambiguous names require an
+explicit project URI.
+
+An independent session inherits the creating session's host-owned isolation
+selection independently of provider-owned configuration. The target workspace
+still constrains the effective selection, so a folder that cannot support Git
+worktrees resolves to folder isolation.
 
 ---
 
@@ -242,10 +288,11 @@ The agent declares these in `getDescriptor().capabilities` (`common/agent.ts:IAg
 
 UI code gates "Add Chat" and "Fork" actions on those context keys. No code inside `AgentService` or `AgentHostStateManager` switches on provider id to gate features. `AgentService.createChat` throws synchronously when `!provider.chats` (the structural guard that replaces a capability check in the orchestrator).
 
-Claude, Copilot, and Codex advertise `multipleChats: { fork: true }`. Codex does
-not advertise `sideChat`; side-chat context/restore, subagent E2E, and native
-streaming file-creation coverage remain independently disabled and must not be
-inferred from its peer-chat/fork support.
+Claude, Copilot, and Codex advertise
+`multipleChats: { fork: true, sideChat: true }`. Codex side-chat context and
+restore run in deterministic replay. Subagent E2E and native streaming
+file-creation coverage remain independently disabled and must not be inferred
+from its peer-chat/fork/side-chat support.
 
 ---
 
@@ -287,11 +334,12 @@ graph LR
 sequenceDiagram
     participant UI as Sessions UI
     participant AS as AgentService
+    participant PS as AgentHostProviderService
     participant A as IAgent.chats
     participant SM as AgentHostStateManager
 
     UI->>AS: createChat(session, chatUri, options?)
-    AS->>AS: _findProviderForSession(session)
+    AS->>PS: getProviderForSession(session)
     AS->>A: chats.createChat(chatUri, session, convOptions)
     A-->>AS: IAgentCreateChatResult { providerData?, backingSession? }
     AS->>SM: addChat(session, chatUri, { providerData })
@@ -399,7 +447,7 @@ graph TD
     B{isAhpChatChannel?}
     C["chatChannel = channel\nsessionChannel = parseRequiredSessionUriFromChatUri(channel)"]
     D["sessionChannel = channel\nchatChannel = undefined"]
-    E["agent = _findProviderForSession(sessionChannel)"]
+    E["agent = providerService.getProviderForSession(sessionChannel)"]
     F["session = sessionChannel (session URI)\nchat = chatChannel (concrete chat channel URI)"]
     A --> B
     B -->|yes| C
@@ -447,6 +495,7 @@ explicitly bound to the concrete chat URI AH supplies:
 - `_sessionIdByChatUri: Map<string, string>` is the exact chat-operation routing index; unbound chat URIs are rejected.
 - `_sessionIdByThreadId` continues to route app-server callbacks by thread id.
 - Initializing `chats.createChat` binds a thread to the exact host-supplied chat URI at provisioning time (including restored/forked threads); `materializeChat` re-attaches any chat's backing thread on restore.
+- A cold `getChatMetadata` read caches the backing thread's summary, timestamps, and working directories on the live runtime. Later metadata reads return those fields from memory (the app-server may be blocked on a dynamic tool call), so hydrating a runtime must never erase an already-listed session title.
 
 An additional chat is backed by a **fresh top-level thread minted eagerly** in
 `chats.createChat` (via `thread/start` or `thread/fork` at the
@@ -464,8 +513,8 @@ addressed chat's own thread — there is no cascade between chats of the same
 session. The persisted `codex.threadId`, `codex.cwd`, and `codex.model` keys and
 app-server protocol are unchanged, and Codex still never recognizes or derives a
 default-chat URI. The orchestrator registry contains the parent AH session, not
-these chat backing URIs; `listLegacyChats` is used only for one-time registry
-backfill. Capabilities are `multipleChats: { fork: true }`.
+these chat backing URIs; provider-owned discovery pushes external chats through
+`onDidDiscoverChats`. Capabilities are `multipleChats: { fork: true }`.
 
 
 ---
@@ -509,7 +558,8 @@ pointer.
 - **Enumerate.** `AgentService.listSessions` enumerates
   `AgentSessionRegistry`, asks the registered provider for that exact session's
   metadata via `getChatMetadata`, and applies persisted and live state overlays.
-  Provider `listLegacyChats` exists only for one-time registry backfill.
+  Provider-owned code activates additive external-chat discovery;
+  `listChatsToMigrate` remains the one-time registry migration seam.
 
 ### No provider-side default-chat derivation
 
@@ -535,14 +585,15 @@ chat is re-attached only through `materializeChat`.
 The change is storage-preserving: existing session URIs, provider stores,
 `providerData`, and `PEER_CHATS_METADATA_KEY` formats are unchanged, and the
 one-time `defaultChatProviderData` backfill for old databases is purely
-additive. Registry adoption is a one-time backfill, not a provider-data
+additive. Registry adoption is separate from provider-data
 migration.
 
 ### Interface surface
 
-Provider discovery is migration-only through `listLegacyChats`; direct metadata
-lookup uses `getChatMetadata`. Conversation history, provisioning, restoration,
-and teardown are all exact-chat-addressed.
+Provider-native external-chat discovery is pushed through `onDidDiscoverChats`; one-time
+registry migration is through `listChatsToMigrate`; direct metadata lookup uses
+`getChatMetadata`. Conversation history, provisioning, restoration, and teardown
+are all exact-chat-addressed.
 
 ---
 
@@ -655,9 +706,9 @@ resource. `AgentSideEffects` does not enumerate chats or fan config values
 through provider hooks.
 
 Both `IAgentHostPromptCache` and `IAgentHostSessionTitleSignal` are constructed
-by `AgentService`, exposed as `agentService.promptCache` /
-`agentService.sessionTitleSignal`, and registered in the `agentHostMain` /
-`agentHostServerMain` DI containers next to `IAgentHostStateManager`.
+and registered by `createAgentServiceComposition`. Consumers resolve their
+service identifiers through constructor injection; `AgentService` neither owns
+nor exposes them.
 
 ### 8g. Seam → provider read it replaces
 

@@ -41,7 +41,7 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 
 	test('forwards a standard event to VS Code telemetry', () => {
 		const telemetryService = new TestTelemetryService();
-		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, () => undefined, telemetryService);
+		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
 
 		forwarder.forward({
 			sessionId: 'notification-session',
@@ -93,7 +93,7 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 	test('gates restricted events on the restricted telemetry option', () => {
 		const telemetryService = new TestTelemetryService();
 		let restrictedTelemetryEnabled = false;
-		const forwarder = new CopilotGitHubTelemetryForwarder(() => restrictedTelemetryEnabled, () => undefined, telemetryService);
+		const forwarder = new CopilotGitHubTelemetryForwarder(() => restrictedTelemetryEnabled, telemetryService);
 		const notification: GitHubTelemetryNotification = {
 			sessionId: 'session',
 			restricted: true,
@@ -123,40 +123,9 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 		}]);
 	});
 
-	test('stamps VS Code assignment context independently of the runtime context', () => {
-		const telemetryService = new TestTelemetryService();
-		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, () => 'experiment:1;experiment:2', telemetryService);
-
-		forwarder.forward({
-			sessionId: 'session',
-			restricted: false,
-			event: {
-				kind: 'response.success',
-				properties: {},
-				metrics: {},
-				exp_assignment_context: 'runtime-context',
-			},
-		});
-
-		assert.deepStrictEqual(telemetryService.events, [{
-			eventName: 'copilotSdk/response.success',
-			data: {
-				created_at: undefined,
-				model_call_id: undefined,
-				exp_assignment_context: 'runtime-context',
-				session_id: 'session',
-				sdk_session_id: 'session',
-				copilot_tracking_id: undefined,
-				kind: 'response.success',
-				restricted: false,
-				'abexp.assignmentcontext': 'experiment:1;experiment:2',
-			},
-		}]);
-	});
-
 	test('adds Agent Host turn correlation only to response events', () => {
 		const telemetryService = new TestTelemetryService();
-		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, () => undefined, telemetryService);
+		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
 		const notification = (kind: string, properties: Record<string, string> = {}, metrics: Record<string, number> = {}): GitHubTelemetryNotification => ({
 			sessionId: 'session',
 			restricted: false,
@@ -181,5 +150,37 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 			{ eventName: 'copilotSdk/tool_call_executed', turnId: 'runtime-turn' },
 			{ eventName: 'copilotSdk/response.success', turnId: undefined },
 		]);
+	});
+
+	test('forwards tool_call_executed outcome and token-count columns', () => {
+		const telemetryService = new TestTelemetryService();
+		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
+
+		forwarder.forward({
+			sessionId: 'session',
+			restricted: false,
+			event: {
+				kind: 'tool_call_executed',
+				properties: {
+					tool_name: 'grep',
+					result_type: 'SUCCESS',
+					invoke_outcome: 'success',
+					model: 'gpt-5.5',
+					tool_call_id: 'call-1',
+				},
+				metrics: {
+					duration_ms: 12,
+					result_token_count: 34,
+				},
+			},
+		});
+
+		const event = telemetryService.events[0];
+		assert.strictEqual(event.eventName, 'copilotSdk/tool_call_executed');
+		assert.strictEqual(event.data?.invoke_outcome, 'success');
+		assert.strictEqual(event.data?.result_type, 'SUCCESS');
+		assert.strictEqual(event.data?.result_token_count, 34);
+		assert.strictEqual(event.data?.duration_ms, 12);
+		assert.strictEqual(event.data?.tool_call_id, 'call-1');
 	});
 });

@@ -15,7 +15,7 @@ import { createTestCodeEditor } from '../../../../../editor/test/browser/testCod
 import { createTextModel } from '../../../../../editor/test/common/testTextModel.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { ChatDictationSurface, ChatSpeechToTextState, IChatDictationTranscript, IChatSpeechToTextService, isDictationActiveOnSurface } from '../../browser/speechToText/chatSpeechToTextService.js';
-import { isDictating, startDictation, stopDictation, stopDictationForEditor } from '../../browser/speechToText/dictationSession.js';
+import { isDictating, isDictationActiveForEditor, onDidChangeDictationEditor, startDictation, stopDictation, stopDictationForEditor } from '../../browser/speechToText/dictationSession.js';
 
 suite('DictationSession', () => {
 
@@ -145,13 +145,18 @@ suite('DictationSession', () => {
 		const { service, onDidUpdateTranscript, blockStop } = createService('hello world', true);
 		const model = store.add(createTextModel(''));
 		const editor = store.add(createTestCodeEditor(model));
+		const otherEditor = store.add(createTestCodeEditor(store.add(createTextModel(''))));
 
 		await startDictation(service, editor, mainWindow, new NullLogService());
 		onDidUpdateTranscript.fire({ text: 'hello world', finalizedText: '' });
+		const ownershipChanges: boolean[] = [];
+		store.add(onDidChangeDictationEditor(() => ownershipChanges.push(isDictationActiveForEditor(editor))));
 
 		// The first submit begins finalizing but blocks inside stopAndTranscribe.
 		const release = blockStop();
 		const firstStop = stopDictationForEditor(editor);
+		const ownsFinalizingDictation = isDictationActiveForEditor(editor);
+		const otherOwnsFinalizingDictation = isDictationActiveForEditor(otherEditor);
 		// A second submit for the same editor arrives mid-finalization; it must
 		// await the in-flight finalization rather than returning early.
 		let secondResolved = false;
@@ -163,12 +168,20 @@ suite('DictationSession', () => {
 		await Promise.all([firstStop, secondStop]);
 
 		assert.deepStrictEqual({
+			ownsFinalizingDictation,
+			otherOwnsFinalizingDictation,
+			ownershipChanges,
 			secondResolvedWhileBlocked,
 			secondResolvedAfterFinal: secondResolved,
+			ownsCompletedDictation: isDictationActiveForEditor(editor),
 			value: editor.getValue(),
 		}, {
+			ownsFinalizingDictation: true,
+			otherOwnsFinalizingDictation: false,
+			ownershipChanges: [false, true, false],
 			secondResolvedWhileBlocked: false,
 			secondResolvedAfterFinal: true,
+			ownsCompletedDictation: false,
 			value: 'hello world',
 		});
 	});

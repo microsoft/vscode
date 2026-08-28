@@ -13,6 +13,7 @@ import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { AgentHostEditAutoApprovePatternsConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
 import { DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, mergeChatEditAutoApprovePatterns } from '../../../chat/common/chatSettings.js';
@@ -134,6 +135,35 @@ suite('SessionPermissionManager', () => {
 		assert.deepStrictEqual(results, [ToolCallConfirmationReason.NotNeeded, undefined]);
 	});
 
+	test('isForbiddenSnapshotWrite flags writes to a session attachment snapshot but not reads or working-dir writes (#331154)', () => {
+		const snapshot = URI.joinPath(sessionDataService.getSessionDataDir(URI.parse(sessionUri)), SESSION_ATTACHMENTS_DIRNAME, 'id', 'Pasted text #1.txt').fsPath;
+		assert.deepStrictEqual({
+			snapshotWrite: permissions.isForbiddenSnapshotWrite(writeEvent(snapshot), sessionUri),
+			workingDirWrite: permissions.isForbiddenSnapshotWrite(writeEvent(join(workDir, 'app.ts')), sessionUri),
+			snapshotRead: permissions.isForbiddenSnapshotWrite(readEvent(snapshot), sessionUri),
+		}, {
+			snapshotWrite: true,
+			workingDirWrite: false,
+			snapshotRead: false,
+		});
+	});
+
+	test('isForbiddenSnapshotWrite is independent of auto-approve config (used by the interactive deny path) (#331154)', async () => {
+		configService.updateRootConfig({ [AgentHostGlobalAutoApproveEnabledConfigKey]: true });
+		const snapshot = URI.joinPath(sessionDataService.getSessionDataDir(URI.parse(sessionUri)), SESSION_ATTACHMENTS_DIRNAME, 'id', 'Pasted text #1.txt').fsPath;
+		// getAutoApproval approves the write once global auto-approve is on (the auto-approve checks
+		// return before the write-path logic). isForbiddenSnapshotWrite ignores that, so _handleToolReady
+		// can hard-deny before consulting getAutoApproval. NOTE: this only matters when a provider raises
+		// an interactive pending_confirmation; providers that auto-approve upstream never reach it.
+		assert.deepStrictEqual({
+			autoApproval: await permissions.getAutoApproval(writeEvent(snapshot), sessionUri),
+			forbidden: permissions.isForbiddenSnapshotWrite(writeEvent(snapshot), sessionUri),
+		}, {
+			autoApproval: ToolCallConfirmationReason.Setting,
+			forbidden: true,
+		});
+	});
+
 	test('requires confirmation for writes outside the working directory', async () => {
 		const result = await permissions.getAutoApproval(writeEvent(join(outsideDir, 'app.ts')), sessionUri);
 		assert.strictEqual(result, undefined);
@@ -142,6 +172,7 @@ suite('SessionPermissionManager', () => {
 	test('requires confirmation for protected files inside the working directory', async () => {
 		const files = [
 			'.env',
+			'.mcp.json',
 			'package.json',
 			'Cargo.toml',
 			'build.gradle',
@@ -161,7 +192,20 @@ suite('SessionPermissionManager', () => {
 
 	if (!isLinux) {
 		test('requires confirmation for protected files with non-canonical casing', async () => {
-			const files = ['.ENV', 'Package.json', join('.GIT', 'config'), join('.VSCODE', 'settings.json')];
+			const files = ['.ENV', '.MCP.JSON', 'Package.json', join('.GIT', 'config'), join('.VSCODE', 'settings.json')];
+			const results = await Promise.all(files.map(file => permissions.getAutoApproval(writeEvent(join(workDir, file)), sessionUri)));
+			assert.deepStrictEqual(results, files.map(() => undefined));
+		});
+
+		test('requires confirmation for lifecycle configuration files with non-canonical casing', async () => {
+			const files = [
+				join('.GITHUB', 'agents', 'dev-helper.md'),
+				join('.GITHUB', 'hooks', 'say-hi.json'),
+				join('.CLAUDE', 'agents', 'dev-helper.md'),
+				join('.CLAUDE', 'settings.json'),
+				join('.CLAUDE', 'settings.local.json'),
+				join('.claude', 'SETTINGS.LOCAL.JSON'),
+			];
 			const results = await Promise.all(files.map(file => permissions.getAutoApproval(writeEvent(join(workDir, file)), sessionUri)));
 			assert.deepStrictEqual(results, files.map(() => undefined));
 		});
@@ -173,6 +217,7 @@ suite('SessionPermissionManager', () => {
 				'**/*': false,
 				'**/*.ts': true,
 				'**/.github/hooks/**': true,
+				'**/.npmrc': true,
 			},
 		});
 
@@ -180,7 +225,9 @@ suite('SessionPermissionManager', () => {
 			await permissions.getAutoApproval(writeEvent(join(workDir, 'src', 'app.ts')), sessionUri),
 			await permissions.getAutoApproval(writeEvent(join(workDir, 'README.md')), sessionUri),
 			await permissions.getAutoApproval(writeEvent(join(workDir, '.github', 'hooks', 'pre-tool.json')), sessionUri),
-		], [ToolCallConfirmationReason.NotNeeded, undefined, undefined]);
+			await permissions.getAutoApproval(writeEvent(join(workDir, '.npmrc')), sessionUri),
+			await permissions.getAutoApproval(writeEvent(join(workDir, 'packages', 'nested', '.npmrc')), sessionUri),
+		], [ToolCallConfirmationReason.NotNeeded, undefined, undefined, undefined, undefined]);
 	});
 
 	test('merges configured edit auto-approve patterns with defaults', () => {
@@ -545,6 +592,108 @@ suite('SessionPermissionManager', () => {
 	// The multi-root path is otherwise dormant today (the create-time length
 	// guard keeps sessions single-root), so these tests synthesize a two-root
 	// session state directly.
+	suite('surface edit scope', () => {
+
+		const inlineSessionUri = URI.from({ scheme: 'copilot', path: '/inline' }).toString();
+
+		/** Creates an inline-chat session scoped to `targetUri`, or to nothing when omitted. */
+		function createInlineSession(targetUri: string | undefined): void {
+			manager.createSession({
+				...makeSummary(inlineSessionUri, URI.file(workDir).toString()),
+				_meta: withChatSurfaceMeta(undefined, {
+					surface: 'editorInline',
+					languageId: 'typescript',
+					...(targetUri !== undefined ? { targetUri } : {}),
+				}),
+			});
+		}
+
+		function inlineEvent(event: IToolApprovalEvent): IToolApprovalEvent {
+			return { ...event, session: URI.parse(inlineSessionUri) };
+		}
+
+		test('auto-approves a write to the inline chat target file', async () => {
+			const target = join(workDir, 'src', 'inline.ts');
+			createInlineSession(URI.file(target).toString());
+
+			const result = await permissions.getAutoApproval(inlineEvent(writeEvent(target)), inlineSessionUri);
+			assert.strictEqual(result, ToolCallConfirmationReason.NotNeeded);
+		});
+
+		test('auto-approves reads and writes of the target file outside the working directory', async () => {
+			// Inline chat can be invoked on any open document, so consent follows
+			// the target rather than the workspace root. The agent has to read the
+			// file before editing it, so both kinds must stay silent.
+			const target = join(outsideDir, 'detached.ts');
+			createInlineSession(URI.file(target).toString());
+
+			assert.deepStrictEqual({
+				inlineWrite: await permissions.getAutoApproval(inlineEvent(writeEvent(target)), inlineSessionUri),
+				inlineRead: await permissions.getAutoApproval(inlineEvent(readEvent(target, inlineSessionUri)), inlineSessionUri),
+				unscopedWrite: await permissions.getAutoApproval(writeEvent(target), sessionUri),
+				unscopedRead: await permissions.getAutoApproval(readEvent(target), sessionUri),
+			}, {
+				inlineWrite: ToolCallConfirmationReason.NotNeeded,
+				inlineRead: ToolCallConfirmationReason.NotNeeded,
+				unscopedWrite: undefined,
+				unscopedRead: undefined,
+			});
+		});
+
+		test('requires confirmation for a write to another file in the working directory', async () => {
+			createInlineSession(URI.file(join(workDir, 'src', 'inline.ts')).toString());
+			const otherFile = join(workDir, 'src', 'app.ts');
+
+			// The same write auto-approves for a non-inline session, so this
+			// asserts the scope is what withholds approval.
+			assert.deepStrictEqual({
+				inline: await permissions.getAutoApproval(inlineEvent(writeEvent(otherFile)), inlineSessionUri),
+				unscoped: await permissions.getAutoApproval(writeEvent(otherFile), sessionUri),
+			}, {
+				inline: undefined,
+				unscoped: ToolCallConfirmationReason.NotNeeded,
+			});
+		});
+
+		test('requires confirmation for shell commands that would otherwise auto-approve', async () => {
+			createInlineSession(URI.file(join(workDir, 'src', 'inline.ts')).toString());
+			configService.updateRootConfig({ [AgentHostTerminalAutoApproveRulesConfigKey]: { echo: true } });
+
+			assert.deepStrictEqual({
+				inline: await permissions.getAutoApproval(inlineEvent(powershellEvent('echo hello')), inlineSessionUri),
+				unscoped: await permissions.getAutoApproval(powershellEvent('echo hello'), sessionUri),
+			}, {
+				inline: undefined,
+				unscoped: ToolCallConfirmationReason.NotNeeded,
+			});
+		});
+
+		test('leaves reads unscoped so context gathering stays silent', async () => {
+			createInlineSession(URI.file(join(workDir, 'src', 'inline.ts')).toString());
+
+			const result = await permissions.getAutoApproval(
+				inlineEvent(readEvent(join(workDir, 'src', 'app.ts'), inlineSessionUri)),
+				inlineSessionUri,
+			);
+			assert.strictEqual(result, ToolCallConfirmationReason.NotNeeded);
+		});
+
+		test('fails closed when the surface recorded no usable target', async () => {
+			createInlineSession(undefined);
+
+			const result = await permissions.getAutoApproval(inlineEvent(writeEvent(join(workDir, 'src', 'app.ts'))), inlineSessionUri);
+			assert.strictEqual(result, undefined);
+		});
+
+		test('does not override an explicit global auto-approve opt-in', async () => {
+			createInlineSession(URI.file(join(workDir, 'src', 'inline.ts')).toString());
+			configService.updateRootConfig({ [AgentHostGlobalAutoApproveEnabledConfigKey]: true });
+
+			const result = await permissions.getAutoApproval(inlineEvent(writeEvent(join(workDir, 'src', 'app.ts'))), inlineSessionUri);
+			assert.strictEqual(result, ToolCallConfirmationReason.Setting);
+		});
+	});
+
 	suite('multi-root', () => {
 		const multiUri = URI.from({ scheme: 'copilot', path: '/multi' }).toString();
 

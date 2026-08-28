@@ -17,14 +17,14 @@ import { openNewSearchEditor } from '../../../../workbench/contrib/searchEditor/
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
-import { SessionIsCreatedContext, SinglePaneChangesTabAvailableContext, SinglePaneChangesTabMissingContext, SinglePaneFilesTabAvailableContext, SinglePaneFilesTabMissingContext } from '../../../common/contextkeys.js';
+import { IsQuickChatSessionContext, SessionIsCreatedContext, SinglePaneChangesTabAvailableContext, SinglePaneChangesTabMissingContext, SinglePaneFilesTabAvailableContext, SinglePaneFilesTabMissingContext } from '../../../common/contextkeys.js';
 import { SessionsCategories } from '../../../common/categories.js';
+import { NEW_FILE_TAB_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { EmptyFileEditorInput } from './emptyFileEditorInput.js';
 import { Menus } from '../../../browser/menus.js';
 
-export const NEW_FILE_TAB_COMMAND_ID = 'workbench.action.agentSessions.newFileTab';
 export const NEW_BROWSER_TAB_COMMAND_ID = 'workbench.action.agentSessions.newBrowserTab';
 export const NEW_SEARCH_TAB_COMMAND_ID = 'workbench.action.agentSessions.newSearchTab';
 export const NEW_CHANGES_TAB_COMMAND_ID = 'workbench.action.agentSessions.newChangesTab';
@@ -46,6 +46,14 @@ const changesTabActionWhen = ContextKeyExpr.and(
 	SessionIsCreatedContext,
 	SinglePaneChangesTabAvailableContext);
 
+const filesTabActionWhen = ContextKeyExpr.and(
+	addTabActionWhen,
+	SinglePaneFilesTabAvailableContext);
+
+const searchTabActionWhen = ContextKeyExpr.and(
+	addTabActionWhen,
+	IsQuickChatSessionContext.negate());
+
 export class NewFileTabAction extends Action2 {
 
 	constructor() {
@@ -55,10 +63,10 @@ export class NewFileTabAction extends Action2 {
 			category: SessionsCategories.Sessions,
 			icon: Codicon.newFile,
 			f1: true,
-			precondition: addTabActionWhen,
+			precondition: filesTabActionWhen,
 			keybinding: {
 				weight: KeybindingWeight.SessionsContrib,
-				when: addTabActionWhen,
+				when: filesTabActionWhen,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyE,
 			},
 			menu: {
@@ -113,7 +121,7 @@ export class NewBrowserTabAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const browserViewWorkbenchService = accessor.get(IBrowserViewWorkbenchService);
 		const editorService = accessor.get(IEditorService);
-		const browserInput = browserViewWorkbenchService.getOrCreateLazy(generateUuid(), {});
+		const browserInput = browserViewWorkbenchService.getOrCreateLazy({ id: generateUuid() });
 
 		await editorService.openEditor(browserInput);
 	}
@@ -128,17 +136,17 @@ export class NewSearchTabAction extends Action2 {
 			category: SessionsCategories.Sessions,
 			icon: Codicon.search,
 			f1: true,
-			precondition: addTabActionWhen,
+			precondition: searchTabActionWhen,
 			keybinding: {
 				weight: KeybindingWeight.SessionsContrib,
-				when: addTabActionWhen,
+				when: searchTabActionWhen,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyF,
 			},
 			menu: {
 				id: Menus.SessionsEditorTabsBarAddTab,
 				group: 'navigation',
 				order: 3,
-				when: addTabLayoutWhen
+				when: ContextKeyExpr.and(addTabLayoutWhen, IsQuickChatSessionContext.negate())
 			}
 		});
 	}

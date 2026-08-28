@@ -25,6 +25,7 @@ import { IChatModel, IChatRequestModel } from '../../../../../workbench/contrib/
 import { IChatSlashCallback, IChatSlashCommandService, IChatSlashData } from '../../../../../workbench/contrib/chat/common/participants/chatSlashCommands.js';
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
 import { BtwSlashCommandContribution } from '../../browser/btwSlashCommand.contribution.js';
+import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISendRequestOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -106,6 +107,9 @@ suite('BtwSlashCommandContribution', () => {
 			openChat: async (_session, chatUri) => {
 				callOrder.push(`open:${chatUri.toString()}`);
 			},
+		}));
+		instantiationService.stub(ISessionsPartService, upcastPartial<ISessionsPartService>({
+			getSessionView: () => undefined,
 		}));
 		instantiationService.stub(INotificationService, new TestNotificationService());
 		instantiationService.stub(ILogService, new NullLogService());

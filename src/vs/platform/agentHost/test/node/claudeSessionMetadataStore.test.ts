@@ -113,6 +113,18 @@ suite('ClaudeSessionMetadataStore', () => {
 		assert.deepStrictEqual(overlay, {});
 	});
 
+	test('known-session detection ignores absent and empty sidecars', async () => {
+		const emptyDatabase = new TestSessionDatabase();
+		const absent = createStore(disposables, createNullSessionDataService());
+		const present = createStore(disposables, createSessionDataService(emptyDatabase));
+
+		const absentResult = await absent.hasKnownSession(SESSION_URI);
+		const emptyResult = await present.hasKnownSession(SESSION_URI);
+		await emptyDatabase.setMetadata('agentHost.workspaceless', 'false');
+
+		assert.deepStrictEqual([absentResult, emptyResult, await present.hasKnownSession(SESSION_URI)], [false, false, true]);
+	});
+
 	test('read narrows malformed permissionMode to undefined', async () => {
 		const db = new TestSessionDatabase();
 		await db.setMetadata('claude.permissionMode', 'not-a-mode');

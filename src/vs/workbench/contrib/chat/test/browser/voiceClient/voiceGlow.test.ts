@@ -12,7 +12,7 @@ import { IColorTheme } from '../../../../../../platform/theme/common/themeServic
 import { chatDictationActiveMicGlow, chatVoiceGlowBaseColor, chatVoiceSpeakingGlow } from '../../../common/widget/chatColors.js';
 import { resolveDictationMicAccent } from '../../../browser/speechToText/dictationMicGlow.js';
 import { isGlowingVoiceState, GlowThemeKind, resolveVoiceGlowColors, resolveVoiceRimAccent, shouldRenderVoiceInputGlow, VOICE_GLOW_SPEAKING_HUE_SHIFT } from '../../../browser/voiceClient/voiceGlow.js';
-import { createVoiceGlowController } from '../../../browser/voiceClient/voiceGlowController.js';
+import { createVoiceGlowController, createVoiceRimLight } from '../../../browser/voiceClient/voiceGlowController.js';
 
 suite('VoiceGlow', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -51,17 +51,20 @@ suite('VoiceGlow', () => {
 
 		const controller = disposables.add(createVoiceGlowController(target));
 		controller.render('listening', 0.5, false);
+		disposables.add(createVoiceRimLight(target, Color.fromHex('#58A6FF'), 'dark'));
 
 		assert.deepStrictEqual({
 			active: target.classList.contains('voice-active'),
 			listening: target.classList.contains('voice-listening'),
 			slots: target.querySelectorAll('.voice-glow-slot').length,
+			inlineSlots: target.querySelectorAll('.voice-glow-slot-inline').length,
 			layers: target.querySelectorAll('.voice-glow-rim-corners, .voice-glow-rim-bloom').length,
 		}, {
 			active: true,
 			listening: true,
-			slots: 2,
-			layers: 2,
+			slots: 3,
+			inlineSlots: 1,
+			layers: 4,
 		});
 	});
 

@@ -52,10 +52,23 @@ suite('ChangesViewService', () => {
 	function createChangeset(operations: readonly ISessionChangesetOperation[]): ISessionChangeset {
 		return upcastPartial<ISessionChangeset>({
 			id: 'branch',
+			label: 'Branch Changes',
 			isDefault: constObservable(true),
 			isEnabled: constObservable(true),
 			isLoadingChanges: constObservable(false),
 			operations: constObservable(operations),
+			changes: constObservable([]),
+		});
+	}
+
+	function createTransientChangeset(): ISessionChangeset {
+		return upcastPartial<ISessionChangeset>({
+			id: 'turn:request',
+			label: 'Turn Changes',
+			isDefault: constObservable(false),
+			isEnabled: constObservable(true),
+			isLoadingChanges: constObservable(false),
+			operations: constObservable([]),
 			changes: constObservable([]),
 		});
 	}
@@ -103,7 +116,6 @@ suite('ChangesViewService', () => {
 		const { activeSession, service } = createHarness(sessionA);
 
 		const states = [service.activeSessionSectionCollapseStateObs.get()];
-		service.setSectionCollapsed(sessionA.resource, 'otherFiles', true);
 		service.setSectionCollapsed(sessionA.resource, 'checks', false);
 		states.push(service.activeSessionSectionCollapseStateObs.get());
 		activeSession.set(sessionB, undefined);
@@ -114,11 +126,11 @@ suite('ChangesViewService', () => {
 		states.push(service.activeSessionSectionCollapseStateObs.get());
 
 		assert.deepStrictEqual(states, [
-			{ otherFiles: false, checks: true },
-			{ otherFiles: true, checks: false },
-			{ otherFiles: false, checks: true },
-			{ otherFiles: false, checks: false },
-			{ otherFiles: true, checks: false },
+			{ checks: true },
+			{ checks: false },
+			{ checks: true },
+			{ checks: false },
+			{ checks: false },
 		]);
 	});
 
@@ -133,7 +145,7 @@ suite('ChangesViewService', () => {
 			scrollTop: 40,
 		};
 
-		service.setSectionCollapsed(draft.resource, 'otherFiles', true);
+		service.setSectionCollapsed(draft.resource, 'checks', false);
 		service.setDetailsViewState(draft.resource, ChangesViewMode.List, detailsViewState);
 		activeSession.set(committed, undefined);
 		onDidReplaceSession.fire({ from: draft, to: committed });
@@ -145,10 +157,10 @@ suite('ChangesViewService', () => {
 		const detailsAfterDeletion = service.getDetailsViewState(committed.resource, ChangesViewMode.List);
 
 		assert.deepStrictEqual({ afterReplacement, detailsAfterReplacement, detailsViewStateTransfer, afterDeletion, detailsAfterDeletion }, {
-			afterReplacement: { otherFiles: true, checks: true },
+			afterReplacement: { checks: false },
 			detailsAfterReplacement: detailsViewState,
 			detailsViewStateTransfer: { from: draft.resource, to: committed.resource },
-			afterDeletion: { otherFiles: false, checks: true },
+			afterDeletion: { checks: true },
 			detailsAfterDeletion: undefined,
 		});
 	});
@@ -158,17 +170,17 @@ suite('ChangesViewService', () => {
 		const secondDraft = createSession('second-draft');
 		const { activeSession, onDidDiscardNewSession, onDidReplaceNewDraftSession, service } = createHarness(firstDraft);
 
-		service.setSectionCollapsed(firstDraft.resource, 'otherFiles', true);
+		service.setSectionCollapsed(firstDraft.resource, 'checks', false);
 		activeSession.set(secondDraft, undefined);
 		onDidReplaceNewDraftSession.fire({ from: firstDraft, to: secondDraft });
 		const afterReplacement = service.activeSessionSectionCollapseStateObs.get();
-		service.setSectionCollapsed(secondDraft.resource, 'otherFiles', true);
+		service.setSectionCollapsed(secondDraft.resource, 'checks', false);
 		onDidDiscardNewSession.fire(secondDraft);
 		const afterDiscard = service.activeSessionSectionCollapseStateObs.get();
 
 		assert.deepStrictEqual({ afterReplacement, afterDiscard }, {
-			afterReplacement: { otherFiles: false, checks: true },
-			afterDiscard: { otherFiles: false, checks: true },
+			afterReplacement: { checks: true },
+			afterDiscard: { checks: true },
 		});
 	});
 
@@ -249,6 +261,46 @@ suite('ChangesViewService', () => {
 		}, {
 			detailsViewState,
 			draftDetailsViewState: undefined,
+		});
+	});
+
+	test('scopes a transient changeset to its session and clears it on provider selection', () => {
+		const branchChangeset = createChangeset([]);
+		const transientChangeset = createTransientChangeset();
+		const sessionA = createSession('a', { changesets: [branchChangeset] });
+		const sessionB = createSession('b', { changesets: [branchChangeset] });
+		const { activeSession, service } = createHarness(sessionA);
+
+		service.showChangeset(transientChangeset);
+		const transientSelection = {
+			changesets: service.activeSessionChangesetsObs.get()?.map(changeset => changeset.id),
+			selected: service.activeSessionChangesetObs.get()?.id,
+		};
+		service.setChangesetId(branchChangeset.id);
+		const providerSelection = {
+			changesets: service.activeSessionChangesetsObs.get()?.map(changeset => changeset.id),
+			selected: service.activeSessionChangesetObs.get()?.id,
+		};
+		service.showChangeset(transientChangeset);
+		activeSession.set(sessionB, undefined);
+		const afterSessionSwitch = {
+			changesets: service.activeSessionChangesetsObs.get()?.map(changeset => changeset.id),
+			selected: service.activeSessionChangesetObs.get()?.id,
+		};
+
+		assert.deepStrictEqual({ transientSelection, providerSelection, afterSessionSwitch }, {
+			transientSelection: {
+				changesets: ['branch', 'turn:request'],
+				selected: 'turn:request',
+			},
+			providerSelection: {
+				changesets: ['branch'],
+				selected: 'branch',
+			},
+			afterSessionSwitch: {
+				changesets: ['branch'],
+				selected: 'branch',
+			},
 		});
 	});
 

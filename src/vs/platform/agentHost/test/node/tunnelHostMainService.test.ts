@@ -25,6 +25,8 @@ class TestTunnelProcessCoordinator implements ITunnelProcessCoordinator {
 	}
 
 	lastSharingRequest: IAgentHostSharingRequest | undefined;
+	sharingRequests: (IAgentHostSharingRequest | undefined)[] = [];
+	failNextSharingRequest = false;
 
 	getStatus(): ITunnelProcessStatus {
 		return this._status;
@@ -40,6 +42,11 @@ class TestTunnelProcessCoordinator implements ITunnelProcessCoordinator {
 
 	setAgentHostSharing(request: IAgentHostSharingRequest | undefined): Promise<void> {
 		this.lastSharingRequest = request;
+		this.sharingRequests.push(request);
+		if (this.failNextSharingRequest) {
+			this.failNextSharingRequest = false;
+			return Promise.reject(new Error('coordinator refused the sharing intent'));
+		}
 		return Promise.resolve();
 	}
 
@@ -117,6 +124,48 @@ suite('TunnelHostMainService', () => {
 			const startHosting = service.startHosting('token', 'github');
 			coordinator.setStatus({ mode: 'agentHost', tunnelName: 'agent', connectionState: 'disconnected', serviceInstallFailed: false });
 			await assert.rejects(startHosting, /exited before it became ready/);
+		} finally {
+			service.dispose();
+			coordinator.dispose();
+			loggerService.dispose();
+		}
+	});
+
+	test('clears the sharing intent when the agent host fails to start', async () => {
+		const coordinator = new TestTunnelProcessCoordinator({ mode: 'agentHost', tunnelName: 'agent', connectionState: 'connecting', serviceInstallFailed: false });
+		const loggerService = new NullLoggerService();
+		const service = new TunnelHostMainService(
+			loggerService,
+			{ logsHome: URI.file('logs') } as INativeEnvironmentService,
+			coordinator,
+		);
+		try {
+			const startHosting = service.startHosting('token', 'github');
+			coordinator.setStatus({ mode: 'agentHost', tunnelName: 'agent', connectionState: 'disconnected', serviceInstallFailed: false });
+			await assert.rejects(startHosting, /exited before it became ready/);
+
+			// A stale intent would let a later reconcile bring hosting online
+			// even though the caller was told it failed.
+			assert.deepStrictEqual(coordinator.sharingRequests.at(-1), undefined);
+		} finally {
+			service.dispose();
+			coordinator.dispose();
+			loggerService.dispose();
+		}
+	});
+
+	test('clears the sharing intent when the coordinator rejects the request', async () => {
+		const coordinator = new TestTunnelProcessCoordinator({ mode: 'agentHost', tunnelName: 'agent', connectionState: 'connecting', serviceInstallFailed: false });
+		const loggerService = new NullLoggerService();
+		const service = new TunnelHostMainService(
+			loggerService,
+			{ logsHome: URI.file('logs') } as INativeEnvironmentService,
+			coordinator,
+		);
+		try {
+			coordinator.failNextSharingRequest = true;
+			await assert.rejects(service.startHosting('token', 'github'), /refused the sharing intent/);
+			assert.deepStrictEqual(coordinator.sharingRequests.at(-1), undefined);
 		} finally {
 			service.dispose();
 			coordinator.dispose();

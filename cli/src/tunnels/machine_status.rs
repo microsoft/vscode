@@ -25,6 +25,8 @@ const STATUS_PREFIX: &str = "__VSCODE_CLI_STATUS__";
 pub(crate) enum MachineStatus {
 	Connected {
 		tunnel_name: String,
+		#[serde(skip_serializing_if = "Option::is_none")]
+		tunnel_id: Option<String>,
 		is_attached: bool,
 		#[serde(skip_serializing_if = "Option::is_none")]
 		link: Option<String>,
@@ -94,7 +96,12 @@ fn emit_to_stdout(status: &MachineStatus) {
 	println!("{}", status_line(status));
 }
 
-pub fn emit_connected(tunnel_name: &str, is_attached: bool, has_editor_link: bool) {
+pub fn emit_connected(
+	tunnel_name: &str,
+	tunnel_id: Option<&str>,
+	is_attached: bool,
+	has_editor_link: bool,
+) {
 	let (link, domain) = if has_editor_link {
 		match get_tunnel_web_url(tunnel_name) {
 			Some(link) => (
@@ -109,6 +116,7 @@ pub fn emit_connected(tunnel_name: &str, is_attached: bool, has_editor_link: boo
 
 	emit(MachineStatus::Connected {
 		tunnel_name: tunnel_name.to_string(),
+		tunnel_id: tunnel_id.map(ToString::to_string),
 		is_attached,
 		link,
 		domain,
@@ -150,11 +158,12 @@ mod tests {
 		assert_eq!(
 			status_line(&MachineStatus::Connected {
 				tunnel_name: "desktop-oss".to_string(),
+				tunnel_id: Some("tunnel-id".to_string()),
 				is_attached: false,
 				link: Some("https://insiders.vscode.dev/tunnel/desktop-oss/c:/some/dir".to_string()),
 				domain: Some("insiders.vscode.dev".to_string()),
 			}),
-			"__VSCODE_CLI_STATUS__{\"type\":\"connected\",\"tunnelName\":\"desktop-oss\",\"isAttached\":false,\"link\":\"https://insiders.vscode.dev/tunnel/desktop-oss/c:/some/dir\",\"domain\":\"insiders.vscode.dev\"}"
+			"__VSCODE_CLI_STATUS__{\"type\":\"connected\",\"tunnelName\":\"desktop-oss\",\"tunnelId\":\"tunnel-id\",\"isAttached\":false,\"link\":\"https://insiders.vscode.dev/tunnel/desktop-oss/c:/some/dir\",\"domain\":\"insiders.vscode.dev\"}"
 		);
 	}
 
@@ -163,6 +172,7 @@ mod tests {
 		assert_eq!(
 			status_line(&MachineStatus::Connected {
 				tunnel_name: "desktop-oss".to_string(),
+				tunnel_id: None,
 				is_attached: true,
 				link: None,
 				domain: None,

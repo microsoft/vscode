@@ -10,6 +10,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { AgentSignal } from '../../common/agent.js';
+import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { ClaudeFileEditObserver } from './claudeFileEditObserver.js';
 import { ClaudeMapperState, mapSDKMessageToAgentSignals } from './claudeMapSessionEvents.js';
@@ -18,6 +19,7 @@ import type { SubagentRegistry } from './claudeSubagentRegistry.js';
 interface IClaudeSdkMessageContext {
 	readonly turnDuration?: number;
 	readonly mode?: PermissionMode;
+	readonly clientContext?: IAgentHostClientTelemetryContext;
 }
 
 /**
@@ -65,7 +67,7 @@ export class ClaudeSdkMessageRouter extends Disposable {
 
 	async handle(message: SDKMessage, turnId: string | undefined, context?: IClaudeSdkMessageContext): Promise<void> {
 		if (message.type === 'assistant') {
-			this._editObserver.observeAssistant(message, context?.mode);
+			this._editObserver.observeAssistant(message, context?.mode, context?.clientContext);
 		} else if (message.type === 'user' && turnId !== undefined) {
 			await this._editObserver.observeUser(message, turnId, this._mapperState);
 		}

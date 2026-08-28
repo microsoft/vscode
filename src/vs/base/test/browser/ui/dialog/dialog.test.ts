@@ -94,6 +94,24 @@ suite('Dialog', () => {
 		await result;
 	});
 
+	test('applies modal blocker classes', async () => {
+		const container = append(document.body, $('.test-dialog-container'));
+		disposables.add(toDisposable(() => container.remove()));
+		const dialog = disposables.add(new Dialog(container, 'Message', ['OK'], {
+			modalBlockExtraClasses: ['test-modal-block'],
+			buttonStyles: unthemedButtonStyles,
+			checkboxStyles: unthemedCheckboxStyles,
+			inputBoxStyles: unthemedInboxStyles,
+			dialogStyles: unthemedDialogStyles,
+		}));
+		const result = dialog.show();
+
+		assert.strictEqual(container.querySelector('.monaco-dialog-modal-block')?.classList.contains('test-modal-block'), true);
+
+		dialog.dispose();
+		await result;
+	});
+
 	test('prefers a pre-rendered detailElement over plain detail text and makes its links keyboard-focusable', async () => {
 		const container = append(document.body, $('.test-dialog-container'));
 		disposables.add(toDisposable(() => container.remove()));

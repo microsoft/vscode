@@ -51,6 +51,7 @@ suite('AgentPlugin enablement', () => {
 		const state = new Map<string, ContributionEnablementState>();
 		return {
 			readEnabled: key => state.get(key) ?? ContributionEnablementState.EnabledProfile,
+			readProfileEnabled: key => (state.get(key) ?? ContributionEnablementState.EnabledProfile) === ContributionEnablementState.EnabledProfile,
 			setEnabled: (key, value) => state.set(key, value),
 			remove: key => state.delete(key),
 		};

@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { readAgentMessageDelegationMeta } from '../../../common/meta/agentMessageDelegationMeta.js';
-import { createCodexSessionMapState, extractUserInputText, finalizeCodexTurnMapState, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, resetCodexTurnMapState, turnStateFromStatus } from '../../../node/codex/codexMapAppServerEvents.js';
+import { createCodexSessionMapState, extractUserInputText, finalizeCodexTurnMapState, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageModelCallCompleted, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, resetCodexTurnMapState, turnStateFromStatus } from '../../../node/codex/codexMapAppServerEvents.js';
 import { ActionType, type ChatAction, type SessionAction } from '../../../common/state/sessionActions.js';
 import { chatReducer } from '../../../common/state/protocol/reducers.js';
 import { ChatOriginKind, MessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState, type ChatState } from '../../../common/state/sessionState.js';
@@ -244,6 +245,24 @@ suite('codexMapAppServerEvents', () => {
 				_meta: { reasoningOutputTokens: 2, modelContextWindow: 200000 },
 			},
 		}]);
+	});
+
+	test('thread/tokenUsage/updated identifies one completed model call from cumulative usage', () => {
+		const resource = URI.parse('agent-chat://codex/session');
+		assert.deepStrictEqual(mapTokenUsageModelCallCompleted({
+			threadId: 'thr_1',
+			turnId: 'turn_a',
+			tokenUsage: {
+				last: { inputTokens: 10, cachedInputTokens: 4, cacheWriteInputTokens: 0, outputTokens: 6, reasoningOutputTokens: 2, totalTokens: 16 },
+				total: { inputTokens: 100, cachedInputTokens: 40, cacheWriteInputTokens: 0, outputTokens: 60, reasoningOutputTokens: 20, totalTokens: 160 },
+				modelContextWindow: 200000,
+			},
+		}, resource), {
+			kind: 'model_call_completed',
+			resource,
+			turnId: 'turn_a',
+			modelCallId: '100:40:0:60:20:160',
+		});
 	});
 
 	test('contextCompaction item maps to visible running and completed progress', () => {
@@ -517,6 +536,45 @@ suite('codexMapAppServerEvents', () => {
 			first: [{ type: ActionType.ChatToolCallContentChanged, turnId: 'turn_a', toolCallId, content: [{ type: ToolResultContentType.Text, text: 'hi' }] }],
 			second: [{ type: ActionType.ChatToolCallContentChanged, turnId: 'turn_a', toolCallId, content: [{ type: ToolResultContentType.Text, text: 'hi\n' }] }],
 		});
+	});
+
+	test('item/completed for commandExecution falls back to streamed output when aggregated output is empty', () => {
+		const state = createCodexSessionMapState();
+		mapItemStarted(state, {
+			item: {
+				type: 'commandExecution', id: 'cmd_streamed_output',
+				command: 'echo hi', cwd: '/tmp', processId: null,
+				source: 'agent' as never, status: 'inProgress' as never,
+				commandActions: [], aggregatedOutput: null,
+				exitCode: null, durationMs: null,
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const toolCallId = state.itemToToolCall.get('cmd_streamed_output')!.toolCallId;
+		mapCommandExecutionOutputDelta(state, { threadId: 'thr_1', turnId: 'turn_a', itemId: 'cmd_streamed_output', delta: 'hi\n' });
+
+		const actions = mapItemCompleted(state, {
+			item: {
+				type: 'commandExecution', id: 'cmd_streamed_output',
+				command: 'echo hi', cwd: '/tmp', processId: null,
+				source: 'agent' as never, status: 'completed' as never,
+				commandActions: [], aggregatedOutput: '',
+				exitCode: 0, durationMs: 12,
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 0,
+		});
+
+		assert.deepStrictEqual(actions, [{
+			type: ActionType.ChatToolCallComplete,
+			turnId: 'turn_a',
+			toolCallId,
+			result: {
+				success: true,
+				pastTenseMessage: 'Ran `echo hi`',
+				content: [{ type: ToolResultContentType.Text, text: 'hi\n' }],
+				error: undefined,
+			},
+		}]);
 	});
 
 	test('item/completed for commandExecution emits ChatToolCallComplete with aggregated output', () => {
@@ -1300,7 +1358,7 @@ suite('codexMapAppServerEvents', () => {
 			},
 		});
 		assert.deepStrictEqual(actions, [
-			{ type: ActionType.ChatError, turnId: 'turn_a', duration: 0, error: { errorType: 'CodexError', message: 'boom' } },
+			{ type: ActionType.ChatError, turnId: 'turn_a', duration: 0, part: { kind: ResponsePartKind.Error, error: { errorType: 'CodexError', message: 'boom' } } },
 			{ type: ActionType.ChatTurnComplete, turnId: 'turn_a', duration: 0 },
 		]);
 	});

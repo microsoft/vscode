@@ -111,12 +111,44 @@ export class AutomationRunner implements IAutomationRunner {
 			// gets the winner's run back instead of dispatching a duplicate session.
 			const claim = await this.automationService.recordRunStart(automation.id, trigger, leaderWindowId);
 			if (!claim.claimed) {
+				if (claim.externalDispatch) {
+					let cancellationForwarded = false;
+					const forwardCancellation = () => {
+						if (!cancellationForwarded) {
+							cancellationForwarded = true;
+							try {
+								claim.externalDispatch?.cancel?.();
+							} catch (error) {
+								this.logService.error(`[AutomationRunner] Failed to forward cancellation for ${automation.id}`, error);
+							}
+						}
+					};
+					const cancellationListener = claim.externalDispatch.cancel
+						? token.onCancellationRequested(forwardCancellation)
+						: undefined;
+					const sessionResource = claim.externalDispatch.sessionResource;
+					try {
+						if (sessionResource) {
+							await dispatched.complete({ kind: 'started', run: claim.run, sessionResource });
+						} else {
+							await dispatched.complete({ kind: 'notStarted', reason: 'error', run: claim.run });
+						}
+						if (token.isCancellationRequested) {
+							forwardCancellation();
+						}
+						await claim.externalDispatch.whenCompleted;
+					} finally {
+						cancellationListener?.dispose();
+					}
+					return;
+				}
 				this.logService.trace(`[AutomationRunner] skipping ${automation.id}: active run already exists.`);
 				await dispatched.complete({ kind: 'alreadyRunning', activeRun: claim.run });
 				return;
 			}
 			runId = claim.run.id;
 			const run = await this.automationService.updateRun(runId, { status: 'running' }) ?? claim.run;
+			this.logService.info(`[AutomationRunner] claimed run ${runId} for automation ${automation.id}: trigger=${trigger}, leaderWindowId=${leaderWindowId}.`);
 
 			if (token.isCancellationRequested) {
 				await dispatched.complete({ kind: 'notStarted', reason: 'cancelled', run });
@@ -131,6 +163,7 @@ export class AutomationRunner implements IAutomationRunner {
 			};
 
 			this.logService.trace(`[AutomationRunner] running ${automation.id}: target=${target.kind}, provider=${createOptions?.providerId ?? '(default)'}, sessionType=${createOptions?.sessionTypeId ?? '(default)'}, model=${createOptions?.modelId ?? '(default)'}, mode=${createOptions?.modeId ?? '(default)'}, permissionLevel=${createOptions?.permissionLevel ?? '(default)'}`);
+			this.logService.info(`[AutomationRunner] creating a session for run ${runId} (automation ${automation.id}).`);
 
 			let session: ISession | undefined;
 			if (target.kind === 'quickChat') {
@@ -141,10 +174,23 @@ export class AutomationRunner implements IAutomationRunner {
 
 			if (session) {
 				const sessionResource = session.resource;
-				const dispatchedRun = await this.automationService.updateRun(runId, { sessionResource }) ?? run;
+				let updatedRun: IAutomationRun | undefined;
+				try {
+					updatedRun = await this.automationService.updateRun(runId, { sessionResource });
+				} catch (err) {
+					this.logService.warn(`[AutomationRunner] session ${sessionResource.toString()} was created for run ${runId} (automation ${automation.id}), but persisting the session link failed.`, err);
+					throw err;
+				}
+				if (updatedRun) {
+					this.logService.info(`[AutomationRunner] linked run ${runId} for automation ${automation.id} to session ${sessionResource.toString()}.`);
+				} else {
+					this.logService.warn(`[AutomationRunner] session ${sessionResource.toString()} was created for run ${runId} (automation ${automation.id}), but the run no longer exists and the session link was not persisted.`);
+				}
+				const dispatchedRun = updatedRun ?? run;
 				await dispatched.complete({ kind: 'started', run: dispatchedRun, sessionResource });
 			} else {
 				// Dispatch ended without a session, e.g. the sessions service was disposed mid-send.
+				this.logService.warn(`[AutomationRunner] session creation returned no session for run ${runId} (automation ${automation.id}): cancelled=${token.isCancellationRequested}.`);
 				await dispatched.complete({ kind: 'notStarted', reason: token.isCancellationRequested ? 'cancelled' : 'error', run });
 			}
 

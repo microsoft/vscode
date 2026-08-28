@@ -57,7 +57,4 @@ export interface IAgentHostGitStateService {
 	 * @param workingDirectory Optional working directory override; when omitted, the session summary's working directory is used.
 	 */
 	attachSessionGitHubPullRequest(sessionKey: string, workingDirectory?: URI): Promise<void>;
-
-	/** Adds GitHub issues and pull requests referenced in a user message to the session. */
-	attachSessionGitHubReferences(sessionKey: string, text: string): Promise<void>;
 }

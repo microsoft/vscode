@@ -6,16 +6,23 @@
 import assert from 'assert';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
+import { timeout } from '../../../../../../base/common/async.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
+import { IUserInteractionService, MockUserInteractionService } from '../../../../../../platform/userInteraction/browser/userInteractionService.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { IViewDescriptorService } from '../../../../../common/views.js';
+import { IChatOutputRendererService } from '../../../browser/chatOutputItemRenderer.js';
 import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowPillsSummaryForSettings, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { isChatTurnStatusPillsEnabled } from '../../../browser/widget/chatTurnPills.js';
@@ -34,6 +41,8 @@ import { ChatEditorOptions } from '../../../browser/widget/chatOptions.js';
 import { shouldRenderGeneratedImageResult, shouldRenderSessionCreatedResult } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { getGeneratedImageResultParts, getGeneratedImageResultPartsFromContent } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatGeneratedImageResultSubPart.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
+import { IChatModelFeedbackSurveyService } from '../../../browser/feedbackSurvey/chatModelFeedbackSurveyService.js';
+import { MockChatModelFeedbackSurveyService } from '../feedbackSurvey/mockChatModelFeedbackSurveyService.js';
 
 suite('ChatListRenderer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -512,14 +521,21 @@ suite('ChatListRenderer', () => {
 		});
 
 		test('summarizes per-model token usage for the footer stat hover', () => {
+			const completedAt = Date.UTC(2026, 7, 17, 19, 39);
+			const completedAtText = formatChatRequestTimestamp(completedAt)?.fullText;
 			const stats = formatResponseTokenStats([
 				{ model: 'Claude Opus 4.8', inputTokens: 12_400, cachedTokens: 9_000, outputTokens: 830 },
 				{ model: 'gpt-5.5', inputTokens: 40, cachedTokens: 0, outputTokens: 12 },
-			]);
+			], completedAt);
 
-			assert.deepStrictEqual({ markdown: stats?.markdown.value, ariaLabel: stats?.ariaLabel }, {
-				markdown: '**Tokens used this turn**\n\nClaude Opus 4.8 — 12K in, 830 out, 9K cached\n\ngpt-5.5 — 40 in, 12 out\n\n',
-				ariaLabel: 'Tokens used this turn. Claude Opus 4.8: 12400 input tokens, 830 output tokens, 9000 cached tokens. gpt-5.5: 40 input tokens, 12 output tokens',
+			assert.deepStrictEqual({
+				markdown: stats?.markdown.value,
+				markdownNotSupportedFallback: stats?.markdownNotSupportedFallback,
+				footerAriaLabel: stats?.footerAriaLabel,
+			}, {
+				markdown: `**Response details**\n\nCompleted: ${completedAtText}\n\nModel: Claude Opus 4.8\n\n- Input tokens: 12K\n- Cached input tokens: 9K\n- Output tokens: 830\n\nModel: gpt-5.5\n\n- Input tokens: 40\n- Output tokens: 12\n\n`,
+				markdownNotSupportedFallback: `Response details. Completed: ${completedAtText}. Model: Claude Opus 4.8. Input tokens: 12400. Cached input tokens: 9000. Output tokens: 830. Model: gpt-5.5. Input tokens: 40. Output tokens: 12`,
+				footerAriaLabel: 'Response details. Model: Claude Opus 4.8. Input tokens: 12400. Cached input tokens: 9000. Output tokens: 830. Model: gpt-5.5. Input tokens: 40. Output tokens: 12',
 			});
 		});
 
@@ -533,16 +549,24 @@ suite('ChatListRenderer', () => {
 			]);
 		});
 
-		test('folds the token usage summary into the footer accessible name', () => {
+		test('folds the token usage summary into the footer accessible name without duplicating the completion time', () => {
 			const container = document.createElement('div');
-			const withStats = 'Tokens used this turn. gpt-5.5: 40 input tokens, 12 output tokens';
+			const completedAt = Date.UTC(2026, 7, 17, 19, 39);
+			const completedAtText = formatChatRequestTimestamp(completedAt)?.fullText;
+			const stats = formatResponseTokenStats([
+				{ model: 'gpt-5.5', inputTokens: 40, cachedTokens: 0, outputTokens: 12 },
+			], completedAt);
 
-			renderChatResponseDetails(container, 'GPT-5.5 • 2 credits', undefined, undefined, false, withStats);
+			renderChatResponseDetails(container, 'GPT-5.5 • 2 credits', undefined, undefined, false, stats?.footerAriaLabel);
 			const included = container.ariaLabel;
 
+			renderChatResponseDetails(container, 'GPT-5.5 • 2 credits', completedAt, 24_000, true, stats?.footerAriaLabel);
+			const verbose = container.ariaLabel;
+
 			renderChatResponseDetails(container, 'GPT-5.5 • 2 credits', undefined, undefined, false);
-			assert.deepStrictEqual({ included, omitted: container.ariaLabel }, {
-				included: `GPT-5.5 • 2 credits, ${withStats}`,
+			assert.deepStrictEqual({ included, verbose, omitted: container.ariaLabel }, {
+				included: `GPT-5.5 • 2 credits, ${stats?.footerAriaLabel}`,
+				verbose: `Completed ${completedAtText}, Elapsed time 24s, GPT-5.5 • 2 credits, ${stats?.footerAriaLabel}`,
 				omitted: 'GPT-5.5 • 2 credits',
 			});
 		});
@@ -607,6 +631,7 @@ suite('ChatListRenderer', () => {
 		configurationService.setUserConfiguration(ChatConfiguration.TurnStatusPills, false);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
 		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
 
 		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
@@ -631,6 +656,9 @@ suite('ChatListRenderer', () => {
 				onDidScroll: () => toDisposable(() => { }),
 				container,
 				currentChatMode: () => ChatModeKind.Agent,
+				isStickyScrollEnabled: () => false,
+				refreshStickyScroll: () => { },
+				stickyScrollTopPadding: 0,
 			},
 			undefined,
 			viewModel,
@@ -674,6 +702,7 @@ suite('ChatListRenderer', () => {
 		configurationService.setUserConfiguration(ChatConfiguration.TurnStatusPills, false);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
 		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
 
 		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
@@ -698,6 +727,9 @@ suite('ChatListRenderer', () => {
 				onDidScroll: () => toDisposable(() => { }),
 				container,
 				currentChatMode: () => ChatModeKind.Agent,
+				isStickyScrollEnabled: () => false,
+				refreshStickyScroll: () => { },
+				stickyScrollTopPadding: 0,
 			},
 			undefined,
 			viewModel,
@@ -724,7 +756,10 @@ suite('ChatListRenderer', () => {
 				setEditing: () => { },
 				renderAttachedContext: () => { },
 				setValue: () => { },
-				attachmentModel: { addContext: () => { } },
+				attachmentModel: {
+					addContext: () => { },
+					getAttachmentIDs: () => new Set<string>(),
+				},
 				inputEditor: {
 					getModel: () => undefined,
 					focus: () => { },
@@ -742,6 +777,7 @@ suite('ChatListRenderer', () => {
 			},
 			_editingAutoScrollHold: disposables.add(new MutableDisposable()),
 			createInput: () => { },
+			getInput: () => text,
 			onDidChangeItems: () => { },
 			getContrib: () => undefined,
 			_onDidChangeActiveInputEditor: { fire: () => { } },
@@ -1048,6 +1084,7 @@ suite('ChatListRenderer', () => {
 		configurationService.setUserConfiguration('workbench.reduceMotion', 'on');
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
 		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
 
 		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
@@ -1072,6 +1109,9 @@ suite('ChatListRenderer', () => {
 				onDidScroll: () => toDisposable(() => { }),
 				container,
 				currentChatMode: () => ChatModeKind.Agent,
+				isStickyScrollEnabled: () => false,
+				refreshStickyScroll: () => { },
+				stickyScrollTopPadding: 0,
 			},
 			undefined,
 			viewModel,
@@ -1115,9 +1155,133 @@ suite('ChatListRenderer', () => {
 		disposables.dispose();
 	});
 
-	test('generated image completion does not leave a compact duplicate inside thinking', async () => {
+	test('disposing a sticky row preserves code block mappings owned by the rendered row', async () => {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration('chat', {
+			editor: {
+				fontSize: 13,
+				fontFamily: 'default',
+				fontWeight: 'normal',
+				lineHeight: 0,
+				wordWrap: 'on',
+			}
+		});
+		configurationService.setUserConfiguration('editor', {
+			fontFamily: 'Consolas',
+			fontLigatures: false,
+			accessibilitySupport: 'off',
+		});
+		configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, false);
+		configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, false);
+		configurationService.setUserConfiguration(ChatConfiguration.ThinkingStyle, ThinkingDisplayMode.FixedScrolling);
+		configurationService.setUserConfiguration('chat.agent.thinking.collapsedTools', CollapsedToolsDisplayMode.Always);
+		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
+		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
+		configurationService.setUserConfiguration(ChatConfiguration.TurnStatusPills, false);
+		configurationService.setUserConfiguration(ChatConfiguration.Verbose, false);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
+		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+		instantiationService.stub(IViewDescriptorService, {
+			onDidChangeLocation: Event.None,
+			onDidChangeContainer: Event.None,
+			getViewLocationById: () => null,
+		});
+		instantiationService.stub(IChatOutputRendererService, {
+			_serviceBrand: undefined,
+			registerRenderer: () => toDisposable(() => { }),
+			hasCodeBlockRenderer: () => false,
+			renderOutputPart: async () => { throw new Error('Unexpected output render'); },
+			renderCodeBlock: async () => { throw new Error('Unexpected code block render'); },
+		});
+		instantiationService.stub(IUserInteractionService, new MockUserInteractionService());
+
+		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+		const text = 'test';
+		const request = model.addRequest({
+			text,
+			parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
+		}, { variables: [] }, 0);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('```typescript\nconst value = 1;\n```') });
+		const response = viewModel.getItems().find(isResponseVM);
+		assert.ok(response);
+
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		const editorOptions = disposables.add(instantiationService.createInstance(
+			ChatEditorOptions,
+			undefined,
+			'foreground',
+			'chat.requestEditor.background',
+			'chat.responseEditor.background',
+		));
+		const renderer = disposables.add(instantiationService.createInstance(
+			ChatListItemRenderer,
+			editorOptions,
+			{ progressMessageAtBottomOfResponse: true },
+			{
+				getListLength: () => 1,
+				onDidScroll: () => toDisposable(() => { }),
+				container,
+				currentChatMode: () => ChatModeKind.Agent,
+				isStickyScrollEnabled: () => false,
+				refreshStickyScroll: () => { },
+				stickyScrollTopPadding: 0,
+			},
+			undefined,
+			viewModel,
+		));
+		const renderedTemplate = renderer.renderTemplate(container);
+		disposables.add(toDisposable(() => renderer.disposeTemplate(renderedTemplate)));
+		const stickyTemplate = renderer.renderTemplate(container);
+		disposables.add(toDisposable(() => renderer.disposeTemplate(stickyTemplate)));
+		stickyTemplate.rowContainer.classList.add('monaco-tree-sticky-row');
+		const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
+		renderer.renderElement(node, 0, renderedTemplate);
+		stickyTemplate.currentElement = response;
+		const renderedCodeBlockCount = renderedTemplate.renderedParts?.reduce((count, part) => count + (part.codeblocks?.length ?? 0), 0) ?? 0;
+		const responseCodeBlockCountBefore = renderer.getCodeBlockInfosForResponse(response).length;
+		const renderedTemplateOwnsMapping = renderer.getTemplateDataForRequestId(response.id) === renderedTemplate;
+
+		renderer.disposeElement(node, 0, stickyTemplate);
+
+		assert.deepStrictEqual({
+			renderedCodeBlockCount,
+			responseCodeBlockCountBefore,
+			responseCodeBlockCountAfter: renderer.getCodeBlockInfosForResponse(response).length,
+			renderedTemplateOwnsMapping,
+		}, {
+			renderedCodeBlockCount: 1,
+			responseCodeBlockCountBefore: 1,
+			responseCodeBlockCountAfter: 1,
+			renderedTemplateOwnsMapping: true,
+		});
+
+		await timeout(0);
+		renderer.disposeTemplate(stickyTemplate);
+		renderer.disposeTemplate(renderedTemplate);
+		disposables.dispose();
+	});
+
+	test('generated image completion renders one gallery without duplicate hover previews', async () => {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const generatedImageHoverContents: HTMLElement[] = [];
+		instantiationService.stub(IHoverService, {
+			...NullHoverService,
+			setupDelayedHover: (target, hoverOptions) => {
+				const options = typeof hoverOptions === 'function' ? hoverOptions() : hoverOptions;
+				if (target.closest('.chat-generated-image-result') && dom.isHTMLElement(options.content)) {
+					generatedImageHoverContents.push(options.content);
+				}
+				return Disposable.None;
+			},
+		});
 		const configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, true);
 		configurationService.setUserConfiguration('chat.agent.thinking.collapsedTools', CollapsedToolsDisplayMode.Always);
@@ -1128,6 +1292,7 @@ suite('ChatListRenderer', () => {
 		configurationService.setUserConfiguration(ChatConfiguration.Verbose, false);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
 		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
 
 		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
@@ -1152,6 +1317,9 @@ suite('ChatListRenderer', () => {
 				onDidScroll: () => toDisposable(() => { }),
 				container,
 				currentChatMode: () => ChatModeKind.Agent,
+				isStickyScrollEnabled: () => false,
+				refreshStickyScroll: () => { },
+				stickyScrollTopPadding: 0,
 			},
 			undefined,
 			viewModel,
@@ -1209,17 +1377,22 @@ suite('ChatListRenderer', () => {
 		renderer.renderElement(node, 0, template);
 		request.response?.complete();
 		renderer.renderElement(node, 0, template);
+		await timeout(150);
 
 		assert.deepStrictEqual({
 			resourceGroups: template.value.querySelectorAll('.chat-collapsible-io-resource-group').length,
 			largeOutcomes: template.value.querySelectorAll('.chat-generated-image-result').length,
 			multipleImageOutcomes: template.value.querySelectorAll('.chat-generated-image-result.multiple').length,
 			generatedImageInvocations: template.value.querySelectorAll('.generated-image-tool-invocation').length,
+			generatedImageHovers: generatedImageHoverContents.length,
+			generatedImageHoverPreviews: generatedImageHoverContents.reduce((count, content) => count + content.querySelectorAll('.chat-attached-context-image').length, 0),
 		}, {
 			resourceGroups: 1,
 			largeOutcomes: 1,
 			multipleImageOutcomes: 1,
 			generatedImageInvocations: 1,
+			generatedImageHovers: 2,
+			generatedImageHoverPreviews: 0,
 		});
 
 		disposables.dispose();
@@ -1237,6 +1410,7 @@ suite('ChatListRenderer', () => {
 		configurationService.setUserConfiguration(ChatConfiguration.Verbose, false);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
 		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
 
 		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
@@ -1261,6 +1435,9 @@ suite('ChatListRenderer', () => {
 				onDidScroll: () => toDisposable(() => { }),
 				container,
 				currentChatMode: () => ChatModeKind.Agent,
+				isStickyScrollEnabled: () => false,
+				refreshStickyScroll: () => { },
+				stickyScrollTopPadding: 0,
 			},
 			undefined,
 			viewModel,
@@ -1319,6 +1496,7 @@ suite('ChatListRenderer', () => {
 		configurationService.setUserConfiguration(ChatConfiguration.TurnStatusPills, false);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
 		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
 
 		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
@@ -1374,6 +1552,9 @@ suite('ChatListRenderer', () => {
 				onDidScroll: () => toDisposable(() => { }),
 				container,
 				currentChatMode: () => ChatModeKind.Agent,
+				isStickyScrollEnabled: () => false,
+				refreshStickyScroll: () => { },
+				stickyScrollTopPadding: 0,
 			},
 			undefined,
 			viewModel,
@@ -1418,6 +1599,7 @@ suite('ChatListRenderer', () => {
 		const configurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
 		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
 
 		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
@@ -1442,6 +1624,9 @@ suite('ChatListRenderer', () => {
 				onDidScroll: () => toDisposable(() => { }),
 				container,
 				currentChatMode: () => ChatModeKind.Agent,
+				isStickyScrollEnabled: () => false,
+				refreshStickyScroll: () => { },
+				stickyScrollTopPadding: 0,
 			},
 			undefined,
 			viewModel,

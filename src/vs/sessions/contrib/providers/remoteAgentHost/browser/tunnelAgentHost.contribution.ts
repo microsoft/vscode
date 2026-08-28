@@ -8,7 +8,7 @@ import { isWeb } from '../../../../../base/common/platform.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import * as nls from '../../../../../nls.js';
 import { IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { ITunnelAgentHostService, TUNNEL_ADDRESS_PREFIX, type ITunnelInfo } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
+import { isTunnelHosted, ITunnelAgentHostService, TUNNEL_ADDRESS_PREFIX, type ITunnelInfo } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { PROTOCOL_VERSION } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -42,6 +42,8 @@ const RECONNECT_MAX_ATTEMPTS = 10;
 /** Minimum gap between event-triggered reconnect resumes. */
 const RESUME_RATE_LIMIT_MS = 10_000;
 
+type TunnelReconnectTrigger = 'wake' | 'focus' | 'sessionAdded';
+
 export class TunnelAgentHostContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.contrib.tunnelAgentHostContribution';
@@ -63,8 +65,8 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 	private readonly _reconnectTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
 	/** Consecutive failed auto-reconnect attempts per address. */
 	private readonly _reconnectAttempts = new Map<string, number>();
-	/** Addresses whose auto-reconnect loop has paused after too many failures. */
-	private readonly _reconnectPaused = new Set<string>();
+	/** Why auto-reconnect is paused for each address. */
+	private readonly _reconnectPauseReasons = new Map<string, TunnelConnectFailureReason>();
 	/**
 	 * Addresses whose provider currently holds a live connection. Tracked
 	 * separately from {@link _previousStatuses} so a drop is still detected when
@@ -72,7 +74,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 	 * way down.
 	 */
 	private readonly _wiredAddresses = new Set<string>();
-	/** Timestamp of the last wake-triggered resume, to rate-limit rapid tab toggles. */
+	/** Timestamp of the last focus/wake-triggered resume, to rate-limit rapid tab toggles. */
 	private _lastResumeAt = 0;
 
 	/**
@@ -209,8 +211,8 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		return this._tunnelService.getCachedTunnels().filter(tunnel => !this._tunnelService.isAutoConnectSuppressed(tunnel.tunnelId));
 	}
 
-	private _isHostedTunnel(tunnel: { readonly name: string }): boolean {
-		return this._tunnelHostService.sharingInfo?.tunnelName === tunnel.name;
+	private _isHostedTunnel(tunnel: Pick<ITunnelInfo, 'tunnelId' | 'name'>): boolean {
+		return isTunnelHosted(this._tunnelHostService.sharingInfo, tunnel);
 	}
 
 	private _resetHostedTunnelReconnectState(): void {
@@ -616,7 +618,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 	/** Clear retry-backoff and pause state for an address. */
 	private _clearReconnectBackoff(address: string): void {
 		this._reconnectAttempts.delete(address);
-		this._reconnectPaused.delete(address);
+		this._reconnectPauseReasons.delete(address);
 	}
 
 	/** Drop all reconnect + telemetry state for an address (e.g. on removal). */
@@ -665,10 +667,15 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 	private _pauseReconnect(address: string, reason: TunnelConnectFailureReason): void {
 		this._cancelReconnect(address);
 		this._reconnectAttempts.delete(address);
-		this._reconnectPaused.add(address);
+		this._reconnectPauseReasons.set(address, reason);
+		const resumeCondition = reason === 'hostOffline'
+			? 'a status check that confirms the host is online'
+			: reason === 'auth' || reason === 'authExpired'
+				? 'an authentication session change'
+				: `${isWeb ? 'network-online or ' : ''}window focus`;
 		this._logService.info(
 			`[TunnelAgentHost] Pausing auto-reconnect for ${address} (${reason}); ` +
-			`will resume on ${isWeb ? 'network-online, ' : ''}window focus, session change, or a status check that confirms the host is online.`
+			`will resume on ${resumeCondition}.`
 		);
 		const session = this._connectSessions.get(address);
 		if (session) {
@@ -746,51 +753,51 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 	}
 
 	/**
-	 * Invoked on a browser network, window-focus, or authentication event. Kicks off an
-	 * immediate attempt for any disconnected cached tunnel.
+	 * Resume paused reconnects that the given recovery signal can resolve.
 	 *
 	 * Rate-limited: at most one resume per RESUME_RATE_LIMIT_MS so that
-	 * rapid tab toggling can't hammer a permanently broken endpoint with
-	 * an unbounded number of attempt bursts. Resumes the normal backoff
-	 * sequence (by clearing the pause flag) rather than zeroing the
-	 * attempt counter.
+	 * rapid focus/network events cannot start unbounded retry bursts.
 	 */
-	private _resumeReconnects(trigger: 'wake' | 'focus' | 'sessionAdded'): void {
+	private _resumeReconnects(trigger: TunnelReconnectTrigger): void {
 		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
 			return;
 		}
 
-		// Rate-limit rapid recovery events (e.g. alt-tab bursts or
-		// flaky Wi-Fi toggling online/offline) so we don't hammer the relay
-		// with immediate retries. This is an event-smoothing gate, not an
-		// error-backoff — that's handled by `_scheduleReconnect`.
-		const now = Date.now();
-		if (now - this._lastResumeAt < RESUME_RATE_LIMIT_MS) {
+		const resumableAddresses: string[] = [];
+		for (const tunnel of this._getProviderTunnels()) {
+			const address = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
+			const reason = this._reconnectPauseReasons.get(address);
+			if (!reason || !this._canResumeReconnect(reason, trigger) || this._pendingConnects.has(address)) {
+				continue;
+			}
+			const live = this._remoteAgentHostService.connections.find(connection => connection.address === address);
+			if (!live || !RemoteAgentHostConnectionStatus.isConnected(live.status)) {
+				resumableAddresses.push(address);
+			}
+		}
+		if (resumableAddresses.length === 0) {
 			return;
 		}
-		this._lastResumeAt = now;
 
-		const cached = this._getProviderTunnels();
-		for (const tunnel of cached) {
-			const address = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
-			if (this._pendingConnects.has(address)) {
-				continue;
+		if (trigger !== 'sessionAdded') {
+			const now = Date.now();
+			if (now - this._lastResumeAt < RESUME_RATE_LIMIT_MS) {
+				return;
 			}
-			const live = this._remoteAgentHostService.connections.find(c => c.address === address);
-			if (live && RemoteAgentHostConnectionStatus.isConnected(live.status)) {
-				continue;
-			}
+			this._lastResumeAt = now;
+		}
 
+		for (const address of resumableAddresses) {
 			this._logService.info(`[TunnelAgentHost] Resuming reconnect for ${address} (trigger: ${trigger})`);
-			// If we were paused (exhausted the backoff budget), give a fresh
-			// budget since the wake event is itself evidence the environment
-			// has changed. Otherwise keep the current attempt counter so an
-			// in-progress backoff isn't short-circuited.
-			if (this._reconnectPaused.has(address)) {
-				this._clearReconnectBackoff(address);
-			}
+			this._clearReconnectBackoff(address);
 			this._scheduleReconnect(address, /*immediate*/ true);
 		}
+	}
+
+	private _canResumeReconnect(reason: TunnelConnectFailureReason, trigger: TunnelReconnectTrigger): boolean {
+		return trigger === 'sessionAdded'
+			? reason === 'auth' || reason === 'authExpired'
+			: reason === 'maxAttemptsReached';
 	}
 
 	/** Drop reconnect state for addresses whose tunnel is no longer cached. */
@@ -799,7 +806,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		const tracked = new Set<string>([
 			...this._reconnectTimeouts.keys(),
 			...this._reconnectAttempts.keys(),
-			...this._reconnectPaused,
+			...this._reconnectPauseReasons.keys(),
 			...this._connectSessions.keys(),
 		]);
 		for (const address of tracked) {
@@ -896,7 +903,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 				if (info && info.hostConnectionCount > 0) {
 					provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connected);
 
-					if (this._reconnectPaused.has(address)) {
+					if (this._reconnectPauseReasons.get(address) === 'hostOffline') {
 						this._logService.info(
 							`[TunnelAgentHost] Confirmed host online for paused ${address}; auto-resuming reconnect.`
 						);
@@ -923,11 +930,20 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 						if (this._tunnelService.isAutoConnectSuppressed(tunnel.tunnelId)) {
 							continue;
 						}
+						if (this._reconnectPauseReasons.has(address)) {
+							continue;
+						}
 						const alreadyConnected = this._remoteAgentHostService.connections.some(
 							c => c.address === address && RemoteAgentHostConnectionStatus.isConnected(c.status)
 						);
 						if (!alreadyConnected) {
-							this._connectTunnel(address, { userInitiated: false });
+							const mode = this._tunnelService.getAutoConnectMode(tunnel);
+							if (mode === 'prompt') {
+								this._logService.info(`[TunnelAgentHost] Prompting for the initial agent host location for ${address}`);
+								this._connectTunnel(address, { userInitiated: true });
+							} else {
+								this._connectTunnel(address, { userInitiated: false });
+							}
 						}
 					}
 				}

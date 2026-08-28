@@ -15,6 +15,7 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use crate::auth::Auth;
 use crate::constants::{self, AGENT_HOST_PORT};
 use crate::log;
+use crate::options::TelemetryLevel;
 use crate::state::LauncherPaths;
 use crate::tunnels::agent_host::{
 	classify_agent_host, serve_agent_host_tunnel_connection, AgentHostConfig, AgentHostManager,
@@ -288,6 +289,11 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 		Arc::new(ReqwestSimpleHttp::with_client(ctx.http.clone())),
 		AgentHostConfig {
 			server_data_dir: args.server_data_dir.clone(),
+			telemetry_level: if ctx.args.global_options.disable_telemetry {
+				Some(TelemetryLevel::Off)
+			} else {
+				ctx.args.global_options.telemetry_level
+			},
 			// The AH backend runs on an internal-only unix socket / named
 			// pipe between this supervisor and its child, so we
 			// deliberately disable the backend's token check; this
@@ -388,13 +394,18 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 		// running sidecar -- never `ensure_supervisor_running`, which
 		// could spawn or reuse an unrelated supervisor -- so we build an
 		// already-resolved `SharedActiveAgentHost` from the sidecar's own
-		// published identity. Because that identity points back at our
-		// own loopback listener (`AgentHostSidecar::serve`, below), a
-		// legacy client proxied this way is accepted through the very
-		// same accept loop that already holds an `--idle-timeout`
-		// activity guard for its connection's whole lifetime, so a
-		// connected legacy tunnel client keeps counting as activity and
-		// cannot make the supervisor time itself out from under it.
+		// published identity.
+		//
+		// Each relayed socket carries its own `--idle-timeout` activity
+		// guard, attached to the transport so it survives the WebSocket
+		// upgrade (see `idle_timeout::GuardedStream`). The inner dial the
+		// gateway makes back into our own listener is not enough on its
+		// own: a client still waiting to send its selection, or one whose
+		// selection resolves to a *different* endpoint (another live
+		// registry entry, or a freshly spawned dedicated host), never
+		// reaches our accept loop at all, so without this guard an
+		// actively proxied tunnel client could not stop us timing out from
+		// under it.
 		let active_agent_host = ready_active_agent_host(sidecar.active_agent_host());
 		let launcher_paths = ctx.paths.clone();
 		let gateway_user_data_path = user_data_path.clone();
@@ -403,16 +414,21 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 			ctx.log,
 			"Routing dev-tunnel-hosted agent-host port through the protocol-v6 selection gateway"
 		);
+		let tunnel_activity = sidecar.activity_tracker();
 		tokio::spawn(async move {
 			while let Some(socket) = tunnel_port.recv().await {
 				let log = tunnel_log.clone();
 				let active_agent_host = active_agent_host.clone();
 				let launcher_paths = launcher_paths.clone();
 				let user_data_path = gateway_user_data_path.clone();
+				let rw = idle_timeout::GuardedStream::new(
+					socket.into_rw(),
+					tunnel_activity.as_ref().map(|a| a.client_connected()),
+				);
 				tokio::spawn(async move {
 					serve_agent_host_tunnel_connection(
 						log,
-						socket.into_rw(),
+						rw,
 						active_agent_host,
 						launcher_paths,
 						user_data_path,

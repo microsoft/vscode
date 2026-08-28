@@ -26,6 +26,8 @@ export const Menus = {
 	PanelTitle: new MenuId('SessionsPanelTitle'),
 	SidebarTitle: new MenuId('SessionsSidebarTitle'),
 	SidebarSessionsHeader: new MenuId('SessionsSidebarSessionsHeader'),
+	SessionSectionNewSession: new MenuId('SessionsSessionSectionNewSession'),
+	SessionsViewExternalFilter: new MenuId('SessionsViewExternalFilter'),
 	AuxiliaryBarTitle: new MenuId('SessionsAuxiliaryBarTitle'),
 	SidebarFooter: new MenuId('SessionsSidebarFooter'),
 	SidebarCustomizations: new MenuId('SessionsSidebarCustomizations'),
@@ -39,6 +41,8 @@ export const Menus = {
 
 	/** Header actions of the Automations custom view. */
 	CustomViewAutomations: new MenuId('SessionsCustomViewAutomations'),
+	/** Unified toolbar for all session-backed Automation history rows. Actions are conditionally shown via sessionItem.status context key. */
+	AutomationsHistoryItem: new MenuId('SessionsAutomationsHistoryItem'),
 
 	NewSessionConfig: new MenuId('NewSessions.SessionConfigMenu'),
 	NewSessionControl: new MenuId('NewSessions.SessionControlMenu'),
@@ -47,13 +51,26 @@ export const Menus = {
 	SessionBarToolbar: new MenuId('SessionsSessionBarToolbar'),
 	SessionConversations: new MenuId('SessionsSessionConversations'),
 	SessionChatTab: new MenuId('SessionsSessionChatTab'),
+	SessionChatItemContext: new MenuId('SessionsSessionChatItemContext'),
+	SessionChatBackgroundContext: new MenuId('SessionsSessionChatBackgroundContext'),
 	SessionsEditorHeaderPrimary: new MenuId('SessionsEditorHeaderPrimary'),
-	SessionsEditorHeaderSecondary: new MenuId('SessionsEditorHeaderSecondary'),
 	SessionsEditorHeaderLayout: new MenuId('SessionsEditorHeaderLayout'),
 	SessionsEditorTitle: new MenuId('SessionsEditorTitle'),
 	SessionsEditorTabsBarContext: new MenuId('SessionsEditorTabsBarContext'),
 	SessionsEditorTabsBarAddTab: new MenuId('SessionsEditorTabsBarAddTab'),
 	SessionHeaderMeta: new MenuId('SessionsSessionHeaderMeta'),
+
+	/**
+	 * Entries merged into the dropdown of the changes button bar's primary
+	 * button. A submenu contributed to its `primary` group names a group of
+	 * related actions and takes over the button when it applies.
+	 */
+	ChangesOperationsDropdown: new MenuId('SessionsChangesOperationsDropdown'),
+	/** Agent Merge's own entries, opened as a context menu from its button. */
+	ChangesAgentMerge: new MenuId('SessionsChangesAgentMerge'),
+	/** Choices for when Agent Merge may merge the pull request. */
+	ChangesAgentMergeMergePullRequest: new MenuId('SessionsChangesAgentMergeMergePullRequest'),
+
 	SessionHeaderContext: MenuId.SessionHeaderContext,
 	SessionItemContextMenu: MenuId.SessionItemContextMenu,
 } as const;

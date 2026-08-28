@@ -22,16 +22,11 @@ import { IChatViewOptions } from '../../../browser/parts/chatView.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatInputNoticeLane } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
 import { ChatInputNoticeVariant, ChatInputNoticeWidget } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeWidget.js';
+import { chatInputStackClass, ChatInputStackSlot, setChatInputStackSlot } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 
 // #region --- New Chat In Session Widget ---
 
 const STORAGE_KEY_SUB_SESSION_TIP_DISMISSED = 'sessions.subSessionTipDismissed';
-
-/**
- * Marks the tip container while the banner is the notice on screen, so the seam
- * with the input is styled only when the two are actually adjacent.
- */
-const SHOWING_SUB_SESSION_TIP_CLASS = 'showing-sub-session-tip';
 
 /**
  * A widget for composing a secondary chat within an existing session.
@@ -45,7 +40,7 @@ export class NewChatInSessionWidget extends Disposable {
 	private readonly _session: IObservable<IActiveSession | undefined>;
 
 	constructor(
-		_options: IChatViewOptions,
+		_options: IChatViewOptions & { readonly petHostPreferred?: IObservable<boolean> },
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
@@ -78,6 +73,7 @@ export class NewChatInSessionWidget extends Disposable {
 			historyKey: constObservable(undefined), // no persisted history for the new-chat-in-session view
 			minEditorHeight: 64,
 			placeholder: localize('newChatInSessionPlaceholder', 'Ask a follow-up question or start a new topic within this session...'),
+			petHostPreferred: _options.petHostPreferred,
 			supportsBackground: true,
 			voiceRoutesWhileSessionActive: true,
 		}));
@@ -88,21 +84,28 @@ export class NewChatInSessionWidget extends Disposable {
 	render(parent: HTMLElement): void {
 		const element = dom.append(parent, dom.$('.sessions-chat-widget.new-chat-in-session'));
 		const chatWidgetContainer = dom.append(element, dom.$('.new-chat-widget-container'));
-		const chatWidgetContent = dom.append(chatWidgetContainer, dom.$('.new-chat-widget-content'));
+		const chatWidgetContent = dom.append(chatWidgetContainer, dom.$(`.new-chat-widget-content.${chatInputStackClass}`));
 
-		this._renderSubSessionTip(chatWidgetContent);
 		this._newChatInput.render(chatWidgetContent, parent);
+		// Rendered after the composer: the tip docks inside the composer's stack,
+		// so the pet stands on it rather than on the composer boundary.
+		this._renderSubSessionTip();
 
 		chatWidgetContainer.classList.add('revealed');
 	}
 
-	private _renderSubSessionTip(container: HTMLElement): void {
+	private _renderSubSessionTip(): void {
 		if (this.storageService.getBoolean(STORAGE_KEY_SUB_SESSION_TIP_DISMISSED, StorageScope.PROFILE, false)) {
 			return;
 		}
 
+		const tipContainer = this._newChatInput.hostNoticeContainerElement;
+		if (!tipContainer) {
+			return;
+		}
+
 		const store = new DisposableStore();
-		const tipContainer = dom.append(container, dom.$('.sub-session-tip-container'));
+		tipContainer.classList.add('sub-session-tip-container');
 
 		const message = localize(
 			'subSessionTip.message',
@@ -129,7 +132,9 @@ export class NewChatInSessionWidget extends Disposable {
 			// drops the context keys the chat keybindings depend on.
 			const hadFocus = tip.hasFocus();
 			this.storageService.store(STORAGE_KEY_SUB_SESSION_TIP_DISMISSED, true, StorageScope.PROFILE, StorageTarget.USER);
-			tipContainer.remove();
+			// Stood down before it leaves the DOM: once detached it cannot report.
+			setChatInputStackSlot(tipContainer, ChatInputStackSlot.Empty);
+			// The slot belongs to the composer, so only the tip inside it goes away.
 			this._tipDisposable.clear();
 			if (hadFocus) {
 				this._newChatInput.focus();
@@ -147,7 +152,7 @@ export class NewChatInSessionWidget extends Disposable {
 		// else holds the space.
 		let leading = false;
 		let announced = false;
-		dom.setVisibility(false, tipContainer);
+		setChatInputStackSlot(tipContainer, ChatInputStackSlot.Empty);
 		store.add(this._newChatInput.noticeHost.occupy(ChatInputNoticeLane.Tip, {
 			focusTarget: {
 				hasFocus: () => tip.hasFocus(),
@@ -156,8 +161,7 @@ export class NewChatInSessionWidget extends Disposable {
 			},
 			onDidChangeLeading: isLeading => {
 				leading = isLeading;
-				tipContainer.classList.toggle(SHOWING_SUB_SESSION_TIP_CLASS, isLeading);
-				dom.setVisibility(isLeading, tipContainer);
+				setChatInputStackSlot(tipContainer, isLeading ? ChatInputStackSlot.Docked : ChatInputStackSlot.Empty);
 				// Spoken once, the first time it actually reaches the screen. The
 				// lane can hand back and forth as notifications come and go, and
 				// re-announcing on every return would talk over the user.

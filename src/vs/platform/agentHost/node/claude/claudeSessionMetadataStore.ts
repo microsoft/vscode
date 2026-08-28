@@ -9,6 +9,7 @@ import { ClaudePermissionMode, narrowClaudePermissionMode } from '../../common/c
 import { IAgentChatMetadata } from '../../common/agent.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import type { AgentSelection, ModelSelection } from '../../common/state/protocol/state.js';
+import { AH_META_WORKSPACELESS_DB_KEY } from '../../common/state/sessionState.js';
 
 /**
  * Read view of Claude's per-session DB overlay. SDK-supplied fields
@@ -80,6 +81,28 @@ export class ClaudeSessionMetadataStore {
 	constructor(
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 	) { }
+
+	async hasKnownSession(session: URI): Promise<boolean> {
+		const ref = await this._sessionDataService.tryOpenDatabase(session);
+		if (!ref) {
+			return false;
+		}
+		try {
+			const metadata = await ref.object.getMetadataObject({
+				[AH_META_WORKSPACELESS_DB_KEY]: true,
+				'claude.external': true,
+				[ClaudeSessionMetadataStore.KEY_CUSTOMIZATION_DIRECTORY]: true,
+				[ClaudeSessionMetadataStore.KEY_MODEL]: true,
+				[ClaudeSessionMetadataStore.KEY_PERMISSION_MODE]: true,
+				[ClaudeSessionMetadataStore.KEY_AGENT]: true,
+				[ClaudeSessionMetadataStore.KEY_TRANSPORT]: true,
+				[ClaudeSessionMetadataStore.KEY_WORKING_DIRECTORIES]: true,
+			});
+			return Object.values(metadata).some(value => value !== undefined);
+		} finally {
+			ref.dispose();
+		}
+	}
 
 	/**
 	 * Persist the supplied overlay fields to the per-session DB. Mirrors
@@ -154,6 +177,7 @@ export class ClaudeSessionMetadataStore {
 		} finally {
 			ref.dispose();
 		}
+
 	}
 
 	/**

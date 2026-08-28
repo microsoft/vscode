@@ -62,7 +62,7 @@ export class GalleryItemRenderer<TElement> implements IListRenderer<TElement, IG
 		const description = DOM.append(details, $('span.gallery-item-description'));
 		const publisher = DOM.append(details, $('span.gallery-item-publisher'));
 		const actionContainer = DOM.append(container, $('.gallery-item-action'));
-		const installButton = new Button(actionContainer, { ...defaultButtonStyles, supportIcons: true });
+		const installButton = new Button(actionContainer, defaultButtonStyles);
 
 		const templateDisposables = new DisposableStore();
 		templateDisposables.add(installButton);

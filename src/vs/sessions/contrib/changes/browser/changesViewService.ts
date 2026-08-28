@@ -7,7 +7,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache, ResourceMap } from '../../../../base/common/map.js';
-import { autorun, derived, derivedObservableWithCache, derivedOpts, IObservable, ISettableObservable, observableSignal, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, derivedObservableWithCache, derivedOpts, IObservable, ISettableObservable, observableSignal, observableSignalFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -27,7 +27,6 @@ export const ChangesetReviewedFilesContext = new RawContextKey<string[]>('sessio
 export const ChangesetHasOperationsContext = new RawContextKey<boolean>('sessions.changesetHasOperations', false);
 
 const DEFAULT_SECTION_COLLAPSE_STATE: IChangesViewSectionCollapseState = Object.freeze({
-	otherFiles: false,
 	checks: true,
 });
 
@@ -65,8 +64,19 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 	readonly detailsViewStateTransferObs = observableValue<IChangesDetailsViewStateTransfer | undefined>(this, undefined);
 
 	private readonly _selectedChangesetId = observableValue<string | undefined>(this, undefined);
+	private readonly _transientChangeset = observableValue<ISessionChangeset | undefined>(this, undefined);
 	setChangesetId(changesetId: string | undefined): void {
-		this._selectedChangesetId.set(changesetId, undefined);
+		transaction(tx => {
+			this._selectedChangesetId.set(changesetId, tx);
+			this._transientChangeset.set(undefined, tx);
+		});
+	}
+
+	showChangeset(changeset: ISessionChangeset): void {
+		transaction(tx => {
+			this._transientChangeset.set(changeset, tx);
+			this._selectedChangesetId.set(changeset.id, tx);
+		});
 	}
 
 	private readonly _viewModeObs: ISettableObservable<ChangesViewMode>;
@@ -131,9 +141,21 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		this.activeSessionAgentFeedbackCountByFileObs = this._getActiveSessionAgentFeedback();
 
 		// Changesets
-		this.activeSessionChangesetsObs = derived(reader => {
+		const activeSessionChangesetsObs = derived(reader => {
 			const activeSession = this.sessionsService.activeSession.read(reader);
 			return activeSession?.changesets.read(reader);
+		});
+		this.activeSessionChangesetsObs = derived(reader => {
+			const changesets = activeSessionChangesetsObs.read(reader);
+			const transientChangeset = this._transientChangeset.read(reader);
+			if (!transientChangeset) {
+				return changesets;
+			}
+
+			return [
+				...(changesets?.filter(changeset => changeset.id !== transientChangeset.id) ?? []),
+				transientChangeset,
+			];
 		});
 
 		this.activeSessionChangesetsLoadingObs = derived(reader => {
@@ -251,7 +273,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		}
 
 		const next = { ...current, [section]: collapsed };
-		if (next.otherFiles === DEFAULT_SECTION_COLLAPSE_STATE.otherFiles && next.checks === DEFAULT_SECTION_COLLAPSE_STATE.checks) {
+		if (next.checks === DEFAULT_SECTION_COLLAPSE_STATE.checks) {
 			this._sectionCollapseStateBySession.delete(sessionResource);
 		} else {
 			this._sectionCollapseStateBySession.set(sessionResource, next);

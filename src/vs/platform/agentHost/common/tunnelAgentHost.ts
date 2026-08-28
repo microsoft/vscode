@@ -100,6 +100,9 @@ export interface ITunnelInfo {
 	readonly hostConnectionCount: number;
 }
 
+/** How startup auto-connect should establish a tunnel connection. */
+export type TunnelAutoConnectMode = 'background' | 'prompt';
+
 /** Kind of process that owns a gateway-reported endpoint. Mirrors `AgentHostServerType` in the CLI's agent-host registry (`cli/src/tunnels/agent_host_registry.rs`). */
 export type TunnelGatewayServerType = 'editor' | 'standalone';
 
@@ -445,6 +448,12 @@ export interface ITunnelAgentHostService {
 	listTunnels(options?: { silent?: boolean }): Promise<ITunnelInfo[]>;
 
 	/**
+	 * Determine whether startup auto-connect can run silently or must first ask
+	 * the user to choose an agent-host location.
+	 */
+	getAutoConnectMode(tunnel: ITunnelInfo): TunnelAutoConnectMode;
+
+	/**
 	 * Connect to a tunnel's agent host and register the connection
 	 * with {@link IRemoteAgentHostService}.
 	 *
@@ -452,9 +461,9 @@ export interface ITunnelAgentHostService {
 	 * @param authProvider Optional auth provider to use. If omitted, uses cached/last known.
 	 * @param options.userInitiated Whether this connection was explicitly
 	 * requested by the user (default `true`). When `false` (background/auto
-	 * connect), a protocol-v6 gateway selection must never prompt via
-	 * {@link IQuickInputService} and must never choose an `editor` endpoint —
-	 * it deterministically reuses a standalone or spawns `newDedicated`.
+	 * connect), a protocol-v6 gateway selection must never prompt. Background
+	 * connections may prompt only when {@link getAutoConnectMode} returns
+	 * `'prompt'`; otherwise they reuse the saved preference silently.
 	 */
 	connect(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft', options?: { readonly userInitiated?: boolean }): Promise<void>;
 
@@ -506,8 +515,20 @@ export const TUNNEL_HOST_LOG_ID = 'tunnelHostService';
 /** Information about an actively hosted tunnel. */
 export interface ITunnelHostInfo {
 	readonly tunnelName: string;
+	/** Stable dev tunnel identity, which can be absent when an older CLI reports the hosted tunnel. */
+	readonly tunnelId?: string;
 	/** Set when remote session access is being provided by full Remote Tunnel Access rather than a dedicated agent host tunnel. */
 	readonly viaRemoteTunnelAccess?: boolean;
+}
+
+/** Whether a discovered tunnel is the hosted tunnel, preferring its stable identity over its display name. */
+export function isTunnelHosted(sharingInfo: ITunnelHostInfo | undefined, tunnel: Pick<ITunnelInfo, 'tunnelId' | 'name'>): boolean {
+	if (!sharingInfo) {
+		return false;
+	}
+	return sharingInfo.tunnelId !== undefined
+		? sharingInfo.tunnelId === tunnel.tunnelId
+		: sharingInfo.tunnelName === tunnel.name;
 }
 
 /** Status of the tunnel host. */

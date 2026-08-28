@@ -6,24 +6,12 @@
 /*
  * The notice above a chat input. Five producers - notification, voice and
  * dictation introductions, getting-started tip, sub-session tip - share this
- * frame so the space reads as one surface no matter who is filling it.
+ * frame so the space looks the same whoever is filling it. Producers can still
+ * change their own padding or density.
  *
- * This is a baseline, not a contract: a producer can still re-specialise its
- * padding or density. What it should not have to restate is the border, the
- * radius, the background and the action shape - the things that were drifting.
- */
-
-/*
- * One thing is deliberately NOT shared: how far a notice sits from the input
- * below it. A notice has a square bottom edge and the input has rounded top
- * corners, so most places pull the input up over that edge - by 4 to 8px - to
- * hide the join. Inline chat wants the opposite and leaves a 16px gap.
- *
- * The right number depends on the surrounding layout, so each place sets its own
- * next to the rule it overrides. Sharing it from here has been tried twice and
- * broke both times: once because the shared value slipped past overrides that
- * only set `margin-bottom`, once because a hide/show pair split across two files
- * ended up equally specific, so whichever file loaded last won.
+ * No offset here, or in any producer: the stack closes the join by squaring the
+ * corners of what follows. Sharing an offset was tried twice and broke both
+ * times, because the offset was never a property of the notice.
  */
 
 /* --- The frame --- */
@@ -38,12 +26,10 @@
 	max-width: 100%;
 	padding: var(--vscode-spacing-size120);
 	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-widget-border, transparent));
-	/* Square at the bottom, and rounded at the top on the same ramp the input uses,
-	 * so the notice reads as the top of the input rather than a box resting on it.
-	 * The bottom edge is left open: the notice sits against the input, and drawing
-	 * a border there puts a line across what should read as one surface. */
+	/* Open at the bottom so the notice and the input below read as one surface.
+	 * The top corners follow the stack, and keep their own rounding outside one. */
 	border-bottom: none;
-	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
+	border-radius: var(--chat-input-stack-radius-top, var(--vscode-cornerRadius-large)) var(--chat-input-stack-radius-top, var(--vscode-cornerRadius-large)) 0 0;
 	background-color: var(--vscode-agentsChatInput-background, var(--vscode-input-background));
 	color: var(--vscode-foreground);
 }
@@ -53,12 +39,9 @@
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
-/*
- * A tip and a notification are both prose about the conversation, so they take
- * the chat type ramp and the demoted foreground. An introduction is a card in
- * its own right and keeps the base foreground and the label ramp its own
- * content sets. Shared here so a fourth kind of notice does not restate it.
- */
+/* Tips and notifications are prose, so they take the chat type ramp and the
+	demoted foreground. An onboarding card keeps the base foreground and sets its
+	own type. */
 .chat-input-notice.chat-input-notice-tip,
 .chat-input-notice.chat-input-notice-notification {
 	font-size: var(--vscode-chat-font-size-body-s);
@@ -66,34 +49,30 @@
 	color: var(--vscode-descriptionForeground);
 }
 
-/*
- * Links, wherever they appear in a notice - prose in a tip, markdown in a
- * notification, the settings link in an introduction. Anchors are not covered by
- * the workbench's global focus rule, so without the `:focus-visible` outline
- * here a keyboard user tabbing to one of these gets no indication of where they
- * are - which a getting-started tip actively invites them to do.
- */
-.chat-input-notice a,
-.chat-input-notice a:visited {
+/* Links anywhere in a notice, excluding the anchor-based controls. Anchors are
+	not covered by the workbench focus rule, so they need their own
+	`:focus-visible` outline. */
+.chat-input-notice a:not(.action-label, .monaco-button),
+.chat-input-notice a:visited:not(.action-label, .monaco-button) {
 	color: var(--vscode-textLink-foreground);
 	cursor: pointer;
 	border-radius: var(--vscode-cornerRadius-xSmall);
 }
 
-.chat-input-notice a:hover,
-.chat-input-notice a:active {
+.chat-input-notice a:hover:not(.action-label, .monaco-button),
+.chat-input-notice a:active:not(.action-label, .monaco-button) {
 	color: var(--vscode-textLink-activeForeground);
 	text-decoration: underline;
 }
 
-.chat-input-notice a:focus-visible {
+.chat-input-notice a:focus-visible:not(.action-label, .monaco-button) {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: 2px;
 }
 
 /* --- Variant: tip --- */
 
-/* One line of supporting prose next to an icon: a row, and the densest of the three. */
+/* One line of text next to an icon, so a row, and the densest of the three. */
 .chat-input-notice.chat-input-notice-tip {
 	flex-direction: row;
 	align-items: flex-start;
@@ -101,12 +80,14 @@
 	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
 }
 
-/*
- * A card is the exception. In the panel layout it sits a few pixels clear of the
- * input rather than against it, so it needs its bottom edge to close the box.
- */
+/* A card closes its own box and sits clear of the input, so it reports itself
+	standalone and the input below keeps its own frame. Its bottom corners are its
+	own, so they take the run's radius directly rather than through the stack. */
 .chat-input-notice.chat-input-notice-onboarding {
+	--chat-input-notice-radius: var(--chat-input-stack-radius-outer, var(--vscode-cornerRadius-large));
 	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-widget-border, transparent));
+	border-radius: var(--chat-input-stack-radius-top, var(--chat-input-notice-radius)) var(--chat-input-stack-radius-top, var(--chat-input-notice-radius)) var(--chat-input-notice-radius) var(--chat-input-notice-radius);
+	margin-bottom: var(--vscode-spacing-size40);
 }
 
 /* --- Variant: notification --- */

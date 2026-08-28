@@ -110,6 +110,14 @@ function normalizeUriAuthority(authority: string | undefined): string | undefine
 	return normalizeDomain(hostname, true);
 }
 
+function normalizeBareIPv6Address(value: string): string | undefined {
+	if (!value.includes(':') || /[\[\]]/.test(value)) {
+		return undefined;
+	}
+
+	return normalizeUriAuthority(`[${value}]`);
+}
+
 /**
  * Extracts the domain portion from a pattern string.
  * If the pattern contains `://`, it is parsed as a URI and the authority is returned.
@@ -140,7 +148,7 @@ export function extractDomainPattern(pattern: string): string {
  */
 export function matchesDomainPattern(domain: string, pattern: string): boolean {
 	const extractedPattern = extractDomainPattern(pattern);
-	const normalizedPattern = normalizeDomain(extractedPattern, pattern.includes('://')) ?? normalizeUriAuthority(extractedPattern);
+	const normalizedPattern = normalizeUriAuthority(extractedPattern) ?? normalizeBareIPv6Address(extractedPattern) ?? normalizeDomain(extractedPattern, true);
 	if (!normalizedPattern) {
 		return false;
 	}

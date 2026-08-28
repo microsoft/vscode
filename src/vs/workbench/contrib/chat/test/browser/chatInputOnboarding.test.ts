@@ -12,6 +12,7 @@ import { workbenchInstantiationService } from '../../../../test/browser/workbenc
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ChatInputNoticeClaim, ChatInputOnboarding, IChatInputOnboardingContext } from '../../browser/widget/input/chatInputOnboarding.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../browser/widget/input/chatInputNoticeHost.js';
+import { isChatInputStackSlotShowing } from '../../browser/widget/input/chatInputStack.js';
 
 suite('Chat input onboarding', () => {
 
@@ -52,7 +53,6 @@ suite('Chat input onboarding', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		return store.add(instantiationService.createInstance(ChatInputOnboarding, {
 			storageKey,
-			hostClass: 'has-chat-input-onboarding',
 		}));
 	}
 
@@ -72,7 +72,7 @@ suite('Chat input onboarding', () => {
 
 	/** A card is on screen only if it is built and its container is not hidden. */
 	function visibleCards(container: HTMLElement): number {
-		return container.style.display === 'none' ? 0 : container.querySelectorAll('.chat-input-onboarding-card').length;
+		return isChatInputStackSlotShowing(container) ? container.querySelectorAll('.chat-input-onboarding-card').length : 0;
 	}
 
 	let announceCalls = 0;
@@ -109,7 +109,7 @@ suite('Chat input onboarding', () => {
 				shown,
 				stillTakenOver,
 				cardsCreated,
-				visible: host.container.classList.contains('has-chat-input-onboarding'),
+				visible: isChatInputStackSlotShowing(host.container),
 				isVisible: onboarding.isVisible,
 				laneClaimed: laneClaimed(noticeHost),
 				cards: visibleCards(host.container),
@@ -121,7 +121,7 @@ suite('Chat input onboarding', () => {
 		assert.deepStrictEqual(
 			{
 				focusCalls,
-				visible: host.container.classList.contains('has-chat-input-onboarding'),
+				visible: isChatInputStackSlotShowing(host.container),
 				isVisible: onboarding.isVisible,
 				// Dismissal releases the space, so a tip may take it.
 				laneClaimed: laneClaimed(noticeHost),
@@ -148,7 +148,6 @@ suite('Chat input onboarding', () => {
 		const storageService = instantiationService.get(IStorageService);
 		const onboarding = store.add(instantiationService.createInstance(ChatInputOnboarding, {
 			storageKey: 'test.chatInputOnboarding.deferWhenTaken',
-			hostClass: 'has-chat-input-onboarding',
 		}));
 		const host = createHost(store);
 		const noticeHost = createNoticeHost(store);
@@ -301,7 +300,6 @@ suite('Chat input onboarding', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const make = (storageKey: string) => store.add(instantiationService.createInstance(ChatInputOnboarding, {
 			storageKey,
-			hostClass: 'has-chat-input-onboarding',
 		}));
 		const first = make('test.chatInputOnboarding.introA');
 		const second = make('test.chatInputOnboarding.introB');
@@ -366,7 +364,6 @@ suite('Chat input onboarding', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const make = (storageKey: string) => store.add(instantiationService.createInstance(ChatInputOnboarding, {
 			storageKey,
-			hostClass: 'has-chat-input-onboarding',
 		}));
 		const first = make('test.chatInputOnboarding.pingA');
 		const second = make('test.chatInputOnboarding.pingB');
@@ -418,9 +415,9 @@ suite('Chat input onboarding', () => {
 				reported,
 				isVisible: onboarding.isVisible,
 				laneClaimed: laneClaimed(noticeHost),
-				hostClass: host.container.classList.contains('has-chat-input-onboarding'),
+				showing: isChatInputStackSlotShowing(host.container),
 			},
-			{ reported: ['card exploded'], isVisible: false, laneClaimed: false, hostClass: false });
+			{ reported: ['card exploded'], isVisible: false, laneClaimed: false, showing: false });
 	});
 
 	test('a card that is taken down while building is not installed anyway', () => {
@@ -433,7 +430,6 @@ suite('Chat input onboarding', () => {
 		const storageService = instantiationService.get(IStorageService);
 		const onboarding = store.add(instantiationService.createInstance(ChatInputOnboarding, {
 			storageKey: 'test.chatInputOnboarding.cancelledWhileBuilding',
-			hostClass: 'has-chat-input-onboarding',
 		}));
 		const host = createHost(store);
 		const noticeHost = createNoticeHost(store);
@@ -453,12 +449,12 @@ suite('Chat input onboarding', () => {
 			{
 				isVisible: onboarding.isVisible,
 				cards: host.container.querySelectorAll('.chat-input-onboarding-card').length,
-				hostClass: host.container.classList.contains('has-chat-input-onboarding'),
+				showing: isChatInputStackSlotShowing(host.container),
 				laneClaimed: laneClaimed(noticeHost),
 				announceCalls,
 				seen: storageService.getBoolean('test.chatInputOnboarding.cancelledWhileBuilding', StorageScope.APPLICATION, false),
 			},
-			{ isVisible: false, cards: 0, hostClass: false, laneClaimed: false, announceCalls: 0, seen: false });
+			{ isVisible: false, cards: 0, showing: false, laneClaimed: false, announceCalls: 0, seen: false });
 	});
 
 	test('announces once on show', () => {

@@ -5,19 +5,29 @@
 
 import assert from 'assert';
 import type { SectionOverride } from '@github/copilot-sdk';
-import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION, resolveToolInstructionsOverride, toolSearchInstructionLines, universalToolInstructions } from '../../node/copilot/prompts/toolInstructions.js';
+import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION, COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS, resolveToolInstructionsOverride, toolSearchInstructionLines, universalToolInstructions, type IToolInstructionContext } from '../../node/copilot/prompts/toolInstructions.js';
+import type { SchemaValues } from '../../common/agentHostSchema.js';
+import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME } from '../../common/toolSearchConstants.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
-/** Builds a `hasTool` predicate backed by the given available tool names. */
-function hasTools(...names: string[]): (name: string) => boolean {
-	const set = new Set(names);
-	return name => set.has(name);
+/** Builds a line context exposing the given tool names and host settings. */
+function context(tools: readonly string[] = [], settings: SchemaValues<typeof copilotCliConfigSchema.definition> = {}): IToolInstructionContext {
+	const set = new Set(tools);
+	return {
+		hasTool: name => set.has(name),
+		getSetting: key => settings[key],
+	};
+}
+
+/** Shorthand for a context with only tools available. */
+function hasTools(...names: string[]): IToolInstructionContext {
+	return context(names);
 }
 
 /** A gated tool-instruction line that renders `use <tool>` when `tool` is present. */
-function lineFor(tool: string): (hasTool: (name: string) => boolean) => string | undefined {
-	return hasTool => hasTool(tool) ? `use ${tool}` : undefined;
+function lineFor(tool: string): (ctx: IToolInstructionContext) => string | undefined {
+	return ({ hasTool }) => hasTool(tool) ? `use ${tool}` : undefined;
 }
 
 suite('toolInstructions', () => {
@@ -25,6 +35,7 @@ suite('toolInstructions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const LARGE_OUTPUT_LINE = COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION;
+	const UNCONDITIONAL_TOOL_INSTRUCTIONS = LARGE_OUTPUT_LINE;
 
 	suite('universalToolInstructions', () => {
 		test('joins applicable lines in order and drops gated-out ones', () => {
@@ -35,13 +46,27 @@ suite('toolInstructions', () => {
 			assert.strictEqual(universalToolInstructions(hasTools('x'), [lineFor('a')]), undefined);
 		});
 
-		test('always renders the registered large-output line from the default registry', () => {
+		test('always renders the registered unconditional instructions', () => {
 			assert.deepStrictEqual([
 				COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION,
 				universalToolInstructions(hasTools()),
 			], [
 				'When a tool reports that its output was saved to a temporary file because it was too large, ONLY use the `view` tool with a narrow `view_range` to inspect that file. NEVER read it with shell commands such as `cat`, `head`, `tail`, or `sed`, because their output may be offloaded again.',
-				LARGE_OUTPUT_LINE,
+				UNCONDITIONAL_TOOL_INSTRUCTIONS,
+			]);
+		});
+
+		test('adds the registered subagent model guidance only when its setting is enabled', () => {
+			assert.deepStrictEqual([
+				COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS,
+				universalToolInstructions(context([], { [CopilotCliConfigKey.SubagentModelGuidance]: true })),
+				universalToolInstructions(context([], { [CopilotCliConfigKey.SubagentModelGuidance]: false })),
+				universalToolInstructions(context()),
+			], [
+				'When launching subagents with the task tool, leave the `model`, `reasoning_effort`, and `context_tier` parameters unset — each agent type already runs on a model suited to it, and overriding the model changes the session\'s cost and behavior profile.\nOnly set the task tool\'s `model` parameter when the user explicitly names the model the subagent should run on.',
+				`${UNCONDITIONAL_TOOL_INSTRUCTIONS}\n${COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS}`,
+				UNCONDITIONAL_TOOL_INSTRUCTIONS,
+				UNCONDITIONAL_TOOL_INSTRUCTIONS,
 			]);
 		});
 
@@ -53,9 +78,9 @@ suite('toolInstructions', () => {
 					universalToolInstructions(hasTools('readPage')),
 				],
 				[
-					`${LARGE_OUTPUT_LINE}\nUse the browser tools (openBrowserPage, readPage, etc.) when beneficial for front-end tasks, such as when visualizing or validating UI changes.`,
-					LARGE_OUTPUT_LINE,
-					LARGE_OUTPUT_LINE,
+					`${UNCONDITIONAL_TOOL_INSTRUCTIONS}\nUse the browser tools (openBrowserPage, readPage, etc.) when beneficial for front-end tasks, such as when visualizing or validating UI changes.`,
+					UNCONDITIONAL_TOOL_INSTRUCTIONS,
+					UNCONDITIONAL_TOOL_INSTRUCTIONS,
 				]
 			);
 		});
@@ -107,19 +132,19 @@ suite('toolInstructions', () => {
 				universalToolInstructions(hasTools(CLIENT_TOOL_SEARCH_REFERENCE_NAME), toolSearchInstructionLines(true)),
 				universalToolInstructions(hasTools('other'), toolSearchInstructionLines(true)),
 			], [
-				`${LARGE_OUTPUT_LINE}\n${TOOL_SEARCH_LINE}`,
-				LARGE_OUTPUT_LINE,
+				`${UNCONDITIONAL_TOOL_INSTRUCTIONS}\n${TOOL_SEARCH_LINE}`,
+				UNCONDITIONAL_TOOL_INSTRUCTIONS,
 			]);
 		});
 
 		test('inactive tool search never contributes the tool-search line', () => {
-			assert.strictEqual(universalToolInstructions(hasTools(CLIENT_TOOL_SEARCH_REFERENCE_NAME), toolSearchInstructionLines(false)), LARGE_OUTPUT_LINE);
+			assert.strictEqual(universalToolInstructions(hasTools(CLIENT_TOOL_SEARCH_REFERENCE_NAME), toolSearchInstructionLines(false)), UNCONDITIONAL_TOOL_INSTRUCTIONS);
 		});
 
 		test('composes the tool-search line after the registered large-output and browser lines', () => {
 			assert.strictEqual(
 				universalToolInstructions(hasTools('openBrowserPage', 'readPage', CLIENT_TOOL_SEARCH_REFERENCE_NAME), toolSearchInstructionLines(true)),
-				`${LARGE_OUTPUT_LINE}\nUse the browser tools (openBrowserPage, readPage, etc.) when beneficial for front-end tasks, such as when visualizing or validating UI changes.\n${TOOL_SEARCH_LINE}`
+				`${UNCONDITIONAL_TOOL_INSTRUCTIONS}\nUse the browser tools (openBrowserPage, readPage, etc.) when beneficial for front-end tasks, such as when visualizing or validating UI changes.\n${TOOL_SEARCH_LINE}`
 			);
 		});
 
@@ -128,8 +153,8 @@ suite('toolInstructions', () => {
 				resolveToolInstructionsOverride(hasTools(CLIENT_TOOL_SEARCH_REFERENCE_NAME), { action: 'append', content: 'A' }, toolSearchInstructionLines(true)),
 				resolveToolInstructionsOverride(hasTools(CLIENT_TOOL_SEARCH_REFERENCE_NAME), { action: 'append', content: 'A' }, toolSearchInstructionLines(false)),
 			], [
-				{ action: 'append', content: `\nA\n${LARGE_OUTPUT_LINE}\n${TOOL_SEARCH_LINE}` },
-				{ action: 'append', content: `\nA\n${LARGE_OUTPUT_LINE}` },
+				{ action: 'append', content: `\nA\n${UNCONDITIONAL_TOOL_INSTRUCTIONS}\n${TOOL_SEARCH_LINE}` },
+				{ action: 'append', content: `\nA\n${UNCONDITIONAL_TOOL_INSTRUCTIONS}` },
 			]);
 		});
 	});

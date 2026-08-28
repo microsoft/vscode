@@ -89,6 +89,7 @@ export class TestContext {
 	private static readonly authenticodeInclude = /^.+\.(exe|dll|sys|cab|cat|msi|jar|ocx|ps1|psm1|psd1|ps1xml|pssc1)$/i;
 	// MXC SDK ships per-arch SPDX catalog manifests that Get-AuthenticodeSignature reports as UnknownError.
 	private static readonly authenticodeExclude = /[\\/]node_modules[\\/]@microsoft[\\/]mxc-sdk[\\/]bin[\\/][^\\/]+[\\/]_manifest[\\/][^\\/]+[\\/]manifest\.cat$/i;
+	private static readonly authenticodeTestCertificate = /Code Sign Test \(DO NOT TRUST\)/i;
 	private static readonly versionInfoInclude = /^.+\.(exe|dll|node|msi)$/i;
 	// Electron helpers (dxil/ffmpeg) and Copilot-vendored MSAL runtime DLLs ship VersionInfo that
 	// FileVersionInfo cannot resolve to a ProductName (x64: msalruntime.dll, arm64: msalruntime_arm64.dll).
@@ -103,6 +104,7 @@ export class TestContext {
 	private currentTestName: string | undefined;
 	private screenshotCounter = 0;
 	private wslVersion: number | undefined;
+	private signToolPath: string | undefined;
 
 	public constructor(public readonly options: Readonly<{
 		quality: 'stable' | 'insider' | 'exploration';
@@ -448,7 +450,7 @@ export class TestContext {
 		}
 
 		const files: string[] = [];
-		this.collectFiles(artifactDir, files);
+		this.collectFiles(artifactDir, files, true);
 		if (files.length !== 1) {
 			this.error(`Expected exactly one file in artifact ${artifact}, found ${files.length}: ${files.join(', ')}`);
 		}
@@ -458,15 +460,14 @@ export class TestContext {
 	}
 
 	/**
-	 * Collects all files from the specified directory recursively, skipping the SBOM manifest
-	 * that 1ES injects into every published artifact.
+	 * Collects all files from the specified directory recursively.
 	 */
-	private collectFiles(dir: string, files: string[]): void {
+	private collectFiles(dir: string, files: string[], skipInjectedManifest = false): void {
 		for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
 			const filePath = path.join(dir, entry.name);
 			if (entry.isDirectory()) {
-				if (entry.name !== '_manifest') {
-					this.collectFiles(filePath, files);
+				if (!skipInjectedManifest || entry.name !== '_manifest') {
+					this.collectFiles(filePath, files, skipInjectedManifest);
 				}
 			} else {
 				files.push(filePath);
@@ -491,7 +492,7 @@ export class TestContext {
 	}
 
 	/**
-	 * Validates the Authenticode signature of a Windows executable.
+	 * Validates every Authenticode signature of a Windows executable.
 	 * @param filePath The path to the file to validate.
 	 */
 	public validateAuthenticodeSignature(filePath: string) {
@@ -501,7 +502,44 @@ export class TestContext {
 		}
 
 		this.log(`Validating Authenticode signature for ${filePath}`);
-		this.validateAuthenticodeSignaturesForFiles([filePath]);
+		let signToolPath = this.signToolPath;
+		if (!signToolPath) {
+			const architectures = process.arch === 'arm64' ? ['arm64', 'x64'] : ['x64'];
+			const command = `
+				$signTool = (Get-Command signtool.exe -ErrorAction SilentlyContinue).Source
+				if (-not $signTool) {
+					$sdkRoot = Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Windows Kits\\10\\bin'
+					foreach ($architecture in @(${architectures.map(architecture => `'${architecture}'`).join(', ')})) {
+						$signTool = Get-ChildItem (Join-Path $sdkRoot "*\\$architecture\\signtool.exe") -ErrorAction SilentlyContinue |
+							Sort-Object FullName -Descending |
+							Select-Object -First 1 -ExpandProperty FullName
+						if ($signTool) {
+							break
+						}
+					}
+				}
+				if (-not $signTool) {
+					throw 'Unable to locate signtool.exe'
+				}
+				$signTool
+			`;
+			signToolPath = this.runNoErrors('powershell', '-NoProfile', '-Command', command).stdout.trim();
+			this.signToolPath = signToolPath;
+		}
+
+		const result = this.run(signToolPath, 'verify', '/pa', '/all', '/v', filePath);
+		if (result.error !== undefined) {
+			this.error(`Failed to validate Authenticode signatures for ${filePath}: ${result.error.message}`);
+		}
+		const details = `${result.stdout}\n${result.stderr}`.trim();
+		if (TestContext.authenticodeTestCertificate.test(details)) {
+			this.error(`Authenticode signature uses a test certificate for ${filePath}`);
+		}
+		if (result.status !== 0) {
+			this.error(`Not all Authenticode signatures are valid for ${filePath}${details ? `:\n${details}` : ''}`);
+		}
+
+		this.log(`All Authenticode signatures are valid for ${filePath}`);
 	}
 
 	/**
@@ -524,35 +562,6 @@ export class TestContext {
 	}
 
 	/**
-	 * Validates Authenticode signatures for the specified list of files in a single PowerShell call.
-	 */
-	private validateAuthenticodeSignaturesForFiles(files: string[]): void {
-		if (files.length === 0) {
-			return;
-		}
-
-		const fileList = files.map(file => `"${file}"`).join(',');
-		const command = `@(${fileList}) | ForEach-Object { $sig = Get-AuthenticodeSignature $_; "$($sig.Path)|$($sig.Status)" }`;
-		const result = this.runNoErrors('powershell', '-NoProfile', '-Command', command);
-
-		const invalid: string[] = [];
-		for (const line of result.stdout.trim().split('\n')) {
-			const [, filePath, status] = /^(.+)\|(\w+)$/.exec(line.trim()) ?? [];
-			if (filePath) {
-				if (status === 'Valid') {
-					this.log(`Authenticode signature is valid for ${filePath}`);
-				} else {
-					invalid.push(`${filePath}: ${status}`);
-				}
-			}
-		}
-
-		if (invalid.length > 0) {
-			this.error(`Authenticode signatures are not valid for:\n${invalid.join('\n')}`);
-		}
-	}
-
-	/**
 	 * Validates Authenticode signatures for all executable files in the specified directory.
 	 * @param dir The directory to scan for executable files.
 	 */
@@ -565,7 +574,9 @@ export class TestContext {
 		const files: string[] = [];
 		this.collectAuthenticodeFiles(dir, files);
 		this.log(`Found ${files.length} file(s) to validate Authenticode signatures`);
-		this.validateAuthenticodeSignaturesForFiles(files);
+		for (const file of files) {
+			this.validateAuthenticodeSignature(file);
+		}
 	}
 
 	/**
@@ -949,7 +960,10 @@ export class TestContext {
 
 		await this.timeout(2000);
 		if (fs.existsSync(appDir)) {
-			this.error(`Installation directory still exists after uninstall: ${appDir}`);
+			const remainingFiles: string[] = [];
+			this.collectFiles(appDir, remainingFiles);
+			const remainingFileList = remainingFiles.map(file => path.relative(appDir, file)).sort().join('\n') || '(no files)';
+			this.error(`Installation directory still exists after uninstall: ${appDir}\nRemaining files:\n${remainingFileList}`);
 		}
 	}
 

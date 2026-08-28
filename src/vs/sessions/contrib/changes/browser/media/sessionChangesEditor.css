@@ -58,7 +58,7 @@
 }
 
 .session-changes-editor-header-left .action-label {
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 	align-items: center;
 	min-width: 0;
 	max-width: 100%;
@@ -95,7 +95,7 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 	padding: 3px;
 	border-radius: var(--vscode-cornerRadius-small);
 }
@@ -141,7 +141,7 @@
 	gap: var(--vscode-spacing-size40);
 	min-width: 0;
 	max-width: 100%;
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 }
 
 .changes-picker-action-rich .action-label > span:not(.codicon) {
@@ -181,7 +181,7 @@
 	height: 26px;
 	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
 	box-sizing: border-box;
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 	line-height: 18px;
 	white-space: nowrap;
 }

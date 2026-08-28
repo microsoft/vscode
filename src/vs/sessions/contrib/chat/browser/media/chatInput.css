@@ -21,32 +21,23 @@
 /* The tip sits in the input's notice slot, attached to the top of the input. */
 .new-chat-input-container > .chat-getting-started-tip-container {
 	width: 100%;
-	margin-bottom: 0;
-}
-
-.new-chat-input-container:not(.showing-prompt-options) > .chat-getting-started-tip-container.showing-chat-tip ~ .new-chat-input-area-wrapper .new-chat-input-area {
-	border-radius: 0 0 var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large);
 }
 
 .new-session-feedback-banners {
 	width: 100%;
 	max-width: 800px;
+}
+
+/* Clear of the picker above only while showing a banner. Prefixed with the stack
+	so it does not tie on specificity with the stack's own `margin-top` rule. */
+.chat-input-stack > .new-session-feedback-banners.chat-input-stack-docked {
 	margin-top: var(--vscode-spacing-size120);
 }
 
 .new-session-feedback-banners .session-input-banner {
 	padding-bottom: var(--vscode-spacing-size100);
-	margin-bottom: calc(-1 * var(--vscode-spacing-size80));
-	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
+	border-radius: var(--chat-input-stack-radius-top, var(--vscode-cornerRadius-large)) var(--chat-input-stack-radius-top, var(--vscode-cornerRadius-large)) 0 0;
 	background-color: var(--session-view-background);
-}
-
-.new-session-feedback-banners:not(:has(.session-input-banner)) {
-	margin-top: 0;
-}
-
-.new-session-feedback-banners:has(.session-input-banner) + .new-chat-input-container {
-	margin-top: 0;
 }
 
 /* Ensure the input editor fits properly */
@@ -81,7 +72,11 @@
 	max-width: 800px;
 	box-sizing: border-box;
 	border: 1px solid var(--vscode-agentsChatInput-border);
-	border-radius: var(--vscode-cornerRadius-large);
+	border-radius:
+		var(--chat-input-stack-radius-top, var(--vscode-cornerRadius-large))
+		var(--chat-input-stack-radius-top, var(--vscode-cornerRadius-large))
+		var(--vscode-cornerRadius-large)
+		var(--vscode-cornerRadius-large);
 	background-color: var(--vscode-agentsChatInput-background);
 	color: var(--vscode-agentsChatInput-foreground);
 	overflow: hidden;
@@ -112,12 +107,12 @@
 }
 
 .new-chat-input-status-hover-title {
-	font-size: var(--vscode-agents-fontSize-label1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 .new-chat-input-status-hover-detail {
-	font-size: var(--vscode-agents-fontSize-body1);
+	font-size: var(--vscode-fontSize-body1);
 	line-height: 1.4;
 }
 
@@ -180,10 +175,6 @@
 	color: var(--vscode-icon-foreground);
 }
 
-.sessions-chat-toolbar-spacer {
-	flex: 1;
-}
-
 /* Voice mode controls (mic / stop / settings / disconnect) */
 .sessions-chat-voice-toolbar {
 	display: flex;
@@ -233,6 +224,7 @@
 .sessions-chat-config-toolbar {
 	display: flex;
 	align-items: center;
+	flex: 1 1 0;
 	min-width: 0;
 	overflow: hidden;
 }
@@ -253,12 +245,35 @@
 	display: flex;
 	align-items: center;
 	min-width: 30px;
-	overflow: hidden;
+	overflow: visible;
 }
 
-/* Prevent the mode picker from shrinking so the model picker label
- * ellipsizes first rather than the mode picker collapsing to icon-only. */
-.sessions-chat-config-toolbar .monaco-action-bar .action-item:has(.sessions-chat-dropdown-label) {
+.sessions-chat-config-toolbar .monaco-action-bar .action-item.compact-picker {
+	box-sizing: border-box;
+	width: 22px;
+	min-width: 22px;
+	padding: 0;
+}
+
+.sessions-chat-config-toolbar .monaco-action-bar .action-item.compact-picker .action-label {
+	box-sizing: border-box;
+	width: 22px;
+	min-width: 22px;
+	padding: 2px 2px 2px 8px;
+	justify-content: flex-start;
+}
+
+.sessions-chat-config-toolbar .monaco-action-bar .action-item.compact-picker .action-label.model-picker-split {
+	padding: 0;
+}
+
+.sessions-chat-config-toolbar .monaco-action-bar .action-item.compact-picker .chat-input-picker-label {
+	display: none;
+}
+
+/* Expanded pickers remain intrinsic; the responsive controller switches them
+ * to compact form instead of allowing their labels to truncate. */
+.sessions-chat-config-toolbar .monaco-action-bar .action-item:not(.compact-picker) {
 	flex-shrink: 0;
 }
 
@@ -274,7 +289,7 @@
 	color: var(--vscode-icon-foreground);
 	white-space: nowrap;
 	min-width: 30px;
-	overflow: hidden;
+	overflow: visible;
 }
 
 .sessions-chat-config-toolbar .action-label:hover {
@@ -284,16 +299,16 @@
 
 .sessions-chat-config-toolbar .action-label,
 .sessions-chat-config-toolbar .action-label .chat-input-picker-label {
-	font-size: var(--vscode-agents-fontSize-label2, 11px);
+	font-size: var(--vscode-fontSize-label2, 11px);
 }
 
-/* Allow long labels (e.g. the model picker name) to ellipsize when space is tight */
+/* Expanded labels are never truncated; compact mode removes the label. */
 .sessions-chat-config-toolbar .action-label .chat-input-picker-label {
 	margin-left: 4px;
-	overflow: hidden;
-	text-overflow: ellipsis;
+	flex-shrink: 0;
+	overflow: visible;
+	text-overflow: clip;
 	white-space: nowrap;
-	min-width: 0;
 }
 
 /* When the picker has no leading icon (e.g. model picker), drop the icon-to-label gap. */
@@ -586,7 +601,7 @@
 	display: inline-flex;
 	align-items: center;
 	overflow: hidden;
-	font-size: var(--vscode-agents-fontSize-body2, 11px);
+	font-size: var(--vscode-fontSize-body2, 11px);
 	padding: 0 4px 0 0;
 	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
 	border-radius: var(--vscode-cornerRadius-small);
@@ -642,6 +657,9 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	border: 0;
+	padding: 0;
+	background: none;
 	cursor: pointer;
 	flex-shrink: 0;
 	color: var(--vscode-descriptionForeground);
@@ -652,23 +670,11 @@
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-.sessions-chat-attachment-remove .codicon {
+.sessions-chat-attachment-pill .sessions-chat-attachment-remove .codicon {
 	font-size: var(--vscode-codiconFontSize-compact, 12px);
 	padding: 0;
 }
 
 .sessions-chat-attachment-remove:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
-}
-
-/* --- Chat input notification in the new-session homepage --- */
-
-/*
- * The frame and severity tints come from `.chat-input-notice`, but the overlap does
- * not: this surface is a plain block with no row gap, and the workbench offset is
- * scoped to `.interactive-input-part`, which is not in this stack.
- */
-.new-chat-input-container > .chat-input-notification-container.has-notification {
-	/* Overlap the following input-stack surface to avoid a gap between their rounded edges. */
-	margin-bottom: calc(-1 * var(--vscode-spacing-size80));
 }

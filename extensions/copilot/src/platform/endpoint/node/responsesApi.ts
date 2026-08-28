@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as l10n from '@vscode/l10n';
 import { Raw } from '@vscode/prompt-tsx';
 import type { OpenAI } from 'openai';
 import { Response } from '../../../platform/networking/common/fetcherService';
@@ -96,7 +97,7 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 				...tool.function,
 				type: 'function',
 				strict: false,
-				parameters: (tool.function.parameters || {}) as Record<string, unknown>,
+				parameters: (tool.function.parameters || { type: 'object', properties: {} }) as Record<string, unknown>,
 			});
 		}
 	}
@@ -1103,19 +1104,67 @@ function extractFilterReasonFromContentFilters(filters: CapiContentFilterEntry[]
 }
 
 /**
+ * Identifying details for the terminal Responses event that carried an error.
+ * Used to describe failures whose error object omits the fields the API
+ * contract requires.
+ */
+interface IResponsesErrorContext {
+	/** The terminal SSE event that carried the error, e.g. `response.failed`. */
+	readonly eventType: string;
+	/** `id` from the response envelope, so a user report stays correlatable upstream. */
+	readonly responseId?: string;
+	/** `status` from the response envelope, when present. */
+	readonly responseStatus?: string;
+}
+
+function toResponsesErrorContext(eventType: string, response?: Pick<OpenAI.Responses.Response, 'id' | 'status'>): IResponsesErrorContext {
+	return {
+		eventType,
+		responseId: response?.id || undefined,
+		responseStatus: response?.status || undefined,
+	};
+}
+
+/**
+ * Describe a terminal error that carries no usable message. Names only the
+ * event, status, response id, and provider code so the failure stays
+ * diagnosable and correlatable without exposing prompt content.
+ */
+function describeUninformativeResponsesError(code: string | undefined, context: IResponsesErrorContext): string {
+	// Structured diagnostic identifiers, kept verbatim so they stay greppable and
+	// pasteable into a provider support request.
+	const details = [
+		`event: ${context.eventType}`,
+		...(context.responseStatus ? [`status: ${context.responseStatus}`] : []),
+		...(context.responseId ? [`response: ${context.responseId}`] : []),
+	].join(', ');
+	return code
+		? l10n.t("The model provider reported a failed response with code '{0}' and no error message ({1}).", code, details)
+		: l10n.t("The model provider reported a failed response without any error details ({0}).", details);
+}
+
+/**
  * Map a Responses-API `response.error` (string-coded per the OpenAI SDK) onto
  * our {@link APIErrorResponse} shape (numeric `code`). We can't preserve the
  * string code in `code`, so we stash it in `metadata.code` for BYOK diagnostics
- * (which `JSON.stringify` the whole struct).
+ * (which `JSON.stringify` the whole struct). Providers do terminate streams with
+ * an error object that omits `code`/`message` entirely, so those are described
+ * rather than serialized as an empty struct that tells the user nothing.
  */
-function mapResponsesApiError(err: OpenAI.Responses.ResponseError | null | undefined): APIErrorResponse | undefined {
+function mapResponsesApiError(err: OpenAI.Responses.ResponseError | null | undefined, context: IResponsesErrorContext): APIErrorResponse | undefined {
 	if (!err) {
 		return undefined;
 	}
+	const code = typeof err.code === 'string' && err.code ? err.code : undefined;
+	const message = typeof err.message === 'string' && err.message ? err.message : undefined;
 	return {
 		code: 0,
-		message: err.message ?? '',
-		metadata: { code: err.code },
+		message: message ?? describeUninformativeResponsesError(code, context),
+		// Omit absent keys so `JSON.stringify` cannot collapse metadata to `{}`.
+		metadata: {
+			...(code ? { code } : {}),
+			...(context.responseId ? { responseId: context.responseId } : {}),
+		},
 	};
 }
 
@@ -1206,7 +1255,7 @@ export class OpenAIResponsesProcessor {
 				return this.buildTerminalCompletion(
 					{ output: [] } as unknown as CapiResponseTerminalEvent['response'],
 					FinishedCompletionReason.ServerError,
-					{ error: mapResponsesApiError({ code: chunk.code, message: chunk.message } as OpenAI.Responses.ResponseError) }
+					{ error: mapResponsesApiError({ code: chunk.code, message: chunk.message } as OpenAI.Responses.ResponseError, toResponsesErrorContext('error')) }
 				);
 			case 'response.output_text.delta': {
 				const capiChunk: CapiResponsesTextDeltaEvent = chunk;
@@ -1428,13 +1477,13 @@ export class OpenAIResponsesProcessor {
 				}
 				return this.buildTerminalCompletion(incomplete, finishReason, {
 					filterReason,
-					error: mapResponsesApiError(incomplete.error),
+					error: mapResponsesApiError(incomplete.error, toResponsesErrorContext('response.incomplete', incomplete)),
 				});
 			}
 			case 'response.failed': {
 				const failed = chunk.response as CapiResponseTerminalEvent['response'];
 				return this.buildTerminalCompletion(failed, FinishedCompletionReason.ServerError, {
-					error: mapResponsesApiError(failed.error),
+					error: mapResponsesApiError(failed.error, toResponsesErrorContext('response.failed', failed)),
 				});
 			}
 		}
