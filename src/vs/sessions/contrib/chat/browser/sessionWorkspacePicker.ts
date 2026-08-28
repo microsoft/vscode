@@ -1552,7 +1552,12 @@ export class WorkspacePicker extends Disposable {
 				&& options.group !== undefined
 				&& options.group === workspace?.group;
 			const contextCount = options.group && options.attachesContext
-				? this._contextSelections.get(`${options.group}:context`)?.length ?? 0
+				? Math.max(
+					this._contextSelections.get(`${options.group}:context`)?.length ?? 0,
+					options.group === SESSION_WORKSPACE_GROUP_GITHUB
+						? this._attachedContext.filter(attachment => attachment.id.startsWith('github-context:')).length
+						: 0,
+				)
 				: 0;
 			const repositoryWorkspace = this._getSelectedRepositoryWorkspace();
 			const relatedGitHubInfo = options.group === SESSION_WORKSPACE_GROUP_GITHUB && options.attachesContext === false

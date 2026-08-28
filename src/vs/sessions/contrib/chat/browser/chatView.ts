@@ -63,6 +63,10 @@ export function shouldShowSessionChatTip(sessionStatus: SessionStatus | undefine
  * shown before a session has been created. This is the default view that
  * the `SessionsPart` grid is seeded with.
  */
+export interface INewChatViewOptions extends IChatViewOptions {
+	readonly initialAttachments?: readonly IChatRequestVariableEntry[];
+}
+
 export class NewChatView extends AbstractChatView {
 
 	static readonly TYPE = 'sessions.newSession';
@@ -74,7 +78,7 @@ export class NewChatView extends AbstractChatView {
 
 	constructor(
 		isNewChatInSession: boolean,
-		options: IChatViewOptions,
+		options: INewChatViewOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
