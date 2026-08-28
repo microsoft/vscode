@@ -30,12 +30,12 @@ export default {
 	mode: 'development',
 	target: 'web',
 	devtool: 'source-map',
-	// Kalıcı Önbellek Optimizasyonu (Persistent Cache)
+ 
 	cache: {
-		type: 'filesystem',
-		buildDependencies: {
-			config: [fileURLToPath(import.meta.url)],
-		},
+type: 'persistent'
+buildDependencies: [fileURLToPath(import.meta.url)],
+	}
+},
 	},
 	entry: {
 		workbench: path.join(repoRoot, 'src', 'vs', 'code', 'browser', 'workbench', 'workbench.ts'),
