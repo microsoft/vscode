@@ -12,7 +12,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { createMarkdownCommandLink, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
-import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { revive } from '../../../../../base/common/marshalling.js';
 import { equals } from '../../../../../base/common/objects.js';
@@ -65,7 +65,6 @@ import { ComputeAutomaticInstructions } from '../promptSyntax/computeAutomaticIn
 import { findLast } from '../../../../../base/common/arraysFind.js';
 import { ChatMode } from '../chatModes.js';
 import { AICustomizationManagementCommands, getCustomizationMigrationHintDismissedStorageKey } from '../aiCustomizationWorkspaceService.js';
-import { ICustomizationMigrationService } from '../promptSyntax/service/customizationMigrationService.js';
 
 const serializedChatKey = 'interactive.sessions';
 const customizationMigrationHintShownStateKey = 'customizationMigrationHintShown';
@@ -223,6 +222,7 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _sessionFollowupCancelTokens = this._register(new DisposableResourceMap<CancellationTokenSource>());
 	private readonly _chatServiceTelemetry: ChatServiceTelemetry;
 	private readonly _chatSessionStore: ChatSessionStore;
+	private _customizationMigrationHintProvider: ((sessionResource: URI) => Promise<string | undefined>) | undefined;
 
 	readonly requestInProgressObs: IObservable<boolean>;
 
@@ -240,6 +240,19 @@ export class ChatService extends Disposable implements IChatService {
 	 */
 	waitForModelDisposals(): Promise<void> {
 		return this._sessionModels.waitForModelDisposals();
+	}
+
+	registerCustomizationMigrationHintProvider(provider: (sessionResource: URI) => Promise<string | undefined>): IDisposable {
+		if (this._customizationMigrationHintProvider) {
+			throw new BugIndicatingError('A customization migration hint provider is already registered');
+		}
+
+		this._customizationMigrationHintProvider = provider;
+		return toDisposable(() => {
+			if (this._customizationMigrationHintProvider === provider) {
+				this._customizationMigrationHintProvider = undefined;
+			}
+		});
 	}
 
 	private get isEmptyWindow(): boolean {
@@ -261,7 +274,6 @@ export class ChatService extends Disposable implements IChatService {
 		@IChatSessionsService private readonly chatSessionService: IChatSessionsService,
 		@IMcpService private readonly mcpService: IMcpService,
 		@IPromptsService private readonly promptsService: IPromptsService,
-		@ICustomizationMigrationService private readonly customizationMigrationService: ICustomizationMigrationService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IChatDebugService private readonly chatDebugService: IChatDebugService,
@@ -1572,12 +1584,13 @@ export class ChatService extends Disposable implements IChatService {
 				if (!isAgentHostTarget(sessionType)
 					|| (hintMode !== CustomizationMigrationHintMode.Once && hintMode !== CustomizationMigrationHintMode.Always)
 					|| this.storageService.getBoolean(getCustomizationMigrationHintDismissedStorageKey(sessionType), StorageScope.WORKSPACE)
-					|| (hintMode === CustomizationMigrationHintMode.Once && hintAlreadyShown)) {
+					|| (hintMode === CustomizationMigrationHintMode.Once && hintAlreadyShown)
+					|| !this._customizationMigrationHintProvider) {
 					return undefined;
 				}
 
 				try {
-					const message = await this.customizationMigrationService.computeMigrationHint(sessionResource);
+					const message = await this._customizationMigrationHintProvider(sessionResource);
 					if (message && !token.isCancellationRequested) {
 						return message;
 					}
