@@ -134,8 +134,8 @@ export function getConfigIcon(property: string, value: unknown | undefined, hasU
 
 function formatUncommittedChanges(count: number): string {
 	return count === 1
-		? localize('agentHostSessionConfig.branchItemUncommittedSingular', "1 uncommitted change")
-		: localize('agentHostSessionConfig.branchItemUncommittedPlural', "{0} uncommitted changes", count);
+		? localize('agentHostSessionConfig.branchItemUncommittedSingular', "1 uncommitted file")
+		: localize('agentHostSessionConfig.branchItemUncommittedPlural', "{0} uncommitted files", count);
 }
 
 function getBranchUncommittedChanges(branchName: string, repositoryBranchName: string | undefined, repositoryUncommittedChanges: number | undefined): number | undefined {
