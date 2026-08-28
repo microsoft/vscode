@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IObservable, constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
@@ -142,12 +143,15 @@ suite('CodeReviewService', () => {
 
 	class MockReviewThreadsFetcher {
 		nextThreads: IGitHubPullRequestReviewThread[] = [];
+		getReviewThreadsGate: DeferredPromise<void> | undefined;
 		getReviewThreadsCalls = 0;
 		resolveThreadCalls: { threadId: string }[] = [];
 
 		async getReviewThreads(_owner: string, _repo: string, _prNumber: number): Promise<IGitHubPullRequestReviewThread[]> {
 			this.getReviewThreadsCalls++;
-			return this.nextThreads;
+			const result = this.nextThreads;
+			await this.getReviewThreadsGate?.p;
+			return result;
 		}
 
 		async postReviewComment(_owner: string, _repo: string, _prNumber: number, body: string, inReplyTo: number): Promise<IGitHubPRComment> {
@@ -287,6 +291,52 @@ suite('CodeReviewService', () => {
 			{ id: 'thread-100', prNumber: 1 },
 			{ id: 'thread-200', prNumber: 2 },
 		]);
+	});
+
+	test('PR review state stays loading until every pull request completes its initial refresh', async () => {
+		sessionsManagement.addSession(session);
+		sessionsManagement.setGitHubInfo(session, {
+			...makeGitHubInfo(),
+			pullRequests: [1, 2].map(number => ({
+				owner: 'owner',
+				repo: 'repo',
+				number,
+				uri: URI.parse(`https://github.com/owner/repo/pull/${number}`),
+			})),
+		});
+		const firstFetcher = gitHubService.getReviewThreadsFetcher('owner', 'repo', 1);
+		const secondFetcher = gitHubService.getReviewThreadsFetcher('owner', 'repo', 2);
+		firstFetcher.nextThreads = [makePRThread('thread-100', 'src/a.ts')];
+		secondFetcher.nextThreads = [makePRThread('thread-200', 'src/b.ts')];
+		firstFetcher.getReviewThreadsGate = new DeferredPromise<void>();
+		secondFetcher.getReviewThreadsGate = new DeferredPromise<void>();
+
+		sessionsManagement.setActiveSession(sessionsManagement.getSession(session));
+		await tick();
+		const beforeRefresh = service.getPRReviewState(session).get().kind;
+
+		firstFetcher.getReviewThreadsGate.complete();
+		await tick();
+		const afterFirstRefresh = service.getPRReviewState(session).get().kind;
+
+		secondFetcher.getReviewThreadsGate.complete();
+		await tick();
+		const afterAllRefreshes = service.getPRReviewState(session).get();
+
+		assert.deepStrictEqual({
+			beforeRefresh,
+			afterFirstRefresh,
+			afterAllRefreshes: afterAllRefreshes.kind === PRReviewStateKind.Loaded
+				? afterAllRefreshes.comments.map(comment => ({ id: comment.id, prNumber: comment.pullRequest.number }))
+				: afterAllRefreshes.kind,
+		}, {
+			beforeRefresh: PRReviewStateKind.Loading,
+			afterFirstRefresh: PRReviewStateKind.Loading,
+			afterAllRefreshes: [
+				{ id: 'thread-100', prNumber: 1 },
+				{ id: 'thread-200', prNumber: 2 },
+			],
+		});
 	});
 
 	test('resolvePRReviewThread uses dedicated review threads model', async () => {
