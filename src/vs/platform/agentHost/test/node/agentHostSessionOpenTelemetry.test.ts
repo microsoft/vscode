@@ -6,11 +6,15 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
+import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
-import { AgentSession, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID } from '../../common/agent.js';
+import { AgentSession, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type IAgent } from '../../common/agent.js';
 import { buildDefaultChatUri } from '../../common/state/sessionState.js';
+import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { AgentHostSessionOpenTelemetry, AgentHostSessionSubscribeTimeoutMs } from '../../node/agentHostSessionOpenTelemetry.js';
 
 function isTelemetryData(data: unknown): data is Record<string, unknown> {
@@ -31,12 +35,23 @@ suite('AgentHostSessionOpenTelemetry', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const session = AgentSession.uri('copilotcli', 'session');
 	const defaultChat = URI.parse(buildDefaultChatUri(session));
-	const createService = (telemetryService: TestTelemetryService, providers: readonly string[] = ['copilotcli']) => disposables.add(new AgentHostSessionOpenTelemetry(telemetryService, {
-		getProviderForSession: session => {
-			const provider = AgentSession.provider(session);
-			return provider && providers.includes(provider) ? { id: provider } : undefined;
-		},
-	}));
+	const createService = (telemetryService: TestTelemetryService, providers: readonly string[] = ['copilotcli']) => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ITelemetryService, telemetryService);
+		instantiationService.stub(IAgentHostProviderService, {
+			getProviderForSession: session => {
+				const provider = AgentSession.provider(session);
+				if (!provider || !providers.includes(provider)) {
+					return undefined;
+				}
+				const providerId = provider;
+				return new class extends mock<IAgent>() {
+					override readonly id = providerId;
+				};
+			},
+		});
+		return disposables.add(instantiationService.createInstance(AgentHostSessionOpenTelemetry));
+	};
 
 	test('emits ordered subscribe, restore, and SDK resume milestones', async () => {
 		await runWithFakedTimers({ useFakeTimers: true, startTime: 1_000 }, async () => {

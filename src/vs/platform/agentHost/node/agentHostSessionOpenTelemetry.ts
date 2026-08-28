@@ -71,10 +71,6 @@ type AgentHostSessionSubscribeClassification = {
 	totalDurationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds from subscribe receipt until the terminal outcome.' };
 };
 
-interface IAgentHostSessionProviderResolver {
-	getProviderForSession(session: URI | string): { readonly id: AgentProvider } | undefined;
-}
-
 class AgentHostSessionOpenTelemetryAttempt extends Disposable {
 	readonly stopwatch = StopWatch.create(false);
 	readonly resources = this._register(new DisposableStore());
@@ -109,7 +105,7 @@ export class AgentHostSessionOpenTelemetry extends Disposable implements IAgentH
 
 	constructor(
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IAgentHostProviderService private readonly _providerService: IAgentHostSessionProviderResolver,
+		@IAgentHostProviderService private readonly _providerService: IAgentHostProviderService,
 	) {
 		super();
 		this._register(toDisposable(() => {
