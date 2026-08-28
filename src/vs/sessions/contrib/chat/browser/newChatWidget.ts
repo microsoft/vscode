@@ -210,6 +210,7 @@ export class NewChatWidget extends Disposable {
 			loading,
 			historyKey: constObservable(undefined), // no persisted history for the new-session view
 			placeholder: localize('newSessionPromptPlaceholder', "Pitch your idea"),
+			renderSessionTypePickerInControls: true,
 			sessionTypePickerOptions: { showChevron: false },
 			supportsBackground: true,
 			deferredNotificationsEnabled,

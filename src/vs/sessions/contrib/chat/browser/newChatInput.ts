@@ -486,7 +486,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			 * their own workspace/session-type pickers under the input.
 			 */
 			renderExtraControls?: (container: HTMLElement) => void;
-			/** Whether to render the session type picker in the controls row. */
+			/** Whether to render the session type picker in the controls row. Defaults to false. */
 			renderSessionTypePickerInControls?: boolean;
 		},
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -703,7 +703,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			const extraControlsContainer = dom.append(newChatControlsContainer, dom.$('.new-chat-extra-controls'));
 			this.options.renderExtraControls(extraControlsContainer);
 		}
-		if (this.options.renderSessionTypePickerInControls !== false) {
+		if (this.options.renderSessionTypePickerInControls) {
 			const sessionTypePickerHost = dom.append(newChatControlsContainer, dom.$('.new-chat-session-type-picker-host'));
 			this.sessionTypePicker.render(sessionTypePickerHost);
 		}
