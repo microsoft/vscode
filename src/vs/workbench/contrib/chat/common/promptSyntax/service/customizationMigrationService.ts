@@ -18,6 +18,17 @@ export enum CustomizationMigrationType {
 	McpServers = 'mcpServers',
 }
 
+export enum CustomizationMigrationSeverity {
+	Warning = 'warning',
+}
+
+export enum CustomizationMigrationTrigger {
+	EditorNewChat = 'editorNewChat',
+	AgentsNewSession = 'agentsNewSession',
+	AgentsSessionOpen = 'agentsSessionOpen',
+	AgentsSessionRestore = 'agentsSessionRestore',
+}
+
 export interface MigratableConfiguration {
 	readonly uri: URI;
 	readonly type: PromptsType;
@@ -96,4 +107,5 @@ export interface ICustomizationMigrationService {
 	computeMigration(sessionResource: URI, type: CustomizationMigrationType.McpServers, token?: CancellationToken): Promise<McpServerCustomizationMigration>;
 	computeMigrations(sessionResource: URI, token?: CancellationToken): Promise<CustomizationMigration[]>;
 	computeMigrationHint(sessionResource: URI, token?: CancellationToken): Promise<ICustomizationMigrationHint | undefined>;
+	reportMigrationTelemetry(trigger: CustomizationMigrationTrigger, migrations: readonly CustomizationMigration[]): void;
 }

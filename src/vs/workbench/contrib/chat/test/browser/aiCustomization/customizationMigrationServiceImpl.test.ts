@@ -10,6 +10,7 @@ import { constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { CustomizationMigrationService } from '../../../browser/aiCustomization/customizationMigrationServiceImpl.js';
 import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
@@ -17,7 +18,7 @@ import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostM
 import { SessionType } from '../../../common/chatSessionsService.js';
 import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
-import { CustomizationMigrationHintTarget, CustomizationMigrationType } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationHintTarget, CustomizationMigrationTrigger, CustomizationMigrationType } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { IPromptPath, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { MockPromptsService } from '../../common/promptSyntax/service/mockPromptsService.js';
 
@@ -71,6 +72,21 @@ class TestCustomizationHarnessService extends mock<ICustomizationHarnessService>
 				},
 			},
 		};
+	}
+}
+
+interface ITelemetryEvent {
+	readonly eventName: string;
+	readonly data: unknown;
+}
+
+class TestTelemetryService extends NullTelemetryServiceShape {
+	readonly events: ITelemetryEvent[] = [];
+
+	override publicLog2(eventName?: string, data?: unknown): void {
+		if (eventName) {
+			this.events.push({ eventName, data });
+		}
 	}
 }
 
@@ -177,7 +193,8 @@ suite('CustomizationMigrationService', () => {
 		const agentHostCustomizationService = {
 			getWorkingDirectories: () => [root.fsPath],
 		} as Partial<IAgentHostCustomizationService> as IAgentHostCustomizationService;
-		const service = new CustomizationMigrationService(promptsService, harnessService, activeClientService, agentHostCustomizationService);
+		const telemetryService = new TestTelemetryService();
+		const service = new CustomizationMigrationService(promptsService, harnessService, activeClientService, agentHostCustomizationService, telemetryService);
 		const agentHostSessionResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' });
 		const localSessionResource = URI.from({ scheme: SessionType.Local, path: '/session' });
 
@@ -185,6 +202,8 @@ suite('CustomizationMigrationService', () => {
 		const localMigrations = await service.computeMigrations(localSessionResource);
 		const hint = await service.computeMigrationHint(agentHostSessionResource);
 		const localHint = await service.computeMigrationHint(localSessionResource);
+		const telemetryBeforeReport = [...telemetryService.events];
+		service.reportMigrationTelemetry(CustomizationMigrationTrigger.EditorNewChat, migrations);
 
 		assert.deepStrictEqual({
 			migrations: migrations.map(migration => ({
@@ -208,6 +227,8 @@ suite('CustomizationMigrationService', () => {
 			requestedSessionType,
 			requestedRoots: requestedRoots?.map(requestedRoot => requestedRoot.path),
 			supportScopeDisposed,
+			telemetryBeforeReport,
+			telemetry: telemetryService.events,
 		}, {
 			migrations: [
 				{
@@ -281,6 +302,21 @@ suite('CustomizationMigrationService', () => {
 			requestedSessionType: SessionType.AgentHostCopilot,
 			requestedRoots: ['/workspace'],
 			supportScopeDisposed: true,
+			telemetryBeforeReport: [],
+			telemetry: [
+				{
+					eventName: 'chat.customizationMigrationAssessment',
+					data: { trigger: 'editorNewChat', category: 'userData', severity: 'warning', count: 1 },
+				},
+				{
+					eventName: 'chat.customizationMigrationAssessment',
+					data: { trigger: 'editorNewChat', category: 'promptFiles', severity: 'warning', count: 2 },
+				},
+				{
+					eventName: 'chat.customizationMigrationAssessment',
+					data: { trigger: 'editorNewChat', category: 'mcpServers', severity: 'warning', count: 1 },
+				},
+			],
 		});
 	});
 
@@ -295,7 +331,7 @@ suite('CustomizationMigrationService', () => {
 		const agentHostCustomizationService = new class extends mock<IAgentHostCustomizationService>() {
 			override getWorkingDirectories() { return []; }
 		}();
-		const service = new CustomizationMigrationService(promptsService, harnessService, activeClientService, agentHostCustomizationService);
+		const service = new CustomizationMigrationService(promptsService, harnessService, activeClientService, agentHostCustomizationService, new TestTelemetryService());
 
 		const hint = await service.computeMigrationHint(URI.from({ scheme: SessionType.AgentHostClaude, path: '/session' }));
 
@@ -369,7 +405,7 @@ suite('CustomizationMigrationService', () => {
 		const agentHostCustomizationService = new class extends mock<IAgentHostCustomizationService>() {
 			override getWorkingDirectories() { return []; }
 		}();
-		const service = new CustomizationMigrationService(promptsService, harnessService, activeClientService, agentHostCustomizationService);
+		const service = new CustomizationMigrationService(promptsService, harnessService, activeClientService, agentHostCustomizationService, new TestTelemetryService());
 
 		const hint = await service.computeMigrationHint(URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' }));
 
