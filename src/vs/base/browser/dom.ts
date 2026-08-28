@@ -1638,6 +1638,82 @@ export function windowOpenPopup(url: string): void {
 }
 
 /**
+ * A window opened ahead of time, during a user gesture, waiting for the URL it
+ * should navigate to. See {@link reserveWindowForExternalOpen}.
+ */
+let reservedExternalWindow: Window | undefined;
+
+function isUsable(candidate: Window | undefined): candidate is Window {
+	return !!candidate && !candidate.closed;
+}
+
+/**
+ * Opens a blank window right now, to be consumed by a later call to
+ * {@link windowOpenWithSuccess}.
+ *
+ * Browsers only permit `window.open` while a user gesture is still active. Sign-in
+ * flows do a lot between the click and the actual open — show a dialog, activate an
+ * extension, request an authorization URL over the network — and by the time they
+ * have a URL the gesture has expired, so the window is refused. That is fatal on an
+ * installed web app (PWA) on iOS, where the user cannot fall back to a tab.
+ *
+ * Calling this synchronously from the click handler claims the window while the
+ * gesture is still live, so the URL can be applied later.
+ *
+ * Callers must ensure the reservation is consumed or released — see
+ * {@link releaseReservedWindowForExternalOpen} — otherwise a blank window is left
+ * covering the app.
+ *
+ * @param placeholder text to show until the URL arrives. `vs/base` cannot localize,
+ * so callers pass an already-translated string.
+ */
+export function reserveWindowForExternalOpen(placeholder?: string): void {
+	if (isUsable(reservedExternalWindow)) {
+		return; // already holding one
+	}
+
+	reservedExternalWindow = mainWindow.open() ?? undefined;
+	if (!isUsable(reservedExternalWindow)) {
+		reservedExternalWindow = undefined;
+		return;
+	}
+
+	// The window is visible immediately — on iOS it slides over the app — but the
+	// URL may be a second or more away. Say something rather than show a blank page.
+	if (placeholder) {
+		try {
+			reservedExternalWindow.document.write(placeholder);
+			reservedExternalWindow.document.close();
+		} catch {
+			// Writing can throw if the window is already navigating; harmless.
+		}
+	}
+}
+
+/**
+ * Hands over the window claimed by {@link reserveWindowForExternalOpen}, if one is
+ * still open. The reservation is cleared either way.
+ */
+function takeReservedWindowForExternalOpen(): Window | undefined {
+	const reserved = reservedExternalWindow;
+	reservedExternalWindow = undefined;
+	return isUsable(reserved) ? reserved : undefined;
+}
+
+/**
+ * Closes a reservation that is no longer needed, e.g. because the user cancelled
+ * sign-in or it failed before producing a URL.
+ */
+export function releaseReservedWindowForExternalOpen(): void {
+	const reserved = takeReservedWindowForExternalOpen();
+	try {
+		reserved?.close();
+	} catch {
+		// Closing can throw once the window has navigated away; harmless.
+	}
+}
+
+/**
  * Attempts to open a window and returns whether it succeeded. This technique is
  * not appropriate in certain contexts, like for example when the JS context is
  * executing inside a sandboxed iframe. If it is not necessary to know if the
@@ -1653,7 +1729,7 @@ export function windowOpenPopup(url: string): void {
  * @returns boolean indicating if the {@link window.open} call succeeded
  */
 export function windowOpenWithSuccess(url: string, noOpener = true): boolean {
-	const newTab = mainWindow.open();
+	const newTab = takeReservedWindowForExternalOpen() ?? mainWindow.open();
 	if (newTab) {
 		if (noOpener) {
 			// see `windowOpenNoOpener` for details on why this is important

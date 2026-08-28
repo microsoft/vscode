@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatSetup.css';
-import { $ } from '../../../../../base/browser/dom.js';
+import { $, releaseReservedWindowForExternalOpen, reserveWindowForExternalOpen } from '../../../../../base/browser/dom.js';
+import { isSafari } from '../../../../../base/browser/browser.js';
+import { IButton } from '../../../../../base/browser/ui/button/button.js';
 import { Dialog, DialogContentsAlignment } from '../../../../../base/browser/ui/dialog/dialog.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -135,7 +137,28 @@ export class ChatSetupDialog extends Disposable {
 				},
 				buttonOptions: options.buttons.map(button => {
 					const classes = button.classes;
-					return classes ? { styleButton: control => control.element.classList.add(...classes) } : undefined;
+					// Sign-in continues in a browser window. Claim that window here, while
+					// the click's user activation is still live — by the time the flow has
+					// an authorization URL the gesture has expired and the browser refuses
+					// to open anything. Safari enforces this strictly, and on an installed
+					// web app (PWA) there is no tab to fall back to, so sign-in dead-ends.
+					// See `reserveWindowForExternalOpen`.
+					const opensBrowser = isSafari && button.strategy !== ChatSetupStrategy.Canceled;
+					if (!classes && !opensBrowser) {
+						return undefined;
+					}
+					return {
+						styleButton: (control: IButton) => {
+							if (classes?.length) {
+								control.element.classList.add(...classes);
+							}
+							if (opensBrowser) {
+								this._register(control.onDidClick(() => reserveWindowForExternalOpen(
+									localize('signingInPlaceholder', "Signing in…")
+								)));
+							}
+						}
+					};
 				})
 			}, keybindingService, layoutService, hostService)
 		));
@@ -372,6 +395,11 @@ export class ChatSetup {
 			}
 		} finally {
 			setupCancellation.dispose();
+			// If the flow never reached the point of opening a browser window (user
+			// cancelled, an error was thrown, or the strategy needed no sign-in), the
+			// window reserved on click is still open and blank. Close it — on an
+			// installed web app it would otherwise sit on top of the app.
+			releaseReservedWindowForExternalOpen();
 		}
 
 		if (success) {
