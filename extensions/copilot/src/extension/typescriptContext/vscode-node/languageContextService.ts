@@ -350,17 +350,19 @@ export class InlineCompletionContribution implements vscode.Disposable, TokenBud
 		}
 		this.disposables.add(vscode.commands.registerCommand('github.copilot.debug.logTypeScriptContainers', async () => {
 			const editor = vscode.window.activeTextEditor;
-			if (!editor || (editor.document.languageId !== 'typescript' && editor.document.languageId !== 'typescriptreact')) {
+			const languageId = editor?.document.languageId;
+			if (!editor || (languageId !== 'typescript' && languageId !== 'typescriptreact' && languageId !== 'javascript' && languageId !== 'javascriptreact')) {
 				return;
 			}
 
-			const position = editor.selection.active;
+			const positions = editor.selections.map(selection => selection.active);
 			const containers = await this.containerContextProviderService.getRegions(
 				editor.document.uri,
 				editor.document.languageId,
-				[new vscode.Range(position, position)]
+				positions.map(position => new vscode.Range(position, position))
 			);
-			this.logService.info(`[ContainerContextProvider] Containers at ${editor.document.uri.toString()}:${position.line + 1}:${position.character + 1}: ${JSON.stringify(containers, undefined, 2)}`);
+			const locations = positions.map(position => `${editor.document.uri.toString()}:${position.line + 1}:${position.character + 1}`).join(', ');
+			this.logService.info(`[ContainerContextProvider] Containers at ${locations}: ${JSON.stringify(containers, undefined, 2)}`);
 		}));
 
 		// Check if there are any TypeScript files open in the workspace.

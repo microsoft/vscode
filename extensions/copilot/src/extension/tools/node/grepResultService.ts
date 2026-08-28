@@ -50,12 +50,34 @@ export class GrepResultService implements IGrepResultService {
 	constructor() {
 		this.cache = new LRUCache<string, Matches>(10);
 	}
+
 	addGrepResult(requestId: string, result: MatchResult): void {
-		const matches: Matches = { files: new Map() };
-		for (const file of result.files) {
-			matches.files.set(file.uri.toString(), file.matches.map(m => m.ranges[0].sourceRange));
+		let matches: Matches | undefined = this.cache.get(requestId);
+		if (matches === undefined) {
+			matches = { files: new Map() };
+			for (const file of result.files) {
+				matches.files.set(file.uri.toString(), file.matches.map(m => m.ranges[0].sourceRange));
+			}
+			this.cache.set(requestId, matches);
+		} else {
+			for (const file of result.files) {
+				const existingRanges = matches.files.get(file.uri.toString());
+				if (existingRanges === undefined) {
+					matches.files.set(file.uri.toString(), file.matches.map(m => m.ranges[0].sourceRange));
+				} else {
+					const existingRangesSet = new Set<number>(existingRanges.map(r => r.start.line));
+					for (const match of file.matches) {
+						const line = match.ranges[0].sourceRange.start.line;
+						if (!existingRangesSet.has(line)) {
+							existingRanges.push(match.ranges[0].sourceRange);
+							existingRangesSet.add(line);
+						}
+					}
+					existingRanges.sort((a, b) => a.start.line - b.start.line);
+					matches.files.set(file.uri.toString(), existingRanges);
+				}
+			}
 		}
-		this.cache.set(requestId, matches);
 	}
 
 	getGrepResult(requestId: string, uri: vscode.Uri, startLine: number, endLine: number): vscode.Range[] | undefined {
