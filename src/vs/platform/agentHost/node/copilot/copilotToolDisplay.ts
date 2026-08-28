@@ -1094,25 +1094,40 @@ function str(value: unknown): string | undefined {
 }
 
 /**
+ * True when a request came from the runtime's unauthorized-path gate.
+ *
+ * That gate runs ahead of the per-kind gates and fires only for paths outside
+ * the allowed directories, so it *is* the out-of-workspace case by
+ * construction. It is not a distinct request kind: it reuses the access kind
+ * (`read`/`write`/`shell`) and carries `paths` instead of the per-kind `path`,
+ * which the SDK's `PermissionRequestRead` type does not model — hence the
+ * structural check.
+ */
+function isUnauthorizedPathGateRequest(request: PermissionRequest): boolean {
+	return isObject(request) && Array.isArray((request as { paths?: unknown }).paths);
+}
+
+/**
  * Chooses the confirmation title for a read request based on why approval is
  * actually needed.
  *
- * A read is gated for several reasons — the path lies outside the workspace, a
- * managed or scoped rule matched it, or the model asked to escape the sandbox.
- * Only the first is about location, so the title is claimed only when the path
- * is absolute and contained by none of the session's workspace roots. A
- * relative path, an unknown path, or an unknown workspace falls back to the
- * neutral title rather than asserting a location the request does not
- * establish.
+ * A read is gated for several reasons — the path lies outside the allowed
+ * directories, a managed or scoped rule matched it, or the model asked to
+ * escape the sandbox. Only the first is about location, so the title claims it
+ * either when the unauthorized-path gate raised the request or when the path is
+ * absolute and contained by none of the session's workspace roots. A relative
+ * path, an unknown path, or an unknown workspace falls back to the neutral
+ * title rather than asserting a location the request does not establish.
  */
-function readConfirmationTitle(path: string | undefined, workspaceRoots: readonly URI[], requestSandboxBypass: boolean | undefined): string {
+function readConfirmationTitle(request: PermissionRequest, path: string | undefined, workspaceRoots: readonly URI[], requestSandboxBypass: boolean | undefined): string {
 	if (requestSandboxBypass) {
 		return localize('copilot.permission.read.bypass.title', "Read file outside the sandbox?");
 	}
-	const outsideWorkspace = path !== undefined
-		&& isAbsolute(path)
-		&& workspaceRoots.length > 0
-		&& !workspaceRoots.some(root => extUriBiasedIgnorePathCase.isEqualOrParent(URI.file(path), root));
+	const outsideWorkspace = isUnauthorizedPathGateRequest(request)
+		|| (path !== undefined
+			&& isAbsolute(path)
+			&& workspaceRoots.length > 0
+			&& !workspaceRoots.some(root => extUriBiasedIgnorePathCase.isEqualOrParent(URI.file(path), root)));
 	return outsideWorkspace
 		? localize('copilot.permission.read.title', "Allow reading file outside of workspace?")
 		: localize('copilot.permission.read.generic.title', "Allow reading file?");
@@ -1215,7 +1230,7 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 		}
 		case 'read':
 			return {
-				confirmationTitle: readConfirmationTitle(path, workingDirectory ? [workingDirectory, ...(additionalDirectories ?? [])] : [], requestSandboxBypass),
+				confirmationTitle: readConfirmationTitle(request, path, workingDirectory ? [workingDirectory, ...(additionalDirectories ?? [])] : [], requestSandboxBypass),
 				invocationMessage: getInvocationMessage(CopilotToolName.View, getToolDisplayName(CopilotToolName.View), path ? { path } : undefined),
 				permissionKind: 'read',
 				permissionPath: path,

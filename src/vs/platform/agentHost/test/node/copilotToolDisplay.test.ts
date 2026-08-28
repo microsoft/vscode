@@ -178,6 +178,14 @@ suite('getPermissionDisplay — read confirmation title', () => {
 		return { kind: 'read', intention: `Read file: ${path}`, path, ...(requestSandboxBypass ? { requestSandboxBypass } : {}) } as PermissionRequest;
 	}
 
+	/**
+	 * The runtime's unauthorized-path gate reuses the access kind and carries
+	 * `paths` rather than the per-kind `path`.
+	 */
+	function unauthorizedPathGateRequest(...paths: string[]): PermissionRequest {
+		return { kind: 'read', intention: 'Read files', paths } as unknown as PermissionRequest;
+	}
+
 	test('claims "outside of workspace" only when the path really is outside', () => {
 		assert.deepStrictEqual({
 			inside: getPermissionDisplay(readRequest('/repo/project/src/app.ts'), wd).confirmationTitle,
@@ -185,6 +193,7 @@ suite('getPermissionDisplay — read confirmation title', () => {
 			outside: getPermissionDisplay(readRequest('/etc/hosts'), wd).confirmationTitle,
 			secondRoot: getPermissionDisplay(readRequest('/repo/other/lib.ts'), wd, undefined, [URI.file('/repo/other')]).confirmationTitle,
 			outsideEveryRoot: getPermissionDisplay(readRequest('/etc/hosts'), wd, undefined, [URI.file('/repo/other')]).confirmationTitle,
+			pathGate: getPermissionDisplay(unauthorizedPathGateRequest('/etc/hosts'), wd).confirmationTitle,
 			relative: getPermissionDisplay(readRequest('README.md'), wd).confirmationTitle,
 			unknownWorkspace: getPermissionDisplay(readRequest('/repo/project/src/app.ts'), undefined).confirmationTitle,
 			sandboxBypass: getPermissionDisplay(readRequest('/repo/project/src/app.ts', true), wd).confirmationTitle,
@@ -194,6 +203,7 @@ suite('getPermissionDisplay — read confirmation title', () => {
 			outside: 'Allow reading file outside of workspace?',
 			secondRoot: 'Allow reading file?',
 			outsideEveryRoot: 'Allow reading file outside of workspace?',
+			pathGate: 'Allow reading file outside of workspace?',
 			relative: 'Allow reading file?',
 			unknownWorkspace: 'Allow reading file?',
 			sandboxBypass: 'Read file outside the sandbox?',
