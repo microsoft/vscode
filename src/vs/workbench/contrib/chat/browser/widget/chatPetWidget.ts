@@ -26,7 +26,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID, ChatPetAccessoryId, getChatPetAccessory, getChatPetAchievement } from '../chatPetAchievements.js';
-import { ChatPetVariant, IChatPetService } from '../chatPetService.js';
+import { CHAT_PET_DEFAULT_SCALE, ChatPetVariant, IChatPetService } from '../chatPetService.js';
 import { drawChatPetComposite, drawChatPetEyeAccessory, getChatPetAccessoryImageSource, hasChatPetAccessoryImageDimensions, hasChatPetBodyImageDimensions, IChatPetAccessoryImageSource, IChatPetFixedOrientationDecoration } from './chatPetAccessoryRenderer.js';
 import { getChatPetAccessoryRigFrame, getChatPetReducedMotionRigFrame } from './chatPetAccessoryRig.js';
 
@@ -43,6 +43,9 @@ export interface IChatPetWidgetHost {
 	readonly getPlatformTop: (petCenterX: number | undefined) => number | undefined;
 	readonly onDidChangePlatform: Event<void>;
 }
+
+/** The layer the pet is positioned in, spanning its host. */
+export const CHAT_PET_OVERLAY_CLASS = 'chat-pet-overlay';
 
 export const CHAT_PET_IDLE_SLEEP_DELAY = 20_000;
 export const CHAT_PET_CONFIRMATION_ATTENTION_DURATION = 2_000;
@@ -64,7 +67,6 @@ const DIZZY_STATE_DURATION = 2_200;
 const WAKE_STATE_DURATION = 880;
 const DIZZY_DIRECTION_CHANGE_COUNT = 8;
 const DIZZY_DIRECTION_CHANGE_MAX_INTERVAL = 600;
-const SEARCH_INTERVAL = 10_000;
 const RESPAWN_EFFECT_DURATION = 800;
 const RESPAWN_EFFECT_REDUCED_MOTION_DURATION = 400;
 const DRAG_THRESHOLD = 2;
@@ -1042,6 +1044,41 @@ export function getChatPetPillPlatformTop(petCenterX: number, pillBounds: readon
 	return undefined;
 }
 
+/** Top of the topmost surface showing above the input, else the input's own top. */
+export function getChatPetStackPlatformTop(container: HTMLElement, inputContainer: HTMLElement, startAfter?: Element): number {
+	const inputTop = inputContainer.getBoundingClientRect().top;
+	let current = container;
+	let previousElement = startAfter;
+	while (true) {
+		const children = Array.from(current.children);
+		const startIndex = previousElement ? children.indexOf(previousElement) + 1 : 0;
+		let nestedContainer: HTMLElement | undefined;
+		for (let index = startIndex; index < children.length; index++) {
+			const child = children[index];
+			// The pet's own overlay spans the host, so it is never a platform.
+			if (!dom.isHTMLElement(child) || child.classList.contains(CHAT_PET_OVERLAY_CLASS)) {
+				continue;
+			}
+			if (child === inputContainer) {
+				return inputTop;
+			}
+			if (child.contains(inputContainer)) {
+				nestedContainer = child;
+				break;
+			}
+			const bounds = child.getBoundingClientRect();
+			if (bounds.height > 0 && bounds.top <= inputTop) {
+				return bounds.top;
+			}
+		}
+		if (!nestedContainer) {
+			return inputTop;
+		}
+		current = nestedContainer;
+		previousElement = undefined;
+	}
+}
+
 export function shouldPlaceChatPetSpeechBubbleLeft(state: ChatPetState | undefined, buttonRight: number, inputRight: number, scale = 1): boolean {
 	return state === 'rendering' && buttonRight + CHAT_PET_SPEECH_BUBBLE_RIGHT_OVERHANG * scale > inputRight;
 }
@@ -1175,7 +1212,6 @@ export class ChatPetWidget extends Disposable {
 	private readonly _idleScheduler = this._register(new RunOnceScheduler(() => this._idleExpired.set(true, undefined), CHAT_PET_IDLE_SLEEP_DELAY));
 	private readonly _confirmationAttentionScheduler = this._register(new RunOnceScheduler(() => this._confirmationAttentionExpired.set(true, undefined), CHAT_PET_CONFIRMATION_ATTENTION_DURATION));
 	private readonly _transientScheduler = this._register(new RunOnceScheduler(() => this._transientState.set(undefined, undefined), TRANSIENT_STATE_DURATION));
-	private readonly _searchScheduler: RunOnceScheduler;
 	private readonly _clickSuppressionScheduler = this._register(new RunOnceScheduler(() => this._suppressNextPointerClick = false, 0));
 	private readonly _spriteAnimation = this._register(new MutableDisposable());
 	private readonly _speechAnimation = this._register(new MutableDisposable());
@@ -1236,6 +1272,7 @@ export class ChatPetWidget extends Disposable {
 
 	constructor(
 		host: IChatPetWidgetHost,
+		resizeObserverCtor: typeof ResizeObserver | undefined,
 		@IChatPetService private readonly chatPetService: IChatPetService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
@@ -1251,9 +1288,8 @@ export class ChatPetWidget extends Disposable {
 		this._host = observableValue(this, host);
 		this._variant = this.chatPetService.variant.get();
 		this._selectedAccessory = this.chatPetService.selectedAccessory.get();
-		this._searchScheduler = this._register(new RunOnceScheduler(() => this._trySearch(), SEARCH_INTERVAL));
 		this.parent.classList.add('chat-pet-host');
-		this._overlay = dom.$('.chat-pet-overlay');
+		this._overlay = dom.$(`.${CHAT_PET_OVERLAY_CLASS}`);
 		this.parent.prepend(this._overlay);
 		this._register(toDisposable(() => {
 			this.parent.classList.remove('chat-pet-host');
@@ -1321,7 +1357,7 @@ export class ChatPetWidget extends Disposable {
 		speechBubbleImage.alt = '';
 		speechBubbleImage.setAttribute('aria-hidden', 'true');
 		this._speechBubble = { container: speechBubbleContainer, image: speechBubbleImage, canvas: speechBubbleCanvas };
-		this._resizeObserver = this._register(new dom.DisposableResizeObserver('ChatPetWidget.dragBounds', () => this._handleHostLayoutChange(), dom.getWindow(this._button.element)));
+		this._resizeObserver = this._register(new dom.DisposableResizeObserver('ChatPetWidget.dragBounds', () => this._handleHostLayoutChange(), dom.getWindow(this._button.element), { resizeObserverCtor }));
 		this._observeHost(host);
 		if (this._getHorizontalBounds() !== undefined) {
 			this._restoreHorizontalPosition();
@@ -1343,8 +1379,6 @@ export class ChatPetWidget extends Disposable {
 				this._finishDisable();
 			} else if (event.animationName === 'chat-pet-yapping-fall' && !this._isDragging.get() && event.target === this._activeSprite?.container && this._button.element.dataset.state === 'yapping') {
 				this._transientState.set('yappingMouthOpen', undefined);
-			} else if (event.animationName === 'chat-pet-search-down' && this._button.element.dataset.state === 'searchingDown') {
-				this._transientState.set(undefined, undefined);
 			} else if ((event.animationName === 'chat-pet-eye-blink' || event.animationName === 'chat-pet-tall-eye-blink') && event.target === this._pupils[0]) {
 				this._blinkController.onAnimationComplete();
 			}
@@ -1528,6 +1562,7 @@ export class ChatPetWidget extends Disposable {
 				const wasInitialized = this._enablementInitialized;
 				this._enablementInitialized = true;
 				this._enabled = enabled;
+				this._observeHost(this._host.read(undefined));
 				if (enabled) {
 					if (isDead) {
 						this._showRespawnSequence();
@@ -1548,7 +1583,6 @@ export class ChatPetWidget extends Disposable {
 			if (!enabled) {
 				this._hopController.cancel();
 				this._idleScheduler.cancel();
-				this._searchScheduler.cancel();
 				this._transientScheduler.cancel();
 				if (transientState !== undefined) {
 					this._transientState.set(undefined, undefined);
@@ -1562,7 +1596,6 @@ export class ChatPetWidget extends Disposable {
 			if (isDead) {
 				this._hopController.cancel();
 				this._idleScheduler.cancel();
-				this._searchScheduler.cancel();
 				this._transientScheduler.cancel();
 				this._showRespawnSequence();
 				return;
@@ -1571,14 +1604,9 @@ export class ChatPetWidget extends Disposable {
 			if (onTheRun) {
 				this._hopController.cancel();
 				this._idleScheduler.cancel();
-				if (!this._searchScheduler.isScheduled()) {
-					this._searchScheduler.schedule();
-				}
-				const state = transientState === 'searching' || transientState === 'searchingDown' ? transientState : 'onTheRun';
-				this._renderState(state, variantChanged);
+				this._renderState('onTheRun', variantChanged);
 				return;
 			}
-			this._searchScheduler.cancel();
 
 			if (this._busy) {
 				this._idleScheduler.cancel();
@@ -1635,9 +1663,11 @@ export class ChatPetWidget extends Disposable {
 
 	private _observeHost(host: IChatPetWidgetHost): void {
 		const store = new DisposableStore();
-		store.add(this._resizeObserver.observe(host.dragBounds));
-		store.add(this._resizeObserver.observe(host.movementBounds));
-		store.add(this._resizeObserver.observe(host.parent));
+		if (this._enabled) {
+			store.add(this._resizeObserver.observe(host.dragBounds));
+			store.add(this._resizeObserver.observe(host.movementBounds));
+			store.add(this._resizeObserver.observe(host.parent));
+		}
 		store.add(host.onDidChangePlatform(() => this._updatePlatformPosition()));
 		this._hostLayoutDisposables.value = store;
 	}
@@ -2100,6 +2130,10 @@ export class ChatPetWidget extends Disposable {
 			this.chatPetService.setScale(scale);
 			status(localize('chatPet.shrank', "VS Code pet size: {0} percent", Math.round(scale * 100)));
 		}));
+		const resetSize = actions.add(new Action('chat.pet.resetSize', localize('chatPet.resetSize.action', "Reset Size"), undefined, this._scale !== CHAT_PET_DEFAULT_SCALE, () => {
+			this.chatPetService.resetScale();
+			status(localize('chatPet.sizeReset', "VS Code pet size: {0} percent", CHAT_PET_DEFAULT_SCALE * 100));
+		}));
 		const onTheRunAction = actions.add(new Action(
 			'chat.pet.onTheRun',
 			onTheRun ? localize('chatPet.comeBack.action', "Come Back") : localize('chatPet.goOnTheRun.action', "Go on the Run"),
@@ -2120,6 +2154,7 @@ export class ChatPetWidget extends Disposable {
 				interactionSeparator,
 				grow,
 				shrink,
+				resetSize,
 				appearanceSeparator,
 				stable,
 				insiders,
@@ -2618,19 +2653,6 @@ export class ChatPetWidget extends Disposable {
 		}
 	}
 
-	private _trySearch(): void {
-		if (!this._enabled || !this.chatPetService.onTheRun.get()) {
-			return;
-		}
-		if (this._motionReduced) {
-			this._searchScheduler.schedule();
-			return;
-		}
-		this._transientState.set('searching', undefined);
-		this._renderState('searching', true);
-		this._searchScheduler.schedule();
-	}
-
 	private _wake(): void {
 		const wasSleeping = this._idleExpired.get() || this._renderedState === 'sleep';
 		this._idleExpired.set(false, undefined);
@@ -2950,14 +2972,7 @@ export class ChatPetWidget extends Disposable {
 		}
 		if (state === 'jump') {
 			this._hopController.onAnimationComplete();
-			return;
 		}
-		if (state !== 'searching' || !this.chatPetService.onTheRun.get()) {
-			return;
-		}
-		this._transientState.set('searchingDown', undefined);
-		this._button.element.dataset.state = 'searchingDown';
-		this._renderedState = 'searchingDown';
 	}
 
 	private _startSpriteAnimation(source: ChatPetSpriteSource, sprite: ChatPetSpriteElement, animationDisposable: MutableDisposable<IDisposable>, onComplete?: () => void, reverse = false, onFrame?: (frameIndex: number) => void, state?: ChatPetState): void {

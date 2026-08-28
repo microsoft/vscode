@@ -281,17 +281,25 @@ suite('Create Session from Pull Request', () => {
 		const remoteRoot = URI.parse('vscode-remote://ssh-remote+host/repos/alexr00/playground');
 		const cloudSession = sessionWithRepository(cloudRoot, 'alexr00', 'playground');
 		const localSession = sessionWithRepository(localRoot, 'alexr00', 'playground', false);
+		const localSessionWithMetadata = sessionWithRepository(localRoot, 'alexr00', 'playground');
+		const otherCloudSession = sessionWithRepository(cloudRoot, 'microsoft', 'vscode');
 		const remoteSession = sessionWithRepository(remoteRoot, 'alexr00', 'playground');
 
 		assert.deepStrictEqual({
 			cloud: await resolvePullRequestSessionRepository([cloudSession]),
 			local: await resolvePullRequestSessionRepository([localSession]),
 			mixed: await resolvePullRequestSessionRepository([cloudSession, localSession]),
+			mixedRepositories: await resolvePullRequestSessionRepository([otherCloudSession, localSessionWithMetadata]),
 			remote: await resolvePullRequestSessionRepository([remoteSession]),
 		}, {
 			cloud: undefined,
 			local: undefined,
 			mixed: {
+				folderUri: localRoot,
+				owner: 'alexr00',
+				repo: 'playground',
+			},
+			mixedRepositories: {
 				folderUri: localRoot,
 				owner: 'alexr00',
 				repo: 'playground',

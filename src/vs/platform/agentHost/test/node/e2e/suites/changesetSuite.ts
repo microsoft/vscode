@@ -35,7 +35,7 @@ import { ContentEncoding } from '../../../../common/state/protocol/common/comman
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ChangesetOperationTargetKind, type InvokeChangesetOperationResult } from '../../../../common/state/protocol/channels-changeset/commands.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, MessageKind, readSessionGitState, ROOT_STATE_URI, type SessionState } from '../../../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, readSessionGitState, ROOT_STATE_URI, type SessionState } from '../../../../common/state/sessionState.js';
 import {
 	ChangesetKind,
 	buildBranchChangesetUri,
@@ -44,7 +44,7 @@ import {
 	buildTurnChangesetUri,
 	buildUncommittedChangesetUri,
 } from '../../../../common/changesetUri.js';
-import { createRealSession, dispatchTurn, driveTurnToCompletion, initTestGitRepo, resolveGitHubToken, startBackgroundApprovalLoop } from '../harness/agentHostE2ETestHarness.js';
+import { createRealSession, dispatchTurn, driveChatTurnToCompletion, driveTurnToCompletion, initTestGitRepo, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { conformanceTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 
@@ -1385,7 +1385,10 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	}, false);
 
 	if (context.tier === 'parity') {
-		(config.supportsMultipleChats && config.streamingFileCreateToolName ? test : test.skip)('session changeset aggregates provider edits from default and peer chats', async function () {
+		const supportsProviderFileEdits = config.streamingFileCreateToolName !== undefined || config.fileOperationStrategy === 'shell';
+		// Skip unstable Codex packaged-Linux shell replay while retaining recording and unaffected platforms.
+		const providerFileEditsEnabled = config.fileOperationStrategy !== 'shell' || context.portableShellToolReplayEnabled;
+		(config.supportsMultipleChats && supportsProviderFileEdits && providerFileEditsEnabled ? test : test.skip)('session changeset aggregates provider edits from default and peer chats', async function () {
 			this.timeout(240_000);
 			const workspace = createGitWorkspace(`ahp-provider-session-changeset-${config.provider}-`);
 			const sessionUri = await createSessionIn(workspace, 'provider-session-changeset');
@@ -1395,41 +1398,27 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 			const sessionChangeset = buildSessionChangesetUri(sessionUri);
 			await context.client.call<SubscribeResult>('subscribe', { channel: sessionChangeset });
 
+			const createPrompt = (file: string, contents: string): string => {
+				if (config.fileOperationStrategy !== 'shell') {
+					return `Create ${file} containing exactly ${contents} using your file creation tool; do not run a shell command. Then reply exactly "created".`;
+				}
+				const command = `node -e "require('fs').writeFileSync('${file}','${contents}')"`;
+				return `Run exactly this shell command, with no modifications: \`${command}\`. Then reply exactly "created".`;
+			};
 			await driveTurnToCompletion(
 				context.client,
 				sessionUri,
 				'turn-provider-default-edit',
-				'Create default-provider.txt containing exactly DEFAULT_PROVIDER using your file creation tool; do not run a shell command. Then reply exactly "created".',
+				createPrompt('default-provider.txt', 'DEFAULT_PROVIDER'),
 				1,
 			);
-			const approval = startBackgroundApprovalLoop(context.client, {
-				approvalSeqStart: 100,
-				allow: [{ toolName: config.streamingFileCreateToolName! }],
-			});
-			try {
-				context.client.dispatch({
-					channel: peerUri,
-					clientSeq: 10,
-					action: {
-						type: ActionType.ChatTurnStarted,
-						turnId: 'turn-provider-peer-edit',
-						startedAt: new Date().toISOString(),
-						message: {
-							text: 'Create peer-provider.txt containing exactly PEER_PROVIDER using your file creation tool; do not run a shell command. Then reply exactly "created".',
-							origin: { kind: MessageKind.User },
-						},
-					},
-				});
-				await context.client.waitForNotification(n =>
-					isActionNotification(n, 'chat/turnComplete')
-					&& getActionEnvelope(n).channel === peerUri
-					&& (getActionEnvelope(n).action as { readonly turnId: string }).turnId === 'turn-provider-peer-edit',
-					90_000,
-				);
-			} finally {
-				await approval.stop();
-			}
-			assert.deepStrictEqual(approval.errors, []);
+			await driveChatTurnToCompletion(
+				context.client,
+				peerUri,
+				'turn-provider-peer-edit',
+				createPrompt('peer-provider.txt', 'PEER_PROVIDER'),
+				10,
+			);
 
 			const files = await retry(async () => {
 				const state = await changesetState(sessionChangeset);

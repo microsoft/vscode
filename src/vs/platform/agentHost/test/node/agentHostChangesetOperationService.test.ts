@@ -100,7 +100,6 @@ class TestGitStateService implements IAgentHostGitStateService {
 	async recordSessionMerge(_sessionKey: string, _commit?: string): Promise<void> { }
 
 	async attachSessionGitHubPullRequest(_sessionKey: string): Promise<void> { }
-	async attachSessionGitHubReferences(_sessionKey: string, _text: string): Promise<void> { }
 }
 
 /**
@@ -185,7 +184,7 @@ suite('AgentHostChangesetOperationService', () => {
 		return disposables.add(new AgentHostChangesetOperationService(
 			stateManager,
 			new TestGitStateService(),
-			new AgentHostChangesetSubscriptionService(),
+			disposables.add(new AgentHostChangesetSubscriptionService()),
 			configurationService,
 		));
 	}

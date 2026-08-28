@@ -303,7 +303,6 @@ export class ChatGroupsView extends Themable {
 			tabsVisible,
 			showSessionActions,
 			openChat: resource => this._openChat(entry, resource),
-			newChat: () => this._newChat(entry).catch(onUnexpectedError),
 			onTabDragStart: () => { },
 			onTabDragEnd: () => { },
 		};
@@ -325,6 +324,12 @@ export class ChatGroupsView extends Themable {
 		const orderedIds = chats.map(c => c.resource.toString());
 		const validIds = new Set(orderedIds);
 		const activeId = activeChat?.resource.toString();
+		const hasUnassignedVisibleChats = orderedIds.some(id => !this._groups.some(group => group.resourceIds.get().includes(id)));
+
+		// Dispose orphaned groups before publishing an empty assignment.
+		if (!this._restorePending && !hasUnassignedVisibleChats) {
+			this._removeGroupsWithoutVisibleChats(validIds);
+		}
 
 		transaction(tx => {
 			// Prune stale assignments.
@@ -463,7 +468,7 @@ export class ChatGroupsView extends Themable {
 			if (source === target && source.resourceIds.get().length <= 1) {
 				return;
 			}
-			this._splitChatIntoNewGroup(resource, source, target, zone);
+			await this._splitChatIntoNewGroup(resource, source, target, zone);
 		}
 	}
 
@@ -482,7 +487,7 @@ export class ChatGroupsView extends Themable {
 		this._persistLayout();
 	}
 
-	private _splitChatIntoNewGroup(resource: URI, source: IGroupEntry, reference: IGroupEntry, zone: Exclude<ChatDropZone, 'center'>): void {
+	private async _splitChatIntoNewGroup(resource: URI, source: IGroupEntry, reference: IGroupEntry, zone: Exclude<ChatDropZone, 'center'>): Promise<void> {
 		if (!this._grid || !this._currentSessionStore || !this._session) {
 			return;
 		}
@@ -499,7 +504,7 @@ export class ChatGroupsView extends Themable {
 		});
 
 		this._setActiveGroup(newGroup);
-		this._sessionsService.openChat(this._session, resource).catch(onUnexpectedError);
+		await this._sessionsService.openChat(this._session, resource);
 		this._removeEmptyGroups();
 		this._applyLayout();
 		this._persistLayout();
@@ -518,10 +523,9 @@ export class ChatGroupsView extends Themable {
 	}
 
 	/**
-	 * Opens a chat in a group beside the active one ("open to the side"). If the
-	 * chat is already shown in a group, that group is focused instead of creating
-	 * a duplicate; otherwise a new group is created to the right of the active
-	 * group and the chat is shown there.
+	 * Opens a chat in a group beside its current group ("open to the side"). A
+	 * chat already sharing a group is moved into a new group to its right. A chat
+	 * already alone in its own group is focused without creating a duplicate.
 	 */
 	async openChatInNewGroup(resource: URI): Promise<void> {
 		if (!this._session || !this._grid || !this._currentSessionStore) {
@@ -531,6 +535,10 @@ export class ChatGroupsView extends Themable {
 
 		const existing = this._groups.find(g => g.resourceIds.get().includes(id));
 		if (existing) {
+			if (existing.resourceIds.get().length > 1) {
+				await this._splitChatIntoNewGroup(resource, existing, existing, 'right');
+				return;
+			}
 			existing.activeResourceId.set(id, undefined);
 			this._setActiveGroup(existing);
 			await this._sessionsService.openChat(this._session, resource);
@@ -608,7 +616,7 @@ export class ChatGroupsView extends Themable {
 				this._setActiveGroup(source);
 				return;
 			}
-			this._splitChatIntoNewGroup(resource, source, source, 'right');
+			this._splitChatIntoNewGroup(resource, source, source, 'right').catch(onUnexpectedError);
 			return;
 		}
 		// Not assigned yet: only open to the side when there is another chat to
@@ -619,11 +627,19 @@ export class ChatGroupsView extends Themable {
 	}
 
 	private _removeEmptyGroups(): void {
+		this._removeGroups(group => group.resourceIds.get().length === 0);
+	}
+
+	private _removeGroupsWithoutVisibleChats(visibleChatIds: ReadonlySet<string>): void {
+		this._removeGroups(group => group.resourceIds.get().every(id => !visibleChatIds.has(id)));
+	}
+
+	private _removeGroups(shouldRemove: (group: IGroupEntry) => boolean): void {
 		if (!this._grid || this._groups.length <= 1) {
 			return;
 		}
-		const empties = this._groups.filter(g => g.resourceIds.get().length === 0);
-		for (const group of empties) {
+		const groups = this._groups.filter(shouldRemove);
+		for (const group of groups) {
 			if (this._groups.length <= 1) {
 				break;
 			}
@@ -710,36 +726,6 @@ export class ChatGroupsView extends Themable {
 		}
 	}
 
-	private async _newChat(entry: IGroupEntry): Promise<void> {
-		this._setActiveGroup(entry);
-		const session = this._session;
-		if (session && !session.isArchived.get()) {
-			const existingIds = new Set(session.visibleChatTabs.get().map(chat => chat.resource.toString()));
-			await this._sessionsService.openNewChatInSession(session);
-			if (this._session === session && this._groups.includes(entry)) {
-				const createdChat = session.activeChat.get();
-				const createdId = createdChat.resource.toString();
-				if (!existingIds.has(createdId) && session.visibleChatTabs.get().includes(createdChat)) {
-					transaction(tx => {
-						for (const group of this._groups) {
-							if (group !== entry && group.resourceIds.get().includes(createdId)) {
-								this._detachChatFromGroup(group, createdId, tx);
-							}
-						}
-						if (!entry.resourceIds.get().includes(createdId)) {
-							entry.resourceIds.set([...entry.resourceIds.get(), createdId], tx);
-						}
-						entry.activeResourceId.set(createdId, tx);
-					});
-					this._setActiveGroup(entry);
-					this._removeEmptyGroups();
-					this._persistLayout();
-				}
-				entry.view.focus();
-			}
-		}
-	}
-
 	focusAdjacentGroup(direction: 'previous' | 'next'): void {
 		const activeIndex = this._activeGroup ? this._groups.indexOf(this._activeGroup) : -1;
 		if (activeIndex < 0 || this._groups.length < 2) {
@@ -755,7 +741,7 @@ export class ChatGroupsView extends Themable {
 		const source = this._activeGroup;
 		const resource = source?.activeResourceId.get();
 		if (source && resource && source.resourceIds.get().length > 1) {
-			this._splitChatIntoNewGroup(URI.parse(resource), source, source, direction);
+			this._splitChatIntoNewGroup(URI.parse(resource), source, source, direction).catch(onUnexpectedError);
 		}
 	}
 

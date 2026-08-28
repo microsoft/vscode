@@ -5051,17 +5051,6 @@
               "default": true
             }
           },
-          "github.copilot.chat.cli.showExternalSessions": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "%github.copilot.config.cli.showExternalSessions%",
-            "tags": [
-              "advanced"
-            ],
-            "agentsWindow": {
-              "default": false
-            }
-          },
           "github.copilot.chat.cli.planExitMode.enabled": {
             "type": "boolean",
             "default": true,

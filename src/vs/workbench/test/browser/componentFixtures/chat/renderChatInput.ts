@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -24,6 +24,12 @@ import { ChatAgentLocation, ChatConfiguration } from '../../../../contrib/chat/c
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
 import { ComponentFixtureContext, createEditorServices } from '../fixtureUtils.js';
 import { FixtureMenuService, registerChatFixtureServices } from './chatFixtureUtils.js';
+import { IChatPetService } from '../../../../contrib/chat/browser/chatPetService.js';
+import { IChatPetWidgetService } from '../../../../contrib/chat/browser/widget/chatPetWidgetService.js';
+import { configureChatPetFixtureFileRoot, FixtureChatPetService, assertChatPetInScreenshot } from './chatPetFixtureUtils.js';
+
+/** Room above the input for the pet, which stands outside it. */
+const PET_HEADROOM = 64;
 
 /**
  * A standalone dictation / Voice Mode control rendered in the execute toolbar,
@@ -90,18 +96,29 @@ export interface ChatInputFixtureOptions {
 	 * rather than staged.
 	 */
 	readonly notification?: IChatInputNotification;
+	/** Stands the pet on the input, wired the way `ChatWidget` wires it. */
+	readonly pet?: boolean;
 }
 
 export async function renderChatInput(context: ComponentFixtureContext, fixtureOptions: ChatInputFixtureOptions = {}): Promise<void> {
 	const { container, disposableStore } = context;
-	const { artifacts = [], editingSession, todos = [], isSessionsWindow = false, value, selection, sandboxingEnabled = false, width = 500, models = [], voiceControl, notification } = fixtureOptions;
+	const { artifacts = [], editingSession, todos = [], isSessionsWindow = false, value, selection, sandboxingEnabled = false, width = 500, models = [], voiceControl, notification, pet = false } = fixtureOptions;
 	const artifactGroups: IArtifactSourceGroup[] = artifacts.length > 0 ? [{ source: { kind: 'agent' as const }, artifacts }] : [];
 	const artifactsObs = observableValue<readonly IArtifactSourceGroup[]>('artifactGroups', artifactGroups);
+
+	// Sprite sheets are resolved against the file root.
+	if (pet) {
+		configureChatPetFixtureFileRoot(disposableStore);
+	}
+	const chatPetService = pet ? disposableStore.add(new FixtureChatPetService({ enabled: true })) : undefined;
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
 		additionalServices: (reg) => {
 			registerChatFixtureServices(reg, { artifactGroups: artifactsObs, todos, notification });
+			if (chatPetService) {
+				reg.defineInstance(IChatPetService, chatPetService);
+			}
 			if (models.length > 0) {
 				const modelsById = new Map(models.map(model => [model.identifier, model]));
 				reg.defineInstance(ILanguageModelsService, new class extends mock<ILanguageModelsService>() {
@@ -147,6 +164,10 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 	container.style.width = `${width}px`;
 	container.style.backgroundColor = 'var(--vscode-sideBar-background, var(--vscode-editor-background))';
 	container.classList.add('monaco-workbench');
+	// Keeps the pet, which stands above the input, inside the screenshot.
+	if (pet) {
+		container.style.paddingTop = `${PET_HEADROOM}px`;
+	}
 
 	const session = document.createElement('div');
 	session.classList.add('interactive-session');
@@ -194,9 +215,25 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 	}();
 
 	inputPart.render(session, '', mockWidget);
+
+	if (pet) {
+		// The same host `ChatWidget` registers, so the platform comes from the input part.
+		disposableStore.add(instantiationService.invokeFunction(accessor => accessor.get(IChatPetWidgetService).register(mockWidget, {
+			parent: inputPart.element,
+			dragBounds: inputPart.inputContainerElement ?? inputPart.element,
+			movementBounds: session,
+			model: constObservable(undefined),
+			hasInput: constObservable(false),
+			inputChanged: inputPart.inputEditor.onDidChangeModelContent,
+			getPlatformTop: petCenterX => inputPart.getChatPetPlatformTop(petCenterX),
+			onDidChangePlatform: inputPart.onDidChangeChatPetHorizontalPlatforms,
+		})));
+	}
+
 	inputPart.layout(width);
 	await new Promise(r => setTimeout(r, 100));
 	inputPart.layout(width);
+
 	if (value !== undefined) {
 		inputPart.setValue(value, true);
 		inputPart.layout(width);
@@ -231,5 +268,9 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 			// screenshot is deterministic.
 			(item as HTMLElement | null)?.style.setProperty('--dictation-mic-level', '0.6');
 		}
+	}
+
+	if (pet) {
+		assertChatPetInScreenshot(container);
 	}
 }
