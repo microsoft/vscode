@@ -7,8 +7,9 @@ import assert from 'assert';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { PluginFormat } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { ContributionEnablementState, IEnablementModel, isContributionEnabled } from '../../../common/enablement.js';
-import { AgentPluginCollisionEnablementModel, getCanonicalAgentPluginCollisionGroups, getSortedAgentPlugins, IDiscoveredAgentPlugins } from '../../../common/plugins/agentPluginEnablement.js';
+import { AgentPluginCollisionEnablementModel, getCanonicalAgentPluginCollisionGroups, getSortedAgentPlugins, IDiscoveredAgentPlugins, isAgentPluginBlockedByPolicy, isAgentPluginForceEnabledByPolicy } from '../../../common/plugins/agentPluginEnablement.js';
 import { AgentPluginDiscoveryPriority, IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
 import { IMarketplacePlugin, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 
@@ -18,6 +19,7 @@ suite('AgentPlugin enablement', () => {
 	function makePlugin(uri: URI, label: string, fromMarketplace?: IMarketplacePlugin): IAgentPlugin {
 		return {
 			uri,
+			format: PluginFormat.Copilot,
 			label,
 			enablement: observableValue('testPluginEnablement', ContributionEnablementState.EnabledProfile),
 			hooks: observableValue('testPluginHooks', []),
@@ -49,6 +51,7 @@ suite('AgentPlugin enablement', () => {
 		const state = new Map<string, ContributionEnablementState>();
 		return {
 			readEnabled: key => state.get(key) ?? ContributionEnablementState.EnabledProfile,
+			readProfileEnabled: key => (state.get(key) ?? ContributionEnablementState.EnabledProfile) === ContributionEnablementState.EnabledProfile,
 			setEnabled: (key, value) => state.set(key, value),
 			remove: key => state.delete(key),
 		};
@@ -137,6 +140,61 @@ suite('AgentPlugin enablement', () => {
 		}, {
 			plugins: [sharedUri.toString()],
 			collisionGroupCount: 0,
+		});
+	});
+
+	suite('isAgentPluginBlockedByPolicy', () => {
+		const policyId = 'model-council@microsoft/vscode-team-kit';
+
+		function makeMarketplacePluginForPolicy(): IAgentPlugin {
+			const uri = URI.file('/Users/test/.vscode-insiders/agent-plugins/github.com/microsoft/vscode-team-kit/model-council');
+			return makePlugin(uri, 'model-council', makeMarketplacePlugin());
+		}
+
+		test('no policy set: nothing is blocked', () => {
+			const plugin = makeMarketplacePluginForPolicy();
+			assert.strictEqual(isAgentPluginBlockedByPolicy(plugin, undefined), false);
+			assert.strictEqual(isAgentPluginBlockedByPolicy(plugin, {}), false);
+		});
+
+		test('additive: a plugin the policy never mentions is not blocked', () => {
+			const plugin = makeMarketplacePluginForPolicy();
+			// Enterprise enables a different plugin; the user's own plugin must keep working.
+			assert.strictEqual(isAgentPluginBlockedByPolicy(plugin, { 'workiq@copilot-plugins': true }), false);
+		});
+
+		test('a plugin explicitly enabled by policy is not blocked', () => {
+			const plugin = makeMarketplacePluginForPolicy();
+			assert.strictEqual(isAgentPluginBlockedByPolicy(plugin, { [policyId]: true }), false);
+		});
+
+		test('deny list: a plugin explicitly disabled by policy is blocked', () => {
+			const plugin = makeMarketplacePluginForPolicy();
+			assert.strictEqual(isAgentPluginBlockedByPolicy(plugin, { [policyId]: false }), true);
+		});
+
+		test('a plugin without a policy identity is never blocked', () => {
+			const plugin = makePlugin(URI.file('/Users/test/local-plugins/my-plugin'), 'my-plugin');
+			assert.strictEqual(isAgentPluginBlockedByPolicy(plugin, { [policyId]: false }), false);
+		});
+
+		suite('isAgentPluginForceEnabledByPolicy', () => {
+			test('requires an explicit managed true entry for the plugin identity', () => {
+				const plugin = makePlugin(
+					URI.file('/Users/test/.vscode-insiders/agent-plugins/github.com/microsoft/vscode-team-kit/model-council'),
+					'model-council',
+					makeMarketplacePlugin(),
+				);
+
+				assert.strictEqual(isAgentPluginForceEnabledByPolicy(plugin, undefined), false);
+				assert.strictEqual(isAgentPluginForceEnabledByPolicy(plugin, { 'model-council@microsoft/vscode-team-kit': false }), false);
+				assert.strictEqual(isAgentPluginForceEnabledByPolicy(plugin, { 'model-council@microsoft/vscode-team-kit': true }), true);
+			});
+
+			test('sideloaded plugins without a managed identity are not force-enabled', () => {
+				const plugin = makePlugin(URI.file('/Users/test/local-plugins/model-council'), 'model-council');
+				assert.strictEqual(isAgentPluginForceEnabledByPolicy(plugin, { 'model-council@microsoft/vscode-team-kit': true }), false);
+			});
 		});
 	});
 });

@@ -30,12 +30,19 @@ jobs:
       VSCODE_ARCH: x64
     steps:
       - name: Checkout microsoft/vscode
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
 
+      - name: Detect Agent Host E2E changes
+        if: ${{ inputs.electron_tests && inputs.unit_and_integration_tests }}
+        id: agent-host-e2e-changes
+        uses: ./.github/actions/detect-agent-host-e2e-changes
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
 
@@ -115,7 +122,7 @@ jobs:
 
       - name: Restore built-in extensions cache
         id: cache-builtin-extensions
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           enableCrossOsArchive: true
           path: .build/builtInExtensions
@@ -144,24 +151,15 @@ jobs:
             exit 0
           fi
           echo "Installed expat: $EXPAT_VER — applying fontconfig workaround"
-          # Workaround: use a minimal fontconfig config with no <include> directives
-          # AND no <!DOCTYPE ... SYSTEM ...> external DTD reference, avoiding every
-          # expat external-entity codepath. Based on upstream fontconfig 2.15.0
-          # fonts.conf.in with <include> removed, generic family aliases inlined, and
-          # default font mappings for generic families added (from conf.d/49-sansserif.conf
-          # and DejaVu font configs).
-          #
-          # The DOCTYPE line is intentionally omitted: fontconfig feeds the referenced
-          # external DTD ("urn:fontconfig:fonts.dtd") to expat as an external PARAMETER
-          # entity, which still triggers the not-yet-backported NULL-deref CVEs
-          # (CVE-2026-32776 / CVE-2026-32778) on expat 2.6.1 even when <include> is gone.
-          # This was observed as a SIGSEGV inside libexpat (called from libfontconfig)
-          # during Chromium browser-process font init, crashing Electron at startup.
-          # fontconfig does not require the DOCTYPE, so dropping it removes the last
-          # external-entity path. Remove the whole workaround once Ubuntu backports the
-          # remaining CVE fixes (expat >= 2.7.5).
+          # Workaround: use a minimal fontconfig config with no <include> directives,
+          # avoiding the external entity parser codepath entirely. Based on upstream
+          # fontconfig 2.15.0 fonts.conf.in with <include> removed, generic family
+          # aliases inlined, and default font mappings for generic families added
+          # (from conf.d/49-sansserif.conf and DejaVu font configs).
+          # Remove once Ubuntu backports the remaining CVE fixes.
           cat > /tmp/fonts-minimal.conf << 'FONTCONFIG_EOF'
           <?xml version="1.0"?>
+          <!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
           <fontconfig>
             <dir>/usr/share/fonts</dir>
             <dir>/usr/local/share/fonts</dir>
@@ -218,6 +216,48 @@ jobs:
           FONTCONFIG_EOF
           echo "FONTCONFIG_FILE=/tmp/fonts-minimal.conf" >> "$GITHUB_ENV"
 
+      # Root-cause fix for the intermittent Electron startup SIGSEGV on Linux CI.
+      # Symbolizing the crash dumps shows the fault is a Pango concurrency bug, not
+      # a VS Code bug:
+      #
+      #   pango: fc_thread_func -> init_in_thread -> FcInit()       (pangofc-fontmap.c)
+      #   fontconfig: FcInit -> FcConfigParseAndLoadFromMemory -> _FcConfigParse
+      #   libexpat: XML_ParseBuffer -> libc (NULL deref, SIGSEGV)
+      #
+      # Pango >= 1.52's pango_fc_font_map_init() unconditionally spawns a
+      # "[pango] fontconfig" thread that runs FcInit(). That races against the
+      # Electron/Chromium main thread's own fontconfig use during startup and
+      # corrupts fontconfig's global config while it is being parsed. There is no
+      # env var to disable the Pango thread, and it is still present in Pango 1.56.
+      #
+      # Eliminate the race by initializing fontconfig once, single-threaded, from
+      # an ELF constructor that runs before main() (and therefore before any thread
+      # exists). Pango's later threaded FcInit() then finds fontconfig already
+      # initialized and returns immediately, so the concurrent parse never happens.
+      - name: Pre-initialize fontconfig to avoid Pango threaded FcInit crash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/fcpreinit.c" <<'CEOF'
+          #define _GNU_SOURCE
+          #include <dlfcn.h>
+
+          __attribute__((constructor))
+          static void preinit_fontconfig(void)
+          {
+            void *handle = dlopen("libfontconfig.so.1", RTLD_NOW | RTLD_GLOBAL);
+            if (handle) {
+              int (*fc_init)(void) = (int (*)(void)) dlsym(handle, "FcInit");
+              if (fc_init) {
+                fc_init();
+              }
+            }
+          }
+          CEOF
+          gcc -shared -fPIC -O2 -o "$RUNNER_TEMP/libfcpreinit.so" "$RUNNER_TEMP/fcpreinit.c" -ldl
+          echo "Built fontconfig pre-init shim at $RUNNER_TEMP/libfcpreinit.so"
+          # Preload it for every subsequent step that launches Electron/Chromium.
+          echo "LD_PRELOAD=$RUNNER_TEMP/libfcpreinit.so${LD_PRELOAD:+:$LD_PRELOAD}" >> "$GITHUB_ENV"
+
       - name: Fontconfig diagnostics and cache reset
         run: |
           set -e
@@ -253,6 +293,12 @@ jobs:
           echo ""
           echo "--- fontconfig version ---"
           fc-cache --version 2>&1 | head -1
+          echo ""
+          echo "--- fontconfig pre-init shim (LD_PRELOAD) ---"
+          echo "LD_PRELOAD=${LD_PRELOAD:-<unset>}"
+          if [ -n "${LD_PRELOAD:-}" ]; then
+            ls -l "${LD_PRELOAD%%:*}" 2>/dev/null || true
+          fi
         continue-on-error: true
 
       - name: Transpile client and extensions
@@ -285,6 +331,7 @@ jobs:
         run: ./scripts/test.sh --tfs "Unit Tests"
         env:
           DISPLAY: ":10"
+          VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run unit tests (node.js)
         if: ${{ inputs.electron_tests && inputs.unit_and_integration_tests }}
@@ -326,6 +373,8 @@ jobs:
         run: ./scripts/test-integration.sh --tfs "Integration Tests"
         env:
           DISPLAY: ":10"
+          VSCODE_SKIP_AGENT_HOST_E2E: ${{ steps.agent-host-e2e-changes.outputs.affected == 'false' && '1' || '0' }}
+          VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run integration tests (Browser, Chromium)
         if: ${{ inputs.browser_tests && inputs.unit_and_integration_tests }}
@@ -338,6 +387,7 @@ jobs:
         run: ./scripts/test-remote-integration.sh
         env:
           DISPLAY: ":10"
+          VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: Compile smoke tests
         if: ${{ inputs.smoke_tests }}
@@ -403,7 +453,7 @@ jobs:
         continue-on-error: true
 
       - name: Publish Crash Reports
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
         continue-on-error: true
         with:
@@ -414,7 +464,7 @@ jobs:
       # In order to properly symbolify above crash reports
       # (if any), we need the compiled native modules too
       - name: Publish Node Modules
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
         continue-on-error: true
         with:
@@ -423,7 +473,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Publish Log Files
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         continue-on-error: true
         with:

@@ -18,12 +18,22 @@ import { FileService } from '../../../files/common/fileService.js';
 import type { IFileService } from '../../../files/common/files.js';
 import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { NullTelemetryService, NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
+import type { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { RequestService } from '../../../request/node/requestService.js';
-import { AgentSdkDownloader, resolveSdkTarget, type IAgentSdkPackage } from '../../node/agentSdkDownloader.js';
+import { AgentSdkDownloader, resolveSdkTarget, type IAgentSdkPackage, type IAgentSdkDownloadProgress } from '../../node/agentSdkDownloader.js';
 import { ClaudeSdkPackage } from '../../node/claude/claudeAgentSdkService.js';
 import { AgentHostClaudeSdkRootEnvVar } from '../../common/agentService.js';
 import type { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import type { IProductService } from '../../../product/common/productService.js';
+
+class RecordingTelemetryService extends NullTelemetryServiceShape {
+	readonly events: { name: string; data: Record<string, unknown> }[] = [];
+
+	override publicLog2(eventName?: string, data?: Record<string, unknown>): void {
+		this.events.push({ name: eventName ?? '', data: data ?? {} });
+	}
+}
 
 interface ITestSdkDownloadFixture {
 	tarballPath: string;
@@ -128,7 +138,7 @@ suite('resolveSdkTarget', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function fakePkg(hasSeparateMuslLinuxPackage: boolean): IAgentSdkPackage {
-		return { id: 'test', devOverrideEnvVar: 'X', hasSeparateMuslLinuxPackage };
+		return { id: 'test', displayName: 'Test', devOverrideEnvVar: 'X', hasSeparateMuslLinuxPackage };
 	}
 
 	test('returns <platform>-<arch> for supported (platform, arch)', () => {
@@ -234,18 +244,19 @@ suite('AgentSdkDownloader', () => {
 	 * explicitly. Pass `productConfig: null` to omit the agentSdks block
 	 * entirely (the "no product config" case).
 	 */
-	function makeDownloader(productConfig?: { version?: string; urlTemplate?: string } | null) {
+	function makeDownloader(productConfig?: { version?: string; urlTemplate?: string } | null, telemetryService: ITelemetryService = NullTelemetryService) {
 		const config = productConfig === null ? undefined : {
 			version: productConfig?.version ?? '1.0.0',
 			urlTemplate: productConfig?.urlTemplate ?? `http://127.0.0.1:${server.port}/sdk-{sdkTarget}.tgz`,
 		};
-		return new AgentSdkDownloader(
+		return disposables.add(new AgentSdkDownloader(
 			makeEnvService(userDataPath),
 			makeProductService(config),
 			makeRequestService(disposables),
 			makeFileService(disposables),
 			new NullLogService(),
-		);
+			telemetryService,
+		));
 	}
 
 	test('isAvailable: false when no env override and no product config', () => {
@@ -278,6 +289,102 @@ suite('AgentSdkDownloader', () => {
 		const extracted = await fsp.readFile(path.join(root, fixture.innerFile), 'utf8');
 		assert.strictEqual(extracted, fixture.innerContents);
 		assert.ok(fs.existsSync(path.join(root, '.complete')));
+	});
+
+	test('loadSdkRoot: reports monotonic download progress ending at totalBytes', async () => {
+		const downloader = makeDownloader();
+		const samples: IAgentSdkDownloadProgress[] = [];
+		disposables.add(downloader.onDidDownloadProgress(p => samples.push(p)));
+
+		await downloader.loadSdkRoot(ClaudeSdkPackage, newToken());
+
+		const tarballSize = (await fsp.stat(fixture.tarballPath)).size;
+		// One `started`, ≥1 `progress`, one terminal `completed`, all sharing a
+		// single downloadId and carrying the brand display name.
+		assert.ok(samples.length >= 2, 'expected at least a started and a completed frame');
+		assert.strictEqual(samples[0].phase, 'started');
+		const completed = samples[samples.length - 1];
+		assert.strictEqual(completed.phase, 'completed');
+		assert.ok(samples.every(s => s.downloadId === samples[0].downloadId), 'all frames share one downloadId');
+		assert.ok(samples.every(s => s.displayName === 'Claude'), 'all frames carry the brand display name');
+
+		// receivedBytes is monotonically non-decreasing and reaches the total
+		// reported via Content-Length.
+		for (let i = 1; i < samples.length; i++) {
+			assert.ok(samples[i].receivedBytes >= samples[i - 1].receivedBytes, 'receivedBytes must be monotonic');
+		}
+		assert.strictEqual(completed.totalBytes, tarballSize);
+		assert.strictEqual(completed.receivedBytes, tarballSize);
+	});
+
+	test('loadSdkRoot: counts only the endpoints of a download, with the time it took', async () => {
+		const telemetry = new RecordingTelemetryService();
+		const downloader = makeDownloader(undefined, telemetry);
+
+		await downloader.loadSdkRoot(ClaudeSdkPackage, newToken());
+
+		// The throttled `progress` frames drive the progress bar, not the funnel.
+		assert.deepStrictEqual(telemetry.events.map(event => [event.name, event.data.phase]), [
+			['agentHost.agentSdkDownload', 'started'],
+			['agentHost.agentSdkDownload', 'completed'],
+		]);
+		const completed = telemetry.events[1].data;
+		assert.strictEqual(completed.packageId, 'claude');
+		assert.strictEqual(completed.failureReason, '');
+		assert.strictEqual(completed.explicitlyRequested, false);
+		assert.ok(typeof completed.durationMs === 'number' && completed.durationMs >= 0);
+	});
+
+	test('loadSdkRoot: a failed download reports its bucket, never the raw cause', async () => {
+		const telemetry = new RecordingTelemetryService();
+		// Port 1 on loopback refuses instantly, so this is a network failure with
+		// no bytes and no advertised total.
+		const downloader = makeDownloader({ urlTemplate: 'http://127.0.0.1:1/sdk-{sdkTarget}.tgz' }, telemetry);
+
+		await assert.rejects(() => downloader.loadSdkRoot(ClaudeSdkPackage, newToken()));
+
+		const failure = telemetry.events[telemetry.events.length - 1].data;
+		assert.strictEqual(failure.phase, 'failed');
+		assert.strictEqual(failure.failureReason, 'network');
+		assert.strictEqual(failure.totalBytes, 0, 'an unknown total is reported as zero rather than dropped');
+		assert.ok(!JSON.stringify(failure).includes(userDataPath), 'the on-disk cache path must not reach telemetry');
+	});
+
+	test('loadSdkRoot: marks progress explicitly requested by a user-initiated flow', async () => {
+		const telemetry = new RecordingTelemetryService();
+		const downloader = makeDownloader(undefined, telemetry);
+		const samples: IAgentSdkDownloadProgress[] = [];
+		disposables.add(downloader.onDidDownloadProgress(p => samples.push(p)));
+		disposables.add(downloader.acquireDownloadProgressInterest(ClaudeSdkPackage));
+
+		await downloader.loadSdkRoot(ClaudeSdkPackage, newToken());
+
+		assert.ok(samples.length >= 2);
+		assert.ok(samples.every(sample => sample.explicitlyRequested));
+		// The same split reaches telemetry, which is what separates a button press
+		// from a quiet re-fetch under standing consent.
+		assert.ok(telemetry.events.every(event => event.data.explicitlyRequested === true));
+	});
+
+	test('loadSdkRoot: a user asking by hand retries through the negative cache', async () => {
+		// Port 1 refuses instantly, so every attempt here fails. The latch rethrows
+		// the *same* error it stored, while a real attempt builds a new one — which
+		// is how this tells a short-circuit from a retry without a second server.
+		const downloader = makeDownloader({ urlTemplate: 'http://127.0.0.1:1/sdk-{sdkTarget}.tgz' });
+		const failure = async () => {
+			try {
+				await downloader.loadSdkRoot(ClaudeSdkPackage, newToken());
+				throw new Error('expected the download to fail');
+			} catch (err) {
+				return err;
+			}
+		};
+
+		const first = await failure();
+		assert.strictEqual(await failure(), first, 'a background caller is short-circuited by the latch');
+
+		disposables.add(downloader.acquireDownloadProgressInterest(ClaudeSdkPackage));
+		assert.notStrictEqual(await failure(), first, 'an explicit request is a fresh mandate to try again');
 	});
 
 	test('loadSdkRoot: cache hit returns immediately without re-downloading', async () => {

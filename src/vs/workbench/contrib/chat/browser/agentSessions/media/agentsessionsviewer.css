@@ -80,7 +80,22 @@
 		height: 16px;
 		align-items: center;
 		color: var(--vscode-descriptionForeground);
-		font-size: 12px;
+		font-size: var(--vscode-codiconFontSize-compact);
+		pointer-events: none;
+		margin-right: 3px;
+
+		&.visible {
+			display: flex;
+		}
+	}
+
+	.monaco-list-row .agent-session-pending-voice-indicator {
+		display: none;
+		height: 16px;
+		align-items: center;
+		margin-left: 4px;
+		color: var(--vscode-charts-blue);
+		font-size: var(--vscode-codiconFontSize-compact);
 		pointer-events: none;
 
 		&.visible {
@@ -142,7 +157,7 @@
 
 			.agent-session-icon {
 				flex-shrink: 0;
-				font-size: 12px;
+				font-size: var(--vscode-codiconFontSize, 16px);
 				height: 16px;
 				display: flex;
 				align-items: center;
@@ -358,7 +373,7 @@
 		display: flex;
 		align-items: center;
 		font-size: 11px;
-		font-weight: 500;
+		font-weight: var(--vscode-fontWeight-semiBold);
 		color: var(--vscode-descriptionForeground);
 		text-transform: uppercase;
 		/* align with session item padding */

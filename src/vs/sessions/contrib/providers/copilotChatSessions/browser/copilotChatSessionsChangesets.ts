@@ -35,7 +35,7 @@ class GitRepositoryChangesetResolver implements IChangesetResolver {
 	async resolve(firstCheckpointRef: string, lastCheckpointRef: string | undefined): Promise<IChatSessionFileChange2[] | undefined> {
 		const repositoryUri = this._repositoryUriObs.get();
 		if (!repositoryUri) {
-			return undefined;
+			return [];
 		}
 
 		const repository = await this._gitService.openRepository(repositoryUri);

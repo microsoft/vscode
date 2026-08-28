@@ -7,7 +7,7 @@ import assert from 'assert';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { collectManagedSettingsDefinitions, hasManagedSettingsDefinitions, managedSettingValue, projectManagedSettings, selectManagedSettings } from '../../common/copilotManagedSettings.js';
+import { collectManagedSettingsDefinitions, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_MODEL_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, hasManagedSettingsDefinitions, managedModelValue, managedSettingValue, projectManagedSettings, pickManagedSettings, resolveForceRemoteSettingsRefresh } from '../../common/copilotManagedSettings.js';
 import { PolicyDefinition } from '../../common/policy.js';
 
 suite('Copilot managed settings projection', () => {
@@ -74,6 +74,61 @@ suite('Copilot managed settings projection', () => {
 		);
 	});
 
+	test('managedModelValue prefers the top-level key, falls back to the legacy nested key', () => {
+		const value = managedModelValue();
+		assert.deepStrictEqual(
+			{
+				bothPresent: value({ managedSettings: { [COPILOT_TOP_LEVEL_MODEL_KEY]: 'opus', [COPILOT_MODEL_KEY]: 'gemini' } } as IPolicyData),
+				topLevelOnly: value({ managedSettings: { [COPILOT_TOP_LEVEL_MODEL_KEY]: 'opus' } } as IPolicyData),
+				legacyOnly: value({ managedSettings: { [COPILOT_MODEL_KEY]: 'gemini' } } as IPolicyData),
+				neither: value({ managedSettings: { 'other.key': 'x' } } as IPolicyData),
+				noBag: value({} as IPolicyData),
+			},
+			{ bothPresent: 'opus', topLevelOnly: 'opus', legacyOnly: 'gemini', neither: undefined, noBag: undefined },
+		);
+	});
+
+	test('managedModelValue trims values and treats a blank top-level value as unset (falls through to legacy)', () => {
+		const value = managedModelValue();
+		assert.deepStrictEqual(
+			{
+				trimsTopLevel: value({ managedSettings: { [COPILOT_TOP_LEVEL_MODEL_KEY]: '  opus  ' } } as IPolicyData),
+				trimsLegacy: value({ managedSettings: { [COPILOT_MODEL_KEY]: '  gemini  ' } } as IPolicyData),
+				blankTopLevelFallsBack: value({ managedSettings: { [COPILOT_TOP_LEVEL_MODEL_KEY]: '   ', [COPILOT_MODEL_KEY]: 'gemini' } } as IPolicyData),
+				bothBlank: value({ managedSettings: { [COPILOT_TOP_LEVEL_MODEL_KEY]: '   ', [COPILOT_MODEL_KEY]: '  ' } } as IPolicyData),
+				nonString: value({ managedSettings: { [COPILOT_TOP_LEVEL_MODEL_KEY]: 42 } } as IPolicyData),
+			},
+			{ trimsTopLevel: 'opus', trimsLegacy: 'gemini', blankTopLevelFallsBack: 'gemini', bothBlank: undefined, nonString: undefined },
+		);
+	});
+
+	test('managedModelValue returns the same memoized callback (stable reference identity)', () => {
+		assert.strictEqual(managedModelValue(), managedModelValue());
+	});
+
+	test('forceRemoteSettingsRefresh resolves across all channels and reports the winning source', () => {
+		const key = COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY;
+		assert.deepStrictEqual({
+			serverTrue: resolveForceRemoteSettingsRefresh(undefined, { [key]: true }, undefined),
+			nativeTrue: resolveForceRemoteSettingsRefresh({ [key]: true }, { [key]: false }, undefined),
+			nativeFalse: resolveForceRemoteSettingsRefresh({ [key]: false }, { [key]: true }, undefined),
+			malformedNative: resolveForceRemoteSettingsRefresh({ [key]: 'true' }, { [key]: true }, undefined),
+			fileTrue: resolveForceRemoteSettingsRefresh(undefined, undefined, { [key]: true }),
+			serverBeatsFile: resolveForceRemoteSettingsRefresh(undefined, { [key]: false }, { [key]: true }),
+			unset: resolveForceRemoteSettingsRefresh(undefined, undefined, undefined),
+		}, {
+			serverTrue: { effective: true, source: 'server' },
+			nativeTrue: { effective: true, source: 'nativeMdm' },
+			nativeFalse: { effective: false },
+			// A malformed value is treated as absent so it cannot mask a lower-precedence channel.
+			malformedNative: { effective: true, source: 'server' },
+			// The file channel participates; a native/server-only resolver ignored it.
+			fileTrue: { effective: true, source: 'file' },
+			serverBeatsFile: { effective: false },
+			unset: { effective: false },
+		});
+	});
+
 	test('projectManagedSettings keeps declared+typed keys, drops undeclared and type-mismatched', () => {
 		const projected = projectManagedSettings({
 			'permissions.disableBypassPermissionsMode': 'disable', // declared string -> kept
@@ -107,32 +162,104 @@ suite('Copilot managed settings projection', () => {
 		);
 		assert.strictEqual(warnings.length, 1);
 	});
+});
 
-	test('selectManagedSettings: server wins over native MDM and file, never merged', () => {
-		const selection = selectManagedSettings(
-			{ 'permissions.x': 'server' },
-			{ 'permissions.y': 'native' },
-			{ 'permissions.z': 'file' },
+suite('Copilot managed settings per-key precedence (pickManagedSettings)', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('distinct keys each win from their highest-precedence channel; a lower channel fills a gap the higher ones leave', () => {
+		// The headline per-key behavior: `shared` is contested by all three (native wins) while
+		// `nativeOnly`/`serverOnly`/`fileOnly` are each supplied by a single channel and all survive.
+		const pick = pickManagedSettings(
+			{ 'shared': 'native', 'nativeOnly': 'n' },
+			{ 'shared': 'server', 'serverOnly': 's' },
+			{ 'shared': 'file', 'fileOnly': 'f' },
 		);
-		assert.deepStrictEqual(selection, { source: 'server', values: { 'permissions.x': 'server' } });
+		assert.deepStrictEqual(pick.values, { 'shared': 'native', 'nativeOnly': 'n', 'serverOnly': 's', 'fileOnly': 'f' });
+		assert.deepStrictEqual(pick.activeSources, ['nativeMdm', 'server', 'file']);
+		assert.deepStrictEqual(pick.resolutions.get('shared'), {
+			value: 'native',
+			source: 'nativeMdm',
+			contributions: [
+				{ channel: 'nativeMdm', value: 'native' },
+				{ channel: 'server', value: 'server' },
+				{ channel: 'file', value: 'file' },
+			],
+		});
 	});
 
-	test('selectManagedSettings: falls through to native MDM when server is absent or empty', () => {
-		const fromUndefined = selectManagedSettings(undefined, { 'permissions.y': 'native' }, undefined);
-		const fromEmptyObject = selectManagedSettings({}, { 'permissions.y': 'native' }, undefined);
-		assert.deepStrictEqual(fromUndefined, { source: 'nativeMdm', values: { 'permissions.y': 'native' } });
-		assert.deepStrictEqual(fromEmptyObject, { source: 'nativeMdm', values: { 'permissions.y': 'native' } });
+	test('with native absent, the mid-tier server wins a contested key over file', () => {
+		const pick = pickManagedSettings(undefined, { 'k': 'server' }, { 'k': 'file' });
+		assert.deepStrictEqual(pick.resolutions.get('k'), {
+			value: 'server',
+			source: 'server',
+			contributions: [
+				{ channel: 'server', value: 'server' },
+				{ channel: 'file', value: 'file' },
+			],
+		});
+		assert.deepStrictEqual(pick.activeSources, ['server']);
 	});
 
-	test('selectManagedSettings: falls through to file when server and native MDM are absent or empty', () => {
-		const fromUndefined = selectManagedSettings(undefined, undefined, { 'permissions.z': 'file' });
-		const fromEmptyObjects = selectManagedSettings({}, {}, { 'permissions.z': 'file' });
-		assert.deepStrictEqual(fromUndefined, { source: 'file', values: { 'permissions.z': 'file' } });
-		assert.deepStrictEqual(fromEmptyObjects, { source: 'file', values: { 'permissions.z': 'file' } });
+	test('falsy-but-present values are real contributions and win over a lower channel', () => {
+		// `false`, `0` and `''` must not be mistaken for "unset" — a higher channel that sets them
+		// still locks the key against a lower channel's value.
+		const pick = pickManagedSettings(
+			{ 'flag': false, 'count': 0, 'name': '' },
+			undefined,
+			{ 'flag': true, 'count': 99, 'name': 'lower' },
+		);
+		assert.deepStrictEqual(pick.values, { 'flag': false, 'count': 0, 'name': '' });
+		assert.deepStrictEqual(pick.activeSources, ['nativeMdm']);
 	});
 
-	test('selectManagedSettings: reports `none` with no values when every channel is empty', () => {
-		assert.deepStrictEqual(selectManagedSettings(undefined, undefined, undefined), { source: 'none', values: undefined });
-		assert.deepStrictEqual(selectManagedSettings({}, {}, {}), { source: 'none', values: undefined });
+	test('an explicit `undefined` hole in a higher channel falls through to a lower channel', () => {
+		// A key present-but-undefined is skipped, so a lower channel can supply it.
+		const pick = pickManagedSettings(
+			{ 'a': undefined as unknown as string, 'b': 'native' },
+			{ 'a': 'server' },
+			undefined,
+		);
+		assert.deepStrictEqual(pick.values, { 'a': 'server', 'b': 'native' });
+		assert.strictEqual(pick.resolutions.get('a')!.source, 'server');
+	});
+
+	test('the merged bag is a fresh object, never an alias of an input channel bag', () => {
+		// AccountPolicyService projects `pick.values` directly, relying on it not aliasing/mutating a
+		// channel's bag.
+		const native = { 'a': 'native' };
+		const pick = pickManagedSettings(native, undefined, undefined);
+		assert.notStrictEqual(pick.values, native);
+		assert.deepStrictEqual(pick.values, { 'a': 'native' });
+	});
+
+	test('empty/absent channels contribute nothing and activeSources skips a non-contributing middle channel', () => {
+		assert.deepStrictEqual(
+			{
+				partial: pickManagedSettings({}, { 'b': 'server' }, undefined),
+				// native + file contribute, server does not — activeSources must skip the gap.
+				gap: pickManagedSettings({ 'x': 'n' }, undefined, { 'y': 'f' }).activeSources,
+				allUndefined: pickManagedSettings(undefined, undefined, undefined),
+				allEmpty: pickManagedSettings({}, {}, {}),
+			},
+			{
+				partial: { values: { 'b': 'server' }, resolutions: new Map([['b', { value: 'server', source: 'server', contributions: [{ channel: 'server', value: 'server' }] }]]), activeSources: ['server'] },
+				gap: ['nativeMdm', 'file'],
+				allUndefined: { values: {}, resolutions: new Map(), activeSources: [] },
+				allEmpty: { values: {}, resolutions: new Map(), activeSources: [] },
+			},
+		);
+	});
+
+	test('a malicious `__proto__` key does not pollute any prototype chain', () => {
+		// Simulates a JSON-parsed bag carrying an own `__proto__` key with an object value (the
+		// classic prototype-pollution vector). Merging it must neither pollute Object.prototype nor
+		// corrupt the returned bag's own prototype.
+		const malicious = JSON.parse('{ "__proto__": { "polluted": true } }') as Record<string, string>;
+		const pick = pickManagedSettings(malicious, undefined, undefined);
+		assert.strictEqual(({} as Record<string, unknown>).polluted, undefined);
+		assert.strictEqual(Object.prototype.hasOwnProperty.call(Object.prototype, 'polluted'), false);
+		assert.strictEqual(Object.getPrototypeOf(pick.values), Object.prototype);
 	});
 });

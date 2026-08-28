@@ -216,6 +216,13 @@ export class ChatAgentResponseStream {
 					_report(dto);
 					return this;
 				},
+				voiceProgress(id: vscode.ChatResponseVoiceProgressStage, value: string) {
+					throwIfDone(this.voiceProgress);
+					checkProposedApiEnabled(that._extension, 'chatParticipantPrivate');
+					const part = new extHostTypes.ChatResponseVoiceProgressPart(id, value);
+					_report(typeConvert.ChatResponseVoiceProgressPart.from(part));
+					return this;
+				},
 				warning(value) {
 					throwIfDone(this.progress);
 					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
@@ -399,6 +406,7 @@ export class ChatAgentResponseStream {
 						part instanceof extHostTypes.ChatResponseExternalEditPart ||
 						part instanceof extHostTypes.ChatResponseThinkingProgressPart ||
 						part instanceof extHostTypes.ChatResponsePullRequestPart ||
+						part instanceof extHostTypes.ChatResponseAutoModeResolutionPart ||
 						part instanceof extHostTypes.ChatResponseProgressPart2
 					) {
 						checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
@@ -412,6 +420,9 @@ export class ChatAgentResponseStream {
 						_report(dto, part.task);
 					} else if (part instanceof extHostTypes.ChatResponseThinkingProgressPart) {
 						const dto = typeConvert.ChatResponseThinkingProgressPart.from(part);
+						_report(dto);
+					} else if (part instanceof extHostTypes.ChatResponseAutoModeResolutionPart) {
+						const dto = typeConvert.ChatResponseAutoModeResolutionPart.from(part);
 						_report(dto);
 					} else if (part instanceof extHostTypes.ChatResponseAnchorPart) {
 						const dto = typeConvert.ChatResponseAnchorPart.from(part);
@@ -875,6 +886,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			return folders.map(folder => ({
 				uri: folder.uri,
 				label: folder.label,
+				source: folder.source,
 			} satisfies IChatSessionCustomizationSourceFolderDto));
 		} catch (err) {
 			return undefined;
@@ -1130,10 +1142,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				} else if (v.kind === 'toolset') {
 					toolReferences.push(...v.value.map(typeConvert.ChatLanguageModelToolReference.to));
 				} else {
-					const ref = typeConvert.ChatPromptReference.to(v, this.getDiagnosticsWhenEnabled(extension), this._logService);
-					if (ref) {
-						varsWithoutTools.push(ref);
-					}
+					varsWithoutTools.push(...typeConvert.ChatPromptReference.toReferences(v, this.getDiagnosticsWhenEnabled(extension), this._logService));
 				}
 			}
 

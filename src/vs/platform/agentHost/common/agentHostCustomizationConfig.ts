@@ -20,17 +20,31 @@ export const enum AgentHostConfigKey {
 	 * TODO: revisit magic key in config; refine into a dedicated typed channel. https://github.com/microsoft/vscode/issues/313812
 	 */
 	DefaultShell = 'defaultShell',
-	/** When true, Copilot SDK sessions use Agent Host's custom terminal tool override instead of the SDK's default terminal behavior. Disabled by default. */
-	EnableCustomTerminalTool = 'enableCustomTerminalTool',
-	/** When true, Copilot SDK sessions enable the rubber duck critic subagent. */
-	RubberDuck = 'rubberDuck',
 	/**
-	 * When true, Copilot SDK sessions running a Claude Opus 4.8 model apply the
-	 * Opus 4.8-tuned system-prompt section overrides on top of the SDK
-	 * foundation prompt. Opt-in; disabled by default.
+	 * Experimentation flag for conditional Agent Host auth. When true, session
+	 * types that are usable without GitHub remain available to signed-out users
+	 * instead of forcing GitHub sign-in. The workbench forwards it here from the
+	 * `chat.agentHost.allowSignedOutWhenUsable` VS Code setting; when unset the
+	 * feature is dark (today's always-proxy behavior).
 	 */
-	Opus48Prompt = 'opus48Prompt',
+	AllowSignedOutWhenUsable = 'allowSignedOutWhenUsable',
+	/** Controls whether session-scoped file customizations come from local scan or SDK discovery. */
+	SessionCustomizationDiscoveryMode = 'sessionCustomizationDiscoveryMode',
+	/**
+	 * Optional GitHub Enterprise base URI (e.g. `https://ghe.example.com` for a
+	 * GitHub Enterprise Server, or `https://tenant.ghe.com` for GitHub Enterprise
+	 * Cloud). When set, the agent host computes its GitHub protected resources and
+	 * REST/GraphQL endpoints from this base instead of github.com. Normally pushed
+	 * by the local VS Code client from the workbench `github-enterprise.uri`
+	 * setting; remote operators set it directly in the remote
+	 * `agent-host-config.json`.
+	 */
+	GithubEnterpriseUri = 'githubEnterpriseUri',
 }
+
+export const SESSION_CUSTOMIZATION_DISCOVERY_MODES = ['scan', 'discover'] as const;
+export type SessionCustomizationDiscoveryMode = typeof SESSION_CUSTOMIZATION_DISCOVERY_MODES[number];
+export const DEFAULT_SESSION_CUSTOMIZATION_DISCOVERY_MODE: SessionCustomizationDiscoveryMode = 'scan';
 
 /**
  * Persisted on-disk shape for a host-configured plugin. Kept stable across
@@ -76,23 +90,23 @@ export const agentHostCustomizationConfigSchema = createSchema({
 		title: localize('agentHost.config.defaultShell.title', "Default Shell"),
 		description: localize('agentHost.config.defaultShell.description', "Absolute path to the shell executable used by host-managed terminals. Normally pushed by the connected VS Code client from `terminal.integrated.agentHostProfile.<os>` (falling back to `terminal.integrated.defaultProfile.<os>`); when unset, the agent host falls back to the system shell. Only the path is supported; `args` and `env` from the workbench profile are not piped through yet. The workbench only pushes this for the local agent host — remote agent host operators should set this directly in the remote machine's `agent-host-config.json`."),
 	}),
-	[AgentHostConfigKey.EnableCustomTerminalTool]: schemaProperty<boolean>({
+	[AgentHostConfigKey.AllowSignedOutWhenUsable]: schemaProperty<boolean>({
 		type: 'boolean',
-		title: localize('agentHost.config.enableCustomTerminalTool.title', "Use Agent Host Terminal Tool"),
-		description: localize('agentHost.config.enableCustomTerminalTool.description', "When enabled, Copilot SDK sessions use Agent Host's terminal tool override instead of the SDK's default terminal behavior."),
+		title: localize('agentHost.config.allowSignedOutWhenUsable.title', "Allow Signed-Out Agent Host"),
+		description: localize('agentHost.config.allowSignedOutWhenUsable.description', "Experimental. When enabled, Agent Host sessions remain available while signed out as long as the selected agent has a usable model and authentication (for example Codex with ChatGPT authentication or Claude in native mode with your own Anthropic credentials). When disabled (the default), GitHub sign-in is required."),
 		default: false,
 	}),
-	[AgentHostConfigKey.RubberDuck]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.rubberDuck.title', "Rubber Duck Agent"),
-		description: localize('agentHost.config.rubberDuck.description', "When enabled, the coding agent uses a rubber duck critic subagent to review code changes using a complementary model."),
-		default: false,
+	[AgentHostConfigKey.SessionCustomizationDiscoveryMode]: schemaProperty<SessionCustomizationDiscoveryMode>({
+		type: 'string',
+		enum: [...SESSION_CUSTOMIZATION_DISCOVERY_MODES],
+		title: localize('agentHost.config.sessionCustomizationDiscoveryMode.title', "Session Customization Discovery Mode"),
+		description: localize('agentHost.config.sessionCustomizationDiscoveryMode.description', "Controls whether session-scoped customizations are populated from local file scanning or from Copilot SDK discovery."),
+		default: DEFAULT_SESSION_CUSTOMIZATION_DISCOVERY_MODE,
 	}),
-	[AgentHostConfigKey.Opus48Prompt]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.opus48Prompt.title', "Opus 4.8 Agent Prompt"),
-		description: localize('agentHost.config.opus48Prompt.description', "When enabled, Copilot SDK sessions running a Claude Opus 4.8 model apply Opus 4.8-tuned system-prompt section overrides on top of the default system message."),
-		default: false,
+	[AgentHostConfigKey.GithubEnterpriseUri]: schemaProperty<string>({
+		type: 'string',
+		title: localize('agentHost.config.githubEnterpriseUri.title', "GitHub Enterprise URI"),
+		description: localize('agentHost.config.githubEnterpriseUri.description', "Optional base URI of a GitHub Enterprise instance (for example \"https://ghe.example.com\" for GitHub Enterprise Server, or \"https://tenant.ghe.com\" for GitHub Enterprise Cloud). When set, the agent host authenticates and makes GitHub API calls against this instance instead of github.com. Normally pushed by the connected VS Code client from the `github-enterprise.uri` setting; remote agent host operators can set it directly in the remote `agent-host-config.json`."),
 	}),
 });
 
@@ -123,6 +137,5 @@ export function toContainerCustomization(entry: IPersistedCustomizationConfigEnt
 		id: customizationId(entry.uri),
 		uri: entry.uri,
 		name: entry.displayName,
-		enabled: true,
 	};
 }

@@ -5,21 +5,16 @@
 
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
-import { IAgentSessionMetadata } from '../common/agentService.js';
-import {
-	ChangesetKind,
-	parseChangesetUri,
-} from '../common/changesetUri.js';
-import { ISessionGitState } from '../common/state/sessionState.js';
-import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { IAgentSessionMetadata } from '../common/agent.js';
+import { buildBranchChangesetUri, ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
 import { ChangesetFileMonitorCoordinator } from './agentHostChangesetFileMonitorCoordinator.js';
-import { IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
-import { IAgentHostGitService } from '../common/agentHostGitService.js';
-import { AgentHostStateManager } from './agentHostStateManager.js';
-import { ILogService } from '../../log/common/log.js';
+import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChangesetService, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
+import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { isAhpChatChannel, parseSubagentSessionUri } from '../common/state/sessionState.js';
 
 /**
  * Raw metadata blob values for the session DB, batch-read by the caller.
@@ -38,7 +33,7 @@ export type IChangesetSessionMetadata = Record<string, string | undefined>;
  *
  * Owns only URI routing and forwards lifecycle signals. Subscription state is
  * recorded in the shared changeset subscription service. All computation,
- * working-directory gating, and the deferred-refresh state machine live in
+ * working-directory gating, and materialization refreshes live in
  * {@link IAgentHostChangesetService}.
  *
  * No per-session controllers — the cross-cutting concerns (listSessions
@@ -49,33 +44,29 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	private readonly _changesetFileMonitor: ChangesetFileMonitorCoordinator;
 
 	constructor(
-		private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostChangesetOperationService private readonly _changesetOperationService: IAgentHostChangesetOperationService,
 		@IAgentHostChangesetService private readonly _changesets: IAgentHostChangesetService,
 		@IAgentHostChangesetSubscriptionService private readonly _changesetSubscriptions: IAgentHostChangesetSubscriptionService,
-		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
-		@IAgentHostFileMonitorService fileMonitorService: IAgentHostFileMonitorService,
-		@IAgentHostGitService gitService: IAgentHostGitService,
-		@ILogService private readonly _logService: ILogService,
+		@IAgentHostGitStateService gitStateService: IAgentHostGitStateService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-		this._changesetFileMonitor = this._register(new ChangesetFileMonitorCoordinator(this._stateManager, this._changesets, this._configurationService, fileMonitorService, gitService, this._logService));
+
+		this._changesetFileMonitor = this._register(instantiationService.createInstance(ChangesetFileMonitorCoordinator));
+		this._register(gitStateService.onDidRefreshSessionGitState(sessionStr => this.onDidRunSessionGitStateRefresh(sessionStr)));
+		this._register(gitStateService.onDidChangeSessionGitHubState(sessionStr => this._changesetOperationService.updateOperations(sessionStr)));
+		this._register(this._stateManager.onDidChangeSessionWorkingDirectories(({ session }) => this.onDidChangeSessionWorkingDirectories(session)));
 	}
 
 	// ---- Lifecycle hooks ----------------------------------------------------
 
 	/**
-	 * Called at session create time. Registers the static changeset URIs
-	 * on the state manager so client subscriptions resolve to a
-	 * `status: computing` snapshot before the first compute pass.
-	 *
-	 * The catalogue summary (`summary.changesets`) is seeded synchronously
-	 * by `_buildInitialSummary` in {@link AgentService} via
-	 * {@link buildDefaultChangesetCatalogue}; this method only registers
-	 * the backing per-changeset state. Both halves run before
-	 * `SessionReady` is dispatched.
+	 * Seeds the create-time catalogue and registers its backing changeset state
+	 * before `SessionReady` is dispatched.
 	 */
 	onSessionCreated(sessionStr: string): void {
+		this._changesets.refreshChangesetCatalog(sessionStr);
 		this._changesets.registerStaticChangesets(sessionStr);
 	}
 
@@ -87,51 +78,31 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	 * keys.
 	 */
 	onSessionRestored(sessionStr: string, metadata: IChangesetSessionMetadata): void {
+		this._changesets.refreshChangesetCatalog(sessionStr);
 		this._changesets.registerStaticChangesets(sessionStr);
 		this._changesets.restorePersistedStaticChangesets(sessionStr, {
 			branchRaw: metadata[META_CHANGESET_BRANCH],
 			sessionRaw: metadata[META_CHANGESET_SESSION],
 			legacyRaw: metadata[META_LEGACY_DIFFS],
 		});
-		// `addSubscriber`'s 0→1 trigger may have fired before the session
-		// state existed; now that `summary.workingDirectory` is populated,
-		// drain the deferred refresh.
+		// Recompute the current subscriptions now that the restored working
+		// directory is available.
 		this._changesets.onWorkingDirectoryAvailable(sessionStr);
 		this._changesetFileMonitor.onSessionRestored(sessionStr);
 	}
 
 	/**
 	 * Called when a provisional session is materialized (working directory
-	 * becomes known). Drains any static changeset refresh that was deferred
-	 * because the working directory was not yet known.
+	 * becomes known). Recomputes every current changeset subscription.
 	 */
 	onSessionMaterialized(sessionStr: string): void {
+		this._changesets.refreshChangesetCatalog(sessionStr);
 		this._changesets.onWorkingDirectoryAvailable(sessionStr);
+
 		this._changesetFileMonitor.onSessionMaterialized(sessionStr);
 	}
 
-	/**
-	 * Called after `_meta.git` is attached or updated. Git state can provide
-	 * the base branch used by Branch Changes and fresh uncommitted counts, so
-	 * refresh both static changesets once the session has a working directory.
-	 */
-	onSessionGitStateChanged(sessionStr: string, gitState: ISessionGitState): void {
-		// Git state can provide the base branch used by Branch Changes and
-		// fresh uncommitted counts; recompute every changeset currently
-		// subscribed for the session (the service reads the exposed
-		// subscription list).
-		this._changesets.recomputeSubscribedChangesets(sessionStr);
-
-		// Update the operations for all subscribed changesets
-		this._changesetOperationService.updateOperations(sessionStr, undefined, gitState);
-	}
-
-	/**
-	 * Called when a session is disposed. Forgets any pending refresh
-	 * queued for that session.
-	 */
 	onSessionDisposed(sessionStr: string): void {
-		this._changesets.onSessionDisposed(sessionStr);
 		this._changesetFileMonitor.onSessionDisposed(sessionStr);
 
 		this._changesetSubscriptions.clearSessionSubscriptions(sessionStr);
@@ -151,7 +122,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	/**
 	 * Called on every `addSubscriber` 0→1 transition. When `resource` is a
 	 * static changeset URI, triggers the first git-diff refresh (the
-	 * changeset service self-defers it when the working directory is not yet
+	 * changeset service skips it when the working directory is not yet
 	 * known).
 	 *
 	 * Both {@link AgentService.subscribe} and the handshake fast-path
@@ -162,27 +133,39 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		const resourceStr = resource.toString();
 		const parsed = parseChangesetUri(resourceStr);
 
+		if (!parsed && !isAhpChatChannel(resourceStr) && this._stateManager.getSessionState(resourceStr)) {
+			// For the session URI, we add a subscription for the branch
+			// changeset since this is the changeset that is being used to
+			// track the changes that are being used to calculate the diff
+			// statistics for the session changes.
+			this._addSubscription(resourceStr, buildBranchChangesetUri(resourceStr));
+			this._changesets.refreshBranchChangeset(resourceStr);
+			this._changesetFileMonitor.trackSessionChanges(resourceStr, resourceStr);
+
+			return;
+		}
+
 		if (parsed?.kind === ChangesetKind.Branch) {
 			this._addSubscription(parsed.sessionUri, resourceStr);
 			this._changesets.refreshBranchChangeset(parsed.sessionUri);
-			this._changesetOperationService.updateOperations(parsed.sessionUri, resourceStr);
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
 			return;
 		}
+
 		if (parsed?.kind === ChangesetKind.Uncommitted) {
 			this._addSubscription(parsed.sessionUri, resourceStr);
 			void this._changesets.computeUncommittedChangeset(parsed.sessionUri);
-			this._changesetOperationService.updateOperations(parsed.sessionUri, resourceStr);
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
 			return;
 		}
+
 		if (parsed?.kind === ChangesetKind.Session) {
 			this._addSubscription(parsed.sessionUri, resourceStr);
 			this._changesets.refreshSessionChangeset(parsed.sessionUri);
-			this._changesetOperationService.updateOperations(parsed.sessionUri, resourceStr);
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
 			return;
 		}
+
 		if (parsed?.kind === ChangesetKind.Turn && parsed.turnId !== undefined) {
 			// Track the new subscriber so the service's per-turn recompute
 			// gating starts including this turn. The initial snapshot is
@@ -191,19 +174,6 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			// `onTurnComplete` once we've added this turn id here.
 			this._addSubscription(parsed.sessionUri, resourceStr);
 			return;
-		}
-		if (!parsed && this._stateManager.getSessionState(resourceStr)) {
-			// Plain session-URI subscription (Agents Window list / detail
-			// observing the session). Track the session URI itself as a
-			// subscription marker so a later git-state change /
-			// materialization recompute (driven from the exposed
-			// subscription list) re-refreshes the static changesets, then
-			// refresh both now so the catalogue chip doesn't show a stale
-			// value just because no turn has run since process start.
-			this._addSubscription(resourceStr, resourceStr);
-			this._changesets.refreshBranchChangeset(resourceStr);
-			this._changesets.refreshSessionChangeset(resourceStr);
-			this._changesetFileMonitor.trackSessionChanges(resourceStr, resourceStr);
 		}
 	}
 
@@ -293,7 +263,6 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		await this.restoreSessionIfChangesetSubscription(resource, restoreSession);
 		if (parsed.kind === ChangesetKind.Turn && parsed.turnId) {
 			await this._changesets.computeTurnChangeset(parsed.sessionUri, parsed.turnId);
-			this._changesetOperationService.updateOperations(parsed.sessionUri, resourceStr);
 		} else if (parsed.kind === ChangesetKind.Compare && parsed.originalTurnId && parsed.modifiedTurnId) {
 			// Compare-turns is computed once on subscribe. Both turns are
 			// typically historical so the snapshot doesn't need to track
@@ -340,5 +309,52 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	decorateListEntry(entry: IAgentSessionMetadata, metadata: IChangesetSessionMetadata): IAgentSessionMetadata {
 		const changes = this._changesets.computeListEntryChanges(entry.session.toString(), metadata);
 		return changes ? { ...entry, changes } : entry;
+	}
+
+	// ---- Git state  events -------------------------------------------------
+
+	/**
+	 * Called when a session's Git state is refreshed.
+	 */
+	private onDidRunSessionGitStateRefresh(sessionStr: string): void {
+		// Refresh the list of changesets for the session.
+		this._changesets.refreshChangesetCatalog(sessionStr);
+
+		// Git state has been refreshed so we need to recompute every
+		// changeset currently subscribed for the session (the service
+		// reads the exposed subscription list).
+		this._changesets.recomputeSubscribedChangesets(sessionStr);
+	}
+
+	/**
+	 * Called when a session's effective working-directory set changes (a root
+	 * was added or removed, e.g. in the Editor Window). Multi-root suppression
+	 * of `turn` / `compare-turns` operations depends on this set, so recompute
+	 * operations for every subscribed changeset: `getOperations` re-applies the
+	 * guard, so those changesets drop to empty when the session becomes
+	 * multi-root and regain their operations when it returns to single-root.
+	 *
+	 * Subagent sessions inherit the parent's working directories
+	 * (`getEffectiveWorkingDirectories`), so a parent change flips their
+	 * multi-root state too. Refresh their operations as well, keeping the
+	 * advertised operations consistent with the invoke-time suppression (which
+	 * already uses the inherited set). `updateOperations` only dispatches for
+	 * subscribed changesets, so refreshing subagents without subscriptions is a
+	 * no-op.
+	 *
+	 * The changed set also determines which repository roots are watched for
+	 * external edits, so re-attach the file monitor for the session (and its
+	 * inheriting subagents) — otherwise a folder added or removed mid-session
+	 * would not start/stop being watched until an unrelated lifecycle event.
+	 */
+	private onDidChangeSessionWorkingDirectories(sessionStr: string): void {
+		this._changesetOperationService.updateOperations(sessionStr);
+		this._changesetFileMonitor.onSessionWorkingDirectoriesChanged(sessionStr);
+		for (const candidate of this._stateManager.getSessionUris()) {
+			if (parseSubagentSessionUri(candidate)?.parentSession.toString() === sessionStr) {
+				this._changesetOperationService.updateOperations(candidate);
+				this._changesetFileMonitor.onSessionWorkingDirectoriesChanged(candidate);
+			}
+		}
 	}
 }

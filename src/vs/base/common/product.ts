@@ -5,7 +5,7 @@
 
 import { IStringDictionary } from './collections.js';
 import { PlatformName } from './platform.js';
-import { IPolicy } from './policy.js';
+import { IExtensionConfigurationPolicyReference, IPolicy } from './policy.js';
 
 export interface IBuiltInExtension {
 	readonly name: string;
@@ -83,6 +83,19 @@ export interface IAgentSdkProductConfig {
 	readonly urlTemplate: string;
 }
 
+/**
+ * Configuration for downloading the on-device dictation native runtime (the
+ * Foundry Local addon + core libraries) on demand. Produced per platform build
+ * and stamped by `build/dictation-runtime/produce.ts`; consumed by
+ * `foundryLocalRuntime.ts`, which substitutes `{target}` in `urlTemplate`
+ * against the host's `<platform>-<arch>` key. Absent in local dev builds, in
+ * which case the runtime falls back to the SDK's own `node_modules` payload.
+ */
+export interface IDictationRuntimeProductConfig {
+	readonly version: string;
+	readonly urlTemplate: string;
+}
+
 export interface IProductConfiguration {
 	readonly version: string;
 	readonly date?: string;
@@ -138,6 +151,13 @@ export interface IProductConfiguration {
 	};
 
 	readonly agentSdks?: { readonly [packageId: string]: IAgentSdkProductConfig };
+
+	readonly copilotVersions?: {
+		readonly runtime: string;
+		readonly sdk: string;
+	};
+
+	readonly dictationRuntime?: IDictationRuntimeProductConfig;
 
 	readonly mcpGallery?: {
 		readonly serviceUrl: string;
@@ -257,7 +277,14 @@ export interface IProductConfiguration {
 
 	readonly remoteDefaultExtensionsIfInstalledLocally?: string[];
 
-	readonly extensionConfigurationPolicy?: IStringDictionary<IPolicy>;
+	/**
+	 * Maps an extension-contributed setting key to either a full enterprise {@link IPolicy}
+	 * (the setting owns/"parents" the policy — the original syntax) or an
+	 * {@link IExtensionConfigurationPolicyReference} (`{ policyReference: { name } }`), attaching the
+	 * setting to a policy owned by an in-code setting. References let a `product.json`-provided
+	 * setting be governed by a policy whose `value` callback — which JSON cannot carry — lives in code.
+	 */
+	readonly extensionConfigurationPolicy?: IStringDictionary<IPolicy | IExtensionConfigurationPolicyReference>;
 
 	readonly onboardingKeymaps?: readonly IProductOnboardingKeymap[];
 	readonly onboardingThemes?: readonly IProductOnboardingTheme[];
@@ -400,6 +427,7 @@ export interface IDefaultChatAgent {
 
 	readonly documentationUrl: string;
 	readonly skusDocumentationUrl: string;
+	readonly optimizeUsageDocumentationUrl: string;
 	readonly publicCodeMatchesUrl: string;
 	readonly managePlanUrl: string;
 	readonly upgradePlanUrl: string;
@@ -412,6 +440,7 @@ export interface IDefaultChatAgent {
 		enterprise: { id: string; name: string };
 		google: { id: string; name: string };
 		apple: { id: string; name: string };
+		microsoft: { id: string; name: string };
 	};
 
 	readonly providerExtensionId: string;

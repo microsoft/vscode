@@ -4,30 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { SectionOverride, SystemMessageConfig, SystemMessageSection } from '@github/copilot-sdk';
-import { agentHostCustomizationConfigSchema } from '../../../common/agentHostCustomizationConfig.js';
+import { copilotCliConfigSchema } from '../../../common/copilotCliConfig.js';
 import type { SchemaValue } from '../../../common/agentHostSchema.js';
 import type { ModelSelection } from '../../../common/state/protocol/state.js';
-import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, fullSystemPrompt, sectionOverrides } from './systemMessage.js';
-import { resolveToolInstructionsOverride } from './toolInstructions.js';
+import { appendSystemMessageContent, COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS, COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS, COPILOT_AGENT_HOST_SYSTEM_MESSAGE, fullSystemPrompt, sectionOverrides, withDefaultSections } from './systemMessage.js';
+import { resolveToolInstructionsOverride, toolSearchInstructionLines, universalToolInstructions, type IToolInstructionContext } from './toolInstructions.js';
 
-type CustomizationConfigDefinition = typeof agentHostCustomizationConfigSchema.definition;
+type CopilotCliConfigDefinition = typeof copilotCliConfigSchema.definition;
 
 /**
  * Read-time context handed to prompt contributors so they can gate behavior on
  * host configuration — the agent-host equivalent of the Copilot extension
  * injecting `IConfigurationService` into a resolver.
  *
- * Scoped to the host customization schema so contributors (and tests) read
+ * Scoped to the Copilot CLI config schema so contributors (and tests) read
  * settings in a fully-typed way without depending on the whole configuration
  * service.
  */
 export interface IAgentHostPromptContext {
 	/**
-	 * Returns the host-level value for a customization setting, or `undefined`
+	 * Returns the host-level value for a Copilot CLI setting, or `undefined`
 	 * when unset. Mirrors `IAgentConfigurationService.getRootValue` bound to
-	 * {@link agentHostCustomizationConfigSchema}.
+	 * {@link copilotCliConfigSchema}.
 	 */
-	getSetting<K extends keyof CustomizationConfigDefinition & string>(key: K): SchemaValue<CustomizationConfigDefinition[K]> | undefined;
+	getSetting<K extends keyof CopilotCliConfigDefinition & string>(key: K): SchemaValue<CopilotCliConfigDefinition[K]> | undefined;
 
 	/**
 	 * Returns whether a *client* tool is available in the session, addressed by
@@ -41,8 +41,23 @@ export interface IAgentHostPromptContext {
 	 * session snapshot at launch (MCP is discovered dynamically). A line that
 	 * gates on one of those names silently resolves to `false`; broadening this
 	 * is the context-enrichment follow-up.
+	 *
+	 * A tool removed by the per-model `availableTools`/`excludedTools` filters
+	 * reads as absent, so gated lines never advertise a disabled tool.
 	 */
 	hasClientTool(name: string): boolean;
+
+	/** Whether deferred tool search is active for this session. */
+	toolSearchActive: boolean;
+
+	/**
+	 * Whether this is a workspace-less session. When `true`, the
+	 * resolved system message gets a scratch/repoless section (see
+	 * {@link COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS}) telling the agent its
+	 * working directory is a scratch dir, not a code repo. Set by the launcher
+	 * from the session's `workspaceless` marker.
+	 */
+	workspaceless: boolean;
 }
 
 /**
@@ -59,7 +74,8 @@ export interface IAgentHostPromptContext {
 export interface IAgentHostPrompt {
 	/**
 	 * Full system-prompt override. Resolved into `{ mode: 'replace' }`, which
-	 * drops the SDK foundation prompt and its guardrails.
+	 * drops the SDK foundation prompt and its guardrails; the registry still
+	 * appends the universal layers after the replacement content.
 	 */
 	resolveFullSystemPrompt?(model: ModelSelection, context: IAgentHostPromptContext): string | undefined;
 
@@ -125,10 +141,10 @@ export class AgentHostPromptRegistry {
 	}
 
 	/**
-	 * Resolves the {@link SystemMessageConfig} for a session's model: the
-	 * per-model (or default) config from {@link _resolveModelConfig}, with the
-	 * model-agnostic section overrides from {@link _withUniversalSections}
-	 * layered on top.
+	 * The per-model (or default) config with the universal layers on top. Those
+	 * layers apply to every mode, including a full `replace` prompt (appended
+	 * after its content), so a replacement owns the prompt body but not the
+	 * host's plumbing.
 	 *
 	 * Lifetime: the SDK accepts a system message only at session create/resume
 	 * (there is no mid-session update), so this is resolved once per (re)launch
@@ -138,7 +154,9 @@ export class AgentHostPromptRegistry {
 	 * turn keeps the prompt it launched with.
 	 */
 	resolveSystemMessageConfig(model: ModelSelection | undefined, context: IAgentHostPromptContext): SystemMessageConfig {
-		return this._withUniversalSections(this._resolveModelConfig(model, context), context);
+		const config = this._withUniversalSections(this._resolveModelConfig(model, context), context);
+		const withWorkspacelessScratch = this._withWorkspacelessScratch(config, context);
+		return appendSystemMessageContent(withWorkspacelessScratch, COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS);
 	}
 
 	/**
@@ -164,41 +182,47 @@ export class AgentHostPromptRegistry {
 			return fullSystemPrompt(fullPrompt);
 		}
 		const sections = contributor.resolveSectionOverrides?.(model, context);
-		// An empty overrides object is treated as "no override" so we keep the
-		// default identity customization rather than emitting a
-		// `{ mode: 'customize', sections: {} }` that drops it.
+		// Composed OVER the defaults, so a contributor only overrides what it names.
 		if (sections && Object.keys(sections).length > 0) {
-			return sectionOverrides(sections);
+			return withDefaultSections(sectionOverrides(sections));
 		}
 		return COPILOT_AGENT_HOST_SYSTEM_MESSAGE;
 	}
 
 	/**
-	 * Layers section overrides that apply to EVERY model on top of the per-model
-	 * (or default) config. Currently this is only the `tool_instructions` section
-	 * (see {@link resolveToolInstructionsOverride}), which the agent host wants
-	 * for all models rather than gating per-model like the Opus prompt.
-	 *
-	 * Only `customize`-mode configs carry section overrides, so this is a no-op
-	 * for a contributor's full `replace` prompt (which owns the entire system
-	 * message and intentionally drops the SDK foundation) and for `append` mode.
-	 * A `replace` contributor that wants the universal guidance re-includes it
-	 * itself by rendering `universalToolInstructions` (in `toolInstructions.ts`)
-	 * from its `resolveFullSystemPrompt`, mirroring how the extension's full-prompt
-	 * models inline the same lines.
-	 *
-	 * A per-model `tool_instructions` override is composed with — not overwritten
-	 * by — the universal lines (see {@link resolveToolInstructionsOverride}).
+	 * Layers the tool instructions that apply to EVERY model over the base config.
+	 * A `customize` config composes them into its `tool_instructions` section
+	 * rather than being overwritten by them; a `replace` prompt has no sections,
+	 * so they are appended after its content instead of being silently lost.
 	 */
 	private _withUniversalSections(config: SystemMessageConfig, context: IAgentHostPromptContext): SystemMessageConfig {
+		const lineContext: IToolInstructionContext = {
+			hasTool: name => context.hasClientTool(name),
+			getSetting: key => context.getSetting(key),
+		};
+		if (config.mode === 'replace') {
+			const lines = universalToolInstructions(lineContext, toolSearchInstructionLines(context.toolSearchActive));
+			return lines ? appendSystemMessageContent(config, lines) : config;
+		}
 		if (config.mode !== 'customize') {
 			return config;
 		}
-		const toolInstructions = resolveToolInstructionsOverride(name => context.hasClientTool(name), config.sections?.tool_instructions);
+		const toolInstructions = resolveToolInstructionsOverride(lineContext, config.sections?.tool_instructions, toolSearchInstructionLines(context.toolSearchActive));
 		if (!toolInstructions) {
 			return config;
 		}
 		return { ...config, sections: { ...config.sections, tool_instructions: toolInstructions } };
+	}
+
+	/**
+	 * Appends the scratch/repoless guidance as trailing `content`, so it composes
+	 * on top of whatever the base config carries — including a `replace` prompt.
+	 */
+	private _withWorkspacelessScratch(config: SystemMessageConfig, context: IAgentHostPromptContext): SystemMessageConfig {
+		if (!context.workspaceless) {
+			return config;
+		}
+		return appendSystemMessageContent(config, COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS);
 	}
 }
 

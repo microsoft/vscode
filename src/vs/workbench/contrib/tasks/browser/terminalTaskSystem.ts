@@ -845,6 +845,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			return Promise.reject(new Error('No task previously run'));
 		}
 		const workspaceFolder = this._currentTask.workspaceFolder = lastTask.workspaceFolder;
+		// Carry systemInfo forward, else a later rerun resolves the shell on the local host (#175118).
+		this._currentTask.systemInfo = lastTask.systemInfo;
 		const variables = new Set<string>();
 		this._collectTaskVariables(variables, task);
 

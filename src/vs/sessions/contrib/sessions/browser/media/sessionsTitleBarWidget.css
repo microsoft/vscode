@@ -30,7 +30,7 @@
 	-webkit-app-region: no-drag;
 	overflow: hidden;
 	color: var(--vscode-commandCenter-foreground);
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 	gap: 6px;
 	cursor: default;
 	opacity: 1;
@@ -46,7 +46,7 @@
 /* Session pill - clickable area for session picker, fills the command center box */
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-pill {
 	display: flex;
-	justify-content: space-around;
+	justify-content: flex-start;
 	align-items: center;
 	flex: 1 1 auto;
 	padding: 0 8px;
@@ -64,51 +64,39 @@
 	outline-offset: -1px;
 }
 
-/* Center group: icon + label + folder */
+/* Center group: workspace icon and folder */
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-center {
 	display: flex;
 	align-items: center;
-	gap: 6px;
+	gap: 0;
+	height: 100%;
 	min-width: 0;
 	justify-content: flex-start;
 	cursor: pointer;
 	overflow: hidden;
 }
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-icon {
+/* Workspace name shown beside its icon. */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-workspace {
 	display: flex;
 	align-items: center;
-	flex-shrink: 0;
-	font-size: 14px;
-}
-
-/* Session title - primary label in the command center box. */
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-title {
 	flex: 0 1 auto;
+	height: 100%;
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
-/* Workspace name - secondary, dimmed label shown after the session title.
-	It must not be cropped: when space is tight the session title truncates
-	first while the workspace name stays fully visible. */
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-workspace {
-	flex: 0 0 auto;
-	white-space: nowrap;
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-workspace-icon {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	height: 100%;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .command-center > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item:not(.disabled) > .action-label {
 	color: var(--vscode-icon-foreground);
-}
-
-/* Separator between the session title and the workspace name. */
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-separator {
-	flex-shrink: 0;
-
-	&::before {
-		content: '\00B7';
-	}
 }
 
 /* Sidebar toggle unread badge */
@@ -126,7 +114,7 @@
 	padding: 0 4px;
 	box-sizing: border-box;
 	font-size: 9px;
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	font-variant-numeric: tabular-nums;
 	text-align: center;
 	border-radius: var(--vscode-cornerRadius-small);
@@ -139,4 +127,33 @@
 	.command-center .agent-sessions-titlebar-container {
 		transition: none;
 	}
+}
+
+/* Approved state: a transient green confirmation shown after the user approves
+	one or more sessions' pending actions from the sessions list. It stays
+	clickable (activating whatever the underlying state would do). */
+.command-center .agent-sessions-titlebar-container.agent-sessions-titlebar-approved {
+	color: var(--vscode-charts-green);
+	border-color: var(--vscode-charts-green);
+	background-color: color-mix(in srgb, var(--vscode-charts-green) 14%, transparent);
+}
+
+.command-center .agent-sessions-titlebar-container.agent-sessions-titlebar-approved:hover {
+	color: var(--vscode-charts-green);
+	border-color: var(--vscode-charts-green);
+	background-color: color-mix(in srgb, var(--vscode-charts-green) 22%, transparent);
+}
+
+.command-center .agent-sessions-titlebar-container.agent-sessions-titlebar-approved .agent-sessions-titlebar-pill {
+	opacity: 1;
+	justify-content: center;
+}
+
+.command-center .agent-sessions-titlebar-approved-label {
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-weight: var(--vscode-fontWeight-semiBold);
 }

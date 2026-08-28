@@ -43,6 +43,7 @@ static LISTENING_PORT_RE: LazyLock<Regex> =
 	LazyLock::new(|| Regex::new(r"Extension host agent listening on (.+)").unwrap());
 static WEB_UI_RE: LazyLock<Regex> =
 	LazyLock::new(|| Regex::new(r"Web UI available at (.+)").unwrap());
+const AGENT_HOST_BRIDGE_CONNECTION_TOKEN_ENV: &str = "VSCODE_AGENT_HOST_BRIDGE_CONNECTION_TOKEN";
 
 #[derive(Clone, Debug, Default)]
 pub struct CodeServerArgs {
@@ -172,11 +173,17 @@ impl CodeServerArgs {
 			if let Some(host) = &self.agent_host_bridge_host {
 				args.push(format!("--agent-host-bridge-host={host}"));
 			}
-			if let Some(token) = &self.agent_host_bridge_connection_token {
-				args.push(format!("--agent-host-bridge-connection-token={token}"));
-			}
 		}
 		args
+	}
+
+	fn apply_to_command(&self, command: &mut Command) {
+		command.args(self.command_arguments());
+		if self.agent_host_bridge_port.is_some() {
+			if let Some(token) = &self.agent_host_bridge_connection_token {
+				command.env(AGENT_HOST_BRIDGE_CONNECTION_TOKEN_ENV, token);
+			}
+		}
 	}
 }
 
@@ -630,7 +637,11 @@ impl<'a> ServerBuilder<'a> {
 	async fn spawn_server_process(&self, mut cmd: Command) -> Result<Child, AnyError> {
 		info!(self.logger, "Starting server...");
 
-		debug!(self.logger, "Starting server with command... {:?}", cmd);
+		debug!(
+			self.logger,
+			"Starting server process: {:?}",
+			cmd.as_std().get_program()
+		);
 
 		// On Windows spawning a code-server binary will run cmd.exe /c C:\path\to\code-server.cmd...
 		// This spawns a cmd.exe window for the user, which if they close will kill the code-server process
@@ -688,8 +699,10 @@ impl<'a> ServerBuilder<'a> {
 
 	fn get_base_command(&self) -> Command {
 		let mut cmd = new_script_command(&self.server_paths.executable);
-		cmd.stdin(std::process::Stdio::null())
-			.args(self.server_params.code_server_args.command_arguments());
+		cmd.stdin(std::process::Stdio::null());
+		self.server_params
+			.code_server_args
+			.apply_to_command(&mut cmd);
 		cmd
 	}
 }
@@ -846,15 +859,7 @@ fn parse_port_from(text: &str) -> Option<u16> {
 	})
 }
 
-pub fn print_listening(log: &log::Logger, tunnel_name: &str) {
-	use crate::commands::output;
-	use console::style;
-
-	debug!(
-		log,
-		"{} is listening for incoming connections", QUALITYLESS_SERVER_NAME
-	);
-
+pub fn get_tunnel_web_url(tunnel_name: &str) -> Option<url::Url> {
 	let home_dir = dirs::home_dir().unwrap_or_else(|| PathBuf::from(""));
 	let current_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from(""));
 
@@ -864,10 +869,7 @@ pub fn print_listening(log: &log::Logger, tunnel_name: &str) {
 		current_dir
 	};
 
-	let base_web_url = match EDITOR_WEB_URL {
-		Some(u) => u,
-		None => return,
-	};
+	let base_web_url = EDITOR_WEB_URL?;
 
 	let mut addr = url::Url::parse(base_web_url).unwrap();
 	{
@@ -882,6 +884,26 @@ pub fn print_listening(log: &log::Logger, tunnel_name: &str) {
 		}
 	}
 
+	Some(addr)
+}
+
+/// Prints the tunnel's ready banner. `show_editor_link` must be `false` for a
+/// tunnel that does not serve the control port (`--agent-host-only`): the
+/// editor URL would 404, since nothing is listening behind it.
+pub fn print_listening(log: &log::Logger, tunnel_name: &str, show_editor_link: bool) {
+	use crate::commands::output;
+	use console::style;
+
+	debug!(
+		log,
+		"{} is listening for incoming connections", QUALITYLESS_SERVER_NAME
+	);
+
+	let addr = match get_tunnel_web_url(tunnel_name) {
+		Some(addr) => addr,
+		None => return,
+	};
+
 	let arrow = style("➜").green().bold();
 	let product = QUALITYLESS_PRODUCT_NAME;
 	let version = crate::constants::VSCODE_CLI_VERSION.unwrap_or("dev");
@@ -894,12 +916,14 @@ pub fn print_listening(log: &log::Logger, tunnel_name: &str) {
 	);
 	println!();
 	output::print_banner_line("Tunnel", tunnel_name);
-	println!(
-		"  {}  {}  {}",
-		arrow,
-		style("Open:").bold(),
-		style(&addr).cyan(),
-	);
+	if show_editor_link {
+		println!(
+			"  {}  {}  {}",
+			arrow,
+			style("Open:").bold(),
+			style(&addr).cyan(),
+		);
+	}
 	output::print_banner_footer();
 }
 
@@ -947,4 +971,48 @@ async fn get_should_use_breakaway_from_job() -> bool {
 	);
 
 	cmd.args(["/C", "echo ok"]).output().await.is_ok()
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn agent_host_bridge_connection_token_is_only_in_command_environment() {
+		let args = CodeServerArgs {
+			agent_host_bridge_host: Some("127.0.0.1".to_string()),
+			agent_host_bridge_port: Some(9000),
+			agent_host_bridge_connection_token: Some("secret-token".to_string()),
+			..Default::default()
+		};
+		let mut command = Command::new("code-server");
+		args.apply_to_command(&mut command);
+		let command = command.as_std();
+
+		assert_eq!(
+			(
+				command
+					.get_args()
+					.map(|argument| argument.to_string_lossy().into_owned())
+					.collect::<Vec<_>>(),
+				command
+					.get_envs()
+					.map(|(name, value)| (
+						name.to_string_lossy().into_owned(),
+						value.map(|value| value.to_string_lossy().into_owned())
+					))
+					.collect::<Vec<_>>(),
+			),
+			(
+				vec![
+					"--agent-host-bridge-port=9000".to_string(),
+					"--agent-host-bridge-host=127.0.0.1".to_string(),
+				],
+				vec![(
+					AGENT_HOST_BRIDGE_CONNECTION_TOKEN_ENV.to_string(),
+					Some("secret-token".to_string()),
+				)],
+			)
+		);
+	}
 }

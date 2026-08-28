@@ -7,8 +7,12 @@ import { assert, describe, expect, it, suite, test } from 'vitest';
 import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/documentId';
 import { Edits } from '../../../../platform/inlineEdits/common/dataTypes/edit';
 import { LanguageId } from '../../../../platform/inlineEdits/common/dataTypes/languageId';
-import { AggressivenessLevel, CurrentFileOptions, DEFAULT_OPTIONS, GlobalBudgetOptions, IncludeLineNumbersOption, PromptingStrategy, PromptOptions } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { AggressivenessLevel, CurrentFileOptions, DEFAULT_OPTIONS, GlobalBudgetOptions, IncludeLineNumbersOption, PromptingStrategy, PromptOptions, RejectedEditsMemoryMode } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { LanguageContextResponse } from '../../../../platform/inlineEdits/common/dataTypes/languageContext';
+import { PromptSectionTokenCounts } from '../../../../platform/inlineEdits/common/dataTypes/promptSectionTokens';
+import { ContextKind } from '../../../../platform/languageServer/common/languageContextService';
 import { StatelessNextEditDocument } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
+import { IXtabHistoryRejectedEditEntry } from '../../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
 import { TestLanguageDiagnosticsService } from '../../../../platform/languages/common/testLanguageDiagnosticsService';
 import { Result } from '../../../../util/common/result';
 import { LineEdit } from '../../../../util/vs/editor/common/core/edits/lineEdit';
@@ -16,8 +20,9 @@ import { StringEdit } from '../../../../util/vs/editor/common/core/edits/stringE
 import { Position } from '../../../../util/vs/editor/common/core/position';
 import { OffsetRange } from '../../../../util/vs/editor/common/core/ranges/offsetRange';
 import { StringText } from '../../../../util/vs/editor/common/core/text/abstractText';
+import { Uri } from '../../../../vscodeTypes';
 import { LintErrors } from '../../common/lintErrors';
-import { constructTaggedFile, createTaggedCurrentFileContentUsingPagedClipping, expandRangeToPageRange, getUserPrompt, PromptPieces } from '../../common/promptCrafting';
+import { constructTaggedFile, createTaggedCurrentFileContentUsingPagedClipping, expandRangeToPageRange, getUserPrompt, PromptPieces, runGlobalBudgetCascade } from '../../common/promptCrafting';
 import { PromptTags } from '../../common/tags';
 import { CurrentDocument } from '../../common/xtabCurrentDocument';
 
@@ -609,7 +614,9 @@ describe('getUserPrompt', () => {
 		strategy: PromptingStrategy | undefined;
 		includeLineNumbers?: IncludeLineNumbersOption;
 		includePostScript?: boolean;
+		eagernessPrompt?: 'aggressionHighLow';
 		aggressivenessLevel?: AggressivenessLevel;
+		rejectedEditsMemory?: RejectedEditsMemoryMode;
 	}): PromptPieces {
 		const currentDocLines = ['function foo() {', '  const x = 1;', '  return x;', '}', ''];
 		const docText = new StringText(currentDocLines.join('\n'));
@@ -629,13 +636,21 @@ describe('getUserPrompt', () => {
 		const promptOptions: PromptOptions = {
 			...DEFAULT_OPTIONS,
 			promptingStrategy: opts.strategy,
+			eagernessPrompt: opts.eagernessPrompt,
 			...(opts.includePostScript !== undefined ? { includePostScript: opts.includePostScript } : {}),
+			...(opts.rejectedEditsMemory !== undefined ? { memory: { rejectedEdits: opts.rejectedEditsMemory } } : {}),
 			currentFile: {
 				...DEFAULT_OPTIONS.currentFile,
 				maxTokens: 10000,
 				...(opts.includeLineNumbers !== undefined ? { includeLineNumbers: opts.includeLineNumbers } : {}),
 			},
 		};
+		const rejectedEditHistory: IXtabHistoryRejectedEditEntry[] = [{
+			kind: 'rejectedEdit',
+			docId: documentId,
+			hunks: [{ startLineNumber: 1, oldLines: ['  const x = 1;'], newLines: ['  const x = 2;'] }],
+			ordinal: 0,
+		}];
 
 		return new PromptPieces(
 			currentDocument,
@@ -650,6 +665,9 @@ describe('getUserPrompt', () => {
 			new LintErrors(documentId, currentDocument, new TestLanguageDiagnosticsService()),
 			s => Math.ceil(s.length / 4),
 			promptOptions,
+			rejectedEditHistory,
+			undefined,
+			undefined,
 		);
 	}
 
@@ -674,6 +692,48 @@ describe('getUserPrompt', () => {
 
 		// Includes postscript (includePostScript defaults to true)
 		expect(prompt).toContain('developer was working on a section of code');
+		expect(prompt).not.toContain('<|rejected/|>');
+	});
+
+	test('PatchBased02 adds rejected edit annotations only when memory is enabled', () => {
+		const pieces = createTestPromptPieces({
+			cursorLine: 2,
+			cursorColumn: 9,
+			strategy: PromptingStrategy.PatchBased02,
+			rejectedEditsMemory: RejectedEditsMemoryMode.DiffWithTags,
+		});
+		const { prompt } = getUserPrompt(pieces);
+
+		expect(prompt).toContain('@@ -1,1 +1,1 @@ <|rejected/|>');
+		expect(prompt).toContain('are previous suggestions the developer rejected');
+	});
+
+	test('rejected edit memory applies independently of the prompting strategy', () => {
+		const pieces = createTestPromptPieces({
+			cursorLine: 2,
+			cursorColumn: 9,
+			strategy: PromptingStrategy.PatchBased02WithRecentLineNumbers,
+			rejectedEditsMemory: RejectedEditsMemoryMode.DiffWithTags,
+		});
+		const { prompt } = getUserPrompt(pieces);
+
+		expect(prompt).toContain('<|rejected/|>');
+		expect(prompt).toContain('previous suggestions the developer rejected');
+	});
+
+	test('explains rejection annotations when the standard postscript is disabled', () => {
+		const pieces = createTestPromptPieces({
+			cursorLine: 2,
+			cursorColumn: 9,
+			strategy: PromptingStrategy.PatchBased02,
+			rejectedEditsMemory: RejectedEditsMemoryMode.DiffWithTags,
+			includePostScript: false,
+		});
+		const { prompt } = getUserPrompt(pieces);
+
+		expect(prompt).toContain('<|rejected/|>');
+		expect(prompt).toContain('are previous suggestions the developer rejected');
+		expect(prompt).not.toContain('Output a modified diff format');
 	});
 
 	test('PatchBased02 with includePostScript=false omits postscript', () => {
@@ -758,6 +818,32 @@ describe('getUserPrompt', () => {
 		expect(prompt).toContain(PromptTags.CURSOR_LOCATION.start + '\n' + '  const ' + PromptTags.CURSOR + 'x = 1;' + '\n' + PromptTags.CURSOR_LOCATION.end);
 	});
 
+	test.each([
+		[AggressivenessLevel.Medium, ''],
+		[AggressivenessLevel.High, '<|aggression|>high<|/aggression|>'],
+		[AggressivenessLevel.Low, '<|aggression|>low<|/aggression|>'],
+	])('PatchBased02 aggression prompt places the %s tag before the postscript', (aggressivenessLevel, aggressionTag) => {
+		const pieces = createTestPromptPieces({
+			cursorLine: 2,
+			cursorColumn: 9,
+			strategy: PromptingStrategy.PatchBased02,
+			eagernessPrompt: 'aggressionHighLow',
+			aggressivenessLevel,
+		});
+		const { prompt } = getUserPrompt(pieces);
+
+		const cursorLocation = `${PromptTags.CURSOR_LOCATION.start}\n  const ${PromptTags.CURSOR}x = 1;\n${PromptTags.CURSOR_LOCATION.end}`;
+		const postScript = 'The developer was working on a section of code within the `current_file_content`';
+		expect(prompt).toContain(cursorLocation);
+		expect(prompt.indexOf(cursorLocation)).toBeLessThan(prompt.indexOf(postScript));
+		if (aggressivenessLevel === AggressivenessLevel.Medium) {
+			expect(prompt).not.toContain('<|aggression|>');
+			expect(prompt).toContain(`${PromptTags.CURSOR_LOCATION.end}\n\n${postScript}`);
+		} else {
+			expect(prompt).toContain(`${PromptTags.CURSOR_LOCATION.end}\n\n${aggressionTag}\n\n${postScript}`);
+		}
+	});
+
 	describe('Xtab275AggressivenessHighLow', () => {
 		test('medium level does not include aggressive tag', () => {
 			const pieces = createTestPromptPieces({
@@ -818,6 +904,71 @@ describe('getUserPrompt', () => {
 			expect(prompt).toContain('<|aggressive|>medium<|/aggressive|>');
 		});
 	});
+
+	describe('sectionTokens', () => {
+
+		const sectionsSum = (t: PromptSectionTokenCounts): number =>
+			t.recentlyViewed + t.currentFile + t.lintErrors + t.editHistory +
+			t.areaAroundCodeToEdit + t.cursorLocation + t.relatedInformation + t.postScript;
+
+		test('total matches the assembled prompt, counts reconcile, and systemPrompt is left at 0 across strategies', () => {
+			const summary = [PromptingStrategy.PatchBased01, PromptingStrategy.PatchBased02, undefined].map(strategy => {
+				const { prompt, sectionTokens } = getUserPrompt(createTestPromptPieces({ cursorLine: 2, cursorColumn: 9, strategy }));
+				return {
+					totalMatchesPrompt: sectionTokens.userPromptTotal === computeTokens(prompt),
+					reconciles: sectionsSum(sectionTokens) + sectionTokens.overhead === sectionTokens.userPromptTotal,
+					systemPromptZero: sectionTokens.systemPrompt === 0,
+				};
+			});
+
+			assert.deepStrictEqual(summary, [
+				{ totalMatchesPrompt: true, reconciles: true, systemPromptZero: true },
+				{ totalMatchesPrompt: true, reconciles: true, systemPromptZero: true },
+				{ totalMatchesPrompt: true, reconciles: true, systemPromptZero: true },
+			]);
+		});
+
+		test('reports the strategy-dependent tail section (area vs cursor) mutually exclusively', () => {
+			const tailShape = (strategy: PromptingStrategy | undefined) => {
+				const { sectionTokens } = getUserPrompt(createTestPromptPieces({ cursorLine: 2, cursorColumn: 9, strategy }));
+				return { areaPresent: sectionTokens.areaAroundCodeToEdit > 0, cursorPresent: sectionTokens.cursorLocation > 0 };
+			};
+
+			assert.deepStrictEqual(
+				{
+					patchBased01: tailShape(PromptingStrategy.PatchBased01),
+					patchBased02: tailShape(PromptingStrategy.PatchBased02),
+					default: tailShape(undefined),
+				},
+				{
+					patchBased01: { areaPresent: false, cursorPresent: false },
+					patchBased02: { areaPresent: false, cursorPresent: true },
+					default: { areaPresent: true, cursorPresent: false },
+				},
+			);
+		});
+
+		test('reports 0 for absent optional sections and non-zero for present ones', () => {
+			// Fixture has no language context (relatedInformation empty) and always renders a current file.
+			const withPostScript = getUserPrompt(createTestPromptPieces({ cursorLine: 2, cursorColumn: 9, strategy: PromptingStrategy.PatchBased02 })).sectionTokens;
+			const withoutPostScript = getUserPrompt(createTestPromptPieces({ cursorLine: 2, cursorColumn: 9, strategy: PromptingStrategy.PatchBased02, includePostScript: false })).sectionTokens;
+
+			assert.deepStrictEqual(
+				{
+					relatedInformation: withPostScript.relatedInformation,
+					currentFilePresent: withPostScript.currentFile > 0,
+					postScriptPresent: withPostScript.postScript > 0,
+					postScriptAbsent: withoutPostScript.postScript,
+				},
+				{
+					relatedInformation: 0,
+					currentFilePresent: true,
+					postScriptPresent: true,
+					postScriptAbsent: 0,
+				},
+			);
+		});
+	});
 });
 
 describe('getUserPrompt — globalBudget cascade', () => {
@@ -839,7 +990,7 @@ describe('getUserPrompt — globalBudget cascade', () => {
 		return { activeDoc, currentDocument, currentDocLines };
 	}
 
-	function makePieces(globalBudget: PromptOptions['globalBudget']): PromptPieces {
+	function makePieces(globalBudget: PromptOptions['globalBudget'], extra?: { langCtx?: LanguageContextResponse; precomputedCascade?: ReturnType<typeof runGlobalBudgetCascade> }): PromptPieces {
 		const { activeDoc, currentDocument, currentDocLines } = makeActiveDoc();
 		const promptOptions: PromptOptions = {
 			...DEFAULT_OPTIONS,
@@ -854,12 +1005,27 @@ describe('getUserPrompt — globalBudget cascade', () => {
 			[],
 			currentDocLines,
 			'<area>some code</area>',
-			undefined,
+			extra?.langCtx,
 			AggressivenessLevel.Medium,
 			new LintErrors(activeDoc.id, currentDocument, new TestLanguageDiagnosticsService()),
 			s => Math.ceil(s.length / 4),
 			promptOptions,
+			[],
+			undefined,
+			extra?.precomputedCascade,
 		);
+	}
+
+	function makeLangCtxWithSnippet(value: string): LanguageContextResponse {
+		return {
+			start: 0,
+			end: 0,
+			items: [{
+				context: { kind: ContextKind.Snippet, priority: 1, uri: Uri.parse('file:///test/ctx.ts'), value },
+				timeStamp: 0,
+				onTimeout: false,
+			}],
+		};
 	}
 
 	test('produces the same prompt as legacy path when budgets are large', () => {
@@ -898,6 +1064,7 @@ describe('getUserPrompt — globalBudget cascade', () => {
 			totalTokens: 1000,
 			order: GlobalBudgetOptions.DEFAULT_ORDER,
 			shares: {
+				currentFile: 0.5,
 				recentlyViewedDocuments: 0.5,
 				languageContext: 0.5,
 				neighborFiles: 0.5,
@@ -913,11 +1080,110 @@ describe('getUserPrompt — globalBudget cascade', () => {
 			order: GlobalBudgetOptions.DEFAULT_ORDER,
 			// missing 'diffHistory'
 			shares: {
+				currentFile: 0.2,
 				languageContext: 0.4,
-				recentlyViewedDocuments: 0.4,
+				recentlyViewedDocuments: 0.2,
 				neighborFiles: 0.2,
-			} as Record<'languageContext' | 'recentlyViewedDocuments' | 'neighborFiles' | 'diffHistory', number>,
+			} as Record<'currentFile' | 'languageContext' | 'recentlyViewedDocuments' | 'neighborFiles' | 'diffHistory', number>,
 		});
 		expect(() => getUserPrompt(pieces)).toThrow(/shares is missing entry for 'diffHistory'/);
+	});
+
+	test('throws when shares is missing an entry for currentFile', () => {
+		const pieces = makePieces({
+			totalTokens: 1000,
+			order: GlobalBudgetOptions.DEFAULT_ORDER,
+			// missing 'currentFile'
+			shares: {
+				languageContext: 0.25,
+				recentlyViewedDocuments: 0.25,
+				neighborFiles: 0.25,
+				diffHistory: 0.25,
+			} as Record<'currentFile' | 'languageContext' | 'recentlyViewedDocuments' | 'neighborFiles' | 'diffHistory', number>,
+		});
+		expect(() => getUserPrompt(pieces)).toThrow(/shares is missing entry for 'currentFile'/);
+	});
+
+	function runCascade(globalBudget: GlobalBudgetOptions, extra?: { langCtx?: LanguageContextResponse }) {
+		const { activeDoc } = makeActiveDoc();
+		const opts: PromptOptions = { ...DEFAULT_OPTIONS, globalBudget };
+		return runGlobalBudgetCascade(activeDoc, [], extra?.langCtx, s => Math.ceil(s.length / 4), opts, undefined, globalBudget, []);
+	}
+
+	test('finalSurplus carries the full unused pool when no cascade part consumes budget', () => {
+		// No langCtx, empty history and neighbors disabled ⇒ every cascade part
+		// consumes 0, so the entire non-currentFile pool carries to finalSurplus.
+		// DEFAULT_TOTAL_TOKENS (7500) − currentFileBudget (1500) = 6000. This is
+		// exactly the budget the provider adds to the current file's clip
+		// (currentFileBudget 1500 + finalSurplus 6000 = 7500 = T).
+		const cascade = runCascade({
+			totalTokens: GlobalBudgetOptions.DEFAULT_TOTAL_TOKENS,
+			order: GlobalBudgetOptions.DEFAULT_ORDER,
+			shares: GlobalBudgetOptions.DEFAULT_SHARES,
+		});
+		expect(cascade.finalSurplus).toBe(6000);
+	});
+
+	test('finalSurplus shrinks by what the cascade consumes, so the current file reuses less leftover', () => {
+		const globalBudget: GlobalBudgetOptions = {
+			totalTokens: GlobalBudgetOptions.DEFAULT_TOTAL_TOKENS,
+			order: GlobalBudgetOptions.DEFAULT_ORDER,
+			shares: GlobalBudgetOptions.DEFAULT_SHARES,
+		};
+		// Empty cascade ⇒ the whole non-currentFile pool (6000) carries to finalSurplus.
+		const empty = runCascade(globalBudget);
+		// A rendered language-context snippet consumes budget from the pool, so less
+		// leftover carries to finalSurplus. The provider clips the current file last to
+		// currentFileBudget + finalSurplus, so a smaller finalSurplus ⇒ the current file
+		// reuses less leftover (it is trimmed more) once other parts have content.
+		const consuming = runCascade(globalBudget, { langCtx: makeLangCtxWithSnippet('const ctxMarker = 1;\n'.repeat(40)) });
+		expect(consuming.finalSurplus).toBeLessThan(empty.finalSurplus);
+	});
+
+	test('precomputedCascade produces an identical prompt to computing the cascade internally', () => {
+		const snippet = 'const sharedCtxMarker = 42;';
+		const globalBudget: PromptOptions['globalBudget'] = {
+			totalTokens: 100000,
+			order: GlobalBudgetOptions.DEFAULT_ORDER,
+			shares: GlobalBudgetOptions.DEFAULT_SHARES,
+		};
+		const internal = getUserPrompt(makePieces(globalBudget, { langCtx: makeLangCtxWithSnippet(snippet) }));
+
+		const cascade = runCascade(globalBudget, { langCtx: makeLangCtxWithSnippet(snippet) });
+		const precomputed = getUserPrompt(makePieces(globalBudget, { langCtx: makeLangCtxWithSnippet(snippet), precomputedCascade: cascade }));
+
+		expect(precomputed.prompt).toBe(internal.prompt);
+		expect(precomputed.nDiffsInPrompt).toBe(internal.nDiffsInPrompt);
+	});
+
+	test('reports the recently-viewed subsection token breakdown, matching the legacy path', () => {
+		// Empty history and disabled neighbor files leave the recently-viewed-files
+		// and neighbor-files subsections at 0; the language-context snippet populates
+		// the language-context subsection. Large budgets keep the two assembly paths
+		// (cascade vs legacy `getRecentCodeSnippets`) byte-identical, so their
+		// subsection counts must match.
+		const snippet = 'const sharedCtxMarker = 42;';
+		const globalBudget: PromptOptions['globalBudget'] = {
+			totalTokens: 100000,
+			order: GlobalBudgetOptions.DEFAULT_ORDER,
+			shares: GlobalBudgetOptions.DEFAULT_SHARES,
+		};
+		const cascaded = getUserPrompt(makePieces(globalBudget, { langCtx: makeLangCtxWithSnippet(snippet) })).sectionTokens.recentlyViewedSubsections;
+		const legacy = getUserPrompt(makePieces(undefined, { langCtx: makeLangCtxWithSnippet(snippet) })).sectionTokens.recentlyViewedSubsections;
+
+		assert.deepStrictEqual(
+			{
+				recentlyViewedFilesZero: cascaded.recentlyViewedFiles === 0,
+				languageContextPopulated: cascaded.languageContext > 0,
+				neighborFilesZero: cascaded.neighborFiles === 0,
+				legacyEqualsCascade: JSON.stringify(legacy) === JSON.stringify(cascaded),
+			},
+			{
+				recentlyViewedFilesZero: true,
+				languageContextPopulated: true,
+				neighborFilesZero: true,
+				legacyEqualsCascade: true,
+			},
+		);
 	});
 });

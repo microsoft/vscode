@@ -6,14 +6,15 @@
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { URI } from '../../../../base/common/uri.js';
 import { LogLevel, type ILogService } from '../../../log/common/log.js';
-import type { AgentSignal } from '../../common/agentService.js';
+import type { AgentSignal } from '../../common/agent.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ResponsePartKind, ToolResultContentType, type ToolResultContent, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
-import { extractForwardedErrorInfo } from '../shared/forwardedChatError.js';
+import { createErrorResponsePart, ResponsePartKind, ToolResultContentType, type ToolResultContent, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
+import { extractForwardedErrorInfo } from '../shared/proxyChatError.js';
 import { buildTopLevelSubagentReadyAction, emitInnerAssistantSignals, mapSubagentSystemMessage, SUBAGENT_SPAWNING_TOOL_NAMES, tagWithParent } from './claudeSubagentSignals.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
 import { stripClientToolNamePrefix, hasClientToolNamePrefix } from './clientTools/claudeClientToolMcpServer.js';
-import { buildClaudeToolMeta, getClaudePastTenseMessage, getClaudeToolDisplayName } from './claudeToolDisplay.js';
+import { buildClaudeToolMeta, getClaudePastTenseMessage, getClaudeToolDisplayName, isClaudeFileEditTool } from './claudeToolDisplay.js';
+import { claudeToolDenialCode } from './claudeToolDenial.js';
 import { ClaudeToolCallRegistry } from './claudeToolCallRegistry.js';
 import { ToolCallConfirmationReason, ToolCallContributorKind, type StringOrMarkdown } from '../../common/state/protocol/state.js';
 
@@ -46,7 +47,7 @@ import { ToolCallConfirmationReason, ToolCallContributorKind, type StringOrMarkd
  * lifecycle invariants live behind named methods.
  */
 export class ClaudeMapperState {
-	private readonly _activeToolBlocks = new Map<number, { toolUseId: string; toolName: string }>();
+	private readonly _activeToolBlocks = new Map<number, { toolUseId: string; toolName: string; isClientTool: boolean }>();
 	/**
 	 * Phase 8.5 — cross-message tool-call attribution + input
 	 * accumulation + computed start-info, encapsulated as its own
@@ -87,12 +88,12 @@ export class ClaudeMapperState {
 	 * scopes; the per-message map gets drained on `content_block_stop`,
 	 * the cross-message maps survive until the matching `tool_result`.
 	 */
-	startToolBlock(index: number, toolUseId: string, toolName: string, turnId: string): void {
-		this._activeToolBlocks.set(index, { toolUseId, toolName });
-		this.toolCalls.begin(toolUseId, toolName, turnId);
+	startToolBlock(index: number, toolUseId: string, toolName: string, turnId: string, isClientTool = false): void {
+		this._activeToolBlocks.set(index, { toolUseId, toolName, isClientTool });
+		this.toolCalls.begin(toolUseId, toolName, turnId, isClientTool);
 	}
 
-	getActiveToolBlock(index: number): { toolUseId: string; toolName: string } | undefined {
+	getActiveToolBlock(index: number): { toolUseId: string; toolName: string; isClientTool: boolean } | undefined {
 		return this._activeToolBlocks.get(index);
 	}
 
@@ -132,9 +133,9 @@ export class ClaudeMapperState {
 	 * `undefined` if the `tool_use_id` is unknown (defense-in-depth
 	 * against transport drift / replay).
 	 */
-	lookupToolCall(toolUseId: string): { turnId: string; toolName: string } | undefined {
+	lookupToolCall(toolUseId: string): { turnId: string; toolName: string; isClientTool: boolean } | undefined {
 		const entry = this.toolCalls.lookup(toolUseId);
-		return entry ? { turnId: entry.turnId, toolName: entry.toolName } : undefined;
+		return entry ? { turnId: entry.turnId, toolName: entry.toolName, isClientTool: entry.isClientTool } : undefined;
 	}
 
 	/** Drain cross-message tracking once a `tool_result` is delivered. */
@@ -182,6 +183,20 @@ export class ClaudeMapperState {
 	}
 }
 
+function fileEditToolDelta(chat: URI, turnId: string, toolCallId: string, invocationMessage: StringOrMarkdown): AgentSignal {
+	return {
+		kind: 'action',
+		resource: chat,
+		action: {
+			type: ActionType.ChatToolCallDelta,
+			turnId,
+			toolCallId,
+			content: '',
+			invocationMessage,
+		},
+	};
+}
+
 /**
  * Map one SDK message to zero or more agent signals.
  *
@@ -214,12 +229,13 @@ export class ClaudeMapperState {
  */
 export function mapSDKMessageToAgentSignals(
 	message: SDKMessage,
-	session: URI,
+	chat: URI,
 	turnId: string,
 	state: ClaudeMapperState,
 	logService: ILogService,
 	registry: SubagentRegistry,
 	clientToolOwner?: (toolName: string) => string | undefined,
+	turnDuration?: number,
 ): AgentSignal[] {
 	if (logService.getLevel() <= LogLevel.Trace) {
 		try {
@@ -232,31 +248,31 @@ export function mapSDKMessageToAgentSignals(
 	switch (message.type) {
 		case 'stream_event':
 			return tagWithParent(
-				mapStreamEvent(message.event, session, turnId, state, logService, message.parent_tool_use_id, registry, clientToolOwner),
-				session,
+				mapStreamEvent(message.event, chat, turnId, state, logService, message.parent_tool_use_id, registry, clientToolOwner),
+				chat,
 				message.parent_tool_use_id,
 				registry,
 			);
 		case 'result':
-			return mapResult(message, session, turnId, state, logService, registry);
+			return mapResult(message, chat, turnId, turnDuration, state, logService, registry);
 		case 'assistant':
 			return tagWithParent(
-				mapAssistantCanonical(message, session, turnId, state, message.parent_tool_use_id, registry),
-				session,
+				mapAssistantCanonical(message, chat, turnId, state, message.parent_tool_use_id, registry, clientToolOwner),
+				chat,
 				message.parent_tool_use_id,
 				registry,
 			);
 		case 'user':
 			return tagWithParent(
-				mapUserMessage(message, session, state, logService, registry),
-				session,
+				mapUserMessage(message, chat, state, logService, registry),
+				chat,
 				message.parent_tool_use_id,
 				registry,
 			);
 		default:
 			// Phase 12 step 7 — system subtypes for subagent task discrimination.
 			if (message.type === 'system') {
-				return mapSubagentSystemMessage(message, session, registry);
+				return mapSubagentSystemMessage(message, chat, registry);
 			}
 			return [];
 	}
@@ -284,23 +300,31 @@ export function mapSDKMessageToAgentSignals(
  */
 function mapAssistantCanonical(
 	message: Extract<SDKMessage, { type: 'assistant' }>,
-	session: URI,
+	chat: URI,
 	turnId: string,
 	state: ClaudeMapperState,
 	parentToolUseId: string | null,
 	registry: SubagentRegistry,
+	clientToolOwner?: (toolName: string) => string | undefined,
 ): AgentSignal[] {
+	const completedSignal: AgentSignal = {
+		kind: 'model_call_completed',
+		resource: chat,
+		turnId,
+		modelCallId: message.message.id,
+	};
+	const completedSignals = message.aborted ? [] : [completedSignal];
 	if (parentToolUseId === null) {
-		const top: AgentSignal[] = [];
+		const top: AgentSignal[] = [...completedSignals];
 		for (const block of message.message.content) {
 			if (block.type !== 'tool_use' || !SUBAGENT_SPAWNING_TOOL_NAMES.has(block.name)) {
 				continue;
 			}
-			top.push(buildTopLevelSubagentReadyAction(block, session, turnId, registry));
+			top.push(buildTopLevelSubagentReadyAction(block, chat, turnId, registry));
 		}
 		return top;
 	}
-	return emitInnerAssistantSignals(message, session, turnId, state, parentToolUseId, registry);
+	return [...completedSignals, ...emitInnerAssistantSignals(message, chat, turnId, state, parentToolUseId, registry, clientToolOwner)];
 }
 
 /**
@@ -316,7 +340,7 @@ function mapAssistantCanonical(
  */
 function mapUserMessage(
 	message: Extract<SDKMessage, { type: 'user' }>,
-	session: URI,
+	chat: URI,
 	state: ClaudeMapperState,
 	logService: ILogService,
 	registry: SubagentRegistry,
@@ -343,12 +367,24 @@ function mapUserMessage(
 			content.push(fileEdit);
 		}
 		const info = state.toolCalls.lookup(block.tool_use_id)?.info;
+		const resultText = content
+			.filter((c): c is { type: ToolResultContentType.Text; text: string } => c.type === ToolResultContentType.Text)
+			.map(c => c.text)
+			.join('\n');
 		const pastTenseMessage: StringOrMarkdown = info
-			? getClaudePastTenseMessage(info.toolName, info.displayName, info.parsedInput, !isError)
-			: `${getClaudeToolDisplayName(tracked.toolName)} finished`;
+			? info.isClientTool
+				? info.displayName
+				: getClaudePastTenseMessage(info.toolName, info.displayName, info.parsedInput, !isError, resultText)
+			: tracked.isClientTool
+				? tracked.toolName
+				: `${getClaudeToolDisplayName(tracked.toolName)} finished`;
+		// A denied/cancelled tool surfaces as an `is_error` result whose content
+		// is the deny `message` we returned from `canUseTool`; classify it so the
+		// telemetry reports `userCancelled` rather than a generic error.
+		const denialCode = isError ? claudeToolDenialCode(resultText) : undefined;
 		signals.push({
 			kind: 'action',
-			session,
+			resource: chat,
 			action: {
 				type: ActionType.ChatToolCallComplete,
 				turnId: tracked.turnId,
@@ -357,6 +393,7 @@ function mapUserMessage(
 					success: !isError,
 					pastTenseMessage,
 					content: content.length > 0 ? content : undefined,
+					...(denialCode ? { error: { message: resultText, code: denialCode } } : {}),
 				},
 			},
 		});
@@ -369,7 +406,7 @@ function mapUserMessage(
 		if (spawn && !spawn.background && spawn.markCompleted()) {
 			signals.push({
 				kind: 'subagent_completed',
-				session,
+				chat,
 				toolCallId: block.tool_use_id,
 			});
 			registry.removeSpawn(block.tool_use_id);
@@ -413,6 +450,7 @@ function mapResult(
 	message: Extract<SDKMessage, { type: 'result' }>,
 	session: URI,
 	turnId: string,
+	turnDuration: number | undefined,
 	state: ClaudeMapperState,
 	logService: ILogService,
 	registry: SubagentRegistry,
@@ -431,7 +469,7 @@ function mapResult(
 		// `_meta.copilotUsage.totalNanoAiu` (the key the workbench reads).
 		signals.push({
 			kind: 'action',
-			session,
+			resource: session,
 			action: {
 				type: ActionType.ChatUsage,
 				turnId,
@@ -455,14 +493,15 @@ function mapResult(
 	if (errorText !== undefined) {
 		signals.push({
 			kind: 'action',
-			session,
+			resource: session,
 			action: {
 				type: ActionType.ChatError,
 				turnId,
-				error: {
+				duration: typeof turnDuration === 'number' && Number.isFinite(turnDuration) ? Math.max(0, turnDuration) : 0,
+				part: createErrorResponsePart({
 					errorType: message.subtype,
 					...extractForwardedErrorInfo(errorText),
-				},
+				}),
 			},
 		});
 	}
@@ -498,7 +537,7 @@ function getResultErrorText(message: Extract<SDKMessage, { type: 'result' }>): s
 
 function mapStreamEvent(
 	event: Extract<SDKMessage, { type: 'stream_event' }>['event'],
-	session: URI,
+	chat: URI,
 	turnId: string,
 	state: ClaudeMapperState,
 	logService: ILogService,
@@ -516,7 +555,7 @@ function mapStreamEvent(
 			if (block.type === 'text') {
 				return [{
 					kind: 'action',
-					session,
+					resource: chat,
 					action: {
 						type: ActionType.ChatResponsePart,
 						turnId,
@@ -531,7 +570,7 @@ function mapStreamEvent(
 			if (block.type === 'thinking') {
 				return [{
 					kind: 'action',
-					session,
+					resource: chat,
 					action: {
 						type: ActionType.ChatResponsePart,
 						turnId,
@@ -557,7 +596,7 @@ function mapStreamEvent(
 				// they don't carry the prefix.
 				const toolName = stripClientToolNamePrefix(block.name);
 				const isClientTool = hasClientToolNamePrefix(block.name);
-				state.startToolBlock(event.index, block.id, toolName, turnId);
+				state.startToolBlock(event.index, block.id, toolName, turnId, isClientTool);
 				// Phase 12 — subagent correlation bookkeeping. Either this
 				// tool_use is at the top level and (if Task/Agent) spawns a
 				// new subagent, or it is inner and we record its edge to the
@@ -580,17 +619,17 @@ function mapStreamEvent(
 				// state transitions (D6). Subagent meta from Phase 12 is now
 				// produced by `buildClaudeToolMeta` because
 				// `getClaudeToolKind('Task') === 'subagent'`.
-				const meta = buildClaudeToolMeta(toolName);
+				const meta = isClientTool ? undefined : buildClaudeToolMeta(toolName);
 				const toolClientId = isClientTool ? clientToolOwner?.(toolName) : undefined;
 				return [{
 					kind: 'action',
-					session,
+					resource: chat,
 					action: {
 						type: ActionType.ChatToolCallStart,
 						turnId,
 						toolCallId: block.id,
 						toolName,
-						displayName: getClaudeToolDisplayName(toolName),
+						displayName: isClientTool ? toolName : getClaudeToolDisplayName(toolName),
 						...(toolClientId ? { contributor: { kind: ToolCallContributorKind.Client, clientId: toolClientId } } : {}),
 						...(meta ? { _meta: meta } : {}),
 					},
@@ -603,7 +642,7 @@ function mapStreamEvent(
 			if (event.delta.type === 'text_delta') {
 				return [{
 					kind: 'action',
-					session,
+					resource: chat,
 					action: {
 						type: ActionType.ChatDelta,
 						turnId,
@@ -615,7 +654,7 @@ function mapStreamEvent(
 			if (event.delta.type === 'thinking_delta') {
 				return [{
 					kind: 'action',
-					session,
+					resource: chat,
 					action: {
 						type: ActionType.ChatReasoning,
 						turnId,
@@ -631,9 +670,16 @@ function mapStreamEvent(
 					return [];
 				}
 				state.appendToolBlockInputDelta(event.index, event.delta.partial_json);
+				if (!tracked.isClientTool && isClaudeFileEditTool(tracked.toolName)) {
+					const update = state.toolCalls.streamingInputUpdate(tracked.toolUseId);
+					if (!update) {
+						return [];
+					}
+					return [fileEditToolDelta(chat, turnId, tracked.toolUseId, update.invocationMessage)];
+				}
 				return [{
 					kind: 'action',
-					session,
+					resource: chat,
 					action: {
 						type: ActionType.ChatToolCallDelta,
 						turnId,
@@ -647,6 +693,9 @@ function mapStreamEvent(
 
 		case 'content_block_stop': {
 			const tracked = state.getActiveToolBlock(event.index);
+			const finalStreamingUpdate = tracked && !tracked.isClientTool && isClaudeFileEditTool(tracked.toolName)
+				? state.toolCalls.streamingInputUpdate(tracked.toolUseId, true)
+				: undefined;
 			state.finalizeToolBlock(event.index);
 			state.endToolBlock(event.index);
 			if (!tracked) {
@@ -657,10 +706,14 @@ function mapStreamEvent(
 			if (!info) {
 				return [];
 			}
-			const meta = buildClaudeToolMeta(tracked.toolName);
-			return [{
+			const meta = tracked.isClientTool ? undefined : buildClaudeToolMeta(tracked.toolName);
+			const signals: AgentSignal[] = [];
+			if (finalStreamingUpdate) {
+				signals.push(fileEditToolDelta(chat, turnId, tracked.toolUseId, finalStreamingUpdate.invocationMessage));
+			}
+			signals.push({
 				kind: 'action',
-				session,
+				resource: chat,
 				action: {
 					type: ActionType.ChatToolCallReady,
 					turnId,
@@ -670,7 +723,8 @@ function mapStreamEvent(
 					confirmed: ToolCallConfirmationReason.NotNeeded,
 					...(meta ? { _meta: meta } : {}),
 				},
-			}];
+			});
+			return signals;
 		}
 
 		case 'message_delta':
@@ -710,4 +764,3 @@ function makeContentBlockPartId(
 	}
 	return `${turnId}#${messageId}#${index}`;
 }
-

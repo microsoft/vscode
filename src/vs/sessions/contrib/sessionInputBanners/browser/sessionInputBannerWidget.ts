@@ -5,22 +5,34 @@
 
 import './media/sessionInputBanners.css';
 import * as dom from '../../../../base/browser/dom.js';
-import { Button } from '../../../../base/browser/ui/button/button.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import type { ThemeIcon } from '../../../../base/common/themables.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import type { ThemeIcon } from '../../../../base/common/themables.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { chartsOrange } from '../../../../platform/theme/common/colors/chartsColors.js';
 
+/**
+ * Delay before the working border is shown while the chat model loads.
+ */
+const SHOW_WORKING_DELAY_MS = 1_000;
+
 export interface ISessionInputBannerAction {
 	readonly label: string;
 	/** Renders the action with the prominent button colors. */
 	readonly primary?: boolean;
-	run(): void;
+	/**
+	 * Waits until the action can run. The primary button is disabled immediately
+	 * and the banner shows progress when this takes longer than one second.
+	 */
+	readonly waitUntilReady?: () => Promise<boolean>;
+	run(): void | Promise<unknown>;
 }
 
 export interface ISessionInputBanner {
@@ -31,8 +43,8 @@ export interface ISessionInputBanner {
 	readonly text: string;
 	readonly ariaLabel: string;
 	readonly actions: readonly ISessionInputBannerAction[];
-	readonly dismissTooltip: string;
-	dismiss(): void;
+	readonly dismissTooltip?: string;
+	dismiss?(): void;
 }
 
 /**
@@ -44,6 +56,12 @@ export interface ISessionInputBanner {
 export class SessionInputBannerWidget extends Disposable {
 
 	readonly domNode: HTMLElement;
+
+	private readonly _buttons: Array<{ readonly button: Button; readonly primary: boolean }> = [];
+	private readonly _showWorkingAnimation = this._register(new MutableDisposable());
+
+	private _runningPrimaryAction = false;
+	private _disposed = false;
 
 	constructor(
 		banner: ISessionInputBanner,
@@ -71,9 +89,9 @@ export class SessionInputBannerWidget extends Disposable {
 			const button = this._register(new Button(actions, {
 				...defaultButtonStyles,
 				...(action.primary && banner.accent ? {
-					// Match the orange accent (border + icon) of the CI banner.
 					buttonBackground: asCssVariable(chartsOrange),
 					buttonHoverBackground: `color-mix(in srgb, ${asCssVariable(chartsOrange)} 88%, black)`,
+					buttonBorder: asCssVariable(chartsOrange),
 				} : {}),
 				...(action.primary ? {} : {
 					buttonBackground: undefined,
@@ -89,17 +107,82 @@ export class SessionInputBannerWidget extends Disposable {
 			button.element.classList.add('session-input-banner-action');
 			button.label = action.label;
 			button.element.ariaLabel = `${banner.ariaLabel} ${action.label}`;
-			this._register(button.onDidClick(() => action.run()));
+			this._buttons.push({ button, primary: !!action.primary });
+			this._register(button.onDidClick(() => { void this._runAction(action).catch(onUnexpectedError); }));
 		}
 
-		const dismiss = dom.append(this.domNode, dom.$('button.session-input-banner-dismiss')) as HTMLButtonElement;
-		dismiss.type = 'button';
-		dismiss.setAttribute('aria-label', banner.dismissTooltip);
-		dismiss.appendChild(renderIcon(Codicon.close));
-		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), dismiss, banner.dismissTooltip));
-		this._register(dom.addDisposableListener(dismiss, dom.EventType.CLICK, e => {
-			dom.EventHelper.stop(e, true);
-			banner.dismiss();
-		}));
+		if (banner.dismiss && banner.dismissTooltip) {
+			const dismiss = dom.append(this.domNode, dom.$('button.session-input-banner-dismiss')) as HTMLButtonElement;
+			dismiss.type = 'button';
+			dismiss.setAttribute('aria-label', banner.dismissTooltip);
+			dismiss.appendChild(renderIcon(Codicon.close));
+			this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), dismiss, banner.dismissTooltip));
+			this._register(dom.addDisposableListener(dismiss, dom.EventType.CLICK, e => {
+				dom.EventHelper.stop(e, true);
+				banner.dismiss?.();
+			}));
+		}
+	}
+
+	private async _runAction(action: ISessionInputBannerAction): Promise<void> {
+		if (!action.primary) {
+			await action.run();
+			return;
+		}
+		if (this._runningPrimaryAction) {
+			return;
+		}
+
+		this._runningPrimaryAction = true;
+		this._setPrimaryButtonsEnabled(false);
+		try {
+			if (action.waitUntilReady && !await this._waitUntilReady(action.waitUntilReady)) {
+				return;
+			}
+			// Readiness can resolve after the banner was replaced or torn down
+			// (e.g. the comments it acted on disappeared), and running then would
+			// act on state this banner no longer represents.
+			if (this._disposed) {
+				return;
+			}
+			await action.run();
+		} finally {
+			this._setPrimaryButtonsEnabled(true);
+			this._runningPrimaryAction = false;
+		}
+	}
+
+	private async _waitUntilReady(waitUntilReady: () => Promise<boolean>): Promise<boolean> {
+		this.domNode.setAttribute('aria-busy', 'true');
+		this._showWorkingAnimation.value = disposableTimeout(() => this.domNode.classList.add('working'), SHOW_WORKING_DELAY_MS);
+		try {
+			return await waitUntilReady();
+		} finally {
+			this._showWorkingAnimation.clear();
+			this.domNode.classList.remove('working');
+			this.domNode.setAttribute('aria-busy', 'false');
+		}
+	}
+
+	setWorking(working: boolean): void {
+		this.domNode.classList.toggle('working', working);
+		this.domNode.setAttribute('aria-busy', String(working));
+		this._setPrimaryButtonsEnabled(!working);
+	}
+
+	private _setPrimaryButtonsEnabled(enabled: boolean): void {
+		if (this._disposed) {
+			return;
+		}
+		for (const { button, primary } of this._buttons) {
+			if (primary) {
+				button.enabled = enabled;
+			}
+		}
+	}
+
+	override dispose(): void {
+		this._disposed = true;
+		super.dispose();
 	}
 }

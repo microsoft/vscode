@@ -32,6 +32,7 @@ export interface ITerminalSandboxPrerequisiteCheckResult {
 	sandboxConfigPath: string | undefined;
 	failedCheck: TerminalSandboxPrerequisiteCheck | undefined;
 	missingDependencies?: string[];
+	canInstallMissingDependencies?: boolean;
 	remediations?: readonly TerminalSandboxPreCheckRemediation[];
 	detail?: string;
 }

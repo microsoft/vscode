@@ -4,21 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { GroupsOrder, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { AgentFeedbackState, IAgentFeedbackService } from './agentFeedbackService.js';
-import { getActiveResourceCandidates } from './agentFeedbackEditorUtils.js';
+import { getActiveResourceCandidates, getFeedbackSessionCandidates } from './agentFeedbackEditorUtils.js';
 import { Menus } from '../../../browser/menus.js';
 import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
 import { getSessionEditorComments } from './sessionEditorComments.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { IPlanReviewFeedbackService } from '../../../../workbench/contrib/chat/browser/planReviewFeedback/planReviewFeedbackService.js';
 export const submitFeedbackActionId = 'agentFeedbackEditor.action.submit';
 export const navigatePreviousFeedbackActionId = 'agentFeedbackEditor.action.navigatePrevious';
 export const navigateNextFeedbackActionId = 'agentFeedbackEditor.action.navigateNext';
@@ -38,7 +42,7 @@ abstract class AgentFeedbackEditorAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
+	override async run(accessor: ServicesAccessor): Promise<boolean | void> {
 		const editorService = accessor.get(IEditorService);
 		const agentFeedbackService = accessor.get(IAgentFeedbackService);
 		const codeReviewService = accessor.get(ICodeReviewService);
@@ -49,25 +53,23 @@ abstract class AgentFeedbackEditorAction extends Action2 {
 			?? editorGroupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(g => g.activeEditorPane)?.activeEditorPane
 			?? editorService.visibleEditorPanes[0];
 		const candidates = getActiveResourceCandidates(activePane?.input);
-		for (const candidate of candidates) {
-			const sessionResource = agentFeedbackService.getSessionForFile(candidate)?.resource
-				?? agentFeedbackService.getMostRecentSessionForResource(candidate);
-			if (!sessionResource) {
-				continue;
-			}
-
+		const sessionCandidates = getFeedbackSessionCandidates(candidates, candidate =>
+			agentFeedbackService.getFeedbackSessionResource(candidate)
+			?? agentFeedbackService.getMostRecentSessionForResource(candidate));
+		for (const { resource, sessionResource } of sessionCandidates) {
 			const comments = getSessionEditorComments(
 				sessionResource,
 				agentFeedbackService.getFeedback(sessionResource),
 				codeReviewService.getPRReviewState(sessionResource).get(),
+				agentFeedbackService.getVisibleResolvedFeedbackIds(sessionResource),
 			);
 			if (comments.length > 0) {
-				return this.runWithSession(accessor, sessionResource);
+				return this.runWithSession(accessor, sessionResource, resource);
 			}
 		}
 	}
 
-	abstract runWithSession(accessor: ServicesAccessor, sessionResource: URI): Promise<void> | void;
+	abstract runWithSession(accessor: ServicesAccessor, sessionResource: URI, resource: URI): Promise<boolean | void> | boolean | void;
 }
 
 class SubmitFeedbackAction extends AgentFeedbackEditorAction {
@@ -79,6 +81,11 @@ class SubmitFeedbackAction extends AgentFeedbackEditorAction {
 			shortTitle: localize2('agentFeedback.submitShort', 'Submit'),
 			icon: Codicon.send,
 			precondition: ChatContextKeys.enabled,
+			keybinding: {
+				weight: KeybindingWeight.SessionsContrib,
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorContextKeys.editorTextFocus, hasUnsubmittedAgentFeedback),
+				primary: KeyMod.CtrlCmd | KeyCode.Enter,
+			},
 			menu: {
 				id: Menus.AgentFeedbackEditorContent,
 				group: 'a_submit',
@@ -88,9 +95,13 @@ class SubmitFeedbackAction extends AgentFeedbackEditorAction {
 		});
 	}
 
-	override async runWithSession(accessor: ServicesAccessor, sessionResource: URI): Promise<void> {
+	override async runWithSession(accessor: ServicesAccessor, sessionResource: URI, resource: URI): Promise<boolean> {
 		const agentFeedbackService = accessor.get(IAgentFeedbackService);
-		await agentFeedbackService.submitFeedback(sessionResource);
+		const planReviewFeedbackService = accessor.get(IPlanReviewFeedbackService);
+		if (planReviewFeedbackService.isActivePlanReview(resource)) {
+			return planReviewFeedbackService.submitAllFeedback(resource);
+		}
+		return agentFeedbackService.submitFeedback(sessionResource);
 	}
 }
 
@@ -121,6 +132,7 @@ class NavigateFeedbackAction extends AgentFeedbackEditorAction {
 			sessionResource,
 			agentFeedbackService.getFeedback(sessionResource),
 			codeReviewService.getPRReviewState(sessionResource).get(),
+			agentFeedbackService.getVisibleResolvedFeedbackIds(sessionResource),
 		);
 
 		const comment = agentFeedbackService.getNextNavigableItem(sessionResource, comments, this._next);
@@ -172,15 +184,9 @@ class SubmitActiveSessionFeedbackAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const sessionsService = accessor.get(ISessionsService);
 		const agentFeedbackService = accessor.get(IAgentFeedbackService);
 
-		const activeSession = sessionsService.activeSession.get();
-		if (!activeSession) {
-			return;
-		}
-
-		const sessionResource = activeSession.resource;
+		const sessionResource = agentFeedbackService.activeFeedbackSessionResource.get();
 		const hasAcceptedFeedback = agentFeedbackService.getFeedback(sessionResource).some(item => item.state === AgentFeedbackState.Accepted);
 		if (!hasAcceptedFeedback) {
 			return;

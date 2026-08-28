@@ -21,10 +21,6 @@
 			"windows": {
 				"command": ".\\scripts\\code.bat"
 			},
-			"args": [
-				"--user-data-dir=${workspaceFolder}/.profile-oss",
-				"--extensions-dir=${workspaceFolder}/.profile-oss/extensions"
-			],
 			"inAgents": true,
 			"problemMatcher": []
 		},
@@ -104,7 +100,8 @@
 					"beginsPattern": "Starting transpilation\\.\\.\\.",
 					"endsPattern": "Finished transpilation with"
 				}
-			}
+			},
+			"inAgents": true,
 		},
 		{
 			"type": "npm",

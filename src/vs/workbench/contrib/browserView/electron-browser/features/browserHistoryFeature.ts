@@ -363,6 +363,7 @@ class ShowBrowserHistoryAction extends Action2 {
 			},
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyCode.KeyH,
+				mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyY },
 				weight: KeybindingWeight.WorkbenchContrib
 			}
 		});

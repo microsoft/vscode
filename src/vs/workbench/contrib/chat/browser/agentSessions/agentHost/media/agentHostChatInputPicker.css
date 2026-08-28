@@ -35,9 +35,8 @@
 .agent-host-chat-input-picker-slot span.action-label {
 	display: inline-flex;
 	align-items: center;
-	gap: 4px;
 	height: 16px;
-	padding: 3px 6px;
+	padding: 3px 8px;
 	border-radius: 4px;
 	color: var(--vscode-icon-foreground);
 }
@@ -67,7 +66,7 @@
 .chat-secondary-generic-chips {
 	display: inline-flex;
 	align-items: center;
-	gap: 12px;
+	gap: 2px;
 
 	&:empty {
 		display: none;
@@ -85,24 +84,28 @@
 		}
 
 		.codicon {
-			font-size: 12px;
+			font-size: var(--vscode-codiconFontSize-compact);
 		}
 	}
 
-	> .agent-host-generic-chip-slot + .agent-host-generic-chip-slot {
-		box-shadow: -5px 0 0 -4px var(--vscode-editorWidget-border);
-	}
 }
 
-/* Collapse agent host picker labels to icon-only when the secondary toolbar gets narrow. */
-.interactive-session .chat-secondary-toolbar {
-	container-type: inline-size;
+/* Individual secondary pickers collapse from right to left as the lane narrows. */
+.interactive-session .compact-picker .agent-host-chat-input-picker-label {
+	display: none;
 }
 
-@container (max-width: 400px) {
-	.agent-host-chat-input-picker-label {
-		display: none;
-	}
+.interactive-session .compact-picker .agent-host-chat-input-picker-slot .action-label {
+	box-sizing: border-box;
+	width: 22px;
+	min-width: 22px;
+	padding: 2px 2px 2px 8px;
+	justify-content: flex-start;
+}
+
+.interactive-session .compact-picker .agent-host-chat-input-picker-slot .action-label .codicon {
+	width: auto;
+	height: auto;
 }
 
 /*
@@ -136,8 +139,12 @@
 }
 
 .agent-host-chat-input-picker-label {
-	max-width: 16em;
-	overflow: hidden;
-	text-overflow: ellipsis;
+	flex-shrink: 0;
+	overflow: visible;
+	text-overflow: clip;
 	white-space: nowrap;
+}
+
+.agent-host-chat-input-picker-slot .action-label .codicon + .agent-host-chat-input-picker-label {
+	margin-left: 6px;
 }

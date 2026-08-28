@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { findRemoteAgentHostSessionTypeAuthority, isRemoteAgentHostSessionType, parseRemoteAgentHostSessionTypeAuthority, remoteAgentHostSessionTypeAuthorityPrefix, remoteAgentHostSessionTypeId } from '../../common/agentHostSessionType.js';
+import { findRemoteAgentHostSessionTypeAuthority, isRemoteAgentHostSessionType, parseRemoteAgentHostHarness, parseRemoteAgentHostSessionTypeAuthority, remoteAgentHostSessionTypeAuthorityPrefix, remoteAgentHostSessionTypeId } from '../../common/agentHostSessionType.js';
 
 suite('agentHostSessionType', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -47,6 +47,22 @@ suite('agentHostSessionType', () => {
 		], [
 			'foo-bar',
 			undefined,
+			undefined,
+			undefined,
+		]);
+	});
+
+	test('parses harness from remote session type', () => {
+		assert.deepStrictEqual([
+			parseRemoteAgentHostHarness('remote-foo-copilotcli'),
+			parseRemoteAgentHostHarness('remote-foo-bar-claude'),
+			parseRemoteAgentHostHarness('remote-10.0.0.1__8080-codex'),
+			parseRemoteAgentHostHarness('vscodeLocalChatSession'),
+			parseRemoteAgentHostHarness('remote-'),
+		], [
+			'copilotcli',
+			'claude',
+			'codex',
 			undefined,
 			undefined,
 		]);

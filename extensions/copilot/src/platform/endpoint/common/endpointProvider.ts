@@ -19,6 +19,11 @@ export type CustomModel = {
 
 export type EndpointEditToolName = 'find-replace' | 'multi-find-replace' | 'apply-patch' | 'code-rewrite';
 
+export interface IChatModelRequestOptions {
+	temperature?: number | null;
+	top_p?: number | null;
+}
+
 const allEndpointEditToolNames: ReadonlySet<EndpointEditToolName> = new Set([
 	'find-replace',
 	'multi-find-replace',
@@ -82,12 +87,17 @@ export enum ModelSupportedEndpoint {
 export interface IModelTokenPriceTier {
 	input_price: number;
 	output_price: number;
-	cache_price: number;
+	cache_read_price?: number;
+	/** Earlier spelling of {@link cache_read_price}. */
+	cache_price?: number;
+	cache_write_price?: number;
 	/**
 	 * The maximum context window size (in tokens) for this pricing tier.
 	 * Present on the `default` tier only when a `long_context` tier also
 	 * exists; always present on the `long_context` tier itself.
 	 */
+	max_prompt_tokens?: number;
+	/** Earlier spelling of {@link max_prompt_tokens}. */
 	context_max?: number;
 }
 
@@ -97,11 +107,25 @@ export interface IModelTokenPrices {
 	long_context?: IModelTokenPriceTier;
 }
 
+export interface IModelPromo {
+	id: string;
+	discount_percent: number;
+	/** ISO 8601 end date; absent for open-ended promotions. */
+	ends_at?: string;
+	message: string;
+}
+
 export interface IModelBilling {
 	is_premium?: boolean;
 	multiplier?: number;
 	restricted_to?: string[];
 	token_prices?: IModelTokenPrices;
+	promo?: IModelPromo;
+	/**
+	 * Discount applied when this model is reached through Auto, as a fraction
+	 * (e.g. `0.1` for 10% off). Only set on models Auto can route to.
+	 */
+	auto_discount?: number;
 }
 
 export interface IModelAPIResponse {
@@ -115,6 +139,7 @@ export interface IModelAPIResponse {
 	version: string;
 	warning_messages?: { code: string; message: string }[];
 	info_messages?: { code: string; message: string }[];
+	warning_text?: Record<string, string>;
 	billing?: IModelBilling;
 	model_picker_price_category?: string;
 	model_picker_category?: string;
@@ -127,13 +152,14 @@ export type IChatModelInformation = IModelAPIResponse & {
 	capabilities: IChatModelCapabilities;
 	urlOrRequestMetadata?: string | RequestMetadata;
 	requestHeaders?: Readonly<Record<string, string>>;
+	modelOptions?: Readonly<IChatModelRequestOptions>;
 	zeroDataRetentionEnabled?: boolean;
 	/**
 	 * BYOK-only override that forces the body shape used when forwarding the reasoning effort to the model.
 	 * Honored by `OpenAIEndpoint`. Unset — the body shape follows the API path (Responses API → nested `reasoning.effort`,
-	 * Chat Completions → top-level `reasoning_effort`).
+	 * Anthropic Messages API → `output_config.effort`, Chat Completions → top-level `reasoning_effort`).
 	 */
-	reasoningEffortFormat?: 'chat-completions' | 'responses';
+	reasoningEffortFormat?: 'chat-completions' | 'responses' | 'messages';
 };
 
 export function isChatModelInformation(model: IModelAPIResponse): model is IChatModelInformation {
@@ -154,14 +180,13 @@ export function isCompletionModelInformation(model: IModelAPIResponse): model is
 	return model.capabilities.type === 'completion';
 }
 
-export type ChatEndpointFamily = 'copilot-utility' | 'copilot-utility-small';
+export type ChatEndpointFamily = 'copilot-utility' | 'copilot-utility-small' | 'copilot-dictation-cleanup-nano' | 'copilot-dictation-cleanup-luna';
 
 /**
  * A model family accepted by {@link IEndpointProvider.getChatEndpoint}: either
- * an internal utility alias ({@link ChatEndpointFamily}) or any CAPI model
- * family id (e.g. `gemini-3-flash`, `gpt-5-mini`). The utility literals are
- * kept for editor autocomplete while still allowing arbitrary CAPI family
- * strings.
+ * an internal model alias ({@link ChatEndpointFamily}) or any CAPI model family
+ * id (e.g. `gemini-3-flash`, `gpt-5-mini`). The internal literals are kept for
+ * editor autocomplete while still allowing arbitrary CAPI family strings.
  */
 export type ChatModelFamily = ChatEndpointFamily | (string & {});
 

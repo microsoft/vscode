@@ -9,7 +9,7 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { createFileSystemProviderError, FileChangeType, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileChange, IFileDeleteOptions, IFileOverwriteOptions, IFileSystemProvider, IFileSystemProviderWithFileRealpathCapability, IFileWriteOptions, IStat, IWatchOptions } from '../../files/common/files.js';
-import { fromAgentHostUri, toAgentHostUri } from './agentHostUri.js';
+import { fromAgentHostUri, isAgentHostContentRefUri, toAgentHostUri } from './agentHostUri.js';
 import { ContentEncoding, type CreateResourceWatchParams, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWriteParams, type ResourceWriteResult } from './state/protocol/commands.js';
 import { AhpErrorCodes } from './state/protocol/errors.js';
 import { ProtocolError } from './state/sessionProtocol.js';
@@ -24,7 +24,7 @@ import { ROOT_STATE_URI } from './state/sessionState.js';
  */
 export interface IRemoteFilesystemConnection {
 	resourceList(uri: URI): Promise<ResourceListResult>;
-	resourceRead(uri: URI): Promise<ResourceReadResult>;
+	resourceRead(uri: URI, encoding?: ContentEncoding): Promise<ResourceReadResult>;
 	resourceWrite(params: ResourceWriteParams): Promise<ResourceWriteResult>;
 	resourceDelete(params: ResourceDeleteParams): Promise<ResourceDeleteResult>;
 	resourceMove(params: ResourceMoveParams): Promise<ResourceMoveResult>;
@@ -46,10 +46,8 @@ export interface IRemoteFilesystemConnection {
 	 * reports under the watched root. Disposing the handle unsubscribes
 	 * the watch (subject to the receiver's grace window).
 	 *
-	 * Optional: implementations that do not have access to the AHP
-	 * subscription machinery (e.g. raw IPC channels in
-	 * {@link createAgentHostClientResourceConnection}) omit it; the FS
-	 * provider degrades to a no-op `watch()` in that case.
+	 * Optional: implementations without subscription machinery omit it; the
+	 * filesystem provider degrades to a no-op `watch()` in that case.
 	 */
 	watchResource?(params: CreateResourceWatchParams): Promise<IRemoteWatchHandle>;
 }
@@ -386,15 +384,33 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 		return store;
 	}
 
+	/**
+	 * Whether `resource` addresses a protocol `ContentRef` rather than an entry
+	 * in the host's filesystem. See {@link toAgentHostContentUri}.
+	 *
+	 * The scheme check covers content refs minted before the marker existed,
+	 * such as ones persisted in restored editor state. It can go once those
+	 * have aged out — and the marker itself can go if `resourceResolve` grows
+	 * a way for a host to report a resource as readable but not resolvable.
+	 */
+	private _isContentRef(resource: URI, decoded: URI): boolean {
+		return isAgentHostContentRefUri(resource)
+			|| decoded.scheme === 'session-db'
+			|| decoded.scheme === 'git-blob';
+	}
+
 	async stat(resource: URI): Promise<IStat> {
 		const path = resource.path;
 
+		// Before the synthetic-root check: a content ref whose original URI has
+		// no path is wrapped as `/`, and it is a file, not the provider root.
+		const decoded = this._decodeUri(resource);
+		if (this._isContentRef(resource, decoded)) {
+			return { type: FileType.File, mtime: 0, ctime: 0, size: 0, permissions: FilePermission.Readonly };
+		}
+
 		if (path === '/' || path === '') {
 			return { type: FileType.Directory, mtime: 0, ctime: 0, size: 0, permissions: FilePermission.Readonly };
-		}
-		const decoded = this._decodeUri(resource);
-		if (decoded.scheme === 'session-db' || decoded.scheme === 'git-blob') {
-			return { type: FileType.File, mtime: 0, ctime: 0, size: 0, permissions: FilePermission.Readonly };
 		}
 
 		if (decoded.path === '/' || decoded.path === '') {
@@ -426,7 +442,7 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 			return path;
 		}
 		const decoded = this._decodeUri(resource);
-		if (decoded.scheme === 'session-db' || decoded.scheme === 'git-blob' || decoded.path === '/' || decoded.path === '') {
+		if (this._isContentRef(resource, decoded) || decoded.path === '/' || decoded.path === '') {
 			return path;
 		}
 		const connection = await this._getConnection(resource.authority);
@@ -450,7 +466,7 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 		const connection = await this._getConnection(resource.authority);
 		try {
 			const originalUri = this._decodeUri(resource);
-			const result = await connection.resourceRead(originalUri);
+			const result = await connection.resourceRead(originalUri, ContentEncoding.Base64);
 			if (result.encoding === ContentEncoding.Base64) {
 				return decodeBase64(result.data).buffer;
 			}

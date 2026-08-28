@@ -12,6 +12,7 @@ src/vs/base/browser/ui/table/** @benibenj
 src/vs/base/browser/ui/tree/** @benibenj
 
 # Platform
+src/vs/platform/agentHost/node/claude/** @TylerLeonhardt
 src/vs/platform/browserView/** @kycutler @jruales
 src/vs/platform/quickinput/** @TylerLeonhardt
 src/vs/platform/secrets/** @TylerLeonhardt
@@ -38,6 +39,7 @@ src/vs/workbench/services/views/** @sandy081 @benibenj
 src/vs/workbench/contrib/authentication/** @TylerLeonhardt
 src/vs/workbench/contrib/browserView/** @kycutler @jruales
 src/vs/workbench/contrib/chat/browser/chatListRenderer.ts @roblourens
+src/vs/workbench/contrib/chat/electron-browser/builtInTools/fetchPageTool.ts @TylerLeonhardt
 src/vs/workbench/contrib/localization/** @TylerLeonhardt
 src/vs/workbench/contrib/quickaccess/browser/commandsQuickAccess.ts @TylerLeonhardt
 src/vs/workbench/contrib/scm/** @lszomoru
@@ -70,6 +72,8 @@ src/vs/workbench/api/common/extHostQuickOpen.ts @TylerLeonhardt
 src/vs/workbench/api/browser/mainThreadSecretState.ts @TylerLeonhardt
 
 # Extensions
+extensions/copilot/src/extension/chatSessions/claude/** @TylerLeonhardt
+extensions/copilot/src/extension/chatSessions/vscode-node/claudeChatSession* @TylerLeonhardt
 extensions/microsoft-authentication/** @TylerLeonhardt
 extensions/github-authentication/** @TylerLeonhardt
 extensions/git/** @lszomoru
@@ -78,6 +82,8 @@ extensions/github/** @lszomoru
 extensions/vscode-api-tests/src/singlefolder-tests/browser*.test.ts @kycutler @jruales
 
 # Testing
+test/mcp/** @TylerLeonhardt
+test/scenario/** @bryanchen-d
 test/sanity/** @dmitrivMS
 
 # Agents Workbench
@@ -88,3 +94,12 @@ src/vs/sessions/services/sessions/** @sandy081 @lszomoru
 src/vs/sessions/contrib/layout/** @benibenj
 src/vs/sessions/browser/parts/** @benibenj
 src/vs/sessions/browser/workbench.ts @benibenj
+
+# Agents Window architecture specifications and their routing policy.
+/src/vs/sessions/*.md @sandy081
+/src/vs/sessions/contrib/layout/browser/*.md @sandy081
+/src/vs/sessions/contrib/providers/*/*.md @sandy081
+/.github/instructions/sessions.instructions.md @sandy081
+/.github/skills/sessions/SKILL.md @sandy081
+/.github/skills/chat-customizations-editor/SKILL.md @sandy081
+

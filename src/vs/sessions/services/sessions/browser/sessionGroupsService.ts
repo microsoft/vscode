@@ -9,6 +9,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ISession } from '../common/session.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
 
 /**
@@ -23,7 +24,7 @@ export interface ISessionGroup {
 	readonly id: string;
 	/** User-provided display name. */
 	readonly name: string;
-	/** Creation timestamp (ms). Used to evict the oldest empty group and as the default order (newest first). */
+	/** Creation timestamp (ms). Used as the default order (newest first). */
 	readonly createdAt: number;
 }
 
@@ -39,10 +40,8 @@ export interface ISessionGroupsChangeEvent {
  * groups. State is purely local (persisted to profile storage) and not synced
  * to providers.
  *
- * A session belongs to at most one group. Group membership is independent of
- * where the session renders: a grouped session that becomes pinned or archived
- * is rendered in the Pinned/Done section but retains its membership, so it
- * returns to the group once unpinned/restored.
+ * A session belongs to at most one group. Pinned sessions retain their
+ * membership, while archiving a session removes it from its group.
  */
 export interface ISessionGroupsService {
 	readonly _serviceBrand: undefined;
@@ -51,8 +50,7 @@ export interface ISessionGroupsService {
 	readonly onDidChange: Event<ISessionGroupsChangeEvent>;
 
 	/**
-	 * All groups in display order (including currently-empty ones). The list
-	 * view omits groups with no visible members when rendering.
+	 * All groups in display order, including currently-empty ones.
 	 */
 	getGroups(): ISessionGroup[];
 
@@ -74,6 +72,12 @@ export interface ISessionGroupsService {
 	/** Add a session to a group (removing it from any previous group). */
 	addToGroup(sessionId: string, groupId: string): void;
 
+	/**
+	 * Add multiple sessions to a group at once (removing them from any previous
+	 * group), firing a single change event.
+	 */
+	addToGroup(sessionIds: Iterable<string>, groupId: string): void;
+
 	/** Remove a session from its group, if any. */
 	removeFromGroup(sessionId: string): void;
 
@@ -82,14 +86,25 @@ export interface ISessionGroupsService {
 
 	/** The session ids that belong to the given group. */
 	getSessionIdsInGroup(groupId: string): string[];
+
+	/**
+	 * Record that the next new session started from the composer should join the
+	 * given group. The intent is consumed when a new session is started (sent)
+	 * and cleared if the new session is abandoned without sending. No-op when the
+	 * group does not exist.
+	 */
+	setPendingNewSessionGroup(groupId: string): void;
 }
 
 export const ISessionGroupsService = createDecorator<ISessionGroupsService>('sessionGroupsService');
+
+const EXPLICITLY_UNGROUPED_FIELD = 'explicitlyUngroupedSessionIds';
 
 interface ISerializedState {
 	readonly groups: readonly ISessionGroup[];
 	/** sessionId -> groupId */
 	readonly membership: Readonly<Record<string, string>>;
+	readonly [EXPLICITLY_UNGROUPED_FIELD]?: readonly string[];
 }
 
 export class SessionGroupsService extends Disposable implements ISessionGroupsService {
@@ -98,18 +113,30 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 
 	private static readonly STORAGE_KEY = 'sessionsListControl.groups';
 
-	/**
-	 * Maximum number of empty groups (no members) retained in storage. When a
-	 * new empty group would exceed this, the oldest empty group is evicted.
-	 */
-	private static readonly MAX_EMPTY_GROUPS = 3;
-
 	private readonly _onDidChange = this._register(new Emitter<ISessionGroupsChangeEvent>());
 	readonly onDidChange: Event<ISessionGroupsChangeEvent> = this._onDidChange.event;
 
 	private readonly _groups = new Map<string, ISessionGroup>();
 	/** sessionId -> groupId */
 	private readonly _membership = new Map<string, string>();
+	private readonly _explicitlyUngroupedSessionIds = new Set<string>();
+
+	/**
+	 * Group that the composer's in-progress new session should join once sent,
+	 * or `undefined` when there is no pending intent. Set via
+	 * {@link setPendingNewSessionGroup} when the user picks "New Session" on a
+	 * group header, locked onto a specific draft when that draft is sent, and
+	 * cleared if the new session is abandoned.
+	 */
+	private _pendingNewSessionGroupId: string | undefined;
+
+	/**
+	 * Sends in flight: draft (or, after graduation, committed) sessionId ->
+	 * groupId. A grouped send is locked here the moment it is dispatched, so a
+	 * later intent or a failed/concurrent send can never rebind it. Consumed
+	 * when the session is started.
+	 */
+	private readonly _inFlightSessionGroups = new Map<string, string>();
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -118,23 +145,116 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		super();
 
 		this.load();
+		const archivedMembershipChanged = new Set<string>();
+		const archivedStateChanged = this.removeArchivedMembership(this.sessionsManagementService.getSessions(), archivedMembershipChanged);
+		this.updateDefaultPlacement(this.sessionsManagementService.getSessions(), archivedMembershipChanged);
+		if (archivedStateChanged || archivedMembershipChanged.size > 0) {
+			this.save();
+		}
 
+		// A session dropping out of the provider's list is an eviction, not a
+		// deletion — an agent that cannot answer `listSessions` yet reports no
+		// sessions, so its sessions disappear until the next refresh. Clearing
+		// membership here would turn that transient gap into a permanent,
+		// unrecoverable loss of the user's grouping.
 		this._register(this.sessionsManagementService.onDidChangeSessions(e => {
-			if (e.removed.length === 0) {
-				return;
+			for (const session of e.removed) {
+				this._inFlightSessionGroups.delete(session.sessionId);
 			}
 			const changed = new Set<string>();
-			for (const session of e.removed) {
-				if (this._membership.delete(session.sessionId)) {
-					changed.add(session.sessionId);
-				}
+			const archivedStateChanged = this.removeArchivedMembership([...e.added, ...e.changed], changed);
+			this.updateDefaultPlacement(this.sessionsManagementService.getSessions(), changed);
+			if (archivedStateChanged || changed.size > 0) {
+				this.save();
 			}
 			if (changed.size > 0) {
-				const evicted = this.evictExcessEmptyGroups();
-				this.save();
-				this._onDidChange.fire({ groupsChanged: evicted, membershipChanged: changed });
+				this._onDidChange.fire({ groupsChanged: false, membershipChanged: changed });
 			}
 		}));
+
+		this._register(this.sessionsManagementService.onDidDeleteSession(session => {
+			const membershipDeleted = this._membership.delete(session.sessionId);
+			const ungroupedDeleted = this._explicitlyUngroupedSessionIds.delete(session.sessionId);
+			if (membershipDeleted || ungroupedDeleted) {
+				this.save();
+			}
+			if (membershipDeleted) {
+				this._onDidChange.fire({ groupsChanged: false, membershipChanged: new Set([session.sessionId]) });
+			}
+		}));
+
+		this._register(this.sessionsManagementService.onDidArchiveSession(session => {
+			const membershipDeleted = this._membership.delete(session.sessionId);
+			const ungroupedAdded = this.markExplicitlyUngrouped(session.sessionId);
+			if (membershipDeleted || ungroupedAdded) {
+				this.save();
+			}
+			if (membershipDeleted) {
+				this._onDidChange.fire({ groupsChanged: false, membershipChanged: new Set([session.sessionId]) });
+			}
+		}));
+
+		// Lock the pending group onto the specific draft at send-dispatch, before
+		// the async start completes, so a later arm or a failed/concurrent send
+		// can no longer rebind it. A send into an existing session discards the
+		// draft (firing the discard handler below) before this fires.
+		this._register(this.sessionsManagementService.onWillSendRequest(session => {
+			if (this._pendingNewSessionGroupId === undefined) {
+				return;
+			}
+			this._inFlightSessionGroups.set(session.sessionId, this._pendingNewSessionGroupId);
+			this._pendingNewSessionGroupId = undefined;
+		}));
+
+		// A draft graduates into a committed session with a new id; follow it.
+		this._register(this.sessionsManagementService.onDidReplaceSession(({ from, to }) => {
+			if (from.sessionId === to.sessionId) {
+				return;
+			}
+			const groupId = this._inFlightSessionGroups.get(from.sessionId);
+			if (groupId !== undefined) {
+				this._inFlightSessionGroups.delete(from.sessionId);
+				this._inFlightSessionGroups.set(to.sessionId, groupId);
+			}
+		}));
+
+		// The started session carries the committed id; record its group now.
+		this._register(this.sessionsManagementService.onDidStartSession(session => {
+			const groupId = this._inFlightSessionGroups.get(session.sessionId);
+			if (groupId === undefined) {
+				return;
+			}
+			this._inFlightSessionGroups.delete(session.sessionId);
+			if (this._groups.has(groupId)) {
+				this.addToGroup(session.sessionId, groupId);
+			}
+		}));
+
+		// Abandoning the composer draft drops the not-yet-dispatched intent so it
+		// never binds an unrelated session created later.
+		this._register(this.sessionsManagementService.onDidDiscardNewSession(() => {
+			this._pendingNewSessionGroupId = undefined;
+		}));
+	}
+
+	/** Fills missing custom-group membership from creation provenance; explicit membership or ungrouping remains authoritative. */
+	private updateDefaultPlacement(sessions: readonly ISession[], changed: Set<string>): void {
+		let placed: boolean;
+		do {
+			placed = false;
+			for (const session of sessions) {
+				if (session.isArchived.get() || this._membership.has(session.sessionId) || this._explicitlyUngroupedSessionIds.has(session.sessionId)) {
+					continue;
+				}
+				const creatorResource = session.createdBySession?.get()?.session;
+				const creator = creatorResource ? this.sessionsManagementService.getSession(creatorResource) : undefined;
+				const creatorGroupId = creator ? this._membership.get(creator.sessionId) : undefined;
+				if (creatorGroupId) {
+					this.setMembership(session.sessionId, creatorGroupId, changed);
+					placed = true;
+				}
+			}
+		} while (placed);
 	}
 
 	getGroups(): ISessionGroup[] {
@@ -155,8 +275,8 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 				this.setMembership(sessionId, group.id, membershipChanged);
 			}
 		}
+		this.updateDefaultPlacement(this.sessionsManagementService.getSessions(), membershipChanged);
 
-		this.evictExcessEmptyGroups();
 		this.save();
 		this._onDidChange.fire({ groupsChanged: true, membershipChanged });
 		return group;
@@ -176,10 +296,19 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		if (!this._groups.delete(groupId)) {
 			return;
 		}
+		if (this._pendingNewSessionGroupId === groupId) {
+			this._pendingNewSessionGroupId = undefined;
+		}
+		for (const [sessionId, gid] of this._inFlightSessionGroups) {
+			if (gid === groupId) {
+				this._inFlightSessionGroups.delete(sessionId);
+			}
+		}
 		const membershipChanged = new Set<string>();
 		for (const [sessionId, gid] of this._membership) {
 			if (gid === groupId) {
 				this._membership.delete(sessionId);
+				this.markExplicitlyUngrouped(sessionId);
 				membershipChanged.add(sessionId);
 			}
 		}
@@ -187,24 +316,30 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		this._onDidChange.fire({ groupsChanged: true, membershipChanged });
 	}
 
-	addToGroup(sessionId: string, groupId: string): void {
-		if (!this._groups.has(groupId) || this._membership.get(sessionId) === groupId) {
+	addToGroup(sessionIdOrIds: string | Iterable<string>, groupId: string): void {
+		if (!this._groups.has(groupId)) {
 			return;
 		}
+		const sessionIds = typeof sessionIdOrIds === 'string' ? [sessionIdOrIds] : sessionIdOrIds;
 		const membershipChanged = new Set<string>();
-		this.setMembership(sessionId, groupId, membershipChanged);
-		const evicted = this.evictExcessEmptyGroups();
+		for (const sessionId of sessionIds) {
+			this.setMembership(sessionId, groupId, membershipChanged);
+		}
+		this.updateDefaultPlacement(this.sessionsManagementService.getSessions(), membershipChanged);
+		if (membershipChanged.size === 0) {
+			return;
+		}
 		this.save();
-		this._onDidChange.fire({ groupsChanged: evicted, membershipChanged });
+		this._onDidChange.fire({ groupsChanged: false, membershipChanged });
 	}
 
 	removeFromGroup(sessionId: string): void {
 		if (!this._membership.delete(sessionId)) {
 			return;
 		}
-		const evicted = this.evictExcessEmptyGroups();
+		this.markExplicitlyUngrouped(sessionId);
 		this.save();
-		this._onDidChange.fire({ groupsChanged: evicted, membershipChanged: new Set([sessionId]) });
+		this._onDidChange.fire({ groupsChanged: false, membershipChanged: new Set([sessionId]) });
 	}
 
 	getGroupOfSession(sessionId: string): string | undefined {
@@ -221,39 +356,37 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		return result;
 	}
 
+	setPendingNewSessionGroup(groupId: string): void {
+		this._pendingNewSessionGroupId = this._groups.has(groupId) ? groupId : undefined;
+	}
+
 	// -- Helpers --
 
 	private setMembership(sessionId: string, groupId: string, changed: Set<string>): void {
-		if (this._membership.get(sessionId) !== groupId) {
+		if (this._explicitlyUngroupedSessionIds.delete(sessionId) || this._membership.get(sessionId) !== groupId) {
 			this._membership.set(sessionId, groupId);
 			changed.add(sessionId);
 		}
 	}
 
-	private hasMembers(groupId: string): boolean {
-		for (const gid of this._membership.values()) {
-			if (gid === groupId) {
-				return true;
-			}
-		}
-		return false;
+	private markExplicitlyUngrouped(sessionId: string): boolean {
+		const size = this._explicitlyUngroupedSessionIds.size;
+		this._explicitlyUngroupedSessionIds.add(sessionId);
+		return this._explicitlyUngroupedSessionIds.size !== size;
 	}
 
-	/**
-	 * Keep at most {@link MAX_EMPTY_GROUPS} groups with no members, evicting the
-	 * oldest empty groups (by `createdAt`) beyond that cap. Returns whether any
-	 * group was deleted.
-	 */
-	private evictExcessEmptyGroups(): boolean {
-		const empty = [...this._groups.values()]
-			.filter(group => !this.hasMembers(group.id))
-			.sort((a, b) => a.createdAt - b.createdAt);
-		let deleted = false;
-		for (let i = 0; i < empty.length - SessionGroupsService.MAX_EMPTY_GROUPS; i++) {
-			this._groups.delete(empty[i].id);
-			deleted = true;
+	private removeArchivedMembership(sessions: readonly ISession[], changed: Set<string>): boolean {
+		let stateChanged = false;
+		for (const session of sessions) {
+			if (session.isArchived.get()) {
+				if (this._membership.delete(session.sessionId)) {
+					changed.add(session.sessionId);
+					stateChanged = true;
+				}
+				stateChanged = this.markExplicitlyUngrouped(session.sessionId) || stateChanged;
+			}
 		}
-		return deleted;
+		return stateChanged;
 	}
 
 	/**
@@ -292,19 +425,28 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 					}
 				}
 			}
+			const explicitlyUngroupedSessionIds = parsed[EXPLICITLY_UNGROUPED_FIELD];
+			if (Array.isArray(explicitlyUngroupedSessionIds)) {
+				for (const sessionId of explicitlyUngroupedSessionIds) {
+					if (typeof sessionId === 'string') {
+						this._explicitlyUngroupedSessionIds.add(sessionId);
+					}
+				}
+			}
 		} catch {
 			// ignore corrupt data
 		}
 	}
 
 	private save(): void {
-		if (this._groups.size === 0) {
+		if (this._groups.size === 0 && this._explicitlyUngroupedSessionIds.size === 0) {
 			this.storageService.remove(SessionGroupsService.STORAGE_KEY, StorageScope.PROFILE);
 			return;
 		}
 		const state: ISerializedState = {
 			groups: [...this._groups.values()],
 			membership: Object.fromEntries(this._membership),
+			[EXPLICITLY_UNGROUPED_FIELD]: [...this._explicitlyUngroupedSessionIds],
 		};
 		this.storageService.store(SessionGroupsService.STORAGE_KEY, JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
 	}

@@ -16,7 +16,7 @@ import {
 	ICopilotApiService,
 	type ICopilotApiServiceRequestOptions,
 } from '../shared/copilotApiService.js';
-import { buildForwardedChatError, encodeForwardedChatError } from '../shared/forwardedChatError.js';
+import { buildForwardedChatError, encodeForwardedChatError } from '../shared/proxyChatError.js';
 import {
 	IProxyInFlight,
 	ILoopbackProxyHandle,
@@ -54,6 +54,22 @@ export interface IClaudeProxyHandle extends ILoopbackProxyHandle {
 	/** 256-bit hex string. Combine with a session id as `Bearer <nonce>.<sessionId>`. */
 	readonly nonce: string;
 }
+
+/**
+ * How the Claude provider reaches Anthropic, resolved once per session at
+ * materialize time and threaded as data through `IMaterializeContext` into
+ * `buildOptions` / `buildSubprocessEnv`.
+ *
+ * - `proxy`: Copilot-routed Claude (the default). All `messages` traffic goes
+ *   through the local {@link IClaudeProxyHandle} → Copilot CAPI.
+ * - `native`: BYO-Anthropic (Phase 19). The SDK talks to Anthropic directly on
+ *   the user's own credentials (`ANTHROPIC_API_KEY`, or a subscription OAuth
+ *   token in `CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token`); no proxy is
+ *   involved. The SDK's bundled `claude` CLI runs the turn.
+ */
+export type ClaudeTransport =
+	| { readonly kind: 'proxy'; readonly handle: IClaudeProxyHandle }
+	| { readonly kind: 'native' };
 
 /**
  * A per-request credits report. CAPI returns the actual billed credits

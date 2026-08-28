@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ButtonBar, IButton } from '../../../base/browser/ui/button/button.js';
+import { ButtonBar, ButtonWithDropdown, IButton } from '../../../base/browser/ui/button/button.js';
+import { createPixelSpinner } from '../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
+import './buttonbar.css';
 import { createInstantHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { ActionRunner, IAction, IActionRunner, IRunEvent, SubmenuAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../base/common/actions.js';
 import { Codicon } from '../../../base/common/codicons.js';
@@ -31,6 +33,11 @@ export type IButtonConfigProvider = (action: IAction, index: number) => {
 	customLabel?: string | IMarkdownString;
 	customLabelObs?: IObservable<string | IMarkdownString | undefined>;
 	customClass?: string;
+	/**
+	 * Renders an animated spinner ahead of the label, for a button whose work
+	 * is currently in flight rather than waiting to be started.
+	 */
+	showSpinner?: boolean;
 } | undefined;
 
 export interface IWorkbenchButtonBarOptions {
@@ -38,6 +45,7 @@ export interface IWorkbenchButtonBarOptions {
 	buttonConfigProvider?: IButtonConfigProvider;
 	small?: boolean;
 	disableWhileRunning?: boolean;
+	renderSecondaryActions?: boolean;
 }
 
 export class WorkbenchButtonBar extends ButtonBar {
@@ -90,7 +98,10 @@ export class WorkbenchButtonBar extends ButtonBar {
 		// Support instant hover between buttons
 		const hoverDelegate = this._updateStore.add(createInstantHoverDelegate());
 
-		for (let i = 0; i < actions.length; i++) {
+		const actionCount = this._options?.renderSecondaryActions === false
+			? Math.min(actions.length, 1)
+			: actions.length;
+		for (let i = 0; i < actionCount; i++) {
 
 			const secondary = i > 0;
 			const actionOrSubmenu = actions[i];
@@ -106,6 +117,7 @@ export class WorkbenchButtonBar extends ButtonBar {
 				tooltip = this._keybindingService.appendKeybinding(tooltip, action.id);
 
 				btn = this.addButtonWithDropdown({
+					addPrimaryActionToDropdown: false,
 					secondary: configProvider(action, i)?.isSecondary ?? secondary,
 					actionRunner: this._actionRunner,
 					actions: rest,
@@ -158,6 +170,17 @@ export class WorkbenchButtonBar extends ButtonBar {
 				return labelValue;
 			};
 
+			// Setting the label resets the button's children, so the spinner is
+			// (re-)attached after every label write rather than once up front.
+			const spinner = config?.showSpinner
+				? this._updateStore.add(createPixelSpinner())
+				: undefined;
+			const applySpinner = () => {
+				if (spinner) {
+					(btn instanceof ButtonWithDropdown ? btn.primaryButton.element : btn.element).prepend(spinner.element);
+				}
+			};
+
 			const applyLabel = (labelValue: string | IMarkdownString) => {
 				if (showLabel) {
 					btn.label = composeLabel(labelValue);
@@ -168,6 +191,7 @@ export class WorkbenchButtonBar extends ButtonBar {
 
 				btn.setTitle(ariaLabelWithKeybinding);
 				btn.setAriaLabel(ariaLabelWithKeybinding);
+				applySpinner();
 			};
 
 			if (showLabel) {
@@ -175,6 +199,7 @@ export class WorkbenchButtonBar extends ButtonBar {
 			} else {
 				btn.element.classList.add('monaco-text-button');
 			}
+			applySpinner();
 
 			if (showIcon) {
 				if (action instanceof MenuItemAction && ThemeIcon.isThemeIcon(action.item.icon)) {
@@ -208,7 +233,7 @@ export class WorkbenchButtonBar extends ButtonBar {
 			}));
 		}
 
-		if (secondary.length > 0) {
+		if (this._options?.renderSecondaryActions !== false && secondary.length > 0) {
 
 			const btn = this.addButton({
 				secondary: true,

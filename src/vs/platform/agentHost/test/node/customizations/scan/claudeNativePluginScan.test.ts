@@ -8,7 +8,7 @@ import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../log/common/log.js';
 import { IFileService } from '../../../../../files/common/files.js';
-import { scanClaudeNativePlugins } from '../../../../node/claude/customizations/scan/claudeNativePluginScan.js';
+import { scanClaudeNativePlugins, scanClaudeNativePluginsForRoots } from '../../../../node/claude/customizations/scan/claudeNativePluginScan.js';
 import { claudeTestUserHome as userHome, claudeTestWorkspace as workspace, createInMemoryFileService, seedFile } from '../claudeCustomizationTestUtils.js';
 
 suite('claudeNativePluginScan', () => {
@@ -126,6 +126,67 @@ suite('claudeNativePluginScan', () => {
 		const plugins = await scanClaudeNativePlugins(workspace, userHome, fileService, logService);
 
 		assert.deepStrictEqual(plugins.map(p => p.root.path), ['/workspace/.claude/skills/mine']);
+	});
+
+	test('discovers an in-place plugin enabled only by an additional workspace root', async () => {
+		const workspaceB = workspace.with({ path: '/workspace-b' });
+		await seed('/workspace-b/.claude/settings.json', JSON.stringify({ enabledPlugins: { 'mine@skills-dir': true } }));
+		await seed('/workspace-b/.claude/skills/mine/.claude-plugin/plugin.json', manifest('mine'));
+
+		const plugins = await scanClaudeNativePluginsForRoots([workspace, workspaceB], userHome, fileService, logService);
+
+		assert.deepStrictEqual(plugins.map(p => ({ id: p.id, root: p.root.path })), [
+			{ id: 'mine@skills-dir', root: '/workspace-b/.claude/skills/mine' },
+		]);
+	});
+
+	test('uses the most-specific nested workspace root when parsing plugin hooks', async () => {
+		const workspaceB = workspace.with({ path: '/workspace/packages/b' });
+		await seed('/workspace/packages/b/.claude/settings.json', JSON.stringify({ enabledPlugins: { 'mine@skills-dir': true } }));
+		await seed('/workspace/packages/b/.claude/skills/mine/.claude-plugin/plugin.json', manifest('mine'));
+		await seed('/workspace/packages/b/.claude/skills/mine/hooks/hooks.json', JSON.stringify({
+			hooks: {
+				PreToolUse: [{
+					hooks: [{ type: 'command', command: 'echo nested', cwd: 'scripts' }],
+				}],
+			},
+		}));
+
+		const plugins = await scanClaudeNativePluginsForRoots([workspace, workspaceB], userHome, fileService, logService);
+
+		assert.deepStrictEqual(plugins[0].parsed.hooks.flatMap(group => group.commands).map(hook => hook.cwd?.path), [
+			'/workspace/packages/b/scripts',
+		]);
+	});
+
+	test('uses the primary root for cached plugin hooks when an additional root contains userHome', async () => {
+		const broadRoot = workspace.with({ path: '/home' });
+		await seed('/home/.claude/settings.json', JSON.stringify({ enabledPlugins: { 'cached@m': true } }));
+		await seed('/home/.claude/plugins/cache/m/cached/1.0.0/.claude-plugin/plugin.json', manifest('cached'));
+		await seed('/home/.claude/plugins/cache/m/cached/1.0.0/hooks/hooks.json', JSON.stringify({
+			hooks: {
+				PreToolUse: [{
+					hooks: [{ type: 'command', command: 'echo cached', cwd: 'scripts' }],
+				}],
+			},
+		}));
+
+		const plugins = await scanClaudeNativePluginsForRoots([workspace, broadRoot], userHome, fileService, logService);
+
+		assert.deepStrictEqual(plugins[0].parsed.hooks.flatMap(group => group.commands).map(hook => hook.cwd?.path), [
+			'/workspace/scripts',
+		]);
+	});
+
+	test('uses ordered root precedence for conflicting plugin enablement', async () => {
+		const workspaceB = workspace.with({ path: '/workspace-b' });
+		await seed('/workspace/.claude/settings.json', JSON.stringify({ enabledPlugins: { 'mine@skills-dir': false } }));
+		await seed('/workspace-b/.claude/settings.json', JSON.stringify({ enabledPlugins: { 'mine@skills-dir': true } }));
+		await seed('/workspace-b/.claude/skills/mine/.claude-plugin/plugin.json', manifest('mine'));
+
+		const plugins = await scanClaudeNativePluginsForRoots([workspace, workspaceB], userHome, fileService, logService);
+
+		assert.deepStrictEqual(plugins, []);
 	});
 
 	test('fail-soft: an enabled plugin with no resolvable root is skipped, not thrown', async () => {

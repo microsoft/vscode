@@ -1,97 +1,89 @@
-# RemoteAgentHostSessionsProvider — Remote Agent Host Provider
+# Remote Agent Host sessions provider
 
-**File:** `src/vs/sessions/contrib/remoteAgentHost/browser/remoteAgentHostSessionsProvider.ts`
+> **Specification change gate:** Do not update this document for connection bug fixes, retries, telemetry, or transport algorithms. Update it only when connection ownership, routing identity, or provider lifecycle changes.
 
-A sessions provider for a single agent on a remote agent host connection. One instance is created per agent discovered on each connection.
+## Scope
+
+`RemoteAgentHostSessionsProvider` specializes the shared Agent Host provider for one remote connection. A connection may advertise multiple agents and session types.
+
+Shared Agent Host adaptation is specified in [AGENT_HOST_SESSIONS_PROVIDER.md](../agentHost/AGENT_HOST_SESSIONS_PROVIDER.md).
 
 ## Registration
 
-Registered dynamically by `RemoteAgentHostContribution`:
+`RemoteAgentHostContribution` observes `IRemoteAgentHostService` connections. It creates and registers one provider per connection and disposes the provider when that connection is removed.
 
-```
-src/vs/sessions/contrib/remoteAgentHost/browser/remoteAgentHost.contribution.ts
-```
-
-- Monitors `IRemoteAgentHostService.onDidChangeConnections`
-- Creates one `RemoteAgentHostSessionsProvider` per connection
-- Registers via `sessionsProvidersService.registerProvider(sessionsProvider)`
-- Disposes providers when connections are removed
+Agent discovery is dynamic. Changes to a host's advertised agents update the provider's session types without recreating the provider.
 
 ## Identity
 
-| Property | Format |
-|----------|--------|
-| `id` | `'agenthost-${sanitizedAuthority}'` |
-| `label` | Connection name or `address` |
-| `icon` | `Codicon.remote` |
-| `sessionTypes` | Dynamically populated from `rootState.agents`; copilot agents use the platform `COPILOT_CLI_SESSION_TYPE` (`copilotcli`) as the logical session type id, other agents use `remoteAgentHostSessionTypeId(sanitizedAuthority, agent.provider)` (format: `'remote-${sanitizedAuthority}-${agent.provider}'`), label is the agent's `displayName` |
+Remote sessions use separate logical and routing identities:
 
-The per-connection identifier built by `vs/platform/agentHost/common/agentHostSessionType` is used as the resource URI scheme registered via `registerChatSessionContentProvider` and the `targetChatSessionType` published by `AgentHostLanguageModelProvider`. For copilot agents, `ISession.sessionType` uses the platform `COPILOT_CLI_SESSION_TYPE` so that remote copilot sessions align with local CLI and cloud copilot sessions. The sessions-core model picker reads models via `ISessionsProvider.getModels`, which for the agent host filters registered language models by the session's resource scheme to find models for the active connection, and presentation options via `ISessionsProvider.getModelPickerOptions` (grouped models, featured shown, no "Manage Models" action).
+| Identity | Purpose |
+|----------|---------|
+| Provider ID | Identifies the remote connection's provider instance |
+| `ISession.sessionType` | Logical type used by Sessions UI and capabilities |
+| Session resource scheme | Routes content and operations to the exact host and agent |
+| Model target/vendor | Routes language models to the exact host and agent |
 
-Agents are discovered dynamically from each host's `rootState`; there is no hard-coded allowlist of supported agent providers. A single `RemoteAgentHostSessionsProvider` per host fans out into one `ISessionType` per advertised agent, and fires `onDidChangeSessionTypes` when the host's agent list changes. Each incoming session's type is derived from its backend URI scheme, so sessions for any agent the host exposes route through the same provider.
+Copilot agents may share a logical session type with local and cloud Copilot providers while retaining a connection-specific resource scheme. Other agents use a connection-specific logical type.
 
-## IDs and URI Schemes
+Never use the logical session type where host-specific routing is required. Resource schemes and provider IDs are created through the shared Agent Host identifier helpers rather than hand-built strings.
 
-A remote session uses three distinct identifiers. For a copilot agent on host `myhost:3000`:
+## Host groups
 
-| Purpose | Value | Example |
-|---------|-------|---------|
-| `ISession.sessionType` | Platform type — `COPILOT_CLI_SESSION_TYPE` for copilot agents, per-connection ID for others | `copilotcli` |
-| `resource.scheme` | Unique per-connection ID from `remoteAgentHostSessionTypeId()` | `remote-myhost__3000-copilot` |
-| LM vendor / `targetChatSessionType` | Same as resource scheme | `remote-myhost__3000-copilot` |
+By default one provider is one entry in the host filter. A provider whose config carries `hostGroup` (`IAgentHostGroup`) instead declares itself a member of a larger user-facing host: every provider sharing a `hostGroup.id` folds into one `IAgentHostFilterEntry` whose `providerIds` covers all of them, and whose `status` is the most alive status among its members. Members keep their own connection, address and session-type authority.
 
-Decoupling these allows copilot sessions from different providers (local CLI, remote hosts, cloud) to share the platform session type while keeping content-provider and model-provider routing isolated per host.
+Cloud sandboxes are the only group today. `CloudSandboxAgentHostContribution` registers one provider per sandbox environment and gives each the `githubsandbox` group (`order: 1`, `connectable: false`), so a user with many Mission Control tasks sees a single "GitHub Sandboxes" entry rather than one entry per task.
 
-### How each ID is used
+A group can also be **declared** independently of its members via `IAgentHostFilterService.registerHostGroup`. A declared group always has an entry — with an empty `providerIds` until members register — so the place stays visible and selectable before the user has anything in it. The sandbox contribution declares its group for as long as both `CloudSandboxEnabledSettingId` and `RemoteAgentHostsEnabledSettingId` are on, so enabling the feature surfaces "GitHub Sandboxes" immediately rather than only once discovery finds an environment. Selecting an entry whose `providerIds` is empty scopes the sessions list to nothing.
 
-- **`ISession.sessionType`** — The logical session type visible to the sessions framework. Controls session-type pickers, context keys (`sessionType`), and behavioral gating (e.g. `isActiveSessionBackgroundProvider`). Copilot agents share `copilotcli` so they behave consistently with local copilot sessions.
+Grouping changes these behaviors:
 
-- **`resource.scheme`** — The URI scheme of `ISession.resource` (e.g. `remote-myhost__3000-copilot:///abc123`). Routes `registerChatSessionContentProvider` calls to the correct `AgentHostSessionHandler` for each host. The provider's `getModels` filters available models by `session.resource.scheme` (not `session.sessionType`).
+- The host filter's default selection prefers the first **connectable** entry. A selection chosen by that fallback is provisional and is replaced when a connectable entry registers later; an explicit user selection is kept and is the only kind persisted. An empty declared group is therefore never the automatic selection.
+- Non-connectable entries hide the connect/disconnect control, the "(disconnected)" menu suffix, and the mobile status dot, since their members connect when one of their sessions is opened.
+- Grouped members are excluded from `Manage Remote Agent Hosts…`, and a grouped entry offers no "Select Folder…" in the workspace picker because it has no single machine to browse.
+- The picker's re-discovery affordance keys off "no **connectable** host" rather than "no hosts", so a user whose only entry is a sandbox group can still re-run discovery to find their own machines.
 
-- **LM vendor** — The `targetChatSessionType` published by `AgentHostLanguageModelProvider` and used as the vendor when registering language models. Same value as the resource scheme, ensuring each host's models are isolated.
+## Connection ownership
 
-### Other IDs
+The remote contribution owns:
 
-- **`rawId`** — The session-local identifier (e.g. `abc123`), extracted from the session URI path. Used as the key in `_sessionCache`.
-- **`sessionId`** — `{providerId}:{resource}` (e.g. `agenthost-myhost__3000:remote-myhost__3000-copilot:///abc123`). The provider-scoped ID passed to `ISessionsProvider` methods.
-- **`providerId`** — `agenthost-${sanitizedAuthority}` (e.g. `agenthost-myhost__3000`). Identifies the provider instance, shared across all agents on the same host.
-- **Backend session URI** — `{agentProvider}:///{rawId}` (e.g. `copilot:///abc123`). Used for protocol operations like `disposeSession`, reconstructed via `AgentSession.uri()`.
+- connect, disconnect, and reconnect policy;
+- authentication and interactive connection prompts;
+- remote filesystem browsing;
+- transport diagnostics and connection status;
+- connection-scoped listener disposal.
 
-## Browse Actions
+The provider exposes connection state through `IAgentHostSessionsProvider` and delegates protocol operations to the live connection. Disconnecting clears live state without manufacturing successful operation results.
 
-- **"Folders"** — Opens a file dialog scoped to the agent host filesystem (`agent-host://` scheme)
+## Session lifecycle
 
-## New Session Behavior
+Drafts expose the shared untitled `ISession` contract and use remote workspace metadata. First send commits through the shared Agent Host lifecycle. Existing sessions use the shared adapter and cache.
 
-`createNewSession(workspace)` creates a minimal `ISession` object literal (not a class instance) with:
-- All observable fields initialized via `observableValue()`
-- Status set to `SessionStatus.Untitled`
-- Session type set to the first advertised agent type from the host
-- Workspace label derived from the URI path
+Remote session and chat resources preserve connection-specific routing identity through creation, hydration, and replacement. Backend session identifiers are translated only inside the provider.
 
-## Connection Management
+## Authentication and recovery
 
-- `setConnection(connection, defaultDirectory?)` — Wires a live agent host connection directly; dynamically discovers session types from the host's root state agents
-- `clearConnection()` — Clears the connection when the host disconnects
-- Handles session notifications (`notify/sessionAdded`, `notify/sessionRemoved`) and state changes
-- Fires `onDidChangeSessionTypes` when the host's agent list changes
-- Remote-host management options do not expose an IPC output channel; remote diagnostics use the host's forwarded logs when available.
-- SSH connection progress notifications are closed when the connect promise settles; keyboard-interactive prompt cancellation rejects the connect promise as cancellation and does not show an error notification.
-- SSH config host connections use resolved `IdentityFile` and `IdentityAgent` values from `ssh -G`; encrypted private keys are prompted for a passphrase through the same quick-input bridge as keyboard-interactive auth.
-- Startup SSH auto-reconnect treats keyboard-interactive cancellation as an intentional pause and does not schedule another reconnect attempt.
-- A manual SSH reconnect from the host picker bypasses that paused auto-reconnect state and starts a fresh reconnect attempt for stored SSH hosts; host-picker disconnect/cancel for SSH uses the SSH service instead of removing the stored host.
+Authentication challenges, credential refresh, and transport retries remain connection policy. The request that encountered a challenge observes its actual success, cancellation, or failure; provider operations do not silently convert authentication failures into availability results.
 
-## Stubbed Operations
+Concurrent prompts use the shared setup operation where credentials are shared. Connection-specific recovery state remains isolated per remote host.
 
-- `deleteChat` — No-op (agent host sessions don't support deleting individual chats)
+## Preferred run location
 
-## Send Flow
+The remote Agent Host services may remember a user's preferred run location. The owning location-preference service defines its persistence key and selection policy. Providers consume the resolved location; they do not duplicate preference state in session metadata.
 
-1. Requires an active connection
-2. Validates session is the current new session
-3. Opens the chat widget and loads the session model
-4. Sends the request through the chat service (delegates to `AgentHostSessionHandler`)
-5. Adds the untitled session to the pending set
-6. Waits for a real backend session to appear via notification
-7. Returns committed session or keeps temp visible on timeout
-8. Fires `onDidReplaceSession` when the real session replaces the temporary one
+Transport-specific fallback and retry algorithms belong in the owning SSH, tunnel, or remote-host service and its tests.
+
+## Testing
+
+Focused tests live beside the remote provider and remote-host services. Tests own connection races, authentication paths, routing identifiers, fallback, and regressions.
+
+## Dev Container connections
+
+`DevContainerAgentHostService` provides the desktop-only connection boundary for an Agent Host running inside a Dev Container. VS Code bundles `@devcontainers/cli` and runs that pinned version through its Electron-as-Node runtime; Docker and related tools are still resolved from the user's shell environment. The desktop connector runs `devcontainer up` for the selected local workspace, installs the matching VS Code remote CLI inside the container, and reuses or launches a dedicated standalone Agent Host. A shared-process relay carries the Agent Host WebSocket protocol over `devcontainer exec` standard input/output.
+
+The service registers the connected client as a runtime-only `DevContainer` managed remote connection and creates a `RemoteAgentHostSessionsProvider` around it. The shared remote Agent Host contribution observes the managed connection and supplies connection-level filesystem, model, terminal, and log integration. Dev Container CLI output is streamed into one stable `Dev Container (<workspace>)` Output channel per source workspace, which is reused across connection attempts.
+
+## Change policy
+
+Update this specification only when connection/provider ownership, routing identity, or the shared Agent Host lifecycle boundary changes. Do not append transport algorithms, telemetry schemas, retry narratives, or incident history.

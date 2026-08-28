@@ -12,13 +12,16 @@ import { IChatSessionsService } from '../../../../../workbench/contrib/chat/comm
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { getSessionTypeAvailability, getSessionTypeUnavailableLabel, SessionTypeAvailability } from '../../../../../workbench/contrib/chat/browser/agentSessions/sessionTypeAvailability.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { IChatInputNotificationService } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationService.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { IObservable } from '../../../../../base/common/observable.js';
-import { SessionTypePicker } from '../sessionTypePicker.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { SessionTypePicker, ISessionTypePickerOptions } from '../sessionTypePicker.js';
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import { IMobilePickerSheetItem, showMobilePickerSheet } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 /**
  * Phone variant of {@link SessionTypePicker} that renders the picker as
@@ -35,6 +38,7 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 
 	constructor(
 		session: IObservable<ISession | undefined>,
+		options: ISessionTypePickerOptions | undefined,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
@@ -43,9 +47,12 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@ILanguageModelsService languageModelsService: ILanguageModelsService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IChatInputNotificationService chatInputNotificationService: IChatInputNotificationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		super(session, actionWidgetService, sessionsManagementService, _sessionsProvidersService, storageService, telemetryService, chatSessionsService, chatEntitlementService, languageModelsService);
+		super(session, options, actionWidgetService, sessionsManagementService, _sessionsProvidersService, storageService, telemetryService, chatSessionsService, chatEntitlementService, languageModelsService, configurationService, chatInputNotificationService, contextKeyService);
 	}
 
 	override render(container: HTMLElement, options?: { className?: string }): void {
@@ -59,15 +66,15 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 		super.render(container, options);
 	}
 
-	protected override _showPicker(): void {
-		if (!this._triggerElement) {
+	protected override _showPicker(anchor = this._triggerElement): void {
+		if (!anchor) {
 			return;
 		}
 		if (!isPhoneLayout(this.layoutService)) {
-			super._showPicker();
+			super._showPicker(anchor);
 			return;
 		}
-		if (this._folderSessionTypes.length <= 1) {
+		if (this._folderSessionTypes.length <= 1 && this._pickServedByFolder(this._picked)) {
 			return;
 		}
 
@@ -107,6 +114,9 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 		}
 
 		const trigger = this._triggerElement;
+		if (!trigger) {
+			return;
+		}
 		trigger.setAttribute('aria-expanded', 'true');
 		showMobilePickerSheet(
 			this.layoutService.mainContainer,

@@ -13,10 +13,10 @@ jobs:
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=compile-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     steps:
       - name: Checkout microsoft/vscode
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
 
@@ -61,7 +61,7 @@ jobs:
 
       - name: Restore built-in extensions cache
         id: cache-builtin-extensions
-        uses: actions/cache@v5
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           enableCrossOsArchive: true
           path: .build/builtInExtensions
@@ -81,10 +81,10 @@ jobs:
       VSCODE_ARCH: x64
     steps:
       - name: Checkout microsoft/vscode
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
 
@@ -135,22 +135,26 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.VSCODE_OSS }}
 
+      - name: Verify native optional dependency binaries
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
+
       - name: Save node_modules cache
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         uses: ./.github/actions/save-node-modules
 
   macOS:
     name: macOS
-    runs-on: macos-14-xlarge
+    runs-on: macos-26-xlarge
     env:
       NPM_ARCH: arm64
       VSCODE_ARCH: arm64
     steps:
       - name: Checkout microsoft/vscode
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
 
@@ -190,6 +194,10 @@ jobs:
           # on macOS.
           GYP_DEFINES: "kerberos_use_rtld=false"
 
+      - name: Verify native optional dependency binaries
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
+
       - name: Save node_modules cache
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         uses: ./.github/actions/save-node-modules
@@ -202,10 +210,10 @@ jobs:
       VSCODE_ARCH: x64
     steps:
       - name: Checkout microsoft/vscode
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
 
@@ -245,6 +253,10 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.VSCODE_OSS }}
 
+      - name: Verify native optional dependency binaries
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
+        run: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
+
       - name: Save node_modules cache
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
         uses: ./.github/actions/save-node-modules
@@ -254,10 +266,10 @@ jobs:
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=copilot-linux-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     steps:
       - name: Checkout microsoft/vscode
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: extensions/copilot/.nvmrc
 
@@ -287,10 +299,10 @@ jobs:
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=copilot-windows-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     steps:
       - name: Checkout microsoft/vscode
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: extensions/copilot/.nvmrc
 

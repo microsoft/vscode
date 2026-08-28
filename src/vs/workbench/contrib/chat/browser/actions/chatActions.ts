@@ -49,6 +49,7 @@ import { SCMHistoryItemChangeRangeContentProvider, ScmHistoryItemChangeRangeUriF
 import { ISCMService } from '../../../scm/common/scm.js';
 import { IChatAgentResult, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { IChatInputNoticeHubService } from '../widget/input/chatInputNoticeHub.js';
 import { ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { IChatModel, IChatResponseModel } from '../../common/model/chatModel.js';
 import { ChatMode, IChatMode } from '../../common/chatModes.js';
@@ -56,7 +57,7 @@ import { ElicitationState, IChatService, IChatToolInvocation } from '../../commo
 import { ISCMHistoryItemChangeRangeVariableEntry, ISCMHistoryItemChangeVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/model/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/widget/chatWidgetHistoryService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getDefaultNewChatSessionResource, getDefaultNewChatSessionType } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getDefaultNewChatSessionTypeAndReason } from '../../common/constants.js';
 import { AICustomizationManagementCommands } from '../aiCustomization/aiCustomizationManagement.js';
 import { ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
@@ -66,8 +67,8 @@ import { ChatViewId, IChatWidget, IChatWidgetService, isIChatViewViewContext } f
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatEditorInput, showClearEditingSessionConfirmation } from '../widgetHosts/editor/chatEditorInput.js';
 import { convertBufferToScreenshotVariable } from '../attachments/chatScreenshotContext.js';
-import { getChatSessionType } from '../../common/model/chatUri.js';
-import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { getChatSessionType, getNewChatSessionResource } from '../../common/model/chatUri.js';
+import { localChatSessionType } from '../../common/chatSessionsService.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 
@@ -187,14 +188,24 @@ export interface IChatViewOpenOptions {
 	 * but explicit tool exclusions always win.
 	 */
 	toolsExclude?: string[];
+
+	/**
+	 * Submits `query` without taking over the input box, keeping any draft the user
+	 * has typed and omitting its attachments from the request. For maintenance
+	 * commands such as `/compact` that are not user messages.
+	 *
+	 * Mutually exclusive with `attachScreenshot`, `attachFiles`,
+	 * `attachHistoryItemChanges`, `attachHistoryItemChangeRanges` and `toolIds`:
+	 * those attach context via the input box, which this option deliberately
+	 * excludes from the request.
+	 */
+	preserveInput?: boolean;
 }
 
 export interface IChatViewOpenRequestEntry {
 	request: string;
 	response: string;
 }
-
-export const CHAT_CONFIG_MENU_ID = new MenuId('workbench.chat.menu.config');
 
 const OPEN_CHAT_QUOTA_EXCEEDED_DIALOG = 'workbench.action.chat.openQuotaExceededDialog';
 
@@ -378,8 +389,13 @@ abstract class OpenChatGlobalAction extends Action2 {
 					await Event.toPromise(chatWidget.onDidChangeViewModel);
 				}
 				await waitForDefaultAgent(chatAgentService, chatWidget.input.currentModeKind);
-				chatWidget.setInput(opts.query); // wait until the model is restored before setting the input, or it will be cleared when the model is restored
-				resp = chatWidget.acceptInput();
+				if (opts.preserveInput) {
+					// Submit the query directly so the user's draft is never overwritten.
+					resp = chatWidget.acceptInput(opts.query, { preserveInput: true });
+				} else {
+					chatWidget.setInput(opts.query); // wait until the model is restored before setting the input, or it will be cleared when the model is restored
+					resp = chatWidget.acceptInput();
+				}
 			}
 		}
 
@@ -451,7 +467,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 			if (!chatModeCheck) {
 				return;
 			}
-			chatWidget.input.setChatMode(switchToMode.id);
+			chatWidget.input.setChatMode(switchToMode.id, true, true);
 
 			if (chatModeCheck.needToClearSession) {
 				await commandService.executeCommand(ACTION_ID_NEW_CHAT);
@@ -572,13 +588,15 @@ export abstract class ModeOpenChatGlobalAction extends OpenChatGlobalAction {
 
 export function registerChatActions() {
 	/**
-	 * Returns the session URI to use when opening a brand-new chat editor,
-	 * honoring the experimental {@link ChatConfiguration.EditorDefaultProvider}
-	 * setting. Falls back to a new local session when the setting selects
-	 * `local` or the chosen provider is unavailable.
+	 * Returns the resource and creation metadata for a brand-new chat editor,
+	 * honoring the remembered harness preference and then the configured default.
 	 */
-	function getNewChatEditorSessionUri(accessor: ServicesAccessor): URI {
-		return getDefaultNewChatSessionResource(accessor.get(IConfigurationService), accessor.get(IChatSessionsService));
+	function getNewChatEditorInput(accessor: ServicesAccessor): { resource: URI; options: IChatEditorOptions } {
+		const resolved = getDefaultNewChatSessionTypeAndReason(accessor);
+		return {
+			resource: getNewChatSessionResource(resolved.sessionType),
+			options: { pinned: true, sessionTypeSelectionReason: resolved.selectionReason },
+		};
 	}
 
 	registerAction2(PrimaryOpenChatGlobalAction);
@@ -680,7 +698,8 @@ export function registerChatActions() {
 
 		async run(accessor: ServicesAccessor) {
 			const widgetService = accessor.get(IChatWidgetService);
-			await widgetService.openSession(getNewChatEditorSessionUri(accessor), ACTIVE_GROUP, { pinned: true } satisfies IChatEditorOptions);
+			const input = getNewChatEditorInput(accessor);
+			await widgetService.openSession(input.resource, ACTIVE_GROUP, input.options);
 		}
 	});
 
@@ -704,7 +723,8 @@ export function registerChatActions() {
 
 		async run(accessor: ServicesAccessor) {
 			const widgetService = accessor.get(IChatWidgetService);
-			await widgetService.openSession(getNewChatEditorSessionUri(accessor), ACTIVE_GROUP, { pinned: true } satisfies IChatEditorOptions);
+			const input = getNewChatEditorInput(accessor);
+			await widgetService.openSession(input.resource, ACTIVE_GROUP, input.options);
 		}
 	});
 
@@ -728,7 +748,8 @@ export function registerChatActions() {
 
 		async run(accessor: ServicesAccessor) {
 			const widgetService = accessor.get(IChatWidgetService);
-			await widgetService.openSession(getNewChatEditorSessionUri(accessor), ACTIVE_GROUP, { pinned: true } satisfies IChatEditorOptions);
+			const input = getNewChatEditorInput(accessor);
+			await widgetService.openSession(input.resource, ACTIVE_GROUP, input.options);
 		}
 	});
 
@@ -752,7 +773,8 @@ export function registerChatActions() {
 
 		async run(accessor: ServicesAccessor) {
 			const widgetService = accessor.get(IChatWidgetService);
-			await widgetService.openSession(getNewChatEditorSessionUri(accessor), ACTIVE_GROUP, { pinned: true } satisfies IChatEditorOptions);
+			const input = getNewChatEditorInput(accessor);
+			await widgetService.openSession(input.resource, ACTIVE_GROUP, input.options);
 		}
 	});
 
@@ -769,7 +791,8 @@ export function registerChatActions() {
 
 		async run(accessor: ServicesAccessor) {
 			const widgetService = accessor.get(IChatWidgetService);
-			await widgetService.openSession(getNewChatEditorSessionUri(accessor), SIDE_GROUP, { pinned: true } satisfies IChatEditorOptions);
+			const input = getNewChatEditorInput(accessor);
+			await widgetService.openSession(input.resource, SIDE_GROUP, input.options);
 		}
 	});
 
@@ -795,7 +818,8 @@ export function registerChatActions() {
 
 		async run(accessor: ServicesAccessor) {
 			const widgetService = accessor.get(IChatWidgetService);
-			await widgetService.openSession(getNewChatEditorSessionUri(accessor), AUX_WINDOW_GROUP, { pinned: true, auxiliary: { compact: true, bounds: { width: 640, height: 640 } } } satisfies IChatEditorOptions);
+			const input = getNewChatEditorInput(accessor);
+			await widgetService.openSession(input.resource, AUX_WINDOW_GROUP, { ...input.options, auxiliary: { compact: true, bounds: { width: 640, height: 640 } } });
 		}
 	});
 
@@ -1048,33 +1072,36 @@ export function registerChatActions() {
 		}
 	});
 
-	registerAction2(class FocusTipAction extends Action2 {
+	registerAction2(class FocusNoticeAction extends Action2 {
+		// Kept as `focusTip` so existing keybindings and user settings continue to work.
 		static readonly ID = 'workbench.action.chat.focusTip';
 
 		constructor() {
 			super({
-				id: FocusTipAction.ID,
-				title: localize2('interactiveSession.focusTip.label', "Chat: Toggle Focus Between Tip and Input"),
+				id: FocusNoticeAction.ID,
+				title: localize2('interactiveSession.focusNotice.label', "Chat: Toggle Focus Between Notice and Input"),
 				category: CHAT_CATEGORY,
 				f1: true,
-				precondition: ChatContextKeys.inChatSession,
+				// The Agents composer is not a chat widget, so it never sets
+				// `inChatSession`; it reports its own focus instead.
+				precondition: ContextKeyExpr.or(ChatContextKeys.inChatSession, ChatContextKeys.inChatComposer),
 				keybinding: [{
 					weight: KeybindingWeight.WorkbenchContrib,
 					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Slash,
 					when: ContextKeyExpr.or(
 						ChatContextKeys.inChatSession,
-						ChatContextKeys.inChatTip
+						ChatContextKeys.inChatTip,
+						ChatContextKeys.inChatComposer
 					),
 				}]
 			});
 		}
 
 		run(accessor: ServicesAccessor): void {
-			const widgetService = accessor.get(IChatWidgetService);
-			const widget = widgetService.lastFocusedWidget;
-
-			if (!widget || !widget.toggleTipFocus()) {
-				alert(localize('chat.tip.focusUnavailable', "No chat tip."));
+			// Resolved through the notice hub rather than the chat widget service so
+			// this also works in the Agents window, whose composer is not a chat widget.
+			if (!accessor.get(IChatInputNoticeHubService).toggleNoticeFocus()) {
+				alert(localize('chat.notice.focusUnavailable', "No chat notice."));
 			}
 		}
 	});
@@ -1116,7 +1143,8 @@ export function registerChatActions() {
 		}
 
 		async run(_accessor: ServicesAccessor, widget?: IChatWidget): Promise<void> {
-			await widget?.acceptInput('/compact');
+			// Compaction is a maintenance command, so keep any draft the user typed (#314664).
+			await widget?.acceptInput('/compact', { preserveInput: true });
 		}
 	});
 
@@ -1488,12 +1516,6 @@ export function registerChatActions() {
 				f1: true,
 				precondition: ChatContextKeys.enabled,
 				menu: [{
-					id: CHAT_CONFIG_MENU_ID,
-					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
-					order: 15,
-					group: '3_configure'
-				},
-				{
 					id: MenuId.ChatWelcomeContext,
 					group: '2_settings',
 					order: 1
@@ -1760,23 +1782,31 @@ export interface IClearEditingSessionConfirmationOptions {
 }
 
 /**
- * Clears the current chat session and starts a new one, preserving
- * the session type (e.g. Claude, Cloud, Background) for non-local sessions
- * in the sidebar.
+ * Clears the current chat session and starts a new one using the shared
+ * new-session harness resolver.
  */
-export async function clearChatSessionPreservingType(widget: IChatWidget, viewsService: IViewsService, sessionType: string | undefined, configurationService: IConfigurationService, chatSessionsService: IChatSessionsService): Promise<void> {
+export async function clearChatSessionPreservingType(accessor: ServicesAccessor, widget: IChatWidget, sessionType: string | undefined): Promise<void> {
+	const viewsService = accessor.get(IViewsService);
 	const currentResource = widget.viewModel?.model.sessionResource;
-	const defaultType = getDefaultNewChatSessionType(configurationService, chatSessionsService);
 	const currentSessionType = currentResource ? getChatSessionType(currentResource) : undefined;
-	const newSessionType = sessionType ?? (currentSessionType === localChatSessionType && defaultType !== localChatSessionType ? defaultType : currentSessionType ?? defaultType);
-	if (isIChatViewViewContext(widget.viewContext) && newSessionType !== localChatSessionType) {
-		// For the sidebar, we need to explicitly load a session with the same type
-		const newResource = URI.from({ scheme: newSessionType, path: `/untitled-${generateUuid()}` });
+	const resolvedSessionType = getDefaultNewChatSessionTypeAndReason(accessor, { explicitOverride: sessionType, currentSessionType });
+	const newSessionType = resolvedSessionType.sessionType;
+	if (isIChatViewViewContext(widget.viewContext)) {
 		const view = await viewsService.openView(ChatViewId) as ChatViewPane;
-		await view.loadSession(newResource);
+		if (newSessionType !== localChatSessionType) {
+			// Load a session of the resolved type in the sidebar.
+			await view.loadSession(URI.from({ scheme: newSessionType, path: `/untitled-${generateUuid()}` }), resolvedSessionType.selectionReason);
+		} else {
+			// The resolved type is local (an explicit request or session
+			// preservation). A plain `widget.clear()` re-acquires the computed
+			// default (a non-local harness when the agent host is enabled), so
+			// start a local session explicitly to honor the resolved type.
+			await view.startNewLocalSession(resolvedSessionType.selectionReason);
+		}
 	} else {
-		// For the editor, widget.clear() already preserves the session type via clearChatEditor
-		await widget.clear();
+		// For the editor, thread the resolution through the clear path so
+		// clearChatEditor does not recompute the type or its selection reason.
+		await widget.clear(resolvedSessionType);
 	}
 }
 

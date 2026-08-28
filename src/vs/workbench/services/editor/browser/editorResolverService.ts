@@ -8,7 +8,7 @@ import { PauseableEmitter } from '../../../../base/common/event.js';
 import * as glob from '../../../../base/common/glob.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { basename, extname, isEqual } from '../../../../base/common/resources.js';
+import { basename, extname } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -19,13 +19,14 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IKeyMods, IQuickInputService, IQuickPickItem, IQuickPickSeparator, QuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { DEFAULT_EDITOR_ASSOCIATION, EditorInputWithOptions, EditorResourceAccessor, IResourceSideBySideEditorInput, isEditorInputWithOptions, isEditorInputWithOptionsAndGroup, isResourceDiffEditorInput, isResourceMergeEditorInput, isResourceMultiDiffEditorInput, isResourceSideBySideEditorInput, isUntitledResourceEditorInput, IUntypedEditorInput, SideBySideEditor } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
 import { findGroup } from '../common/editorGroupFinder.js';
 import { IEditorGroup, IEditorGroupsService } from '../common/editorGroupsService.js';
-import { diffEditorsAssociationsSettingId, EditorAssociation, EditorAssociations, EditorInputFactoryObject, editorsAssociationsSettingId, globMatchesResource, IEditorResolverService, priorityToRank, RegisteredEditorInfo, RegisteredEditorOptions, RegisteredEditorPriority, RegisteredEditorRegistrationInfo, ResolvedEditor, ResolvedStatus, toRegisteredEditorPriorityInfo } from '../common/editorResolverService.js';
+import { diffEditorsAssociationsSettingId, EditorAssociation, EditorAssociations, EditorInputFactoryObject, editorsAssociationsSettingId, globMatchesResource, IEditorResolverService, IEditorResolverServiceGetAllEditorsOptions, IEditorResolverServiceGetEditorsOptions, priorityToRank, RegisteredEditorInfo, RegisteredEditorOptions, RegisteredEditorPriority, RegisteredEditorRegistrationInfo, ResolvedEditor, ResolvedStatus, toRegisteredEditorPriorityInfo } from '../common/editorResolverService.js';
 import { PreferredGroup } from '../common/editorService.js';
 
 interface RegisteredEditor {
@@ -61,6 +62,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 	// Constants
 	private static readonly configureDefaultID = 'promptOpenWith.configureDefault';
+	private static readonly configureDefaultDiffID = 'promptOpenWith.configureDefaultDiff';
 	private static readonly cacheStorageID = 'editorOverrideService.cache';
 	private static readonly conflictingDefaultsStorageID = 'editorOverrideService.conflictingDefaults';
 
@@ -78,7 +80,8 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		@INotificationService private readonly notificationService: INotificationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super();
 		// Read in the cache on statup
@@ -282,15 +285,32 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		return this.getAssociationsForResourceFromSetting(resource, editorsAssociationsSettingId);
 	}
 
+	getConfiguredDefaultEditor(resource: URI, forDiffEditor?: boolean): string | undefined {
+		const settingId = forDiffEditor ? diffEditorsAssociationsSettingId : editorsAssociationsSettingId;
+		return this.getAssociationsForResourceFromSetting(resource, settingId)[0]?.viewType;
+	}
+
 	private getAssociationsForResourceByType(resource: URI, associationType: EditorAssociationType): EditorAssociations {
-		if (associationType === EditorAssociationType.DiffEditor || associationType === EditorAssociationType.MergeEditor) {
-			const diffAssociations = this.getAssociationsForResourceFromSetting(resource, diffEditorsAssociationsSettingId);
-			if (diffAssociations.length) {
-				return diffAssociations;
-			}
+		if (associationType === EditorAssociationType.Editor) {
+			return this.getAssociationsForResource(resource);
 		}
 
-		return this.getAssociationsForResource(resource);
+		const modeAssociations = this.getAssociationsForResourceFromSetting(resource, diffEditorsAssociationsSettingId);
+		if (modeAssociations.length) {
+			return modeAssociations;
+		}
+
+		return this.getAssociationsForResource(resource)
+			.filter(association => !this.isExplicitForAssociationType(association.viewType, associationType));
+	}
+
+	/**
+	 * Whether the editor requires an association for the given input kind instead of inheriting one
+	 * from another input kind.
+	 */
+	private isExplicitForAssociationType(viewType: string, associationType: EditorAssociationType): boolean {
+		const editor = this._registeredEditors.filter(editor => editor.editorInfo.id === viewType).at(0);
+		return !!editor && this.getEffectivePriority(editor.editorInfo, associationType) === RegisteredEditorPriority.explicit;
 	}
 
 	private getAssociationsForResourceFromSetting(resource: URI, settingId: string): EditorAssociations {
@@ -388,8 +408,8 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		return Array.from(this._flattenedEditors.values()).flat();
 	}
 
-	updateUserAssociations(globPattern: string, editorID: string): void {
-		this.updateUserAssociationsForSetting(editorsAssociationsSettingId, globPattern, editorID);
+	updateUserAssociations(globPattern: string, editorID: string, forDiffEditor?: boolean): void {
+		this.updateUserAssociationsForSetting(forDiffEditor ? diffEditorsAssociationsSettingId : editorsAssociationsSettingId, globPattern, editorID);
 	}
 
 	private updateUserAssociationsForType(associationType: EditorAssociationType, globPattern: string, editorID: string): void {
@@ -409,6 +429,20 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		this.configurationService.updateValue(settingId, newSettingObject);
 	}
 
+	private removeUserAssociationForSetting(settingId: string, globPattern: string): void {
+		const currentAssociations = this.getAllUserAssociationsForSetting(settingId);
+		if (!currentAssociations.some(association => association.filenamePattern === globPattern)) {
+			return;
+		}
+		const newSettingObject = Object.create(null);
+		for (const association of currentAssociations) {
+			if (association.filenamePattern && association.filenamePattern !== globPattern) {
+				newSettingObject[association.filenamePattern] = association.viewType;
+			}
+		}
+		this.configurationService.updateValue(settingId, newSettingObject);
+	}
+
 	private findMatchingEditors(resource: URI, associationType: EditorAssociationType = EditorAssociationType.Editor): RegisteredEditor[] {
 		// The user setting should be respected even if the editor doesn't specify that resource in package.json
 		const userSettings = this.getAssociationsForResourceByType(resource, associationType);
@@ -420,6 +454,9 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 					continue;
 				}
 				if (associationType === EditorAssociationType.MergeEditor && !editor.editorFactoryObject.createMergeEditorInput) {
+					continue;
+				}
+				if (editor.options?.canSupportResource && !editor.options.canSupportResource(resource)) {
 					continue;
 				}
 
@@ -441,20 +478,50 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		});
 	}
 
-	public getEditors(resource?: URI): RegisteredEditorInfo[] {
+	public getEditors(resourceOrOptions?: URI | IEditorResolverServiceGetAllEditorsOptions, options?: IEditorResolverServiceGetEditorsOptions): RegisteredEditorInfo[] {
 		this._flattenedEditors = this._flattenEditorsMap();
 
 		// By resource
-		if (URI.isUri(resource)) {
-			const editors = this.findMatchingEditors(resource);
-			if (editors.find(e => e.editorInfo.priority.editor === RegisteredEditorPriority.exclusive)) {
+		if (URI.isUri(resourceOrOptions)) {
+			const resource = resourceOrOptions;
+			const associationType = options?.isDiffEditor ? EditorAssociationType.DiffEditor : EditorAssociationType.Editor;
+			let editors = this.findMatchingEditors(resource, associationType);
+			if (editors.find(editor => this.getEffectivePriority(editor.editorInfo, associationType) === RegisteredEditorPriority.exclusive)) {
 				return [];
+			}
+			if (options?.excludeUnconfiguredUniversalOptionalEditors) {
+				const configuredEditorIds = new Set(this.getAssociationsForResourceByType(resource, associationType).map(association => association.viewType));
+				editors = editors.filter(editor => {
+					const priority = this.getEffectivePriority(editor.editorInfo, associationType);
+					return editor.globPattern !== '*'
+						|| priority !== RegisteredEditorPriority.option
+						|| editor.editorInfo.id === options.currentEditorId
+						|| configuredEditorIds.has(editor.editorInfo.id);
+				});
+				return distinct(editors.map(editor => editor.editorInfo), editor => editor.id);
 			}
 			return editors.map(editor => editor.editorInfo);
 		}
 
 		// All
-		return distinct(this._registeredEditors.map(editor => editor.editorInfo), editor => editor.id);
+		const editors = resourceOrOptions?.excludeExclusiveEditors
+			? this._registeredEditors.filter(editor => editor.editorInfo.priority.editor !== RegisteredEditorPriority.exclusive)
+			: this._registeredEditors;
+		return distinct(editors.map(editor => editor.editorInfo), editor => editor.id);
+	}
+
+	getBinaryDiffFallbackEditor(resource: URI): string | undefined {
+		this._flattenedEditors = this._flattenEditorsMap();
+
+		// `findMatchingEditors(..., DiffEditor)` only keeps editors that provide a diff editor factory
+		// and sorts them by their diff priority. It still includes `explicit` editors (they match by glob),
+		// which is exactly what we want here: an `explicit` editor opts out of diffs for text files, but is
+		// the better choice than the generic binary fallback when the text diff editor cannot render the
+		// content. We exclude the built-in default text editor since that is the editor that already
+		// failed to render the binary content.
+		const editors = this.findMatchingEditors(resource, EditorAssociationType.DiffEditor)
+			.filter(editor => editor.editorInfo.id !== DEFAULT_EDITOR_ASSOCIATION.id);
+		return editors[0]?.editorInfo.id;
 	}
 
 	/**
@@ -501,9 +568,10 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			};
 		}
 		// If the editor is exclusive we use that, else use the user setting, else we check canSupportResource, else take the viewtype of first possible editor
+		const configuredEditor = associationsFromSetting[0] ? findMatchingEditor(editors, associationsFromSetting[0].viewType) : undefined;
 		const selectedViewType = this.getEffectivePriority(possibleEditors[0].editorInfo, associationType) === RegisteredEditorPriority.exclusive ?
 			possibleEditors[0].editorInfo.id :
-			associationsFromSetting[0]?.viewType ||
+			configuredEditor?.editorInfo.id ||
 			(possibleEditors.find(editor => (!editor.options?.canSupportResource || editor.options.canSupportResource(resource)))?.editorInfo.id) ||
 			possibleEditors[0].editorInfo.id;
 
@@ -666,7 +734,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 		for (const group of orderedGroups) {
 			for (const editor of group.editors) {
-				if (isEqual(editor.resource, resource) && editor.editorId === editorId) {
+				if ((this.uriIdentityService.extUri.isEqual(editor.resource, resource) || this.uriIdentityService.extUri.isEqual(EditorResourceAccessor.getOriginalUri(editor), resource)) && editor.editorId === editorId) {
 					out.push({ editor, group });
 				}
 			}
@@ -784,11 +852,20 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 				label: localize('promptOpenWith.configureDefault', "Configure default editor for '{0}'...", `*${extname(resource)}`),
 			};
 			quickPickEntries.push(configureDefaultEntry);
+			// For diffs, additionally offer to configure a diff-only default so the choice does not
+			// affect how the resource opens as a normal editor (writes to `diffEditorAssociations`).
+			if (associationType === EditorAssociationType.DiffEditor) {
+				const configureDefaultDiffEntry = {
+					id: EditorResolverService.configureDefaultDiffID,
+					label: localize('promptOpenWith.configureDefaultDiff', "Configure default editor (diff only) for '{0}'...", `*${extname(resource)}`),
+				};
+				quickPickEntries.push(configureDefaultDiffEntry);
+			}
 		}
 		return quickPickEntries;
 	}
 
-	private async doPickEditor(editor: IUntypedEditorInput, showDefaultPicker?: boolean): Promise<IEditorOptions | undefined> {
+	private async doPickEditor(editor: IUntypedEditorInput, showDefaultPicker?: boolean, updateAssociationType?: EditorAssociationType): Promise<IEditorOptions | undefined> {
 
 		type EditorPick = {
 			readonly item: IQuickPickItem;
@@ -802,6 +879,21 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			resource = URI.from({ scheme: Schemas.untitled });
 		}
 		const associationType = isResourceDiffEditorInput(editor) ? EditorAssociationType.DiffEditor : EditorAssociationType.Editor;
+		// Which setting the default picker should write to. Defaults to the resource's association type
+		// so that the per-item gear button keeps writing to the matching setting, but the "Configure
+		// default editor" entries can target a specific setting (general vs. diff-only).
+		const updateSettingType = updateAssociationType ?? associationType;
+
+		// Persists the picked editor as the default for this resource's glob. When the user configures
+		// the general default from a diff context, any diff-only override for the same glob is cleared
+		// so that the general default also takes effect for diffs.
+		const persistDefaultAssociation = (editorID: string) => {
+			const globPattern = `*${extname(resource)}`;
+			this.updateUserAssociationsForType(updateSettingType, globPattern, editorID);
+			if (updateSettingType === EditorAssociationType.Editor && associationType === EditorAssociationType.DiffEditor) {
+				this.removeUserAssociationForSetting(diffEditorsAssociationsSettingId, globPattern);
+			}
+		};
 
 		// Get all the editors for the resource as quickpick entries
 		const editorPicks = this.mapEditorsToQuickPickEntry(resource, showDefaultPicker, associationType);
@@ -810,7 +902,9 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		const disposables = new DisposableStore();
 		const editorPicker = disposables.add(this.quickInputService.createQuickPick<IQuickPickItem>({ useSeparators: true }));
 		const placeHolderMessage = showDefaultPicker ?
-			localize('promptOpenWith.updateDefaultPlaceHolder', "Select new default editor for '{0}'", `*${extname(resource)}`) :
+			(updateSettingType === EditorAssociationType.DiffEditor ?
+				localize('promptOpenWith.updateDefaultDiffPlaceHolder', "Select new default editor (diff only) for '{0}'", `*${extname(resource)}`) :
+				localize('promptOpenWith.updateDefaultPlaceHolder', "Select new default editor for '{0}'", `*${extname(resource)}`)) :
 			localize('promptOpenWith.placeHolder', "Select editor for '{0}'", basename(resource));
 		editorPicker.placeholder = placeHolderMessage;
 		editorPicker.canAcceptInBackground = true;
@@ -835,7 +929,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 				// If asked to always update the setting then update it even if the gear isn't clicked
 				if (resource && showDefaultPicker && result?.item.id) {
-					this.updateUserAssociationsForType(associationType, `*${extname(resource)}`, result.item.id);
+					persistDefaultAssociation(result.item.id);
 				}
 
 				resolve(result);
@@ -853,7 +947,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 				// Persist setting
 				if (resource && e.item?.id) {
-					this.updateUserAssociationsForType(associationType, `*${extname(resource)}`, e.item.id);
+					persistDefaultAssociation(e.item.id);
 				}
 			}));
 
@@ -870,7 +964,12 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 			// If the user selected to configure default we trigger this picker again and tell it to show the default picker
 			if (picked.item.id === EditorResolverService.configureDefaultID) {
-				return this.doPickEditor(editor, true);
+				return this.doPickEditor(editor, true, EditorAssociationType.Editor);
+			}
+			// The diff-only variant writes to `diffEditorAssociations` so it does not change how the
+			// resource opens as a normal editor.
+			if (picked.item.id === EditorResolverService.configureDefaultDiffID) {
+				return this.doPickEditor(editor, true, EditorAssociationType.DiffEditor);
 			}
 
 			// Figure out options

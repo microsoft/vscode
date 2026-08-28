@@ -13,9 +13,19 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
  */
 export const INTERNAL_AUTH_PROVIDER_PREFIX = '__';
 
+/**
+ * Setting that controls whether the profile image (avatar) of a signed-in account
+ * is shown in account related UI.
+ */
+export const ACCOUNTS_AVATAR_SETTING = 'workbench.accounts.showAvatar';
+
 export interface AuthenticationSessionAccount {
 	label: string;
 	id: string;
+	/**
+	 * An optional icon for the account. This is typically a URI to a profile image/avatar.
+	 */
+	icon?: URI;
 }
 
 export interface AuthenticationSession {
@@ -119,6 +129,10 @@ export interface IAuthenticationConstraint {
  */
 export interface IAuthenticationGetSessionsOptions {
 	/**
+	 * Whether the provider must avoid user interaction while resolving existing sessions.
+	 */
+	silent?: boolean;
+	/**
 	 * The account that is being asked about. If this is passed in, the provider should
 	 * attempt to return the sessions that are only related to this account.
 	 */
@@ -172,6 +186,10 @@ export interface IAuthenticationProviderHostDelegate {
 	 * The returned string is the provider id.
 	 */
 	createXaa?(issuer: URI): Promise<string>;
+}
+
+export function getDynamicAuthenticationProviderId(authorizationServer: URI, resource: IAuthorizationProtectedResourceMetadata | undefined): string {
+	return resource ? `${authorizationServer.toString(true)} ${resource.resource}` : authorizationServer.toString(true);
 }
 
 export const IAuthenticationService = createDecorator<IAuthenticationService>('IAuthenticationService');
@@ -404,6 +422,10 @@ export interface IAuthenticationExtensionsService {
  * Options passed to the authentication provider when asking for sessions.
  */
 export interface IAuthenticationProviderSessionOptions {
+	/**
+	 * Whether the provider must avoid user interaction while resolving existing sessions.
+	 */
+	silent?: boolean;
 	/**
 	 * The account that is being asked about. If this is passed in, the provider should
 	 * attempt to return the sessions that are only related to this account.

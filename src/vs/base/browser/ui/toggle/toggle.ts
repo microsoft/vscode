@@ -10,7 +10,7 @@ import { IMarkdownString, isMarkdownString } from '../../../common/htmlContent.j
 import { getCodiconAriaLabel, stripIcons } from '../../../common/iconLabels.js';
 import { KeyCode } from '../../../common/keyCodes.js';
 import { ThemeIcon } from '../../../common/themables.js';
-import { $, addDisposableListener, EventType, isActiveElement, isHTMLElement } from '../../dom.js';
+import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, isActiveElement, isHTMLElement } from '../../dom.js';
 import { IKeyboardEvent } from '../../keyboardEvent.js';
 import { BaseActionViewItem, IActionViewItemOptions } from '../actionbar/actionViewItems.js';
 import { IActionViewItemProvider } from '../actionbar/actionbar.js';
@@ -449,17 +449,31 @@ export class CheckboxActionViewItem extends BaseActionViewItem {
 		this.element.appendChild(this.toggle.domNode);
 		if ((<IActionViewItemOptions>this.options).label && this._action.label) {
 			const label = this.element.appendChild($('span.checkbox-label', undefined, this._action.label));
+			// Focus the checkbox when the (non-focusable) label is clicked, mirroring
+			// native `<label>` behavior. This is done on mousedown, with the default
+			// prevented, so focus does not first land on a focusable ancestor.
+			this._register(addDisposableGenericMouseDownListener(label, (e: MouseEvent) => {
+				e.preventDefault();
+
+				if (this.isEnabled()) {
+					this.focus();
+				}
+			}));
 			this._register(addDisposableListener(label, EventType.CLICK, (e: MouseEvent) => {
-				this.toggle.checked = !this.toggle.checked;
 				e.stopPropagation();
 				e.preventDefault();
-				this.onChange();
+
+				if (this.isEnabled()) {
+					this.toggle.checked = !this.toggle.checked;
+					this.onChange();
+				}
 			}));
 		}
 
 		this.updateEnabled();
 		this.updateClass();
 		this.updateChecked();
+		this.updateTooltip();
 	}
 
 	private onChange(): void {

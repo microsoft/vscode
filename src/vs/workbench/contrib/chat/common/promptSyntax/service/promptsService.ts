@@ -117,13 +117,28 @@ export enum PromptsStorage {
 	user = 'user',
 	extension = 'extension',
 	plugin = 'plugin',
+	builtIn = 'builtin',
+}
+
+/**
+ * Whether the AI Customizations UI offers Enable/Disable affordances for a
+ * customization with the given type and storage — and therefore whether a user
+ * who disables it can turn it back on again.
+ *
+ * Gate any behaviour that *hides* a customization because it is in
+ * {@link IPromptsService.getDisabledPromptFiles} on this predicate; that store
+ * is shared with surfaces that own a separate unhide affordance. See
+ * "Enabling and Disabling Built-in Skills" in `src/vs/sessions/AI_CUSTOMIZATIONS.md`.
+ */
+export function isUserToggleableCustomization(type: PromptsType, storage: PromptsStorage): boolean {
+	return type === PromptsType.skill && storage === PromptsStorage.builtIn;
 }
 
 /**
  * Represents a prompt path with its type.
  * This is used for both prompt files and prompt source folders.
  */
-export type IPromptPath = IExtensionPromptPath | ILocalPromptPath | IUserPromptPath | IPluginPromptPath;
+export type IPromptPath = IExtensionPromptPath | ILocalPromptPath | IUserPromptPath | IPluginPromptPath | IBuiltinPromptPath;
 
 
 export interface IPromptPathBase {
@@ -198,11 +213,24 @@ export interface IPluginPromptPath extends IPromptPathBase {
 	readonly source: PromptFileSource.Plugin;
 }
 
+/**
+ * Prompt path for built-in prompts bundled with the application (e.g. skills
+ * shipped with the Agents app). These are read-only and provided by
+ * {@link IPromptsService.listPromptFiles}/`listPromptFilesForStorage`.
+ */
+export interface IBuiltinPromptPath extends IPromptPathBase {
+	readonly storage: PromptsStorage.builtIn;
+}
+
+export function isBuiltinPromptPath(obj: IPromptPath): obj is IBuiltinPromptPath {
+	return obj.storage === PromptsStorage.builtIn;
+}
+
 export type IAgentSource = {
 	readonly storage: PromptsStorage.extension;
 	readonly extensionId: ExtensionIdentifier;
 } | {
-	readonly storage: PromptsStorage.local | PromptsStorage.user;
+	readonly storage: PromptsStorage.local | PromptsStorage.user | PromptsStorage.builtIn;
 } | {
 	readonly storage: PromptsStorage.plugin;
 	readonly pluginUri: URI;
@@ -601,9 +629,9 @@ export interface IPromptsService extends IDisposable {
 	listPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly IPromptPath[]>;
 
 	/**
-	 * List all available prompt files.
+	 * Lists all available prompt files from a storage location. For local storage, root scopes relative locations; it is ignored for other storages, and without it the current workspace folders are used.
 	 */
-	listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, token: CancellationToken): Promise<readonly IPromptPath[]>;
+	listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, token: CancellationToken, root?: URI): Promise<readonly IPromptPath[]>;
 
 	/**
 	 * Get a list of prompt source folders based on the provided prompt type.
@@ -663,6 +691,11 @@ export interface IPromptsService extends IDisposable {
 	readonly onDidChangeInstructions: Event<void>;
 
 	/**
+	 * Event that is triggered when the list of agent instruction files changes.
+	 */
+	readonly onDidChangeAgentInstructions: Event<void>;
+
+	/**
 	 * Finds all available custom agents
 	 */
 	getCustomAgents(token: CancellationToken): Promise<readonly ICustomAgent[]>;
@@ -692,6 +725,18 @@ export interface IPromptsService extends IDisposable {
 	 * Combines results from listAgentMDs (non-nested), listClaudeMDs, and listCopilotInstructionsMDs.
 	 */
 	listAgentInstructions(token: CancellationToken, logger?: Logger): Promise<IAgentInstructionFile[]>;
+
+	/**
+	 * Gets the combined voice customization from `~/.copilot/voice.md` and each
+	 * trusted workspace's `.github/voice.md`.
+	 */
+	getVoiceInstructions(token: CancellationToken): Promise<string | undefined>;
+
+	/**
+	 * Gets the combined dictation customization from `~/.copilot/dictation.md`
+	 * and each trusted workspace's `.github/dictation.md`.
+	 */
+	getDictationInstructions(token: CancellationToken): Promise<string | undefined>;
 
 	/**
 	 * For a chat mode file URI, return the name of the agent file that it should use.

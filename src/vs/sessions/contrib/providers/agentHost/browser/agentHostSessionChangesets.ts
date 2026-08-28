@@ -5,19 +5,22 @@
 
 import { arrayEqualsC, structuralEquals } from '../../../../../base/common/equals.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, mapObservableArrayCached, observableFromEvent, observableValue, throttledObservable } from '../../../../../base/common/observable.js';
-import { basename, isEqual } from '../../../../../base/common/resources.js';
+import { constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, IReader, mapObservableArrayCached, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { basename, extUriBiasedIgnorePathCase, isEqual } from '../../../../../base/common/resources.js';
 import { format } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { isMultiRootSession } from '../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
+import { resolveChangesetUriTemplate } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { ChangesetOperationTargetKind } from '../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { ChangesetOperation, ChangesetOperationScope, type ChangesetFile, ChangesetOperationStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { buildDefaultChatUri, ChangesetStatus, Changeset, StateComponents, type ChangesetState, type ChatState, type ChatSummary, type SessionState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { ISessionChangeset, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, sessionFileChangesEqual } from '../../../../services/sessions/common/session.js';
-import { CHANGESET_UPDATE_THROTTLE_MS } from './agentHostChangesetConstants.js';
+import { ISessionChangeset, ISessionChangesetCapabilities, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, sessionFileChangesEqual } from '../../../../services/sessions/common/session.js';
+import { isIChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { changesetFileToChange } from './agentHostDiffs.js';
 import { IAgentHostAdapterOptions } from './baseAgentHostSessionsProvider.js';
 
@@ -29,11 +32,58 @@ const enum ChangesetKind {
 	Compare = 'compare-turns',
 }
 
+export interface IAgentHostChangeset extends Changeset {
+	/**
+	 * Optional authoritative changes. `undefined` falls back to the changeset
+	 * channel; an array, including an empty one, is used as-is.
+	 */
+	readonly changes?: IObservable<readonly ISessionFileChange[] | undefined>;
+}
+
+/**
+ * Returns the workspace file URI that identifies a change, matching the
+ * convention used by {@link sessionFileChangesEqual}: the `uri` of a
+ * {@link IChatSessionFileChange2} (always present, including for deletions) or
+ * the `modifiedUri` of a legacy `IChatSessionFileChange`. Using `uri` — rather
+ * than `modifiedUri ?? originalUri` — is important for deletions, whose
+ * `modifiedUri` is absent and whose `originalUri` points at a pre-edit content
+ * snapshot rather than the workspace path.
+ */
+function sessionFileChangeUri(change: ISessionFileChange): URI {
+	return isIChatSessionFileChange2(change) ? change.uri : change.modifiedUri;
+}
+
+/**
+ * For multi-root sessions, keeps only changes under the primary working
+ * directory (`workingDirectories[0]`); single-root/empty/`undefined` inputs are
+ * returned unchanged. Paths are compared on the primary's `file:` scheme so
+ * `agent-host:`-wrapped changes still match and OS path-casing is respected.
+ */
+export function filterChangesToPrimaryWorkingDirectory(
+	changes: readonly ISessionFileChange[],
+	workingDirectories: readonly string[] | undefined
+): readonly ISessionFileChange[] {
+	if (!isMultiRootSession(workingDirectories)) {
+		return changes;
+	}
+
+	const primary = workingDirectories?.[0];
+	if (!primary) {
+		return changes;
+	}
+
+	const primaryWorkingDirectory = URI.parse(primary);
+	return changes.filter(change =>
+		extUriBiasedIgnorePathCase.isEqualOrParent(
+			primaryWorkingDirectory.with({ path: sessionFileChangeUri(change).path }),
+			primaryWorkingDirectory));
+}
+
 export function createChangesets(
 	sessionUri: URI,
 	options: IAgentHostAdapterOptions,
 	isActiveSessionObs: IObservable<boolean>,
-	changesets: readonly Changeset[] | undefined
+	changesets: readonly IAgentHostChangeset[] | undefined,
 ): readonly ISessionChangeset[] {
 	if (!changesets) {
 		return [];
@@ -41,11 +91,16 @@ export function createChangesets(
 
 	const sessionChangesets: ISessionChangeset[] = [];
 
-	// Select the "Branch Changes" changeset as the default, if it exists; otherwise just the first one.
-	const defaultChangeset = changesets.find(c => c.changeKind === ChangesetKind.Branch) ?? changesets[0];
+	const defaultKind = options.defaultChangesetKind ?? ChangesetKind.Branch;
+	const defaultChangeset = changesets.find(c => c.changeKind === defaultKind) ?? changesets[0];
 
-	for (const changeset of changesets) {
-		const isDefault = changeset === defaultChangeset;
+	for (const catalogueEntry of changesets) {
+		const isDefault = catalogueEntry === defaultChangeset;
+		// A relative template parses to a local filesystem path, so resolve before use.
+		const changeset = {
+			...catalogueEntry,
+			uriTemplate: resolveChangesetUriTemplate(sessionUri.toString(), catalogueEntry.uriTemplate),
+		};
 
 		if (
 			changeset.changeKind === ChangesetKind.Branch ||
@@ -67,7 +122,7 @@ export function createChangesets(
 	return sessionChangesets;
 }
 
-function createActiveSessionSubscriptionObs<T>(
+export function createActiveSessionSubscriptionObs<T>(
 	options: IAgentHostAdapterOptions,
 	isActiveSessionObs: IObservable<boolean>,
 	component: StateComponents,
@@ -95,6 +150,29 @@ function createActiveSessionSubscriptionObs<T>(
 		return observableFromEvent(subscriptionRef.object.onDidChange,
 			() => subscriptionRef.object.value as T | Error | undefined);
 	});
+}
+
+/**
+ * Selects the URI of the session's most recently modified chat — the one that
+ * holds the session's "last turn". Falls back to the session's default chat (or
+ * the synthesized default chat URI) when the state is absent/errored or no chat
+ * is more recent.
+ *
+ * Shared by {@link AgentHostLastTurnChangeset} and the output-stream-derived
+ * last-turn changes so the "Last Turn Changes" changeset and the chat input
+ * status pills always resolve the same chat.
+ */
+export function selectMostRecentChatUri(sessionState: SessionState | Error | undefined | null, sessionUri: URI): URI {
+	if (!sessionState || sessionState instanceof Error) {
+		return URI.parse(buildDefaultChatUri(sessionUri));
+	}
+
+	// `modifiedAt` is ISO 8601, so lexicographic compare is chronological.
+	const mostRecentChat = sessionState.chats.reduce<ChatSummary | undefined>(
+		(best, c) => !best || c.modifiedAt > best.modifiedAt ? c : best,
+		undefined
+	);
+	return URI.parse(mostRecentChat?.resource ?? sessionState.defaultChat ?? buildDefaultChatUri(sessionUri));
 }
 
 function toSessionChangesetOperationScope(scope: ChangesetOperationScope): SessionChangesetOperationScope {
@@ -152,25 +230,40 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
 	readonly operations: IObservable<readonly ISessionChangesetOperation[]>;
 
+	readonly capabilities: ISessionChangesetCapabilities;
+
 	protected abstract readonly channelUriObs: IObservable<URI | undefined>;
 	protected abstract readonly changesetStateObs: IObservable<IObservable<ChangesetState | Error | undefined | null>>;
+	private readonly _changesetFilesObs: IObservable<readonly ChangesetFile[] | undefined>;
 
 	constructor(
+		changeset: IAgentHostChangeset & { isDefault: boolean },
 		private readonly _options: IAgentHostAdapterOptions,
 		private readonly _dialogService: IDialogService,
 	) {
-		// Throttle only the changes path; `isLoadingChanges` and `operations`
-		// keep reading `this.changesetStateObs` directly so spinners/buttons stay
-		// responsive. Throttle (not debounce) so a continuous stream keeps
-		// updating instead of starving until edits stop. The `derived` wrapper
-		// defers reading the abstract `changesetStateObs` until the observable is
-		// actually observed (it isn't assigned yet during base construction).
-		const throttledChangesetStateObs = throttledObservable(
-			derived(reader => this.changesetStateObs.read(reader).read(reader)),
-			CHANGESET_UPDATE_THROTTLE_MS);
+		this.capabilities = {
+			review: changeset.capabilities?.review !== undefined
+		} satisfies ISessionChangesetCapabilities;
+
+		const providedChangesObs = derivedObservableWithCache<readonly ISessionFileChange[] | undefined>(this, (reader, lastValue) => {
+			const providedChanges = changeset.changes?.read(reader);
+			if (providedChanges !== undefined) {
+				return providedChanges;
+			}
+			if (lastValue === undefined) {
+				return undefined;
+			}
+			const changesetState = this.changesetStateObs.read(reader).read(reader);
+			return changesetState && !(changesetState instanceof Error) && changesetState.status === ChangesetStatus.Ready
+				? undefined
+				: lastValue;
+		});
 
 		this.isLoadingChanges = derived(reader => {
-			const changesetState = throttledChangesetStateObs.read(reader);
+			if (providedChangesObs.read(reader) !== undefined) {
+				return false;
+			}
+			const changesetState = this.changesetStateObs.read(reader).read(reader);
 
 			// If the changeset state is `undefined`, it means that the first snapshot
 			// has not yet arrived, so in order to avoid any flickering in the Changes
@@ -187,7 +280,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 			// For static changesets, that are persisted to the database, the
 			// cached state will be sent over the wire while the changeset is
 			// being computed.
-			return changesetState.status === ChangesetStatus.Computing && changesetState.files.length === 0;
+			return changesetState.status === ChangesetStatus.Computing;
 		});
 
 		const mapDiffUri = this._options.mapDiffUri;
@@ -195,8 +288,8 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 		// Hold the raw `ChangesetFile[]` (with last-value semantics) so unchanged
 		// files keep their reference across reducer updates, enabling the
 		// per-file cache below to skip rebuilding them.
-		const changesetFilesObs = derivedObservableWithCache<readonly ChangesetFile[] | undefined>(this, (reader, lastValue) => {
-			const changesetState = throttledChangesetStateObs.read(reader);
+		this._changesetFilesObs = derivedObservableWithCache<readonly ChangesetFile[] | undefined>(this, (reader, lastValue) => {
+			const changesetState = this.changesetStateObs.read(reader).read(reader);
 			if (changesetState === null || changesetState instanceof Error) {
 				return [];
 			}
@@ -219,7 +312,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 		// `ChangesetFile` reference is unchanged so only changed files are
 		// re-parsed and re-mapped.
 		const mappedChangesObs = mapObservableArrayCached(this,
-			changesetFilesObs.map(files => files ?? []),
+			this._changesetFilesObs.map(files => files ?? []),
 			file => changesetFileToChange(file, mapDiffUri));
 
 		const changesObs = derived<readonly ISessionFileChange[] | undefined>(this, reader => {
@@ -227,11 +320,12 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 		});
 
 		this.changes = derivedOpts({ equalsFn: sessionFileChangesEqual }, reader => {
-			return changesObs.read(reader) ?? [];
+			const changes = providedChangesObs.read(reader) ?? changesObs.read(reader) ?? [];
+			return this._filterChanges(changes, reader);
 		});
 
 		const operationsObs = derivedObservableWithCache<readonly ISessionChangesetOperation[]>(this, (reader, lastValue) => {
-			const changesetState = throttledChangesetStateObs.read(reader);
+			const changesetState = this.changesetStateObs.read(reader).read(reader);
 			if (changesetState === null || changesetState instanceof Error) {
 				return [];
 			}
@@ -246,6 +340,17 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 		this.operations = derivedOpts({ equalsFn: arrayEqualsC(structuralEquals) }, reader => {
 			return operationsObs.read(reader) ?? [];
 		});
+	}
+
+	/**
+	 * Hook applied to the computed changes before they are published on
+	 * {@link changes}. The base implementation performs no filtering; subclasses
+	 * may override to restrict the set (e.g. the "Last Turn Changes" changeset
+	 * limits multi-root sessions to their primary working directory). Runs inside
+	 * the {@link changes} derived, so overrides may read observables via `reader`.
+	 */
+	protected _filterChanges(changes: readonly ISessionFileChange[], reader: IReader): readonly ISessionFileChange[] {
+		return changes;
 	}
 
 	async invokeOperation(operationId: string, target?: ISessionChangesetOperationTarget): Promise<void> {
@@ -287,6 +392,39 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 				: undefined,
 		});
 	}
+
+	setReviewState(resources: readonly URI[], reviewed: boolean): void {
+		if (!this.capabilities.review) {
+			return;
+		}
+
+		const connection = this._options.getConnection();
+		const channel = this.channelUriObs.get();
+		if (!connection || !channel) {
+			return;
+		}
+
+		const files = resources.map(resource => {
+			const file = this._changesetFilesObs.get()?.find(candidate => {
+				const change = changesetFileToChange(candidate, this._options.mapDiffUri);
+				return isEqual(change?.modifiedUri, resource) || isEqual(change?.originalUri, resource);
+			});
+			if (!file) {
+				throw new Error(`Resource '${resource.toString()}' is not part of changeset '${this.id}'`);
+			}
+			return file.id;
+		});
+
+		if (files.length === 0) {
+			return;
+		}
+
+		connection.dispatch(channel.toString(), {
+			type: ActionType.ChangesetFilesReviewChanged,
+			files,
+			reviewed,
+		});
+	}
 }
 
 class AgentHostChangeset extends AbstractAgentHostChangeset {
@@ -307,10 +445,10 @@ class AgentHostChangeset extends AbstractAgentHostChangeset {
 	constructor(
 		options: IAgentHostAdapterOptions,
 		isActiveSessionObs: IObservable<boolean>,
-		changesetSummary: Changeset & { isDefault: boolean },
+		changesetSummary: IAgentHostChangeset & { isDefault: boolean },
 		@IDialogService dialogService: IDialogService,
 	) {
-		super(options, dialogService);
+		super(changesetSummary, options, dialogService);
 
 		this.channelUriObs = constObservable(URI.parse(changesetSummary.uriTemplate));
 
@@ -327,11 +465,6 @@ class AgentHostChangeset extends AbstractAgentHostChangeset {
 
 		this.isDefault = constObservable(changesetSummary.isDefault);
 	}
-
-	update(changesetSummary: Changeset): void {
-		this._label = changesetSummary.label;
-		this._description = changesetSummary.description;
-	}
 }
 
 class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
@@ -345,21 +478,29 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 	protected override readonly channelUriObs: IObservable<URI | undefined>;
 	protected readonly changesetStateObs: IObservable<IObservable<ChangesetState | Error | undefined | null>>;
 
+	/**
+	 * The session's ordered working directories (index 0 is the primary), read
+	 * from the existing session-state subscription. Used to filter the last-turn
+	 * changes to the primary working directory for multi-root sessions.
+	 */
+	private readonly _workingDirectoriesObs: IObservable<readonly string[] | undefined>;
+
 	constructor(
 		sessionUri: URI,
 		options: IAgentHostAdapterOptions,
 		isActiveSessionObs: IObservable<boolean>,
-		changesetSummary: Changeset & { isDefault: boolean },
+		changesetSummary: IAgentHostChangeset & { isDefault: boolean },
 		@IDialogService dialogService: IDialogService,
 	) {
-		super(options, dialogService);
+		super(changesetSummary, options, dialogService);
 
 		this.id = changesetSummary.changeKind;
 
 		// Turns moved off the session and onto a per-chat channel with the
 		// multi-chat protocol. Subscribe to the session to discover its
 		// chats, then track the chat that was modified most recently — its
-		// last completed turn is the session's "last turn".
+		// in-progress turn (or, when idle, its last completed turn) is the
+		// session's "last turn".
 		const sessionStateObs = createActiveSessionSubscriptionObs<SessionState>(
 			options,
 			isActiveSessionObs,
@@ -367,18 +508,19 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 			constObservable(sessionUri),
 		);
 
-		const mostRecentChatUriObs = derivedOpts({ equalsFn: isEqual }, reader => {
+		// Reuse the session-state subscription above to expose the session's
+		// working directories for the primary-directory filter.
+		this._workingDirectoriesObs = derived(reader => {
 			const sessionState = sessionStateObs.read(reader).read(reader);
 			if (!sessionState || sessionState instanceof Error) {
-				return URI.parse(buildDefaultChatUri(sessionUri));
+				return undefined;
 			}
+			return sessionState.workingDirectories;
+		});
 
-			// `modifiedAt` is ISO 8601, so lexicographic compare is chronological.
-			const mostRecentChat = sessionState.chats.reduce<ChatSummary | undefined>(
-				(best, c) => !best || c.modifiedAt > best.modifiedAt ? c : best,
-				undefined
-			);
-			return URI.parse(mostRecentChat?.resource ?? sessionState.defaultChat ?? buildDefaultChatUri(sessionUri));
+		const mostRecentChatUriObs = derivedOpts({ equalsFn: isEqual }, reader => {
+			const sessionState = sessionStateObs.read(reader).read(reader);
+			return selectMostRecentChatUri(sessionState, sessionUri);
 		});
 
 		const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
@@ -393,7 +535,10 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 			if (!chatState || chatState instanceof Error) {
 				return undefined;
 			}
-			return chatState.turns?.at(-1)?.id;
+			// Prefer the in-progress turn so the "last turn" reflects streaming
+			// edits live; once it completes it moves into `turns` under the same
+			// id, so the tracked changeset transitions seamlessly.
+			return chatState.activeTurn?.id ?? chatState.turns?.at(-1)?.id;
 		});
 
 		// Last turn changes
@@ -416,5 +561,15 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 		);
 
 		this.isEnabled = derived(reader => this.channelUriObs.read(reader) !== undefined);
+	}
+
+	/**
+	 * For multi-root sessions, restrict the last-turn changes to files under the
+	 * session's primary working directory so the single-root Changes tree in the
+	 * Agents Window stays renderable. Single-root sessions are unaffected —
+	 * {@link filterChangesToPrimaryWorkingDirectory} returns the input unchanged.
+	 */
+	protected override _filterChanges(changes: readonly ISessionFileChange[], reader: IReader): readonly ISessionFileChange[] {
+		return filterChangesToPrimaryWorkingDirectory(changes, this._workingDirectoriesObs.read(reader));
 	}
 }

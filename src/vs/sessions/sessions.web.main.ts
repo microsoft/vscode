@@ -19,7 +19,9 @@ import './sessions.common.main.js';
 
 //#region --- workbench parts
 
-import '../workbench/browser/parts/dialogs/dialog.web.contribution.js';
+// Agents window uses a phone-aware dialog handler (bottom sheets on phone)
+// in place of the standard web dialog handler.
+import './browser/parts/dialogs/mobileDialog.web.contribution.js';
 
 //#endregion
 
@@ -74,6 +76,7 @@ import '../workbench/services/configurationResolver/browser/configurationResolve
 import '../platform/extensionResourceLoader/browser/extensionResourceLoaderService.js';
 import '../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import '../workbench/services/power/browser/powerService.js';
+import '../workbench/services/localTranscription/browser/localTranscriptionService.js';
 import '../platform/sandbox/browser/sandboxHelperService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
@@ -104,13 +107,16 @@ import { IMcpGalleryManifestService } from '../platform/mcp/common/mcpGalleryMan
 import { WorkbenchMcpGalleryManifestService } from '../workbench/services/mcp/browser/mcpGalleryManifestService.js';
 import { UserDataSyncResourceProviderService } from '../platform/userDataSync/common/userDataSyncResourceProvider.js';
 import { IRemoteAgentHostService } from '../platform/agentHost/common/remoteAgentHostService.js';
-import { RemoteAgentHostService } from '../platform/agentHost/browser/remoteAgentHostServiceImpl.js';
+import { AgentsWindowRemoteAgentHostService } from '../platform/agentHost/browser/remoteAgentHostServiceImpl.js';
+import { IRemoteAgentHostLocationPreferenceService } from '../platform/agentHost/common/remoteAgentHostLocationPreference.js';
+import { RemoteAgentHostLocationPreferenceService } from '../platform/agentHost/browser/remoteAgentHostLocationPreferenceService.js';
 import { ISSHRemoteAgentHostService } from '../platform/agentHost/common/sshRemoteAgentHost.js';
 import { NullSSHRemoteAgentHostService } from '../platform/agentHost/browser/nullSshRemoteAgentHostService.js';
 import { IWSLRemoteAgentHostService } from '../platform/agentHost/common/wslRemoteAgentHost.js';
 import { NullWSLRemoteAgentHostService } from '../platform/agentHost/browser/nullWslRemoteAgentHostService.js';
 import { IAgentHostService } from '../platform/agentHost/common/agentService.js';
 import { EditorRemoteAgentHostServiceClient } from '../workbench/services/agentHost/browser/editorRemoteAgentHostServiceClient.js';
+import '../workbench/services/agentHost/browser/webAgentHostEnablementService.js';
 import { BrowserAgentHostDebugLogsExportService, IAgentHostDebugLogsExportService } from '../workbench/contrib/chat/browser/actions/exportAgentHostDebugLogsAction.js';
 
 registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService, InstantiationType.Delayed);
@@ -131,7 +137,8 @@ registerSingleton(ILanguagePackService, WebLanguagePacksService, InstantiationTy
 registerSingleton(IWebContentExtractorService, NullWebContentExtractorService, InstantiationType.Delayed);
 registerSingleton(ISharedWebContentExtractorService, NullSharedWebContentExtractorService, InstantiationType.Delayed);
 registerSingleton(IMcpGalleryManifestService, WorkbenchMcpGalleryManifestService, InstantiationType.Delayed);
-registerSingleton(IRemoteAgentHostService, RemoteAgentHostService, InstantiationType.Delayed);
+registerSingleton(IRemoteAgentHostService, AgentsWindowRemoteAgentHostService, InstantiationType.Delayed);
+registerSingleton(IRemoteAgentHostLocationPreferenceService, RemoteAgentHostLocationPreferenceService, InstantiationType.Delayed);
 registerSingleton(ISSHRemoteAgentHostService, NullSSHRemoteAgentHostService, InstantiationType.Delayed);
 registerSingleton(IWSLRemoteAgentHostService, NullWSLRemoteAgentHostService, InstantiationType.Delayed);
 registerSingleton(IAgentHostService, EditorRemoteAgentHostServiceClient, InstantiationType.Delayed);
@@ -152,6 +159,11 @@ import '../workbench/contrib/welcomeBanner/browser/welcomeBanner.contribution.js
 // Web tunnel agent host — discovers tunnels via Dev Tunnels REST API and connects via relay
 import './contrib/providers/remoteAgentHost/browser/webTunnelAgentHostService.contribution.js';
 
+// Tunnel hosting is CLI-backed and therefore unavailable in the browser, but
+// the tunnel agent host contribution below still depends on the service to
+// identify a locally hosted tunnel. Register the inert web implementation.
+import './contrib/tunnelHost/browser/webTunnelHostService.contribution.js';
+
 // Tunnel agent host — reconciles discovered tunnels into session providers
 import './contrib/providers/remoteAgentHost/browser/tunnelAgentHost.contribution.js';
 
@@ -164,10 +176,14 @@ import './contrib/providers/remoteAgentHost/browser/remoteAgentHostTerminal.cont
 // Remote agent host session provider — discovers agents and registers sessions
 import './contrib/providers/remoteAgentHost/browser/remoteAgentHost.contribution.js';
 import './contrib/providers/remoteAgentHost/browser/remoteAgentHostActions.js';
+// Copilot cloud sandbox connections (copilot-developer-cli) over a Web PubSub AHP relay
+import './contrib/providers/remoteAgentHost/browser/cloudSandboxAgentHost.contribution.js';
 import './contrib/providers/agentHost/browser/agentSessionSettings.contribution.js';
 import './contrib/providers/agentHost/browser/agentHostSettings.contribution.js';
 import './contrib/providers/agentHost/browser/agentHostSessionBranchActions.js';
+import './contrib/providers/agentHost/browser/agentMergeActions.js';
 import './contrib/providers/agentHost/browser/agentHostSkillButtons.js';
+import './contrib/providers/agentHost/browser/openSubagentChat.js';
 
 // Host filter dropdown in the titlebar (scopes the sessions list to a host)
 import './contrib/providers/remoteAgentHost/browser/hostFilter.contribution.js';

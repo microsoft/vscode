@@ -14,7 +14,7 @@ import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/do
 import { Edits } from '../../../../platform/inlineEdits/common/dataTypes/edit';
 import { ImportChanges } from '../../../../platform/inlineEdits/common/dataTypes/importFilteringOptions';
 import { LanguageId } from '../../../../platform/inlineEdits/common/dataTypes/languageId';
-import { DEFAULT_OPTIONS, EarlyDivergenceCancellationMode, LanguageContextLanguages, LintOptionShowCode, LintOptionWarning, ModelConfiguration, PatchModelPrediction, PromptingStrategy, ResponseFormat } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { AggressivenessLevel, DEFAULT_OPTIONS, EarlyDivergenceCancellationMode, LanguageContextLanguages, LintOptionShowCode, LintOptionWarning, ModelConfiguration, PatchModelPrediction, PromptingStrategy, ResponseFormat } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { InlineEditRequestLogContext } from '../../../../platform/inlineEdits/common/inlineEditLogContext';
 import { IInlineEditsModelService } from '../../../../platform/inlineEdits/common/inlineEditsModelService';
 import { NoNextEditReason, StatelessNextEditDocument, StatelessNextEditRequest, StreamedEdit, WithStatelessProviderTelemetry } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
@@ -42,6 +42,7 @@ import { DelaySession } from '../../../inlineEdits/common/delay';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
 import { N_LINES_AS_CONTEXT } from '../../common/promptCrafting';
 import { nes41Miniv3SystemPrompt, simplifiedPrompt, systemPromptTemplate, unifiedModelSystemPrompt, xtab275SystemPrompt } from '../../common/systemMessages';
+import { PromptTags } from '../../common/tags';
 import { CurrentDocument } from '../../common/xtabCurrentDocument';
 import {
 	computeAreaAroundEditWindowLinesRange,
@@ -166,6 +167,7 @@ describe('pickSystemPrompt', () => {
 		PromptingStrategy.PatchBased01,
 		PromptingStrategy.PatchBased02,
 		PromptingStrategy.PatchBased02WithRecentLineNumbers,
+		PromptingStrategy.PatchBased02Optimized,
 		PromptingStrategy.PatchBased02WithoutRecentLineNumbers,
 		PromptingStrategy.Xtab275,
 		PromptingStrategy.XtabAggressiveness,
@@ -751,7 +753,7 @@ describe('XtabProvider integration', () => {
 			beforeText,
 			[doc],
 			0,
-			[{ docId, kind: 'visibleRanges', visibleRanges: [new OffsetRange(0, 100)], documentContent: doc.documentAfterEdits }],
+			[{ docId, kind: 'visibleRanges', ordinal: 0, visibleRanges: [new OffsetRange(0, 100)], documentContent: doc.documentAfterEdits }],
 			new DeferredPromise<Result<unknown, NoNextEditReason>>(),
 			opts?.expandedEditWindowNLines,
 			opts?.isSpeculative ?? false,
@@ -759,6 +761,7 @@ describe('XtabProvider integration', () => {
 			undefined,
 			undefined,
 			Date.now(),
+			[],
 		);
 	}
 
@@ -830,6 +833,7 @@ describe('XtabProvider integration', () => {
 				new DeferredPromise<Result<unknown, NoNextEditReason>>(), undefined,
 				false, // isSpeculative
 				createLogContext(), undefined, undefined, Date.now(),
+				[],
 			);
 
 			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
@@ -854,10 +858,11 @@ describe('XtabProvider integration', () => {
 
 			const request = new StatelessNextEditRequest(
 				'req-1', 'opp-1', text, [doc], 0,
-				[{ docId: doc.id, kind: 'visibleRanges', visibleRanges: [new OffsetRange(0, 50)], documentContent: text }],
+				[{ docId: doc.id, kind: 'visibleRanges', ordinal: 0, visibleRanges: [new OffsetRange(0, 50)], documentContent: text }],
 				new DeferredPromise<Result<unknown, NoNextEditReason>>(), undefined,
 				false, // isSpeculative
 				createLogContext(), undefined, undefined, Date.now(),
+				[],
 			);
 
 			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
@@ -1046,6 +1051,40 @@ describe('XtabProvider integration', () => {
 			expect(getMessageText(systemMessage!)).toBe(xtab275SystemPrompt);
 		});
 
+		it('applies configured aggressiveness only to aggressiveness strategies', async () => {
+			const lines = ['const x = 1;', 'const y = 2;'];
+			const captureUserPrompt = async (promptingStrategy: PromptingStrategy, aggressivenessLevel: AggressivenessLevel) => {
+				mockModelService.setSelectedConfig({ promptingStrategy });
+				await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabAggressivenessLevel, aggressivenessLevel);
+				streamingFetcher.setStreamingLines(lines);
+
+				const gen = createProvider().provideNextEdit(createRequestWithEdit(lines, { insertionOffset: 3, insertedText: 'a' }), createMockLogger(), createLogContext(), CancellationToken.None);
+				await AsyncIterUtils.drainUntilReturn(gen);
+
+				const messages = streamingFetcher.capturedOptions.at(-1)?.messages;
+				const userMessage = messages?.find(message => message.role === Raw.ChatRole.User);
+				expect(userMessage).toBeDefined();
+				return getMessageText(userMessage!);
+			};
+
+			const nonAggressiveLow = await captureUserPrompt(PromptingStrategy.Xtab275, AggressivenessLevel.Low);
+			const nonAggressiveHigh = await captureUserPrompt(PromptingStrategy.Xtab275, AggressivenessLevel.High);
+			const aggressiveLow = await captureUserPrompt(PromptingStrategy.XtabAggressiveness, AggressivenessLevel.Low);
+			const aggressiveHigh = await captureUserPrompt(PromptingStrategy.XtabAggressiveness, AggressivenessLevel.High);
+
+			expect({
+				nonAggressivePromptsMatch: nonAggressiveLow === nonAggressiveHigh,
+				nonAggressivePromptHasLevel: nonAggressiveLow.includes('<|aggressive|>'),
+				aggressiveLowHasLevel: aggressiveLow.includes('<|aggressive|>low<|/aggressive|>'),
+				aggressiveHighHasLevel: aggressiveHigh.includes('<|aggressive|>high<|/aggressive|>'),
+			}).toEqual({
+				nonAggressivePromptsMatch: true,
+				nonAggressivePromptHasLevel: false,
+				aggressiveLowHasLevel: true,
+				aggressiveHighHasLevel: true,
+			});
+		});
+
 		it('retries with default model after NotFound response', async () => {
 			const provider = createProvider();
 
@@ -1137,6 +1176,69 @@ describe('XtabProvider integration', () => {
 	// ========================================================================
 	// Group 4: Filter Pipeline
 	// ========================================================================
+
+	describe('global budget', () => {
+
+		/** Drives the provider once and returns the captured user-message text. */
+		async function captureUserPrompt(provider: XtabProvider, request: StatelessNextEditRequest): Promise<string> {
+			streamingFetcher.setStreamingLines(['x']);
+			const capturesBefore = streamingFetcher.capturedOptions.length;
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			await AsyncIterUtils.drainUntilReturn(gen);
+			// Guard against silently comparing a stale capture: the run must have fetched.
+			expect(streamingFetcher.capturedOptions.length).toBeGreaterThan(capturesBefore);
+			const messages = streamingFetcher.capturedOptions.at(-1)?.messages;
+			const userMessage = messages?.find(m => m.role === Raw.ChatRole.User);
+			expect(userMessage).toBeDefined();
+			return getMessageText(userMessage!);
+		}
+
+		/** Number of lines in the `<|current_file_content|>` region of the prompt. */
+		function currentFileRegionLineCount(prompt: string): number {
+			const start = prompt.indexOf(PromptTags.CURRENT_FILE.start);
+			const end = prompt.indexOf(PromptTags.CURRENT_FILE.end);
+			expect(start).toBeGreaterThanOrEqual(0);
+			expect(end).toBeGreaterThan(start);
+			return prompt.slice(start, end).split('\n').length;
+		}
+
+		const bigFile = Array.from({ length: 400 }, (_, i) => `const value${i} = ${i};`);
+
+		// Under a global budget the current file is clipped LAST, so it absorbs whatever
+		// budget the cascade parts leave unused. With the (here empty) cascade the
+		// current file therefore reuses essentially the whole pool and keeps strictly
+		// MORE of the file than the legacy path, which caps it at its own
+		// currentFile.maxTokens (1500) and trims the tail.
+		it('absorbs leftover cascade budget so it keeps more of the current file than the legacy cap', async () => {
+			const legacy = await captureUserPrompt(createProvider(), createRequestWithEdit(bigFile, { insertionOffset: 3, insertedText: 'a' }));
+
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabGlobalBudget, '{}');
+			const enabledAtDefault = await captureUserPrompt(createProvider(), createRequestWithEdit(bigFile, { insertionOffset: 3, insertedText: 'a' }));
+
+			// Legacy caps the current file at 2000 tokens → the tail is trimmed.
+			expect(legacy).not.toContain('const value399 = 399;');
+			// Clip-last lets the current file reuse the whole pool → the entire file fits.
+			expect(enabledAtDefault).toContain('const value399 = 399;');
+			expect(currentFileRegionLineCount(legacy)).toBeLessThan(currentFileRegionLineCount(enabledAtDefault));
+		});
+
+		// New behavior: because the current file is sized to its share PLUS the cascade
+		// leftover (≈ the whole pool when the cascade is empty), a larger total budget
+		// keeps more of the file. A small pool still trims the tail; a generous pool
+		// fits the entire file.
+		it('keeps more of the current file as the total budget grows', async () => {
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabGlobalBudget, JSON.stringify({ totalTokens: 2000 }));
+			const smallBudget = await captureUserPrompt(createProvider(), createRequestWithEdit(bigFile, { insertionOffset: 3, insertedText: 'a' }));
+
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabGlobalBudget, JSON.stringify({ totalTokens: 8000 }));
+			const wideBudget = await captureUserPrompt(createProvider(), createRequestWithEdit(bigFile, { insertionOffset: 3, insertedText: 'a' }));
+
+			// Small pool trims the tail; wide pool fits the whole file.
+			expect(smallBudget).not.toContain('const value399 = 399;');
+			expect(wideBudget).toContain('const value399 = 399;');
+			expect(currentFileRegionLineCount(smallBudget)).toBeLessThan(currentFileRegionLineCount(wideBudget));
+		});
+	});
 
 	describe('filter pipeline', () => {
 		it('filters out import-only changes', async () => {
@@ -1347,6 +1449,29 @@ describe('XtabProvider integration', () => {
 
 			expect(edits.length).toBe(0);
 			expect(finalReason.v).toBeInstanceOf(NoNextEditReason.NoSuggestions);
+		});
+
+		it('CustomDiffPatch clamps tagged content range to the source document', async () => {
+			const provider = createProvider();
+			mockModelService.setSelectedConfig({
+				promptingStrategy: PromptingStrategy.PatchBased02,
+				includeTagsInCurrentFile: true,
+			});
+
+			const lines = Array.from({ length: 30 }, (_, i) => `line ${i}`);
+			const request = createRequestWithEdit(lines, { insertionOffset: 3, insertedText: 'e' });
+			streamingFetcher.setStreamingLines([]);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { edits, finalReason } = await collectEdits(gen);
+
+			expect({
+				editCount: edits.length,
+				finalReason: finalReason.v.constructor.name,
+			}).toEqual({
+				editCount: 0,
+				finalReason: NoNextEditReason.NoSuggestions.name,
+			});
 		});
 
 		it('UnifiedWithXml INSERT yields insertion edit at cursor line', async () => {
@@ -1890,6 +2015,30 @@ describe('XtabProvider integration', () => {
 	// ========================================================================
 
 	describe('debounce behavior', () => {
+		it('does not change timing for a non-aggressiveness strategy when user eagerness is default', async () => {
+			mockModelService.setSelectedConfig({ promptingStrategy: PromptingStrategy.Xtab275 });
+			const setBaseDebounceTime = vi.spyOn(DelaySession.prototype, 'setBaseDebounceTime');
+			const setExpectedTotalTime = vi.spyOn(DelaySession.prototype, 'setExpectedTotalTime');
+
+			try {
+				const lines = ['const x = 1;', 'const y = 2;'];
+				streamingFetcher.setStreamingLines(lines);
+				const gen = createProvider().provideNextEdit(createRequestWithEdit(lines, { insertionOffset: 3, insertedText: 'a' }), createMockLogger(), createLogContext(), CancellationToken.None);
+				await AsyncIterUtils.drainUntilReturn(gen);
+
+				expect({
+					setBaseDebounceTimeCalls: setBaseDebounceTime.mock.calls.length,
+					setExpectedTotalTimeCalls: setExpectedTotalTime.mock.calls.length,
+				}).toEqual({
+					setBaseDebounceTimeCalls: 0,
+					setExpectedTotalTimeCalls: 0,
+				});
+			} finally {
+				setBaseDebounceTime.mockRestore();
+				setExpectedTotalTime.mockRestore();
+			}
+		});
+
 		it('debounce is skipped in simulation tests', async () => {
 			// Override the simulation test context to indicate we're in sim tests
 			const testingServiceCollection = createExtensionUnitTestingServices(disposables);
@@ -1910,10 +2059,11 @@ describe('XtabProvider integration', () => {
 			const beforeText = new StringText(doc.documentBeforeEdits.value);
 			const request = new StatelessNextEditRequest(
 				'req-sim', 'opp-sim', beforeText, [doc], 0,
-				[{ docId: doc.id, kind: 'visibleRanges', visibleRanges: [new OffsetRange(0, 100)], documentContent: doc.documentAfterEdits }],
+				[{ docId: doc.id, kind: 'visibleRanges', ordinal: 0, visibleRanges: [new OffsetRange(0, 100)], documentContent: doc.documentAfterEdits }],
 				new DeferredPromise<Result<unknown, NoNextEditReason>>(), undefined,
 				false, // isSpeculative
 				createLogContext(), undefined, undefined, Date.now(),
+				[],
 			);
 
 			// Response with a change
@@ -2200,6 +2350,7 @@ describe('XtabProvider integration', () => {
 				base.recordingBookmark,
 				base.recording,
 				base.providerRequestStartDateTime,
+				base.xtabRejectedEditHistory,
 			);
 		}
 

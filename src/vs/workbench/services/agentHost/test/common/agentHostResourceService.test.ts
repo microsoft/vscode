@@ -16,6 +16,8 @@ import {
 	AgentHostPermissionMode,
 	AgentHostPermissionsSetting,
 	AgentHostLocalFilePermissionsSettingId,
+	AgentHostResourcePermissionError,
+	LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
 } from '../../../../../platform/agentHost/common/agentHostResourceService.js';
 import { AgentHostResourceService } from '../../common/agentHostResourceService.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
@@ -39,8 +41,8 @@ class CapturingConfigurationService extends TestConfigurationService {
  * unit tests exercise the policy logic without a real filesystem; canonical
  * form == lexically normalized form.
  *
- * `null` realpath responses simulate non-existent paths to drive the
- * `_canonicalize` parent-fallback branch.
+ * `undefined` realpath responses simulate non-existent paths to drive the
+ * `_canonicalize` ancestor walk.
  */
 function createStubFileService(opts?: {
 	realpathReturns?: (uri: URI) => URI | undefined;
@@ -66,6 +68,42 @@ suite('AgentHostResourceService', () => {
 		const { service } = createService();
 		assert.strictEqual(await service.check('host', URI.file('/etc/passwd'), AgentHostPermissionMode.Read), false);
 		assert.strictEqual(await service.check('host', URI.file('/etc/passwd'), AgentHostPermissionMode.Write), false);
+	});
+
+	test('trusted local identity cannot be spoofed by a remote local address', async () => {
+		const { service } = createService();
+		const uri = URI.file('/etc/passwd');
+
+		assert.deepStrictEqual({
+			trustedLocal: await service.check(LOCAL_AGENT_HOST_RESOURCE_IDENTITY, uri, AgentHostPermissionMode.Write),
+			remoteLocal: await service.check('local', uri, AgentHostPermissionMode.Read),
+			normalizedRemoteLocal: await service.check('ws://local', uri, AgentHostPermissionMode.Read),
+		}, {
+			trustedLocal: true,
+			remoteLocal: false,
+			normalizedRemoteLocal: false,
+		});
+	});
+
+	test('remote local address uses the normal permission request flow', async () => {
+		const { service } = createService();
+		const uri = URI.file('/etc/passwd');
+		const promise = service.request('ws://local', { channel: 'ahp-root://', uri: uri.toString(), read: true });
+		await new Promise(resolve => setTimeout(resolve, 0));
+		const [pending] = service.allPending.get();
+
+		assert.deepStrictEqual({
+			address: pending.address,
+			uri: pending.uri.toString(),
+			mode: pending.mode,
+		}, {
+			address: 'local',
+			uri: uri.toString(),
+			mode: AgentHostPermissionMode.Read,
+		});
+
+		pending.deny();
+		await assert.rejects(promise, (err: unknown) => err instanceof CancellationError);
 	});
 
 	test('implicit read grant covers descendants but not parent or sibling', async () => {
@@ -104,6 +142,153 @@ suite('AgentHostResourceService', () => {
 		assert.strictEqual(await service.check('host', URI.file('/etc/foo'), AgentHostPermissionMode.Read), true);
 		assert.strictEqual(await service.check('host', URI.file('/etc/foo'), AgentHostPermissionMode.Write), true);
 		assert.strictEqual(await service.check('host', URI.file('/etc/foo/bar'), AgentHostPermissionMode.Write), true);
+	});
+
+	test('list projects readable grants through otherwise ungranted ancestors', async () => {
+		const resolvedDirectories: string[] = [];
+		const fileService = {
+			realpath: async (resource: URI) => resource,
+			resolve: async (resource: URI) => {
+				resolvedDirectories.push(resource.path);
+				const childrenByPath: Record<string, Array<{ name: string; isDirectory: boolean }>> = {
+					'/': [
+						{ name: 'foo', isDirectory: true },
+						{ name: 'unrelated-root', isDirectory: true },
+					],
+					'/foo': [
+						{ name: 'bar', isDirectory: true },
+						{ name: 'qux', isDirectory: true },
+						{ name: 'unrelated.txt', isDirectory: false },
+					],
+					'/foo/bar': [
+						{ name: 'baz', isDirectory: false },
+						{ name: 'unrelated.txt', isDirectory: false },
+					],
+					'/stale': [
+						{ name: 'unrelated.txt', isDirectory: false },
+					],
+				};
+				return {
+					resource,
+					isFile: false,
+					isDirectory: true,
+					isSymbolicLink: false,
+					children: childrenByPath[resource.path] ?? [],
+				};
+			},
+		} as unknown as IFileService;
+		const { service } = createService({
+			'host': {
+				[URI.file('/foo/bar/baz').toString()]: AgentHostAccessMode.Read,
+				[URI.file('/stale/missing.txt').toString()]: AgentHostAccessMode.Read,
+			},
+		}, fileService);
+		disposables.add(service.grantImplicitRead('host', URI.file('/foo/qux')));
+
+		assert.deepStrictEqual({
+			root: await service.list('host', URI.file('/')),
+			foo: await service.list('host', URI.file('/foo')),
+			bar: await service.list('host', URI.file('/foo/bar')),
+			stale: await service.list('host', URI.file('/stale')),
+			resolvedDirectories,
+		}, {
+			root: { entries: [{ name: 'foo', type: 'directory' }] },
+			foo: {
+				entries: [
+					{ name: 'bar', type: 'directory' },
+					{ name: 'qux', type: 'directory' },
+				],
+			},
+			bar: { entries: [{ name: 'baz', type: 'file' }] },
+			stale: { entries: [] },
+			resolvedDirectories: ['/', '/foo', '/foo/bar', '/stale'],
+		});
+	});
+
+	test('persisted grants project through the original lexical symlink path', async () => {
+		const fileService = {
+			realpath: async (resource: URI) => resource.path.startsWith('/safe/link')
+				? URI.file('/real' + resource.path.slice('/safe/link'.length))
+				: resource,
+			resolve: async (resource: URI) => ({
+				resource,
+				isFile: false,
+				isDirectory: true,
+				isSymbolicLink: false,
+				children: resource.path === '/safe'
+					? [{ name: 'link', isDirectory: true }]
+					: [{ name: 'file.txt', isDirectory: false }],
+			}),
+		} as unknown as IFileService;
+		const { service, config } = createService(undefined, fileService);
+		const lexicalUri = URI.file('/safe/link/file.txt');
+		const canonicalUri = URI.file('/real/file.txt');
+		const promise = service.request('host', { channel: 'ahp-root://', uri: lexicalUri.toString(), read: true });
+		await new Promise(resolve => setTimeout(resolve, 0));
+		service.allPending.get()[0].allowAlways();
+		await promise;
+
+		const persisted = config.lastUpdate?.value as AgentHostPermissionsSetting;
+		assert.deepStrictEqual(persisted, {
+			'host': {
+				[canonicalUri.toString()]: {
+					mode: AgentHostAccessMode.Read,
+					lexicalUri: lexicalUri.toString(),
+				},
+			},
+		});
+
+		const { service: restoredService } = createService(persisted, fileService);
+		assert.deepStrictEqual({
+			safe: await restoredService.list('host', URI.file('/safe')),
+			link: await restoredService.list('host', URI.file('/safe/link')),
+			read: await restoredService.check('host', lexicalUri, AgentHostPermissionMode.Read),
+		}, {
+			safe: { entries: [{ name: 'link', type: 'directory' }] },
+			link: { entries: [{ name: 'file.txt', type: 'file' }] },
+			read: true,
+		});
+	});
+
+	test('list does not project grants from another host', async () => {
+		const { service } = createService({
+			'host-a': {
+				[URI.file('/foo/bar').toString()]: AgentHostAccessMode.Read,
+			},
+		});
+
+		await assert.rejects(
+			service.list('host-b', URI.file('/')),
+			(err: unknown) => err instanceof AgentHostResourcePermissionError,
+		);
+	});
+
+	test('list returns the full contents of a granted directory', async () => {
+		const fileService = {
+			realpath: async (resource: URI) => resource,
+			resolve: async (resource: URI) => ({
+				resource,
+				isFile: false,
+				isDirectory: true,
+				isSymbolicLink: false,
+				children: [
+					{ name: 'visible.txt', isDirectory: false },
+					{ name: 'nested', isDirectory: true },
+				],
+			}),
+		} as unknown as IFileService;
+		const { service } = createService({
+			'host': {
+				[URI.file('/foo').toString()]: AgentHostAccessMode.Read,
+			},
+		}, fileService);
+
+		assert.deepStrictEqual(await service.list('host', URI.file('/foo')), {
+			entries: [
+				{ name: 'visible.txt', type: 'file' },
+				{ name: 'nested', type: 'directory' },
+			],
+		});
 	});
 
 	test('check canonicalizes via realpath so symlink to outside the grant is denied', async () => {
@@ -176,6 +361,46 @@ suite('AgentHostResourceService', () => {
 			true,
 			'nonexistent file under a symlinked parent should canonicalize to /real/new.txt',
 		);
+	});
+
+	test('check walks ancestors so nested missing paths through a symlink are denied', async () => {
+		// `/safe/sym` → `/outside`. Intermediate `/safe/sym/a` and leaf
+		// `/safe/sym/a/b.txt` do not exist. One missing component under the
+		// symlink is already denied; two or more used to fall back to the
+		// lexical workspace path and pass the `/safe` grant.
+		const fileService = createStubFileService({
+			realpathReturns: uri => {
+				if (
+					uri.path === '/safe/sym/a/b.txt'
+					|| uri.path === '/safe/sym/a'
+					|| uri.path === '/safe/sym/new.txt'
+					|| uri.path === '/safe/new/dir/file.txt'
+					|| uri.path === '/safe/new/dir'
+					|| uri.path === '/safe/new'
+				) {
+					return undefined;
+				}
+				if (uri.path === '/safe/sym') {
+					return URI.file('/outside');
+				}
+				return uri;
+			},
+		});
+		const { service } = createService({
+			'host': {
+				[URI.file('/safe').toString()]: AgentHostAccessMode.ReadWrite,
+			},
+		}, fileService);
+
+		assert.deepStrictEqual({
+			nestedMissingThroughSymlink: await service.check('host', URI.file('/safe/sym/a/b.txt'), AgentHostPermissionMode.Write),
+			oneLevelMissingThroughSymlink: await service.check('host', URI.file('/safe/sym/new.txt'), AgentHostPermissionMode.Write),
+			nestedMissingInsideGrant: await service.check('host', URI.file('/safe/new/dir/file.txt'), AgentHostPermissionMode.Write),
+		}, {
+			nestedMissingThroughSymlink: false,
+			oneLevelMissingThroughSymlink: false,
+			nestedMissingInsideGrant: true,
+		});
 	});
 
 	test('request resolves immediately when already granted', async () => {
@@ -554,4 +779,3 @@ suite('AgentHostResourceService', () => {
 		assert.strictEqual(await service.check('host', URI.file('/etc/good'), AgentHostPermissionMode.Read), true);
 	});
 });
-

@@ -12,7 +12,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { onboardingScenarioRegistry } from '../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
-import { IOnboardingScenarioService, ONBOARDING_DEVELOPER_MODE_CONFIG } from '../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
+import { isOnboardingDeveloperModeEnabled, IOnboardingScenarioService } from '../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { findOnboardingTarget, pulseOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -77,7 +77,7 @@ class NewSessionTourContribution extends Disposable implements IWorkbenchContrib
 
 		// The developer setting bypasses the usage-based "first few sessions"
 		// gate so the tour can be triggered on demand for testing.
-		const developerMode = this.configurationService.getValue<boolean>(ONBOARDING_DEVELOPER_MODE_CONFIG) === true;
+		const developerMode = isOnboardingDeveloperModeEnabled(this.configurationService, NEW_SESSION_TOUR_ID);
 		if (!developerMode) {
 			const sessionsStarted = this.storageService.getNumber(TOTAL_SESSIONS_KEY, StorageScope.APPLICATION, 0);
 			if (sessionsStarted > NewSessionTourContribution.MAX_SESSIONS_FOR_TOUR) {
