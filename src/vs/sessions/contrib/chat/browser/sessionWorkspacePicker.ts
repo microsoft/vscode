@@ -25,6 +25,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService, IContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -99,6 +100,7 @@ export interface IWorkspacePickerGroupAction {
 export interface IWorkspacePickerTrigger {
 	readonly label?: string;
 	readonly ariaLabel: string;
+	readonly tooltip?: string;
 	readonly icon: ThemeIcon;
 	readonly reflectsWorkspace?: boolean;
 	readonly group?: string;
@@ -345,6 +347,7 @@ export class WorkspacePicker extends Disposable {
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
 
@@ -505,6 +508,9 @@ export class WorkspacePicker extends Disposable {
 		}
 		this._triggerElement = trigger;
 		this._renderTriggerLabel(trigger);
+		if (options?.tooltip) {
+			triggerDisposables.add(this.hoverService.setupDelayedHover(trigger, { content: options.tooltip }));
+		}
 		if (options?.remove && options.removeAriaLabel) {
 			slot.classList.add('has-remove-action');
 			const removeButton = dom.append(slot, dom.$<HTMLButtonElement>('button.sessions-workspace-picker-remove'));

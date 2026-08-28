@@ -13,6 +13,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -60,6 +61,7 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService notificationService: INotificationService,
+		@IHoverService hoverService: IHoverService,
 		@IAgentHostFilterService private readonly _agentHostFilterService: IAgentHostFilterService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 	) {
@@ -81,6 +83,7 @@ export class WebWorkspacePicker extends WorkspacePicker {
 			fileDialogService,
 			telemetryService,
 			notificationService,
+			hoverService,
 		);
 
 		// When the scoped host changes, if the current selection no longer

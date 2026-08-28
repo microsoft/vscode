@@ -56,6 +56,8 @@ import { TestNotificationService } from '../../../../../platform/notification/te
 import { AGENTIC_SIGN_IN_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { IChatRequestVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 
 // ---- Storage key (must match the one in sessionWorkspacePicker.ts) ----------
 const STORAGE_KEY_RECENT_WORKSPACES = 'sessions.recentlyPickedWorkspaces';
@@ -329,6 +331,7 @@ function createTestPicker(
 	instantiationService.stub(IWorkspacesService, workspacesService);
 	instantiationService.stub(ISessionsRecentWorkspacesService, recentWorkspacesService ?? disposables.add(instantiationService.createInstance(SessionsRecentWorkspacesService)));
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
+	instantiationService.stub(IHoverService, NullHoverService);
 
 	return disposables.add(instantiationService.createInstance(pickerCtor, options ?? {}));
 }

@@ -270,7 +270,7 @@
 	border-radius: var(--vscode-cornerRadius-circle);
 	box-sizing: border-box;
 	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-body1);
+	font-size: var(--vscode-fontSize-body2);
 	line-height: var(--vscode-spacing-size160);
 }
 

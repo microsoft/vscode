@@ -692,12 +692,14 @@ export class NewChatWidget extends Disposable {
 		const workspaceTrigger: IWorkspacePickerTrigger = {
 			label: localize('newSessionWorkspacePicker.workspace', "Workspace"),
 			ariaLabel: localize('newSessionWorkspacePicker.workspaceAriaLabel', "Choose a workspace for the new session"),
+			tooltip: localize('newSessionWorkspacePicker.workspaceTooltip', "Choose where the new session runs"),
 			icon: Codicon.project,
 			reflectsWorkspace: true,
 		};
 		const gitHubContextTrigger: IWorkspacePickerTrigger = {
 			label: localize('newSessionWorkspacePicker.githubContext', "Issue/PR"),
 			ariaLabel: localize('newSessionWorkspacePicker.githubContextAriaLabel', "Attach a GitHub issue or pull request to the new session"),
+			tooltip: localize('newSessionWorkspacePicker.githubContextTooltip', "Attach an issue or pull request as context"),
 			icon: Codicon.add,
 			group: SESSION_WORKSPACE_GROUP_GITHUB,
 			attachesContext: true,
