@@ -26,7 +26,7 @@ test -d node_modules || npm i
 
 # Get electron
 if [[ -z "${VSCODE_SKIP_PRELAUNCH}" ]]; then
-	npm run electron
+	node build/lib/preLaunch.ts --only-electron
 fi
 
 # Unit Tests
