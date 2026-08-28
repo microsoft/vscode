@@ -47,6 +47,8 @@ import { IAICustomizationWorkspaceService, AICustomizationManagementSection, AIC
 import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationSourceFolder, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../../../contrib/chat/common/model/chatUri.js';
+import { ICustomizationMigrationService } from '../../../../contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationService } from '../../../../contrib/chat/common/promptSyntax/service/customizationMigrationServiceImpl.js';
 import { IPromptsService, AgentInstructionFileType, PromptsStorage, IAgentSkill, IChatPromptSlashCommand, IAgentInstructionFile } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { IResolvedPromptSourceFolder } from '../../../../contrib/chat/common/promptSyntax/config/promptFileLocations.js';
 import { ParsedPromptFile, PromptFileParser } from '../../../../contrib/chat/common/promptSyntax/promptFileParser.js';
@@ -851,7 +853,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				}();
 				override getSession() { return undefined; }
 			}());
-			reg.defineInstance(IPromptsService, createMockPromptsService(fixtureFiles, agentInstructions, fileContents, promptFilesDidChangeEmitter.event));
+			const promptsService = createMockPromptsService(fixtureFiles, agentInstructions, fileContents, promptFilesDidChangeEmitter.event);
+			reg.defineInstance(IPromptsService, promptsService);
+			reg.defineInstance(ICustomizationMigrationService, new CustomizationMigrationService(promptsService));
 			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
 				override readonly isSessionsWindow = isSessionsWindow;
 				override readonly welcomePageFeatures = {
