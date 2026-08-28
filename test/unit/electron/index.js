@@ -238,12 +238,16 @@ app.on('ready', () => {
 
 	// needed when loading resources from the renderer, e.g xterm.js or the encoding lib
 	session.defaultSession.protocol.handle('vscode-file', request => {
-		const path = new URL(request.url).pathname;
-		return electronNet.fetch(url.pathToFileURL(path).toString(), {
+		const fileUrl = new URL(request.url.replace(/^vscode-file:/, 'file:'));
+		if (fileUrl.hostname === 'vscode-app') {
+			fileUrl.hostname = '';
+		}
+
+		return electronNet.fetch(fileUrl, {
 			method: request.method,
 			headers: request.headers,
 			bypassCustomProtocolHandlers: true
-		});
+		}).catch(() => Response.error());
 	});
 
 	ipcMain.on('error', (_, err) => {
