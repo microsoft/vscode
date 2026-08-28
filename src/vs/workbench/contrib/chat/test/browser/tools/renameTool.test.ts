@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { ExtUri, extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { RenameProvider, WorkspaceEdit, Rejection } from '../../../../../../editor/common/languages.js';
@@ -14,6 +15,7 @@ import { LanguageFeaturesService } from '../../../../../../editor/common/service
 import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
+import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IBulkEditService, IBulkEditResult } from '../../../../../../editor/browser/services/bulkEditService.js';
 import { RenameTool } from '../../../browser/tools/renameTool.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
@@ -29,6 +31,7 @@ suite('RenameTool', () => {
 
 	const disposables = new DisposableStore();
 	let langFeatures: LanguageFeaturesService;
+	const uriIdentityService = { extUri: new ExtUri(() => false) } as Partial<IUriIdentityService> as IUriIdentityService;
 
 	const testUri = URI.parse('file:///test/file.ts');
 	const testContent = [
@@ -65,12 +68,7 @@ suite('RenameTool', () => {
 		return {
 			_serviceBrand: undefined,
 			getWorkspace: () => ({ folders: [folder] }),
-			getWorkspaceFolder: (uri: URI) => {
-				if (uri.toString().startsWith(folderUri.toString())) {
-					return folder;
-				}
-				return null;
-			},
+			getWorkspaceFolder: (uri: URI) => extUriBiasedIgnorePathCase.isEqualOrParent(uri, folderUri) ? folder : null,
 		} as unknown as IWorkspaceContextService;
 	}
 
@@ -105,6 +103,7 @@ suite('RenameTool', () => {
 			langFeatures,
 			textModelService,
 			createMockWorkspaceService(),
+			uriIdentityService,
 			createMockChatService(),
 			options?.bulkEditService ?? createMockBulkEditService(),
 		);
@@ -344,6 +343,67 @@ suite('RenameTool', () => {
 
 			assert.ok(getTextContent(result).includes('Provide either'));
 			assert.strictEqual(requestedUris.length, 0);
+			assert.strictEqual(bulkEditService.appliedEdits.length, 0);
+		});
+
+		test('rejects uri outside the workspace', async () => {
+			const outsideUri = URI.parse('file:///outside.ts');
+			const outsideModel = disposables.add(createTextModel('const OutsideSymbol = 1;', 'typescript', undefined, outsideUri));
+			const requestedUris: URI[] = [];
+			const textModelService = {
+				_serviceBrand: undefined,
+				createModelReference: async (uri: URI) => {
+					requestedUris.push(uri);
+					return { object: { textEditorModel: outsideModel }, dispose: () => { } };
+				},
+				registerTextModelContentProvider: () => ({ dispose: () => { } }),
+				canHandleResource: () => false,
+			} as unknown as ITextModelService;
+			const bulkEditService = createMockBulkEditService();
+			const tool = disposables.add(createTool(textModelService, { bulkEditService }));
+
+			const result = await tool.invoke(
+				createInvocation({ symbol: 'OutsideSymbol', newName: 'RenamedSymbol', uri: outsideUri.toString(), lineContent: 'const OutsideSymbol = 1;' }),
+				noopCountTokens, noopProgress, CancellationToken.None
+			);
+
+			assert.deepStrictEqual({
+				result: getTextContent(result),
+				requestedUris: requestedUris.map(uri => uri.toString()),
+				appliedEditCount: bulkEditService.appliedEdits.length,
+			}, {
+				result: 'Provide either "uri" (a full URI) or "filePath" (a workspace-relative path) to identify a file within the current workspace or working directory.',
+				requestedUris: [],
+				appliedEditCount: 0,
+			});
+		});
+
+		test('rejects every rename edit kind outside the workspace', async () => {
+			const model = disposables.add(createTextModel(testContent, 'typescript', undefined, testUri));
+			const outsideUri = URI.parse('file:///outside.ts');
+			const bulkEditService = createMockBulkEditService();
+			const tool = disposables.add(createTool(createMockTextModelService(model), { bulkEditService }));
+			const externalEdits: WorkspaceEdit['edits'] = [
+				makeEdit(outsideUri, new Range(1, 1, 1, 8), 'MyNewClass'),
+				{ oldResource: testUri, newResource: outsideUri },
+				{ resource: outsideUri, undo() { }, redo() { } },
+			];
+
+			for (const edit of externalEdits) {
+				const provider = langFeatures.renameProvider.register('typescript', {
+					provideRenameEdits: (): WorkspaceEdit & Rejection => ({ edits: [edit] }),
+				});
+				try {
+					const result = await tool.invoke(
+						createInvocation({ symbol: 'MyClass', newName: 'MyNewClass', uri: testUri.toString(), lineContent: 'import { MyClass }' }),
+						noopCountTokens, noopProgress, CancellationToken.None
+					);
+					assert.strictEqual(getTextContent(result), 'Rename was not applied because it would modify files outside the current workspace or working directory.');
+				} finally {
+					provider.dispose();
+				}
+			}
+
 			assert.strictEqual(bulkEditService.appliedEdits.length, 0);
 		});
 
