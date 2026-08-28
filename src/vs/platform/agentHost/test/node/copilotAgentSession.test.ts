@@ -1464,6 +1464,7 @@ suite('CopilotAgentSession', () => {
 				errorType: 'executionInterrupted',
 				message: 'The agent was interrupted before this request finished.',
 			},
+			resumable: true,
 		});
 	});
 
@@ -5704,7 +5705,7 @@ Use the attached image as context.
 			});
 		});
 
-		test('the development $error-ui path emits an error even with attachments', async () => {
+		test('the development $error-ui path emits a resumable error even with attachments', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 
 			await session.send('$error-ui', [{
@@ -5730,6 +5731,7 @@ Use the attached image as context.
 							errorType: 'developmentRecoverableError',
 							message: 'Injected recoverable development error (1/1).',
 						},
+						resumable: true,
 					},
 				}],
 			});
