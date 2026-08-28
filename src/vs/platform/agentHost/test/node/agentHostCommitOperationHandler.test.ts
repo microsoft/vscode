@@ -47,6 +47,7 @@ class TestGitService implements IAgentHostGitService {
 	async addExistingWorktree(): Promise<void> { }
 	async removeWorktree(): Promise<void> { }
 	async branchExists(): Promise<boolean> { return false; }
+	async createBranch(): Promise<void> { }
 	async hasUncommittedChanges(): Promise<boolean> {
 		this.calls.push('hasUncommittedChanges');
 		return this.uncommitted;
@@ -131,7 +132,6 @@ class TestChangesetService implements IAgentHostChangesetService {
 	refreshSessionChangeset(session: string): void { this.calls.push(`refreshSession:${session}`); }
 	onWorkingDirectoryAvailable(_session: string): void { }
 	recomputeSubscribedChangesets(_session: string): void { }
-	onSessionDisposed(_session: string): void { }
 	async computeUncommittedChangeset(session: string): Promise<string> { this.calls.push(`computeUncommitted:${session}`); return `${session}/changeset/uncommitted`; }
 	async computeTurnChangeset(_session: string, _turnId: string): Promise<string> { return ''; }
 	async computeCompareTurnsChangeset(_session: string, _originalTurnId: string, _modifiedTurnId: string): Promise<string> { return ''; }

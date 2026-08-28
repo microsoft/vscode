@@ -12,8 +12,9 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../base/
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { localize } from '../../../../../nls.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import {
 	CLOUD_SANDBOX_AGENT_PROVIDER,
@@ -29,6 +30,7 @@ import {
 	type ICloudSandboxDiscoveryResult,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
+import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { IReplayedTaskHistory } from '../../../../../platform/agentHost/common/taskEventReplay.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { findRemoteAgentHostSessionTypeAuthority, remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
@@ -42,6 +44,7 @@ import { IWorkbenchContribution } from '../../../../../workbench/common/contribu
 import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { CloudSandboxReadOnlySessionHandler } from './cloudSandboxReadOnlySessionHandler.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { IAgentHostGroup } from '../../../../common/agentHostSessionsProvider.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionSchemeAlias, IRemoteAgentHostSessionsProviderConfig } from './remoteAgentHostSessionsProvider.js';
@@ -59,6 +62,19 @@ const LOG_PREFIX = '[CloudSandboxAgentHost]';
 const SANDBOX_SESSION_SCHEME_ALIAS: ISessionSchemeAlias = {
 	ui: CLOUD_SANDBOX_AGENT_PROVIDER,
 	backend: CLOUD_SANDBOX_SESSION_SCHEME,
+};
+
+/**
+ * Folds every sandbox environment into one "GitHub Sandboxes" entry in the host
+ * filter. Sandboxes are not connectable: one connects when a session of it is
+ * opened, so a manual toggle would act on nothing the user pointed at. The icon
+ * is left to the default so the entry reads like every other host.
+ */
+const CLOUD_SANDBOX_HOST_GROUP: IAgentHostGroup = {
+	id: 'githubsandbox',
+	label: localize('githubSandbox.hostGroup', "GitHub Sandboxes"),
+	order: 1,
+	connectable: false,
 };
 
 /** A discovered sandbox environment we can create a provider for. */
@@ -129,6 +145,11 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 	private _discoveryQueued: Promise<void> | undefined;
 	/** Whether discovery has completed at least once, used to stop the auth-driven retry. */
 	private _hasDiscovered = false;
+	/**
+	 * Keeps the "GitHub Sandboxes" filter entry present for as long as the feature is on, so the
+	 * place is visible and selectable before the user has any sandbox session to put in it.
+	 */
+	private readonly _hostGroupRegistration = this._register(new MutableDisposable());
 
 	constructor(
 		@ICloudSandboxAgentHostService private readonly _cloudSandboxService: ICloudSandboxAgentHostService,
@@ -172,6 +193,7 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 		// leave stale providers, connections, or credential refreshers behind.
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(CloudSandboxEnabledSettingId) || e.affectsConfiguration(RemoteAgentHostsEnabledSettingId)) {
+				this._updateHostGroupRegistration();
 				if (this._isEnabled()) {
 					void this._discoverAndSeed();
 				} else {
@@ -179,6 +201,8 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 				}
 			}
 		}));
+
+		this._updateHostGroupRegistration();
 
 		// Lazy discovery: surface environment-bound sandbox sessions in the list without connecting.
 		// Connecting happens on open via the sandbox async activator.
@@ -642,6 +666,19 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 		return isCloudSandboxEnabled(this._configurationService);
 	}
 
+	/**
+	 * Keep the host filter entry in step with the feature toggles. The entry stands on its own —
+	 * it is there whether or not discovery has found any environment — so a user with the feature
+	 * on but no tasks yet can still see and select the place their sandboxes will appear in.
+	 */
+	private _updateHostGroupRegistration(): void {
+		if (!this._isEnabled()) {
+			this._hostGroupRegistration.clear();
+		} else if (!this._hostGroupRegistration.value) {
+			this._hostGroupRegistration.value = this._agentHostFilterService.registerHostGroup(CLOUD_SANDBOX_HOST_GROUP);
+		}
+	}
+
 	/** Create the sessions provider for an environment if it doesn't exist yet. */
 	private _ensureProvider(env: ICloudSandboxEnvironment): void {
 		const address = cloudSandboxAddress(env.environmentId);
@@ -658,11 +695,14 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 			name: env.name,
 			connectOnDemand: () => this.connect({ environmentId: env.environmentId, sessionId: env.sessionId, name: env.name }).then(() => { }),
 			sessionSchemeAlias: SANDBOX_SESSION_SCHEME_ALIAS,
+			// The sandbox agent edits without committing, so `branch` is always empty.
+			defaultChangesetKind: ChangesetKind.Session,
 			// Each sandbox is its own provider named after its task, so the `[host]` suffix would
 			// put every session in a workspace group of one.
 			omitHostFromWorkspaceLabel: true,
 			// A sandbox is a disposable remote environment, not a checkout on disk.
 			workspaceTypeIcon: Codicon.package,
+			hostGroup: CLOUD_SANDBOX_HOST_GROUP,
 		});
 		store.add(provider);
 		store.add(this._sessionsProvidersService.registerProvider(provider));

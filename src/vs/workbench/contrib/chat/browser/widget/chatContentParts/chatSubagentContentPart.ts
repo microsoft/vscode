@@ -28,7 +28,7 @@ import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/m
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatConfiguration } from '../../../common/constants.js';
 import { isAgentHostTarget } from '../../../common/chatSessionsService.js';
-import { formatCopilotCredits, IChatHookPart, IChatMarkdownContent, IChatToolInvocation, IChatToolInvocationSerialized, isLegacyChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
+import { formatCopilotCreditsLabel, IChatHookPart, IChatMarkdownContent, IChatToolInvocation, IChatToolInvocationSerialized, isLegacyChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { IChatRendererContent, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { IRunSubagentToolInputParams } from '../../../common/tools/builtinTools/runSubagentTool.js';
@@ -385,6 +385,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 				startedAt: data?.kind === 'subagent' ? data.startedAt : undefined,
 				duration: data?.kind === 'subagent' ? data.duration : undefined,
 				isActive: this.isActive,
+				...(this.credits ? { credits: this.credits } : {}),
 				...(this.modelName ? { modelName: this.modelName } : {}),
 				...(parentModelId ? { parentModelId } : {}),
 				...(parentModelName ? { parentModelName } : {}),
@@ -876,10 +877,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 			parts.push(localize('chat.subagent.modelTooltip', 'Model: {0}', this.modelName));
 		}
 		if (typeof this.credits === 'number' && this.credits > 0) {
-			const formatted = formatCopilotCredits(this.credits);
-			parts.push(formatted === '1'
-				? localize('chat.subagent.creditTooltip', '{0} credit', formatted)
-				: localize('chat.subagent.creditsTooltip', '{0} credits', formatted));
+			parts.push(formatCopilotCreditsLabel(this.credits));
 		}
 
 		if (parts.length === 0) {
@@ -906,6 +904,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 		if (typeof credits === 'number' && credits !== this.credits) {
 			this.credits = credits;
 			this.updateHover();
+			this._updateOpenChatToolbarContext();
 		}
 	}
 

@@ -156,6 +156,8 @@ export interface ISessionGitRepository {
 	readonly hasGitOperationInProgress?: boolean;
 	/** GitHub information associated with the repository. */
 	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
+	/** Starts resolving GitHub information when the repository exposes it lazily. */
+	readonly resolveGitHubInfo?: () => void;
 }
 
 /**
@@ -718,6 +720,8 @@ export interface ISession {
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	/** Whether the session is still initializing (e.g., resolving git repository). */
 	readonly loading: IObservable<boolean>;
+	/** Whether the first request lifecycle is in progress. Used to present a still-untitled draft as active during preparation. Absent means `false`. */
+	readonly isNewSessionRequestInProgress?: IObservable<boolean>;
 	/** Whether the session is archived. */
 	readonly isArchived: IObservable<boolean>;
 	/** Whether the session has been read. */
@@ -858,8 +862,18 @@ export interface ISessionWorkspaceBrowseAction {
 	readonly icon: ThemeIcon;
 	/** The provider that owns this action. */
 	readonly providerId: string;
-	/** Execute the browse action and return the selected workspace, or undefined if cancelled. */
-	run(): Promise<ISessionWorkspace | undefined>;
+	/**
+	 * Whether the selected workspace should also be attached as prompt context.
+	 * Context selections remain attached when the user chooses a different
+	 * execution workspace.
+	 */
+	readonly attachesContext?: boolean;
+	/**
+	 * Execute the browse action and return the selected workspace, or undefined
+	 * if cancelled. The current execution workspace is provided so context
+	 * pickers can scope results to its repository.
+	 */
+	run(currentWorkspace?: ISessionWorkspace): Promise<ISessionWorkspace | undefined>;
 	/**
 	 * Optional method to enumerate folders inline (e.g. for a phone-friendly
 	 * picker that shows a folder list with search-as-you-type instead of

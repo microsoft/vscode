@@ -18,11 +18,12 @@ import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/tel
 import { type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
-import type { Implementation } from '../../common/state/protocol/common/commands.js';
-import { ActionType, type ActionEnvelope, type ChatAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type ClientAnnotationsAction, type ProgressParams } from '../../common/state/sessionActions.js';
+import type { AutomationCapabilities, Implementation } from '../../common/state/protocol/common/commands.js';
+import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../common/state/protocol/channels-automation/commands.js';
+import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type IRootConfigChangedAction, type ProgressParams, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
-import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
-import { MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type SessionSummary } from '../../common/state/sessionState.js';
+import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot, type SubscribeResult } from '../../common/state/sessionProtocol.js';
+import { AUTOMATION_CATALOG_URI, MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type SessionSummary } from '../../common/state/sessionState.js';
 import type { SessionAddedParams, SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
@@ -140,7 +141,7 @@ class TestTelemetryService implements ITelemetryService {
 
 class MockAgentService implements IAgentService {
 	declare readonly _serviceBrand: undefined;
-	readonly handledActions: (SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction)[] = [];
+	readonly handledActions: (SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction | ClientAutomationAction | ClientAutomationRunAction)[] = [];
 	readonly handledClientTypes: (AgentHostClientType | undefined)[] = [];
 	readonly handledClientContexts: (IAgentHostClientTelemetryContext | undefined)[] = [];
 	readonly browsedUris: URI[] = [];
@@ -149,7 +150,7 @@ class MockAgentService implements IAgentService {
 	readonly listedSessions: IAgentSessionMetadata[] = [];
 	readonly createSessionConfigs: (IAgentCreateSessionConfig | undefined)[] = [];
 	managedSettingsDiagnostics: readonly IAgentHostManagedSettingsDiagnostics[] = [];
-	readonly getSessionStateFileCalls: string[] = [];
+	readonly getSessionStateFileCalls: { session: string; chat: string | undefined }[] = [];
 	readonly collectDebugLogsCalls: { session: string | undefined; chat: string | undefined; kind: 'archive' | 'directory' }[] = [];
 	shutdownCalls = 0;
 	createSessionBarrier: DeferredPromise<void> | undefined;
@@ -158,6 +159,8 @@ class MockAgentService implements IAgentService {
 	readonly subscribeCalls: { resource: string; clientId: string }[] = [];
 	readonly unsubscribeCalls: { resource: string; clientId: string }[] = [];
 	afterListSessionsSnapshot: (() => void) | undefined;
+	readonly automationRunRequests: RunAutomationParams[] = [];
+	automationRunResult: RunAutomationResult | undefined;
 
 	private readonly _onDidAction = new Emitter<import('../../common/state/sessionActions.js').ActionEnvelope>();
 	readonly onDidAction = this._onDidAction.event;
@@ -173,7 +176,7 @@ class MockAgentService implements IAgentService {
 		this._stateManager = sm;
 	}
 
-	dispatchAction(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContext?: IAgentHostClientTelemetryContext): void {
+	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction | ClientAutomationAction | ClientAutomationRunAction, clientId: string, clientSeq: number, clientContext?: IAgentHostClientTelemetryContext): void {
 		this.handledActions.push(action);
 		this.handledClientTypes.push(clientContext?.clientType);
 		this.handledClientContexts.push(clientContext);
@@ -200,6 +203,16 @@ class MockAgentService implements IAgentService {
 	async resolveSessionConfig(_params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> { return { schema: { type: 'object', properties: {} }, values: {} }; }
 	async sessionConfigCompletions(_params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> { return { items: [] }; }
 	async completions(_params: CompletionsParams): Promise<CompletionsResult> { return { items: [] }; }
+	automationCapabilities: AutomationCapabilities | undefined;
+	async listAutomationTriggerDefinitions(_params: ListAutomationTriggerDefinitionsParams): Promise<ListAutomationTriggerDefinitionsResult> { return { items: [] }; }
+	async runAutomation(params: RunAutomationParams): Promise<RunAutomationResult> {
+		this.automationRunRequests.push(params);
+		if (!this.automationRunResult) {
+			throw new Error('Not implemented');
+		}
+		return this.automationRunResult;
+	}
+	async fetchAutomationRuns(_params: FetchAutomationRunsParams): Promise<FetchAutomationRunsResult> { return {}; }
 	async getCompletionTriggerCharacters(): Promise<readonly string[]> { return []; }
 	async disposeSession(_session: URI): Promise<void> { }
 	readonly createdChats: { session: string; chat: string; options?: IAgentCreateChatRequestOptions }[] = [];
@@ -237,8 +250,8 @@ class MockAgentService implements IAgentService {
 	async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> { return { version: 'test', os: 'test', arch: 'test', proxySettings: {}, proxyEnv: {}, endpoints: [] }; }
 	async getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]> { return this.managedSettingsDiagnostics; }
 	async diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> { return { url }; }
-	async getSessionStateFile(session: URI): Promise<URI | undefined> {
-		this.getSessionStateFileCalls.push(session.toString());
+	async getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined> {
+		this.getSessionStateFileCalls.push({ session: session.toString(), chat: chat?.toString() });
 		return URI.file('/state/sdk-session/events.jsonl');
 	}
 	async collectDebugLogs(session: URI | undefined, kind: 'archive' | 'directory', chat?: URI) {
@@ -407,8 +420,28 @@ suite('ProtocolServerHandler', () => {
 			assert.fail('should have sent initialize response');
 		}
 		const result = resp.result as InitializeResult;
-		assert.strictEqual(result.protocolVersion, PROTOCOL_VERSION);
-		assert.strictEqual(result.serverSeq, stateManager.serverSeq);
+		assert.deepStrictEqual({
+			protocolVersion: result.protocolVersion,
+			serverSeq: result.serverSeq,
+			meta: result._meta,
+		}, {
+			protocolVersion: PROTOCOL_VERSION,
+			serverSeq: stateManager.serverSeq,
+			meta: { 'vscode.getAgentHostSessionStateFile.chat': true },
+		});
+	});
+
+	test('handshake advertises only implemented automation capabilities', () => {
+		agentService.automationCapabilities = { create: {}, runCancellation: {} };
+		const transport = connectClient('automation-client');
+		const resp = findResponse(transport.sent, 1);
+		if (!resp || !hasKey(resp, { result: true })) {
+			assert.fail('should have sent initialize response');
+		}
+		assert.deepStrictEqual((resp.result as InitializeResult).automations, {
+			create: {},
+			runCancellation: {},
+		});
 	});
 
 	test('applies telemetry disablement before reporting the client connection', () => {
@@ -574,6 +607,58 @@ suite('ProtocolServerHandler', () => {
 		assert.strictEqual(result.snapshots[0].resource.toString(), sessionUri.toString());
 	});
 
+	test('automation catalogue subscription and run command preserve canonical channels', async () => {
+		stateManager.setAutomationCatalogState({ automations: [] });
+		agentService.automationCapabilities = { create: {}, schedules: {}, runCancellation: {} };
+		agentService.automationRunResult = { resource: 'ahp-automation-run:/run-1' };
+		const transport = connectClient('automation-client');
+		const responsePromise = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'subscribe', { channel: AUTOMATION_CATALOG_URI }));
+		const subscription = await responsePromise;
+		const runResponsePromise = waitForResponse(transport, 3);
+
+		transport.simulateMessage(request(3, 'runAutomation', {
+			channel: AUTOMATION_CATALOG_URI,
+			automation: 'ahp-automation:/automation-1',
+			requestId: 'request-1',
+		}));
+		const response = await runResponsePromise;
+		const subscribeResult = (subscription as { result?: SubscribeResult }).result;
+
+		assert.deepStrictEqual({
+			snapshot: subscribeResult?.snapshot,
+			requests: agentService.automationRunRequests,
+			response: hasKey(response, { result: true }) ? response.result : undefined,
+		}, {
+			snapshot: {
+				resource: AUTOMATION_CATALOG_URI,
+				state: { automations: [] },
+				fromSeq: stateManager.serverSeq,
+			},
+			requests: [{
+				channel: AUTOMATION_CATALOG_URI,
+				automation: 'ahp-automation:/automation-1',
+				requestId: 'request-1',
+			}],
+			response: { resource: 'ahp-automation-run:/run-1' },
+		});
+	});
+
+	test('automation catalogue subscription rejects an inactive client before adding it', async () => {
+		stateManager.setAutomationCatalogState({ automations: [] });
+		let subscriberAdded = false;
+		agentService.addSubscriber = () => subscriberAdded = true;
+		const target = handler as unknown as {
+			_subscribeStateChannel(channel: string, clientId: string, isActive?: () => boolean): Promise<IStateSnapshot>;
+		};
+
+		await assert.rejects(
+			target._subscribeStateChannel(AUTOMATION_CATALOG_URI, 'inactive-client', () => false),
+			/Subscription cancelled/,
+		);
+		assert.strictEqual(subscriberAdded, false);
+	});
+
 	test('handshake retains an initial subscription whose state has not materialized', () => {
 		const transport = connectClient('client-1', [defaultChatUri]);
 		const response = findResponse(transport.sent, 1) as { result: InitializeResult };
@@ -674,9 +759,11 @@ suite('ProtocolServerHandler', () => {
 		const transport = connectClient('client-session-state-file');
 		transport.sent.length = 0;
 		const responsePromise = waitForResponse(transport, 17);
+		const chat = buildChatUri('copilotcli:/session-1', 'peer-1');
 
 		transport.simulateMessage(request(17, 'vscode/getAgentHostSessionStateFile', {
 			session: 'copilotcli:/session-1',
+			chat,
 		}));
 
 		assert.deepStrictEqual({
@@ -688,7 +775,7 @@ suite('ProtocolServerHandler', () => {
 				id: 17,
 				result: { resource: 'file:///state/sdk-session/events.jsonl' },
 			},
-			calls: ['copilotcli:/session-1'],
+			calls: [{ session: 'copilotcli:/session-1', chat }],
 		});
 	});
 

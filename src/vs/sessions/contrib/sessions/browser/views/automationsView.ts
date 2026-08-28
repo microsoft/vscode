@@ -48,6 +48,7 @@ import { IActionViewItemService } from '../../../../../platform/actions/browser/
 import { BaseActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../../base/common/actions.js';
 import { AutomationsCustomViewFocusContext, AutomationsHasItemsContext, SessionSupportsDeleteContext } from '../../../../common/contextkeys.js';
+import { ARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionsFlatList, SessionItemStatusContext } from './sessionsList.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
 
@@ -58,8 +59,10 @@ const DELETE_AUTOMATION_RUN_SESSION_COMMAND_ID = 'sessions.automations.deleteRun
 interface IAutomationCardEntry {
 	readonly element: HTMLElement;
 	readonly card: HTMLElement;
-	readonly main: HTMLElement;
+	readonly main: HTMLButtonElement;
 	readonly actions: HTMLElement;
+	readonly runButton: IButton;
+	readonly deleteButton: IButton;
 	readonly nameText: HTMLElement;
 	readonly scheduleEl: HTMLElement;
 	readonly folderEl: HTMLElement;
@@ -258,7 +261,7 @@ class AutomationCardsSection extends Disposable {
 		card.setAttribute('role', 'group');
 		disposables.add(Gesture.addTarget(card));
 
-		const main = DOM.append(card, $('button.automations-card-main', {
+		const main = DOM.append(card, $<HTMLButtonElement>('button.automations-card-main', {
 			type: 'button',
 		}));
 
@@ -279,29 +282,29 @@ class AutomationCardsSection extends Disposable {
 		const buttonBar = disposables.add(new ButtonBar(actions));
 		const runNowLabel = localize('runNow', "Run now");
 		const runningLabel = localize('running', "Running");
-		const runBtn = this.createIconButton(buttonBar, Codicon.play, runNowLabel, false);
+		const runBtn = this.createIconButton(buttonBar, Codicon.play, runNowLabel, this.automationService.canRunAutomation?.(automation.id) === false);
 		runBtn.element.classList.add('automations-card-run-button');
 		disposables.add(runBtn.onDidClick((e) => {
 			e?.stopPropagation();
 			const currentAutomation = this.latestAutomations.get(automation.id);
-			if (!currentAutomation) {
+			if (!currentAutomation || this.automationService.canRunAutomation?.(automation.id) === false) {
 				return;
 			}
 			runBtn.enabled = false;
 			runBtn.setAriaLabel(runningLabel);
 			runBtn.setTitle(runningLabel);
 			disposableTimeout(() => {
-				runBtn.enabled = true;
+				runBtn.enabled = this.automationService.canRunAutomation?.(automation.id) !== false;
 				runBtn.setAriaLabel(runNowLabel);
 				runBtn.setTitle(runNowLabel);
 			}, 10_000, disposables);
 			void this.runNow(currentAutomation);
 		}));
 
-		const deleteBtn = this.createIconButton(buttonBar, Codicon.trash, localize('deleteAutomation', "Delete"), false);
+		const deleteBtn = this.createIconButton(buttonBar, Codicon.trash, localize('deleteAutomation', "Delete"), this.automationService.canDeleteAutomation?.(automation.id) === false);
 		disposables.add(deleteBtn.onDidClick(() => {
 			const currentAutomation = this.latestAutomations.get(automation.id);
-			if (!currentAutomation) {
+			if (!currentAutomation || this.automationService.canDeleteAutomation?.(automation.id) === false) {
 				return;
 			}
 			void this.confirmDelete(currentAutomation);
@@ -314,7 +317,7 @@ class AutomationCardsSection extends Disposable {
 					return;
 				}
 				const currentAutomation = this.latestAutomations.get(automation.id);
-				if (!currentAutomation) {
+				if (!currentAutomation || this.automationService.canUpdateAutomation?.(automation.id) === false) {
 					return;
 				}
 				void this.openEditDialog(currentAutomation);
@@ -326,6 +329,8 @@ class AutomationCardsSection extends Disposable {
 			card,
 			main,
 			actions,
+			runButton: runBtn,
+			deleteButton: deleteBtn,
 			nameText: nameTextEl,
 			scheduleEl,
 			folderEl,
@@ -339,6 +344,9 @@ class AutomationCardsSection extends Disposable {
 	}
 
 	private updateCard(card: IAutomationCardEntry, automation: IAutomationDescriptor, previous?: IAutomationDescriptor): void {
+		card.main.disabled = this.automationService.canUpdateAutomation?.(automation.id) === false;
+		card.runButton.enabled = this.automationService.canRunAutomation?.(automation.id) !== false;
+		card.deleteButton.enabled = this.automationService.canDeleteAutomation?.(automation.id) !== false;
 		const schedule = formatSchedule(automation);
 		const scheduleChanged = !previous || formatSchedule(previous) !== schedule;
 		const nameChanged = !previous || previous.name !== automation.name;
@@ -850,6 +858,9 @@ class AutomationHistorySection extends Disposable {
 				action.enabled = false;
 				await this.stopRunSession(session, this.getAutomationName(run), action);
 				return true;
+			case ARCHIVE_SESSION_COMMAND_ID:
+				await this.sessionsManagementService.archiveSession(session);
+				return true;
 			case DELETE_AUTOMATION_RUN_SESSION_COMMAND_ID:
 				await this.confirmDeleteRunSession(run, session, this.getAutomationName(run));
 				return true;
@@ -1183,7 +1194,7 @@ function registerAutomationHistoryItemActions(): IDisposable {
 				icon: Codicon.trash,
 			},
 			group: 'navigation',
-			order: 1,
+			order: 3,
 			when: ContextKeyExpr.and(
 				SessionSupportsDeleteContext,
 				ContextKeyExpr.or(

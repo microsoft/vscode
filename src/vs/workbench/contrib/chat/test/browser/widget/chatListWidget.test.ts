@@ -19,6 +19,7 @@ import { scrollbarShadow } from '../../../../../../platform/theme/common/colorRe
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IChatAccessibilityService } from '../../../browser/chat.js';
+import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from '../../../browser/attachments/chatAttachmentWidgetRegistry.js';
 import { computeScrollDownState, getAnchoredScrollTop, AutoScrollHolds, UserToggleResizeState, ChatListWidget, IChatListWidgetOptions } from '../../../browser/widget/chatListWidget.js';
 import { ChatEditorOptions } from '../../../browser/widget/chatOptions.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
@@ -77,6 +78,7 @@ suite('ChatListWidget', () => {
 		instantiationService.stub(IChatService, new MockChatService());
 		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
 		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+		instantiationService.stub(IChatAttachmentWidgetRegistry, new ChatAttachmentWidgetRegistry());
 		instantiationService.stub(IAccessibleViewService, { getOpenAriaHint: () => '' });
 		instantiationService.stub(IChatAccessibilityService, {
 			acceptRequest: () => { },
@@ -831,6 +833,39 @@ suite('ChatListWidget', () => {
 			},
 			stickyRows: 0,
 			stickyContainerEmpty: true,
+		});
+
+		disposables.dispose();
+	});
+
+	test('renders transcript context above the request message', async () => {
+		const { disposables, model, container, widget } = createWidget();
+		const text = 'Tell me about this pull request';
+		const attachment: IChatRequestVariableEntry = {
+			kind: 'transcriptContext',
+			id: 'pull-request-context',
+			name: '#42 Fix the issue',
+			value: '{}',
+			uri: URI.parse('https://github.com/owner/repo/pull/42'),
+		};
+		model.addRequest({
+			text,
+			parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
+		}, { variables: [attachment] }, 0);
+
+		widget.refresh();
+		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+
+		const requestValue = container.querySelector<HTMLElement>('.monaco-list-rows > .monaco-list-row.request .interactive-item-container > .value');
+		assert.ok(requestValue);
+		const children = Array.from(requestValue.children);
+		assert.deepStrictEqual({
+			attachmentIndex: children.findIndex(child => child.classList.contains('chat-attached-context')),
+			messageIndex: children.findIndex(child => child.classList.contains('rendered-markdown')),
+		}, {
+			attachmentIndex: 0,
+			messageIndex: 1,
 		});
 
 		disposables.dispose();

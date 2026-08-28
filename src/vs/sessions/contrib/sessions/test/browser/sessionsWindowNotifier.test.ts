@@ -14,6 +14,9 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { FocusMode } from '../../../../../platform/native/common/native.js';
 import { ChatConfiguration, ChatNotificationMode } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IHostService, IToastOptions, IToastResult } from '../../../../../workbench/services/host/browser/host.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -61,9 +64,27 @@ class TestHostService extends mock<IHostService>() {
 		this.focusModes.push(options?.mode);
 	}
 
+	override async hadLastFocus(): Promise<boolean> {
+		return true;
+	}
+
 	override async showToast(options: IToastOptions, _token: CancellationToken): Promise<IToastResult> {
 		this.toasts.push(options);
 		return this.toastResult;
+	}
+}
+
+class TestChatService extends mock<IChatService>() {
+	model: IChatModel | undefined;
+
+	override getSession(_resource: URI): IChatModel | undefined {
+		return this.model;
+	}
+}
+
+class TestChatWidgetService extends mock<IChatWidgetService>() {
+	override getWidgetBySessionResource(_resource: URI) {
+		return undefined;
 	}
 }
 
@@ -84,6 +105,16 @@ function createSession(id: string, initialStatus: SessionStatus, workspaceLabel 
 suite('SessionsWindowNotifier', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	class TestSessionsWindowNotifier extends SessionsWindowNotifier {
+		protected override _getCompletedNotificationDelay(): number {
+			return 0;
+		}
+
+		protected override _getBackgroundNotificationDelay(): number {
+			return 0;
+		}
+	}
+
 	function createNotifier(
 		session: ISession,
 		configuration: Record<string, ChatNotificationMode>,
@@ -91,14 +122,28 @@ suite('SessionsWindowNotifier', () => {
 		const management = new TestSessionsManagementService([session]);
 		const sessions = new TestSessionsService();
 		const host = new TestHostService();
-		const notifier = store.add(new SessionsWindowNotifier(
+		const chat = new TestChatService();
+		const widgets = new TestChatWidgetService();
+		const notifier = store.add(new TestSessionsWindowNotifier(
 			management,
 			sessions,
 			host,
 			new TestConfigurationService(configuration),
+			chat,
+			widgets,
 		));
 		store.add(management);
 		return { notifier, sessions, host };
+	}
+
+	/**
+	 * Drains the chained zero-delay timers a notification passes through: the
+	 * completed-status debounce and the background-window delay.
+	 */
+	async function flushNotifications(): Promise<void> {
+		await timeout(0);
+		await timeout(0);
+		await timeout(0);
 	}
 
 	test('uses confirmation setting for needs-input transitions', async () => {
@@ -108,7 +153,7 @@ suite('SessionsWindowNotifier', () => {
 		});
 
 		status.set(SessionStatus.NeedsInput, undefined);
-		await timeout(0);
+		await flushNotifications();
 
 		assert.deepStrictEqual({
 			toasts: host.toasts,
@@ -118,6 +163,7 @@ suite('SessionsWindowNotifier', () => {
 				title: 'Session: Fix needs-input',
 				body: 'Input needed in vscode.',
 				actions: ['Open Session'],
+				dedupeKey: 'chat-session:test:/needs-input:needsInput',
 			}],
 			focusModes: [FocusMode.Notify],
 		});
@@ -131,10 +177,10 @@ suite('SessionsWindowNotifier', () => {
 		host.hasFocus = true;
 
 		status.set(SessionStatus.Completed, undefined);
-		await timeout(0);
+		await flushNotifications();
 		status.set(SessionStatus.InProgress, undefined);
 		status.set(SessionStatus.Error, undefined);
-		await timeout(0);
+		await flushNotifications();
 
 		assert.deepStrictEqual(host.toasts.map(toast => toast.body), [
 			'Completed in vscode.',
@@ -151,7 +197,7 @@ suite('SessionsWindowNotifier', () => {
 
 		status.set(SessionStatus.InProgress, undefined);
 		status.set(SessionStatus.NeedsInput, undefined);
-		await timeout(0);
+		await flushNotifications();
 
 		assert.deepStrictEqual(host.toasts, []);
 	});
@@ -164,7 +210,7 @@ suite('SessionsWindowNotifier', () => {
 		host.toastResult = { supported: true, clicked: true };
 
 		status.set(SessionStatus.Completed, undefined);
-		await timeout(0);
+		await flushNotifications();
 
 		assert.deepStrictEqual({
 			opened: sessions.opened.map(resource => resource.toString()),
@@ -173,5 +219,47 @@ suite('SessionsWindowNotifier', () => {
 			opened: ['test:/open-me'],
 			focusModes: [FocusMode.Notify, FocusMode.Force],
 		});
+	});
+
+	test('debounces completion notifications until the session stays completed', async () => {
+		const { session, status } = createSession('debounced', SessionStatus.InProgress);
+		const { host } = createNotifier(session, {
+			[ChatConfiguration.NotifyWindowOnResponseReceived]: ChatNotificationMode.Always,
+		});
+
+		status.set(SessionStatus.Completed, undefined);
+		status.set(SessionStatus.InProgress, undefined);
+		await flushNotifications();
+		status.set(SessionStatus.Completed, undefined);
+		await flushNotifications();
+
+		assert.deepStrictEqual(host.toasts.map(toast => toast.body), [
+			'Completed in vscode.',
+		]);
+	});
+
+	test('stays silent when a live chat model exists for the session', async () => {
+		const { session, status } = createSession('live-model', SessionStatus.InProgress);
+		const management = new TestSessionsManagementService([session]);
+		const sessions = new TestSessionsService();
+		const host = new TestHostService();
+		const chat = new TestChatService();
+		chat.model = new class extends mock<IChatModel>() { };
+		store.add(new TestSessionsWindowNotifier(
+			management,
+			sessions,
+			host,
+			new TestConfigurationService({
+				[ChatConfiguration.NotifyWindowOnResponseReceived]: ChatNotificationMode.Always,
+			}),
+			chat,
+			new TestChatWidgetService(),
+		));
+		store.add(management);
+
+		status.set(SessionStatus.Completed, undefined);
+		await flushNotifications();
+
+		assert.deepStrictEqual(host.toasts, []);
 	});
 });

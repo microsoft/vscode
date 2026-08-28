@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../../../nls.js';
 import { IAction } from '../../../../../base/common/actions.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -216,6 +217,17 @@ export interface IChatUsage {
  */
 export function formatCopilotCredits(credits: number): string {
 	return parseFloat(credits.toFixed(1)).toString();
+}
+
+/**
+ * Formats a credit value as a pluralized label such as "1 credit" or "2.5 credits".
+ * Shared so every credit readout agrees.
+ */
+export function formatCopilotCreditsLabel(credits: number): string {
+	const formatted = formatCopilotCredits(credits);
+	return formatted === '1'
+		? localize('chat.credit', "{0} credit", formatted)
+		: localize('chat.credits', "{0} credits", formatted);
 }
 
 export interface IChatContentInlineReference {
