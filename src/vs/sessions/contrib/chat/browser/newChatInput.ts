@@ -88,6 +88,7 @@ import { autorun, constObservable, derived, IObservable, observableFromEvent, ob
 import { isEqual } from '../../../../base/common/resources.js';
 import { ChatInputNotificationWidget } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationWidget.js';
 import { IChatInputNotificationContext, IChatInputNotificationService } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationService.js';
+import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
 import { registerChatInputOnboardingHosts } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputOnboardingHosts.js';
 import { IChatInputNoticeHubService } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHub.js';
@@ -500,6 +501,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		@IThemeService private readonly themeService: IThemeService,
 		@IChatPetWidgetService private readonly chatPetWidgetService: IChatPetWidgetService,
 		@IChatInputNotificationService private readonly chatInputNotificationService: IChatInputNotificationService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 	) {
 		super();
 		this._modelSelection = this._register(this.instantiationService.createInstance(SessionModelSelection, this.options.session));
@@ -598,6 +600,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 					state: this._modelSelection.state,
 					openPicker: () => this._newChatModelPickerService.openModelPicker(),
 					selectModel: modelIdentifier => this._newChatModelPickerService.switchToModel(modelIdentifier),
+					// The model picker here has no scoped store and configures models globally,
+					// so a notification writes to the same place its "Thinking" rows do.
+					applyModelConfiguration: (modelIdentifier, values) => this.languageModelsService.setModelConfiguration(modelIdentifier, values),
 				},
 				onDidChangeVisibility: (visible, focusTarget) => this.noticeHost.setOccupied(ChatInputNoticeLane.Notification, visible, focusTarget),
 				focusInput: () => this.focus(),
