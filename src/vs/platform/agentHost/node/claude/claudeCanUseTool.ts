@@ -50,6 +50,7 @@ export interface IClaudeCanUseToolOptions {
 	readonly signal: AbortSignal;
 	readonly blockedPath?: string;
 	readonly toolUseID: string;
+	readonly requestId: string;
 	/**
 	 * Phase 12 step 5 — SDK-supplied subagent id for inner-tool
 	 * confirmations. When set, the bridge resolves the parent
