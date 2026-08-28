@@ -3221,6 +3221,22 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const connection = this.connection;
 		const resourceScheme = this.resourceSchemeForProvider(sessionType.id);
 		const activeClientScope = this._activeClientService.acquireScope(resourceScheme, workspace?.folders.map(folder => folder.root) ?? []);
+		const initialConfigValues = {
+			...this._initialNewSessionConfig(workspace),
+			...options?.configuration,
+		};
+		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService);
+		const policyDefaults = this._baseConfigurationService.inspect<IChatDefaultConfiguration>(ChatConfiguration.DefaultConfiguration).policyValue;
+		const normalizedAutoApprove = normalizeAutoApproveValue(policyDefaults?.approvals, policyRestricted)
+			?? normalizeAutoApproveValue(initialConfigValues[SessionConfigKey.AutoApprove], policyRestricted);
+		if (normalizedAutoApprove) {
+			initialConfigValues[SessionConfigKey.AutoApprove] = normalizedAutoApprove;
+		} else {
+			delete initialConfigValues[SessionConfigKey.AutoApprove];
+		}
+		if (typeof policyDefaults?.mode === 'string' && KNOWN_MODE_VALUES.has(policyDefaults.mode)) {
+			initialConfigValues[SessionConfigKey.Mode] = policyDefaults.mode;
+		}
 		let newSession: NewSession;
 		try {
 			newSession = this._instantiationService.createInstance(NewSession, {
@@ -3233,10 +3249,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				backendSessionScheme: this._backendSessionScheme(sessionType.id),
 				authenticationPending: this.authenticationPending,
 				logService: this._logService,
-				initialConfigValues: {
-					...this._initialNewSessionConfig(workspace),
-					...options?.configuration,
-				},
+				initialConfigValues,
 				initialConfigSchema: this._seededConfigSchema(),
 				initialMetadata: options?.metadata,
 				instantiationService: this._instantiationService,
