@@ -11681,7 +11681,7 @@ suite('CopilotAgent', () => {
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
-				await writeExtensionHostMarker(userHome, sessionId);
+				await writeExtensionHostMarker(userHome, sessionId, { origin: 'vscode', customTitle: 'Legacy title' });
 				// Metadata an older build wrote: adopted, but without the provenance marker.
 				const seed = sessionDataService.openDatabase(session);
 				await seed.object.setMetadata('copilot.workingDirectory', URI.file(workingDirectory).toString());
@@ -11691,11 +11691,13 @@ suite('CopilotAgent', () => {
 
 				const db = await sessionDataService.tryOpenDatabase(session);
 				const marker = await db?.object.getMetadata('agentHost.ehcliAdopted');
+				const title = await db?.object.getMetadata('customTitle');
+				const isRead = await db?.object.getMetadata(AH_META_IS_READ_DB_KEY);
 				db?.dispose();
 
 				assert.deepStrictEqual(
-					{ reason: adopted.reason, marker },
-					{ reason: 'alreadyNative', marker: 'true' },
+					{ reason: adopted.reason, marker, title, isRead },
+					{ reason: 'alreadyNative', marker: 'true', title: 'Legacy title', isRead: 'true' },
 				);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
@@ -11977,23 +11979,25 @@ suite('CopilotAgent', () => {
 				await writeExtensionHostMarker(userHome, sessionId, { origin: 'vscode', customTitle: 'My Legacy Session' });
 
 				const adopted = await ensureDefaultChatAdopted(agent, session);
+				const retried = await ensureDefaultChatAdopted(agent, session);
 
 				const db = await sessionDataService.tryOpenDatabase(session);
 				const customTitle = await db?.object.getMetadata('customTitle');
+				const isRead = await db?.object.getMetadata(AH_META_IS_READ_DB_KEY);
 				db?.dispose();
 
 				assert.deepStrictEqual(
-					{ adopted, customTitle },
+					{ adopted, retried, customTitle, isRead },
 					{
 						adopted: {
 							adopted: true,
 							eligible: true,
 							reason: 'adopted',
-							// The host owns the list-visible title; the agent
-							// reports it instead of writing `customTitle` itself.
 							listVisible: { title: 'My Legacy Session', titleSource: 'user', isRead: true },
 						},
-						customTitle: undefined,
+						retried: { adopted: false, eligible: false, native: true, reason: 'alreadyNative' },
+						customTitle: 'My Legacy Session',
+						isRead: 'true',
 					},
 				);
 			} finally {
@@ -12023,8 +12027,7 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual(
 					{ adopted, isRead },
-					// The host owns the read marker; the agent reports it instead of writing it.
-					{ adopted: { adopted: true, eligible: true, reason: 'adopted', listVisible: { isRead: true } }, isRead: undefined },
+					{ adopted: { adopted: true, eligible: true, reason: 'adopted', listVisible: { isRead: true } }, isRead: 'true' },
 				);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });

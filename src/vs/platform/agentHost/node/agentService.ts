@@ -5,7 +5,7 @@
 
 import { open, unlink, type FileHandle } from 'fs/promises';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
-import { Barrier, DeferredPromise, disposableTimeout, Limiter, ResourceQueue } from '../../../base/common/async.js';
+import { Barrier, DeferredPromise, disposableTimeout, Limiter, ResourceQueue, SequencerByKey } from '../../../base/common/async.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -405,6 +405,7 @@ export class AgentService extends Disposable implements IAgentService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _resourceWriteQueue = this._register(new ResourceQueue());
+	private readonly _chatCatalogMutationSequencer = new SequencerByKey<string>();
 
 	/** Protocol: fires when state is mutated by an action. */
 	private readonly _onDidAction = this._register(new Emitter<ActionEnvelope>());
@@ -3332,82 +3333,76 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 
-		// Create the backing chat before publishing `session/chatAdded` so
-		// subscribers only see a chat that can already receive messages.
-		const createResult = await this._createChat(provider, chat, session, createOptions);
-		const providerData = createResult?.providerData;
-		const title = forkedTitle ?? options?.title;
-		const sessionState = this._stateManager.getSessionState(sessionKey);
-		if (!sessionState) {
-			await provider.chats.disposeChat(chat, this._chatContext(session, chat));
-			throw new Error(`[AgentService] createChat: session state disappeared for ${sessionKey}`);
-		}
-		const existingCatalogChats = this._catalogChatsFromState(sessionState).map(existing => (
-			existing.kind === 'default' && !existing.title && sessionState.title
-				? { ...existing, title: sessionState.title }
-				: existing
-		));
-		const newCatalogChat = {
-			uri: chat.toString(),
-			kind: 'peer' as const,
-			...(title !== undefined ? { title } : {}),
-			...(peerChatOrigin !== undefined ? { origin: peerChatOrigin } : {}),
-		};
-		// Re-creating an existing chat must not add a second membership entry:
-		// chat URIs are unique in the catalog. Merge into the existing entry in
-		// place so repeated `createChat` calls stay idempotent while preserving
-		// catalog order and the entry's kind (a default chat stays default).
-		const existingIndex = existingCatalogChats.findIndex(existing => existing.uri === newCatalogChat.uri);
-		const catalogChats = existingIndex < 0
-			? [...existingCatalogChats, newCatalogChat]
-			: existingCatalogChats.map((existing, index) => index === existingIndex
-				? { ...existing, ...newCatalogChat, kind: existing.kind }
-				: existing);
-		this._catalogSyncSuppressedSessions.add(sessionKey);
-		try {
-			await this._peerChatStore.upsert(session, chat, providerData, peerChatOrigin, createResult?.inheritedTurnId);
-			if (title !== undefined) {
-				await persistSessionMetadataValues(this._sessionDataService, chat.toString(), {
-					[SESSION_CUSTOM_TITLE_KEY]: title,
-					[SESSION_CUSTOM_TITLE_SOURCE_KEY]: AGENT_HOST_TITLE_SOURCE_AUTO,
-				});
-			}
-			await this._persistOrderedListVisibleSessionState(session, title === undefined ? {} : {
-				[customChatTitleMetadataKey(chat.toString())]: title,
-				[customChatTitleSourceMetadataKey(chat.toString())]: AGENT_HOST_TITLE_SOURCE_AUTO,
-			}, catalogChats);
-		} catch (error) {
-			this._catalogSyncSuppressedSessions.delete(sessionKey);
-			this._flushDeferredCatalogMetadataOverrides(session);
-			let catalogRollbackError: Error | undefined;
-			try {
-				await this._peerChatStore.remove(session, chat);
-			} catch (rollbackError) {
-				catalogRollbackError = rollbackError instanceof Error ? rollbackError : new Error(String(rollbackError));
-			}
-			try {
+		const createResult = await this._chatCatalogMutationSequencer.queue(sessionKey, async () => {
+			// Create the backing chat before publishing `session/chatAdded` so
+			// subscribers only see a chat that can already receive messages.
+			const createResult = await this._createChat(provider, chat, session, createOptions);
+			const providerData = createResult?.providerData;
+			const title = forkedTitle ?? options?.title;
+			const sessionState = this._stateManager.getSessionState(sessionKey);
+			if (!sessionState) {
 				await provider.chats.disposeChat(chat, this._chatContext(session, chat));
-			} catch (rollbackError) {
-				throw new AggregateError([error, ...(catalogRollbackError ? [catalogRollbackError] : []), rollbackError], `Failed to persist and roll back chat ${chat.toString()}: ${toErrorMessage(error)}`);
+				throw new Error(`[AgentService] createChat: session state disappeared for ${sessionKey}`);
 			}
-			if (catalogRollbackError) {
-				throw new AggregateError([error, catalogRollbackError], `Failed to persist and roll back chat ${chat.toString()}: ${toErrorMessage(error)}`);
-			}
-			throw error;
-		}
-
-		try {
-			this._stateManager.addChat(sessionKey, chat.toString(), {
-				...(forkedTitle !== undefined ? { title: forkedTitle } : options?.title !== undefined ? { title: options.title } : {}),
-				...(forkedTurns !== undefined ? { turns: forkedTurns } : {}),
-				...(providerData !== undefined ? { providerData } : {}),
+			const existingCatalogChats = this._catalogChatsFromState(sessionState).map(existing => (
+				existing.kind === 'default' && !existing.title && sessionState.title
+					? { ...existing, title: sessionState.title }
+					: existing
+			));
+			const newCatalogChat = {
+				uri: chat.toString(),
+				kind: 'peer' as const,
+				...(title !== undefined ? { title } : {}),
 				...(peerChatOrigin !== undefined ? { origin: peerChatOrigin } : {}),
-				...(createResult?.inheritedTurnId !== undefined ? { inheritedTurnId: createResult.inheritedTurnId } : {}),
-			});
-		} finally {
-			this._catalogSyncSuppressedSessions.delete(sessionKey);
-			this._flushDeferredCatalogMetadataOverrides(session);
-		}
+			};
+			const existingIndex = existingCatalogChats.findIndex(existing => existing.uri === newCatalogChat.uri);
+			const catalogChats = existingIndex < 0
+				? [...existingCatalogChats, newCatalogChat]
+				: existingCatalogChats.map((existing, index) => index === existingIndex
+					? { ...existing, ...newCatalogChat, kind: existing.kind }
+					: existing);
+			this._catalogSyncSuppressedSessions.add(sessionKey);
+			try {
+				await this._peerChatStore.upsert(session, chat, providerData, peerChatOrigin, createResult?.inheritedTurnId);
+				if (title !== undefined) {
+					await persistSessionMetadataValues(this._sessionDataService, chat.toString(), {
+						[SESSION_CUSTOM_TITLE_KEY]: title,
+						[SESSION_CUSTOM_TITLE_SOURCE_KEY]: AGENT_HOST_TITLE_SOURCE_AUTO,
+					});
+				}
+				await this._persistOrderedListVisibleSessionState(session, title === undefined ? {} : {
+					[customChatTitleMetadataKey(chat.toString())]: title,
+					[customChatTitleSourceMetadataKey(chat.toString())]: AGENT_HOST_TITLE_SOURCE_AUTO,
+				}, catalogChats);
+				this._stateManager.addChat(sessionKey, chat.toString(), {
+					...(forkedTitle !== undefined ? { title: forkedTitle } : options?.title !== undefined ? { title: options.title } : {}),
+					...(forkedTurns !== undefined ? { turns: forkedTurns } : {}),
+					...(providerData !== undefined ? { providerData } : {}),
+					...(peerChatOrigin !== undefined ? { origin: peerChatOrigin } : {}),
+					...(createResult?.inheritedTurnId !== undefined ? { inheritedTurnId: createResult.inheritedTurnId } : {}),
+				});
+			} catch (error) {
+				let catalogRollbackError: Error | undefined;
+				try {
+					await this._peerChatStore.remove(session, chat);
+				} catch (rollbackError) {
+					catalogRollbackError = rollbackError instanceof Error ? rollbackError : new Error(String(rollbackError));
+				}
+				try {
+					await provider.chats.disposeChat(chat, this._chatContext(session, chat));
+				} catch (rollbackError) {
+					throw new AggregateError([error, ...(catalogRollbackError ? [catalogRollbackError] : []), rollbackError], `Failed to persist and roll back chat ${chat.toString()}: ${toErrorMessage(error)}`);
+				}
+				if (catalogRollbackError) {
+					throw new AggregateError([error, catalogRollbackError], `Failed to persist and roll back chat ${chat.toString()}: ${toErrorMessage(error)}`);
+				}
+				throw error;
+			} finally {
+				this._catalogSyncSuppressedSessions.delete(sessionKey);
+				this._flushDeferredCatalogMetadataOverrides(session);
+			}
+			return createResult;
+		});
 		this._sessionResidency.touch(session);
 		void this._sessionResidency.reconcile();
 
@@ -3495,33 +3490,38 @@ export class AgentService extends Disposable implements IAgentService {
 		const chatKey = chat.toString();
 		const provider = this._providerService.getProviderForSession(session);
 		this._disposingPeerChats.add(chatKey);
-		this._catalogSyncSuppressedSessions.add(sessionKey);
 		try {
-			await this._checkpointService.discardChatTurnStartCheckpoints(session, chat);
-			if (provider) {
-				await this._disposeChat(provider, chat);
-			}
-			await this._peerChatStore.remove(session, chat);
-			await this._clearChatDraft(session, chat);
-			await this._sessionDataService.deleteSessionData(chat);
-			const state = this._stateManager.getSessionState(sessionKey);
-			if (state) {
-				await this._persistOrderedListVisibleSessionState(
-					session,
-					{
-						[customChatTitleMetadataKey(chatKey)]: '',
-						[customChatTitleSourceMetadataKey(chatKey)]: '',
-					},
-					this._catalogChatsFromState(state).filter(candidate => candidate.uri !== chatKey),
-				);
-			}
-			this._sideEffects.cancelSubagentSessions(chatKey);
-			this._sideEffects.clearChannelTelemetry(chatKey);
-			this._chatContributions.disposeChatState(chatKey);
-			this._stateManager.removeChat(sessionKey, chatKey);
+			await this._chatCatalogMutationSequencer.queue(sessionKey, async () => {
+				this._catalogSyncSuppressedSessions.add(sessionKey);
+				try {
+					await this._checkpointService.discardChatTurnStartCheckpoints(session, chat);
+					if (provider) {
+						await this._disposeChat(provider, chat);
+					}
+					await this._peerChatStore.remove(session, chat);
+					await this._clearChatDraft(session, chat);
+					await this._sessionDataService.deleteSessionData(chat);
+					const state = this._stateManager.getSessionState(sessionKey);
+					if (state) {
+						await this._persistOrderedListVisibleSessionState(
+							session,
+							{
+								[customChatTitleMetadataKey(chatKey)]: '',
+								[customChatTitleSourceMetadataKey(chatKey)]: '',
+							},
+							this._catalogChatsFromState(state).filter(candidate => candidate.uri !== chatKey),
+						);
+					}
+					this._sideEffects.cancelSubagentSessions(chatKey);
+					this._sideEffects.clearChannelTelemetry(chatKey);
+					this._chatContributions.disposeChatState(chatKey);
+					this._stateManager.removeChat(sessionKey, chatKey);
+				} finally {
+					this._catalogSyncSuppressedSessions.delete(sessionKey);
+					this._flushDeferredCatalogMetadataOverrides(session);
+				}
+			});
 		} finally {
-			this._catalogSyncSuppressedSessions.delete(sessionKey);
-			this._flushDeferredCatalogMetadataOverrides(session);
 			this._disposingPeerChats.delete(chatKey);
 		}
 	}

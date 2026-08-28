@@ -57,13 +57,14 @@ import type { ErrorInfo } from '../../common/state/protocol/common/state.js';
 import { ProtectedResourceMetadata, type AgentSelection, type ChildCustomizationType, type ConfigPropertySchema, type ConfigSchema, type CustomizationEnablement, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, AuthRequiredReason, type AuthRequiredParams, type SessionAction } from '../../common/state/sessionActions.js';
 import { areAdditionalWorkingDirectoriesEqual } from '../../common/state/sessionWorkingDirectories.js';
-import { AgentCustomization, CustomizationLoadStatus, CustomizationType, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, buildDefaultChatUri, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, isDefaultChatUri, withSessionEhcliAdoptable, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type ISessionFolderPickerDecision, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { AgentCustomization, CustomizationLoadStatus, CustomizationType, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, buildDefaultChatUri, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_READ_DB_KEY, isDefaultChatUri, withSessionEhcliAdoptable, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type ISessionFolderPickerDecision, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { getByokLmAgentModelId, resolveByokLmEnablement } from '../../common/agentHostByokLm.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { ActiveClientToolSet, structuralToolsEqual } from '../activeClientState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostManagedSettingsService } from '../agentHostManagedSettingsService.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
+import { SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../shared/persistSessionMetadata.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { applyMcpServerEnablement, buildMcpTopLevelCustomizationId, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
@@ -3362,6 +3363,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const existing = await this._readStoredSessionMetadata(session);
 			if (existing?.workingDirectory) {
 				await this._backfillAdoptedLegacyMarker(session, sessionId);
+				await this._backfillAdoptedLegacyListVisibleMetadata(session, sessionId);
 				this._logService.trace(`[Copilot] Adoption skipped for ${sessionId}: already has Agent Host metadata (cwd=${existing.workingDirectory.fsPath})`);
 				return { adopted: false, eligible: false, native: true, reason: 'alreadyNative' };
 			}
@@ -3417,16 +3419,57 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// a git repo would otherwise default to worktree and show a spurious
 			// "Creating worktree…".
 			await this._storeSessionMetadata(session, undefined, workingDirectory, [workingDirectory], workingDirectory, project, project !== undefined, { [SessionConfigKey.Isolation]: 'folder' }, archived, /* ehcliAdopted */ true);
-			await this._adoptLegacyTurnUsage(session, sessionId);
-			// The host owns list-visible state (title / read): report it back so it
-			// lands in the session catalog and the per-session database together,
-			// instead of writing a half of it here.
 			const listVisible = customTitle !== undefined
 				? { title: customTitle, titleSource: 'user' as const, isRead: true }
 				: { isRead: true };
+			const metadataRef = this._sessionDataService.openDatabase(session);
+			try {
+				await metadataRef.object.setMetadataValues({
+					[AH_META_IS_READ_DB_KEY]: 'true',
+					...(customTitle !== undefined ? {
+						[SESSION_CUSTOM_TITLE_KEY]: customTitle,
+						[SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user',
+					} : {}),
+				});
+			} finally {
+				metadataRef.dispose();
+			}
+			await this._adoptLegacyTurnUsage(session, sessionId);
 			this._logService.info(`[Copilot] Adopted legacy session ${sessionId}: project=${project ? project.uri.fsPath : '(unresolved)'} archived=${archived} customTitle=${customTitle !== undefined} worktreeBridged=${!!adoptedWorktree}`);
 			return { adopted: true, eligible: true, reason: 'adopted', listVisible, ...(adoptedWorktree ? { worktree: adoptedWorktree } : {}) };
 		});
+	}
+
+	private async _backfillAdoptedLegacyListVisibleMetadata(session: URI, sessionId: string): Promise<void> {
+		try {
+			if (!await this._isExtensionHostCliSession(sessionId)) {
+				return;
+			}
+			const customTitle = await this._readExtensionHostCliCustomTitle(sessionId);
+			const ref = this._sessionDataService.openDatabase(session);
+			try {
+				const existing = await ref.object.getMetadataObject({
+					[AH_META_IS_READ_DB_KEY]: true,
+					[SESSION_CUSTOM_TITLE_KEY]: true,
+					[SESSION_CUSTOM_TITLE_SOURCE_KEY]: true,
+				});
+				const missing: Record<string, string> = {};
+				if (existing[AH_META_IS_READ_DB_KEY] === undefined) {
+					missing[AH_META_IS_READ_DB_KEY] = 'true';
+				}
+				if (customTitle !== undefined && existing[SESSION_CUSTOM_TITLE_KEY] === undefined) {
+					missing[SESSION_CUSTOM_TITLE_KEY] = customTitle;
+					missing[SESSION_CUSTOM_TITLE_SOURCE_KEY] = 'user';
+				}
+				if (Object.keys(missing).length > 0) {
+					await ref.object.setMetadataValues(missing);
+				}
+			} finally {
+				ref.dispose();
+			}
+		} catch (error) {
+			this._logService.warn(`[Copilot] Failed to backfill adopted legacy list metadata for ${sessionId}`, error);
+		}
 	}
 
 	/**

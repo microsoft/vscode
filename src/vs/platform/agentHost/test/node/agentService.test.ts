@@ -4679,7 +4679,6 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(svc, agent);
 
 			const initiallyListed = await svc.listSessions();
-			exposeListedSessions(svc, initiallyListed);
 			const notifications: string[] = [];
 			disposables.add(svc.onDidNotification(notification => {
 				if (notification.type === NotificationType.SessionAdded) {
@@ -4688,6 +4687,7 @@ suite('AgentService (node dispatcher)', () => {
 					notifications.push(`remove:${AgentSession.id(URI.parse(notification.session))}`);
 				}
 			}));
+			exposeListedSessions(svc, initiallyListed);
 
 			agent.addSession('third', now);
 			(svc as unknown as { _queueSessionListReconciliation(previousMode?: AgentHostExternalSessionsMode, forceCatalogRefresh?: boolean): void })._queueSessionListReconciliation(undefined, true);
@@ -4703,7 +4703,7 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				initiallyListed: ['first', 'second'],
 				visible: ['second', 'third'],
-				notifications: ['add:first', 'add:third', 'remove:second', 'add:second', 'remove:first'],
+				notifications: ['add:first', 'add:second', 'add:third', 'remove:second', 'add:second', 'remove:first'],
 			});
 		});
 
@@ -13211,6 +13211,101 @@ suite('AgentService (node dispatcher)', () => {
 				legacyTitleAfterCreate: 'Central Peer',
 				draft: undefined,
 			});
+		});
+
+		test('concurrent chat creation preserves every central payload membership', async () => {
+			class MultiChatAgent extends MockAgent {
+				override async createChat(): Promise<IAgentCreateChatResult> {
+					return {};
+				}
+			}
+			const db = new TestSessionDatabase();
+			const catalogDatabase = disposables.add(new AgentHostDatabase(':memory:'));
+			const localService = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createSessionDataService(db),
+				{ _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+			));
+			registerTestAgentProvider(localService, disposables.add(new MultiChatAgent('copilot')));
+			const session = await localService.createSession({ provider: 'copilot' });
+			const first = URI.parse(buildChatUri(session, 'concurrent-first'));
+			const second = URI.parse(buildChatUri(session, 'concurrent-second'));
+
+			await Promise.all([
+				localService.createChat(session, first, { title: 'First' }),
+				localService.createChat(session, second, { title: 'Second' }),
+			]);
+
+			assert.deepStrictEqual(
+				catalogDataOf(await catalogDatabase.getSessionV2(session.toString()))?.chats.map(chat => chat.uri),
+				[buildDefaultChatUri(session), first.toString(), second.toString()],
+			);
+		});
+
+		test('concurrent chat removal removes every disposed membership from the central payload', async () => {
+			class MultiChatAgent extends MockAgent {
+				override async createChat(): Promise<IAgentCreateChatResult> {
+					return {};
+				}
+				override async disposeChat(): Promise<void> { }
+			}
+			const db = new TestSessionDatabase();
+			const catalogDatabase = disposables.add(new AgentHostDatabase(':memory:'));
+			const localService = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createSessionDataService(db),
+				{ _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+			));
+			registerTestAgentProvider(localService, disposables.add(new MultiChatAgent('copilot')));
+			const session = await localService.createSession({ provider: 'copilot' });
+			const first = URI.parse(buildChatUri(session, 'concurrent-first'));
+			const second = URI.parse(buildChatUri(session, 'concurrent-second'));
+			await localService.createChat(session, first);
+			await localService.createChat(session, second);
+
+			await Promise.all([
+				localService.disposeChat(session, first),
+				localService.disposeChat(session, second),
+			]);
+
+			assert.deepStrictEqual(
+				catalogDataOf(await catalogDatabase.getSessionV2(session.toString()))?.chats.map(chat => chat.uri),
+				[buildDefaultChatUri(session)],
+			);
+		});
+
+		test('a dispose requested during provider creation runs after the chat is published', async () => {
+			const createStarted = new DeferredPromise<void>();
+			const releaseCreate = new DeferredPromise<void>();
+			class GatedCreateAgent extends MockAgent {
+				override async createChat(): Promise<IAgentCreateChatResult> {
+					createStarted.complete();
+					await releaseCreate.p;
+					return {};
+				}
+				override async disposeChat(): Promise<void> { }
+			}
+			const db = new TestSessionDatabase();
+			const catalogDatabase = disposables.add(new AgentHostDatabase(':memory:'));
+			const localService = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createSessionDataService(db),
+				{ _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+			));
+			registerTestAgentProvider(localService, disposables.add(new GatedCreateAgent('copilot')));
+			const session = await localService.createSession({ provider: 'copilot' });
+			const chat = URI.parse(buildChatUri(session, 'create-dispose-race'));
+
+			const create = localService.createChat(session, chat);
+			await createStarted.p;
+			const dispose = localService.disposeChat(session, chat);
+			releaseCreate.complete();
+			await Promise.all([create, dispose]);
+
+			assert.deepStrictEqual(
+				catalogDataOf(await catalogDatabase.getSessionV2(session.toString()))?.chats.map(candidate => candidate.uri),
+				[buildDefaultChatUri(session)],
+			);
 		});
 
 		test('restart restores central peer membership without legacy enumeration and loads backing lazily', async () => {

@@ -229,7 +229,7 @@ export class AgentHostSessionsV2MigrationService<T> {
 				return { status: 'incomplete' };
 			}
 
-			const newlyRegistered = !effectiveCandidate.current;
+			const shouldReportImported = !candidate.catalog;
 			if (!effectiveCandidate.current) {
 				const registered = await this._database.registerSessionV2(session, resolution.identity, { checkTombstone: true });
 				if (!registered) {
@@ -243,7 +243,7 @@ export class AgentHostSessionsV2MigrationService<T> {
 			return result.status === 'acknowledged'
 				? {
 					status: 'synchronized',
-					...(newlyRegistered ? { imported: { session: candidate.session, external: resolution.external, value: resolution.value } } : {}),
+					...(shouldReportImported ? { imported: { session: candidate.session, external: resolution.external, value: resolution.value } } : {}),
 				}
 				: { status: 'incomplete' };
 		} catch (error) {
