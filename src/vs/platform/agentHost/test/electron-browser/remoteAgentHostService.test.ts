@@ -45,7 +45,8 @@ class MockProtocolClient extends Disposable {
 	readonly onDidClose = this._onDidClose.event;
 	readonly onDidAction = Event.None;
 	readonly onDidNotification = Event.None;
-	readonly onDidChangeConnectionState = Event.None;
+	private readonly _onDidChangeConnectionState = this._register(new Emitter<string>());
+	readonly onDidChangeConnectionState = this._onDidChangeConnectionState.event;
 	readonly onDidReceiveOtlpLogs = Event.None;
 	readonly connectionState = 'connecting' as const;
 	readonly initializeResult = undefined;
@@ -69,6 +70,10 @@ class MockProtocolClient extends Disposable {
 
 	fireClose(): void {
 		this._onDidClose.fire();
+	}
+
+	fireConnectionState(state: 'connecting' | 'reconnecting' | 'connected' | 'incompatible' | 'closed'): void {
+		this._onDidChangeConnectionState.fire(state);
 	}
 }
 
@@ -544,6 +549,37 @@ suite('RemoteAgentHostService', () => {
 			() => service.waitForConnection('host1:8080'),
 			/not enabled/,
 		);
+	});
+
+	test('a handshake interrupted by a transport drop leaves the client to restore itself', async () => {
+		configService.setEntries([{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'host1:8080' } }]);
+		await waitForCreatedClients(1);
+
+		// The protocol client schedules its own retry and only then rejects the
+		// original connect(), so the service must not tear the entry down.
+		createdClients[0].fireConnectionState('reconnecting');
+		createdClients[0].connectDeferred.error(new Error('transport closed'));
+		await new Promise<void>(resolve => setTimeout(resolve, 0));
+
+		assert.deepStrictEqual({
+			status: service.connections.find(connection => connection.address === 'host1:8080')?.status,
+			clientsCreated: createdClients.length,
+		}, {
+			status: RemoteAgentHostConnectionStatus.reconnecting,
+			clientsCreated: 1,
+		});
+	});
+
+	test('a soft reconnect settles a wait started before the drop', async () => {
+		configService.setEntries([{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'host1:8080' } }]);
+		await waitForCreatedClients(1);
+		createdClients[0].fireConnectionState('reconnecting');
+		createdClients[0].connectDeferred.error(new Error('transport closed'));
+
+		const waiting = service.waitForConnection('host1:8080');
+		createdClients[0].fireConnectionState('connected');
+
+		assert.strictEqual((await waiting).address, 'host1:8080');
 	});
 
 	test('re-enabling reconnects configured remotes', async () => {

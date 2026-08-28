@@ -343,6 +343,24 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		}
 
 		const wait = this._getOrCreateConnectionWait(normalizedAddress);
+
+		// Follow an in-flight dial rather than a wall clock. Establishment cost
+		// varies by kind — an SSH host may install the remote CLI first, taking
+		// far longer than a WebSocket dial — and a timeout here would report
+		// failure while that attempt keeps running and later succeeds. The
+		// timeout only guards the case where nothing is in flight to follow.
+		const pendingConnect = this._pendingConnects.get(normalizedAddress);
+		if (pendingConnect) {
+			await pendingConnect;
+			const connected = this._getConnectionInfo(normalizedAddress);
+			if (connected) {
+				return connected;
+			}
+			// The dial finished without producing a usable connection: surface
+			// the reason it recorded rather than waiting out the timeout.
+			return wait.p;
+		}
+
 		const connection = await raceTimeout(wait.p, RemoteAgentHostService.ConnectionWaitTimeout, () => {
 			this._pendingConnectionWaits.delete(normalizedAddress);
 		});
@@ -666,6 +684,11 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 				case 'connected':
 					entry.connected = true;
 					entry.status = RemoteAgentHostConnectionStatus.connected;
+					// A soft reconnect that restores the transport settles any
+					// wait started before the drop, which would otherwise sit
+					// until its timeout even though the host is reachable again.
+					this._reconnectAttempts.delete(address);
+					this._resolvePendingConnectionWait(address);
 					this._onDidChangeConnections.fire();
 					break;
 				case 'connecting':
@@ -717,6 +740,17 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			}
 
 			this._logService.error(`[RemoteAgentHost] Failed to connect to ${address}. Verify address and connectionToken`, err);
+
+			// A transport that dropped mid-handshake leaves the protocol client
+			// in `reconnecting` with its own retry already scheduled, and only
+			// then rejects this promise. Tearing the entry down here would
+			// cancel that retry and lose the client's replay state, so let it
+			// restore itself instead of rebuilding from scratch.
+			if (RemoteAgentHostConnectionStatus.isReconnecting(entry.status)) {
+				this._logService.info(`[RemoteAgentHost] Handshake with ${address} was interrupted; the protocol client is restoring the connection`);
+				return;
+			}
+
 			entry.status = RemoteAgentHostConnectionStatus.disconnected;
 			// Clean up the failed entry
 			this._entries.delete(address);
@@ -746,12 +780,16 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			return;
 		}
 
-		const attempt = (this._reconnectAttempts.get(address) ?? 0) + 1;
-		this._reconnectAttempts.set(address, attempt);
-		if (hasExhaustedReconnectAttempts(reconnectPolicy, attempt)) {
-			this._logService.warn(`[RemoteAgentHost] Stopped reconnecting to ${address}: reached attempt limit (${attempt})`);
+		// Check the recorded count before adding this attempt, so a policy of
+		// `maxAttempts: n` actually performs n attempts rather than n - 1.
+		const previousAttempts = this._reconnectAttempts.get(address) ?? 0;
+		if (hasExhaustedReconnectAttempts(reconnectPolicy, previousAttempts)) {
+			this._logService.warn(`[RemoteAgentHost] Stopped reconnecting to ${address}: reached attempt limit (${previousAttempts})`);
 			return;
 		}
+
+		const attempt = previousAttempts + 1;
+		this._reconnectAttempts.set(address, attempt);
 
 		const delay = computeReconnectDelay(reconnectPolicy, attempt);
 
