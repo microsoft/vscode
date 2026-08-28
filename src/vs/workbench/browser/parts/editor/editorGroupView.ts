@@ -1260,8 +1260,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// want to ensure that we use the existing instance in that case.
 		const { editor: openedEditor, isNew } = this.model.openEditor(editor, openEditorOptions);
 
-		// Dispose the candidate when the model reused a different matching input.
-		// The candidate is otherwise abandoned without ever receiving a close event.
+		// Dispose the abandoned candidate when the model reused a different matching input.
 		if (!isNew && openedEditor !== editor && this.canDispose(editor)) {
 			editor.dispose();
 		}
