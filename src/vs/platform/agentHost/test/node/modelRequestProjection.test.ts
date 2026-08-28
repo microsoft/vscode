@@ -79,6 +79,21 @@ suite('modelRequestProjection', () => {
 		assert.ok(modelRequestsMatch(projectModelRequest(recorded), projectModelRequest(live)));
 	});
 
+	test('a runtime-authored change notice is elided so a mid-session tool change does not break a capture', () => {
+		// When a tool becomes unavailable mid-session (e.g. `exit_plan_mode`
+		// after the plan is approved), the CLI/runtime prepends an in-band
+		// `<tools_changed_notice>` block to the next user turn. It is derived
+		// from a run-time session transition, not host-authored prompt
+		// structure, so a capture recorded before the runtime emitted it must
+		// still match a live run that now does.
+		const recorded = request([{ role: 'user', content: 'What did the plan say to print?' }]);
+		const live = request([{
+			role: 'user',
+			content: '<tools_changed_notice>\nTools no longer available: exit_plan_mode\n\nImportant: Do not attempt to call tools that are no longer available unless you\'ve been notified that they\'re available again.\n</tools_changed_notice>\n\nWhat did the plan say to print?',
+		}]);
+		assert.ok(modelRequestsMatch(projectModelRequest(recorded), projectModelRequest(live)));
+	});
+
 	test('run-time identifiers are elided on both sides', () => {
 		// Captures store these as ordinals assigned at write time; a live run
 		// mints real ones. Neither is reproducible, so only presence is kept.

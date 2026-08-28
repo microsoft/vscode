@@ -56,6 +56,37 @@ const ORDINAL_UUID_RE = /\$\{uuid_\d+\}/g;
 const PATH_PLACEHOLDER = '${path}';
 
 /**
+ * Runtime-authored change-notice blocks the CLI/runtime prepends in-band to a
+ * user turn when the session's tool set, mode, working directory, or additional
+ * directories change mid-conversation (see `cli_user.rs`). They are derived
+ * from run-time session transitions — whether a tool became unavailable, which
+ * directory the shell moved to — rather than from anything the host composes
+ * into the prompt, so like a `tool_result` payload their presence is
+ * environment-driven and must not be asserted. A capture recorded before the
+ * runtime emitted a given notice (or against a different session-transition
+ * timeline) would otherwise mismatch a live run that now emits it, reported as
+ * a host regression when nothing the host owns changed.
+ */
+const CHANGE_NOTICE_TAGS = [
+	'tools_changed_notice',
+	'mode_changed_notice',
+	'working_directory_changed',
+	'additional_directories_changed',
+];
+const CHANGE_NOTICE_RE = new RegExp(`\\s*<(${CHANGE_NOTICE_TAGS.join('|')})>[\\s\\S]*?<\\/\\1>\\s*`, 'g');
+
+/**
+ * Removes runtime-authored change-notice blocks, collapsing any surrounding
+ * whitespace so a turn that only differs by a prepended notice projects to the
+ * same text on both sides. Runs before path elision because otherwise a notice
+ * block's closing tag (`</tools_changed_notice>`) is itself swallowed by the
+ * path matcher and the block no longer matches.
+ */
+function elideChangeNotices(text: string): string {
+	return text.replace(CHANGE_NOTICE_RE, '');
+}
+
+/**
  * A path: a recorder placeholder root (`${workdir}`, with or without a
  * trailing segment), a Windows absolute path (`C:\x\y`), or a POSIX absolute
  * path (`/x/y`). Stops at whitespace and at the punctuation that typically
@@ -105,7 +136,7 @@ export interface IProjectedModelRequest {
 }
 
 function elideRuntimeIds(text: string): string {
-	return elidePaths(text.replace(RAW_UUID_RE, RUNTIME_ID_PLACEHOLDER).replace(ORDINAL_UUID_RE, RUNTIME_ID_PLACEHOLDER));
+	return elidePaths(elideChangeNotices(text).replace(RAW_UUID_RE, RUNTIME_ID_PLACEHOLDER).replace(ORDINAL_UUID_RE, RUNTIME_ID_PLACEHOLDER));
 }
 
 function projectValue(value: unknown): unknown {
