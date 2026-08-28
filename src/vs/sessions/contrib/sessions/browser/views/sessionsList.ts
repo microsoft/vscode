@@ -261,6 +261,7 @@ function isSessionItem(item: SessionListItem): item is ISession {
 
 const SHOW_MORE_FOLDERS_LABEL = '__more_folders__';
 const FOUR_DAYS_MS = 4 * 24 * 60 * 60 * 1000;
+const INSET_ROW_GAP = 2;
 
 /**
  * Default number of terminal-command lines shown in a session row's approval
@@ -311,7 +312,12 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 		 * flat, chat-less lists (blocked sessions, automations) set it `true`.
 		 */
 		private readonly _aggregateChatApprovals = false,
+		private readonly _useInsetRowSpacing = false,
 	) { }
+
+	private withInsetRowSpacing(height: number): number {
+		return height + (this._useInsetRowSpacing ? INSET_ROW_GAP : 0);
+	}
 
 	getHeight(element: SessionListItem): number {
 		if (isSessionChatItem(element)) {
@@ -326,13 +332,13 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 					chatHeight += SessionItemRenderer.getApprovalRowHeight(approval.label, this._approvalRowMaxLines) + SessionsTreeDelegate.CHAT_APPROVAL_BOTTOM_SLACK;
 				}
 			}
-			return chatHeight;
+			return this.withInsetRowSpacing(chatHeight);
 		}
 		if (isSessionSection(element) || isSessionGroupItem(element)) {
 			return SessionsTreeDelegate.SECTION_HEIGHT;
 		}
 		if (isSessionShowMore(element)) {
-			return SessionsTreeDelegate.SHOW_MORE_HEIGHT;
+			return this.withInsetRowSpacing(SessionsTreeDelegate.SHOW_MORE_HEIGHT);
 		}
 		if (isSessionPlaceholder(element)) {
 			return SessionsTreeDelegate.PLACEHOLDER_HEIGHT;
@@ -358,7 +364,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 		if (this._ciFixModel && this._ciFixModel.getCIFix(element as ISession).get()) {
 			height += SessionItemRenderer.CI_ROW_HEIGHT;
 		}
-		return height;
+		return this.withInsetRowSpacing(height);
 	}
 
 	hasDynamicHeight(element: SessionListItem): boolean {
@@ -2413,7 +2419,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this._excludeRead = this.storageService.getBoolean(SessionsList.EXCLUDE_READ_KEY, StorageScope.PROFILE, false);
 		this.workspaceGroupCapped = this.storageService.getBoolean(SessionsList.WORKSPACE_GROUP_CAPPED_KEY, StorageScope.PROFILE, true);
 
-		this.listContainer = DOM.append(container, $('.sessions-list-control'));
+		this.listContainer = DOM.append(container, $('.sessions-list-control.session-list-row-spacing'));
 		this._register(DOM.addDisposableListener(this.listContainer, DOM.EventType.POINTER_DOWN, () => {
 			this.listContainer.classList.add(SESSION_SECTION_FOCUS_FROM_POINTER_CLASS);
 		}));
@@ -2507,7 +2513,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// observe the workbench's value rather than shadowing it with a fresh
 		// scoped default of `false`. The reactive height refresh below listens
 		// on the same scoped service for changes.
-		const delegate = new SessionsTreeDelegate(approvalModel, () => !!IsPhoneLayoutContext.getValue(contextKeyService));
+		const delegate = new SessionsTreeDelegate(
+			approvalModel,
+			() => !!IsPhoneLayoutContext.getValue(contextKeyService),
+			DEFAULT_APPROVAL_ROW_MAX_LINES,
+			undefined,
+			true /* useCompactQuickChatRows */,
+			false /* aggregateChatApprovals */,
+			true /* useInsetRowSpacing */,
+		);
 		this._delegate = delegate;
 
 		this.tree = this._register(instantiationService.createInstance(
