@@ -3,6 +3,7 @@
 #   - a fresh, slimmed copy of the authenticated user-data-dir (so Copilot/GitHub auth works)
 #   - an isolated --shared-data-dir (otherwise two instances share ~/.vscode-oss-shared and crash each other)
 #   - unique debug ports for renderer (CDP), extension host, main process, and agent host
+#   - a persistent, token-authenticated automation driver for arbitrary Playwright code
 #
 # Auth on macOS comes from the OS keychain (per-app, shared automatically) plus
 # the encrypted blob in User/globalStorage/state.vscdb (per-UDD). The slim copy
@@ -62,6 +63,37 @@ monotonic_ms() {
 	node -e 'process.stdout.write(String(process.hrtime.bigint() / 1_000_000n))'
 }
 
+stop_run_processes() {
+	local run_dir="$1"
+	shift
+	for pid in "$@"; do
+		if [[ "$pid" =~ ^[0-9]+$ ]]; then
+			kill "$pid" 2>/dev/null || true
+		fi
+	done
+	sleep 1
+
+	if ! command -v pgrep >/dev/null; then
+		echo "[launch.sh] pgrep not found; could not verify process-tree cleanup for $run_dir" >&2
+		return
+	fi
+
+	local run_re survivors survivor
+	run_re=$(printf '%s' "$run_dir" | sed 's/[][\.^$*+?(){}|\\]/\\&/g')
+	if survivors=$(pgrep -f "$run_re"); then
+		while IFS= read -r survivor; do
+			if [[ "$survivor" =~ ^[0-9]+$ ]]; then
+				kill "$survivor" 2>/dev/null || true
+			fi
+		done <<<"$survivors"
+		sleep 1
+	fi
+
+	if survivors=$(pgrep -f "$run_re"); then
+		echo "[launch.sh] WARNING: process(es) still running for $run_dir: $(printf '%s' "$survivors" | tr '\n' ' ')" >&2
+	fi
+}
+
 LAUNCH_START_MS=$(monotonic_ms)
 
 if [[ -z "$REPO" ]]; then
@@ -83,7 +115,11 @@ fi
 # A workspace value wins over the cloned profile's user setting. Refuse a
 # forwarded folder or .code-workspace that disables the simple dialog, or Open
 # Folder would still launch a native OS dialog that CDP cannot drive.
-if ! node "$NORMALIZE_SETTINGS" --check-workspace-args "${EXTRA_ARGS[@]}"; then
+if (( ${#EXTRA_ARGS[@]} )); then
+	if ! node "$NORMALIZE_SETTINGS" --check-workspace-args "${EXTRA_ARGS[@]}"; then
+		exit 1
+	fi
+elif ! node "$NORMALIZE_SETTINGS" --check-workspace-args; then
 	exit 1
 fi
 
@@ -94,7 +130,7 @@ const fail = error => {
 	console.error('[launch.sh] failed to allocate debug ports:', error);
 	process.exit(1);
 };
-const servers = Array.from({ length: 4 }, () => net.createServer().on('error', fail));
+const servers = Array.from({ length: 5 }, () => net.createServer().on('error', fail));
 (async () => {
 	await Promise.all(servers.map(server => new Promise(resolve => server.listen(0, '127.0.0.1', resolve))));
 	const ports = servers.map(server => server.address().port);
@@ -105,7 +141,7 @@ const servers = Array.from({ length: 4 }, () => net.createServer().on('error', f
 })().catch(fail);
 NODE
 )
-read -r CDP_PORT EXTHOST_PORT MAIN_PORT AGENTHOST_PORT <<< "$PORTS"
+read -r CDP_PORT EXTHOST_PORT MAIN_PORT AGENTHOST_PORT AUTOMATION_PORT <<< "$PORTS"
 
 STAMP=$(date +%Y%m%d-%H%M%S)-$$
 # mktemp fills in the X's only when they trail the template; elsewhere they stay literal.
@@ -214,6 +250,7 @@ ARGS=(
 	"--inspect-extensions=$EXTHOST_PORT"
 	"--inspect=$MAIN_PORT"
 	"--inspect-agenthost=$AGENTHOST_PORT"
+	"--enable-smoke-test-driver"
 )
 if [[ "$DISABLE_WORKSPACE_TRUST" == "1" ]]; then
 	ARGS+=("--disable-workspace-trust")
@@ -241,17 +278,29 @@ LOG_FILE="$RUN_DIR/code.log"
 echo "[launch.sh] launching: $CODE_SH ${ARGS[*]}" >&2
 echo "[launch.sh] logs: $LOG_FILE" >&2
 
-# Run pre-launch (electron download, compile-if-missing, built-in extensions) in the
-# foreground so any errors surface synchronously. Then skip code.sh's own pre-launch.
+# Run pre-launch (electron download, compile-if-missing, built-in extensions) and
+# compile the automation page objects in the foreground so any errors surface
+# synchronously. Then skip code.sh's own pre-launch.
 if [[ "$SKIP_PRELAUNCH" == "1" ]]; then
 	echo "[launch.sh] skipping pre-launch by request" >&2
 else
-	echo "[launch.sh] running pre-launch (ensures electron + compiled output + built-ins)..." >&2
-	if ! ( cd "$REPO" && node build/lib/preLaunch.ts ) >>"$LOG_FILE" 2>&1; then
+	echo "[launch.sh] running pre-launch (ensures electron + compiled output + built-ins + automation)..." >&2
+	if ! (
+		cd "$REPO" &&
+		node build/lib/preLaunch.ts &&
+		cd test/automation &&
+		node tools/copy-driver-definition.js &&
+		node ../../node_modules/typescript/bin/tsc6
+	) >>"$LOG_FILE" 2>&1; then
 		echo "[launch.sh] pre-launch FAILED. Log tail:" >&2
 		tail -n 80 "$LOG_FILE" >&2
 		exit 1
 	fi
+fi
+if [[ ! -f "$REPO/out/main.js" ]]; then
+	echo "[launch.sh] compiled client entry point is missing: $REPO/out/main.js" >&2
+	echo "[launch.sh] run 'npm run compile' successfully before launching." >&2
+	exit 1
 fi
 PRELAUNCH_READY_MS=$(monotonic_ms)
 
@@ -282,18 +331,66 @@ else
 	tail -n 80 "$LOG_FILE" >&2
 	exit 1
 fi
+CDP_READY_AT_MS=$(monotonic_ms)
+
+AUTOMATION_DRIVER="$(cd "$(dirname "$0")" && pwd)/automationDriver.ts"
+AUTOMATION_TOKEN_FILE="$RUN_DIR/automation-token"
+AUTOMATION_LOG_FILE="$RUN_DIR/automation-driver.log"
+AUTOMATION_LOGS_PATH="$RUN_DIR/automation-logs"
+mkdir -p "$AUTOMATION_LOGS_PATH"
+node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))' >"$AUTOMATION_TOKEN_FILE"
+chmod 600 "$AUTOMATION_TOKEN_FILE"
+AUTOMATION_WINDOW=workbench
+if [[ "$AGENTS" == "1" ]]; then
+	AUTOMATION_WINDOW=agents
+fi
+
+echo "[launch.sh] starting persistent automation driver on port $AUTOMATION_PORT..." >&2
+nohup node "$AUTOMATION_DRIVER" serve \
+	--cdp-port "$CDP_PORT" \
+	--port "$AUTOMATION_PORT" \
+	--token-file "$AUTOMATION_TOKEN_FILE" \
+	--repo "$REPO" \
+	--window "$AUTOMATION_WINDOW" \
+	--logs-path "$AUTOMATION_LOGS_PATH" \
+	</dev/null >>"$AUTOMATION_LOG_FILE" 2>&1 &
+AUTOMATION_PID=$!
+disown $AUTOMATION_PID 2>/dev/null || true
+
+WAIT_FOR_HTTP="$(cd "$(dirname "$0")" && pwd)/waitForHttp.ts"
+if AUTOMATION_READY_MS=$(node "$WAIT_FOR_HTTP" "$AUTOMATION_PID" "$AUTOMATION_PORT" /health 30000); then
+	echo "[launch.sh] automation driver ready after ${AUTOMATION_READY_MS}ms" >&2
+else
+	AUTOMATION_READY_STATUS=$?
+	case "$AUTOMATION_READY_STATUS" in
+		1) echo "[launch.sh] timed out waiting for automation driver. Log tail:" >&2 ;;
+		2) echo "[launch.sh] automation driver exited before becoming ready. Log tail:" >&2 ;;
+		*) echo "[launch.sh] failed while waiting for automation driver. Log tail:" >&2 ;;
+	esac
+	tail -n 80 "$AUTOMATION_LOG_FILE" >&2
+	stop_run_processes "$RUN_DIR" "$AUTOMATION_PID" "$PID"
+	exit 1
+fi
 
 node -e '
 	const finishedAt = Number(process.hrtime.bigint() / 1_000_000n);
-	const startedAt = Number(process.argv[7]);
-	const profileReadyAt = Number(process.argv[8]);
-	const preLaunchReadyAt = Number(process.argv[9]);
+	const cdpReadyAt = Number(process.argv[10]);
+	const startedAt = Number(process.argv[11]);
+	const profileReadyAt = Number(process.argv[12]);
+	const preLaunchReadyAt = Number(process.argv[13]);
 	console.log(JSON.stringify({
 		pid: '"$PID"',
 		cdpPort: '"$CDP_PORT"',
 		extHostPort: '"$EXTHOST_PORT"',
 		mainPort: '"$MAIN_PORT"',
 		agentHostPort: '"$AGENTHOST_PORT"',
+		automation: {
+			pid: '"$AUTOMATION_PID"',
+			port: '"$AUTOMATION_PORT"',
+			tokenFile: process.argv[7],
+			logFile: process.argv[8],
+			script: process.argv[9],
+		},
 		userDataDir: process.argv[1],
 		extensionsDir: process.argv[2],
 		sharedDataDir: process.argv[3],
@@ -304,8 +401,9 @@ node -e '
 		timings: {
 			profileMs: profileReadyAt - startedAt,
 			preLaunchMs: preLaunchReadyAt - profileReadyAt,
-			cdpReadyMs: finishedAt - preLaunchReadyAt,
+			cdpReadyMs: cdpReadyAt - preLaunchReadyAt,
+			automationReadyMs: finishedAt - cdpReadyAt,
 			totalMs: finishedAt - startedAt,
 		},
 	}));
-' "$DEST_UDD" "$EXT_DIR" "$SHARED_DATA_DIR" "$RUN_DIR" "$LOG_FILE" "$REPO" "$LAUNCH_START_MS" "$PROFILE_READY_MS" "$PRELAUNCH_READY_MS"
+' "$DEST_UDD" "$EXT_DIR" "$SHARED_DATA_DIR" "$RUN_DIR" "$LOG_FILE" "$REPO" "$AUTOMATION_TOKEN_FILE" "$AUTOMATION_LOG_FILE" "$AUTOMATION_DRIVER" "$CDP_READY_AT_MS" "$LAUNCH_START_MS" "$PROFILE_READY_MS" "$PRELAUNCH_READY_MS"

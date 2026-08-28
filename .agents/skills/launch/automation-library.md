@@ -1,44 +1,113 @@
-# Driving the UI with the repo's automation library
+# Persistent, unrestricted VS Code automation
 
-Before hand-writing selectors, check whether `test/automation` covers the
-surface. It is what the smoke tests use, and it encodes years of hard-won DOM
-knowledge: retry loops for async-populated pickers, read-back verification after
-typing, and workarounds for clicks absorbed by animating overlays.
+`launch.sh` and `launch.ps1` start a persistent, token-authenticated automation
+driver automatically. It keeps one Playwright/CDP connection and one set of the
+repo's `test/automation` page objects alive for the whole step-by-step session.
+Requests contain arbitrary async JavaScript rather than a fixed action schema.
 
-It normally *spawns* Electron, but `scripts/attach.ts` points it at the instance
-`launch.sh` already started:
+Capture the driver fields from launch JSON:
 
 ```bash
-# The driver the page objects call through only exists with this flag.
-INFO=$("$LAUNCH" --disable-workspace-trust -- --enable-smoke-test-driver | tail -n1)
-CDP=$(jq -r .cdpPort <<<"$INFO"); PID=$(jq -r .pid <<<"$INFO")
+INFO=$("$LAUNCH" --disable-workspace-trust | tail -n1)
+AUTO=$(jq -r .automation.port <<<"$INFO")
+AUTO_TOKEN=$(jq -r .automation.tokenFile <<<"$INFO")
+AUTO_SCRIPT=$(jq -r .automation.script <<<"$INFO")
 ```
+
+```bash
+node "$AUTO_SCRIPT" exec --port "$AUTO" --token-file "$AUTO_TOKEN" \
+  --code 'async ({ page, browser, workbench, code, snapshot, settle, collectVirtualized }) => {
+    // Any Playwright, CDP, page-object, or DOM logic is valid here.
+    return { title: await page.title() };
+  }'
+```
+
+The function receives `session`, `browser`, `page`, `code`, `workbench`,
+`snapshot`, `settle`, and `collectVirtualized`.
+`page.context().newCDPSession(page)` gives raw CDP when Playwright is not
+enough. A longer function can live in a file; the file must contain the
+function expression itself and is passed with `--file`.
+
+Each request returns structured action/verification results, timings, and the
+current application state. The client exits non-zero when either phase or the
+automatic snapshot fails. Use `--verify-code` / `--verify-file` for a separate
+postcondition and `--no-state` only when the automatic snapshot is unnecessary.
+
+The timeout can interrupt awaited Playwright/CDP work by disconnecting and
+reattaching the session. JavaScript running a synchronous infinite loop cannot
+be preempted inside the persistent process; do not submit blocking loops.
+
+## Synchronize with UI changes
+
+Prefer semantic page-object methods that already wait for their surface's
+completion signal. For an arbitrary interaction, call `settle()` on the
+smallest affected subtree and then make an immediate assertion:
 
 ```js
-// Write the script IN THE REPO ROOT so `playwright` resolves. No build step.
-import { attach } from '<dir-of-this-file>/scripts/attach.ts';
+async ({ page, settle }) => {
+    const welcome = page.locator('.gettingStartedContainer');
+    await welcome.getByText('Learn the Fundamentals', { exact: true }).click();
+    await settle({ root: welcome });
 
-const session = await attach(process.argv[2], { window: 'workbench' });
-const { workbench, code, page } = session;
-
-await workbench.quickaccess.runCommand('workbench.action.chat.open');
-await workbench.chat.waitForChatView();
-await workbench.chat.sendMessage('Reply with exactly PONG.');
-console.log(await workbench.chat.waitForResponseText(/PONG/i));
-
-await session.detach();   // closes CDP only; Code OSS keeps running
+    const overview = welcome.getByText('Get an overview of the most essential features', { exact: true });
+    if (!await overview.isVisible()) {
+        throw new Error('The fundamentals walkthrough did not open.');
+    }
+}
 ```
 
-`attach(cdpPort, options)` returns `{ workbench, code, page, browser, detach }`.
-Options: `window` (`'workbench' | 'agents' | 'any'`), `verbose` (stream the
-retry logger to stderr — fastest way to see *why* a step fails), `repoRoot`,
-`logsPath`, `timeoutMs`.
-The default private `logsPath` is removed by `detach()`; pass one explicitly to
-retain artifacts (caller-supplied paths are never removed).
+`settle()` observes DOM and focus changes, waits for finite animations, and
+requires activity to remain quiet across animation frames. Its default 5-second
+timeout is only a deadlock ceiling. It does not wait for network idle because
+VS Code has long-lived connections, and it ignores infinite animations such as
+progress indicators. Scope `root` narrowly so unrelated UI activity cannot
+delay the assertion. Options are `quietPeriodMs`, `timeoutMs`, and
+`waitForAnimations`.
 
-After `detach()`, kill the `pid` from the launch JSON and **verify it died** —
-see "Verify the cleanup actually worked" in SKILL.md. Killing `pid` alone
-routinely leaves the Electron process group alive.
+## Understand the current application state
+
+`snapshot()` returns a bounded hierarchy of:
+
+- overlays, dialogs, Quick Input, context menus, and notifications
+- title bar, Activity Bar, sidebar, editors, panel, auxiliary bar, and Status Bar
+- focused element and containing landmark
+- visible controls with labels, roles, icons, bounds, values, and state
+- visible editor groups or pane sections
+- native and Monaco scroll containers, including whether more content is
+  reachable before or after the visible slice
+
+Only on-screen controls are enumerated. `visibleCount` and `truncated` indicate
+when the bounded slice omitted controls; scroll metadata indicates when more
+content is reachable. This avoids pretending an infinite or virtualized list is
+fully represented.
+
+## Traverse virtualized surfaces
+
+`collectVirtualized()` is generic: the caller supplies Playwright locators and
+the item reader. It scrolls with real wheel input, deduplicates by stable item
+identity, detects the beginning/end even for Monaco custom scrollbars, applies
+hard item/pass limits, and restores the original visible slice.
+
+```js
+async ({ page, collectVirtualized }) => {
+    const settings = page.locator('.settings-editor:visible');
+    return collectVirtualized({
+        page,
+        scrollContainer: settings.locator('.settings-tree-container .monaco-scrollable-element').first(),
+        interactionTarget: settings.locator('.settings-tree-container .monaco-list').first(),
+        items: settings.locator('.setting-item-contents[data-key]'),
+        readItem: item => item.getAttribute('data-key')
+    });
+}
+```
+
+Before hand-writing selectors, still check whether `test/automation` covers the
+surface. It encodes retry loops for async-populated pickers, read-back
+verification after typing, and workarounds for clicks absorbed by overlays.
+
+For standalone scripts that deliberately do not use the persistent process,
+`scripts/attach.ts` remains available and returns
+`{ workbench, code, page, browser, detach }`.
 
 ## Pick the right window first
 
@@ -121,18 +190,17 @@ rather than on the highlight decorations.
 
 ## When to use raw @playwright/cli
 
-The library is the better default; reach for the CLI to explore (`snapshot`),
-to screenshot, or for a surface with no page object you touch once or twice.
-They compose: `session.page` is a normal Playwright `Page`.
+The persistent driver is the better default because it combines unrestricted
+Playwright with page objects, structured failures, timings, and VS Code-aware
+state. Reach for the CLI for screenshots or independent exploration. They
+compose, but use a unique CLI session so it cannot attach to another agent's
+window.
 
 ## Gotchas
 
-- **`--enable-smoke-test-driver` is mandatory.** Without it `window.driver` is
-  never registered (`setupDriver` in `src/vs/workbench/browser/window.ts`) and
-  every page object fails. `attach()` checks and tells you.
-- **`test/automation` must be compiled** — `npm --prefix test/automation run
-  compile`. The root `npm run compile` does not build this package. `attach()` reports
-  a missing `out/`.
+- The launchers automatically pass `--enable-smoke-test-driver` and compile
+  `test/automation`. These remain manual prerequisites only when bypassing the
+  launchers and calling `attach()` against a separately started window.
 - **Toolbar toggles must be read, not blindly clicked.** Controls like the
   integrated browser's *Add Element to Chat* carry `checked` in `className` when
   active, so an unconditional click switches the mode *off*:

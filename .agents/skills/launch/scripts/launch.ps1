@@ -114,7 +114,7 @@ function Get-FreePort {
 
 function Get-FreePorts {
 	$ports = [System.Collections.Generic.List[int]]::new()
-	while ($ports.Count -lt 4) {
+	while ($ports.Count -lt 5) {
 		$port = Get-FreePort
 		if (-not $ports.Contains($port)) {
 			$ports.Add($port)
@@ -351,6 +351,28 @@ function Start-Code([string]$codeBat, [string[]]$arguments, [string]$logFile) {
 	return $process
 }
 
+function Start-LoggedProcess([string]$executable, [string[]]$arguments, [string]$logFile) {
+	$quotedExecutable = Quote-CmdArgument $executable
+	if (-not $quotedExecutable.StartsWith('"')) {
+		$quotedExecutable = "`"$quotedExecutable`""
+	}
+	$commandLine = ((@($quotedExecutable) + @($arguments | ForEach-Object { Quote-CmdArgument $_ })) -join ' ') + " >> $(Quote-CmdArgument $logFile) 2>&1"
+	$processInfo = [Diagnostics.ProcessStartInfo]::new()
+	$processInfo.FileName = $env:ComSpec
+	$processInfo.UseShellExecute = $false
+	$processInfo.CreateNoWindow = $true
+	$processInfo.WindowStyle = [Diagnostics.ProcessWindowStyle]::Hidden
+	$processInfo.Arguments = '/d /s /c "' + $commandLine + '"'
+	[void]$processInfo.EnvironmentVariables.Remove('ELECTRON_RUN_AS_NODE')
+
+	$process = [Diagnostics.Process]::new()
+	$process.StartInfo = $processInfo
+	if (-not $process.Start()) {
+		throw "Failed to start $executable."
+	}
+	return $process
+}
+
 $extraArgs = [System.Collections.Generic.List[string]]::new()
 for ($index = 0; $index -lt $cliArgs.Count; $index++) {
 	$argument = $cliArgs[$index]
@@ -451,6 +473,7 @@ try {
 	$extHostPort = $ports[1]
 	$mainPort = $ports[2]
 	$agentHostPort = $ports[3]
+	$automationPort = $ports[4]
 
 	$stamp = '{0:yyyyMMdd-HHmmss}-{1}' -f (Get-Date), $PID
 	$runDir = Join-Path (Join-Path $env:TEMP 'code-oss-dev') $stamp
@@ -458,8 +481,21 @@ try {
 	$extensionsDir = Join-Path $destinationUdd 'extensions'
 	$sharedDataDir = Join-Path $runDir 'shared-data'
 	$logFile = Join-Path $runDir 'code.log'
+	$automationLogFile = Join-Path $runDir 'automation-driver.log'
+	$automationLogsPath = Join-Path $runDir 'automation-logs'
+	$automationTokenFile = Join-Path $runDir 'automation-token'
 	New-Item -ItemType Directory -Force -Path $runDir, $sharedDataDir | Out-Null
+	New-Item -ItemType Directory -Force -Path $automationLogsPath | Out-Null
 	[IO.File]::WriteAllText($logFile, '', [Text.UTF8Encoding]::new($false))
+	$tokenBytes = New-Object byte[] 32
+	$tokenGenerator = [Security.Cryptography.RandomNumberGenerator]::Create()
+	try {
+		$tokenGenerator.GetBytes($tokenBytes)
+	} finally {
+		$tokenGenerator.Dispose()
+	}
+	$automationToken = ([BitConverter]::ToString($tokenBytes)).Replace('-', '').ToLowerInvariant()
+	[IO.File]::WriteAllText($automationTokenFile, $automationToken, [Text.UTF8Encoding]::new($false))
 	$sourceSharedDataDir = Get-SourceSharedDataDir $repo
 	if (Test-Path -LiteralPath $sourceSharedDataDir -PathType Container) {
 		# On Windows the GitHub session is APPLICATION_SHARED scoped, so it lives here
@@ -514,6 +550,7 @@ try {
 	$launchArgs.Add("--inspect-extensions=$extHostPort")
 	$launchArgs.Add("--inspect=$mainPort")
 	$launchArgs.Add("--inspect-agenthost=$agentHostPort")
+	$launchArgs.Add('--enable-smoke-test-driver')
 	if ($disableWorkspaceTrust) {
 		$launchArgs.Add('--disable-workspace-trust')
 	}
@@ -538,11 +575,24 @@ try {
 	if ($skipPreLaunch) {
 		Write-LaunchError '[launch.ps1] skipping pre-launch by request'
 	} else {
-		Write-LaunchError '[launch.ps1] running pre-launch (ensures electron + compiled output + built-ins)...'
+		Write-LaunchError '[launch.ps1] running pre-launch (ensures electron + compiled output + built-ins + automation)...'
 		Push-Location -LiteralPath $repo
 		try {
 			& $node 'build/lib/preLaunch.ts' *>> $logFile
 			$preLaunchExitCode = $LASTEXITCODE
+			if ($preLaunchExitCode -eq 0) {
+				Push-Location -LiteralPath (Join-Path $repo 'test\automation')
+				try {
+					& $node 'tools/copy-driver-definition.js' *>> $logFile
+					$preLaunchExitCode = $LASTEXITCODE
+					if ($preLaunchExitCode -eq 0) {
+						& $node '..\..\node_modules\typescript\bin\tsc6' *>> $logFile
+						$preLaunchExitCode = $LASTEXITCODE
+					}
+				} finally {
+					Pop-Location
+				}
+			}
 		} finally {
 			Pop-Location
 		}
@@ -551,6 +601,12 @@ try {
 			Write-LogTail $logFile
 			exit 1
 		}
+	}
+	$clientEntryPoint = Join-Path $repo 'out\main.js'
+	if (-not (Test-Path -LiteralPath $clientEntryPoint -PathType Leaf)) {
+		Write-LaunchError "[launch.ps1] compiled client entry point is missing: $clientEntryPoint"
+		Write-LaunchError "[launch.ps1] run 'npm run compile' successfully before launching."
+		exit 1
 	}
 	$preLaunchReadyMs = $launchStopwatch.ElapsedMilliseconds
 
@@ -571,6 +627,37 @@ try {
 		exit 1
 	}
 	$launchReadyMs = $launchStopwatch.ElapsedMilliseconds
+	$automationDriver = Join-Path $PSScriptRoot 'automationDriver.ts'
+	$automationWindow = if ($agents) { 'agents' } else { 'workbench' }
+	$automationArguments = @(
+		$automationDriver,
+		'serve',
+		'--cdp-port', [string]$cdpPort,
+		'--port', [string]$automationPort,
+		'--token-file', $automationTokenFile,
+		'--repo', $repo,
+		'--window', $automationWindow,
+		'--logs-path', $automationLogsPath
+	)
+	Write-LaunchError "[launch.ps1] starting persistent automation driver on port $automationPort..."
+	$automationProcess = Start-LoggedProcess $node $automationArguments $automationLogFile
+	$waitForHttp = Join-Path $PSScriptRoot 'waitForHttp.ts'
+	$automationReadyMs = & $node $waitForHttp $automationProcess.Id $automationPort '/health' 30000
+	$automationReadyStatus = $LASTEXITCODE
+	if ($automationReadyStatus -eq 0) {
+		Write-LaunchError "[launch.ps1] automation driver ready after ${automationReadyMs}ms"
+	} else {
+		switch ($automationReadyStatus) {
+			1 { Write-LaunchError '[launch.ps1] timed out waiting for automation driver. Log tail:' }
+			2 { Write-LaunchError '[launch.ps1] automation driver exited before becoming ready. Log tail:' }
+			default { Write-LaunchError '[launch.ps1] failed while waiting for automation driver. Log tail:' }
+		}
+		Write-LogTail $automationLogFile
+		& taskkill.exe /PID $automationProcess.Id /T /F 2>$null | Out-Null
+		& taskkill.exe /PID $process.Id /T /F 2>$null | Out-Null
+		exit 1
+	}
+	$automationLaunchReadyMs = $launchStopwatch.ElapsedMilliseconds
 
 	[PSCustomObject]@{
 		pid = $process.Id
@@ -578,6 +665,13 @@ try {
 		extHostPort = $extHostPort
 		mainPort = $mainPort
 		agentHostPort = $agentHostPort
+		automation = [PSCustomObject]@{
+			pid = $automationProcess.Id
+			port = $automationPort
+			tokenFile = $automationTokenFile
+			logFile = $automationLogFile
+			script = $automationDriver
+		}
 		userDataDir = $destinationUdd
 		extensionsDir = $extensionsDir
 		sharedDataDir = $sharedDataDir
@@ -589,7 +683,8 @@ try {
 			profileMs = $profileReadyMs
 			preLaunchMs = $preLaunchReadyMs - $profileReadyMs
 			cdpReadyMs = $launchReadyMs - $preLaunchReadyMs
-			totalMs = $launchReadyMs
+			automationReadyMs = $automationLaunchReadyMs - $launchReadyMs
+			totalMs = $automationLaunchReadyMs
 		}
 	} | ConvertTo-Json -Compress
 } catch {

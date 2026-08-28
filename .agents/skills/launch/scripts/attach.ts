@@ -178,8 +178,9 @@ async function waitForSmokeTestDriver(page: PlaywrightPage, timeoutMs: number): 
 			throw new Error(
 				`window.driver was still not registered after ${timeoutMs}ms, so the automation page ` +
 				'objects cannot work. This usually means the window was launched without the ' +
-				'smoke-test driver: relaunch with `launch.sh` (or `launch.ps1` on Windows) and ' +
-				'pass `-- --enable-smoke-test-driver`.'
+				'smoke-test driver. Relaunch with `launch.sh` (or `launch.ps1` on Windows), which ' +
+				'enables it automatically; only manually started windows need the ' +
+				'`--enable-smoke-test-driver` argument.'
 			);
 		}
 		await new Promise(resolve => setTimeout(resolve, 250));

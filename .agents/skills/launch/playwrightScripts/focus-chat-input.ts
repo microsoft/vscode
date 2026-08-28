@@ -77,6 +77,14 @@ async page => {
 			throw new Error('F1 did not open the Command Palette; check the cloned profile keybindings');
 		}
 		await commandPaletteInput.fill(`>${commandId}`);
+		const focusedEntrySelector = '.quick-input-widget .monaco-list-row.focused .quick-input-list-entry';
+		const focusedEntry = page.locator(focusedEntrySelector);
+		try {
+			await page.locator(`${focusedEntrySelector}[data-quick-input-id="${commandId}"]`).waitFor({ state: 'visible', timeout: 1000 });
+		} catch {
+			const focusedCommandId = await focusedEntry.count() ? await focusedEntry.getAttribute('data-quick-input-id') : undefined;
+			throw new Error(`Command Palette did not focus command '${commandId}' (focused command ID: '${focusedCommandId ?? 'none'}')`);
+		}
 		await page.keyboard.press('Enter');
 		match = await waitForVisibleChatInput(50);
 	}
