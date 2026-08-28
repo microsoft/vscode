@@ -106,6 +106,25 @@ suite('chatModelConfigurationLogic', () => {
 			assert.deepStrictEqual(filtered, { contextSize: 2000 });
 		});
 
+		test('drops prototype keys rather than resolving them through Object.prototype', () => {
+			assert.deepStrictEqual(filterConfigurationToSchema({ constructor: 'x', __proto__: 'y', toString: 'z' }, effortSchema), {});
+		});
+
+		test('drops a value from another model, so an Auto tier is not set from a thinking level', () => {
+			// Auto's navigation-group property is its routing tier, not a thinking effort.
+			const autoSchema: ILanguageModelConfigurationSchema = { properties: { tier: { group: 'navigation', enum: ['eco', 'balanced', 'max'] } } };
+			assert.deepStrictEqual(filterConfigurationToSchema({ thinkingLevel: 'high', tier: 'high' }, autoSchema), {});
+		});
+
+		test('drops values that do not match a declared primitive type', () => {
+			const schema: ILanguageModelConfigurationSchema = { properties: { contextSize: { type: 'number' }, label: { type: 'string' } } };
+			assert.deepStrictEqual([
+				filterConfigurationToSchema({ contextSize: 2000 }, schema),
+				filterConfigurationToSchema({ contextSize: 'banana' }, schema),
+				filterConfigurationToSchema({ label: 42 }, schema),
+			], [{ contextSize: 2000 }, {}, {}]);
+		});
+
 		test('returns empty when the schema (or its properties) is missing', () => {
 			assert.deepStrictEqual(filterConfigurationToSchema({ thinkingEffort: 'high' }, undefined), {});
 			assert.deepStrictEqual(filterConfigurationToSchema({ thinkingEffort: 'high' }, {}), {});

@@ -81,6 +81,7 @@ function createMockNotificationService(disposables: Pick<DisposableStore, 'add'>
 			}
 			return active;
 		},
+		refresh() { },
 		handleMessageSent() { },
 		announceRendered() { },
 	};

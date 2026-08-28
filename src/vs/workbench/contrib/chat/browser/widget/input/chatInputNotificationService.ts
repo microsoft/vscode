@@ -5,6 +5,7 @@
 
 import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
+import { IStringDictionary } from '../../../../../../base/common/collections.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
@@ -13,6 +14,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
 
 export const enum ChatInputNotificationSeverity {
@@ -30,6 +32,8 @@ export const enum ChatInputNotificationActionKind {
 interface IChatInputNotificationActionBase {
 	readonly label: string;
 	readonly keepOpen?: boolean;
+	/** Stable id reported to telemetry, so two actions of the same kind can be told apart. */
+	readonly telemetryActionId?: string;
 }
 
 export interface IChatInputNotificationCommandAction extends IChatInputNotificationActionBase {
@@ -46,6 +50,10 @@ export interface IChatInputNotificationSwitchToModelAction extends IChatInputNot
 	readonly kind: ChatInputNotificationActionKind.SwitchToModel;
 	/** Matches the target against models available to the rendering input. */
 	readonly matchesModel: (model: ILanguageModelChatMetadataAndIdentifier) => boolean;
+	/** Applied to the target model once switched. Keys its schema does not declare are dropped. */
+	readonly config?: IStringDictionary<unknown>;
+	/** Requires the target to match exactly one model, rather than taking the first match. */
+	readonly requireUniqueModel?: boolean;
 }
 
 export type IChatInputNotificationAction =
@@ -188,6 +196,12 @@ export interface IChatInputNotificationService {
 	deleteNotification(id: string): void;
 
 	/**
+	 * Ask mounted inputs to re-evaluate what they render, without touching notification or
+	 * dismissal state. Use when something a `when` predicate reads has changed.
+	 */
+	refresh(): void;
+
+	/**
 	 * Mark a notification as dismissed by the user. It will no longer be returned
 	 * by {@link getActiveNotification} until it is re-pushed with new content.
 	 */
@@ -246,6 +260,10 @@ class ChatInputNotificationService extends Disposable implements IChatInputNotif
 		this._notifications.set(notification.id, notification);
 		this._dismissed.delete(notification.id);
 		this._insertionOrder.set(notification.id, this._insertionCounter++);
+		this._fireDidChange();
+	}
+
+	refresh(): void {
 		this._fireDidChange();
 	}
 
@@ -348,3 +366,31 @@ class ChatInputNotificationService extends Disposable implements IChatInputNotif
 }
 
 registerSingleton(IChatInputNotificationService, ChatInputNotificationService, InstantiationType.Delayed);
+
+/**
+ * Reads the ids a user has dismissed for good, kept in application storage so a dismissal in one
+ * window applies to every other. Returns an empty set for absent or corrupt data.
+ *
+ * The set is stored under one key, so two windows dismissing different notices in the same
+ * instant can leave the later write without the earlier id. Re-reading before each write keeps
+ * that to a genuine race, and the cost is only that a notice may appear once more.
+ */
+export function readDismissedNotificationIds(storageService: IStorageService, key: string): Set<string> {
+	const raw = storageService.get(key, StorageScope.APPLICATION);
+	try {
+		const parsed = raw ? JSON.parse(raw) : undefined;
+		return new Set(Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === 'string') : []);
+	} catch {
+		return new Set();
+	}
+}
+
+/** Records one id as dismissed for good. */
+export function addDismissedNotificationId(storageService: IStorageService, key: string, id: string): void {
+	const dismissed = readDismissedNotificationIds(storageService, key);
+	if (dismissed.has(id)) {
+		return;
+	}
+	dismissed.add(id);
+	storageService.store(key, JSON.stringify([...dismissed]), StorageScope.APPLICATION, StorageTarget.USER);
+}

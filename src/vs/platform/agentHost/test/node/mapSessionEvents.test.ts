@@ -791,6 +791,10 @@ suite('mapSessionEvents — history replay', () => {
 
 	test('strips prompt scaffolding from user message content', async () => {
 		const wrapped = 'hi\n <reminder>\nIMPORTANT: ignore this\n</reminder>\n<attachments>\n<attachment id="microsoft/vscode">repo</attachment>\n</attachments>\n<userRequest>\nhi\n</userRequest>\n';
+		// The Copilot CLI injects context as a `<system_reminder>` block (e.g. the
+		// `IMPORTANT: this context may or may not be relevant…` preamble); it must
+		// not leak into the reconstructed message (and thus the session title).
+		const systemReminder = 'hi\n\n<system_reminder>\nIMPORTANT: this context may or may not be relevant\n<sql_tables>Available tables: todos, todo_deps</sql_tables>\n</system_reminder>';
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', id: 'wrapped', data: { interactionId: 'interaction-1', content: wrapped } },
 			{ type: 'assistant.message', data: { interactionId: 'interaction-1', content: 'Hello.', toolRequests: [] } },
@@ -800,11 +804,13 @@ suite('mapSessionEvents — history replay', () => {
 			{ type: 'assistant.message', data: { interactionId: 'interaction-3', content: 'Ok remote.', toolRequests: [] } },
 			{ type: 'user.message', id: 'plain', data: { interactionId: 'interaction-4', content: 'just text' } },
 			{ type: 'assistant.message', data: { interactionId: 'interaction-4', content: 'Ok.', toolRequests: [] } },
+			{ type: 'user.message', id: 'system-reminder', data: { interactionId: 'interaction-5', content: systemReminder } },
+			{ type: 'assistant.message', data: { interactionId: 'interaction-5', content: 'Hi.', toolRequests: [] } },
 		];
 
 		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
 
-		assert.deepStrictEqual(turns.map(turn => turn.message.text), ['hi', 'hi5', '/remote', 'just text']);
+		assert.deepStrictEqual(turns.map(turn => turn.message.text), ['hi', 'hi5', '/remote', 'just text', 'hi']);
 	});
 
 	test('terminal empty assistant message completes a tool-only turn', async () => {

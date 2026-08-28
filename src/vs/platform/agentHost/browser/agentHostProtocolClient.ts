@@ -650,7 +650,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				return;
 			}
 
-			const subscriptions = this._subscriptionManager.currentSubscriptionChannels();
+			const subscriptions = this._subscriptionManager.currentSubscriptionUris().map(u => u.toString());
 			// Always include the always-live root state alongside getSubscription-managed entries.
 			if (!subscriptions.includes(ROOT_STATE_URI)) {
 				subscriptions.unshift(ROOT_STATE_URI);
@@ -746,12 +746,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private async _restoreSubscriptionsAfterFreshInitialize(initialSnapshots: readonly IStateSnapshot[]): Promise<void> {
 		const restored = new Set(initialSnapshots.map(snapshot => snapshot.resource));
 		const active = this._subscriptionManager.getActiveSubscriptions()
-			.filter(subscription => !restored.has(subscription.channel));
+			.filter(subscription => !restored.has(subscription.resource.toString()));
 		const restoreGroup = async (subscriptions: typeof active) => {
 			await Promise.all(subscriptions.map(async subscription => {
 				try {
 					const result = await this._dispatchRequest<CommandMap['subscribe']['result']>('subscribe', {
-						channel: subscription.channel,
+						channel: subscription.resource.toString(),
 					}, { bypassReconnectGate: true });
 					if (result.snapshot) {
 						this._subscriptionManager.applyReconnectSnapshot(
@@ -766,8 +766,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 					if (error instanceof ProtocolError && error.code === AHP_CLIENT_CONNECTION_CLOSED) {
 						throw error;
 					}
-					this._logService.warn(`[AgentHostProtocolClient] Failed to restore subscription ${subscription.channel} after host restart: ${error instanceof Error ? error.message : String(error)}`);
-					this._subscriptionManager.markSubscriptionsMissing([subscription.channel]);
+					this._logService.warn(`[AgentHostProtocolClient] Failed to restore subscription ${subscription.resource.toString()} after host restart: ${error instanceof Error ? error.message : String(error)}`);
+					this._subscriptionManager.markSubscriptionsMissing([subscription.resource]);
 				}
 			}));
 		};
@@ -868,7 +868,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			this._serverSeq = maxSeq;
 			if (result.missing.length > 0) {
 				this._logService.info(`[RemoteAgentHostProtocol] Server cannot resume ${result.missing.length} subscription(s) after reconnect.`);
-				this._subscriptionManager.markSubscriptionsMissing(result.missing);
+				this._subscriptionManager.markSubscriptionsMissing(result.missing.map(u => URI.parse(u)));
 			}
 		} else {
 			let maxSeq = this._serverSeq;
@@ -945,10 +945,6 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return this._subscriptionManager.getSubscription<T>(kind, resource, owner);
 	}
 
-	getSubscriptionByChannel<T>(kind: StateComponents, channel: string, owner: string): IReference<IAgentSubscription<T>> {
-		return this._subscriptionManager.getSubscriptionByChannel<T>(kind, channel, owner);
-	}
-
 	getSubscriptionUnmanaged<T>(_kind: StateComponents, resource: URI): IAgentSubscription<T> | undefined {
 		return this._subscriptionManager.getSubscriptionUnmanaged<T>(resource);
 	}
@@ -979,16 +975,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * response.
 	 */
 	async subscribe(resource: URI): Promise<IStateSnapshot> {
-		return this._subscribeChannel(resource.toString());
-	}
-
-	private async _subscribeChannel(channel: string): Promise<IStateSnapshot> {
-		this._logService.trace(`[RemoteAgentHostProtocol] subscribe start: ${channel}`);
-		const result = await this._sendRequest('subscribe', { channel });
+		this._logService.trace(`[RemoteAgentHostProtocol] subscribe start: ${resource.toString()}`);
+		const result = await this._sendRequest('subscribe', { channel: resource.toString() });
 		if (!result.snapshot) {
-			throw new Error(`subscribe to ${channel} returned no snapshot`);
+			throw new Error(`subscribe to ${resource.toString()} returned no snapshot`);
 		}
-		this._logService.trace(`[RemoteAgentHostProtocol] subscribe done: ${channel}`);
+		this._logService.trace(`[RemoteAgentHostProtocol] subscribe done: ${resource.toString()}`);
 		return result.snapshot;
 	}
 
@@ -1010,11 +1002,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * Unsubscribe from state at a URI.
 	 */
 	unsubscribe(resource: URI): void {
-		this._unsubscribeChannel(resource.toString());
-	}
-
-	private _unsubscribeChannel(channel: string): void {
-		this._sendNotification('unsubscribe', { channel });
+		this._sendNotification('unsubscribe', { channel: resource.toString() });
 	}
 
 	/**

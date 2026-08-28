@@ -670,7 +670,7 @@
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-.sessions-chat-attachment-remove .codicon {
+.sessions-chat-attachment-pill .sessions-chat-attachment-remove .codicon {
 	font-size: var(--vscode-codiconFontSize-compact, 12px);
 	padding: 0;
 }

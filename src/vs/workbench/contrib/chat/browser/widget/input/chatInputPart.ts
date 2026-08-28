@@ -2871,6 +2871,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					state: this._notificationModelState,
 					openPicker: () => this.openModelPicker(),
 					selectModel: modelIdentifier => this.selectNotificationModel(modelIdentifier),
+					applyModelConfiguration: (modelIdentifier, values) => this.applyNotificationModelConfiguration(modelIdentifier, values),
 				},
 				onDidChangeVisibility: (visible, focusTarget) => this.noticeHost.setOccupied(ChatInputNoticeLane.Notification, visible, focusTarget),
 				focusInput: () => this.focus(),
@@ -2897,6 +2898,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 		this.setCurrentLanguageModel(model, true, !this._pendingDelegationTarget);
 		return true;
+	}
+
+	/**
+	 * The store is scoped to the active session, so while a delegation is pending the write
+	 * would land on the source session rather than the target the models belong to.
+	 */
+	private async applyNotificationModelConfiguration(modelIdentifier: string, values: IStringDictionary<unknown>): Promise<void> {
+		if (this._pendingDelegationTarget) {
+			return;
+		}
+		await this._modelConfigStore.setModelConfiguration(modelIdentifier, values);
 	}
 
 	/**
