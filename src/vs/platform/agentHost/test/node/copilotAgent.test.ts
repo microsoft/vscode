@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient, CopilotClientOptions, CopilotSession, GitHubTelemetryNotification, PermissionAllowAllMode, PermissionRequest, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotClientOptions, CopilotSession, GitHubTelemetryNotification, PermissionMode, PermissionRequest, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, TypedSessionEventHandler } from '@github/copilot-sdk';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
@@ -593,6 +593,10 @@ interface ICredentialUpdateSession {
 class MockCopilotSession {
 	readonly sessionId = 'test-session-1';
 	readonly rpc = {
+		eventLog: {
+			registerInterest: async () => ({ handle: 'sampling-interest' }),
+			releaseInterest: async () => ({ success: true }),
+		},
 		options: {
 			update: async () => ({ success: true }),
 		},
@@ -600,7 +604,7 @@ class MockCopilotSession {
 			setCredentials: async () => ({ success: true, copilotUserResolved: true }),
 		},
 		permissions: {
-			setAllowAll: async ({ mode }: { mode: PermissionAllowAllMode }) => ({ success: true, mode }),
+			setMode: async ({ mode }: { mode: PermissionMode }) => ({ success: true, mode }),
 		},
 	};
 	private readonly _handlers = new Set<SessionEventHandler>();
