@@ -656,33 +656,32 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	 * session creation; the SDK exposes it to hosts only through `options.update`, so it
 	 * is applied here to cover both created and resumed sessions.
 	 *
-	 * When managed permission rules are in force this is a security control, so a
-	 * failure fails the launch closed rather than leaving a session whose shell
-	 * operations silently escape enterprise policy. Without managed rules there is no
-	 * policy to escape, and degrading availability for every user over a transient or
-	 * compatibility failure would be the worse trade, so it is logged and the session
-	 * continues.
+	 * This fails the launch closed unconditionally. The host cannot tell whether a
+	 * session is policy-bearing: `IAgentHostManagedSettingsService` only carries the
+	 * legacy VS Code settings bridge, which is itself behind a false-by-default
+	 * compatibility setting, while server and MDM policy is discovered by the runtime
+	 * itself under `enableManagedSettings`. Gating a security control on that signal
+	 * would leave exactly the enterprise sessions it protects unprotected, so the
+	 * option is treated as required for every session.
+	 *
+	 * The client-level `managedSettings.read` is not a usable substitute: it discovers
+	 * only device sources (MDM and managed-file), so a session governed solely by
+	 * GitHub org policy would still read as unmanaged. Approximating the boundary is
+	 * worse than not drawing one.
 	 */
 	private async _applyScriptSafety(session: CopilotSessionWrapper['session'], sessionId: string): Promise<void> {
-		const managed = this._managedSettingsService.permissions;
-		const managedRulesActive = (managed.deny?.length ?? 0) > 0 || (managed.ask?.length ?? 0) > 0;
-		const failure = (reason: string): void => {
-			const message = `[Copilot:${sessionId}] ${reason}; managed permissions cannot govern shell paths`;
-			if (managedRulesActive) {
-				throw new Error(message);
-			}
-			this._logService.warn(message);
-		};
 		try {
 			const result = await session.rpc.options.update({ enableScriptSafety: true });
 			if (!result.success) {
-				failure('SDK rejected enabling script safety');
+				throw new Error('SDK rejected enabling script safety');
 			}
 		} catch (err) {
-			if (managedRulesActive) {
-				throw err;
-			}
-			this._logService.warn(`[Copilot:${sessionId}] Failed to enable script safety; managed permissions cannot govern shell paths`, err);
+			// The runtime reports success for any patch it accepts and signals real
+			// problems by failing the request, so this is the path a genuine failure
+			// takes. Log the reason before it propagates: the launch is aborted below
+			// and the raw RPC error alone would not say which option was refused.
+			this._logService.error(`[Copilot:${sessionId}] Could not enable script safety; managed permissions cannot govern shell paths`, err);
+			throw err;
 		}
 	}
 

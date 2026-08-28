@@ -652,6 +652,7 @@ suite('CopilotSessionLauncher resume fallback', () => {
 			sessionId: 'session-1',
 			on: () => () => { },
 			disconnect: async () => { },
+			rpc: { options: { update: async () => ({ success: true }) } },
 		} as unknown as CopilotSession;
 		const client = {
 			createSession: async () => {
@@ -883,8 +884,8 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 			disconnect: async () => { },
 			rpc: { options: { update: async (options: unknown) => { updates.push(options); return { success: true }; } } },
 		} as unknown as CopilotSession;
-		// Managed rules are in force, so anything short of a successful enablement
-		// would fail the launch rather than warn — the success path is what is asserted.
+		// Enablement is required for every session, so anything short of success would
+		// fail the launch — the success path is what is asserted here.
 		const launcher = createTestLauncher({ deny: ['Shell(rm -rf *)'] });
 		const plan: CopilotSessionLaunchPlan = {
 			kind: 'create',
@@ -908,7 +909,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 		}
 	});
 
-	test('fails the launch closed and disconnects when script safety cannot be enabled under managed rules', async () => {
+	test('fails the launch closed and disconnects when script safety cannot be enabled', async () => {
 		let disconnected = false;
 		const session = {
 			sessionId: 'session-1',
@@ -935,13 +936,17 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 		await launcher.disposeByokProxyHandle();
 	});
 
-	test('keeps the session usable when script safety fails and no managed rules are in force', async () => {
+	test('fails closed even when the host sees no managed rules, since server and MDM policy is invisible to it', async () => {
+		let disconnected = false;
 		const session = {
 			sessionId: 'session-1',
 			on: () => () => { },
-			disconnect: async () => { },
+			disconnect: async () => { disconnected = true; },
 			rpc: { options: { update: async () => ({ success: false }) } },
 		} as unknown as CopilotSession;
+		// No client-bridged rules. `IAgentHostManagedSettingsService` only carries the
+		// legacy VS Code settings bridge, so an enterprise session governed solely by
+		// GitHub or MDM policy looks exactly like this one from the host's side.
 		const launcher = createTestLauncher();
 		const plan: CopilotSessionLaunchPlan = {
 			kind: 'create',
@@ -956,13 +961,9 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 			model: { id: 'claude-sonnet-4.5', config: {} },
 		};
 
-		const wrapper = await launcher.launch(plan, testRuntime);
-		try {
-			assert.ok(wrapper, 'expected the launch to succeed without managed rules');
-		} finally {
-			wrapper.dispose();
-			await launcher.disposeByokProxyHandle();
-		}
+		await assert.rejects(() => launcher.launch(plan, testRuntime), /script safety/);
+		assert.strictEqual(disconnected, true, 'expected the orphaned session to be disconnected');
+		await launcher.disposeByokProxyHandle();
 	});
 
 	test('applies GPT-5.6 customizations when resuming an existing session', async () => {
