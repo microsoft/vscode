@@ -1175,6 +1175,8 @@ export class WorkspacePicker extends Disposable {
 			return undefined;
 		}
 
+		// Let the action-list widget hide before a browse action opens another picker.
+		await Promise.resolve();
 		try {
 			if (action === this._localBrowseAction || action === this._localAddBrowseAction) {
 				const selection = await this._browseForLocalFolder();

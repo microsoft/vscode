@@ -1787,6 +1787,89 @@ suite('WorkspacePicker - Category Triggers', () => {
 		});
 	});
 
+	test('hides the category menu before opening an issue or pull request picker', async () => {
+		class SelectingActionWidgetService extends mock<IActionWidgetService>() {
+			override isVisible = false;
+			private readonly selections = new Map<string, () => void>();
+			private onHide: (() => void) | undefined;
+
+			override show<T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>): void {
+				this.selections.clear();
+				for (const item of items) {
+					const actionItem = item.item;
+					if (item.label && actionItem) {
+						this.selections.set(item.label, () => delegate.onSelect(actionItem));
+					}
+				}
+				this.onHide = delegate.onHide;
+				this.isVisible = true;
+			}
+
+			override hide(): void {
+				this.isVisible = false;
+				this.onHide?.();
+				this.onHide = undefined;
+			}
+
+			select(label: string): void {
+				const select = this.selections.get(label);
+				assert.ok(select);
+				select();
+			}
+		}
+
+		const actionWidgetService = new SelectingActionWidgetService();
+		const pickerVisibilityWhenBrowseRuns: boolean[] = [];
+		const providersService = disposables.add(new MockSessionsProvidersService());
+		providersService.setProviders([createMockProvider('p1', {
+			browseActions: [{
+				...makeBrowseAction('p1', SESSION_WORKSPACE_GROUP_GITHUB, 'Issue...'),
+				attachesContext: true,
+				run: async () => {
+					pickerVisibilityWhenBrowseRuns.push(actionWidgetService.isVisible);
+					return undefined;
+				},
+			}],
+		})]);
+		const picker = createTestPicker(
+			disposables,
+			providersService,
+			undefined,
+			new TestNotificationService(),
+			WorkspacePicker,
+			{},
+			undefined,
+			undefined,
+			{},
+			upcastPartial<IFileService>({
+				onDidChangeFileSystemProviderRegistrations: Event.None,
+				hasProvider: () => true,
+				exists: async () => true,
+			}),
+			actionWidgetService,
+		);
+		const container = document.createElement('div');
+		picker.renderCategoryTriggers(container, [{
+			label: 'Issue/PR',
+			ariaLabel: 'Attach an issue or pull request',
+			icon: Codicon.add,
+			group: SESSION_WORKSPACE_GROUP_GITHUB,
+			attachesContext: true,
+		}]);
+
+		container.querySelector<HTMLElement>('.action-label')?.click();
+		actionWidgetService.select('Issue...');
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			pickerVisibilityWhenBrowseRuns,
+			categoryMenuVisible: actionWidgetService.isVisible,
+		}, {
+			pickerVisibilityWhenBrowseRuns: [false],
+			categoryMenuVisible: false,
+		});
+	});
+
 	test('repository trigger respects the GitHub sign-in action before direct browsing', () => {
 		class CapturingActionWidgetService extends mock<IActionWidgetService>() {
 			override isVisible = false;

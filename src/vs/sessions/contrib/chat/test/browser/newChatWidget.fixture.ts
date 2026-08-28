@@ -64,6 +64,7 @@ interface INewChatWidgetFixtureOptions {
 	readonly withWorkspace?: boolean;
 	readonly withRemoteWorkspace?: boolean;
 	readonly openWorkspacePicker?: boolean;
+	readonly openGitHubContextPicker?: boolean;
 }
 
 /**
@@ -90,6 +91,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		withWorkspace = false,
 		withRemoteWorkspace = false,
 		openWorkspacePicker = false,
+		openGitHubContextPicker = false,
 	} = options;
 	const feedbackItems: readonly IAgentFeedback[] = Array.from({ length: commentCount }, (_, index) => ({
 		id: `feedback-${index}`,
@@ -277,6 +279,12 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		await nextFrame();
 		await nextFrame();
 		view.element.querySelector<HTMLElement>('.sessions-workspace-picker-trigger .action-label')?.click();
+	} else if (openGitHubContextPicker) {
+		const targetWindow = dom.getWindow(container);
+		const nextFrame = () => new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
+		await nextFrame();
+		await nextFrame();
+		view.element.querySelector<HTMLElement>('[aria-label="Attach a GitHub issue or pull request to the new session"]')?.click();
 	}
 
 	if (promptOptions) {
@@ -301,6 +309,10 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	NewSessionWorkspacePicker: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: context => renderNewChatWidget(context, { withWorkspace: true, openWorkspacePicker: true }),
+	}),
+	NewSessionGitHubContextPicker: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderNewChatWidget(context, { withWorkspace: true, openGitHubContextPicker: true }),
 	}),
 	NewSessionRemoteWorkspace: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -411,13 +423,32 @@ function createFixtureProvider(workspace: ISessionWorkspace, sessionTypes: reado
 		override readonly onDidChangeSessionTypes = Event.None;
 		override readonly onDidChangeSessions = Event.None;
 		override readonly onDidChangeModels = Event.None;
-		override readonly browseActions = [{
-			label: 'Repository...',
-			group: SESSION_WORKSPACE_GROUP_GITHUB,
-			icon: Codicon.repo,
-			providerId: this.id,
-			run: async () => workspace,
-		}];
+		override readonly browseActions = [
+			{
+				label: 'Repository...',
+				group: SESSION_WORKSPACE_GROUP_GITHUB,
+				icon: Codicon.repo,
+				providerId: this.id,
+				attachesContext: false,
+				run: async () => workspace,
+			},
+			{
+				label: 'Issue...',
+				group: SESSION_WORKSPACE_GROUP_GITHUB,
+				icon: Codicon.issues,
+				providerId: this.id,
+				attachesContext: true,
+				run: async () => undefined,
+			},
+			{
+				label: 'Pull Request...',
+				group: SESSION_WORKSPACE_GROUP_GITHUB,
+				icon: Codicon.gitPullRequest,
+				providerId: this.id,
+				attachesContext: true,
+				run: async () => undefined,
+			},
+		];
 		override readonly supportsLocalWorkspaces = true;
 
 		override getSessions(): ISession[] {
