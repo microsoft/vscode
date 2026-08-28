@@ -76,6 +76,24 @@ describe('ConfigurationServiceImpl - migrated chat.advanced setting fallback', (
 });
 
 describe('ConfigurationServiceImpl - externally configurable advanced settings', () => {
+	test('reports treatments arriving under any of a setting\'s names as affecting it', () => {
+		mockConfigStore.user = {};
+		mockConfigStore.defaults = {};
+		const key = ConfigKey.TeamInternal.InlineEditsUnification;
+		const service = new ConfigurationServiceImpl(fakeTokenStore);
+
+		const affected: boolean[] = [];
+		service.onDidChangeConfiguration(e => affected.push(e.affectsConfiguration(key.fullyQualifiedId)));
+
+		// A treatment can be published under the `config.` name or the older `copilotchat.config.` one;
+		// both assign the setting, so both have to invalidate its observers.
+		service.updateExperimentBasedConfiguration([`config.${key.fullyQualifiedId}`]);
+		service.updateExperimentBasedConfiguration([`copilotchat.config.${key.id}`]);
+		service.updateExperimentBasedConfiguration(['config.github.copilot.chat.somethingElse']);
+
+		expect(affected).toEqual([true, true, false]);
+	});
+
 	test('reads advanced inline edit settings for external users', () => {
 		mockConfigStore.user = {
 			[ConfigKey.TeamInternal.InlineEditsUnification.fullyQualifiedId]: true,

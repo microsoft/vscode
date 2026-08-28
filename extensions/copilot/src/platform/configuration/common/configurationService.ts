@@ -333,6 +333,31 @@ export abstract class AbstractConfigurationService extends Disposable implements
 		this._onDidChangeConfiguration.fire({ affectsConfiguration: () => true });
 	}
 
+	/**
+	 * Whether any of `treatments` can supply a value for `section`.
+	 *
+	 * Mirrors the alias list in {@link _getExperimentTreatment}: a treatment arriving under one of the
+	 * older names assigns the setting just as much as one under the `config.` name, so it has to
+	 * invalidate the setting's observers too.
+	 */
+	protected _treatmentsAffectConfiguration(treatments: string[], section: string): boolean {
+		const config = globalConfigRegistry.configs.get(section);
+		const names = [`config.${section}`];
+		if (config) {
+			names.push(`copilotchat.config.${config.id}`);
+			if (config.configType === ConfigType.ExperimentBased && config.experimentName) {
+				names.push(config.experimentName);
+			}
+			if (config.fullyQualifiedOldId) {
+				names.push(`config.${config.fullyQualifiedOldId}`);
+			}
+			if (config.oldId) {
+				names.push(`copilotchat.config.${config.oldId}`);
+			}
+		}
+		return treatments.some(treatment => names.some(name => treatment.startsWith(name)));
+	}
+
 	public getConfigObservable<T>(key: Config<T>): IObservable<T> {
 		return this._getObservable_$show2FramesUp(key, () => this.getConfig(key));
 	}

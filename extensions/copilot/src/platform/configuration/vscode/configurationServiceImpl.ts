@@ -311,16 +311,7 @@ export class ConfigurationServiceImpl extends AbstractConfigurationService {
 
 		// Fire simulated event which checks if a configuration is affected in the treatments
 		this._onDidChangeConfiguration.fire({
-			affectsConfiguration: (section: string, _scope?: vscode.ConfigurationScope) => {
-				if (treatments.some(t => t.startsWith(`config.${section}`))) {
-					return true;
-				}
-				const oldId = globalConfigRegistry.configs.get(section)?.fullyQualifiedOldId;
-				if (oldId && treatments.some(t => t.startsWith(`config.${oldId}`))) {
-					return true;
-				}
-				return false;
-			}
+			affectsConfiguration: (section: string, _scope?: vscode.ConfigurationScope) => this._treatmentsAffectConfiguration(treatments, section)
 		});
 	}
 

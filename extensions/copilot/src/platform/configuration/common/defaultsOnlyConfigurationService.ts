@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ConfigurationScope } from 'vscode';
-import { AbstractConfigurationService, BaseConfig, Config, ConfigTarget, globalConfigRegistry, InspectConfigResult } from './configurationService';
+import { AbstractConfigurationService, BaseConfig, Config, ConfigTarget, InspectConfigResult } from './configurationService';
 
 /** Provides only the default values, ignoring the user's settings or exp. */
 
@@ -35,16 +35,7 @@ export class DefaultsOnlyConfigurationService extends AbstractConfigurationServi
 
 		// Fire simulated event which checks if a configuration is affected in the treatments
 		this._onDidChangeConfiguration.fire({
-			affectsConfiguration: (section: string, _scope?: ConfigurationScope) => {
-				if (treatments.some(t => t.startsWith(`config.${section}`))) {
-					return true;
-				}
-				const oldId = globalConfigRegistry.configs.get(section)?.fullyQualifiedOldId;
-				if (oldId && treatments.some(t => t.startsWith(`config.${oldId}`))) {
-					return true;
-				}
-				return false;
-			}
+			affectsConfiguration: (section: string, _scope?: ConfigurationScope) => this._treatmentsAffectConfiguration(treatments, section)
 		});
 	}
 
