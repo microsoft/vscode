@@ -3953,6 +3953,17 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('setSessionConfigValue preserves Autopilot mode when policy disables global auto-approve', async () => {
+		const config = createPolicyRestrictedConfigurationService();
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config });
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await timeout(0);
+
+		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Mode, 'autopilot');
+
+		assert.strictEqual(agentHost.resolveSessionConfigRequests.at(-1)?.config?.mode, 'autopilot');
+	});
+
 	test('branch selection stays on the current workspace and the next workspace resolves its own branch', async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		agentHost.resolveSessionConfigResult = {
@@ -4075,13 +4086,24 @@ suite('LocalAgentHostSessionsProvider', () => {
 			[SessionConfigKey.AutoApprove]: 'autopilot',
 		}), StorageScope.PROFILE, StorageTarget.MACHINE);
 		const provider = createProvider(disposables, agentHost, undefined, { storageService });
+		const policyRestrictedProvider = createProvider(disposables, agentHost, undefined, {
+			configurationService: createPolicyRestrictedConfigurationService(),
+			storageService,
+		});
 		provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		policyRestrictedProvider.createNewSession(URI.parse('file:///home/user/project'), policyRestrictedProvider.sessionTypes[0].id);
 		await timeout(0);
 
-		assert.deepStrictEqual(agentHost.resolveSessionConfigRequests.at(-1)?.config, {
-			mode: 'autopilot',
-			autoApprove: 'default',
-		});
+		assert.deepStrictEqual(agentHost.resolveSessionConfigRequests.map(request => request.config), [
+			{
+				mode: 'autopilot',
+				autoApprove: 'default',
+			},
+			{
+				mode: 'autopilot',
+				autoApprove: 'default',
+			},
+		]);
 	});
 
 	test('createNewSession drops an invalid remembered mode instead of forwarding it', async () => {
@@ -4144,6 +4166,19 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(agentHost.resolveSessionConfigRequests.at(-1)?.config, {
 			mode: 'autopilot',
 			autoApprove: 'autoApprove',
+		});
+	});
+
+	test('createNewSession preserves configured Autopilot mode when policy restricts approvals', async () => {
+		const config = createPolicyRestrictedConfigurationService();
+		await config.setUserConfiguration('chat.defaultConfiguration', { mode: 'autopilot', approvals: 'allowAll' });
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config });
+		provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await timeout(0);
+
+		assert.deepStrictEqual(agentHost.resolveSessionConfigRequests.at(-1)?.config, {
+			mode: 'autopilot',
+			autoApprove: 'default',
 		});
 	});
 
