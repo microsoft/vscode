@@ -36,7 +36,8 @@ export function isSymbolToolResourceInScope(resource: URI, workspaceContextServi
 
 /**
  * Resolves an in-scope URI from tool input. Accepts either a full URI string or
- * a workspace-relative file path.
+ * a file path relative to the working directory when one is provided, or to the
+ * first workspace folder otherwise.
  */
 export function resolveSymbolToolFileUri(input: ISymbolToolInput, workspaceContextService: IWorkspaceContextService, uriIdentityService: IUriIdentityService, workingDirectory?: URI): URI | undefined {
 	if (input.uri) {

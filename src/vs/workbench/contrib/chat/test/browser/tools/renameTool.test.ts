@@ -98,13 +98,13 @@ suite('RenameTool', () => {
 	const noopCountTokens = async () => 0;
 	const noopProgress: ToolProgress = { report() { } };
 
-	function createTool(textModelService: ITextModelService, options?: { bulkEditService?: IBulkEditService }): RenameTool {
+	function createTool(textModelService: ITextModelService, options?: { bulkEditService?: IBulkEditService; chatService?: IChatService }): RenameTool {
 		return new RenameTool(
 			langFeatures,
 			textModelService,
 			createMockWorkspaceService(),
 			uriIdentityService,
-			createMockChatService(),
+			options?.chatService ?? createMockChatService(),
 			options?.bulkEditService ?? createMockBulkEditService(),
 		);
 	}
@@ -405,6 +405,46 @@ suite('RenameTool', () => {
 			}
 
 			assert.strictEqual(bulkEditService.appliedEdits.length, 0);
+		});
+
+		test('rejects non-text edits in chat context', async () => {
+			const model = disposables.add(createTextModel(testContent, 'typescript', undefined, testUri));
+			disposables.add(langFeatures.renameProvider.register('typescript', {
+				provideRenameEdits: (): WorkspaceEdit & Rejection => ({
+					edits: [
+						makeEdit(testUri, new Range(1, 10, 1, 17), 'MyNewClass'),
+						{ oldResource: testUri, newResource: URI.parse('file:///test/renamed.ts') },
+					]
+				}),
+			}));
+			let progressCount = 0;
+			const chatService = {
+				_serviceBrand: undefined,
+				getSession: () => ({
+					getRequests: () => [{}],
+					acceptResponseProgress: () => progressCount++,
+				}),
+			} as unknown as IChatService;
+			const bulkEditService = createMockBulkEditService();
+			const tool = disposables.add(createTool(createMockTextModelService(model), { bulkEditService, chatService }));
+
+			const result = await tool.invoke(
+				{
+					parameters: { symbol: 'MyClass', newName: 'MyNewClass', uri: testUri.toString(), lineContent: 'import { MyClass }' },
+					context: { sessionResource: URI.parse('chat-session:test') },
+				} as unknown as IToolInvocation,
+				noopCountTokens, noopProgress, CancellationToken.None
+			);
+
+			assert.deepStrictEqual({
+				result: getTextContent(result),
+				progressCount,
+				appliedEditCount: bulkEditService.appliedEdits.length,
+			}, {
+				result: 'Rename was not applied because it produced edits that cannot be reviewed in chat.',
+				progressCount: 0,
+				appliedEditCount: 0,
+			});
 		});
 
 		test('result includes toolResultMessage', async () => {

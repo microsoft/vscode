@@ -39,7 +39,7 @@ Input:
 - "symbol": The exact current name of the symbol to rename.
 - "newName": The new name for the symbol.
 - "uri": A full URI (e.g. "file:///path/to/file.ts") of a file within the current workspace or working directory where the symbol appears. Provide either "uri" or "filePath".
-- "filePath": A workspace-relative file path (e.g. "src/utils/helpers.ts") of a file where the symbol appears. Provide either "uri" or "filePath".
+- "filePath": A file path relative to the current working directory when one is set, otherwise the first workspace folder (e.g. "src/utils/helpers.ts"). Provide either "uri" or "filePath".
 - "lineContent": A substring of the line of code where the symbol appears. This is used to locate the exact position in the file. Must be the actual text from the file - do NOT fabricate it.
 
 IMPORTANT: The file and line do NOT need to be the definition of the symbol. Any occurrence works - a usage, an import, a call site, etc. You can pick whichever occurrence is most convenient.
@@ -102,7 +102,7 @@ export class RenameTool extends Disposable implements IToolImpl {
 					},
 					filePath: {
 						type: 'string',
-						description: 'A workspace-relative file path where the symbol appears (e.g. "src/utils/helpers.ts"). Provide either "uri" or "filePath".'
+						description: 'A file path relative to the current working directory when one is set, otherwise the first workspace folder, where the symbol appears (e.g. "src/utils/helpers.ts"). Provide either "uri" or "filePath".'
 					},
 					lineContent: {
 						type: 'string',
@@ -127,7 +127,7 @@ export class RenameTool extends Disposable implements IToolImpl {
 		// --- resolve URI ---
 		const uri = resolveSymbolToolFileUri(input, this._workspaceContextService, this._uriIdentityService, invocation.context?.workingDirectory);
 		if (!uri) {
-			return errorResult('Provide either "uri" (a full URI) or "filePath" (a workspace-relative path) to identify a file within the current workspace or working directory.');
+			return errorResult(localize('tool.rename.invalidFile', 'Provide either "uri" (a full URI) or "filePath" (a workspace-relative path) to identify a file within the current workspace or working directory.'));
 		}
 
 		// --- open text model ---
@@ -166,7 +166,7 @@ export class RenameTool extends Disposable implements IToolImpl {
 			}
 
 			if (this._containsOutOfScopeEdit(renameResult.edits, invocation.context?.workingDirectory)) {
-				return errorResult('Rename was not applied because it would modify files outside the current workspace or working directory.');
+				return errorResult(localize('tool.rename.outOfScopeEdit', 'Rename was not applied because it would modify files outside the current workspace or working directory.'));
 			}
 
 			// --- apply edits via chat response stream ---
@@ -175,6 +175,10 @@ export class RenameTool extends Disposable implements IToolImpl {
 				const request = chatModel?.getRequests().at(-1);
 
 				if (chatModel && request) {
+					if (renameResult.edits.some(edit => !ResourceTextEdit.is(edit))) {
+						return errorResult(localize('tool.rename.unsupportedEdit', 'Rename was not applied because it produced edits that cannot be reviewed in chat.'));
+					}
+
 					// Group text edits by URI
 					const editsByUri = new ResourceMap<TextEdit[]>();
 					for (const edit of renameResult.edits) {

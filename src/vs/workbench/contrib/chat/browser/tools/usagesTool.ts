@@ -36,7 +36,7 @@ const BaseModelDescription = `Find all usages (references, definitions, and impl
 Input:
 - "symbol": The exact name of the symbol to search for (function, class, method, variable, type, etc.).
 - "uri": A full URI (e.g. "file:///path/to/file.ts") of a file within the current workspace or working directory where the symbol appears. Provide either "uri" or "filePath".
-- "filePath": A workspace-relative file path (e.g. "src/utils/helpers.ts") of a file where the symbol appears. Provide either "uri" or "filePath".
+- "filePath": A file path relative to the current working directory when one is set, otherwise the first workspace folder (e.g. "src/utils/helpers.ts"). Provide either "uri" or "filePath".
 - "lineContent": A substring of the line of code where the symbol appears. This is used to locate the exact position in the file. Must be the actual text from the file - do NOT fabricate it.
 
 IMPORTANT: The file and line do NOT need to be the definition of the symbol. Any occurrence works - a usage, an import, a call site, etc. You can pick whichever occurrence is most convenient.
@@ -95,7 +95,7 @@ export class UsagesTool extends Disposable implements IToolImpl {
 					},
 					filePath: {
 						type: 'string',
-						description: 'A workspace-relative file path where the symbol appears (e.g. "src/utils/helpers.ts"). Provide either "uri" or "filePath".'
+						description: 'A file path relative to the current working directory when one is set, otherwise the first workspace folder, where the symbol appears (e.g. "src/utils/helpers.ts"). Provide either "uri" or "filePath".'
 					},
 					lineContent: {
 						type: 'string',
@@ -120,7 +120,7 @@ export class UsagesTool extends Disposable implements IToolImpl {
 		// --- resolve URI ---
 		const uri = resolveSymbolToolFileUri(input, this._workspaceContextService, this._uriIdentityService, invocation.context?.workingDirectory);
 		if (!uri) {
-			return errorResult('Provide either "uri" (a full URI) or "filePath" (a workspace-relative path) to identify a file within the current workspace or working directory.');
+			return errorResult(localize('tool.usages.invalidFile', 'Provide either "uri" (a full URI) or "filePath" (a workspace-relative path) to identify a file within the current workspace or working directory.'));
 		}
 
 		// --- open text model ---
