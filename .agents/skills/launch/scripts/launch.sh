@@ -14,7 +14,8 @@
 # Usage:
 #   launch.sh [--agents] [--session-title <title>] [--source-user-data-dir <path>] [--repo <vscode-repo-root>]
 #             [--clone-extensions] [--full] [--skip-prelaunch]
-#             [--disable-workspace-trust] [-- <extra code.sh args>]
+#             [--disable-workspace-trust] [--setup-profile]
+#             [-- <extra code.sh args>]
 #
 # Flags:
 #   --clone-extensions  Copy the source extensions/ into the new profile (~10s).
@@ -44,6 +45,7 @@ FULL=0
 SKIP_PRELAUNCH=0
 DISABLE_WORKSPACE_TRUST=0
 SESSION_TITLE=""
+SETUP_PROFILE=0
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
@@ -62,6 +64,7 @@ while [[ $# -gt 0 ]]; do
 		--full) FULL=1; shift ;;
 		--skip-prelaunch) SKIP_PRELAUNCH=1; shift ;;
 		--disable-workspace-trust) DISABLE_WORKSPACE_TRUST=1; shift ;;
+		--setup-profile) SETUP_PROFILE=1; shift ;;
 		--) shift; EXTRA_ARGS=("$@"); break ;;
 		*) echo "Unknown arg: $1" >&2; exit 2 ;;
 	esac
@@ -83,9 +86,42 @@ if [[ -z "$REPO" ]]; then
 fi
 
 if [[ ! -d "$SOURCE_UDD" ]]; then
-	echo "Source user-data-dir does not exist: $SOURCE_UDD" >&2
-	echo "Pass --source-user-data-dir <path> or set CODE_OSS_DEV_AUTHED_USER_DATA_DIR." >&2
+	if [[ "$SETUP_PROFILE" == "1" ]]; then
+		mkdir -p "$SOURCE_UDD"
+	else
+		echo "Source user-data-dir does not exist: $SOURCE_UDD" >&2
+		echo "Run with --setup-profile to create and authenticate it, pass --source-user-data-dir <path>, or set CODE_OSS_DEV_AUTHED_USER_DATA_DIR." >&2
+		exit 2
+	fi
+fi
+
+CODE_SH="$REPO/scripts/code.sh"
+if [[ ! -x "$CODE_SH" ]]; then
+	echo "Could not find an executable Code OSS launcher at $CODE_SH. Pass --repo <vscode-repo-root>." >&2
 	exit 2
+fi
+
+if [[ "$SETUP_PROFILE" == "1" ]]; then
+	unset ELECTRON_RUN_AS_NODE
+	SETUP_ARGS=("--user-data-dir=$SOURCE_UDD")
+	if [[ "$AGENTS" == "1" ]]; then
+		SETUP_ARGS=("--agents" "${SETUP_ARGS[@]}")
+	fi
+	if [[ "$DISABLE_WORKSPACE_TRUST" == "1" ]]; then
+		SETUP_ARGS+=("--disable-workspace-trust")
+	fi
+	if (( ${#EXTRA_ARGS[@]} )); then
+		SETUP_ARGS+=("${EXTRA_ARGS[@]}")
+	fi
+	echo "[launch.sh] opening persistent setup profile: $SOURCE_UDD" >&2
+	echo "[launch.sh] Sign in to GitHub/Copilot, then close Code OSS to finish setup." >&2
+	if [[ "$SKIP_PRELAUNCH" == "1" ]]; then
+		VSCODE_SKIP_PRELAUNCH=1 "$CODE_SH" "${SETUP_ARGS[@]}"
+	else
+		"$CODE_SH" "${SETUP_ARGS[@]}"
+	fi
+	node -e 'console.log(JSON.stringify({ profileReady: true, authenticationVerified: null, userDataDir: process.argv[1], repo: process.argv[2] }))' "$SOURCE_UDD" "$REPO"
+	exit 0
 fi
 
 PORTS=$(node <<'NODE'
@@ -199,12 +235,6 @@ PROFILE_READY_MS=$(monotonic_ms)
 # Strip host-only process configuration commonly inherited from VS Code's
 # integrated terminal and agent runtimes.
 unset ELECTRON_RUN_AS_NODE GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS
-
-CODE_SH="$REPO/scripts/code.sh"
-if [[ ! -x "$CODE_SH" ]]; then
-	echo "Could not find an executable Code OSS launcher at $CODE_SH. Pass --repo <vscode-repo-root>." >&2
-	exit 2
-fi
 
 ARGS=(
 	"--user-data-dir=$DEST_UDD"
