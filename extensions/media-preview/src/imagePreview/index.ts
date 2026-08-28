@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { BinarySizeStatusBarEntry } from '../binarySizeStatusBarEntry';
-import { MediaPreview, PreviewState, reopenAsText } from '../mediaPreview';
+import { MediaPreview, PreviewState, isGitLfsPointer, reopenAsText } from '../mediaPreview';
 import { escapeAttribute } from '../util/dom';
 import { generateUuid } from '../util/uuid';
 import { SizeStatusBarEntry } from './sizeStatusBarEntry';
@@ -74,8 +74,6 @@ class ImagePreview extends MediaPreview {
 
 	private _imageSize: string | undefined;
 	private _imageZoom: Scale | undefined;
-
-	private readonly emptyPngDataUri = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAEElEQVR42gEFAPr/AP///wAI/AL+Sr4t6gAAAABJRU5ErkJggg==';
 
 	constructor(
 		private readonly extensionRoot: vscode.Uri,
@@ -181,8 +179,10 @@ class ImagePreview extends MediaPreview {
 
 	protected override async getWebviewContents(): Promise<string> {
 		const version = Date.now().toString();
+		const src = await this.getResourcePath(this._webviewEditor, this._resource, version);
 		const settings = {
-			src: await this.getResourcePath(this._webviewEditor, this._resource, version),
+			src,
+			isGitLfs: src === null,
 		};
 
 		const nonce = generateUuid();
@@ -210,17 +210,18 @@ class ImagePreview extends MediaPreview {
 		<p>${vscode.l10n.t("An error occurred while loading the image.")}</p>
 		<a href="#" class="open-file-link">${vscode.l10n.t("Open file using VS Code's standard text/binary editor?")}</a>
 	</div>
+	<div class="git-lfs-info">
+		<p>${vscode.l10n.t("The image is stored with Git LFS and is not available for preview.")}</p>
+		<a href="#" class="open-file-link">${vscode.l10n.t("Open file using VS Code's standard text/binary editor?")}</a>
+	</div>
 	<script src="${escapeAttribute(this.extensionResource('media', 'imagePreview.js'))}" nonce="${nonce}"></script>
 </body>
 </html>`;
 	}
 
-	private async getResourcePath(webviewEditor: vscode.WebviewPanel, resource: vscode.Uri, version: string): Promise<string> {
-		if (resource.scheme === 'git') {
-			const stat = await vscode.workspace.fs.stat(resource);
-			if (stat.size === 0) {
-				return this.emptyPngDataUri;
-			}
+	private async getResourcePath(webviewEditor: vscode.WebviewPanel, resource: vscode.Uri, version: string): Promise<string | null> {
+		if (await isGitLfsPointer(resource)) {
+			return null;
 		}
 
 		// Avoid adding cache busting if there is already a query string

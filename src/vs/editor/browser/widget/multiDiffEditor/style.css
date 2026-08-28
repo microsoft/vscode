@@ -89,17 +89,20 @@
 
 				.file-path {
 					display: flex;
-					flex: 1;
+					flex: 1 1 auto;
 					min-width: 0;
+					overflow: hidden;
 
 					.title {
 						font-size: 14px;
 						line-height: 22px;
+						flex: 0 1 auto;
+						min-width: 0;
+						overflow: hidden;
+						text-overflow: ellipsis;
 
 						&.original {
-							flex: 1;
-							min-width: 0;
-							text-overflow: ellipsis;
+							flex: 1 1 auto;
 						}
 					}
 
@@ -123,10 +126,15 @@
 							color: v ar(--vscode-gitDecoration-addedResourceForeground);
 						}
 						*/
+
+						&:not(.added):not(.deleted):not(.renamed) {
+							display: none;
+						}
 					}
 				}
 
 				.actions {
+					flex: 0 0 auto;
 					padding: 0 8px;
 				}
 			}

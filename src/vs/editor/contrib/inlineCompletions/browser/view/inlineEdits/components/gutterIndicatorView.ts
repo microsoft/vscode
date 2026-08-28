@@ -13,9 +13,7 @@ import { IAccessibilityService } from '../../../../../../../platform/accessibili
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
-import { IEditorMouseEvent } from '../../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
-import { Point } from '../../../../../../common/core/2d/point.js';
 import { Rect } from '../../../../../../common/core/2d/rect.js';
 import { HoverService } from '../../../../../../../platform/hover/browser/hoverService.js';
 import { HoverWidget } from '../../../../../../../platform/hover/browser/hoverWidget.js';
@@ -127,6 +125,8 @@ export class InlineEditsGutterIndicator extends Disposable {
 			? observableFromEvent(this._stickyScrollController.onDidChangeStickyScrollHeight, () => this._stickyScrollController!.stickyScrollWidgetHeight)
 			: constObservable(0);
 
+		this._isHoveredOverInlineEditDebounced = debouncedObservable(this._isHoveringOverInlineEdit, 100);
+
 		const indicator = this._indicator.keepUpdated(this._store);
 
 		this._register(this._editorObs.createOverlayWidget({
@@ -136,22 +136,9 @@ export class InlineEditsGutterIndicator extends Disposable {
 			minContentWidthInPx: constObservable(0),
 		}));
 
-		this._register(this._editorObs.editor.onMouseMove((e: IEditorMouseEvent) => {
-			const state = this._state.get();
-			if (state === undefined) { return; }
-
-			const el = this._iconRef.element;
-			const rect = el.getBoundingClientRect();
-			const rectangularArea = Rect.fromLeftTopWidthHeight(rect.left, rect.top, rect.width, rect.height);
-			const point = new Point(e.event.posx, e.event.posy);
-			this._isHoveredOverIcon.set(rectangularArea.containsPoint(point), undefined);
-		}));
-
 		this._register(this._editorObs.editor.onDidScrollChange(() => {
 			this._isHoveredOverIcon.set(false, undefined);
 		}));
-
-		this._isHoveredOverInlineEditDebounced = debouncedObservable(this._isHoveringOverInlineEdit, 100);
 
 		// pulse animation when hovering inline edit
 		this._register(runOnChange(this._isHoveredOverInlineEditDebounced, (isHovering) => {
@@ -391,7 +378,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 
 			let widthUntilLineNumberEnd;
 			if (layout.lineNumbersWidth === 0) {
-				widthUntilLineNumberEnd = Math.min(Math.max(layout.lineNumbersLeft - gutterViewPortWithStickyScroll.left, 0), pillRect.width - idealIconAreaWidth);
+				widthUntilLineNumberEnd = Math.max(0, Math.min(Math.max(layout.lineNumbersLeft - gutterViewPortWithStickyScroll.left, 0), pillRect.width - idealIconAreaWidth));
 			} else {
 				widthUntilLineNumberEnd = Math.max(layout.lineNumbersLeft + layout.lineNumbersWidth - gutterViewPortWithStickyScroll.left, 0);
 			}
@@ -548,9 +535,11 @@ export class InlineEditsGutterIndicator extends Disposable {
 			},
 
 			onmouseenter: () => {
+				this._isHoveredOverIcon.set(true, undefined);
 				// TODO show hover when hovering ghost text etc.
 				this._showHover();
 			},
+			onmouseleave: () => this._isHoveredOverIcon.set(false, undefined),
 			style: {
 				cursor: 'pointer',
 				zIndex: '20',

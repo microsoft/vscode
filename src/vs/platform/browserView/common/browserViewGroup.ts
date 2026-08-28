@@ -5,16 +5,10 @@
 
 import { Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
+import { IBrowserViewAudience, IBrowserViewCreationContext, matchesBrowserViewAudience } from './browserView.js';
+import { CDPEvent, CDPRequest, CDPResponse } from './cdp/types.js';
 
 export const ipcBrowserViewGroupChannelName = 'browserViewGroup';
-
-/**
- * Fired when a browser view is added to or removed from a group.
- */
-export interface IBrowserViewGroupViewEvent {
-	/** The ID of the browser view that was added or removed. */
-	readonly viewId: string;
-}
 
 /**
  * A browser view group - an isolated collection of browser views.
@@ -24,13 +18,23 @@ export interface IBrowserViewGroupViewEvent {
 export interface IBrowserViewGroup extends IDisposable {
 	readonly id: string;
 
-	readonly onDidAddView: Event<IBrowserViewGroupViewEvent>;
-	readonly onDidRemoveView: Event<IBrowserViewGroupViewEvent>;
 	readonly onDidDestroy: Event<void>;
+	readonly onCDPMessage: Event<CDPResponse | CDPEvent>;
 
-	addView(viewId: string): Promise<void>;
-	removeView(viewId: string): Promise<void>;
-	getDebugWebSocketEndpoint(): Promise<string>;
+	sendCDPMessage(msg: CDPRequest): Promise<void>;
+}
+
+export interface IBrowserViewGroupFilter {
+	/** Include views granted to this audience. */
+	readonly audience?: IBrowserViewAudience;
+	/** Include these views regardless of their audiences. */
+	readonly browserIds?: readonly string[];
+}
+
+export function matchesBrowserViewGroupFilter(browserId: string, audiences: readonly IBrowserViewAudience[], filter: IBrowserViewGroupFilter): boolean {
+	const audienceFilter = filter.audience;
+	return filter.browserIds?.includes(browserId) === true
+		|| (audienceFilter !== undefined && audiences.some(audience => matchesBrowserViewAudience(audienceFilter, audience)));
 }
 
 /**
@@ -45,16 +49,16 @@ export interface IBrowserViewGroup extends IDisposable {
 export interface IBrowserViewGroupService {
 
 	// Dynamic events - one per group instance, keyed by group ID.
-	onDynamicDidAddView(groupId: string): Event<IBrowserViewGroupViewEvent>;
-	onDynamicDidRemoveView(groupId: string): Event<IBrowserViewGroupViewEvent>;
 	onDynamicDidDestroy(groupId: string): Event<void>;
+	onDynamicCDPMessage(groupId: string): Event<CDPResponse | CDPEvent>;
 
 	/**
 	 * Create a new browser view group.
-	 * @param windowId The ID of the primary window the group should be associated with.
+	 * @param filter The browser views to include in the group.
+	 * @param targetContext Context inherited by targets created through the group's CDP endpoint.
 	 * @returns The id of the newly created group.
 	 */
-	createGroup(windowId: number): Promise<string>;
+	createGroup(filter: IBrowserViewGroupFilter, targetContext: IBrowserViewCreationContext): Promise<string>;
 
 	/**
 	 * Destroy a browser view group.
@@ -64,24 +68,9 @@ export interface IBrowserViewGroupService {
 	destroyGroup(groupId: string): Promise<void>;
 
 	/**
-	 * Add a browser view to a group.
-	 * A view can belong to multiple groups simultaneously.
+	 * Send a CDP message to a group's browser proxy.
 	 * @param groupId The group identifier.
-	 * @param viewId The browser view identifier.
+	 * @param message The CDP request.
 	 */
-	addViewToGroup(groupId: string, viewId: string): Promise<void>;
-
-	/**
-	 * Remove a browser view from a group.
-	 * @param groupId The group identifier.
-	 * @param viewId The browser view identifier.
-	 */
-	removeViewFromGroup(groupId: string, viewId: string): Promise<void>;
-
-	/**
-	 * Get a short-lived CDP WebSocket endpoint URL for a specific group.
-	 * The returned URL contains a single-use token.
-	 * @param groupId The group identifier.
-	 */
-	getDebugWebSocketEndpoint(groupId: string): Promise<string>;
+	sendCDPMessage(groupId: string, message: CDPRequest): Promise<void>;
 }

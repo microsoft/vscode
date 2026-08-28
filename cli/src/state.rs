@@ -15,7 +15,7 @@ use std::{
 use serde::{de::DeserializeOwned, Serialize};
 
 use crate::{
-	constants::{DEFAULT_DATA_PARENT_DIR, VSCODE_CLI_QUALITY},
+	constants::{DEFAULT_DATA_PARENT_DIR, SERVER_DATA_PARENT_DIR, VSCODE_CLI_QUALITY},
 	download_cache::DownloadCache,
 	util::errors::{wrap, AnyError, NoHomeForLauncherError, WrappedError},
 };
@@ -235,6 +235,29 @@ impl LauncherPaths {
 				),
 			)
 		})
+	}
+
+	/// Suggested path for the detached `code agent host` supervisor's log
+	/// file. The supervisor severs its inherited stdio after signalling
+	/// readiness, so a file log is the only way to debug post-handoff
+	/// issues (download progress, AH child crashes, update loop errors).
+	pub fn agent_host_log_file(&self) -> PathBuf {
+		self.agent_host_root().join(format!(
+			"agent-host-{}.log",
+			VSCODE_CLI_QUALITY.unwrap_or("oss")
+		))
+	}
+
+	/// Canonical machine-wide directory holding the detached `code agent
+	/// host` supervisor's log file. Anchored on `serverDataFolderName`
+	/// rather than `self.root` so different `--cli-data-dir` values still
+	/// land on the same log file. Falls back to `self.root` when no home
+	/// directory is available.
+	fn agent_host_root(&self) -> PathBuf {
+		match dirs::home_dir() {
+			Some(home) => home.join(SERVER_DATA_PARENT_DIR).join("cli"),
+			None => self.root.clone(),
+		}
 	}
 
 	/// Suggested path for web server storage

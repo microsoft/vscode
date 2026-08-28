@@ -6,10 +6,12 @@
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { localize } from '../../../../nls.js';
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
+import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { ChatConfiguration, ChatModeKind, OPEN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDITION, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID } from '../common/constants.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
-import { ChatConfiguration, ChatModeKind } from '../common/constants.js';
+import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { localChatSessionType } from '../common/chatSessionsService.js';
 import { ITipExclusionConfig } from './chatTipEligibilityTracker.js';
 import { TipTrackingCommands } from './chatTipStorageKeys.js';
@@ -19,11 +21,19 @@ import {
 	GENERATE_PROMPT_COMMAND_ID,
 	GENERATE_SKILL_COMMAND_ID,
 	INSERT_FORK_CONVERSATION_COMMAND_ID,
+	INSERT_TROUBLESHOOT_COMMAND_ID,
 } from './actions/chatActions.js';
 
 export const enum ChatTipTier {
 	Foundational = 'foundational',
 	Qol = 'qol',
+}
+
+/**
+ * Treatment names for tip messages overridable via the workbench assignment service.
+ */
+export const enum ChatTipExperiment {
+	OpenAgentsWindowTip = 'openagentswindowtip',
 }
 
 /**
@@ -34,6 +44,11 @@ export interface ITipBuildContext {
 	 * Keybinding service for looking up keyboard shortcuts.
 	 */
 	readonly keybindingService: IKeybindingService;
+	/**
+	 * Experimental tip message overrides keyed by treatment name (see {@link ChatTipExperiment}).
+	 * Builders should fall back to their default localized strings when a treatment is not set.
+	 */
+	readonly experimentalTipMessages: ReadonlyMap<string, string>;
 }
 
 /**
@@ -96,6 +111,15 @@ export interface ITipDefinition extends ITipExclusionConfig {
 	 * When clause expression that determines if this tip is eligible to be shown.
 	 */
 	readonly when?: ContextKeyExpression;
+	/**
+	 * Command IDs that must be registered for this tip to be eligible.
+	 */
+	readonly requiresCommands?: readonly string[];
+	/**
+	 * Chat mode names that must be available in the current widget for this tip to
+	 * be eligible.
+	 */
+	readonly requiresModeNames?: readonly string[];
 	/**
 	 * Chat model IDs for which this tip is eligible (lowercase).
 	 */
@@ -229,13 +253,14 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 			return new MarkdownString(
 				localize(
 					'tip.planMode',
-					"Try the [{0}](command:workbench.action.chat.openPlan \"Start Plan Mode\"){1} to research and plan before implementing changes.",
+					"Try the [{0}](command:workbench.action.chat.open?%5B%7B%22mode%22%3A%22Plan%22%7D%5D \"Start Plan Mode\"){1} to research and plan before implementing changes.",
 					'Plan agent',
 					kb
 				)
 			);
 		},
 		when: ChatContextKeys.chatModeName.notEqualsTo('Plan'),
+		requiresModeNames: ['Plan'],
 		excludeWhenCommandsExecuted: ['workbench.action.chat.openPlan'],
 		excludeWhenModesUsed: ['Plan'],
 	},
@@ -263,6 +288,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 				localize('tip.codeActions', "Select a code block in the editor and right-click to access more AI actions.")
 			);
 		},
+		when: IsSessionsWindowContext.negate(),
 		excludeWhenCommandsExecuted: ['inlineChat.start'],
 	},
 	{
@@ -315,25 +341,6 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		],
 	},
 	{
-		id: 'tip.agenticBrowser',
-		tier: ChatTipTier.Qol,
-		buildMessage() {
-			return new MarkdownString(
-				localize(
-					'tip.agenticBrowser',
-					"Enable [{0}](command:workbench.action.openSettings?%5B%22workbench.browser.enableChatTools%22%5D \"Open Settings\") to let the agent open and interact with pages in the Integrated Browser.",
-					'agentic browser integration'
-				)
-			);
-		},
-		when: ContextKeyExpr.and(
-			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
-			ContextKeyExpr.notEquals('config.workbench.browser.enableChatTools', true),
-		),
-		excludeWhenSettingsChanged: ['workbench.browser.enableChatTools'],
-		dismissWhenCommandsClicked: ['workbench.action.openSettings'],
-	},
-	{
 		id: 'tip.mermaid',
 		tier: ChatTipTier.Qol,
 		buildMessage() {
@@ -370,6 +377,106 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		},
 		when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 		excludeWhenSettingsChanged: [ChatConfiguration.ThinkingPhrases],
+		dismissWhenCommandsClicked: ['workbench.action.openSettings'],
+	},
+	{
+		id: 'tip.autoAcceptDelay',
+		tier: ChatTipTier.Qol,
+		buildMessage() {
+			return new MarkdownString(
+				localize(
+					'tip.autoAcceptDelay',
+					"Configure [{0}](command:workbench.action.openSettings?%5B%22chat.editing.autoAcceptDelay%22%5D \"Open Settings\") to automatically accept changes from the agent after a short countdown.",
+					'auto-accept delay'
+				)
+			);
+		},
+		when: ContextKeyExpr.and(
+			IsSessionsWindowContext.negate(),
+			ContextKeyExpr.or(
+				ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
+				ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Edit),
+			),
+		),
+		excludeWhenSettingsChanged: ['chat.editing.autoAcceptDelay'],
+		dismissWhenCommandsClicked: ['workbench.action.openSettings'],
+	},
+	{
+		id: 'tip.troubleshoot',
+		tier: ChatTipTier.Qol,
+		buildMessage(ctx) {
+			const kb = formatKeybinding(ctx, INSERT_TROUBLESHOOT_COMMAND_ID);
+			return new MarkdownString(
+				localize(
+					'tip.troubleshoot',
+					"Something not working? Type [{0}](command:{1} \"Run /troubleshoot\"){2} <question> to diagnose issues from debug logs.",
+					'/troubleshoot',
+					INSERT_TROUBLESHOOT_COMMAND_ID,
+					kb
+				)
+			);
+		},
+		when: ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
+		excludeWhenToolsInvoked: ['listDebugEvents'],
+	},
+	{
+		id: 'tip.agentsWindow',
+		tier: ChatTipTier.Qol,
+		buildMessage(ctx) {
+			const defaultMessage = localize(
+				'tip.agentsWindow',
+				"Work across multiple projects at once in the [Agents window](command:{0} \"Open Agents Window\").",
+				OPEN_AGENTS_WINDOW_COMMAND_ID
+			);
+			const experimentalTemplate = ctx.experimentalTipMessages.get(ChatTipExperiment.OpenAgentsWindowTip);
+			const message = experimentalTemplate
+				? experimentalTemplate.replace(/\{0\}/g, OPEN_AGENTS_WINDOW_COMMAND_ID)
+				: defaultMessage;
+			return new MarkdownString(message);
+		},
+		when: ContextKeyExpr.and(IsWebContext.negate(), OPEN_AGENTS_WINDOW_PRECONDITION),
+		excludeWhenCommandsExecuted: [
+			OPEN_AGENTS_WINDOW_COMMAND_ID,
+			OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID,
+		],
+	},
+	{
+		id: 'tip.copilotCli',
+		tier: ChatTipTier.Qol,
+		buildMessage() {
+			return new MarkdownString(
+				localize(
+					'tip.copilotCli',
+					"Run agents in parallel with [Copilot CLI](command:workbench.action.chat.openNewChatSessionInPlace.copilotcli?%5B%22sidebar%22%5D \"Switch to Copilot CLI\")."
+				)
+			);
+		},
+		when: ContextKeyExpr.and(
+			IsSessionsWindowContext.negate(),
+			ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
+			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
+			ChatContextKeys.hasCanDelegateProviders,
+		),
+		excludeWhenCommandsExecuted: ['workbench.action.chat.openNewChatSessionInPlace.copilotcli'],
+	},
+	{
+		id: 'tip.defaultPermissions',
+		tier: ChatTipTier.Qol,
+		buildMessage() {
+			return new MarkdownString(
+				localize(
+					'tip.defaultPermissions',
+					"Configure [{0}](command:workbench.action.openSettings?%5B%22{1}%22%5D \"Open Settings\") to start new sessions in Bypass Approvals or Autopilot mode.",
+					'default permissions',
+					ChatConfiguration.DefaultPermissionLevel
+				)
+			);
+		},
+		when: ContextKeyExpr.or(
+			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
+			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Edit),
+		),
+		excludeWhenSettingsChanged: [ChatConfiguration.DefaultPermissionLevel],
 		dismissWhenCommandsClicked: ['workbench.action.openSettings'],
 	},
 ];

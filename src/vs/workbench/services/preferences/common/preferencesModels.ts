@@ -20,13 +20,21 @@ import { ConfigurationDefaultValueSource, ConfigurationScope, Extensions, IConfi
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorModel } from '../../../common/editor/editorModel.js';
-import { IFilterMetadata, IFilterResult, IGroupFilter, IKeybindingsEditorModel, ISearchResultGroup, ISetting, ISettingMatch, ISettingMatcher, ISettingsEditorModel, ISettingsGroup, SettingMatchType } from './preferences.js';
+import { IFilterResult, IGroupFilter, IKeybindingsEditorModel, ISearchResultGroup, ISetting, ISettingMatch, ISettingMatcher, ISettingsEditorModel, ISettingsGroup, SettingMatchType } from './preferences.js';
 import { FOLDER_SCOPES, WORKSPACE_SCOPES } from '../../configuration/common/configuration.js';
 import { createValidator } from './preferencesValidation.js';
 import { isString } from '../../../../base/common/types.js';
 
 export const nullRange: IRange = { startLineNumber: -1, startColumn: -1, endLineNumber: -1, endColumn: -1 };
 function isNullRange(range: IRange): boolean { return range.startLineNumber === -1 && range.startColumn === -1 && range.endLineNumber === -1 && range.endColumn === -1; }
+
+/**
+ * Strips VS Code's custom `#settingId#` link syntax from a markdown string so the setting key
+ * remains as inline code (e.g. `` `settingId` ``). Useful for contexts that don't render markdown links.
+ */
+export function fixSettingLinks(text: string): string {
+	return text.replace(/`#([^#`]*)#`/g, (_, settingName) => `\`${settingName}\``);
+}
 
 abstract class AbstractSettingsModel extends EditorModel {
 
@@ -96,20 +104,6 @@ abstract class AbstractSettingsModel extends EditorModel {
 
 		return undefined;
 	}
-
-	protected collectMetadata(groups: ISearchResultGroup[]): IStringDictionary<IFilterMetadata> | null {
-		const metadata = Object.create(null);
-		let hasMetadata = false;
-		groups.forEach(g => {
-			if (g.result.metadata) {
-				metadata[g.id] = g.result.metadata;
-				hasMetadata = true;
-			}
-		});
-
-		return hasMetadata ? metadata : null;
-	}
-
 
 	protected get filterGroups(): ISettingsGroup[] {
 		return this.settingsGroups;
@@ -199,12 +193,10 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 			};
 		}
 
-		const metadata = this.collectMetadata(resultGroups);
 		return {
 			allGroups: this.settingsGroups,
 			filteredGroups: filteredGroup ? [filteredGroup] : [],
-			matches,
-			metadata: metadata ?? undefined
+			matches
 		};
 	}
 }
@@ -859,13 +851,11 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		const startLine = this.settingsGroups.at(-1)!.range.endLineNumber + 2;
 		const { settingsGroups: filteredGroups, matches } = this.writeResultGroups(nonEmptyResultGroups, startLine);
 
-		const metadata = this.collectMetadata(resultGroups);
 		return resultGroups.length ?
 			{
 				allGroups: this.settingsGroups,
 				filteredGroups,
-				matches,
-				metadata: metadata ?? undefined
+				matches
 			} :
 			undefined;
 	}
@@ -1072,13 +1062,11 @@ class SettingsContentBuilder {
 	}
 
 	private pushSettingDescription(setting: ISetting, indent: string): void {
-		const fixSettingLink = (line: string) => line.replace(/`#(.*)#`/g, (match, settingName) => `\`${settingName}\``);
-
 		setting.descriptionRanges = [];
 		const descriptionPreValue = indent + '// ';
 		const deprecationMessageLines = setting.deprecationMessage?.split(/\n/g) ?? [];
 		for (let line of [...deprecationMessageLines, ...setting.description]) {
-			line = fixSettingLink(line);
+			line = fixSettingLinks(line);
 
 			this._contentByLines.push(descriptionPreValue + line);
 			setting.descriptionRanges.push({ startLineNumber: this.lineCountWithOffset, startColumn: this.lastLine.indexOf(line) + 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length });
@@ -1088,7 +1076,7 @@ class SettingsContentBuilder {
 			setting.enumDescriptions.forEach((desc, i) => {
 				const displayEnum = escapeInvisibleChars(String(setting.enum![i]));
 				const line = desc ?
-					`${displayEnum}: ${fixSettingLink(desc)}` :
+					`${displayEnum}: ${fixSettingLinks(desc)}` :
 					displayEnum;
 
 				const lines = line.split(/\n/g);

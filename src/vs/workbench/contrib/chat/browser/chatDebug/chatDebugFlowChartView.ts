@@ -9,6 +9,7 @@ import { BreadcrumbsWidget } from '../../../../../base/browser/ui/breadcrumbs/br
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -86,6 +87,7 @@ export class ChatDebugFlowChartView extends Disposable {
 	// Detail panel
 	private readonly detailPanel: ChatDebugDetailPanel;
 	private eventById = new Map<string, IChatDebugEvent>();
+	private readonly refreshScheduler: RunOnceScheduler;
 
 	constructor(
 		parent: HTMLElement,
@@ -158,6 +160,8 @@ export class ChatDebugFlowChartView extends Disposable {
 		// Set up pan/zoom event listeners and keyboard handling
 		this.setupPanZoom();
 		this.setupKeyboard();
+
+		this.refreshScheduler = this._register(new RunOnceScheduler(() => this.load(), 100));
 	}
 
 	setSession(sessionResource: URI): void {
@@ -184,11 +188,14 @@ export class ChatDebugFlowChartView extends Disposable {
 
 	hide(): void {
 		DOM.hide(this.container);
+		this.refreshScheduler.cancel();
 	}
 
 	refresh(): void {
 		if (this.container.style.display !== 'none') {
-			this.load();
+			if (!this.refreshScheduler.isScheduled()) {
+				this.refreshScheduler.schedule();
+			}
 		}
 	}
 
@@ -198,7 +205,7 @@ export class ChatDebugFlowChartView extends Disposable {
 		}
 		const sessionTitle = this.chatService.getSessionTitle(this.currentSessionResource) || LocalChatSessionUri.parseLocalSessionId(this.currentSessionResource) || this.currentSessionResource.toString();
 		this.breadcrumbWidget.setItems([
-			new TextBreadcrumbItem(localize('chatDebug.title', "Agent Debug Panel"), true),
+			new TextBreadcrumbItem(localize('chatDebug.title', "Agent Debug Logs"), true),
 			new TextBreadcrumbItem(sessionTitle, true),
 			new TextBreadcrumbItem(localize('chatDebug.flowChart', "Agent Flow Chart")),
 		]);

@@ -14,10 +14,12 @@ import './standaloneLayoutService.js';
 
 import * as dom from '../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
+import { renderAsPlaintext } from '../../../base/browser/markdownRenderer.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { IDefaultAccount, IDefaultAccountAuthenticationProvider, IPolicyData } from '../../../base/common/defaultAccount.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { Emitter, Event, IValueWithChangeEvent, ValueWithChangeEvent } from '../../../base/common/event.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { KeyCodeChord, Keybinding, ResolvedKeybinding, decodeKeybinding } from '../../../base/common/keybindings.js';
 import { Disposable, DisposableStore, IDisposable, IReference, ImmortalReference, combinedDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
@@ -43,7 +45,7 @@ import { ContextMenuService } from '../../../platform/contextview/browser/contex
 import { IContextMenuService, IContextViewDelegate, IContextViewService, IOpenContextView } from '../../../platform/contextview/browser/contextView.js';
 import { ContextViewService } from '../../../platform/contextview/browser/contextViewService.js';
 import { IDataChannelService, NullDataChannelService } from '../../../platform/dataChannel/common/dataChannel.js';
-import { IDefaultAccountService } from '../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDefaultAccountService, MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED } from '../../../platform/defaultAccount/common/defaultAccount.js';
 import { IConfirmation, IConfirmationResult, IDialogService, IInputResult, IPrompt, IPromptBaseButton, IPromptResult, IPromptResultWithCancel, IPromptWithCustomCancel, IPromptWithDefaultCancel } from '../../../platform/dialogs/common/dialogs.js';
 import { ExtensionKind, IEnvironmentService, IExtensionHostDebugParams } from '../../../platform/environment/common/environment.js';
 import { SyncDescriptor } from '../../../platform/instantiation/common/descriptors.js';
@@ -223,6 +225,7 @@ class StandaloneEnvironmentService implements IEnvironmentService {
 	readonly argvResource: URI = URI.from({ scheme: 'monaco', authority: 'argvResource' });
 	readonly untitledWorkspacesHome: URI = URI.from({ scheme: 'monaco', authority: 'untitledWorkspacesHome' });
 	readonly workspaceStorageHome: URI = URI.from({ scheme: 'monaco', authority: 'workspaceStorageHome' });
+	readonly appSharedDataHome: URI = URI.from({ scheme: 'monaco', authority: 'appSharedDataHome' });
 	readonly localHistoryHome: URI = URI.from({ scheme: 'monaco', authority: 'localHistoryHome' });
 	readonly cacheHome: URI = URI.from({ scheme: 'monaco', authority: 'cacheHome' });
 	readonly userDataSyncHome: URI = URI.from({ scheme: 'monaco', authority: 'userDataSyncHome' });
@@ -244,6 +247,7 @@ class StandaloneEnvironmentService implements IEnvironmentService {
 	readonly isBuilt: boolean = false;
 	readonly disableTelemetry: boolean = false;
 	readonly serviceMachineIdResource: URI = URI.from({ scheme: 'monaco', authority: 'serviceMachineIdResource' });
+	readonly agentSessionsWorkspace: URI = URI.from({ scheme: 'monaco', authority: 'agentSessionsWorkspace' });
 	readonly policyFile?: URI | undefined = undefined;
 }
 
@@ -263,10 +267,10 @@ class StandaloneDialogService implements IDialogService {
 		};
 	}
 
-	private doConfirm(message: string, detail?: string): boolean {
+	private doConfirm(message: string, detail?: string | IMarkdownString): boolean {
 		let messageText = message;
 		if (detail) {
-			messageText = messageText + '\n\n' + detail;
+			messageText = messageText + '\n\n' + (typeof detail === 'object' ? renderAsPlaintext(detail) : detail);
 		}
 
 		return mainWindow.confirm(messageText);
@@ -803,6 +807,7 @@ class StandaloneTelemetryService implements ITelemetryService {
 	readonly sendErrorTelemetry = false;
 	setEnabled(): void { }
 	setExperimentProperty(): void { }
+	setCommonProperty(): void { }
 	publicLog() { }
 	publicLog2() { }
 	publicLogError() { }
@@ -1000,14 +1005,14 @@ class StandaloneContextViewService extends ContextViewService {
 		super(layoutService);
 	}
 
-	override showContextView(delegate: IContextViewDelegate, container?: HTMLElement, shadowRoot?: boolean): IOpenContextView {
+	override showContextView(delegate: IContextViewDelegate, container?: HTMLElement, shadowRoot?: boolean, useWindowContainerForShadowRoot?: boolean): IOpenContextView {
 		if (!container) {
 			const codeEditor = this._codeEditorService.getFocusedCodeEditor() || this._codeEditorService.getActiveCodeEditor();
 			if (codeEditor) {
 				container = codeEditor.getContainerDomNode();
 			}
 		}
-		return super.showContextView(delegate, container, shadowRoot);
+		return super.showContextView(delegate, container, shadowRoot, useWindowContainerForShadowRoot);
 	}
 }
 
@@ -1123,8 +1128,16 @@ class StandaloneDefaultAccountService implements IDefaultAccountService {
 	readonly onDidChangeDefaultAccount: Event<IDefaultAccount | null> = Event.None;
 	readonly onDidChangePolicyData: Event<IPolicyData | null> = Event.None;
 	readonly policyData: IPolicyData | null = null;
+	readonly currentDefaultAccount: IDefaultAccount | null = null;
 	readonly copilotTokenInfo = null;
 	readonly onDidChangeCopilotTokenInfo: Event<null> = Event.None;
+	readonly managedSettingsFetchStatus: null = null;
+	readonly managedSettingsFetchedAt: null = null;
+	readonly managedSettingsRawResponse: unknown = null;
+	readonly managedSettingsCompatibilityError = null;
+	readonly onDidChangeManagedSettingsCompatibilityError = Event.None;
+	readonly managedSettingsFreshness = MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED;
+	readonly onDidChangeManagedSettingsFreshness = Event.None;
 
 	async getDefaultAccount(): Promise<IDefaultAccount | null> {
 		return null;
@@ -1140,6 +1153,10 @@ class StandaloneDefaultAccountService implements IDefaultAccountService {
 
 	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider {
 		return { id: 'default', name: 'Default', enterprise: false };
+	}
+
+	resolveGitHubUrl(path: string): string {
+		return `https://github.com/${path}`;
 	}
 
 	async signIn(): Promise<IDefaultAccount | null> {

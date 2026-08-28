@@ -7,6 +7,11 @@
 		"editor.background": "#221a0f",
 		"editor.foreground": "#d3af86",
 		"focusBorder": "#a57a4c",
+		// agent sessions
+		"agentsPanel.border": "#00000000",
+		"agentsChatInput.border": "#5e452b",
+		"agentsChatInput.focusBorder": "#a57a4c",
+		"agentsNewSessionButton.border": "#5e452b",
 		"list.highlightForeground": "#e3b583",
 		"list.activeSelectionBackground": "#7c5021",
 		"list.hoverBackground": "#7c502166",
@@ -51,7 +56,9 @@
 		"inputValidation.errorBackground": "#5f0d0d",
 		"inputValidation.errorBorder": "#9d2f23",
 		"badge.background": "#7f5d38",
-		"progressBar.background": "#7f5d38"
+		"progressBar.background": "#7f5d38",
+		// modern ui
+		"surface.border": "#00000000",
 	},
 	"tokenColors": [
 		{

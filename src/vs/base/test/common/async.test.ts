@@ -14,6 +14,7 @@ import { runWithFakedTimers } from './timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 import { DisposableStore } from '../../common/lifecycle.js';
 import { Iterable } from '../../common/iterator.js';
+import { isWeb } from '../../common/platform.js';
 
 suite('Async', () => {
 
@@ -138,6 +139,97 @@ suite('Async', () => {
 
 			const result = await promise;
 			assert.strictEqual(result, 1234);
+		});
+	});
+
+	suite('raceCancellablePromises', function () {
+		test('preserves the result and cancels only the losing promises', async function () {
+			let resolveWinner!: (value: number) => void;
+			let winnerCancellations = 0;
+			let loserCancellations = 0;
+			const winner = Object.assign(new Promise<number>(resolve => resolveWinner = resolve), { cancel: () => winnerCancellations++ });
+			const loser = Object.assign(new Promise<number>(() => { }), { cancel: () => loserCancellations++ });
+			const race = async.raceCancellablePromises([winner, loser]);
+
+			resolveWinner(42);
+
+			assert.deepStrictEqual({
+				result: await race,
+				winnerCancellations,
+				loserCancellations
+			}, {
+				result: 42,
+				winnerCancellations: 0,
+				loserCancellations: 1
+			});
+		});
+
+		test('preserves the error, cancels all promises, and handles cleanup rejection', async function () {
+			const expectedError = new Error('expected');
+			let rejectingPromiseCancellations = 0;
+			let pendingPromiseCancellations = 0;
+			const unhandledRejections: unknown[] = [];
+			const onUnhandledRejection = (reason: unknown) => unhandledRejections.push(reason);
+			const onBrowserUnhandledRejection = (event: PromiseRejectionEvent) => onUnhandledRejection(event.reason);
+			if (isWeb) {
+				globalThis.addEventListener('unhandledrejection', onBrowserUnhandledRejection);
+			} else {
+				process.on('unhandledRejection', onUnhandledRejection);
+			}
+			const rejectingPromise = Object.assign(Promise.reject(expectedError), { cancel: () => rejectingPromiseCancellations++ });
+			const pendingPromise = Object.assign(new Promise<void>(() => { }), { cancel: () => pendingPromiseCancellations++ });
+
+			try {
+				let actualError: unknown;
+				try {
+					await async.raceCancellablePromises([rejectingPromise, pendingPromise]);
+				} catch (error) {
+					actualError = error;
+				}
+				await async.timeout(0);
+				assert.deepStrictEqual({
+					preservesError: actualError === expectedError,
+					rejectingPromiseCancellations,
+					pendingPromiseCancellations,
+					unhandledRejections
+				}, {
+					preservesError: true,
+					rejectingPromiseCancellations: 1,
+					pendingPromiseCancellations: 1,
+					unhandledRejections: []
+				});
+			} finally {
+				if (isWeb) {
+					globalThis.removeEventListener('unhandledrejection', onBrowserUnhandledRejection);
+				} else {
+					process.off('unhandledRejection', onUnhandledRejection);
+				}
+			}
+		});
+
+		test('explicit cancellation cancels all pending promises', async function () {
+			const cancellationCounts = [0, 0];
+			const promises = cancellationCounts.map((_, index) => async.createCancelablePromise(token => {
+				store.add(token.onCancellationRequested(() => cancellationCounts[index]++));
+				return new Promise<void>(() => { });
+			}));
+			const race = async.raceCancellablePromises(promises);
+
+			race.cancel();
+			let cancellationError: unknown;
+			try {
+				await race;
+			} catch (error) {
+				cancellationError = error;
+			}
+
+			assert.deepStrictEqual({
+				isCancellationError: isCancellationError(cancellationError),
+				cancellationCounts
+			}, {
+				isCancellationError: true,
+				cancellationCounts: [1, 1]
+			});
 		});
 	});
 
@@ -1040,6 +1132,59 @@ suite('Async', () => {
 			await async.timeout(0);
 
 			assert.strictEqual(cb, false);
+		});
+	});
+
+	suite('disposableLongTimeout', () => {
+		test('fires after a delay larger than the setTimeout maximum', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				let cb = false;
+				const t = async.disposableLongTimeout(() => cb = true, async.MAX_TIMEOUT_DELAY * 2 + 1000);
+
+				await async.timeout(async.MAX_TIMEOUT_DELAY * 2 + 2000);
+
+				assert.strictEqual(cb, true);
+				t.dispose();
+			});
+		});
+
+		test('does not fire after disposal mid-wait', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				let cb = false;
+				const t = async.disposableLongTimeout(() => cb = true, async.MAX_TIMEOUT_DELAY * 2);
+
+				await async.timeout(async.MAX_TIMEOUT_DELAY); // advance one chunk, then re-armed
+				t.dispose();
+				await async.timeout(async.MAX_TIMEOUT_DELAY * 2);
+
+				assert.strictEqual(cb, false);
+			});
+		});
+
+		test('store managed success evicts on fire', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				let cb = false;
+				const s = new DisposableStore();
+				async.disposableLongTimeout(() => cb = true, async.MAX_TIMEOUT_DELAY + 500, s);
+
+				await async.timeout(async.MAX_TIMEOUT_DELAY + 1000);
+
+				assert.strictEqual(cb, true);
+				s.dispose();
+			});
+		});
+
+		test('store managed cancel via store', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				let cb = false;
+				const s = new DisposableStore();
+				async.disposableLongTimeout(() => cb = true, async.MAX_TIMEOUT_DELAY * 2, s);
+				s.dispose();
+
+				await async.timeout(async.MAX_TIMEOUT_DELAY * 2);
+
+				assert.strictEqual(cb, false);
+			});
 		});
 	});
 

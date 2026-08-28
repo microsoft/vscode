@@ -1519,13 +1519,30 @@ export class DebugModel extends Disposable implements IDebugModel {
 		return this.sessions.filter(s => includeInactive || s.state !== State.Inactive);
 	}
 
+	private shouldDisposeSession(session: IDebugSession, newSession: IDebugSession): boolean {
+		if (session.state !== State.Inactive) {
+			return false;
+		}
+		if (session.configuration.name === newSession.configuration.name) {
+			return true;
+		}
+		if (newSession.parentSession) {
+			return false;
+		}
+		let rootSession = session;
+		while (rootSession.parentSession) {
+			rootSession = rootSession.parentSession;
+		}
+		return rootSession.state === State.Inactive && rootSession.configuration.name === newSession.configuration.name;
+	}
+
 	addSession(session: IDebugSession): void {
 		this.sessions = this.sessions.filter(s => {
 			if (s.getId() === session.getId()) {
 				// Make sure to de-dupe if a session is re-initialized. In case of EH debugging we are adding a session again after an attach.
 				return false;
 			}
-			if (s.state === State.Inactive && s.configuration.name === session.configuration.name) {
+			if (this.shouldDisposeSession(s, session)) {
 				// Make sure to remove all inactive sessions that are using the same configuration as the new session
 				s.dispose();
 				return false;
@@ -2064,9 +2081,23 @@ export class DebugModel extends Disposable implements IDebugModel {
 		this._onDidChangeBreakpoints.fire({ added: [newInstructionBreakpoint], sessionOnly: true });
 	}
 
-	removeInstructionBreakpoints(instructionReference?: string, offset?: number): void {
+	removeInstructionBreakpoints(instructionReference?: string, offset?: number, address?: bigint): void {
 		let removed: InstructionBreakpoint[] = [];
-		if (instructionReference) {
+		if (address !== undefined) {
+			// Prefer matching by resolved memory address: `instructionReference` is
+			// allowed by the Debug Adapter Protocol to change between disassemble
+			// requests (e.g. after symbol reloads), so matching on reference+offset
+			// alone would fail to locate the breakpoint that the user is trying to
+			// toggle off. The `address` on an `InstructionBreakpoint` is the stable
+			// resolved memory address and uniquely identifies it.
+			for (let i = 0; i < this.instructionBreakpoints.length; i++) {
+				const ibp = this.instructionBreakpoints[i];
+				if (ibp.address === address) {
+					removed.push(ibp);
+					this.instructionBreakpoints.splice(i--, 1);
+				}
+			}
+		} else if (instructionReference) {
 			for (let i = 0; i < this.instructionBreakpoints.length; i++) {
 				const ibp = this.instructionBreakpoints[i];
 				if (ibp.instructionReference === instructionReference && (offset === undefined || ibp.offset === offset)) {

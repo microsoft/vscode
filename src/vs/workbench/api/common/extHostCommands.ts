@@ -101,7 +101,8 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 							return extHostTypeConverter.location.to(obj);
 						}
 						if (obj instanceof VSBuffer) {
-							return obj.buffer.buffer;
+							// Create a copy of the buffer since the original buffer is owned by the extension host and might be reused for other commands
+							return obj.buffer.buffer.slice(obj.buffer.byteOffset, obj.buffer.byteOffset + obj.buffer.byteLength);
 						}
 						if (!Array.isArray(obj)) {
 							return obj;
@@ -425,11 +426,11 @@ export class CommandsConverter implements extHostTypeConverter.Command.ICommands
 	}
 
 
-	getActualCommand(...args: any[]): vscode.Command | undefined {
-		return this._cache.get(args[0]);
+	getActualCommand(...args: unknown[]): vscode.Command | undefined {
+		return this._cache.get(args[0] as string);
 	}
 
-	private _executeConvertedCommand<R>(...args: any[]): Promise<R> {
+	private _executeConvertedCommand<R>(...args: unknown[]): Promise<R> {
 		const actualCmd = this.getActualCommand(...args);
 		this._logService.trace('CommandsConverter#EXECUTE', args[0], actualCmd ? actualCmd.command : 'MISSING');
 

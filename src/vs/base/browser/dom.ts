@@ -958,9 +958,9 @@ export function isAncestorUsingFlowTo(testChild: Node, testAncestor: Node): bool
 	return false;
 }
 
-export function findParentWithClass(node: HTMLElement, clazz: string, stopAtClazzOrNode?: string | HTMLElement): HTMLElement | null {
+export function findParentWithClass(node: HTMLElement, clazz: string | readonly string[], stopAtClazzOrNode?: string | HTMLElement): HTMLElement | null {
 	while (node && node.nodeType === node.ELEMENT_NODE) {
-		if (node.classList.contains(clazz)) {
+		if (typeof clazz === 'string' ? node.classList.contains(clazz) : clazz.every(candidate => node.classList.contains(candidate))) {
 			return node;
 		}
 
@@ -982,7 +982,7 @@ export function findParentWithClass(node: HTMLElement, clazz: string, stopAtClaz
 	return null;
 }
 
-export function hasParentWithClass(node: HTMLElement, clazz: string, stopAtClazzOrNode?: string | HTMLElement): boolean {
+export function hasParentWithClass(node: HTMLElement, clazz: string | readonly string[], stopAtClazzOrNode?: string | HTMLElement): boolean {
 	return !!findParentWithClass(node, clazz, stopAtClazzOrNode);
 }
 
@@ -2048,15 +2048,61 @@ export class DragAndDropObserver extends Disposable {
 }
 
 /**
- * A wrapper around ResizeObserver that is disposable.
+ * A wrapper around `ResizeObserver` that is disposable.
+ *
+ * Behavior is intentionally identical to using `new ResizeObserver(callback)`
+ * directly: the user-supplied callback runs synchronously inside the
+ * browser's resize-observation phase, with the entries the browser delivered.
+ * The wrapper adds three things on top:
+ *
+ * 1. Lifetime management: `dispose()` disconnects the underlying observer.
+ * 2. Auxiliary-window support: pass `targetWindow` so the observer is
+ *    constructed in the realm of the element being observed.
+ * 3. Context for the
+ *    `ResizeObserver loop completed with undelivered notifications` warning:
+ *    each instance carries a stable `name`, and just before invoking the user
+ *    callback we add that name to a bounded, per-window set that is cleared
+ *    at the next animation frame. The warning is delivered as a stackless
+ *    `ErrorEvent` on `window` after callbacks run, so error telemetry can
+ *    include the wrapped observers that recently ran in that window (see
+ *    {@link getRecentDisposableResizeObserverContextForLoopError}). This is
+ *    delivery context, not causal attribution: the browser does not expose
+ *    which observer or skipped target caused the warning.
+ *
+ * @param name Stable identifier used in loop-warning context. Prefer one that
+ * survives minification and refactors (e.g. the consumer class + purpose)
+ * since callstacks change across releases.
+ * @param callback Invoked synchronously when the browser delivers resize
+ * notifications, with the same entries the native `ResizeObserver` would
+ * have delivered.
+ * @param targetWindow The window whose `ResizeObserver` constructor should
+ * be used. Defaults to `mainWindow`. Pass the containing window when
+ * creating an observer for elements that live in an auxiliary window.
+ * @param options Optional configuration. `resizeObserverCtor` is a test
+ * seam that defaults to `targetWindow.ResizeObserver`.
  */
 export class DisposableResizeObserver extends Disposable {
 
 	private readonly observer: ResizeObserver;
+	readonly name: string;
 
-	constructor(callback: ResizeObserverCallback) {
+	constructor(
+		name: string,
+		callback: ResizeObserverCallback,
+		targetWindow: CodeWindow = mainWindow,
+		options?: { resizeObserverCtor?: typeof ResizeObserver },
+	) {
 		super();
-		this.observer = new ResizeObserver(callback);
+		this.name = name;
+		const ctor = options?.resizeObserverCtor ?? targetWindow.ResizeObserver;
+		this.observer = new ctor((entries: ResizeObserverEntry[], observer) => {
+			recordDisposableResizeObserverInvocation(targetWindow, this.name);
+			try {
+				callback(entries, observer);
+			} catch (e) {
+				onUnexpectedError(e);
+			}
+		});
 		this._register(toDisposable(() => this.observer.disconnect()));
 	}
 
@@ -2064,6 +2110,78 @@ export class DisposableResizeObserver extends Disposable {
 		this.observer.observe(target, options);
 		return toDisposable(() => this.observer.unobserve(target));
 	}
+}
+
+/**
+ * Keep the context bounded so a large delivery phase cannot create an
+ * unbounded telemetry value. Names are static component identifiers, and are
+ * sorted when read so equivalent phases share a stable bucket.
+ */
+const maxRecentDisposableResizeObservers = 8;
+
+/**
+ * Wrapped observers that ran recently in one window. This is deliberately
+ * scoped by window because auxiliary windows have independent documents and
+ * resize-observation delivery loops.
+ */
+interface IRecentDisposableResizeObserverContext {
+	readonly names: Set<string>;
+	overflow: boolean;
+}
+
+const recentDisposableResizeObserverContexts = new WeakMap<CodeWindow, IRecentDisposableResizeObserverContext>();
+
+function recordDisposableResizeObserverInvocation(targetWindow: CodeWindow, name: string): void {
+	let context = recentDisposableResizeObserverContexts.get(targetWindow);
+	if (!context) {
+		context = { names: new Set(), overflow: false };
+		recentDisposableResizeObserverContexts.set(targetWindow, context);
+
+		// ResizeObserver callbacks and the synthetic loop error are delivered
+		// after requestAnimationFrame callbacks in the rendering update. A
+		// request made here therefore clears this context at the next frame,
+		// after telemetry has observed any warning from the current update.
+		targetWindow.requestAnimationFrame(() => recentDisposableResizeObserverContexts.delete(targetWindow));
+	}
+
+	if (context.names.has(name)) {
+		return;
+	}
+	if (context.names.size < maxRecentDisposableResizeObservers) {
+		context.names.add(name);
+	} else {
+		context.overflow = true;
+		const largestName = Array.from(context.names).sort().at(-1)!;
+		if (name < largestName) {
+			context.names.delete(largestName);
+			context.names.add(name);
+		}
+	}
+}
+
+/**
+ * If `message` looks like the ResizeObserver loop warning, return a stable
+ * context string containing the wrapped observers that ran recently in
+ * `targetWindow`. The names are delivery context only; the browser does not
+ * expose the observer or skipped target that caused the warning. Returns
+ * `undefined` for unrelated messages or when no wrapped observer has fired.
+ */
+export function getRecentDisposableResizeObserverContextForLoopError(
+	message: string | undefined | null,
+	targetWindow: CodeWindow = mainWindow,
+): string | undefined {
+	if (typeof message !== 'string' || !message.includes('ResizeObserver loop')) {
+		return undefined;
+	}
+	const context = recentDisposableResizeObserverContexts.get(targetWindow);
+	if (!context) {
+		return undefined;
+	}
+	const names = Array.from(context.names).sort();
+	if (context.overflow) {
+		names.push('<overflow>');
+	}
+	return `[ResizeObserverLoopContext(${names.join(',')})] ${message}`;
 }
 
 type HTMLElementAttributeKeys<T> = Partial<{ [K in keyof T]: T[K] extends Function ? never : T[K] extends object ? HTMLElementAttributeKeys<T[K]> : T[K] }>;

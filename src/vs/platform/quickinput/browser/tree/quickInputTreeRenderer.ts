@@ -19,6 +19,7 @@ import { defaultCheckboxStyles } from '../../../theme/browser/defaultStyles.js';
 import { isDark } from '../../../theme/common/theme.js';
 import { escape } from '../../../../base/common/strings.js';
 import { IThemeService } from '../../../theme/common/themeService.js';
+import { asCssVariable } from '../../../theme/common/colorUtils.js';
 import { IQuickTreeCheckboxEvent, IQuickTreeItem, IQuickTreeItemButtonEvent } from '../../common/quickInput.js';
 import { quickInputButtonsToActionArrays } from '../quickInputUtils.js';
 import { IQuickTreeFilterData } from './quickInputTree.js';
@@ -47,6 +48,16 @@ export class QuickInputCheckboxStateHandler<T> extends Disposable {
 export class QuickInputTreeRenderer<T extends IQuickTreeItem> extends Disposable implements ITreeRenderer<T, IQuickTreeFilterData, IQuickTreeTemplateData> {
 	static readonly ID = 'quickInputTreeElement';
 	templateId = QuickInputTreeRenderer.ID;
+
+	private readonly _onDidDisposeFocusedElement = this._register(new Emitter<void>());
+
+	/**
+	 * This event is emitted when the renderer disposes an element that has focus.
+	 * This allows the list to re-focus itself and prevent focus from being lost
+	 * (potentially causing quickinput to dismiss itself) when an element is
+	 * removed while focused.
+	 */
+	public readonly onDidDisposeFocusedElement = this._onDidDisposeFocusedElement.event;
 
 	constructor(
 		private readonly _hoverDelegate: IHoverDelegate | undefined,
@@ -126,6 +137,7 @@ export class QuickInputTreeRenderer<T extends IQuickTreeItem> extends Disposable
 			templateData.icon.style.backgroundImage = '';
 			templateData.icon.className = quickTreeItem.iconClass ? `quick-input-tree-icon ${quickTreeItem.iconClass}` : '';
 		}
+		templateData.icon.style.color = quickTreeItem.iconColor ? asCssVariable(quickTreeItem.iconColor.id) : '';
 
 		const { labelHighlights: matches, descriptionHighlights: descriptionMatches } = node.filterData || {};
 
@@ -172,6 +184,9 @@ export class QuickInputTreeRenderer<T extends IQuickTreeItem> extends Disposable
 	}
 
 	disposeElement(_element: ITreeNode<T, IQuickTreeFilterData>, _index: number, templateData: IQuickTreeTemplateData, _details?: ITreeElementRenderDetails): void {
+		if (dom.isAncestorOfActiveElement(templateData.entry)) {
+			this._onDidDisposeFocusedElement.fire();
+		}
 		templateData.toDisposeElement.clear();
 		templateData.actionBar.setActions([]);
 	}
