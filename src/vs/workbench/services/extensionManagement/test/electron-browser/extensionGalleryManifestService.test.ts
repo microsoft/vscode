@@ -11,7 +11,7 @@ import { IRequestContext, IRequestOptions } from '../../../../../base/parts/requ
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
@@ -26,7 +26,7 @@ import { IRequestService } from '../../../../../platform/request/common/request.
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IConfirmation, IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../authentication/common/authentication.js';
 import { IHostService } from '../../../host/browser/host.js';
 import { IRemoteAgentService } from '../../../remote/common/remoteAgentService.js';
@@ -110,12 +110,14 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 	let configurationService: TestConfigurationService;
 	let storageData: Map<string, string>;
 	let telemetryService: RecordingTelemetryService;
+	let restartPrompts: string[];
 
 	setup(() => {
 		defaultAccount = null;
 		microsoftSessions = [];
 		requestHandler = () => mockResponse(200, createGalleryManifest());
 		storageData = new Map();
+		restartPrompts = [];
 
 		onDidChangeDefaultAccount = disposableStore.add(new Emitter<IDefaultAccount | null>());
 		onDidChangeSessions = disposableStore.add(new Emitter<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }>());
@@ -192,7 +194,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 
 		instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
-			override async confirm() { return { confirmed: false }; }
+			override async confirm(confirmation: IConfirmation) { restartPrompts.push(confirmation.message); return { confirmed: false }; }
 		}());
 
 		instantiationService.stub(IHostService, new class extends mock<IHostService>() {
@@ -742,6 +744,49 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		// With no configured marketplace serviceUrl the Entra/private-marketplace path is never
 		// engaged; the base class falls back to the product's default gallery → Available.
 		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
+	});
+
+	// --- Configuration changes ---
+
+	function fireConfigChange(...keys: string[]) {
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: (key: string) => keys.includes(key),
+		} as IConfigurationChangeEvent);
+	}
+
+	test('changing authProvider mid-session prompts for restart', async () => {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+		microsoftSessions = [createMicrosoftSession()];
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+		assert.deepStrictEqual(restartPrompts, []);
+
+		// The provider is chosen once at startup, so a later change cannot take effect in this
+		// window. It must not be silently ignored.
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
+		fireConfigChange(ExtensionGalleryAuthProviderConfigKey);
+
+		assert.deepStrictEqual(restartPrompts, ['The Extensions Marketplace configuration has changed. Please restart to apply the changes.']);
+	});
+
+	test('changing serviceUrl mid-session keeps its own restart message', async () => {
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		fireConfigChange(ExtensionGalleryServiceUrlConfigKey);
+
+		// A different marketplace, not a different sign-in — the existing wording still applies.
+		assert.deepStrictEqual(restartPrompts, ['VS Code Test is now configured to a different Marketplace. Please restart to apply the changes.']);
+	});
+
+	test('an unrelated configuration change does not prompt for restart', async () => {
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		fireConfigChange('editor.fontSize');
+
+		assert.deepStrictEqual(restartPrompts, []);
 	});
 
 	// --- Telemetry ---
