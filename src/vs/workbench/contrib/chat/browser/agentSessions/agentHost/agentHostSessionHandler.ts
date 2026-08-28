@@ -2479,6 +2479,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		);
 
 		const startedClientToolCalls = new Set<string>();
+		// Armed synchronously; `startedClientToolCalls` only arms after an await.
+		const inFlightClientToolCalls = new Map<string, string>();
+		const executionSignature = (request: ClientToolExecutionRequest): string =>
+			JSON.stringify([request.toolCall.toolName, request.toolCall.toolInput ?? null]);
 		const clientToolExecutions = new Map<string, { readonly source: CancellationTokenSource; readonly retain: IDisposable; activeAttempts: number }>();
 		const releaseClientToolExecution = (key: string, execution: { readonly source: CancellationTokenSource; readonly retain: IDisposable; activeAttempts: number }) => {
 			if (clientToolExecutions.get(key) !== execution) {
@@ -2553,8 +2557,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						unobservedTimer.clear();
 						return;
 					}
-
-					if (startedClientToolCalls.has(key)) {
+					if (startedClientToolCalls.has(key) || inFlightClientToolCalls.get(key) === executionSignature(request)) {
 						startedRequest = request;
 						unobservedTimer.clear();
 						return;
@@ -2577,6 +2580,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					}
 					const execute = (contextSessionResource: URI | undefined) => {
 						startedRequest = request;
+						const inFlightSignature = executionSignature(request);
+						inFlightClientToolCalls.set(key, inFlightSignature);
 						unobservedTimer.clear();
 						const requestGeneration = generation;
 						execution.activeAttempts++;
@@ -2584,7 +2589,20 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 							request,
 							contextSessionResource,
 							execution.source.token,
-							() => requestGeneration === generation && (invocationStarted || equals(request$.read(undefined), request)),
+							() => {
+								if (requestGeneration !== generation) {
+									return false;
+								}
+								if (invocationStarted) {
+									return true;
+								}
+								// Judge staleness the way the coalescing check above does, or an
+								// approval-only change strands the attempt it declined to restart.
+								const current = request$.read(undefined);
+								return current.kind === SessionInputRequestKind.ToolClientExecution
+									&& current.clientId === this._config.connection.clientId
+									&& executionSignature(current) === inFlightSignature;
+							},
 							() => {
 								if (requestGeneration === generation) {
 									invocationStarted = true;
@@ -2592,6 +2610,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 								}
 							},
 						).finally(() => {
+							// Only clear our own entry; a superseding attempt may already have replaced it.
+							if (inFlightClientToolCalls.get(key) === inFlightSignature) {
+								inFlightClientToolCalls.delete(key);
+							}
 							execution.activeAttempts--;
 							const invocation = this._clientToolInvocations.get(key);
 							if (execution.activeAttempts === 0 && invocation && IChatToolInvocation.isComplete(invocation)) {

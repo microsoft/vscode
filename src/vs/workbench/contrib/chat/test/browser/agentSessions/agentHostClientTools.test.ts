@@ -1252,6 +1252,45 @@ suite('AgentHostClientTools', () => {
 			});
 		});
 
+		test('runs once when the same tool call is readied twice before invocation starts', async () => {
+			// Two `ChatToolCallReady` actions arrive before `resolveToolInput` settles.
+			const firstInputURI = URI.parse('session-db:/tool-input-1');
+			const input = { uri: firstInputURI.toString(), contentType: 'application/json' };
+			const inputRead = new DeferredPromise<{ data: string; encoding: ContentEncoding }>();
+			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+			connection.resourceReadResponses.set(firstInputURI.toString(), inputRead.p);
+
+			const sessionResource = URI.parse('agent-host-copilot:/session-1');
+			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
+			const chatURI = URI.parse(buildDefaultChatUri(backendSession));
+
+			applyReferencedRunTask(connection, chatURI, input, ToolCallConfirmationReason.NotNeeded);
+			await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+
+			const readyPayload = {
+				toolCallId: 'tool-call-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				invocationMessage: 'Run Task',
+				toolInput: input,
+			};
+			// Both readies land while the referenced input read is still pending.
+			applyRunningClientExecution(connection, chatURI.toString(), 'turn-1', readyPayload);
+			applyRunningClientExecution(connection, chatURI.toString(), 'turn-1', readyPayload);
+			await timeout(0);
+			inputRead.complete({ data: '{"task":"only"}', encoding: ContentEncoding.Utf8 });
+			await timeout(0);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				invocations: toolsService.invokedToolCalls.length,
+				parameters: toolsService.invokedToolCalls[0]?.parameters,
+			}, {
+				invocations: 1,
+				parameters: { task: 'only' },
+			});
+		});
+
 		test('does not re-execute when the request changes after invocation starts', async () => {
 			const invokeResult = new DeferredPromise<IToolResult>();
 			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool], { invokeResult });
@@ -1293,6 +1332,50 @@ suite('AgentHostClientTools', () => {
 			}, {
 				invocations: [{ task: 'first' }],
 				completions: 1,
+			});
+		});
+
+		test('coalesces ready variants that differ only in approval while input is pending', async () => {
+			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+			const sessionResource = URI.parse('agent-host-copilot:/session-1');
+			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
+			const chatURI = URI.parse(buildDefaultChatUri(backendSession));
+			const inputURI = URI.parse('session-db:/tool-input-race');
+			const toolInput = { uri: inputURI.toString(), contentType: 'application/json' };
+			const inputRead = new DeferredPromise<{ data: string; encoding: ContentEncoding }>();
+			connection.resourceReadResponses.set(inputURI.toString(), inputRead.p);
+
+			applyReferencedRunTask(connection, chatURI, toolInput, ToolCallConfirmationReason.NotNeeded);
+			await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+
+			// Both readies arrive while the referenced input is still resolving, so
+			// neither attempt has reached markInvocationStarted.
+			for (const confirmed of [ToolCallConfirmationReason.NotNeeded, ToolCallConfirmationReason.Setting]) {
+				applyRunningClientExecution(connection, chatURI.toString(), 'turn-1', {
+					toolCallId: 'tool-call-1',
+					toolName: 'runTask',
+					displayName: 'Run Task',
+					invocationMessage: 'Run Task',
+					toolInput,
+					confirmed,
+				});
+				await timeout(0);
+			}
+			assert.strictEqual(toolsService.invokedToolCalls.length, 0, 'nothing runs while the input is unresolved');
+
+			inputRead.complete({ data: '{"task":"race"}', encoding: ContentEncoding.Utf8 });
+			for (let tick = 0; tick < 10; tick++) { await timeout(0); }
+
+			assert.deepStrictEqual({
+				reads: connection.resourceReadUris.length,
+				raceInvocations: toolsService.invokedToolCalls.map(call => call.parameters),
+				raceCompletions: connection.dispatchedActions.filter(entry => isChatAction(entry.action)
+					&& entry.action.type === ActionType.ChatToolCallComplete
+					&& entry.action.toolCallId === 'tool-call-1').length,
+			}, {
+				reads: 1,
+				raceInvocations: [{ task: 'race' }],
+				raceCompletions: 1,
 			});
 		});
 
