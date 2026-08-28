@@ -449,6 +449,15 @@
 	text-overflow: ellipsis;
 }
 
+.sessions-chat-picker-slot .action-label .monaco-count-badge {
+	min-width: var(--vscode-spacing-size160);
+	min-height: var(--vscode-spacing-size160);
+	padding: var(--vscode-spacing-size20);
+	border-radius: var(--vscode-cornerRadius-circle);
+	font-size: var(--vscode-fontSize-label3);
+	line-height: normal;
+}
+
 .sessions-chat-picker-slot .action-label span + .chat-session-option-label {
 	margin-left: 2px;
 }

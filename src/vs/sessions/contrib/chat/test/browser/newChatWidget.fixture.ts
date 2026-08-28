@@ -307,15 +307,18 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 		render: context => renderNewChatWidget(context, { withWorkspace: true }),
 	}),
 	NewSessionWorkspacePicker: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The new-session composer shows Copilot, microsoft/vscode, and Issue/PR pills. The microsoft/vscode workspace pill has the active treatment after opening the workspace picker.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, openWorkspacePicker: true }),
 	}),
 	NewSessionGitHubContextPicker: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The new-session composer shows Copilot, microsoft/vscode, and Issue/PR pills. The Issue/PR pill has the active treatment after opening its picker.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, openGitHubContextPicker: true }),
 	}),
 	NewSessionRemoteWorkspace: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The new-session composer shows Copilot and devbox · microsoft/vscode pills. No Issue/PR pill is visible because the remote workspace has no associated GitHub repository metadata.'],
 		render: context => renderNewChatWidget(context, { withRemoteWorkspace: true }),
 	}),
 	NewSessionNarrow: defineComponentFixture({

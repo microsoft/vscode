@@ -6,6 +6,7 @@
 import * as dom from '../../../../base/browser/dom.js';
 import * as touch from '../../../../base/browser/touch.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
+import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { IAction, toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
@@ -39,6 +40,7 @@ import { SessionWorkspacePickerGroupContext } from '../../../common/contextkeys.
 import { getStatusHover, getStatusLabel, removeRemoteHost, showRemoteHostOptions } from '../../providers/remoteAgentHost/browser/remoteHostOptions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { defaultCountBadgeStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
 import { Menus } from '../../../browser/menus.js';
 import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
@@ -74,6 +76,7 @@ export interface IWorkspacePickerItem {
 	/** The resolved workspace (used for unavailable-provider checks). */
 	readonly providerId?: string;
 	readonly browseActionIndex?: number;
+	readonly attachAsContext?: boolean;
 	readonly checked?: boolean;
 	/** Command to execute when this item is selected. */
 	readonly commandId?: string;
@@ -134,6 +137,7 @@ interface IRestoredWorkspaceSelection {
 interface IWorkspacePickerTriggerElements {
 	icon?: HTMLElement;
 	label?: HTMLElement;
+	badge?: CountBadge;
 }
 
 type IWorkspacePickerAction = IAction & { icon?: ThemeIcon; hoverContent?: string; onRemove?: () => void };
@@ -189,11 +193,6 @@ export class WorkspacePicker extends Disposable {
 		providerId: '',
 		run: async () => (await this._browseForLocalFolder())?.workspace,
 	};
-	private readonly _localAddBrowseAction: ISessionWorkspaceBrowseAction = {
-		...this._localBrowseAction,
-		label: localize('workspacePicker.browseAddLocal', "Add Folder..."),
-	};
-
 	/**
 	 * "Primary" trigger. This is the most recently created entry. Preserved for subclass
 	 * read access (e.g. {@link WebWorkspacePicker} anchors its mobile sheet here) and for
@@ -215,6 +214,7 @@ export class WorkspacePicker extends Disposable {
 	private readonly _pickerGroupContext: IContextKey<string>;
 	private _activeTriggerElement: HTMLElement | undefined;
 	private _categoryRow: HTMLElement | undefined;
+	private _workspaceTriggerOptions: IWorkspacePickerTrigger | undefined;
 	private _folderTriggerOptions: IWorkspacePickerTrigger | undefined;
 	private _repositoryTriggerOptions: IWorkspacePickerTrigger | undefined;
 	private _repositoryTriggerSlot: HTMLElement | undefined;
@@ -459,6 +459,7 @@ export class WorkspacePicker extends Disposable {
 		this._renderDisposables.add({
 			dispose: () => {
 				this._categoryRow = undefined;
+				this._workspaceTriggerOptions = undefined;
 				this._folderTriggerOptions = undefined;
 				this._repositoryTriggerOptions = undefined;
 				this._repositoryTriggerSlot = undefined;
@@ -472,7 +473,20 @@ export class WorkspacePicker extends Disposable {
 		for (const options of triggers) {
 			const slot = dom.append(row, dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot'));
 			slot.classList.toggle('sessions-workspace-picker-trigger', options.reflectsWorkspace === true);
-			if (options.group === SESSION_WORKSPACE_GROUP_LOCAL) {
+			if (options.reflectsWorkspace === true) {
+				this._workspaceTriggerOptions = options;
+				this._folderTriggerOptions ??= {
+					...options,
+					reflectsWorkspace: false,
+					group: SESSION_WORKSPACE_GROUP_LOCAL,
+				};
+				this._repositoryTriggerOptions ??= {
+					...options,
+					reflectsWorkspace: false,
+					group: SESSION_WORKSPACE_GROUP_GITHUB,
+					attachesContext: false,
+				};
+			} else if (options.group === SESSION_WORKSPACE_GROUP_LOCAL) {
 				this._folderTriggerOptions = options;
 			} else if (options.group === SESSION_WORKSPACE_GROUP_GITHUB && options.attachesContext === false) {
 				this._repositoryTriggerOptions = options;
@@ -545,6 +559,7 @@ export class WorkspacePicker extends Disposable {
 
 		triggerDisposables.add({
 			dispose: () => {
+				this._triggerContents.get(trigger)?.badge?.dispose();
 				this._triggerElements.delete(trigger);
 				this._triggerOptions.delete(trigger);
 				this._triggerContents.delete(trigger);
@@ -778,8 +793,6 @@ export class WorkspacePicker extends Disposable {
 	 * selection semantics. Treats unavailable workspaces as a no-op.
 	 */
 	protected async _dispatchPickerItem(item: IWorkspacePickerItem): Promise<boolean> {
-		const attachesRepositoryContext = this._directPickerGroup === SESSION_WORKSPACE_GROUP_GITHUB
-			&& this._directPickerAttachesContext === false;
 		const generation = ++this._selectionGeneration;
 		this._reportPickerClosed(item);
 		if (item.run) {
@@ -819,15 +832,16 @@ export class WorkspacePicker extends Disposable {
 					return true;
 				}
 			}
-			if (action?.group === SESSION_WORKSPACE_GROUP_GITHUB
-				&& action.attachesContext !== true
-				&& attachesRepositoryContext
-				&& this._attachAdditionalRepository(selection.workspace, selection.providerId)) {
-				return true;
-			}
-			if (action === this._localAddBrowseAction) {
-				this._attachAdditionalFolder(folderUri, selection.providerId);
-				return true;
+			if (item.attachAsContext) {
+				if (action?.group === SESSION_WORKSPACE_GROUP_GITHUB
+					&& action.attachesContext !== true
+					&& this._attachAdditionalRepository(selection.workspace, selection.providerId)) {
+					return true;
+				}
+				if (action === this._localBrowseAction) {
+					this._attachAdditionalFolder(folderUri, selection.providerId);
+					return true;
+				}
 			}
 			const relatedWorkspace = this._findRelatedLocalWorkspace(selection.workspace);
 			this._selectFolder(
@@ -848,12 +862,6 @@ export class WorkspacePicker extends Disposable {
 			}
 			if (generation !== this._selectionGeneration) {
 				return false;
-			}
-			const resolved = this._resolveFolder(item.folderUri, item.providerId);
-			if (resolved?.workspace.group === SESSION_WORKSPACE_GROUP_GITHUB
-				&& attachesRepositoryContext
-				&& this._attachAdditionalRepository(resolved.workspace, resolved.providerId)) {
-				return true;
 			}
 			this._selectFolder(item.folderUri, true, item.providerId);
 			return true;
@@ -887,7 +895,7 @@ export class WorkspacePicker extends Disposable {
 		if (!repositoryId) {
 			return false;
 		}
-		if (repositoryId !== this._getCurrentRepositoryId() && !this._additionalRepositorySelections.has(repositoryId)) {
+		if (!this._additionalRepositorySelections.has(repositoryId)) {
 			const selection = { workspace, providerId };
 			this._additionalRepositorySelections.set(repositoryId, {
 				...selection,
@@ -1178,7 +1186,7 @@ export class WorkspacePicker extends Disposable {
 		// Let the action-list widget hide before a browse action opens another picker.
 		await Promise.resolve();
 		try {
-			if (action === this._localBrowseAction || action === this._localAddBrowseAction) {
+			if (action === this._localBrowseAction) {
 				const selection = await this._browseForLocalFolder();
 				return selection ? { ...selection, action } : undefined;
 			}
@@ -1203,9 +1211,7 @@ export class WorkspacePicker extends Disposable {
 		const all = this.sessionsProvidersService.getProviders().flatMap(p => p.browseActions);
 		const hasLocalSupport = this.sessionsProvidersService.getProviders().some(p => p.supportsLocalWorkspaces);
 		if (hasLocalSupport) {
-			all.unshift(...(this._selectedFolderUri && this._directPickerGroup === SESSION_WORKSPACE_GROUP_LOCAL
-				? [this._localAddBrowseAction]
-				: [this._localBrowseAction]));
+			all.unshift(this._localBrowseAction);
 		}
 		if (!this._isTabFiltered()) {
 			return all;
@@ -1252,6 +1258,10 @@ export class WorkspacePicker extends Disposable {
 	protected _isTabFiltered(): boolean {
 		return this._directPickerGroup !== undefined
 			|| (this._showTabs() && !!this._activeTab && this._getAvailableTabs().length > 1);
+	}
+
+	private _getActivePickerGroup(): string | undefined {
+		return this._directPickerGroup ?? (this._directPickerAttachesContext !== undefined ? this._activeTab : undefined);
 	}
 
 	/**
@@ -1341,23 +1351,30 @@ export class WorkspacePicker extends Disposable {
 					&& !RemoteAgentHostConnectionStatus.isConnected(connectionStatus)
 					&& !agentHostProvider?.canConnectOnDemand);
 			const isRepositoryAction = action.group === SESSION_WORKSPACE_GROUP_GITHUB && action.attachesContext !== true;
-			if (isRepositoryAction && this._selectedFolderUri && this._directPickerGroup === SESSION_WORKSPACE_GROUP_GITHUB) {
+			items.push({
+				kind: ActionListItemKind.Action,
+				label: action.label,
+				description: action.description,
+				group: { title: '', icon: action.icon },
+				disabled: isUnavailable,
+				item: { browseActionIndex: index },
+			});
+			const canAttachFolder = action === this._localBrowseAction
+				&& this._selectedFolderUri
+				&& this._getActivePickerGroup() === SESSION_WORKSPACE_GROUP_LOCAL;
+			const canAttachRepository = isRepositoryAction
+				&& this._selectedFolderUri
+				&& this._getActivePickerGroup() === SESSION_WORKSPACE_GROUP_GITHUB;
+			if (canAttachFolder || canAttachRepository) {
 				items.push({
 					kind: ActionListItemKind.Action,
-					label: localize('workspacePicker.addRepository', "Add Repository..."),
+					label: canAttachFolder
+						? localize('workspacePicker.attachFolder', "Attach Folder...")
+						: localize('workspacePicker.attachRepository', "Attach Repository..."),
 					description: action.description,
 					group: { title: '', icon: action.icon },
 					disabled: isUnavailable,
-					item: { browseActionIndex: index },
-				});
-			} else {
-				items.push({
-					kind: ActionListItemKind.Action,
-					label: action.label,
-					description: action.description,
-					group: { title: '', icon: action.icon },
-					disabled: isUnavailable,
-					item: { browseActionIndex: index },
+					item: { browseActionIndex: index, attachAsContext: true },
 				});
 			}
 		});
@@ -1421,7 +1438,7 @@ export class WorkspacePicker extends Disposable {
 			}
 		}
 
-		if (items.length === 0 && this._directPickerGroup === SESSION_WORKSPACE_GROUP_GITHUB) {
+		if (items.length === 0 && this._getActivePickerGroup() === SESSION_WORKSPACE_GROUP_GITHUB) {
 			items.push({
 				kind: ActionListItemKind.Action,
 				label: localize('workspacePicker.githubLoading', "GitHub repositories are still loading"),
@@ -1479,7 +1496,7 @@ export class WorkspacePicker extends Disposable {
 		this._updateTriggerLabel();
 		this._onDidChangeSelection.fire();
 		this._onDidRemoveAttachedContext.fire(selection.attachmentId);
-		this._focusCategoryTrigger(this._repositoryTriggerOptions);
+		this._focusCategoryTrigger(this._workspaceTriggerOptions ?? this._repositoryTriggerOptions);
 	}
 
 	private _renderAdditionalFolderTriggers(): void {
@@ -1489,7 +1506,7 @@ export class WorkspacePicker extends Disposable {
 		}
 		for (const selection of this._additionalFolderSelections.values()) {
 			const slot = dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot');
-			this._categoryRow.insertBefore(slot, this._repositoryTriggerSlot ?? null);
+			this._categoryRow.insertBefore(slot, this._repositoryTriggerSlot ?? this._repositoryContextTriggerSlot ?? null);
 			this._additionalFolderTriggerDisposables.add({ dispose: () => slot.remove() });
 			this._additionalFolderTriggerDisposables.add(this._addTrigger(slot, {
 				...this._folderTriggerOptions,
@@ -1510,7 +1527,7 @@ export class WorkspacePicker extends Disposable {
 		this._renderAdditionalFolderTriggers();
 		this._onDidChangeSelection.fire();
 		this._onDidRemoveAttachedContext.fire(getAdditionalFolderContextId(folderUri));
-		this._focusCategoryTrigger(this._folderTriggerOptions);
+		this._focusCategoryTrigger(this._workspaceTriggerOptions ?? this._folderTriggerOptions);
 	}
 
 	private _focusCategoryTrigger(options: IWorkspacePickerTrigger | undefined): void {
@@ -1552,7 +1569,6 @@ export class WorkspacePicker extends Disposable {
 			trigger.classList.toggle('selected', selectedWorkspace !== undefined || (reflectsWorkspace && workspace !== undefined) || isSelectedCategory || contextCount > 0 || relatedGitHubInfo !== undefined);
 			const icon = selectedWorkspace?.icon
 				?? (reflectsWorkspace ? workspace?.icon : undefined)
-				?? (contextCount > 0 ? Codicon.attach : undefined)
 				?? (relatedGitHubInfo ? Codicon.repo : (isSelectedCategory && workspace ? workspace.icon : options.icon));
 			if (!contents.icon) {
 				contents.icon = renderIcon(icon);
@@ -1561,9 +1577,10 @@ export class WorkspacePicker extends Disposable {
 			contents.icon.className = ThemeIcon.asClassName(icon);
 			const label = selectedWorkspace?.label
 				?? (reflectsWorkspace ? workspace?.label : undefined)
-				?? (contextCount > 0 ? localize('workspacePicker.attachedContextCount', "Attached {0}", contextCount) : undefined)
 				?? (relatedGitHubInfo ? `${relatedGitHubInfo.owner}/${relatedGitHubInfo.repo}` : (isSelectedCategory && workspace ? workspace.label : options.label));
-			trigger.setAttribute('aria-label', label && label !== options.label && !selectedWorkspace
+			trigger.setAttribute('aria-label', contextCount > 0
+				? localize('workspacePicker.attachedContextCountAriaLabel', "{0}, {1} attached", options.ariaLabel, contextCount)
+				: label && label !== options.label && !selectedWorkspace
 				? localize('workspacePicker.categorySelectionAriaLabel', "{0}: {1}", options.label ?? options.ariaLabel, label)
 				: options.ariaLabel);
 			if (label) {
@@ -1572,6 +1589,13 @@ export class WorkspacePicker extends Disposable {
 			} else {
 				contents.label?.remove();
 				contents.label = undefined;
+			}
+			if (contextCount > 0) {
+				contents.badge ??= new CountBadge(trigger, { count: contextCount }, defaultCountBadgeStyles);
+				contents.badge.setCount(contextCount);
+			} else {
+				contents.badge?.dispose();
+				contents.badge = undefined;
 			}
 			return;
 		}
