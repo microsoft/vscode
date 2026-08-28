@@ -9,8 +9,6 @@ import { Codicon } from '../../../base/common/codicons.js';
 import { Event } from '../../../base/common/event.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
-import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
-import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
@@ -50,10 +48,8 @@ export class NativeTitlebarPart extends TitlebarPart {
 		@IHostService hostService: IHostService,
 		@IProductService private readonly productService: IProductService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@ICommandService commandService: ICommandService,
 	) {
-		super(id, targetWindow, contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, accessibilityService, commandService);
+		super(id, targetWindow, contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService);
 
 		this.handleWindowsAlwaysOnTop(targetWindow.vscodeWindowId, contextKeyService);
 	}
@@ -218,10 +214,8 @@ class MainNativeTitlebarPart extends NativeTitlebarPart {
 		@IHostService hostService: IHostService,
 		@IProductService productService: IProductService,
 		@INativeHostService nativeHostService: INativeHostService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@ICommandService commandService: ICommandService,
 	) {
-		super(Parts.TITLEBAR_PART, mainWindow, contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, productService, nativeHostService, accessibilityService, commandService);
+		super(Parts.TITLEBAR_PART, mainWindow, contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, productService, nativeHostService);
 	}
 }
 
@@ -244,11 +238,9 @@ class AuxiliaryNativeTitlebarPart extends NativeTitlebarPart implements IAuxilia
 		@IHostService hostService: IHostService,
 		@IProductService productService: IProductService,
 		@INativeHostService nativeHostService: INativeHostService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@ICommandService commandService: ICommandService,
 	) {
 		const id = AuxiliaryNativeTitlebarPart.COUNTER++;
-		super(`workbench.parts.auxiliaryTitle.${id}`, getWindow(container), contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, productService, nativeHostService, accessibilityService, commandService);
+		super(`workbench.parts.auxiliaryTitle.${id}`, getWindow(container), contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, productService, nativeHostService);
 	}
 
 	override get preventZoom(): boolean {

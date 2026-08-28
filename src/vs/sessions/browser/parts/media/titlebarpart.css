@@ -98,29 +98,6 @@
 	color: var(--vscode-icon-foreground);
 }
 
-.monaco-workbench .part.titlebar > .sessions-titlebar-container .titlebar-status-badge {
-	display: flex;
-	align-items: center;
-	flex: 0 0 auto;
-	width: max-content;
-	height: 22px;
-	position: relative;
-	z-index: 2500;
-	padding: 0 var(--vscode-spacing-size80);
-	border-radius: var(--vscode-cornerRadius-medium);
-	background-color: var(--vscode-agentsBadge-background);
-	color: var(--vscode-agentsBadge-foreground);
-	font-size: var(--vscode-fontSize-label3);
-	font-weight: var(--vscode-fontWeight-semiBold);
-	white-space: nowrap;
-	-webkit-app-region: no-drag;
-}
-
-.monaco-workbench .part.titlebar > .sessions-titlebar-container .titlebar-status-badge:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: 1px;
-}
-
 /* Session Title Actions Container (before right toolbar) */
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container {
 	display: none;
@@ -136,19 +113,13 @@
 	align-items: center;
 }
 
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-screen-reader-container:not(.has-no-actions),
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-update-container:not(.has-no-actions) {
-	flex: 0 0 auto;
-	width: max-content;
-	margin-right: var(--vscode-spacing-size40);
-}
-
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-status-badge {
 	margin-right: var(--vscode-spacing-size40);
 }
 
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-actions-container.overflowing,
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-center-right-container > .titlebar-actions-container.overflowing,
-.monaco-workbench .part.titlebar > .sessions-titlebar-container .titlebar-status-badge.overflowing,
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container.overflowing {
 	display: none;
 }

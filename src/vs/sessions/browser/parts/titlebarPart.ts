@@ -12,11 +12,11 @@ import { hasCustomTitlebar, hasNativeTitlebar, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, T
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
-import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { agentsBackground, agentsPanelForeground } from '../../common/theme.js';
 import { isMacintosh, isWeb, isNative, platformLocale } from '../../../base/common/platform.js';
-import { EventType, EventHelper, append, $, addDisposableListener, prepend, getWindow, getWindowId, setVisibility } from '../../../base/browser/dom.js';
+import { EventType, EventHelper, append, $, addDisposableListener, prepend, getWindow, getWindowId } from '../../../base/browser/dom.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
@@ -25,6 +25,7 @@ import { Parts, IWorkbenchLayoutService } from '../../../workbench/services/layo
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IHostService } from '../../../workbench/services/host/browser/host.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
+import { MenuWorkbenchButtonBar } from '../../../platform/actions/browser/buttonbar.js';
 import { IEditorGroupsContainer } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { CodeWindow, mainWindow } from '../../../base/browser/window.js';
 import { safeIntl } from '../../../base/common/date.js';
@@ -32,47 +33,9 @@ import { ITitlebarPart, ITitleProperties, ITitleVariable, IAuxiliaryTitlebarPart
 import { WindowTitle } from '../../../workbench/browser/parts/titlebar/windowTitle.js';
 import { Menus } from '../menus.js';
 import { IsNewChatSessionContext } from '../../common/contextkeys.js';
-import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
 import { localize } from '../../../nls.js';
-import { Button } from '../../../base/browser/ui/button/button.js';
-import { ICommandService } from '../../../platform/commands/common/commands.js';
 
 const commandCenterContextKeys = new Set([IsNewChatSessionContext.key]);
-const TOGGLE_SCREEN_READER_ACCESSIBILITY_MODE_COMMAND_ID = 'editor.action.toggleScreenReaderAccessibilityMode';
-
-export class ScreenReaderOptimizedButton extends Disposable {
-
-	readonly element: HTMLElement;
-
-	constructor(
-		container: HTMLElement,
-		accessibilityService: IAccessibilityService,
-		commandService: ICommandService,
-		onDidChangeVisibility: () => void,
-	) {
-		super();
-
-		const label = localize('screenReaderOptimizedBadge', "Screen Reader Optimized");
-		const button = this._register(new Button(container, {
-			ariaLabel: localize('disableScreenReaderOptimizedMode', "Disable Screen Reader Optimized Mode"),
-			title: localize('disableScreenReaderOptimizedMode', "Disable Screen Reader Optimized Mode"),
-		}));
-		button.label = label;
-		button.element.classList.add('titlebar-status-badge', 'screen-reader-optimized-badge');
-		this.element = button.element;
-
-		this._register(button.onDidClick(() => {
-			void commandService.executeCommand(TOGGLE_SCREEN_READER_ACCESSIBILITY_MODE_COMMAND_ID);
-		}));
-
-		const updateVisibility = () => {
-			setVisibility(accessibilityService.isScreenReaderOptimized(), this.element);
-			onDidChangeVisibility();
-		};
-		updateVisibility();
-		this._register(accessibilityService.onDidChangeScreenReaderOptimized(updateVisibility));
-	}
-}
 
 /**
  * Simplified agent sessions titlebar part.
@@ -144,8 +107,6 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IHostService private readonly hostService: IHostService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(id, { hasTitle: false }, themeService, storageService, layoutService);
 
@@ -310,15 +271,20 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			toolbarOptions: { primaryGroup: () => true },
 		}));
 
-		const screenReaderButton = this._register(new ScreenReaderOptimizedButton(
-			this.rightContent,
-			this.accessibilityService,
-			this.commandService,
-			() => this.updateTitleBarToolBarOverflow()
-		));
-		prepend(this.rightContent, screenReaderButton.element);
-		this.overflowManagedToolBarElements.push(screenReaderButton.element);
+		const screenReaderToolBarElement = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-screen-reader-container'));
+		const screenReaderButtonBar = this._register(this.instantiationService.createInstance(MenuWorkbenchButtonBar, screenReaderToolBarElement, Menus.TitleBarAccessibility, {
+			telemetrySource: 'titlePart.accessibility',
+			renderSecondaryActions: false,
+			buttonConfigProvider: () => ({ showIcon: false, showLabel: true, isSecondary: false }),
+		}));
+		const updateScreenReaderButtonBar = () => {
+			screenReaderToolBarElement.classList.toggle('has-no-actions', screenReaderButtonBar.buttons.length === 0);
+			this.updateTitleBarToolBarOverflow();
+		};
+		this._register(screenReaderButtonBar.onDidChange(updateScreenReaderButtonBar));
+		updateScreenReaderButtonBar();
 
+		this.overflowManagedToolBarElements.push(screenReaderToolBarElement);
 		this.registerOverflowManagedToolBar(centerActionsContainer, centerActionsToolBar);
 		this.registerOverflowManagedToolBar(centerNavContainer, centerNavToolBar);
 		this.registerOverflowManagedToolBar(rightToolbarContainer, rightToolBar);
@@ -446,10 +412,8 @@ export class MainTitlebarPart extends TitlebarPart {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService hostService: IHostService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@ICommandService commandService: ICommandService,
 	) {
-		super(Parts.TITLEBAR_PART, mainWindow, contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, accessibilityService, commandService);
+		super(Parts.TITLEBAR_PART, mainWindow, contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService);
 	}
 }
 
@@ -473,11 +437,9 @@ export class AuxiliaryTitlebarPart extends TitlebarPart implements IAuxiliaryTit
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService hostService: IHostService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@ICommandService commandService: ICommandService,
 	) {
 		const id = AuxiliaryTitlebarPart.COUNTER++;
-		super(`workbench.parts.auxiliaryTitle.${id}`, getWindow(container), contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, accessibilityService, commandService);
+		super(`workbench.parts.auxiliaryTitle.${id}`, getWindow(container), contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService);
 	}
 
 	override get preventZoom(): boolean {
