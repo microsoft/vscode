@@ -32,7 +32,7 @@ export class QuickAccess {
 
 		// make sure the file quick access is not "polluted"
 		// with entries from the editor history when opening
-		await this.runCommand('workbench.action.clearEditorHistoryWithoutConfirm');
+		await this.runCommand('workbench.action.clearEditorHistoryWithoutConfirm', { match: 'fuzzy' });
 
 		const PollingStrategy = {
 			Stop: true,
