@@ -28,7 +28,7 @@ exchanges:
                             <command-message>model</command-message>
                             <command-args>claude-opus-5</command-args>
             - type: text
-              text: <local-command-stdout>Set model to `claude-opus-5`</local-command-stdout>
+              text: <local-command-stdout>Set model to claude-opus-5</local-command-stdout>
             - type: text
               text: Reply with only the exact code word I asked you to remember.
     response:
