@@ -171,6 +171,7 @@ function createProvider() {
 		override getRequestDetails = vi.fn(async () => []);
 		override getRepositoryProperties = vi.fn(async () => undefined);
 		override getSessionParentId = vi.fn<IChatSessionMetadataStore['getSessionParentId']>(async () => undefined);
+		override getSessionArchived = vi.fn(async () => false);
 	};
 	const gitService = new TestGitService();
 	const folderRepositoryManager = new TestFolderRepositoryManager();
@@ -227,6 +228,7 @@ function createProvider() {
 		worktreeService,
 		gitService,
 		octoKitService,
+		metadataStore,
 	};
 }
 
@@ -507,6 +509,20 @@ describe('CopilotCLIChatSessionContentProvider (additional)', () => {
 
 		const item = await provider.toChatSessionItem(sessionItem);
 		expect(item.label).toBe('Test Session');
+	});
+
+	it('toChatSessionItem rehydrates persisted archived state', async () => {
+		const { provider, metadataStore } = createProvider();
+		metadataStore.getSessionArchived.mockResolvedValue(true);
+		const sessionItem: ICopilotCLISessionItem = {
+			id: 'session-1',
+			label: 'Test Session',
+			status: undefined,
+			workingDirectory: undefined,
+		} as unknown as ICopilotCLISessionItem;
+
+		const item = await provider.toChatSessionItem(sessionItem);
+		expect(item.archived).toBe(true);
 	});
 
 	it('only includes cached changes when explicitly requested', async () => {

@@ -480,7 +480,7 @@ async function finalizeDictation(active: IActiveDictation): Promise<void> {
 	// re-apply the styling or overwrite the final text.
 	active.inserter.beginFinalize();
 	try {
-		const text = await active.service.stopAndTranscribe();
+		const text = await active.service.stopAndTranscribe({ preserveLiveTranscript: active.service.showTranscriptWhileDictating });
 		active.logService.trace(`${LOG_PREFIX} stopAndTranscribe resolved text=${text === undefined ? 'undefined' : `len=${text.length}`}`);
 		if (text !== undefined) {
 			// Final transcript: render it solid (no interim styling).

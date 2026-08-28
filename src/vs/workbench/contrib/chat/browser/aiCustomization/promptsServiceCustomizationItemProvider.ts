@@ -112,13 +112,10 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 					extensionInfoByUri.set(file.uri, { id: file.extension.identifier, displayName: file.extension.displayName });
 				}
 			}
-			const uiIntegrations = this.workspaceService.getSkillUIIntegrations();
 			const seenUris = new ResourceSet();
 			for (const skill of skills || []) {
 				const skillName = skill.name || basename(dirname(skill.uri)) || basename(skill.uri);
 				seenUris.add(skill.uri);
-				const skillFolderName = basename(dirname(skill.uri));
-				const uiTooltip = uiIntegrations.get(skillFolderName);
 				items.push({
 					uri: skill.uri,
 					type: promptType,
@@ -126,8 +123,6 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 					description: skill.description,
 					source: skill.storage,
 					enabled: true,
-					badge: uiTooltip ? localize('uiIntegrationBadge', "UI Integration") : undefined,
-					badgeTooltip: uiTooltip,
 					extensionId: skill.extension?.identifier.value,
 					pluginUri: skill.pluginUri,
 					pluginLabel: skill.pluginLabel,
@@ -138,8 +133,6 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 				for (const file of allSkillFiles) {
 					if (!seenUris.has(file.uri) && disabledUris.has(file.uri)) {
 						const disabledName = file.name || basename(dirname(file.uri)) || basename(file.uri);
-						const disabledFolderName = basename(dirname(file.uri));
-						const uiTooltip = uiIntegrations.get(disabledFolderName);
 						items.push({
 							uri: file.uri,
 							type: promptType,
@@ -147,8 +140,6 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 							description: file.description,
 							source: file.storage,
 							enabled: false,
-							badge: uiTooltip ? localize('uiIntegrationBadge', "UI Integration") : undefined,
-							badgeTooltip: uiTooltip,
 							extensionId: file.extension?.identifier.value,
 							pluginUri: file.pluginUri,
 							pluginLabel: file.pluginLabel,

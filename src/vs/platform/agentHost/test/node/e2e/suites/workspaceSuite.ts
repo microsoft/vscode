@@ -120,7 +120,7 @@ export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 	//    even though the tool call itself completes.
 	//
 	// Re-enabling on Windows needs the missing terminal resource understood.
-	(config.supportsWorktreeIsolation && !isWindows && portableShellToolReplayEnabled && !config.shellToolResultTextUnreliable ? test : test.skip)('worktree session uses the resolved worktree as working directory', async function () {
+	(config.supportsWorktreeIsolation && !isWindows && portableShellToolReplayEnabled ? test : test.skip)('worktree session uses the resolved worktree as working directory', async function () {
 		this.timeout(120_000);
 
 		const tempDir = mkdtempSync(`${tmpdir()}/ahp-wt-test-`);

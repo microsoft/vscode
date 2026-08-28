@@ -137,7 +137,7 @@
 	flex-shrink: 0;
 	font-size: 12px;
 	font-variant-numeric: tabular-nums;
-	font-weight: 500;
+	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 .mobile-multi-diff-stat-added {

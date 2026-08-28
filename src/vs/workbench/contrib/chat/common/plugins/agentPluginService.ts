@@ -35,6 +35,8 @@ export interface IAgentPlugin {
 	readonly format: PluginFormat;
 	/** Human-readable display name for the plugin. */
 	readonly label: string;
+	/** Version declared by the plugin manifest, falling back to marketplace metadata. */
+	readonly version?: IObservable<string | undefined>;
 	readonly enablement: IObservable<ContributionEnablementState>;
 	/**
 	 * When `true`, the plugin is blocked by enterprise policy. It remains
@@ -44,7 +46,7 @@ export interface IAgentPlugin {
 	 */
 	readonly policyBlocked?: IObservable<boolean>;
 	/** Removes this plugin from its discovery source (config or installed storage). Undefined for policy-managed plugins that cannot be removed by the user. */
-	remove?(): void;
+	remove?(): Promise<boolean>;
 	readonly hooks: IObservable<readonly IAgentPluginHook[]>;
 	readonly commands: IObservable<readonly IAgentPluginCommand[]>;
 	readonly skills: IObservable<readonly IAgentPluginSkill[]>;

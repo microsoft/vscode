@@ -189,7 +189,8 @@ export class AgentInstructionsLocator extends Disposable {
 		while (true) {
 			try {
 				const gitFolder = joinPath(current, '.git');
-				const isRepoRoot = await this.fileSystemService.stat(gitFolder).then(() => true, () => false);
+				const gitStat = await this.fileSystemService.stat(gitFolder).then(stat => stat, () => undefined);
+				const isRepoRoot = gitStat !== undefined && (gitStat.type & FileType.Directory) !== 0;
 				if (isRepoRoot) {
 					// Only include the repo root (and any intermediate parents) if the user has explicitly trusted it.
 					const trusted = await this.workspaceService.isResourceTrusted(current);

@@ -25,27 +25,27 @@
 }
 
 .modern-ui .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator {
-	background-color: var(--vscode-modernActivityBar-activeBackground);
+	background-color: var(--vscode-modernActivityBarItem-activeBackground);
 }
 
 .modern-ui .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .action-label.codicon {
-	color: var(--vscode-modernActivityBar-activeForeground) !important;
+	color: var(--vscode-modernActivityBarItem-activeForeground) !important;
 }
 
 .modern-ui .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .action-label.uri-icon {
-	background-color: var(--vscode-modernActivityBar-activeForeground) !important;
+	background-color: var(--vscode-modernActivityBarItem-activeForeground) !important;
 }
 
 .modern-ui .activitybar > .content:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) :not(.monaco-menu) > .monaco-action-bar .action-item:not(.checked):hover .active-item-indicator {
-	background-color: var(--vscode-modernActivityBar-hoverBackground);
+	background-color: var(--vscode-modernActivityBarItem-hoverBackground);
 }
 
 .modern-ui .activitybar > .content:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) :not(.monaco-menu) > .monaco-action-bar .action-item:not(.checked):hover .action-label.codicon {
-	color: var(--vscode-modernActivityBar-hoverForeground) !important;
+	color: var(--vscode-modernActivityBarItem-hoverForeground) !important;
 }
 
 .modern-ui .activitybar > .content:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) :not(.monaco-menu) > .monaco-action-bar .action-item:not(.checked):hover .action-label.uri-icon {
-	background-color: var(--vscode-modernActivityBar-hoverForeground) !important;
+	background-color: var(--vscode-modernActivityBarItem-hoverForeground) !important;
 }
 
 /* Compact: minimal horizontal inset — 24×24px box centered in the 28px item. */

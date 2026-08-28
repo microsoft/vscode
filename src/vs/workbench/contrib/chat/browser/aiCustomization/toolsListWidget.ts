@@ -23,6 +23,7 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
@@ -42,6 +43,10 @@ import './media/aiCustomizationManagement.css';
 
 const $ = DOM.$;
 
+export function isToolsTreeKeyboardTarget(target: HTMLElement, row: HTMLElement): boolean {
+	return target === row;
+}
+
 interface ITreeRow {
 	readonly kind: 'set' | 'tool';
 	readonly rowId: string;
@@ -51,6 +56,7 @@ interface ITreeRow {
 	readonly group?: HTMLElement;
 	readonly children?: ITreeRow[];
 	readonly parent?: ITreeRow;
+	readonly readOnly?: boolean;
 }
 
 interface IToolViewModel {
@@ -146,7 +152,6 @@ export class ToolsListWidget extends Disposable {
 	private _searchRow!: HTMLElement;
 	private _treeContainer!: HTMLElement;
 	private _treeScrollable!: DomScrollableElement;
-	private _browseButtonContainer: HTMLElement | undefined;
 	private _backButtonContainer!: HTMLElement;
 	private _galleryContainer!: HTMLElement;
 	private _galleryEmpty!: HTMLElement;
@@ -262,14 +267,6 @@ export class ToolsListWidget extends Disposable {
 			}).catch(() => { /* delayer disposed */ });
 		}));
 
-		if (!this._environmentService.isSessionsWindow) {
-			const browseLabel = localize('toolsBrowseMarketplace', "Browse Marketplace");
-			this._browseButtonContainer = DOM.append(this._searchRow, $('.tools-list-browse-button-container'));
-			const browseButton = this._register(new Button(this._browseButtonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: browseLabel, ariaLabel: browseLabel }));
-			browseButton.label = `$(${Codicon.library.id}) ${browseLabel}`;
-			this._register(browseButton.onDidClick(() => this._setBrowseMode(true)));
-		}
-
 		const backLabel = localize('toolsBrowseBack', "Back");
 		this._backButtonContainer = DOM.append(this._searchRow, $('.tools-list-browse-button-container'));
 		this._backButtonContainer.style.display = 'none';
@@ -281,6 +278,9 @@ export class ToolsListWidget extends Disposable {
 	private _createGallery(): void {
 		this._galleryContainer = DOM.append(this.element, $('.tools-gallery-container'));
 		this._galleryContainer.style.display = 'none';
+		const header = DOM.append(this._galleryContainer, $('.tools-marketplace-header'));
+		DOM.append(header, $('h3.tools-marketplace-title')).textContent = localize('toolsMarketplaceTitle', "Marketplace Tools");
+		DOM.append(header, $('p.tools-marketplace-description')).textContent = localize('toolsMarketplaceDescription', "Install extensions that contribute additional tools.");
 		this._galleryEmpty = DOM.append(this._galleryContainer, $('.list-empty-state'));
 		this._galleryEmpty.style.display = 'none';
 		this._galleryListContainer = DOM.append(this._galleryContainer, $('.tools-gallery-list'));
@@ -404,6 +404,7 @@ export class ToolsListWidget extends Disposable {
 	layout(height: number, width: number): void {
 		this._lastHeight = height;
 		this._lastWidth = width;
+		this.element.classList.toggle('narrow-layout', width < 500);
 		this._searchInput.layout();
 		this._treeScrollable.scanDomNode();
 
@@ -423,9 +424,6 @@ export class ToolsListWidget extends Disposable {
 
 		this._treeScrollable.getDomNode().style.display = browse ? 'none' : '';
 		this._galleryContainer.style.display = browse ? '' : 'none';
-		if (this._browseButtonContainer) {
-			this._browseButtonContainer.style.display = browse ? 'none' : '';
-		}
 		this._backButtonContainer.style.display = browse ? '' : 'none';
 
 		this._searchInput.setPlaceHolder(browse
@@ -546,31 +544,90 @@ export class ToolsListWidget extends Disposable {
 		this._rowByElement.clear();
 		DOM.clearNode(this._treeContainer);
 
-		if (model.length === 0) {
+		const query = this._searchQuery.get().trim();
+		if (model.length === 0 && query) {
 			const emptyState = DOM.append(this._treeContainer, $('.list-empty-state'));
 			const header = DOM.append(emptyState, $('.empty-state-header'));
 			const text = DOM.append(header, $('.empty-state-text'));
 			const subtext = DOM.append(emptyState, $('.empty-state-subtext'));
-			const query = this._searchQuery.get().trim();
-			if (query) {
-				text.textContent = localize('noMatchingTools', "No tools match '{0}'", query);
-				subtext.textContent = localize('tryDifferentSearch', "Try a different search term");
-			} else {
-				text.textContent = localize('toolsNoMatches', "No tools available.");
-			}
+			text.textContent = localize('noMatchingTools', "No tools match '{0}'", query);
+			subtext.textContent = localize('tryDifferentSearch', "Try a different search term");
 			this._treeScrollable.scanDomNode();
 			return;
 		}
 
+		const builtIn = model.filter(vm => vm.toolSet.source.type === 'internal' || vm.toolSet.source.type === 'external');
+		const connected = model.filter(vm => vm.toolSet.source.type === 'mcp' || vm.toolSet.source.type === 'user');
+		const installed = model.filter(vm => vm.toolSet.source.type === 'extension');
+		this._renderToolSection(
+			localize('builtInToolsSection', "Built-in Tools"),
+			localize('builtInToolsSectionDescription', "Tools provided by the active agent and VS Code."),
+			localize('builtInToolsSectionEmpty', "No built-in tool sets are available."),
+			builtIn,
+			query,
+		);
+		this._renderToolSection(
+			localize('connectedToolsSection', "Connected Sources"),
+			localize('connectedToolsSectionDescription', "Tool sets provided by MCP servers and user configuration."),
+			localize('connectedToolsSectionEmpty', "No connected tool sources are available."),
+			connected,
+			query,
+			undefined,
+			false,
+		);
+		this._renderToolSection(
+			localize('installedToolExtensionsSection', "Extension Tools"),
+			localize('installedToolExtensionsSectionDescription', "Tool sets contributed by installed extensions."),
+			localize('extensionToolsSectionEmpty', "No extension tools are installed."),
+			installed,
+			query,
+			!this._environmentService.isSessionsWindow ? sectionHeader => {
+				const actions = DOM.append(sectionHeader, $('.tools-inventory-section-actions'));
+				const browseLabel = localize('toolsBrowseMarketplace', "Browse Marketplace");
+				const browseButton = this._rowStore.add(new Button(actions, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: browseLabel, ariaLabel: browseLabel }));
+				browseButton.label = `$(${Codicon.library.id}) ${browseLabel}`;
+				this._rowStore.add(browseButton.onDidClick(() => this._setBrowseMode(true)));
+			} : undefined,
+		);
+		this._initRovingTabIndex(hadFocus);
+		this._treeScrollable.scanDomNode();
+	}
+
+	private _renderToolSection(
+		title: string,
+		description: string,
+		emptyMessage: string,
+		model: readonly IToolSetViewModel[],
+		query: string,
+		renderActions?: (header: HTMLElement) => void,
+		showWhenEmpty = true,
+	): void {
+		if (model.length === 0 && (query || !showWhenEmpty)) {
+			return;
+		}
+		const section = DOM.append(this._treeContainer, $('.tools-inventory-section'));
+		const header = DOM.append(section, $('.tools-inventory-section-header'));
+		const text = DOM.append(header, $('.tools-inventory-section-text'));
+		const headingRow = DOM.append(text, $('.tools-inventory-section-heading-row'));
+		DOM.append(headingRow, $('h3.tools-inventory-section-title')).textContent = title;
+		DOM.append(headingRow, $('span.tools-inventory-section-count')).textContent = String(model.length);
+		DOM.append(text, $('p.tools-inventory-section-description')).textContent = description;
+		renderActions?.(header);
+
+		const inventory = DOM.append(section, $('.tools-inventory-list'));
+		inventory.setAttribute('role', 'group');
+		inventory.setAttribute('aria-label', title);
+		if (model.length === 0) {
+			DOM.append(inventory, $('.plugin-inventory-empty')).textContent = emptyMessage;
+			return;
+		}
 		for (const vm of model) {
-			const setRow = this._renderToolSet(vm);
+			const setRow = this._renderToolSet(inventory, vm);
 			this._addRow(setRow);
 			for (const child of setRow.children!) {
 				this._addRow(child);
 			}
 		}
-		this._initRovingTabIndex(hadFocus);
-		this._treeScrollable.scanDomNode();
 	}
 
 	private _addRow(row: ITreeRow): void {
@@ -578,9 +635,9 @@ export class ToolsListWidget extends Disposable {
 		this._rowByElement.set(row.element, row);
 	}
 
-	private _renderToolSet(vm: IToolSetViewModel): ITreeRow {
+	private _renderToolSet(container: HTMLElement, vm: IToolSetViewModel): ITreeRow {
 		const ts = vm.toolSet;
-		const row = DOM.append(this._treeContainer, $('.tools-list-setrow'));
+		const row = DOM.append(container, $('.tools-list-setrow'));
 		// Tree item with a roving tabIndex: navigated with arrows, toggled with Space; not a Tab stop.
 		row.setAttribute('role', 'treeitem');
 		row.setAttribute('aria-level', '1');
@@ -589,19 +646,17 @@ export class ToolsListWidget extends Disposable {
 		const setName = ts.description ?? ts.referenceName;
 		const toggleExpand = () => this._toggleCollapsed(ts.id);
 
-		const checkbox = this._rowStore.add(new TriStateCheckbox(
-			localize('toolsSetCheckbox', "Enable {0}", setName),
-			getToolSetTriState(this._currentState(), ts.id, vm.allToolIds),
-			defaultCheckboxStyles,
-		));
-		checkbox.domNode.tabIndex = -1;
-		row.appendChild(checkbox.domNode);
-		if (vm.readOnly) {
-			checkbox.disable();
-			checkbox.setTitle(localize('toolsSetReadOnly', "These are the agent's built-in tools and cannot be changed."));
-		} else {
+		let checkbox: TriStateCheckbox | undefined;
+		if (!vm.readOnly) {
+			checkbox = this._rowStore.add(new TriStateCheckbox(
+				localize('toolsSetCheckbox', "Enable {0}", setName),
+				getToolSetTriState(this._currentState(), ts.id, vm.allToolIds),
+				defaultCheckboxStyles,
+			));
+			checkbox.domNode.tabIndex = -1;
+			row.prepend(checkbox.domNode);
 			this._rowStore.add(checkbox.onChange(() => {
-				const enabled = checkbox.checked === true;
+				const enabled = checkbox!.checked === true;
 				this._enablementService.setToolSetEnabled(this._sessionType, ts.id, vm.allToolIds, enabled);
 			}));
 		}
@@ -617,31 +672,37 @@ export class ToolsListWidget extends Disposable {
 		}
 
 		const count = DOM.append(row, $('span.tools-list-row-count'));
+		if (vm.readOnly) {
+			DOM.append(row, $('span.tools-list-always-available')).textContent = localize('toolsAlwaysAvailable', "Always Available");
+		}
+		const extension = this._resolveExtensionForToolSet(ts);
+		let moreButton: HTMLButtonElement | undefined;
+		if (extension) {
+			const moreLabel = localize('toolsSetMoreActions', "More actions for {0}", setName);
+			moreButton = DOM.append(row, $('button.tools-list-more-action')) as HTMLButtonElement;
+			moreButton.type = 'button';
+			moreButton.classList.add(...ThemeIcon.asClassNameArray(Codicon.ellipsis));
+			moreButton.setAttribute('aria-label', moreLabel);
+			moreButton.title = moreLabel;
+			this._rowStore.add(DOM.addDisposableListener(moreButton, 'click', e => {
+				DOM.EventHelper.stop(e, true);
+				this._showExtensionContextMenu(moreButton!, extension);
+			}));
+		}
 
 		// Decorative chevron: expand state is on the row (aria-expanded); toggled by row click or arrows.
 		const chevron = DOM.append(row, $('a.tools-list-chevron.codicon')) as HTMLAnchorElement;
 		chevron.setAttribute('aria-hidden', 'true');
 
 		this._rowStore.add(DOM.addDisposableListener(row, 'click', e => {
-			if (checkbox.domNode.contains(e.target as Node)) {
+			if (checkbox?.domNode.contains(e.target as Node) || moreButton?.contains(e.target as Node)) {
 				return;
 			}
 			row.focus();
 			toggleExpand();
 		}));
 
-		// Extension-provided tool sets can be uninstalled via the context menu.
-		this._rowStore.add(DOM.addDisposableListener(row, 'contextmenu', e => {
-			const extension = this._resolveExtensionForToolSet(ts);
-			if (!extension) {
-				return;
-			}
-			DOM.EventHelper.stop(e, true);
-			const anchor: HTMLElement | StandardMouseEvent = e.button === 2 ? new StandardMouseEvent(DOM.getWindow(row), e) : row;
-			this._showExtensionContextMenu(anchor, extension);
-		}));
-
-		const group = DOM.append(this._treeContainer, $('.tools-list-children'));
+		const group = DOM.append(container, $('.tools-list-children'));
 		group.id = `tools-group-${ts.id}`;
 		group.setAttribute('role', 'group');
 		group.setAttribute('aria-label', setName);
@@ -653,9 +714,10 @@ export class ToolsListWidget extends Disposable {
 			rowId: `set:${ts.id}`,
 			toolSetId: ts.id,
 			element: row,
-			toggleNode: checkbox.domNode,
+			toggleNode: checkbox?.domNode ?? row,
 			group,
 			children: [],
+			readOnly: vm.readOnly,
 		};
 		for (const tool of vm.visibleTools) {
 			setRow.children!.push(this._renderTool(group, setRow, vm, tool));
@@ -665,8 +727,12 @@ export class ToolsListWidget extends Disposable {
 		this._rowStore.add(autorun(reader => {
 			const state = this._readState(reader);
 			const triState = getToolSetTriState(state, ts.id, vm.allToolIds);
-			checkbox.checked = triState;
-			this._updateRowAriaChecked(row, triState);
+			if (checkbox) {
+				checkbox.checked = triState;
+				this._updateRowAriaChecked(row, triState);
+			} else {
+				row.removeAttribute('aria-checked');
+			}
 			const enabledCount = vm.allToolIds.reduce((n, id) => n + (isToolEnabledInSet(state, ts.id, id) ? 1 : 0), 0);
 			count.textContent = `${enabledCount}/${vm.allToolIds.length}`;
 			count.setAttribute('aria-label', localize('toolsRowEnabledOfTotal', "{0} of {1} tools enabled", enabledCount, vm.allToolIds.length));
@@ -697,34 +763,32 @@ export class ToolsListWidget extends Disposable {
 		row.setAttribute('aria-level', '2');
 		row.tabIndex = -1;
 
-		const checkbox = this._rowStore.add(new Checkbox(
-			localize('toolsToolCheckbox', "Enable {0}", toolName),
-			enabled,
-			defaultCheckboxStyles,
-		));
-		checkbox.domNode.tabIndex = -1;
-		row.appendChild(checkbox.domNode);
-		this._updateRowAriaChecked(row, enabled);
-		if (vm.readOnly) {
-			checkbox.disable();
-			checkbox.setTitle(localize('toolsSetReadOnly', "These are the agent's built-in tools and cannot be changed."));
-		} else {
+		let checkbox: Checkbox | undefined;
+		if (!vm.readOnly) {
+			checkbox = this._rowStore.add(new Checkbox(
+				localize('toolsToolCheckbox', "Enable {0}", toolName),
+				enabled,
+				defaultCheckboxStyles,
+			));
+			checkbox.domNode.tabIndex = -1;
+			row.prepend(checkbox.domNode);
+			this._updateRowAriaChecked(row, enabled);
 			this._rowStore.add(checkbox.onChange(() => {
-				this._enablementService.setToolEnabled(this._sessionType, vm.toolSet.id, tool.id, checkbox.checked);
+				this._enablementService.setToolEnabled(this._sessionType, vm.toolSet.id, tool.id, checkbox!.checked);
 			}));
 
 			this._rowStore.add(DOM.addDisposableListener(row, 'click', e => {
-				if (checkbox.domNode.contains(e.target as Node)) {
+				if (checkbox!.domNode.contains(e.target as Node)) {
 					return;
 				}
 				row.focus();
-				this._enablementService.setToolEnabled(this._sessionType, vm.toolSet.id, tool.id, !checkbox.checked);
+				this._enablementService.setToolEnabled(this._sessionType, vm.toolSet.id, tool.id, !checkbox!.checked);
 			}));
 
 			// Keep the checkbox and the treeitem's aria-checked in sync (e.g. when the parent set is toggled).
 			this._rowStore.add(autorun(reader => {
 				const toolEnabled = isToolEnabledInSet(this._readState(reader), vm.toolSet.id, tool.id);
-				checkbox.checked = toolEnabled;
+				checkbox!.checked = toolEnabled;
 				this._updateRowAriaChecked(row, toolEnabled);
 			}));
 		}
@@ -738,14 +802,18 @@ export class ToolsListWidget extends Disposable {
 			const subtext = DOM.append(text, $('span.tools-list-row-subtext'));
 			subtext.textContent = description;
 		}
+		if (vm.readOnly) {
+			DOM.append(row, $('span.tools-list-always-available')).textContent = localize('toolsAlwaysAvailable', "Always Available");
+		}
 
 		return {
 			kind: 'tool',
 			rowId: `tool:${vm.toolSet.id}:${tool.id}`,
 			toolSetId: vm.toolSet.id,
 			element: row,
-			toggleNode: checkbox.domNode,
+			toggleNode: checkbox?.domNode ?? row,
 			parent,
+			readOnly: vm.readOnly,
 		};
 	}
 
@@ -845,7 +913,7 @@ export class ToolsListWidget extends Disposable {
 
 	private _onTreeKeyDown(e: IKeyboardEvent): void {
 		const row = this._rowFromTarget(e.target);
-		if (!row) {
+		if (!row || !isToolsTreeKeyboardTarget(e.target, row.element)) {
 			return;
 		}
 		let handled = true;
@@ -869,9 +937,17 @@ export class ToolsListWidget extends Disposable {
 				this._focusEdge(false);
 				break;
 			case KeyCode.Space:
-			case KeyCode.Enter:
-				// Reuse the row's checkbox wiring; disabled (read-only) checkboxes ignore the click.
+				if (row.readOnly) {
+					break;
+				}
 				row.toggleNode.click();
+				break;
+			case KeyCode.Enter:
+				if (row.kind === 'set' && row.readOnly) {
+					this._toggleCollapsed(row.toolSetId);
+				} else if (!row.readOnly) {
+					row.toggleNode.click();
+				}
 				break;
 			default:
 				handled = false;

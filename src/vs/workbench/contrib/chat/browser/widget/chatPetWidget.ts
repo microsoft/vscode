@@ -26,7 +26,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID, ChatPetAccessoryId, getChatPetAccessory, getChatPetAchievement } from '../chatPetAchievements.js';
-import { ChatPetVariant, IChatPetService } from '../chatPetService.js';
+import { CHAT_PET_DEFAULT_SCALE, ChatPetVariant, IChatPetService } from '../chatPetService.js';
 import { drawChatPetComposite, drawChatPetEyeAccessory, getChatPetAccessoryImageSource, hasChatPetAccessoryImageDimensions, hasChatPetBodyImageDimensions, IChatPetAccessoryImageSource, IChatPetFixedOrientationDecoration } from './chatPetAccessoryRenderer.js';
 import { getChatPetAccessoryRigFrame, getChatPetReducedMotionRigFrame } from './chatPetAccessoryRig.js';
 
@@ -2028,6 +2028,10 @@ export class ChatPetWidget extends Disposable {
 			this.chatPetService.setScale(scale);
 			status(localize('chatPet.shrank', "VS Code pet size: {0} percent", Math.round(scale * 100)));
 		}));
+		const resetSize = actions.add(new Action('chat.pet.resetSize', localize('chatPet.resetSize.action', "Reset Size"), undefined, this._scale !== CHAT_PET_DEFAULT_SCALE, () => {
+			this.chatPetService.resetScale();
+			status(localize('chatPet.sizeReset', "VS Code pet size: {0} percent", CHAT_PET_DEFAULT_SCALE * 100));
+		}));
 		const onTheRunAction = actions.add(new Action(
 			'chat.pet.onTheRun',
 			onTheRun ? localize('chatPet.comeBack.action', "Come Back") : localize('chatPet.goOnTheRun.action', "Go on the Run"),
@@ -2048,6 +2052,7 @@ export class ChatPetWidget extends Disposable {
 				interactionSeparator,
 				grow,
 				shrink,
+				resetSize,
 				appearanceSeparator,
 				stable,
 				insiders,

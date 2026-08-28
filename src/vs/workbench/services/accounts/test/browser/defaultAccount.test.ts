@@ -16,7 +16,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, IFileManagedSettingsService, INativeManagedSettingsService, ManagedSettingsData } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, IFileManagedSettingsService, INativeManagedSettingsService, ManagedSettingsData, NullFileManagedSettingsService, NullNativeManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IManagedSettingsFreshness, ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessState } from '../../../../../platform/policy/common/managedSettingsFreshness.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IRequestService } from '../../../../../platform/request/common/request.js';
@@ -879,6 +879,81 @@ suite('DefaultAccountProvider managed settings', () => {
 		}
 		return freshness;
 	}
+});
+
+suite('DefaultAccountProvider sign in scopes', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	interface ICreateSessionCall {
+		readonly scopes: readonly string[];
+		readonly options: Record<string, unknown>;
+	}
+
+	async function signIn(options?: Parameters<DefaultAccountProvider['signIn']>[0]): Promise<ICreateSessionCall[]> {
+		const calls: ICreateSessionCall[] = [];
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IAuthenticationService, {
+			declaredProviders: [],
+			isAuthenticationProviderRegistered: () => true,
+			getAccounts: async () => [],
+			getSessions: async () => [],
+			createSession: async (_providerId: string, scopes: readonly string[], sessionOptions: Record<string, unknown>) => {
+				calls.push({ scopes: [...scopes], options: sessionOptions });
+				return { id: 'session', accessToken: 'token', account: { id: 'account', label: 'octocat' }, scopes: [...scopes] };
+			},
+			onDidChangeDeclaredProviders: Event.None,
+			onDidChangeSessions: Event.None,
+			onDidRegisterAuthenticationProvider: Event.None,
+			onDidUnregisterAuthenticationProvider: Event.None,
+		});
+		instantiationService.stub(IAuthenticationExtensionsService, {
+			getAccountPreference: () => undefined,
+			updateAccountPreference: () => { },
+			onDidChangeAccountPreference: Event.None,
+		});
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(IExtensionService, {});
+		instantiationService.stub(IRequestService, new TestRequestService(async () => jsonResponse({})));
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IWorkbenchEnvironmentService, { remoteAuthority: undefined, isSessionsWindow: false });
+		instantiationService.stub(IProductService, TestProductService);
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
+		instantiationService.stub(IHostService, { hasFocus: true, onDidChangeFocus: Event.None });
+		instantiationService.stub(ICommandService, {});
+		instantiationService.stub(INativeManagedSettingsService, new NullNativeManagedSettingsService());
+		instantiationService.stub(IFileManagedSettingsService, new NullFileManagedSettingsService());
+
+		const provider = disposables.add(instantiationService.createInstance(DefaultAccountProvider, {
+			preferredExtensions: [],
+			authenticationProvider: {
+				default: { id: 'github', name: 'GitHub' },
+				enterprise: { id: 'github-enterprise', name: 'GitHub Enterprise' },
+				enterpriseProviderConfig: 'github.copilot.advanced.authProvider',
+				enterpriseProviderUriSetting: 'github-enterprise.uri',
+				scopes: [['read:user', 'user:email', 'repo']],
+			},
+			tokenEntitlementUrl: '',
+			entitlementUrl: 'https://api.github.com/copilot_internal/user',
+			mcpRegistryDataUrl: '',
+			managedSettingsUrl: '',
+		}));
+		await provider.signIn(options);
+		return calls;
+	}
+
+	test('widens the default scopes and never forwards the scope option to the session', async () => {
+		assert.deepStrictEqual({
+			none: await signIn(),
+			additive: await signIn({ additionalScopes: ['workflow', 'repo'], provider: 'google' }),
+		}, {
+			none: [{ scopes: ['read:user', 'user:email', 'repo'], options: {} }],
+			// The broad defaults plus the extra scopes, deduplicated.
+			additive: [{ scopes: ['read:user', 'user:email', 'repo', 'workflow'], options: { provider: 'google' } }],
+		});
+	});
 });
 
 class TestRequestService implements IRequestService {

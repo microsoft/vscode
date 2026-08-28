@@ -96,6 +96,12 @@ suite('Endpoint Class Test', function () {
 		assert.strictEqual(CHAT_MODEL.GPT41, 'gpt-4.1-2025-04-14', 'Incorrect GPT 41 model name, changing this will break requests.');
 		assert.strictEqual(CHAT_MODEL.GPT4OMINI, 'gpt-4o-mini', 'Incorrect GPT 4o mini model name, changing this will break requests.');
 	});
+
+	test('resolves the dictation cleanup Nano alias to GPT-5.4 Nano', async function () {
+		const endpoint = await endpointProvider.getChatEndpoint('copilot-dictation-cleanup-nano');
+
+		assert.strictEqual(endpoint.model, 'gpt-5.4-nano');
+	});
 });
 
 class CopilotMatchableModelMetadataFetcher implements IModelMetadataFetcher {

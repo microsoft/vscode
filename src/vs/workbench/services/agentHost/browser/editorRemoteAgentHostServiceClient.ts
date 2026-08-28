@@ -23,7 +23,8 @@ import { AgentHostClientState, AgentHostProtocolClient } from '../../../../platf
 import type { IActiveSubscriptionInfo, IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
-import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction, ClientAnnotationsAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
+import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../../../platform/agentHost/common/state/protocol/channels-automation/commands.js';
+import type { ActionEnvelope, ChatAction, ClientAnnotationsAction, ClientAutomationAction, ClientAutomationRunAction, ClientChangesetAction, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IRemoteWatchHandle } from '../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult } from '../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ComponentToState, RootState, StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
@@ -194,6 +195,10 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._requireClient().getSubscription<ComponentToState[T]>(kind, resource, owner);
 	}
 
+	getSubscriptionByChannel<T extends StateComponents>(kind: T, channel: string, owner: string): IReference<IAgentSubscription<ComponentToState[T]>> {
+		return this._requireClient().getSubscriptionByChannel<ComponentToState[T]>(kind, channel, owner);
+	}
+
 	getSubscriptionUnmanaged<T extends StateComponents>(kind: T, resource: URI): IAgentSubscription<ComponentToState[T]> | undefined {
 		return this._protocolClient?.getSubscriptionUnmanaged<ComponentToState[T]>(kind, resource);
 	}
@@ -206,7 +211,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._protocolClient?.getActiveSubscriptions() ?? [];
 	}
 
-	dispatch(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
+	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction): void {
 		this._protocolClient?.dispatch(channel, action);
 	}
 
@@ -256,6 +261,18 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 
 	completions(params: CompletionsParams): Promise<CompletionsResult> {
 		return this._requireClient().completions(params);
+	}
+
+	listAutomationTriggerDefinitions(params: ListAutomationTriggerDefinitionsParams): Promise<ListAutomationTriggerDefinitionsResult> {
+		return this._requireClient().listAutomationTriggerDefinitions(params);
+	}
+
+	runAutomation(params: RunAutomationParams): Promise<RunAutomationResult> {
+		return this._requireClient().runAutomation(params);
+	}
+
+	fetchAutomationRuns(params: FetchAutomationRunsParams): Promise<FetchAutomationRunsResult> {
+		return this._requireClient().fetchAutomationRuns(params);
 	}
 
 	getCompletionTriggerCharacters(): Promise<readonly string[]> {

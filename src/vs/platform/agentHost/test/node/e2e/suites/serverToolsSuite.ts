@@ -27,7 +27,7 @@ import {
 } from '../../../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { createRealSession, driveChatTurnToCompletion, driveTurnToCompletion, resolveGitHubToken, textFromContent } from '../harness/agentHostE2ETestHarness.js';
-import { summarizeAnthropicRequest } from '../harness/capiWireCodec.js';
+import { summarizeAnthropicRequest, summarizeResponsesRequest } from '../harness/capiWireCodec.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 
@@ -67,20 +67,16 @@ const sessionToolNames = [
 
 export function defineServerToolsTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs } = context;
-	// Codex fails model authentication before a direct session lookup reaches the server tool.
-	const supportsDirectSessionLookup = config.provider !== 'codex';
 	// Claude omits the prior server-tool input from detailed session context.
 	const supportsFullSessionContext = config.provider !== 'claude';
-	// Codex fails model authentication while materializing the target session.
-	const supportsCrossSessionSend = config.provider !== 'codex';
-	// Claude leaves the target listed; Codex fails authentication while materializing it.
-	const supportsCrossSessionDelete = config.provider === 'copilotcli';
-	// Claude and Codex start another turn instead of rejecting a message to the current chat.
-	const supportsSelfSendRejection = config.provider === 'copilotcli';
-	// Model ids are not provider-qualified; Claude and Codex selections currently resolve to Copilot.
-	const supportsProviderModelSessionCreation = config.provider === 'copilotcli';
+	// Claude reports success but leaves the target listed.
+	const supportsCrossSessionDelete = config.provider !== 'claude';
+	// Claude starts another turn instead of rejecting a message to the current chat.
+	const supportsSelfSendRejection = config.provider !== 'claude';
+	const createSessionModelTarget = config.createSessionModelTarget;
+	const createSessionModelWireTarget = config.createSessionModelWireTarget ?? createSessionModelTarget;
 	// Claude's current-session creation turn does not complete after confirmation.
-	const supportsCurrentSessionCreation = config.provider === 'copilotcli';
+	const supportsCurrentSessionCreation = config.provider !== 'claude';
 	let nextClientSequence = 10_000;
 
 	function reserveClientSequenceBlock(): number {
@@ -465,7 +461,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 		);
 		const result = JSON.parse(tool.resultText) as { sessions: readonly { session: string }[] };
 		assert.deepStrictEqual(result.sessions.map(item => item.session), [session.sessionUri]);
-	}, supportsDirectSessionLookup);
+	});
 
 	serverToolTest('server tool: list_sessions workspace filter excludes sessions in other folders', async function () {
 		const session = await createSession('sessions-workspace');
@@ -838,16 +834,17 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			sawPendingConfirmation: true,
 			messages: ['Reply exactly "TARGET_MATERIALIZED".', '/rename Target Via Send'],
 		});
-	}, supportsCrossSessionSend);
+	});
 
 	serverToolTest('server tool: create_session materializes a selected-model child session and starts its prompt', async function () {
+		assert.ok(createSessionModelTarget);
 		const session = await createSession('create-session');
 		await materializeSession(session, 'turn-create-session-seed', 'PARENT_READY');
 		const childPrompt = 'Reply exactly CHILD_READY.';
 		const root = await context.client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
 		const model = (root.snapshot!.state as RootState).agents
 			.find(agent => agent.provider === config.provider)
-			?.models.find(model => model.id === 'claude-sonnet-5');
+			?.models.find(model => model.id === createSessionModelTarget);
 		assert.ok(model);
 		context.client.clearReceived();
 		const { turn } = await driveServerTool(
@@ -869,7 +866,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 		assert.ok(creationReference, 'child SessionAdded summary should include its creating turn');
 		const childRequest = await retry(async () => {
 			const requests = context.observedModelRequestBodies
-				.map(summarizeAnthropicRequest)
+				.map(body => summarizeAnthropicRequest(body) ?? summarizeResponsesRequest(body))
 				.filter(request => request !== undefined);
 			const request = requests.find(request => request.messages.some(message => message.role === 'user' && message.content === childPrompt));
 			if (!request) {
@@ -890,14 +887,14 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			provider: model.provider,
 			messages: [childPrompt],
 			title: 'Created Child',
-			childRequestModel: model.id,
+			childRequestModel: createSessionModelWireTarget,
 			creationReference: {
 				session: session.sessionUri,
 				chat: session.chatUri,
 				turnId: 'turn-create-session',
 			},
 		});
-	}, supportsProviderModelSessionCreation);
+	}, createSessionModelTarget !== undefined);
 
 	serverToolTest('server tool: delete_session removes a non-current session', async function () {
 		const session = await createSession('delete-session', true);

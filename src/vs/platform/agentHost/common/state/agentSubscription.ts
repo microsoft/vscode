@@ -9,13 +9,13 @@ import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ActionEnvelope, ActionType, ChangesetAction, ChatAction, AnnotationsAction, ClientAnnotationsAction, ClientChangesetAction, IRootConfigChangedAction, SessionAction, StateAction, isChangesetAction, isChatAction, isAnnotationsAction, isSessionAction } from './sessionActions.js';
-import { changesetReducer, chatReducer, annotationsReducer, rootReducer, sessionReducer } from './sessionReducers.js';
+import { ActionEnvelope, ActionType, type AutomationAction, type AutomationRunAction, ChangesetAction, ChatAction, AnnotationsAction, ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, ClientChangesetAction, IRootConfigChangedAction, SessionAction, StateAction, isChangesetAction, isChatAction, isAnnotationsAction, isSessionAction } from './sessionActions.js';
+import { automationReducer, automationRunReducer, changesetReducer, chatReducer, annotationsReducer, rootReducer, sessionReducer } from './sessionReducers.js';
 import { terminalReducer } from './protocol/reducers.js';
 import type { RootAction, SessionAction as IProtocolSessionAction, ChatAction as IProtocolChatAction, TerminalAction } from './protocol/action-origin.generated.js';
-import type { AnnotationsState, ChangesetState, ChatState, RootState, SessionState, TerminalState } from './protocol/state.js';
+import type { AnnotationsState, AutomationCatalogState, AutomationRunState, ChangesetState, ChatState, RootState, SessionState, TerminalState } from './protocol/state.js';
 import type { IStateSnapshot } from './sessionProtocol.js';
-import { isAhpRootChannel, ROOT_STATE_URI, StateComponents } from './sessionState.js';
+import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, isAhpRootChannel, ROOT_STATE_URI, StateComponents } from './sessionState.js';
 import { normalizeLegacyChatStateErrors } from './legacyProtocolCompatibility.js';
 
 // --- Public API --------------------------------------------------------------
@@ -65,6 +65,8 @@ export interface IAgentSubscription<T> {
 export interface IActiveSubscriptionInfo {
 	/** The protocol resource URI subscribed to. */
 	readonly resource: URI;
+	/** Exact protocol channel string used on the wire. */
+	readonly channel: string;
 	/** Which state component this subscription tracks. */
 	readonly kind: StateComponents;
 	/** Number of outstanding {@link IReference} holders. */
@@ -213,6 +215,9 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 	 * Session subscriptions override this for write-ahead.
 	 */
 	protected _reconcile(envelope: ActionEnvelope, _isOwnAction: boolean): void {
+		if (envelope.rejectionReason) {
+			return;
+		}
 		this._confirmedState = this._applyReducer(this._confirmedState!, envelope.action);
 		this._onDidChange.fire(this.value as T);
 	}
@@ -573,6 +578,53 @@ export class TerminalStateSubscription extends BaseAgentSubscription<TerminalSta
 	}
 }
 
+/** Subscription to the singleton host-owned automation catalogue. */
+export class AutomationCatalogSubscription extends BaseAgentSubscription<AutomationCatalogState> {
+
+	constructor(clientId: string, log: (msg: string) => void) {
+		super(clientId, log);
+	}
+
+	protected override _applyReducer(state: AutomationCatalogState, action: StateAction): AutomationCatalogState {
+		return automationReducer(state, action as AutomationAction, this._log);
+	}
+
+	protected override _isRelevantEnvelope(envelope: ActionEnvelope): boolean {
+		return isAhpAutomationCatalogChannel(envelope.channel);
+	}
+
+	protected override _reconcile(envelope: ActionEnvelope, isOwnAction: boolean): void {
+		if (!envelope.rejectionReason) {
+			super._reconcile(envelope, isOwnAction);
+		}
+	}
+}
+
+/** Subscription to one host-owned automation run. */
+export class AutomationRunSubscription extends BaseAgentSubscription<AutomationRunState> {
+
+	private readonly _resource: string;
+
+	constructor(resource: string, clientId: string, log: (msg: string) => void) {
+		super(clientId, log);
+		this._resource = resource;
+	}
+
+	protected override _applyReducer(state: AutomationRunState, action: StateAction): AutomationRunState {
+		return automationRunReducer(state, action as AutomationRunAction, this._log);
+	}
+
+	protected override _isRelevantEnvelope(envelope: ActionEnvelope): boolean {
+		return isAhpAutomationRunChannel(envelope.channel) && envelope.channel === this._resource;
+	}
+
+	protected override _reconcile(envelope: ActionEnvelope, isOwnAction: boolean): void {
+		if (!envelope.rejectionReason) {
+			super._reconcile(envelope, isOwnAction);
+		}
+	}
+}
+
 // --- Changeset State Subscription --------------------------------------------
 
 /**
@@ -671,7 +723,7 @@ export class ChangesetStateSubscription extends BaseAgentSubscription<ChangesetS
 	}
 }
 
-type ManagedSubscription = SessionStateSubscription | ChatStateSubscription | TerminalStateSubscription | ChangesetStateSubscription | AnnotationsStateSubscription;
+type ManagedSubscription = SessionStateSubscription | ChatStateSubscription | TerminalStateSubscription | ChangesetStateSubscription | AnnotationsStateSubscription | AutomationCatalogSubscription | AutomationRunSubscription;
 
 // --- Annotations State Subscription ------------------------------------------
 
@@ -800,7 +852,14 @@ export class AnnotationsStateSubscription extends BaseAgentSubscription<Annotati
 	}
 }
 
-type ManagedSubscriptionEntry = { sub: ManagedSubscription; kind: StateComponents; refCount: number; holders: Map<number, string> };
+type ManagedSubscriptionEntry = {
+	readonly resource: URI;
+	readonly channel: string;
+	readonly sub: ManagedSubscription;
+	readonly kind: StateComponents;
+	refCount: number;
+	readonly holders: Map<number, string>;
+};
 
 // --- Subscription Manager ----------------------------------------------------
 
@@ -904,30 +963,38 @@ export class AgentSubscriptionManager extends Disposable {
 	 * acquiring class name.
 	 */
 	getSubscription<T>(kind: StateComponents, resource: URI, owner: string): IReference<IAgentSubscription<T>> {
-		const existing = this._subscriptions.get(resource);
+		return this._getSubscription(kind, this._subscriptionResource(resource), owner);
+	}
+
+	/** Get or create a subscription using an exact protocol channel string. */
+	getSubscriptionByChannel<T>(kind: StateComponents, channel: string, owner: string): IReference<IAgentSubscription<T>> {
+		return this._getSubscription(kind, this._subscriptionResource(URI.parse(channel)), owner);
+	}
+
+	private _getSubscription<T>(kind: StateComponents, resolved: Pick<ManagedSubscriptionEntry, 'resource' | 'channel'>, owner: string): IReference<IAgentSubscription<T>> {
+		const existing = this._subscriptions.get(resolved.resource);
 		if (existing) {
 			if (existing.sub.value instanceof Error) {
 				// Failed subscriptions should not poison the resource forever. Evict
 				// the errored entry so this acquire performs a fresh subscribe.
-				this._subscriptions.delete(resource);
-				this._disposeSubscriptionEntry(resource, existing);
+				this._subscriptions.delete(resolved.resource);
+				this._disposeSubscriptionEntry(existing);
 			} else {
 				existing.refCount++;
-				return this._acquireReference<T>(resource, existing, owner);
+				return this._acquireReference<T>(existing, owner);
 			}
 		}
 
 		// Create new subscription based on caller-specified kind
-		const key = resource.toString();
-		const sub = this._createSubscription(kind, key);
-		const entry: ManagedSubscriptionEntry = { sub, kind, refCount: 1, holders: new Map() };
-		this._subscriptions.set(resource, entry);
+		const sub = this._createSubscription(kind, resolved.channel);
+		const entry: ManagedSubscriptionEntry = { ...resolved, sub, kind, refCount: 1, holders: new Map() };
+		this._subscriptions.set(resolved.resource, entry);
 
 		// Kick off server subscription asynchronously.
 		// Capture the entry reference so we can validate it hasn't been
 		// replaced by a new subscription for the same key (race guard).
 		void (async () => {
-			const inflight = this._inflightCreates.get(resource);
+			const inflight = this._inflightCreates.get(resolved.resource);
 			if (inflight) {
 				try {
 					await inflight;
@@ -938,18 +1005,18 @@ export class AgentSubscriptionManager extends Disposable {
 				}
 			}
 			try {
-				const snapshot = await this._subscribe(resource);
-				if (this._subscriptions.get(resource) === entry) {
+				const snapshot = await this._subscribe(resolved.resource);
+				if (this._subscriptions.get(resolved.resource) === entry) {
 					sub.handleSnapshot(snapshot.state as never, snapshot.fromSeq);
 				}
 			} catch (err) {
-				if (this._subscriptions.get(resource) === entry) {
+				if (this._subscriptions.get(resolved.resource) === entry) {
 					sub.setError(err instanceof Error ? err : new Error(String(err)));
 				}
 			}
 		})();
 
-		return this._acquireReference<T>(resource, entry, owner);
+		return this._acquireReference<T>(entry, owner);
 	}
 
 	/**
@@ -958,7 +1025,7 @@ export class AgentSubscriptionManager extends Disposable {
 	 * caller is responsible for the matching refcount increment (a fresh
 	 * entry starts at 1; an existing entry is bumped before calling this).
 	 */
-	private _acquireReference<T>(resource: URI, entry: ManagedSubscriptionEntry, owner: string): IReference<IAgentSubscription<T>> {
+	private _acquireReference<T>(entry: ManagedSubscriptionEntry, owner: string): IReference<IAgentSubscription<T>> {
 		const ownerId = ++this._referenceOwnerIds;
 		entry.holders.set(ownerId, owner);
 
@@ -971,13 +1038,13 @@ export class AgentSubscriptionManager extends Disposable {
 				}
 				isDisposed = true;
 				entry.holders.delete(ownerId);
-				this._releaseSubscription(resource, entry);
+				this._releaseSubscription(entry);
 			},
 		};
 	}
 
-	private _disposeSubscriptionEntry(resource: URI, entry: ManagedSubscriptionEntry): void {
-		this._tryUnsubscribe(resource);
+	private _disposeSubscriptionEntry(entry: ManagedSubscriptionEntry): void {
+		this._tryUnsubscribe(entry.resource);
 		if (entry.sub instanceof SessionStateSubscription || entry.sub instanceof ChatStateSubscription || entry.sub instanceof AnnotationsStateSubscription) {
 			entry.sub.clearPending();
 		}
@@ -1012,7 +1079,7 @@ export class AgentSubscriptionManager extends Disposable {
 	 * `channel` is the protocol URI string identifying the channel the
 	 * action targets (a session URI for session actions, etc.).
 	 */
-	dispatchOptimistic(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): number {
+	dispatchOptimistic(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction): number {
 		if (isSessionAction(action)) {
 			const entry = this._subscriptions.get(URI.parse(channel));
 			if (entry?.sub instanceof SessionStateSubscription) {
@@ -1045,8 +1112,8 @@ export class AgentSubscriptionManager extends Disposable {
 	 * Does NOT include the always-live root state, which the protocol
 	 * client manages separately.
 	 */
-	currentSubscriptionUris(): URI[] {
-		return [...this._subscriptions.keys()];
+	currentSubscriptionChannels(): string[] {
+		return [...this._subscriptions.values()].map(entry => entry.channel);
 	}
 
 	/**
@@ -1056,10 +1123,10 @@ export class AgentSubscriptionManager extends Disposable {
 	 */
 	getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] {
 		const out: IActiveSubscriptionInfo[] = [];
-		for (const [resource, entry] of this._subscriptions) {
+		for (const entry of this._subscriptions.values()) {
 			const value = entry.sub.value;
 			const status = value === undefined ? 'pending' : value instanceof Error ? 'error' : 'snapshot';
-			out.push({ resource, kind: entry.kind, refCount: entry.refCount, holders: this._summarizeHolders(entry), status });
+			out.push({ resource: entry.resource, channel: entry.channel, kind: entry.kind, refCount: entry.refCount, holders: this._summarizeHolders(entry), status });
 		}
 		return out;
 	}
@@ -1135,14 +1202,14 @@ export class AgentSubscriptionManager extends Disposable {
 	 * themselves stay alive so consumers continue to hold valid references,
 	 * but their value transitions to an `Error` until they're recreated.
 	 */
-	markSubscriptionsMissing(missing: readonly URI[]): void {
-		for (const resource of missing) {
-			const entry = this._subscriptions.get(resource);
+	markSubscriptionsMissing(missing: readonly string[]): void {
+		for (const channel of missing) {
+			const entry = this._subscriptions.get(URI.parse(channel));
 			if (entry) {
 				if (entry.sub instanceof SessionStateSubscription || entry.sub instanceof ChatStateSubscription || entry.sub instanceof AnnotationsStateSubscription) {
 					entry.sub.clearPending();
 				}
-				entry.sub.setError(new Error(`Subscription no longer available after reconnect: ${resource.toString()}`));
+				entry.sub.setError(new Error(`Subscription no longer available after reconnect: ${entry.channel}`));
 			}
 		}
 	}
@@ -1159,6 +1226,10 @@ export class AgentSubscriptionManager extends Disposable {
 				return new ChangesetStateSubscription(key, this._clientId, this._seqAllocator, this._log);
 			case StateComponents.Annotations:
 				return new AnnotationsStateSubscription(key, this._clientId, this._seqAllocator, this._log);
+			case StateComponents.AutomationCatalog:
+				return new AutomationCatalogSubscription(this._clientId, this._log);
+			case StateComponents.AutomationRun:
+				return new AutomationRunSubscription(key, this._clientId, this._log);
 			case StateComponents.Root:
 				throw new Error('_createSubscription: root subscription is managed separately');
 			default:
@@ -1166,27 +1237,34 @@ export class AgentSubscriptionManager extends Disposable {
 		}
 	}
 
-	private _releaseSubscription(resource: URI, expected?: ManagedSubscriptionEntry): void {
-		const entry = this._subscriptions.get(resource);
+	private _releaseSubscription(expected: ManagedSubscriptionEntry): void {
+		const entry = this._subscriptions.get(expected.resource);
 		// A failed subscription can be evicted and replaced while old references
 		// still exist; stale disposals must not release the replacement entry.
-		if (!entry || (expected && entry !== expected)) {
+		if (!entry || entry !== expected) {
 			return;
 		}
 		entry.refCount--;
 		if (entry.refCount <= 0) {
-			this._subscriptions.delete(resource);
-			this._disposeSubscriptionEntry(resource, entry);
+			this._subscriptions.delete(entry.resource);
+			this._disposeSubscriptionEntry(entry);
 		}
 	}
 
 	override dispose(): void {
-		for (const [resource, entry] of this._subscriptions) {
-			this._tryUnsubscribe(resource);
+		for (const entry of this._subscriptions.values()) {
+			this._tryUnsubscribe(entry.resource);
 			entry.sub.dispose();
 		}
 		this._subscriptions.clear();
 		super.dispose();
+	}
+
+	private _subscriptionResource(resource: URI): Pick<ManagedSubscriptionEntry, 'resource' | 'channel'> {
+		return {
+			resource,
+			channel: resource.toString(),
+		};
 	}
 }
 

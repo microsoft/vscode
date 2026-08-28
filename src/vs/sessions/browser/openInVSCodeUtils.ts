@@ -7,6 +7,9 @@ import { IRemoteAgentHostService, IRemoteAgentHostSSHConnection, RemoteAgentHost
 import { ISessionsProvidersService } from '../services/sessions/browser/sessionsProvidersService.js';
 import { isAgentHostProvider } from '../common/agentHostSessionsProvider.js';
 import { encodeHex, VSBuffer } from '../../base/common/buffer.js';
+import { URI } from '../../base/common/uri.js';
+import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../platform/agentHost/common/agentHostUri.js';
+import { Schemas } from '../../base/common/network.js';
 
 /**
  * Resolves the VS Code remote authority for the given session provider,
@@ -38,9 +41,30 @@ export function resolveRemoteAuthority(
 			return `ssh-remote+${sshAuthorityString(entry.connection)}`;
 		case RemoteAgentHostEntryType.Tunnel:
 			return `tunnel+${entry.connection.label ?? `${entry.connection.tunnelId}.${entry.connection.clusterId}`}`;
+		case RemoteAgentHostEntryType.DevContainer:
+			return `dev-container+${encodeHex(VSBuffer.fromString(entry.connection.hostPath))}`;
 		default:
 			return undefined;
 	}
+}
+
+/** Resolves an Agent Host folder to the URI understood by its VS Code remote extension. */
+export function resolveRemoteFolderUri(
+	folderUri: URI,
+	providerId: string,
+	sessionsProvidersService: ISessionsProvidersService,
+	remoteAgentHostService: IRemoteAgentHostService,
+): URI {
+	if (folderUri.scheme !== AGENT_HOST_SCHEME) {
+		return folderUri;
+	}
+
+	const remoteAuthority = resolveRemoteAuthority(providerId, sessionsProvidersService, remoteAgentHostService);
+	if (!remoteAuthority) {
+		return folderUri;
+	}
+
+	return fromAgentHostUri(folderUri).with({ authority: remoteAuthority, scheme: Schemas.vscodeRemote });
 }
 
 /**

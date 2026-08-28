@@ -7,7 +7,7 @@ import assert from 'assert';
 import sinon from 'sinon';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ChatSpeechToTextService, createDictationCleanupSystemPrompt, isDictationEntitled, stripDictationFillers } from '../../browser/speechToText/chatSpeechToTextService.js';
+import { ChatSpeechToTextService, createDictationCleanupSystemPrompt, isDictationEntitled, selectFinalDictationTranscript, stripDictationFillers } from '../../browser/speechToText/chatSpeechToTextService.js';
 import { resolveDictationLanguage } from '../../browser/speechToText/dictationLanguage.js';
 import { ChatEntitlement } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ILanguageModelChatRequestOptions, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
@@ -110,6 +110,28 @@ suite('ChatSpeechToTextService', () => {
 				'one thing. another thing',
 			]
 		);
+	});
+
+	test('preserves a visible live transcript when the backend final hypothesis is incomplete', () => {
+		assert.deepStrictEqual({
+			shorterFinal: selectFinalDictationTranscript('complete visible transcript', 'complete visible', true),
+			emptyFinal: selectFinalDictationTranscript('complete visible transcript', '', true),
+			extendedFinal: selectFinalDictationTranscript('complete visible transcript', 'complete visible transcript with tail', true),
+			differentFinal: selectFinalDictationTranscript('complete visible transcript', 'rewritten complete visible transcript', true),
+			fillerBeforeExtendedFinal: selectFinalDictationTranscript('um hello', 'hello world', true),
+			fillerOnlyLiveTranscript: selectFinalDictationTranscript('um', 'hello world', true),
+			noLiveTranscript: selectFinalDictationTranscript('', 'backend transcript', true),
+			hiddenLiveTranscript: selectFinalDictationTranscript('interim transcript', 'backend transcript', false),
+		}, {
+			shorterFinal: 'complete visible transcript',
+			emptyFinal: 'complete visible transcript',
+			extendedFinal: 'complete visible transcript with tail',
+			differentFinal: 'complete visible transcript',
+			fillerBeforeExtendedFinal: 'hello world',
+			fillerOnlyLiveTranscript: 'hello world',
+			noLiveTranscript: 'backend transcript',
+			hiddenLiveTranscript: 'backend transcript',
+		});
 	});
 
 	test('cleanup prompt guides list formatting with ordering cues', () => {
@@ -287,7 +309,7 @@ suite('ChatSpeechToTextService', () => {
 		}
 	});
 
-	test('selects the configured or treated cleanup model and falls back when Luna is unavailable', async () => {
+	test('selects the configured or treated cleanup model and falls back when a dedicated model is unavailable', async () => {
 		const selectors: ILanguageModelChatSelector[] = [];
 		const createService = (treatment: string | undefined, configuredModel = 'auto'): CleanupTestService => {
 			const service = Object.create(ChatSpeechToTextService.prototype) as CleanupTestService;
@@ -314,15 +336,21 @@ suite('ChatSpeechToTextService', () => {
 		};
 
 		await createService(undefined)._cleanupWithLanguageModel('control transcript', CancellationToken.None);
+		await createService('gpt-5.4-nano')._cleanupWithLanguageModel('Nano treatment transcript', CancellationToken.None);
 		await createService('gpt-5.6-luna')._cleanupWithLanguageModel('treatment transcript', CancellationToken.None);
 		await createService('unexpected-model')._cleanupWithLanguageModel('unknown treatment transcript', CancellationToken.None);
+		await createService(undefined, 'gpt-5.4-nano')._cleanupWithLanguageModel('configured Nano transcript', CancellationToken.None);
 		await createService(undefined, 'gpt-5.6-luna')._cleanupWithLanguageModel('configured Luna transcript', CancellationToken.None);
 		await createService('gpt-5.6-luna', 'copilot-utility-small')._cleanupWithLanguageModel('configured utility transcript', CancellationToken.None);
 
 		assert.deepStrictEqual(selectors, [
 			{ vendor: 'copilot', id: 'copilot-utility-small' },
+			{ vendor: 'copilot', id: 'copilot-dictation-cleanup-nano' },
+			{ vendor: 'copilot', id: 'copilot-utility-small' },
 			{ vendor: 'copilot', id: 'copilot-dictation-cleanup-luna' },
 			{ vendor: 'copilot', id: 'copilot-utility-small' },
+			{ vendor: 'copilot', id: 'copilot-utility-small' },
+			{ vendor: 'copilot', id: 'copilot-dictation-cleanup-nano' },
 			{ vendor: 'copilot', id: 'copilot-utility-small' },
 			{ vendor: 'copilot', id: 'copilot-dictation-cleanup-luna' },
 			{ vendor: 'copilot', id: 'copilot-utility-small' },
@@ -330,7 +358,7 @@ suite('ChatSpeechToTextService', () => {
 		]);
 	});
 
-	test('disables reasoning for Luna cleanup only', async () => {
+	test('disables reasoning for dedicated cleanup models only', async () => {
 		const requestConfigurations: Array<ILanguageModelChatRequestOptions['configuration']> = [];
 		const createService = (configuredModel: string): CleanupTestService => {
 			const service = Object.create(ChatSpeechToTextService.prototype) as CleanupTestService;
@@ -361,6 +389,7 @@ suite('ChatSpeechToTextService', () => {
 			return service;
 		};
 
+		await createService('gpt-5.4-nano')._cleanupWithLanguageModel('Nano transcript', CancellationToken.None);
 		await createService('gpt-5.6-luna')._cleanupWithLanguageModel('Luna transcript', CancellationToken.None);
 		const fallbackService = createService('gpt-5.6-luna');
 		let selectionCall = 0;
@@ -368,6 +397,7 @@ suite('ChatSpeechToTextService', () => {
 		await fallbackService._cleanupWithLanguageModel('utility fallback transcript', CancellationToken.None);
 
 		assert.deepStrictEqual(requestConfigurations, [
+			{ reasoningEffort: 'none' },
 			{ reasoningEffort: 'none' },
 			undefined,
 		]);

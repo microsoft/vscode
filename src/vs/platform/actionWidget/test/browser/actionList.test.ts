@@ -389,6 +389,38 @@ suite('ActionListWidget', () => {
 		assert.deepStrictEqual(getVisibleRowText(widget), ['Provider B', 'beta']);
 	});
 
+	test('excludes separators from accessible list positions after filtering', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [
+				action('selected'),
+				separator(),
+				action('alpha'),
+				action('beta'),
+			],
+		});
+		const getAriaPositions = () => Array.from(widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row[role="option"]')).map(row => ({
+			label: row.getAttribute('aria-label'),
+			setSize: row.getAttribute('aria-setsize'),
+			posInSet: row.getAttribute('aria-posinset'),
+		}));
+
+		const initial = getAriaPositions();
+		typeFilter(widget, 'a');
+		const filtered = getAriaPositions();
+
+		assert.deepStrictEqual({ initial, filtered }, {
+			initial: [
+				{ label: 'selected', setSize: '3', posInSet: '1' },
+				{ label: 'alpha', setSize: '3', posInSet: '2' },
+				{ label: 'beta', setSize: '3', posInSet: '3' },
+			],
+			filtered: [
+				{ label: 'alpha', setSize: '2', posInSet: '1' },
+				{ label: 'beta', setSize: '2', posInSet: '2' },
+			],
+		});
+	});
+
 	test('leaves room for action widget chrome when clamping dynamic height', () => withWindowInnerHeight(300, () => {
 		const list = createActionList(disposables, Array.from({ length: 50 }, (_, i) => action(`item-${i}`)));
 

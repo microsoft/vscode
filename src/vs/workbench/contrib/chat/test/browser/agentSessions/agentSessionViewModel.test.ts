@@ -111,6 +111,29 @@ suite('AgentSessions', () => {
 			});
 		});
 
+		test('preserves a registered provider\'s sessions when a sibling provider refreshes with a partial list', async () => {
+			return runWithFakedTimers({}, async () => {
+				// Two providers registered only as item controllers (no static
+				// contribution) — mirrors the agent host (`agent-host-copilotcli`),
+				// which is neither built-in nor a static contribution.
+				const siblingController = new StaticChatSessionItemController([makeSimpleSessionItem('eh-1', { resource: URI.parse('type-eh://eh-1') })]);
+				const agentHostController = new StaticChatSessionItemController([makeSimpleSessionItem('ah-1', { resource: URI.parse('type-agenthost://ah-1') })]);
+				mockChatSessionsService.registerChatSessionItemController('type-eh', siblingController);
+				mockChatSessionsService.registerChatSessionItemController('type-agenthost', agentHostController);
+				viewModel = createViewModel();
+				await viewModel.resolve(undefined);
+				assert.strictEqual(viewModel.sessions.length, 2);
+
+				// The sibling provider refreshes with a partial (here empty) list — as
+				// the extension-host Copilot CLI provider does mid-migration. This must
+				// NOT drop the other provider's rows (regression: they used to vanish).
+				siblingController.setItems([]);
+				await viewModel.resolve('type-eh');
+
+				assert.deepStrictEqual(viewModel.sessions.map(s => s.resource.toString()), ['type-agenthost://ah-1']);
+			});
+		});
+
 		test('should preserve change summaries when lazy refresh omits changes', async () => {
 			return runWithFakedTimers({}, async () => {
 				const controller = new StaticChatSessionItemController([

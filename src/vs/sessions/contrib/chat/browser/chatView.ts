@@ -52,8 +52,6 @@ import { INewChatVoiceTargetService } from './newChatVoice.js';
 import { ISessionsChatViewStateService } from './chatViewStateService.js';
 import { ExternalSessionBanner } from './externalSessionBanner.js';
 import { Menus } from '../../../browser/menus.js';
-import { ISessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
-import { SessionsChatBackgroundRenderer } from './chatBackgroundRenderer.js';
 import { ISessionOpenTelemetryService } from '../../../services/sessions/browser/sessionOpenTelemetryService.js';
 
 export function shouldShowSessionChatTip(sessionStatus: SessionStatus | undefined): boolean {
@@ -65,6 +63,10 @@ export function shouldShowSessionChatTip(sessionStatus: SessionStatus | undefine
  * shown before a session has been created. This is the default view that
  * the `SessionsPart` grid is seeded with.
  */
+export interface INewChatViewOptions extends IChatViewOptions {
+	readonly initialAttachments?: readonly IChatRequestVariableEntry[];
+}
+
 export class NewChatView extends AbstractChatView {
 
 	static readonly TYPE = 'sessions.newSession';
@@ -76,17 +78,12 @@ export class NewChatView extends AbstractChatView {
 
 	constructor(
 		isNewChatInSession: boolean,
-		options: IChatViewOptions,
+		options: INewChatViewOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ISessionsChatBackgroundService chatBackgroundService: ISessionsChatBackgroundService,
 	) {
 		super();
 
 		this.element.classList.add('chat-view-new');
-		const backgroundRenderer = this._register(new SessionsChatBackgroundRenderer(this.element));
-		const updateBackground = () => backgroundRenderer.setBackground(chatBackgroundService.getBackground());
-		this._register(chatBackgroundService.onDidChangeBackground(updateBackground));
-		updateBackground();
 		this.kind = isNewChatInSession ? 'newChatInSession' : 'newSession';
 		const widgetOptions = { ...options, petHostPreferred: this._isVisibleObs };
 		this._widget = this._register(isNewChatInSession
@@ -198,7 +195,6 @@ export class ChatView extends AbstractChatView {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@ISessionsChatBackgroundService private readonly chatBackgroundService: ISessionsChatBackgroundService,
 		@IChatService private readonly chatService: IChatService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -218,10 +214,6 @@ export class ChatView extends AbstractChatView {
 		this._register(toDisposable(() => this._reportModelUnbound()));
 
 		this.element.classList.add('chat-view-chat');
-		const backgroundRenderer = this._register(new SessionsChatBackgroundRenderer(this.element));
-		const updateBackground = () => backgroundRenderer.setBackground(this.chatBackgroundService.getBackground());
-		this._register(this.chatBackgroundService.onDidChangeBackground(updateBackground));
-		updateBackground();
 		this._widgetContainer = $('.chat-view-widget');
 		this.element.appendChild(this._widgetContainer);
 

@@ -538,6 +538,45 @@ suite('codexMapAppServerEvents', () => {
 		});
 	});
 
+	test('item/completed for commandExecution falls back to streamed output when aggregated output is empty', () => {
+		const state = createCodexSessionMapState();
+		mapItemStarted(state, {
+			item: {
+				type: 'commandExecution', id: 'cmd_streamed_output',
+				command: 'echo hi', cwd: '/tmp', processId: null,
+				source: 'agent' as never, status: 'inProgress' as never,
+				commandActions: [], aggregatedOutput: null,
+				exitCode: null, durationMs: null,
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const toolCallId = state.itemToToolCall.get('cmd_streamed_output')!.toolCallId;
+		mapCommandExecutionOutputDelta(state, { threadId: 'thr_1', turnId: 'turn_a', itemId: 'cmd_streamed_output', delta: 'hi\n' });
+
+		const actions = mapItemCompleted(state, {
+			item: {
+				type: 'commandExecution', id: 'cmd_streamed_output',
+				command: 'echo hi', cwd: '/tmp', processId: null,
+				source: 'agent' as never, status: 'completed' as never,
+				commandActions: [], aggregatedOutput: '',
+				exitCode: 0, durationMs: 12,
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 0,
+		});
+
+		assert.deepStrictEqual(actions, [{
+			type: ActionType.ChatToolCallComplete,
+			turnId: 'turn_a',
+			toolCallId,
+			result: {
+				success: true,
+				pastTenseMessage: 'Ran `echo hi`',
+				content: [{ type: ToolResultContentType.Text, text: 'hi\n' }],
+				error: undefined,
+			},
+		}]);
+	});
+
 	test('item/completed for commandExecution emits ChatToolCallComplete with aggregated output', () => {
 		const state = createCodexSessionMapState();
 		mapItemStarted(state, {

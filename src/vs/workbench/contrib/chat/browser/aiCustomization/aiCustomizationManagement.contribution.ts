@@ -314,7 +314,7 @@ registerAction2(class extends Action2 {
 					type: 'question',
 				});
 				if (result.confirmed) {
-					plugin.remove?.();
+					await plugin.remove?.();
 				}
 			}
 			return;
@@ -548,7 +548,7 @@ registerAction2(class extends Action2 {
 			type: 'question',
 		});
 		if (result.confirmed) {
-			plugin.remove?.();
+			await plugin.remove?.();
 		}
 	}
 });
@@ -780,6 +780,7 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				}
 
 				const input = AICustomizationManagementEditorInput.getOrCreate();
+				input.setTargetLabel(harnessService.getActiveDescriptor().label);
 				const pane = await editorService.openEditor(input, { pinned: true });
 				if (section && pane instanceof AICustomizationManagementEditor) {
 					pane.selectSectionById(section);

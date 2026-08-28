@@ -90,7 +90,6 @@ const CLAUDE_CONFIG: IAgentHostE2EProviderConfig = {
 	// Plan mode is wired (`ExitPlanMode` interactive tool exists) but the
 	// shared test's Copilot-flavoured prompt doesn't reliably drive Claude
 	// to invoke it. TODO: rework the prompt for Claude conventions.
-	supportsPlanMode: false,
 	supportsMultipleChats: true,
 	supportsChatFork: true,
 	// Claude cannot resolve a client-assigned AHP turn id to an SDK message UUID,

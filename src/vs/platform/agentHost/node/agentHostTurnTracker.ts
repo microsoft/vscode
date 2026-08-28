@@ -19,7 +19,7 @@ import { ILogService } from '../../log/common/log.js';
 import { canRefineContributor, toolSourceKindFromContributor } from './agentHostToolCallTracker.js';
 import { SessionInputRequestKind } from '../common/state/protocol/state.js';
 import type { ITurnTokenTotal, ToolCallContributor } from '../common/state/sessionState.js';
-import { IAgentHostTelemetryReporter, type AgentHostInitiatorClientConnectionState, type AgentHostModelTelemetryKind, type AgentHostProviderDiagnosticState, type AgentHostTelemetryReporter, type AgentHostTurnFailureStage, type AgentHostTurnHangReason, type AgentHostTurnResult, type IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
+import { IAgentHostTelemetryReporter, type AgentHostInitiatorClientConnectionState, type AgentHostMessageOriginTelemetryKind, type AgentHostModelTelemetryKind, type AgentHostProviderDiagnosticState, type AgentHostTelemetryReporter, type AgentHostTurnFailureStage, type AgentHostTurnHangReason, type AgentHostTurnResult, type IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
 
 /**
  * How long a turn must go without any observed activity before the watchdog
@@ -67,6 +67,8 @@ interface ITurnTiming {
 	readonly modelSelectionKind: 'default' | 'auto' | 'explicit';
 	readonly permissionLevel: string | undefined;
 	readonly interactionMode: SessionMode | undefined;
+	/** Who produced the message that started the turn, when known. */
+	readonly messageOriginKind: AgentHostMessageOriginTelemetryKind | undefined;
 	readonly clientContext: IAgentHostClientTelemetryContext;
 	readonly initiatorClientId: string | undefined;
 	readonly completedModelCallIds: Set<string>;
@@ -164,7 +166,7 @@ export class AgentHostTurnTracker extends Disposable {
 		}));
 	}
 
-	turnStarted(agent: IAgent, session: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, modelSelectionKind: 'default' | 'auto' | 'explicit', permissionLevel: string | undefined, interactionMode: SessionMode | undefined, clientContext = createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown), initiatorClientId?: string, parentTurnId?: string, parentToolCallId?: string): void {
+	turnStarted(agent: IAgent, session: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, modelSelectionKind: 'default' | 'auto' | 'explicit', permissionLevel: string | undefined, interactionMode: SessionMode | undefined, clientContext = createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown), initiatorClientId?: string, parentTurnId?: string, parentToolCallId?: string, messageOriginKind?: AgentHostMessageOriginTelemetryKind): void {
 		const key = this._key(session, turnId);
 		this._turnTimings.set(key, {
 			stopWatch: StopWatch.create(false),
@@ -178,6 +180,7 @@ export class AgentHostTurnTracker extends Disposable {
 			modelSelectionKind,
 			permissionLevel,
 			interactionMode,
+			messageOriginKind,
 			clientContext,
 			initiatorClientId,
 			completedModelCallIds: new Set(),
@@ -395,6 +398,7 @@ export class AgentHostTurnTracker extends Disposable {
 			modelSelectionKind: timing.modelSelectionKind,
 			permissionLevel: timing.permissionLevel,
 			interactionMode: timing.interactionMode,
+			messageOriginKind: timing.messageOriginKind,
 			failure,
 			isMultiRoot: workspace?.isMultiRoot ?? false,
 			folderCount: workspace?.folderCount ?? 0,

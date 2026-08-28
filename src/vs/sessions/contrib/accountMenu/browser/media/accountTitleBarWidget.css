@@ -475,6 +475,7 @@
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-footer .chat-status-bar-entry-tooltip {
 	min-width: 0;
+	max-width: none;
 	padding: 0;
 }
 

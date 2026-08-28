@@ -8,6 +8,17 @@
 	visibility: hidden !important;
 }
 
+.monaco-workbench .part.sessionspart {
+	position: relative;
+	isolation: isolate;
+}
+
+.monaco-workbench .part.sessionspart > .title,
+.monaco-workbench .part.sessionspart > .content {
+	position: relative;
+	z-index: 2;
+}
+
 .monaco-workbench .part.sessionspart > .content .monaco-editor,
 .monaco-workbench .part.sessionspart > .content .monaco-editor .margin,
 .monaco-workbench .part.sessionspart > .content .monaco-editor .monaco-editor-background {

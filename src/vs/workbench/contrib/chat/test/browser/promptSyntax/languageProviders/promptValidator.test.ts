@@ -546,6 +546,17 @@ suite('PromptValidator', () => {
 			);
 		});
 
+		test('reasoning effort is supported in agent file', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'reasoning-effort: low',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(markers, []);
+		});
+
 		test('unknown attribute in agent file', async () => {
 			const content = [
 				'---',
@@ -557,7 +568,7 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(
 				markers.map(m => ({ severity: m.severity, message: m.message, tags: m.tags })),
 				[
-					{ severity: MarkerSeverity.Hint, message: `Attribute 'applyTo' is not supported in VS Code agent files. Supported: agents, argument-hint, description, disable-model-invocation, github, handoffs, hooks, model, name, target, tools, user-invocable.`, tags: [MarkerTag.Unnecessary] },
+					{ severity: MarkerSeverity.Hint, message: `Attribute 'applyTo' is not supported in VS Code agent files. Supported: agents, argument-hint, description, disable-model-invocation, github, handoffs, hooks, model, name, reasoning-effort, target, tools, user-invocable.`, tags: [MarkerTag.Unnecessary] },
 				]
 			);
 		});
@@ -705,13 +716,14 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(markers, [], 'Expected no validation issues for github-copilot target');
 		});
 
-		test('github-copilot agent warns about model and handoffs attributes', async () => {
+		test('github-copilot agent warns about handoffs attribute', async () => {
 			const content = [
 				'---',
 				'name: "GitHubAgent"',
 				'description: "GitHub Copilot agent"',
 				'target: github-copilot',
 				'model: MAE 4.1',
+				'reasoning-effort: high',
 				`tools: ['shell', 'edit']`,
 				`handoffs:`,
 				'  - label: Test',
@@ -723,9 +735,8 @@ suite('PromptValidator', () => {
 			const markers = await validate(content, PromptsType.agent);
 			const messages = markers.map(m => m.message);
 			assert.deepStrictEqual(messages, [
-				'Attribute \'model\' is not supported in custom GitHub Copilot agent files. Supported: description, github, infer, mcp-servers, name, target, tools.',
-				'Attribute \'handoffs\' is not supported in custom GitHub Copilot agent files. Supported: description, github, infer, mcp-servers, name, target, tools.',
-			], 'Model and handoffs are not validated for github-copilot target');
+				'Attribute \'handoffs\' is not supported in custom GitHub Copilot agent files. Supported: description, github, infer, mcp-servers, model, name, reasoning-effort, target, tools.',
+			], 'Only handoffs is unsupported for github-copilot target, model and reasoning-effort are supported');
 		});
 
 		test('github-copilot agent does not validate variable references', async () => {

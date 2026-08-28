@@ -19,6 +19,7 @@ import type { IAgent } from '../common/agent.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
+import { AgentHostAutomationService } from './agentHostAutomationService.js';
 import { AgentHostChangesetCoordinator } from './agentHostChangesetCoordinator.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
 import { IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
@@ -142,6 +143,7 @@ export function createAgentServiceComposition(
 			buildServerToolGroups(callbackAdapter.sessionServerToolAccessor, agentMergeTools, callbackAdapter.artifactServerToolAccessor),
 		);
 
+		const automationService = owned.add(instantiationService.createInstance(AgentHostAutomationService, callbackAdapter.automationExecution));
 		const collaborators: IAgentServiceCollaborators = {
 			gitHubEndpointService,
 			gitStateService,
@@ -156,6 +158,7 @@ export function createAgentServiceComposition(
 			localTurns,
 			sideEffects,
 			serverToolHost,
+			automationService,
 		};
 		agentService = instantiationService.createInstance(AgentService, core, collaborators, options);
 		for (const disposable of additionalDisposables) {

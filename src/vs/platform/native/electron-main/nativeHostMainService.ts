@@ -1347,10 +1347,14 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region Toast Notifications
 
 	private readonly activeToasts = this._register(new DisposableMap<string>());
+	private readonly activeToastDedupeKeys = new Map<string, string>();
 
 	async showToast(windowId: number | undefined, options: IToastOptions): Promise<IToastResult> {
 		if (!Notification.isSupported()) {
 			return { supported: false, clicked: false };
+		}
+		if (options.dedupeKey && this.activeToastDedupeKeys.has(options.dedupeKey)) {
+			return { supported: true, suppressed: true, clicked: false };
 		}
 
 		const toast = new Notification({
@@ -1365,11 +1369,17 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 		const disposables = new DisposableStore();
 		this.activeToasts.set(options.id, disposables);
+		if (options.dedupeKey) {
+			this.activeToastDedupeKeys.set(options.dedupeKey, options.id);
+		}
 
 		const cts = new CancellationTokenSource();
 
 		disposables.add(toDisposable(() => {
 			this.activeToasts.deleteAndDispose(options.id);
+			if (options.dedupeKey && this.activeToastDedupeKeys.get(options.dedupeKey) === options.id) {
+				this.activeToastDedupeKeys.delete(options.dedupeKey);
+			}
 			toast.removeAllListeners();
 			toast.close();
 			cts.dispose(true);

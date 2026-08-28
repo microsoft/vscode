@@ -11,11 +11,18 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { StorageScope, WillSaveStateReason } from '../../../../../platform/storage/common/storage.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { ViewContainerLocation } from '../../../../../workbench/common/views.js';
+import { TERMINAL_VIEW_ID } from '../../../../../workbench/contrib/terminal/common/terminal.js';
 import { BaseLayoutController } from '../../browser/baseSessionLayoutController.js';
-import { createTestHarness, ICreateOptions, ITestLayoutHarness, makeSession } from './layoutControllerTestUtils.js';
+import { createTestHarness, ICreateOptions, ITestLayoutHarness, makePaneComposite, makeSession } from './layoutControllerTestUtils.js';
 
 /** Concrete, behaviourless subclass so the abstract base (its view-state hook is a no-op) can be instantiated. */
 class TestBaseLayoutController extends BaseLayoutController { }
+
+/** Mirrors the single-pane panel model: workbench-level visibility, per-session view. */
+class TestWorkbenchPanelLayoutController extends BaseLayoutController {
+	protected override get _isPanelVisibilityPerSession(): boolean { return false; }
+}
 
 suite('BaseLayoutController', () => {
 
@@ -25,6 +32,11 @@ suite('BaseLayoutController', () => {
 	function createController(options: ICreateOptions = {}): TestBaseLayoutController {
 		harness = createTestHarness(store, options);
 		return store.add(harness.instaService.createInstance(TestBaseLayoutController));
+	}
+
+	function createWorkbenchPanelController(options: ICreateOptions = {}): TestWorkbenchPanelLayoutController {
+		harness = createTestHarness(store, options);
+		return store.add(harness.instaService.createInstance(TestWorkbenchPanelLayoutController));
 	}
 
 	teardown(() => store.clear());
@@ -70,6 +82,175 @@ suite('BaseLayoutController', () => {
 			harness.setPartHiddenCalls.some(c => c.part === Parts.PANEL_PART && c.hidden === true),
 			'panel should be hidden when no session'
 		);
+	});
+
+	test('[B1] does not sync the panel on session switch when panel visibility is not per session', () => {
+		createWorkbenchPanelController();
+		const session1 = makeSession(URI.parse('session:1'));
+		const session2 = makeSession(URI.parse('session:2'));
+
+		harness.setPartHiddenCalls = [];
+		harness.activeSessionObs.set(session1, undefined);
+		harness.activeSessionObs.set(session2, undefined);
+
+		assert.ok(
+			!harness.setPartHiddenCalls.some(c => c.part === Parts.PANEL_PART),
+			'panel visibility should be left to the workbench, not synced on switch'
+		);
+	});
+
+	test('[B1] does not restore a per-session panel record when panel visibility is not per session', () => {
+		createWorkbenchPanelController();
+		const session1 = makeSession(URI.parse('session:1'));
+		const session2 = makeSession(URI.parse('session:2'));
+
+		// Panel shown while on session 1 — must not be recorded against the session.
+		harness.activeSessionObs.set(session1, undefined);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.PANEL_PART, visible: true });
+
+		harness.activeSessionObs.set(session2, undefined);
+		harness.setPartHiddenCalls = [];
+		harness.activeSessionObs.set(session1, undefined);
+
+		assert.ok(
+			!harness.setPartHiddenCalls.some(c => c.part === Parts.PANEL_PART),
+			'returning to session 1 should not restore a per-session panel state'
+		);
+	});
+
+	// --- [B6] Panel view (which view the panel shows) ---
+
+	test('[B6] restores the session\'s panel view on switch while the panel is visible', () => {
+		createWorkbenchPanelController();
+		harness.partVisibility.set(Parts.PANEL_PART, true);
+
+		const session1 = makeSession(URI.parse('session:1'));
+		const session2 = makeSession(URI.parse('session:2'));
+
+		harness.activeSessionObs.set(session1, undefined);
+		harness.activePaneCompositeId = 'view.a';
+		harness.onDidPaneCompositeOpen.fire({ composite: makePaneComposite('view.a'), viewContainerLocation: ViewContainerLocation.Panel });
+
+		harness.activeSessionObs.set(session2, undefined);
+		harness.activePaneCompositeId = 'view.b';
+		harness.onDidPaneCompositeOpen.fire({ composite: makePaneComposite('view.b'), viewContainerLocation: ViewContainerLocation.Panel });
+
+		harness.openPaneCompositeCalls = [];
+		harness.activeSessionObs.set(session1, undefined);
+
+		assert.deepStrictEqual(harness.openPaneCompositeCalls, [{ id: 'view.a', location: ViewContainerLocation.Panel }]);
+	});
+
+	test('[B6] does not force the panel view open while the panel is hidden', () => {
+		createWorkbenchPanelController();
+		harness.partVisibility.set(Parts.PANEL_PART, true);
+
+		const session1 = makeSession(URI.parse('session:1'));
+		const session2 = makeSession(URI.parse('session:2'));
+
+		harness.activeSessionObs.set(session1, undefined);
+		harness.activePaneCompositeId = 'view.a';
+		harness.onDidPaneCompositeOpen.fire({ composite: makePaneComposite('view.a'), viewContainerLocation: ViewContainerLocation.Panel });
+
+		harness.partVisibility.set(Parts.PANEL_PART, false);
+		harness.activeSessionObs.set(session2, undefined);
+		harness.openPaneCompositeCalls = [];
+		harness.activeSessionObs.set(session1, undefined);
+
+		assert.deepStrictEqual(harness.openPaneCompositeCalls, [], 'the panel must not be forced open to restore a view');
+	});
+
+	test('[B6] restores the session\'s panel view when the panel is shown', () => {
+		createWorkbenchPanelController();
+		harness.partVisibility.set(Parts.PANEL_PART, true);
+
+		const session1 = makeSession(URI.parse('session:1'));
+		harness.activeSessionObs.set(session1, undefined);
+		harness.activePaneCompositeId = 'view.a';
+		harness.onDidPaneCompositeOpen.fire({ composite: makePaneComposite('view.a'), viewContainerLocation: ViewContainerLocation.Panel });
+
+		// The panel is hidden and its active view diverges, then it is shown again.
+		harness.partVisibility.set(Parts.PANEL_PART, false);
+		harness.activePaneCompositeId = 'view.b';
+		harness.openPaneCompositeCalls = [];
+		harness.partVisibility.set(Parts.PANEL_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.PANEL_PART, visible: true });
+
+		assert.deepStrictEqual(harness.openPaneCompositeCalls, [{ id: 'view.a', location: ViewContainerLocation.Panel }]);
+	});
+
+	test('[B6] persists the session\'s panel view', () => {
+		createWorkbenchPanelController();
+		harness.partVisibility.set(Parts.PANEL_PART, true);
+
+		const session1 = makeSession(URI.parse('session:1'));
+		harness.activeSessionObs.set(session1, undefined);
+		harness.activePaneCompositeId = 'view.a';
+		harness.onDidPaneCompositeOpen.fire({ composite: makePaneComposite('view.a'), viewContainerLocation: ViewContainerLocation.Panel });
+
+		harness.storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
+
+		const stored = harness.storageService.get('sessions.layoutState', StorageScope.WORKSPACE);
+		assert.ok(stored, 'layout state should be written');
+		const entry = JSON.parse(stored!).find((e: any) => e.sessionResource === 'session:1');
+		assert.strictEqual(entry.panelViewContainerId, 'view.a');
+	});
+
+	test('[B6] restores a persisted panel view on switch after reload', () => {
+		const layoutState = [{ sessionResource: 'session:1', panelViewContainerId: 'view.a' }];
+		createWorkbenchPanelController({ layoutState });
+		harness.partVisibility.set(Parts.PANEL_PART, true);
+
+		const session1 = makeSession(URI.parse('session:1'));
+		harness.openPaneCompositeCalls = [];
+		harness.activeSessionObs.set(session1, undefined);
+
+		assert.deepStrictEqual(harness.openPaneCompositeCalls, [{ id: 'view.a', location: ViewContainerLocation.Panel }]);
+	});
+
+	test('[B6] falls back to the Terminal when a session has no record, then prefers its remembered view', () => {
+		createWorkbenchPanelController();
+		harness.partVisibility.set(Parts.PANEL_PART, true);
+
+		const session1 = makeSession(URI.parse('session:1'));
+
+		// No record for session 1 → the panel falls back to the Terminal.
+		harness.openPaneCompositeCalls = [];
+		harness.activeSessionObs.set(session1, undefined);
+		assert.deepStrictEqual(harness.openPaneCompositeCalls, [{ id: TERMINAL_VIEW_ID, location: ViewContainerLocation.Panel }]);
+
+		// The user opens another view while on session 1, which is remembered.
+		harness.activePaneCompositeId = 'view.a';
+		harness.onDidPaneCompositeOpen.fire({ composite: makePaneComposite('view.a'), viewContainerLocation: ViewContainerLocation.Panel });
+
+		const session2 = makeSession(URI.parse('session:2'));
+		harness.activeSessionObs.set(session2, undefined);
+
+		// Returning to session 1 restores its remembered view, not the default.
+		harness.openPaneCompositeCalls = [];
+		harness.activeSessionObs.set(session1, undefined);
+		assert.deepStrictEqual(harness.openPaneCompositeCalls, [{ id: 'view.a', location: ViewContainerLocation.Panel }]);
+	});
+
+	test('[B6] carries a draft\'s remembered panel view to its committed session on submit', () => {
+		createWorkbenchPanelController();
+		harness.partVisibility.set(Parts.PANEL_PART, true);
+
+		const draft = makeSession(URI.parse('session:draft'));
+		const committed = makeSession(URI.parse('session:committed'));
+
+		// The user opens a view while on the draft — remembered against the draft.
+		harness.activeSessionObs.set(draft, undefined);
+		harness.activePaneCompositeId = 'view.a';
+		harness.onDidPaneCompositeOpen.fire({ composite: makePaneComposite('view.a'), viewContainerLocation: ViewContainerLocation.Panel });
+
+		// Submit atomically replaces the draft with its committed session: the
+		// remembered view transfers so the panel does not fall back to the Terminal.
+		harness.activeSessionObs.set(committed, undefined);
+		harness.openPaneCompositeCalls = [];
+		harness.onDidReplaceSession.fire({ from: draft, to: committed });
+
+		assert.deepStrictEqual(harness.openPaneCompositeCalls, [{ id: 'view.a', location: ViewContainerLocation.Panel }]);
 	});
 
 	// --- [B2] Editor working sets ---

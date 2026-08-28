@@ -320,10 +320,9 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			syncedUri => this._activeClientService.getOrigin(syncedUri)));
 		itemProvider.setDraftCustomAgents(ambientScope.customAgents);
 		itemProvider.setDraftCustomizations(ambientScope.customizations);
-		// `[Agent Host]` suffix disambiguates from the extension-host Copilot CLI harness, which uses the same displayName.
 		store.add(this._customizationHarnessService.registerExternalHarness({
 			id: sessionType,
-			label: localize('agentHostHarnessLabel.local', "{0} [Agent Host]", agent.displayName),
+			label: agent.displayName,
 			icon: ThemeIcon.fromId(Codicon.server.id),
 			// The Tools section is surfaced for the Copilot CLI agent host only.
 			hiddenSections: agent.provider === 'copilotcli' ? [AICustomizationManagementSection.Prompts] : [AICustomizationManagementSection.Tools, AICustomizationManagementSection.Prompts],

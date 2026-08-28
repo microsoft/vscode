@@ -275,6 +275,7 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 	) {
 		super({
 			showCommonFindToggles: true,
+			checkImeCompletionState: true,
 			showResultCount: true,
 			matchesLimit: MAX_FIND_MATCHES,
 			initialWidth: CHAT_FIND_WIDGET_INITIAL_WIDTH,

@@ -8,6 +8,7 @@ import { ResourceMap } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerCustomization, McpServerStatus, type Customization, type CustomizationEnablement } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, ILoggerService, NullLogService, NullLoggerService } from '../../../../../../platform/log/common/log.js';
@@ -20,6 +21,7 @@ class FakeTarget implements IAgentHostCustomizationTarget {
 		readonly customizations: readonly Customization[],
 		readonly workingDirectory?: string,
 		private readonly _isBundledMcpServer: (pluginUri: string, serverName: string) => boolean = () => false,
+		readonly resourceUris: IAgentHostResourceUriMapper = identityAgentHostResourceUriMapper,
 	) { }
 
 	isBundledMcpServer(pluginUri: string, serverName: string): boolean {
@@ -131,6 +133,22 @@ suite('AbstractAgentHostCustomizationService', () => {
 		const [pluginServer] = sut.getMcpServers(session);
 
 		assert.strictEqual(pluginServer.isClientBundled, true);
+	});
+
+	test('maps host MCP sources and omits synthetic top-level sources', () => {
+		const sut = createSut();
+		const session = URI.parse('vscode-agent-session:///session-1');
+		const fileServer = mcpServer('file-server', 'File Server');
+		const topLevelServer = { ...mcpServer('top-level-server', 'Top Level Server'), uri: 'mcp-top-level:/top-level-server' };
+		const resourceUris = createAgentHostResourceUriMapper('remote.example');
+		sut.setTarget(session, new FakeTarget([fileServer, topLevelServer], undefined, undefined, resourceUris));
+
+		const servers = sut.getMcpServers(session);
+
+		assert.deepStrictEqual(servers.map(server => server.sourceUri?.toString()), [
+			resourceUris.fromAgentHost(URI.parse(fileServer.uri)).toString(),
+			undefined,
+		]);
 	});
 
 	test('preserves global and session decisions when re-enabling workspace enablement', () => {

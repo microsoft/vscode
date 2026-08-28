@@ -63,7 +63,7 @@ export interface ListAutomationTriggerDefinitionsResult {
  */
 export interface RunAutomationParams extends BaseParams {
 	/** Manual runs are scoped to the catalogue channel. */
-	channel: 'ahp-automations://';
+	channel: 'ahp-automations://catalog';
 	/** Target {@link AutomationState.resource}. */
 	automation: URI;
 	/**
@@ -89,7 +89,7 @@ export interface RunAutomationResult {
  *
  * The response only acknowledges the request. The updated full state arrives
  * through {@link AutomationSetAction | `automation/set`} on the
- * `ahp-automations://` channel, keeping all catalogue subscribers synchronized
+ * `ahp-automations://catalog` channel, keeping all catalogue subscribers synchronized
  * through the normal action stream.
  *
  * @category Commands
@@ -100,7 +100,7 @@ export interface RunAutomationResult {
  */
 export interface FetchAutomationRunsParams extends BaseParams {
 	/** Run-history loading is scoped to the catalogue channel. */
-	channel: 'ahp-automations://';
+	channel: 'ahp-automations://catalog';
 	/** Target {@link AutomationState.resource}. */
 	automation: URI;
 	/**

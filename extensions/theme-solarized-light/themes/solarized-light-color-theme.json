@@ -505,7 +505,7 @@
 		"walkThrough.embeddedEditorBackground": "#00000014",
 		// modern ui
 		"surface.border": "#ddd6c1",
-		"modernActivityBar.activeBackground": "#DFCA88",
+		"modernActivityBarItem.activeBackground": "#DFCA88",
 		"modernActivityBar.background": "#00000000",
 	},
 	"semanticHighlighting": true

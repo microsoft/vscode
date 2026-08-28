@@ -110,7 +110,7 @@
 
 .action-widget .monaco-list-row.group-header {
 	color: var(--vscode-descriptionForeground) !important;
-	font-weight: 500;
+	font-weight: var(--vscode-fontWeight-semiBold);
 	font-size: 11px;
 }
 

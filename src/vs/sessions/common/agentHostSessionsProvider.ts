@@ -6,11 +6,12 @@
 import { Event } from '../../base/common/event.js';
 import { IObservable } from '../../base/common/observable.js';
 import { equals } from '../../base/common/objects.js';
+import { ThemeIcon } from '../../base/common/themables.js';
 import { URI } from '../../base/common/uri.js';
 import { AuthenticateParams, AuthenticateResult, IAgentConnection } from '../../platform/agentHost/common/agentService.js';
 import { RemoteAgentHostConnectionStatus } from '../../platform/agentHost/common/remoteAgentHostService.js';
 import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentCustomization, Customization, McpServerStatus, RootConfigState, type CustomizationEnablement, type McpServerState, type RootState } from '../../platform/agentHost/common/state/protocol/state.js';
+import { AgentCustomization, Customization, McpServerStatus, RootConfigState, type CustomizationEnablement, type McpServerState, type RootState, type TextRange } from '../../platform/agentHost/common/state/protocol/state.js';
 import { type CustomizationDisabledReason } from '../../platform/agentHost/common/customizationEnablement.js';
 import { ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
 import { ISessionAgentRef } from '../services/sessions/common/session.js';
@@ -22,6 +23,31 @@ import type { AgentMergeSessionOverrides, AgentMergeSessionState } from '../../p
 export interface IAgentHostConnectProgress {
 	readonly connectionKey: string;
 	readonly message: string;
+}
+
+/**
+ * Declares that a provider is one of many interchangeable members of a single
+ * user-facing host. Members collapse into one `IAgentHostFilterEntry` that
+ * scopes the sessions list to all of them; hosts that are a place of their own
+ * (a tunnel machine, a WSL distro, an SSH target) leave this undefined.
+ */
+export interface IAgentHostGroup {
+	/** Stable id shared by every member, and the filter key of the collapsed entry. */
+	readonly id: string;
+	/** Display name of the collapsed entry (e.g. "GitHub Sandboxes"). */
+	readonly label: string;
+	/** Icon for the collapsed entry. Falls back to the generic remote icon. */
+	readonly icon?: ThemeIcon;
+	/**
+	 * Sort rank of the collapsed entry among host filter entries; lower comes
+	 * first. Ungrouped hosts rank `0`. Defaults to `0`.
+	 */
+	readonly order?: number;
+	/**
+	 * Whether the collapsed entry offers a manual connect/disconnect toggle.
+	 * `false` for groups whose members connect implicitly. Defaults to `true`.
+	 */
+	readonly connectable?: boolean;
 }
 
 /**
@@ -40,6 +66,8 @@ export interface IAgentHostMcpServer {
 	readonly disabledReason?: CustomizationDisabledReason;
 	readonly status: McpServerStatus;
 	readonly state: McpServerState;
+	readonly sourceUri?: URI;
+	readonly sourceRange?: TextRange;
 	readonly logOutputChannelId?: string;
 	/** Starts or restarts the server. Providers that cannot control lifecycle may no-op. */
 	start(): Promise<void>;
@@ -60,6 +88,12 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	readonly onDidReportConnectProgress?: Event<IAgentHostConnectProgress>;
 	/** Remote address string, present on remote providers. */
 	readonly remoteAddress?: string;
+	/**
+	 * Set when this provider is one member of a larger user-facing host (see
+	 * {@link IAgentHostGroup}). Members share one host filter entry instead of
+	 * getting one each.
+	 */
+	readonly hostGroup?: IAgentHostGroup;
 	/**
 	 * Stable preference key used to persist/read a
 	 * {@link IRemoteAgentHostLocationPreferenceService} choice for this
@@ -96,6 +130,15 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 * because the user can't recover from it via a click.
 	 */
 	readonly canConnectOnDemand?: boolean;
+
+	// -- Dev Container drafts (optional, local provider only) --
+
+	/** Whether this draft's workspace supports Dev Container execution. */
+	isDevContainerAvailable?(sessionId: string): boolean;
+	/** Whether this draft should be prepared on a Dev Container Agent Host. */
+	isDevContainerEnabled?(sessionId: string): boolean;
+	/** Set whether this draft should run on a Dev Container Agent Host. */
+	setDevContainerEnabled?(sessionId: string, enabled: boolean): void;
 
 	// -- Dynamic Session Config --
 

@@ -226,7 +226,7 @@
 	line-height: 22px;
 	padding: 0;
 	height: 100%;
-	font-weight: 500;
+	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 .search-view .textsearchresult .actionBarContainer {

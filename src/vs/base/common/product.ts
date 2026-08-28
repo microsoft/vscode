@@ -440,6 +440,7 @@ export interface IDefaultChatAgent {
 		enterprise: { id: string; name: string };
 		google: { id: string; name: string };
 		apple: { id: string; name: string };
+		microsoft: { id: string; name: string };
 	};
 
 	readonly providerExtensionId: string;

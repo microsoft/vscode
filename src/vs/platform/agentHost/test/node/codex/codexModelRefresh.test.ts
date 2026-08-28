@@ -194,10 +194,10 @@ suite('CodexAgent model refresh', () => {
 			connectionRequested: true,
 			enumerations: 1,
 			models: [{
-				provider: 'chatgpt',
+				provider: 'codex',
 				id: toCodexModelSelectionId('openai', 'gpt-5.6-sol'),
 				name: 'GPT-5.6-Sol',
-				meta: { modelSourceId: 'chatgptSubscription' },
+				meta: { modelSourceId: 'chatgptSubscription', modelGroupId: 'chatgpt' },
 			}],
 		});
 	});
@@ -251,7 +251,7 @@ suite('CodexAgent model refresh', () => {
 			copilotRefreshes: 2,
 			codexRefreshes: 2,
 			enumerations: 1,
-			providers: ['copilot', 'chatgpt'],
+			providers: ['codex', 'codex'],
 		});
 	});
 
@@ -772,7 +772,7 @@ suite('CodexAgent model refresh', () => {
 			providers: agent.models.get().map(model => model.provider),
 			copilotRequired: agent.getProtectedResources()[0].required,
 		}, {
-			providers: ['copilot'],
+			providers: ['codex'],
 			copilotRequired: false,
 		});
 	});
@@ -1241,7 +1241,7 @@ suite('CodexAgent model refresh', () => {
 		assert.deepStrictEqual(agent['_openAIAccountRateLimit'], { usedPercent: 20, windowDurationMins: 300, resetsAt: 200 });
 	});
 
-	test('surfaces current ChatGPT subscription models under the ChatGPT provider', async () => {
+	test('surfaces current ChatGPT subscription models in the ChatGPT group', async () => {
 		const agent = createAgent(disposables, async () => []);
 		agent['_connection'] = {
 			kind: 'ready',
@@ -1275,14 +1275,14 @@ suite('CodexAgent model refresh', () => {
 			},
 			meta: model._meta,
 		})), [{
-			provider: 'chatgpt',
+			provider: 'codex',
 			id: toCodexModelSelectionId('openai', 'gpt-5.6-sol'),
 			name: 'GPT-5.6-Sol',
 			thinkingLevel: {
 				enum: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
 				default: 'low',
 			},
-			meta: { modelSourceId: 'chatgptSubscription' },
+			meta: { modelSourceId: 'chatgptSubscription', modelGroupId: 'chatgpt' },
 		}]);
 	});
 
@@ -1361,9 +1361,9 @@ suite('CodexAgent model refresh', () => {
 		await agent['_refreshCodexModels']();
 
 		assert.deepStrictEqual(agent['_codexModels'].map(model => ({ provider: model.provider, id: model.id, meta: model._meta })), [{
-			provider: 'custom-provider',
+			provider: 'codex',
 			id: toCodexModelSelectionId('custom-provider', 'gpt-5.6-sol'),
-			meta: undefined,
+			meta: { modelGroupId: 'custom-provider' },
 		}]);
 	});
 
@@ -1392,8 +1392,8 @@ suite('CodexAgent model refresh', () => {
 		await agent['_refreshCodexModels']();
 
 		assert.deepStrictEqual(agent['_codexModels'].map(model => ({ provider: model.provider, meta: model._meta })), [{
-			provider: 'chatgpt',
-			meta: undefined,
+			provider: 'codex',
+			meta: { modelGroupId: 'chatgpt' },
 		}]);
 	});
 
@@ -1422,8 +1422,8 @@ suite('CodexAgent model refresh', () => {
 		await agent['_refreshCodexModels']();
 
 		assert.deepStrictEqual(agent['_codexModels'].map(model => ({ provider: model.provider, meta: model._meta })), [{
-			provider: 'custom-provider',
-			meta: undefined,
+			provider: 'codex',
+			meta: { modelGroupId: 'custom-provider' },
 		}]);
 	});
 

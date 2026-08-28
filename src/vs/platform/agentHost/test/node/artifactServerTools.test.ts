@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ArtifactServerToolName } from '../../common/serverToolNames.js';
-import { createArtifactServerToolGroup } from '../../node/shared/artifactServerTools.js';
+import { artifactServerToolDefinitions, createArtifactServerToolGroup } from '../../node/shared/artifactServerTools.js';
 import { getServerToolDisplay } from '../../node/shared/serverToolGroups.js';
 
 suite('Artifact Server Tools', () => {
@@ -26,6 +26,15 @@ suite('Artifact Server Tools', () => {
 			reference: { displayName: 'Add Reference', invocationMessage: 'Add reference "Broken commit"', pastTenseMessage: 'Added reference "Broken commit"' },
 			unlabelled: { displayName: 'Add Reference', invocationMessage: 'Add reference', pastTenseMessage: 'Added reference' },
 			malformed: { displayName: 'Add Artifact or Reference', invocationMessage: 'Add artifact or reference', pastTenseMessage: 'Added artifact or reference' },
+		});
+	});
+
+	test('requires model-provided file paths to be absolute URIs', () => {
+		const addDefinition = artifactServerToolDefinitions.find(definition => definition.name === ArtifactServerToolName.AddArtifactOrReference);
+
+		assert.deepStrictEqual(addDefinition?.inputSchema?.properties?.uri, {
+			type: 'string',
+			description: 'Absolute URI including its scheme. For a local file, pass a file URI such as `file:///C:/path/to/file`, not a plain file system path such as `C:\\path\\to\\file`. Required for the `file` and `resource` kinds.',
 		});
 	});
 

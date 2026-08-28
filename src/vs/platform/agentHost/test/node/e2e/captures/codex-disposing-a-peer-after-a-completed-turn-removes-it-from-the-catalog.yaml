@@ -1,0 +1,12 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "DONE".
+    response:
+      content: DONE
+      stopReason: end_turn

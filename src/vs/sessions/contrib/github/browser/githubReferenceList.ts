@@ -6,6 +6,9 @@
 import './media/githubReferenceList.css';
 
 import { $, append } from '../../../../base/browser/dom.js';
+import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { IAction, toAction } from '../../../../base/common/actions.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 
@@ -15,6 +18,8 @@ export interface IGitHubReferenceListEntry {
 	readonly title: string | undefined;
 	readonly icon: ThemeIcon;
 	readonly ariaLabel?: string;
+	/** Actions shown at the trailing edge of the row, e.g. copying its link. */
+	readonly toolbarActions?: readonly IAction[];
 }
 
 interface IGitHubReferenceListRow<T> {
@@ -24,15 +29,19 @@ interface IGitHubReferenceListRow<T> {
 	readonly icon: HTMLElement;
 	readonly number: HTMLElement;
 	readonly title: HTMLElement;
+	readonly actionBar: ActionBar;
+	/** The presentation of the rendered actions, so they are only re-rendered when it changes. */
+	actionsKey: string;
 }
 
 /** A GitHub reference list whose rows can update without replacing focused buttons. */
-export class GitHubReferenceList<T extends IGitHubReferenceListEntry> {
+export class GitHubReferenceList<T extends IGitHubReferenceListEntry> extends Disposable {
 
 	readonly element = $('.sessions-github-reference-list', { role: 'list' });
 	private readonly _rows: IGitHubReferenceListRow<T>[] = [];
 
 	constructor(entries: readonly T[], private readonly _onDidSelect: (entry: T) => void) {
+		super();
 		this.update(entries);
 	}
 
@@ -47,6 +56,7 @@ export class GitHubReferenceList<T extends IGitHubReferenceListEntry> {
 		}
 
 		for (let index = this._rows.length - 1; index >= entries.length; index--) {
+			this._store.delete(this._rows[index].actionBar);
 			this._rows[index].item.remove();
 			this._rows.splice(index, 1);
 		}
@@ -64,6 +74,8 @@ export class GitHubReferenceList<T extends IGitHubReferenceListEntry> {
 			icon: append(button, $('span.sessions-github-reference-list-entry-icon', { 'aria-hidden': 'true' })),
 			number: append(button, $('span.sessions-github-reference-list-entry-number')),
 			title: append(button, $('span.sessions-github-reference-list-entry-title')),
+			actionBar: this._register(new ActionBar(append(item, $('.sessions-github-reference-list-entry-actions')))),
+			actionsKey: '',
 		};
 		button.onclick = event => {
 			event.preventDefault();
@@ -94,10 +106,34 @@ export class GitHubReferenceList<T extends IGitHubReferenceListEntry> {
 		row.title.textContent = entry.title ?? '';
 		row.title.title = entry.title ?? '';
 		row.title.hidden = !entry.title;
-	}
-}
 
-/** Renders GitHub references as keyboard-accessible `<icon> #<number> <title>` rows. */
-export function createGitHubReferenceListElement<T extends IGitHubReferenceListEntry>(entries: readonly T[], onDidSelect: (entry: T) => void): HTMLElement {
-	return new GitHubReferenceList(entries, onDidSelect).element;
+		this._updateRowActions(row);
+	}
+
+	/**
+	 * Renders the row's actions, keeping the rendered buttons as long as their presentation
+	 * is unchanged so a focused action survives a state update. The rendered actions run
+	 * against the row's current entry rather than the one they were rendered for.
+	 */
+	private _updateRowActions(row: IGitHubReferenceListRow<T>): void {
+		const actions = row.entry.toolbarActions ?? [];
+		const actionsKey = actions.map(action => `${action.id}\u0000${action.label}\u0000${action.tooltip}\u0000${action.class}\u0000${action.enabled}\u0000${action.checked}`).join('\u0001');
+		if (row.actionsKey === actionsKey) {
+			return;
+		}
+
+		row.actionsKey = actionsKey;
+		row.actionBar.clear();
+		if (actions.length) {
+			row.actionBar.push(actions.map((action, index) => toAction({
+				id: action.id,
+				label: action.label,
+				tooltip: action.tooltip,
+				class: action.class,
+				enabled: action.enabled,
+				checked: action.checked,
+				run: (...args: unknown[]) => row.entry.toolbarActions?.[index]?.run(...args),
+			})), { icon: true, label: false });
+		}
+	}
 }

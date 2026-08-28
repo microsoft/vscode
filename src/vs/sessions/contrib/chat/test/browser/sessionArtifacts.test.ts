@@ -69,4 +69,32 @@ suite('Session Artifacts', () => {
 		});
 	});
 
+	test('offers a copy link action for pull request and issue entries', () => {
+		const copied: string[] = [];
+		const pullRequestLink = URI.parse('https://github.com/microsoft/vscode/pull/12');
+		const issueLink = URI.parse('https://github.com/microsoft/vscode/issues/34');
+		const artifacts: readonly ISessionArtifact[] = [
+			{ id: 'pr', kind: SessionArtifactKind.PullRequest, label: 'PR #12', isArtifact: true, link: pullRequestLink },
+			{ id: 'issue', kind: SessionArtifactKind.Issue, label: 'Issue #34', isArtifact: true, link: issueLink },
+			{ id: 'docs', kind: SessionArtifactKind.Website, label: 'Docs', isArtifact: true, link: URI.parse('https://example.com/docs') },
+		];
+
+		const entries = buildSessionArtifactSections(artifacts, { ...actions, copy: text => copied.push(text) }, true, new Set()).flatMap(section => section.entries);
+		for (const entry of entries) {
+			entry.toolbarActions?.forEach(action => action.run());
+		}
+
+		assert.deepStrictEqual({
+			entries: entries.map(entry => [entry.label, entry.toolbarActions?.map(action => action.label) ?? []]),
+			copied,
+		}, {
+			entries: [
+				['PR #12', ['Copy Pull Request Link']],
+				['Issue #34', ['Copy Issue Link']],
+				['Docs', []],
+			],
+			copied: [pullRequestLink.toString(true), issueLink.toString(true)],
+		});
+	});
+
 });

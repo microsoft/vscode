@@ -121,7 +121,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		this._barContainer = $('.chat-group-view-bar');
 		this.element.appendChild(this._barContainer);
 
-		this._compositeBar = this._register(instantiationService.createInstance(ChatCompositeBar));
+		this._compositeBar = this._register(instantiationService.createInstance(ChatCompositeBar, undefined));
 		this._barContainer.appendChild(this._compositeBar.element);
 
 		// Read-only status banner, shown flush below this group's tab bar when the
@@ -188,7 +188,9 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 			let desiredKind: ChatViewKind;
 			if (session.isCreated.read(reader) === false) {
-				desiredKind = 'newSession';
+				desiredKind = session.isNewSessionRequestInProgress?.read(reader) === true
+					? 'chat'
+					: 'newSession';
 			} else if (!chat || (chat.status.read(reader) === SessionStatus.Untitled && chat.interactivity.read(reader) === ChatInteractivity.Full)) {
 				desiredKind = 'newChatInSession';
 			} else {

@@ -6,9 +6,27 @@
 import assert from 'assert';
 import { SessionView } from '../../browser/parts/sessionView.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
+import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { observableValue } from '../../../base/common/observable.js';
+import { mock } from '../../../base/test/common/mock.js';
+import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
+import { AbstractChatView } from '../../browser/parts/chatView.js';
 
 suite('Sessions - Session View', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	class TestNewSessionView extends AbstractChatView {
+		readonly kind = 'newSession';
+		disposed = false;
+
+		protected override doLayout(): void { }
+		override toJSON(): object { return {}; }
+		override focus(): void { }
+		override dispose(): void {
+			this.disposed = true;
+			super.dispose();
+		}
+	}
 
 	test('forwards effective visibility (part and grid leaf) to the hosted chat view', () => {
 		const forwarded: boolean[] = [];
@@ -54,6 +72,65 @@ suite('Sessions - Session View', () => {
 		}, {
 			inactiveClassName: 'modern-ui-editor-tab-group',
 			activeClassName: 'modern-ui-editor-tab-group modern-ui-editor-tab-group-active',
+		});
+	});
+
+	test('preserves the new-session composer while an uncreated draft is activated', () => {
+		const createdViews: TestNewSessionView[] = [];
+		const shownSessions: Array<IActiveSession | undefined> = [];
+		const contentContainer = document.createElement('div');
+		const groupsElement = document.createElement('div');
+		const isCreated = observableValue<boolean>('isCreated', false);
+		const session = new class extends mock<IActiveSession>() {
+			override readonly isCreated = isCreated;
+		}();
+		const standaloneView = disposables.add(new MutableDisposable<AbstractChatView>());
+		const openSessionDisposables = disposables.add(new DisposableStore());
+		const view: SessionView = Object.assign(Object.create(SessionView.prototype), {
+			_hasOpenedSession: false,
+			_currentSession: undefined,
+			_sessionObs: observableValue<IActiveSession | undefined>('session', undefined),
+			_openSessionDisposables: openSessionDisposables,
+			_header: { setSession: () => { } },
+			_groupsView: {
+				element: groupsElement,
+				setSession: (activeSession: IActiveSession | undefined) => shownSessions.push(activeSession),
+			},
+			_standaloneView: standaloneView,
+			_floatingToolbar: { setSession: () => { } },
+			_contentContainer: contentContainer,
+			_chatViewFactory: {
+				createNewChatView: () => {
+					const created = new TestNewSessionView();
+					createdViews.push(created);
+					return created;
+				},
+			},
+			_isActive: true,
+			_isPartVisible: true,
+			_isLeafVisible: true,
+			_lastLayout: undefined,
+			_handleContextKeys: () => ({ dispose: () => { } }),
+		});
+
+		view.openSession(undefined, {});
+		const initialElement = contentContainer.firstElementChild;
+		view.openSession(session, {});
+		const draftElement = contentContainer.firstElementChild;
+		isCreated.set(true, undefined);
+
+		assert.deepStrictEqual({
+			createdViewCount: createdViews.length,
+			preservedForDraft: draftElement === initialElement,
+			disposedAfterCreation: createdViews[0].disposed,
+			finalElement: contentContainer.firstElementChild,
+			shownSessions,
+		}, {
+			createdViewCount: 1,
+			preservedForDraft: true,
+			disposedAfterCreation: true,
+			finalElement: groupsElement,
+			shownSessions: [undefined, undefined, session],
 		});
 	});
 });

@@ -51,6 +51,7 @@ suite('Sessions - Workbench', () => {
 	const restoreAttachedEditorMaximizedState = Reflect.get(Workbench.prototype, 'restoreAttachedEditorMaximizedState') as (this: IWorkbenchTestHarness) => void;
 	const loadPartVisibility = Reflect.get(Workbench.prototype, '_loadPartVisibility') as (this: IWorkbenchTestHarness, storageService: { get(): string | undefined; remove(): void }) => { editor?: boolean; auxiliaryBar?: boolean; sidebar?: boolean };
 	const savePartVisibility = Reflect.get(Workbench.prototype, '_savePartVisibility') as (this: IWorkbenchTestHarness) => void;
+	const applyPersistedPartVisibility = Reflect.get(Workbench.prototype, '_applyPersistedPartVisibility') as (this: IWorkbenchTestHarness) => void;
 	const revealEditorOnOpen = Reflect.get(Workbench.prototype, 'revealEditorOnOpen') as (this: IWillOpenTestHarness, e: { groupId: number; editor: unknown }) => void;
 	const revealEditorOnOpenSinglePane = Reflect.get(SinglePaneWorkbench.prototype, 'revealEditorOnOpen') as (this: IWillOpenTestHarness, e: { groupId: number; editor: unknown }) => void;
 	const createDesktopGridDescriptor = Reflect.get(Workbench.prototype, 'createDesktopGridDescriptor') as (this: IGridDescriptorTestHarness, width: number, height: number) => { root: { data: readonly unknown[] } };
@@ -2350,6 +2351,8 @@ suite('Sessions - Workbench', () => {
 		partVisibility: { sidebar: boolean; auxiliaryBar: boolean; editor: boolean; panel: boolean; sessions: boolean };
 		layoutPolicy: { viewportClass: { get(): 'phone' | 'tablet' | 'desktop' } };
 		storageService: { store(...args: unknown[]): void };
+		isSinglePaneLayoutEnabled: boolean;
+		_loadPartVisibility(storageService: unknown): { editor?: boolean; auxiliaryBar?: boolean; sidebar?: boolean; panel?: boolean };
 		_editorPartAutoVisibilitySuppressionCount: number;
 		_editorMaximized: boolean;
 		_restoreAttachedEditorMaximizedOnShow: boolean;
@@ -2362,6 +2365,8 @@ suite('Sessions - Workbench', () => {
 			partVisibility: { sidebar: true, auxiliaryBar: true, editor: true, panel: false, sessions: true },
 			layoutPolicy: { viewportClass: { get: () => 'desktop' } },
 			storageService: { store: () => { } },
+			isSinglePaneLayoutEnabled: false,
+			_loadPartVisibility: () => ({}),
 			_editorPartAutoVisibilitySuppressionCount: 0,
 			_editorMaximized: false,
 			_restoreAttachedEditorMaximizedOnShow: false,
@@ -2887,5 +2892,40 @@ suite('Sessions - Workbench', () => {
 		savePartVisibility.call(workbench);
 
 		assert.strictEqual(storeCalled, false);
+	});
+
+	test('restores saved panel visibility only in single-pane mode', () => {
+		function restoredPanel(isSinglePaneLayoutEnabled: boolean): boolean {
+			const workbench = createWorkbenchHarness();
+			workbench.isSinglePaneLayoutEnabled = isSinglePaneLayoutEnabled;
+			workbench.partVisibility.panel = false;
+			workbench._loadPartVisibility = () => ({ panel: true });
+
+			applyPersistedPartVisibility.call(workbench);
+			return workbench.partVisibility.panel;
+		}
+
+		assert.deepStrictEqual(
+			{ singlePane: restoredPanel(true), classic: restoredPanel(false) },
+			{ singlePane: true, classic: false }
+		);
+	});
+
+	test('persists panel visibility only in single-pane mode', () => {
+		function persistedPanel(isSinglePaneLayoutEnabled: boolean): boolean | undefined {
+			const workbench = createWorkbenchHarness();
+			workbench.isSinglePaneLayoutEnabled = isSinglePaneLayoutEnabled;
+			workbench.partVisibility.panel = true;
+			let stored: { panel?: boolean } | undefined;
+			workbench.storageService.store = (_key, value) => { stored = JSON.parse(String(value)); };
+
+			savePartVisibility.call(workbench);
+			return stored?.panel;
+		}
+
+		assert.deepStrictEqual(
+			{ singlePane: persistedPanel(true), classic: persistedPanel(false) },
+			{ singlePane: true, classic: undefined }
+		);
 	});
 });

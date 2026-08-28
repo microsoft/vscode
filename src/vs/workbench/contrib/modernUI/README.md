@@ -24,10 +24,10 @@ Modern UI uses the standard workbench color theme system. Theme authors can use 
 | `modernEditorTab.selectedActionBackground` | Opaque background of actions on selected Modern UI editor tabs | `tab.selectedBackground` composited over `editor.background` |
 | `modernActivityBar.background` | Background of the Modern UI activity bar | `activityBar.background` |
 | `modernActivityBar.inactiveBackground` | Background of the Modern UI activity bar in an inactive window | `modernActivityBar.background` |
-| `modernActivityBar.activeBackground` | Background of active Modern UI activity bar items in the default side position | `modernTab.activeBackground` |
-| `modernActivityBar.activeForeground` | Foreground of active Modern UI activity bar items in the default side position | `modernTab.activeForeground` |
-| `modernActivityBar.hoverBackground` | Background of hovered Modern UI activity bar items in the default side position | `modernTab.hoverBackground` |
-| `modernActivityBar.hoverForeground` | Foreground of hovered Modern UI activity bar items in the default side position | `modernTab.hoverForeground` |
+| `modernActivityBarItem.activeBackground` | Background of active Modern UI activity bar items in the default side position | `modernTab.activeBackground` |
+| `modernActivityBarItem.activeForeground` | Foreground of active Modern UI activity bar items in the default side position | `modernTab.activeForeground` |
+| `modernActivityBarItem.hoverBackground` | Background of hovered Modern UI activity bar items in the default side position | `modernTab.hoverBackground` |
+| `modernActivityBarItem.hoverForeground` | Foreground of hovered Modern UI activity bar items in the default side position | `modernTab.hoverForeground` |
 
 Specific workbench regions continue to use their existing semantic colors. For example, the panel and editor retain `panel.background` and `editor.background`, while the shell gutters use the active or inactive `titleBar.*` background. The `surface.*` colors provide the shared framing treatment around those regions rather than replacing all existing workbench colors.
 
@@ -56,10 +56,10 @@ Activity bar items in non-default top or bottom positions use the `modernTab.*` 
     "modernEditorTab.selectedActionBackground": "#454545",
     "modernActivityBar.background": "#181818",
     "modernActivityBar.inactiveBackground": "#202020",
-    "modernActivityBar.activeBackground": "#3d3d3d",
-    "modernActivityBar.activeForeground": "#f0f0f0",
-    "modernActivityBar.hoverBackground": "#292929",
-    "modernActivityBar.hoverForeground": "#f0f0f0"
+    "modernActivityBarItem.activeBackground": "#3d3d3d",
+    "modernActivityBarItem.activeForeground": "#f0f0f0",
+    "modernActivityBarItem.hoverBackground": "#292929",
+    "modernActivityBarItem.hoverForeground": "#f0f0f0"
   }
 }
 ```

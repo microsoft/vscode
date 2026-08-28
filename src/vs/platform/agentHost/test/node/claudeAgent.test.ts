@@ -45,7 +45,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
-import { IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agent.js';
+import { AgentChatMigrationDeferred, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agent.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostClaudeMultiRootEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
@@ -4962,7 +4962,7 @@ suite('ClaudeAgent', () => {
 			modifiedB: b?.modifiedTime,
 			sdkCalls: sdk.listSessionsCallCount,
 			availabilityRequests: sdk.ensureAvailableCalls,
-			migrationChats: chatsToMigrate?.map(r => sessionIdOfChat(r.chat)),
+			migrationChats: chatsToMigrate === AgentChatMigrationDeferred ? undefined : chatsToMigrate?.map(r => sessionIdOfChat(r.chat)),
 		}, {
 			count: 3,
 			ids: ['a', 'b', 'c'],
@@ -6234,7 +6234,6 @@ suite('ClaudeAgent — agent SDK setup channel', () => {
 		await settle();
 		const cold = {
 			discovered: [...discovered],
-			// `undefined` is "ask again later", as distinct from "nothing to migrate".
 			migratable: await ctx.agent.listChatsToMigrate(),
 			fetches: ctx.sdk.ensureAvailableCalls,
 		};
@@ -6251,7 +6250,7 @@ suite('ClaudeAgent — agent SDK setup channel', () => {
 		await settle();
 
 		assert.deepStrictEqual({ cold, inFlight, after: discovered, migratable: await ctx.agent.listChatsToMigrate() }, {
-			cold: { discovered: [], migratable: undefined, fetches: 0 },
+			cold: { discovered: [], migratable: AgentChatMigrationDeferred, fetches: 0 },
 			inFlight: [],
 			after: [1],
 			migratable: [],

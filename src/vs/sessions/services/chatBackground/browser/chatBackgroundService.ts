@@ -155,7 +155,7 @@ export class SessionsChatBackgroundService extends Disposable implements ISessio
 
 	async setBackground(background: URI | SessionsChatBackgroundPreset): Promise<void> {
 		const setting = this.getBackgroundImageSetting(this.themeService.getColorTheme().type);
-		await this.configurationService.updateValue(setting, URI.isUri(background) ? background.toString() : background, ConfigurationTarget.USER);
+		await this.configurationService.updateValue(setting, URI.isUri(background) ? background.fsPath : background, ConfigurationTarget.USER);
 		if (URI.isUri(background)) {
 			this.storeRecentBackgroundImage(background);
 		}

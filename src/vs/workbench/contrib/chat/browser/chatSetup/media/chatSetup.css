@@ -59,3 +59,12 @@
 .chat-setup-dialog .dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.apple::before {
 	background-image: url('./apple-dark.svg');
 }
+
+.monaco-workbench.hc-light .chat-setup-dialog .dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.microsoft::before,
+.monaco-workbench.vs .chat-setup-dialog .dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.microsoft::before {
+	background-image: url('./microsoft-light.svg');
+}
+
+.chat-setup-dialog .dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.microsoft::before {
+	background-image: url('./microsoft-dark.svg');
+}

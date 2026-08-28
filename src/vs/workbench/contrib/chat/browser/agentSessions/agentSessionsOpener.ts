@@ -23,7 +23,9 @@ import { IAgentSessionsService } from './agentSessionsService.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { adoptLegacyCopilotCliResource, reportLegacyMigrationOpen } from './agentHost/agentHostLegacyMigration.js';
+import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
+import { migratedCopilotCliResource } from '../copilotCliEventsUri.js';
+import { adoptLegacyCopilotCliResource, LEGACY_MIGRATION_OPEN_TIMEOUT_MS, reportLegacyMigrationOpen } from './agentHost/agentHostLegacyMigration.js';
 
 //#region Session Opener Registry
 
@@ -75,30 +77,55 @@ async function resolveMigratedSession(agentSessionsService: IAgentSessionsServic
 	return agentSessionsService.getSession(migrated);
 }
 
-export async function openSessionByResource(accessor: ServicesAccessor, resource: URI, openOptions?: ISessionOpenOptions): Promise<IChatWidget | undefined> {
-	const instantiationService = accessor.get(IInstantiationService);
+/**
+ * For an explicit open, redirect a superseded legacy resource to its adopted twin and
+ * return the migrated session to open in its place (or `undefined` to open the original).
+ *
+ * Migration is invisible to the user — they always just open "their chat". So the whole
+ * adopt-and-surface step runs under a subtle status-bar progress hint and a generous
+ * budget, which keeps the *same* session opening in place instead of ever swapping in the
+ * pre-migration view. A declined/external session resolves quickly, so only a still-warming
+ * host actually waits.
+ */
+async function resolveMigratedSessionForOpen(accessor: ServicesAccessor, resource: URI): Promise<IAgentSession | undefined> {
+	// Only a superseded legacy resource can redirect; skip the progress wrapper for every
+	// normal open so they stay overhead-free.
+	if (!migratedCopilotCliResource(resource)) {
+		return undefined;
+	}
+
 	const logService = accessor.get(ILogService);
 	const agentSessionsService = accessor.get(IAgentSessionsService);
 	const telemetryService = accessor.get(ITelemetryService);
+	const configurationService = accessor.get(IConfigurationService);
+	const connection = accessor.get(IAgentHostConnectionsService).ambientConnection;
+
+	return accessor.get(IProgressService).withProgress(
+		{ location: ProgressLocation.Window, title: localize('chat.openingSession', "Opening chat…") },
+		async () => {
+			const migrated = await adoptLegacyCopilotCliResource(connection, resource, logService, configurationService, telemetryService, 'open', LEGACY_MIGRATION_OPEN_TIMEOUT_MS);
+			if (!migrated) {
+				return undefined;
+			}
+			const surfaced = await resolveMigratedSession(agentSessionsService, migrated);
+			reportLegacyMigrationOpen(telemetryService, 'open', !!surfaced);
+			if (!surfaced) {
+				logService.warn(`[AgentHost] migrated ${resource.toString()} to ${migrated.toString()} but it is not in this window's list after refreshing provider '${getChatSessionType(migrated)}'; opening the legacy session instead.`);
+			}
+			return surfaced;
+		},
+	);
+}
+
+export async function openSessionByResource(accessor: ServicesAccessor, resource: URI, openOptions?: ISessionOpenOptions): Promise<IChatWidget | undefined> {
+	const instantiationService = accessor.get(IInstantiationService);
+	const logService = accessor.get(ILogService);
 
 	// A superseded legacy resource is redirected (and adopted) before anything
 	// looks it up, so opening by URI migrates instead of reaching the old provider.
-	const migrated = await adoptLegacyCopilotCliResource(
-		accessor.get(IAgentHostConnectionsService).ambientConnection,
-		resource,
-		logService,
-		accessor.get(IConfigurationService),
-		accessor.get(ITelemetryService),
-		'open',
-	);
-	if (migrated) {
-		const surfaced = await resolveMigratedSession(agentSessionsService, migrated);
-		reportLegacyMigrationOpen(telemetryService, 'open', !!surfaced);
-		if (surfaced) {
-			resource = migrated;
-		} else {
-			logService.warn(`[AgentHost] migrated ${resource.toString()} to ${migrated.toString()} but it is not in this window's list after refreshing provider '${getChatSessionType(migrated)}'; opening the legacy session instead.`);
-		}
+	const migratedSession = await resolveMigratedSessionForOpen(accessor, resource);
+	if (migratedSession) {
+		resource = migratedSession.resource;
 	}
 
 	for (const participant of sessionOpenerRegistry.getParticipants()) {
@@ -127,8 +154,6 @@ export async function openSessionByResource(accessor: ServicesAccessor, resource
 export async function openSession(accessor: ServicesAccessor, session: IAgentSession, openOptions?: ISessionOpenOptions, alreadyResolved?: boolean): Promise<IChatWidget | undefined> {
 	const instantiationService = accessor.get(IInstantiationService);
 	const logService = accessor.get(ILogService);
-	const agentSessionsService = accessor.get(IAgentSessionsService);
-	const telemetryService = accessor.get(ITelemetryService);
 
 	logService.trace(`[AgentSessions] openSession start: ${session.resource.toString()}`);
 
@@ -136,22 +161,9 @@ export async function openSession(accessor: ServicesAccessor, session: IAgentSes
 	// has to happen on this path too or those opens never migrate. A no-op for
 	// anything that is not a superseded legacy resource.
 	if (!alreadyResolved) {
-		const migrated = await adoptLegacyCopilotCliResource(
-			accessor.get(IAgentHostConnectionsService).ambientConnection,
-			session.resource,
-			logService,
-			accessor.get(IConfigurationService),
-			accessor.get(ITelemetryService),
-			'open',
-		);
-		if (migrated) {
-			const migratedSession = await resolveMigratedSession(agentSessionsService, migrated);
-			reportLegacyMigrationOpen(telemetryService, 'open', !!migratedSession);
-			if (migratedSession) {
-				session = migratedSession;
-			} else {
-				logService.warn(`[AgentHost] migrated ${session.resource.toString()} to ${migrated.toString()} but it is not in this window's list after refreshing provider '${getChatSessionType(migrated)}'; opening the legacy session instead.`);
-			}
+		const migratedSession = await resolveMigratedSessionForOpen(accessor, session.resource);
+		if (migratedSession) {
+			session = migratedSession;
 		}
 	}
 

@@ -12,7 +12,7 @@ import { mock } from '../../../../util/common/test/simpleMock';
 import { ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponseTurn2, ChatToolInvocationPart } from '../../../../vscodeTypes';
 import { ITaskApiClient, ListTaskEventsOptions, ListTasksOptions } from '../../common/taskApiTypes';
 import { ChatSessionContentBuilder, extractTaskErrorDetail, formatTaskStoppedMessage } from '../copilotCloudSessionContentBuilder';
-import { getCloudSessionItemMetadata, getCloudSessionResources, normalizeInitialSessionOptions, taskStateToChatSessionStatus } from '../copilotCloudSessionsProvider';
+import { formatNewSessionContextReference, getCloudSessionItemMetadata, getCloudSessionResources, normalizeInitialSessionOptions, taskStateToChatSessionStatus } from '../copilotCloudSessionsProvider';
 import { TaskApiBackend, parseRepoFromTaskUrl, isCloudCodingAgentTask } from '../taskApiBackend';
 import { isActiveTaskState, isFailedTaskState } from '../../vscode/copilotCodingAgentUtils';
 import { NullCloudBackendInstrumentation } from '../cloudBackendTelemetry';
@@ -42,6 +42,24 @@ class TestGitService extends mock<IGitService>() {
 }
 
 describe('copilotCloudSessionsProvider helpers', () => {
+	it('formats every redesigned new-session context pill for the cloud request', () => {
+		const references = [
+			{ id: 'github-context:https://github.com/microsoft/vscode/issues/332805', name: 'Issue', value: 'GitHub context' },
+			{ id: 'github-context:https://github.com/microsoft/vscode/pull/332825', name: 'Pull request', value: 'GitHub context' },
+			{ id: 'sessions-additional-repository:https://github.com/microsoft/typescript', name: 'Repository', value: 'GitHub context' },
+			{ id: 'sessions-additional-folder:file:///workspace/docs', name: 'Folder', value: vscode.Uri.file('/workspace/docs') },
+			{ id: 'unrelated', name: 'Unrelated', value: 'Other context' },
+		] satisfies vscode.ChatPromptReference[];
+
+		expect(references.map(formatNewSessionContextReference)).toEqual([
+			'GitHub resource: https://github.com/microsoft/vscode/issues/332805',
+			'GitHub resource: https://github.com/microsoft/vscode/pull/332825',
+			'GitHub repository: https://github.com/microsoft/typescript',
+			`Folder: ${vscode.Uri.file('/workspace/docs').fsPath}`,
+			undefined,
+		]);
+	});
+
 	it('coerces object-shaped initialSessionOptions into option entries', () => {
 		const logService = new RecordingLogService();
 		const sessionResource = vscode.Uri.parse('copilot-cloud-agent:/1');

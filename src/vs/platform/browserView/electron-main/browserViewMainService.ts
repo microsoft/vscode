@@ -564,6 +564,30 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			}));
 		}
 
+		const spellingSuggestions = params.dictionarySuggestions ?? [];
+		const canAddToDictionary = !!params.misspelledWord && webContents.session.isPersistent();
+		if (params.misspelledWord && (spellingSuggestions.length > 0 || canAddToDictionary)) {
+			if (menu.items.length > 0) {
+				menu.append(new MenuItem({ type: 'separator' }));
+			}
+			for (const suggestion of spellingSuggestions) {
+				menu.append(new MenuItem({
+					label: suggestion,
+					click: () => webContents.replaceMisspelling(suggestion)
+				}));
+			}
+			if (canAddToDictionary) {
+				if (spellingSuggestions.length > 0) {
+					menu.append(new MenuItem({ type: 'separator' }));
+				}
+				menu.append(new MenuItem({
+					label: localize('browser.contextMenu.addToDictionary', 'Add to Dictionary'),
+					click: () => webContents.session.addWordToSpellCheckerDictionary(params.misspelledWord)
+				}));
+			}
+			menu.append(new MenuItem({ type: 'separator' }));
+		}
+
 		if (params.isEditable) {
 			menu.append(new MenuItem({ role: 'cut', enabled: params.editFlags.canCut }));
 			menu.append(new MenuItem({ role: 'copy', enabled: params.editFlags.canCopy }));

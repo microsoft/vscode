@@ -25,7 +25,7 @@ const addArtifactInputSchema: ToolDefinition['inputSchema'] = {
 			description: 'Required. `true` for an artifact — something this session produced, such as a pull request or issue it opened, a plan file it wrote outside the workspace, or another side effect of its work. `false` for a reference — something it did not produce but the user should look at, such as the pull request or commit that introduced a bug, or a website that matters for the task.',
 		},
 		link: { type: 'string', description: 'URL of the pull request, issue, commit or website. Required for those kinds.' },
-		uri: { type: 'string', description: 'URI of the file or resource. Required for the `file` and `resource` kinds.' },
+		uri: { type: 'string', description: 'Absolute URI including its scheme. For a local file, pass a file URI such as `file:///C:/path/to/file`, not a plain file system path such as `C:\\path\\to\\file`. Required for the `file` and `resource` kinds.' },
 		commitHash: { type: 'string', description: 'The commit hash. Required for the `commit` kind.' },
 	},
 	required: ['type', 'label', 'isArtifact'],

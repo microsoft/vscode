@@ -250,6 +250,59 @@ suite('copilotPluginConverters', () => {
 			}]);
 		});
 
+		test('parses supported reasoning-effort values from frontmatter', async () => {
+			const reasoningEfforts = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
+			const agents: INamedPluginResource[] = [];
+			for (const reasoningEffort of reasoningEfforts) {
+				const agentUri = URI.from({ scheme: Schemas.inMemory, path: `/agents/${reasoningEffort}.md` });
+				await fileService.writeFile(agentUri, VSBuffer.fromString([
+					'---',
+					`name: ${reasoningEffort}`,
+					`reasoning-effort: ${reasoningEffort}`,
+					'---',
+					'Body.',
+				].join('\n')));
+				agents.push({ uri: agentUri, name: reasoningEffort });
+			}
+
+			const result = await toSdkCustomAgents(agents, fileService);
+
+			assert.deepStrictEqual(result, reasoningEfforts.map(reasoningEffort => ({
+				name: reasoningEffort,
+				reasoningEffort,
+				tools: null,
+				prompt: 'Body.',
+			})));
+		});
+
+		test('omits missing or unsupported reasoning-effort values', async () => {
+			const missingUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/missing-effort.md' });
+			const unsupportedUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/unsupported-effort.md' });
+			await fileService.writeFile(missingUri, VSBuffer.fromString([
+				'---',
+				'name: missing-effort',
+				'---',
+				'Body.',
+			].join('\n')));
+			await fileService.writeFile(unsupportedUri, VSBuffer.fromString([
+				'---',
+				'name: unsupported-effort',
+				'reasoning-effort: extreme',
+				'---',
+				'Body.',
+			].join('\n')));
+
+			const result = await toSdkCustomAgents([
+				{ uri: missingUri, name: 'missing-effort' },
+				{ uri: unsupportedUri, name: 'unsupported-effort' },
+			], fileService);
+
+			assert.deepStrictEqual(result, [
+				{ name: 'missing-effort', tools: null, prompt: 'Body.' },
+				{ name: 'unsupported-effort', tools: null, prompt: 'Body.' },
+			]);
+		});
+
 		test('parses skills and infer from frontmatter', async () => {
 			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/skilled.md' });
 			await fileService.writeFile(agentUri, VSBuffer.fromString([

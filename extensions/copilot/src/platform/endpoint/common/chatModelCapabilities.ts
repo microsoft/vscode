@@ -156,7 +156,7 @@ export function isGpt55(model: LanguageModelChat | IChatEndpoint | string) {
 
 export function isGpt56(model: LanguageModelChat | IChatEndpoint | string) {
 	const family = typeof model === 'string' ? model : model.family;
-	return family === 'gpt-5.6-sol' || family === 'gpt-5.6-terra' || family === 'gpt-5.6-luna';
+	return family.startsWith('gpt-5.6');
 }
 
 export function isGpt53Codex(model: LanguageModelChat | IChatEndpoint | string) {

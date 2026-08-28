@@ -62,7 +62,9 @@ registerAction2(class extends Action2 {
 		const buildItems = (): (ManageHostsPickItem | IQuickPickSeparator)[] => {
 			const remoteProviders: IAgentHostSessionsProvider[] = sessionsProvidersService.getProviders()
 				.filter(isAgentHostProvider)
-				.filter((p: IAgentHostSessionsProvider) => !!p.remoteAddress);
+				.filter((p: IAgentHostSessionsProvider) => !!p.remoteAddress)
+				// Group members are created by discovery, not added by the user.
+				.filter((p: IAgentHostSessionsProvider) => !p.hostGroup);
 
 			const remoteItems: IRemoteHostQuickPickItem[] = remoteProviders.map((p: IAgentHostSessionsProvider) => {
 				const isTunnel = p.remoteAddress?.startsWith(TUNNEL_ADDRESS_PREFIX);

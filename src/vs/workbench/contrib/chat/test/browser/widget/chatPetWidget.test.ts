@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
+import { IContextMenuDelegate } from '../../../../../../base/browser/contextmenu.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -169,6 +170,66 @@ suite('ChatPetWidget', () => {
 		assert.deepStrictEqual(observedTargets, new Set([dragBounds, movementBounds, parent]));
 		service.toggle();
 		assert.strictEqual(observedTargets.size, 0);
+	});
+
+	test('resets pet size from the context menu', async () => {
+		const parent = mainWindow.document.createElement('div');
+		const dragBounds = mainWindow.document.createElement('div');
+		const movementBounds = mainWindow.document.createElement('div');
+		mainWindow.document.body.append(parent, dragBounds, movementBounds);
+		disposables.add(toDisposable(() => {
+			parent.remove();
+			dragBounds.remove();
+			movementBounds.remove();
+		}));
+		let contextMenuDelegate: IContextMenuDelegate | undefined;
+		const contextMenuService = new class extends mock<IContextMenuService>() {
+			override showContextMenu(delegate: IContextMenuDelegate): void {
+				contextMenuDelegate = delegate;
+			}
+		}();
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		service.toggle();
+		service.setScale(4);
+		disposables.add(new ChatPetWidget(
+			createPetHost(parent, dragBounds, movementBounds),
+			undefined,
+			service,
+			new TestAccessibilityService(),
+			contextMenuService,
+			new class extends mock<ICommandService>() { }(),
+			new NullLogService(),
+			new class extends mock<IHostService>() {
+				override readonly hasFocus = true;
+				override readonly onDidChangeFocus = Event.None;
+				override readonly onDidChangeActiveWindow = Event.None;
+			}(),
+		));
+		const button = parent.getElementsByClassName('chat-pet-button')[0] as HTMLElement;
+
+		button.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		assert.ok(contextMenuDelegate);
+		const resetSizeAction = contextMenuDelegate.getActions().find(action => action.id === 'chat.pet.resetSize');
+		assert.ok(resetSizeAction);
+		const enabledBeforeReset = resetSizeAction.enabled;
+		await resetSizeAction.run();
+		button.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		assert.ok(contextMenuDelegate);
+		const resetSizeActionAtDefault = contextMenuDelegate.getActions().find(action => action.id === 'chat.pet.resetSize');
+
+		assert.deepStrictEqual({
+			label: resetSizeAction.label,
+			enabledBeforeReset,
+			scale: service.scale.get(),
+			displaySize: button.style.width,
+			enabledAtDefault: resetSizeActionAtDefault?.enabled,
+		}, {
+			label: 'Reset Size',
+			enabledBeforeReset: true,
+			scale: 1,
+			displaySize: '48px',
+			enabledAtDefault: false,
+		});
 	});
 
 	test('stacks the run cycle behind the input', () => {

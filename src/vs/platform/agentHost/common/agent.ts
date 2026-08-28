@@ -196,9 +196,11 @@ export interface IAgentCreateSessionResult extends IAgentCreateChatResult {
 }
 
 /**
- * Payload of {@link IAgent.onDidMaterializeChat}. Fired once a previously
+ * Payload of {@link IAgent.onDidMaterializeChat}. Fired when a previously
  * {@link IAgentCreateSessionResult.provisional} chat has its SDK session,
- * worktree (if any), and on-disk metadata in place.
+ * worktree (if any), and on-disk metadata in place. A provider may fire the
+ * event again when it replaces or rematerializes an already-backed chat;
+ * consumers must treat each event as the chat's latest materialization receipt.
  */
 export interface IAgentMaterializeChatEvent {
 	readonly chat: URI;
@@ -624,6 +626,12 @@ export interface IAgentLegacyChat {
 	readonly providerData?: string;
 }
 
+/** The native chat catalog requires an external readiness action before it can be enumerated. */
+export const AgentChatMigrationDeferred = Symbol('AgentChatMigrationDeferred');
+
+/** Provider-native chat catalog result used by registry migration. */
+export type AgentChatMigrationResult = readonly IAgentChatMetadata[] | undefined | typeof AgentChatMigrationDeferred;
+
 /**
  * Identifies the parent that spawned a chat. The orchestrator records
  * it as the spawned chat's {@link ChatOriginKind.Tool} origin so clients can
@@ -869,7 +877,7 @@ export interface IAgentToolPendingConfirmationSignal {
 	/** Protocol-shaped pending-confirmation state, dispatched verbatim into `ChatToolCallReady`. */
 	readonly state: ToolCallPendingConfirmationState;
 	/** Host-only auto-approval kind (not part of the dispatched action). */
-	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'skill' | 'custom-tool' | 'hook' | 'memory' | 'factory' | 'extension-management' | 'extension-permission-access' | 'extension-env-access';
+	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'skill' | 'custom-tool' | 'hook' | 'memory' | 'factory' | 'extension-management' | 'extension-permission-access';
 	/** Host-only auto-approval path target (not part of the dispatched action). */
 	readonly permissionPath?: string;
 	/**
@@ -1206,8 +1214,8 @@ export interface IAgent {
 	/** Optional recovery hook for providers with historical backings but no persisted provider data. */
 	recoverLegacyChat?(chat: URI, context: URI | IAgentChatContext): Promise<IAgentCreateChatResult | void>;
 
-	/** Enumerate provider-native chats for registry migration; `undefined` means the catalog is unavailable. */
-	listChatsToMigrate(): Promise<readonly IAgentChatMetadata[] | undefined>;
+	/** Enumerate provider-native chats for registry migration. */
+	listChatsToMigrate(): Promise<AgentChatMigrationResult>;
 
 	/** Optional migration codec for providers that persisted peer backings before the host catalog. */
 	listLegacyChatBackings?(configurationResource: URI): Promise<readonly IAgentLegacyChat[]>;

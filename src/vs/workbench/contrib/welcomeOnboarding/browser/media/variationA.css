@@ -654,7 +654,7 @@
 .onboarding-a-theme-label {
 	padding: 4px 6px;
 	font-size: 12px;
-	font-weight: 500;
+	font-weight: var(--vscode-fontWeight-semiBold);
 	text-align: center;
 	color: var(--vscode-editor-foreground);
 	border-top: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.08));

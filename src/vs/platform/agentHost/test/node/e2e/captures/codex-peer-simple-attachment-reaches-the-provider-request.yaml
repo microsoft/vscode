@@ -1,0 +1,15 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: |-
+            Reply exactly "attachment".
+
+            PEER_SIMPLE_ATTACHMENT
+    response:
+      content: attachment
+      stopReason: end_turn

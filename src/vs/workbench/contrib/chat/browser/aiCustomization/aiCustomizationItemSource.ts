@@ -11,7 +11,7 @@ import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { OS } from '../../../../../base/common/platform.js';
-import { basename, dirname } from '../../../../../base/common/resources.js';
+import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -277,7 +277,7 @@ export async function mergeBuiltinSkills(
 	items: readonly IAICustomizationListItem[],
 	promptType: PromptsType,
 	promptsService: IPromptsService,
-	workspaceService: IAICustomizationWorkspaceService,
+	_workspaceService: IAICustomizationWorkspaceService,
 	itemNormalizer: AICustomizationItemNormalizer,
 ): Promise<IAICustomizationListItem[]> {
 	const builtinPaths: readonly { uri: URI; name?: string; description?: string }[] = await promptsService.listPromptFilesForStorage(PromptsType.skill, PromptsStorage.builtIn, CancellationToken.None);
@@ -293,9 +293,6 @@ export async function mergeBuiltinSkills(
 	// Drop provider items that are the same URI as a built-in (the provider
 	// re-discovered the bundled copy by scanning disk).
 	const deduped = items.filter(item => !builtinUris.has(item.uri));
-
-	const uiIntegrations = workspaceService.getSkillUIIntegrations();
-	const uiIntegrationBadge = localize('uiIntegrationBadge', "UI Integration");
 
 	// Collect names of user/workspace skills so we can hide the built-in
 	// copy once the user has added an override at either level.
@@ -321,8 +318,6 @@ export async function mergeBuiltinSkills(
 		if (overriddenNames.has(name)) {
 			continue;
 		}
-		const folderName = basename(dirname(p.uri));
-		const uiTooltip = uiIntegrations.get(folderName);
 		const builtinItem: ICustomizationItem = {
 			uri: p.uri,
 			type: PromptsType.skill,
@@ -331,8 +326,6 @@ export async function mergeBuiltinSkills(
 			source: AICustomizationSources.builtin,
 			groupKey: BUILTIN_STORAGE,
 			enabled: !disabledPromptFiles.has(p.uri),
-			badge: uiTooltip ? uiIntegrationBadge : undefined,
-			badgeTooltip: uiTooltip,
 			extensionId: undefined,
 			pluginUri: undefined,
 			userInvocable: true,

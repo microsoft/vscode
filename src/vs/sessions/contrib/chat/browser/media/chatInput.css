@@ -657,6 +657,9 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	border: 0;
+	padding: 0;
+	background: none;
 	cursor: pointer;
 	flex-shrink: 0;
 	color: var(--vscode-descriptionForeground);
@@ -667,7 +670,7 @@
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-.sessions-chat-attachment-remove .codicon {
+.sessions-chat-attachment-pill .sessions-chat-attachment-remove .codicon {
 	font-size: var(--vscode-codiconFontSize-compact, 12px);
 	padding: 0;
 }

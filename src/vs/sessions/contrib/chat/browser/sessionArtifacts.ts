@@ -169,7 +169,18 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions): 
 		return undefined;
 	}
 	const link = artifact.link;
-	return { id: artifact.id, label: artifact.label, icon, ...sessionArtifactLocation(link, artifact.label), open: () => actions.openExternal(link) };
+	const isGitHubReference = artifact.kind === SessionArtifactKind.PullRequest || artifact.kind === SessionArtifactKind.Issue;
+	const copyLinkAction = isGitHubReference
+		? [toAction({
+			id: 'sessions.artifacts.copyLink',
+			label: artifact.kind === SessionArtifactKind.PullRequest
+				? localize('sessionArtifacts.copyPullRequestLink', "Copy Pull Request Link")
+				: localize('sessionArtifacts.copyIssueLink', "Copy Issue Link"),
+			class: ThemeIcon.asClassName(Codicon.copy),
+			run: () => actions.copy(link.toString(true)),
+		})]
+		: [];
+	return { id: artifact.id, label: artifact.label, icon, toolbarActions: copyLinkAction, ...sessionArtifactLocation(link, artifact.label), open: () => actions.openExternal(link) };
 }
 
 /**

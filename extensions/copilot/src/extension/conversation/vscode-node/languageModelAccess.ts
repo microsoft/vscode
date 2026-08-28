@@ -156,8 +156,10 @@ function buildConfigurationSchema(endpoint: IChatEndpoint, autoTiersEnabled: boo
 	return { configurationSchema: { properties } };
 }
 
+const DICTATION_CLEANUP_NANO_ALIAS = 'copilot-dictation-cleanup-nano';
 const DICTATION_CLEANUP_LUNA_ALIAS = 'copilot-dictation-cleanup-luna';
-const utilityAliasFamilies: readonly ChatEndpointFamily[] = ['copilot-utility-small', 'copilot-utility', DICTATION_CLEANUP_LUNA_ALIAS];
+const dictationCleanupAliases: ReadonlySet<string> = new Set([DICTATION_CLEANUP_NANO_ALIAS, DICTATION_CLEANUP_LUNA_ALIAS]);
+const utilityAliasFamilies: readonly ChatEndpointFamily[] = ['copilot-utility-small', 'copilot-utility', DICTATION_CLEANUP_NANO_ALIAS, DICTATION_CLEANUP_LUNA_ALIAS];
 
 /**
  * Builds the {@link vscode.LanguageModelChatInformation} entry that publishes a
@@ -544,7 +546,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
 		token: vscode.CancellationToken
 	): Promise<void> {
-		if (model.id === DICTATION_CLEANUP_LUNA_ALIAS && options.requestInitiator !== 'core') {
+		if (dictationCleanupAliases.has(model.id) && options.requestInitiator !== 'core') {
 			throw new Error(`Model ${model.id} is only available to VS Code core.`);
 		}
 		let endpoint = await this._getEndpointForModel(model, buildAutoRoutingContext(messages, options));

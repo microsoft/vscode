@@ -67,6 +67,7 @@ function isSyntheticUserMessage(event: SessionEvent): boolean {
 function stripPromptScaffolding(text: string): string {
 	const withoutAux = text
 		.replace(/<reminder>[\s\S]*?<\/reminder>\s*/g, '')
+		.replace(/<system[-_]reminder>[\s\S]*?<\/system[-_]reminder>\s*/g, '')
 		.replace(/<attachments>[\s\S]*?<\/attachments>\s*/g, '')
 		.replace(/<context>[\s\S]*?<\/context>\s*/g, '')
 		.replace(/<current_datetime>[\s\S]*?<\/current_datetime>\s*/g, '')

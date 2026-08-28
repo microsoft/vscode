@@ -4,10 +4,61 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { Event as BaseEvent } from '../../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { createRegExp } from '../../../../../../base/common/strings.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ChatFindWidget, computeRevealScrollTop, findMatchRangesInDom, openAncestorDisclosures, rangesEqual, shouldCaptureFocusBeforeShow } from '../../../browser/widget/chatFind/chatFindWidget.js';
+import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { ChatFindModel } from '../../../browser/widget/chatFind/chatFindModel.js';
+import { ChatFindWidget, computeRevealScrollTop, findMatchRangesInDom, IChatFindHost, openAncestorDisclosures, rangesEqual, shouldCaptureFocusBeforeShow } from '../../../browser/widget/chatFind/chatFindWidget.js';
+
+suite('ChatFindWidget IME', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('does not search intermediate IME composition text', async () => {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const container = document.createElement('div');
+		const transcriptDomNode = container.appendChild(document.createElement('div'));
+		const host: IChatFindHost = {
+			transcriptDomNode,
+			getItems: () => [],
+			onDidChangeContent: BaseEvent.None,
+			reveal: () => { },
+			getTemplateDataForRequestId: () => undefined,
+			onDidRerenderRow: BaseEvent.None,
+			editorsInUse: () => [],
+			getScrollTop: () => 0,
+			setScrollTop: () => { },
+			getRenderHeight: () => 0,
+			getViewportAnchorItemId: () => undefined,
+		};
+		const widget = disposables.add(instantiationService.createInstance(ChatFindWidget, host));
+		const model = Reflect.get(widget, '_model') as ChatFindModel;
+		const input = widget.getDomNode().querySelector('input');
+		assert.ok(input);
+
+		input.dispatchEvent(new Event('compositionstart'));
+		input.value = 'n';
+		input.dispatchEvent(new Event('input'));
+		await timeout(200);
+		const duringComposition = model.query;
+
+		input.value = '你好';
+		input.dispatchEvent(new Event('compositionend'));
+		input.dispatchEvent(new Event('input'));
+		await timeout(200);
+
+		assert.deepStrictEqual({
+			duringComposition,
+			afterComposition: model.query,
+		}, {
+			duringComposition: '',
+			afterComposition: '你好',
+		});
+	});
+});
 
 suite('ChatFindWidget DOM highlighting', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

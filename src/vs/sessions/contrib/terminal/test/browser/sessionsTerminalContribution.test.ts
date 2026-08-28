@@ -25,6 +25,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { SessionsTerminalContribution } from '../../browser/sessionsTerminalContribution.js';
 import { TestPathService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
@@ -269,6 +270,7 @@ suite('SessionsTerminalContribution', () => {
 	let allSessions: ISession[];
 	let sessionProviders: Map<string, ISessionsProvider>;
 	let instantiationService: TestInstantiationService;
+	let cwdExists: (uri: URI) => boolean;
 
 	setup(() => {
 		createdTerminals = [];
@@ -375,6 +377,11 @@ suite('SessionsTerminalContribution', () => {
 
 		instantiationService.stub(IPathService, new TestPathService(HOME_DIR));
 
+		cwdExists = () => true;
+		instantiationService.stub(IFileService, new class extends mock<IFileService>() {
+			override async exists(resource: URI): Promise<boolean> { return cwdExists(resource); }
+		});
+
 		instantiationService.stub(IAgentHostTerminalService, new class extends mock<IAgentHostTerminalService>() {
 			override readonly profiles = constObservable<never[]>([]);
 			override getProfileForConnection() { return undefined; }
@@ -438,6 +445,49 @@ suite('SessionsTerminalContribution', () => {
 
 		assert.strictEqual(createdTerminals.length, 1);
 		assert.strictEqual(createdTerminals[0].cwd.fsPath, repoUri.fsPath);
+	});
+
+	// --- Missing local working directory: defer until it exists ---
+
+	test('does not create a local terminal when the working directory does not exist', async () => {
+		const worktreeUri = URI.file('/missing-worktree');
+		cwdExists = uri => uri.fsPath !== worktreeUri.fsPath;
+		const session = makeAgentSession({ worktree: worktreeUri, providerType: AgentSessionProviders.Local });
+		activeSessionObs.set(session, undefined);
+		await tick();
+
+		assert.strictEqual(createdTerminals.length, 0);
+	});
+
+	test('creates the terminal once the missing working directory appears', async () => {
+		const worktreeUri = URI.file('/missing-worktree');
+		let exists = false;
+		cwdExists = uri => uri.fsPath !== worktreeUri.fsPath || exists;
+		const session = makeAgentSession({ worktree: worktreeUri, providerType: AgentSessionProviders.Local });
+		activeSessionObs.set(session, undefined);
+		await tick();
+		assert.strictEqual(createdTerminals.length, 0);
+
+		// The worktree is materialized; re-activating the session retries and now
+		// finds the directory (the early return never cached the active key).
+		exists = true;
+		activeSessionObs.set(undefined, undefined);
+		await tick();
+		activeSessionObs.set(session, undefined);
+		await tick();
+
+		assert.strictEqual(createdTerminals.length, 1);
+		assert.strictEqual(createdTerminals[0].cwd.fsPath, worktreeUri.fsPath);
+	});
+
+	test('creates an Agent Host terminal even when the local cwd check would fail', async () => {
+		const worktreeUri = toAgentHostUri(URI.file('/missing-worktree'), 'my-server');
+		cwdExists = () => false;
+		const session = makeAgentSession({ worktree: worktreeUri, providerType: AgentSessionProviders.Local });
+		activeSessionObs.set(session, undefined);
+		await tick();
+
+		assert.strictEqual(createdTerminals.length, 1);
 	});
 
 	// --- Workspace-backed sessions: use working directory ---

@@ -22,7 +22,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { editorBackground, Extensions as ColorRegistryExtensions, IColorRegistry, listHoverBackground, listHoverForeground, listInactiveSelectionBackground, listInactiveSelectionForeground, oneOf, opaque } from '../../../../../platform/theme/common/colorRegistry.js';
 import { foreground } from '../../../../../platform/theme/common/colors/baseColors.js';
 import { Extensions as ThemeServiceExtensions, IThemingRegistry } from '../../../../../platform/theme/common/themeService.js';
-import { EDITOR_BORDER, MODERN_ACTIVITY_BAR_ACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ACTIVE_FOREGROUND, MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_BORDER, MODERN_ACTIVITY_BAR_HOVER_BACKGROUND, MODERN_ACTIVITY_BAR_HOVER_FOREGROUND, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_FOREGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_FOREGROUND, MODERN_EDITOR_TAB_INACTIVE_BACKGROUND, MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND, MODERN_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_FOREGROUND, MODERN_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_FOREGROUND, SURFACE_BORDER, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_BORDER, TAB_ACTIVE_BORDER_TOP, TAB_ACTIVE_FOREGROUND, TAB_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_HOVER_FOREGROUND, TAB_INACTIVE_BACKGROUND, TAB_INACTIVE_FOREGROUND, TAB_LAST_PINNED_BORDER, TAB_SELECTED_BACKGROUND, TAB_UNFOCUSED_HOVER_BACKGROUND } from '../../../../common/theme.js';
+import { EDITOR_BORDER, MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_BORDER, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ITEM_ACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ITEM_ACTIVE_FOREGROUND, MODERN_ACTIVITY_BAR_ITEM_HOVER_BACKGROUND, MODERN_ACTIVITY_BAR_ITEM_HOVER_FOREGROUND, MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_FOREGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_FOREGROUND, MODERN_EDITOR_TAB_INACTIVE_BACKGROUND, MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND, MODERN_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_FOREGROUND, MODERN_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_FOREGROUND, SURFACE_BORDER, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_BORDER, TAB_ACTIVE_BORDER_TOP, TAB_ACTIVE_FOREGROUND, TAB_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_HOVER_FOREGROUND, TAB_INACTIVE_BACKGROUND, TAB_INACTIVE_FOREGROUND, TAB_LAST_PINNED_BORDER, TAB_SELECTED_BACKGROUND, TAB_UNFOCUSED_HOVER_BACKGROUND } from '../../../../common/theme.js';
 import { TestEnvironmentService, TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
 import { LayoutSettings, ModernUIDensity } from '../../../../services/layout/browser/layoutService.js';
 import { PRESERVE_MERGED_WORKSPACE_NAME_CASE_CLASS, PRESERVE_WORKSPACE_NAME_CASE_CLASS, shouldPreserveWorkspaceNameCase } from '../../../files/browser/views/explorerView.js';
@@ -771,8 +771,8 @@ suite('ModernUIContribution', () => {
 		root.style.setProperty('--activity-bar-action-height', '36px');
 		root.style.setProperty('--activity-bar-width', '36px');
 		root.style.setProperty('--vscode-cornerRadius-small', '4px');
-		root.style.setProperty('--vscode-modernActivityBar-activeBackground', '#123456');
-		root.style.setProperty('--vscode-modernActivityBar-activeForeground', '#abcdef');
+		root.style.setProperty('--vscode-modernActivityBarItem-activeBackground', '#123456');
+		root.style.setProperty('--vscode-modernActivityBarItem-activeForeground', '#abcdef');
 		document.body.appendChild(root);
 		store.add(toDisposable(() => root.remove()));
 
@@ -799,7 +799,7 @@ suite('ModernUIContribution', () => {
 
 		const targetWindow = getWindow(root);
 		assert.deepStrictEqual({
-			activityColorsRegistered: [MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ACTIVE_FOREGROUND, MODERN_ACTIVITY_BAR_HOVER_BACKGROUND, MODERN_ACTIVITY_BAR_HOVER_FOREGROUND].map(id => colorRegistry.getColors().some(color => color.id === id)),
+			activityColorsRegistered: [MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ITEM_ACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ITEM_ACTIVE_FOREGROUND, MODERN_ACTIVITY_BAR_ITEM_HOVER_BACKGROUND, MODERN_ACTIVITY_BAR_ITEM_HOVER_FOREGROUND].map(id => colorRegistry.getColors().some(color => color.id === id)),
 			indicatorBackground: targetWindow.getComputedStyle(indicator).backgroundColor,
 			activityLabelColor: targetWindow.getComputedStyle(activityLabel).color,
 			horizontalIndicatorBackground: targetWindow.getComputedStyle(horizontalAction.indicator).backgroundColor,
@@ -1047,6 +1047,43 @@ suite('ModernUIContribution', () => {
 		}, {
 			background: '#123456',
 			inactiveBackground: '#123456',
+		});
+	});
+
+	test('supports deprecated modern activity bar item colors', () => {
+		const theme = ColorThemeData.createUnloadedTheme('vs-dark');
+		const deprecatedColorIds = [
+			'modernActivityBar.activeBackground',
+			'modernActivityBar.activeForeground',
+			'modernActivityBar.hoverBackground',
+			'modernActivityBar.hoverForeground',
+		];
+		theme.setCustomColors({
+			[deprecatedColorIds[0]]: '#112233',
+			[deprecatedColorIds[1]]: '#223344',
+			[deprecatedColorIds[2]]: '#334455',
+			[deprecatedColorIds[3]]: '#445566',
+		});
+
+		const itemColorIds = [
+			MODERN_ACTIVITY_BAR_ITEM_ACTIVE_BACKGROUND,
+			MODERN_ACTIVITY_BAR_ITEM_ACTIVE_FOREGROUND,
+			MODERN_ACTIVITY_BAR_ITEM_HOVER_BACKGROUND,
+			MODERN_ACTIVITY_BAR_ITEM_HOVER_FOREGROUND,
+		];
+		assert.deepStrictEqual({
+			itemColorIds,
+			resolvedColors: itemColorIds.map(id => theme.getColor(id)?.toString()),
+			deprecated: deprecatedColorIds.map(id => Boolean(colorRegistry.getColors().find(color => color.id === id)?.deprecationMessage)),
+		}, {
+			itemColorIds: [
+				'modernActivityBarItem.activeBackground',
+				'modernActivityBarItem.activeForeground',
+				'modernActivityBarItem.hoverBackground',
+				'modernActivityBarItem.hoverForeground',
+			],
+			resolvedColors: ['#112233', '#223344', '#334455', '#445566'],
+			deprecated: [true, true, true, true],
 		});
 	});
 

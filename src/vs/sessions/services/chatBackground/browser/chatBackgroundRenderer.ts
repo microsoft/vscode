@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/chatBackground.css';
 import { clearNode, DisposableResizeObserver, getWindow } from '../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { ISessionsChatBackground } from '../../../services/chatBackground/browser/chatBackgroundService.js';
+import { ISessionsChatBackground } from './chatBackgroundService.js';
 
 const codiconCellSize = 80;
 const codiconDefaults = { width: 960, height: 800 };
@@ -58,6 +59,7 @@ function hashCodiconCell(row: number, column: number, salt: number): number {
 
 export class SessionsChatBackgroundRenderer extends Disposable {
 
+	private readonly backgroundLayer: HTMLElement;
 	private readonly codiconLayer: HTMLElement;
 	private background: ISessionsChatBackground | undefined;
 	private codiconGridSize: string | undefined;
@@ -65,12 +67,21 @@ export class SessionsChatBackgroundRenderer extends Disposable {
 	constructor(private readonly element: HTMLElement) {
 		super();
 
+		this.backgroundLayer = element.ownerDocument.createElement('div');
+		this.backgroundLayer.className = 'sessions-chat-background';
+		this.backgroundLayer.ariaHidden = 'true';
+		this.backgroundLayer.hidden = true;
+
 		this.codiconLayer = element.ownerDocument.createElement('div');
 		this.codiconLayer.className = 'sessions-chat-codicon-background';
 		this.codiconLayer.ariaHidden = 'true';
 		this.codiconLayer.hidden = true;
-		this.element.prepend(this.codiconLayer);
-		this._register(toDisposable(() => this.codiconLayer.remove()));
+		this.backgroundLayer.appendChild(this.codiconLayer);
+		this.element.prepend(this.backgroundLayer);
+		this._register(toDisposable(() => {
+			this.element.classList.remove('has-chat-background', 'has-chat-background-image');
+			this.backgroundLayer.remove();
+		}));
 
 		const resizeObserver = this._register(new DisposableResizeObserver(
 			'SessionsChatBackgroundRenderer',
@@ -89,10 +100,11 @@ export class SessionsChatBackgroundRenderer extends Disposable {
 		this.background = background;
 		this.element.classList.toggle('has-chat-background', !!background);
 		this.element.classList.toggle('has-chat-background-image', background?.kind === 'image');
-		this.element.style.backgroundImage = background?.kind === 'image' ? background.backgroundImage : '';
-		this.element.style.backgroundRepeat = background?.kind === 'image' ? background.backgroundRepeat : '';
-		this.element.style.backgroundSize = background?.kind === 'image' ? background.backgroundSize : '';
-		this.element.style.backgroundPosition = background?.kind === 'image' ? background.backgroundPosition : '';
+		this.backgroundLayer.hidden = !background;
+		this.backgroundLayer.style.backgroundImage = background?.kind === 'image' ? background.backgroundImage : '';
+		this.backgroundLayer.style.backgroundRepeat = background?.kind === 'image' ? background.backgroundRepeat : '';
+		this.backgroundLayer.style.backgroundSize = background?.kind === 'image' ? background.backgroundSize : '';
+		this.backgroundLayer.style.backgroundPosition = background?.kind === 'image' ? background.backgroundPosition : '';
 
 		const showCodicons = background?.kind === 'codicons';
 		this.codiconLayer.hidden = !showCodicons;

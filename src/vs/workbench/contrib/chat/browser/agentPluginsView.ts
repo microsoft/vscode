@@ -69,6 +69,7 @@ function marketplacePluginToItem(plugin: IMarketplacePlugin): IMarketplacePlugin
 		kind: AgentPluginItemKind.Marketplace,
 		name: plugin.name,
 		description: plugin.description,
+		version: plugin.version,
 		source: plugin.source,
 		sourceDescriptor: plugin.sourceDescriptor,
 		marketplace: plugin.marketplace,
@@ -466,7 +467,7 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 				const expectedUri = this.pluginInstallService.getPluginInstallUri({
 					name: m.name,
 					description: m.description,
-					version: '',
+					version: m.version ?? '',
 					source: m.source,
 					sourceDescriptor: m.sourceDescriptor,
 					marketplace: m.marketplace,

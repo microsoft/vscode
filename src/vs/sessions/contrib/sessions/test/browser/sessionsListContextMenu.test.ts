@@ -203,6 +203,12 @@ suite('Sessions list context menus', () => {
 				override readonly visibleSessions = constObservable([]);
 				override async canOpenSession(): Promise<boolean> { return true; }
 				override showSession(): void { }
+				override async openChatToSide(_session: ISession, chatResource: URI): Promise<void> {
+					const chat = session.chats.get().find(candidate => candidate.resource.toString() === chatResource.toString());
+					if (chat) {
+						openedToSide.push(chat);
+					}
+				}
 			});
 			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
 				override getSessionView(): SessionView {

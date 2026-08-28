@@ -16,13 +16,17 @@ import {
 	dispatchTurn,
 	driveTurnToCompletion,
 } from '../harness/agentHostE2ETestHarness.js';
+import { summarizeAnthropicRequest, summarizeResponsesRequest } from '../harness/capiWireCodec.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 export function defineTurnLifecycleTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs, runRecordOnlyTests } = context;
+	const planModeTitle = config.planModeStyle === 'input-request'
+		? 'planning-mode input stays on the same session and retains context after returning to interactive mode'
+		: 'planning-mode session-state writes are auto-approved in default mode';
 
-	(config.supportsPlanMode ? test : test.skip)('planning-mode session-state writes are auto-approved in default mode', async function () {
+	(config.planModeStyle ? test : test.skip)(planModeTitle, async function () {
 		this.timeout(180_000);
 
 		const tempDir = mkdtempSync(`${tmpdir()}/ahp-plan-test-`);
@@ -36,8 +40,10 @@ export function defineTurnLifecycleTests(context: IAgentHostE2ETestContext): voi
 		});
 		await context.client.waitForNotification(n => isActionNotification(n, 'session/configChanged'));
 
-		const planTurn = await driveTurnToCompletion(context.client, sessionUri, 'turn-plan',
-			`Help me implement a Python script that prints "hello world" to stdout. Write the shortest possible plan to your session plan.md and use the \`${config.exitPlanModeToolName}\` tool to ask me to approve it before writing any code.`, 2);
+		const planPrompt = config.planModeStyle === 'input-request'
+			? 'Use your request_user_input capability to ask exactly one question: "What should the Python script print?" with options "hello world" and "goodbye". Do not call any other tool, run a shell command, or inspect the workspace. After I answer, reply exactly "plan approved".'
+			: `Help me implement a Python script that prints "hello world" to stdout. Write the shortest possible plan to your session plan.md and use the \`${config.exitPlanModeToolName}\` tool to ask me to approve it before writing any code.`;
+		const planTurn = await driveTurnToCompletion(context.client, sessionUri, 'turn-plan', planPrompt, 2);
 		assert.strictEqual(planTurn.sawPendingConfirmation, false, 'should not have received pending-confirmation toolCallReady while writing session-state plan.md');
 		assert.ok(planTurn.sawInputRequest, `should reach the ${config.exitPlanModeToolName} question so the test can continue the same session`);
 
@@ -58,10 +64,14 @@ export function defineTurnLifecycleTests(context: IAgentHostE2ETestContext): voi
 			'What did the plan I just approved say to print? Reply with exactly "hello world".', 100);
 		assert.strictEqual(followupTurn.sawPendingConfirmation, false, 'follow-up turn should not surface new pending confirmations');
 		assert.match(followupTurn.responseText, /hello world/i, 'follow-up turn should retain the original plan context');
-		assert.ok(
-			context.observedModelRequestBodies.at(-1)?.includes('Help me implement a Python script'),
-			'follow-up model request should retain the original planning turn',
-		);
+		if (config.planModeStyle === 'session-state') {
+			const requestBody = context.observedModelRequestBodies.at(-1);
+			const request = requestBody ? (summarizeAnthropicRequest(requestBody) ?? summarizeResponsesRequest(requestBody)) : undefined;
+			assert.ok(
+				request?.messages.some(message => typeof message.content === 'string' && message.content.includes(planPrompt)),
+				'follow-up model request should retain the original planning turn',
+			);
+		}
 
 		const extraSessionNotificationsAfterFollowup = context.client.receivedNotifications(n =>
 			n.method === NotificationType.SessionAdded &&

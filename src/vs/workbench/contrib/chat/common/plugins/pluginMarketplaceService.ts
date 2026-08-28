@@ -520,11 +520,15 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 
 		const cached = options?.refresh ? undefined : this._getCachedGitHubMarketplacePlugins(cache, reference.canonicalId);
 		if (cached) {
-			return cached.map(c => ({
-				...c,
-				marketplace: reference.displayLabel,
-				marketplaceReference: reference,
-			}));
+			return cached.map(c => {
+				const plugin = ensureSourceDescriptor(c);
+				return {
+					...plugin,
+					marketplace: reference.displayLabel,
+					marketplaceReference: reference,
+					readmeUri: getMarketplaceReadmeUri(plugin.sourceDescriptor, reference, plugin.source),
+				};
+			});
 		}
 
 		let repoMayBePrivate = true;
@@ -810,7 +814,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 					marketplace: reference.displayLabel,
 					marketplaceReference: reference,
 					marketplaceType,
-					readmeUri: repoDir ? getMarketplaceReadmeFileUri(repoDir, source) : getMarketplaceReadmeUri(reference.githubRepo ?? '', source),
+					readmeUri: getMarketplaceReadmeUri(sourceDescriptor, reference, source, repoDir),
 				}];
 			});
 	}
@@ -1267,10 +1271,34 @@ export function hasSourceChanged(installed: IPluginSourceDescriptor, marketplace
 	}
 }
 
-function getMarketplaceReadmeUri(repo: string, source: string): URI {
+function getMarketplaceReadmeUri(sourceDescriptor: IPluginSourceDescriptor, reference: IMarketplaceReference, source: string, repoDir?: URI): URI | undefined {
+	if (sourceDescriptor.kind === PluginSourceKind.GitHub) {
+		const ref = sourceDescriptor.sha ?? sourceDescriptor.ref ?? 'main';
+		const normalizedPath = sourceDescriptor.path?.trim().replace(/^\.?\/+|\/+$/g, '');
+		const readmePath = normalizedPath ? `${normalizedPath}/README.md` : 'README.md';
+		return URI.parse(`https://github.com/${sourceDescriptor.repo}/blob/${ref}/${readmePath}`);
+	}
+
+	if (sourceDescriptor.kind === PluginSourceKind.GitUrl && sourceDescriptor.url.startsWith('https://github.com/')) {
+		const repo = sourceDescriptor.url.replace(/^https:\/\/github\.com\//, '').replace(/\.git$/, '');
+		const ref = sourceDescriptor.sha ?? sourceDescriptor.ref ?? 'main';
+		const normalizedPath = sourceDescriptor.path?.trim().replace(/^\.?\/+|\/+$/g, '');
+		const readmePath = normalizedPath ? `${normalizedPath}/README.md` : 'README.md';
+		return URI.parse(`https://github.com/${repo}/blob/${ref}/${readmePath}`);
+	}
+
+	if (repoDir) {
+		return getMarketplaceReadmeFileUri(repoDir, source);
+	}
+
+	if (!reference.githubRepo) {
+		return undefined;
+	}
+
 	const normalizedSource = source.trim().replace(/^\.?\/+|\/+$/g, '');
 	const readmePath = normalizedSource ? `${normalizedSource}/README.md` : 'README.md';
-	return URI.parse(`https://github.com/${repo}/blob/main/${readmePath}`);
+	const ref = reference.ref ?? 'main';
+	return URI.parse(`https://github.com/${reference.githubRepo}/blob/${ref}/${readmePath}`);
 }
 
 function getMarketplaceReadmeFileUri(repoDir: URI, source: string): URI {

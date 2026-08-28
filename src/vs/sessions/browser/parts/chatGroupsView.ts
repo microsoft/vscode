@@ -324,6 +324,12 @@ export class ChatGroupsView extends Themable {
 		const orderedIds = chats.map(c => c.resource.toString());
 		const validIds = new Set(orderedIds);
 		const activeId = activeChat?.resource.toString();
+		const hasUnassignedVisibleChats = orderedIds.some(id => !this._groups.some(group => group.resourceIds.get().includes(id)));
+
+		// Dispose orphaned groups before publishing an empty assignment.
+		if (!this._restorePending && !hasUnassignedVisibleChats) {
+			this._removeGroupsWithoutVisibleChats(validIds);
+		}
 
 		transaction(tx => {
 			// Prune stale assignments.
@@ -621,11 +627,19 @@ export class ChatGroupsView extends Themable {
 	}
 
 	private _removeEmptyGroups(): void {
+		this._removeGroups(group => group.resourceIds.get().length === 0);
+	}
+
+	private _removeGroupsWithoutVisibleChats(visibleChatIds: ReadonlySet<string>): void {
+		this._removeGroups(group => group.resourceIds.get().every(id => !visibleChatIds.has(id)));
+	}
+
+	private _removeGroups(shouldRemove: (group: IGroupEntry) => boolean): void {
 		if (!this._grid || this._groups.length <= 1) {
 			return;
 		}
-		const empties = this._groups.filter(g => g.resourceIds.get().length === 0);
-		for (const group of empties) {
+		const groups = this._groups.filter(shouldRemove);
+		for (const group of groups) {
 			if (this._groups.length <= 1) {
 				break;
 			}

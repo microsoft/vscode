@@ -180,7 +180,7 @@ export function isCompletionModelInformation(model: IModelAPIResponse): model is
 	return model.capabilities.type === 'completion';
 }
 
-export type ChatEndpointFamily = 'copilot-utility' | 'copilot-utility-small' | 'copilot-dictation-cleanup-luna';
+export type ChatEndpointFamily = 'copilot-utility' | 'copilot-utility-small' | 'copilot-dictation-cleanup-nano' | 'copilot-dictation-cleanup-luna';
 
 /**
  * A model family accepted by {@link IEndpointProvider.getChatEndpoint}: either

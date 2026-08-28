@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -14,9 +14,16 @@ import { IActiveSession } from '../../../../services/sessions/common/sessionsMan
 import { SessionBackgroundActivitiesControl } from '../../browser/sessionBackgroundActivitiesControl.js';
 import { isNonNegativeIntegerInput, weightedRandomDebugIncrement } from '../../browser/sessionChatInputToolbarDebug.js';
 
+interface ISubagentSpec {
+	readonly title: string;
+	readonly status: SessionStatus;
+}
+
 interface IControlSpec {
 	readonly subagents?: readonly string[];
 	readonly subagentStatus?: SessionStatus;
+	/** Per-subagent title/status pairs; overrides `subagents`/`subagentStatus` when set. */
+	readonly subagentEntries?: readonly ISubagentSpec[];
 	readonly enabled?: boolean;
 	/** Whether the user keeps the subagents pill visible. */
 	readonly visible?: boolean;
@@ -27,18 +34,21 @@ interface IControlHarness {
 	readonly getOpenedChat: () => URI | undefined;
 }
 
-function createControl(spec: IControlSpec, store: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>): IControlHarness {
-	const mainChat = new class extends mock<IChat>() {
-		override readonly resource = URI.parse('chat:main');
-		override readonly title = constObservable('Main');
-		override readonly status = constObservable(SessionStatus.InProgress);
-	}();
-	const subagents = (spec.subagents ?? []).map((title, index) => new class extends mock<IChat>() {
-		override readonly resource = URI.parse(`chat:subagent-${index}`);
+function createChat(resource: URI, title: string, status: SessionStatus, origin?: IChat['origin']): IChat {
+	return new class extends mock<IChat>() {
+		override readonly resource = resource;
 		override readonly title = constObservable(title);
-		override readonly status = constObservable(spec.subagentStatus ?? SessionStatus.InProgress);
-		override readonly origin = { kind: ChatOriginKind.Tool, parentChat: mainChat.resource };
-	}());
+		override readonly status = constObservable(status);
+		override readonly origin = origin;
+	}();
+}
+
+function createControl(spec: IControlSpec, store: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>): IControlHarness {
+	const mainChat = createChat(URI.parse('chat:main'), 'Main', SessionStatus.InProgress);
+	const subagentSpecs: readonly ISubagentSpec[] = spec.subagentEntries
+		?? (spec.subagents ?? []).map(title => ({ title, status: spec.subagentStatus ?? SessionStatus.InProgress }));
+	const subagents = subagentSpecs.map((entry, index) =>
+		createChat(URI.parse(`chat:subagent-${index}`), entry.title, entry.status, { kind: ChatOriginKind.Tool, parentChat: mainChat.resource }));
 	const session = new class extends mock<IActiveSession>() {
 		override readonly resource = URI.parse('session:main');
 		override readonly chats = constObservable([mainChat, ...subagents]);
@@ -104,7 +114,7 @@ suite('SessionBackgroundActivitiesControl', () => {
 		});
 	});
 
-	test('publishes running subagents as one section, truncating long labels', () => {
+	test('publishes subagents as one section, truncating long labels', () => {
 		const cases: IControlSpec[] = [
 			{ subagents: ['Research'] },
 			{ subagents: ['Investigate the authentication failure in production'] },
@@ -124,12 +134,54 @@ suite('SessionBackgroundActivitiesControl', () => {
 		});
 	});
 
-	test('keeps subagents listed while they need input', () => {
-		const harness = createControl({ subagents: ['Waiting'], subagentStatus: SessionStatus.NeedsInput }, store);
+	test('lists subagents in every status, not only the ones still running', () => {
+		const harness = createControl({
+			subagentEntries: [
+				{ title: 'Running', status: SessionStatus.InProgress },
+				{ title: 'Waiting', status: SessionStatus.NeedsInput },
+				{ title: 'Completed', status: SessionStatus.Completed },
+				{ title: 'Failed', status: SessionStatus.Error },
+			],
+		}, store);
 
 		assert.deepStrictEqual(sections(harness.control), [
-			{ title: 'Subagents', entries: [{ label: 'Waiting', icon: 'agent' }] },
+			{
+				title: 'Subagents', entries: [
+					{ label: 'Running', icon: 'agent' },
+					{ label: 'Waiting', icon: 'agent' },
+					{ label: 'Completed', icon: 'agent' },
+					{ label: 'Failed', icon: 'agent' },
+				],
+			},
 		]);
+	});
+
+	test('excludes subagents that belong to a different chat scope, regardless of status', () => {
+		const mainChat = createChat(URI.parse('chat:main'), 'Main', SessionStatus.InProgress);
+		const otherChat = createChat(URI.parse('chat:other'), 'Other', SessionStatus.InProgress);
+		const ownSubagent = createChat(URI.parse('chat:subagent-own'), 'Own', SessionStatus.Completed, { kind: ChatOriginKind.Tool, parentChat: mainChat.resource });
+		const unrelatedSubagent = createChat(URI.parse('chat:subagent-other'), 'Unrelated', SessionStatus.InProgress, { kind: ChatOriginKind.Tool, parentChat: otherChat.resource });
+		const session = new class extends mock<IActiveSession>() {
+			override readonly resource = URI.parse('session:main');
+			override readonly chats = constObservable([mainChat, otherChat, ownSubagent, unrelatedSubagent]);
+		}();
+		const currentChat = observableValue<IChat>('currentChat', mainChat);
+
+		const control = store.add(new SessionBackgroundActivitiesControl(
+			constObservable(session),
+			currentChat,
+			constObservable(true),
+			constObservable(true),
+			new class extends mock<ISessionsService>() { }(),
+		));
+		const whileOnMainChat = sections(control);
+		currentChat.set(otherChat, undefined);
+		const whileOnOtherChat = sections(control);
+
+		assert.deepStrictEqual({ whileOnMainChat, whileOnOtherChat }, {
+			whileOnMainChat: [{ title: 'Subagents', entries: [{ label: 'Own', icon: 'agent' }] }],
+			whileOnOtherChat: [{ title: 'Subagents', entries: [{ label: 'Unrelated', icon: 'agent' }] }],
+		});
 	});
 
 	test('still reports data while the user hides the pill, so it can be shown again', () => {

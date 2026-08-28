@@ -57,8 +57,7 @@ function fileOperationTest(context: IAgentHostE2ETestContext, title: string, run
 
 export function defineFileOperationsTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs, portableShellToolReplayEnabled, isWindows } = context;
-	const shellResultTextAvailable = !config.shellToolResultTextUnreliable;
-	const shellOutputOracleAvailable = shellResultTextAvailable && !(isWindows && config.provider === 'copilotcli');
+	const shellOutputOracleAvailable = !(isWindows && config.provider === 'copilotcli');
 	const BEHAVIOR_SNAPSHOT = {
 		profile: 'behavior',
 		// Codex occasionally omits command completion; direct filesystem and response assertions are the success oracle.
@@ -280,7 +279,7 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 			success: true,
 		});
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
-	}, shellResultTextAvailable);
+	});
 
 	fileOperationTest(context, 'reads a file from a nested directory', async function () {
 		this.timeout(180_000);
@@ -308,7 +307,7 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 			success: true,
 		});
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
-	}, shellResultTextAvailable);
+	});
 
 	(portableShellToolReplayEnabled && shellOutputOracleAvailable ? test : test.skip)('lists workspace entries', async function () {
 		this.timeout(180_000);
@@ -411,7 +410,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 			success: true,
 		});
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
-	}, shellResultTextAvailable);
+	});
 
 	fileOperationTest(context, 'counts lines in a file', async function () {
 		this.timeout(180_000);
@@ -442,7 +441,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 			success: true,
 		});
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
-	}, shellResultTextAvailable);
+	});
 
 	fileOperationTest(context, 'handles a missing file without a session error', async function () {
 		this.timeout(180_000);
@@ -468,7 +467,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 			success: config.fileOperationStrategy === 'shell',
 		});
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
-	}, shellResultTextAvailable);
+	});
 
 	fileOperationTest(context, 'creates a new text file', async function () {
 		this.timeout(180_000);
