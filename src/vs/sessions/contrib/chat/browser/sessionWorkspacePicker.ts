@@ -1544,8 +1544,7 @@ export class WorkspacePicker extends Disposable {
 				&& options.hideWhenWorkspaceSelected === true
 				&& options.group !== workspace.group;
 			const hideForMissingWorkspace = workspace === undefined && options.hideWhenNoWorkspaceSelected === true;
-			const hideForMissingGitHubRepository = workspace !== undefined
-				&& options.hideWhenNoGitHubRepository === true
+			const hideForMissingGitHubRepository = options.hideWhenNoGitHubRepository === true
 				&& this._getCurrentRepositoryId() === undefined;
 			trigger.parentElement?.toggleAttribute('hidden', hideForSelectedWorkspace || hideForMissingWorkspace || hideForMissingGitHubRepository);
 			trigger.classList.toggle('selected', selectedWorkspace !== undefined || (reflectsWorkspace && workspace !== undefined) || isSelectedCategory || contextCount > 0 || relatedGitHubInfo !== undefined);

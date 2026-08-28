@@ -117,7 +117,7 @@ interface ISendHarness {
 interface IRenderWorkspacePickerHarness {
 	readonly _workspacePickerVisibleKey: { set(value: boolean): void };
 	readonly _workspacePicker: {
-		renderCategoryTriggers(container: HTMLElement, triggers: readonly { readonly label?: string; readonly tooltip?: string }[]): HTMLElement;
+		renderCategoryTriggers(container: HTMLElement, triggers: readonly { readonly label?: string; readonly tooltip?: string; readonly attachesContext?: boolean }[]): HTMLElement;
 	};
 	readonly _newChatInput: {
 		readonly sessionTypePicker: {
@@ -161,7 +161,7 @@ suite('NewChatWidget', () => {
 	test('workspace row hosts a multiple-harness picker first', () => {
 		const container = document.createElement('div');
 		const harnessLabels = ['Copilot', 'Claude'];
-		const workspaceTooltips: (string | undefined)[] = [];
+		const workspaceTriggers: { readonly tooltip: string | undefined; readonly attachesContext: boolean | undefined }[] = [];
 		const harness: IRenderWorkspacePickerHarness = {
 			_workspacePickerVisibleKey: { set: () => { } },
 			_workspacePicker: {
@@ -172,7 +172,7 @@ suite('NewChatWidget', () => {
 						const item = document.createElement('div');
 						item.textContent = trigger.label ?? 'More';
 						row.appendChild(item);
-						workspaceTooltips.push(trigger.tooltip);
+						workspaceTriggers.push({ tooltip: trigger.tooltip, attachesContext: trigger.attachesContext });
 					}
 					return row;
 				},
@@ -206,9 +206,9 @@ suite('NewChatWidget', () => {
 				{ label: 'Issue/PR', className: '' },
 			],
 		);
-		assert.deepStrictEqual(workspaceTooltips, [
-			'Choose where the new session runs',
-			'Attach an issue or pull request as context',
+		assert.deepStrictEqual(workspaceTriggers, [
+			{ tooltip: 'Choose where the new session runs', attachesContext: false },
+			{ tooltip: 'Attach an issue or pull request as context', attachesContext: true },
 		]);
 	});
 

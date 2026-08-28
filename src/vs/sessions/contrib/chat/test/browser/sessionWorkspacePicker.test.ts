@@ -1477,7 +1477,7 @@ suite('WorkspacePicker - Category Triggers', () => {
 		});
 	});
 
-	test('hides issue and pull request context for a folder without a GitHub repository', () => {
+	test('hides issue and pull request context until a folder with a GitHub remote is selected', () => {
 		const providersService = disposables.add(new MockSessionsProvidersService());
 		const baseProvider = createMockProvider('local-1');
 		providersService.setProviders([{
@@ -1498,13 +1498,13 @@ suite('WorkspacePicker - Category Triggers', () => {
 			attachesContext: true,
 			hideWhenNoGitHubRepository: true,
 		}]);
+		const triggerSlot = container.querySelector<HTMLElement>('[aria-label="Choose an issue or pull request"]')?.parentElement;
+		const hiddenStates = [triggerSlot?.hidden];
 
 		picker.setSelectedWorkspace(URI.file('/local/project'), { fireEvent: false, persist: false });
+		hiddenStates.push(triggerSlot?.hidden);
 
-		assert.strictEqual(
-			container.querySelector<HTMLElement>('[aria-label="Choose an issue or pull request"]')?.parentElement?.hidden,
-			true,
-		);
+		assert.deepStrictEqual(hiddenStates, [true, true]);
 	});
 
 	test('selects the first browsed folder as the primary workspace without attaching it', async () => {
@@ -2734,6 +2734,14 @@ class TestablePicker extends WorkspacePicker {
 		this._setDirectPickerFilter(group, attachesContext);
 	}
 
+	selectWorkspaceActions(): void {
+		this._setDirectPickerFilter(undefined, false);
+	}
+
+	selectTab(group: string): void {
+		this._selectWorkspaceGroup(group);
+	}
+
 	getItems() {
 		return this._buildItems();
 	}
@@ -3003,6 +3011,22 @@ suite('WorkspacePicker - Tab discovery', () => {
 			repositoryItems: ['microsoft/vscode/HEAD', 'Add Repository...'],
 			contextItems: ['Issue...', 'Pull Request...'],
 		});
+	});
+
+	test('excludes issue and pull request actions from the execution workspace picker', () => {
+		providersService.setProviders([createMockProvider('p1', {
+			browseActions: [
+				{ ...makeBrowseAction('p1', SESSION_WORKSPACE_GROUP_GITHUB, 'Repository...'), attachesContext: false },
+				{ ...makeBrowseAction('p1', SESSION_WORKSPACE_GROUP_GITHUB, 'Issue...'), attachesContext: true },
+				{ ...makeBrowseAction('p1', SESSION_WORKSPACE_GROUP_GITHUB, 'Pull Request...'), attachesContext: true },
+			],
+		})]);
+		const picker = createTestablePicker(disposables, providersService);
+
+		picker.selectWorkspaceActions();
+		picker.selectTab(SESSION_WORKSPACE_GROUP_GITHUB);
+
+		assert.deepStrictEqual(picker.getItemLabels(), ['Repository...']);
 	});
 
 	test('does not offer clear actions in workspace pickers', () => {

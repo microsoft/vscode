@@ -695,6 +695,7 @@ export class NewChatWidget extends Disposable {
 			tooltip: localize('newSessionWorkspacePicker.workspaceTooltip', "Choose where the new session runs"),
 			icon: Codicon.project,
 			reflectsWorkspace: true,
+			attachesContext: false,
 		};
 		const gitHubContextTrigger: IWorkspacePickerTrigger = {
 			label: localize('newSessionWorkspacePicker.githubContext', "Issue/PR"),
