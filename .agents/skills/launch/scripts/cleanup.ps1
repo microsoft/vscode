@@ -9,6 +9,8 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+. (Join-Path $PSScriptRoot 'windows-process-arguments.ps1')
+
 $RunDir = [IO.Path]::GetFullPath($RunDir)
 if (-not (Test-Path -LiteralPath $RunDir -PathType Container)) {
 	throw "Run directory does not exist: $RunDir"
@@ -30,15 +32,17 @@ if (-not [string]::IsNullOrWhiteSpace($PlaywrightSession)) {
 	}
 }
 
-$userDataArgument = "--user-data-dir=$(Join-Path $RunDir 'user-data')"
+$userDataDir = Join-Path $RunDir 'user-data'
+$userDataArgument = "--user-data-dir=$userDataDir"
 $remainingProcesses = @()
 for ($attempt = 0; $attempt -lt 5; $attempt++) {
 	$remainingProcesses = @(
 		Get-CimInstance Win32_Process |
 			Where-Object {
+				$commandLine = $_.CommandLine
 				$_.Name -eq 'Code - OSS.exe' -and
-				$null -ne $_.CommandLine -and
-				$_.CommandLine.IndexOf($userDataArgument, [StringComparison]::OrdinalIgnoreCase) -ge 0
+				$null -ne $commandLine -and
+				(Test-CommandLineHasArgument $commandLine $userDataArgument)
 			}
 	)
 	if ($remainingProcesses.Count -eq 0) {
@@ -53,9 +57,10 @@ for ($attempt = 0; $attempt -lt 5; $attempt++) {
 $remainingProcesses = @(
 	Get-CimInstance Win32_Process |
 		Where-Object {
+			$commandLine = $_.CommandLine
 			$_.Name -eq 'Code - OSS.exe' -and
-			$null -ne $_.CommandLine -and
-			$_.CommandLine.IndexOf($userDataArgument, [StringComparison]::OrdinalIgnoreCase) -ge 0
+			$null -ne $commandLine -and
+			(Test-CommandLineHasArgument $commandLine $userDataArgument)
 		}
 )
 if ($remainingProcesses.Count -gt 0) {
