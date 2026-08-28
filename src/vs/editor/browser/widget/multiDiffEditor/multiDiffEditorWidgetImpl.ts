@@ -383,6 +383,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		});
 		this._documentViewStates.clear();
 		this._documentViewStateModel = undefined;
+		this._hasDocumentViewState = false;
 		this._initializedDocumentViewModels = new WeakSet();
 		this._lastActiveDiffItemKey = undefined;
 		this._pendingScrollState = undefined;
@@ -466,6 +467,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	/** Latest state per document, seeded from restored state and updated from live view models. */
 	private _documentViewStates = new Map<string, IMultiDiffDocState>();
 	private _documentViewStateModel: MultiDiffEditorViewModel | undefined;
+	private _hasDocumentViewState = false;
 	private _initializedDocumentViewModels = new WeakSet<DocumentDiffItemViewModel>();
 
 	/**
@@ -493,11 +495,19 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		this.setScrollState(viewState.scrollState);
 
 		const viewModel = this._viewModel.get();
-		if (this._documentViewStateModel !== viewModel) {
+		const docStates = Object.entries(viewState.docStates ?? {});
+		if (!this._hasDocumentViewState || this._documentViewStateModel !== viewModel) {
 			this._documentViewStateModel = viewModel;
+			this._hasDocumentViewState = true;
 			this._initializedDocumentViewModels = new WeakSet();
+			this._documentViewStates = new Map(docStates);
+		} else {
+			for (const [key, state] of docStates) {
+				if (!this._documentViewStates.has(key)) {
+					this._documentViewStates.set(key, state);
+				}
+			}
 		}
-		this._documentViewStates = new Map(Object.entries(viewState.docStates ?? {}));
 		this._lastActiveDiffItemKey = viewState.activeDiffItemKey;
 
 		const applyDocStates = (tx: ITransaction) => {

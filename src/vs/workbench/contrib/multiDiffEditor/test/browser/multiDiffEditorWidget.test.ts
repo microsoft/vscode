@@ -243,16 +243,17 @@ suite('MultiDiffEditorWidget', () => {
 		const documents = new ValueWithChangeEvent<readonly RefCounted<IDocumentDiffItem>[]>([documentA.ref, documentB.ref]);
 		const currentSelection = new Selection(1, 4, 1, 4);
 		const viewModel = harness.createViewModel({ documents });
+		const viewState: IMultiDiffEditorViewState = {
+			scrollState: { top: 0, left: 0 },
+			docStates: {
+				[documentA.key]: { collapsed: false },
+				[documentB.key]: { collapsed: false },
+			},
+			activeDiffItemKey: documentA.key,
+		};
 		harness.widget.setViewModel(viewModel, {
 			preserveFocus: true,
-			viewState: {
-				scrollState: { top: 0, left: 0 },
-				docStates: {
-					[documentA.key]: { collapsed: false },
-					[documentB.key]: { collapsed: false },
-				},
-				activeDiffItemKey: documentA.key,
-			},
+			viewState,
 		});
 		await waitForItems(viewModel, 2);
 
@@ -261,6 +262,7 @@ suite('MultiDiffEditorWidget', () => {
 		originalItemA.collapsed.set(true, undefined);
 		documents.value = [documentB.ref];
 		await waitForItems(viewModel, 1);
+		harness.widget.setViewState(viewState);
 		documents.value = [documentA.ref, documentB.ref];
 		await waitForItems(viewModel, 2);
 
