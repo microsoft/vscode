@@ -439,7 +439,7 @@
 	flex-direction: row;
 	align-items: center;
 	gap: 8px;
-	margin-top: 2px;
+	margin-top: calc(-1 * var(--vscode-spacing-size40));
 	padding-top: 10px;
 	border-top: 1px solid var(--vscode-widget-border, transparent);
 }
@@ -741,6 +741,10 @@
 
 .automation-form-prompt-host .new-chat-input-area {
 	max-width: 100%;
+}
+
+.automation-form-prompt-host .action-label > .codicon + .sessions-chat-dropdown-label {
+	margin-left: var(--vscode-spacing-size40);
 }
 
 /* The voice toolbar is always appended to the input toolbar even when the
