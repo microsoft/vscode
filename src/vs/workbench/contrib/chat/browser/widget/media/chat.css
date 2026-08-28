@@ -51,15 +51,18 @@
 
 .monaco-workbench .interactive-session.chat-session-state-indicator.chat-state-idle-unvisited::before {
 	border-color: hsl(from var(--vscode-foreground) h 0% l / 0.7);
+	border-style: dotted;
 }
 
 .monaco-workbench .interactive-session.chat-session-state-indicator.chat-state-in-progress::before {
 	border-color: var(--vscode-charts-green);
+	border-style: solid;
 	animation: chat-session-working-glow 1.4s ease-in-out infinite;
 }
 
 .monaco-workbench .interactive-session.chat-session-state-indicator.chat-state-needs-input::before {
 	border-color: var(--vscode-errorForeground);
+	border-style: dashed;
 	box-shadow: 0 0 var(--vscode-spacing-size80) color-mix(in srgb, var(--vscode-errorForeground) 60%, transparent);
 }
 

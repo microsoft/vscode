@@ -299,6 +299,24 @@ export const chatFloatingPersistentContentClass = 'chat-floating-persistent-cont
 /** Carries {@link IChatWidgetViewOptions.persistentContentHeight} to `chat.css`. */
 export const chatPersistentContentHeightVariable = '--vscode-chat-persistent-content-height';
 
+/** Computes the visual session state and whether its latest completion remains unvisited. */
+export function computeChatSessionStateIndicatorState(input: {
+	readonly requestNeedsInput: boolean;
+	readonly requestInProgress: boolean;
+	readonly containsFocus: boolean;
+	readonly requestWasActive: boolean;
+	readonly hasUnvisitedCompletion: boolean;
+}) {
+	const state = input.requestNeedsInput ? 'needsInput' : input.requestInProgress ? 'inProgress' : 'idle';
+	const requestActive = state !== 'idle';
+	let hasUnvisitedCompletion = input.containsFocus ? false : input.hasUnvisitedCompletion;
+	if (!requestActive && input.requestWasActive) {
+		hasUnvisitedCompletion = !input.containsFocus;
+	}
+
+	return { state, requestActive, hasUnvisitedCompletion };
+}
+
 export class ChatWidget extends Disposable implements IChatWidget {
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -975,21 +993,18 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const enabled = this.isSessionStateIndicatorEnabled();
 		const modelNeedsInput = !!this.viewModel?.model.requestNeedsInput.get();
-		const modelInProgress = !modelNeedsInput && !!this.viewModel?.model.requestInProgress.get();
-		const requestActive = modelNeedsInput || modelInProgress;
-		const containsFocus = dom.isAncestorOfActiveElement(this.container);
-		if (requestActive) {
-			this._requestActiveForStateIndicator = true;
-			if (containsFocus) {
-				this._hasUnvisitedCompletion = false;
-			}
-		} else if (this._requestActiveForStateIndicator) {
-			this._requestActiveForStateIndicator = false;
-			this._hasUnvisitedCompletion = !containsFocus;
-		}
+		const indicatorState = computeChatSessionStateIndicatorState({
+			requestNeedsInput: modelNeedsInput,
+			requestInProgress: !!this.viewModel?.model.requestInProgress.get(),
+			containsFocus: dom.isAncestorOfActiveElement(this.container),
+			requestWasActive: this._requestActiveForStateIndicator,
+			hasUnvisitedCompletion: this._hasUnvisitedCompletion,
+		});
+		this._requestActiveForStateIndicator = indicatorState.requestActive;
+		this._hasUnvisitedCompletion = indicatorState.hasUnvisitedCompletion;
 
-		const needsInput = enabled && modelNeedsInput;
-		const inProgress = enabled && modelInProgress;
+		const needsInput = enabled && indicatorState.state === 'needsInput';
+		const inProgress = enabled && indicatorState.state === 'inProgress';
 		const idle = enabled && !needsInput && !inProgress;
 		const idleUnvisited = idle && this._hasUnvisitedCompletion;
 
@@ -1062,7 +1077,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const focusTracker = this._register(dom.trackFocus(this.container));
 		this._register(focusTracker.onDidFocus(() => {
 			if (this._hasUnvisitedCompletion) {
-				this._hasUnvisitedCompletion = false;
 				this.updateSessionStateIndicator();
 			}
 		}));
