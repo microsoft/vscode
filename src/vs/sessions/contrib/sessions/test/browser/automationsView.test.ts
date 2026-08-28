@@ -52,7 +52,7 @@ import { ISessionsListModelService } from '../../../../services/sessions/browser
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IMenuService, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ArchiveSessionAction } from '../../browser/views/sessionsViewActions.js';
@@ -230,10 +230,19 @@ class FakeAutomationService extends mock<IAutomationService>() {
 class TestContextMenuService extends mock<IContextMenuService>() {
 	override readonly onDidShowContextMenu = Event.None;
 	override readonly onDidHideContextMenu = Event.None;
-	delegate: IContextMenuDelegate | IContextMenuMenuDelegate | undefined;
+	delegate: IContextMenuDelegate | undefined;
+	menuDelegate: IContextMenuMenuDelegate | undefined;
 
 	override showContextMenu(delegate: IContextMenuDelegate | IContextMenuMenuDelegate): void {
-		this.delegate = delegate;
+		if (this.isMenuDelegate(delegate)) {
+			this.menuDelegate = delegate;
+		} else {
+			this.delegate = delegate;
+		}
+	}
+
+	private isMenuDelegate(delegate: IContextMenuDelegate | IContextMenuMenuDelegate): delegate is IContextMenuMenuDelegate {
+		return (<IContextMenuMenuDelegate>delegate).menuId instanceof MenuId;
 	}
 }
 
@@ -863,8 +872,8 @@ suite('AutomationsCardsWidget', () => {
 		assert.ok(sourceCard);
 
 		sourceCard.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
-		const delegate = contextMenuService.delegate;
-		assert.ok(delegate && 'menuId' in delegate);
+		const delegate = contextMenuService.menuDelegate;
+		assert.ok(delegate);
 		assert.strictEqual(delegate.menuId, Menus.AutomationCardContext);
 		assert.strictEqual(delegate.menuActionOptions?.arg, source);
 		const menuActions = instantiationService.get(IMenuService).getMenuActions(
@@ -989,8 +998,8 @@ suite('AutomationsCardsWidget', () => {
 		assert.ok(sourceCard);
 
 		sourceCard.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
-		const delegate = contextMenuService.delegate;
-		assert.ok(delegate && 'menuId' in delegate);
+		const delegate = contextMenuService.menuDelegate;
+		assert.ok(delegate);
 		const duplicateActions = instantiationService.get(IMenuService).getMenuActions(
 			Menus.AutomationCardContext,
 			delegate.contextKeyService ?? contextKeyService,
@@ -1025,7 +1034,7 @@ suite('AutomationsCardsWidget', () => {
 		assert.ok(sourceCard);
 		const getDisableAction = () => {
 			sourceCard.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
-			const delegate = contextMenuService.delegate as IContextMenuMenuDelegate | undefined;
+			const delegate = contextMenuService.menuDelegate;
 			assert.ok(delegate);
 			return instantiationService.get(IMenuService).getMenuActions(
 				Menus.AutomationCardContext,
@@ -1061,7 +1070,7 @@ suite('AutomationsCardsWidget', () => {
 		const sourceCard = widget.element.querySelector<HTMLElement>('.automations-card');
 		assert.ok(sourceCard);
 		sourceCard.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
-		const delegate = contextMenuService.delegate as IContextMenuMenuDelegate | undefined;
+		const delegate = contextMenuService.menuDelegate;
 		assert.ok(delegate);
 		const disableAction = instantiationService.get(IMenuService).getMenuActions(
 			Menus.AutomationCardContext,
@@ -1131,7 +1140,7 @@ suite('AutomationsCardsWidget', () => {
 		const sourceCard = widget.element.querySelector<HTMLElement>('.automations-card');
 		assert.ok(sourceCard);
 		sourceCard.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
-		const delegate = contextMenuService.delegate as IContextMenuMenuDelegate | undefined;
+		const delegate = contextMenuService.menuDelegate;
 		assert.ok(delegate);
 		const command = CommandsRegistry.getCommand('sessions.automations.delete');
 		assert.ok(command);
@@ -1169,7 +1178,7 @@ suite('AutomationsCardsWidget', () => {
 		const sourceCard = widget.element.querySelector<HTMLElement>('.automations-card');
 		assert.ok(sourceCard);
 		sourceCard.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
-		const delegate = contextMenuService.delegate as IContextMenuMenuDelegate | undefined;
+		const delegate = contextMenuService.menuDelegate;
 		assert.ok(delegate);
 		const menuActions = instantiationService.get(IMenuService).getMenuActions(
 			Menus.AutomationCardContext,
