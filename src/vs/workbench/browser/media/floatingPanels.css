@@ -1,0 +1,632 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* ---- Floating Panels (experimental) ---- */
+
+/*
+ * When `workbench.experimental.modernUI` (Modern UI Update) is set, the primary side
+ * bar, secondary side bar and bottom panel are rendered as floating cards with a
+ * margin, border and rounded corners — echoing the agents window design. The
+ * matching content dimensions are reduced in code (AbstractPaneCompositePart) so
+ * the inner layout stays in sync with this CSS. The margin and the 1px border
+ * must match `FLOATING_PANEL_MARGIN`, `FLOATING_PANEL_INNER_MARGIN` and the border
+ * inset used there. The outermost
+ * card on a cluster edge gets the density-specific outer gutter (`.floating-part-outer-*`).
+ * Colors come from the generic `surface.*` tokens (shared with the agent
+ * sessions window).
+ *
+ * The default and compact gutter variables below must stay in sync with
+ * `FLOATING_PANEL_MARGIN` and `COMPACT_FLOATING_PANEL_MARGIN` in code.
+ */
+
+.monaco-workbench.floating-panels {
+	--modern-ui-floating-card-margin: var(--vscode-spacing-size40);
+	--modern-ui-floating-card-inner-margin: var(--vscode-spacing-sizeNone);
+	/* The cluster perimeter — the gutter against window chrome — is the same in both
+	 * densities. Only the gap *between* cards differs. */
+	--modern-ui-floating-card-outer-margin: var(--vscode-spacing-size40);
+	--modern-ui-floating-card-statusbar-margin: var(--vscode-spacing-size40);
+}
+
+.monaco-workbench.floating-panels.modern-ui-compact {
+	--modern-ui-floating-card-margin: var(--vscode-spacing-sizeNone);
+	--modern-ui-floating-card-border-color: transparent;
+	--modern-ui-editor-border-color: transparent;
+}
+
+.monaco-workbench.floating-panels .part.sidebar,
+.monaco-workbench.floating-panels .part.auxiliarybar {
+	--modern-ui-floating-card-edge-color: var(--modern-ui-floating-card-border-color, var(--vscode-surface-border, var(--vscode-widget-border, transparent)));
+	margin: var(--modern-ui-floating-card-inner-margin) var(--modern-ui-floating-card-inner-margin) var(--modern-ui-floating-card-margin) var(--modern-ui-floating-card-margin);
+	border: 1px solid var(--modern-ui-floating-card-edge-color) !important;
+	/* The shorthand has to out-weigh the inline border color the pane composite part writes,
+	 * so the edge a card gives up to a shared seam is reassigned through these properties
+	 * instead — that keeps the state rules below on the normal cascade. */
+	border-left-color: var(--modern-ui-floating-card-seam-left-color, var(--modern-ui-floating-card-edge-color)) !important;
+	border-right-color: var(--modern-ui-floating-card-seam-right-color, var(--modern-ui-floating-card-edge-color)) !important;
+	border-radius: var(--vscode-cornerRadius-large);
+	background-color: var(--vscode-surface-background) !important;
+	color: var(--vscode-surface-foreground);
+}
+
+/*
+ * The primary side bar meets the activity bar rail flush, so the two read as one connected
+ * surface: the facing edge drops its gap and its rounded corners, and gives up its border so
+ * the rail's own facing border is the single hairline seam. The rail has to be the one that
+ * draws it — otherwise its visible interior would run past its transparent edge to the side
+ * bar's border, leaving an odd number of pixels around the icon column and pushing the items
+ * 1px off-center. Kept in sync with `getFloatingPaneCompositeHorizontalMargins`.
+ */
+.monaco-workbench.floating-panels:not(.noactivitybar) .part.sidebar.left {
+	--modern-ui-floating-card-seam-left-color: transparent;
+	margin-left: var(--modern-ui-floating-card-inner-margin);
+	border-top-left-radius: 0;
+	border-bottom-left-radius: 0;
+}
+
+.monaco-workbench.floating-panels:not(.noactivitybar) .part.sidebar.right {
+	--modern-ui-floating-card-seam-right-color: transparent;
+	border-top-right-radius: 0;
+	border-bottom-right-radius: 0;
+}
+
+/* Keep the panel surface aligned with the panel theme background in light theme. */
+.monaco-workbench.floating-panels .part.panel {
+	margin: var(--modern-ui-floating-card-inner-margin) var(--modern-ui-floating-card-inner-margin) var(--modern-ui-floating-card-margin) var(--modern-ui-floating-card-margin);
+	border: 1px solid var(--modern-ui-floating-card-border-color, var(--vscode-surface-border, var(--vscode-widget-border, transparent))) !important;
+	border-radius: var(--vscode-cornerRadius-large);
+	background-color: var(--vscode-panel-background) !important;
+	color: var(--vscode-surface-foreground);
+}
+
+.monaco-workbench.floating-panels .part.panel.top {
+	margin-bottom: var(--modern-ui-floating-card-inner-margin);
+}
+
+.monaco-workbench.floating-panels:not(.modern-ui-compact) .part.panel.top.floating-part-outer-bottom {
+	margin-bottom: var(--modern-ui-floating-card-outer-margin);
+}
+
+/* A bottom panel below the editor keeps the inter-card gap. */
+.monaco-workbench.floating-panels.panel-position-bottom:not(.nopanel):not(.nomaineditorarea) .part.panel.bottom {
+	margin-top: var(--modern-ui-floating-card-margin);
+}
+
+.monaco-workbench.floating-panels .part.editor > .content {
+	border-radius: var(--vscode-cornerRadius-large, 8px);
+}
+
+/*
+ * Webviews are iframes that cannot be reparented, so they are mounted at the workbench
+ * root and floated over their card via `OverlayLayoutElement` (see `overlayWebview.ts`).
+ * The overlay content directly wraps the iframe and already clips its overflow, so a
+ * `border-radius` here rounds the otherwise square iframe corners that would poke over the
+ * card's rounded corners.
+ *
+ * Note: rounding the overlay *root* instead does not work - its `clip-path` does not clip the
+ * `position: fixed` content child, so the square iframe corners remain.
+ */
+.monaco-workbench.floating-panels .webview-overlay-content {
+	border-radius: var(--vscode-cornerRadius-large, 8px);
+}
+
+/* Compact parts meet edge-to-edge; only corners on the cluster perimeter are restored below. */
+.monaco-workbench.floating-panels.modern-ui-compact .part:is(.sidebar, .panel, .auxiliarybar),
+.monaco-workbench.floating-panels.modern-ui-compact .part.editor > .content,
+.monaco-workbench.floating-panels.modern-ui-compact .webview-overlay-content:not(.webview-overlay-modal) {
+	border-radius: 0;
+}
+
+/* Keep the auxiliary bar background aligned with the primary sidebar in light theme. */
+.monaco-workbench.floating-panels .part.auxiliarybar {
+	background-color: var(--vscode-sideBar-background) !important;
+}
+
+/* With no title bar and no banner above them (`.top-window-edge`, e.g. native fullscreen
+ * on macOS) the cards use the outer gutter. Mirrors the .nostatusbar pattern below. */
+.monaco-workbench.floating-panels.top-window-edge .part.sidebar,
+.monaco-workbench.floating-panels.top-window-edge .part.auxiliarybar {
+	margin-top: var(--modern-ui-floating-card-outer-margin);
+}
+
+/* Side bars below a top panel use an inter-card gap rather than the window-edge gutter. */
+.monaco-workbench.floating-panels.panel-position-top:not(.nopanel).panel-alignment-justify .part.sidebar,
+.monaco-workbench.floating-panels.panel-position-top:not(.nopanel).panel-alignment-justify .part.auxiliarybar,
+.monaco-workbench.floating-panels.panel-position-top:not(.nopanel).panel-alignment-left .part.sidebar.left,
+.monaco-workbench.floating-panels.panel-position-top:not(.nopanel).panel-alignment-left .part.auxiliarybar.left,
+.monaco-workbench.floating-panels.panel-position-top:not(.nopanel).panel-alignment-right .part.sidebar.right,
+.monaco-workbench.floating-panels.panel-position-top:not(.nopanel).panel-alignment-right .part.auxiliarybar.right {
+	margin-top: var(--modern-ui-floating-card-margin);
+}
+
+.monaco-workbench.floating-panels.top-window-edge .part.panel.top,
+.monaco-workbench.floating-panels.top-window-edge .part.panel.left,
+.monaco-workbench.floating-panels.top-window-edge .part.panel.right {
+	margin-top: var(--modern-ui-floating-card-outer-margin);
+}
+
+.monaco-workbench.floating-panels.top-window-edge.nomaineditorarea .part.panel.bottom {
+	margin-top: var(--modern-ui-floating-card-outer-margin);
+}
+
+/*
+ * When a floating pane composite (primary side bar, secondary side bar or a vertical
+ * panel) is the outermost card on a cluster edge, it adopts the outer gutter.
+ * The owning edge is toggled in code (kept in
+ * sync with the inset reservation in `AbstractPaneCompositePart`).
+ */
+.monaco-workbench.floating-panels .part.floating-part-outer-left {
+	margin-left: var(--modern-ui-floating-card-outer-margin);
+}
+
+.monaco-workbench.floating-panels .part.floating-part-outer-right {
+	margin-right: var(--modern-ui-floating-card-outer-margin);
+}
+
+/* Main editor: float like the other cards. */
+.monaco-workbench.floating-panels > .monaco-grid-view .part.editor {
+	margin: var(--modern-ui-floating-card-inner-margin) var(--modern-ui-floating-card-inner-margin) var(--modern-ui-floating-card-margin) var(--modern-ui-floating-card-margin);
+}
+
+.monaco-workbench.floating-panels.top-window-edge > .monaco-grid-view .part.editor {
+	margin-top: var(--modern-ui-floating-card-outer-margin);
+}
+
+/* When the panel is at the top and visible the editor sits below it — give it a top margin
+ * so the inter-card gap matches the gaps between the other floating cards.
+ * Requires `.panel-position-top` on `.monaco-workbench` (set in layout.ts). */
+.monaco-workbench.floating-panels.panel-position-top:not(.nopanel) > .monaco-grid-view .part.editor {
+	margin-top: var(--modern-ui-floating-card-margin);
+}
+
+/*
+ * When the editor becomes the outermost card on a side (no floating part sits
+ * outside it) it adopts the same outer gutter the side/aux
+ * bars use. Kept in sync with the margin reservation in `EditorPart.layout`.
+ */
+.monaco-workbench.floating-panels > .monaco-grid-view .part.editor.floating-editor-outer-left {
+	margin-left: var(--modern-ui-floating-card-outer-margin);
+}
+
+.monaco-workbench.floating-panels > .monaco-grid-view .part.editor.floating-editor-outer-right {
+	margin-right: var(--modern-ui-floating-card-outer-margin);
+}
+
+/* The title bar color forms the shell backdrop visible through the floating-card gutters. */
+.monaco-workbench.floating-panels,
+.monaco-workbench.floating-panels > .monaco-grid-view {
+	background-color: var(--modern-ui-shell-background, var(--vscode-titleBar-activeBackground));
+}
+
+/* Panel title composite receives an inline border-top color; suppress it in floating mode. */
+.monaco-workbench.floating-panels .part.panel > .title {
+	border-top-color: transparent !important;
+}
+
+/*
+ * The activity bar is the outermost card of the side bar cluster. It is inset by the
+ * cluster's outer gutter, rounded on the window side and square where it meets the
+ * primary side bar, so the rail and the side bar read as one connected surface.
+ * The rail's own width carries the visual lane beside it (see the item centering below);
+ * `ActivitybarPart.floatingHorizontalGutter` reserves both in the grid.
+ */
+.monaco-workbench.floating-panels .part.activitybar {
+	/* The lane is the space inside the card beside the icon column — the rail's own
+	 * horizontal padding, doubled. It is independent of the cluster perimeter so the icons
+	 * keep their inset whatever the gutter is. The card width and the item centering below
+	 * both derive from it, and `ActivitybarPart.floatingHorizontalGutter` reserves it. */
+	--modern-ui-activitybar-lane: var(--vscode-spacing-size80);
+	margin: var(--modern-ui-floating-card-inner-margin) var(--modern-ui-floating-card-inner-margin) var(--modern-ui-floating-card-margin);
+	width: calc(var(--activity-bar-width, 48px) + var(--modern-ui-activitybar-lane));
+	height: calc(100% - var(--modern-ui-floating-card-margin));
+	padding-left: var(--vscode-spacing-sizeNone);
+	padding-right: var(--vscode-spacing-sizeNone);
+	border: 1px solid var(--modern-ui-floating-card-border-color, var(--vscode-modernActivityBar-border, var(--vscode-surface-border, var(--vscode-widget-border, transparent))));
+	overflow: hidden;
+}
+
+/* The rail keeps a border on all four sides: the facing one is the seam the side bar gives up
+ * (see above), so the icon column is always centered in an even interior. */
+.monaco-workbench.floating-panels .part.activitybar.left {
+	margin-left: var(--modern-ui-floating-card-outer-margin);
+	margin-right: var(--modern-ui-floating-card-inner-margin);
+	border-radius: var(--vscode-cornerRadius-large) 0 0 var(--vscode-cornerRadius-large);
+}
+
+.monaco-workbench.floating-panels .part.activitybar.right {
+	margin-left: var(--modern-ui-floating-card-inner-margin);
+	margin-right: var(--modern-ui-floating-card-outer-margin);
+	border-radius: 0 var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0;
+}
+
+/* With the primary side bar collapsed there is no card to connect to, so the rail closes up
+ * as a standalone panel with every corner rounded. Its border is already opaque on all four
+ * sides. Compact density keeps its cards joined edge to edge, so it is excluded. */
+.monaco-workbench.floating-panels:not(.modern-ui-compact).nosidebar .part.activitybar {
+	border-radius: var(--vscode-cornerRadius-large);
+}
+
+/* A left-hand rail gets its gap for free from the leading margin of the card beside it. A
+ * right-hand rail is the one that follows its neighbour, so under this system's
+ * leading-margin convention it has to supply that gap itself. The extra width this needs is
+ * reserved by `ActivitybarPart.needsFloatingLeadingGap`, so the card keeps its full lane and
+ * the icons keep the same inset as every other state. */
+.monaco-workbench.floating-panels:not(.modern-ui-compact).nosidebar .part.activitybar.right {
+	margin-left: var(--modern-ui-floating-card-margin);
+}
+
+.monaco-workbench.floating-panels.top-window-edge .part.activitybar {
+	margin-top: var(--modern-ui-floating-card-outer-margin);
+	height: calc(100% - var(--modern-ui-floating-card-outer-margin) - var(--modern-ui-floating-card-margin));
+}
+
+/* Compact density treats the status bar as chrome outside the cluster, so the rail's
+ * bottom edge is a cluster perimeter rather than an inter-card gap. */
+/* Compact density keeps the tighter icon inset that matches its denser rhythm. */
+.monaco-workbench.floating-panels.modern-ui-compact .part.activitybar {
+	--modern-ui-activitybar-lane: var(--vscode-spacing-size40);
+	margin-bottom: var(--modern-ui-floating-card-outer-margin);
+	height: calc(100% - var(--modern-ui-floating-card-outer-margin));
+}
+
+.monaco-workbench.floating-panels.modern-ui-compact.top-window-edge .part.activitybar {
+	height: calc(100% - (var(--modern-ui-floating-card-outer-margin) * 2));
+}
+
+.monaco-workbench.floating-panels .activitybar.compact > .content > .composite-bar {
+	margin-top: var(--vscode-spacing-size20);
+}
+
+/* Separate the activity bar items so they read as distinct floating targets. The gap is
+ * published by activitybarPart.ts as `--activity-bar-action-gap` (0px at the compact size)
+ * so that it stays in step with the overflow computation. */
+.monaco-workbench.floating-panels .part.activitybar > .content .monaco-action-bar .action-item + .action-item {
+	margin-top: var(--activity-bar-action-gap, 0px);
+}
+
+/*
+ * The compact cluster paints its perimeter stroke as background images rather than a real
+ * border, so a card can show an edge only where it faces the outside (see the corner/edge
+ * background stack below). A corner is a 1px-wide ring cut from a radial gradient. Hard
+ * colour stops are not antialiased, which rendered the arc as a stepped chamfer, so each
+ * edge of the ring is feathered by half a pixel either side of the solid 1px core. That
+ * restores a smooth curve matching the browser-drawn borders used at the default density.
+ */
+.monaco-workbench.floating-panels.modern-ui-compact .part.activitybar.left {
+	--modern-ui-floating-card-corner-top-left-border-image: radial-gradient(circle at bottom right, transparent calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness) - 0.5px), var(--modern-ui-floating-card-stroke-color) calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)), var(--modern-ui-floating-card-stroke-color) var(--vscode-cornerRadius-large), transparent calc(var(--vscode-cornerRadius-large) + 0.5px));
+	--modern-ui-floating-card-corner-bottom-left-border-image: radial-gradient(circle at top right, transparent calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness) - 0.5px), var(--modern-ui-floating-card-stroke-color) calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)), var(--modern-ui-floating-card-stroke-color) var(--vscode-cornerRadius-large), transparent calc(var(--vscode-cornerRadius-large) + 0.5px));
+}
+
+.monaco-workbench.floating-panels.modern-ui-compact .part.activitybar.right {
+	--modern-ui-floating-card-corner-top-right-border-image: radial-gradient(circle at bottom left, transparent calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness) - 0.5px), var(--modern-ui-floating-card-stroke-color) calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)), var(--modern-ui-floating-card-stroke-color) var(--vscode-cornerRadius-large), transparent calc(var(--vscode-cornerRadius-large) + 0.5px));
+	--modern-ui-floating-card-corner-bottom-right-border-image: radial-gradient(circle at top left, transparent calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness) - 0.5px), var(--modern-ui-floating-card-stroke-color) calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)), var(--modern-ui-floating-card-stroke-color) var(--vscode-cornerRadius-large), transparent calc(var(--vscode-cornerRadius-large) + 0.5px));
+}
+
+/*
+ * Center the full-size action targets in the card's lane (see `--modern-ui-activitybar-lane`).
+ * The card's two 1px borders shrink its content box, so they come off the lane before it is
+ * halved — otherwise the items sit 1px off-center.
+ */
+.monaco-workbench.floating-panels .part.activitybar > .content {
+	transform: translateX(calc((var(--modern-ui-activitybar-lane) - 2px) / 2));
+}
+
+/*
+ * Inset the first and last item from the card's ends by the same amount as the sides. The
+ * horizontal inset is half the lane, of which the card's border already contributes one
+ * stroke, so the remainder is what these margins have to supply. Overrides the fixed values
+ * in `modernUI/browser/media/padding.css`, which predate the lane.
+ */
+.monaco-workbench.floating-panels .part.activitybar:not(.top):not(.bottom) > .content > .composite-bar {
+	margin-top: calc(var(--modern-ui-activitybar-lane) / 2 - var(--vscode-strokeThickness));
+}
+
+.monaco-workbench.floating-panels .part.activitybar:not(.top):not(.bottom) > .content > :not(.composite-bar):last-child {
+	margin-bottom: calc(var(--modern-ui-activitybar-lane) / 2 - var(--vscode-strokeThickness));
+}
+
+.monaco-workbench.floating-panels .part.activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item {
+	width: var(--activity-bar-width);
+}
+
+/* Inset and vertically center status bar items within the full-width bottom rail. */
+.monaco-workbench.floating-panels .part.statusbar {
+	padding-left: var(--vscode-spacing-size60);
+	padding-right: var(--vscode-spacing-size60);
+	padding-top: var(--vscode-spacing-size20);
+	padding-bottom: var(--vscode-spacing-size20);
+}
+
+.monaco-workbench.floating-panels .part.statusbar:not(:focus).status-border-top::after {
+	display: none;
+}
+
+/* With a compact activity bar the horizontal inset is tightened to match.
+ * `activitybar-compact` is mirrored onto the workbench root by activitybarPart.ts;
+ * the `:not` keeps a hidden compact bar resolving to the hidden inset below.
+ * Compact density owns its own perimeter inset below, so it is excluded here to
+ * keep the two densities mutually exclusive rather than specificity-ordered. */
+.monaco-workbench.floating-panels.activitybar-compact:not(.modern-ui-compact):not(.noactivitybar) .part.statusbar {
+	padding-left: var(--modern-ui-floating-card-margin);
+	padding-right: var(--modern-ui-floating-card-margin);
+}
+
+/* When the activity bar is hidden (`noactivitybar`, toggled by layout.ts like
+ * the other part visibility classes) there is no bar to align to, so fall back
+ * to the standard 4px inset. */
+.monaco-workbench.floating-panels.noactivitybar:not(.modern-ui-compact) .part.statusbar {
+	padding-left: var(--modern-ui-floating-card-margin);
+	padding-right: var(--modern-ui-floating-card-margin);
+}
+
+/* Compact density insets the status bar by the cluster perimeter gutter so it
+ * lines up with every other card, independent of the activity bar state. */
+.monaco-workbench.floating-panels.modern-ui-compact .part.statusbar {
+	padding-left: var(--modern-ui-floating-card-outer-margin);
+	padding-right: var(--modern-ui-floating-card-outer-margin);
+}
+
+.monaco-workbench.floating-panels .part.statusbar > .items-container > .statusbar-item.left.first-visible-item,
+.monaco-workbench.floating-panels .part.statusbar > .items-container > .statusbar-item.left.first-visible-item > .statusbar-item-label {
+	padding-left: var(--modern-ui-floating-card-margin);
+}
+/*
+ * When the status bar is hidden every floating card sits directly against the window
+ * bottom edge and adopts the density-specific outer gutter.
+ * Exceptions:
+ *   - Panel at TOP: its bottom faces the editor (not the window edge) — keep the zero trailing margin.
+ *     `.part.panel.top` is intentionally absent from the selector list below.
+ *   - Editor when a bottom panel is visible: it abuts the panel card — keep the zero trailing margin.
+ * The code-side insets in AbstractPaneCompositePart and EditorPart are kept in sync.
+ */
+.monaco-workbench.floating-panels.nostatusbar .part.panel.bottom,
+.monaco-workbench.floating-panels.nostatusbar .part.panel.left,
+.monaco-workbench.floating-panels.nostatusbar .part.panel.right,
+.monaco-workbench.floating-panels.nostatusbar .part.sidebar,
+.monaco-workbench.floating-panels.nostatusbar .part.auxiliarybar {
+	margin-bottom: var(--modern-ui-floating-card-outer-margin);
+}
+
+.monaco-workbench.floating-panels.nostatusbar > .monaco-grid-view .part.editor {
+	margin-bottom: var(--modern-ui-floating-card-outer-margin);
+}
+
+/*
+ * When a visible bottom panel directly abuts the sidebars and/or editor (they share
+ * the same grid row), use no trailing margin instead of an outer gutter.
+ * Which bars are in the same row as the editor depends on panel alignment:
+ *   justify  → both sidebars are in the top row (above the full-width panel)
+ *   left     → the bar on the LEFT is in the top row; the bar on the RIGHT is full-height
+ *   right    → the bar on the RIGHT is in the top row; the bar on the LEFT is full-height
+ *   center   → neither sidebar is in the top row (both span full height)
+ * Uses `.panel-alignment-*` and `.left`/`.right` position classes set in layout.ts.
+ */
+.monaco-workbench.floating-panels.panel-position-bottom:not(.nopanel).panel-alignment-justify .part.sidebar,
+.monaco-workbench.floating-panels.panel-position-bottom:not(.nopanel).panel-alignment-justify .part.auxiliarybar,
+.monaco-workbench.floating-panels.panel-position-bottom:not(.nopanel).panel-alignment-left .part.sidebar.left,
+.monaco-workbench.floating-panels.panel-position-bottom:not(.nopanel).panel-alignment-left .part.auxiliarybar.left,
+.monaco-workbench.floating-panels.panel-position-bottom:not(.nopanel).panel-alignment-right .part.sidebar.right,
+.monaco-workbench.floating-panels.panel-position-bottom:not(.nopanel).panel-alignment-right .part.auxiliarybar.right,
+.monaco-workbench.floating-panels.panel-position-bottom:not(.nopanel) > .monaco-grid-view .part.editor {
+	margin-bottom: var(--modern-ui-floating-card-inner-margin);
+}
+
+.monaco-workbench.floating-panels.nostatusbar .part.activitybar {
+	margin-bottom: var(--modern-ui-floating-card-outer-margin);
+	height: calc(100% - var(--modern-ui-floating-card-outer-margin));
+}
+
+.monaco-workbench.floating-panels.top-window-edge.nostatusbar .part.activitybar {
+	height: calc(100% - (var(--modern-ui-floating-card-outer-margin) * 2));
+}
+
+/* Compact cards form one connected cluster with a small perimeter gutter. */
+.monaco-workbench.floating-panels.modern-ui-compact .part:is(.sidebar, .panel, .auxiliarybar) {
+	--modern-ui-floating-card-stroke-color: var(--vscode-surface-border, var(--vscode-widget-border, transparent));
+	--modern-ui-floating-card-left-border-color: transparent;
+	--modern-ui-floating-card-top-border-color: transparent;
+}
+
+.monaco-workbench.floating-panels.modern-ui-compact .part.activitybar {
+	--modern-ui-floating-card-stroke-color: var(--vscode-modernActivityBar-border, var(--vscode-surface-border, var(--vscode-widget-border, transparent)));
+	--modern-ui-floating-card-left-border-color: transparent;
+	--modern-ui-floating-card-top-border-color: var(--modern-ui-floating-card-stroke-color);
+}
+
+.monaco-workbench.floating-panels.modern-ui-compact .part.activitybar.left {
+	--modern-ui-floating-card-left-border-color: var(--modern-ui-floating-card-stroke-color);
+}
+
+/* Each compact card paints its own right and bottom edges, so a left-positioned rail already
+ * draws the seam it shares with the side bar. A right-positioned rail follows the side bar
+ * instead, so it takes the seam over — and the side bar gives up that edge — to keep the seam
+ * colored by `modernActivityBar.border` in both positions. With no side bar the rail's
+ * neighbour is the editor, which paints the seam itself, so the edge stays suppressed. */
+.monaco-workbench.floating-panels.modern-ui-compact:not(.nosidebar) .part.activitybar.right {
+	--modern-ui-floating-card-left-border-color: var(--modern-ui-floating-card-stroke-color);
+}
+
+.monaco-workbench.floating-panels.modern-ui-compact:not(.noactivitybar) .part.sidebar.right {
+	--modern-ui-floating-card-right-border-color: transparent;
+}
+
+.monaco-workbench.floating-panels.modern-ui-compact .part:is(.activitybar, .sidebar, .panel, .auxiliarybar, .editor) {
+	--modern-ui-floating-card-corner-top-left-border-image: linear-gradient(transparent, transparent);
+	--modern-ui-floating-card-corner-top-right-border-image: linear-gradient(transparent, transparent);
+	--modern-ui-floating-card-corner-bottom-right-border-image: linear-gradient(transparent, transparent);
+	--modern-ui-floating-card-corner-bottom-left-border-image: linear-gradient(transparent, transparent);
+	background-image:
+		var(--modern-ui-floating-card-corner-top-left-border-image),
+		var(--modern-ui-floating-card-corner-top-right-border-image),
+		var(--modern-ui-floating-card-corner-bottom-right-border-image),
+		var(--modern-ui-floating-card-corner-bottom-left-border-image),
+		linear-gradient(var(--modern-ui-floating-card-top-border-color), var(--modern-ui-floating-card-top-border-color)),
+		linear-gradient(var(--modern-ui-floating-card-right-border-color, var(--modern-ui-floating-card-stroke-color)), var(--modern-ui-floating-card-right-border-color, var(--modern-ui-floating-card-stroke-color))),
+		linear-gradient(var(--modern-ui-floating-card-stroke-color), var(--modern-ui-floating-card-stroke-color)),
+		linear-gradient(var(--modern-ui-floating-card-left-border-color), var(--modern-ui-floating-card-left-border-color));
+	background-position: top left, top right, bottom right, bottom left, top left, top right, bottom right, bottom left;
+	background-size:
+		var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large),
+		var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large),
+		var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large),
+		var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large),
+		100% var(--vscode-strokeThickness),
+		var(--vscode-strokeThickness) 100%,
+		100% var(--vscode-strokeThickness),
+		var(--vscode-strokeThickness) 100%;
+	background-repeat: no-repeat;
+	background-origin: border-box;
+}
+
+.monaco-workbench.floating-panels.modern-ui-compact .part.floating-part-outer-left {
+	--modern-ui-floating-card-left-border-color: var(--modern-ui-floating-card-stroke-color);
+}
+
+.monaco-workbench.floating-panels.modern-ui-compact .part.floating-part-outer-top {
+	--modern-ui-floating-card-top-border-color: var(--modern-ui-floating-card-stroke-color);
+}
+
+.monaco-workbench.floating-panels.modern-ui-compact .part.floating-part-outer-bottom,
+.monaco-workbench.floating-panels.modern-ui-compact > .monaco-grid-view .part.editor.floating-editor-outer-bottom {
+	margin-bottom: var(--modern-ui-floating-card-outer-margin);
+}
+
+.monaco-workbench.floating-panels.modern-ui-compact .part.floating-part-outer-left.floating-part-outer-top {
+	border-top-left-radius: var(--vscode-cornerRadius-large);
+	--modern-ui-floating-card-corner-top-left-border-image: radial-gradient(circle at bottom right, transparent calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness) - 0.5px), var(--modern-ui-floating-card-stroke-color) calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)), var(--modern-ui-floating-card-stroke-color) var(--vscode-cornerRadius-large), transparent calc(var(--vscode-cornerRadius-large) + 0.5px));
+}
+
+.monaco-workbench.floating-panels.modern-ui-compact .part.floating-part-outer-right.floating-part-outer-top {
+	border-top-right-radius: var(--vscode-cornerRadius-large);
+	--modern-ui-floating-card-corner-top-right-border-image: radial-gradient(circle at bottom left, transparent calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness) - 0.5px), var(--modern-ui-floating-card-stroke-color) calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)), var(--modern-ui-floating-card-stroke-color) var(--vscode-cornerRadius-large), transparent calc(var(--vscode-cornerRadius-large) + 0.5px));
+}
+
+.monaco-workbench.floating-panels.modern-ui-compact .part.floating-part-outer-left.floating-part-outer-bottom {
+	border-bottom-left-radius: var(--vscode-cornerRadius-large);
+	--modern-ui-floating-card-corner-bottom-left-border-image: radial-gradient(circle at top right, transparent calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness) - 0.5px), var(--modern-ui-floating-card-stroke-color) calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)), var(--modern-ui-floating-card-stroke-color) var(--vscode-cornerRadius-large), transparent calc(var(--vscode-cornerRadius-large) + 0.5px));
+}
+
+.monaco-workbench.floating-panels.modern-ui-compact .part.floating-part-outer-right.floating-part-outer-bottom {
+	border-bottom-right-radius: var(--vscode-cornerRadius-large);
+	--modern-ui-floating-card-corner-bottom-right-border-image: radial-gradient(circle at top left, transparent calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness) - 0.5px), var(--modern-ui-floating-card-stroke-color) calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)), var(--modern-ui-floating-card-stroke-color) var(--vscode-cornerRadius-large), transparent calc(var(--vscode-cornerRadius-large) + 0.5px));
+}
+
+.monaco-workbench.floating-panels.modern-ui-compact .webview-overlay-content.webview-overlay-outer-left.webview-overlay-outer-top {
+	border-top-left-radius: var(--vscode-cornerRadius-large);
+}
+
+.monaco-workbench.floating-panels.modern-ui-compact .webview-overlay-content.webview-overlay-outer-right.webview-overlay-outer-top {
+	border-top-right-radius: var(--vscode-cornerRadius-large);
+}
+
+.monaco-workbench.floating-panels.modern-ui-compact .webview-overlay-content.webview-overlay-outer-left.webview-overlay-outer-bottom {
+	border-bottom-left-radius: var(--vscode-cornerRadius-large);
+}
+
+.monaco-workbench.floating-panels.modern-ui-compact .webview-overlay-content.webview-overlay-outer-right.webview-overlay-outer-bottom {
+	border-bottom-right-radius: var(--vscode-cornerRadius-large);
+}
+
+/*
+ * Floating cards use the density-specific leading margin and no trailing margin, so
+ * adjacent cards are separated by the configured gap.
+ * A grid sash is centered on the grid boundary, but because the two card margins
+ * differ, that boundary is offset from the gap's midpoint by half the margin
+ * difference. At the default 4px size the sash already matches the gap width and only
+ * needs recentering. Grow grid sashes configured below the gap width to 4px, preserve
+ * larger configured sizes, and compensate for that symmetric growth while shifting
+ * the sash onto the gap midpoint. This keeps the hit region reaching both card edges
+ * and the highlight (`:before`, itself centered in the sash) centered in the gap for
+ * any configured sash size. Part-internal sashes and the hidden-panel reveal sash
+ * retain their own geometry.
+ */
+.monaco-workbench.floating-panels .monaco-sash.vertical:not(.part .monaco-sash) {
+	/* Thickness: at least the gap, but never smaller than the configured sash size. */
+	width: max(var(--vscode-sash-size), var(--modern-ui-floating-card-margin));
+	/* Shift onto the gap midpoint (half the margin difference), compensating for the symmetric growth. */
+	transform: translateX(calc((var(--modern-ui-floating-card-margin) - var(--modern-ui-floating-card-inner-margin)) / 2 - (max(var(--vscode-sash-size), var(--modern-ui-floating-card-margin)) - var(--vscode-sash-size)) / 2));
+}
+
+.monaco-workbench.floating-panels:not(.nopanel) .monaco-sash.horizontal:not(.part .monaco-sash) {
+	height: max(var(--vscode-sash-size), var(--modern-ui-floating-card-margin));
+	transform: translateY(calc((var(--modern-ui-floating-card-margin) - var(--modern-ui-floating-card-inner-margin)) / 2 - (max(var(--vscode-sash-size), var(--modern-ui-floating-card-margin)) - var(--vscode-sash-size)) / 2));
+}
+
+/*
+ * A vertical grid sash (between the editor and a side/auxiliary bar) spans the full
+ * height of the content region, but the floating cards it divides are inset from the
+ * region by the card margins. Left unadjusted, the hover highlight (`:before`)
+ * overshoots into those gaps — the reported "sash extends past the panels". Anchor the
+ * highlight with `top`/`bottom` (rather than `height`) so the two insets compose
+ * independently across layouts. The base follows the 4px outer shell gutter on
+ * the bottom while cards meet the title or banner at the top. Only the highlight is inset; the sash hit region is
+ * unchanged. In non-justify alignments a full-height side bar (spanning both the panel
+ * and editor rows) keeps its own margins, so its highlight may sit up to a card margin
+ * short on the abutting edge — an accepted minor cosmetic gap.
+ */
+.monaco-workbench.floating-panels .monaco-sash.vertical:not(.part .monaco-sash)::before {
+	top: var(--modern-ui-floating-card-inner-margin);
+	bottom: var(--modern-ui-floating-card-statusbar-margin);
+	height: auto;
+}
+
+/* At the top window edge the cards take the outer gutter. Inset the sash
+ * highlight to match so it doesn't overshoot above the cards. */
+.monaco-workbench.floating-panels.top-window-edge .monaco-sash.vertical:not(.part .monaco-sash)::before {
+	top: var(--modern-ui-floating-card-outer-margin);
+}
+
+/*
+ * When the status bar is hidden the cards sit against the window bottom edge and take
+ * the outer gutter instead of the zero trailing
+ * margin used at an inter-card edge. Match that larger bottom inset. Excluded when a
+ * bottom panel is present, since then the side/aux bars abut the panel card and keep
+ * the normal zero trailing margin.
+ */
+.monaco-workbench.floating-panels.nostatusbar:is(:not(.panel-position-bottom), .nopanel) .monaco-sash.vertical:not(.part .monaco-sash)::before {
+	bottom: var(--modern-ui-floating-card-outer-margin);
+}
+
+/*
+ * A horizontal grid sash (the resize handle between the editor and a top/bottom panel)
+ * draws its hover highlight full-width, but the panel card it divides is inset from the
+ * column's side edges by the floating card margins — so the line overshoots both ends.
+ * Anchor the highlight with `left`/`right` (rather than `width`) so each side composes
+ * independently: the base uses the panel card's leading and trailing margins. Either
+ * margin switches to the outer gutter when the panel is the outermost card on that
+ * window edge; mirror that with the `.floating-panel-outer-left` / `.floating-panel-outer-right`
+ * classes set on the workbench root (propagated from the panel's outer-edge state in
+ * paneCompositePart) so the highlight tracks the same margins the card uses, per layout.
+ * Both-edges is handled automatically since the two rules touch independent properties.
+ */
+.monaco-workbench.floating-panels:not(.nopanel) .monaco-sash.horizontal:not(.part .monaco-sash)::before {
+	left: var(--modern-ui-floating-card-margin);
+	right: var(--modern-ui-floating-card-inner-margin);
+	width: auto;
+}
+
+/* Panel owns the left cluster edge; match its outer gutter. */
+.monaco-workbench.floating-panels:not(.nopanel).floating-panel-outer-left .monaco-sash.horizontal:not(.part .monaco-sash)::before {
+	left: var(--modern-ui-floating-card-outer-margin);
+}
+
+/* Panel owns the right cluster edge; match its outer gutter. */
+.monaco-workbench.floating-panels:not(.nopanel).floating-panel-outer-right .monaco-sash.horizontal:not(.part .monaco-sash)::before {
+	right: var(--modern-ui-floating-card-outer-margin);
+}
+
+/*
+ * When the bottom panel is hidden, the grid keeps a collapsed (zero-height) panel
+ * node whose reveal sash sits at the very bottom of the content region. Sashes are
+ * centered on their boundary, so the sash's lower half overflows the content region
+ * and is clipped where the region meets the status bar — leaving only the top half
+ * of the highlight visible. The reveal sash carries the `.maximum` state class; nudge
+ * its highlight up by half the sash size so the full line renders inside the content
+ * region. Scoped to `.nopanel` so a panel resized to its minimum (still visible, its
+ * sash fully on-screen) keeps its highlight centered on the real boundary.
+ */
+.monaco-workbench.floating-panels.nopanel .monaco-sash.horizontal.maximum:not(.part .monaco-sash)::before {
+	top: calc(50% - (var(--vscode-sash-hover-size) / 2) - (var(--vscode-sash-size) / 2));
+}

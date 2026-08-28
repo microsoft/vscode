@@ -5,11 +5,12 @@
 
 import { equals } from '../../../../base/common/arrays.js';
 import { assertNever, softAssertNever } from '../../../../base/common/assert.js';
-import { DeferredPromise, disposableTimeout, IntervalTimer } from '../../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout, IntervalTimer, isThenable } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Iterable } from '../../../../base/common/iterator.js';
+import { JsonRpcError, JsonRpcProtocol } from '../../../../base/common/jsonRpcProtocol.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, ISettableObservable, ObservablePromise, observableValue, transaction } from '../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -20,13 +21,6 @@ import { IMcpTaskInternal, McpTaskManager } from './mcpTaskManager.js';
 import { IMcpClientMethods, McpConnectionState, McpError, MpcResponseError } from './mcpTypes.js';
 import { isTaskResult, translateMcpLogMessage } from './mcpTypesUtils.js';
 import { MCP } from './modelContextProtocol.js';
-
-/**
- * Maps request IDs to handlers.
- */
-interface PendingRequest {
-	promise: DeferredPromise<MCP.Result>;
-}
 
 export interface McpRoot {
 	uri: string;
@@ -51,8 +45,7 @@ export interface IMcpServerRequestHandlerOptions extends IMcpClientMethods {
  * handling of ping requests and typed client request methods.
  */
 export class McpServerRequestHandler extends Disposable {
-	private _nextRequestId = 1;
-	private readonly _pendingRequests = new Map<MCP.RequestId, PendingRequest>();
+	private readonly _rpc: JsonRpcProtocol;
 
 	private _hasAnnouncedRoots = false;
 	private _roots: MCP.Root[] = [];
@@ -185,6 +178,14 @@ export class McpServerRequestHandler extends Disposable {
 		this._elicitationRequestHandler = elicitationRequestHandler;
 		this._taskManager = taskManager;
 
+		this._rpc = this._register(new JsonRpcProtocol(
+			message => this.send(message as MCP.JSONRPCMessage),
+			{
+				handleRequest: (request, token) => this.handleServerRequest(request as MCP.JSONRPCRequest & MCP.ServerRequest, token),
+				handleNotification: notification => this.handleServerNotification(notification as MCP.JSONRPCNotification & MCP.ServerNotification),
+			}
+		));
+
 		// Attach this handler to the task manager
 		this._taskManager.setHandler(this);
 		this._register(this._taskManager.onDidUpdateTask(task => {
@@ -196,7 +197,12 @@ export class McpServerRequestHandler extends Disposable {
 		}));
 		this._register(toDisposable(() => this._taskManager.setHandler(undefined)));
 
-		this._register(launch.onDidReceiveMessage(message => this.handleMessage(message)));
+		this._register(launch.onDidReceiveMessage(message => {
+			if (canLog(this.logger.getLevel(), this._requestLogLevel)) {
+				log(this.logger, this._requestLogLevel, `[server -> editor] ${JSON.stringify(message)}`);
+			}
+			void this._rpc.handleMessage(message);
+		}));
 		this._register(autorun(reader => {
 			const state = launch.state.read(reader).state;
 			// the handler will get disposed when the launch stops, but if we're still
@@ -228,36 +234,16 @@ export class McpServerRequestHandler extends Disposable {
 			return Promise.reject(new CancellationError());
 		}
 
-		const id = this._nextRequestId++;
-
-		// Create the full JSON-RPC request
-		const jsonRpcRequest: MCP.JSONRPCRequest = {
-			jsonrpc: MCP.JSONRPC_VERSION,
-			id,
-			...request
-		};
-
-		const promise = new DeferredPromise<MCP.ServerResult>();
-		// Store the pending request
-		this._pendingRequests.set(id, { promise });
-		// Set up cancellation
-		const cancelListener = token.onCancellationRequested(() => {
-			if (!promise.isSettled) {
-				this._pendingRequests.delete(id);
-				this.sendNotification({ method: 'notifications/cancelled', params: { requestId: id } });
-				promise.cancel();
+		return this._rpc.sendRequest<R>(
+			request,
+			token,
+			id => this.sendNotification({ method: 'notifications/cancelled', params: { requestId: id } })
+		).catch(error => {
+			if (error instanceof JsonRpcError) {
+				throw new MpcResponseError(error.message, error.code, error.data);
 			}
-			cancelListener.dispose();
+			throw error;
 		});
-
-		// Send the request
-		this.send(jsonRpcRequest);
-		const ret = promise.p.finally(() => {
-			cancelListener.dispose();
-			this._pendingRequests.delete(id);
-		});
-
-		return ret as Promise<R>;
 	}
 
 	private send(mcp: MCP.JSONRPCMessage) {
@@ -297,68 +283,25 @@ export class McpServerRequestHandler extends Disposable {
 	}
 
 	/**
-	 * Handle incoming messages from the server
-	 */
-	private handleMessage(message: MCP.JSONRPCMessage): void {
-		if (canLog(this.logger.getLevel(), this._requestLogLevel)) { // avoid building the string if we don't need to
-			log(this.logger, this._requestLogLevel, `[server -> editor] ${JSON.stringify(message)}`);
-		}
-
-		// Handle responses to our requests
-		if ('id' in message) {
-			if ('result' in message) {
-				this.handleResult(message);
-			} else if ('error' in message) {
-				this.handleError(message);
-			}
-		}
-
-		// Handle requests from the server
-		if ('method' in message) {
-			if ('id' in message) {
-				this.handleServerRequest(message as MCP.JSONRPCRequest & MCP.ServerRequest);
-			} else {
-				this.handleServerNotification(message as MCP.JSONRPCNotification & MCP.ServerNotification);
-			}
-		}
-	}
-
-	/**
-	 * Handle successful responses
-	 */
-	private handleResult(response: MCP.JSONRPCResultResponse): void {
-		if (response.id !== undefined) {
-			const request = this._pendingRequests.get(response.id);
-			if (request) {
-				this._pendingRequests.delete(response.id);
-				request.promise.complete(response.result);
-			}
-		}
-	}
-
-	/**
-	 * Handle error responses
-	 */
-	private handleError(response: MCP.JSONRPCErrorResponse): void {
-		if (response.id !== undefined) {
-			const request = this._pendingRequests.get(response.id);
-			if (request) {
-				this._pendingRequests.delete(response.id);
-				request.promise.error(new MpcResponseError(response.error.message, response.error.code, response.error.data));
-			}
-		}
-	}
-
-	/**
 	 * Handle incoming server requests
 	 */
-	private async handleServerRequest(request: MCP.JSONRPCRequest & MCP.ServerRequest): Promise<void> {
+	private handleServerRequest(request: MCP.JSONRPCRequest & MCP.ServerRequest, token: CancellationToken): MCP.Result | Promise<MCP.Result> {
+		const mapError = (error: unknown): JsonRpcError => {
+			if (error instanceof McpError) {
+				return new JsonRpcError(error.code, error.message, error.data);
+			}
+
+			this.logger.error(`Error handling request ${request.method}:`, error);
+			const mcpError = McpError.unknown(error instanceof Error ? error : new Error(String(error)));
+			return new JsonRpcError(mcpError.code, mcpError.message, mcpError.data);
+		};
+
 		try {
-			let response: MCP.Result | undefined;
+			let result: MCP.Result | Promise<MCP.Result>;
 			if (request.method === 'ping') {
-				response = this.handlePing(request);
+				result = this.handlePing(request);
 			} else if (request.method === 'roots/list') {
-				response = this.handleRootsList(request);
+				result = this.handleRootsList(request);
 			} else if (request.method === 'sampling/createMessage' && this._createMessageRequestHandler) {
 				// Check if this is a task-augmented request
 				if (request.params.task) {
@@ -368,9 +311,9 @@ export class McpServerRequestHandler extends Disposable {
 					);
 					taskResult._meta ??= {};
 					taskResult._meta['io.modelcontextprotocol/related-task'] = { taskId: taskResult.task.taskId };
-					response = taskResult;
+					result = taskResult;
 				} else {
-					response = await this._createMessageRequestHandler(request.params);
+					result = this._createMessageRequestHandler(request.params, token);
 				}
 			} else if (request.method === 'elicitation/create' && this._elicitationRequestHandler) {
 				// Check if this is a task-augmented request
@@ -381,101 +324,81 @@ export class McpServerRequestHandler extends Disposable {
 					);
 					taskResult._meta ??= {};
 					taskResult._meta['io.modelcontextprotocol/related-task'] = { taskId: taskResult.task.taskId };
-					response = taskResult;
+					result = taskResult;
 				} else {
-					response = await this._elicitationRequestHandler(request.params);
+					result = this._elicitationRequestHandler(request.params, token);
 				}
 			} else if (request.method === 'tasks/get') {
-				response = this._taskManager.getTask(request.params.taskId);
+				result = this._taskManager.getTask(request.params.taskId);
 			} else if (request.method === 'tasks/result') {
-				response = await this._taskManager.getTaskResult(request.params.taskId);
+				result = this._taskManager.getTaskResult(request.params.taskId);
 			} else if (request.method === 'tasks/cancel') {
-				response = this._taskManager.cancelTask(request.params.taskId);
+				result = this._taskManager.cancelTask(request.params.taskId);
 			} else if (request.method === 'tasks/list') {
-				response = this._taskManager.listTasks();
+				result = this._taskManager.listTasks();
 			} else {
 				throw McpError.methodNotFound(request.method);
 			}
-			this.respondToRequest(request, response);
-		} catch (e) {
-			if (!(e instanceof McpError)) {
-				this.logger.error(`Error handling request ${request.method}:`, e);
-				e = McpError.unknown(e);
+
+			if (isThenable(result)) {
+				return result.then(undefined, (error: unknown) => {
+					throw mapError(error);
+				});
 			}
 
-			const errorResponse: MCP.JSONRPCErrorResponse = {
-				jsonrpc: MCP.JSONRPC_VERSION,
-				id: request.id,
-				error: {
-					code: e.code,
-					message: e.message,
-					data: e.data,
-				}
-			};
-
-			this.send(errorResponse);
+			return result;
+		} catch (e) {
+			throw mapError(e);
 		}
 	}
 	/**
 	 * Handle incoming server notifications
 	 */
 	private handleServerNotification(request: MCP.JSONRPCNotification & MCP.ServerNotification): void {
-		switch (request.method) {
-			case 'notifications/message':
-				return this.handleLoggingNotification(request);
-			case 'notifications/cancelled':
-				this._onDidReceiveCancelledNotification.fire(request);
-				return this.handleCancelledNotification(request);
-			case 'notifications/progress':
-				this._onDidReceiveProgressNotification.fire(request);
-				return;
-			case 'notifications/resources/list_changed':
-				this._onDidChangeResourceList.fire();
-				return;
-			case 'notifications/resources/updated':
-				this._onDidUpdateResource.fire(request);
-				return;
-			case 'notifications/tools/list_changed':
-				this._onDidChangeToolList.fire();
-				return;
-			case 'notifications/prompts/list_changed':
-				this._onDidChangePromptList.fire();
-				return;
-			case 'notifications/elicitation/complete':
-				this._onDidReceiveElicitationCompleteNotification.fire(request);
-				return;
-			case 'notifications/tasks/status':
-				this._taskManager.getClientTask(request.params.taskId)?.onDidUpdateState(request.params);
-				return;
-			default:
-				softAssertNever(request);
+		try {
+			switch (request.method) {
+				case 'notifications/message':
+					return this.handleLoggingNotification(request);
+				case 'notifications/cancelled':
+					this._onDidReceiveCancelledNotification.fire(request);
+					return this.handleCancelledNotification(request);
+				case 'notifications/progress':
+					this._onDidReceiveProgressNotification.fire(request);
+					return;
+				case 'notifications/resources/list_changed':
+					this._onDidChangeResourceList.fire();
+					return;
+				case 'notifications/resources/updated':
+					this._onDidUpdateResource.fire(request);
+					return;
+				case 'notifications/tools/list_changed':
+					this._onDidChangeToolList.fire();
+					return;
+				case 'notifications/prompts/list_changed':
+					this._onDidChangePromptList.fire();
+					return;
+				case 'notifications/elicitation/complete':
+					this._onDidReceiveElicitationCompleteNotification.fire(request);
+					return;
+				case 'notifications/tasks/status':
+					this._taskManager.getClientTask(request.params.taskId)?.onDidUpdateState(request.params);
+					return;
+				default:
+					softAssertNever(request);
+			}
+		} catch (error) {
+			this.logger.error(`Error handling notification ${request.method}:`, error);
 		}
 	}
 
 	private handleCancelledNotification(request: MCP.CancelledNotification): void {
 		if (request.params.requestId) {
-			const pendingRequest = this._pendingRequests.get(request.params.requestId);
-			if (pendingRequest) {
-				this._pendingRequests.delete(request.params.requestId);
-				pendingRequest.promise.cancel();
-			}
+			this._rpc.cancelPendingRequest(request.params.requestId);
 		}
 	}
 
 	private handleLoggingNotification(request: MCP.LoggingMessageNotification): void {
 		translateMcpLogMessage(this.logger, request.params);
-	}
-
-	/**
-	 * Send a generic response to a request
-	 */
-	private respondToRequest(request: MCP.JSONRPCRequest, result: MCP.Result): void {
-		const response: MCP.JSONRPCResponse = {
-			jsonrpc: MCP.JSONRPC_VERSION,
-			id: request.id,
-			result
-		};
-		this.send(response);
 	}
 
 	/**
@@ -494,8 +417,7 @@ export class McpServerRequestHandler extends Disposable {
 	}
 
 	private cancelAllRequests() {
-		this._pendingRequests.forEach(pending => pending.promise.cancel());
-		this._pendingRequests.clear();
+		this._rpc.cancelAllRequests();
 	}
 
 	public override dispose(): void {
@@ -592,11 +514,11 @@ export class McpServerRequestHandler extends Disposable {
 	/**
 	 * Call a specific tool. Supports tasks automatically if `task` is set on the request.
 	 */
-	async callTool(params: MCP.CallToolRequest['params'] & MCP.Request['params'], token?: CancellationToken): Promise<MCP.CallToolResult> {
+	async callTool(params: MCP.CallToolRequest['params'] & MCP.Request['params'], token?: CancellationToken, onStatusMessage?: (message: string) => void): Promise<MCP.CallToolResult> {
 		const response = await this.sendRequest<MCP.CallToolRequest, MCP.CallToolResult | MCP.CreateTaskResult>({ method: 'tools/call', params }, token);
 
 		if (isTaskResult(response)) {
-			const task = new McpTask<MCP.CallToolResult>(response.task, token);
+			const task = new McpTask<MCP.CallToolResult>(response.task, token, onStatusMessage);
 			this._taskManager.adoptClientTask(task);
 			task.setHandler(this);
 			return task.result.finally(() => {
@@ -681,7 +603,8 @@ export class McpTask<T extends MCP.Result> extends Disposable implements IMcpTas
 
 	constructor(
 		private readonly _task: MCP.Task,
-		_token: CancellationToken = CancellationToken.None
+		_token: CancellationToken = CancellationToken.None,
+		private readonly _onStatusMessage?: (message: string) => void,
 	) {
 		super();
 
@@ -813,6 +736,9 @@ export class McpTask<T extends MCP.Result> extends Disposable implements IMcpTas
 
 	onDidUpdateState(task: MCP.Task) {
 		this._lastTaskState.set(task, undefined);
+		if (task.statusMessage && this._onStatusMessage) {
+			this._onStatusMessage(task.statusMessage);
+		}
 	}
 
 	setHandler(handler: McpServerRequestHandler | undefined): void {

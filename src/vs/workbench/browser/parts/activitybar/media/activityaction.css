@@ -170,7 +170,7 @@
 }
 
 .monaco-workbench .activitybar.compact > .content :not(.monaco-menu) > .monaco-action-bar .badge .badge-content {
-	top: 17px;
+	top: 13px;
 	right: 6px;
 	min-width: 9px;
 	height: 13px;
@@ -197,7 +197,7 @@
 .monaco-workbench .activitybar.compact > .content :not(.monaco-menu) > .monaco-action-bar .profile-badge .profile-text-overlay {
 	font-size: 8px;
 	line-height: 8px;
-	top: 14px;
+	top: 10px;
 	right: 2px;
 	padding: 2px 2px;
 	border-radius: 6px;

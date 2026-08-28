@@ -94,8 +94,8 @@ import { fromNow } from '../../../../base/common/date.js';
 
 class NavBar extends Disposable {
 
-	private _onChange = this._register(new Emitter<{ id: string | null; focus: boolean }>());
-	get onChange(): Event<{ id: string | null; focus: boolean }> { return this._onChange.event; }
+	private readonly _onChange = this._register(new Emitter<{ id: string | null; focus: boolean }>());
+	readonly onChange = this._onChange.event;
 
 	private _currentId: string | null = null;
 	get currentId(): string | null { return this._currentId; }
@@ -141,6 +141,11 @@ class NavBar extends Disposable {
 		this._currentId = id;
 		this._onChange.fire({ id, focus: !!focus });
 		this.actions.forEach(a => a.checked = a.id === id);
+	}
+
+	override dispose(): void {
+		this.clear();
+		super.dispose();
 	}
 }
 
@@ -708,7 +713,7 @@ export class ExtensionEditor extends EditorPane {
 
 			webview.claim(this, this.window, this.scopedContextKeyService);
 			setParentFlowTo(webview.container, container);
-			webview.layoutWebviewOverElement(container);
+			webview.setAnchorElement(container);
 
 			webview.setHtml(body);
 			webview.claim(this, this.window, undefined);
@@ -716,13 +721,6 @@ export class ExtensionEditor extends EditorPane {
 			this.contentDisposables.add(webview.onDidFocus(() => this._onDidFocus?.fire()));
 
 			this.contentDisposables.add(webview.onDidScroll(() => this.initialScrollProgress.set(webviewIndex, webview.initialScrollProgress)));
-
-			const removeLayoutParticipant = arrays.insert(this.layoutParticipants, {
-				layout: () => {
-					webview.layoutWebviewOverElement(container);
-				}
-			});
-			this.contentDisposables.add(toDisposable(removeLayoutParticipant));
 
 			let isDisposed = false;
 			this.contentDisposables.add(toDisposable(() => { isDisposed = true; }));
@@ -980,7 +978,7 @@ export class ExtensionEditor extends EditorPane {
 		this.contentDisposables.add(toDisposable(removeLayoutParticipant));
 
 		this.contentDisposables.add(dependenciesTree);
-		scrollableContent.scanDomNode();
+		depLayout();
 
 		return Promise.resolve({ focus() { dependenciesTree.domFocus(); } });
 	}

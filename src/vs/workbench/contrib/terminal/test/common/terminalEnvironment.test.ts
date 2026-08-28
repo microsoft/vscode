@@ -7,9 +7,11 @@ import { deepStrictEqual, strictEqual } from 'assert';
 import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { isWindows, OperatingSystem } from '../../../../../base/common/platform.js';
 import { URI as Uri } from '../../../../../base/common/uri.js';
-import { addTerminalEnvironmentKeys, createTerminalEnvironment, getUriLabelForShell, getCwd, getLangEnvVariable, mergeEnvironments, preparePathForShell, shouldSetLangEnvVariable } from '../../common/terminalEnvironment.js';
+import { addTerminalEnvironmentKeys, createTerminalEnvironment, getUriLabelForShell, getCwd, getLangEnvVariable, getWorkspaceForTerminal, mergeEnvironments, preparePathForShell, shouldSetLangEnvVariable } from '../../common/terminalEnvironment.js';
 import { GeneralShellType, PosixShellType, WindowsShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { TestContextService, TestHistoryService } from '../../../../test/common/workbenchTestServices.js';
+import { testWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 const wslPathBackend = {
 	getWslPath: async (original: string, direction: 'unix-to-win' | 'win-to-unix') => {
@@ -320,6 +322,38 @@ suite('Workbench - TerminalEnvironment', () => {
 			);
 		});
 	});
+	suite('getWorkspaceForTerminal', () => {
+		test('should resolve workspace folder from cwd, not last active workspace', () => {
+			const folderA = Uri.file('/workspace/proj1');
+			const folderB = Uri.file('/workspace/proj2');
+			const contextService = new TestContextService(testWorkspace(folderA, folderB));
+			const historyService = new TestHistoryService(folderA);
+			const result = getWorkspaceForTerminal(folderB, contextService, historyService);
+			strictEqual(result?.uri.fsPath, folderB.fsPath);
+		});
+
+		test('should fall back to last active workspace when cwd is not in any workspace folder', () => {
+			const folderA = Uri.file('/workspace/proj1');
+			const contextService = new TestContextService(testWorkspace(folderA));
+			const historyService = new TestHistoryService(folderA);
+			const result = getWorkspaceForTerminal(Uri.file('/other/path'), contextService, historyService);
+			strictEqual(result?.uri.fsPath, folderA.fsPath);
+		});
+
+		test('should fall back to last active workspace when cwd is undefined', () => {
+			const folderA = Uri.file('/workspace/proj1');
+			const contextService = new TestContextService(testWorkspace(folderA));
+			const historyService = new TestHistoryService(folderA);
+			strictEqual(getWorkspaceForTerminal(undefined, contextService, historyService)?.uri.fsPath, folderA.fsPath);
+		});
+
+		test('should return undefined when cwd and history are both unavailable', () => {
+			const contextService = new TestContextService(testWorkspace(Uri.file('/workspace/proj1')));
+			const historyService = new TestHistoryService(undefined);
+			strictEqual(getWorkspaceForTerminal(undefined, contextService, historyService), undefined);
+		});
+	});
+
 	suite('formatUriForShellDisplay', () => {
 		test('Wsl', async () => {
 			strictEqual(await getUriLabelForShell('c:\\foo\\bar', wslPathBackend, WindowsShellType.Wsl, OperatingSystem.Windows, true), '/mnt/c/foo/bar');

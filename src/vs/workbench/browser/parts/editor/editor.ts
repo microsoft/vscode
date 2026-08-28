@@ -5,6 +5,7 @@
 
 import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, SideBySideEditor, EditorCloseContext, IEditorPane, IEditorPartLimitOptions, IEditorPartDecorationOptions, IEditorWillOpenEvent, EditorInputWithOptions } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IEditorGroup, GroupDirection, IMergeGroupOptions, GroupsOrder, GroupsArrangement, IAuxiliaryEditorPart, IEditorPart, IModalEditorPart, GroupActivationReason } from '../../../services/editor/common/editorGroupsService.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { Dimension } from '../../../../base/browser/dom.js';
@@ -32,6 +33,7 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	showTabs: 'multiple',
 	highlightModifiedTabs: false,
 	tabActionLocation: 'right',
+	tabActionReserveSpace: true,
 	tabActionCloseVisibility: true,
 	tabActionUnpinVisibility: true,
 	showTabIndex: false,
@@ -55,6 +57,7 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	labelFormat: 'default',
 	splitSizing: 'auto',
 	splitOnDragAndDrop: true,
+	allowDropIntoGroup: true,
 	dragToOpenWindow: true,
 	centeredLayoutFixedWidth: false,
 	doubleClickTabToToggleEditorGroupSizes: 'expand',
@@ -125,6 +128,7 @@ function validateEditorPartOptions(options: IEditorPartOptions): IEditorPartOpti
 		'wrapTabs': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['wrapTabs']),
 		'scrollToSwitchTabs': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['scrollToSwitchTabs']),
 		'highlightModifiedTabs': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['highlightModifiedTabs']),
+		'tabActionReserveSpace': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['tabActionReserveSpace']),
 		'tabActionCloseVisibility': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['tabActionCloseVisibility']),
 		'tabActionUnpinVisibility': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['tabActionUnpinVisibility']),
 		'showTabIndex': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['showTabIndex']),
@@ -142,6 +146,7 @@ function validateEditorPartOptions(options: IEditorPartOptions): IEditorPartOpti
 		'mouseBackForwardToNavigate': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['mouseBackForwardToNavigate']),
 		'restoreViewState': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['restoreViewState']),
 		'splitOnDragAndDrop': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['splitOnDragAndDrop']),
+		'allowDropIntoGroup': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['allowDropIntoGroup']),
 		'dragToOpenWindow': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['dragToOpenWindow']),
 		'centeredLayoutFixedWidth': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['centeredLayoutFixedWidth']),
 		'hasIcons': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['hasIcons']),
@@ -257,6 +262,30 @@ export interface IEditorGroupViewOptions {
 	 * after creation or not.
 	 */
 	readonly preserveFocus?: boolean;
+
+	/**
+	 * Optional menu ids used by the group header and tab bar. When unset the
+	 * workbench uses the shared defaults and renders no custom header actions.
+	 */
+	readonly menuIds?: IEditorGroupMenuIds;
+
+	/** Shows the full-width group header with its configured actions and breadcrumbs. */
+	readonly showHeader?: boolean;
+}
+
+export interface IEditorGroupMenuIds {
+	/** Menu whose actions render as the leading (left) header toolbar. */
+	readonly headerPrimary?: MenuId;
+	/** Menu whose actions render as the trailing (right) header toolbar. */
+	readonly headerSecondary?: MenuId;
+	/** Menu whose actions render after the trailing header toolbar. */
+	readonly headerLayout?: MenuId;
+	/** Menu whose actions render in the editor-actions toolbar on the tab bar. */
+	readonly editorActions?: MenuId;
+	/** Menu shown when right-clicking the empty tab-bar area. */
+	readonly tabsBarContext?: MenuId;
+	/** Menu whose actions populate the add-tab (`+`) control in the tab bar. */
+	readonly tabsBarAddTab?: MenuId;
 }
 
 /**
@@ -418,6 +447,12 @@ export interface IInternalEditorCloseOptions extends IInternalEditorTitleControl
 	 * Additional context as to why an editor is closed.
 	 */
 	readonly context?: EditorCloseContext;
+
+	/**
+	 * Forces the editor to close even if it declares
+	 * `EditorInputCapabilities.CannotClose`.
+	 */
+	readonly force?: boolean;
 }
 
 export interface IInternalMoveCopyOptions extends IInternalEditorOpenOptions {

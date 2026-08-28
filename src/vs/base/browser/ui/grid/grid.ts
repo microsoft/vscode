@@ -9,10 +9,9 @@ import { Event } from '../../../common/event.js';
 import { Disposable } from '../../../common/lifecycle.js';
 import './gridview.css';
 import { Box, GridView, IGridViewOptions, IGridViewStyles, IView as IGridViewView, IViewSize, orthogonal, Sizing as GridViewSizing, GridLocation } from './gridview.js';
-import type { SplitView, AutoSizing as SplitViewAutoSizing, IViewVisibilityAnimationOptions } from '../splitview/splitview.js';
+import type { SplitView, AutoSizing as SplitViewAutoSizing } from '../splitview/splitview.js';
 
 export type { IViewSize };
-export type { IViewVisibilityAnimationOptions } from '../splitview/splitview.js';
 export { LayoutPriority, Orientation, orthogonal } from './gridview.js';
 
 export const enum Direction {
@@ -630,8 +629,7 @@ export class Grid<T extends IView = IView> extends Disposable {
 	}
 
 	/**
-	 * Distribute the size among all {@link IView views} within the entire
-	 * grid or within a single {@link SplitView}.
+	 * Distribute the size among all {@link IView views} within the entire grid.
 	 */
 	distributeViewSizes(): void {
 		this.gridview.distributeViewSizes();
@@ -651,12 +649,15 @@ export class Grid<T extends IView = IView> extends Disposable {
 	 * Set the visibility state of a {@link IView view}.
 	 *
 	 * @param view The {@link IView view}.
-	 * @param visible Whether the view should be visible.
-	 * @param animation Optional animation options.
+	 * @param sizing Whether to redistribute the containing {@link SplitView} after revealing the view.
 	 */
-	setViewVisible(view: T, visible: boolean, animation?: IViewVisibilityAnimationOptions): void {
+	setViewVisible(view: T, visible: boolean, sizing?: DistributeSizing): void {
 		const location = this.getViewLocation(view);
-		this.gridview.setViewVisible(location, visible, animation);
+		this.gridview.setViewVisible(location, visible);
+		if (visible && sizing?.type === 'distribute') {
+			const parentLocation = location.length > 0 ? tail(location)[0] : undefined;
+			this.gridview.distributeViewSizes(parentLocation);
+		}
 	}
 
 	/**

@@ -5,6 +5,7 @@
 
 import fs from 'fs';
 import os from 'os';
+import { spawnSync } from 'child_process';
 import { webkit } from 'playwright';
 
 /**
@@ -152,6 +153,15 @@ function detectWSL(capabilities: Set<Capability>) {
 	if (os.platform() === 'win32') {
 		const wslPath = `${process.env.SystemRoot}\\System32\\wsl.exe`;
 		if (fs.existsSync(wslPath)) {
+			// wsl.exe can exist even when WSL isn't installed; ensure the command is usable.
+			const result = spawnSync(wslPath, ['--list', '--quiet'], { encoding: 'utf8', windowsHide: true, timeout: 5000 });
+			if (result.status !== 0 || result.error) {
+				return;
+			}
+			if (result.stdout.trim().length === 0) {
+				return;
+			}
+
 			capabilities.add('wsl');
 		}
 	}

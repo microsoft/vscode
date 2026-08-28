@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Terminal } from '@xterm/xterm';
+import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
@@ -33,7 +34,6 @@ import { BufferContentTracker } from './bufferContentTracker.js';
 import { TerminalAccessibilityHelpProvider } from './terminalAccessibilityHelp.js';
 import { ICommandWithEditorLine, TerminalAccessibleBufferProvider } from './terminalAccessibleBufferProvider.js';
 import { TextAreaSyncAddon } from './textAreaSyncAddon.js';
-import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 
 // #region Terminal Contributions
 
@@ -117,7 +117,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 				return;
 			}
 			if (this._isTerminalAccessibleViewOpen() && this._xterm!.raw.buffer.active.baseY === 0) {
-				this.show();
+				this._bufferProvider?.refresh();
 			}
 		}));
 
@@ -127,7 +127,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 				return;
 			}
 			if (this._isTerminalAccessibleViewOpen()) {
-				this.show();
+				this._bufferProvider?.refresh();
 			}
 		}));
 	}
@@ -167,8 +167,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 				return this._register(this._instantiationService.createInstance(TerminalAccessibilityHelpProvider, this._ctx.instance, this._xterm!)).provideContent();
 			}));
 		}
-		const position = this._configurationService.getValue(TerminalAccessibilitySettingId.AccessibleViewPreserveCursorPosition) ? this._accessibleViewService.getPosition(AccessibleViewProviderId.Terminal) : undefined;
-		this._accessibleViewService.show(this._bufferProvider, position);
+		this._accessibleViewService.show(this._bufferProvider);
 	}
 	navigateToCommand(type: NavigationType): void {
 		const currentLine = this._accessibleViewService.getPosition(AccessibleViewProviderId.Terminal)?.lineNumber;
@@ -185,7 +184,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		const commandLine = command.command.command;
 		if (!isWindows && commandLine) {
 			this._accessibleViewService.setPosition(new Position(command.lineNumber, 1), true);
-			alert(commandLine);
+			status(commandLine);
 		} else {
 			this._accessibleViewService.setPosition(new Position(command.lineNumber, 1), true, true);
 		}

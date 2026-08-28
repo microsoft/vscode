@@ -5,7 +5,7 @@
 
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
-import { IMeteredConnectionService, METERED_CONNECTION_SETTING_KEY } from '../../../../platform/meteredConnection/common/meteredConnection.js';
+import { IMeteredConnectionService } from '../../../../platform/meteredConnection/common/meteredConnection.js';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 
@@ -47,12 +47,12 @@ export class MeteredConnectionStatusContribution extends Disposable implements I
 		return {
 			name: localize('status.meteredConnection', "Metered Connection"),
 			text: '$(radio-tower)',
-			ariaLabel: localize('status.meteredConnection.ariaLabel', "Metered Connection Detected"),
-			tooltip: localize('status.meteredConnection.tooltip', "Metered connection detected. Some automatic features like extension updates, Settings Sync, and automatic Git operations are paused to reduce data usage."),
+			ariaLabel: localize('status.meteredConnection.ariaLabel', "Metered Connection Enabled"),
+			tooltip: localize('status.meteredConnection.tooltip', "Metered connection enabled. Some background network activity, including updates, Settings Sync, inline completions, telemetry, and automatic Git operations, is paused to reduce data usage."),
+			kind: 'warning',
 			command: {
-				id: 'workbench.action.openSettings',
-				title: localize('status.meteredConnection.configure', "Configure"),
-				arguments: [`@id:${METERED_CONNECTION_SETTING_KEY}`]
+				id: 'workbench.action.configureMeteredConnection',
+				title: localize('status.meteredConnection.configure', "Configure")
 			},
 			showInAllWindows: true
 		};

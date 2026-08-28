@@ -10,6 +10,7 @@ import { StorageScope, InMemoryStorageService, StorageTarget } from '../../../..
 import { timeout } from '../../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { hasKey } from '../../../../../base/common/types.js';
+import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
 
 suite('Telemetry - common properties', function () {
 	let testStorageService: InMemoryStorageService;
@@ -25,7 +26,7 @@ suite('Telemetry - common properties', function () {
 	});
 
 	test('default', function () {
-		const props = resolveWorkbenchCommonProperties(testStorageService, undefined!, release(), hostname(), 'someMachineId', 'someSqmId', 'somedevDeviceId', false, process);
+		const props = resolveWorkbenchCommonProperties(testStorageService, undefined!, { isSessionsWindow: false } as IWorkbenchEnvironmentService, release(), hostname(), 'someMachineId', 'someSqmId', 'somedevDeviceId', false, process);
 		assert.ok(hasKey(props, {
 			commitHash: true,
 			sessionID: true,
@@ -51,14 +52,14 @@ suite('Telemetry - common properties', function () {
 
 		testStorageService.store('telemetry.lastSessionDate', new Date().toUTCString(), StorageScope.APPLICATION, StorageTarget.MACHINE);
 
-		const props = resolveWorkbenchCommonProperties(testStorageService, undefined!, release(), hostname(), 'someMachineId', 'someSqmId', 'somedevDeviceId', false, process);
+		const props = resolveWorkbenchCommonProperties(testStorageService, undefined!, { isSessionsWindow: false } as IWorkbenchEnvironmentService, release(), hostname(), 'someMachineId', 'someSqmId', 'somedevDeviceId', false, process);
 		assert.ok(props['common.lastSessionDate']); // conditional, see below
 		assert.ok(props['common.isNewSession']);
 		assert.strictEqual(props['common.isNewSession'], '0');
 	});
 
 	test('values chance on ask', async function () {
-		const props = resolveWorkbenchCommonProperties(testStorageService, undefined!, release(), hostname(), 'someMachineId', 'someSqmId', 'somedevDeviceId', false, process);
+		const props = resolveWorkbenchCommonProperties(testStorageService, undefined!, { isSessionsWindow: false } as IWorkbenchEnvironmentService, release(), hostname(), 'someMachineId', 'someSqmId', 'somedevDeviceId', false, process);
 		let value1 = props['common.sequence'];
 		let value2 = props['common.sequence'];
 		assert.ok(value1 !== value2, 'seq');

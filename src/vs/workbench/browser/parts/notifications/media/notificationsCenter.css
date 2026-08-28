@@ -5,16 +5,28 @@
 
 .monaco-workbench > .notifications-center {
 	position: absolute;
-	z-index: 1000;
+	z-index: 2545; /* above modal editor backdrop (2540), below quick input (2550) and dialogs (2575) */
 	right: 7px; /* attempt to position at same location as a toast */
 	bottom: 29px; /* 22px status bar height + 7px (attempt to position at same location as a toast) */
 	display: none;
 	overflow: hidden;
-	border-radius: 4px;
+	border: 1px solid var(--vscode-editorWidget-border);
+	border-radius: var(--vscode-cornerRadius-small);
+	box-shadow: var(--vscode-shadow-lg);
 }
 
 .monaco-workbench.nostatusbar > .notifications-center {
 	bottom: 11px; /* attempt to position at same location as a toast */
+}
+
+.monaco-workbench > .notifications-center.bottom-left {
+	right: auto;
+	left: 7px;
+}
+
+.monaco-workbench > .notifications-center.top-right {
+	bottom: auto;
+	top: 7px;
 }
 
 .monaco-workbench > .notifications-center.visible {
@@ -49,7 +61,7 @@
 }
 
 .monaco-workbench > .notifications-center .notifications-list-container .monaco-list-row:last-child {
-	border-radius: 0px 0px 4px 4px; /* adopt the border radius at the end of the notifications center */
+	border-radius: 0px 0px var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small); /* adopt the border radius at the end of the notifications center */
 }
 
 /* Icons */

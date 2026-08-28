@@ -143,11 +143,8 @@ const logger = createLogger();
 const loggerWarn = logger.warn;
 
 logger.warn = (msg, options) => {
-	// amdX and the baseUrl code cannot be analyzed by vite.
-	// However, they are not needed, so it is okay to silence the warning.
-	if (msg.indexOf('vs/amdX.ts') !== -1) {
-		return;
-	}
+	// the baseUrl code cannot be analyzed by vite.
+	// However, it is not needed, so it is okay to silence the warning.
 	if (msg.indexOf('await import(new URL(`vs/workbench/workbench.desktop.main.js`, baseUrl).href)') !== -1) {
 		return;
 	}
@@ -164,19 +161,21 @@ logger.warn = (msg, options) => {
 };
 
 export default defineConfig({
+	base: './',
 	plugins: [
 		rollupEsmUrlPlugin({}),
 		injectBuiltinExtensionsPlugin(),
 		createHotClassSupport(),
 		componentExplorer({
 			logLevel: 'verbose',
-			include: 'build/vite/**/*.fixture.ts',
+			include: join(__dirname, '../../src/**/*.fixture.ts'),
+			build: 'all',
 		}),
 	],
 	customLogger: logger,
 	resolve: {
 		alias: {
-			'~@vscode/codicons': '/node_modules/@vscode/codicons',
+			'~@vscode/codicons': join(__dirname, '../../node_modules/@vscode/codicons'),
 		}
 	},
 	esbuild: {
@@ -188,6 +187,7 @@ export default defineConfig({
 	},
 	root: '../..', // To support /out/... paths
 	build: {
+		outDir: join(__dirname, 'dist'),
 		rollupOptions: {
 			input: {
 				//index: path.resolve(__dirname, 'index.html'),
@@ -198,7 +198,6 @@ export default defineConfig({
 	server: {
 		cors: true,
 		port: 5199,
-		origin: 'http://localhost:5199',
 		fs: {
 			allow: [
 				// To allow loading from sources, not needed when loading monaco-editor from npm package

@@ -13,9 +13,7 @@ import { IAccessibilityService } from '../../../../../../../platform/accessibili
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
-import { IEditorMouseEvent } from '../../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
-import { Point } from '../../../../../../common/core/2d/point.js';
 import { Rect } from '../../../../../../common/core/2d/rect.js';
 import { HoverService } from '../../../../../../../platform/hover/browser/hoverService.js';
 import { HoverWidget } from '../../../../../../../platform/hover/browser/hoverWidget.js';
@@ -36,6 +34,7 @@ import { InlineSuggestAlternativeAction } from '../../../model/InlineSuggestAlte
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { IUserInteractionService } from '../../../../../../../platform/userInteraction/browser/userInteractionService.js';
+import { Event, Emitter } from '../../../../../../../base/common/event.js';
 
 /**
  * Customization options for the gutter indicator appearance and behavior.
@@ -58,10 +57,11 @@ export class InlineEditsGutterIndicatorData {
 export class InlineSuggestionGutterMenuData {
 	public static fromInlineSuggestion(suggestion: InlineSuggestionItem): InlineSuggestionGutterMenuData {
 		const alternativeAction = suggestion.action?.kind === 'edit' ? suggestion.action.alternativeAction : undefined;
+		const commands = suggestion.source.inlineSuggestions.commands ?? [];
 		return new InlineSuggestionGutterMenuData(
 			suggestion.gutterMenuLinkAction,
 			suggestion.source.provider.displayName ?? localize('inlineSuggestion', "Inline Suggestion"),
-			suggestion.source.inlineSuggestions.commands ?? [],
+			commands.length > 0 ? [commands] : [],
 			alternativeAction,
 			suggestion.source.provider.modelInfo,
 			suggestion.source.provider.setModelId?.bind(suggestion.source.provider),
@@ -71,10 +71,11 @@ export class InlineSuggestionGutterMenuData {
 	constructor(
 		readonly action: Command | undefined,
 		readonly displayName: string,
-		readonly extensionCommands: InlineCompletionCommand[],
+		readonly extensionCommands: InlineCompletionCommand[][],
 		readonly alternativeAction: InlineSuggestAlternativeAction | undefined,
 		readonly modelInfo: IInlineCompletionModelInfo | undefined,
 		readonly setModelId: ((modelId: string) => Promise<void>) | undefined,
+		readonly extensionCommandsOnly: boolean = false,
 	) { }
 }
 
@@ -97,6 +98,10 @@ const CODICON_SIZE_PX = 16;
 const CODICON_PADDING_PX = 2;
 
 export class InlineEditsGutterIndicator extends Disposable {
+
+	private readonly _onDidCloseWithCommand = this._register(new Emitter<string>());
+	readonly onDidCloseWithCommand: Event<string> = this._onDidCloseWithCommand.event;
+
 	constructor(
 		private readonly _editorObs: ObservableCodeEditor,
 		private readonly _data: IObservable<InlineEditsGutterIndicatorData | undefined>,
@@ -120,6 +125,8 @@ export class InlineEditsGutterIndicator extends Disposable {
 			? observableFromEvent(this._stickyScrollController.onDidChangeStickyScrollHeight, () => this._stickyScrollController!.stickyScrollWidgetHeight)
 			: constObservable(0);
 
+		this._isHoveredOverInlineEditDebounced = debouncedObservable(this._isHoveringOverInlineEdit, 100);
+
 		const indicator = this._indicator.keepUpdated(this._store);
 
 		this._register(this._editorObs.createOverlayWidget({
@@ -129,22 +136,9 @@ export class InlineEditsGutterIndicator extends Disposable {
 			minContentWidthInPx: constObservable(0),
 		}));
 
-		this._register(this._editorObs.editor.onMouseMove((e: IEditorMouseEvent) => {
-			const state = this._state.get();
-			if (state === undefined) { return; }
-
-			const el = this._iconRef.element;
-			const rect = el.getBoundingClientRect();
-			const rectangularArea = Rect.fromLeftTopWidthHeight(rect.left, rect.top, rect.width, rect.height);
-			const point = new Point(e.event.posx, e.event.posy);
-			this._isHoveredOverIcon.set(rectangularArea.containsPoint(point), undefined);
-		}));
-
 		this._register(this._editorObs.editor.onDidScrollChange(() => {
 			this._isHoveredOverIcon.set(false, undefined);
 		}));
-
-		this._isHoveredOverInlineEditDebounced = debouncedObservable(this._isHoveringOverInlineEdit, 100);
 
 		// pulse animation when hovering inline edit
 		this._register(runOnChange(this._isHoveredOverInlineEditDebounced, (isHovering) => {
@@ -384,7 +378,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 
 			let widthUntilLineNumberEnd;
 			if (layout.lineNumbersWidth === 0) {
-				widthUntilLineNumberEnd = Math.min(Math.max(layout.lineNumbersLeft - gutterViewPortWithStickyScroll.left, 0), pillRect.width - idealIconAreaWidth);
+				widthUntilLineNumberEnd = Math.max(0, Math.min(Math.max(layout.lineNumbersLeft - gutterViewPortWithStickyScroll.left, 0), pillRect.width - idealIconAreaWidth));
 			} else {
 				widthUntilLineNumberEnd = Math.max(layout.lineNumbersLeft + layout.lineNumbersWidth - gutterViewPortWithStickyScroll.left, 0);
 			}
@@ -472,9 +466,12 @@ export class InlineEditsGutterIndicator extends Disposable {
 			GutterIndicatorMenuContent,
 			this._editorObs,
 			data.gutterMenuData,
-			(focusEditor) => {
+			(focusEditor, commandId) => {
 				if (focusEditor) {
 					this._editorObs.editor.focus();
+				}
+				if (commandId) {
+					this._onDidCloseWithCommand.fire(commandId);
 				}
 				h?.dispose();
 			},
@@ -538,9 +535,11 @@ export class InlineEditsGutterIndicator extends Disposable {
 			},
 
 			onmouseenter: () => {
+				this._isHoveredOverIcon.set(true, undefined);
 				// TODO show hover when hovering ghost text etc.
 				this._showHover();
 			},
+			onmouseleave: () => this._isHoveredOverIcon.set(false, undefined),
 			style: {
 				cursor: 'pointer',
 				zIndex: '20',
@@ -584,6 +583,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 					width: layout.map(l => l.iconRect.width),
 					position: 'relative',
 					right: layout.map(l => l.iconDirection === 'top' ? '1px' : '0'),
+					color: this._data.map(d => d?.customization?.icon?.color ? asCssVariable(d.customization.icon.color.id) : undefined),
 				}
 			}, [
 				layout.map((l, reader) => withStyles(renderIcon(l.icon.read(reader)), { fontSize: toPx(Math.min(l.iconRect.width - CODICON_PADDING_PX, CODICON_SIZE_PX)) })),

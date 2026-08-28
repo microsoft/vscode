@@ -326,6 +326,53 @@ suite('multi-root workspace', () => {
 		});
 	});
 
+	test('stripPathSegments strips leading path segments', () => {
+		labelService.registerFormatter({
+			scheme: 'vscode-agent-host',
+			formatting: {
+				label: '${path}',
+				separator: '/',
+				stripPathSegments: 2
+			}
+		});
+
+		const uri = URI.from({ scheme: 'vscode-agent-host', authority: 'my-server', path: '/file//home/user/project/file.ts' });
+		const generated = labelService.getUriLabel(uri, { relative: false });
+		assert.strictEqual(generated, '/home/user/project/file.ts');
+	});
+
+	test('stripPathSegments combined with stripPathStartingSeparator', () => {
+		labelService.registerFormatter({
+			scheme: 'vscode-agent-host',
+			formatting: {
+				label: '${path}',
+				separator: '/',
+				stripPathSegments: 2,
+				stripPathStartingSeparator: true
+			}
+		});
+
+		const uri = URI.from({ scheme: 'vscode-agent-host', authority: 'my-server', path: '/file//home/user/file.ts' });
+		const generated = labelService.getUriLabel(uri, { relative: false });
+		assert.strictEqual(generated, 'home/user/file.ts');
+	});
+
+	test('stripPathSegments with fewer segments than requested', () => {
+		labelService.registerFormatter({
+			scheme: 'test-strip',
+			formatting: {
+				label: '${path}',
+				separator: '/',
+				stripPathSegments: 5
+			}
+		});
+
+		const uri = URI.from({ scheme: 'test-strip', path: '/a/b' });
+		const generated = labelService.getUriLabel(uri, { relative: false });
+		// Should strip as many as possible without crashing
+		assert.strictEqual(generated, '/b');
+	});
+
 	test('relative label without formatter', () => {
 		const rootFolder = URI.parse('myscheme://myauthority/');
 

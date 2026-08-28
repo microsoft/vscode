@@ -12,6 +12,7 @@ import { INativeEnvironmentService } from '../../../../platform/environment/comm
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { StorageClient } from '../../../../platform/storage/common/storageIpc.js';
 import { EXTENSION_DEVELOPMENT_EMPTY_WINDOW_WORKSPACE } from '../../../../platform/workspace/common/workspace.js';
+import { getWorkspaceIdentifier } from '../../../../platform/workspaces/common/workspaceIdentifier.js';
 import { NON_EMPTY_WORKSPACE_ID_LENGTH } from '../../../../platform/workspaces/node/workspaces.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
@@ -33,7 +34,10 @@ export class UnusedWorkspaceStorageDataCleaner extends Disposable {
 		scheduler.schedule();
 	}
 
-	private async cleanUpStorage(): Promise<void> {
+	/**
+	 * Public for testing.
+	 */
+	async cleanUpStorage(): Promise<void> {
 		this.logService.trace('[storage cleanup]: Starting to clean up workspace storage folders for unused empty workspaces.');
 
 		try {
@@ -50,6 +54,10 @@ export class UnusedWorkspaceStorageDataCleaner extends Disposable {
 
 				if (workspaceStorageFolder === EXTENSION_DEVELOPMENT_EMPTY_WINDOW_WORKSPACE.id) {
 					return; // keep workspace storage for empty extension development workspaces
+				}
+
+				if (workspaceStorageFolder === getWorkspaceIdentifier(this.environmentService.agentSessionsWorkspace).id) {
+					return; // keep workspace storage for the agents window (permanent built-in surface)
 				}
 
 				const windows = await this.nativeHostService.getWindows({ includeAuxiliaryWindows: false });

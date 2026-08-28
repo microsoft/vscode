@@ -4,10 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { findHookCommandSelection } from '../../../browser/promptSyntax/hookUtils.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
+import { findHookCommandInYaml, findHookCommandSelection, parseAllHookFiles } from '../../../browser/promptSyntax/hookUtils.js';
 import { ITextEditorSelection } from '../../../../../../platform/editor/common/editor.js';
 import { buildNewHookEntry, HookSourceFormat } from '../../../common/promptSyntax/hookCompatibility.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 
 /**
  * Helper to extract the selected text from content using a selection range.
@@ -29,6 +36,36 @@ function getSelectedText(content: string, selection: ITextEditorSelection): stri
 
 suite('hookUtils', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('restricts initial hook discovery to the preferred storage', async () => {
+		const calls: string[] = [];
+		const promptsService = new class extends mock<IPromptsService>() {
+			override async listPromptFiles() {
+				calls.push('all');
+				return [];
+			}
+			override async listPromptFilesForStorage(_type: PromptsType, storage: PromptsStorage) {
+				calls.push(storage);
+				return [];
+			}
+			override async getCustomAgents() {
+				return [];
+			}
+		}();
+
+		await parseAllHookFiles(
+			promptsService,
+			new class extends mock<IFileService>() { }(),
+			new class extends mock<ILabelService>() { }(),
+			undefined,
+			'/home/test',
+			OperatingSystem.Linux,
+			CancellationToken.None,
+			{ includeAgentHooks: true, preferredStorage: PromptsStorage.user },
+		);
+
+		assert.deepStrictEqual(calls, [PromptsStorage.user]);
+	});
 
 	suite('findHookCommandSelection', () => {
 
@@ -720,6 +757,234 @@ suite('hookUtils', () => {
 					]
 				}
 			});
+		});
+	});
+
+	suite('findHookCommandInYaml', () => {
+
+		test('finds unquoted command value', () => {
+			const content = [
+				'---',
+				'hooks:',
+				'  sessionStart:',
+				'    - command: echo hello',
+				'---',
+			].join('\n');
+			const result = findHookCommandInYaml(content, 'echo hello');
+			assert.ok(result);
+			assert.strictEqual(getSelectedText(content, result), 'echo hello');
+			assert.deepStrictEqual(result, {
+				startLineNumber: 4,
+				startColumn: 16,
+				endLineNumber: 4,
+				endColumn: 26
+			});
+		});
+
+		test('finds double-quoted command value', () => {
+			const content = [
+				'---',
+				'hooks:',
+				'  sessionStart:',
+				'    - command: "echo hello"',
+				'---',
+			].join('\n');
+			const result = findHookCommandInYaml(content, 'echo hello');
+			assert.ok(result);
+			assert.strictEqual(getSelectedText(content, result), 'echo hello');
+		});
+
+		test('finds single-quoted command value', () => {
+			const content = [
+				'---',
+				'hooks:',
+				'  sessionStart:',
+				`    - command: 'echo hello'`,
+				'---',
+			].join('\n');
+			const result = findHookCommandInYaml(content, 'echo hello');
+			assert.ok(result);
+			assert.strictEqual(getSelectedText(content, result), 'echo hello');
+		});
+
+		test('finds command without list prefix', () => {
+			const content = [
+				'---',
+				'hooks:',
+				'  sessionStart:',
+				'    command: run-lint',
+				'---',
+			].join('\n');
+			const result = findHookCommandInYaml(content, 'run-lint');
+			assert.ok(result);
+			assert.strictEqual(getSelectedText(content, result), 'run-lint');
+		});
+
+		test('does not match substring of a longer command', () => {
+			const content = [
+				'---',
+				'hooks:',
+				'  sessionStart:',
+				'    - command: echo hello-world',
+				'---',
+			].join('\n');
+			const result = findHookCommandInYaml(content, 'echo hello');
+			assert.strictEqual(result, undefined);
+		});
+
+		test('returns undefined when command is not found', () => {
+			const content = [
+				'---',
+				'hooks:',
+				'  sessionStart:',
+				'    - command: echo hello',
+				'---',
+			].join('\n');
+			const result = findHookCommandInYaml(content, 'echo goodbye');
+			assert.strictEqual(result, undefined);
+		});
+
+		test('returns undefined when no command lines exist', () => {
+			const content = [
+				'---',
+				'name: my-agent',
+				'description: An agent',
+				'---',
+			].join('\n');
+			const result = findHookCommandInYaml(content, 'echo hello');
+			assert.strictEqual(result, undefined);
+		});
+
+		test('returns undefined for empty content', () => {
+			const result = findHookCommandInYaml('', 'echo hello');
+			assert.strictEqual(result, undefined);
+		});
+
+		test('finds first matching command when multiple exist', () => {
+			const content = [
+				'---',
+				'hooks:',
+				'  sessionStart:',
+				'    - command: echo hello',
+				'  userPromptSubmit:',
+				'    - command: echo hello',
+				'---',
+			].join('\n');
+			const result = findHookCommandInYaml(content, 'echo hello');
+			assert.ok(result);
+			assert.strictEqual(result.startLineNumber, 4);
+		});
+
+		test('ignores lines that are not command fields', () => {
+			const content = [
+				'---',
+				'description: run command echo hello',
+				'hooks:',
+				'  sessionStart:',
+				'    - command: echo hello',
+				'---',
+			].join('\n');
+			const result = findHookCommandInYaml(content, 'echo hello');
+			assert.ok(result);
+			assert.strictEqual(result.startLineNumber, 5);
+		});
+
+		test('handles command with special characters', () => {
+			const content = [
+				'---',
+				'hooks:',
+				'  preToolUse:',
+				'    - command: echo "foo" > /tmp/out.txt',
+				'---',
+			].join('\n');
+			const result = findHookCommandInYaml(content, 'echo "foo" > /tmp/out.txt');
+			assert.ok(result);
+			assert.strictEqual(getSelectedText(content, result), 'echo "foo" > /tmp/out.txt');
+		});
+
+		test('matches command followed by trailing whitespace', () => {
+			const content = [
+				'---',
+				'hooks:',
+				'  sessionStart:',
+				'    - command: echo hello   ',
+				'---',
+			].join('\n');
+			const result = findHookCommandInYaml(content, 'echo hello');
+			assert.ok(result);
+			assert.strictEqual(getSelectedText(content, result), 'echo hello');
+		});
+
+		test('finds short command that is a substring of the key name', () => {
+			const content = [
+				'hooks:',
+				'  Stop:',
+				'    - timeout: 10',
+				'      command: "a"',
+				'      type: command',
+			].join('\n');
+			const result = findHookCommandInYaml(content, 'a');
+			assert.ok(result);
+			assert.strictEqual(getSelectedText(content, result), 'a');
+			assert.strictEqual(result.startLineNumber, 4);
+		});
+
+		test('finds short command in bash field that is a substring of the key name', () => {
+			const content = [
+				'hooks:',
+				'  sessionStart:',
+				'    - bash: "a"',
+				'      type: command',
+			].join('\n');
+			const result = findHookCommandInYaml(content, 'a');
+			assert.ok(result);
+			assert.strictEqual(getSelectedText(content, result), 'a');
+			assert.strictEqual(result.startLineNumber, 3);
+		});
+
+		test('finds command in powershell field', () => {
+			const content = [
+				'hooks:',
+				'  sessionStart:',
+				'    - powershell: "echo hello"',
+				'      type: command',
+			].join('\n');
+			const result = findHookCommandInYaml(content, 'echo hello');
+			assert.ok(result);
+			assert.strictEqual(getSelectedText(content, result), 'echo hello');
+			assert.strictEqual(result.startLineNumber, 3);
+		});
+
+		test('finds command in windows field', () => {
+			const content = [
+				'hooks:',
+				'  sessionStart:',
+				'    - windows: "dir"',
+				'      type: command',
+			].join('\n');
+			const result = findHookCommandInYaml(content, 'dir');
+			assert.ok(result);
+			assert.strictEqual(getSelectedText(content, result), 'dir');
+			assert.strictEqual(result.startLineNumber, 3);
+		});
+
+		test('finds command in linux and osx fields', () => {
+			const content = [
+				'hooks:',
+				'  sessionStart:',
+				'    - linux: "ls"',
+				'      osx: "ls -G"',
+				'      type: command',
+			].join('\n');
+			const linuxResult = findHookCommandInYaml(content, 'ls');
+			assert.ok(linuxResult);
+			assert.strictEqual(getSelectedText(content, linuxResult), 'ls');
+			assert.strictEqual(linuxResult.startLineNumber, 3);
+
+			const osxResult = findHookCommandInYaml(content, 'ls -G');
+			assert.ok(osxResult);
+			assert.strictEqual(getSelectedText(content, osxResult), 'ls -G');
+			assert.strictEqual(osxResult.startLineNumber, 4);
 		});
 	});
 });

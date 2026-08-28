@@ -16,7 +16,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService, NeverShowAgainScope, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { getLanguageIdForPromptsType, PromptsType } from '../../common/promptSyntax/promptTypes.js';
+import { getLanguageIdForPromptsType, PromptsType, Target } from '../../common/promptSyntax/promptTypes.js';
 import { IUserDataSyncEnablementService, SyncResource } from '../../../../../platform/userDataSync/common/userDataSync.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { CONFIGURE_SYNC_COMMAND_ID } from '../../../../services/userDataSync/common/userDataSync.js';
@@ -25,9 +25,9 @@ import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { askForPromptFileName } from './pickers/askForPromptName.js';
 import { askForPromptSourceFolder } from './pickers/askForPromptSourceFolder.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { getCleanPromptName, SKILL_FILENAME } from '../../common/promptSyntax/config/promptFileLocations.js';
-import { Target, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
-import { getTarget } from '../../common/promptSyntax/languageProviders/promptValidator.js';
+import { getCleanPromptName, SKILL_FILENAME, VALID_SKILL_NAME_REGEX } from '../../common/promptSyntax/config/promptFileLocations.js';
+import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { getTarget } from '../../common/promptSyntax/languageProviders/promptFileAttributes.js';
 
 /**
  * Options to override the default folder-picker and editor-open behaviour
@@ -38,6 +38,12 @@ export interface INewPromptOptions {
 	readonly targetFolder?: URI;
 	readonly targetStorage?: PromptsStorage;
 	readonly openFile?: (uri: URI) => Promise<ICodeEditor | undefined>;
+	/**
+	 * Override the file extension (e.g. `.md` for Claude rules instead of
+	 * `.instructions.md`). When set, the name picker uses this extension
+	 * instead of the default for the prompt type.
+	 */
+	readonly fileExtension?: string;
 }
 
 class AbstractNewPromptFileAction extends Action2 {
@@ -83,7 +89,7 @@ class AbstractNewPromptFileAction extends Action2 {
 			storage = selectedFolder.storage;
 		}
 
-		const fileName = await instaService.invokeFunction(askForPromptFileName, this.type, folderUri);
+		const fileName = await instaService.invokeFunction(askForPromptFileName, this.type, folderUri, undefined, options?.fileExtension);
 		if (!fileName) {
 			return;
 		}
@@ -172,6 +178,9 @@ function getDefaultContentSnippet(promptType: PromptsType, name: string | undefi
 				`name: ${name ?? '${1:prompt-name}'}`,
 				`description: \${2:Describe when to use this prompt}`,
 				`---`,
+				``,
+				`<!-- Tip: Use /create-prompt in chat to generate content with agent assistance -->`,
+				``,
 				`\${3:Define the prompt content here. You can include instructions, examples, and any other relevant information to guide the AI's responses.}`,
 			].join('\n');
 		case PromptsType.instructions:
@@ -182,14 +191,20 @@ function getDefaultContentSnippet(promptType: PromptsType, name: string | undefi
 					`paths:`,
 					`. - "src/**/*.ts"`,
 					`---`,
+					``,
+					`<!-- Tip: Use /create-instructions in chat to generate content with agent assistance -->`,
+					``,
 					`\${2:Provide coding guidelines that AI should follow when generating code, answering questions, or reviewing changes.}`,
 				].join('\n');
 			} else {
 				return [
 					`---`,
-					`description: \${1:Describe when these instructions should be loaded}`,
+					`description: \${1:Describe when these instructions should be loaded by the agent based on task context}`,
 					`# applyTo: '\${1|**,**/*.ts|}' # when provided, instructions will automatically be added to the request context when the pattern matches an attached file`,
 					`---`,
+					``,
+					`<!-- Tip: Use /create-instructions in chat to generate content with agent assistance -->`,
+					``,
 					`\${2:Provide project context and coding guidelines that AI should follow when generating code, answering questions, or reviewing changes.}`,
 				].join('\n');
 			}
@@ -201,6 +216,9 @@ function getDefaultContentSnippet(promptType: PromptsType, name: string | undefi
 					`description: \${2:Describe what this custom agent does and when to use it.}`,
 					`tools: Read, Grep, Glob, Bash # specify the tools this agent can use. If not set, all enabled tools are allowed.`,
 					`---`,
+					``,
+					`<!-- Tip: Use /create-agent in chat to generate content with agent assistance -->`,
+					``,
 					`\${4:Define what this custom agent does, including its behavior, capabilities, and any specific instructions for its operation.}`,
 				].join('\n');
 			} else {
@@ -211,6 +229,9 @@ function getDefaultContentSnippet(promptType: PromptsType, name: string | undefi
 					`argument-hint: \${3:The inputs this agent expects, e.g., "a task to implement" or "a question to answer".}`,
 					`# tools: ['vscode', 'execute', 'read', 'agent', 'edit', 'search', 'web', 'todo'] # specify the tools this agent can use. If not set, all enabled tools are allowed.`,
 					`---`,
+					``,
+					`<!-- Tip: Use /create-agent in chat to generate content with agent assistance -->`,
+					``,
 					`\${4:Define what this custom agent does, including its behavior, capabilities, and any specific instructions for its operation.}`,
 				].join('\n');
 			}
@@ -220,6 +241,9 @@ function getDefaultContentSnippet(promptType: PromptsType, name: string | undefi
 				`name: ${name ?? '${1:skill-name}'}`,
 				`description: \${2:Describe what this skill does and when to use it. Include keywords that help agents identify relevant tasks.}`,
 				`---`,
+				``,
+				`<!-- Tip: Use /create-skill in chat to generate content with agent assistance -->`,
+				``,
 				`\${3:Define the functionality provided by this skill, including detailed instructions and examples}`,
 			].join('\n');
 		default:
@@ -303,7 +327,7 @@ class NewSkillFileAction extends Action2 {
 					return localize('commands.new.skill.name.tooLong', "Skill name must be 64 characters or less");
 				}
 				// Per spec: lowercase alphanumeric and hyphens only
-				if (!/^[a-z0-9-]+$/.test(name)) {
+				if (!VALID_SKILL_NAME_REGEX.test(name)) {
 					return localize('commands.new.skill.name.invalidChars', "Skill name may only contain lowercase letters, numbers, and hyphens");
 				}
 				if (name.startsWith('-') || name.endsWith('-')) {

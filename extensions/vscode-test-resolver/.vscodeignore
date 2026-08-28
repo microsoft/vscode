@@ -3,4 +3,6 @@ typings/**
 **/*.ts
 **/*.map
 .gitignore
-tsconfig.json
+tsconfig*.json
+**/*.tsbuildinfo
+esbuild*.mts

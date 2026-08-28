@@ -7,15 +7,38 @@
 	padding: 2px 4px;
 	color: var(--vscode-foreground);
 	background-color: var(--vscode-editorWidget-background);
-	border-radius: 6px;
+	border-radius: var(--vscode-cornerRadius-medium);
 	border: 1px solid var(--vscode-contrastBorder);
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	gap: 4px;
 	z-index: 10;
-	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+	box-shadow: var(--vscode-shadow-lg);
 	overflow: hidden;
+
+	&.single-button {
+		background-color: transparent;
+		border-width: 0;
+		padding: 0;
+		overflow: visible;
+
+		.action-item > .action-label,
+		.action-item > .action-label.codicon:not(.separator) {
+			height: 28px;
+			line-height: 28px;
+			border-radius: var(--vscode-cornerRadius-medium);
+			box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+		}
+
+		.action-item > .action-label {
+			padding: 0 8px;
+		}
+
+		.action-item > .action-label.codicon:not(.separator) {
+			width: 28px;
+		}
+	}
 
 	.actions-container {
 		gap: 4px;
@@ -25,7 +48,7 @@
 		padding: 4px 6px;
 		font-size: 11px;
 		line-height: 14px;
-		border-radius: 4px;
+		border-radius: var(--vscode-cornerRadius-small);
 	}
 
 	.action-item > .action-label.codicon:not(.separator) {
@@ -48,5 +71,18 @@
 
 	.action-item.primary > .action-label:hover {
 		background-color: var(--vscode-button-hoverBackground) !important;
+	}
+}
+
+.hc-black .floating-menu-overlay-widget.single-button,
+.hc-light .floating-menu-overlay-widget.single-button {
+	border-width: 1px;
+	border-style: solid;
+	border-color: var(--vscode-contrastBorder);
+	background-color: var(--vscode-editorWidget-background);
+	padding: 0;
+	.action-item > .action-label,
+	.action-item > .action-label.codicon:not(.separator) {
+		box-shadow: none;
 	}
 }

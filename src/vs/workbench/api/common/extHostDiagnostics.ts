@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable local/code-no-native-private */
-
 import { localize } from '../../../nls.js';
 import { IMarkerData, MarkerSeverity } from '../../../platform/markers/common/markers.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
@@ -329,7 +327,7 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 						index.set(uri.toString(), idx);
 						res.push([uri, []]);
 					}
-					res[idx][1] = res[idx][1].concat(...diagnostics);
+					res[idx][1] = res[idx][1].concat(diagnostics);
 				});
 			}
 			return res;
@@ -363,7 +361,11 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 		}
 
 		for (const [uri, markers] of data) {
-			this._mirrorCollection.set(URI.revive(uri), markers.map(converter.Diagnostic.to));
+			if (markers.length === 0) {
+				this._mirrorCollection.delete(URI.revive(uri));
+			} else {
+				this._mirrorCollection.set(URI.revive(uri), markers.map(converter.Diagnostic.to));
+			}
 		}
 	}
 }

@@ -121,13 +121,13 @@ const NEW_WALKTHROUGH_TIME = 7 * DAYS;
 export class WalkthroughsService extends Disposable implements IWalkthroughsService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidAddWalkthrough = new Emitter<IResolvedWalkthrough>();
+	private readonly _onDidAddWalkthrough = this._register(new Emitter<IResolvedWalkthrough>());
 	readonly onDidAddWalkthrough: Event<IResolvedWalkthrough> = this._onDidAddWalkthrough.event;
-	private readonly _onDidRemoveWalkthrough = new Emitter<string>();
+	private readonly _onDidRemoveWalkthrough = this._register(new Emitter<string>());
 	readonly onDidRemoveWalkthrough: Event<string> = this._onDidRemoveWalkthrough.event;
-	private readonly _onDidChangeWalkthrough = new Emitter<IResolvedWalkthrough>();
+	private readonly _onDidChangeWalkthrough = this._register(new Emitter<IResolvedWalkthrough>());
 	readonly onDidChangeWalkthrough: Event<IResolvedWalkthrough> = this._onDidChangeWalkthrough.event;
-	private readonly _onDidProgressStep = new Emitter<IResolvedWalkthroughStep>();
+	private readonly _onDidProgressStep = this._register(new Emitter<IResolvedWalkthroughStep>());
 	readonly onDidProgressStep: Event<IResolvedWalkthroughStep> = this._onDidProgressStep.event;
 
 	private memento: Memento<Record<string, StepProgress | undefined>>;

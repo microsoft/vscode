@@ -7,23 +7,39 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../../base/common/map.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IQuickInputButtonWithToggle, IQuickInputService, IQuickTreeItem, QuickInputButtonLocation } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputButton, IQuickInputButtonWithToggle, IQuickInputService, IQuickTreeItem, QuickInputButtonLocation } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ConfirmedReason, ToolConfirmKind } from '../../common/chatService/chatService.js';
+import { isAutoApprovePolicyRestricted } from '../../common/agentHostConfigPolicy.js';
 import { ILanguageModelToolConfirmationActions, ILanguageModelToolConfirmationContribution, ILanguageModelToolConfirmationContributionQuickTreeItem, ILanguageModelToolConfirmationRef, ILanguageModelToolsConfirmationService } from '../../common/tools/languageModelToolsConfirmationService.js';
 import { IToolData, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
 
 const RUN_WITHOUT_APPROVAL = localize('runWithoutApproval', "without approval");
 const CONTINUE_WITHOUT_REVIEWING_RESULTS = localize('continueWithoutReviewingResults', "without reviewing result");
 
+/**
+ * Represents an auto-confirmation entry in the confirm store.
+ * When `confirmed` is true, the tool/combination is auto-confirmed.
+ * When `label` is set, it provides a human-readable description
+ * for display in the management UI.
+ */
+interface IAutoConfirmEntry {
+	readonly confirmed: true;
+	readonly label?: string;
+	readonly arguments?: string;
+}
+
 
 class GenericConfirmStore extends Disposable {
 	private _workspaceStore: Lazy<ToolConfirmStore>;
 	private _profileStore: Lazy<ToolConfirmStore>;
-	private _memoryStore = new Set<string>();
+	private _memoryStore = new Map<string, IAutoConfirmEntry>();
 
 	constructor(
 		private readonly _storageKey: string,
@@ -34,19 +50,20 @@ class GenericConfirmStore extends Disposable {
 		this._profileStore = new Lazy(() => this._register(this._instantiationService.createInstance(ToolConfirmStore, StorageScope.PROFILE, this._storageKey)));
 	}
 
-	public setAutoConfirmation(id: string, scope: 'workspace' | 'profile' | 'session' | 'never'): void {
+	public setAutoConfirmation(id: string, scope: 'workspace' | 'profile' | 'session' | 'never', label?: string, args?: string): void {
 		// Clear from all scopes first
-		this._workspaceStore.value.setAutoConfirm(id, false);
-		this._profileStore.value.setAutoConfirm(id, false);
+		this._workspaceStore.value.setAutoConfirm(id, undefined);
+		this._profileStore.value.setAutoConfirm(id, undefined);
 		this._memoryStore.delete(id);
 
+		const entry: IAutoConfirmEntry = { confirmed: true, label, arguments: args };
 		// Set in the appropriate scope
 		if (scope === 'workspace') {
-			this._workspaceStore.value.setAutoConfirm(id, true);
+			this._workspaceStore.value.setAutoConfirm(id, entry);
 		} else if (scope === 'profile') {
-			this._profileStore.value.setAutoConfirm(id, true);
+			this._profileStore.value.setAutoConfirm(id, entry);
 		} else if (scope === 'session') {
-			this._memoryStore.add(id);
+			this._memoryStore.set(id, entry);
 		}
 	}
 
@@ -65,12 +82,24 @@ class GenericConfirmStore extends Disposable {
 
 	public getAutoConfirmationIn(id: string, scope: 'workspace' | 'profile' | 'session'): boolean {
 		if (scope === 'workspace') {
-			return this._workspaceStore.value.getAutoConfirm(id);
+			return !!this._workspaceStore.value.getAutoConfirm(id);
 		} else if (scope === 'profile') {
-			return this._profileStore.value.getAutoConfirm(id);
+			return !!this._profileStore.value.getAutoConfirm(id);
 		} else {
 			return this._memoryStore.has(id);
 		}
+	}
+
+	public getLabel(id: string): string | undefined {
+		return this._workspaceStore.value.getAutoConfirm(id)?.label
+			?? this._profileStore.value.getAutoConfirm(id)?.label
+			?? this._memoryStore.get(id)?.label;
+	}
+
+	public getArguments(id: string): string | undefined {
+		return this._workspaceStore.value.getAutoConfirm(id)?.arguments
+			?? this._profileStore.value.getAutoConfirm(id)?.arguments
+			?? this._memoryStore.get(id)?.arguments;
 	}
 
 	public reset(): void {
@@ -100,7 +129,7 @@ class GenericConfirmStore extends Disposable {
 		for (const key of this._profileStore.value.getAll()) {
 			all.add(key);
 		}
-		for (const key of this._memoryStore) {
+		for (const key of this._memoryStore.keys()) {
 			all.add(key);
 		}
 		return all;
@@ -108,7 +137,7 @@ class GenericConfirmStore extends Disposable {
 }
 
 class ToolConfirmStore extends Disposable {
-	private _autoConfirmTools: LRUCache<string, boolean> = new LRUCache<string, boolean>(100);
+	private _autoConfirmTools: LRUCache<string, IAutoConfirmEntry> = new LRUCache<string, IAutoConfirmEntry>(100);
 	private _didChange = false;
 
 	constructor(
@@ -118,16 +147,44 @@ class ToolConfirmStore extends Disposable {
 	) {
 		super();
 
-		const stored = storageService.getObject<string[]>(this._storageKey, this._scope);
-		if (stored) {
-			for (const key of stored) {
-				this._autoConfirmTools.set(key, true);
+		// Read stored data — supports both legacy string[] and new Record<string, string | boolean | object> formats
+		const raw = storageService.get(this._storageKey, this._scope);
+		if (raw) {
+			try {
+				const parsed = JSON.parse(raw);
+				if (Array.isArray(parsed)) {
+					// Legacy format: string[]
+					for (const key of parsed) {
+						this._autoConfirmTools.set(key, { confirmed: true });
+					}
+				} else if (typeof parsed === 'object' && parsed !== null) {
+					for (const [key, value] of Object.entries(parsed)) {
+						if (typeof value === 'object' && value !== null) {
+							// New format: { label?: string; arguments?: string }
+							const obj = value as { label?: string; arguments?: string };
+							this._autoConfirmTools.set(key, { confirmed: true, label: obj.label, arguments: obj.arguments });
+						} else {
+							// Legacy format: string | boolean
+							this._autoConfirmTools.set(key, { confirmed: true, label: typeof value === 'string' ? value : undefined });
+						}
+					}
+				}
+			} catch {
+				// Ignore malformed data
 			}
 		}
 
 		this._register(storageService.onWillSaveState(() => {
 			if (this._didChange) {
-				this.storageService.store(this._storageKey, [...this._autoConfirmTools.keys()], this._scope, StorageTarget.MACHINE);
+				const data: Record<string, string | boolean | { label?: string; arguments?: string }> = {};
+				for (const [key, entry] of this._autoConfirmTools) {
+					if (entry.arguments) {
+						data[key] = { label: entry.label, arguments: entry.arguments };
+					} else {
+						data[key] = entry.label ?? true;
+					}
+				}
+				this.storageService.store(this._storageKey, JSON.stringify(data), this._scope, StorageTarget.MACHINE);
 				this._didChange = false;
 			}
 		}));
@@ -138,20 +195,20 @@ class ToolConfirmStore extends Disposable {
 		this._didChange = true;
 	}
 
-	public getAutoConfirm(id: string): boolean {
-		if (this._autoConfirmTools.get(id)) {
+	public getAutoConfirm(id: string): IAutoConfirmEntry | undefined {
+		const entry = this._autoConfirmTools.get(id);
+		if (entry) {
 			this._didChange = true;
-			return true;
+			return entry;
 		}
-
-		return false;
+		return undefined;
 	}
 
-	public setAutoConfirm(id: string, autoConfirm: boolean): void {
-		if (autoConfirm) {
-			this._autoConfirmTools.set(id, true);
-		} else {
+	public setAutoConfirm(id: string, entry: IAutoConfirmEntry | undefined): void {
+		if (!entry) {
 			this._autoConfirmTools.delete(id);
+		} else {
+			this._autoConfirmTools.set(id, entry);
 		}
 		this._didChange = true;
 	}
@@ -168,12 +225,15 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 	private _postExecutionToolConfirmStore: GenericConfirmStore;
 	private _preExecutionServerConfirmStore: GenericConfirmStore;
 	private _postExecutionServerConfirmStore: GenericConfirmStore;
+	private _combinationConfirmStore: GenericConfirmStore;
 
 	private _contributions = new Map<string, ILanguageModelToolConfirmationContribution>();
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@IDialogService private readonly _dialogService: IDialogService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -181,6 +241,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 		this._postExecutionToolConfirmStore = this._register(new GenericConfirmStore('chat/autoconfirm-post', this._instantiationService));
 		this._preExecutionServerConfirmStore = this._register(new GenericConfirmStore('chat/servers/autoconfirm', this._instantiationService));
 		this._postExecutionServerConfirmStore = this._register(new GenericConfirmStore('chat/servers/autoconfirm-post', this._instantiationService));
+		this._combinationConfirmStore = this._register(new GenericConfirmStore('chat/autoconfirm-combination', this._instantiationService));
 	}
 
 	getPreConfirmAction(ref: ILanguageModelToolConfirmationRef): ConfirmedReason | undefined {
@@ -193,9 +254,21 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 			}
 		}
 
-		// If contribution disables default approvals, don't check default stores
+		// If contribution disables default permissions, don't check default stores
 		if (contribution && contribution.canUseDefaultApprovals === false) {
 			return undefined;
+		}
+
+		if (isAutoApprovePolicyRestricted(this._configurationService)) {
+			return undefined;
+		}
+
+		// Check combination-level confirmation
+		if (ref.combination) {
+			const combinationResult = this._combinationConfirmStore.checkAutoConfirmation(ref.combination.key);
+			if (combinationResult) {
+				return combinationResult;
+			}
 		}
 
 		// Check tool-level confirmation
@@ -225,8 +298,12 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 			}
 		}
 
-		// If contribution disables default approvals, don't check default stores
+		// If contribution disables default permissions, don't check default stores
 		if (contribution && contribution.canUseDefaultApprovals === false) {
+			return undefined;
+		}
+
+		if (isAutoApprovePolicyRestricted(this._configurationService)) {
 			return undefined;
 		}
 
@@ -256,9 +333,48 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 			actions.push(...contribution.getPreConfirmActions(ref));
 		}
 
-		// If contribution disables default approvals, only return contribution actions
+		// If contribution disables default permissions, only return contribution actions
 		if (contribution && contribution.canUseDefaultApprovals === false) {
 			return actions;
+		}
+
+		if (isAutoApprovePolicyRestricted(this._configurationService)) {
+			return actions;
+		}
+
+		// Add combination-level actions when approveCombination is provided
+		if (ref.combination) {
+			const { label: combinationLabel, key: combinationKey, arguments: combinationArgs } = ref.combination;
+			actions.push(
+				{
+					label: localize('allowCombinationSession', '{0} in this Session', combinationLabel),
+					detail: localize('allowCombinationSessionTooltip', 'Allow this particular combination of tool and arguments in this session without confirmation.'),
+					divider: !!actions.length,
+					scope: 'session',
+					select: async () => {
+						this._combinationConfirmStore.setAutoConfirmation(combinationKey, 'session', combinationLabel, combinationArgs);
+						return true;
+					}
+				},
+				{
+					label: localize('allowCombinationWorkspace', '{0} in this Workspace', combinationLabel),
+					detail: localize('allowCombinationWorkspaceTooltip', 'Allow this particular combination of tool and arguments in this workspace without confirmation.'),
+					scope: 'workspace',
+					select: async () => {
+						this._combinationConfirmStore.setAutoConfirmation(combinationKey, 'workspace', combinationLabel, combinationArgs);
+						return true;
+					}
+				},
+				{
+					label: localize('allowCombinationGlobally', 'Always {0}', combinationLabel),
+					detail: localize('allowCombinationGloballyTooltip', 'Always allow this particular combination of tool and arguments without confirmation.'),
+					scope: 'profile',
+					select: async () => {
+						this._combinationConfirmStore.setAutoConfirmation(combinationKey, 'profile', combinationLabel, combinationArgs);
+						return true;
+					}
+				},
+			);
 		}
 
 		// Add default tool-level actions
@@ -267,6 +383,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 				label: localize('allowSession', 'Allow in this Session'),
 				detail: localize('allowSessionTooltip', 'Allow this tool to run in this session without confirmation.'),
 				divider: !!actions.length,
+				scope: 'session',
 				select: async () => {
 					this._preExecutionToolConfirmStore.setAutoConfirmation(ref.toolId, 'session');
 					return true;
@@ -275,6 +392,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 			{
 				label: localize('allowWorkspace', 'Allow in this Workspace'),
 				detail: localize('allowWorkspaceTooltip', 'Allow this tool to run in this workspace without confirmation.'),
+				scope: 'workspace',
 				select: async () => {
 					this._preExecutionToolConfirmStore.setAutoConfirmation(ref.toolId, 'workspace');
 					return true;
@@ -283,6 +401,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 			{
 				label: localize('allowGlobally', 'Always Allow'),
 				detail: localize('allowGloballyTooltip', 'Always allow this tool to run without confirmation.'),
+				scope: 'profile',
 				select: async () => {
 					this._preExecutionToolConfirmStore.setAutoConfirmation(ref.toolId, 'profile');
 					return true;
@@ -298,6 +417,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 					label: localize('allowServerSession', 'Allow Tools from {0} in this Session', serverLabel),
 					detail: localize('allowServerSessionTooltip', 'Allow all tools from this server to run in this session without confirmation.'),
 					divider: true,
+					scope: 'session',
 					select: async () => {
 						this._preExecutionServerConfirmStore.setAutoConfirmation(definitionId, 'session');
 						return true;
@@ -306,6 +426,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 				{
 					label: localize('allowServerWorkspace', 'Allow Tools from {0} in this Workspace', serverLabel),
 					detail: localize('allowServerWorkspaceTooltip', 'Allow all tools from this server to run in this workspace without confirmation.'),
+					scope: 'workspace',
 					select: async () => {
 						this._preExecutionServerConfirmStore.setAutoConfirmation(definitionId, 'workspace');
 						return true;
@@ -314,6 +435,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 				{
 					label: localize('allowServerGlobally', 'Always Allow Tools from {0}', serverLabel),
 					detail: localize('allowServerGloballyTooltip', 'Always allow all tools from this server to run without confirmation.'),
+					scope: 'profile',
 					select: async () => {
 						this._preExecutionServerConfirmStore.setAutoConfirmation(definitionId, 'profile');
 						return true;
@@ -334,8 +456,12 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 			actions.push(...contribution.getPostConfirmActions(ref));
 		}
 
-		// If contribution disables default approvals, only return contribution actions
+		// If contribution disables default permissions, only return contribution actions
 		if (contribution && contribution.canUseDefaultApprovals === false) {
+			return actions;
+		}
+
+		if (isAutoApprovePolicyRestricted(this._configurationService)) {
 			return actions;
 		}
 
@@ -345,6 +471,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 				label: localize('allowSessionPost', 'Allow Without Review in this Session'),
 				detail: localize('allowSessionPostTooltip', 'Allow results from this tool to be sent without confirmation in this session.'),
 				divider: !!actions.length,
+				scope: 'session',
 				select: async () => {
 					this._postExecutionToolConfirmStore.setAutoConfirmation(ref.toolId, 'session');
 					return true;
@@ -353,6 +480,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 			{
 				label: localize('allowWorkspacePost', 'Allow Without Review in this Workspace'),
 				detail: localize('allowWorkspacePostTooltip', 'Allow results from this tool to be sent without confirmation in this workspace.'),
+				scope: 'workspace',
 				select: async () => {
 					this._postExecutionToolConfirmStore.setAutoConfirmation(ref.toolId, 'workspace');
 					return true;
@@ -361,6 +489,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 			{
 				label: localize('allowGloballyPost', 'Always Allow Without Review'),
 				detail: localize('allowGloballyPostTooltip', 'Always allow results from this tool to be sent without confirmation.'),
+				scope: 'profile',
 				select: async () => {
 					this._postExecutionToolConfirmStore.setAutoConfirmation(ref.toolId, 'profile');
 					return true;
@@ -376,6 +505,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 					label: localize('allowServerSessionPost', 'Allow Tools from {0} Without Review in this Session', serverLabel),
 					detail: localize('allowServerSessionPostTooltip', 'Allow results from all tools from this server to be sent without confirmation in this session.'),
 					divider: true,
+					scope: 'session',
 					select: async () => {
 						this._postExecutionServerConfirmStore.setAutoConfirmation(definitionId, 'session');
 						return true;
@@ -384,6 +514,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 				{
 					label: localize('allowServerWorkspacePost', 'Allow Tools from {0} Without Review in this Workspace', serverLabel),
 					detail: localize('allowServerWorkspacePostTooltip', 'Allow results from all tools from this server to be sent without confirmation in this workspace.'),
+					scope: 'workspace',
 					select: async () => {
 						this._postExecutionServerConfirmStore.setAutoConfirmation(definitionId, 'workspace');
 						return true;
@@ -392,6 +523,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 				{
 					label: localize('allowServerGloballyPost', 'Always Allow Tools from {0} Without Review', serverLabel),
 					detail: localize('allowServerGloballyPostTooltip', 'Always allow results from all tools from this server to be sent without confirmation.'),
+					scope: 'profile',
 					select: async () => {
 						this._postExecutionServerConfirmStore.setAutoConfirmation(definitionId, 'profile');
 						return true;
@@ -412,13 +544,52 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 		};
 	}
 
-	manageConfirmationPreferences(tools: readonly IToolData[], options?: { defaultScope?: 'workspace' | 'profile' | 'session' }): void {
+	toolCanManageConfirmation(tool: IToolData): boolean {
+		return !!tool.canRequestPreApproval
+			|| !!tool.canRequestPostApproval
+			|| this._contributions.has(tool.id)
+			|| !!this._preExecutionToolConfirmStore.checkAutoConfirmation(tool.id)
+			|| !!this._postExecutionToolConfirmStore.checkAutoConfirmation(tool.id)
+			|| this._hasCombinationApprovalsForTool(tool.id);
+	}
+
+	private _hasCombinationApprovalsForTool(toolId: string): boolean {
+		const prefix = toolId + ':combination:';
+		for (const key of this._combinationConfirmStore.getAllConfirmed()) {
+			if (key.startsWith(prefix)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private _getCombinationApprovalsForTool(toolId: string, scope: 'workspace' | 'profile' | 'session'): { key: string; label: string; arguments?: string }[] {
+		const prefix = toolId + ':combination:';
+		const results: { key: string; label: string; arguments?: string }[] = [];
+		for (const key of this._combinationConfirmStore.getAllConfirmed()) {
+			if (key.startsWith(prefix) && this._combinationConfirmStore.getAutoConfirmationIn(key, scope)) {
+				const label = this._combinationConfirmStore.getLabel(key) ?? key;
+				const args = this._combinationConfirmStore.getArguments(key);
+				results.push({ key, label, arguments: args });
+			}
+		}
+		return results;
+	}
+
+	manageConfirmationPreferences(tools: readonly IToolData[], options?: { defaultScope?: 'workspace' | 'profile' | 'session'; focusToolId?: string }): void {
 		interface IToolTreeItem extends IQuickTreeItem {
-			type: 'tool' | 'server' | 'tool-pre' | 'tool-post' | 'server-pre' | 'server-post' | 'manage';
+			type: 'tool' | 'server' | 'tool-pre' | 'tool-post' | 'server-pre' | 'server-post' | 'manage' | 'combination';
 			toolId?: string;
 			serverId?: string;
 			scope?: 'workspace' | 'profile';
+			combinationKey?: string;
+			combinationArgs?: string;
 		}
+
+		const viewArgsButton: IQuickInputButton = {
+			iconClass: ThemeIcon.asClassName(Codicon.info),
+			tooltip: localize('viewCombinationArguments', "View Arguments"),
+		};
 
 		// Helper to track tools under servers
 		const trackServerTool = (serverId: string, label: string, toolId: string, serversWithTools: Map<string, { label: string; tools: Set<string> }>) => {
@@ -471,6 +642,14 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 			}
 		}
 
+		// Add tools that have combination approvals
+		for (const tool of tools) {
+			if (!relevantTools.has(tool.id) && this._hasCombinationApprovalsForTool(tool.id)) {
+				relevantTools.add(tool.id);
+				addServerToolFromSource(tool.source, tool.id, serversWithTools);
+			}
+		}
+
 		if (relevantTools.size === 0) {
 			return; // Nothing to show
 		}
@@ -481,6 +660,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 		// Helper function to build tree items based on current scope
 		const buildTreeItems = (): IToolTreeItem[] => {
 			const treeItems: IToolTreeItem[] = [];
+			const defaultApprovalsDisabled = isAutoApprovePolicyRestricted(this._configurationService);
 
 			// Add server nodes
 			for (const [serverId, serverInfo] of serversWithTools) {
@@ -516,13 +696,30 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 							type: 'tool-pre',
 							toolId: tool.id,
 							label: RUN_WITHOUT_APPROVAL,
+							disabled: defaultApprovalsDisabled,
 							checked: this._preExecutionToolConfirmStore.getAutoConfirmationIn(tool.id, currentScope)
 						});
 						toolChildren.push({
 							type: 'tool-post',
 							toolId: tool.id,
 							label: CONTINUE_WITHOUT_REVIEWING_RESULTS,
+							disabled: defaultApprovalsDisabled,
 							checked: this._postExecutionToolConfirmStore.getAutoConfirmationIn(tool.id, currentScope)
+						});
+					}
+
+					// Add combination approval children
+					const combinationApprovals = this._getCombinationApprovalsForTool(tool.id, currentScope);
+					for (const { key, label, arguments: args } of combinationApprovals) {
+						toolChildren.push({
+							type: 'combination',
+							toolId: tool.id,
+							combinationKey: key,
+							combinationArgs: args,
+							label,
+							disabled: defaultApprovalsDisabled,
+							checked: true,
+							buttons: args ? [viewArgsButton] : undefined,
 						});
 					}
 
@@ -541,7 +738,16 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 					} else if (hasPost) {
 						checked = postApproval;
 						description = CONTINUE_WITHOUT_REVIEWING_RESULTS;
+					} else if (toolChildren.length > 0) {
+						// Tool has combination approvals only
+						checked = false;
 					} else {
+						continue;
+					}
+
+					// Skip tools with no active approvals, no children, and no approval capabilities.
+					// Tools that can request pre/post approval should always remain visible.
+					if (checked === false && toolChildren.length === 0 && !tool.canRequestPreApproval && !tool.canRequestPostApproval) {
 						continue;
 					}
 
@@ -550,6 +756,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 						toolId: tool.id,
 						label: tool.displayName || tool.id,
 						description,
+						disabled: defaultApprovalsDisabled,
 						checked,
 						collapsed: true,
 						children: toolChildren.length > 0 ? toolChildren : undefined
@@ -564,6 +771,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 						serverId,
 						iconClass: ThemeIcon.asClassName(Codicon.play),
 						label: localize('continueWithoutReviewing', "Continue without reviewing any tool results"),
+						disabled: defaultApprovalsDisabled,
 						checked: serverPostConfirmed
 					});
 				}
@@ -573,6 +781,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 						serverId,
 						iconClass: ThemeIcon.asClassName(Codicon.play),
 						label: localize('runToolsWithoutApproval', "Run any tool without approval"),
+						disabled: defaultApprovalsDisabled,
 						checked: serverPreConfirmed
 					});
 				}
@@ -596,6 +805,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 					type: 'server',
 					serverId,
 					label: serverInfo.label,
+					disabled: defaultApprovalsDisabled,
 					checked: serverChecked,
 					children: serverChildren,
 					collapsed: existingItem ? quickTree.isCollapsed(existingItem) : true,
@@ -642,13 +852,30 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 							type: 'tool-pre',
 							toolId: tool.id,
 							label: RUN_WITHOUT_APPROVAL,
+							disabled: defaultApprovalsDisabled,
 							checked: this._preExecutionToolConfirmStore.getAutoConfirmationIn(tool.id, currentScope)
 						});
 						toolChildren.push({
 							type: 'tool-post',
 							toolId: tool.id,
 							label: CONTINUE_WITHOUT_REVIEWING_RESULTS,
+							disabled: defaultApprovalsDisabled,
 							checked: this._postExecutionToolConfirmStore.getAutoConfirmationIn(tool.id, currentScope)
+						});
+					}
+
+					// Add combination approval children
+					const combinationApprovals = this._getCombinationApprovalsForTool(tool.id, currentScope);
+					for (const { key, label, arguments: args } of combinationApprovals) {
+						toolChildren.push({
+							type: 'combination',
+							toolId: tool.id,
+							combinationKey: key,
+							combinationArgs: args,
+							label,
+							disabled: defaultApprovalsDisabled,
+							checked: true,
+							buttons: args ? [viewArgsButton] : undefined,
 						});
 					}
 
@@ -671,14 +898,21 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 					}
 				}
 
+				// Skip tools with no active approvals, no children, and no approval capabilities.
+				// Tools that can request pre/post approval should always remain visible.
+				if (checked === false && toolChildren.length === 0 && !tool.canRequestPreApproval && !tool.canRequestPostApproval && !this._contributions.has(tool.id)) {
+					continue;
+				}
+
 				treeItems.push({
 					type: 'tool',
 					toolId: tool.id,
 					label: tool.displayName || tool.id,
 					description,
+					disabled: defaultApprovalsDisabled && contributed?.canUseDefaultApprovals !== false,
 					checked,
 					pickable,
-					collapsed: true,
+					collapsed: tools.length > 1,
 					children: toolChildren.length > 0 ? toolChildren : undefined
 				});
 			}
@@ -723,6 +957,11 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 		quickTree.setItemTree(buildTreeItems());
 
 		disposables.add(quickTree.onDidChangeCheckboxState(item => {
+			if (isAutoApprovePolicyRestricted(this._configurationService) && item.type !== 'manage') {
+				quickTree.setItemTree(buildTreeItems());
+				return;
+			}
+
 			const newState = item.checked ? currentScope : 'never';
 
 			if (item.type === 'server' && item.serverId) {
@@ -740,6 +979,15 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 				if (tool?.canRequestPreApproval || newState === 'never') {
 					this._preExecutionToolConfirmStore.setAutoConfirmation(item.toolId, newState);
 				}
+				// Also clear combination approvals when unchecking the tool
+				if (newState === 'never') {
+					for (const key of this._combinationConfirmStore.getAllConfirmed()) {
+						if (key.startsWith(item.toolId + ':combination:')) {
+							this._combinationConfirmStore.setAutoConfirmation(key, 'never');
+						}
+					}
+				}
+				quickTree.setItemTree(buildTreeItems());
 			} else if (item.type === 'tool-pre' && item.toolId) {
 				this._preExecutionToolConfirmStore.setAutoConfirmation(item.toolId, newState);
 			} else if (item.type === 'tool-post' && item.toolId) {
@@ -752,21 +1000,36 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 				quickTree.setItemTree(buildTreeItems());
 			} else if (item.type === 'manage') {
 				(item as ILanguageModelToolConfirmationContributionQuickTreeItem).onDidChangeChecked?.(!!item.checked);
+			} else if (item.type === 'combination' && item.combinationKey) {
+				this._combinationConfirmStore.setAutoConfirmation(item.combinationKey, newState, item.label, item.combinationArgs);
+				quickTree.setItemTree(buildTreeItems());
 			}
 		}));
 
 		disposables.add(quickTree.onDidTriggerItemButton(i => {
 			if (i.item.type === 'manage') {
 				(i.item as ILanguageModelToolConfirmationContributionQuickTreeItem).onDidTriggerItemButton?.(i.button);
+			} else if (i.item.type === 'combination' && i.button === viewArgsButton && i.item.combinationArgs) {
+				this._dialogService.prompt({
+					message: localize('combinationArguments', "Arguments"),
+					buttons: [],
+					custom: {
+						markdownDetails: [{
+							markdown: new MarkdownString().appendCodeblock('json', i.item.combinationArgs),
+						}],
+					},
+				});
 			}
 		}));
 
-		disposables.add(quickTree.onDidAccept(() => {
-			for (const item of quickTree.activeItems) {
-				if (item.type === 'manage') {
-					(item as ILanguageModelToolConfirmationContributionQuickTreeItem).onDidOpen?.();
-					quickTree.hide();
-				}
+		disposables.add(quickTree.onDidAccept(async () => {
+			const manageItem = quickTree.activeItems.find(i => i.type === 'manage');
+			if (manageItem) {
+				quickTree.hide();
+				await (manageItem as ILanguageModelToolConfirmationContributionQuickTreeItem).onDidOpen?.();
+				this.manageConfirmationPreferences(tools, options);
+			} else {
+				quickTree.hide();
 			}
 		}));
 
@@ -775,6 +1038,23 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 		}));
 
 		quickTree.show();
+
+		// If a focus tool was specified, expand its parent and set it as active.
+		// Must happen after show() since the tree data is applied via autorun on visibility.
+		if (options?.focusToolId) {
+			const focusToolId = options.focusToolId;
+			for (const serverItem of quickTree.itemTree) {
+				const serverItemTyped = serverItem as IToolTreeItem;
+				if (serverItemTyped.children) {
+					const toolItem = (serverItemTyped.children as IToolTreeItem[]).find(c => c.type === 'tool' && c.toolId === focusToolId);
+					if (toolItem) {
+						quickTree.expand(serverItem);
+						quickTree.reveal(toolItem);
+						break;
+					}
+				}
+			}
+		}
 	}
 
 	public resetToolAutoConfirmation(): void {
@@ -782,6 +1062,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 		this._postExecutionToolConfirmStore.reset();
 		this._preExecutionServerConfirmStore.reset();
 		this._postExecutionServerConfirmStore.reset();
+		this._combinationConfirmStore.reset();
 
 		// Reset all contributions
 		for (const contribution of this._contributions.values()) {

@@ -37,6 +37,16 @@ export interface IPaneStyles {
 	readonly leftBorder: string | undefined;
 }
 
+export const DEFAULT_PANE_HEADER_SIZE = 22;
+let globalPaneHeaderSize = DEFAULT_PANE_HEADER_SIZE;
+
+/**
+ * Updates the header size used by all panes.
+ */
+export function setGlobalPaneHeaderSize(size: number): void {
+	globalPaneHeaderSize = size;
+}
+
 /**
  * A Pane is a structured SplitView view.
  *
@@ -47,8 +57,6 @@ export interface IPaneStyles {
  * before the `render()` call, thus forbidding their use.
  */
 export abstract class Pane extends Disposable implements IView {
-
-	private static readonly HEADER_SIZE = 22;
 
 	readonly element: HTMLElement;
 	private header: HTMLElement | undefined;
@@ -119,7 +127,7 @@ export abstract class Pane extends Disposable implements IView {
 	}
 
 	private get headerSize(): number {
-		return this.headerVisible ? Pane.HEADER_SIZE : 0;
+		return this.headerVisible ? globalPaneHeaderSize : 0;
 	}
 
 	get minimumSize(): number {
@@ -298,7 +306,7 @@ export abstract class Pane extends Disposable implements IView {
 	}
 
 	layout(size: number): void {
-		const headerSize = this.headerVisible ? Pane.HEADER_SIZE : 0;
+		const headerSize = this.headerSize;
 
 		const width = this._orientation === Orientation.VERTICAL ? this.orthogonalSize : size;
 		const height = this._orientation === Orientation.VERTICAL ? size - headerSize : this.orthogonalSize - headerSize;
@@ -334,7 +342,6 @@ export abstract class Pane extends Disposable implements IView {
 			this.header.removeAttribute('role');
 		}
 
-		this.header.style.lineHeight = `${this.headerSize}px`;
 		this.header.classList.toggle('hidden', !this.headerVisible);
 		this.header.classList.toggle('expanded', expanded);
 		this.header.classList.toggle('not-collapsible', !this.collapsible);

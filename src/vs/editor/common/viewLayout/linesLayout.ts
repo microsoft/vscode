@@ -162,21 +162,17 @@ export class LinesLayout {
 
 	public changeLineHeights(callback: (accessor: ILineHeightChangeAccessor) => void): boolean {
 		let hadAChange = false;
-		try {
-			const accessor: ILineHeightChangeAccessor = {
-				insertOrChangeCustomLineHeight: (decorationId: string, startLineNumber: number, endLineNumber: number, lineHeight: number): void => {
-					hadAChange = true;
-					this._lineHeightsManager.insertOrChangeCustomLineHeight(decorationId, startLineNumber, endLineNumber, lineHeight);
-				},
-				removeCustomLineHeight: (decorationId: string): void => {
-					hadAChange = true;
-					this._lineHeightsManager.removeCustomLineHeight(decorationId);
-				}
-			};
-			callback(accessor);
-		} finally {
-			this._lineHeightsManager.commit();
-		}
+		const accessor: ILineHeightChangeAccessor = {
+			insertOrChangeCustomLineHeight: (decorationId: string, startLineNumber: number, endLineNumber: number, lineHeight: number): void => {
+				hadAChange = true;
+				this._lineHeightsManager.insertOrChangeCustomLineHeight(decorationId, startLineNumber, endLineNumber, lineHeight);
+			},
+			removeCustomLineHeight: (decorationId: string): void => {
+				hadAChange = true;
+				this._lineHeightsManager.removeCustomLineHeight(decorationId);
+			}
+		};
+		callback(accessor);
 		return hadAChange;
 	}
 
@@ -353,9 +349,8 @@ export class LinesLayout {
 	 *
 	 * @param fromLineNumber The line number at which the insertion started, inclusive
 	 * @param toLineNumber The line number at which the insertion ended, inclusive.
-	 * @param lineHeightsAdded The custom line height data for the inserted lines.
 	 */
-	public onLinesInserted(fromLineNumber: number, toLineNumber: number, lineHeightsAdded: CustomLineHeightData[]): void {
+	public onLinesInserted(fromLineNumber: number, toLineNumber: number): void {
 		fromLineNumber = fromLineNumber | 0;
 		toLineNumber = toLineNumber | 0;
 
@@ -367,7 +362,7 @@ export class LinesLayout {
 				this._arr[i].afterLineNumber += (toLineNumber - fromLineNumber + 1);
 			}
 		}
-		this._lineHeightsManager.onLinesInserted(fromLineNumber, toLineNumber, lineHeightsAdded);
+		this._lineHeightsManager.onLinesInserted(fromLineNumber, toLineNumber);
 	}
 
 	/**
