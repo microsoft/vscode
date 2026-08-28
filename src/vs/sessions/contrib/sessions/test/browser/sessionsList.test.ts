@@ -1467,7 +1467,7 @@ suite('Sessions - SessionsList', () => {
 			const rows = Object.fromEntries([...container.querySelectorAll<HTMLElement>('.session-item')].map(item => {
 				const row = item.closest<HTMLElement>('.monaco-list-row');
 				const twistie = row?.querySelector<HTMLElement>('.monaco-tl-twistie');
-				row?.classList.add('focused');
+				const icon = item.querySelector<HTMLElement>('.session-icon');
 				const twistieStyle = twistie?.classList.contains('session-chat-twistie')
 					? mainWindow.getComputedStyle(twistie)
 					: undefined;
@@ -1482,6 +1482,7 @@ suite('Sessions - SessionsList', () => {
 					opacity: twistieStyle?.opacity,
 					paddingLeft: twistie?.style.paddingLeft,
 					pointerEvents: twistieStyle?.pointerEvents,
+					iconVisibility: icon ? mainWindow.getComputedStyle(icon).visibility : undefined,
 				}];
 			}));
 
@@ -1494,9 +1495,10 @@ suite('Sessions - SessionsList', () => {
 					isCollapsible: true,
 					isCollapsed: false,
 					fontSize: '16px',
-					opacity: '1',
+					opacity: '0',
 					paddingLeft: '0px',
-					pointerEvents: 'auto',
+					pointerEvents: 'none',
+					iconVisibility: 'visible',
 				},
 				'Single-chat session': {
 					expanded: null,
@@ -1509,6 +1511,7 @@ suite('Sessions - SessionsList', () => {
 					opacity: undefined,
 					paddingLeft: '0px',
 					pointerEvents: undefined,
+					iconVisibility: 'visible',
 				},
 			});
 
@@ -1532,6 +1535,52 @@ suite('Sessions - SessionsList', () => {
 				isCollapsed: true,
 				visibleChats: [],
 			});
+		});
+
+		test('reveals the twistie only on real pointer hover, never on keyboard focus or selection alone', () => {
+			const main = createChat('Main chat');
+			const peer = createChat('Peer chat', ChatOriginKind.User);
+			const base = createTestSession('Multi-chat session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const harness = createListHarness(disposables, [session]);
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+
+			const item = container.querySelector<HTMLElement>('.session-item');
+			assert.ok(item);
+			const row = item.closest<HTMLElement>('.monaco-list-row');
+			assert.ok(row);
+			const twistie = row.querySelector<HTMLElement>('.monaco-tl-twistie');
+			assert.ok(twistie);
+			const icon = item.querySelector<HTMLElement>('.session-icon');
+			assert.ok(icon);
+
+			const snapshot = () => ({
+				opacity: mainWindow.getComputedStyle(twistie).opacity,
+				pointerEvents: mainWindow.getComputedStyle(twistie).pointerEvents,
+				iconVisibility: mainWindow.getComputedStyle(icon).visibility,
+			});
+
+			row.classList.add('focused');
+			assert.deepStrictEqual(snapshot(), { opacity: '0', pointerEvents: 'none', iconVisibility: 'visible' });
+			row.classList.remove('focused');
+
+			row.classList.add('selected');
+			assert.deepStrictEqual(snapshot(), { opacity: '0', pointerEvents: 'none', iconVisibility: 'visible' });
+
+			row.classList.add('focused');
+			assert.deepStrictEqual(snapshot(), { opacity: '0', pointerEvents: 'none', iconVisibility: 'visible' });
+			row.classList.remove('focused', 'selected');
 		});
 
 		suite('hierarchy indent/connector guides', () => {
