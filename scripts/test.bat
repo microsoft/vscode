@@ -5,6 +5,12 @@ set ELECTRON_RUN_AS_NODE=
 
 pushd %~dp0\..
 
+:: Node modules
+if not exist node_modules (
+	call npm ci
+	if errorlevel 1 exit /b 1
+)
+
 :: Get Code.exe location
 set "NAMESHORT="
 for /f "tokens=2 delims=:," %%a in ('findstr /R /C:"\"nameShort\":.*" product.json') do if not defined NAMESHORT set "NAMESHORT=%%~a"
