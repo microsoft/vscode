@@ -12,7 +12,7 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { IExtensionTerminalProfile, ITerminalProfile, TerminalLocation, TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
 import { ResourceContextKey } from '../../../common/contextkeys.js';
 import { TaskExecutionSupportedContext } from '../../tasks/common/taskService.js';
-import { ICreateTerminalOptions, ITerminalLocationOptions, ITerminalService } from './terminal.js';
+import { ICreateTerminalOptions, ITerminalInstance, ITerminalLocationOptions, ITerminalService } from './terminal.js';
 import { TerminalCommandId, TERMINAL_VIEW_ID } from '../common/terminal.js';
 import { TerminalContextKeys, TerminalContextKeyStrings } from '../common/terminalContextKey.js';
 import { terminalStrings } from '../common/terminalStrings.js';
@@ -817,7 +817,7 @@ export function setupTerminalMenus(): void {
 	}
 }
 
-export function getTerminalActionBarArgs(location: ITerminalLocationOptions, profiles: ITerminalProfile[], defaultProfileName: string, contributedProfiles: readonly IExtensionTerminalProfile[], terminalService: ITerminalService, dropdownMenu: IMenu, disposableStore: DisposableStore): {
+export function getTerminalActionBarArgs(location: ITerminalLocationOptions, profiles: ITerminalProfile[], defaultProfileName: string, contributedProfiles: readonly IExtensionTerminalProfile[], terminalService: ITerminalService, dropdownMenu: IMenu, disposableStore: DisposableStore, getSplitInstance?: () => ITerminalInstance | undefined): {
 	dropdownAction: IAction;
 	dropdownMenuActions: IAction[];
 	className: string;
@@ -829,6 +829,10 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 	const dropdownActions: IAction[] = [];
 	const submenuActions: IAction[] = [];
 	const splitLocation = (location === TerminalLocation.Editor || (typeof location === 'object' && hasKey(location, { viewColumn: true }) && location.viewColumn === ACTIVE_GROUP)) ? { viewColumn: SIDE_GROUP } : { splitActiveTerminal: true };
+	const getSplitLocation = (): ITerminalLocationOptions => {
+		const splitInstance = getSplitInstance?.();
+		return splitInstance ? { parentTerminal: splitInstance } : splitLocation;
+	};
 
 	if (location === TerminalLocation.Editor) {
 		location = { viewColumn: ACTIVE_GROUP };
@@ -842,25 +846,25 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 		}
 	}))));
 	dropdownActions.push(disposableStore.add(new Action(TerminalCommandId.Split, terminalStrings.split.value, undefined, true, () => terminalService.createAndFocusTerminal({
-		location: splitLocation
+		location: getSplitLocation()
 	}))));
 	dropdownActions.push(new Separator());
 	for (const p of aiProfiles) {
-		addProfileActions(p, defaultProfileName, location, splitLocation, terminalService, dropdownActions, submenuActions, disposableStore);
+		addProfileActions(p, defaultProfileName, location, getSplitLocation, terminalService, dropdownActions, submenuActions, disposableStore);
 	}
 	for (const contributed of aiContributedProfiles) {
-		addContributedProfileActions(contributed, defaultProfileName, location, splitLocation, terminalService, dropdownActions, submenuActions, disposableStore);
+		addContributedProfileActions(contributed, defaultProfileName, location, getSplitLocation, terminalService, dropdownActions, submenuActions, disposableStore);
 	}
 	if ((aiProfiles.length > 0 || aiContributedProfiles.length > 0) && (otherProfiles.length > 0 || otherContributedProfiles.length > 0)) {
 		dropdownActions.push(new Separator());
 	}
 
 	for (const p of otherProfiles) {
-		addProfileActions(p, defaultProfileName, location, splitLocation, terminalService, dropdownActions, submenuActions, disposableStore);
+		addProfileActions(p, defaultProfileName, location, getSplitLocation, terminalService, dropdownActions, submenuActions, disposableStore);
 	}
 
 	for (const contributed of otherContributedProfiles) {
-		addContributedProfileActions(contributed, defaultProfileName, location, splitLocation, terminalService, dropdownActions, submenuActions, disposableStore);
+		addContributedProfileActions(contributed, defaultProfileName, location, getSplitLocation, terminalService, dropdownActions, submenuActions, disposableStore);
 	}
 
 	if (dropdownActions.length > 0) {
@@ -918,7 +922,7 @@ function addProfileActions(
 	profile: ITerminalProfile,
 	defaultProfileName: string,
 	location: ITerminalLocationOptions,
-	splitLocation: ITerminalLocationOptions,
+	getSplitLocation: () => ITerminalLocationOptions,
 	terminalService: ITerminalService,
 	dropdownActions: IAction[],
 	submenuActions: IAction[],
@@ -926,13 +930,12 @@ function addProfileActions(
 ): void {
 	const isDefault = profile.profileName === defaultProfileName;
 	const options: ICreateTerminalOptions = { config: profile, location };
-	const splitOptions: ICreateTerminalOptions = { config: profile, location: splitLocation };
 	const sanitizedProfileName = profile.profileName.replace(/[\n\r\t]/g, '');
 	dropdownActions.push(disposableStore.add(new Action(TerminalCommandId.NewWithProfile, isDefault ? localize('defaultTerminalProfile', "{0} (Default)", sanitizedProfileName) : sanitizedProfileName, undefined, true, async () => {
 		await terminalService.createAndFocusTerminal(options);
 	})));
 	submenuActions.push(disposableStore.add(new Action(TerminalCommandId.Split, isDefault ? localize('defaultTerminalProfile', "{0} (Default)", sanitizedProfileName) : sanitizedProfileName, undefined, true, async () => {
-		await terminalService.createAndFocusTerminal(splitOptions);
+		await terminalService.createAndFocusTerminal({ config: profile, location: getSplitLocation() });
 	})));
 }
 
@@ -940,7 +943,7 @@ function addContributedProfileActions(
 	contributed: IExtensionTerminalProfile,
 	defaultProfileName: string,
 	location: ITerminalLocationOptions,
-	splitLocation: ITerminalLocationOptions,
+	getSplitLocation: () => ITerminalLocationOptions,
 	terminalService: ITerminalService,
 	dropdownActions: IAction[],
 	submenuActions: IAction[],
@@ -962,6 +965,6 @@ function addContributedProfileActions(
 			id: contributed.id,
 			title
 		},
-		location: splitLocation
+		location: getSplitLocation()
 	}))));
 }

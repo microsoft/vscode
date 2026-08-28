@@ -1065,11 +1065,17 @@ export function registerTerminalActions() {
 		},
 		icon: Codicon.splitHorizontal,
 		run: async (c, accessor, args) => {
-			const optionsOrProfile = isObject(args) ? args as ICreateTerminalOptions | ITerminalProfile : undefined;
+			const resource = toOptionalUri(args);
+			const optionsOrProfile = !resource && isObject(args) ? args as ICreateTerminalOptions | ITerminalProfile : undefined;
 			const commandService = accessor.get(ICommandService);
+			const editorGroupsService = accessor.get(IEditorGroupsService);
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
 			const options = convertOptionsOrProfileToOptions(optionsOrProfile);
-			const activeInstance = (await c.service.getInstanceHost(options?.location)).activeInstance;
+			const configuredParent = typeof options?.location === 'object' && hasKey(options.location, { parentTerminal: true }) ? await options.location.parentTerminal : undefined;
+			const activeInstance = c.service.getInstanceFromResource(resource)
+				?? configuredParent
+				?? (!options?.location ? getActiveAuxiliaryWindowTerminalInstance(c, editorGroupsService) : undefined)
+				?? (await c.service.getInstanceHost(options?.location)).activeInstance;
 			if (!activeInstance) {
 				return;
 			}
@@ -1644,6 +1650,15 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]): ID
 
 function getResourceOrActiveInstance(c: ITerminalServicesCollection, resource: unknown): ITerminalInstance | undefined {
 	return c.service.getInstanceFromResource(toOptionalUri(resource)) || c.service.activeInstance;
+}
+
+function getActiveAuxiliaryWindowTerminalInstance(c: ITerminalServicesCollection, editorGroupsService: IEditorGroupsService): ITerminalInstance | undefined {
+	const activeWindow = getActiveWindow();
+	if (!isAuxiliaryWindow(activeWindow)) {
+		return undefined;
+	}
+	const activeEditor = editorGroupsService.parts.find(part => part.windowId === activeWindow.vscodeWindowId)?.activeGroup.activeEditor;
+	return c.service.getInstanceFromResource(activeEditor?.resource);
 }
 
 async function pickTerminalCwd(accessor: ServicesAccessor, cancel?: CancellationToken): Promise<WorkspaceFolderCwdPair | undefined> {

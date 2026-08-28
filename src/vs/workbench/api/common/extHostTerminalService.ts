@@ -75,10 +75,9 @@ export interface ITerminalInternalOptions {
 	useShellEnvironment?: boolean;
 	resolvedExtHostIdentifier?: ExtHostTerminalIdentifier;
 	/**
-	 * This location is different from the API location because it can include splitActiveTerminal,
-	 * a property we resolve internally
+	 * This location includes internal split targets that are not part of the API location.
 	 */
-	location?: TerminalLocation | { viewColumn: number; preserveState?: boolean } | { splitActiveTerminal: boolean };
+	location?: TerminalLocation | { viewColumn: number; preserveState?: boolean } | { parentTerminal: ExtHostTerminalIdentifier } | { splitActiveTerminal: boolean };
 }
 
 export const IExtHostTerminalService = createDecorator<IExtHostTerminalService>('IExtHostTerminalService');

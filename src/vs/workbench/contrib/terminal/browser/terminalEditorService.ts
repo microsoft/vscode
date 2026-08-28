@@ -16,7 +16,7 @@ import { IDeserializedTerminalEditorInput, ITerminalEditorService, ITerminalInst
 import { TerminalEditorInput } from './terminalEditorInput.js';
 import { getInstanceFromResource } from './terminalUri.js';
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
-import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorGroupsService, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 
@@ -213,24 +213,30 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	}
 
 	async splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig: IShellLaunchConfig = {}): Promise<ITerminalInstance> {
+		let sourcePart: IEditorPart | undefined;
 		if (instanceToSplit.target === TerminalLocation.Editor) {
-			// Make sure the instance to split's group is active
 			const group = this._editorInputs.get(instanceToSplit.resource.path)?.group;
 			if (group) {
-				this._editorGroupsService.activateGroup(group);
+				sourcePart = this._editorGroupsService.getPart(group);
+				sourcePart.activateGroup(group);
 			}
 		}
 		const instance = this._terminalInstanceService.createInstance(shellLaunchConfig, TerminalLocation.Editor);
 		const resource = this.resolveResource(instance);
 		if (resource) {
-			await this._editorService.openEditor({
-				resource: URI.revive(resource),
-				description: instance.description,
-				options: {
-					pinned: true,
-					forceReload: true
-				}
-			}, SIDE_GROUP);
+			const options = {
+				pinned: true,
+				forceReload: true
+			};
+			if (sourcePart) {
+				await sourcePart.sideGroup.openEditor(this.getInputFromResource(resource), options);
+			} else {
+				await this._editorService.openEditor({
+					resource: URI.revive(resource),
+					description: instance.description,
+					options
+				}, SIDE_GROUP);
+			}
 		}
 		return instance;
 	}

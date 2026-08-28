@@ -20,9 +20,11 @@ import { IShellLaunchConfig, ITerminalChildProcess } from '../../../../../platfo
 import { AgentHostPty } from '../../browser/agentHostPty.js';
 import { AgentHostTerminalService } from '../../browser/agentHostTerminalService.js';
 import { ICreateTerminalOptions, ITerminalChatService, ITerminalInstance, ITerminalService } from '../../browser/terminal.js';
-import { ITerminalProfileService } from '../../common/terminal.js';
+import { ITerminalProfileProvider, ITerminalProfileService } from '../../common/terminal.js';
 
 class TestTerminalInstance extends mock<ITerminalInstance>() {
+	private static _instanceId = 0;
+	override readonly instanceId = ++TestTerminalInstance._instanceId;
 	override readonly store = new DisposableStore();
 	private readonly _onDisposed = this.store.add(new Emitter<ITerminalInstance>());
 	override readonly onDisposed = this._onDisposed.event;
@@ -42,6 +44,8 @@ class TestTerminalInstance extends mock<ITerminalInstance>() {
 
 class TestTerminalService extends mock<ITerminalService>() {
 	private readonly _ptyFactories: NonNullable<IShellLaunchConfig['customPtyImplementation']>[] = [];
+	override readonly instances: ITerminalInstance[] = [];
+	readonly createOptions: ICreateTerminalOptions[] = [];
 	failNextCreation = false;
 	disposeInstanceOnCreation = false;
 
@@ -50,6 +54,8 @@ class TestTerminalService extends mock<ITerminalService>() {
 	}
 
 	override async createTerminal(options?: ICreateTerminalOptions): Promise<ITerminalInstance> {
+		assert.ok(options);
+		this.createOptions.push(options);
 		const config = options?.config;
 		assert.ok(config);
 		const factory = (config as IShellLaunchConfig).customPtyImplementation;
@@ -60,6 +66,7 @@ class TestTerminalService extends mock<ITerminalService>() {
 			throw new Error('terminal creation failed');
 		}
 		const instance = this._store.add(new TestTerminalInstance());
+		this.instances.push(instance);
 		if (this.disposeInstanceOnCreation) {
 			instance.dispose();
 		}
@@ -70,6 +77,19 @@ class TestTerminalService extends mock<ITerminalService>() {
 		const pty: ITerminalChildProcess = this._ptyFactories[index](1, 80, 30);
 		assert.ok(pty instanceof AgentHostPty);
 		return pty;
+	}
+}
+
+class TestTerminalProfileService extends mock<ITerminalProfileService>() {
+	profileProvider: ITerminalProfileProvider | undefined;
+
+	override registerTerminalProfileProvider(_extensionIdentifier: string, _id: string, profileProvider: ITerminalProfileProvider) {
+		this.profileProvider = profileProvider;
+		return Disposable.None;
+	}
+
+	override registerInternalContributedProfile() {
+		return Disposable.None;
 	}
 }
 
@@ -109,11 +129,13 @@ class TestAgentConnection extends mock<IAgentConnection>() {
 suite('AgentHostTerminalService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let terminalService: TestTerminalService;
+	let terminalProfileService: TestTerminalProfileService;
 	let connection: TestAgentConnection;
 	let service: AgentHostTerminalService;
 
 	setup(() => {
 		terminalService = new TestTerminalService(store);
+		terminalProfileService = new TestTerminalProfileService();
 		connection = new TestAgentConnection();
 		service = store.add(new AgentHostTerminalService(
 			terminalService,
@@ -121,10 +143,27 @@ suite('AgentHostTerminalService', () => {
 				override registerAhpCommandSource() { return Disposable.None; }
 				override registerTerminalInstanceWithToolSession() { }
 			},
-			new class extends mock<ITerminalProfileService>() { },
+			terminalProfileService,
 			new class extends mock<IQuickInputService>() { },
 			new class extends NullLogService { readonly _logBrand = undefined; },
 		));
+	});
+
+	test('profile splits resolve the parent terminal instance', async () => {
+		const parentTerminal = store.add(new TestTerminalInstance());
+		terminalService.instances.push(parentTerminal);
+		store.add(service.registerEntry({
+			name: 'Test Host',
+			address: 'test-host',
+			getConnection: () => connection
+		}));
+		assert.ok(terminalProfileService.profileProvider);
+
+		await terminalProfileService.profileProvider.createContributedTerminalProfile({
+			location: { parentTerminal: parentTerminal.instanceId }
+		});
+
+		assert.deepStrictEqual(terminalService.createOptions.at(-1)?.location, { parentTerminal });
 	});
 
 	test('instance disposal locally disposes a created PTY without deleting the host terminal', async () => {
