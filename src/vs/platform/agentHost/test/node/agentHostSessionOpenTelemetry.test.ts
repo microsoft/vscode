@@ -9,9 +9,9 @@ import { URI } from '../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
-import { AgentSession } from '../../common/agent.js';
+import { AgentSession, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID } from '../../common/agent.js';
 import { buildDefaultChatUri } from '../../common/state/sessionState.js';
-import { AgentHostCopilotSessionSubscribeTimeoutMs, AgentHostSessionOpenTelemetry } from '../../node/agentHostSessionOpenTelemetry.js';
+import { AgentHostSessionOpenTelemetry, AgentHostSessionSubscribeTimeoutMs } from '../../node/agentHostSessionOpenTelemetry.js';
 
 function isTelemetryData(data: unknown): data is Record<string, unknown> {
 	return typeof data === 'object' && data !== null;
@@ -48,8 +48,9 @@ suite('AgentHostSessionOpenTelemetry', () => {
 			});
 
 			assert.deepStrictEqual(telemetryService.events, [{
-				name: 'agentHost.copilotSessionSubscribe',
+				name: 'agentHost.sessionSubscribe',
 				data: {
+					provider: 'copilotcli',
 					channel: 'defaultChat',
 					outcome: 'success',
 					servedFromMemory: false,
@@ -74,6 +75,7 @@ suite('AgentHostSessionOpenTelemetry', () => {
 			await service.withSubscription(session, async telemetry => telemetry.setServedFromMemory(true));
 
 			assert.deepStrictEqual(telemetryService.events.map(event => event.data), [{
+				provider: 'copilotcli',
 				channel: 'session',
 				outcome: 'success',
 				servedFromMemory: true,
@@ -173,11 +175,38 @@ suite('AgentHostSessionOpenTelemetry', () => {
 		}]);
 	});
 
-	test('emits a bounded timeout and ignores non-Copilot subscriptions', async () => {
+	test('emits subscription telemetry for current and future providers', async () => {
+		const telemetryService = new TestTelemetryService();
+		const service = disposables.add(new AgentHostSessionOpenTelemetry(telemetryService));
+		for (const provider of [CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, 'future']) {
+			await service.withSubscription(AgentSession.uri(provider, 'session'), async telemetry => {
+				telemetry.setServedFromMemory(false);
+				telemetry.restoreStarted(false);
+				telemetry.restoreCompleted();
+			});
+		}
+
+		assert.deepStrictEqual(
+			telemetryService.events.map(event => ({
+				name: event.name,
+				provider: event.data.provider,
+				channel: event.data.channel,
+				outcome: event.data.outcome,
+				sdkResumeOutcome: event.data.sdkResumeOutcome,
+				sdkResumeAttemptCount: event.data.sdkResumeAttemptCount,
+			})),
+			[
+				{ name: 'agentHost.sessionSubscribe', provider: 'claude', channel: 'session', outcome: 'success', sdkResumeOutcome: undefined, sdkResumeAttemptCount: undefined },
+				{ name: 'agentHost.sessionSubscribe', provider: 'codex', channel: 'session', outcome: 'success', sdkResumeOutcome: undefined, sdkResumeAttemptCount: undefined },
+				{ name: 'agentHost.sessionSubscribe', provider: 'future', channel: 'session', outcome: 'success', sdkResumeOutcome: undefined, sdkResumeAttemptCount: undefined },
+			],
+		);
+	});
+
+	test('emits a bounded timeout', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const telemetryService = new TestTelemetryService();
 			const service = disposables.add(new AgentHostSessionOpenTelemetry(telemetryService));
-			assert.strictEqual(await service.withSubscription(AgentSession.uri('claude', 'session'), async () => 'not measured'), 'not measured');
 			const resume = new DeferredPromise<void>();
 			const subscription = service.withSubscription(session, async telemetry => {
 				telemetry.setServedFromMemory(false);
@@ -187,11 +216,12 @@ suite('AgentHostSessionOpenTelemetry', () => {
 			});
 
 			await timeout(10_000);
-			await timeout(AgentHostCopilotSessionSubscribeTimeoutMs - 10_000);
+			await timeout(AgentHostSessionSubscribeTimeoutMs - 10_000);
 
 			assert.deepStrictEqual(telemetryService.events, [{
-				name: 'agentHost.copilotSessionSubscribe',
+				name: 'agentHost.sessionSubscribe',
 				data: {
+					provider: 'copilotcli',
 					channel: 'session',
 					outcome: 'timeout',
 					servedFromMemory: false,
@@ -203,7 +233,7 @@ suite('AgentHostSessionOpenTelemetry', () => {
 					sdkResumeDurationMs: 50_000,
 					timeToSdkResumeCompleteMs: undefined,
 					timeToRestoreCompleteMs: undefined,
-					totalDurationMs: AgentHostCopilotSessionSubscribeTimeoutMs,
+					totalDurationMs: AgentHostSessionSubscribeTimeoutMs,
 				},
 			}]);
 			resume.complete();
