@@ -33,7 +33,7 @@ export type IChangesetSessionMetadata = Record<string, string | undefined>;
  *
  * Owns only URI routing and forwards lifecycle signals. Subscription state is
  * recorded in the shared changeset subscription service. All computation,
- * working-directory gating, and the deferred-refresh state machine live in
+ * working-directory gating, and materialization refreshes live in
  * {@link IAgentHostChangesetService}.
  *
  * No per-session controllers — the cross-cutting concerns (listSessions
@@ -85,17 +85,15 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			sessionRaw: metadata[META_CHANGESET_SESSION],
 			legacyRaw: metadata[META_LEGACY_DIFFS],
 		});
-		// `addSubscriber`'s 0→1 trigger may have fired before the session
-		// state existed; now that `summary.workingDirectory` is populated,
-		// drain the deferred refresh.
+		// Recompute the current subscriptions now that the restored working
+		// directory is available.
 		this._changesets.onWorkingDirectoryAvailable(sessionStr);
 		this._changesetFileMonitor.onSessionRestored(sessionStr);
 	}
 
 	/**
 	 * Called when a provisional session is materialized (working directory
-	 * becomes known). Drains any static changeset refresh that was deferred
-	 * because the working directory was not yet known.
+	 * becomes known). Recomputes every current changeset subscription.
 	 */
 	onSessionMaterialized(sessionStr: string): void {
 		this._changesets.refreshChangesetCatalog(sessionStr);
@@ -104,12 +102,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		this._changesetFileMonitor.onSessionMaterialized(sessionStr);
 	}
 
-	/**
-	 * Called when a session is disposed. Forgets any pending refresh
-	 * queued for that session.
-	 */
 	onSessionDisposed(sessionStr: string): void {
-		this._changesets.onSessionDisposed(sessionStr);
 		this._changesetFileMonitor.onSessionDisposed(sessionStr);
 
 		this._changesetSubscriptions.clearSessionSubscriptions(sessionStr);
@@ -129,7 +122,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	/**
 	 * Called on every `addSubscriber` 0→1 transition. When `resource` is a
 	 * static changeset URI, triggers the first git-diff refresh (the
-	 * changeset service self-defers it when the working directory is not yet
+	 * changeset service skips it when the working directory is not yet
 	 * known).
 	 *
 	 * Both {@link AgentService.subscribe} and the handshake fast-path

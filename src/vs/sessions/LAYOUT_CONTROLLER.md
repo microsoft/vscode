@@ -6,7 +6,7 @@ This document specifies how the session layout controllers manage workbench layo
 
 | File | Spec | Rules |
 |------|------|-------|
-| `contrib/layout/browser/baseSessionLayoutController.ts` (`BaseLayoutController`) | [baseSessionLayoutController.md](contrib/layout/browser/baseSessionLayoutController.md) | `B1`–`B5` |
+| `contrib/layout/browser/baseSessionLayoutController.ts` (`BaseLayoutController`) | [baseSessionLayoutController.md](contrib/layout/browser/baseSessionLayoutController.md) | `B1`–`B6` |
 | `contrib/layout/browser/desktopSessionLayoutController.ts` (`LayoutController`) | [desktopSessionLayoutController.md](contrib/layout/browser/desktopSessionLayoutController.md) | `D1`–`D11` |
 | `contrib/layout/browser/mobileSessionLayoutController.ts` (`MobileLayoutController`) | [mobileSessionLayoutController.md](contrib/layout/browser/mobileSessionLayoutController.md) | `M1`–`M2` |
 
@@ -20,14 +20,15 @@ It is the detailed companion to the [layout-controller boundary](LAYOUT.md#layou
 
 ## 1. Overview
 
-The Agents window keeps a single **active session** but lets the user move between many. Each session owns its editor working set and bottom-panel visibility. The classic layout also keeps auxiliary-bar and editor-part visibility per session. The single-pane layout keeps a shared Editor/Details profile for Existing Sessions; New Sessions use a one-time Editor opening rule.
+The Agents window keeps a single **active session** but lets the user move between many. Each session owns its editor working set. The classic layout also remembers bottom-panel visibility, auxiliary-bar, and editor-part visibility per session. The single-pane layout instead governs bottom-panel *visibility* at the workbench level (like the side pane, persisted in `workbench.ts`) and remembers only which *view* the panel showed per session; it also keeps a shared Editor/Details profile for Existing Sessions, and New Sessions use a one-time Editor opening rule.
 
-`LayoutController` owns three independent pieces of per-session state, all keyed by session resource (`URI`) and persisted to workspace storage:
+`LayoutController` owns per-session state, keyed by session resource (`URI`) and persisted to workspace storage:
 
 | State | Storage map | Scope |
 |-------|-------------|-------|
 | Auxiliary bar (secondary side bar) | `_viewStateBySession` | Classic layout only: visibility + active view container |
-| Panel (terminal / debug output) | `_panelVisibilityBySession` | visibility only |
+| Panel visibility (terminal / debug output) | `_panelVisibilityBySession` | Classic layout only: visibility. Single-pane governs panel visibility at the workbench level instead |
+| Panel view | `_panelViewBySession` | Single-pane only: which pane composite the panel last showed (defaults to Terminal) |
 | Editor working set | `_workingSets` | open editors in the grid editor part |
 | Editor part visibility | `_editorPartHiddenBySession` | Classic layout only: whether the editor part was left hidden |
 
@@ -107,12 +108,18 @@ The auxiliary-bar **part** is kept hidden whenever it has **no active view conta
 
 ## 4. Panel
 
+### 4.1 Classic layout — visibility per session (B1)
+
 `_syncPanelVisibility(resource)`:
 
 - No active session → hide the panel.
 - Otherwise restore `_panelVisibilityBySession.get(resource)`, defaulting to **hidden** when there is no record.
 
 The per-session record is updated whenever the user toggles the panel: an `onDidChangePartVisibility` listener for `PANEL_PART` writes the new visibility for the active session (suppressed while multiple sessions are visible). Panel height is global workbench state, not per-session layout state. When Quick Chat hides the side pane, returning restores the panel first and then reveals the single-pane Editor. That Editor reveal must preserve the panel's current height; otherwise grid redistribution shrinks the panel to its minimum.
+
+### 4.2 Single-pane layout — visibility at workbench level, view per session (B6)
+
+Single-pane sets `_isPanelVisibilityPerSession = false`. That single gate is the inverse of B1: the panel's **visibility** is no longer per session — it is owned by the workbench (like the side pane) and persisted in `workbench.ts` alongside the other parts (`_applyPersistedPartVisibility` / `_savePartVisibility`, saved on `setPanelHidden`). Instead, the base remembers which **view** (pane composite) the panel last showed per session in `_panelViewBySession`, captured from `IPaneCompositePartService.onDidPaneCompositeOpen`. `_syncPanelView(resource)` restores it on session switch and when the panel is revealed — but only while the panel is already visible, so restoring a view never forces the panel open. A session with no remembered view falls back to `TERMINAL_VIEW_ID`. The view is persisted per session as `panelViewContainerId`; on a draft→committed submit the draft's remembered view is copied to the committed resource (`_onSessionReplaced`).
 
 ---
 
@@ -147,7 +154,7 @@ In single-pane mode, layout-driven managed Changes/File tab opens remain exclude
 - `_saveState` captures the active session's current view state, working set, and editor part hidden state (skipping untitled / multi-session cases) and writes one `ISessionLayoutEntry` per known session resource.
 - The classic layout's shared new-session view state (§3.2 step 2) is persisted separately under the workspace-scoped key `sessions.newSessionViewState` as an `INewSessionViewState` object, written immediately whenever the user toggles the aux bar on the new-session view (not on shutdown).
 - `_loadState` reads `sessions.newSessionViewState` and `sessions.layoutState`; if the latter is absent it performs a one-time migration from the legacy `sessions.workingSets` key and then removes it. Corrupted data is dropped defensively.
-- Single-pane editor working sets use `sessions.singlePane.layoutState`; the Existing Session editor/detail profile is written immediately to `sessions.singlePane.sidePaneVisibility`.
+- Single-pane editor working sets and per-session panel view (`panelViewContainerId`) use `sessions.singlePane.layoutState`; the Existing Session editor/detail profile is written immediately to `sessions.singlePane.sidePaneVisibility`. Single-pane bottom-panel **visibility** is not per-session state — it is persisted with the other workbench parts under the workbench part-visibility key (`workbench.ts`).
 
 ---
 

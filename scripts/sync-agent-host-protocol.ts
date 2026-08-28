@@ -219,30 +219,12 @@ function mergeDuplicateImports(content: string): string {
 	}).join('\n');
 }
 
-function applyGeneratedSourceFixes(content: string, dest: string): string {
-	const replaceRequired = (search: string | RegExp, replacement: string): void => {
-		const next = content.replace(search, replacement);
-		if (next === content) {
-			throw new Error(`Required generated-source compatibility fix no longer matches ${dest}`);
-		}
-		content = next;
-	};
-	if (dest === 'channels-automation/state.ts') {
-		replaceRequired(
-			'import type { AutomationCreateRequestedAction, AutomationRemovedAction, AutomationSetAction, AutomationUpdateRequestedAction } from \'./actions.js\';',
-			'import type { AutomationRemovedAction, AutomationSetAction, AutomationUpdateRequestedAction } from \'./actions.js\';',
-		);
-	}
-	return content;
-}
-
 function processFile(src: string, dest: string): void {
 	let content = fs.readFileSync(src, 'utf-8');
 	content = stripExistingHeader(content);
 
 	// Merge duplicate imports from the same module
 	content = mergeDuplicateImports(content);
-	content = applyGeneratedSourceFixes(content, dest);
 
 	content = convertIndentation(content);
 	content = content.split('\n').map(line => line.trimEnd()).join('\n');

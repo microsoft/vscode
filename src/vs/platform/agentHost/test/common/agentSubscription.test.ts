@@ -1003,22 +1003,22 @@ suite('AgentSubscriptionManager', () => {
 		ref.dispose();
 	});
 
-	test('preserves the exact authority-less automation catalogue channel', async () => {
+	test('uses the round-trippable automation catalogue URI', async () => {
 		const mgr = createManager(async resource => {
 			subscribedResources.push(resource.toString());
 			return { resource: resource.toString(), state: { automations: [] }, fromSeq: 0 };
 		});
-		const ref = mgr.getSubscriptionByChannel<AutomationCatalogState>(StateComponents.AutomationCatalog, AUTOMATION_CATALOG_URI, 'AutomationHolder');
+		const ref = mgr.getSubscription<AutomationCatalogState>(StateComponents.AutomationCatalog, URI.parse(AUTOMATION_CATALOG_URI), 'AutomationHolder');
 		await Event.toPromise(ref.object.onDidChange);
 
 		assert.deepStrictEqual({
 			subscribedResources,
-			channels: mgr.currentSubscriptionChannels(),
-			activeChannel: mgr.getActiveSubscriptions()[0].channel,
+			resources: mgr.currentSubscriptionUris().map(resource => resource.toString()),
+			activeResource: mgr.getActiveSubscriptions()[0].resource.toString(),
 		}, {
 			subscribedResources: [AUTOMATION_CATALOG_URI],
-			channels: [AUTOMATION_CATALOG_URI],
-			activeChannel: AUTOMATION_CATALOG_URI,
+			resources: [AUTOMATION_CATALOG_URI],
+			activeResource: AUTOMATION_CATALOG_URI,
 		});
 
 		ref.dispose();
@@ -1262,30 +1262,30 @@ suite('AgentSubscriptionManager', () => {
 
 			mgr.dispatchOptimistic(sessionUri, { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///ws2' });
 
-			mgr.markSubscriptionsMissing([sessionUri]);
+			mgr.markSubscriptionsMissing([URI.parse(sessionUri)]);
 
 			assert.ok(ref.object.value instanceof Error);
 			assert.deepStrictEqual(mgr.getPendingActions(), []);
 			ref.dispose();
 		});
 
-		test('markSubscriptionsMissing preserves exact protocol channels', async () => {
+		test('markSubscriptionsMissing handles the Automation catalogue URI', async () => {
 			const mgr = createManager(async resource => ({
 				resource: resource.toString(),
 				state: { automations: [] },
 				fromSeq: 0,
 			}));
-			const ref = mgr.getSubscriptionByChannel<AutomationCatalogState>(StateComponents.AutomationCatalog, AUTOMATION_CATALOG_URI, 'test');
+			const ref = mgr.getSubscription<AutomationCatalogState>(StateComponents.AutomationCatalog, URI.parse(AUTOMATION_CATALOG_URI), 'test');
 			await Event.toPromise(ref.object.onDidChange);
 
-			mgr.markSubscriptionsMissing([AUTOMATION_CATALOG_URI]);
+			mgr.markSubscriptionsMissing([URI.parse(AUTOMATION_CATALOG_URI)]);
 
 			assert.deepStrictEqual({
 				valueIsError: ref.object.value instanceof Error,
-				channel: mgr.getActiveSubscriptions()[0].channel,
+				resource: mgr.getActiveSubscriptions()[0].resource.toString(),
 			}, {
 				valueIsError: true,
-				channel: AUTOMATION_CATALOG_URI,
+				resource: AUTOMATION_CATALOG_URI,
 			});
 			ref.dispose();
 		});
