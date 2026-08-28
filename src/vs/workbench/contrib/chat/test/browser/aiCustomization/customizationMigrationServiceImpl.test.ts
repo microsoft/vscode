@@ -201,7 +201,7 @@ suite('CustomizationMigrationService', () => {
 			requestedTypes: promptsService.requestedTypes,
 			requestedSourceFolderTypes: harnessService.requestedSourceFolderTypes.toSorted(),
 			requestedSessionType,
-			requestedRoots,
+			requestedRoots: requestedRoots?.map(requestedRoot => requestedRoot.path),
 			supportScopeDisposed,
 		}, {
 			migrations: [
@@ -258,7 +258,7 @@ suite('CustomizationMigrationService', () => {
 				PromptsType.instructions, PromptsType.skill, PromptsType.skill,
 			],
 			requestedSessionType: SessionType.AgentHostCopilot,
-			requestedRoots: [root],
+			requestedRoots: ['/workspace'],
 			supportScopeDisposed: true,
 		});
 	});

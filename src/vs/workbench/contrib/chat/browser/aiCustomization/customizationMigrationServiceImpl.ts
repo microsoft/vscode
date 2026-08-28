@@ -99,7 +99,7 @@ export class CustomizationMigrationService implements ICustomizationMigrationSer
 	}
 
 	private async computeMcpServerMigration(sessionResource: URI): Promise<McpServerCustomizationMigration> {
-		const roots = this.agentHostCustomizationService.getWorkingDirectories(sessionResource).map(URI.file);
+		const roots = this.agentHostCustomizationService.getWorkingDirectories(sessionResource).map(path => URI.file(path));
 		const scope = this.activeClientService.acquireMcpServerSupportScope(getChatSessionType(sessionResource), roots);
 		if (!scope) {
 			return this.emptyMcpServerMigration();
