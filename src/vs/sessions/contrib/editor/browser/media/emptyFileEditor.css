@@ -31,7 +31,7 @@
 }
 
 .empty-file-editor-description {
-	font-size: var(--vscode-agents-fontSize-body1, 13px);
+	font-size: var(--vscode-fontSize-body1, 13px);
 	line-height: 1.4;
 	color: var(--vscode-descriptionForeground);
 }

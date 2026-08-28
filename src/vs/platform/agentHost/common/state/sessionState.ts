@@ -16,10 +16,12 @@ import { hasKey, type Mutable } from '../../../../base/common/types.js';
 import { URI as ResourceURI } from '../../../../base/common/uri.js';
 import type { IProductService } from '../../../product/common/productService.js';
 import { readToolCallMeta } from '../meta/agentToolCallMeta.js';
+import { readLegacyTurnError } from './legacyProtocolCompatibility.js';
 import {
 	ResponsePartKind,
 	SessionStatus,
 	ToolCallStatus,
+	TurnState,
 	SessionLifecycle,
 	TerminalState,
 	ToolResultContentType,
@@ -30,9 +32,13 @@ import {
 	type ChangesetState,
 	type ChatState,
 	type ChatSummary,
+	type ErrorInfo,
+	type ErrorResponsePart,
 	type PendingMessage,
 	type Turn,
 	type AnnotationsState,
+	type AutomationCatalogState,
+	type AutomationRunState,
 	type URI as ProtocolURI,
 	type RootState,
 	type SessionState,
@@ -68,9 +74,11 @@ export {
 	type ContentRef, type Customization, type CustomizationDegradedState,
 	type CustomizationErrorState, type CustomizationLoadedState, type CustomizationLoadingState, type CustomizationLoadState, type DirectoryCustomization, type ErrorInfo, type HookCustomization, type FileEdit as ISessionFileDiff, type ToolResultEmbeddedResourceContent as IToolResultBinaryContent, type MarkdownResponsePart, type McpServerCustomization, type MessageAttachment,
 	type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type ModelSelection, type PendingMessage, type PluginCustomization, type ProjectInfo, type PromptCustomization, type ReasoningResponsePart,
-	type ResponsePart,
+	type ErrorResponsePart, type ResponsePart,
 	type RootState, type RuleCustomization, type SessionActiveClient,
-	type SessionConfigState, type SessionModelInfo,
+	type AutomationCatalogState, type AutomationRunState,
+	type SessionConfigState,
+	type SessionModelInfo,
 	type SessionState,
 	type SessionSummary, type SkillCustomization, type Snapshot, type StringOrMarkdown, type TerminalState, type TextRange,
 	type ToolAnnotations,
@@ -97,6 +105,82 @@ export {
 	type Message
 } from './protocol/state.js';
 
+export function getErrorResponsePart(turn: Turn | ActiveTurn | undefined): ErrorResponsePart | undefined {
+	if (!turn) {
+		return undefined;
+	}
+	const part = turn.responseParts.at(-1);
+	return part?.kind === ResponsePartKind.Error ? part : undefined;
+}
+
+export function createErrorResponsePart(error: ErrorInfo, resumable = false): ErrorResponsePart {
+	return {
+		kind: ResponsePartKind.Error,
+		error,
+		...(resumable ? { resumable: true } : {}),
+	};
+}
+
+export function mergeLogicalTurnUsage(previous: UsageInfo | undefined, current: UsageInfo | undefined): UsageInfo | undefined {
+	if (!previous) {
+		return current;
+	}
+	if (!current) {
+		return previous;
+	}
+
+	const previousMeta = readUsageInfoMeta(previous);
+	const currentMeta = readUsageInfoMeta(current);
+	const cost = sumDefined(previousMeta.cost, currentMeta.cost);
+	const totalNanoAiu = sumDefined(previousMeta.copilotUsage?.totalNanoAiu, currentMeta.copilotUsage?.totalNanoAiu);
+	const turnTokenTotals = mergeTurnTokenTotals(previousMeta.turnTokenTotals, currentMeta.turnTokenTotals);
+	const directTotalNanoAiu = sumDefined(previousMeta.directCopilotUsage?.totalNanoAiu, currentMeta.directCopilotUsage?.totalNanoAiu);
+	const directTurnTokenTotals = mergeTurnTokenTotals(previousMeta.directTurnTokenTotals, currentMeta.directTurnTokenTotals);
+	const meta = previous._meta !== undefined || current._meta !== undefined ? {
+		...previous._meta,
+		...current._meta,
+		...(cost !== undefined ? { cost } : {}),
+		...(previousMeta.copilotUsage || currentMeta.copilotUsage ? {
+			copilotUsage: {
+				...previousMeta.copilotUsage,
+				...currentMeta.copilotUsage,
+				...(totalNanoAiu !== undefined ? { totalNanoAiu } : {}),
+			},
+		} : {}),
+		...(turnTokenTotals ? { turnTokenTotals } : {}),
+		...(directTotalNanoAiu !== undefined ? { directCopilotUsage: { totalNanoAiu: directTotalNanoAiu } } : {}),
+		...(directTurnTokenTotals ? { directTurnTokenTotals } : {}),
+	} : undefined;
+
+	return {
+		...previous,
+		...current,
+		model: current.model ?? previous.model,
+		...(meta ? { _meta: meta } : {}),
+	};
+}
+
+function sumDefined(first: number | undefined, second: number | undefined): number | undefined {
+	return first === undefined ? second : second === undefined ? first : first + second;
+}
+
+function mergeTurnTokenTotals(previous: UsageInfoMeta['turnTokenTotals'], current: UsageInfoMeta['turnTokenTotals']): UsageInfoMeta['turnTokenTotals'] {
+	if (!previous && !current) {
+		return undefined;
+	}
+	const totals = new Map<string, ITurnTokenTotal>();
+	for (const total of [...previous ?? [], ...current ?? []]) {
+		const existing = totals.get(total.model);
+		totals.set(total.model, existing ? {
+			model: total.model,
+			inputTokens: existing.inputTokens + total.inputTokens,
+			cachedTokens: existing.cachedTokens + total.cachedTokens,
+			outputTokens: existing.outputTokens + total.outputTokens,
+		} : { ...total });
+	}
+	return [...totals.values()];
+}
+
 /**
  * Well-known keys that may appear on {@link UsageInfo._meta}.
  * Clients MAY read these to provide enhanced UI (e.g. credit cost display).
@@ -120,10 +204,8 @@ export interface UsageInfoMeta {
 		[key: string]: unknown;
 	};
 	/**
-	 * Per-category account quota snapshots reported by the backend on the
-	 * model-call usage event, keyed by quota type (e.g. `chat`,
-	 * `premium_interactions`). Clients MAY use these to keep the account quota
-	 * UI current without a separate quota fetch.
+	 * Per-category account quota snapshots from the model-call usage event. Keyed by quota type:
+	 * `premium_models` (or `premium_interactions` on older backends), `chat`, `session`, `weekly`.
 	 */
 	quotaSnapshots?: {
 		[quotaType: string]: {
@@ -135,6 +217,10 @@ export interface UsageInfoMeta {
 			readonly overageAllowedWithExhaustedQuota?: boolean;
 			/** ISO 8601 date when the quota resets, if applicable. */
 			readonly resetDate?: string;
+			/** Whether this snapshot is billed against an AI-credits allocation. */
+			readonly tokenBasedBilling?: boolean;
+			/** Additional-usage budget cap in AI credits, when the backend reports one. */
+			readonly overageEntitlement?: number;
 		} | undefined;
 	};
 	/**
@@ -159,6 +245,31 @@ export interface UsageInfoMeta {
 		readonly totalNanoAiu?: number;
 	};
 	[key: string]: unknown;
+}
+
+/**
+ * Singleton channel containing the host-owned automation catalogue.
+ *
+ * The `catalog` authority is appended so the URI round-trips through
+ * `.toString()`. Without an authority, `ahp-automations://` serializes back to
+ * `ahp-automations:` and no longer matches. Comparing catalogue channels as
+ * URIs everywhere (ResourceMap/isEqual) is the intended followup. See
+ * https://github.com/microsoft/vscode/pull/331796#discussion_r3857160917.
+ */
+export const AUTOMATION_CATALOG_URI = 'ahp-automations://catalog';
+
+/** Returns whether `uri` identifies the singleton automation catalogue channel. */
+export function isAhpAutomationCatalogChannel(uri: string): boolean {
+	return uri === AUTOMATION_CATALOG_URI;
+}
+
+/** Returns whether `uri` identifies one automation-run channel. */
+export function isAhpAutomationRunChannel(uri: string): boolean {
+	try {
+		return ResourceURI.parse(uri).scheme === 'ahp-automation-run';
+	} catch {
+		return false;
+	}
 }
 
 const MESSAGE_HIDDEN_FROM_TRANSCRIPT_META_KEY = 'vscode.chat.hiddenFromTranscript';
@@ -241,6 +352,8 @@ function readAccountQuotaSnapshot(value: unknown): AccountQuotaSnapshot | undefi
 	if (typeof raw['overage'] === 'number') { snapshot.overage = raw['overage']; }
 	if (typeof raw['overageAllowedWithExhaustedQuota'] === 'boolean') { snapshot.overageAllowedWithExhaustedQuota = raw['overageAllowedWithExhaustedQuota']; }
 	if (typeof raw['resetDate'] === 'string') { snapshot.resetDate = raw['resetDate']; }
+	if (typeof raw['tokenBasedBilling'] === 'boolean') { snapshot.tokenBasedBilling = raw['tokenBasedBilling']; }
+	if (typeof raw['overageEntitlement'] === 'number') { snapshot.overageEntitlement = raw['overageEntitlement']; }
 	return snapshot;
 }
 
@@ -929,6 +1042,14 @@ export function createActiveTurn(id: string, message: Message, startedAt: string
 	};
 }
 
+export function getTurnError(turn: Turn | undefined): ErrorInfo | undefined {
+	if (turn?.state !== TurnState.Error) {
+		return undefined;
+	}
+	const part = turn.responseParts[turn.responseParts.length - 1];
+	return part?.kind === ResponsePartKind.Error ? part.error : readLegacyTurnError(turn);
+}
+
 export const enum StateComponents {
 	Root,
 	Session,
@@ -936,6 +1057,8 @@ export const enum StateComponents {
 	Terminal,
 	Changeset,
 	Annotations,
+	AutomationCatalog,
+	AutomationRun,
 }
 
 export type ComponentToState = {
@@ -945,6 +1068,8 @@ export type ComponentToState = {
 	[StateComponents.Terminal]: TerminalState;
 	[StateComponents.Changeset]: ChangesetState;
 	[StateComponents.Annotations]: AnnotationsState;
+	[StateComponents.AutomationCatalog]: AutomationCatalogState;
+	[StateComponents.AutomationRun]: AutomationRunState;
 };
 
 // ---- Default chat URI helpers ----------------------------------------------
@@ -1480,11 +1605,6 @@ export interface ISessionGitHubState {
 	/** Pull requests explicitly associated through user intent, most recent first. */
 	readonly associatedPullRequestUrls?: readonly string[];
 	/**
-	 * URLs of the GitHub issues referenced by the session's user messages, in
-	 * order of first appearance.
-	 */
-	readonly issueUrls?: readonly string[];
-	/**
 	 * The name of the branch the most recent {@link pullRequestUrls} entry was found (or created) for.
 	 * A pull request always relates to a branch: when the working copy switches
 	 * to a different branch the host keeps reporting the known pull request but
@@ -1570,17 +1690,6 @@ export function withInitialSessionPullRequest(gitHubState: ISessionGitHubState |
 			...(pullRequestUrl ? [pullRequestUrl] : []),
 			...(gitHubState?.initialPullRequestUrls ?? [])
 		])
-	};
-}
-
-/** Returns state that records a user-referenced pull request without changing checkout PR state. */
-export function withMostRecentReferencedSessionPullRequest(gitHubState: ISessionGitHubState | undefined, pullRequestUrl: string): ISessionGitHubState {
-	const associatedPullRequestUrls = normalizeSessionPullRequestUrls([
-		pullRequestUrl,
-		...(gitHubState?.associatedPullRequestUrls ?? [])
-	]);
-	return {
-		associatedPullRequestUrls,
 	};
 }
 
@@ -1685,7 +1794,6 @@ export function readSessionGitHubState(meta: SessionSummaryMeta | undefined): IS
 		pullRequestUrls?: readonly string[];
 		initialPullRequestUrls?: readonly string[];
 		associatedPullRequestUrls?: readonly string[];
-		issueUrls?: readonly string[];
 		pullRequestBranchName?: string;
 	} = {};
 
@@ -1708,7 +1816,6 @@ export function readSessionGitHubState(meta: SessionSummaryMeta | undefined): IS
 			result.associatedPullRequestUrls = associatedPullRequestUrls;
 		}
 	}
-	if (Array.isArray(raw['issueUrls'])) { result.issueUrls = raw['issueUrls'].filter((url): url is string => typeof url === 'string'); }
 	if (typeof raw['pullRequestBranchName'] === 'string') { result.pullRequestBranchName = raw['pullRequestBranchName']; }
 	return result;
 }

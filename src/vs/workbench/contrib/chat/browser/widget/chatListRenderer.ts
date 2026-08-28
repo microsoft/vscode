@@ -2135,6 +2135,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				templateData.value.appendChild(explicitFileAttachmentsPart.domNode);
 				templateData.elementDisposables.add(explicitFileAttachmentsPart);
 			}
+			if (otherVariables.length) {
+				const otherAttachmentsPart = this.renderAttachments(otherVariables, element.contentReferences, element.modelId, templateData);
+				if (otherAttachmentsPart.domNode) {
+					templateData.value.appendChild(otherAttachmentsPart.domNode);
+				}
+				templateData.elementDisposables.add(otherAttachmentsPart);
+			}
 		}
 		const contentContainer = templateData.value;
 
@@ -2261,15 +2268,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const stickyScrollSourcePart = parts.find(part => part.domNode === templateData.stickyScrollSource);
 		if (stickyScrollSourcePart?.addDisposable && templateData.stickyScrollSource?.classList.contains('clickable')) {
 			stickyScrollSourcePart.addDisposable(this.registerSynchronizedRequestBubbleHover(element.id, templateData, templateData.stickyScrollSource));
-		}
-
-		if (!isStickyScrollRow && otherVariables.length) {
-			const newPart = this.renderAttachments(otherVariables, element.contentReferences, element.modelId, templateData);
-			if (newPart.domNode) {
-				// p has a :last-child rule for margin
-				templateData.value.appendChild(newPart.domNode);
-			}
-			templateData.elementDisposables.add(newPart);
 		}
 
 		if (!isStickyScrollRow && !element.pendingKind && !element.confirmation && this.rendererOptions.renderStyle !== 'minimal' && templateData.value.childElementCount > 0) {
@@ -3553,7 +3551,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			} else if (content.kind === 'externalEdit') {
 				return this.renderExternalEdit(content, context, templateData);
 			} else if (content.kind === 'autoModeResolution') {
-				return this.instantiationService.createInstance(ChatAutoModeResolutionContentPart, content, context, this.chatContentMarkdownRenderer);
+				// A row that never resolved (cancelled or errored turn) has nothing
+				// left to say, so drop it instead of leaving a stuck "Auto routing task".
+				if (!content.resolved && context.element.isComplete) {
+					return this.renderNoContent(other => other.kind === content.kind && !other.resolved);
+				}
+				return this.instantiationService.createInstance(ChatAutoModeResolutionContentPart, content, context);
 			}
 
 			return this.renderNoContent(other => content.kind === other.kind);

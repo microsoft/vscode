@@ -206,21 +206,19 @@ type ProvisionalOperationResult = URI | void;
 class ActiveClientBinding extends Disposable {
 	constructor(
 		readonly roots: readonly URI[],
-		readonly scope: IAgentCustomizationScope | undefined,
+		readonly scope: IAgentCustomizationScope,
 		clientId: string,
 		publish: () => void,
 	) {
 		super();
-		if (scope) {
-			this._register(scope);
-			this._register(autorun(reader => {
-				if (!scope.isResolved.read(reader)) {
-					return;
-				}
-				scope.activeClient(clientId).read(reader);
-				publish();
-			}));
-		}
+		this._register(scope);
+		this._register(autorun(reader => {
+			if (!scope.isResolved.read(reader)) {
+				return;
+			}
+			scope.activeClient(clientId).read(reader);
+			publish();
+		}));
 	}
 }
 
@@ -546,13 +544,10 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			return;
 		}
 		const scope = entry.activeClientBinding.value?.scope;
-		if (!scope?.isResolved.get()) {
+		if (!scope || !scope.isResolved.get()) {
 			return;
 		}
 		const activeClient = scope.activeClient(this._agentHostService.clientId).get();
-		if (!activeClient) {
-			return;
-		}
 		this._agentHostService.dispatch(entry.generation.backendSession.toString(), {
 			type: ActionType.SessionActiveClientSet,
 			activeClient,

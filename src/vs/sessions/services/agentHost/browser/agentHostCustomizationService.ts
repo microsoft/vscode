@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../base/common/uri.js';
+import { identityAgentHostResourceUriMapper } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { combinedDisposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -69,6 +70,7 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 		}
 		return {
 			customizations: provider.getCustomizations(session.sessionId),
+			resourceUris: provider.getFeedbackAnnotationsChannel?.(session.sessionId)?.connection.resourceUris ?? identityAgentHostResourceUriMapper,
 			workingDirectory: provider.getWorkingDirectory(session.sessionId),
 			workingDirectories: provider.getWorkingDirectories(session.sessionId),
 			rootConfig: provider.getRootConfig(),

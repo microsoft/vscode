@@ -177,8 +177,6 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 	private container: HTMLElement | undefined;
 	private avatarElement: HTMLImageElement | undefined;
 	private iconElement: HTMLElement | undefined;
-	private codexAvatarElement: HTMLImageElement | undefined;
-	private codexIconElement: HTMLElement | undefined;
 	private codexPanelAvatarElement: HTMLImageElement | undefined;
 	private codexPanelIconElement: HTMLElement | undefined;
 	private labelElement: HTMLElement | undefined;
@@ -281,11 +279,6 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		this.avatarElement.decoding = 'async';
 		this.avatarElement.referrerPolicy = 'no-referrer';
 		this.iconElement = append(container, $('.sessions-account-titlebar-widget-icon'));
-		this.codexAvatarElement = append(container, $('img.sessions-account-titlebar-widget-codex-avatar', { alt: localize('chatGPTAvatarAltFallback', "ChatGPT profile image"), draggable: 'false' })) as HTMLImageElement;
-		this.codexAvatarElement.decoding = 'async';
-		this.codexAvatarElement.referrerPolicy = 'no-referrer';
-		this.codexIconElement = append(container, $('.sessions-account-titlebar-widget-codex-icon'));
-		this.codexIconElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.openai));
 		this.labelElement = append(container, $('span.sessions-account-titlebar-widget-label'));
 		this.badgeElement = append(container, $('span.sessions-account-titlebar-widget-badge'));
 
@@ -320,7 +313,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 	}
 
 	private renderState(): void {
-		if (!this.container || !this.avatarElement || !this.iconElement || !this.codexAvatarElement || !this.codexIconElement || !this.labelElement || !this.badgeElement) {
+		if (!this.container || !this.avatarElement || !this.iconElement || !this.labelElement || !this.badgeElement) {
 			return;
 		}
 
@@ -329,11 +322,6 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		const entitlement = this.accountName && this.chatEntitlementService.entitlement === ChatEntitlement.Unknown
 			? ChatEntitlement.Unresolved
 			: this.chatEntitlementService.entitlement;
-		const hasChatGPTAccount = hasSignedInCodexChatGPTAccount(
-			this.codexAccountService.account,
-			shouldShowCodexAccount(this.configurationService, true),
-		);
-
 		const state = getAccountTitleBarState({
 			isAccountLoading: this.isAccountLoading,
 			accountName: this.accountName,
@@ -359,8 +347,6 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		const shouldShowDotBadge = !!badgeKey && badgeKey !== this.dismissedBadgeKey;
 		const loadedAvatarUrl = !this.isAccountLoading ? this.loadedAvatarUrl : undefined;
 		const hasLoadedAvatar = !!loadedAvatarUrl;
-		const loadedCodexAvatarUrl = hasChatGPTAccount ? this.loadedCodexAvatarUrl : undefined;
-		const hasLoadedCodexAvatar = !!loadedCodexAvatarUrl;
 		const titleBarIcon = state.dotBadge ? Codicon.account : state.icon;
 
 		this.avatarElement.classList.toggle('visible', hasLoadedAvatar);
@@ -375,17 +361,6 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 
 		this.iconElement.className = `sessions-account-titlebar-widget-icon ${ThemeIcon.asClassName(titleBarIcon)}`;
 		this.iconElement.classList.toggle('hidden', hasLoadedAvatar);
-		this.container.classList.toggle('has-chatgpt-account', hasChatGPTAccount);
-		this.codexAvatarElement.classList.toggle('visible', hasLoadedCodexAvatar);
-		this.codexAvatarElement.alt = this.getCodexAvatarAltText();
-		if (loadedCodexAvatarUrl) {
-			if (this.codexAvatarElement.src !== loadedCodexAvatarUrl) {
-				this.codexAvatarElement.src = loadedCodexAvatarUrl;
-			}
-		} else {
-			this.codexAvatarElement.removeAttribute('src');
-		}
-		this.codexIconElement.classList.toggle('visible', hasChatGPTAccount && !hasLoadedCodexAvatar);
 		this.labelElement.textContent = '';
 		this.badgeElement.textContent = '';
 		this.badgeElement.classList.toggle('dot-badge', shouldShowDotBadge);

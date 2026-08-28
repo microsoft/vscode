@@ -34,7 +34,7 @@ import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { languageModelSourcePresentationRegistry } from '../../../common/languageModelSourcePresentation.js';
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { AgentCustomizationItemProvider } from './agentCustomizationItemProvider.js';
-import { agentHostProviderHasBuiltInGitHubMcpServer, COPILOT_CHAT_GITHUB_MCP_COLLECTION_ID } from './agentHostLocalCustomizations.js';
+import { agentHostProviderHasBuiltInGitHubMcpServer, COPILOT_CHAT_GITHUB_MCP_COLLECTION_ID } from './agentHostMcpServerSupport.js';
 import { AgentHostDownloadProgress } from './agentHostDownloadProgress.js';
 import { authenticateProtectedResources, AgentHostAuthenticationRecovery, AgentHostAuthTokenCache, resolveAuthenticationInteractively } from './agentHostAuth.js';
 import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from './agentHostLanguageModelProvider.js';
@@ -312,19 +312,17 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			},
 		}));
 
-		const agentRegistration = store.add(this._activeClientService.registerForAgent(sessionType));
-		const syncProvider = agentRegistration.syncProvider;
+		const syncProvider = this._activeClientService.getSyncProvider(sessionType);
 		// The management UI remains ambient while individual sessions use their working-directory scopes.
-		const ambientScope = store.add(agentRegistration.acquireScope([]));
+		const ambientScope = store.add(this._activeClientService.acquireScope(sessionType, []));
 
 		const itemProvider = store.add(this._instantiationService.createInstance(AgentCustomizationItemProvider, 'local', undefined,
-			syncedUri => agentRegistration.getOrigin(syncedUri)));
+			syncedUri => this._activeClientService.getOrigin(syncedUri)));
 		itemProvider.setDraftCustomAgents(ambientScope.customAgents);
 		itemProvider.setDraftCustomizations(ambientScope.customizations);
-		// `[Agent Host]` suffix disambiguates from the extension-host Copilot CLI harness, which uses the same displayName.
 		store.add(this._customizationHarnessService.registerExternalHarness({
 			id: sessionType,
-			label: localize('agentHostHarnessLabel.local', "{0} [Agent Host]", agent.displayName),
+			label: agent.displayName,
 			icon: ThemeIcon.fromId(Codicon.server.id),
 			// The Tools section is surfaced for the Copilot CLI agent host only.
 			hiddenSections: agent.provider === 'copilotcli' ? [AICustomizationManagementSection.Prompts] : [AICustomizationManagementSection.Tools, AICustomizationManagementSection.Prompts],

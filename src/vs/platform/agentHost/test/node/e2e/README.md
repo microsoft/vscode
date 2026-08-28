@@ -426,7 +426,7 @@ Getting the host into that configuration needs a feature that genuinely reaches 
 | `enabled` | Skips the whole suite if the SDK isn't present. |
 | `supportsSubagents` | Gates the two subagent tests. |
 | `supportsWorktreeIsolation` | Gates the worktree test. |
-| `supportsPlanMode` | Gates the plan-mode test. |
+| `planModeStyle` | Gates the plan-mode test and selects its provider contract: `session-state` for a plan document or `input-request` for an interactive planning question. |
 | `fileOperationStrategy` | Selects native file-tool prompts or pinned portable shell commands for shared file-operation scenarios. |
 | `shellToolReplayUnstableOnLinux` | Skips shell-dependent replay tests on **Linux** for that provider. Recording and other platforms remain enabled. |
 | `subagentReplayUnstableOnWindows` | Skips the subagent-reopen ("replay path") test on **Windows** for that provider (e.g. Claude rebuilds the transcript from the SDK's on-disk `subagents/*.jsonl`, not reliably visible there right after the turn). |
@@ -434,6 +434,19 @@ Getting the host into that configuration needs a feature that genuinely reaches 
 | `isWindows` | The worktree test is skipped on Windows (POSIX-shaped `.worktrees` paths + host-terminal `pwd`). |
 
 File-operation capability and coverage are separate concerns. A provider with no native file tools can still run the behavior scenarios through `fileOperationStrategy: 'shell'`; those prompts pin portable `node -e` commands and retain direct filesystem assertions. Native-tool-only behavior, such as streaming file-creation argument deltas, remains gated by the corresponding tool-name field. A shell strategy also respects `shellToolReplayUnstableOnLinux`, so enabling Codex file coverage on macOS and Windows does not overstate its packaged-Linux replay support.
+
+### Interpreting Codex pending tests
+
+On platforms where Codex unified-shell replay is stable, the baseline suite has 11 intentionally pending registrations:
+
+- freeform and multi-select questions, because `request_user_input` requires non-empty, mutually exclusive options;
+- native streaming file creation and the two subagent scenarios, because Codex advertises neither capability;
+- the three live workspace-agent watcher scenarios, because Codex discovers workspace customizations initially but does not watch them;
+- mid-turn abort, which is record-only for every provider;
+- worktree include-file coverage, which remains behind its documented known-issue gate; and
+- the negative multiple-chat scenario, which runs only for a provider that does not advertise multiple chats.
+
+Codex multiple chats, provider-backed forks, side chats, Plan-mode input, input cancellation, workspaceless sessions, runtime slash commands, cross-session server tools, host restart, and workspace customization discovery all run in strict replay. Linux can show additional pending shell-backed scenarios under `shellToolReplayUnstableOnLinux`; those are tracked separately in [`KNOWN_ISSUES.md`](./KNOWN_ISSUES.md).
 
 **Rule of thumb:** if a test relies on real-time behavior, concurrency, or POSIX-specific local execution, gate it rather than fighting the fixture. Prefer a *targeted* gate (per-provider flag or `!isWindows`) so you don't disable coverage where it works.
 

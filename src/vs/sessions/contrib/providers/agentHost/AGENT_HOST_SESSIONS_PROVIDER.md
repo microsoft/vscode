@@ -24,15 +24,28 @@ Agent Host providers implement `IAgentHostSessionsProvider`, which extends `ISes
 
 - optional remote connection state and connect/disconnect operations;
 - observable host-declared session configuration;
-- configuration mutation and completion APIs.
+- configuration mutation and completion APIs;
+- optional local-draft Dev Container availability and selection.
 
 Consumers use the extended type guard rather than matching provider IDs. Provider-neutral features continue to depend on `ISessionsProvider`.
+
+## Dev Container handoff
+
+The desktop-only Dev Container target is local draft state rather than host-declared session configuration. Before the first request, the local provider starts or reuses the container Agent Host, trusts the mapped workspace only after the source folder passes trust, and replaces the local draft with an equivalent draft owned by the dynamic remote provider. Compatible configuration, model, and custom-agent selections transfer to the replacement.
 
 ## Registration
 
 `LocalAgentHostContribution` registers the local provider only when the Agent Host runtime is available for the current environment. Agent discovery populates session types dynamically from host root state.
 
 The contribution also registers the content and working-directory adapters needed by advertised session types. Runtime startup and shutdown rebind or dispose connection-scoped listeners; consumers must not assume registration means the backend has finished discovery.
+
+## Automations
+
+Agent Host providers expose Automations through the singleton `ahp-automations://catalog` catalogue when the negotiated host capabilities include `automations`. `AgentHostAutomationStore` projects that authoritative AHP state onto the Sessions automation model; it does not persist definitions or execute a fallback scheduler. `ReconnectableAgentHostAutomationStore` keeps that projection stable across local and remote connection changes and falls back to the legacy store only while the feature is disabled, the host lacks the capability, or migration has not completed.
+
+Migration imports each legacy definition with canonical `automation/createRequested` actions and waits for authoritative `automation/set` state. Imported definitions identify their initial prompt with `MessageKind.Automation`, preserving automation provenance instead of representing host-triggered execution as a user message. Editor-qualified language-model identifiers are converted to provider-native `ModelSelection.id` values at the AHP boundary while VS Code projection metadata preserves the editor identifier. The host withholds the per-automation `run` operation and rejects execution until every expected resource is present and the durable completion marker is written. Import retries are idempotent and concurrent edits are reconciled before source removal. Failures before a verified item transfer leave its legacy authority intact; failures after transfer retain the durable host definition and archived history for retry. Historical legacy runs are copied to an atomic, read-only local archive before guarded ledger removal because AHP deliberately has no run-history import command.
+
+After migration, the Agent Host owns manual execution, schedule evaluation, misfire handling, run/session linkage, cancellation, and lifecycle persistence. Run summaries carry host session resources; the provider projection converts them to the local or remote Sessions resource scheme before exposing them to history UI. The browser scheduler consults `isSchedulingOwnedByHost` for each Automation, and the browser runner treats a host-dispatched manual run as started without creating a duplicate session. Connection startup waits for capability negotiation instead of treating an initializing host as a migration failure. The existing `chat.automations.enabled` and `chat.automations.runTimeoutMinutes` settings are mirrored to host root config; disabling Automations removes the `run` operation and stops new schedule claims while leaving durable definitions and already-running sessions intact.
 
 ## Identity
 
@@ -61,7 +74,7 @@ The provider cache owns adapter identity. Catalog notifications describe members
 
 Provider-specific metadata such as pull-request provenance, changesets, agent configuration, and external visibility is translated inside this provider. Shared Sessions code consumes only provider-neutral fields and capabilities.
 
-Agent-recorded artifacts are persisted with the session and projected through `ISession.artifacts`. Pull request and issue artifacts that shared GitHub surfaces can represent are promoted into the existing GitHub metadata without duplicating them. Customizations used or read by the agent are derived per chat and projected through `IChat.customizations`.
+Agent-recorded artifacts and references are persisted with the session and projected together through `ISession.artifacts`, where `isArtifact` distinguishes them. Only artifacts are promoted into the existing GitHub metadata, so a pull request or issue the session produced is polled and shown on the shared GitHub surfaces rather than duplicated; a reference keeps its link identity so anything those surfaces already show is offered exactly once. Customizations used or read by the agent are derived per chat and projected through `IChat.customizations`.
 
 ## Draft and send lifecycle
 

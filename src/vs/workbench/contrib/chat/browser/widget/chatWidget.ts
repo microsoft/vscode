@@ -296,6 +296,9 @@ const DISCLAIMER = localize('chatDisclaimer', "AI responses may be inaccurate");
 /** Set on the container when {@link IChatWidgetViewOptions.persistentContentHeight} is, floating the persistent content. */
 export const chatFloatingPersistentContentClass = 'chat-floating-persistent-content';
 
+/** Set on the persistent-content container while it has visible content. */
+export const chatPersistentContentVisibleClass = 'chat-persistent-content-visible';
+
 /** Carries {@link IChatWidgetViewOptions.persistentContentHeight} to `chat.css`. */
 export const chatPersistentContentHeightVariable = '--vscode-chat-persistent-content-height';
 
@@ -468,6 +471,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	/** The session resource the {@link _chatAgentHostFolderPickerVisibleContextKey} value currently reflects, so a transient `undefined` decision during provisional recreation retains the value instead of flashing the chip. */
 	private _folderPickerDecisionSessionResource: URI | undefined;
 	private readonly _chatSessionSupportsForkContextKey: IContextKey<boolean>;
+	private readonly _chatSessionSupportsRenameContextKey: IContextKey<boolean>;
 	private readonly _agentSupportsAttachmentsContextKey: IContextKey<boolean>;
 	private readonly _sessionIsEmptyContextKey: IContextKey<boolean>;
 	private readonly _hasPendingRequestsContextKey: IContextKey<boolean>;
@@ -619,6 +623,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._chatAgentHostHasImmutablePrimaryWorkingDirectoryContextKey = ChatContextKeys.chatAgentHostHasImmutablePrimaryWorkingDirectory.bindTo(this.contextKeyService);
 		this._chatAgentHostFolderPickerVisibleContextKey = ChatContextKeys.chatAgentHostFolderPickerVisible.bindTo(this.contextKeyService);
 		this._chatSessionSupportsForkContextKey = ChatContextKeys.chatSessionSupportsFork.bindTo(this.contextKeyService);
+		this._chatSessionSupportsRenameContextKey = ChatContextKeys.chatSessionSupportsRename.bindTo(this.contextKeyService);
 		this._agentSupportsAttachmentsContextKey = ChatContextKeys.agentSupportsAttachments.bindTo(this.contextKeyService);
 		this._sessionIsEmptyContextKey = ChatContextKeys.chatSessionIsEmpty.bindTo(this.contextKeyService);
 		this._hasPendingRequestsContextKey = ChatContextKeys.hasPendingRequests.bindTo(this.contextKeyService);
@@ -2714,6 +2719,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.updateWorkingProgressBorder();
 			this.onDidChangeItems();
 			this._hasPendingRequestsContextKey.set(false);
+			this._chatSessionSupportsRenameContextKey.set(false);
 			if (!this.viewOptions.isSessionsWindow) {
 				this.setReadOnly(false);
 			}
@@ -2795,15 +2801,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.viewModel = undefined;
 			this.updateWorkingProgressBorder();
 			this.onDidChangeItems();
+			this._chatSessionSupportsRenameContextKey.set(false);
 		}));
 		this._sessionIsEmptyContextKey.set(model.getRequests().length === 0);
-		const updateSupportsFork = () => {
+		const updateSessionCapabilities = () => {
 			const supportsFork = this.chatSessionsService.sessionSupportsFork(model.sessionResource);
 			this._chatSessionSupportsForkContextKey.set(supportsFork);
+			const supportsRename = getChatSessionType(model.sessionResource) === localChatSessionType
+				|| this.chatSessionsService.sessionSupportsRename(model.sessionResource);
+			this._chatSessionSupportsRenameContextKey.set(supportsRename);
 			this.listWidget?.updateRendererOptions({ supportsFork });
 		};
-		updateSupportsFork();
-		this.viewModelDisposables.add(this.chatSessionsService.onDidChangeAvailability(() => updateSupportsFork()));
+		updateSessionCapabilities();
+		this.viewModelDisposables.add(this.chatSessionsService.onDidChangeAvailability(() => updateSessionCapabilities()));
 		this._sessionHasDebugDataContextKey.set(this.chatDebugService.getEvents(model.sessionResource).length > 0);
 		let lastSteeringCount = 0;
 		const updatePendingRequestKeys = (announceSteering: boolean) => {
@@ -2962,6 +2972,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._chatAgentHostFolderPickerVisibleContextKey.set(false);
 		this._folderPickerDecisionSessionResource = undefined;
 		this._chatSessionSupportsForkContextKey.set(false);
+		this._chatSessionSupportsRenameContextKey.set(false);
 		this._updateAgentCapabilitiesContextKeys(undefined);
 
 		// Explicitly update the DOM to reflect unlocked state
@@ -3450,7 +3461,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (submittedWithImage) {
 			this.chatPetService.unlockAchievement(ChatPetAchievementIds.ImageRequest);
 		}
-
 		if (!options.preserveInput) {
 			// Not a user submission; listeners would consume draft state. Also skips editor pinning.
 			this._onDidSubmitAgent.fire({ agent: sent.data.agent, slashCommand: sent.data.slashCommand });
@@ -3471,7 +3481,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			sent.data.responseCompletePromise.then(() => {
 				const responses = this.viewModel?.getItems().filter(isResponseVM);
 				const lastResponse = responses?.[responses.length - 1];
-				this.chatAccessibilityService.acceptResponse(this, this.container, lastResponse, submittedSessionResource, options?.isVoiceInput);
+				this.chatAccessibilityService.acceptResponse(lastResponse, submittedSessionResource, options?.isVoiceInput);
 				if (lastResponse?.result?.nextQuestion) {
 					const { prompt, participant, command } = lastResponse.result.nextQuestion;
 					const question = formatChatQuestion(this.chatAgentService, this.location, prompt, participant, command);

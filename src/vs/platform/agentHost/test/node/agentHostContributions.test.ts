@@ -9,9 +9,10 @@ import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
-import { NullLogService } from '../../../log/common/log.js';
+import { NullLogService, ILogService } from '../../../log/common/log.js';
 import { IAgentHostChangesetOperationService, IChangesetOperationContribution } from '../../common/agentHostChangesetOperationService.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
+import { IAgentHostPullRequestStatusService } from '../../node/agentHostPullRequestStatusService.js';
 import { activateAgentHostContributions } from '../../node/agentHostContributions.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 
@@ -47,7 +48,14 @@ const nullGitStateService: IAgentHostGitStateService = {
 	async setSessionGitHubState() { },
 	async recordSessionMerge() { },
 	async attachSessionGitHubPullRequest() { },
-	async attachSessionGitHubReferences() { },
+};
+
+const nullPullRequestStatusService: IAgentHostPullRequestStatusService = {
+	_serviceBrand: undefined,
+	onDidChangePullRequestStatus: Event.None,
+	getPullRequestStatus() { return undefined; },
+	async refresh() { },
+	dispose() { },
 };
 
 suite('AgentHostContributions', () => {
@@ -59,6 +67,8 @@ suite('AgentHostContributions', () => {
 			[IAgentHostStateManager, disposables.add(new AgentHostStateManager(new NullLogService()))],
 			[IAgentHostChangesetOperationService, changesetOperationService],
 			[IAgentHostGitStateService, nullGitStateService],
+			[IAgentHostPullRequestStatusService, nullPullRequestStatusService],
+			[ILogService, new NullLogService()],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 
