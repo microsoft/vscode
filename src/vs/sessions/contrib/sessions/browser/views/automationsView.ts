@@ -861,6 +861,9 @@ class AutomationHistorySection extends Disposable {
 				action.enabled = false;
 				await this.stopRunSession(session, this.getAutomationName(run), action);
 				return true;
+			case ARCHIVE_SESSION_COMMAND_ID:
+				await this.sessionsManagementService.archiveSession(session);
+				return true;
 			case DELETE_AUTOMATION_RUN_SESSION_COMMAND_ID:
 				await this.confirmDeleteRunSession(run, session, this.getAutomationName(run));
 				return true;
@@ -1205,7 +1208,7 @@ function registerAutomationHistoryItemActions(archiveWording: ChatSessionArchive
 				icon: Codicon.trash,
 			},
 			group: 'navigation',
-			order: 1,
+			order: 3,
 			when: ContextKeyExpr.and(
 				SessionSupportsDeleteContext,
 				ContextKeyExpr.or(

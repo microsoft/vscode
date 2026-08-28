@@ -909,6 +909,11 @@ abstract class BaseArchiveSessionAction extends Action2 {
 				order: 1,
 				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
 			}, {
+				id: Menus.AutomationsHistoryItem,
+				group: 'navigation',
+				order: 2,
+				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
+			}, {
 				id: SessionItemContextMenuId,
 				group: '1_edit',
 				order: 2,

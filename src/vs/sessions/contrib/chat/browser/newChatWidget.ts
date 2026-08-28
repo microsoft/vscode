@@ -23,7 +23,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { localize } from '../../../../nls.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISession, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../services/sessions/common/session.js';
+import { ISession, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../services/sessions/common/session.js';
 import { IOpenNewSessionResult, ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { isAllowSignedOutWhenUsableEnabled, shouldShowGitHubWorkspaceGroupSignIn } from '../../../browser/sessionsAuthGate.js';
 import { AGENTIC_SIGN_IN_COMMAND_ID } from '../../../common/sessionCommands.js';
@@ -78,6 +78,8 @@ export class NewChatWidget extends Disposable {
 	 * the visible heading instead of the (hidden) chat input.
 	 */
 	private _activeEmptyState: NoAgentHostEmptyState | undefined;
+	private _workspacePickerRow: HTMLElement | undefined;
+	private _quickChatHeaderPickerHost: HTMLElement | undefined;
 
 	private readonly _session: IObservable<IActiveSession | undefined>;
 
@@ -98,7 +100,10 @@ export class NewChatWidget extends Disposable {
 	private readonly _workspacePickerVisibleKey: IContextKey<boolean>;
 
 	constructor(
-		private readonly options: IChatViewOptions & { readonly petHostPreferred?: IObservable<boolean> },
+		private readonly options: IChatViewOptions & {
+			readonly petHostPreferred?: IObservable<boolean>;
+			readonly initialAttachments?: readonly IChatRequestVariableEntry[];
+		},
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
@@ -205,12 +210,16 @@ export class NewChatWidget extends Disposable {
 			loading,
 			historyKey: constObservable(undefined), // no persisted history for the new-session view
 			placeholder: localize('newSessionPromptPlaceholder', "Pitch your idea"),
+			sessionTypePickerOptions: { showChevron: false },
 			supportsBackground: true,
 			deferredNotificationsEnabled,
 			petHostPreferred: this.options.petHostPreferred,
 		});
 		this._register(toDisposable(() => newChatInput.saveState()));
 		this._newChatInput = this._register(newChatInput);
+		if (this.options.initialAttachments?.length) {
+			this._newChatInput.addAttachments(...this.options.initialAttachments);
+		}
 		this._register(newSessionComposerService.registerComposer(this._newChatInput));
 
 		// Comment 3: Bind Agent mode in the scoped context so that Agent-only tips
@@ -404,6 +413,10 @@ export class NewChatWidget extends Disposable {
 			? this._renderEmptyStateGate(workspacePickerContainer, chatWidgetContent)
 			: this._renderWorkspacePicker(workspacePickerContainer));
 
+		if (!isWeb) {
+			this._quickChatHeaderPickerHost = dom.append(chatWidgetContent, dom.$('.new-session-quick-chat-header.sessions-workspace-category-picker'));
+		}
+
 		this._renderFeedbackBanner(chatWidgetContent);
 		this._newChatInput.render(chatWidgetContent, parent);
 
@@ -446,6 +459,22 @@ export class NewChatWidget extends Disposable {
 				this._workspacePickerVisibleKey.set(!isQuickChat);
 			}
 		}));
+
+		if (!isWeb) {
+			this._register(autorun(reader => {
+				const isQuickChat = this._isQuickChatComposer.read(reader);
+				const target = isQuickChat ? this._quickChatHeaderPickerHost : this._workspacePickerRow;
+				if (!target) {
+					return;
+				}
+				this._newChatInput.sessionTypePicker.render(target, {
+					className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot',
+				});
+				if (!isQuickChat && target.lastElementChild) {
+					target.insertBefore(target.lastElementChild, target.firstElementChild);
+				}
+			}));
+		}
 
 		// Create initial session for any workspace already selected at construct time.
 		// If the selection arrives later (provider registers asynchronously), the
@@ -666,46 +695,39 @@ export class NewChatWidget extends Disposable {
 
 	private _renderWorkspacePicker(container: HTMLElement): IDisposable {
 		this._workspacePickerVisibleKey.set(true);
-		const remoteTrigger: IWorkspacePickerTrigger = {
-			label: localize('newSessionWorkspacePicker.remote', "Remote Setup"),
-			ariaLabel: localize('newSessionWorkspacePicker.remoteAriaLabel', "Choose a remote setup for the new session"),
-			icon: Codicon.add,
-			group: SESSION_WORKSPACE_GROUP_REMOTE,
-			hideWhenWorkspaceSelected: true,
-		};
-		const moreTrigger: IWorkspacePickerTrigger = {
-			ariaLabel: localize('newSessionWorkspacePicker.moreAriaLabel', "More workspace options"),
-			icon: Codicon.ellipsis,
-		};
-		const folderTrigger: IWorkspacePickerTrigger = {
-			label: localize('newSessionWorkspacePicker.folder', "Folder"),
-			ariaLabel: localize('newSessionWorkspacePicker.folderAriaLabel', "Choose a folder for the new session"),
-			icon: Codicon.add,
-			group: SESSION_WORKSPACE_GROUP_LOCAL,
-		};
-		const repositoryTrigger: IWorkspacePickerTrigger = {
-			label: localize('newSessionWorkspacePicker.githubRepository', "Repository"),
-			ariaLabel: localize('newSessionWorkspacePicker.githubRepositoryAriaLabel', "Choose a GitHub repository for the new session"),
-			icon: Codicon.add,
-			group: SESSION_WORKSPACE_GROUP_GITHUB,
+		const workspaceTrigger: IWorkspacePickerTrigger = {
+			label: localize('newSessionWorkspacePicker.workspace', "Workspace"),
+			ariaLabel: localize('newSessionWorkspacePicker.workspaceAriaLabel', "Choose a workspace for the new session"),
+			tooltip: localize('newSessionWorkspacePicker.workspaceTooltip', "Choose where the new session runs"),
+			icon: Codicon.project,
+			reflectsWorkspace: true,
 			attachesContext: false,
 		};
 		const gitHubContextTrigger: IWorkspacePickerTrigger = {
 			label: localize('newSessionWorkspacePicker.githubContext', "Issue/PR"),
 			ariaLabel: localize('newSessionWorkspacePicker.githubContextAriaLabel', "Attach a GitHub issue or pull request to the new session"),
+			tooltip: localize('newSessionWorkspacePicker.githubContextTooltip', "Attach an issue or pull request as context"),
 			icon: Codicon.add,
 			group: SESSION_WORKSPACE_GROUP_GITHUB,
 			attachesContext: true,
 			hideWhenNoGitHubRepository: true,
 		};
-		this._workspacePicker.renderCategoryTriggers(container, [
-			isWeb ? { ...folderTrigger, group: SESSION_WORKSPACE_GROUP_REMOTE, hideWhenNoWorkspaceSelected: true } : folderTrigger,
-			repositoryTrigger,
+		const row = this._workspacePicker.renderCategoryTriggers(container, [
+			workspaceTrigger,
 			gitHubContextTrigger,
-			remoteTrigger,
-			moreTrigger,
 		]);
-		return Disposable.None;
+		this._newChatInput.sessionTypePicker.render(row, {
+			className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot',
+		});
+		if (row.lastElementChild) {
+			row.insertBefore(row.lastElementChild, row.firstElementChild);
+		}
+		this._workspacePickerRow = row;
+		return toDisposable(() => {
+			if (this._workspacePickerRow === row) {
+				this._workspacePickerRow = undefined;
+			}
+		});
 	}
 
 	private _renderEmptyState(container: HTMLElement): IDisposable {

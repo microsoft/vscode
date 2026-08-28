@@ -163,10 +163,10 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/7f70224f7733a2461eba63fa98234aab38b8804a73460deffa11f49cd6f7172c)
 
 #### editor/inlineChatZoneWidget/InlineChatZoneWidget/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/9a23d68d520d31525d56d8cfb444365a79f81b0ee3391de28e94bf32004ef778)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/7ae2b4a47fd55deedfef3304fd218f5768fa4847a6ce8749a005755e6bec2d3f)
 
 #### editor/inlineChatZoneWidget/InlineChatZoneWidget/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/0907edfda4ec6bb22618a9aa1d3ef106233edde64145f0c4e5ec0c3b14fcbf24)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/48d5afd53482fa7155777eaf6a6a2dc1f809f5b945d08a9befe9eee63eaf8b0b)
 
 #### editor/inlineChatZoneWidget/InlineChatZoneWidgetTerminated/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/0752cf02ae3a4e21fce84b62859df32a5f41c13622bdec0083a3fd46832c2e0a)
@@ -179,3 +179,27 @@
 
 #### sessions/accountMenu/petAchievementBadges/chatPetAchievementBadges/AllBadges/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/fe4b95bf8348637bba9f8c0dda791924e6c67fd7b5d173398f9b2c0bfc9f7071)
+
+#### sessions/chat/newWidget/newChatWidget/NewSessionAttachedContext/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/8c8eb6b803b02923698fc074ae21adba8ab9d19f0456c03b2a2702ef237608ba)
+
+#### sessions/chat/newWidget/newChatWidget/NewSessionAttachedContext/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/8f4a4dc0bd65c797d58dec40dc5b0a739152687e9192683e5560835c04728f1a)
+
+#### sessions/chat/newWidget/newChatWidget/NewSessionGitHubContextPicker/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/3a93997e6f3e6ef7b63dcce185f571b7e048f217013fda13e7b6622c4bb4e9b1)
+
+#### sessions/chat/newWidget/newChatWidget/NewSessionGitHubContextPicker/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/0baa16342facc6b2bbfec277ba966e283bcb5cc8522feadedbb0551d11b37af6)
+
+#### sessions/chat/newWidget/newChatWidget/NewSessionRemoteWorkspace/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/9ce99acb0597d337c3629946531ad90143c739de94866b759c749e4c91dc1327)
+
+#### sessions/chat/newWidget/newChatWidget/NewSessionRemoteWorkspace/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/154e56d8556400167418dce9e0b5ae4355644be560a94f91ba5fbf502ef3696f)
+
+#### sessions/chat/newWidget/newChatWidget/NewSessionWorkspacePicker/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/fac59f2e6a520bf03f063f35f83af3ddc575cf95cec659e7f4cdef963ff4e090)
+
+#### sessions/chat/newWidget/newChatWidget/NewSessionWorkspacePicker/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/a6b3c1c792dd0804bcbc2fb3819ba09bbdbe15f653e4b7f89efeb799d9cc11c9)

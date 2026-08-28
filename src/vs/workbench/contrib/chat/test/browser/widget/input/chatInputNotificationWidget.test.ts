@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
+import { IStringDictionary } from '../../../../../../../base/common/collections.js';
 import { IDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
@@ -22,7 +23,7 @@ import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatIn
 import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js';
 import { ChatInputNotificationWidget, IChatInputNotificationDelegate, IChatInputNotificationModelSelection } from '../../../../browser/widget/input/chatInputNotificationWidget.js';
 import { isByokModel } from '../../../../common/chatSelectedModel.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelConfigurationSchema } from '../../../../common/languageModels.js';
 import { localChatSessionType, SessionType } from '../../../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
 
@@ -89,11 +90,13 @@ suite('ChatInputNotificationWidget', () => {
 		readonly models?: readonly ILanguageModelChatMetadataAndIdentifier[];
 		readonly openPicker?: () => void;
 		readonly selectModel?: (modelIdentifier: string) => boolean;
+		readonly applyModelConfiguration?: (modelIdentifier: string, values: IStringDictionary<unknown>) => Promise<void>;
 	} = {}): IChatInputNotificationModelSelection {
 		return {
 			state: options.state ?? constObservable({ currentModel: options.currentModel, models: options.models ?? [] }),
 			openPicker: options.openPicker ?? (() => { }),
 			selectModel: options.selectModel ?? (() => true),
+			applyModelConfiguration: options.applyModelConfiguration,
 		};
 	}
 
@@ -475,6 +478,7 @@ suite('ChatInputNotificationWidget', () => {
 				}
 				return active;
 			},
+			refresh() { },
 			handleMessageSent() { },
 			announceRendered(notification, body) { announced.push({ notification, body }); },
 		};
@@ -640,7 +644,135 @@ suite('ChatInputNotificationWidget', () => {
 		}, {
 			switchedModels: ['vendor/model'],
 			pickerOpenCount: 0,
-			actionEvents: [{ id: 'promo', telemetryId: undefined, actionKind: ChatInputNotificationActionKind.SwitchToModel }],
+			actionEvents: [{ id: 'promo', telemetryId: undefined, actionKind: ChatInputNotificationActionKind.SwitchToModel, actionId: '' }],
+		});
+	});
+
+	/** Clicks a switch-to-model action against one model and reports what the input did. */
+	async function runSwitchAction(options: {
+		readonly schema: ILanguageModelConfigurationSchema;
+		readonly config: IStringDictionary<unknown>;
+		readonly selectModel?: (modelIdentifier: string) => boolean;
+		readonly applyModelConfiguration?: (modelIdentifier: string, values: IStringDictionary<unknown>) => Promise<void>;
+	}): Promise<{ switchedModels: string[]; pickerOpenCount: number }> {
+		const switchedModels: string[] = [];
+		let pickerOpenCount = 0;
+		const model = makeModel('vendor', false, 'model');
+		model.metadata = { ...model.metadata, configurationSchema: options.schema };
+
+		const { notificationService, widget } = createWidget({
+			delegate: {
+				modelSelection: modelSelection({
+					models: [model],
+					selectModel: modelIdentifier => {
+						const switched = options.selectModel?.(modelIdentifier) ?? true;
+						if (switched) {
+							switchedModels.push(modelIdentifier);
+						}
+						return switched;
+					},
+					openPicker: () => pickerOpenCount++,
+					applyModelConfiguration: options.applyModelConfiguration,
+				}),
+			},
+		});
+
+		showNotification(notificationService, {
+			id: 'promo',
+			message: 'Promo',
+			actions: [{
+				label: 'Try Model',
+				kind: ChatInputNotificationActionKind.SwitchToModel,
+				matchesModel: matchesModelIdentifier(model.identifier),
+				config: options.config,
+			}],
+		});
+
+		clickAction(widget);
+		await new Promise<void>(resolve => setTimeout(resolve, 0));
+		return { switchedModels, pickerOpenCount };
+	}
+
+	test('configures the model it switched to, dropping keys the model does not declare', async () => {
+		const applied: { modelIdentifier: string; values: IStringDictionary<unknown> }[] = [];
+		const order: string[] = [];
+
+		await runSwitchAction({
+			schema: { properties: { thinkingLevel: { enum: ['low', 'high'] }, contextSize: {} } },
+			config: { thinkingLevel: 'high', contextSize: 272000, unknownKey: 1, thinkingLevelTypo: 'high' },
+			selectModel: () => { order.push('select'); return true; },
+			applyModelConfiguration: async (modelIdentifier, values) => {
+				order.push('configure');
+				applied.push({ modelIdentifier, values });
+			},
+		});
+
+		assert.deepStrictEqual({ applied, order }, {
+			applied: [{ modelIdentifier: 'vendor/model', values: { thinkingLevel: 'high', contextSize: 272000 } }],
+			order: ['select', 'configure'],
+		});
+	});
+
+	test('does not configure a model it failed to switch to', async () => {
+		let applyCount = 0;
+
+		const { switchedModels } = await runSwitchAction({
+			schema: { properties: { thinkingLevel: { enum: ['high'] } } },
+			config: { thinkingLevel: 'high' },
+			selectModel: () => false,
+			applyModelConfiguration: async () => { applyCount++; },
+		});
+
+		assert.deepStrictEqual({ applyCount, switchedModels }, { applyCount: 0, switchedModels: [] });
+	});
+
+	test('switches even when applying configuration fails', async () => {
+		const result = await runSwitchAction({
+			schema: { properties: { thinkingLevel: { enum: ['high'] } } },
+			config: { thinkingLevel: 'high' },
+			applyModelConfiguration: async () => { throw new Error('storage failed'); },
+		});
+
+		assert.deepStrictEqual(result, { switchedModels: ['vendor/model'], pickerOpenCount: 0 });
+	});
+
+	test('an ambiguous unique-match target opens the picker and applies no configuration', async () => {
+		let applyCount = 0;
+		let pickerOpenCount = 0;
+		const switchedModels: string[] = [];
+		const first = makeModel('vendor', false, 'model');
+		const second = { ...makeModel('vendor', false, 'model'), identifier: 'vendor/model-2' };
+
+		const { notificationService, widget } = createWidget({
+			delegate: {
+				modelSelection: modelSelection({
+					models: [first, second],
+					selectModel: modelIdentifier => { switchedModels.push(modelIdentifier); return true; },
+					openPicker: () => pickerOpenCount++,
+					applyModelConfiguration: async () => { applyCount++; },
+				}),
+			},
+		});
+
+		showNotification(notificationService, {
+			id: 'promo',
+			message: 'Promo',
+			actions: [{
+				label: 'Try Model',
+				kind: ChatInputNotificationActionKind.SwitchToModel,
+				matchesModel: model => model.metadata.id === 'model',
+				config: { thinkingLevel: 'high' },
+				requireUniqueModel: true,
+			}],
+		});
+
+		clickAction(widget);
+		await new Promise<void>(resolve => setTimeout(resolve, 0));
+
+		assert.deepStrictEqual({ switchedModels, applyCount, pickerOpenCount }, {
+			switchedModels: [],
+			applyCount: 0,
+			pickerOpenCount: 1,
 		});
 	});
 

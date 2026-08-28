@@ -52,8 +52,9 @@ import { ISessionsListModelService } from '../../../../services/sessions/browser
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { IMenuService, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
+import { ArchiveSessionAction } from '../../browser/views/sessionsViewActions.js';
 import { MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { TestCommandService } from './sessionsListTestUtils.js';
 
@@ -382,6 +383,7 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 	markAllReadSessionCount = 0;
 	getSessionCalls = 0;
 	deleteSessionCalls = 0;
+	readonly archived: ISession[] = [];
 	cancelCurrentRequestCalls = 0;
 	deleteError: Error | undefined;
 	cancelError: Error | undefined;
@@ -427,6 +429,13 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 		}
 		this.deletedSessionResources.add(session.resource.toString());
 		this.sessionDeletedEmitter.fire(session);
+	}
+
+	override async archiveSession(session: ISession): Promise<void> {
+		this.archived.push(session);
+		if (session === this.session) {
+			this.isArchived.set(true, undefined);
+		}
 	}
 
 	override async cancelCurrentRequest(): Promise<void> {
@@ -484,6 +493,10 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 
 suite('AutomationsCardsWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	let archiveActionRegistration: IDisposable;
+
+	suiteSetup(() => archiveActionRegistration = registerAction2(ArchiveSessionAction));
+	suiteTeardown(() => archiveActionRegistration.dispose());
 
 	function getSessionAction(widget: AutomationsCardsWidget, label: string): HTMLElement | undefined {
 		return [...widget.element.querySelectorAll<HTMLElement>('.automations-run-session-list .action-label')]
@@ -1268,6 +1281,30 @@ suite('AutomationsCardsWidget', () => {
 			deleteRunCalls: 1,
 			openCalls: 0,
 			historyItemStillVisible: false,
+		});
+	});
+
+	test('archives a run session without opening it and hides the action', async () => {
+		const { automationService, sessionsManagementService, sessionsService, widget } = setup();
+		automationService.setAutomations([automation()]);
+		automationService.setRuns([run()]);
+		await waitForSessionActions();
+
+		const archiveButton = getSessionAction(widget, 'Archive');
+		assert.ok(archiveButton);
+		archiveButton.click();
+		await waitForSessionActions();
+
+		assert.deepStrictEqual({
+			archived: sessionsManagementService.archived.map(session => session.sessionId),
+			openCalls: sessionsService.openCalls,
+			archiveButtonVisible: !!getSessionAction(widget, 'Archive'),
+			deleteButtonVisible: !!getSessionAction(widget, 'Delete'),
+		}, {
+			archived: ['test/session-1'],
+			openCalls: 0,
+			archiveButtonVisible: false,
+			deleteButtonVisible: true,
 		});
 	});
 
