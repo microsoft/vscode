@@ -82,13 +82,13 @@ class TestAutomationConnection {
 		});
 	}
 
-	getSubscriptionByChannel(
+	getSubscription(
 		kind: StateComponents.AutomationCatalog,
-		channel: string,
+		resource: URI,
 		_owner: string,
 	): IReference<IAgentSubscription<AutomationCatalogState>> {
 		assert.strictEqual(kind, StateComponents.AutomationCatalog);
-		this.subscribedChannel = channel;
+		this.subscribedChannel = resource.toString();
 		const connection = this;
 		return {
 			object: {

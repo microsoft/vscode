@@ -1116,6 +1116,8 @@
 		"--scroll-shadow-surface",
 		"--vscode-chat-list-background",
 		"--vscode-chat-persistent-content-height",
+		"--vscode-colorPicker-colorDecoratorMargin",
+		"--vscode-colorPicker-colorDecoratorWidth",
 		"--vscode-editorCodeLens-fontFamily",
 		"--vscode-editorCodeLens-fontFamilyDefault",
 		"--vscode-editorCodeLens-fontFeatureSettings",

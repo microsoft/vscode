@@ -18,6 +18,8 @@ import { type AutoMergeMethod, type CreatedPullRequest, IAgentHostOctoKitService
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { ICopilotApiService, type ICopilotUtilityChatMessage } from './shared/copilotApiService.js';
 import { buildConversationContext } from '../common/agentHostConversationContext.js';
+import { IAgentBranchNameGenerator } from './shared/agentBranchNameGenerator.js';
+import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 
 /**
  * Soft upper bound, in characters, for the conversation context fed to the
@@ -51,13 +53,14 @@ export interface PullRequestCreatedEvent {
  *
  * 1. Resolve session → working directory + current/base branch from
  *    {@link ISessionGitState}.
- * 2. Commit any uncommitted working-tree changes.
- * 3. Push the current branch to its GitHub upstream remote (with `--set-upstream` when missing).
- * 4. Resolve `owner` / `repo` from {@link ISessionGitState.githubOwner}
+ * 2. If the current branch is the base branch, create a generated session branch.
+ * 3. Commit any uncommitted working-tree changes.
+ * 4. Push the current branch to its GitHub upstream remote (with `--set-upstream` when missing).
+ * 5. Resolve `owner` / `repo` from {@link ISessionGitState.githubOwner}
  *    / {@link ISessionGitState.githubRepo} (populated by the git probe).
- * 5. Reuse an existing PR for the branch, or POST `/repos/{owner}/{repo}/pulls`
+ * 6. Reuse an existing PR for the branch, or POST `/repos/{owner}/{repo}/pulls`
  *    via {@link IAgentHostOctoKitService}.
- * 6. Return the PR URL as an {@link InvokeChangesetOperationResult.followUp}.
+ * 7. Return the PR URL as an {@link InvokeChangesetOperationResult.followUp}.
  */
 export class AgentHostPullRequestOperationHandler implements IChangesetOperationHandler {
 
@@ -78,6 +81,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		@IAgentHostOctoKitService private readonly _octoKitService: IAgentHostOctoKitService,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
+		@IAgentBranchNameGenerator private readonly _branchNameGenerator: IAgentBranchNameGenerator,
 		@ILogService private readonly _logService: ILogService,
 	) { }
 
@@ -100,8 +104,8 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Not a changeset URI: ${params.channel}`);
 		}
 		this._throwIfCancelled(token);
-		const sessionUri = parsed.sessionUri;
 
+		const sessionUri = parsed.sessionUri;
 		const sessionState = this._getSessionState(sessionUri);
 		if (!sessionState) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${sessionUri}`);
@@ -123,17 +127,18 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		const workingDirectory = URI.parse(workingDirectoryStr);
 		const storedGitState = readSessionGitState(sessionState._meta);
 		const effectiveBaseBranch = await this._resolveBaseBranchName(sessionUri);
-		const gitState = await this._gitService.getSessionGitState(workingDirectory, effectiveBaseBranch) ?? storedGitState;
-		const branchName = gitState?.branchName ?? await this._gitService.getCurrentBranch(workingDirectory);
+
+		let gitState = await this._gitService.getSessionGitState(workingDirectory, effectiveBaseBranch) ?? storedGitState;
+		let branchName = gitState?.branchName ?? await this._gitService.getCurrentBranch(workingDirectory);
 		if (!branchName) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Could not determine current branch for ${workingDirectory}`);
 		}
 
-		const baseBranchName = effectiveBaseBranch ?? gitState?.baseBranchName ?? (await this._gitService.getDefaultBranch(workingDirectory))?.name;
+		const defaultBranch = await this._gitService.getDefaultBranch(workingDirectory);
+		const baseBranchName = effectiveBaseBranch ?? gitState?.baseBranchName ?? defaultBranch?.name;
 		if (!baseBranchName) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Could not determine base branch for ${workingDirectory}`);
 		}
-		const base = baseBranchName;
 
 		const repoResource = this._gitHubEndpointService.getRepoResource();
 		const authToken = this._authenticationService.getAuthToken({
@@ -149,9 +154,39 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		}
 
 		const hasUncommitted = await this._gitService.hasUncommittedChanges(workingDirectory);
+
+		// Create a new branch if the current branch is the same
+		// as the base branch and there are uncommitted changes
+		if (hasUncommitted && branchName === baseBranchName) {
+			const branchPrefix = sessionState.config?.values[SessionConfigKey.WorktreeBranchPrefix];
+
+			try {
+				const generatedBranchName = await this._branchNameGenerator.generateBranchName({
+					sessionId: URI.parse(sessionUri).path.split('/').filter(Boolean).pop() ?? sessionUri,
+					message: sessionState.turns.find(turn => turn.message.text.trim())?.message.text,
+					githubToken: authToken,
+					signal,
+					branchPrefix: typeof branchPrefix === 'string' ? branchPrefix : undefined,
+					branchNameCollides: candidate => this._gitService.branchExists(workingDirectory, candidate).catch(() => true),
+				});
+
+				this._throwIfCancelled(token);
+				this._logService.info(`[AgentHostPullRequestOperationHandler] Creating branch ${generatedBranchName} for session ${sessionUri}`);
+
+				await this._gitService.createBranch(workingDirectory, generatedBranchName, { checkout: true });
+				branchName = generatedBranchName;
+
+				gitState = await this._gitService.getSessionGitState(workingDirectory, effectiveBaseBranch);
+			} catch (err) {
+				this._throwIfCancelled(token);
+				throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Failed to create a branch before creating a pull request: ${err instanceof Error ? err.message : String(err)}`);
+			}
+		}
+
 		if (hasUncommitted) {
 			this._throwIfCancelled(token);
 			this._logService.info(`[AgentHostPullRequestOperationHandler] Committing uncommitted changes for session ${sessionUri}`);
+
 			try {
 				await this._gitService.commitAll(workingDirectory, this._formatCommitMessage(branchName));
 			} catch (err) {
@@ -161,7 +196,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		}
 		this._throwIfCancelled(token);
 
-		const branchChanges = await this._gitService.computeSessionFileDiffs(workingDirectory, { sessionUri, baseBranch: base });
+		const branchChanges = await this._gitService.computeSessionFileDiffs(workingDirectory, { sessionUri, baseBranch: baseBranchName });
 		if (branchChanges === undefined) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, localize('agentHost.changeset.pr.computeChangesFailed', "Could not compute branch changes to create a pull request."));
 		}
@@ -171,7 +206,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		this._throwIfCancelled(token);
 
 		const githubHeadOwner = gitState?.githubHeadOwner;
-		const upstreamBranch = githubHeadOwner ? parseUpstreamBranchName(gitState.upstreamBranchName) : undefined;
+		const upstreamBranch = githubHeadOwner ? parseUpstreamBranchName(gitState?.upstreamBranchName) : undefined;
 		const headOwner = upstreamBranch && githubHeadOwner ? githubHeadOwner : gitHubState.owner;
 		const headBranch = upstreamBranch?.branch ?? branchName;
 		const pushRef = headBranch === branchName ? branchName : `${branchName}:${headBranch}`;
@@ -195,12 +230,12 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		}
 		this._throwIfCancelled(token);
 
-		const generated = await this._generateTitleAndDescription(sessionState, branchName, base, branchChanges, signal, token);
-		this._throwIfCancelled(token);
+		const generated = await this._generateTitleAndDescription(sessionState, branchName, baseBranchName, branchChanges, signal, token);
 		const title = generated?.title ?? this._formatTitle(branchName);
-		const body = generated?.description ?? this._formatBody(branchName, base);
+		const body = generated?.description ?? this._formatBody(branchName, baseBranchName);
+		this._throwIfCancelled(token);
 
-		this._logService.info(`[AgentHostPullRequestOperationHandler] Creating ${this._draft ? 'draft ' : ''}PR ${gitHubState.owner}/${gitHubState.repo} ${createHead} -> ${base}`);
+		this._logService.info(`[AgentHostPullRequestOperationHandler] Creating ${this._draft ? 'draft ' : ''}PR ${gitHubState.owner}/${gitHubState.repo} ${createHead} -> ${baseBranchName}`);
 		let created: CreatedPullRequest;
 		try {
 			created = await this._octoKitService.createPullRequest(
@@ -209,7 +244,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 				title,
 				body,
 				createHead,
-				base,
+				baseBranchName,
 				this._draft,
 				authToken,
 				signal,

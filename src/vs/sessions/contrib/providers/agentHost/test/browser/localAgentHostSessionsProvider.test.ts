@@ -256,14 +256,10 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 	override getSubscription<T>(_kind: StateComponents, resource: URI): IReference<IAgentSubscription<T>> {
 		const key = resource.toString();
-		return this._getSubscription<T>(key);
-	}
-
-	override getSubscriptionByChannel<T>(_kind: StateComponents, channel: string): IReference<IAgentSubscription<T>> {
-		if (channel === AUTOMATION_CATALOG_URI && !this._sessionStateValues.has(channel)) {
-			this._sessionStateValues.set(channel, { automations: [] });
+		if (key === AUTOMATION_CATALOG_URI && !this._sessionStateValues.has(key)) {
+			this._sessionStateValues.set(key, { automations: [] });
 		}
-		return this._getSubscription<T>(channel);
+		return this._getSubscription<T>(key);
 	}
 
 	private _getSubscription<T>(key: string): IReference<IAgentSubscription<T>> {

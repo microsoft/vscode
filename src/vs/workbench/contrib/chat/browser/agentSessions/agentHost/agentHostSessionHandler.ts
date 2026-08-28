@@ -48,7 +48,7 @@ import { ConfirmationOptionKind, CustomizationType, JsonPrimitive, McpServerAuth
 import { compareProtocolVersions } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ActionType, ChatTurnStartedAction, isChatAction, type ClientChatAction, type ClientSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, AHP_NOT_FOUND, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChatOriginKind, getErrorResponsePart, getInlineToolInput, getToolSubagentContent, getTurnError, isChatReadOnly, isDefaultChatUri, isMessageHiddenFromTranscript, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, parseChatUri, mergeSessionWithDefaultChat, readSessionWorkspaceless, readUsageInfoMeta, withMessageHiddenFromTranscript, type ChatState, type ISessionWithDefaultChat, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type PendingMessage, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ChatSummary, type SessionState, type StringOrMarkdown, type ToolCallPendingConfirmationState, type ToolCallResponsePart, type ToolCallRunningState, type ToolCallState, type ToolInput, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChatOriginKind, getErrorResponsePart, getInlineToolInput, getToolSubagentContent, getTurnError, isChatReadOnly, isDefaultChatUri, isMessageHiddenFromTranscript, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, parseChatUri, mergeSessionWithDefaultChat, readSessionWorkspaceless, readUsageInfoMeta, withMessageHiddenFromTranscript, type ChatState, type ISessionWithDefaultChat, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type PendingMessage, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ChatSummary, type SessionState, type StringOrMarkdown, type ToolCallPendingConfirmationState, type ToolCallResponsePart, type ToolCallRunningState, type ToolCallState, type ToolInput, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -89,6 +89,7 @@ import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatAgentLocation, ChatConfiguratio
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { HIDE_AUTO_EXPLAINABILITY_TREATMENT } from '../../../common/chatAutoModeExplainability.js';
 import { AUTO_RAW_MODEL_ID, getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
+import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../common/languageModelSourcePresentation.js';
 import { ChatInputStateOrigin, reviveSerializableInputState, type IChatModel, type IChatModelInputState, type IChatRequestVariableData, type IInputModel, type ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -3529,9 +3530,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (opts.subAgentInvocationId !== undefined && opts.subAgentModelObservable) {
 			const modelObservable = opts.subAgentModelObservable;
 			store.add(autorun(reader => {
-				const rawUsage = usage$.read(reader);
-				const modelId = this._toLanguageModelId(opts.sessionResource, rawUsage?.model);
-				const modelName = this._getLanguageModelDisplayName(modelId);
+				// Hold off while the treatment is unknown: naming the routed model
+				// cannot be taken back once it is on screen.
+				const hideAutoExplainability = this._hideAutoExplainability.read(reader);
+				if (hideAutoExplainability === undefined) {
+					return;
+				}
+				const modelName = this._createTurnModelLookup(opts.sessionResource, undefined, hideAutoExplainability)
+					.toBilledModelDisplayName?.(usage$.read(reader));
 				if (modelName && modelName !== modelObservable.read(undefined)) {
 					transaction(tx => modelObservable.set(modelName, tx));
 				}
@@ -4857,6 +4863,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 		let credits = 0;
 		let modelName: string | undefined;
+		const lookup = this._createTurnModelLookup(sessionResource, undefined);
 		const turns = childState.activeTurn && !childState.turns.some(turn => turn.id === childState.activeTurn?.id)
 			? [...childState.turns, childState.activeTurn]
 			: childState.turns;
@@ -4865,8 +4872,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (typeof turnCredits === 'number') {
 				credits += turnCredits;
 			}
-			const turnModelId = this._toLanguageModelId(sessionResource, turn.usage?.model);
-			const turnModelName = this._getLanguageModelDisplayName(turnModelId);
+			const turnModelName = lookup.toBilledModelDisplayName?.(turn.usage);
 			if (turnModelName) {
 				modelName = turnModelName;
 			}
@@ -4874,7 +4880,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (credits > 0) {
 			part.toolSpecificData.credits = credits;
 		}
-		if (modelName && !part.toolSpecificData.modelName) {
+		// Overwrite rather than fill in: a name persisted under one explainability
+		// assignment must not outlive a change to that assignment.
+		if (modelName) {
 			part.toolSpecificData.modelName = modelName;
 		}
 		const timing = getSubagentTiming(childState);
@@ -5708,14 +5716,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return rawModelId.startsWith(prefix) ? rawModelId : `${prefix}${rawModelId}`;
 	}
 
-	private _getLanguageModelDisplayName(modelIdentifier: string | undefined): string | undefined {
-		if (!modelIdentifier) {
-			return undefined;
-		}
-		const metadata = this._languageModelsService.lookupLanguageModel(modelIdentifier);
-		return metadata ? getLanguageModelDisplayNameWithProvider({ identifier: modelIdentifier, metadata }, this._languageModelsService) : undefined;
-	}
-
 	private _getTurnResponseDetails(sessionResource: URI, backendSession: URI, turn: Turn | undefined): string | undefined {
 		const fallbackRawModelId = turn?.message?.model?.id ?? lastTurnModelSelection(this._getSessionState(backendSession.toString()))?.id;
 		return this._createTurnModelLookup(sessionResource, fallbackRawModelId).toResponseDetails(turn?.usage?.model, turn?.usage);
@@ -5756,24 +5756,38 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 			return undefined;
 		};
+		// Folds a routed pick back to Auto when explainability is hidden, so every
+		// readout tells the same story.
+		const resolveBilledModel = (rawModelId: string | undefined, usage: UsageInfo | undefined) => {
+			// Keyed off the reported routing decision so restored history only
+			// rewrites turns that actually used Auto.
+			const routed = !!readUsageInfoMeta(usage).autoModeResolved;
+			const billedId = routed && hideAutoExplainability ? AUTO_RAW_MODEL_ID : rawModelId;
+			return { billedId, resolved: lookupModel(billedId) };
+		};
+		const displayName = (resolved: { identifier: string; model: ILanguageModelChatMetadata }) => {
+			const model = { identifier: resolved.identifier, metadata: resolved.model };
+			return getLanguageModelDisplayNameWithSubscriptionSource(model, getLanguageModelDisplayNameWithProvider(model, this._languageModelsService));
+		};
 		return {
 			toLanguageModelId: (rawModelId) => this._toLanguageModelId(sessionResource, resolveRaw(rawModelId)),
 			toModelDisplayName: rawModelId => lookupRawModel(rawModelId)?.model.name,
 			toResponseDetails: (rawModelId, usage) => {
-				// A routed turn bills to Auto rather than the model it picked when
-				// explainability is hidden. Keyed off the reported routing decision
-				// so restored history only rewrites turns that actually used Auto.
-				const routed = !!readUsageInfoMeta(usage).autoModeResolved;
-				const billedId = routed && hideAutoExplainability ? AUTO_RAW_MODEL_ID : rawModelId;
-				const resolved = lookupModel(billedId);
+				const { billedId, resolved } = resolveBilledModel(rawModelId, usage);
 				// resolvedFromRaw=false means we fell back to the picked model; surface billedModelId so
 				// e.g. an "Auto" pick reads "Auto (raptor-mini)".
 				const billedModelId = resolved && !resolved.resolvedFromRaw ? billedId : undefined;
 				const responseModel = resolved ? {
-					name: getLanguageModelDisplayNameWithProvider({ identifier: resolved.identifier, metadata: resolved.model }, this._languageModelsService),
+					name: displayName(resolved),
 					pricing: resolved.model.pricing,
 				} : undefined;
 				return formatTurnResponseDetails(responseModel, billedModelId, usage);
+			},
+			toBilledModelDisplayName: usage => {
+				// Auto names the model it picked, which is the one worth showing.
+				const chosenModel = readUsageInfoMeta(usage).autoModeResolved?.chosenModel;
+				const { resolved } = resolveBilledModel(chosenModel ?? usage?.model, usage);
+				return resolved ? displayName(resolved) : undefined;
 			},
 			toAutoModeResolution: usage => {
 				const resolution = readUsageInfoMeta(usage).autoModeResolved;
@@ -5788,7 +5802,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				}
 				const resolved = lookupRawModel(resolution.chosenModel);
 				// Named the same way as the footer, so the two agree.
-				const name = resolved && getLanguageModelDisplayNameWithProvider({ identifier: resolved.identifier, metadata: resolved.model }, this._languageModelsService);
+				const name = resolved && displayName(resolved);
 				return usageInfoToAutoModeResolution(usage, name);
 			},
 		};
