@@ -12,9 +12,11 @@ import { localize } from '../../../../nls.js';
 import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AGENT_HOST_CHAT_LINK_PATTERN, AGENT_HOST_SESSION_ONLY_LINK_PATTERN, AgentSessionLinkStatus, buildAgentSessionLinkPresentation, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
 import { ILinkPresentation, ILinkPresentationService, ILinkPresentationWatcher } from '../../../../platform/dataChannel/common/dataChannel.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { ISessionSummaryHoverService } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHoverService.js';
+import { IPreferencesService } from '../../../../workbench/services/preferences/common/preferences.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
@@ -28,8 +30,10 @@ import { getSessionSummaryHoverData } from '../../sessions/browser/sessionHoverC
  * backend session URI; the owning session in the window uses a client scheme
  * (e.g. `agent-host-copilotcli`), so matching goes through
  * {@link IAgentHostConnectionsService.resolveSessionResource}. When the link
- * carries a chat id (from `create_chat`), the specific peer chat is opened via
- * {@link ISessionsService.openChat} instead of the whole session.
+ * carries a chat id (from `create_chat`), that specific peer chat is opened;
+ * otherwise the session's main/default chat is opened, via
+ * {@link ISessionsService.openChat} in both cases so the correct chat becomes
+ * active even when a different chat of the same session is currently showing.
  */
 export class OpenSessionLinkOpenerContribution extends Disposable implements IWorkbenchContribution {
 
@@ -43,6 +47,8 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		@ILinkPresentationService linkPresentationService: ILinkPresentationService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@ISessionSummaryHoverService sessionSummaryHoverService: ISessionSummaryHoverService,
+		@ILabelService labelService: ILabelService,
+		@IPreferencesService preferencesService: IPreferencesService,
 	) {
 		super();
 		this._register(openerService.registerOpener({
@@ -67,7 +73,7 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		this._register(sessionSummaryHoverService.registerProvider({
 			provideSessionSummaryHoverData: async resource => {
 				const session = this._findSessionForLink(resource);
-				return session ? getSessionSummaryHoverData(session, sessionsProvidersService) : undefined;
+				return session ? getSessionSummaryHoverData(session, sessionsProvidersService, openerService, labelService, preferencesService) : undefined;
 			},
 		}));
 	}
@@ -84,13 +90,10 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		if (!session) {
 			return false;
 		}
+		// An absent chat id means the session's main/default chat, not "no target chat" (see buildOpenSessionLinkUri).
 		const chatId = parseOpenSessionLinkChatId(resource);
-		if (chatId) {
-			const chatResource = session.resource.with({ fragment: chatId });
-			await this._sessionsService.openChat(session, chatResource);
-			return true;
-		}
-		await this._sessionsService.openSession(session.resource);
+		const chatResource = chatId ? session.resource.with({ fragment: chatId }) : session.mainChat.get().resource;
+		await this._sessionsService.openChat(session, chatResource, { source: 'link' });
 		return true;
 	}
 }

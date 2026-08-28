@@ -24,7 +24,7 @@ import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, userIcon,
 import { AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AI_CUSTOMIZATION_ITEM_TYPE_KEY, AI_CUSTOMIZATION_ITEM_URI_KEY, AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY, AICustomizationManagementItemMenuId, AICustomizationManagementCreateMenuId, AICustomizationManagementSection, AI_CUSTOMIZATION_ITEM_DISABLED_KEY, sectionToPromptType } from './aiCustomizationManagement.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
-import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles, defaultInputBoxStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { Delayer } from '../../../../../base/common/async.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
@@ -36,7 +36,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { createActionViewItem, getContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
-import { Action, Separator } from '../../../../../base/common/actions.js';
+import { Action, IAction, Separator } from '../../../../../base/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -48,6 +48,7 @@ import { ICustomizationHarnessService } from '../../common/customizationHarnessS
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IAICustomizationListItem } from './aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ItemsModelSection } from './aiCustomizationItemsModel.js';
+import { createCustomizationCardPrimaryAction, CustomizationCardListController } from './customizationCardList.js';
 
 export { truncateToFirstLine } from './aiCustomizationListWidgetUtils.js';
 
@@ -499,6 +500,24 @@ function toItemsModelSection(section: AICustomizationManagementSection): ItemsMo
 	}
 }
 
+export function usesCustomizationCardLayout(section: AICustomizationManagementSection): boolean {
+	return section === AICustomizationManagementSection.Agents
+		|| section === AICustomizationManagementSection.Skills
+		|| section === AICustomizationManagementSection.Instructions
+		|| section === AICustomizationManagementSection.Hooks
+		|| section === AICustomizationManagementSection.Prompts;
+}
+
+export function getAlwaysVisibleCustomizationGroupKeys(section: AICustomizationManagementSection, isFiltering: boolean): readonly string[] {
+	return usesCustomizationCardLayout(section) && !isFiltering
+		? [PromptsStorage.local, PromptsStorage.user]
+		: [];
+}
+
+export function getTargetedCreateActionLabel(label: string, compactLabel?: string): string {
+	return compactLabel ?? label.replace(/^\$\([^)]+\)\s*/, '');
+}
+
 /**
  * Returns the ARIA status announcement string for a given section, item
  * count, and whether a search filter is active. Exported for testing.
@@ -559,9 +578,20 @@ export function getCountAnnouncement(section: AICustomizationManagementSection, 
  */
 interface ICreateAction {
 	readonly label: string;
+	readonly compactLabel?: string;
 	readonly enabled: boolean;
 	readonly tooltip?: string;
+	readonly kind?: 'generate';
+	readonly target?: 'workspace' | 'user';
 	run(): void;
+}
+
+interface ICustomizationItemGroup {
+	readonly groupKey: string;
+	readonly label: string;
+	readonly icon: ThemeIcon;
+	readonly description: string;
+	readonly items: IAICustomizationListItem[];
 }
 
 /**
@@ -584,6 +614,14 @@ export class AICustomizationListWidget extends Disposable {
 	private addButtonSimple!: Button;
 	private listContainer!: HTMLElement;
 	private list!: WorkbenchList<IListEntry>;
+	private cardContainer!: HTMLElement;
+	private cardScrollElement: HTMLElement | undefined;
+	private firstCardFocusElement: HTMLElement | undefined;
+	private readonly cardRowsByUri = new Map<string, HTMLElement>();
+	private readonly cardRowsById = new Map<string, HTMLElement>();
+	private readonly cardMenuButtonsById = new Map<string, HTMLElement>();
+	private cardMenuOpen = false;
+	private lastCardFocusItemId: string | undefined;
 	private emptyStateContainer!: HTMLElement;
 	private emptyStateText!: HTMLElement;
 	private emptyStateSubtext!: HTMLElement;
@@ -598,6 +636,7 @@ export class AICustomizationListWidget extends Disposable {
 	private lastLayoutHeight = 0;
 	private lastHeaderHeight = 0;
 	private readonly dropdownActionDisposables = this._register(new DisposableStore());
+	private readonly cardDisposables = this._register(new DisposableStore());
 
 	/** Monotonically increasing counter; guards the post-load announcement against stale calls. */
 	private _sectionLoadId = 0;
@@ -639,7 +678,7 @@ export class AICustomizationListWidget extends Disposable {
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 	) {
 		super();
-		this.element = $('.ai-customization-list-widget');
+		this.element = $('.ai-customization-list-widget.plugin-list-widget');
 		this.create();
 
 		// Re-render the add button when the active project root or harness changes.
@@ -727,7 +766,6 @@ export class AICustomizationListWidget extends Disposable {
 		// Simple button (for single-action case, no dropdown)
 		this.addButtonSimple = this._register(new Button(this.addButtonContainer, {
 			...defaultButtonStyles,
-			supportIcons: true,
 		}));
 		this.addButtonSimple.element.classList.add('list-add-button');
 		this._register(this.addButtonSimple.onDidClick(() => this.executePrimaryCreateAction()));
@@ -735,14 +773,15 @@ export class AICustomizationListWidget extends Disposable {
 		// Button with dropdown (for multi-action case)
 		this.addButton = this._register(new ButtonWithDropdown(this.addButtonContainer, {
 			...defaultButtonStyles,
-			supportIcons: true,
 			contextMenuProvider: this.contextMenuService,
 			addPrimaryActionToDropdown: false,
 			actions: { getActions: () => this.getDropdownActions() },
 		}));
 		this.addButton.element.classList.add('list-add-button');
 		this._register(this.addButton.onDidClick(() => this.executePrimaryCreateAction()));
-		this.updateAddButton();
+
+		this.cardContainer = DOM.append(this.element, $('.plugin-card-container.customization-card-container'));
+		this.cardContainer.style.display = 'none';
 
 		// List container
 		this.listContainer = DOM.append(this.element, $('.list-container'));
@@ -825,8 +864,13 @@ export class AICustomizationListWidget extends Disposable {
 			}
 		}));
 
-		// Handle context menu
-		this._register(this.list.onContextMenu(e => this.onContextMenu(e)));
+		// Prompts retain their existing list context menu. The redesigned sections
+		// expose all row actions through an explicit overflow button.
+		this._register(this.list.onContextMenu(e => {
+			if (!this.usesCardLayout()) {
+				this.onContextMenu(e);
+			}
+		}));
 
 		// Refresh on file deletions so the list updates after inline delete actions
 		this._register(this.fileService.onDidFilesChange(e => {
@@ -836,6 +880,7 @@ export class AICustomizationListWidget extends Disposable {
 		}));
 
 		this.updateSectionHeader();
+		this.updateAddButton();
 	}
 
 	/**
@@ -905,6 +950,76 @@ export class AICustomizationListWidget extends Disposable {
 		});
 	}
 
+	private showCardItemActions(item: IAICustomizationListItem, anchor: HTMLElement): void {
+		this.cardMenuOpen = true;
+		this.lastCardFocusItemId = item.id;
+		const disposables = new DisposableStore();
+		const context: Record<string, unknown> = {
+			uri: item.uri.toString(),
+			name: item.name,
+			promptType: item.promptType,
+			source: item.source,
+			pluginUri: item.pluginUri?.toString(),
+			itemId: item.id,
+		};
+		const overlayPairs: [string, string | boolean][] = [
+			[AI_CUSTOMIZATION_ITEM_TYPE_KEY, item.promptType],
+			[AI_CUSTOMIZATION_ITEM_URI_KEY, item.uri.toString()],
+			[AI_CUSTOMIZATION_ITEM_DISABLED_KEY, item.disabled],
+			[AI_CUSTOMIZATION_ITEM_STORAGE_KEY, item.source],
+		];
+		if (item.pluginUri) {
+			overlayPairs.push([AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY, item.pluginUri.toString()]);
+		}
+		const overlay = this.contextKeyService.createOverlay(overlayPairs);
+		const menu = disposables.add(this.menuService.createMenu(AICustomizationManagementItemMenuId, overlay));
+		const groups = menu.getActions({ arg: context, shouldForwardArgs: true });
+		const actions: IAction[] = [];
+		const addedActionIds = new Set<string>();
+		for (const [, groupActions] of groups) {
+			const uniqueGroupActions = groupActions.filter(action => {
+				if (addedActionIds.has(action.id)) {
+					return false;
+				}
+				addedActionIds.add(action.id);
+				return true;
+			});
+			if (uniqueGroupActions.length === 0) {
+				continue;
+			}
+			if (actions.length > 0) {
+				actions.push(new Separator());
+			}
+			actions.push(...uniqueGroupActions);
+		}
+		if (!item.isBuiltin) {
+			if (actions.length > 0) {
+				actions.push(new Separator());
+			}
+			actions.push(disposables.add(new Action('copyRelativePath', localize('copyRelativePath', "Copy Relative Path"), undefined, true, async () => {
+				const basePath = this.workspaceService.getActiveProjectRoot();
+				const relativePath = basePath && item.uri.fsPath.startsWith(basePath.fsPath)
+					? item.uri.fsPath.substring(basePath.fsPath.length + 1)
+					: this.labelService.getUriLabel(item.uri, { relative: true });
+				await this.clipboardService.writeText(relativePath);
+			})));
+		}
+		if (actions.length === 0) {
+			this.cardMenuOpen = false;
+			disposables.dispose();
+			return;
+		}
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => anchor,
+			getActions: () => actions,
+			onHide: () => {
+				this.cardMenuOpen = false;
+				(this.cardMenuButtonsById.get(item.id) ?? this.cardRowsById.get(item.id) ?? this.firstCardFocusElement)?.focus();
+				disposables.dispose();
+			},
+		});
+	}
+
 	/**
 	 * Sets the current section and binds the list to the model's per-section
 	 * observable. Returns once the initial fetch for the section has resolved
@@ -914,6 +1029,7 @@ export class AICustomizationListWidget extends Disposable {
 	async setSection(section: AICustomizationManagementSection): Promise<void> {
 		const loadId = ++this._sectionLoadId;
 		this.currentSection = section;
+		this.element.classList.toggle('plugin-list-widget', this.usesCardLayout());
 		this.updateSectionHeader();
 
 		const modelSection = toItemsModelSection(section);
@@ -996,6 +1112,15 @@ export class AICustomizationListWidget extends Disposable {
 	 * The first action becomes the primary button; the rest go in the dropdown.
 	 */
 	private updateAddButton(): void {
+		if (this.usesCardLayout()) {
+			this.addButton.element.style.display = 'none';
+			this.addButtonSimple.element.style.display = 'none';
+			if (this.allItems.length > 0 || !this.searchQuery.trim()) {
+				this.filterItems();
+			}
+			return;
+		}
+
 		const actions = this.buildCreateActions();
 		const [primary, ...dropdown] = actions;
 		const hasDropdown = dropdown.length > 0;
@@ -1036,7 +1161,7 @@ export class AICustomizationListWidget extends Disposable {
 		// Full command override (e.g. Claude hooks) — single action, no dropdown
 		if (override?.commandId) {
 			return [{
-				label: `$(${Codicon.add.id}) ${override.label}`,
+				label: override.label ?? localize('newCustomization', "New {0}", typeLabel),
 				enabled: true,
 				run: () => { this.commandService.executeCommand(override.commandId!); },
 			}];
@@ -1057,9 +1182,8 @@ export class AICustomizationListWidget extends Disposable {
 		for (const [, group] of menuActions) {
 			for (const menuItem of group) {
 				if (menuItem instanceof MenuItemAction) {
-					const icon = ThemeIcon.isThemeIcon(menuItem.item.icon) ? menuItem.item.icon.id : Codicon.add.id;
 					extensionCreateActions.push({
-						label: `$(${icon}) ${typeof menuItem.item.title === 'string' ? menuItem.item.title : menuItem.item.title.value}`,
+						label: typeof menuItem.item.title === 'string' ? menuItem.item.title : menuItem.item.title.value,
 						enabled: menuItem.enabled,
 						run: () => { menuItem.run(); },
 					});
@@ -1079,8 +1203,9 @@ export class AICustomizationListWidget extends Disposable {
 		// Without a workspace, user creation becomes primary and rootFile goes to dropdown.
 		if (override?.rootFile && hasWorkspace) {
 			actions.push({
-				label: `$(${Codicon.add.id}) ${override.label}`,
+				label: override.label ?? localize('newCustomization', "New {0}", typeLabel),
 				enabled: true,
+				target: 'workspace',
 				run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace-root' }); },
 			});
 			addedTargets.add('workspace-root');
@@ -1089,28 +1214,30 @@ export class AICustomizationListWidget extends Disposable {
 		// Hooks have a simplified action set
 		if (promptType === PromptsType.hook) {
 			if (!this.workspaceService.isSessionsWindow && !descriptor.hideGenerateButton) {
-				// Core Local: Generate is primary, configure hooks in dropdown
 				actions.push({
-					label: `$(${Codicon.sparkle.id}) Generate ${typeLabel}`,
+					label: localize('generateWithAI', "Generate with AI"),
+					tooltip: localize('generateCustomizationWithAI', "Generate {0} with AI", typeLabel),
 					enabled: true,
+					kind: 'generate',
 					run: () => { this._onDidRequestCreate.fire(promptType); },
 				});
-				if (hasWorkspace) {
-					actions.push({
-						label: `$(${Codicon.add.id}) ${localize('configureHooks', "Configure Hooks")}`,
-						enabled: true,
-						run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'local' }); },
-					});
-				}
-			} else if (!override?.commandId) {
-				// Sessions / non-local: configure hooks (view + create)
+			}
+			if (hasWorkspace) {
 				actions.push({
-					label: `$(${Codicon.add.id}) ${localize('configureHooks', "Configure Hooks")}`,
-					enabled: hasWorkspace,
-					tooltip: hasWorkspace ? undefined : localize('configureHooksDisabled', "Open a workspace folder to configure hooks."),
+					label: localize('newHook', "New Hook"),
+					compactLabel: localize('newHook', "New Hook"),
+					enabled: true,
+					target: 'workspace',
 					run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'local' }); },
 				});
 			}
+			actions.push({
+				label: localize('newHook', "New Hook"),
+				compactLabel: localize('newHook', "New Hook"),
+				enabled: true,
+				target: 'user',
+				run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'user' }); },
+			});
 			return actions;
 		}
 
@@ -1119,25 +1246,31 @@ export class AICustomizationListWidget extends Disposable {
 		if (!override?.rootFile) {
 			// Determine the primary action (first in list)
 			if (!this.workspaceService.isSessionsWindow && !descriptor.hideGenerateButton) {
-				// Core Local: Generate is primary
+				// Local exposes one non-storage-scoped AI generation action.
 				actions.push({
-					label: `$(${Codicon.sparkle.id}) Generate ${typeLabel}`,
+					label: localize('generateWithAI', "Generate with AI"),
+					tooltip: localize('generateCustomizationWithAI', "Generate {0} with AI", typeLabel),
 					enabled: true,
+					kind: 'generate',
 					run: () => { this._onDidRequestCreate.fire(promptType); },
 				});
 			} else if (hasWorkspace) {
 				// Sessions or non-local harness with workspace: workspace is primary
 				actions.push({
-					label: `$(${Codicon.add.id}) New ${createTypeLabel} (Workspace)`,
+					label: localize('newWorkspaceCustomization', "New {0} (Workspace)", createTypeLabel),
+					compactLabel: localize('newCustomization', "New {0}", createTypeLabel),
 					enabled: true,
+					target: 'workspace',
 					run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'local' }); },
 				});
 				addedTargets.add('workspace');
 			} else {
 				// No workspace: user is primary
 				actions.push({
-					label: `$(${Codicon.add.id}) New ${createTypeLabel} (User)`,
+					label: localize('newUserCustomization', "New {0} (User)", createTypeLabel),
+					compactLabel: localize('newCustomization', "New {0}", createTypeLabel),
 					enabled: true,
+					target: 'user',
 					run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'user' }); },
 				});
 				addedTargets.add('user');
@@ -1147,16 +1280,20 @@ export class AICustomizationListWidget extends Disposable {
 		// Secondary actions (dropdown) — only add if not already present
 		if (hasWorkspace && !addedTargets.has('workspace')) {
 			actions.push({
-				label: `$(${Codicon.folder.id}) New ${createTypeLabel} (Workspace)`,
+				label: localize('newWorkspaceCustomization', "New {0} (Workspace)", createTypeLabel),
+				compactLabel: localize('newCustomization', "New {0}", createTypeLabel),
 				enabled: true,
+				target: 'workspace',
 				run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'local' }); },
 			});
 		}
 
 		if (!addedTargets.has('user')) {
 			actions.push({
-				label: `$(${Codicon.account.id}) New ${createTypeLabel} (User)`,
+				label: localize('newUserCustomization', "New {0} (User)", createTypeLabel),
+				compactLabel: localize('newCustomization', "New {0}", createTypeLabel),
 				enabled: true,
+				target: 'user',
 				run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'user' }); },
 			});
 		}
@@ -1165,8 +1302,9 @@ export class AICustomizationListWidget extends Disposable {
 		if (hasWorkspace && override?.rootFileShortcuts && !addedTargets.has('workspace-root')) {
 			for (const fileName of override.rootFileShortcuts) {
 				actions.push({
-					label: `$(${Codicon.file.id}) New ${fileName}`,
+					label: localize('newCustomizationFile', "New {0}", fileName),
 					enabled: true,
+					target: 'workspace',
 					run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace-root', rootFileName: fileName }); },
 				});
 			}
@@ -1215,7 +1353,7 @@ export class AICustomizationListWidget extends Disposable {
 			case AICustomizationManagementSection.Skills:
 				return localize('skill', "Skill");
 			case AICustomizationManagementSection.Instructions:
-				return localize('instructions', "Instructions");
+				return localize('instruction', "Instruction");
 			case AICustomizationManagementSection.Hooks:
 				return localize('hook', "Hook");
 			case AICustomizationManagementSection.Prompts:
@@ -1306,7 +1444,7 @@ export class AICustomizationListWidget extends Disposable {
 	 * Builds grouped display entries from items assigned to groups.
 	 * Empty groups are omitted. Collapsed groups show only their header.
 	 */
-	private buildGroupedEntries(groups: { groupKey: string; label: string; icon: ThemeIcon; description: string; items: IAICustomizationListItem[] }[]): void {
+	private buildGroupedEntries(groups: ICustomizationItemGroup[]): void {
 		// Sort items within each group
 		for (const group of groups) {
 			group.items.sort((a, b) => a.name.localeCompare(b.name));
@@ -1319,7 +1457,7 @@ export class AICustomizationListWidget extends Disposable {
 				continue;
 			}
 
-			const collapsed = this.collapsedGroups.has(group.groupKey);
+			const collapsed = !this.usesCardLayout() && this.collapsedGroups.has(group.groupKey);
 
 			this.displayEntries.push({
 				type: 'group-header',
@@ -1355,38 +1493,33 @@ export class AICustomizationListWidget extends Disposable {
 	 * Groups items by normalized storage/groupKey.
 	 */
 	private groupMatchedItems(matchedItems: IAICustomizationListItem[]): void {
-		// Standard provider layout: group by inferred storage/groupKey.
-		// Instructions use semantic categories (matching core path) so
-		// that provider-supplied groupKeys like 'context-instructions'
-		// are routed to the correct collapsible header.
-		const groups: { groupKey: string; label: string; icon: ThemeIcon; description: string; items: IAICustomizationListItem[] }[] =
-			this.currentSection === AICustomizationManagementSection.Instructions
-				? [
-					{ groupKey: 'agent-instructions', label: localize('agentInstructionsGroup', "Agent Instructions"), icon: instructionsIcon, description: localize('agentInstructionsGroupDescription', "Instruction files automatically loaded for all agent interactions (e.g. AGENTS.md, CLAUDE.md, copilot-instructions.md)."), items: [] },
-					{ groupKey: 'context-instructions', label: localize('contextInstructionsGroup', "Included Based on Context"), icon: instructionsIcon, description: localize('contextInstructionsGroupDescription', "Instructions automatically loaded when matching files are part of the context."), items: [] },
-					{ groupKey: 'on-demand-instructions', label: localize('onDemandInstructionsGroup', "Loaded on Demand"), icon: instructionsIcon, description: localize('onDemandInstructionsGroupDescription', "Instructions loaded only when explicitly referenced."), items: [] },
-					{ groupKey: PromptsStorage.local, label: localize('workspaceGroup', "Workspace"), icon: workspaceIcon, description: localize('workspaceGroupDescription', "Customizations stored as files in your project folder and shared with your team via version control."), items: [] },
-					{ groupKey: PromptsStorage.user, label: localize('userGroup', "User"), icon: userIcon, description: localize('userGroupDescription', "Customizations stored locally on your machine in a central location. Private to you and available across all projects."), items: [] },
-					{ groupKey: PromptsStorage.plugin, label: localize('pluginGroup', "Plugins"), icon: pluginIcon, description: localize('pluginGroupDescription', "Read-only customizations provided by installed plugins."), items: [] },
-					{ groupKey: PromptsStorage.builtIn, label: localize('builtinGroup', "Built-in"), icon: builtinIcon, description: localize('builtinGroupDescription', "Built-in customizations shipped with the application."), items: [] },
-				]
-				: [
-					{ groupKey: PromptsStorage.local, label: localize('workspaceGroup', "Workspace"), icon: workspaceIcon, description: localize('workspaceGroupDescription', "Customizations stored as files in your project folder and shared with your team via version control."), items: [] },
-					{ groupKey: PromptsStorage.user, label: localize('userGroup', "User"), icon: userIcon, description: localize('userGroupDescription', "Customizations stored locally on your machine in a central location. Private to you and available across all projects."), items: [] },
-					{ groupKey: PromptsStorage.plugin, label: localize('pluginGroup', "Plugins"), icon: pluginIcon, description: localize('pluginGroupDescription', "Read-only customizations provided by installed plugins."), items: [] },
-					{ groupKey: PromptsStorage.extension, label: localize('extensionGroup', "Extensions"), icon: extensionIcon, description: localize('extensionGroupDescription', "Read-only customizations provided by installed extensions."), items: [] },
-					{ groupKey: PromptsStorage.builtIn, label: localize('builtinGroup', "Built-in"), icon: builtinIcon, description: localize('builtinGroupDescription', "Built-in customizations shipped with the application."), items: [] },
-				];
+		const groups: ICustomizationItemGroup[] = [
+			{ groupKey: PromptsStorage.local, label: localize('workspaceGroup', "Workspace"), icon: workspaceIcon, description: localize('workspaceGroupDescription', "Customizations stored as files in your project folder and shared with your team via version control."), items: [] },
+			{ groupKey: PromptsStorage.user, label: localize('userGroup', "User"), icon: userIcon, description: localize('userGroupDescription', "Customizations stored locally on your machine in a central location. Private to you and available across all projects."), items: [] },
+			{ groupKey: PromptsStorage.plugin, label: localize('pluginGroup', "Plugins"), icon: pluginIcon, description: localize('pluginGroupDescription', "Read-only customizations provided by installed plugins."), items: [] },
+			{ groupKey: PromptsStorage.extension, label: localize('extensionGroup', "Extensions"), icon: extensionIcon, description: localize('extensionGroupDescription', "Read-only customizations provided by installed extensions."), items: [] },
+			{ groupKey: PromptsStorage.builtIn, label: localize('builtinGroup', "Built-in"), icon: builtinIcon, description: localize('builtinGroupDescription', "Built-in customizations shipped with the application."), items: [] },
+		];
 
 		for (const item of matchedItems) {
-			const key = item.groupKey ?? item.source ?? AICustomizationSources.local;
+			const key = this.currentSection === AICustomizationManagementSection.Instructions
+				? item.source
+				: item.groupKey ?? item.source ?? AICustomizationSources.local;
 			let group = groups.find(g => g.groupKey === key);
 			if (!group) {
 				// Dynamically create a group for unknown groupKeys from providers
 				let label: string;
+				let description = '';
 				switch (key) {
 					case 'remote-host':
 						label = localize('remoteHostGroupShort', "Remote");
+						if (this.currentSection === AICustomizationManagementSection.Skills) {
+							description = localize(
+								'remoteSkillsGroupDescription',
+								"Skills available from {0}, the active remote agent environment.",
+								this.harnessService.getActiveDescriptor().label,
+							);
+						}
 						break;
 					case 'remote-client':
 						label = localize('remoteClientGroupShort', "Local");
@@ -1394,7 +1527,7 @@ export class AICustomizationListWidget extends Disposable {
 					default:
 						label = formatDisplayName(key);
 				}
-				group = { groupKey: key, label, icon: Codicon.folder, description: '', items: [] };
+				group = { groupKey: key, label, icon: Codicon.folder, description, items: [] };
 				// Insert dynamic groups before the built-in group so it always stays last.
 				const builtinIdx = groups.findIndex(g => g.groupKey === PromptsStorage.builtIn);
 				if (builtinIdx >= 0) {
@@ -1407,8 +1540,316 @@ export class AICustomizationListWidget extends Disposable {
 		}
 
 		this.buildGroupedEntries(groups);
+		if (this.usesCardLayout()) {
+			this.renderCardGroups(groups);
+		} else {
+			this.commitDisplayEntries();
+		}
+	}
 
-		this.commitDisplayEntries();
+	private usesCardLayout(): boolean {
+		return usesCustomizationCardLayout(this.currentSection);
+	}
+
+	private renderCardGroups(groups: ICustomizationItemGroup[]): void {
+		const activeElement = DOM.getActiveElement();
+		const shouldRestoreFocus = this.cardMenuOpen || !!activeElement && this.cardContainer.contains(activeElement);
+		const focusItemId = this.lastCardFocusItemId;
+		const isFiltering = !!this.searchQuery.trim();
+		const usesTargetedCreateActions = this.usesTargetedCreateActions();
+		const createGroupKey = isFiltering || usesTargetedCreateActions ? undefined : this.getCreateActionGroupKey();
+		const alwaysVisibleGroupKeys = new Set(getAlwaysVisibleCustomizationGroupKeys(this.currentSection, isFiltering));
+		const visibleGroups = groups.filter(group => group.items.length > 0 || alwaysVisibleGroupKeys.has(group.groupKey) || group.groupKey === createGroupKey);
+		if (visibleGroups.length === 0) {
+			this.cardDisposables.clear();
+			this.cardRowsByUri.clear();
+			this.cardRowsById.clear();
+			this.cardMenuButtonsById.clear();
+			this.cardScrollElement = undefined;
+			this.firstCardFocusElement = undefined;
+			DOM.clearNode(this.cardContainer);
+			this.cardContainer.style.display = 'none';
+			this.updateEmptyState();
+			return;
+		}
+		if (createGroupKey) {
+			const createGroupIndex = visibleGroups.findIndex(group => group.groupKey === createGroupKey);
+			if (createGroupIndex > 0) {
+				visibleGroups.unshift(...visibleGroups.splice(createGroupIndex, 1));
+			}
+		}
+
+		this.cardDisposables.clear();
+		this.cardRowsByUri.clear();
+		this.cardRowsById.clear();
+		this.cardMenuButtonsById.clear();
+		this.firstCardFocusElement = undefined;
+		DOM.clearNode(this.cardContainer);
+		this.listContainer.style.display = 'none';
+		this.emptyStateContainer.style.display = 'none';
+		this.cardContainer.style.display = '';
+		const content = this.cardScrollElement = DOM.append(this.cardContainer, $('.plugin-card-scroll.customization-card-scroll'));
+
+		for (const group of visibleGroups) {
+			const section = DOM.append(content, $('.plugin-card-section.customization-card-section'));
+			const header = DOM.append(section, $('.plugin-card-section-header'));
+			const text = DOM.append(header, $('.plugin-card-section-text'));
+			const headingRow = DOM.append(text, $('.plugin-card-section-heading-row'));
+			const heading = DOM.append(headingRow, $('h3.plugin-card-section-title'));
+			heading.textContent = group.label;
+			const count = DOM.append(headingRow, $('.plugin-card-section-count'));
+			count.textContent = String(group.items.length);
+			if (group.description) {
+				const description = DOM.append(text, $('.plugin-card-section-description'));
+				description.textContent = group.description;
+			}
+			if (!isFiltering && usesTargetedCreateActions && (group.groupKey === PromptsStorage.local || group.groupKey === PromptsStorage.user)) {
+				this.renderTargetedCardCreateActions(header, group.groupKey);
+			} else if (group.groupKey === createGroupKey) {
+				this.renderCardCreateActions(header);
+			}
+
+			const inventory = DOM.append(section, $('.plugin-card-grid.plugin-inventory-list.customization-inventory-list'));
+			const cardList = this.cardDisposables.add(new CustomizationCardListController(inventory, group.label));
+			if (group.items.length === 0) {
+				const empty = DOM.append(inventory, $('.plugin-inventory-empty'));
+				empty.textContent = this.getEmptyGroupMessage(group.groupKey);
+				continue;
+			}
+			for (const item of group.items) {
+				this.appendCustomizationCardRow(inventory, item, group.label, cardList);
+			}
+			cardList.finalize();
+		}
+		if (shouldRestoreFocus) {
+			DOM.getWindow(this.element).requestAnimationFrame(() => {
+				(this.cardMenuButtonsById.get(focusItemId ?? '') ?? this.cardRowsById.get(focusItemId ?? '') ?? this.firstCardFocusElement)?.focus();
+			});
+		}
+	}
+
+	private usesTargetedCreateActions(): boolean {
+		return this.currentSection === AICustomizationManagementSection.Agents
+			|| this.currentSection === AICustomizationManagementSection.Skills
+			|| this.currentSection === AICustomizationManagementSection.Instructions
+			|| this.currentSection === AICustomizationManagementSection.Hooks
+			|| this.currentSection === AICustomizationManagementSection.Prompts;
+	}
+
+	private getCreateActionGroupKey(): string | undefined {
+		if (this.buildCreateActions().length === 0) {
+			return undefined;
+		}
+		return this.hasActiveWorkspace() ? PromptsStorage.local : PromptsStorage.user;
+	}
+
+	private renderTargetedCardCreateActions(header: HTMLElement, groupKey: string): void {
+		const target = groupKey === PromptsStorage.local ? 'workspace' : 'user';
+		const hasWorkspace = this.hasActiveWorkspace();
+		const actions = this.buildCreateActions().filter(action =>
+			action.target === target
+			|| action.target === undefined && (target === 'workspace' ? hasWorkspace : !hasWorkspace)
+		);
+		const primary = actions.find(action => action.target === target) ?? actions[0];
+		if (!primary) {
+			return;
+		}
+
+		const container = DOM.append(header, $('.plugin-card-section-actions'));
+		const label = this.formatTargetedCreateActionLabel(primary);
+		const button = this.cardDisposables.add(new Button(container, {
+			...defaultButtonStyles,
+			secondary: true,
+			title: primary.tooltip ?? label,
+			ariaLabel: primary.tooltip ?? label,
+		}));
+		button.element.classList.add('customization-create-action');
+		button.label = label;
+		button.enabled = primary.enabled;
+		this.firstCardFocusElement ??= button.element;
+		this.cardDisposables.add(button.onDidClick(() => primary.run()));
+
+		const generateAction = actions.find(action => action.kind === 'generate');
+		if (generateAction && generateAction !== primary) {
+			const generateButton = this.cardDisposables.add(new Button(container, {
+				...defaultButtonStyles,
+				secondary: true,
+				title: generateAction.tooltip ?? generateAction.label,
+				ariaLabel: generateAction.tooltip ?? generateAction.label,
+			}));
+			generateButton.element.classList.add('customization-generate-action');
+			generateButton.label = generateAction.label;
+			generateButton.enabled = generateAction.enabled;
+			this.cardDisposables.add(generateButton.onDidClick(() => generateAction.run()));
+		}
+
+		const secondaryActions = actions.filter(action => action !== primary && action !== generateAction);
+		if (secondaryActions.length > 0) {
+			const moreLabel = localize('moreCreateActions', "More creation actions for {0}", groupKey === PromptsStorage.local ? localize('workspace', "Workspace") : localize('user', "User"));
+			const more = this.cardDisposables.add(new Button(container, {
+				...getButtonStyles({ buttonSecondaryBackground: undefined, buttonSecondaryBorder: undefined }),
+				secondary: true,
+				supportIcons: true,
+				title: moreLabel,
+				ariaLabel: moreLabel,
+			}));
+			more.element.classList.add('plugin-card-icon-button', 'customization-create-more-action');
+			more.label = `$(${Codicon.ellipsis.id})`;
+			this.cardDisposables.add(more.onDidClick(() => this.showCreateActionsMenu(secondaryActions, more.element)));
+		}
+	}
+
+	private formatTargetedCreateActionLabel(action: ICreateAction): string {
+		return getTargetedCreateActionLabel(action.label, action.compactLabel);
+	}
+
+	private showCreateActionsMenu(createActions: readonly ICreateAction[], anchor: HTMLElement): void {
+		const disposables = new DisposableStore();
+		const actions = createActions.map((action, index) => disposables.add(new Action(
+			`customization.create.${index}`,
+			action.label.replace(/^\$\([^)]+\)\s*/, ''),
+			undefined,
+			action.enabled,
+			() => action.run(),
+		)));
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => anchor,
+			getActions: () => actions,
+			onHide: () => disposables.dispose(),
+		});
+	}
+
+	private getEmptyGroupMessage(groupKey: string): string {
+		const workspace = groupKey === PromptsStorage.local;
+		switch (this.currentSection) {
+			case AICustomizationManagementSection.Agents:
+				return workspace ? localize('noWorkspaceAgents', "No workspace agents yet.") : localize('noUserAgents', "No user agents yet.");
+			case AICustomizationManagementSection.Skills:
+				return workspace ? localize('noWorkspaceSkills', "No workspace skills yet.") : localize('noUserSkills', "No user skills yet.");
+			case AICustomizationManagementSection.Instructions:
+				return workspace ? localize('noWorkspaceInstructions', "No workspace instructions yet.") : localize('noUserInstructions', "No user instructions yet.");
+			case AICustomizationManagementSection.Hooks:
+				return workspace ? localize('noWorkspaceHooks', "No workspace hooks yet.") : localize('noUserHooks', "No user hooks yet.");
+			case AICustomizationManagementSection.Prompts:
+				return workspace ? localize('noWorkspacePrompts', "No workspace prompts yet.") : localize('noUserPrompts', "No user prompts yet.");
+			default:
+				return localize('noCustomizationsInSection', "No customizations are available.");
+		}
+	}
+
+	private renderCardCreateActions(header: HTMLElement): void {
+		const actions = this.buildCreateActions();
+		const [primary, ...dropdown] = actions;
+		if (!primary) {
+			return;
+		}
+		const container = DOM.append(header, $('.plugin-card-section-actions'));
+		const accessibleLabel = primary.tooltip ?? primary.label.replace(/\$\([^)]+\)\s*/g, '');
+		if (dropdown.length > 0) {
+			const button = this.cardDisposables.add(new ButtonWithDropdown(container, {
+				...defaultButtonStyles,
+				secondary: true,
+				contextMenuProvider: this.contextMenuService,
+				addPrimaryActionToDropdown: false,
+				actions: { getActions: () => this.getDropdownActions() },
+				title: accessibleLabel,
+				ariaLabel: accessibleLabel,
+			}));
+			button.element.classList.add('customization-create-action');
+			button.label = primary.label;
+			button.enabled = primary.enabled;
+			this.firstCardFocusElement ??= button.element;
+			this.cardDisposables.add(button.onDidClick(() => this.executePrimaryCreateAction()));
+			return;
+		}
+
+		const button = this.cardDisposables.add(new Button(container, {
+			...defaultButtonStyles,
+			secondary: true,
+			title: accessibleLabel,
+			ariaLabel: accessibleLabel,
+		}));
+		button.element.classList.add('customization-create-action');
+		button.label = primary.label;
+		button.enabled = primary.enabled;
+		this.firstCardFocusElement ??= button.element;
+		this.cardDisposables.add(button.onDidClick(() => this.executePrimaryCreateAction()));
+	}
+
+	private appendCustomizationCardRow(parent: HTMLElement, item: IAICustomizationListItem, groupLabel: string, cardList: CustomizationCardListController): void {
+		const row = DOM.append(parent, $('.plugin-list-item.plugin-home-row.customization-home-row'));
+		row.classList.toggle('disabled', item.disabled);
+		const displayName = item.displayName ?? formatDisplayName(item.name);
+		const secondaryText = getCustomizationSecondaryText(item.description, item.filename, item.promptType);
+		const statusLabel = this.getItemStatusLabel(item);
+		const accessibleSecondaryText = [secondaryText, statusLabel].filter(Boolean).join('. ');
+		const accessibleLabel = item.disabled
+			? localize('customizationCardAriaLabelDisabled', "{0}. {1}. Disabled", displayName, accessibleSecondaryText || groupLabel)
+			: localize('customizationCardAriaLabel', "{0}. {1}", displayName, accessibleSecondaryText || groupLabel);
+		const primary = createCustomizationCardPrimaryAction(row, accessibleLabel, 'customization-row-primary');
+		this.firstCardFocusElement ??= primary;
+		if (!this.cardRowsByUri.has(item.uri.toString())) {
+			this.cardRowsByUri.set(item.uri.toString(), primary);
+		}
+		this.cardRowsById.set(item.id, primary);
+		this.cardDisposables.add(DOM.addDisposableListener(primary, 'focus', () => {
+			this.lastCardFocusItemId = item.id;
+		}));
+		this.cardDisposables.add(DOM.addDisposableListener(primary, 'click', () => this._onDidSelectItem.fire(item)));
+		this.cardDisposables.add(DOM.addDisposableListener(row, 'contextmenu', event => {
+			event.preventDefault();
+			this.showCardItemActions(item, row);
+		}));
+		this.cardDisposables.add(this.hoverService.setupDelayedHover(row, () => ({
+			content: `${displayName}\n${this.labelService.getUriLabel(item.uri, { relative: item.source === AICustomizationSources.local })}`,
+			appearance: { compact: true, skipFadeInAnimation: true },
+		})));
+
+		const details = DOM.append(primary, $('.plugin-list-item-details'));
+		const nameRow = DOM.append(details, $('.plugin-list-item-name-row'));
+		const name = DOM.append(nameRow, $('.plugin-list-item-name'));
+		name.textContent = displayName;
+		if (item.badge && item.promptType !== PromptsType.instructions) {
+			const badge = DOM.append(nameRow, $('.inline-badge.item-badge'));
+			badge.textContent = item.badge;
+			badge.title = item.badgeTooltip ?? item.badge;
+		}
+		const description = DOM.append(details, $('.plugin-list-item-description'));
+		description.textContent = secondaryText ?? localize('customizationNoDescription', "No description provided.");
+
+		const actionContainer = DOM.append(row, $('.plugin-list-item-action'));
+		this.cardDisposables.add(DOM.addDisposableGenericMouseDownListener(actionContainer, e => e.stopPropagation()));
+		this.cardDisposables.add(DOM.addDisposableListener(actionContainer, 'click', e => e.stopPropagation()));
+		const more = this.cardDisposables.add(new Button(actionContainer, {
+			...getButtonStyles({ buttonSecondaryBackground: undefined, buttonSecondaryBorder: undefined }),
+			secondary: true,
+			supportIcons: true,
+			ariaLabel: localize('customizationMoreActionsAria', "More actions for {0}", displayName),
+		}));
+		more.element.classList.add('plugin-card-icon-button');
+		more.label = `$(${Codicon.ellipsis.id})`;
+		this.cardMenuButtonsById.set(item.id, more.element);
+		this.cardDisposables.add(DOM.addDisposableListener(more.element, 'focus', () => {
+			this.lastCardFocusItemId = item.id;
+		}));
+		this.cardDisposables.add(more.onDidClick(() => this.showCardItemActions(item, more.element)));
+		cardList.addItem({
+			row,
+			primaryAction: primary,
+			label: displayName,
+			actions: [more.element],
+			contextMenuAction: more.element,
+		});
+	}
+
+	private getItemStatusLabel(item: IAICustomizationListItem): string | undefined {
+		switch (item.status) {
+			case 'loading': return localize('customizationStatusLoading', "Loading");
+			case 'loaded': return localize('customizationStatusLoaded', "Loaded");
+			case 'degraded': return localize('customizationStatusDegraded', "Needs attention");
+			case 'error': return localize('customizationStatusError', "Error");
+			default: return undefined;
+		}
 	}
 
 	/**
@@ -1436,6 +1877,7 @@ export class AICustomizationListWidget extends Disposable {
 	private updateEmptyState(): void {
 		const hasItems = this.displayEntries.length > 0;
 		if (!hasItems) {
+			this.cardContainer.style.display = 'none';
 			this.emptyStateContainer.style.display = 'flex';
 			this.listContainer.style.display = 'none';
 
@@ -1451,7 +1893,8 @@ export class AICustomizationListWidget extends Disposable {
 			}
 		} else {
 			this.emptyStateContainer.style.display = 'none';
-			this.listContainer.style.display = '';
+			this.listContainer.style.display = this.usesCardLayout() ? 'none' : '';
+			this.cardContainer.style.display = this.usesCardLayout() ? '' : 'none';
 		}
 	}
 
@@ -1511,6 +1954,10 @@ export class AICustomizationListWidget extends Disposable {
 	 * Focuses the list.
 	 */
 	focusList(): void {
+		if (this.usesCardLayout()) {
+			this.firstCardFocusElement?.focus();
+			return;
+		}
 		this.list.domFocus();
 		if (this.displayEntries.length > 0) {
 			this.list.setFocus([0]);
@@ -1521,6 +1968,12 @@ export class AICustomizationListWidget extends Disposable {
 	 * Scrolls the list so the last item is visible.
 	 */
 	revealLastItem(): void {
+		if (this.usesCardLayout()) {
+			if (this.cardScrollElement) {
+				this.cardScrollElement.scrollTop = this.cardScrollElement.scrollHeight;
+			}
+			return;
+		}
 		if (this.displayEntries.length > 0) {
 			this.list.reveal(this.displayEntries.length - 1);
 		}
@@ -1530,6 +1983,17 @@ export class AICustomizationListWidget extends Disposable {
 	 * Reveals and selects the first list item whose URI matches one of the provided URIs.
 	 */
 	revealAndSelectFirstItemByUri(uris: readonly URI[]): boolean {
+		if (this.usesCardLayout()) {
+			for (const uri of uris) {
+				const row = this.cardRowsByUri.get(uri.toString());
+				if (row) {
+					row.scrollIntoView({ block: 'nearest' });
+					row.focus();
+					return true;
+				}
+			}
+			return false;
+		}
 		const entryIndex = this.displayEntries.findIndex(entry => {
 			return entry.type === 'file-item' && uris.some(uri => isEqual(entry.item.uri, uri));
 		});
@@ -1550,6 +2014,8 @@ export class AICustomizationListWidget extends Disposable {
 	layout(height: number, width: number): void {
 		this.lastLayoutHeight = height;
 		this.lastLayoutWidth = width;
+		this.element.classList.toggle('narrow-layout', width < 500);
+		this.element.classList.toggle('wide-layout', width >= 600);
 		// Use the CSS-computed height within the padded parent.
 		this.element.style.height = '';
 		this.searchInput.layout();
@@ -1576,8 +2042,11 @@ export class AICustomizationListWidget extends Disposable {
 		const availableHeight = this.element.clientHeight || height;
 		const listHeight = Math.max(0, availableHeight - searchBarHeight - headerHeight);
 
+		this.cardContainer.style.height = `${listHeight}px`;
 		this.listContainer.style.height = `${listHeight}px`;
-		this.list.layout(listHeight, width);
+		if (!this.usesCardLayout()) {
+			this.list.layout(listHeight, width);
+		}
 	}
 
 	/**

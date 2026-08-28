@@ -55,7 +55,7 @@ const COMPARE_MODIFIED_TEMPLATE_VARIABLE = '{modifiedTurnId}';
 export const branchChangesetLabel = (): string => localize('branchChangeset.label', "Branch Changes");
 
 /** Localized human-readable label for the session-wide changeset entry. */
-export const sessionChangesetLabel = (): string => localize('sessionChangeset.label', "All Changes");
+export const sessionChangesetLabel = (): string => localize('sessionChangeset.label', "Session Changes");
 
 /** Localized human-readable description for the session-wide changeset entry. */
 export const sessionChangesetDescription = (): string => localize('sessionChangeset.description', "Show all changes made in this session");
@@ -115,6 +115,24 @@ export const enum ChangesetKind {
 	Compare = 'compare-turns',
 	/** Producer-defined id we don't recognise (single-segment only). */
 	Unknown = 'unknown',
+}
+
+/** RFC 3986 scheme prefix, e.g. the `ahp-session:` in `ahp-session:/abc`. */
+const URI_SCHEME_PREFIX = /^[a-zA-Z][a-zA-Z0-9+.\-]*:/;
+
+/**
+ * Resolve a {@link Changeset.uriTemplate} from a session's catalogue into a
+ * subscribable URI template.
+ *
+ * A host may publish the template relative to the session channel
+ * (`changeset/branch`); used verbatim that addresses the client's own
+ * filesystem. Templates that already carry a scheme are returned unchanged.
+ */
+export function resolveChangesetUriTemplate(sessionUri: URI, uriTemplate: string): string {
+	if (URI_SCHEME_PREFIX.test(uriTemplate)) {
+		return uriTemplate;
+	}
+	return `${sessionUri.replace(/\/+$/, '')}/${uriTemplate.replace(/^\/+/, '')}`;
 }
 
 export function buildBranchChangesetUri(sessionUri: URI): URI {

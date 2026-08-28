@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
+import { toAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IObservable, constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { MenuItemAction } from '../../../../../platform/actions/common/actions.js';
@@ -21,7 +23,7 @@ import { IGitHubService } from '../../../../../sessions/contrib/github/browser/g
 // eslint-disable-next-line local/code-import-patterns
 import { createIssueHoverElement } from '../../../../../sessions/contrib/github/browser/issueHover.js';
 // eslint-disable-next-line local/code-import-patterns
-import { createGitHubReferenceListElement } from '../../../../../sessions/contrib/github/browser/githubReferenceList.js';
+import { GitHubReferenceList } from '../../../../../sessions/contrib/github/browser/githubReferenceList.js';
 // eslint-disable-next-line local/code-import-patterns
 import { OpenIssueActionViewItem } from '../../../../../sessions/contrib/github/browser/issueActions.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
@@ -29,6 +31,7 @@ import { createFixtureGitHubService } from './githubFixtureUtils.js';
 
 // eslint-disable-next-line local/code-import-patterns
 import '../../../../../sessions/browser/parts/media/chatCompositeBar.css';
+import '../../../../../base/browser/ui/actionbar/actionbar.css';
 import '../../../../../base/browser/ui/hover/hoverWidget.css';
 import '../../../../../platform/hover/browser/hover.css';
 
@@ -156,11 +159,18 @@ function renderIssueHover(ctx: ComponentFixtureContext, issue: IGitHubIssue): vo
 }
 
 function renderIssueList(ctx: ComponentFixtureContext, issues: readonly IGitHubIssue[]): void {
-	renderInHoverWidget(ctx, createGitHubReferenceListElement(issues.map(issue => ({
+	const list = ctx.disposableStore.add(new GitHubReferenceList(issues.map(issue => ({
 		number: issue.number,
 		title: issue.title,
 		icon: computeIssueIcon(issue.state, issue.stateReason),
-	})), () => { }), '480px');
+		toolbarActions: [toAction({
+			id: 'fixture.copyIssueLink',
+			label: 'Copy Issue Link',
+			class: ThemeIcon.asClassName(Codicon.copy),
+			run: () => { },
+		})],
+	})), () => { }));
+	renderInHoverWidget(ctx, list.element, '480px');
 }
 
 // ============================================================================
