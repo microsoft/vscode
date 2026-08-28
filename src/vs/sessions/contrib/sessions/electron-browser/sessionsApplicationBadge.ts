@@ -6,7 +6,7 @@
 import { mainWindow } from '../../../../base/browser/window.js';
 import { Color } from '../../../../base/common/color.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, observableFromEvent } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -15,7 +15,7 @@ import { observableConfigValue } from '../../../../platform/observable/common/pl
 import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND } from '../../../../workbench/common/theme.js';
-import { SessionStatus } from '../../../services/sessions/common/session.js';
+import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
 export const SESSIONS_APPLICATION_BADGE_SETTING = 'sessions.showApplicationBadge';
@@ -37,30 +37,10 @@ export class SessionsApplicationBadge extends Disposable implements IWorkbenchCo
 
 	private _lastCount = 0;
 
-	private readonly _enabled = observableConfigValue(SESSIONS_APPLICATION_BADGE_SETTING, false, this._configurationService);
-
-	private readonly _sessions = observableFromEvent(this, this._sessionsManagementService.onDidChangeSessions, () => this._sessionsManagementService.getSessions());
-
-	private readonly _colorTheme = observableFromEvent(this, this._themeService.onDidColorThemeChange, () => this._themeService.getColorTheme());
-
-	private readonly _count = derived(this, reader => {
-		if (!this._enabled.read(reader)) {
-			return 0;
-		}
-
-		let count = 0;
-		for (const session of this._sessions.read(reader)) {
-			if (session.isArchived.read(reader)) {
-				continue;
-			}
-
-			if (!session.isRead.read(reader) || session.status.read(reader) === SessionStatus.NeedsInput) {
-				count++;
-			}
-		}
-
-		return count;
-	});
+	private readonly _enabled: IObservable<boolean>;
+	private readonly _sessions: IObservable<readonly ISession[]>;
+	private readonly _colorTheme: IObservable<IColorTheme>;
+	private readonly _count: IObservable<number>;
 
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
@@ -69,6 +49,31 @@ export class SessionsApplicationBadge extends Disposable implements IWorkbenchCo
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
+
+		this._enabled = observableConfigValue(SESSIONS_APPLICATION_BADGE_SETTING, false, this._configurationService);
+
+		this._sessions = observableFromEvent(this, this._sessionsManagementService.onDidChangeSessions, () => this._sessionsManagementService.getSessions());
+
+		this._colorTheme = observableFromEvent(this, this._themeService.onDidColorThemeChange, () => this._themeService.getColorTheme());
+
+		this._count = derived(this, reader => {
+			if (!this._enabled.read(reader)) {
+				return 0;
+			}
+
+			let count = 0;
+			for (const session of this._sessions.read(reader)) {
+				if (session.isArchived.read(reader)) {
+					continue;
+				}
+
+				if (!session.isRead.read(reader) || session.status.read(reader) === SessionStatus.NeedsInput) {
+					count++;
+				}
+			}
+
+			return count;
+		});
 
 		this._register(autorun(reader => {
 			const count = this._count.read(reader);
@@ -90,13 +95,16 @@ export class SessionsApplicationBadge extends Disposable implements IWorkbenchCo
 
 		let badge: IApplicationBadge | undefined;
 		if (count > 0) {
-			badge = {
-				count,
-				description: count === 1
-					? localize('sessions.applicationBadge.single', "1 session needs your attention")
-					: localize('sessions.applicationBadge.multiple', "{0} sessions need your attention", count),
-				iconDataURL: colorTheme ? this._renderIcon(count, colorTheme) : undefined
-			};
+			const description = count === 1
+				? localize('sessions.applicationBadge.single', "1 session needs your attention")
+				: localize('sessions.applicationBadge.multiple', "{0} sessions need your attention", count);
+
+			// Leave `iconDataURL` out entirely rather than setting it to
+			// `undefined`: the IPC serializes the badge as JSON, which drops
+			// undefined valued properties, so the badge arriving in the main
+			// process would not match the one sent here.
+			const iconDataURL = colorTheme ? this._renderIcon(count, colorTheme) : undefined;
+			badge = iconDataURL ? { count, description, iconDataURL } : { count, description };
 		}
 
 		this._nativeHostService.setApplicationBadge(badge);

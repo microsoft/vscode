@@ -136,9 +136,9 @@ suite('SessionsApplicationBadge', () => {
 	test('badge survives the IPC round trip to the main process', () => {
 		const { nativeHost } = createBadge([createSession('unread', { isRead: false }).session]);
 
-		// The badge crosses a `ProxyChannel`, which only reconstructs a
-		// `VSBuffer` that is an argument itself — anything nested in an object
-		// is plain JSON. Keep the payload JSON-safe.
+		// The badge crosses a `ProxyChannel` as plain JSON: a nested `VSBuffer`
+		// is not revived, and an `undefined` valued property is dropped
+		// entirely. Both would make the main process see a different badge.
 		const writer = new BufferWriter();
 		serialize(writer, [nativeHost.badges[0]]);
 		const [revived] = deserialize(new BufferReader(writer.buffer)) as [IApplicationBadge];
