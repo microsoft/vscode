@@ -19,11 +19,3 @@ src/vs/workbench/services/extensions/common/extensionPoints.json @TylerLeonhardt
 # review is required to make sure TypeScript is not a better choice.
 .eslint-allowed-javascript-files @alexr00 @alexdima @sbatten @TylerLeonhardt
 
-# Agents Window architecture specifications and their routing policy.
-# These files describe stable contracts and should not change for routine fixes.
-/src/vs/sessions/*.md @sandy081
-/src/vs/sessions/contrib/layout/browser/*.md @sandy081
-/src/vs/sessions/contrib/providers/*/*.md @sandy081
-/.github/instructions/sessions.instructions.md @sandy081
-/.github/skills/sessions/SKILL.md @sandy081
-/.github/skills/chat-customizations-editor/SKILL.md @sandy081

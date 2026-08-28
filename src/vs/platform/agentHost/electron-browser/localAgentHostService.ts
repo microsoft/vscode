@@ -64,8 +64,9 @@ import type { CompletionsParams, CompletionsResult, ContentEncoding, CreateTermi
 import type { Implementation, InitializeResult } from '../common/state/protocol/common/commands.js';
 import { NonReconnectableTransportError } from '../common/state/sessionTransport.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
+import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../common/state/protocol/channels-automation/commands.js';
 import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult } from '../common/state/sessionProtocol.js';
-import type { ActionEnvelope, ChatAction, ClientAnnotationsAction, ClientChangesetAction, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../common/state/sessionActions.js';
+import type { ActionEnvelope, ChatAction, ClientAnnotationsAction, ClientAutomationAction, ClientAutomationRunAction, ClientChangesetAction, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../common/state/sessionActions.js';
 import type { ComponentToState, RootState, StateComponents } from '../common/state/sessionState.js';
 
 const LOG_PREFIX = '[AgentHost:renderer]';
@@ -366,6 +367,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().getSubscription<ComponentToState[T]>(kind, resource, owner);
 	}
 
+	getSubscriptionByChannel<T extends StateComponents>(kind: T, channel: string, owner: string): IReference<IAgentSubscription<ComponentToState[T]>> {
+		return this._requireClient().getSubscriptionByChannel<ComponentToState[T]>(kind, channel, owner);
+	}
+
 	getSubscriptionUnmanaged<T extends StateComponents>(kind: T, resource: URI): IAgentSubscription<ComponentToState[T]> | undefined {
 		return this._protocolClient?.getSubscriptionUnmanaged<ComponentToState[T]>(kind, resource);
 	}
@@ -378,7 +383,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._protocolClient?.getActiveSubscriptions() ?? [];
 	}
 
-	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
+	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction): void {
 		this._requireClient().dispatch(channel, action);
 	}
 
@@ -431,6 +436,18 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	completions(params: CompletionsParams): Promise<CompletionsResult> {
 		return this._requireClient().completions(params);
+	}
+
+	listAutomationTriggerDefinitions(params: ListAutomationTriggerDefinitionsParams): Promise<ListAutomationTriggerDefinitionsResult> {
+		return this._requireClient().listAutomationTriggerDefinitions(params);
+	}
+
+	runAutomation(params: RunAutomationParams): Promise<RunAutomationResult> {
+		return this._requireClient().runAutomation(params);
+	}
+
+	fetchAutomationRuns(params: FetchAutomationRunsParams): Promise<FetchAutomationRunsResult> {
+		return this._requireClient().fetchAutomationRuns(params);
 	}
 
 	getCompletionTriggerCharacters(): Promise<readonly string[]> {

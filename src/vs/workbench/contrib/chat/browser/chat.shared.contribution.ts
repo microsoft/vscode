@@ -22,7 +22,7 @@ import { AgentMergeSettingId } from '../../../../platform/agentHost/common/agent
 import { AgentHostAhpJsonlLoggingSettingId, AgentHostAllowSignedOutWhenUsableSettingId, AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostMultiTurnContextRoutingEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId, AgentHostReasoningSummaryEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotSubagentModelGuidanceEnabledSettingId, copilotSdkLogLevelSettingValues } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { CopilotSemanticSearchEnabledSettingId } from '../../../../platform/agentHost/common/semanticSearchConstants.js';
-import { DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, mergeChatEditAutoApprovePatterns } from '../../../../platform/chat/common/chatSettings.js';
+import { ChatMicrosoftAuthenticationEnabledSettingId, DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, mergeChatEditAutoApprovePatterns } from '../../../../platform/chat/common/chatSettings.js';
 import { reasoningEffortLevels } from '../../../../platform/agentHost/common/reasoningEffort.js';
 import { ChatSessionArchiveActionWordingSettingId } from '../../../../platform/chat/common/sessionArchiveActions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
@@ -315,7 +315,28 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('dictation.model', "The model used for dictation. On-device models download on first use and run locally through Microsoft Foundry Local; the cloud option streams audio to the Microsoft AI voice service."),
 			default: DEFAULT_LOCAL_TRANSCRIPTION_MODEL,
 			tags: ['experimental'],
-			experiment: { mode: 'auto' }
+			experiment: { mode: 'auto' },
+			policy: {
+				name: 'DictationModel',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.136',
+				localization: {
+					description: {
+						key: 'dictation.model.policy',
+						value: nls.localize('dictation.model.policy', "Controls the transcription model used for dictation.")
+					},
+					enumDescriptions: [
+						{
+							key: 'dictation.model.nemotronMultilingual.policy',
+							value: nls.localize('dictation.model.nemotronMultilingual.policy', "Use the on-device transcription model. Audio does not leave the device.")
+						},
+						{
+							key: 'dictation.model.mai.policy',
+							value: nls.localize('dictation.model.mai.policy', "Use the cloud transcription service. Audio is streamed to the service.")
+						},
+					]
+				},
+			}
 		},
 		[DictationSettingId.ShowTranscript]: {
 			type: 'boolean',
@@ -333,11 +354,22 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			markdownDescription: nls.localize('dictation.experimental.llmCleanup', "Experimental: when dictation ends, the final transcript is passed through a small language model to restore punctuation, capitalization, paragraphs, and lists. Requires Copilot to be enabled; the transcript is sent to the language model for cleanup. Falls back to the raw transcript when no model is available. Use [dictation instructions](command:{0}) to customize terminology and formatting.", CONFIGURE_DICTATION_INSTRUCTIONS_ACTION_ID),
 			default: true,
-			tags: ['experimental']
+			tags: ['experimental'],
+			policy: {
+				name: 'DictationLLMCleanup',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.136',
+				localization: {
+					description: {
+						key: 'dictation.experimental.llmCleanup.policy',
+						value: nls.localize('dictation.experimental.llmCleanup.policy', "Controls whether final dictation transcripts are sent to a language model for cleanup.")
+					}
+				},
+			}
 		},
 		'dictation.experimental.llmCleanupModel': {
 			type: 'string',
-			enum: ['auto', 'copilot-utility-small', 'gpt-5.6-luna'],
+			enum: ['auto', 'copilot-utility-small', 'gpt-5.4-nano', 'gpt-5.6-luna'],
 			markdownDescription: nls.localize('dictation.experimental.llmCleanupModel', "Controls the language model used for experimental dictation cleanup. `auto` follows the active experiment treatment."),
 			default: 'auto',
 			tags: ['experimental']
@@ -1677,6 +1709,16 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'startup' }
+		},
+		[ChatMicrosoftAuthenticationEnabledSettingId]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.microsoftAuthentication.enabled', "When enabled, sign-in dialogs offer \"Continue with Microsoft\". Signing in with Microsoft exchanges your Microsoft account for the GitHub access your organization has linked to it. The resulting GitHub sign-in lasts for the current window session only and is not saved."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced'],
+			// Read when a sign-in dialog opens, so `startup` keeps the offered buttons stable for the
+			// life of the window instead of changing under a dialog the user already has open.
 			experiment: { mode: 'startup' }
 		},
 		[AgentHostSdkSandboxEnabledSettingId]: {
