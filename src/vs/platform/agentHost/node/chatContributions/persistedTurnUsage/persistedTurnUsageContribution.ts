@@ -26,6 +26,13 @@ export class PersistedTurnUsageContribution extends Disposable implements IAgent
 	}
 
 	onDidDispatchAction(dispatched: IDispatchedAction): void {
+		// A rejected action never reduced, so its payload must not be persisted as though
+		// it had. `ChatUsage` is server-only today and cannot be rejected, but the guard
+		// keeps that from becoming a silent durable-state bug if it ever becomes
+		// client-dispatchable.
+		if (dispatched.rejectionReason !== undefined) {
+			return;
+		}
 		if (isAhpChatChannel(dispatched.channel) && isChatAction(dispatched.action)) {
 			this._trackTurnUsage(dispatched.channel, dispatched.action);
 		}

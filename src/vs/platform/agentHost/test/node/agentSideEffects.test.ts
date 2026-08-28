@@ -2747,7 +2747,11 @@ suite('AgentSideEffects', () => {
 			setupSession();
 			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionIsReadChanged, isRead: true });
 			disposables.add(persisting.registerProgressListener(agent));
-			startTurn('turn-1');
+			// Start through `handleAction` as `_dispatchActionNow` does, so the turn is tracked
+			// and a cancellation actually ends something.
+			const turnStarted = { type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'hello', origin: { kind: MessageKind.User } } } as const;
+			stateManager.dispatchClientAction(defaultChatUri, turnStarted, { clientId: 'test', clientSeq: 1 });
+			persisting.handleAction(defaultChatUri, turnStarted);
 
 			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
@@ -2764,6 +2768,28 @@ suite('AgentSideEffects', () => {
 			}, {
 				readChanges: [false],
 				isReadBitSet: false,
+			});
+		});
+
+		test('ignores a stale client cancellation that ends no turn', () => {
+			const { sideEffects: persisting } = setupPersisting();
+			setupSession();
+			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionIsReadChanged, isRead: true });
+			disposables.add(persisting.registerProgressListener(agent));
+
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+			// No turn ever started, so the reducer no-ops this and no turn end may be reported.
+			const cancellation = { type: ActionType.ChatTurnCancelled, turnId: 'never-started', duration: 0 } as const;
+			stateManager.dispatchClientAction(defaultChatUri, cancellation, { clientId: 'test', clientSeq: 2 });
+			persisting.handleAction(defaultChatUri, cancellation);
+
+			assert.deepStrictEqual({
+				readChanges: readChangesFrom(envelopes),
+				isReadBitSet: (stateManager.getSessionSummary(sessionUri.toString())!.status & SessionStatus.IsRead) !== 0,
+			}, {
+				readChanges: [],
+				isReadBitSet: true,
 			});
 		});
 

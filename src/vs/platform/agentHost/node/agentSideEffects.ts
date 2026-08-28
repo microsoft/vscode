@@ -901,10 +901,15 @@ export class AgentSideEffects extends Disposable {
 		this._turnTracker.modelCallCompleted(sessionKey, turnId, signal.modelCallId);
 	}
 
-	private _completeTurn(channel: string, turnId: string, result: AgentHostTurnResult, failure?: IAgentHostTurnFailure): void {
+	/**
+	 * Records the turn's completion with the tracker. Returns whether a tracked turn
+	 * actually ended, so callers can skip end-of-turn side effects for a stale or
+	 * duplicate terminal action that ended nothing.
+	 */
+	private _completeTurn(channel: string, turnId: string, result: AgentHostTurnResult, failure?: IAgentHostTurnFailure): boolean {
 		const sessionUri = isAhpChatChannel(channel) ? parseRequiredSessionUriFromChatUri(channel) : channel;
 		const folderCount = this._agentConfigService.getEffectiveWorkingDirectories(sessionUri)?.length ?? 0;
-		this._turnTracker.turnCompleted(channel, turnId, result, failure, { isMultiRoot: folderCount > 1, folderCount });
+		return this._turnTracker.turnCompleted(channel, turnId, result, failure, { isMultiRoot: folderCount > 1, folderCount });
 	}
 
 	private _runTurnCompleteSideEffects(sessionKey: ProtocolURI, turnId: string | undefined, clientContext?: IAgentHostClientTelemetryContext): void {
@@ -1399,8 +1404,19 @@ export class AgentSideEffects extends Disposable {
 						duration: execution.duration + execution.stopWatch.elapsed(),
 						part: createErrorResponsePart(failure.error),
 					});
-					this._completeTurn(channel, action.turnId, 'error', failure);
+					const endedTurn = this._completeTurn(channel, action.turnId, 'error', failure);
 					this._toolCallTracker.clearSession(channel);
+					// A rejected resume is a terminal outcome like any other failed send, so it
+					// reports through the same contract rather than staying invisible.
+					if (endedTurn) {
+						this._chatContributions.turnEnd({
+							session: sessionChannel,
+							channel,
+							turnId: action.turnId,
+							reason: { kind: 'error', error: failure.error, resumable: false },
+							clientContext,
+						});
+					}
 					this._resumedTurnExecutions.delete(key);
 				});
 				break;
@@ -1449,17 +1465,22 @@ export class AgentSideEffects extends Disposable {
 				if (!chatChannel) {
 					throw new Error(`ChatTurnCancelled must be handled on an AHP chat channel: ${channel}`);
 				}
-				this._completeTurn(channel, action.turnId, 'cancelled');
+				const endedTurn = this._completeTurn(channel, action.turnId, 'cancelled');
 				this._resumedTurnExecutions.delete(this._resumedTurnExecutionKey(channel, action.turnId));
 				this._toolCallTracker.clearSession(channel);
-				// Keep client cancellations aligned with the agent-signal cancellation path.
-				this._chatContributions.turnEnd({
-					session: sessionChannel,
-					channel,
-					turnId: action.turnId,
-					reason: { kind: 'cancelled' },
-					clientContext,
-				});
+				// Keep client cancellations aligned with the agent-signal cancellation path,
+				// but only when a turn actually ended: the reducer no-ops a stale or duplicate
+				// cancellation, and reporting one would mark a read session unread for a turn
+				// that never stopped.
+				if (endedTurn) {
+					this._chatContributions.turnEnd({
+						session: sessionChannel,
+						channel,
+						turnId: action.turnId,
+						reason: { kind: 'cancelled' },
+						clientContext,
+					});
+				}
 				void this._checkpointService.discardTurnStartCheckpoint(URI.parse(sessionChannel), URI.parse(channel), action.turnId).catch(() => undefined);
 				// Cancel all subagent sessions for this parent
 				this.cancelSubagentSessions(channel);
@@ -1729,16 +1750,20 @@ export class AgentSideEffects extends Disposable {
 				duration: this._turnDuration(turnStopWatch),
 				part: createErrorResponsePart(error),
 			});
-			this._completeTurn(turnChannel, turnId, 'error', failure);
+			const endedTurn = this._completeTurn(turnChannel, turnId, 'error', failure);
 			this._toolCallTracker.clearSession(turnChannel);
-			// Notify contributions so failed sends recompute changesets and mark the session unread.
-			this._chatContributions.turnEnd({
-				session: sessionChannel,
-				channel: turnChannel,
-				turnId,
-				reason: { kind: 'error', error, resumable: false },
-				clientContext,
-			});
+			// Notify contributions so failed sends recompute changesets and mark the session
+			// unread. Skipped when the turn already ended — a send can reject after the turn
+			// was cancelled, and reporting again would double-report the same turn.
+			if (endedTurn) {
+				this._chatContributions.turnEnd({
+					session: sessionChannel,
+					channel: turnChannel,
+					turnId,
+					reason: { kind: 'error', error, resumable: false },
+					clientContext,
+				});
+			}
 			this._failSessionCreationIfStillCreating(sessionChannel, error);
 		}
 	}

@@ -39,7 +39,10 @@ export class SessionInputNeededContribution extends Disposable implements IAgent
 	}
 
 	onDidDispatchAction(dispatched: IDispatchedAction): void {
-		if (!isAhpChatChannel(dispatched.channel) || !isChatAction(dispatched.action)) {
+		// A rejected action never reduced, so there is no state change to mirror. The
+		// removal branches below clear a mirrored blocker without re-reading state, so
+		// acting on one could drop a request that is still outstanding.
+		if (dispatched.rejectionReason !== undefined || !isAhpChatChannel(dispatched.channel) || !isChatAction(dispatched.action)) {
 			return;
 		}
 		this._syncSessionInputNeededForChatAction(dispatched.channel, dispatched.action);

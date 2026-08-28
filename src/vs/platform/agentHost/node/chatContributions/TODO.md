@@ -14,9 +14,9 @@ different hooks; registration order only breaks ties.
 - A contribution on `onDidDispatchAction` must filter tightly, because the hook fires for
   every dispatched action. `sessionInputNeeded` and `persistedTurnUsage` both re-check
   `isAhpChatChannel` + `isChatAction`, reproducing the guard their code sat behind in
-  `AgentSideEffects`. Neither checks `rejectionReason`, deliberately: both derive from or
-  key off current state rather than trusting the action. `sessionFlags` does check it, for
-  read and archived state but not config values.
+  `AgentSideEffects`. All three contributions on this hook also skip rejected actions,
+  except that `sessionFlags` still persists config values for one, matching the behavior
+  it was extracted from.
 - `TurnEndReason` intentionally omits `AgentHostTurnFailureStage`: error-hook dispatch comes
   only from `ChatError`, where the stage is hardcoded `provider`. Add it only when a
   contribution needs a stage that reflects every error source.
@@ -49,8 +49,8 @@ different hooks; registration order only breaks ties.
   `_startSessionPrompt` and `_startAgentMergePrompt` already do, and derive `source` from the
   action's existing `queuedMessageId` rather than passing it. The bridge would swap
   `sendTurnMessage` for `handleAction`. This is a behavior change, not a shape change:
-  `handleAction` ends by calling `_chatContributions.action(...)`, so queued turns would begin
-  firing `onDidApplyClientAction` for their `ChatTurnStarted`.
+  `handleAction` ends by calling `_chatContributions.didApplyClientAction(...)`, so queued turns
+  would begin firing `onDidApplyClientAction` for their `ChatTurnStarted`.
 
 ### Side chat
 
