@@ -94,6 +94,21 @@ function isPromptTimelineRequest(item: ChatTreeItem): item is IChatRequestViewMo
 	return isRequestVM(item) && !item.isSystemInitiated;
 }
 
+/**
+ * Text the timeline should show for a request. A request whose transcript row
+ * renders something other than its own text (an Agent Merge turn shows a
+ * summary of its machine-facing state block) contributes a stand-in label here;
+ * every other request falls back to its own text. Further kinds get their own
+ * check as they appear.
+ */
+function getRequestLabel(item: IChatRequestViewModel): string {
+	const agentMergeLabel = getAgentMergeRequestLabel(item);
+	if (agentMergeLabel !== undefined) {
+		return agentMergeLabel;
+	}
+	return item.messageText;
+}
+
 // Content "signal" = a cheap, unit-less size proxy (roughly the rendered line
 // count) for an un-measured row. Absolute pixels come from a factor learned from
 // measured rows (see `_computeAdaptiveLayout`), so these constants only need to
@@ -365,9 +380,8 @@ export class PromptTimelineModel extends Disposable {
 	}
 
 	/**
-	 * Preview of a prompt, which for an Agent Merge turn is the summary the
-	 * transcript shows in place of its machine-facing state block — the block's
-	 * opening tag is all a preview of that text would say.
+	 * Preview of a prompt, which for a request rendered as something other than
+	 * its own text (an Agent Merge turn) previews that stand-in label instead.
 	 */
 	private _requestPreview(item: IChatRequestViewModel): string {
 		const messageText = item.messageText;
@@ -375,7 +389,7 @@ export class PromptTimelineModel extends Disposable {
 		if (cached && cached.messageText === messageText) {
 			return cached.preview;
 		}
-		const preview = getPromptPreview(getAgentMergeRequestLabel(item) ?? messageText);
+		const preview = getPromptPreview(getRequestLabel(item));
 		this._previewCache.set(item.id, { messageText, preview });
 		return preview;
 	}
