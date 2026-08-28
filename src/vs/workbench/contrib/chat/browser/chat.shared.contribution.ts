@@ -62,7 +62,7 @@ import { ChatRequestOriginService, IChatRequestOriginService } from '../common/c
 import { ChatService } from '../common/chatService/chatServiceImpl.js';
 import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSideChatService, IChatSideChatService } from '../common/chatSideChatService.js';
-import { BYOKUtilityModelDefault, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatDefaultPermissionLevel, ChatNotificationMode, ChatPermissionLevel } from '../common/constants.js';
+import { BYOKUtilityModelDefault, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatDefaultPermissionLevel, CustomizationMigrationHintMode, ChatNotificationMode, ChatPermissionLevel } from '../common/constants.js';
 import { CodeMapperService, ICodeMapperService } from '../common/editing/chatCodeMapperService.js';
 import { IChatEditingService } from '../common/editing/chatEditingService.js';
 import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } from '../common/ignoredFiles.js';
@@ -2413,6 +2413,19 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			description: nls.localize('chat.customizations.userDataMigration.enabled', "Controls whether the Chat Customizations editor offers to move agents and instructions stored in user data to the active agent-host harness, which ignores the user data location. When disabled, the migration card and sidebar shortcut are hidden."),
 			default: false,
+		},
+		[ChatConfiguration.ChatCustomizationsMigrationHint]: {
+			type: 'string',
+			enum: [CustomizationMigrationHintMode.Never, CustomizationMigrationHintMode.Once, CustomizationMigrationHintMode.Always],
+			enumDescriptions: [
+				nls.localize('chat.customizations.migrationHint.never', "Never show customization migration hints in chat."),
+				nls.localize('chat.customizations.migrationHint.once', "Show a customization migration hint once per chat session."),
+				nls.localize('chat.customizations.migrationHint.always', "Show a customization migration hint for every chat request."),
+			],
+			description: nls.localize('chat.customizations.migrationHint', "Controls whether chat shows information about customizations that are not used by the active Agent Host harness and how often it shows them."),
+			default: CustomizationMigrationHintMode.Never,
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
 		}
 	}
 });
