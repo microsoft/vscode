@@ -787,7 +787,7 @@ suite('CopilotSessionLauncher verbosity', () => {
 		const session = {
 			rpc: {
 				options: {
-					update: async (options: unknown) => updates.push(options),
+					update: async (options: unknown) => { updates.push(options); return { success: true }; },
 				},
 			},
 		} as unknown as CopilotSession;
@@ -816,7 +816,7 @@ suite('CopilotSessionLauncher reasoning summary', () => {
 		const session = {
 			rpc: {
 				options: {
-					update: async (options: unknown) => updates.push(options),
+					update: async (options: unknown) => { updates.push(options); return { success: true }; },
 				},
 			},
 		} as unknown as CopilotSession;
@@ -846,7 +846,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 		const session = {
 			rpc: {
 				options: {
-					update: async (options: unknown) => updates.push(options),
+					update: async (options: unknown) => { updates.push(options); return { success: true }; },
 				},
 			},
 		} as unknown as CopilotSession;
@@ -866,7 +866,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 				_applyGpt56Customizations(session: CopilotSession, sessionId: string): Promise<void>;
 			};
 			const session = {
-				rpc: { options: { update: async (options: unknown) => updates.push(options) } },
+				rpc: { options: { update: async (options: unknown) => { updates.push(options); return { success: true }; } } },
 			} as unknown as CopilotSession;
 
 			await launcher._applyGpt56Customizations(session, 'session-1');
@@ -881,9 +881,11 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 			sessionId: 'session-1',
 			on: () => () => { },
 			disconnect: async () => { },
-			rpc: { options: { update: async (options: unknown) => updates.push(options) } },
+			rpc: { options: { update: async (options: unknown) => { updates.push(options); return { success: true }; } } },
 		} as unknown as CopilotSession;
-		const launcher = createTestLauncher();
+		// Managed rules are in force, so anything short of a successful enablement
+		// would fail the launch rather than warn — the success path is what is asserted.
+		const launcher = createTestLauncher({ deny: ['Shell(rm -rf *)'] });
 		const plan: CopilotSessionLaunchPlan = {
 			kind: 'create',
 			client: { createSession: async () => session } as unknown as CopilotClient,
@@ -969,7 +971,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 			sessionId: 'session-1',
 			on: () => () => { },
 			disconnect: async () => { },
-			rpc: { options: { update: async (options: unknown) => updates.push(options) } },
+			rpc: { options: { update: async (options: unknown) => { updates.push(options); return { success: true }; } } },
 		} as unknown as CopilotSession;
 		const launcher = createTestLauncher(undefined, { [CopilotCliConfigKey.ReasoningSummary]: true });
 		const plan: CopilotSessionLaunchPlan = {
