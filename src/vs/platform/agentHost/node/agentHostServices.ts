@@ -47,6 +47,7 @@ import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablem
 import { AgentHostGitStateService } from './agentHostGitStateService.js';
 import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { AgentHostPromptCache, IAgentHostPromptCache } from './agentHostPromptCache.js';
+import { AgentHostPullRequestStatusService, IAgentHostPullRequestStatusService } from './agentHostPullRequestStatusService.js';
 import { AgentHostReviewService } from './agentHostReviewService.js';
 import { AgentHostSubscriptionService } from './agentHostSubscriptionService.js';
 import { AgentHostSessionTitleSignal, IAgentHostSessionTitleSignal } from './agentHostSessionTitleSignal.js';
@@ -89,6 +90,7 @@ export function registerAgentHostCoreServices(services: ServiceCollection, input
 	services.set(IAgentHostSessionTitleSignal, new SyncDescriptor(AgentHostSessionTitleSignal));
 	services.set(IAgentHostSessionOpenTelemetry, new SyncDescriptor(AgentHostSessionOpenTelemetry));
 	services.set(IAgentHostChangesetSubscriptionService, new SyncDescriptor(AgentHostChangesetSubscriptionService));
+	services.set(IAgentHostPullRequestStatusService, new SyncDescriptor(AgentHostPullRequestStatusService));
 	services.set(IAgentHostSubscriptionService, new SyncDescriptor(AgentHostSubscriptionService));
 	services.set(IAgentHostChangesetOperationService, new SyncDescriptor(AgentHostChangesetOperationService));
 	services.set(IAgentHostReviewService, new SyncDescriptor(AgentHostReviewService));

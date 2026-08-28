@@ -8,6 +8,7 @@ import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { IStringDictionary } from '../../../../../../base/common/collections.js';
 import { isMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
@@ -22,9 +23,10 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { IChatInputNoticeFocusTarget } from './chatInputNoticeHost.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
+import { filterConfigurationToSchema } from './chatModelConfigurationLogic.js';
 import { ChatInputNoticeVariant, ChatInputNoticeWidget } from './chatInputNoticeWidget.js';
 import { ChatInputStackSlot, setChatInputStackSlot } from './chatInputStack.js';
-import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, getChatInputNotificationAnnouncementSignature, IChatInputNotification, IChatInputNotificationAction, IChatInputNotificationBody, IChatInputNotificationCommandAction, IChatInputNotificationContext, IChatInputNotificationModelState, IChatInputNotificationService, isChatInputNotificationApplicableToSession, resolveChatInputNotificationBody } from './chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, getChatInputNotificationAnnouncementSignature, IChatInputNotification, IChatInputNotificationAction, IChatInputNotificationBody, IChatInputNotificationCommandAction, IChatInputNotificationContext, IChatInputNotificationModelState, IChatInputNotificationService, IChatInputNotificationSwitchToModelAction, isChatInputNotificationApplicableToSession, resolveChatInputNotificationBody } from './chatInputNotificationService.js';
 import './media/chatInputNotificationWidget.css';
 
 const $ = dom.$;
@@ -43,12 +45,14 @@ type ChatInputNotificationTelemetryClassification = {
 
 type ChatInputNotificationActionTelemetryEvent = ChatInputNotificationTelemetryEvent & {
 	actionKind: ChatInputNotificationActionKind;
+	actionId: string;
 };
 
 type ChatInputNotificationActionTelemetryClassification = {
 	id: ChatInputNotificationTelemetryClassification['id'];
 	telemetryId?: ChatInputNotificationTelemetryClassification['telemetryId'];
 	actionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of notification action selected by the user.' };
+	actionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The feature-provided identifier of the notification action selected by the user.' };
 	owner: 'rfeltis';
 	comment: 'Tracks actions selected from chat input notifications.';
 };
@@ -72,6 +76,8 @@ export interface IChatInputNotificationModelSelection {
 	readonly state: IObservable<IChatInputNotificationModelState>;
 	readonly openPicker: () => void;
 	readonly selectModel: (modelIdentifier: string) => boolean;
+	/** Applies model configuration such as a thinking level, scoped to this input. */
+	readonly applyModelConfiguration?: (modelIdentifier: string, values: IStringDictionary<unknown>) => Promise<void>;
 }
 
 /** Input-local capabilities used to filter and execute semantic notification actions. */
@@ -377,6 +383,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 		this._telemetryService.publicLog2<ChatInputNotificationActionTelemetryEvent, ChatInputNotificationActionTelemetryClassification>('chatInputNotificationAction', {
 			...this._getTelemetryData(notification),
 			actionKind: action.kind,
+			actionId: action.telemetryActionId ?? '',
 		});
 		switch (action.kind) {
 			case ChatInputNotificationActionKind.Command:
@@ -390,7 +397,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 				this._openModelPicker();
 				break;
 			case ChatInputNotificationActionKind.SwitchToModel:
-				this._switchToModel(this._resolveModel(action)?.identifier);
+				this._switchToModel(action);
 				break;
 		}
 		if (!action.keepOpen) {
@@ -399,7 +406,9 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 	}
 
 	private _resolveModel(action: Extract<IChatInputNotificationAction, { kind: ChatInputNotificationActionKind.SwitchToModel }>): ILanguageModelChatMetadataAndIdentifier | undefined {
-		return this._modelState.models.find(model => this._matchesModel(action, model));
+		const matches = this._modelState.models.filter(model => this._matchesModel(action, model));
+		// A broad selector could otherwise switch the user to a model the notification did not mean.
+		return action.requireUniqueModel && matches.length !== 1 ? undefined : matches[0];
 	}
 
 	private _matchesModel(action: Extract<IChatInputNotificationAction, { kind: ChatInputNotificationActionKind.SwitchToModel }>, model: ILanguageModelChatMetadataAndIdentifier): boolean {
@@ -411,15 +420,40 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 		}
 	}
 
-	private _switchToModel(modelIdentifier: string | undefined): void {
+	private _switchToModel(action: IChatInputNotificationSwitchToModelAction): void {
+		const model = this._resolveModel(action);
 		let switched = false;
-		try {
-			switched = modelIdentifier ? this._delegate?.modelSelection?.selectModel(modelIdentifier) ?? false : false;
-		} catch (error) {
-			this._logError(error);
+		if (model) {
+			try {
+				switched = this._delegate?.modelSelection?.selectModel(model.identifier) ?? false;
+			} catch (error) {
+				this._logError(error);
+			}
+			// Only configure a model the user actually ended up on, and never block the
+			// switch on the profile-wide write this kicks off.
+			if (switched) {
+				this._applyModelConfiguration(model, action.config).catch(error => this._logError(error));
+			}
 		}
 		if (!switched) {
 			this._openModelPicker();
+		}
+	}
+
+	/** Key names are model-specific (`thinkingLevel`, `reasoningEffort`, ...), so a key meant for another model is logged rather than stored. */
+	private async _applyModelConfiguration(model: ILanguageModelChatMetadataAndIdentifier, config: IStringDictionary<unknown> | undefined): Promise<void> {
+		const modelSelection = this._delegate?.modelSelection;
+		if (!config || !modelSelection?.applyModelConfiguration) {
+			return;
+		}
+		const schema = model.metadata.configurationSchema;
+		const values = filterConfigurationToSchema(config, schema);
+		const dropped = Object.keys(config).filter(key => !Object.hasOwn(values, key));
+		if (dropped.length) {
+			this._logService.warn(`[ChatInputNotificationWidget] ${model.identifier} does not accept ${dropped.join(', ')}; supported: ${Object.keys(schema?.properties ?? {}).join(', ') || 'none'}`);
+		}
+		if (Object.keys(values).length) {
+			await modelSelection.applyModelConfiguration(model.identifier, values);
 		}
 	}
 

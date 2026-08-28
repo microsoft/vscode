@@ -362,7 +362,7 @@ suite('Agent Host Session Config Picker', () => {
 		assert.deepStrictEqual({ initiallyDirty, clean, dirtyAfterUpdate, differentBranch }, {
 			initiallyDirty: {
 				icon: 'codicon-git-branch-changes',
-				ariaLabel: 'Base Branch: main, Uncommitted Changes',
+				ariaLabel: 'Base Branch: main, Uncommitted Files',
 			},
 			clean: {
 				icon: 'codicon-git-branch',
@@ -370,7 +370,7 @@ suite('Agent Host Session Config Picker', () => {
 			},
 			dirtyAfterUpdate: {
 				icon: 'codicon-git-branch-changes',
-				ariaLabel: 'Base Branch: main, Uncommitted Changes',
+				ariaLabel: 'Base Branch: main, Uncommitted Files',
 			},
 			differentBranch: {
 				icon: 'codicon-git-branch',
@@ -379,7 +379,7 @@ suite('Agent Host Session Config Picker', () => {
 		});
 	});
 
-	test('expanded branch picker marks only the checked-out branch as having uncommitted changes', async () => {
+	test('expanded branch picker marks only the checked-out branch as having uncommitted files', async () => {
 		const services = setupServices(store);
 		services.provider.config = makeDynamicBranchConfig('main');
 		services.provider.completions = [
@@ -441,13 +441,13 @@ suite('Agent Host Session Config Picker', () => {
 					label: 'dev',
 					icon: Codicon.gitBranchChanges.id,
 					checked: false,
-					detail: '2 uncommitted changes',
-					ariaDescription: '2 uncommitted changes',
+					detail: '2 uncommitted files',
+					ariaDescription: '2 uncommitted files',
 				},
 			],
 			singular: {
-				detail: '1 uncommitted change',
-				ariaDescription: '1 uncommitted change',
+				detail: '1 uncommitted file',
+				ariaDescription: '1 uncommitted file',
 			},
 			singleResultKinds: [ActionListItemKind.Action],
 		});
