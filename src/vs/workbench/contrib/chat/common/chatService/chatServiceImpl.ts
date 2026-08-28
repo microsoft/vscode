@@ -23,6 +23,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { localize } from '../../../../../nls.js';
+import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -260,6 +261,7 @@ export class ChatService extends Disposable implements IChatService {
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IChatDebugService private readonly chatDebugService: IChatDebugService,
+		@IAgentHostEnablementService private readonly agentHostEnablementService: IAgentHostEnablementService,
 	) {
 		super();
 
@@ -1449,6 +1451,7 @@ export class ChatService extends Disposable implements IChatService {
 			settingDefaultToCopilotHarness: this.configurationService.getValue<boolean>(ChatConfiguration.DefaultToCopilotHarness) ?? false,
 			settingPreferCopilotHarness: this.configurationService.getValue<boolean>(ChatConfiguration.EditorPreferCopilotHarness) ?? false,
 			settingLocalAgentEnabled: this.configurationService.getValue<boolean>(ChatConfiguration.EditorLocalAgentEnabled) ?? true,
+			managedSandboxEnforced: this.agentHostEnablementService.managedSandboxEnforced.get(),
 		});
 
 		let gotProgress = false;

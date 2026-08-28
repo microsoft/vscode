@@ -194,6 +194,7 @@ export type ChatProviderInvokedEvent = ChatSessionModeEvent & {
 	settingDefaultToCopilotHarness: boolean;
 	settingPreferCopilotHarness: boolean;
 	settingLocalAgentEnabled: boolean;
+	managedSandboxEnforced: boolean;
 };
 
 export type ChatProviderInvokedClassification = ChatSessionModeClassification & {
@@ -220,9 +221,10 @@ export type ChatProviderInvokedClassification = ChatSessionModeClassification & 
 	harness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'For remote agent host sessions, the underlying harness/provider (e.g. copilotcli, claude, codex) so remote activity can be split by harness. Undefined for non-remote sessions.' };
 	sessionTypeSelectionReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Why the session type was selected when the session was created. Undefined for restored or reused sessions.' };
 	isVirtualWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the chat request was made in a virtual workspace.' };
-	settingDefaultToCopilotHarness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective value of the chat.defaultToCopilotHarness setting when the request started.' };
-	settingPreferCopilotHarness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective value of the chat.editor.preferCopilotHarness setting when the request started.' };
-	settingLocalAgentEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective value of the chat.editor.localAgent.enabled setting when the request started.' };
+	settingDefaultToCopilotHarness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective value of the chat.defaultToCopilotHarness setting when the request started. The harness decision also depends on managedSandboxEnforced, which forces the Copilot harness even when this is false.' };
+	settingPreferCopilotHarness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective value of the chat.editor.preferCopilotHarness setting when the request started. The harness decision also depends on managedSandboxEnforced, which forces the Copilot harness even when this is false.' };
+	settingLocalAgentEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective value of the chat.editor.localAgent.enabled setting when the request started. The harness decision also depends on managedSandboxEnforced, which retires the local harness even when this is true.' };
+	managedSandboxEnforced: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether an enterprise mandated the Copilot SDK sandbox floor through managed settings. Not a configuration setting: it is a separate input to the harness decision, so a request can use the Copilot harness with all three settings above false.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the performance of Chat agents.';
 };
@@ -351,6 +353,7 @@ export class ChatRequestTelemetry {
 		settingDefaultToCopilotHarness: boolean;
 		settingPreferCopilotHarness: boolean;
 		settingLocalAgentEnabled: boolean;
+		managedSandboxEnforced: boolean;
 	},
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService
@@ -398,6 +401,7 @@ export class ChatRequestTelemetry {
 			settingDefaultToCopilotHarness: this.opts.settingDefaultToCopilotHarness,
 			settingPreferCopilotHarness: this.opts.settingPreferCopilotHarness,
 			settingLocalAgentEnabled: this.opts.settingLocalAgentEnabled,
+			managedSandboxEnforced: this.opts.managedSandboxEnforced,
 		});
 	}
 

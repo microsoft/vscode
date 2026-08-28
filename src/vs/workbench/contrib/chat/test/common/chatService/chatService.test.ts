@@ -17,6 +17,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
@@ -205,6 +206,7 @@ suite('ChatService', () => {
 		instantiationService.stub(ILifecycleService, { onWillShutdown: Event.None });
 		instantiationService.stub(IWorkspaceEditingService, { onDidEnterWorkspace: Event.None });
 		instantiationService.stub(IChatDebugService, testDisposables.add(new ChatDebugServiceImpl(new TestConfigurationService(), contextKeyService)));
+		instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false) } satisfies IAgentHostEnablementService);
 		editingSessionEntries = observableValue('editingSessionEntries', []);
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() {
 			override startOrContinueGlobalEditingSession(): IChatEditingSession {
