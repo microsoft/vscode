@@ -153,9 +153,11 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			);
 		}
 
+		const hasUncommitted = await this._gitService.hasUncommittedChanges(workingDirectory);
+
 		// Create a new branch if the current branch is the same
 		// as the base branch and there are uncommitted changes
-		if (branchName === baseBranchName) {
+		if (hasUncommitted && branchName === baseBranchName) {
 			const branchPrefix = sessionState.config?.values[SessionConfigKey.WorktreeBranchPrefix];
 
 			try {
@@ -181,7 +183,6 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			}
 		}
 
-		const hasUncommitted = await this._gitService.hasUncommittedChanges(workingDirectory);
 		if (hasUncommitted) {
 			this._throwIfCancelled(token);
 			this._logService.info(`[AgentHostPullRequestOperationHandler] Committing uncommitted changes for session ${sessionUri}`);
