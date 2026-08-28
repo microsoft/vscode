@@ -490,11 +490,17 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: st
 				breakOffsetPixelWidth = currentLinePixelWidth - charPixelWidth;
 			}
 
-			breakingOffsets[breakingOffsetsCount] = breakOffset;
-			breakingOffsetsVisibleColumn[breakingOffsetsCount] = breakOffsetVisibleColumn;
-			breakingOffsetsCount++;
-			breakingPixelWidth = breakOffsetPixelWidth + wrappedLineBreakPixelWidth;
-			breakOffset = 0;
+			const currentLineStartOffset = breakingOffsetsCount > 0 ? breakingOffsets[breakingOffsetsCount - 1] : 0;
+			if (breakOffset > currentLineStartOffset) {
+				// Breaking at the start of the current output line would emit an empty line, which
+				// happens when an oversized leading width-only injection cannot fit before the first
+				// character. In that case keep the content on the current line and defer the break.
+				breakingOffsets[breakingOffsetsCount] = breakOffset;
+				breakingOffsetsVisibleColumn[breakingOffsetsCount] = breakOffsetVisibleColumn;
+				breakingOffsetsCount++;
+				breakingPixelWidth = breakOffsetPixelWidth + wrappedLineBreakPixelWidth;
+				breakOffset = 0;
+			}
 		}
 
 		prevCharCode = charCode;

@@ -260,6 +260,17 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 		});
 	});
 
+	test('does not create empty lines for oversized spacing-only injected text', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('', '');
+		const lineBreakData = getLineBreakData(factory, 4, 2, 2, WrappingIndent.None, 'normal', false, 'abc', null, [
+			new LineInjectedText(0, 1, 1, { content: '', widthInEm: 2 }, 0)
+		]);
+
+		// The spacer alone already overflows the wrap width, but there is no character before it to
+		// wrap, so it must share the first line with `a` rather than emit an empty leading line.
+		assert.deepStrictEqual(lineBreakData?.breakOffsets, [1, 3]);
+	});
+
 	test('lets a spacing-only injection in the middle of a line inherit surrounding break opportunities', () => {
 		const factory = new MonospaceLineBreaksComputerFactory('', ' ');
 		const lineBreakData = getLineBreakData(factory, 4, 8, 2, WrappingIndent.None, 'normal', false, 'ab cdef', null, [
