@@ -824,6 +824,30 @@ describe('ExP Service delegate recreation', () => {
 
 		service.dispose();
 	});
+
+	it('resolves a treatment served only under the /vscode/ assignments scope prefix', () => {
+		const service = create();
+		const delegate = service.delegates[0];
+
+		// The new assignments endpoint returns the key with a `/vscode/` scope prefix only.
+		delegate.setTreatment('/vscode/config.chat.copilot.subagentModelGuidance.enabled', true);
+
+		expect(service.getTreatmentVariable<boolean>('config.chat.copilot.subagentModelGuidance.enabled')).toBe(true);
+
+		service.dispose();
+	});
+
+	it('prefers the bare treatment key over the /vscode/ scoped fallback', () => {
+		const service = create();
+		const delegate = service.delegates[0];
+
+		delegate.setTreatment('config.foo', 'bare');
+		delegate.setTreatment('/vscode/config.foo', 'scoped');
+
+		expect(service.getTreatmentVariable<string>('config.foo')).toBe('bare');
+
+		service.dispose();
+	});
 });
 
 /**

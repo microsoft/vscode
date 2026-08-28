@@ -42,6 +42,14 @@ export interface IAssignmentFilter {
 
 export const IWorkbenchAssignmentService = createDecorator<IWorkbenchAssignmentService>('assignmentService');
 
+/**
+ * Scope prefix that the new TAS assignments endpoint (`/api/v1/assignments`) prepends to the
+ * feature variable keys it returns (e.g. `/vscode/config.chat...`). The legacy endpoint and
+ * VS Code both query treatments by the bare name, so this prefix must be accounted for when a
+ * bare lookup misses. This is an interim workaround until tas-client strips the scope itself.
+ */
+const ASSIGNMENTS_SCOPE_PREFIX = '/vscode/';
+
 export interface IWorkbenchAssignmentService extends IAssignmentService {
 	getCurrentExperiments(): Promise<string[] | undefined>;
 	addTelemetryAssignmentFilter(filter: IAssignmentFilter): void;
@@ -281,7 +289,14 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 			result = await client.getTreatmentVariableAsync<T>('vscode', name, true);
 		}
 
-		result = client.getTreatmentVariable<T>('vscode', name);
+		// Interim workaround: the new TAS assignments endpoint (/api/v1/assignments) namespaces
+		// its returned feature variable keys with a `/vscode/` scope, whereas the legacy endpoint
+		// and VS Code query treatments by the bare name. Until the strip is
+		// fixed upstream, fall back to the scoped key when the bare lookup finds nothing.
+		if (result === undefined) {
+			result = client.getTreatmentVariable<T>('vscode', `${ASSIGNMENTS_SCOPE_PREFIX}${name}`);
+		}
+
 		return result;
 	}
 
