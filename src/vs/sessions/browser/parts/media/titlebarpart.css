@@ -101,9 +101,9 @@
 .monaco-workbench .part.titlebar > .sessions-titlebar-container .titlebar-status-badge {
 	display: flex;
 	align-items: center;
-	height: 20px;
-	padding: 0 var(--vscode-spacing-size60);
-	border-radius: var(--vscode-cornerRadius-circle);
+	height: 22px;
+	padding: 0 var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-medium);
 	background-color: var(--vscode-agentsBadge-background);
 	color: var(--vscode-agentsBadge-foreground);
 	font-size: var(--vscode-fontSize-label3);
