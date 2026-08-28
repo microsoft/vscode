@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { ISessionInputBanner, SessionInputBannerWidget } from '../../browser/sessionInputBannerWidget.js';
 
 export default defineThemedFixtureGroup({ path: 'sessions/inputBanners/' }, {
@@ -130,7 +130,10 @@ function renderBanners({ container, disposableStore, theme }: ComponentFixtureCo
 	container.style.padding = '8px';
 	container.style.backgroundColor = 'var(--vscode-editorWidget-background)';
 
-	const instantiationService = createEditorServices(disposableStore, { colorTheme: theme });
+	const instantiationService = createEditorServices(disposableStore, {
+		colorTheme: theme,
+		additionalServices: registerWorkbenchServices,
+	});
 
 	const widget = disposableStore.add(instantiationService.createInstance(SessionInputBannerWidget, banners));
 	widget.setWorking(working);
