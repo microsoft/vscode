@@ -20,13 +20,24 @@ export const GIT_DB_METADATA_KEYS: Record<string, true> = {
 
 export const IAgentHostGitStateService = createDecorator<IAgentHostGitStateService>('agentHostGitStateService');
 
+/** Identifies the caller that initiated a Git-state refresh. */
+export interface IAgentHostGitStateRefreshOptions {
+	readonly source?: object;
+}
+
+/** Describes a completed Git-state refresh. */
+export interface IAgentHostGitStateRefreshEvent {
+	readonly sessionKey: string;
+	readonly source?: object;
+}
+
 export interface IAgentHostGitStateService {
 	readonly _serviceBrand: undefined;
 
 	/**
 	 * Fires when the git state for a session is refreshed.
 	 */
-	readonly onDidRefreshSessionGitState: Event<string>;
+	readonly onDidRefreshSessionGitState: Event<IAgentHostGitStateRefreshEvent>;
 
 	/** Fires when GitHub metadata that affects changeset operations changes. */
 	readonly onDidChangeSessionGitHubState: Event<string>;
@@ -36,7 +47,7 @@ export interface IAgentHostGitStateService {
 	 * @param sessionKey The key of the session for which to refresh the git state.
 	 * @param workingDirectory Optional working directory override; when omitted, the session summary's working directory is used.
 	 */
-	refreshSessionGitState(sessionKey: string, workingDirectory?: URI): Promise<void>;
+	refreshSessionGitState(sessionKey: string, workingDirectory?: URI, options?: IAgentHostGitStateRefreshOptions): Promise<void>;
 
 	/** Resolves the canonical base branch selected for a session. */
 	resolveSessionBaseBranchName(sessionKey: string): Promise<string | undefined>;
@@ -56,5 +67,5 @@ export interface IAgentHostGitStateService {
 	 * @param sessionKey The key of the session for which to check the GitHub pull request.
 	 * @param workingDirectory Optional working directory override; when omitted, the session summary's working directory is used.
 	 */
-	attachSessionGitHubPullRequest(sessionKey: string, workingDirectory?: URI): Promise<void>;
+	attachSessionGitHubPullRequest(sessionKey: string, workingDirectory?: URI, options?: IAgentHostGitStateRefreshOptions): Promise<void>;
 }

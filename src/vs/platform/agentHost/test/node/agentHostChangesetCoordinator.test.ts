@@ -20,7 +20,7 @@ import { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChang
 import { IAgentHostChangesetOperationService } from '../../common/agentHostChangesetOperationService.js';
 import { IAgentHostFileMonitorOptions, IAgentHostFileMonitorService } from '../../node/agentHostFileMonitorService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
-import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
+import { IAgentHostGitStateRefreshEvent, IAgentHostGitStateRefreshOptions, IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { createNoopGitService } from '../common/sessionTestHelpers.js';
 import { ChangesSummary } from '../../common/state/protocol/state.js';
@@ -838,7 +838,7 @@ function createGitServiceFromResolver(resolveRoot: (workingDirectory: URI) => UR
 class TestGitStateService extends Disposable implements IAgentHostGitStateService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidRefreshSessionGitState = this._register(new Emitter<string>());
+	private readonly _onDidRefreshSessionGitState = this._register(new Emitter<IAgentHostGitStateRefreshEvent>());
 	readonly onDidRefreshSessionGitState = this._onDidRefreshSessionGitState.event;
 	private readonly _onDidChangeSessionGitHubState = this._register(new Emitter<string>());
 	readonly onDidChangeSessionGitHubState = this._onDidChangeSessionGitHubState.event;
@@ -846,13 +846,13 @@ class TestGitStateService extends Disposable implements IAgentHostGitStateServic
 	readonly refreshed: string[] = [];
 	readonly refreshedWith: Array<{ readonly sessionKey: string; readonly workingDirectory: string | undefined }> = [];
 
-	async refreshSessionGitState(sessionKey: string, workingDirectory?: URI): Promise<void> {
+	async refreshSessionGitState(sessionKey: string, workingDirectory?: URI, options?: IAgentHostGitStateRefreshOptions): Promise<void> {
 		// Mirror the production service: record the refresh (and the working
 		// directory it was asked to refresh from) and notify listeners so the
 		// coordinator recomputes the subscribed changesets.
 		this.refreshed.push(sessionKey);
 		this.refreshedWith.push({ sessionKey, workingDirectory: workingDirectory?.toString() });
-		this._onDidRefreshSessionGitState.fire(sessionKey);
+		this._onDidRefreshSessionGitState.fire({ sessionKey, source: options?.source });
 	}
 	async resolveSessionBaseBranchName(): Promise<string | undefined> { return undefined; }
 	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }

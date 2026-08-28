@@ -192,7 +192,7 @@ suite('AgentHostGitStateService', () => {
 		));
 
 		const runEvents: string[] = [];
-		disposables.add(service.onDidRefreshSessionGitState(key => runEvents.push(key)));
+		disposables.add(service.onDidRefreshSessionGitState(event => runEvents.push(event.sessionKey)));
 		const gitHubStateEvents: string[] = [];
 		disposables.add(service.onDidChangeSessionGitHubState(key => gitHubStateEvents.push(key)));
 
@@ -418,6 +418,21 @@ suite('AgentHostGitStateService', () => {
 			await h.service.refreshSessionGitState(SESSION, undefined);
 
 			assert.deepStrictEqual(h.runEvents, [SESSION]);
+		});
+	});
+
+	test('reports the refresh source when attaching a pull request', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const h = createHarness();
+			seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
+			h.setGitResult({ branchName: 'feature' });
+			const source = {};
+			let receivedSource: object | undefined;
+			disposables.add(h.service.onDidRefreshSessionGitState(event => receivedSource = event.source));
+
+			await h.service.attachSessionGitHubPullRequest(SESSION, undefined, { source });
+
+			assert.strictEqual(receivedSource, source);
 		});
 	});
 
@@ -850,17 +865,26 @@ suite('AgentHostGitStateService', () => {
 			const h = createHarness();
 			seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
 			h.setGitResult({ branchName: 'feature' });
+			const sources = [{}, {}, {}];
+			const receivedSources: Array<object | undefined> = [];
+			disposables.add(h.service.onDidRefreshSessionGitState(event => receivedSources.push(event.source)));
 
 			// Three concurrent refreshes collapse via the throttler: the first
 			// runs immediately and the last queued one runs after it settles;
 			// the middle request is dropped.
 			await Promise.all([
-				h.service.refreshSessionGitState(SESSION, undefined),
-				h.service.refreshSessionGitState(SESSION, undefined),
-				h.service.refreshSessionGitState(SESSION, undefined),
+				h.service.refreshSessionGitState(SESSION, undefined, { source: sources[0] }),
+				h.service.refreshSessionGitState(SESSION, undefined, { source: sources[1] }),
+				h.service.refreshSessionGitState(SESSION, undefined, { source: sources[2] }),
 			]);
 
-			assert.strictEqual(h.gitCalls.length, 2);
+			assert.deepStrictEqual({
+				gitCallCount: h.gitCalls.length,
+				receivedSources,
+			}, {
+				gitCallCount: 2,
+				receivedSources: [sources[0], sources[2]],
+			});
 		});
 	});
 

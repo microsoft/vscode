@@ -114,7 +114,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 	) {
 		super();
 		this._register(this._changesetSubscriptions.onDidChangeSessionSubscriptions(session => this._sync(session)));
-		this._register(this._gitStateService.onDidRefreshSessionGitState(session => this._sync(session)));
+		this._register(this._gitStateService.onDidRefreshSessionGitState(event => this._sync(event.sessionKey)));
 		this._register(this._gitStateService.onDidChangeSessionGitHubState(session => this._sync(session)));
 		this._register(this._stateManager.onDidRemoveSession(session => this._stopWatch(session)));
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {

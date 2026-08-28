@@ -8,7 +8,7 @@ import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { Emitter } from '../../../base/common/event.js';
 import { ILogService } from '../../log/common/log.js';
-import { IAgentHostGitStateService, META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
+import { IAgentHostGitStateRefreshEvent, IAgentHostGitStateRefreshOptions, IAgentHostGitStateService, META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { getSessionRelatedPullRequestUrls, ISessionGitHubState, ISessionWithDefaultChat, readSessionGitHubState, readSessionGitState, readSessionSourceControlState, SessionLifecycle, SessionSourceControlOutcome, withInitialSessionPullRequest, withMostRecentSessionPullRequest, withSessionGitHubState, withSessionGitState, withSessionSourceControlState, type ISessionGitState, type ISessionSourceControlState } from '../common/state/sessionState.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH, parseUpstreamBranchName, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
@@ -27,7 +27,7 @@ const PULL_REQUEST_CREATION_CLOCK_SKEW_MS = 5 * 60_000;
 export class AgentHostGitStateService extends Disposable implements IAgentHostGitStateService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidRefreshSessionGitState = this._register(new Emitter<string>());
+	private readonly _onDidRefreshSessionGitState = this._register(new Emitter<IAgentHostGitStateRefreshEvent>());
 	readonly onDidRefreshSessionGitState = this._onDidRefreshSessionGitState.event;
 
 	private readonly _onDidChangeSessionGitHubState = this._register(new Emitter<string>());
@@ -59,8 +59,8 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		this._register(toDisposable(() => this._pullRequestAbortController.abort()));
 	}
 
-	async attachSessionGitHubPullRequest(sessionKey: string, workingDirectory: URI | undefined): Promise<void> {
-		await this.refreshSessionGitState(sessionKey, workingDirectory);
+	async attachSessionGitHubPullRequest(sessionKey: string, workingDirectory: URI | undefined, options?: IAgentHostGitStateRefreshOptions): Promise<void> {
+		await this.refreshSessionGitState(sessionKey, workingDirectory, options);
 		await this._queuePullRequestLookup(sessionKey);
 	}
 
@@ -199,7 +199,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			: undefined;
 	}
 
-	async refreshSessionGitState(sessionKey: string, workingDirectory: URI | undefined): Promise<void> {
+	async refreshSessionGitState(sessionKey: string, workingDirectory: URI | undefined, options?: IAgentHostGitStateRefreshOptions): Promise<void> {
 		const sessionState = this._stateManager.getSessionState(sessionKey);
 		if (sessionState?.lifecycle === SessionLifecycle.Failed) {
 			return;
@@ -253,7 +253,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 					}
 				}
 
-				this._onDidRefreshSessionGitState.fire(sessionKey);
+				this._onDidRefreshSessionGitState.fire({ sessionKey, source: options?.source });
 
 				// We want to ensure that we refresh the git state at
 				// most every 5 seconds in order to avoid excessive git
