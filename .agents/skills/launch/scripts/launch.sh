@@ -73,12 +73,18 @@ if [[ -z "$REPO" ]]; then
 		exit 2
 	fi
 fi
+if [[ ! -d "$REPO" ]]; then
+	echo "VS Code checkout does not exist: $REPO" >&2
+	exit 2
+fi
+REPO=$(cd "$REPO" && pwd -P)
 
 if [[ ! -d "$SOURCE_UDD" ]]; then
 	echo "Source user-data-dir does not exist: $SOURCE_UDD" >&2
 	echo "Run .agents/skills/launch/scripts/bootstrap-profile.sh to create and authenticate it, pass --source-user-data-dir <path>, or set CODE_OSS_DEV_AUTHED_USER_DATA_DIR." >&2
 	exit 2
 fi
+SOURCE_UDD=$(cd "$SOURCE_UDD" && pwd -P)
 
 CODE_SH="$REPO/scripts/code.sh"
 if [[ ! -x "$CODE_SH" ]]; then

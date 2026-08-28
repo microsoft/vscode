@@ -499,7 +499,7 @@ try {
 			Exit-Usage "Could not find a vscode checkout in $candidateRepo. Pass --repo <vscode-repo-root>."
 		}
 	}
-	$repo = [IO.Path]::GetFullPath($repo)
+	$repo = (Resolve-Path -LiteralPath $repo).Path
 
 	$codeBat = Join-Path $repo 'scripts\code.bat'
 	if (-not (Test-Path -LiteralPath $codeBat -PathType Leaf)) {
@@ -516,7 +516,7 @@ try {
 	if (-not (Test-Path -LiteralPath $sourceUserDataDir -PathType Container)) {
 		Exit-Usage "Source user-data-dir does not exist: $sourceUserDataDir`nRun .agents\skills\launch\scripts\bootstrap-profile.ps1 to create and authenticate it, pass --source-user-data-dir <path>, or set CODE_OSS_DEV_AUTHED_USER_DATA_DIR."
 	}
-	$sourceUserDataDir = [IO.Path]::GetFullPath($sourceUserDataDir)
+	$sourceUserDataDir = (Resolve-Path -LiteralPath $sourceUserDataDir).Path
 
 	$node = Get-UsableNode $repo
 	Write-LaunchError "[launch.ps1] using Node: $node"

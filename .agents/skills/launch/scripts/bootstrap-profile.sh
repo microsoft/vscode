@@ -14,12 +14,18 @@ while [[ $# -gt 0 ]]; do
 	esac
 done
 
+if [[ ! -d "$REPO" ]]; then
+	echo "VS Code checkout does not exist: $REPO" >&2
+	exit 2
+fi
+REPO=$(cd "$REPO" && pwd -P)
 if [[ ! -x "$REPO/scripts/code.sh" ]]; then
 	echo "Could not find an executable Code OSS launcher at $REPO/scripts/code.sh." >&2
 	exit 2
 fi
 
 mkdir -p "$USER_DATA_DIR"
+USER_DATA_DIR=$(cd "$USER_DATA_DIR" && pwd -P)
 unset ELECTRON_RUN_AS_NODE
 LOG_FILE=$(mktemp "${TMPDIR:-/tmp}/code-oss-profile-bootstrap.XXXXXX.log")
 nohup "$REPO/scripts/code.sh" "--user-data-dir=$USER_DATA_DIR" >"$LOG_FILE" 2>&1 &

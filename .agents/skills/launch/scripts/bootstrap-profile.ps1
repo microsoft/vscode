@@ -7,6 +7,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+$Repo = (Resolve-Path -LiteralPath $Repo).Path
 $codeBat = Join-Path $Repo 'scripts\code.bat'
 if (-not (Test-Path -LiteralPath $codeBat -PathType Leaf)) {
 	throw "Could not find a Code OSS launcher at $codeBat. Pass -Repo <vscode-repo-root>."
@@ -29,6 +30,8 @@ $sharedDataDir = if ($env:CODE_OSS_DEV_AUTHED_SHARED_DATA_DIR) {
 }
 
 New-Item -ItemType Directory -Force -Path $UserDataDir, $sharedDataDir | Out-Null
+$UserDataDir = (Resolve-Path -LiteralPath $UserDataDir).Path
+$sharedDataDir = (Resolve-Path -LiteralPath $sharedDataDir).Path
 $logFile = Join-Path $env:TEMP "code-oss-profile-bootstrap-$PID.log"
 $command = "set ELECTRON_RUN_AS_NODE=&& call `"$codeBat`" --user-data-dir=`"$UserDataDir`" --shared-data-dir=`"$sharedDataDir`" >> `"$logFile`" 2>&1"
 $process = Start-Process -FilePath $env:ComSpec -ArgumentList '/d', '/s', '/c', "`"$command`"" -WorkingDirectory $Repo -PassThru
@@ -39,7 +42,7 @@ if ($process.HasExited -and $process.ExitCode -ne 0) {
 }
 
 [PSCustomObject]@{
-	userDataDir = [IO.Path]::GetFullPath($UserDataDir)
-	sharedDataDir = [IO.Path]::GetFullPath($sharedDataDir)
+	userDataDir = $UserDataDir
+	sharedDataDir = $sharedDataDir
 	logFile = $logFile
 } | ConvertTo-Json -Compress
