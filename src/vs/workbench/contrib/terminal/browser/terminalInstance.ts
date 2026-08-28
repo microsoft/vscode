@@ -567,7 +567,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					this.shellLaunchConfig.env ??= defaultProfile.env;
 				} catch (err) {
 					os = undefined;
-					this._logService.trace('terminalInstance: skipping ahead-of-time executable resolution because the backend OS could not be resolved yet', err);
+					this._logService.trace('terminalInstance: skipping ahead-of-time executable resolution because the best-effort profile/OS resolution could not complete yet', err);
 				}
 			}
 
