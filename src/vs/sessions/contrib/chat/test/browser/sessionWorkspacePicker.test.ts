@@ -2104,6 +2104,7 @@ suite('WorkspacePicker - Category Triggers', () => {
 			label: 'Issue/PR',
 			ariaLabel: 'Choose an issue or pull request',
 			icon: Codicon.add,
+			hideIconWhenAttached: true,
 			group: SESSION_WORKSPACE_GROUP_GITHUB,
 			attachesContext: true,
 			hideWhenNoGitHubRepository: true,
@@ -2149,9 +2150,9 @@ suite('WorkspacePicker - Category Triggers', () => {
 				'https://github.com/microsoft/vscode/issues/332805',
 			],
 			triggerSnapshots: [
-				{ label: 'Issue/PR', icon: 'codicon codicon-add', badge: '1', ariaLabel: 'Choose an issue or pull request, 1 attached' },
-				{ label: 'Issue/PR', icon: 'codicon codicon-add', badge: '2', ariaLabel: 'Choose an issue or pull request, 2 attached' },
-				{ label: 'Issue/PR', icon: 'codicon codicon-add', badge: '1', ariaLabel: 'Choose an issue or pull request, 1 attached' },
+				{ label: 'Issue/PR', icon: undefined, badge: '1', ariaLabel: 'Choose an issue or pull request, 1 attached' },
+				{ label: 'Issue/PR', icon: undefined, badge: '2', ariaLabel: 'Choose an issue or pull request, 2 attached' },
+				{ label: 'Issue/PR', icon: undefined, badge: '1', ariaLabel: 'Choose an issue or pull request, 1 attached' },
 				{ label: 'Issue/PR', icon: 'codicon codicon-add', badge: undefined, ariaLabel: 'Choose an issue or pull request' },
 			],
 		});
