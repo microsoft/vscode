@@ -1205,6 +1205,58 @@ suite('AgentHostChatContributions', () => {
 		});
 	});
 
+	test('does not resurface a read session when an admission-rejected turn ends', () => {
+		const contributions = createBuiltInContributions(disposables);
+		const readChanges: boolean[] = [];
+		disposables.add(contributions.stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.action.type === ActionType.SessionIsReadChanged) {
+				readChanges.push(envelope.action.isRead);
+			}
+		}));
+
+		contributions.service.turnEnd(turnEnd('rejected', {
+			kind: 'rejected',
+			error: { errorType: 'noAgent', message: 'No agent found for session' },
+		}));
+		const rejectedReadChanges = [...readChanges];
+		contributions.service.turnEnd(turnEnd('error', {
+			kind: 'error',
+			error: { errorType: 'requestFailed', message: 'failed' },
+			resumable: false,
+		}));
+
+		assert.deepStrictEqual({
+			rejectedReadChanges,
+			errorReadChanges: readChanges,
+		}, {
+			rejectedReadChanges: [],
+			errorReadChanges: [false],
+		});
+	});
+
+	test('skips all built-in turn-end contributions for rejected requests', () => {
+		const observed: string[] = [];
+		const contributions = createBuiltInContributions(disposables, observed);
+		contributions.service.turnEnd(turnEnd('rejected', {
+			kind: 'rejected',
+			error: { errorType: 'noAgent', message: 'No agent found for session' },
+		}));
+
+		assert.deepStrictEqual({
+			checkpointAndChangeset: observed.includes('checkpointAndChangeset'),
+			queueDrain: observed.includes('queueDrain'),
+			githubReferences: observed.includes('githubReferences'),
+			sessionTitle: observed.includes('sessionTitle'),
+			markUnread: observed.includes('markUnread'),
+		}, {
+			checkpointAndChangeset: false,
+			queueDrain: false,
+			githubReferences: false,
+			sessionTitle: false,
+			markUnread: false,
+		});
+	});
+
 	test('drains the queue but skips other turn-end contributions for local commands', () => {
 		const observed: string[] = [];
 		const contributions = createBuiltInContributions(disposables, observed);

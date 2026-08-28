@@ -15,6 +15,12 @@ import { isAhpChatChannel, parseChatUri } from '../../../common/state/sessionSta
  * Owns chat draft persistence in both directions. Restore runs eagerly at
  * catalog-registration time, before turns load, so it belongs on
  * {@link onHydrateChat} rather than {@link onHydrateTurns}.
+ *
+ * Persisting through `onAction` covers client dispatch only, which is narrower than the
+ * `onDidEmitEnvelope` observer this replaced. That is deliberate: `ChatDraftChangedAction`
+ * is a `ClientChatAction` that nothing in production server-dispatches, and `onAction` runs
+ * after the reject-and-return guards in `_dispatchActionNow`, so a rejected draft is no
+ * longer written.
  */
 export class ChatDraftContribution extends Disposable implements IAgentHostChatContribution {
 

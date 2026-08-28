@@ -2740,6 +2740,31 @@ suite('AgentSideEffects', () => {
 			});
 		});
 
+		test('reports one cancelled turn end for a client cancellation even if the agent repeats it', () => {
+			const { sideEffects: persisting } = setupPersisting();
+			setupSession();
+			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionIsReadChanged, isRead: true });
+			disposables.add(persisting.registerProgressListener(agent));
+			startTurn('turn-1');
+
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+			const cancellation = { type: ActionType.ChatTurnCancelled, turnId: 'turn-1', duration: 1000 } as const;
+			stateManager.dispatchClientAction(defaultChatUri, cancellation, { clientId: 'test', clientSeq: 2 });
+			persisting.handleAction(defaultChatUri, cancellation);
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri), action: cancellation,
+			});
+
+			assert.deepStrictEqual({
+				readChanges: readChangesFrom(envelopes),
+				isReadBitSet: (stateManager.getSessionSummary(sessionUri.toString())!.status & SessionStatus.IsRead) !== 0,
+			}, {
+				readChanges: [false],
+				isReadBitSet: false,
+			});
+		});
+
 		test('marks a read session unread when a turn errors', () => {
 			const { sideEffects: persisting } = setupPersisting();
 			setupSession();
@@ -7511,6 +7536,41 @@ suite('AgentSideEffects', () => {
 			});
 
 			await captured.p;
+		});
+
+		test('send rejection reports an error turn end through end checkpoint capture', async () => {
+			setupSession();
+			agent.sendMessageError = new Error('send failed');
+			const captured = new DeferredPromise<void>();
+			const captures: { session: string; chat: string; turnId: string }[] = [];
+			const checkpoints: IAgentHostCheckpointService = {
+				...NULL_CHECKPOINT_SERVICE,
+				captureTurnCheckpoint: async (session, chat, turnId) => {
+					captures.push({ session: session.toString(), chat: chat.toString(), turnId });
+					captured.complete();
+				},
+			};
+			const localSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+			}, undefined, NullTelemetryService, new FakeChangesetService(), undefined, checkpoints);
+			const turnStarted = {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			} as const;
+			stateManager.dispatchClientAction(defaultChatUri, turnStarted, { clientId: 'test', clientSeq: 1 });
+
+			localSideEffects.handleAction(defaultChatUri, turnStarted);
+			await captured.p;
+
+			assert.deepStrictEqual(captures, [{
+				session: sessionUri.toString(),
+				chat: defaultChatUri,
+				turnId: 'turn-1',
+			}]);
 		});
 
 		test('chat truncation discards pending turn starts for that chat', async () => {

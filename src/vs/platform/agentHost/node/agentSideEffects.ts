@@ -1648,6 +1648,14 @@ export class AgentSideEffects extends Disposable {
 				this._completeTurn(channel, action.turnId, 'cancelled');
 				this._resumedTurnExecutions.delete(this._resumedTurnExecutionKey(channel, action.turnId));
 				this._toolCallTracker.clearSession(channel);
+				// Keep client cancellations aligned with the agent-signal cancellation path.
+				this._chatContributions.turnEnd({
+					session: sessionChannel,
+					channel,
+					turnId: action.turnId,
+					reason: { kind: 'cancelled' },
+					clientContext,
+				});
 				void this._checkpointService.discardTurnStartCheckpoint(URI.parse(sessionChannel), URI.parse(channel), action.turnId).catch(() => undefined);
 				// Cancel all subagent sessions for this parent
 				this.cancelSubagentSessions(channel);
@@ -1975,6 +1983,14 @@ export class AgentSideEffects extends Disposable {
 			});
 			this._completeTurn(turnChannel, turnId, 'error', failure);
 			this._toolCallTracker.clearSession(turnChannel);
+			// Notify contributions so failed sends recompute changesets and mark the session unread.
+			this._chatContributions.turnEnd({
+				session: sessionChannel,
+				channel: turnChannel,
+				turnId,
+				reason: { kind: 'error', error, resumable: false },
+				clientContext,
+			});
 			this._failSessionCreationIfStillCreating(sessionChannel, error);
 		}
 	}

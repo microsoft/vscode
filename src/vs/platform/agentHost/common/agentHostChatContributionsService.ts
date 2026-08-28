@@ -16,14 +16,16 @@ export const IAgentHostChatContributions = createDecorator<IAgentHostChatContrib
 
 /**
  * Why a turn ended. Contributions must discriminate on `kind`: successful,
- * cancelled, failed, and host-handled local-command turns deliberately run
- * different side effects. `success`, `cancelled`, and `localCommand` carry no
- * payload on purpose; add fields only when a contribution actually needs them.
+ * cancelled, failed, rejected, and host-handled local-command turns deliberately
+ * run different side effects. A rejected request was refused or could not be
+ * routed before its turn started, so contributions that finalize started turns
+ * must ignore it because there is no turn or checkpoint to finalize.
  */
 export type TurnEndReason =
 	| { readonly kind: 'success' }
 	| { readonly kind: 'cancelled' }
 	| { readonly kind: 'error'; readonly error: ErrorInfo; readonly resumable: boolean }
+	| { readonly kind: 'rejected'; readonly error: ErrorInfo }
 	| { readonly kind: 'localCommand' };
 
 /** A terminal turn outcome offered to contributions after a turn ended. */
@@ -205,11 +207,14 @@ export interface IAgentHostChatContribution extends IDisposable {
 	 */
 	readonly order?: number;
 	/**
-	 * Fires when a turn ends through the agent signal path, or when a host handled
-	 * local command completes. It does NOT fire for a client dispatched
-	 * cancellation, nor for the failures that report `ChatError` directly, such as
-	 * a missing provider, a read-only or archived chat, or a send that throws.
-	 * Unifying those paths is tracked in `chatContributions/TODO.md`.
+	 * Fires on every terminal outcome a started turn can reach — the agent signal
+	 * path, a host-handled local command, a send that throws, and a cancellation
+	 * from either the client or the agent — and when admission refuses a request
+	 * before its turn starts. Discriminate `rejected` from `error`: the former has
+	 * no started turn to finalize and no checkpoint to capture.
+	 *
+	 * It does not fire for an agent-emitted terminal action that arrives when no
+	 * turn is active, because the reducer no-ops for those.
 	 *
 	 * Must not throw; the dispatcher isolates failures.
 	 */
@@ -220,6 +225,10 @@ export interface IAgentHostChatContribution extends IDisposable {
 	 * Awaited before the turn is sent. Instructions are concatenated in `order`;
 	 * text replacements are threaded in `order`, so each contribution observes
 	 * the prior contribution's text. Failures are isolated and do not block the send.
+	 *
+	 * Runs after admission and after the provider lookup, so a rejected turn and a turn
+	 * that fails with `noAgent` never reach it: only messages that are actually sent are
+	 * enriched.
 	 */
 	onOutgoingTurn?(turn: IOutgoingTurn): ISendContribution | undefined | Promise<ISendContribution | undefined>;
 	/**
