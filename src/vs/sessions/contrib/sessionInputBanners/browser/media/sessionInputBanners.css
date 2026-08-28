@@ -120,6 +120,22 @@
 	min-width: 0;
 }
 
+.session-input-banner .session-input-banner-action.monaco-button-dropdown {
+	align-items: stretch;
+	height: 20px;
+}
+
+.session-input-banner .session-input-banner-action.monaco-button-dropdown > .monaco-button,
+.session-input-banner .session-input-banner-action.monaco-button-dropdown > .monaco-button-dropdown-separator {
+	box-sizing: border-box;
+	height: 100%;
+	min-height: 0;
+}
+
+.session-input-banner .session-input-banner-action.monaco-button-dropdown > .monaco-button-dropdown-separator {
+	padding-block: 0;
+}
+
 .session-input-banner .session-input-banner-action.monaco-button-dropdown > .monaco-button:first-child {
 	min-width: 0;
 	overflow: hidden;
