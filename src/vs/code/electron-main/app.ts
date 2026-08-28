@@ -858,7 +858,7 @@ export class CodeApplication extends Disposable {
 				});
 			} catch (error) {
 				this.logService.warn('error dispatching remote resource call', error);
-				return new Response(String(error), { status: 500 });
+				return new Response(null, { status: 500 });
 			}
 		});
 		this._register(toDisposable(() => protocol.unhandle(Schemas.vscodeManagedRemoteResource)));
