@@ -143,6 +143,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 				connection: {
 					type: RemoteAgentHostEntryType.DevContainer,
 					address: connected.address,
+					hostPath: workspaceUri.fsPath,
 				},
 			};
 			const connectionInfo = await this._remoteAgentHostService.addManagedConnection(entry, connected.connection, connected.transportDisposable);

@@ -35,8 +35,7 @@ import { WorkspaceNotTrustedError } from '../../../../services/sessions/common/s
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { getCopilotCliSessionRawId, migratedCopilotCliResource } from '../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
-import { adoptLegacyCopilotCliResource, LEGACY_MIGRATION_RESTORE_TIMEOUT_MS, LEGACY_MIGRATION_TIMEOUT_MS } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLegacyMigration.js';
-import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { adoptLegacyCopilotCliResource, isLegacyMigrationEnabledAtStartup, LEGACY_MIGRATION_RESTORE_TIMEOUT_MS, LEGACY_MIGRATION_TIMEOUT_MS } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLegacyMigration.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../../../workbench/contrib/chat/common/languageModels.js';
@@ -49,6 +48,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { AgentHostSessionAdapter, BaseAgentHostSessionsProvider } from './baseAgentHostSessionsProvider.js';
+import { ReconnectableAgentHostAutomationStore } from './reconnectableAgentHostAutomationStore.js';
 
 const LOCAL_RESOURCE_SCHEME_PREFIX = 'agent-host-';
 
@@ -136,7 +136,9 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 	 * sessions on this machine, so a remote host must never claim or probe them.
 	 */
 	async resolveSessionResource(resource: URI, reason?: SessionResourceResolveReason): Promise<URI | undefined> {
-		if (this._configurationService.getValue<boolean>(ChatConfiguration.MigrateLegacyCopilotCliSessions) !== true) {
+		// Frozen at startup: enabling the setting only takes effect after a restart,
+		// so a live toggle never probes a host whose gate is still off.
+		if (!isLegacyMigrationEnabledAtStartup(this._configurationService)) {
 			return undefined;
 		}
 		const rawId = getCopilotCliSessionRawId(migratedCopilotCliResource(resource));
@@ -172,7 +174,14 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService, dialogService, workspaceTrustManagementService);
-		this.automations = this._register(instantiationService.createInstance(AutomationStore, providerAutomationStorageKey(this.id)));
+		const legacyAutomations = this._register(instantiationService.createInstance(AutomationStore, providerAutomationStorageKey(this.id)));
+		const automations = this._register(instantiationService.createInstance(ReconnectableAgentHostAutomationStore, this.id, legacyAutomations, {
+			toHost: resource => resource,
+			fromHost: resource => resource,
+			resourceSchemeForProvider: provider => this.resourceSchemeForProvider(provider),
+			providerForResourceScheme: scheme => scheme.startsWith(LOCAL_RESOURCE_SCHEME_PREFIX) ? scheme.slice(LOCAL_RESOURCE_SCHEME_PREFIX.length) : undefined,
+		}));
+		this.automations = automations;
 
 		this._isSessionsWindow = environmentService.isSessionsWindow;
 
@@ -196,6 +205,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		const connectionListeners = this._register(new DisposableStore());
 		const bindConnection = () => {
 			connectionListeners.clear();
+			automations.setConnection(this._agentHostService);
 			this._attachConnectionListeners(this._agentHostService, connectionListeners);
 
 			const rootState = this._agentHostService.rootState;

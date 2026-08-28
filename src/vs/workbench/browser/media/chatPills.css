@@ -37,6 +37,7 @@
 	align-items: center;
 	width: auto;
 	gap: var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-medium);
 	font-variant-numeric: tabular-nums;
 	white-space: nowrap;
 	touch-action: manipulation;

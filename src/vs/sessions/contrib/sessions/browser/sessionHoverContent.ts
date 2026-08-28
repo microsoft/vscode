@@ -8,6 +8,8 @@ import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ISessionSummaryHoverData, ISessionSummaryHoverLocation, ISessionSummaryHoverPullRequest } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHover.js';
+import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
+import { IPreferencesService } from '../../../../workbench/services/preferences/common/preferences.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { getSessionWorkspaceKind, getUntitledSessionTitle, IGitHubPullRequestRef, ISession, SessionWorkspaceKind } from '../../../services/sessions/common/session.js';
 
@@ -46,6 +48,7 @@ export function getSessionSummaryHoverData(
 	sessionsProvidersService: ISessionsProvidersService,
 	openerService: IOpenerService,
 	labelService: ILabelService,
+	preferencesService: IPreferencesService,
 	createdBy?: ISessionSummaryHoverData['createdBy'],
 ): ISessionSummaryHoverData {
 	return {
@@ -53,6 +56,7 @@ export function getSessionSummaryHoverData(
 		location: getLocation(session, labelService),
 		pullRequests: getPullRequests(session, openerService),
 		createdBy,
+		externalSession: getExternalSession(session, preferencesService),
 		providerLabel: getProviderLabel(session, sessionsProvidersService),
 	};
 }
@@ -111,6 +115,26 @@ function getPullRequests(session: ISession, openerService: IOpenerService): read
 			onOpen: () => openerService.open(ref.uri, { openExternal: true }).catch(onUnexpectedError),
 		}))
 		: undefined;
+}
+
+/**
+ * A session created in another application is listed only because
+ * {@link ChatConfiguration.ShowExternalAgentSessions} says such sessions are
+ * shown, so the row both names that origin and leads to the setting behind it.
+ */
+function getExternalSession(session: ISession, preferencesService: IPreferencesService): ISessionSummaryHoverData['externalSession'] {
+	if (session.isExternal?.get() !== true) {
+		return undefined;
+	}
+
+	return {
+		onOpen: () => {
+			preferencesService.openSettings({
+				jsonEditor: false,
+				query: `@id:${ChatConfiguration.ShowExternalAgentSessions}`,
+			}).catch(onUnexpectedError);
+		},
+	};
 }
 
 /** The kind of agent serving the session, e.g. "Claude". */

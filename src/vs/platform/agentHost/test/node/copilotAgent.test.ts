@@ -286,6 +286,9 @@ class TestAgentHostGitService implements IAgentHostGitService {
 	async branchExists(_repositoryRoot: URI, branchName: string): Promise<boolean> {
 		return this.existingBranches.has(branchName);
 	}
+	async createBranch(_workingDirectory: URI, branchName: string): Promise<void> {
+		this.existingBranches.add(branchName);
+	}
 	async hasUncommittedChanges(workingDirectory: URI): Promise<boolean> {
 		return this.dirtyWorkingDirectories.has(workingDirectory.fsPath);
 	}
@@ -5465,6 +5468,43 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('getChatMetadata restores registered sessions from host metadata without an SDK lookup', async () => {
+		const sessionDataService = disposables.add(new TestSessionDataService());
+		const session = AgentSession.uri('copilotcli', 'target');
+		const workingDirectory = URI.file('/workspace');
+		const db = sessionDataService.openDatabase(session);
+		await db.object.setMetadata('copilot.workingDirectory', workingDirectory.toString());
+		db.dispose();
+
+		const client = new TestCopilotClient([sdkSession('target')]);
+		const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
+		try {
+			const chat = defaultChatUri(session);
+			const metadata = await agent.getChatMetadata(chat, exactChatContext(session, chat, session), undefined, {
+				activation: 'restore',
+				registryFallback: { startTime: 10, modifiedTime: 20 },
+			});
+
+			assert.deepStrictEqual({
+				metadata: metadata && {
+					...withoutUndefinedProperties(metadata),
+					workingDirectories: metadata.workingDirectories?.map(directory => directory.toString()),
+				},
+				getSessionMetadataCalls: client.getSessionMetadataCalls,
+			}, {
+				metadata: {
+					chat,
+					startTime: 10,
+					modifiedTime: 20,
+					workingDirectories: [workingDirectory.toString()],
+				},
+				getSessionMetadataCalls: [],
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('getChatMetadata returns a provider-native session without a database', async () => {
 		const sessionDataService = disposables.add(new TestSessionDataService());
 		const session = AgentSession.uri('copilotcli', 'external');
@@ -5506,7 +5546,7 @@ suite('CopilotAgent', () => {
 
 	suite('listSessions legacy-CLI surfacing (migration)', () => {
 
-		test('signals extension-host chats only after internal migration is enabled', async () => {
+		test('ignores a runtime enable of the migration setting (frozen until reload)', async () => {
 			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/migration-event-home-`));
 			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/migration-event-cwd-`);
 			const sessionId = 'migration-event';
@@ -5521,16 +5561,13 @@ suite('CopilotAgent', () => {
 				}
 				assert.deepStrictEqual([...discoveredChats], []);
 
+				// The gate is snapshotted at startup, so enabling it at runtime has no
+				// effect until a window reload restarts the process.
 				configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
-				for (let i = 0; i < 50 && discoveredChats.length === 0; i++) {
+				for (let i = 0; i < 50; i++) {
 					await timeout(0);
 				}
-				configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: false });
-				configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
-				for (let i = 0; i < 50 && discoveredChats.length < 2; i++) {
-					await timeout(0);
-				}
-				assert.deepStrictEqual(discoveredChats.map(chats => chats.map(chat => sessionIdOfChat(chat.chat))), [[sessionId], [sessionId]]);
+				assert.deepStrictEqual([...discoveredChats], []);
 			} finally {
 				listener.dispose();
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
@@ -5565,7 +5602,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('does not signal extension-host chats when migration is disabled during discovery', async () => {
+		test('ignores a runtime disable of the migration setting during discovery (frozen until reload)', async () => {
 			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/disabled-during-migration-event-home-`));
 			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/disabled-during-migration-event-cwd-`);
 			const sessionId = 'disabled-during-migration-event';
@@ -5584,12 +5621,14 @@ suite('CopilotAgent', () => {
 			const listener = agent.onDidDiscoverChats(chats => discoveredChats.push(chats));
 			try {
 				await listStarted.p;
+				// The gate was snapshotted as enabled at startup, so disabling it mid
+				// discovery is ignored: the adoptable chat still surfaces.
 				configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: false });
 				releaseList.complete();
-				for (let i = 0; i < 20; i++) {
+				for (let i = 0; i < 50 && discoveredChats.length === 0; i++) {
 					await timeout(0);
 				}
-				assert.deepStrictEqual(discoveredChats, []);
+				assert.deepStrictEqual(discoveredChats.flatMap(chats => chats.map(chat => sessionIdOfChat(chat.chat))), [sessionId]);
 			} finally {
 				listener.dispose();
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
@@ -11151,7 +11190,7 @@ suite('CopilotAgent', () => {
 			const session = AgentSession.uri('copilotcli', 's1');
 			const dbRef = sessionDataService.openDatabase(session);
 			try {
-				await dbRef.object.setMetadata('copilot.workingDirectory', URI.file(workingDirectory).toString());
+				await dbRef.object.setMetadata('copilot.workingDirectories', JSON.stringify([URI.file(workingDirectory).toString()]));
 				await dbRef.object.setMetadata('copilot.agent', JSON.stringify({ uri: 'file:///old-client/data.md' }));
 			} finally {
 				dbRef.dispose();
@@ -11168,7 +11207,13 @@ suite('CopilotAgent', () => {
 			try {
 				await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
 				await internals._resumeSession('s1');
-				assert.deepStrictEqual(resumeAgents, [undefined]);
+				assert.deepStrictEqual({
+					resumeAgents,
+					getSessionMetadataCalls: client.getSessionMetadataCalls,
+				}, {
+					resumeAgents: [undefined],
+					getSessionMetadataCalls: [],
+				});
 			} finally {
 				await fs.rm(workingDirectory, { recursive: true, force: true });
 				await disposeAgent(agent);
