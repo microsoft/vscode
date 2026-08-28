@@ -50,13 +50,20 @@ export class InstallPluginAction extends Action {
 }
 
 export class UninstallPluginAction extends Action {
-	constructor(plugin: IAgentPlugin & { remove(): void }) {
-		super('agentPlugin.uninstall', localize('uninstall', "Uninstall"), 'extension-action label uninstall', true,
-			() => { plugin.remove(); return Promise.resolve(); });
+	constructor(private readonly plugin: IAgentPlugin & { remove(): Promise<boolean> }) {
+		super('agentPlugin.uninstall', localize('uninstall', "Uninstall"), 'extension-action label uninstall', true);
+	}
+
+	override async run(): Promise<void> {
+		await this.runAndGetResult();
+	}
+
+	runAndGetResult(): Promise<boolean> {
+		return this.plugin.remove();
 	}
 }
 
-function isRemovableAgentPlugin(plugin: IAgentPlugin): plugin is IAgentPlugin & { remove(): void } {
+function isRemovableAgentPlugin(plugin: IAgentPlugin): plugin is IAgentPlugin & { remove(): Promise<boolean> } {
 	return plugin.remove !== undefined;
 }
 

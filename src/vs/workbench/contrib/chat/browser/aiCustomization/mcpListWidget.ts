@@ -700,8 +700,8 @@ export function updateMcpCardRuntimePresentation(
 	description.textContent = descriptionText;
 }
 
-export function shouldLoadMcpGallerySnapshot(visible: boolean, query: string, itemCount: number, failed: boolean, loading: boolean): boolean {
-	return visible && !query.trim() && itemCount === 0 && !failed && !loading;
+export function shouldLoadMcpGallerySnapshot(visible: boolean, query: string, itemCount: number, failed: boolean, loading: boolean, accessEnabled: boolean): boolean {
+	return accessEnabled && visible && !query.trim() && itemCount === 0 && !failed && !loading;
 }
 
 export function hasSameMcpMembership(previous: string, current: string): boolean {
@@ -730,6 +730,10 @@ export function getActiveSessionServerLifecycleAction(server: AgentHostMcpServer
 }
 
 type AgentHostMcpServerEnablementScope = 'global' | 'workspace' | 'session';
+
+function isHostOwnedPluginMcpServer(server: AgentHostMcpServer): boolean {
+	return server.isPluginProvided === true && !server.isClientBundled;
+}
 
 const agentHostMcpServerEnablementActionInfo = {
 	global: {
@@ -777,6 +781,62 @@ export function getAgentHostMcpServerEnablementActions(agentHostCustomizations: 
 	return actions;
 }
 
+export function setPrimaryMcpServerEnablement(
+	mcpService: IMcpService,
+	agentHostCustomizations: IAgentHostCustomizationService,
+	sessionResource: URI,
+	localServerId: string | undefined,
+	activeSessionServer: AgentHostMcpServer | undefined,
+	enabled: boolean,
+): void {
+	if (activeSessionServer && isHostOwnedPluginMcpServer(activeSessionServer)) {
+		agentHostCustomizations.setCustomizationEnablement(
+			sessionResource,
+			activeSessionServer.id,
+			activeSessionServer.enablement,
+			CustomizationEnablementKind.Global,
+			enabled,
+		);
+		return;
+	}
+	if (localServerId) {
+		const current = mcpService.enablementModel.readEnabled(localServerId);
+		const next = getToggledMcpEnablementState(current);
+		if (isContributionEnabled(next) !== enabled) {
+			throw new Error(`Unexpected MCP enablement transition for ${localServerId}.`);
+		}
+		mcpService.enablementModel.setEnabled(localServerId, next);
+		return;
+	}
+	if (!activeSessionServer) {
+		throw new Error('Cannot update MCP enablement without a durable server target.');
+	}
+	agentHostCustomizations.setCustomizationEnablement(
+		sessionResource,
+		activeSessionServer.id,
+		activeSessionServer.enablement,
+		CustomizationEnablementKind.Global,
+		enabled,
+	);
+}
+
+export function isPrimaryMcpServerEnabled(
+	mcpService: IMcpService,
+	localServerId: string | undefined,
+	activeSessionServer: AgentHostMcpServer | undefined,
+): boolean {
+	if (activeSessionServer && isHostOwnedPluginMcpServer(activeSessionServer)) {
+		return getCustomizationScopeEnablement(activeSessionServer).global;
+	}
+	if (localServerId) {
+		return isContributionEnabled(mcpService.enablementModel.readEnabled(localServerId));
+	}
+	if (activeSessionServer) {
+		return getCustomizationScopeEnablement(activeSessionServer).global;
+	}
+	return true;
+}
+
 function createAgentHostMcpServerEnablementAction(agentHostCustomizations: IAgentHostCustomizationService, sessionResource: URI, server: AgentHostMcpServer, enabled: boolean, scope: AgentHostMcpServerEnablementScope): IAction {
 	const actionInfo = agentHostMcpServerEnablementActionInfo[scope];
 	return new Action(
@@ -822,7 +882,7 @@ export function getBuiltinMcpServerEnablementActions(mcpService: IMcpService, se
 	if (activeSessionServer === undefined) {
 		return getLocalMcpServerEnablementActions(mcpService, serverId, isEmptyWorkbench);
 	}
-	if (activeSessionServer.isPluginProvided && !activeSessionServer.isClientBundled) {
+	if (isHostOwnedPluginMcpServer(activeSessionServer)) {
 		return getAgentHostMcpServerEnablementActions(agentHostCustomizations, agentPluginService, sessionResource, activeSessionServer);
 	}
 	return [
@@ -1020,6 +1080,7 @@ export class McpListWidget extends Disposable {
 	private gallerySnapshotLoading = false;
 	private gallerySearchLoading = false;
 	private visible = false;
+	private mcpAccessEnabled = false;
 	private firstCardFocusElement: HTMLElement | undefined;
 	private cardScrollElement: HTMLElement | undefined;
 	private availableSection: HTMLElement | undefined;
@@ -1062,6 +1123,7 @@ export class McpListWidget extends Disposable {
 		));
 		this._register(resizeObserver.observe(this.element));
 		this.updateAccessState();
+		void this.refresh();
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(mcpAccessConfig)) {
 				this.updateAccessState();
@@ -1069,7 +1131,9 @@ export class McpListWidget extends Disposable {
 		}));
 		this._register({
 			dispose: () => {
-				this.galleryCts?.dispose();
+				this.delayedFilter.cancel();
+				this.delayedGallerySearch.cancel();
+				this.galleryCts?.dispose(true);
 			}
 		});
 	}
@@ -1131,12 +1195,18 @@ export class McpListWidget extends Disposable {
 		this._register(this.searchInput.onDidChange(() => {
 			this.searchQuery = this.searchInput.value;
 			this.galleryCts?.dispose(true);
+			this.galleryCts = undefined;
 			this.searchInput.hideMessage();
 			const query = this.searchQuery.toLowerCase().trim();
 			this.galleryServers = query
 				? this.gallerySnapshotServers.filter(server => this.matchesGalleryServerQuery(server, query))
 				: [...this.gallerySnapshotServers];
 			this.delayedFilter.trigger(() => this.filterServers());
+			if (!this.mcpAccessEnabled) {
+				this.gallerySearchLoading = false;
+				this.delayedGallerySearch.cancel();
+				return;
+			}
 			if (query) {
 				this.gallerySearchLoading = true;
 				this.delayedGallerySearch.trigger(() => this.queryMcpSearch());
@@ -1190,13 +1260,11 @@ export class McpListWidget extends Disposable {
 			}
 		}));
 
-		// Initial refresh
-		void this.refresh();
 	}
 
 	private async refresh(): Promise<void> {
 		this.filterServers();
-		if (shouldLoadMcpGallerySnapshot(this.visible, this.searchQuery, this.gallerySnapshotServers.length, this.gallerySnapshotFailed, this.gallerySnapshotLoading)) {
+		if (shouldLoadMcpGallerySnapshot(this.visible, this.searchQuery, this.gallerySnapshotServers.length, this.gallerySnapshotFailed, this.gallerySnapshotLoading, this.mcpAccessEnabled)) {
 			await this.queryGallerySnapshot();
 		}
 	}
@@ -1216,10 +1284,18 @@ export class McpListWidget extends Disposable {
 		const value = inspect.value ?? inspect.defaultValue;
 		const disabled = value === McpAccessValue.None;
 		const policyLocked = inspect.policyValue === McpAccessValue.None;
+		const accessChanged = this.mcpAccessEnabled === disabled;
+		this.mcpAccessEnabled = !disabled;
 
 		this.element.classList.toggle('access-disabled', disabled);
 
 		if (disabled) {
+			this.delayedGallerySearch.cancel();
+			this.galleryCts?.dispose(true);
+			this.galleryCts = undefined;
+			this.gallerySnapshotLoading = false;
+			this.gallerySearchLoading = false;
+			this.searchInput.hideMessage();
 			this.disabledIcon.className = 'empty-icon';
 			this.disabledIcon.classList.add(...ThemeIcon.asClassNameArray(policyLocked ? Codicon.shield : mcpServerIcon));
 
@@ -1238,23 +1314,35 @@ export class McpListWidget extends Disposable {
 					this.commandService.executeCommand('workbench.action.openSettings', `@id:${mcpAccessConfig}`);
 				});
 			}
+		} else if (accessChanged && this.visible) {
+			if (this.searchQuery.trim()) {
+				void this.queryMcpSearch();
+			} else {
+				void this.refresh();
+			}
 		}
 	}
 
 	public showBrowseMarketplace(): void {
+		if (!this.mcpAccessEnabled) {
+			return;
+		}
 		this.searchInput.value = '';
 		this.searchQuery = '';
 		void this.queryGallerySnapshot(true);
 	}
 
 	private async queryGallerySnapshot(revealMarketplace = false): Promise<void> {
+		if (!this.mcpAccessEnabled) {
+			return;
+		}
 		this.galleryCts?.dispose(true);
 		const cts = this.galleryCts = new CancellationTokenSource();
 		this.gallerySnapshotLoading = true;
 
 		try {
 			const pager = await this.mcpWorkbenchService.queryGallery(undefined, cts.token);
-			if (cts.token.isCancellationRequested || this.searchQuery.trim()) {
+			if (this.galleryCts !== cts || cts.token.isCancellationRequested || !this.mcpAccessEnabled || this.searchQuery.trim()) {
 				return;
 			}
 
@@ -1267,7 +1355,7 @@ export class McpListWidget extends Disposable {
 				this.availableSection?.scrollIntoView({ block: 'start' });
 			}
 		} catch {
-			if (!cts.token.isCancellationRequested) {
+			if (this.galleryCts === cts && !cts.token.isCancellationRequested && this.mcpAccessEnabled) {
 				this.gallerySnapshotServers = [];
 				this.galleryServers = [];
 				this.gallerySnapshotFailed = true;
@@ -1283,7 +1371,7 @@ export class McpListWidget extends Disposable {
 
 	private async queryMcpSearch(): Promise<void> {
 		const query = this.searchQuery.trim();
-		if (!query) {
+		if (!query || !this.mcpAccessEnabled) {
 			return;
 		}
 
@@ -1292,13 +1380,13 @@ export class McpListWidget extends Disposable {
 		this.gallerySearchLoading = true;
 		try {
 			const pager = await this.mcpWorkbenchService.queryGallery({ text: query }, cts.token);
-			if (cts.token.isCancellationRequested || this.searchQuery.trim() !== query) {
+			if (this.galleryCts !== cts || cts.token.isCancellationRequested || !this.mcpAccessEnabled || this.searchQuery.trim() !== query) {
 				return;
 			}
 			this.galleryServers = pager.firstPage.items;
 			this.searchInput.hideMessage();
 		} catch {
-			if (!cts.token.isCancellationRequested) {
+			if (this.galleryCts === cts && !cts.token.isCancellationRequested && this.mcpAccessEnabled && this.searchQuery.trim() === query) {
 				this.galleryServers = this.gallerySnapshotServers.filter(server => this.matchesGalleryServerQuery(server, query.toLowerCase()));
 				this.searchInput.showMessage({
 					content: localize('mcpSearchMarketplaceUnavailable', "Marketplace results are unavailable. Showing installed MCP servers only."),
@@ -1306,7 +1394,7 @@ export class McpListWidget extends Disposable {
 				});
 			}
 		} finally {
-			if (this.galleryCts === cts) {
+			if (this.galleryCts === cts && this.mcpAccessEnabled && this.searchQuery.trim() === query) {
 				this.gallerySearchLoading = false;
 				this.filterServers();
 			}
@@ -1696,36 +1784,23 @@ export class McpListWidget extends Disposable {
 
 	private isInstalledEntryEnabled(entry: IMcpInstalledEntry): boolean {
 		const activeSessionServer = getActiveSessionServer(entry);
-		if (activeSessionServer) {
-			return activeSessionServer.enabled;
-		}
 		const localServer = entry.type === 'session-server-item' ? undefined : entry.localServer;
-		if (localServer) {
-			return isContributionEnabled(localServer.enablement.get());
-		}
-		if (entry.type === 'server-item') {
-			return isContributionEnabled(this.mcpService.enablementModel.readEnabled(entry.server.id));
-		}
-		return true;
+		const serverId = localServer?.definition.id ?? (entry.type === 'server-item' ? entry.server.id : undefined);
+		return isPrimaryMcpServerEnabled(this.mcpService, serverId, activeSessionServer);
 	}
 
 	private setInstalledEntryEnabled(entry: IMcpInstalledEntry, enabled: boolean): void {
 		const activeSessionServer = getActiveSessionServer(entry);
-		if (activeSessionServer) {
-			activeSessionServer.setEnabled(enabled);
-			return;
-		}
 		const localServer = entry.type === 'session-server-item' ? undefined : entry.localServer;
 		const serverId = localServer?.definition.id ?? (entry.type === 'server-item' ? entry.server.id : undefined);
-		if (!serverId) {
-			return;
-		}
-		const current = this.mcpService.enablementModel.readEnabled(serverId);
-		const next = getToggledMcpEnablementState(current);
-		if (isContributionEnabled(next) !== enabled) {
-			throw new Error(`Unexpected MCP enablement transition for ${serverId}.`);
-		}
-		this.mcpService.enablementModel.setEnabled(serverId, next);
+		setPrimaryMcpServerEnablement(
+			this.mcpService,
+			this.agentHostCustomizationService,
+			this.customizationHarnessService.activeSessionResource.get(),
+			serverId,
+			activeSessionServer,
+			enabled,
+		);
 	}
 
 	private updateSearchResults(): void {
@@ -2043,7 +2118,7 @@ export class McpListWidget extends Disposable {
 							type: 'question',
 						});
 						if (result.confirmed) {
-							plugin.remove?.();
+							await plugin.remove?.();
 						}
 					}
 				)));

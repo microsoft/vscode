@@ -4,15 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { InMemoryStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { CHAT_PROMO_DISMISS_COMMAND_ID, CHAT_PROMO_TRY_MODEL_COMMAND_ID, ChatPromoNotificationContribution } from '../../browser/chatPromoNotification.js';
-import { ChatConfiguration, ChatSaleNotification } from '../../common/constants.js';
-import { IChatWidgetService } from '../../browser/chat.js';
+import { ARM_SALE_PROMO_COMMAND_ID, DISARM_SALE_PROMO_COMMAND_ID } from '../../browser/salePromoWidget.js';
+import { ChatClosedSaleNotification, ChatConfiguration } from '../../common/constants.js';
+import { ChatViewId, IChatWidgetService } from '../../browser/chat.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { CHAT_OPEN_ACTION_ID } from '../../browser/actions/chatActions.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../common/languageModels.js';
 import { ChatInputNotificationActionKind, IChatInputNotification, IChatInputNotificationContext, IChatInputNotificationService, isChatInputNotificationApplicableToSessionType } from '../../browser/widget/input/chatInputNotificationService.js';
 
@@ -87,6 +92,7 @@ function createMockNotificationService(disposables: Pick<DisposableStore, 'add'>
 		},
 		handleMessageSent() { },
 		announceRendered() { },
+		refresh() { },
 	};
 
 	return {
@@ -142,11 +148,77 @@ function createMockCommandService() {
 	return { service, executed };
 }
 
-function createMockWidgetService() {
-	return {
+function createMockWidgetService(options: { sessionScheme?: string } = {}) {
+	const switched: string[] = [];
+	const requested: string[] = [];
+	const widget = {
+		focusInput() { },
+		viewModel: options.sessionScheme
+			? { sessionResource: URI.from({ scheme: options.sessionScheme, path: '/session' }) }
+			: undefined,
+		input: {
+			switchModelByIdentifier(identifier: string) {
+				switched.push(identifier);
+				return true;
+			},
+			async requestModelByIdentifier(identifier: string) {
+				requested.push(identifier);
+				return true;
+			},
+		},
+	};
+	const service = {
 		_serviceBrand: undefined,
-		revealWidget: async () => undefined,
+		revealWidget: async () => widget,
 	} as unknown as IChatWidgetService;
+	return { service, switched, requested };
+}
+
+function createMockViewsService(disposables: Pick<DisposableStore, 'add'>, visible = false) {
+	const onDidChangeViewVisibility = disposables.add(new Emitter<{ id: string; visible: boolean }>());
+	const state = { visible };
+	const service = {
+		_serviceBrand: undefined,
+		onDidChangeViewVisibility: onDidChangeViewVisibility.event,
+		isViewVisible(id: string) {
+			return id === ChatViewId ? state.visible : false;
+		},
+	} as unknown as IViewsService;
+
+	return {
+		service,
+		setVisible(next: boolean) {
+			state.visible = next;
+			onDidChangeViewVisibility.fire({ id: ChatViewId, visible: next });
+		},
+	};
+}
+
+function createMockEntitlementService(disposables: Pick<DisposableStore, 'add'>, entitlement = ChatEntitlement.Pro, sku?: string) {
+	const onDidChangeEntitlement = disposables.add(new Emitter<void>());
+	const state = { entitlement, sku };
+	const service = {
+		_serviceBrand: undefined,
+		onDidChangeEntitlement: onDidChangeEntitlement.event,
+		get entitlement() { return state.entitlement; },
+		get sku() { return state.sku; },
+	} as IChatEntitlementService;
+
+	return {
+		service,
+		signIn(next = ChatEntitlement.Pro) {
+			state.entitlement = next;
+			onDidChangeEntitlement.fire();
+		},
+		signOut() {
+			state.entitlement = ChatEntitlement.Unknown;
+			onDidChangeEntitlement.fire();
+		},
+		setSku(next: string | undefined) {
+			state.sku = next;
+			onDidChangeEntitlement.fire();
+		},
+	};
 }
 
 function createContribution(
@@ -154,18 +226,32 @@ function createContribution(
 	notifService: IChatInputNotificationService,
 	storageService: InMemoryStorageService,
 	commandService: ICommandService = createMockCommandService().service,
-	saleNotification: ChatSaleNotification = ChatSaleNotification.Banner,
+	closedSaleNotification: ChatClosedSaleNotification = ChatClosedSaleNotification.None,
+	entitlementService?: IChatEntitlementService,
+	viewsService?: IViewsService,
+	widgetService?: IChatWidgetService,
 ) {
 	const configurationService = new TestConfigurationService({
-		[ChatConfiguration.SaleNotification]: saleNotification,
+		[ChatConfiguration.ChatClosedSaleNotification]: closedSaleNotification,
 	});
 	return new ChatPromoNotificationContribution(
 		lmService,
 		notifService,
 		storageService,
 		commandService,
-		createMockWidgetService(),
+		widgetService ?? createMockWidgetService().service,
 		configurationService,
+		entitlementService ?? {
+			_serviceBrand: undefined,
+			onDidChangeEntitlement: Event.None,
+			entitlement: ChatEntitlement.Pro,
+			sku: undefined,
+		} as IChatEntitlementService,
+		viewsService ?? {
+			_serviceBrand: undefined,
+			onDidChangeViewVisibility: Event.None,
+			isViewVisible: () => false,
+		} as unknown as IViewsService,
 	);
 }
 
@@ -177,7 +263,7 @@ suite('ChatPromoNotificationContribution', () => {
 		const notifService = createMockNotificationService(disposables);
 		const { service: lmService } = createMockLanguageModelsService([{
 			identifier: 'copilot:gpt-5.5',
-			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-1', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Get 20% off' } },
+			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-1', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Get 20% off', showBanner: true } },
 		}], disposables);
 		const storageService = disposables.add(new InMemoryStorageService());
 		const commands = createMockCommandService();
@@ -201,11 +287,54 @@ suite('ChatPromoNotificationContribution', () => {
 		assertPromoAction(notification, 'copilot:gpt-5.5', 'Try GPT-5.5');
 	});
 
-	test('shows the post-update card for a discounted promo when the setting is popup', () => {
+
+	test('does not show the banner or popup when showBanner is false', () => {
+		const notifService = createMockNotificationService(disposables);
+		const { service: lmService } = createMockLanguageModelsService([{
+			identifier: 'copilot:gpt-5.5',
+			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-1', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Get 20% off', showBanner: false } },
+		}], disposables);
+		const storageService = disposables.add(new InMemoryStorageService());
+		const commands = createMockCommandService();
+
+		disposables.add(createContribution(
+			lmService,
+			notifService.service,
+			storageService,
+			commands.service,
+			ChatClosedSaleNotification.CopilotIconPopup,
+		));
+
+		assert.strictEqual(notifService.getNotification(), undefined);
+		assert.strictEqual(commands.executed.length, 0);
+	});
+
+	test('shows the popup when showBanner is missing', () => {
 		const notifService = createMockNotificationService(disposables);
 		const { service: lmService } = createMockLanguageModelsService([{
 			identifier: 'copilot:gpt-5.5',
 			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-1', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Get 20% off' } },
+		}], disposables);
+		const storageService = disposables.add(new InMemoryStorageService());
+		const commands = createMockCommandService();
+
+		disposables.add(createContribution(
+			lmService,
+			notifService.service,
+			storageService,
+			commands.service,
+			ChatClosedSaleNotification.CopilotIconPopup,
+		));
+
+		assert.strictEqual(notifService.getNotification(), undefined, 'The closed-chat sale uses the card, not the banner');
+		assert.strictEqual(commands.executed[0]?.id, ARM_SALE_PROMO_COMMAND_ID);
+	});
+
+	test('shows the post-update card for a discounted promo when the setting is popup', () => {
+		const notifService = createMockNotificationService(disposables);
+		const { service: lmService } = createMockLanguageModelsService([{
+			identifier: 'copilot:gpt-5.5',
+			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-1', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Get 20% off', showBanner: true } },
 		}], disposables);
 		const storageService = disposables.add(new InMemoryStorageService());
 		const commands = createMockCommandService();
@@ -215,25 +344,26 @@ suite('ChatPromoNotificationContribution', () => {
 			notifService.service,
 			storageService,
 			commands.service,
-			ChatSaleNotification.Popup,
+			ChatClosedSaleNotification.CopilotIconPopup,
 		));
 		assert.ok(contribution);
 
 		assert.strictEqual(notifService.getNotification(), undefined, 'A sale must not render the chat-input banner');
 		assert.strictEqual(commands.executed.length, 1);
-		assert.strictEqual(commands.executed[0].id, '_update.showUpdateInfo');
+		assert.strictEqual(commands.executed[0].id, ARM_SALE_PROMO_COMMAND_ID);
 		const payload = JSON.parse(String(commands.executed[0].args[0]));
 		assert.deepStrictEqual({
 			title: payload.title,
-			badge: payload.badge,
+			subtitle: payload.subtitle,
+			providerIcon: payload.providerIcon,
 			dismissCommandId: payload.dismissCommandId,
 			dismissArgs: payload.dismissArgs,
 			buttons: payload.buttons,
-			featureTitles: payload.features.map((f: { title: string }) => f.title),
-			featureIcons: payload.features.map((f: { icon: string }) => f.icon),
+			features: payload.features,
 		}, {
-			title: 'Limited-time model offer',
-			badge: 'SALE',
+			title: 'Get 20% off',
+			subtitle: ILanguageModelChatMetadata.getPromoEndsAtLabel('2026-07-20T23:59:59Z')?.replace(/\.+$/, ''),
+			providerIcon: '$(openai)',
 			dismissCommandId: CHAT_PROMO_DISMISS_COMMAND_ID,
 			dismissArgs: ['promo-1'],
 			buttons: [{
@@ -242,8 +372,7 @@ suite('ChatPromoNotificationContribution', () => {
 				args: ['promo-1', 'copilot:gpt-5.5'],
 				style: 'primary',
 			}],
-			featureTitles: ['20% off GPT-5.5', 'Limited time', 'Try it in Chat'],
-			featureIcons: ['$(sparkle)', '$(calendar)', '$(comment-discussion)'],
+			features: undefined,
 		});
 	});
 
@@ -251,7 +380,7 @@ suite('ChatPromoNotificationContribution', () => {
 		const notifService = createMockNotificationService(disposables);
 		const { service: lmService } = createMockLanguageModelsService([{
 			identifier: 'copilot:zero-discount',
-			metadata: { name: 'Zero Discount', id: 'zero-discount', promo: { id: 'promo-zero', discountPercent: 0, endsAt: '2026-07-20T23:59:59Z', message: 'Featured model' } },
+			metadata: { name: 'Zero Discount', id: 'zero-discount', promo: { id: 'promo-zero', discountPercent: 0, endsAt: '2026-07-20T23:59:59Z', message: 'Featured model', showBanner: true } },
 		}], disposables);
 		const storageService = disposables.add(new InMemoryStorageService());
 		const commands = createMockCommandService();
@@ -272,8 +401,8 @@ suite('ChatPromoNotificationContribution', () => {
 	test('prefers a discounted promo over a 0% one in the same harness', () => {
 		const notifService = createMockNotificationService(disposables);
 		const { service: lmService } = createMockLanguageModelsService([
-			{ identifier: 'copilot:featured', metadata: { name: 'Featured', id: 'featured', promo: { id: 'promo-zero', discountPercent: 0, message: 'Featured model' } } },
-			{ identifier: 'copilot:discounted', metadata: { name: 'Discounted', id: 'discounted', promo: { id: 'promo-discount', discountPercent: 20, message: 'Get 20% off' } } },
+			{ identifier: 'copilot:featured', metadata: { name: 'Featured', id: 'featured', promo: { id: 'promo-zero', discountPercent: 0, message: 'Featured model', showBanner: true } } },
+			{ identifier: 'copilot:discounted', metadata: { name: 'Discounted', id: 'discounted', promo: { id: 'promo-discount', discountPercent: 20, message: 'Get 20% off', showBanner: true } } },
 		], disposables);
 		const storageService = disposables.add(new InMemoryStorageService());
 		const commands = createMockCommandService();
@@ -283,20 +412,20 @@ suite('ChatPromoNotificationContribution', () => {
 			notifService.service,
 			storageService,
 			commands.service,
-			ChatSaleNotification.Popup,
+			ChatClosedSaleNotification.CopilotIconPopup,
 		));
 
 		assert.strictEqual(notifService.getNotification(), undefined, 'The preferred sale uses the card, not the banner');
-		assert.strictEqual(commands.executed[0]?.id, '_update.showUpdateInfo');
+		assert.strictEqual(commands.executed[0]?.id, ARM_SALE_PROMO_COMMAND_ID);
 		const payload = JSON.parse(String(commands.executed[0].args[0]));
-		assert.strictEqual(payload.features[0].title, '20% off Discounted');
+		assert.strictEqual(payload.title, 'Get 20% off');
 	});
 
 	test('does not show notification for negative promo discounts', () => {
 		const notifService = createMockNotificationService(disposables);
 		const { service: lmService } = createMockLanguageModelsService([{
 			identifier: 'copilot:negative-discount',
-			metadata: { name: 'Negative Discount', id: 'negative-discount', promo: { id: 'promo-negative', discountPercent: -10, endsAt: '2026-07-20T23:59:59Z', message: 'Featured model' } },
+			metadata: { name: 'Negative Discount', id: 'negative-discount', promo: { id: 'promo-negative', discountPercent: -10, endsAt: '2026-07-20T23:59:59Z', message: 'Featured model', showBanner: true } },
 		}], disposables);
 		const storageService = disposables.add(new InMemoryStorageService());
 		const commands = createMockCommandService();
@@ -316,7 +445,7 @@ suite('ChatPromoNotificationContribution', () => {
 		const notifService = createMockNotificationService(disposables);
 		const { service: lmService } = createMockLanguageModelsService([{
 			identifier: 'copilot:gpt-5.5',
-			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-1', discountPercent: 0, message: 'Featured model' } },
+			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-1', discountPercent: 0, message: 'Featured model', showBanner: true } },
 		}], disposables);
 		const storageService = disposables.add(new InMemoryStorageService());
 
@@ -345,8 +474,8 @@ suite('ChatPromoNotificationContribution', () => {
 	test('omits the end date when a 0% promo has none', () => {
 		const notifService = createMockNotificationService(disposables);
 		const { service: lmService } = createMockLanguageModelsService([
-			{ identifier: 'local:no-end-date', metadata: { name: 'Open Ended', id: 'no-end-date', promo: { id: 'promo-open', discountPercent: 0, message: 'Featured model' } } },
-			{ identifier: 'copilot:bad-end-date', metadata: { name: 'Bad Date', id: 'bad-end-date', targetChatSessionType: 'copilotcli', promo: { id: 'promo-bad-date', discountPercent: 0, endsAt: 'not a date', message: 'Featured model' } } },
+			{ identifier: 'local:no-end-date', metadata: { name: 'Open Ended', id: 'no-end-date', promo: { id: 'promo-open', discountPercent: 0, message: 'Featured model', showBanner: true } } },
+			{ identifier: 'copilot:bad-end-date', metadata: { name: 'Bad Date', id: 'bad-end-date', targetChatSessionType: 'copilotcli', promo: { id: 'promo-bad-date', discountPercent: 0, endsAt: 'not a date', message: 'Featured model', showBanner: true } } },
 		], disposables);
 		const storageService = disposables.add(new InMemoryStorageService());
 
@@ -369,7 +498,7 @@ suite('ChatPromoNotificationContribution', () => {
 		const notifService = createMockNotificationService(disposables);
 		const { service: lmService } = createMockLanguageModelsService([{
 			identifier: 'copilot:gpt-5.5',
-			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-1', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Get 20% off' } },
+			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-1', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Get 20% off', showBanner: true } },
 		}], disposables);
 		const storageService = disposables.add(new InMemoryStorageService());
 		storageService.store('chat.dismissedPromoIds', JSON.stringify(['promo-1']), StorageScope.APPLICATION, 0 /* StorageTarget.USER */);
@@ -390,7 +519,7 @@ suite('ChatPromoNotificationContribution', () => {
 		const notifService = createMockNotificationService(disposables);
 		const { service: lmService } = createMockLanguageModelsService([{
 			identifier: 'copilot:gpt-5.5',
-			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-2', discountPercent: 0, endsAt: '2026-08-01T00:00:00Z', message: 'Summer promo' } },
+			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-2', discountPercent: 0, endsAt: '2026-08-01T00:00:00Z', message: 'Summer promo', showBanner: true } },
 		}], disposables);
 		const storageService = disposables.add(new InMemoryStorageService());
 
@@ -434,7 +563,7 @@ suite('ChatPromoNotificationContribution', () => {
 		const notifService = createMockNotificationService(disposables);
 		const { service: lmService } = createMockLanguageModelsService([{
 			identifier: 'copilot:gpt-5.5',
-			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-3', discountPercent: 0, endsAt: '2026-07-20T23:59:59Z', message: 'Promo' } },
+			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-3', discountPercent: 0, endsAt: '2026-07-20T23:59:59Z', message: 'Promo', showBanner: true } },
 		}], disposables);
 		const storageService = disposables.add(new InMemoryStorageService());
 		storageService.store('chat.dismissedPromoIds', '{not valid json', StorageScope.APPLICATION, 0);
@@ -454,7 +583,7 @@ suite('ChatPromoNotificationContribution', () => {
 	test('removes notification when promo model disappears', () => {
 		const models = [{
 			identifier: 'copilot:gpt-5.5',
-			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-4', discountPercent: 0, endsAt: '2026-07-20T23:59:59Z', message: 'Flash sale' } },
+			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-4', discountPercent: 0, endsAt: '2026-07-20T23:59:59Z', message: 'Flash sale', showBanner: true } },
 		}];
 		const notifService = createMockNotificationService(disposables);
 		const { service: lmService, onDidChangeLanguageModels } = createMockLanguageModelsService(models, disposables);
@@ -476,8 +605,8 @@ suite('ChatPromoNotificationContribution', () => {
 	test('shows one sale card when two discounted promos share a harness', () => {
 		const notifService = createMockNotificationService(disposables);
 		const { service: lmService } = createMockLanguageModelsService([
-			{ identifier: 'copilot:gpt-5.5', metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-a', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'First promo' } } },
-			{ identifier: 'copilot:claude', metadata: { name: 'Claude', id: 'claude', promo: { id: 'promo-b', discountPercent: 10, endsAt: '2026-08-01T00:00:00Z', message: 'Second promo' } } },
+			{ identifier: 'copilot:gpt-5.5', metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-a', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'First promo', showBanner: true } } },
+			{ identifier: 'copilot:claude', metadata: { name: 'Claude', id: 'claude', promo: { id: 'promo-b', discountPercent: 10, endsAt: '2026-08-01T00:00:00Z', message: 'Second promo', showBanner: true } } },
 		], disposables);
 		const storageService = disposables.add(new InMemoryStorageService());
 		const commands = createMockCommandService();
@@ -487,20 +616,21 @@ suite('ChatPromoNotificationContribution', () => {
 			notifService.service,
 			storageService,
 			commands.service,
+			ChatClosedSaleNotification.CopilotIconPopup,
 		));
 
 		assert.strictEqual(notifService.getNotification(), undefined);
 		assert.strictEqual(commands.executed.length, 1);
 		const payload = JSON.parse(String(commands.executed[0].args[0]));
-		assert.strictEqual(payload.features[0].description, 'First promo');
+		assert.strictEqual(payload.title, 'First promo');
 	});
 
 	test('shows a scoped 0% promo per harness', () => {
 		const notifService = createMockNotificationService(disposables);
 		const { service: lmService } = createMockLanguageModelsService([
-			{ identifier: 'local:gpt-5.5', metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-local', discountPercent: 0, endsAt: '2026-07-20T23:59:59Z', message: 'Local promo' } } },
-			{ identifier: 'copilot:claude', metadata: { name: 'Claude', id: 'claude', targetChatSessionType: 'copilotcli', promo: { id: 'promo-copilot', discountPercent: 0, endsAt: '2026-07-20T23:59:59Z', message: 'Copilot promo' } } },
-			{ identifier: 'codex:o4', metadata: { name: 'o4', id: 'o4', targetChatSessionType: 'openai-codex', promo: { id: 'promo-codex', discountPercent: 0, endsAt: '2026-07-20T23:59:59Z', message: 'Codex promo' } } },
+			{ identifier: 'local:gpt-5.5', metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-local', discountPercent: 0, endsAt: '2026-07-20T23:59:59Z', message: 'Local promo', showBanner: true } } },
+			{ identifier: 'copilot:claude', metadata: { name: 'Claude', id: 'claude', targetChatSessionType: 'copilotcli', promo: { id: 'promo-copilot', discountPercent: 0, endsAt: '2026-07-20T23:59:59Z', message: 'Copilot promo', showBanner: true } } },
+			{ identifier: 'codex:o4', metadata: { name: 'o4', id: 'o4', targetChatSessionType: 'openai-codex', promo: { id: 'promo-codex', discountPercent: 0, endsAt: '2026-07-20T23:59:59Z', message: 'Codex promo', showBanner: true } } },
 		], disposables);
 		const storageService = disposables.add(new InMemoryStorageService());
 
@@ -531,7 +661,7 @@ suite('ChatPromoNotificationContribution', () => {
 	test('does not leak a harness promo into a different session type', () => {
 		const notifService = createMockNotificationService(disposables);
 		const { service: lmService } = createMockLanguageModelsService([
-			{ identifier: 'copilot:claude', metadata: { name: 'Claude', id: 'claude', targetChatSessionType: 'copilotcli', promo: { id: 'promo-copilot', discountPercent: 0, endsAt: '2026-07-20T23:59:59Z', message: 'Copilot promo' } } },
+			{ identifier: 'copilot:claude', metadata: { name: 'Claude', id: 'claude', targetChatSessionType: 'copilotcli', promo: { id: 'promo-copilot', discountPercent: 0, endsAt: '2026-07-20T23:59:59Z', message: 'Copilot promo', showBanner: true } } },
 		], disposables);
 		const storageService = disposables.add(new InMemoryStorageService());
 
@@ -594,7 +724,7 @@ suite('ChatPromoNotificationContribution', () => {
 		const notifService = createMockNotificationService(disposables);
 		const { service: lmService } = createMockLanguageModelsService([{
 			identifier: 'copilot:gpt-5.5',
-			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-sale', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Get 20% off' } },
+			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-sale', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Get 20% off', showBanner: true } },
 		}], disposables);
 		const storageService = disposables.add(new InMemoryStorageService());
 		const commands = createMockCommandService();
@@ -603,5 +733,266 @@ suite('ChatPromoNotificationContribution', () => {
 		await CommandsRegistry.getCommand(CHAT_PROMO_DISMISS_COMMAND_ID)?.handler(undefined!, 'promo-sale');
 		const stored = JSON.parse(storageService.get('chat.dismissedPromoIds', StorageScope.APPLICATION) ?? '[]');
 		assert.deepStrictEqual(stored, ['promo-sale']);
+	});
+
+	test('does not reopen the sale card when models refresh mid-session', () => {
+		const notifService = createMockNotificationService(disposables);
+		const { service: lmService, onDidChangeLanguageModels } = createMockLanguageModelsService([{
+			identifier: 'copilot:gpt-5.5',
+			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-1', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Get 20% off', showBanner: true } },
+		}], disposables);
+		const storageService = disposables.add(new InMemoryStorageService());
+		const commands = createMockCommandService();
+
+		disposables.add(createContribution(
+			lmService,
+			notifService.service,
+			storageService,
+			commands.service,
+			ChatClosedSaleNotification.CopilotIconPopup,
+		));
+
+		assert.ok(commands.executed.every(command => command.id === ARM_SALE_PROMO_COMMAND_ID));
+		onDidChangeLanguageModels.fire('copilot');
+		assert.ok(commands.executed.every(command => command.id === ARM_SALE_PROMO_COMMAND_ID));
+	});
+
+	test('reopens the sale card after sign-in', () => {
+		const notifService = createMockNotificationService(disposables);
+		const { service: lmService } = createMockLanguageModelsService([{
+			identifier: 'copilot:gpt-5.5',
+			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-1', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Get 20% off', showBanner: true } },
+		}], disposables);
+		const storageService = disposables.add(new InMemoryStorageService());
+		const commands = createMockCommandService();
+		const entitlement = createMockEntitlementService(disposables, ChatEntitlement.Pro);
+
+		disposables.add(createContribution(
+			lmService,
+			notifService.service,
+			storageService,
+			commands.service,
+			ChatClosedSaleNotification.CopilotIconPopup,
+			entitlement.service,
+		));
+
+		assert.strictEqual(commands.executed.length, 1);
+		entitlement.signOut();
+		entitlement.signIn();
+		assert.ok(commands.executed.every(command => command.id === ARM_SALE_PROMO_COMMAND_ID));
+	});
+
+	test('does not arm the sale pip when the chat bar is expanded', () => {
+		const notifService = createMockNotificationService(disposables);
+		const { service: lmService } = createMockLanguageModelsService([{
+			identifier: 'copilot:gpt-5.5',
+			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-1', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Get 20% off', showBanner: true } },
+		}], disposables);
+		const storageService = disposables.add(new InMemoryStorageService());
+		const commands = createMockCommandService();
+		const views = createMockViewsService(disposables, true);
+
+		disposables.add(createContribution(
+			lmService,
+			notifService.service,
+			storageService,
+			commands.service,
+			ChatClosedSaleNotification.CopilotIconPopup,
+			undefined,
+			views.service,
+		));
+
+		assert.deepStrictEqual({
+			banner: notifService.getNotification()?.message,
+			commands: commands.executed.map(command => command.id),
+		}, {
+			banner: undefined,
+			commands: [],
+		});
+	});
+
+	test('hides the sale pip when the chat bar expands and restores it when the bar collapses', () => {
+		const notifService = createMockNotificationService(disposables);
+		const { service: lmService } = createMockLanguageModelsService([{
+			identifier: 'copilot:gpt-5.5',
+			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-1', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Get 20% off', showBanner: true } },
+		}], disposables);
+		const storageService = disposables.add(new InMemoryStorageService());
+		const commands = createMockCommandService();
+		const views = createMockViewsService(disposables, false);
+
+		disposables.add(createContribution(
+			lmService,
+			notifService.service,
+			storageService,
+			commands.service,
+			ChatClosedSaleNotification.CopilotIconPopup,
+			undefined,
+			views.service,
+		));
+		views.setVisible(true);
+		views.setVisible(false);
+
+		assert.deepStrictEqual(commands.executed.map(command => command.id), [
+			ARM_SALE_PROMO_COMMAND_ID,
+			DISARM_SALE_PROMO_COMMAND_ID,
+			ARM_SALE_PROMO_COMMAND_ID,
+		]);
+	});
+
+	test('does not show the input banner for Free entitlement', () => {
+		const notifService = createMockNotificationService(disposables);
+		const { service: lmService } = createMockLanguageModelsService([{
+			identifier: 'copilot:gpt-5.5',
+			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-1', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Get 20% off', showBanner: true } },
+		}], disposables);
+		const storageService = disposables.add(new InMemoryStorageService());
+		const commands = createMockCommandService();
+
+		disposables.add(createContribution(
+			lmService,
+			notifService.service,
+			storageService,
+			commands.service,
+			ChatClosedSaleNotification.None,
+			createMockEntitlementService(disposables, ChatEntitlement.Free).service,
+		));
+
+		assert.deepStrictEqual({
+			banner: notifService.getNotification()?.message,
+			commands: commands.executed.map(command => command.id),
+		}, {
+			banner: undefined,
+			commands: [],
+		});
+	});
+
+	test('does not show a sale for Free entitlement or blocked SKUs', () => {
+		const notifService = createMockNotificationService(disposables);
+		const { service: lmService } = createMockLanguageModelsService([{
+			identifier: 'copilot:gpt-5.5',
+			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-1', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Get 20% off', showBanner: true } },
+		}], disposables);
+		const storageService = disposables.add(new InMemoryStorageService());
+
+		const cases: { entitlement: ChatEntitlement; sku?: string }[] = [
+			{ entitlement: ChatEntitlement.Free },
+			{ entitlement: ChatEntitlement.Pro, sku: 'FREE' },
+			{ entitlement: ChatEntitlement.EDU, sku: 'COMPLIMENTARY_EDU' },
+			{ entitlement: ChatEntitlement.Pro, sku: 'free_limited_copilot' },
+		];
+		const results = cases.map(({ entitlement, sku }) => {
+			const commands = createMockCommandService();
+			const entitlementService = createMockEntitlementService(disposables, entitlement, sku);
+			disposables.add(createContribution(
+				lmService,
+				notifService.service,
+				storageService,
+				commands.service,
+				ChatClosedSaleNotification.CopilotIconPopup,
+				entitlementService.service,
+			));
+			return {
+				entitlement,
+				sku,
+				banner: notifService.getNotification()?.message,
+				commands: commands.executed.map(command => command.id),
+			};
+		});
+
+		assert.deepStrictEqual(results, cases.map(({ entitlement, sku }) => ({
+			entitlement,
+			sku,
+			banner: undefined,
+			commands: [],
+		})));
+	});
+
+	test('does not show a sale when the model is not user selectable', () => {
+		const notifService = createMockNotificationService(disposables);
+		const { service: lmService } = createMockLanguageModelsService([{
+			identifier: 'copilot:gpt-5.5',
+			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', isUserSelectable: false, promo: { id: 'promo-1', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Get 20% off', showBanner: true } },
+		}], disposables);
+		const storageService = disposables.add(new InMemoryStorageService());
+		const commands = createMockCommandService();
+
+		disposables.add(createContribution(
+			lmService,
+			notifService.service,
+			storageService,
+			commands.service,
+			ChatClosedSaleNotification.CopilotIconPopup,
+		));
+
+		assert.deepStrictEqual({
+			banner: notifService.getNotification()?.message,
+			commands: commands.executed.map(command => command.id),
+		}, {
+			banner: undefined,
+			commands: [],
+		});
+	});
+
+	test('disarms the sale pip when the sale model leaves the list', () => {
+		const models = [{
+			identifier: 'copilot:gpt-5.5',
+			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-4', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Get 20% off', showBanner: true } },
+		}];
+		const notifService = createMockNotificationService(disposables);
+		const { service: lmService, onDidChangeLanguageModels } = createMockLanguageModelsService(models, disposables);
+		const storageService = disposables.add(new InMemoryStorageService());
+		const commands = createMockCommandService();
+
+		disposables.add(createContribution(
+			lmService,
+			notifService.service,
+			storageService,
+			commands.service,
+			ChatClosedSaleNotification.CopilotIconPopup,
+		));
+		models.length = 0;
+		onDidChangeLanguageModels.fire(undefined);
+
+		assert.deepStrictEqual(commands.executed.map(command => command.id), [
+			ARM_SALE_PROMO_COMMAND_ID,
+			DISARM_SALE_PROMO_COMMAND_ID,
+		]);
+	});
+
+	test('try-model switches the Copilot harness then the sale model', async () => {
+		const notifService = createMockNotificationService(disposables);
+		const { service: lmService } = createMockLanguageModelsService([{
+			identifier: 'copilot:gpt-5.5',
+			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-1', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Get 20% off', showBanner: true } },
+		}], disposables);
+		const storageService = disposables.add(new InMemoryStorageService());
+		const commands = createMockCommandService();
+		const widget = createMockWidgetService({ sessionScheme: 'openai-codex' });
+
+		disposables.add(createContribution(
+			lmService,
+			notifService.service,
+			storageService,
+			commands.service,
+			ChatClosedSaleNotification.CopilotIconPopup,
+			undefined,
+			undefined,
+			widget.service,
+		));
+
+		await CommandsRegistry.getCommand(CHAT_PROMO_TRY_MODEL_COMMAND_ID)?.handler(undefined!, 'promo-1', 'copilot:gpt-5.5');
+
+		assert.deepStrictEqual({
+			commands: commands.executed.map(command => ({ id: command.id, args: command.args })),
+			switched: widget.switched,
+		}, {
+			commands: [
+				{ id: ARM_SALE_PROMO_COMMAND_ID, args: [commands.executed[0].args[0]] },
+				{ id: CHAT_OPEN_ACTION_ID, args: [] },
+				{ id: 'workbench.action.chat.openNewChatSessionInPlace.local', args: ['sidebar'] },
+			],
+			switched: ['copilot:gpt-5.5'],
+		});
 	});
 });

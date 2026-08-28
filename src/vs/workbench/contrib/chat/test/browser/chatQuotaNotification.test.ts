@@ -122,6 +122,7 @@ function createMockNotificationService() {
 			}
 			return !filter || filter(lastNotification) ? lastNotification : undefined;
 		},
+		refresh() { },
 		handleMessageSent() { },
 		announceRendered() { },
 	};

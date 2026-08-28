@@ -26,6 +26,12 @@ export const enum BYOKUtilityModelDefault {
 	Copilot = 'copilot',
 }
 
+export const enum CustomizationMigrationHintMode {
+	Never = 'never',
+	Once = 'once',
+	Always = 'always',
+}
+
 export enum ChatConfiguration {
 	PluginsEnabled = 'chat.plugins.enabled',
 	PluginLocations = 'chat.pluginLocations',
@@ -91,13 +97,14 @@ export enum ChatConfiguration {
 	RevealNextChangeOnResolve = 'chat.editing.revealNextChangeOnResolve',
 	OpenChangedFileInDiffEditor = 'chat.editing.openChangedFileInDiffEditor',
 	GrowthNotificationEnabled = 'chat.growthNotification.enabled',
-	SaleNotification = 'chat.promo.saleNotification',
+	ChatClosedSaleNotification = 'chat.closedSaleNotification',
 	TitleBarSignInEnabled = 'chat.titleBar.signIn.enabled',
 	TitleBarOpenInAgentsWindowEnabled = 'chat.titleBar.openInAgentsWindow.enabled',
 
 	ChatCustomizationsStructuredPreviewEnabled = 'chat.customizations.structuredPreview.enabled',
 	ChatCustomizationsPromptMigrationEnabled = 'chat.customizations.promptMigration.enabled',
 	ChatCustomizationsUserDataMigrationEnabled = 'chat.customizations.userDataMigration.enabled',
+	ChatCustomizationsMigrationHint = 'chat.customizations.migrationHint',
 	AutopilotAdvancedEnabled = 'chat.autopilot.advanced.enabled',
 	DefaultPermissionLevel = 'chat.permissions.default',
 	AssistedPermissionsEnabled = 'chat.assistedPermissions.enabled',
@@ -129,9 +136,9 @@ export enum ChatConfiguration {
 	ImplicitContextActiveEditor = 'chat.implicitContext.includeActiveEditor',
 }
 
-export const enum ChatSaleNotification {
-	Banner = 'banner',
-	Popup = 'popup',
+export const enum ChatClosedSaleNotification {
+	None = 'none',
+	CopilotIconPopup = 'copilotIconPopup',
 }
 
 /**

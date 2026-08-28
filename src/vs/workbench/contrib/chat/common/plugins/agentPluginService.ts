@@ -46,7 +46,7 @@ export interface IAgentPlugin {
 	 */
 	readonly policyBlocked?: IObservable<boolean>;
 	/** Removes this plugin from its discovery source (config or installed storage). Undefined for policy-managed plugins that cannot be removed by the user. */
-	remove?(): void;
+	remove?(): Promise<boolean>;
 	readonly hooks: IObservable<readonly IAgentPluginHook[]>;
 	readonly commands: IObservable<readonly IAgentPluginCommand[]>;
 	readonly skills: IObservable<readonly IAgentPluginSkill[]>;

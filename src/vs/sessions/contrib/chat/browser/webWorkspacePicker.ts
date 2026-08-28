@@ -13,6 +13,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -60,13 +61,14 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService notificationService: INotificationService,
+		@IHoverService hoverService: IHoverService,
 		@IAgentHostFilterService private readonly _agentHostFilterService: IAgentHostFilterService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 	) {
 		super(
 			{
 				...options,
-				sessionWorkspaceProviderFilter: providerId => providerId === _agentHostFilterService.selectedProviderId,
+				sessionWorkspaceProviderFilter: providerId => _agentHostFilterService.selectedHost?.providerIds.includes(providerId) === true,
 			},
 			actionWidgetService,
 			uriIdentityService,
@@ -81,6 +83,7 @@ export class WebWorkspacePicker extends WorkspacePicker {
 			fileDialogService,
 			telemetryService,
 			notificationService,
+			hoverService,
 		);
 
 		// When the scoped host changes, if the current selection no longer
@@ -120,9 +123,9 @@ export class WebWorkspacePicker extends WorkspacePicker {
 	}
 
 	private _onScopedHostChanged(): void {
-		const scopedProviderId = this._agentHostFilterService.selectedProviderId;
+		const scoped = this._agentHostFilterService.selectedHost;
 		const currentResolved = this.selectedResolved;
-		if (currentResolved && scopedProviderId !== undefined && currentResolved.providerId === scopedProviderId) {
+		if (currentResolved && scoped?.providerIds.includes(currentResolved.providerId)) {
 			this._onDidChangeSelection.fire();
 			return;
 		}
@@ -133,19 +136,19 @@ export class WebWorkspacePicker extends WorkspacePicker {
 	protected override _buildItems(): IActionListItem<IWorkspacePickerItem>[] {
 		const items: IActionListItem<IWorkspacePickerItem>[] = [];
 
-		const scopedProviderId = this._agentHostFilterService.selectedProviderId;
-		if (scopedProviderId === undefined) {
+		const scoped = this._agentHostFilterService.selectedHost;
+		if (!scoped) {
 			return [];
 		}
-		const provider = this.sessionsProvidersService.getProvider(scopedProviderId);
-		if (!provider) {
+		const scopedProviderIds = new Set(scoped.providerIds);
+		if (!scoped.providerIds.some(id => this.sessionsProvidersService.getProvider(id))) {
 			return items;
 		}
 
-		// 1. Recent workspaces for the scoped provider
+		// 1. Recent workspaces across every provider the entry scopes to.
 		const isGitHubCategory = this._directPickerGroup === SESSION_WORKSPACE_GROUP_GITHUB;
 		const recents = this._getRecentWorkspaces().filter(w =>
-			(w.providerId === scopedProviderId || isGitHubCategory)
+			(scopedProviderIds.has(w.providerId) || isGitHubCategory)
 			&& this._directPickerAttachesContext !== true
 			&& (this._directPickerGroup === undefined || w.workspace.group === this._directPickerGroup)
 		);
@@ -166,11 +169,13 @@ export class WebWorkspacePicker extends WorkspacePicker {
 			});
 		}
 
-		// 2. Browse actions for the scoped provider and selected category.
+		// 2. Browse actions for the scoped host and selected category. A grouped
+		// entry contributes none of its own — no single machine to browse —
+		// but GitHub actions are not machine-bound, so they still apply.
 		const allBrowseActions = this._getAllBrowseActions();
 		const browseActions = allBrowseActions
 			.map((action, index) => ({ action, index }))
-			.filter(({ action }) => action.providerId === scopedProviderId || this._directPickerGroup === SESSION_WORKSPACE_GROUP_GITHUB);
+			.filter(({ action }) => (!scoped.grouped && scopedProviderIds.has(action.providerId)) || this._directPickerGroup === SESSION_WORKSPACE_GROUP_GITHUB);
 		if (browseActions.length > 0) {
 			if (items.length > 0) {
 				items.push({ kind: ActionListItemKind.Separator, label: '' });
