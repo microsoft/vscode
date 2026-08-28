@@ -21,6 +21,7 @@ import { IHeaderAttribute } from '../../../common/promptSyntax/promptFileParser.
 import { PromptFileSource, PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
 import { AICustomizationManagementSection, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 import { CustomizationMigrationCategoryId } from '../../../browser/aiCustomization/customizationMigrationCategories.js';
+import type { ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
 import type { ICustomizationMigrationCategorySummary } from '../../../browser/aiCustomization/aiCustomizationWelcomePage.js';
 import { AICustomizationManagementEditorInput } from '../../../browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 
@@ -55,6 +56,7 @@ suite('aiCustomizationManagementEditor', () => {
 		currentEditingSource: string | undefined;
 		currentEditingReadOnly: boolean;
 		customizationsByMigrationCategory: Map<CustomizationMigrationCategoryId, readonly MigratableConfiguration[]>;
+		customizationMigrationTargetFoldersByType: Map<PromptsType, readonly ICustomizationSourceFolder[]>;
 		activeMigrationCategoryId: CustomizationMigrationCategoryId | undefined;
 		editorDisplayMode: 'preview' | 'raw';
 		editorPreviewFrontMatterContainer: HTMLElement | undefined;
@@ -88,7 +90,7 @@ suite('aiCustomizationManagementEditor', () => {
 		refreshCustomizationMigrationInfo(): Promise<void>;
 		registerCustomizationMigrationSessionRefresh(): void;
 		renderCustomizationMigrationPage(): void;
-		setCustomizationsToMigrate(candidates: Map<CustomizationMigrationCategoryId, readonly MigratableConfiguration[]>): void;
+		setCustomizationsToMigrate(candidates: Map<CustomizationMigrationCategoryId, readonly MigratableConfiguration[]>, targetFoldersByType: Map<PromptsType, readonly ICustomizationSourceFolder[]>): void;
 		isCustomizationSelectedForMigration(customization: MigratableConfiguration): boolean;
 		setCustomizationSelectedForMigration(customization: MigratableConfiguration, selected: boolean): void;
 		updateContentVisibility(): void;
@@ -113,6 +115,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.currentEditingSource = undefined;
 		editor.currentEditingReadOnly = false;
 		editor.customizationsByMigrationCategory = new Map();
+		editor.customizationMigrationTargetFoldersByType = new Map();
 		editor.activeMigrationCategoryId = undefined;
 		editor.editorDisplayMode = 'preview';
 		editor.editorPreviewFrontMatterContainer = document.createElement('div');
@@ -321,9 +324,9 @@ suite('aiCustomizationManagementEditor', () => {
 			[CustomizationMigrationCategoryId.PromptFiles, [workspacePrompt, userPrompt]],
 		]);
 
-		editor.setCustomizationsToMigrate(candidates);
+		editor.setCustomizationsToMigrate(candidates, new Map());
 		editor.setCustomizationSelectedForMigration(workspacePrompt, false);
-		editor.setCustomizationsToMigrate(candidates);
+		editor.setCustomizationsToMigrate(candidates, new Map());
 
 		assert.deepStrictEqual({
 			workspaceSelected: editor.isCustomizationSelectedForMigration(workspacePrompt),
@@ -355,6 +358,14 @@ suite('aiCustomizationManagementEditor', () => {
 					source: PromptFileSource.UserData,
 				} as MigratableConfiguration],
 			]]);
+			editor.customizationMigrationTargetFoldersByType = new Map([[
+				PromptsType.instructions,
+				[{
+					uri: URI.file('/home/test/.test-harness' + sessionResource.path + '/instructions'),
+					label: sessionResource.path,
+					source: AICustomizationSources.user,
+				}],
+			]]);
 		};
 
 		editor.registerCustomizationMigrationSessionRefresh();
@@ -363,14 +374,16 @@ suite('aiCustomizationManagementEditor', () => {
 		assert.deepStrictEqual({
 			refreshedSessions,
 			candidatePaths: [...editor.customizationsByMigrationCategory.values()].flat().map(candidate => candidate.uri.path),
+			destinationPaths: [...editor.customizationMigrationTargetFoldersByType.values()].flat().map(folder => folder.uri.path),
 		}, {
 			refreshedSessions: ['/session-a', '/session-b'],
 			candidatePaths: ['/user-data/session-b.instructions.md'],
+			destinationPaths: ['/home/test/.test-harness/session-b/instructions'],
 		});
 		editor.editorPreviewDisposables.dispose();
 	});
 
-	test('migration banners explain consequences without loading destination folders', () => {
+	test('migration banners include destination consequences when applicable', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
 			[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: true,
 			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
@@ -404,6 +417,10 @@ suite('aiCustomizationManagementEditor', () => {
 			[CustomizationMigrationCategoryId.UserData, userDataCustomizations],
 			[CustomizationMigrationCategoryId.PromptFiles, promptFiles],
 		]);
+		editor.customizationMigrationTargetFoldersByType = new Map([
+			[PromptsType.agent, [{ uri: URI.file('/home/test/.copilot/agents'), label: '~/.copilot', source: AICustomizationSources.user }]],
+			[PromptsType.instructions, [{ uri: URI.file('/home/test/.copilot/instructions'), label: '~/.copilot', source: AICustomizationSources.user }]],
+		]);
 		editor.selectedCustomizationMigrationItems = new ResourceMap();
 		editor.migrationListContainer = document.createElement('div');
 		editor.migrationTitleElement = document.createElement('h2');
@@ -432,7 +449,7 @@ suite('aiCustomizationManagementEditor', () => {
 
 			assert.deepStrictEqual({ userData, prompts }, {
 				userData: {
-					message: 'They are stored in user data, which only VS Code reads. Migrating moves them into the folders Copilot reads, keeping their name, type, and content, so you can keep using them.',
+					message: 'They are stored in user data, which only VS Code reads. Move them to \'~/.copilot\' so both VS Code and this harness can use them, keeping their name, type, and content.',
 					consequence: 'Migrated files aren\'t currently included in Settings Sync.',
 					bannerHidden: false,
 					descriptionHidden: true,
