@@ -398,7 +398,6 @@ export function createNoopChangesetService(): import('../../common/agentHostChan
 		refreshSessionChangeset: () => { },
 		onWorkingDirectoryAvailable: () => { },
 		recomputeSubscribedChangesets: () => { },
-		onSessionDisposed: () => { },
 		computeTurnChangeset: async session => session,
 		computeCompareTurnsChangeset: async session => session,
 		computeUncommittedChangeset: async session => session,

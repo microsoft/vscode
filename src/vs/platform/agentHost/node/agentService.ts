@@ -3585,8 +3585,8 @@ export class AgentService extends Disposable implements IAgentService {
 		void this._gitStateService.refreshSessionGitState(sessionKey, e.workingDirectories?.[0]);
 
 		// If a client subscribed to this session's uncommitted changeset
-		// before the working directory was known, the coordinator drains
-		// the deferred refresh now that the working directory is set.
+		// before the working directory was known, recompute the current
+		// subscriptions now that the working directory is set.
 		this._changesetCoordinator.onSessionMaterialized(sessionKey);
 	}
 

@@ -201,9 +201,9 @@ export interface IAgentHostChangesetService {
 
 	/**
 	 * Lazy refresh of the branch changeset, kicked off when a client
-	 * first subscribes to `<session>/changeset/branch`. Self-defers when the
-	 * session's working directory is not yet known; the deferred refresh is
-	 * drained by {@link onWorkingDirectoryAvailable}.
+	 * first subscribes to `<session>/changeset/branch`. Skips computation while
+	 * the working directory is unavailable; {@link onWorkingDirectoryAvailable}
+	 * recomputes the current subscriptions after materialization or restore.
 	 */
 	refreshBranchChangeset(session: ProtocolURI): void;
 
@@ -212,15 +212,14 @@ export interface IAgentHostChangesetService {
 	 * client first subscribes to `<session>/changeset/session` or the
 	 * session URI itself (e.g. Agents Window observing the session). The
 	 * recompute keeps the catalogue chip fresh across session opens even
-	 * when no turn has run since process start. Self-defers when the
-	 * session's working directory is not yet known.
+	 * when no turn has run since process start. Skips computation while the
+	 * working directory is unavailable.
 	 */
 	refreshSessionChangeset(session: ProtocolURI): void;
 
 	/**
 	 * Recomputes every changeset currently subscribed when a session is
-	 * materialized or restored, including subscriptions added after worktree
-	 * resolution cleared its pending marker.
+	 * materialized or restored.
 	 */
 	onWorkingDirectoryAvailable(session: ProtocolURI): void;
 
@@ -228,17 +227,11 @@ export interface IAgentHostChangesetService {
 	 * Recomputes every changeset currently subscribed for `session`, read
 	 * from the shared changeset subscription service. Each subscribed changeset
 	 * is dispatched to its kind-specific recompute (branch / session / uncommitted
-	 * / turn); the individual recomputes self-defer when the working directory is
-	 * not yet known. Used as the session-level refresh entry point (drain on
-	 * materialization, git-state change).
+	 * / turn); the individual recomputes skip when the working directory is
+	 * not yet known. Used as the session-level refresh entry point after
+	 * materialization and git-state changes.
 	 */
 	recomputeSubscribedChangesets(session: ProtocolURI): void;
-
-	/**
-	 * Forgets any deferred static changeset refreshes queued for a session
-	 * that is being disposed.
-	 */
-	onSessionDisposed(session: ProtocolURI): void;
 
 	/**
 	 * Computes and publishes the per-turn changeset for `turnId` on `session`.
