@@ -75,6 +75,17 @@
 		},
 		{
 			"type": "node",
+			"request": "launch",
+			"name": "Resume Stuck Renderer",
+			"program": "${workspaceFolder}/.vscode/resumeStuckRenderer.ts",
+			"autoAttachChildProcesses": false,
+			"internalConsoleOptions": "neverOpen",
+			"presentation": {
+				"hidden": true,
+			}
+		},
+		{
+			"type": "node",
 			"request": "attach",
 			"name": "Attach to Main Process",
 			"timeout": 30000,
@@ -729,7 +740,8 @@
 				"Attach to Main Process",
 				"Attach to Extension Host",
 				"Attach to Shared Process",
-				"Attach to Agent Host Process"
+				"Attach to Agent Host Process",
+				"Resume Stuck Renderer"
 			],
 			"preLaunchTask": "Ensure Prelaunch Dependencies",
 			"presentation": {
@@ -819,7 +831,8 @@
 			"stopAll": true,
 			"configurations": [
 				"Launch VS Code Internal",
-				"Attach to Main Process"
+				"Attach to Main Process",
+				"Resume Stuck Renderer"
 			],
 			"preLaunchTask": "Ensure Prelaunch Dependencies"
 		},
