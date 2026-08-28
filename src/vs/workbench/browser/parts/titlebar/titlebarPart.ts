@@ -569,7 +569,9 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				this.windowControlsContainer = append(primaryWindowControlsLocation === 'left' ? this.leftContent : this.rightContent, $('div.window-controls-container'));
 				if (isWCOEnabled()) {
 					this.windowControlsContainer.classList.add('wco-enabled');
-					append(primaryWindowControlsLocation === 'left' ? this.rightContent : this.leftContent, $('div.window-controls-container.wco-enabled'));
+					if (isWeb || isLinux) {
+						append(primaryWindowControlsLocation === 'left' ? this.rightContent : this.leftContent, $('div.window-controls-container.wco-enabled'));
+					}
 				} else if (isWeb) {
 					// Web: its possible to have control overlays on both sides, for example on macOS
 					// with window controls on the left and PWA controls on the right.
