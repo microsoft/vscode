@@ -27,8 +27,7 @@ The clone is **slim**: workspace storage, browser caches, file history, cached V
     ```
 - A VS Code checkout with `node_modules/` installed (`npm install` if missing — do **not** symlink from a sibling worktree; that breaks builds in subtle ways).
 - A VS Code checkout with sources built. Run `npm run compile` once (one-shot) or `npm run watch` for incremental rebuilds. Both build the full client **and** all built-in extensions under `extensions/`. You must build the full product to run successfully, building just the client is not enough.
-- An **authenticated** Code OSS profile to seed from. By default the launcher uses `~/.vscode-oss-dev` on macOS/Linux or `$env:USERPROFILE\.vscode-oss-dev` on Windows, which is the user-data-dir the repo's `launch.json` configs use - if the user has ever signed in to Copilot in a dev build, this should work. Only pass `--source-user-data-dir <path>` (or set `$CODE_OSS_DEV_AUTHED_USER_DATA_DIR`) when you specifically want to seed from a different profile (e.g. your regular `~/Library/Application Support/Code` install).
-  - If the profile does not exist, use the bootstrap flow below rather than creating an empty profile implicitly.
+- An authenticated Code OSS profile is recommended but not required. By default the launcher tries to seed from `~/.vscode-oss-dev` on macOS/Linux or `$env:USERPROFILE\.vscode-oss-dev` on Windows, which is the user-data-dir the repo's `launch.json` configs use. Only pass `--source-user-data-dir <path>` (or set `$CODE_OSS_DEV_AUTHED_USER_DATA_DIR`) when you specifically want to seed from a different profile (e.g. your regular `~/Library/Application Support/Code` install). If the source profile is missing, the launcher continues with an empty isolated profile.
 - `@playwright/cli` available (it's a devDependency in the vscode repo - `npm install` then use `npx @playwright/cli`).
 - For debugger work: `dap-cli` on `PATH`. If debugger support would be useful but the `dap-cli` skill is not present, prompt the user to install it from https://github.com/roblourens/dap-cli.
 - CSS selectors are internal implementation details. If a selector-based `eval` stops working, take a fresh `snapshot`, inspect the current DOM, and update the selector rather than assuming an old one still applies.
@@ -76,7 +75,9 @@ If the local execution policy blocks scripts, invoke it with `powershell -Execut
 
 ### Handle a missing sign-in
 
-If the launched Code OSS window requires GitHub/Copilot authentication, use the questions tool with these choices:
+If the source profile is missing or has no stored GitHub session, **do not stop and do not ask before launching**. Continue until the isolated Code OSS window reaches the normal GitHub/Copilot sign-in UI. Don't give up when Code OSS needs a sign-in.
+
+At that point, use the questions tool with these choices:
 
 - **I have signed in**
 - **Bootstrap profile to pre-authenticate future launches**
