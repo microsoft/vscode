@@ -5872,6 +5872,26 @@ suite('ClaudeAgent', () => {
 		assert.strictEqual(settled, false, 'no parked handler in this test path; unknown id is silent');
 	});
 
+	test('a result delivered before the SDK registers is buffered, not dropped', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+		const sessionId = created.sdkSessionId;
+		getOrCreateActiveClient(agent, defaultChatUri(created.session), 'c1').tools = [{ name: 'echo', inputSchema: { type: 'object' } }];
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'go', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
+		const session = agent.getSessionForTesting(created.session)!;
+
+		// The result can arrive before the SDK registers the handler awaiting it.
+		const settled = session.completeClientToolCall('tu_early', { success: true, pastTenseMessage: 'ok', content: [{ type: ToolResultContentType.Text, text: 'hello' }] });
+		const delivered = await session.pendingClientToolCalls.register('tu_early');
+
+		assert.deepStrictEqual({ settled, delivered: delivered.content }, {
+			settled: false,
+			delivered: [{ type: 'text', text: 'hello' }],
+		});
+	});
+
 	test('onClientToolCallComplete walks subagent URIs to the root session', () => {
 		const { agent } = createTestContext(disposables);
 		const root = URI.parse('claude:/root-1');

@@ -110,17 +110,16 @@ export class PendingRequestRegistry<TResult, TMeta = void> {
 	}
 
 	/**
-	 * Like {@link respond}, but if no deferred is parked under `key`, buffer
-	 * the value so a subsequent {@link register} / {@link registerAndFire}
-	 * for the same key resolves immediately. Use when the completion may
-	 * legitimately arrive before the awaiting handler registers (the
-	 * Copilot client-tool round-trip, whose SDK handler and the workbench
-	 * completion race).
+	 * Like {@link respond}, but buffers the value when nothing is parked under
+	 * `key` so a later {@link register} resolves immediately. Returns whether a
+	 * parked deferred was settled.
 	 */
-	respondOrBuffer(key: string, value: TResult): void {
-		if (!this.respond(key, value)) {
-			this._earlyResults.set(key, value);
+	respondOrBuffer(key: string, value: TResult): boolean {
+		if (this.respond(key, value)) {
+			return true;
 		}
+		this._earlyResults.set(key, value);
+		return false;
 	}
 
 	/** Whether a result arrived before a request registered under `key`. */
