@@ -403,7 +403,9 @@ export class ChatSetup {
 			// cancelled, an error was thrown, or the strategy needed no sign-in), the
 			// window reserved on click is still open and blank. Close it — on an
 			// installed web app it would otherwise sit on top of the app.
-			releaseReservedWindowForExternalOpen();
+			releaseReservedWindowForExternalOpen(
+				localize('signInDidNotComplete', "Sign-in did not complete. You can close this window.")
+			);
 		}
 
 		if (success) {

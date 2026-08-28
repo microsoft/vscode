@@ -1681,12 +1681,23 @@ export function reserveWindowForExternalOpen(placeholder?: string): void {
 	// The window is visible immediately — on iOS it slides over the app — but the
 	// URL may be a second or more away. Say something rather than show a blank page.
 	if (placeholder) {
-		try {
-			reservedExternalWindow.document.write(placeholder);
-			reservedExternalWindow.document.close();
-		} catch {
-			// Writing can throw if the window is already navigating; harmless.
-		}
+		showMessageInWindow(reservedExternalWindow, placeholder);
+	}
+}
+
+/**
+ * Renders a short message in an `about:blank` window we opened. Uses `textContent`
+ * rather than `document.write` so the message cannot inject markup, and follows the
+ * system light/dark preference so the window does not flash white.
+ */
+function showMessageInWindow(target: Window, message: string): void {
+	try {
+		const doc = target.document;
+		doc.documentElement.style.cssText = 'color-scheme:light dark';
+		doc.body.style.cssText = 'margin:0;height:100vh;display:flex;align-items:center;justify-content:center;background:Canvas;color:CanvasText;font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif';
+		doc.body.textContent = message;
+	} catch {
+		// Touching the document can throw once the window has navigated; harmless.
 	}
 }
 
@@ -1703,13 +1714,26 @@ function takeReservedWindowForExternalOpen(): Window | undefined {
 /**
  * Closes a reservation that is no longer needed, e.g. because the user cancelled
  * sign-in or it failed before producing a URL.
+ *
+ * @param fallbackMessage shown if the window refuses to close. Not every embedder
+ * honours `close()` — an in-app browser view on iOS may ignore it — and a blank
+ * window left covering the app is worse than the problem this all solves, so tell
+ * the user what happened instead.
  */
-export function releaseReservedWindowForExternalOpen(): void {
+export function releaseReservedWindowForExternalOpen(fallbackMessage?: string): void {
 	const reserved = takeReservedWindowForExternalOpen();
+	if (!reserved) {
+		return;
+	}
+
 	try {
-		reserved?.close();
+		reserved.close();
 	} catch {
 		// Closing can throw once the window has navigated away; harmless.
+	}
+
+	if (!reserved.closed && fallbackMessage) {
+		showMessageInWindow(reserved, fallbackMessage);
 	}
 }
 
