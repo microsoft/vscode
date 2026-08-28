@@ -37,6 +37,7 @@ export interface IEntitlementsData extends ILegacyQuotaSnapshotData {
 	readonly can_signup_for_limited: boolean;
 	readonly copilot_plan: string;
 	readonly organization_login_list: string[];
+	readonly is_staff?: boolean;
 	readonly analytics_tracking_id: string;
 	readonly limited_user_reset_date?: string; 	// for Copilot Free
 	readonly quota_reset_date?: string; 		// for all other Copilot SKUs

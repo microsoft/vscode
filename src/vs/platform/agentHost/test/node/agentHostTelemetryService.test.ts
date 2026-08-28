@@ -252,6 +252,24 @@ suite('AgentHostTelemetryService', () => {
 		});
 	});
 
+	test('marks msftInternal for an internal account and clears it again on account change', () => {
+		const delegate = new TestTelemetryService();
+		const service = disposables.add(new AgentHostTelemetryService(delegate, new TestRestrictedSink()));
+		const account = (isInternal: boolean) => ({ isInternal, trackingId: 'tid', userName: 'user', isVscodeTeamMember: false });
+
+		service.setInternalTelemetryContext(undefined);
+		const beforeSignIn = { ...delegate.commonProperties };
+		service.setInternalTelemetryContext(account(true));
+		const afterInternalAccount = { ...delegate.commonProperties };
+		service.setInternalTelemetryContext(account(false));
+
+		assert.deepStrictEqual({ beforeSignIn, afterInternalAccount, afterExternalAccount: delegate.commonProperties }, {
+			beforeSignIn: {},
+			afterInternalAccount: { 'common.msftInternal': true },
+			afterExternalAccount: { 'common.msftInternal': false },
+		});
+	});
+
 	test('uses most restrictive client telemetry level', () => {
 		const service = disposables.add(new AgentHostTelemetryService(new TestTelemetryService()));
 
