@@ -105,12 +105,12 @@ suite('UpdateTitleBarEntry', () => {
 		});
 	});
 
-	test('uses the action label for an actionable update', () => {
+	test('renders an actionable update as a tab stop', () => {
 		const container = mainWindow.document.createElement('div');
 		mainWindow.document.body.appendChild(container);
 		store.add(toDisposable(() => container.remove()));
 
-		const action = store.add(new Action('workbench.actions.updateIndicator', 'VS Code needs update'));
+		const action = store.add(new Action('workbench.actions.updateIndicator', 'Update'));
 		const entry = store.add(new UpdateTitleBarEntry(
 			action,
 			{},
@@ -134,8 +134,8 @@ suite('UpdateTitleBarEntry', () => {
 			ariaLabel: container.getAttribute('aria-label'),
 			tabIndex: container.tabIndex,
 		}, {
-			text: 'VS Code needs update',
-			ariaLabel: 'VS Code needs update',
+			text: 'Update',
+			ariaLabel: 'Update',
 			tabIndex: 0,
 		});
 	});

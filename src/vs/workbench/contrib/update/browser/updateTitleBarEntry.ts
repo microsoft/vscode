@@ -44,13 +44,13 @@ const DETAILED_STATES: readonly StateType[] = [...ACTIONABLE_STATES, StateType.C
  * Optional secondary placement for the update indicator (e.g. used by the Agents
  * app). Limited to one because the contribution tracks a single rendered entry.
  */
-let additionalMenuPlacement: { readonly menuId: MenuId; readonly item: Omit<IMenuItem, 'command'>; readonly actionableLabel?: string } | undefined;
+let additionalMenuPlacement: { readonly menuId: MenuId; readonly item: Omit<IMenuItem, 'command'> } | undefined;
 
-export function registerUpdateTitleBarMenuPlacement(menuId: MenuId, item: Omit<IMenuItem, 'command'> = {}, actionableLabel?: string): void {
+export function registerUpdateTitleBarMenuPlacement(menuId: MenuId, item: Omit<IMenuItem, 'command'> = {}): void {
 	if (additionalMenuPlacement) {
 		throw new Error('An additional update title bar menu placement is already registered');
 	}
-	additionalMenuPlacement = { menuId, item, actionableLabel };
+	additionalMenuPlacement = { menuId, item };
 }
 
 export function getAdditionalUpdateTitleBarMenuWhen(when?: ContextKeyExpression): ContextKeyExpression {
@@ -128,12 +128,12 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 		));
 
 		if (additionalMenuPlacement) {
-			const { menuId, item, actionableLabel } = additionalMenuPlacement;
+			const { menuId, item } = additionalMenuPlacement;
 			MenuRegistry.appendMenuItem(menuId, {
 				...item,
 				command: {
 					id: UPDATE_TITLE_BAR_ACTION_ID,
-					title: actionableLabel ?? localize('updateIndicatorTitleBarAction', 'Update'),
+					title: localize('updateIndicatorTitleBarAction', 'Update'),
 				},
 				when: getAdditionalUpdateTitleBarMenuWhen(item.when),
 			});
@@ -365,7 +365,7 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 			case StateType.AvailableForDownload:
 			case StateType.Downloaded:
 			case StateType.Ready:
-				label.textContent = this.action.label;
+				label.textContent = localize('updateIndicator.update', "Update");
 				this.content.classList.add('prominent');
 				break;
 
