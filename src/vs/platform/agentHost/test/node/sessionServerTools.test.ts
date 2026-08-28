@@ -13,6 +13,7 @@ import type { IAgentCreateSessionConfig, IAgentModelInfo, IAgentSessionMetadata 
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, MessageKind, readSessionCreationReference, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, withSessionGitState, withSessionGitHubState, type ModelSelection, type ResponsePart, type ToolCallState, type Turn } from '../../common/state/sessionState.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
@@ -24,6 +25,7 @@ import {
 	applyRenameChatTool,
 	applySendMessageTool,
 	createSessionServerToolGroup,
+	formatCreateChatResult,
 	getCreateChatArgs,
 	getCreateSessionArgs,
 	getDeleteSessionArgs,
@@ -360,6 +362,46 @@ suite('SessionServerTools', () => {
 		stateManager.dispose();
 	});
 
+	test('restored sessions refresh materialized tool metadata while preserving membership and legacy create_chat (issue #330138)', () => {
+		const stateManager = new AgentHostStateManager(new NullLogService());
+		const session = 'copilot:/s1';
+		stateManager.createSession({
+			resource: session,
+			provider: 'copilot',
+			title: 'Session',
+			status: SessionStatus.Idle,
+			createdAt: new Date(0).toISOString(),
+			modifiedAt: new Date(0).toISOString(),
+		});
+		// A session materialized on an older build: create_session pinned to the old
+		// reply-and-stop description, plus the retired create_chat entry.
+		stateManager.dispatchServerAction(session, {
+			type: ActionType.SessionServerToolsChanged,
+			tools: [
+				{ name: SessionServerToolName.CreateSession, description: 'Create delegated work. The UI shows the created chat or session as a link, so reply with a single short sentence and do NOT print the session URL.', inputSchema: { type: 'object', properties: {}, required: [] } },
+				{ name: SessionServerToolName.CreateChat, description: 'Legacy chat creation tool.', inputSchema: { type: 'object', properties: {}, required: [] } },
+			],
+		});
+		const host = new AgentServerToolHost(stateManager, [createSessionServerToolGroup(createAccessor())]);
+
+		const definitions = host.getDefinitionsForSession(session);
+		const descriptionByName = new Map(definitions.map(definition => [definition.name, definition.description]));
+		const currentCreateSession = sessionServerToolDefinitions.find(definition => definition.name === SessionServerToolName.CreateSession)?.description;
+
+		assert.deepStrictEqual({
+			names: definitions.map(definition => definition.name),
+			createSessionRefreshedToCurrent: descriptionByName.get(SessionServerToolName.CreateSession) === currentCreateSession,
+			createSessionKeepsOldWording: /reply with a single short sentence/i.test(descriptionByName.get(SessionServerToolName.CreateSession) ?? ''),
+			legacyCreateChatDescription: descriptionByName.get(SessionServerToolName.CreateChat),
+		}, {
+			names: [SessionServerToolName.CreateSession, SessionServerToolName.CreateChat],
+			createSessionRefreshedToCurrent: true,
+			createSessionKeepsOldWording: false,
+			legacyCreateChatDescription: 'Legacy chat creation tool.',
+		});
+		stateManager.dispose();
+	});
+
 	test('serializeSessions produces compact metadata', () => {
 		const text = serializeSessions([sessionMeta('s1', SessionStatus.InputNeeded, workspace)]);
 		assert.deepStrictEqual(JSON.parse(text), {
@@ -595,7 +637,37 @@ suite('SessionServerTools', () => {
 		store.dispose();
 	});
 
-	test('create_session inherits the calling chat model and permission config', async () => {
+	test('create_session and send_message results are neutral, non-terminal statements (issue #330138)', async () => {
+		const store = new DisposableStore();
+		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+		const accessor = createAccessor({
+			listSessions: async () => [sessionMeta('s1', SessionStatus.Idle, workspace), sessionMeta('s2', SessionStatus.Idle, workspace)],
+		});
+		const group = createSessionServerToolGroup(accessor);
+
+		const independent = await group.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.CreateSession, { relationship: 'independent', workspace: workspace.toString(), prompt: 'do it', title: 'New Task' });
+		const peer = await group.execute(stateManager, { sessionUri: 'copilot:/s1', chatUri: buildDefaultChatUri('copilot:/s1'), turnId: 'turn-1' }, SessionServerToolName.CreateSession, { relationship: 'currentSession', prompt: 'do it', title: 'Task A' });
+		const message = await applySendMessageTool(accessor, { session: 'copilot:/s2', message: 'hi' }, buildDefaultChatUri('copilot:/s1'), 'turn-1');
+		// Retired but still routable: the compatibility contract must not regain the wording either.
+		const legacyChat = formatCreateChatResult(await applyCreateChatTool(accessor, { session: 'copilot:/s1', prompt: 'do it', title: 'T' }, URI.parse(buildDefaultChatUri('copilot:/s1')), 'turn-1'));
+
+		// Results must read as neutral statements of fact, not as "reply once and stop" (issue #330138).
+		for (const result of [independent, peer, message, legacyChat]) {
+			assert.doesNotMatch(result, /Reply with one short sentence/, 'result no longer instructs the agent to stop and just confirm');
+			assert.doesNotMatch(result, /confirm/i, 'result carries no confirm-and-stop imperative');
+			assert.match(result, /^[^.]+\(agent-host-session:\/\/[^)]+\)\.$/, 'result is a single factual statement carrying the open link');
+		}
+
+		// The persistent tool contract stays purely functional (issue #330138): no reply-and-stop signal, no UI-presentation policy.
+		for (const name of [SessionServerToolName.CreateSession, SessionServerToolName.SendMessage]) {
+			const description = sessionServerToolDefinitions.find(definition => definition.name === name)?.description ?? '';
+			assert.doesNotMatch(description, /reply with a single short sentence/i, `${name} description no longer tells the agent to reply-and-stop`);
+			assert.doesNotMatch(description, /\bthe UI\b|print the (session )?URL|click (a|the) (link|button)/i, `${name} description does not leak UI-presentation policy`);
+		}
+		store.dispose();
+	});
+
+	test('create_session inherits the calling chat model, permission config, and isolation', async () => {
 		const source = URI.parse(buildChatUri('copilot:/caller', 'peer'));
 		let creationSource: URI | undefined;
 		let created: IAgentCreateSessionConfig | undefined;
@@ -609,6 +681,7 @@ suite('SessionServerTools', () => {
 						autoApprove: 'autoApprove',
 						permissions: { allow: ['shell'], deny: ['write'] },
 					},
+					isolation: 'folder',
 				};
 			},
 			onCreate: config => { created = config; },
@@ -635,6 +708,7 @@ suite('SessionServerTools', () => {
 				config: {
 					autoApprove: 'autoApprove',
 					permissions: { allow: ['shell'], deny: ['write'] },
+					[SessionConfigKey.Isolation]: 'folder',
 				},
 			},
 		});
@@ -664,6 +738,32 @@ suite('SessionServerTools', () => {
 		});
 	});
 
+	test('create_session inherits worktree isolation', async () => {
+		const gitWorkspace = URI.file('/workspace/git-repository');
+		let created: IAgentCreateSessionConfig | undefined;
+		const accessor = createAccessor({
+			getCreationDefaults: () => ({ provider: 'copilot', isolation: 'worktree' }),
+			onCreate: config => { created = config; },
+		});
+
+		await applyCreateSessionTool(accessor, {
+			relationship: 'independent',
+			workspace: gitWorkspace.toString(),
+			prompt: 'do it',
+			title: 'Isolated Task',
+		}, URI.parse('copilot:/source'));
+
+		assert.deepStrictEqual(createConfigSnapshot(created), {
+			workingDirectories: [gitWorkspace],
+			provider: 'copilot',
+			createdBySession: {
+				session: 'copilot:/source',
+				chat: 'copilot:/source',
+			},
+			config: { [SessionConfigKey.Isolation]: 'worktree' },
+		});
+	});
+
 	test('create_session uses a remote project root with a model from another provider', async () => {
 		const remoteProject = URI.parse('vscode-remote://ssh-remote+example/home/me/app');
 		const remoteWorktree = URI.parse('vscode-remote://ssh-remote+example/home/me/app-worktree');
@@ -675,7 +775,7 @@ suite('SessionServerTools', () => {
 				project: { uri: remoteProject, displayName: 'Remote App' },
 			}],
 			getModels: () => [claudeModel],
-			getCreationDefaults: () => ({ provider: 'copilot', model: { id: 'gpt-4o' } }),
+			getCreationDefaults: () => ({ provider: 'copilot', model: { id: 'gpt-4o' }, config: { autoApprove: 'autoApprove' }, isolation: 'folder' }),
 			onCreate: config => { created = config; },
 		});
 
@@ -691,6 +791,7 @@ suite('SessionServerTools', () => {
 			workingDirectories: [remoteProject],
 			provider: 'claude',
 			model: { id: 'claude-sonnet' },
+			config: { [SessionConfigKey.Isolation]: 'folder' },
 			createdBySession: {
 				session: 'copilot:/source',
 				chat: 'copilot:/source',

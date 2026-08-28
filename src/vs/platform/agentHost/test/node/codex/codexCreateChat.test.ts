@@ -2560,6 +2560,74 @@ suite('CodexAgent chat backing durability', () => {
 		});
 	});
 
+	test('materializeChat replaces a restored backing that has no rollout', async () => {
+		const sessionStore = createTestSessionStore();
+		const runtime = AgentSession.uri('codex', 'durable-peer-runtime');
+		const owningSession = AgentSession.uri('codex', 'owning-session');
+		const chat = URI.parse(buildChatUri(owningSession, 'restored-peer'));
+		const context = { configurationResource: owningSession, resource: chat };
+		const folder = URI.file('/repo/restored-peer');
+		const database = sessionStore.databaseFor(runtime);
+		await Promise.all([
+			database.setMetadata('codex.threadId', 'missing-rollout-thread'),
+			database.setMetadata('codex.cwd', folder.toString()),
+			database.setMetadata('codex.model', COPILOT_TEST_MODEL),
+		]);
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore });
+		const peer = disposables.add(createTestPeer());
+		connect(agent, peer);
+		const receipts: IAgentMaterializeChatEvent[] = [];
+		const listener = agent.onDidMaterializeChat(event => receipts.push(event));
+
+		try {
+			await agent.materializeChat(chat, context, JSON.stringify({
+				sessionId: AgentSession.id(runtime),
+				model: { id: COPILOT_TEST_MODEL },
+			}));
+			const materializedBeforeReplacement = agent['_sessions'].get(AgentSession.id(runtime))?.materializedEventFired;
+			const reading = agent.chats.getMessages(chat, context);
+			const resume = await readNextRequest(peer.outbound);
+			peer.push({ id: resume.id, error: { code: -32000, message: 'no rollout found for thread id missing-rollout-thread' } });
+			const start = await readNextRequest(peer.outbound);
+			peer.push({ id: start.id, result: { thread: { id: 'replacement-thread', cwd: folder.fsPath } } });
+			const read = await readNextRequest(peer.outbound);
+			peer.push({ id: read.id, result: { thread: { id: 'replacement-thread', cwd: folder.fsPath, turns: [] } } });
+			const turns = await reading;
+			await new Promise(resolve => setImmediate(resolve));
+			assert.strictEqual(receipts.length, 1);
+			const restored = receipts[0].result;
+
+			assert.deepStrictEqual({
+				materializedBeforeReplacement,
+				rematerializationReceipts: receipts.length,
+				resume: { method: resume.method, threadId: resume.params.threadId },
+				start: { method: start.method, cwd: start.params.cwd },
+				read: { method: read.method, threadId: read.params.threadId },
+				providerData: restored?.providerData ? JSON.parse(restored.providerData) : undefined,
+				backingSession: restored?.backingSession?.toString(),
+				boundRuntime: agent['_sessionIdByChatUri'].get(chat.toString()),
+				restoredThreadId: agent['_sessions'].get(AgentSession.id(runtime))?.threadId,
+				persistedThreadId: await database.getMetadata('codex.threadId'),
+				turns,
+			}, {
+				materializedBeforeReplacement: true,
+				rematerializationReceipts: 1,
+				resume: { method: 'thread/resume', threadId: 'missing-rollout-thread' },
+				start: { method: 'thread/start', cwd: folder.fsPath },
+				read: { method: 'thread/read', threadId: 'replacement-thread' },
+				providerData: { sessionId: AgentSession.id(runtime), model: { id: COPILOT_TEST_MODEL } },
+				backingSession: AgentSession.uri('codex', 'replacement-thread').toString(),
+				boundRuntime: AgentSession.id(runtime),
+				restoredThreadId: 'replacement-thread',
+				persistedThreadId: 'replacement-thread',
+				turns: [],
+			});
+		} finally {
+			listener.dispose();
+			peer.dispose();
+		}
+	});
+
 	test('persists the app-server turn id for restored turn metadata', async () => {
 		const sessionStore = createTestSessionStore();
 		const session = AgentSession.uri('codex', 'turn-id-mapping');
@@ -2652,10 +2720,33 @@ suite('CodexAgent chat backing durability', () => {
 			assert.strictEqual(secondPeer.outbound.readableLength, 0);
 			await second.materializeChat(chat, { configurationResource: session, resource: chat }, receipt.result?.providerData);
 
+			// Ambient discovery can finish after the registered session restore and
+			// describe the same Codex thread through its native session id. It must
+			// not steal notification routing from the materialized host chat.
+			const externalSession = AgentSession.uri('codex', 'codex-thread');
+			const externalChat = URI.parse(buildDefaultChatUri(externalSession));
+			const discovering = second.getChatMetadata(externalChat, { configurationResource: externalSession, resource: externalChat });
+			const discoveryRead = await readNextRequest(secondPeer.outbound);
+			secondPeer.push({ id: discoveryRead.id, result: { thread: { id: 'codex-thread', cwd: folder.fsPath, modelProvider: 'vscode-proxy', turns: [] } } });
+			await discovering;
+
+			// Cleaning up the unbound ambient entry must leave the route owned by
+			// the materialized host chat intact. Exercise the same in-memory teardown
+			// used by chat release, then dispatch a synthetic thread notification
+			// through the production routing seam.
+			const ambient = second['_sessions'].get('codex-thread')!;
+			const cleaningAmbient = second['_teardownSessionInMemory'](ambient, ambient.sessionId, false);
+			const ambientUnsubscribe = await readNextRequest(secondPeer.outbound);
+			secondPeer.push({ id: ambientUnsubscribe.id, result: {} });
+			await cleaningAmbient;
+			let notificationSession: string | undefined;
+			second['_dispatchByThread']('codex-thread', routed => {
+				notificationSession = routed.sessionId;
+				return [];
+			});
+
 			// Drive a turn on the restored chat and fail it at `turn/start`, so
-			// the runtime has to route a chat action back to the chat it is
-			// bound to. A runtime restored under an id nothing addresses it by
-			// cannot find its own binding and drops the turn instead.
+			// the runtime also has to route the resulting actions to its bound chat.
 			const resending = second.chats.sendMessage(chat, 'again', [folder], undefined, 'turn-2', undefined, undefined, { configurationResource: session, resource: chat });
 			const unsubscribe = await readNextRequest(secondPeer.outbound);
 			secondPeer.push({ id: unsubscribe.id, result: {} });
@@ -2674,6 +2765,11 @@ suite('CodexAgent chat backing durability', () => {
 				restoredThreadId: restored?.threadId,
 				restoredSessionUri: restored?.sessionUri.toString(),
 				restoredChatChannel: restored?.chatChannel?.toString(),
+				hasAmbientRuntime: second['_sessions'].has('codex-thread'),
+				ambientUnsubscribe: { method: ambientUnsubscribe.method, threadId: ambientUnsubscribe.params.threadId },
+				notificationSession,
+				routedSession: second['_sessionIdByThreadId'].get('codex-thread'),
+				discovery: { method: discoveryRead.method, threadId: discoveryRead.params.threadId },
 				unsubscribe: { method: unsubscribe.method, threadId: unsubscribe.params.threadId },
 				resume: { method: resume.method, threadId: resume.params.threadId },
 				turnActions: signals.flatMap(signal => signal.kind === 'action'
@@ -2688,6 +2784,11 @@ suite('CodexAgent chat backing durability', () => {
 				restoredThreadId: 'codex-thread',
 				restoredSessionUri: session.toString(),
 				restoredChatChannel: chat.toString(),
+				hasAmbientRuntime: false,
+				ambientUnsubscribe: { method: 'thread/unsubscribe', threadId: 'codex-thread' },
+				notificationSession: 'host-session',
+				routedSession: 'host-session',
+				discovery: { method: 'thread/read', threadId: 'codex-thread' },
 				unsubscribe: { method: 'thread/unsubscribe', threadId: 'codex-thread' },
 				resume: { method: 'thread/resume', threadId: 'codex-thread' },
 				turnActions: [

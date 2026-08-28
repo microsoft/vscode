@@ -65,6 +65,7 @@ import { ISessionGroup, ISessionGroupsService } from '../../../../services/sessi
 import { ISessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
+import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 // =============================================================================
 // TEMPORARY (tracked by https://github.com/microsoft/vscode/issues/320480)
 // -----------------------------------------------------------------------------
@@ -751,6 +752,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 		private readonly openerService: IOpenerService,
 		private readonly labelService: ILabelService,
+		private readonly preferencesService: IPreferencesService,
 		// TEMPORARY — see the note on the `IAgentSessionsService` import above (#320480).
 		private readonly agentSessionsService: IAgentSessionsService,
 		private readonly _voicePlaybackService: IVoicePlaybackService,
@@ -889,7 +891,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		if (this.options.showHover) {
 			// Rich hover on the row: the same widget session pills use in chat output.
 			template.elementDisposables.add(this.hoverService.setupDelayedHover(template.container, () => ({
-				content: new SessionSummaryHoverWidget(getSessionSummaryHoverData(element, this.sessionsProvidersService, this.openerService, this.labelService, this.getCreatorHoverData(element))).domNode,
+				content: new SessionSummaryHoverWidget(getSessionSummaryHoverData(element, this.sessionsProvidersService, this.openerService, this.labelService, this.preferencesService, this.getCreatorHoverData(element))).domNode,
 				appearance: { showPointer: true },
 				position: { hoverPosition: HoverPosition.RIGHT, forcePosition: true },
 				persistence: { hideOnHover: false },
@@ -2396,6 +2398,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@ILabelService private readonly labelService: ILabelService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
 	) {
 		super();
 
@@ -2479,6 +2482,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.agentHostConnectionsService,
 			this.openerService,
 			this.labelService,
+			this.preferencesService,
 			agentSessionsService,
 			voicePlaybackService,
 		);
@@ -2927,11 +2931,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 	update(expandAll?: boolean): void {
 		const activeSession = this._sessionsService.activeSession.get();
 
-		// Filter by session type and status
+		// Scope to the selected host's providers; an empty set (a declared
+		// group with no members yet) matches nothing rather than everything.
 		let filtered = this.sessions.filter(session => !isAutomationSession(session));
-		const hostFilter = this._agentHostFilterService.selectedProviderId;
-		if (hostFilter !== undefined) {
-			filtered = filtered.filter(s => s.providerId === hostFilter);
+		const scopedProviderIds = this._agentHostFilterService.selectedHost?.providerIds;
+		if (scopedProviderIds) {
+			const scoped = new Set(scopedProviderIds);
+			filtered = filtered.filter(s => scoped.has(s.providerId));
 		}
 		if (this.excludedSessionTypes.size > 0) {
 			filtered = filtered.filter(s => !this.excludedSessionTypes.has(s.sessionType));
@@ -3371,6 +3377,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	hasFocusOrSelection(): boolean {
 		return this.tree.getFocus().length > 0 || this.tree.getSelection().length > 0;
+	}
+
+	/** Returns the focused selection while this list owns DOM focus, or `undefined` otherwise. */
+	getFocusedSessions(): readonly ISession[] | undefined {
+		if (!DOM.isAncestorOfActiveElement(this.listContainer)) {
+			return undefined;
+		}
+
+		const focusedSession = this.tree.getFocus().find((item): item is ISession => !!item && isSessionItem(item));
+		return focusedSession ? this.getMultiSelectedSessions(focusedSession) : [];
 	}
 
 	setVisible(visible: boolean): void {
@@ -4466,6 +4482,7 @@ export class SessionsFlatList extends Disposable {
 		@IAgentHostConnectionsService agentHostConnectionsService: IAgentHostConnectionsService,
 		@IOpenerService openerService: IOpenerService,
 		@ILabelService labelService: ILabelService,
+		@IPreferencesService preferencesService: IPreferencesService,
 	) {
 		super();
 
@@ -4507,6 +4524,7 @@ export class SessionsFlatList extends Disposable {
 			agentHostConnectionsService,
 			openerService,
 			labelService,
+			preferencesService,
 			agentSessionsService,
 			voicePlaybackService,
 		);
