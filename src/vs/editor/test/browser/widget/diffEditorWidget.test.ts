@@ -62,5 +62,29 @@ suite('DiffEditorWidget2', () => {
 				3,
 			)), (['[1,96) - [1,96)']));
 		});
+
+		test('Preserves visible state when line range shrinks', () => {
+			const regions = [
+				new UnchangedRegion(1, 1, 10, 3, 5).withUpdatedLineRange(2, 3, 6, undefined),
+				new UnchangedRegion(1, 1, 10, 8, 2).withUpdatedLineRange(2, 3, 5, undefined),
+			];
+
+			assert.deepStrictEqual(regions.map(region => ({
+				originalRange: region.originalUnchangedRange.toString(),
+				modifiedRange: region.modifiedUnchangedRange.toString(),
+				visibleLineCountTop: region.visibleLineCountTop.get(),
+				visibleLineCountBottom: region.visibleLineCountBottom.get(),
+			})), [{
+				originalRange: '[2,8)',
+				modifiedRange: '[3,9)',
+				visibleLineCountTop: 3,
+				visibleLineCountBottom: 3,
+			}, {
+				originalRange: '[2,7)',
+				modifiedRange: '[3,8)',
+				visibleLineCountTop: 5,
+				visibleLineCountBottom: 0,
+			}]);
+		});
 	});
 });
