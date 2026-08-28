@@ -91,7 +91,7 @@ export function formatBranchChangesetDescription(gitState: ISessionGitState): st
 	const { baseBranchName, branchName, upstreamBranchName } = gitState;
 
 	// Use branch name
-	if (baseBranchName && branchName) {
+	if (baseBranchName && branchName && baseBranchName !== branchName) {
 		return `${branchName} → ${baseBranchName}`;
 	}
 
