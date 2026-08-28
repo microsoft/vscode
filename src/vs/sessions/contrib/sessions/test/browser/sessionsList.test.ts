@@ -2038,8 +2038,8 @@ suite('Sessions - SessionsList', () => {
 
 			const row = targetRow();
 			assert.ok(row, 'target row should render after growing the viewport');
-			// Base chat rows are 28px; a reconciled approval must reserve more.
-			assert.ok(parseInt(row.style.height) > 28, `expected reconciled height to reserve the approval row, got ${row.style.height}`);
+			// Base chat rows reserve 30px including spacing; an approval must reserve more.
+			assert.ok(parseInt(row.style.height) > 30, `expected reconciled height to reserve the approval row, got ${row.style.height}`);
 			assert.ok(row.querySelector('.session-approval-row.visible'), 'approval row should be visible on the re-rendered target');
 		});
 	});
