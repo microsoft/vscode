@@ -70,13 +70,18 @@ export class CustomizationMigrationService implements ICustomizationMigrationSer
 	}
 
 	async computeMigrationHint(sessionResource: URI): Promise<string | undefined> {
+		const harness = this.customizationHarnessService.findHarnessById(getChatSessionType(sessionResource));
+		if (!harness) {
+			return undefined;
+		}
+
 		const migrations = await this.computeMigrations(sessionResource);
 		const fileCount = migrations.reduce((total, migration) => total + migration.files.length, 0);
 		if (fileCount === 0) {
 			return undefined;
 		}
 		return fileCount === 1
-			? localize('customizationMigrationHintSingle', "Found 1 customization file that is present but not used by Copilot and could be migrated.")
-			: localize('customizationMigrationHintMultiple', "Found {0} customization files that are present but not used by Copilot and could be migrated.", fileCount);
+			? localize('customizationMigrationHintSingle', "Found 1 customization file that is present but not used by {0} and could be migrated.", harness.label)
+			: localize('customizationMigrationHintMultiple', "Found {0} customization files that are present but not used by {1} and could be migrated.", fileCount, harness.label);
 	}
 }

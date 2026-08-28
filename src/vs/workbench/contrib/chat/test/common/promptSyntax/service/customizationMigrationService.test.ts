@@ -32,13 +32,20 @@ class TestPromptsService extends MockPromptsService {
 class TestCustomizationHarnessService extends mock<ICustomizationHarnessService>() {
 	readonly requestedSourceFolderTypes: PromptsType[] = [];
 
+	constructor(
+		private readonly sessionType = SessionType.AgentHostCopilot,
+		private readonly harnessLabel = 'Copilot',
+	) {
+		super();
+	}
+
 	override findHarnessById(sessionType: string): IHarnessDescriptor | undefined {
-		if (sessionType !== SessionType.AgentHostCopilot) {
+		if (sessionType !== this.sessionType) {
 			return undefined;
 		}
 		return {
 			id: sessionType,
-			label: 'Copilot',
+			label: this.harnessLabel,
 			icon: Codicon.copilot,
 			itemProvider: {
 				onDidChange: Event.None,
@@ -133,5 +140,17 @@ suite('CustomizationMigrationService', () => {
 				PromptsType.instructions, PromptsType.skill, PromptsType.skill,
 			],
 		});
+	});
+
+	test('uses the session harness label in migration hints', async () => {
+		const promptsService = store.add(new TestPromptsService([
+			{ uri: URI.file('/workspace/.github/prompts/review.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt, source: PromptFileSource.GitHubWorkspace },
+		]));
+		const harnessService = new TestCustomizationHarnessService(SessionType.AgentHostClaude, 'Claude');
+		const service = new CustomizationMigrationService(promptsService, harnessService);
+
+		const hint = await service.computeMigrationHint(URI.from({ scheme: SessionType.AgentHostClaude, path: '/session' }));
+
+		assert.strictEqual(hint, 'Found 1 customization file that is present but not used by Claude and could be migrated.');
 	});
 });
