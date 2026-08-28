@@ -37,6 +37,7 @@ import type * as http from 'http';
 import type * as https from 'https';
 import { createRequire } from 'module';
 import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
 import { basename, dirname } from '../../../../../../base/common/path.js';
 import { isWindows } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -67,6 +68,8 @@ const COPIED_PLUGIN_DIR_PLACEHOLDER = '${plugin_copy}';
 const COPIED_PLUGIN_DIR_RE = /\$\{homedir\}(?:\/|\\\\)user-data(?:\/|\\\\)agentPlugins(?:\/|\\\\)[^\/\\"]+/g;
 const TEMP_DIR_SUFFIX_PLACEHOLDER = '${temp}';
 const TEMP_DIR_SUFFIX_RE = /(\$\{workdir\}(?:\/|\\\\)(?:ahp-(?:snapshot|perm-test|plan-test|abort|test|wt-test|subagent-test|subagent-replay|attachment-test|cd-strip-test|coverage-[a-z-]+)-|copilot-(?:cost-report|text-blob)-|read-sdk-simple))[A-Za-z0-9]{6}/g;
+const TEMP_WORKSPACE_COMPONENT_PATTERN = '(?:ahp-|copilot-|read-sdk-simple)[A-Za-z0-9._-]*';
+const PATH_SEPARATOR_PATTERN = '(?:\\\\\\\\|\\\\|/)';
 const UUID_PLACEHOLDER_RE = /\$\{uuid_\d+\}/g;
 const UUID_PATTERN = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 const FILE_LISTING_DATE_RE = /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s+(?:\d{2}:\d{2}|\d{4})\b/g;
@@ -938,17 +941,20 @@ export class CapiReplayProxy {
 				// The recording work directory can disappear during teardown.
 			}
 			for (const workDir of [...workDirs].sort((a, b) => b.length - a.length)) {
-				result = replacePath(result, workDir, WORKDIR_PLACEHOLDER);
-				if (this._options.userName) {
-					result = replacePath(result, scrubUserName(workDir, this._options.userName), WORKDIR_PLACEHOLDER);
-				}
+				result = replacePath(result, workDir, WORKDIR_PLACEHOLDER, this._options.userName);
 			}
 		}
+		const tempDirectories = new Set([tmpdir()]);
+		try {
+			tempDirectories.add(realpathSync.native(tmpdir()));
+		} catch {
+			// The platform temp directory can disappear during teardown.
+		}
+		for (const tempDirectory of [...tempDirectories].sort((a, b) => b.length - a.length)) {
+			result = replaceTemporaryWorkspacePaths(result, tempDirectory, WORKDIR_PLACEHOLDER, this._options.userName);
+		}
 		if (this._options.homeDir) {
-			result = replacePath(result, this._options.homeDir, HOMEDIR_PLACEHOLDER);
-			if (this._options.userName) {
-				result = replacePath(result, scrubUserName(this._options.homeDir, this._options.userName), HOMEDIR_PLACEHOLDER);
-			}
+			result = replacePath(result, this._options.homeDir, HOMEDIR_PLACEHOLDER, this._options.userName);
 		}
 		if (this._options.userName) {
 			result = scrubUserName(result, this._options.userName);
@@ -1098,7 +1104,7 @@ function replaceAll(text: string, search: string, replacement: string): string {
 	return text.split(search).join(replacement);
 }
 
-function replacePath(text: string, search: string, replacement: string): string {
+function pathVariants(search: string, replacement: string, userName: string | undefined): ReadonlyMap<string, string> {
 	const variants = new Map<string, string>([
 		[search, replacement],
 		[escapeJsonString(search), replacement],
@@ -1116,10 +1122,30 @@ function replacePath(text: string, search: string, replacement: string): string 
 		variants.set(backslashPath, replacement);
 		variants.set(escapeJsonString(backslashPath), replacement);
 	}
+	if (userName) {
+		for (const [variant, variantReplacement] of [...variants]) {
+			variants.set(scrubUserName(variant, userName), variantReplacement);
+		}
+	}
+	return variants;
+}
+
+function replacePath(text: string, search: string, replacement: string, userName?: string): string {
+	const variants = pathVariants(search, replacement, userName);
 	for (const [variant, variantReplacement] of [...variants].sort(([a], [b]) => b.length - a.length)) {
 		text = isWindows
 			? text.replace(new RegExp(escapeRegExpCharacters(variant), 'gi'), variantReplacement)
 			: replaceAll(text, variant, variantReplacement);
+	}
+	return text;
+}
+
+/** Normalize harness temp workspaces even when a session title contains only a truncated path. */
+function replaceTemporaryWorkspacePaths(text: string, tempDirectory: string, replacement: string, userName?: string): string {
+	const variants = pathVariants(tempDirectory, replacement, userName);
+	for (const [variant, variantReplacement] of [...variants].sort(([a], [b]) => b.length - a.length)) {
+		const pattern = `${escapeRegExpCharacters(variant)}${PATH_SEPARATOR_PATTERN}${TEMP_WORKSPACE_COMPONENT_PATTERN}`;
+		text = text.replace(new RegExp(pattern, isWindows ? 'gi' : 'g'), variantReplacement);
 	}
 	return text;
 }

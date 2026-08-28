@@ -40,7 +40,7 @@ exchanges:
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: '{"sessions":[{"session":"claude:/${uuid_0}","title":"Call list_sessions exactly once with workspace \"C:\\Users\\${user}\\AppData\\Local\\Temp\\ahp-server-tools-sessions-hide-archived-OYIjmm\", then reply exactly \"listed\".","status":"inProgress","workingDirectory":"file://${workdir}","unread":true,"createdAt":"2026-08-28T00:09:38.610Z","modifiedAt":"2026-08-28T00:09:34.546Z","changesets":[{"label":"All Changes","changeKind":"session","uriTemplate":"claude:/${uuid_0}/changeset/session","description":"Show all changes made in this session"},{"label":"This Turn","changeKind":"turn","uriTemplate":"claude:/${uuid_0}/changeset/turn/{turnId}","description":"Show changes made in this turn"}]}]}'
+              content: '{"sessions":[{"session":"claude:/${uuid_0}","openLink":"agent-host-session://claude/${uuid_0}","title":"Call list_sessions exactly once with workspace \"${workdir}\", then reply exactly \"listed\".","status":"inProgress","workingDirectory":"file://${workdir}","unread":true,"createdAt":"2026-08-28T14:54:54.456Z","modifiedAt":"2026-08-28T14:54:50.367Z","changesets":[{"label":"All Changes","changeKind":"session","uriTemplate":"claude:/${uuid_0}/changeset/session","description":"Show all changes made in this session"},{"label":"This Turn","changeKind":"turn","uriTemplate":"claude:/${uuid_0}/changeset/turn/{turnId}","description":"Show changes made in this turn"}]}]}'
     response:
       content: listed
       stopReason: end_turn
