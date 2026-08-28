@@ -2123,7 +2123,6 @@ suite('ChatService', () => {
 		const sessionResource = URI.from({ scheme: sessionType, path: '/session' });
 		const migrationService = mockObject<ICustomizationMigrationService>()({ _serviceBrand: undefined });
 		migrationService.computeMigrationHint.resolves('Found 3 customization files that could be migrated.');
-		instantiationService.stub(ICustomizationMigrationService, migrationService);
 
 		const mockSessionsService = new MockChatSessionsService();
 		mockSessionsService.setContributions([{
@@ -2145,6 +2144,9 @@ suite('ChatService', () => {
 		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, { async invoke() { return {}; } }));
 
 		const testService = createChatService();
+		testDisposables.add(testService.registerCustomizationMigrationHintProvider(
+			sessionResource => migrationService.computeMigrationHint(sessionResource)
+		));
 		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
 		assert.ok(ref);
 		testDisposables.add(ref);
@@ -2224,7 +2226,6 @@ suite('ChatService', () => {
 		const sessionResource = URI.from({ scheme: sessionType, path: '/restored-session' });
 		const migrationService = mockObject<ICustomizationMigrationService>()({ _serviceBrand: undefined });
 		migrationService.computeMigrationHint.resolves('Found customization files that could be migrated.');
-		instantiationService.stub(ICustomizationMigrationService, migrationService);
 
 		const mockSessionsService = new MockChatSessionsService();
 		mockSessionsService.setContributions([{
@@ -2248,6 +2249,9 @@ suite('ChatService', () => {
 		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 		await configurationService.setUserConfiguration(ChatConfiguration.ChatCustomizationsMigrationHint, CustomizationMigrationHintMode.Once);
 		const testService = createChatService();
+		testDisposables.add(testService.registerCustomizationMigrationHintProvider(
+			sessionResource => migrationService.computeMigrationHint(sessionResource)
+		));
 		const firstRef = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
 		assert.ok(firstRef);
 		const firstResponse = await testService.sendRequest(sessionResource, 'first', { agentId: sessionType });
@@ -2275,8 +2279,10 @@ suite('ChatService', () => {
 
 	test('customization migration hint is not computed for local sessions', async () => {
 		const migrationService = mockObject<ICustomizationMigrationService>()({ _serviceBrand: undefined });
-		instantiationService.stub(ICustomizationMigrationService, migrationService);
 		const testService = createChatService();
+		testDisposables.add(testService.registerCustomizationMigrationHintProvider(
+			sessionResource => migrationService.computeMigrationHint(sessionResource)
+		));
 		const model = startSessionModel(testService).object;
 		const response = await testService.sendRequest(model.sessionResource, 'test');
 		ChatSendResult.assertSent(response);
@@ -2293,7 +2299,6 @@ suite('ChatService', () => {
 		const sessionType = 'extension-host-harness';
 		const sessionResource = URI.from({ scheme: sessionType, path: '/session' });
 		const migrationService = mockObject<ICustomizationMigrationService>()({ _serviceBrand: undefined });
-		instantiationService.stub(ICustomizationMigrationService, migrationService);
 
 		const mockSessionsService = new MockChatSessionsService();
 		mockSessionsService.setContributions([{
@@ -2315,6 +2320,9 @@ suite('ChatService', () => {
 		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, { async invoke() { return {}; } }));
 
 		const testService = createChatService();
+		testDisposables.add(testService.registerCustomizationMigrationHintProvider(
+			sessionResource => migrationService.computeMigrationHint(sessionResource)
+		));
 		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
 		assert.ok(ref);
 		testDisposables.add(ref);
