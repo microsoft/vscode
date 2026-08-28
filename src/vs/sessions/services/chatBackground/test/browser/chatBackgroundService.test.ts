@@ -282,7 +282,7 @@ suite('Sessions Chat Background Service', () => {
 
 		assert.deepStrictEqual(configurationService.updates, [{
 			key: AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING,
-			value: image.toString(),
+			value: image.fsPath,
 			target: ConfigurationTarget.USER,
 		}, {
 			key: AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING,
@@ -294,7 +294,7 @@ suite('Sessions Chat Background Service', () => {
 			target: ConfigurationTarget.USER,
 		}, {
 			key: AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING,
-			value: image.toString(),
+			value: image.fsPath,
 			target: ConfigurationTarget.USER,
 		}, {
 			key: AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING,

@@ -1889,6 +1889,9 @@ class NewSession extends Disposable {
 	private readonly _changesets = observableValue<readonly ISessionChangeset[] | undefined>(this, undefined);
 	private readonly _worktreePending = observableValue<boolean>(this, false);
 	private readonly _description: ISettableObservable<IMarkdownString | undefined>;
+	private readonly _isNewSessionRequestInProgress = observableValue(this, false);
+	private readonly _newSessionRequestActivities = new Map<number, string | undefined>();
+	private _newSessionRequestId = 0;
 	private readonly _isActiveSessionObs: IObservable<boolean>;
 	private readonly _loading: ISettableObservable<boolean>;
 	private readonly _mainChat: ISettableObservable<IChat>;
@@ -2047,6 +2050,7 @@ class NewSession extends Disposable {
 			modelId: this._modelId,
 			mode,
 			loading: derived(reader => loading.read(reader) || authPending.read(reader)),
+			isNewSessionRequestInProgress: this._isNewSessionRequestInProgress,
 			isArchived,
 			isRead,
 			description: this._description,
@@ -2097,8 +2101,23 @@ class NewSession extends Disposable {
 	}
 
 	setStatus(status: SessionStatus): void { this._status.set(status, undefined); }
-	setActivity(activity: string | undefined): void {
-		this._description.set(activity ? new MarkdownString().appendText(activity) : undefined, undefined);
+	startRequest(activity: string | undefined): IDisposable {
+		const requestId = this._newSessionRequestId++;
+		this._newSessionRequestActivities.set(requestId, activity);
+		transaction(tx => {
+			this._isNewSessionRequestInProgress.set(true, tx);
+			this._description.set(activity ? new MarkdownString().appendText(activity) : undefined, tx);
+		});
+		return toDisposable(() => {
+			if (!this._newSessionRequestActivities.delete(requestId)) {
+				return;
+			}
+			const latestActivity = Array.from(this._newSessionRequestActivities.values()).at(-1);
+			transaction(tx => {
+				this._isNewSessionRequestInProgress.set(this._newSessionRequestActivities.size > 0, tx);
+				this._description.set(latestActivity ? new MarkdownString().appendText(latestActivity) : undefined, tx);
+			});
+		});
 	}
 	setLoading(loading: boolean): void { this._loading.set(loading, undefined); }
 	setTitle(title: string): void { this._title.set(title, undefined); }
@@ -2688,6 +2707,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * refcount to the agent host.
 	 */
 	private readonly _sessionStateIdleTimers = this._register(new DisposableMap<string, IDisposable>());
+	private readonly _chatModelRetentionLeases = this._register(new DisposableMap<string, IDisposable>());
 
 	/**
 	 * Session ids whose views are currently visible in the Agents window. Their
@@ -3169,9 +3189,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!newSession) {
 			throw new Error('Cannot start a session that is no longer pending.');
 		}
-		newSession.setStatus(SessionStatus.InProgress);
-		newSession.setActivity(activity);
-		return toDisposable(() => newSession.setActivity(undefined));
+		return newSession.startRequest(activity);
 	}
 
 	createQuickChat(sessionTypeId: string): ISession {
@@ -4344,8 +4362,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		cached.setChatModelId(chat.resource, selectedModelId, ChatModelSource.CarriedOver);
 		cached.setChatAgent(chat.resource, selectedAgentUri ? { uri: selectedAgentUri, name: '' } : undefined);
 
-		await this._chatSessionsService.getOrCreateChatSession(chat.resource, CancellationToken.None);
-		await this._updateChatSessionState(chat.resource, selectedModelId, selectedAgentUri);
+		await this._retainChatSessionModel(chat.resource, selectedModelId, selectedAgentUri);
 		return chat;
 	}
 
@@ -4394,8 +4411,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		cached.setChatModelId(chat.resource, selectedModelId, ChatModelSource.CarriedOver);
 		cached.setChatAgent(chat.resource, selectedAgentUri ? { uri: selectedAgentUri, name: '' } : undefined);
 
-		await this._chatSessionsService.getOrCreateChatSession(chat.resource, CancellationToken.None);
-		await this._updateChatSessionState(chat.resource, selectedModelId, selectedAgentUri);
+		await this._retainChatSessionModel(chat.resource, selectedModelId, selectedAgentUri);
 		return chat;
 	}
 
@@ -4446,8 +4462,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		cached.setChatModelId(chat.resource, selectedModelId, ChatModelSource.CarriedOver);
 		cached.setChatAgent(chat.resource, selectedAgentUri ? { uri: selectedAgentUri, name: '' } : undefined);
 
-		await this._chatSessionsService.getOrCreateChatSession(chat.resource, CancellationToken.None);
-		await this._updateChatSessionState(chat.resource, selectedModelId, selectedAgentUri);
+		await this._retainChatSessionModel(chat.resource, selectedModelId, selectedAgentUri);
 		return chat;
 	}
 
@@ -4546,6 +4561,20 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
+	private async _retainChatSessionModel(chatResource: URI, modelId: string | undefined, agentUri: string | undefined): Promise<void> {
+		const modelRef = await this._chatService.acquireOrLoadSession(chatResource, ChatAgentLocation.Chat, CancellationToken.None);
+		if (!modelRef) {
+			return;
+		}
+
+		this._applyChatSessionState(modelRef, modelId, agentUri);
+		const resourceKey = chatResource.toString();
+		const lease = new DisposableStore();
+		lease.add(modelRef);
+		lease.add(disposableTimeout(() => this._chatModelRetentionLeases.deleteAndDispose(resourceKey), BaseAgentHostSessionsProvider.CHAT_MODEL_RETENTION_MS));
+		this._chatModelRetentionLeases.set(resourceKey, lease);
+	}
+
 	private _applyChatSessionState(modelRef: IChatModelReference, modelId: string | undefined, agentUri: string | undefined, options?: { readonly clearDraft?: boolean }): void {
 		const inputModel = modelRef.object.inputModel;
 		if (!inputModel) {
@@ -4576,7 +4605,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw new Error(this._notConnectedSendErrorMessage());
 		}
 
-		newSession.setStatus(SessionStatus.InProgress);
 		const selectedModelId = this._resolveSendModelId(chatId, newSession.getSelectedModelId());
 		const selectedAgent = newSession.getSelectedAgent();
 
@@ -4789,6 +4817,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * so, allowing the agent host to evict their cached restored state.
 	 */
 	private static readonly SESSION_STATE_SUBSCRIPTION_IDLE_MS = 30_000;
+	private static readonly CHAT_MODEL_RETENTION_MS = 10_000;
 
 	/**
 	 * Pin the state subscription of every currently-visible session (so
