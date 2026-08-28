@@ -38,9 +38,14 @@ interface IStoredManualRunRequest {
 	readonly run: string;
 }
 
+interface IStoredAutomationCatalog {
+	readonly automations: readonly AutomationEntry[];
+	readonly _meta?: Record<string, unknown>;
+}
+
 interface IStoredAutomations {
-	readonly version: 2;
-	readonly catalog: AutomationState;
+	readonly version?: 1;
+	readonly catalog: IStoredAutomationCatalog;
 	readonly runs?: readonly AutomationRunState[];
 	readonly manualRunRequests?: readonly IStoredManualRunRequest[];
 	readonly migration?: {
@@ -102,9 +107,13 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		this._migrationCompletedAt = stored?.migration?.completedAt;
 		this._runs = new Map(stored?.runs?.map(run => [run.resource, run]));
 		this._catalog = stored?.catalog ? {
-			...stored.catalog,
-			entries: stored.catalog.entries.map(automation => withRunWindow(automation, this._runs, RUN_HISTORY_PAGE_SIZE)),
-			...(this._migrationCompletedAt ? { _meta: { ...stored.catalog._meta, [AGENT_HOST_AUTOMATION_CATALOG_MIGRATED_META_KEY]: true } } : {}),
+			entries: stored.catalog.automations.map(automation => withRunWindow(automation, this._runs, RUN_HISTORY_PAGE_SIZE)),
+			...(stored.catalog._meta || this._migrationCompletedAt ? {
+				_meta: {
+					...stored.catalog._meta,
+					...(this._migrationCompletedAt ? { [AGENT_HOST_AUTOMATION_CATALOG_MIGRATED_META_KEY]: true } : {}),
+				},
+			} : {}),
 		} : undefined;
 		this._manualRunRequests = new Map(stored?.manualRunRequests?.map(request => [request.requestId, request]));
 		if (this._catalog) {
@@ -412,16 +421,15 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			this._logService.error('[AgentHostAutomationService] Agent Host storage failed to load; automation state and execution remain unavailable.');
 			return undefined;
 		}
-		const stored = this._storageService.get<unknown>(STORAGE_KEY);
+		const stored = this._storageService.get<IStoredAutomations>(STORAGE_KEY);
 		if (stored === undefined) {
-			return { version: 2, catalog: { entries: [] } };
+			return { catalog: { automations: [] } };
 		}
-		const normalized = normalizeStoredAutomations(stored);
-		if (!normalized) {
+		if (!isStoredAutomations(stored)) {
 			this._logService.error('[AgentHostAutomationService] Automation storage is invalid; automation execution remains unavailable until it is recovered.');
 			return undefined;
 		}
-		return normalized;
+		return stored;
 	}
 
 	private async _persist(
@@ -431,8 +439,11 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		migrationCompletedAt = this._migrationCompletedAt,
 	): Promise<void> {
 		await this._storageService.setAndFlush<IStoredAutomations>(STORAGE_KEY, {
-			version: 2,
-			catalog,
+			version: 1,
+			catalog: {
+				automations: catalog.entries,
+				...(catalog._meta ? { _meta: catalog._meta } : {}),
+			},
 			runs: [...runs.values()],
 			manualRunRequests: [...manualRunRequests.values()],
 			...(migrationCompletedAt ? { migration: { status: 'complete', completedAt: migrationCompletedAt } } : {}),
@@ -937,62 +948,28 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	private readonly _log = (message: string) => this._logService.warn(`[AgentHostAutomationService] ${message}`);
 }
 
-function isAutomationState(value: unknown): value is AutomationState {
+function isStoredAutomationCatalog(value: unknown): value is IStoredAutomationCatalog {
 	if (!value || typeof value !== 'object' || Array.isArray(value)) {
 		return false;
-	}
-	const entries = (value as Record<string, unknown>)['entries'];
-	return Array.isArray(entries) && entries.every(isAutomationEntry);
-}
-
-function normalizeStoredAutomations(value: unknown): IStoredAutomations | undefined {
-	if (!value || typeof value !== 'object' || Array.isArray(value)) {
-		return undefined;
-	}
-	const stored = value as Record<string, unknown>;
-	const version = stored['version'];
-	const catalog = version === 2
-		? isAutomationState(stored['catalog']) ? stored['catalog'] : undefined
-		: version === undefined || version === 1
-			? normalizeLegacyAutomationState(stored['catalog'])
-			: undefined;
-	const runs = stored['runs'];
-	const manualRunRequests = stored['manualRunRequests'];
-	const migration = stored['migration'];
-	if (!catalog
-		|| runs !== undefined && (!Array.isArray(runs) || !runs.every(isAutomationRunState))
-		|| manualRunRequests !== undefined && (!Array.isArray(manualRunRequests) || !manualRunRequests.every(isStoredManualRunRequest))
-		|| migration !== undefined && !isCompletedMigration(migration)) {
-		return undefined;
-	}
-	return {
-		version: 2,
-		catalog,
-		...(runs !== undefined ? { runs } : {}),
-		...(manualRunRequests !== undefined ? { manualRunRequests } : {}),
-		...(migration !== undefined ? { migration } : {}),
-	};
-}
-
-function normalizeLegacyAutomationState(value: unknown): AutomationState | undefined {
-	if (isAutomationState(value)) {
-		return value;
-	}
-	if (!value || typeof value !== 'object' || Array.isArray(value)) {
-		return undefined;
 	}
 	const catalog = value as Record<string, unknown>;
 	const automations = catalog['automations'];
 	const meta = catalog['_meta'];
-	if (!Array.isArray(automations)
-		|| !automations.every(isAutomationEntry)
-		|| meta !== undefined && (!meta || typeof meta !== 'object' || Array.isArray(meta))) {
-		return undefined;
+	return Array.isArray(automations)
+		&& automations.every(isAutomationEntry)
+		&& (meta === undefined || !!meta && typeof meta === 'object' && !Array.isArray(meta));
+}
+
+function isStoredAutomations(value: unknown): value is IStoredAutomations {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return false;
 	}
-	return {
-		entries: automations,
-		...(meta !== undefined ? { _meta: meta as Record<string, unknown> } : {}),
-	};
+	const stored = value as Record<string, unknown>;
+	return (stored['version'] === undefined || stored['version'] === 1)
+		&& isStoredAutomationCatalog(stored['catalog'])
+		&& (stored['runs'] === undefined || Array.isArray(stored['runs']) && stored['runs'].every(isAutomationRunState))
+		&& (stored['manualRunRequests'] === undefined || Array.isArray(stored['manualRunRequests']) && stored['manualRunRequests'].every(isStoredManualRunRequest))
+		&& (stored['migration'] === undefined || isCompletedMigration(stored['migration']));
 }
 
 function isAutomationEntry(value: unknown): value is AutomationEntry {

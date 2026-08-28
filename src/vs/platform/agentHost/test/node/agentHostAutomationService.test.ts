@@ -113,8 +113,8 @@ suite('AgentHostAutomationService', () => {
 
 	test('a future host automation storage version disables the capability without rewriting data', async () => {
 		storageService.set('automations', {
-			version: 3,
-			catalog: { entries: [] },
+			version: 2,
+			catalog: { automations: [] },
 		});
 		await storageService.whenIdle();
 		const service = createService();
@@ -127,11 +127,11 @@ suite('AgentHostAutomationService', () => {
 		}, {
 			isAvailable: false,
 			capabilities: undefined,
-			storedVersion: 3,
+			storedVersion: 2,
 		});
 	});
 
-	test('version 1 automation storage is migrated from automations to entries', async () => {
+	test('version 1 automation storage maps automations to protocol entries', async () => {
 		const resource = 'ahp-automation:/review-changes';
 		storageService.set('automations', {
 			version: 1,
@@ -155,12 +155,12 @@ suite('AgentHostAutomationService', () => {
 		const stored = storageService.get<{ version: number; catalog: { entries?: unknown[]; automations?: unknown[] } }>('automations');
 		assert.deepStrictEqual({
 			version: stored?.version,
-			entryCount: stored?.catalog.entries?.length,
-			hasAutomations: Object.hasOwn(stored?.catalog ?? {}, 'automations'),
+			automationCount: stored?.catalog.automations?.length,
+			hasEntries: Object.hasOwn(stored?.catalog ?? {}, 'entries'),
 		}, {
-			version: 2,
-			entryCount: 1,
-			hasAutomations: false,
+			version: 1,
+			automationCount: 1,
+			hasEntries: false,
 		});
 	});
 
@@ -573,7 +573,7 @@ suite('AgentHostAutomationService', () => {
 		};
 		storageService.set('automations', {
 			catalog: {
-				entries: [{
+				automations: [{
 					resource: automationResource,
 					definition: scheduledDefinition,
 					nextRunAt: scheduledFor,
@@ -663,7 +663,7 @@ suite('AgentHostAutomationService', () => {
 		};
 		storageService.set('automations', {
 			catalog: {
-				entries: [{
+				automations: [{
 					resource: automationResource,
 					definition: multiTriggerDefinition,
 					nextRunAt: firstScheduledFor,
@@ -744,7 +744,7 @@ suite('AgentHostAutomationService', () => {
 		};
 		storageService.set('automations', {
 			catalog: {
-				entries: [{
+				automations: [{
 					resource: automationResource,
 					definition: multiTriggerDefinition,
 					nextRunAt: stale,
@@ -816,7 +816,7 @@ suite('AgentHostAutomationService', () => {
 		});
 		storageService.set('automations', {
 			catalog: {
-				entries: [{
+				automations: [{
 					resource: automationResource,
 					definition: definition(),
 					runs: runs.map(run => ({
@@ -997,7 +997,7 @@ suite('AgentHostAutomationService', () => {
 		};
 		storageService.set('automations', {
 			catalog: {
-				entries: [{
+				automations: [{
 					resource: 'ahp-automation:/pending-scheduled',
 					definition: scheduledDefinition,
 					nextRunAt: scheduledFor,
@@ -1055,7 +1055,7 @@ suite('AgentHostAutomationService', () => {
 		};
 		storageService.set('automations', {
 			catalog: {
-				entries: [{
+				automations: [{
 					resource: 'ahp-automation:/pending-import',
 					definition: scheduledDefinition,
 					runs: [pendingRun],
