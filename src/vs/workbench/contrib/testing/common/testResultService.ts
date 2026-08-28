@@ -172,6 +172,14 @@ export class TestResultService extends Disposable implements ITestResultService 
 	 * @inheritdoc
 	 */
 	public push<T extends ITestResult>(result: T): T {
+		if (result instanceof LiveTestResult) {
+			const ds = new DisposableStore();
+			this._resultsDisposables.set(result, ds);
+			ds.add(result);
+			ds.add(result.onComplete(() => this.onComplete(result)));
+			ds.add(result.onChange(this.testChangeEmitter.fire, this.testChangeEmitter));
+		}
+
 		if (result.completedAt === undefined) {
 			this.results.unshift(result);
 		} else {
@@ -187,13 +195,7 @@ export class TestResultService extends Disposable implements ITestResultService 
 			this._resultsDisposables.delete(removed);
 		}
 
-		const ds = new DisposableStore();
-		this._resultsDisposables.set(result, ds);
-
 		if (result instanceof LiveTestResult) {
-			ds.add(result);
-			ds.add(result.onComplete(() => this.onComplete(result)));
-			ds.add(result.onChange(this.testChangeEmitter.fire, this.testChangeEmitter));
 			this.isRunning.set(true);
 			this.changeResultEmitter.fire({ started: result });
 		} else {

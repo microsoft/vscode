@@ -339,6 +339,19 @@ suite('Workbench - Test Results Service', () => {
 			results.push(hydrated2);
 			assert.deepStrictEqual(results.results, [r, hydrated1, hydrated2]);
 		});
+
+		test('disposes a completed result that is immediately evicted', async () => {
+			const newerCompletedAt = Date.now() + 1000;
+			for (let i = 0; i < 128; i++) {
+				results.push(await makeHydrated(newerCompletedAt + i));
+			}
+
+			const older = new TestLiveTestResult('older', false, defaultOpts([]));
+			older.markComplete();
+			results.push(older);
+
+			assert.deepStrictEqual({ retained: results.results.includes(older), disposed: older.disposed }, { retained: false, disposed: true });
+		});
 	});
 
 	test('resultItemParents', function () {
