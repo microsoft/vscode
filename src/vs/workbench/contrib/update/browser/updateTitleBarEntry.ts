@@ -54,7 +54,7 @@ export function registerUpdateTitleBarMenuPlacement(menuId: MenuId, item: Omit<I
 }
 
 export function getAdditionalUpdateTitleBarMenuWhen(when?: ContextKeyExpression): ContextKeyExpression {
-	return ContextKeyExpr.and(UpdateTitleBarContext, when)!;
+	return ContextKeyExpr.and(UpdateTitleBarEditorVisibleContext, when)!;
 }
 
 registerAction2(class UpdateIndicatorTitleBarAction extends Action2 {
