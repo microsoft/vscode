@@ -5,6 +5,7 @@
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -25,6 +26,10 @@ export class MockChatService implements IChatService {
 
 	private readonly _onDidCreateModel = new Emitter<IChatModel>();
 	readonly onDidCreateModel = this._onDidCreateModel.event;
+
+	registerCustomizationMigrationHintProvider(_provider: (sessionResource: URI) => Promise<string | undefined>): IDisposable {
+		return Disposable.None;
+	}
 
 	private readonly sessions = new ResourceMap<IChatModel>();
 	private liveSessionItems: IChatDetail[] = [];
