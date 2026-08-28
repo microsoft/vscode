@@ -104,6 +104,8 @@
 	flex: 0 0 auto;
 	width: max-content;
 	height: 22px;
+	position: relative;
+	z-index: 2500;
 	padding: 0 var(--vscode-spacing-size80);
 	border-radius: var(--vscode-cornerRadius-medium);
 	background-color: var(--vscode-agentsBadge-background);
@@ -125,6 +127,8 @@
 	flex-shrink: 0;
 	-webkit-app-region: no-drag;
 	height: 100%;
+	position: relative;
+	z-index: 2500;
 }
 
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container:not(.has-no-actions) {
