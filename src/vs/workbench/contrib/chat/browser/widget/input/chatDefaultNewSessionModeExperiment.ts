@@ -84,10 +84,5 @@ function isDefaultNewSessionModeExplicitlySet(setting: IConfigurationValue<strin
 }
 
 function hasPlanChatMode(modes: IChatModes): boolean {
-	for (const candidate of ['plan', 'Plan']) {
-		if (modes.findModeById(candidate) || modes.findModeByName(candidate)) {
-			return true;
-		}
-	}
-	return modes.custom.some(mode => mode.name.get().toLowerCase() === 'plan');
+	return [...modes.builtin, ...modes.custom].some(mode => mode.id.toLowerCase() === 'plan' || mode.name.get().toLowerCase() === 'plan');
 }

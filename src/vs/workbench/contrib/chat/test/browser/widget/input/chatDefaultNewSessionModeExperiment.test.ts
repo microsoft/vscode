@@ -33,6 +33,7 @@ suite('chatDefaultNewSessionModeExperiment', () => {
 			schemaDefaultOnly: isEligibleForDefaultNewSessionModeExperiment(eligible({ setting: inspect({ defaultValue: '' }) })),
 			noPlan: isEligibleForDefaultNewSessionModeExperiment(eligible({ modes: modesWithPlan(false) })),
 			planByCustomName: isEligibleForDefaultNewSessionModeExperiment(eligible({ modes: modesWithCustomName('Plan') })),
+			planByUppercaseId: isEligibleForDefaultNewSessionModeExperiment(eligible({ modes: modesWithIdAndName('PLAN', 'PLAN') })),
 		}, {
 			eligible: true,
 			notEmpty: false,
@@ -47,6 +48,7 @@ suite('chatDefaultNewSessionModeExperiment', () => {
 			schemaDefaultOnly: true,
 			noPlan: false,
 			planByCustomName: true,
+			planByUppercaseId: true,
 		});
 	});
 
@@ -91,17 +93,15 @@ function modesWithPlan(hasPlan: boolean): IChatModes {
 }
 
 function modesWithCustomName(name: string): IChatModes {
-	return createModes([fakeMode('custom.plan', name)], false);
+	return createModes([fakeMode('custom.plan', name)]);
 }
 
-function createModes(custom: IChatMode[], matchFinders = true): IChatModes {
-	const find = (idOrName: string) => {
-		if (!matchFinders) {
-			return undefined;
-		}
-		const needle = idOrName.toLowerCase();
-		return custom.find(mode => mode.id.toLowerCase() === needle || mode.name.get().toLowerCase() === needle);
-	};
+function modesWithIdAndName(id: string, name: string): IChatModes {
+	return createModes([fakeMode(id, name)]);
+}
+
+function createModes(custom: IChatMode[]): IChatModes {
+	const find = (idOrName: string) => custom.find(mode => mode.id === idOrName || mode.name.get() === idOrName);
 	return {
 		onDidChange: Event.None,
 		builtin: [],
