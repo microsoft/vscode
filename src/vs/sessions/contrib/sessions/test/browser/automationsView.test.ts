@@ -30,7 +30,8 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationRunTrigger, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
@@ -256,6 +257,15 @@ class TestContextMenuService extends mock<IContextMenuService>() {
 
 	override showContextMenu(delegate: IContextMenuDelegate): void {
 		this.delegate = delegate;
+	}
+}
+
+class TestKeybindingService extends MockKeybindingService {
+	readonly lookupCalls: { commandId: string; context: IContextKeyService | undefined; enforceContextCheck: boolean | undefined }[] = [];
+
+	override lookupKeybinding(commandId: string, context?: IContextKeyService, enforceContextCheck?: boolean) {
+		this.lookupCalls.push({ commandId, context, enforceContextCheck });
+		return undefined;
 	}
 }
 
@@ -496,6 +506,7 @@ suite('AutomationsCardsWidget', () => {
 		const logService = new TestLogService();
 		const contextMenuService = new TestContextMenuService();
 		const commandService = new TestCommandService();
+		const keybindingService = new TestKeybindingService();
 		const store = disposables.add(new DisposableStore());
 		store.add(toDisposable(() => ModifierKeyEmitter.disposeInstance()));
 		const instantiationService = workbenchInstantiationService(undefined, store);
@@ -513,6 +524,7 @@ suite('AutomationsCardsWidget', () => {
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IContextKeyService, store.add(new ContextKeyService(configurationService)));
 		instantiationService.stub(IContextMenuService, contextMenuService);
+		instantiationService.stub(IKeybindingService, keybindingService);
 		instantiationService.stub(IHoverService, NullHoverService);
 		instantiationService.stub(ILogService, logService);
 		instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
@@ -545,7 +557,7 @@ suite('AutomationsCardsWidget', () => {
 		const widget = disposables.add(instantiationService.createInstance(AutomationsCardsWidget));
 		document.body.append(widget.element);
 		disposables.add(toDisposable(() => widget.element.remove()));
-		return { automationService, automationDialogService, commandService, configurationService, contextMenuService, dialogService, instantiationService, logService, runner, sessionsManagementService, sessionsService, widget };
+		return { automationService, automationDialogService, commandService, configurationService, contextMenuService, dialogService, instantiationService, keybindingService, logService, runner, sessionsManagementService, sessionsService, widget };
 	}
 
 	function dispatchContextMenu(target: HTMLElement): void {
@@ -1080,6 +1092,33 @@ suite('AutomationsCardsWidget', () => {
 				hasExpectedSessions: true,
 			}],
 		});
+	});
+
+	test('history context menu only shows keybindings valid for the row context', async () => {
+		const { automationService, contextMenuService, keybindingService, widget } = setup();
+		automationService.setAutomations([automation()]);
+		automationService.setRuns([run()]);
+		await waitForSessionActions();
+		const row = widget.element.querySelector<HTMLElement>('.automations-run-session-list .session-item');
+		assert.ok(row);
+
+		dispatchContextMenu(row);
+		const delegate = contextMenuService.delegate;
+		const renameAction = delegate?.getActions().find(action => action.id === 'sessionsViewPane.renameSession');
+		assert.ok(renameAction);
+		keybindingService.lookupCalls.length = 0;
+		delegate?.getKeyBinding?.(renameAction);
+		delegate?.onHide?.(false);
+
+		assert.deepStrictEqual(keybindingService.lookupCalls.map(call => ({
+			commandId: call.commandId,
+			hasContext: !!call.context,
+			enforceContextCheck: call.enforceContextCheck,
+		})), [{
+			commandId: 'sessionsViewPane.renameSession',
+			hasContext: true,
+			enforceContextCheck: true,
+		}]);
 	});
 
 	test('history context menu gates actions by session state and capabilities', async () => {

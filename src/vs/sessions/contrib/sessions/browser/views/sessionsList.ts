@@ -4617,7 +4617,7 @@ export class SessionsFlatList extends Disposable {
 			getActions: () => actions,
 			getActionsContext: () => session,
 			getAnchor: () => e.anchor,
-			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id) ?? undefined,
+			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id, contextKeyService, true) ?? undefined,
 			actionRunner,
 			onHide: () => disposables.dispose(),
 		});
