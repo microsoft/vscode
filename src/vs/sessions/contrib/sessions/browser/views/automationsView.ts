@@ -1355,27 +1355,27 @@ registerAction2(class DuplicateAutomationAction extends Action2 {
 			return;
 		}
 
-		const name = getDuplicateAutomationName(automation.name, automationService.automations.get());
-		const result = await automationDialogService.showAutomationDialog({
-			initialValues: {
-				name,
-				prompt: automation.prompt,
-				schedule: automation.schedule,
-				target: automation.target,
-				modelId: automation.modelId,
-				mode: automation.mode,
-				permissionLevel: automation.permissionLevel,
-				enabled: automation.enabled,
-			},
-		});
-		if (!result || result.kind !== 'create') {
-			return;
-		}
-		if (!isEnabled()) {
-			await showAutomationsDisabled(dialogService);
-			return;
-		}
 		try {
+			const name = getDuplicateAutomationName(automation.name, automationService.automations.get());
+			const result = await automationDialogService.showAutomationDialog({
+				initialValues: {
+					name,
+					prompt: automation.prompt,
+					schedule: automation.schedule,
+					target: automation.target,
+					modelId: automation.modelId,
+					mode: automation.mode,
+					permissionLevel: automation.permissionLevel,
+					enabled: automation.enabled,
+				},
+			});
+			if (!result || result.kind !== 'create') {
+				return;
+			}
+			if (!isEnabled()) {
+				await showAutomationsDisabled(dialogService);
+				return;
+			}
 			const duplicate = await automationService.createAutomation(result.value, () => {
 				if (!isEnabled()) {
 					throw new Error(localize('automationsDisabledBeforeDuplicate', "Automations were disabled before the duplicate could be saved."));

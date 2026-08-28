@@ -899,6 +899,35 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
+	test('duplicate dialog failures are logged and reported to the user', async () => {
+		const { automationDialogService, automationService, dialogService, instantiationService, logService } = setup();
+		const source = automation();
+		const error = new Error('dialog failed');
+		automationDialogService.error = error;
+		automationService.setAutomations([source]);
+		const command = CommandsRegistry.getCommand('sessions.automations.duplicate');
+		assert.ok(command);
+
+		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+		await dialogService.errorCalled.p;
+
+		assert.deepStrictEqual({
+			createCalls: automationService.createCalls,
+			loggedErrors: logService.errors,
+			dialogErrors: dialogService.errors,
+		}, {
+			createCalls: [],
+			loggedErrors: [{
+				message: '[Automations] Failed to duplicate automation',
+				args: [error],
+			}],
+			dialogErrors: [{
+				message: 'Failed to duplicate automation.',
+				detail: 'dialog failed',
+			}],
+		});
+	});
+
 	test('duplicate creation failures are logged and reported to the user', async () => {
 		const { automationDialogService, automationService, contextKeyService, contextMenuService, dialogService, instantiationService, logService, widget } = setup();
 		const source = automation();
