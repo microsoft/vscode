@@ -65,6 +65,7 @@ export interface IAgentHostManagedSettingsPermissions {
 	ask?: string[];
 }
 
+/** Deprecated and ignored; honoring `false` would let a user lift an admin restriction. */
 export const AgentHostMapLegacySettingsToManagedSettingsSettingId = 'chat.agentHost.copilot.mapLegacySettingsToManagedSettings';
 
 /**
@@ -276,7 +277,6 @@ const managedPermissionsSettings: readonly IManagedPermissionsSettingMapping[] =
 ];
 
 export const managedPermissionsConfigurationIds = [
-	AgentHostMapLegacySettingsToManagedSettingsSettingId,
 	...managedPermissionsSettings.flatMap(mapping => [mapping.settingId, ...mapping.additionalSettingIds ?? []]),
 ];
 
@@ -301,17 +301,10 @@ function isStringArrayOrUndefined(value: unknown): boolean {
  * Combines every mapping's contribution into the single document sent to the
  * host, deduplicating rules that more than one setting produced.
  *
- * Contributing any rule at all makes the runtime's managed policy "active",
- * which causes unmatched shell, read, write, URL and factory requests to require
- * approval. That is broader than any individual mapping intends, but it errs
- * toward prompting, and the alternative — an `allow` list — resolves to
- * auto-approval. See the module comment.
+ * Client-injected managed permissions are non-activating, so these rules bind
+ * without forcing unmatched requests to prompt. See the module comment.
  */
 export function resolveManagedSettingsPermissions(configurationService: IConfigurationService): IAgentHostManagedSettingsPermissions {
-	if (getGlobalConfigurationValue<boolean>(configurationService, AgentHostMapLegacySettingsToManagedSettingsSettingId) !== true) {
-		return {};
-	}
-
 	const deny = new Set<string>();
 	const ask = new Set<string>();
 	let disableBypassPermissionsMode: 'disable' | undefined;
