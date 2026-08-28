@@ -191,11 +191,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			h('.chat-confirmation-message-terminal-disclaimer@disclaimer'),
 		]);
 		append(elements.editor, editor.object.element);
-		// Defer the editor layout to the next animation frame. Laying out the
-		// editor synchronously inside the resize callback flexes the editor's
-		// height back into `elements.editor` (the observed element), which trips
-		// the browser's "ResizeObserver loop completed with undelivered
-		// notifications" warning under bursty resizes (same pattern as #316509).
+		// Defer layout to the next frame; a synchronous layout re-enters the observed element and trips the ResizeObserver loop warning (#316509).
 		let lastObservedEditorWidth: number | undefined;
 		const editorLayoutScheduler = this._register(new AnimationFrameScheduler(elements.editor, () => {
 			if (lastObservedEditorWidth) {
