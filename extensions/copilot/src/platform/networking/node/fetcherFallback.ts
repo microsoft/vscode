@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Config, ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
-import { collectSingleLineErrorMessage, ILogService } from '../../log/common/logService';
+import { collectSingleLineErrorMessage, ILogService, sanitizeNetworkErrorForTelemetry } from '../../log/common/logService';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { FetcherId, FetchOptions, Response } from '../common/fetcherService';
@@ -19,6 +19,9 @@ const fetcherConfigKeys: Partial<Record<FetcherId, Config<boolean>>> = {
 
 const terminalResponseStatusCodes = new Set([429, 502, 503]);
 const allFetchersFailedTelemetryIntervalMs = 15 * 60 * 1000;
+const maxAggregatedErrorLength = 1024;
+const maxAggregatedErrorsSerializedLength = 8192;
+const aggregatedErrorsOverflowKey = '<other>';
 const allFetchersFailedErrors = new Map<string, number>();
 let lastAllFetchersFailedTelemetryTime = Date.now();
 const terminalResponseErrors = new Map<string, number>();
@@ -34,11 +37,11 @@ function reportAllFetchersFailed(telemetryService: ITelemetryService | undefined
 		"fetcherAllFailed" : {
 			"owner": "chrmarti",
 			"comment": "Aggregates errors from requests for which every fallback fetcher failed during a 15-minute reporting interval",
-			"errors": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "comment": "JSON object mapping each fetcher failure message to the number of times it occurred" }
+			"errors": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "comment": "JSON object mapping sanitized fetcher failure messages to their counts, bounded to the telemetry property limit with omitted messages counted under <other>" }
 		}
 	*/
 	telemetryService.sendTelemetryEvent('fetcherAllFailed', { github: true, microsoft: true }, {
-		errors: JSON.stringify(Object.fromEntries(allFetchersFailedErrors)),
+		errors: serializeErrors(allFetchersFailedErrors),
 	});
 
 	allFetchersFailedErrors.clear();
@@ -55,11 +58,11 @@ function reportTerminalResponses(telemetryService: ITelemetryService | undefined
 		"fetcherTerminalResponse" : {
 			"owner": "chrmarti",
 			"comment": "Aggregates errors from fetcher fallback sweeps stopped by a terminal response during a 15-minute reporting interval",
-			"errors": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "comment": "JSON object mapping each fetcher failure message from a sweep stopped by a terminal response to the number of times it occurred" }
+			"errors": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "comment": "JSON object mapping sanitized fetcher failure messages from stopped sweeps to their counts, bounded to the telemetry property limit with omitted messages counted under <other>" }
 		}
 	*/
 	telemetryService.sendTelemetryEvent('fetcherTerminalResponse', { github: true, microsoft: true }, {
-		errors: JSON.stringify(Object.fromEntries(terminalResponseErrors)),
+		errors: serializeErrors(terminalResponseErrors),
 	});
 
 	terminalResponseErrors.clear();
@@ -67,15 +70,44 @@ function reportTerminalResponses(telemetryService: ITelemetryService | undefined
 }
 
 function recordAllFetchersFailed(errors: readonly string[]): void {
-	for (const error of errors) {
-		allFetchersFailedErrors.set(error, (allFetchersFailedErrors.get(error) ?? 0) + 1);
-	}
+	recordErrors(allFetchersFailedErrors, errors);
 }
 
 function recordTerminalResponseErrors(errors: readonly string[]): void {
+	recordErrors(terminalResponseErrors, errors);
+}
+
+function recordErrors(target: Map<string, number>, errors: readonly string[]): void {
 	for (const error of errors) {
-		terminalResponseErrors.set(error, (terminalResponseErrors.get(error) ?? 0) + 1);
+		const truncatedError = error.slice(0, maxAggregatedErrorLength);
+		const count = target.get(truncatedError);
+		if (count !== undefined) {
+			target.set(truncatedError, Math.min(count + 1, Number.MAX_SAFE_INTEGER));
+			continue;
+		}
+		target.set(truncatedError, 1);
 	}
+}
+
+function serializeErrors(errors: ReadonlyMap<string, number>): string {
+	const entries: string[] = [];
+	const maximumOverflowEntry = `${JSON.stringify(aggregatedErrorsOverflowKey)}:${Number.MAX_SAFE_INTEGER}`;
+	let serializedLength = 2;
+	let overflowCount = 0;
+	for (const [error, count] of errors) {
+		const entry = `${JSON.stringify(error)}:${count}`;
+		const separatorLength = entries.length === 0 ? 0 : 1;
+		if (overflowCount === 0 && serializedLength + separatorLength + entry.length + 1 + maximumOverflowEntry.length <= maxAggregatedErrorsSerializedLength) {
+			entries.push(entry);
+			serializedLength += separatorLength + entry.length;
+		} else {
+			overflowCount = Math.min(overflowCount + count, Number.MAX_SAFE_INTEGER);
+		}
+	}
+	if (overflowCount > 0) {
+		entries.push(`${JSON.stringify(aggregatedErrorsOverflowKey)}:${overflowCount}`);
+	}
+	return `{${entries.join(',')}}`;
 }
 
 export async function fetchWithFallbacks(availableFetchers: readonly IFetcher[], url: string, options: FetchOptions, knownBadFetchers: Set<string>, configurationService: IConfigurationService, logService: ILogService, telemetryService: ITelemetryService | undefined, experimentationService: IExperimentationService | undefined): Promise<{ response: Response; updatedFetchers?: IFetcher[]; updatedKnownBadFetchers?: Set<string> }> {
@@ -104,7 +136,8 @@ export async function fetchWithFallbacks(availableFetchers: readonly IFetcher[],
 						? `${fetcherId}: invalid-json`
 						: `${fetcherId}: ${result.response.status} ${result.response.statusText}`);
 				} else {
-					errors.push(`${fetcherId}: ${collectSingleLineErrorMessage(result.err, true)}`);
+					const error = sanitizeNetworkErrorForTelemetry(collectSingleLineErrorMessage(result.err, true));
+					errors.push(`${fetcherId}: ${error}`);
 				}
 				if ('response' in result && terminalResponseStatusCodes.has(result.response.status)) {
 					recordTerminalResponseErrors(errors);
