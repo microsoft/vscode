@@ -89,6 +89,7 @@ import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatAgentLocation, ChatConfiguratio
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { HIDE_AUTO_EXPLAINABILITY_TREATMENT } from '../../../common/chatAutoModeExplainability.js';
 import { AUTO_RAW_MODEL_ID, getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
+import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../common/languageModelSourcePresentation.js';
 import { ChatInputStateOrigin, reviveSerializableInputState, type IChatModel, type IChatModelInputState, type IChatRequestVariableData, type IInputModel, type ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -5764,8 +5765,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const billedId = routed && hideAutoExplainability ? AUTO_RAW_MODEL_ID : rawModelId;
 			return { billedId, resolved: lookupModel(billedId) };
 		};
-		const displayName = (resolved: { identifier: string; model: ILanguageModelChatMetadata }) =>
-			getLanguageModelDisplayNameWithProvider({ identifier: resolved.identifier, metadata: resolved.model }, this._languageModelsService);
+		const displayName = (resolved: { identifier: string; model: ILanguageModelChatMetadata }) => {
+			const model = { identifier: resolved.identifier, metadata: resolved.model };
+			return getLanguageModelDisplayNameWithSubscriptionSource(model, getLanguageModelDisplayNameWithProvider(model, this._languageModelsService));
+		};
 		return {
 			toLanguageModelId: (rawModelId) => this._toLanguageModelId(sessionResource, resolveRaw(rawModelId)),
 			toModelDisplayName: rawModelId => lookupRawModel(rawModelId)?.model.name,

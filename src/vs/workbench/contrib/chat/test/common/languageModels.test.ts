@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { AsyncIterableObject, AsyncIterableSource, DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -31,6 +32,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { IRequestService } from '../../../../../platform/request/common/request.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { getLanguageModelDisplayNameWithSubscriptionSource, languageModelSourcePresentationRegistry } from '../../common/languageModelSourcePresentation.js';
 
 suite('LanguageModels', function () {
 
@@ -127,6 +129,45 @@ suite('LanguageModels', function () {
 		assert.deepStrictEqual(result1.length, 2);
 		assert.deepStrictEqual(result1[0], 'test-id-1');
 		assert.deepStrictEqual(result1[1], 'test-id-12');
+	});
+
+	test('adds a source suffix only to ChatGPT subscription models', function () {
+		store.add(languageModelSourcePresentationRegistry.register({
+			ownerVendor: 'test-agent-host-codex',
+			sourceId: 'chatgptSubscription',
+			label: 'ChatGPT',
+			icon: Codicon.openai,
+			description: 'Models provided by your ChatGPT subscription',
+		}));
+		const createModel = (identifier: string, modelGroup: NonNullable<ILanguageModelChatMetadata['modelGroup']>): ILanguageModelChatMetadataAndIdentifier => ({
+			identifier,
+			metadata: {
+				extension: nullExtensionDescription.identifier,
+				id: identifier,
+				name: 'GPT-5.6 Sol',
+				vendor: 'test-agent-host-codex',
+				family: 'gpt-5.6-sol',
+				version: '1.0',
+				maxInputTokens: 1_000_000,
+				maxOutputTokens: 32_000,
+				isDefaultForLocation: {},
+				targetChatSessionType: 'agent-host-codex',
+				modelGroup,
+			},
+		});
+		const copilot = createModel('agent-host-codex:@provider=vscode-proxy:gpt-5.6-sol', { id: 'copilot' });
+		const chatGPT = createModel('agent-host-codex:@provider=openai:gpt-5.6-sol', { id: 'chatgpt', sourceId: 'chatgptSubscription' });
+		const unrelated = createModel('agent-host-codex:anthropic/claude-opus', { id: 'anthropic' });
+
+		assert.deepStrictEqual({
+			copilot: getLanguageModelDisplayNameWithSubscriptionSource(copilot),
+			chatGPT: getLanguageModelDisplayNameWithSubscriptionSource(chatGPT),
+			unrelated: getLanguageModelDisplayNameWithSubscriptionSource(unrelated),
+		}, {
+			copilot: 'GPT-5.6 Sol',
+			chatGPT: 'GPT-5.6 Sol (ChatGPT)',
+			unrelated: 'GPT-5.6 Sol',
+		});
 	});
 
 	test('selector with id works properly', async function () {
