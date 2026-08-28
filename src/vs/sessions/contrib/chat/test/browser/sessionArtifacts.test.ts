@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { isMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { buildSessionArtifactSections, type ISessionArtifactActions } from '../../browser/sessionArtifacts.js';
@@ -20,9 +21,14 @@ suite('Session Artifacts', () => {
 		copy() { },
 	};
 
-	test('shows each artifact URI or link beside its dropdown entry', () => {
-		const fileUri = URI.file('/artifacts/report.md');
-		const resourceUri = URI.parse('vscode://sessions/resource');
+	/** Stands in for the label service: a path without its scheme, tildified. */
+	const labelService = {
+		getUriLabel: (uri: URI) => uri.scheme === Schemas.file ? uri.path.replace('/home/alice', '~') : uri.toString(true),
+	};
+
+	test('shows each artifact path or link beside its dropdown entry', () => {
+		const fileUri = URI.file('/home/alice/artifacts/report.md');
+		const resourceUri = URI.parse('https://example.com/dashboard');
 		const pullRequestLink = URI.parse('https://github.com/microsoft/vscode/pull/12');
 		const artifacts: readonly ISessionArtifact[] = [
 			{ id: 'pr', kind: SessionArtifactKind.PullRequest, label: 'PR #12', isArtifact: true, link: pullRequestLink },
@@ -30,7 +36,7 @@ suite('Session Artifacts', () => {
 			{ id: 'resource', kind: SessionArtifactKind.Resource, label: 'Resource', isArtifact: true, uri: resourceUri },
 		];
 
-		const entries = buildSessionArtifactSections(artifacts, actions, true, new Set()).flatMap(section => section.entries);
+		const entries = buildSessionArtifactSections(artifacts, actions, labelService, true, new Set()).flatMap(section => section.entries);
 		assert.deepStrictEqual(entries.map(entry => {
 			const content = entry.hover?.content;
 			return {
@@ -42,7 +48,8 @@ suite('Session Artifacts', () => {
 			};
 		}), [
 			{ label: 'PR #12', ariaLabel: 'Open PR #12', ariaDescription: pullRequestLink.toString(true), hover: pullRequestLink.toString(true), tooltip: pullRequestLink.toString(true) },
-			{ label: 'report.md', ariaLabel: 'Open report.md', ariaDescription: fileUri.toString(true), hover: fileUri.toString(true), tooltip: fileUri.toString(true) },
+			// The hover is markdown, so its `~` arrives escaped.
+			{ label: 'report.md', ariaLabel: 'Open report.md', ariaDescription: '~/artifacts/report.md', hover: '\\~/artifacts/report.md', tooltip: '~/artifacts/report.md' },
 			{ label: 'Resource', ariaLabel: 'Open Resource', ariaDescription: resourceUri.toString(true), hover: resourceUri.toString(true), tooltip: resourceUri.toString(true) },
 		]);
 	});
@@ -56,7 +63,7 @@ suite('Session Artifacts', () => {
 			{ id: 'blog', kind: SessionArtifactKind.Website, label: 'Blog', isArtifact: true, link: URI.parse('https://other.test/blog') },
 			{ id: 'pr', kind: SessionArtifactKind.PullRequest, label: 'PR #12', isArtifact: true, link: pullRequestLink },
 		];
-		const labels = (browserUrls: readonly string[]) => buildSessionArtifactSections(artifacts, actions, true, new Set(browserUrls))
+		const labels = (browserUrls: readonly string[]) => buildSessionArtifactSections(artifacts, actions, labelService, true, new Set(browserUrls))
 			.flatMap(section => section.entries)
 			.map(entry => entry.label);
 
@@ -79,7 +86,7 @@ suite('Session Artifacts', () => {
 			{ id: 'docs', kind: SessionArtifactKind.Website, label: 'Docs', isArtifact: true, link: URI.parse('https://example.com/docs') },
 		];
 
-		const entries = buildSessionArtifactSections(artifacts, { ...actions, copy: text => copied.push(text) }, true, new Set()).flatMap(section => section.entries);
+		const entries = buildSessionArtifactSections(artifacts, { ...actions, copy: text => copied.push(text) }, labelService, true, new Set()).flatMap(section => section.entries);
 		for (const entry of entries) {
 			entry.toolbarActions?.forEach(action => action.run());
 		}

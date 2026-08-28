@@ -7,7 +7,8 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
-import { derived, IObservable } from '../../../../base/common/observable.js';
+import { matchesSomeScheme, Schemas } from '../../../../base/common/network.js';
+import { derived, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { basename, getComparisonKey } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -17,6 +18,7 @@ import { toAction } from '../../../../base/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import type { IChatPillEntry, IChatPillSection } from '../../../../workbench/browser/chatPills.js';
@@ -89,17 +91,27 @@ function artifactValueKey(artifact: ISessionArtifact): string {
 }
 
 /**
- * The location details shown for an artifact: its URI/link as the hover beside
+ * How an artifact's location reads: a link keeps its URL, while anything on a
+ * file system reads as a path — no scheme, tildified when it is under the user
+ * home, and relative to the workspace folder holding it.
+ */
+export function sessionArtifactLocationText(uri: URI, labelService: Pick<ILabelService, 'getUriLabel'>): string {
+	return matchesSomeScheme(uri, Schemas.http, Schemas.https, Schemas.mailto)
+		? uri.toString(true)
+		: labelService.getUriLabel(uri, { relative: true });
+}
+
+/**
+ * The location details shown for an artifact: its path/link as the hover beside
  * the dropdown row, the plain-text screen reader description, and the tooltip,
  * while the accessible name stays the action the entry performs.
  */
-export function sessionArtifactLocation(uri: URI, label: string): Pick<IChatPillEntry, 'ariaDescription' | 'ariaLabel' | 'hover' | 'tooltip'> {
-	const value = uri.toString(true);
+export function sessionArtifactLocation(location: string, label: string): Pick<IChatPillEntry, 'ariaDescription' | 'ariaLabel' | 'hover' | 'tooltip'> {
 	return {
-		ariaDescription: value,
+		ariaDescription: location,
 		ariaLabel: localize('sessionArtifacts.open', "Open {0}", label),
-		hover: { content: new MarkdownString().appendText(value) },
-		tooltip: value,
+		hover: { content: new MarkdownString().appendText(location) },
+		tooltip: location,
 	};
 }
 
@@ -130,14 +142,14 @@ function isShownInBrowser(link: URI | undefined, browserKeys: ReadonlySet<string
 	return !!key && browserKeys.has(key);
 }
 
-function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions): IChatPillEntry | undefined {
+function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, labelService: Pick<ILabelService, 'getUriLabel'>): IChatPillEntry | undefined {
 	if (artifact.kind === SessionArtifactKind.File) {
 		if (!artifact.uri) {
 			return undefined;
 		}
 		const uri = artifact.uri;
 		const label = basename(uri);
-		return { id: artifact.id, label, resource: uri, ...sessionArtifactLocation(uri, label), open: () => actions.openResource(uri) };
+		return { id: artifact.id, label, resource: uri, ...sessionArtifactLocation(sessionArtifactLocationText(uri, labelService), label), open: () => actions.openResource(uri) };
 	}
 
 	const icon = artifactIcons.get(artifact.kind) ?? Codicon.archive;
@@ -154,7 +166,7 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions): 
 				run: () => actions.copy(artifact.commitHash!),
 			})]
 			: [];
-		return { id: artifact.id, label: artifact.label, icon, toolbarActions: copyAction, ...sessionArtifactLocation(link, artifact.label), open: () => actions.openExternal(link) };
+		return { id: artifact.id, label: artifact.label, icon, toolbarActions: copyAction, ...sessionArtifactLocation(sessionArtifactLocationText(link, labelService), artifact.label), open: () => actions.openExternal(link) };
 	}
 
 	if (artifact.kind === SessionArtifactKind.Resource) {
@@ -162,7 +174,7 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions): 
 			return undefined;
 		}
 		const uri = artifact.uri;
-		return { id: artifact.id, label: artifact.label, icon, ...sessionArtifactLocation(uri, artifact.label), open: () => actions.openResource(uri) };
+		return { id: artifact.id, label: artifact.label, icon, ...sessionArtifactLocation(sessionArtifactLocationText(uri, labelService), artifact.label), open: () => actions.openResource(uri) };
 	}
 
 	if (!artifact.link) {
@@ -180,7 +192,7 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions): 
 			run: () => actions.copy(link.toString(true)),
 		})]
 		: [];
-	return { id: artifact.id, label: artifact.label, icon, toolbarActions: copyLinkAction, ...sessionArtifactLocation(link, artifact.label), open: () => actions.openExternal(link) };
+	return { id: artifact.id, label: artifact.label, icon, toolbarActions: copyLinkAction, ...sessionArtifactLocation(sessionArtifactLocationText(link, labelService), artifact.label), open: () => actions.openExternal(link) };
 }
 
 /**
@@ -189,7 +201,7 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions): 
  * the browsers pill already lists are left out, so the same page is offered
  * once across the pills.
  */
-export function buildSessionArtifactSections(artifacts: readonly ISessionArtifact[], actions: ISessionArtifactActions, imageCarouselEnabled: boolean, browserUrls: ReadonlySet<string>): readonly IChatPillSection[] {
+export function buildSessionArtifactSections(artifacts: readonly ISessionArtifact[], actions: ISessionArtifactActions, labelService: Pick<ILabelService, 'getUriLabel'>, imageCarouselEnabled: boolean, browserUrls: ReadonlySet<string>): readonly IChatPillSection[] {
 	const entriesByKind = new Map<SessionArtifactKind, IChatPillEntry[]>();
 	const images: ISessionArtifactImage[] = [];
 	const seen = new Set<string>();
@@ -213,7 +225,7 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 			}
 			continue;
 		}
-		const entry = toEntry(artifact, actions);
+		const entry = toEntry(artifact, actions, labelService);
 		if (!entry || seen.has(artifactValueKey(artifact))) {
 			continue;
 		}
@@ -234,7 +246,7 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 						id: uri.toString(),
 						label,
 						resource: uri,
-						...sessionArtifactLocation(uri, label),
+						...sessionArtifactLocation(sessionArtifactLocationText(uri, labelService), label),
 						...(imageCarouselEnabled
 							? {
 								ariaLabel: localize('sessionArtifacts.openImage', "Open {0} in Images Preview", label),
@@ -268,20 +280,26 @@ export class SessionArtifacts extends Disposable {
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ILabelService private readonly _labelService: ILabelService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) {
 		super();
 
 		const imageCarouselEnabled = observableConfigValue<boolean>(ChatConfiguration.ImageCarouselEnabled, true, this._configurationService);
+		// A formatter arriving late (a remote session's, say) changes how the
+		// locations read, so the sections are built again when one does.
+		const labelFormatters = observableSignalFromEvent(this, this._labelService.onDidChangeFormatters);
 
 		const sectionsFor = (isArtifact: boolean) => derived(this, reader => {
 			const current = session.read(reader);
 			if (!current) {
 				return [];
 			}
+			labelFormatters.read(reader);
 			return buildSessionArtifactSections(
 				(current.artifacts?.read(reader) ?? []).filter(artifact => artifact.isArtifact === isArtifact),
 				this._actions(),
+				this._labelService,
 				imageCarouselEnabled.read(reader),
 				this._browserUrls.read(reader),
 			);
