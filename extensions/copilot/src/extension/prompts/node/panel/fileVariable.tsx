@@ -119,7 +119,7 @@ export class FileVariable extends PromptElement<FileVariableProps, unknown> {
 		}
 
 		if (/\.pdf$/i.test(uri.path)) {
-			if (!this.promptEndpoint.supportsVision || !modelSupportsPDFDocuments(this.promptEndpoint)) {
+			if (!modelSupportsPDFDocuments(this.promptEndpoint)) {
 				if (this.props.omitReferences) {
 					return;
 				}

@@ -9,11 +9,43 @@ import * as vscode from 'vscode';
 import type { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatFetchResponseType, ChatLocation } from '../../../chat/common/commonTypes';
 import { NoopOTelService, resolveOTelConfig } from '../../../otel/common/index';
+import { modelSupportsPDFDocuments } from '../../common/chatModelCapabilities';
 import { CustomDataPartMimeTypes } from '../../common/endpointTypes';
 import { decodeStatefulMarker } from '../../common/statefulMarkerContainer';
 import { convertToApiChatMessage, ExtensionContributedChatEndpoint } from '../extChatEndpoint';
 
 describe('ExtensionContributedChatEndpoint', () => {
+	it('uses PDF support advertised by an extension-contributed model', () => {
+		const languageModel = createLanguageModel(() => { }, undefined, 'third-party-provider', {
+			supportsImageToText: true,
+			fileInputMimeTypes: ['application/pdf'],
+		});
+		const endpoint = new ExtensionContributedChatEndpoint(
+			languageModel,
+			createInstantiationService(),
+			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '1.0.0', sessionId: 'test' })),
+		);
+
+		expect(endpoint.fileInputMimeTypes).toEqual(['application/pdf']);
+		expect(modelSupportsPDFDocuments(endpoint)).toBe(true);
+	});
+
+	it('converts PDF documents to language model data parts', () => {
+		const data = Buffer.from('%PDF-1.4');
+		const [message] = convertToApiChatMessage([{
+			role: Raw.ChatRole.User,
+			content: [{
+				type: Raw.ChatCompletionContentPartKind.Document,
+				documentData: { data: data.toString('base64'), mediaType: 'application/pdf' }
+			}]
+		}]);
+
+		expect(message.content).toHaveLength(1);
+		expect(message.content[0]).toBeInstanceOf(vscode.LanguageModelDataPart);
+		expect(message.content[0]).toMatchObject({ mimeType: 'application/pdf' });
+		expect(Buffer.from((message.content[0] as vscode.LanguageModelDataPart).data)).toEqual(data);
+	});
+
 	it('forwards telemetry turn from request properties through model options', async () => {
 		let capturedOptions: vscode.LanguageModelChatRequestOptions | undefined;
 		const languageModel = createLanguageModel(options => capturedOptions = options);
@@ -245,6 +277,7 @@ function createLanguageModel(
 	captureOptions: (options: vscode.LanguageModelChatRequestOptions) => void,
 	captureMessages?: (messages: readonly vscode.LanguageModelChatMessage[]) => void,
 	vendor: string = 'test-vendor',
+	capabilities: { supportsImageToText?: boolean; fileInputMimeTypes?: readonly string[] } = {},
 ): vscode.LanguageModelChat {
 	return {
 		id: 'test-model',
@@ -253,7 +286,7 @@ function createLanguageModel(
 		family: 'test-family',
 		version: '1.0.0',
 		maxInputTokens: 1000,
-		capabilities: {},
+		capabilities,
 		sendRequest: vi.fn(async (messages, options) => {
 			captureMessages?.(messages);
 			captureOptions(options);
