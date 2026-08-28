@@ -146,6 +146,8 @@ function installHeaders() {
 	// the downloaded Electron headers. This is used to work around upstream issues:
 	//   - v8-source-location.h: remove dependency on std::source_location (GCC 11+ requirement)
 	//     Refs https://chromium-review.googlesource.com/c/v8/v8/+/6879784
+	//   - v8config.h: use compatible deprecation attribute syntax with GCC < 13
+	//     Refs https://gcc.gnu.org/bugzilla/show_bug.cgi?id=69585
 	if (local !== undefined) {
 		const localHeaderPath = getLocalHeaderPath(local.target);
 		if (localHeaderPath && fs.existsSync(localHeaderPath)) {
