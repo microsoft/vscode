@@ -23,7 +23,7 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/workbench.js';
 import { EditorsVisibleContext, EditorAreaFocusContext, FocusedViewContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { SessionsCategories } from '../../../../common/categories.js';
-import { ARCHIVE_SESSION_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
 import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID } from './sessionsList.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -909,6 +909,11 @@ abstract class BaseArchiveSessionAction extends Action2 {
 				order: 1,
 				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
 			}, {
+				id: Menus.AutomationsHistoryItem,
+				group: 'navigation',
+				order: 2,
+				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
+			}, {
 				id: SessionItemContextMenuId,
 				group: '1_edit',
 				order: 2,
@@ -1099,7 +1104,7 @@ registerAction2(class DeleteSessionAction extends Action2 {
 registerAction2(class MarkSessionReadAction extends Action2 {
 	constructor() {
 		super({
-			id: 'sessionsViewPane.markRead',
+			id: MARK_SESSION_READ_COMMAND_ID,
 			title: localize2('markRead', "Mark as Read"),
 			menu: [{
 				id: SessionItemContextMenuId,
@@ -1133,7 +1138,7 @@ registerAction2(class MarkSessionReadAction extends Action2 {
 registerAction2(class MarkSessionUnreadAction extends Action2 {
 	constructor() {
 		super({
-			id: 'sessionsViewPane.markUnread',
+			id: MARK_SESSION_UNREAD_COMMAND_ID,
 			title: localize2('markUnread', "Mark as Unread"),
 			menu: [{
 				id: SessionItemContextMenuId,

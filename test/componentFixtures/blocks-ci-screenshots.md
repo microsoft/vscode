@@ -187,19 +187,19 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/32be2c4c31521d72fd6b1c064c71aec19b3ff4b5338ebe9bf490c4dcc1d71302)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionGitHubContextPicker/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/3a93997e6f3e6ef7b63dcce185f571b7e048f217013fda13e7b6622c4bb4e9b1)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/d65a5c982df3188ca688e5b0c317ecc5f0be1451a0061f56dab251a43d708c21)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionGitHubContextPicker/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/0baa16342facc6b2bbfec277ba966e283bcb5cc8522feadedbb0551d11b37af6)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/a80dd54eb5c270bb59ec6f3830a107812b4cf7bc93371451af520cdef978da30)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionRemoteWorkspace/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/9ce99acb0597d337c3629946531ad90143c739de94866b759c749e4c91dc1327)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/5a8e493276778f6d2a65a208b9fa0cb9f7bf7abafcf78d5adf8151b3459f0b9f)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionRemoteWorkspace/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/154e56d8556400167418dce9e0b5ae4355644be560a94f91ba5fbf502ef3696f)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/8858fb38373092200aee6675c0f6cbcb30ad4dce7c62acd8300d70ff64f8ae6b)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionWorkspacePicker/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/fac59f2e6a520bf03f063f35f83af3ddc575cf95cec659e7f4cdef963ff4e090)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/496be935d13b3be52e1e3ba5471317475a5fa1694a58daf9134e749c0fbe0acb)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionWorkspacePicker/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/a6b3c1c792dd0804bcbc2fb3819ba09bbdbe15f653e4b7f89efeb799d9cc11c9)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/1cba4648260e466818fe0c914cd29516cc465f322a112be65de67e2b49a20284)

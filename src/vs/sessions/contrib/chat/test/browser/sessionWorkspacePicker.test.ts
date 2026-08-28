@@ -2104,6 +2104,7 @@ suite('WorkspacePicker - Category Triggers', () => {
 			label: 'Issue/PR',
 			ariaLabel: 'Choose an issue or pull request',
 			icon: Codicon.add,
+			hideIconWhenAttached: true,
 			group: SESSION_WORKSPACE_GROUP_GITHUB,
 			attachesContext: true,
 			hideWhenNoGitHubRepository: true,
@@ -2149,12 +2150,46 @@ suite('WorkspacePicker - Category Triggers', () => {
 				'https://github.com/microsoft/vscode/issues/332805',
 			],
 			triggerSnapshots: [
-				{ label: 'Issue/PR', icon: 'codicon codicon-add', badge: '1', ariaLabel: 'Choose an issue or pull request, 1 attached' },
-				{ label: 'Issue/PR', icon: 'codicon codicon-add', badge: '2', ariaLabel: 'Choose an issue or pull request, 2 attached' },
-				{ label: 'Issue/PR', icon: 'codicon codicon-add', badge: '1', ariaLabel: 'Choose an issue or pull request, 1 attached' },
+				{ label: 'Issue/PR', icon: undefined, badge: '1', ariaLabel: 'Choose an issue or pull request, 1 attached' },
+				{ label: 'Issue/PR', icon: undefined, badge: '2', ariaLabel: 'Choose an issue or pull request, 2 attached' },
+				{ label: 'Issue/PR', icon: undefined, badge: '1', ariaLabel: 'Choose an issue or pull request, 1 attached' },
 				{ label: 'Issue/PR', icon: 'codicon codicon-add', badge: undefined, ariaLabel: 'Choose an issue or pull request' },
 			],
 		});
+	});
+
+	test('updates the issue and pull request trigger when attached context is synchronized directly', () => {
+		const providersService = disposables.add(new MockSessionsProvidersService());
+		const picker = createTestPicker(disposables, providersService);
+		const container = document.createElement('div');
+		picker.renderCategoryTriggers(container, [{
+			label: 'Issue/PR',
+			ariaLabel: 'Choose an issue or pull request',
+			icon: Codicon.add,
+			hideIconWhenAttached: true,
+			group: SESSION_WORKSPACE_GROUP_GITHUB,
+			attachesContext: true,
+		}]);
+		const contextTrigger = container.querySelector<HTMLElement>('.action-label');
+		const getContextTriggerSnapshot = () => ({
+			icon: contextTrigger?.querySelector('.codicon')?.className,
+			badge: contextTrigger?.querySelector('.monaco-count-badge')?.textContent,
+			ariaLabel: contextTrigger?.getAttribute('aria-label'),
+		});
+		const triggerSnapshots = [getContextTriggerSnapshot()];
+
+		picker.syncAttachedContext([toPasteVariableEntry('microsoft/vscode#1', 'GitHub context', {
+			id: 'github-context:https://github.com/microsoft/vscode/pull/1',
+		})]);
+		triggerSnapshots.push(getContextTriggerSnapshot());
+		picker.syncAttachedContext([]);
+		triggerSnapshots.push(getContextTriggerSnapshot());
+
+		assert.deepStrictEqual(triggerSnapshots, [
+			{ icon: 'codicon codicon-add', badge: undefined, ariaLabel: 'Choose an issue or pull request' },
+			{ icon: undefined, badge: '1', ariaLabel: 'Choose an issue or pull request, 1 attached' },
+			{ icon: 'codicon codicon-add', badge: undefined, ariaLabel: 'Choose an issue or pull request' },
+		]);
 	});
 
 	test('selects the first repository as the primary virtual workspace', async () => {

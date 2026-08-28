@@ -236,6 +236,24 @@ suite('ChatPromoNotificationContribution', () => {
 		assert.strictEqual(notifService.getNotification(), undefined);
 	});
 
+	test('skips a promo that opts out of the banner', () => {
+		const notifService = createMockNotificationService(disposables);
+		const { service: lmService } = createMockLanguageModelsService([
+			{ identifier: 'copilot:picker-only', metadata: { name: 'Picker Only', id: 'picker-only', promo: { id: 'promo-picker-only', discountPercent: 20, message: 'Get 20% off', showBanner: false } } },
+			{ identifier: 'copilot:featured', metadata: { name: 'Featured', id: 'featured', promo: { id: 'promo-featured', discountPercent: 0, message: 'Featured model' } } },
+		], disposables);
+		const storageService = disposables.add(new InMemoryStorageService());
+
+		disposables.add(new ChatPromoNotificationContribution(
+			lmService,
+			notifService.service,
+			storageService,
+		));
+
+		// The opt-out promo is skipped even though its discount would otherwise win the harness.
+		assert.strictEqual(notifService.getNotification()?.message, 'Featured model');
+	});
+
 	test('omits the end date when the promo has none', () => {
 		const notifService = createMockNotificationService(disposables);
 		const { service: lmService } = createMockLanguageModelsService([
