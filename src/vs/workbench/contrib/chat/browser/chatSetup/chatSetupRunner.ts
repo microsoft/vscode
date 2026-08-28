@@ -96,10 +96,9 @@ export interface IChatSetupDialogOptions {
 }
 
 /**
- * Whether picking this strategy sends the user to a provider's sign-in page in a
- * browser window. `DefaultSetup` is deliberately excluded: for a user who is already
- * signed in it installs and signs up without any browser round trip, so reserving a
- * window for it would leave one covering the app for the whole of setup.
+ * Whether this strategy sends the user to a provider's sign-in page. `DefaultSetup`
+ * is excluded: for an already signed-in user it installs and signs up with no
+ * browser round trip.
  */
 function entersProviderAuthentication(strategy: ChatSetupStrategy): boolean {
 	switch (strategy) {
@@ -156,16 +155,9 @@ export class ChatSetupDialog extends Disposable {
 				},
 				buttonOptions: options.buttons.map(button => {
 					const classes = button.classes;
-					// Sign-in continues in a browser window. Claim that window here, while
-					// the click's user activation is still live — by the time the flow has
-					// an authorization URL the gesture has expired and the browser refuses
-					// to open anything. See `reserveWindowForExternalOpen`.
-					//
-					// This matters in two places. In an installed web app (PWA) there is no
-					// tab to fall back to and the failure is fatal, whichever browser
-					// installed it. In Safari the popup is blocked too, but a browser tab
-					// can recover via the "Retry" prompt. Everywhere else popups still work
-					// after the gesture, so nothing is reserved and behaviour is unchanged.
+					// Claim the sign-in window while the click's activation is still live;
+					// see `reserveWindowForExternalOpen`. Only installed apps (fatal, no
+					// tab to fall back to) and Safari (recoverable via "Retry") need this.
 					const opensBrowser = (isStandalone() || isSafari) && entersProviderAuthentication(button.strategy);
 					if (!classes && !opensBrowser) {
 						return undefined;
@@ -419,10 +411,7 @@ export class ChatSetup {
 			}
 		} finally {
 			setupCancellation.dispose();
-			// If the flow never reached the point of opening a browser window (user
-			// cancelled, an error was thrown, or the strategy needed no sign-in), the
-			// window reserved on click is still open and blank. Close it — on an
-			// installed web app it would otherwise sit on top of the app.
+			// no browser window was opened, so the reservation is still blank
 			releaseReservedWindowForExternalOpen(
 				localize('signInDidNotComplete', "Sign-in did not complete. You can close this window.")
 			);

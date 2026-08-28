@@ -1637,10 +1637,6 @@ export function windowOpenPopup(url: string): void {
 	);
 }
 
-/**
- * A window opened ahead of time, during a user gesture, waiting for the URL it
- * should navigate to. See {@link reserveWindowForExternalOpen}.
- */
 let reservedExternalWindow: Window | undefined;
 
 function isUsable(candidate: Window | undefined): candidate is Window {
@@ -1648,30 +1644,22 @@ function isUsable(candidate: Window | undefined): candidate is Window {
 }
 
 /**
- * Opens a blank window right now, to be consumed by a later call to
- * {@link windowOpenWithSuccess}.
+ * Opens a blank window now, for a later {@link windowOpenWithSuccess} to navigate.
  *
- * Browsers only permit `window.open` while a user gesture is still active. Sign-in
- * flows do a lot between the click and the actual open — show a dialog, activate an
- * extension, request an authorization URL over the network — and by the time they
- * have a URL the gesture has expired, so the window is refused. That is fatal on an
- * installed web app (PWA) on iOS, where the user cannot fall back to a tab.
+ * Browsers only allow `window.open` while a click's user activation is still live.
+ * Sign-in shows a dialog, activates an extension and fetches an authorization URL
+ * first, so by then the gesture has expired and the window is refused — fatal in an
+ * installed web app (PWA), where there is no tab to fall back to.
  *
- * Calling this synchronously from the click handler claims the window while the
- * gesture is still live, so the URL can be applied later.
+ * Callers must consume or {@link releaseReservedWindowForExternalOpen} the
+ * reservation, or a blank window is left covering the app.
  *
- * Callers must ensure the reservation is consumed or released — see
- * {@link releaseReservedWindowForExternalOpen} — otherwise a blank window is left
- * covering the app.
- *
- * @param targetWindow the window the click happened in. User activation belongs to
- * that window, so opening from any other one can still be blocked.
- * @param placeholder text to show until the URL arrives. `vs/base` cannot localize,
- * so callers pass an already-translated string.
+ * @param targetWindow the window that was clicked; activation belongs to it.
+ * @param placeholder already-translated text, since `vs/base` cannot localize.
  */
 export function reserveWindowForExternalOpen(targetWindow: Window = mainWindow, placeholder?: string): void {
 	if (isUsable(reservedExternalWindow)) {
-		return; // already holding one
+		return;
 	}
 
 	reservedExternalWindow = targetWindow.open() ?? undefined;
@@ -1680,36 +1668,24 @@ export function reserveWindowForExternalOpen(targetWindow: Window = mainWindow, 
 		return;
 	}
 
-	// The window is visible immediately — on iOS it slides over the app — but the
-	// URL may be a second or more away. Say something rather than show a blank page.
 	if (placeholder) {
 		showMessageInWindow(reservedExternalWindow, placeholder);
 	}
 }
 
-/**
- * Renders a short message in an `about:blank` window we opened. Uses `textContent`
- * rather than `document.write` so the message cannot inject markup, and follows the
- * system light/dark preference so the window does not flash white.
- */
+/** Uses `textContent` so the message cannot inject markup. */
 function showMessageInWindow(target: Window, message: string): void {
 	try {
 		const doc = target.document;
-		// Without a title the window is announced as `about:blank` by screen readers
-		// and window switchers.
-		doc.title = message;
+		doc.title = message; // otherwise announced as `about:blank`
 		doc.documentElement.style.cssText = 'color-scheme:light dark';
 		doc.body.style.cssText = 'margin:0;height:100vh;display:flex;align-items:center;justify-content:center;background:Canvas;color:CanvasText;font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif';
 		doc.body.textContent = message;
 	} catch {
-		// Touching the document can throw once the window has navigated; harmless.
+		// the window may already have navigated
 	}
 }
 
-/**
- * Hands over the window claimed by {@link reserveWindowForExternalOpen}, if one is
- * still open. The reservation is cleared either way.
- */
 function takeReservedWindowForExternalOpen(): Window | undefined {
 	const reserved = reservedExternalWindow;
 	reservedExternalWindow = undefined;
@@ -1717,13 +1693,11 @@ function takeReservedWindowForExternalOpen(): Window | undefined {
 }
 
 /**
- * Closes a reservation that is no longer needed, e.g. because the user cancelled
- * sign-in or it failed before producing a URL.
+ * Closes an unused reservation.
  *
- * @param fallbackMessage shown if the window refuses to close. Not every embedder
- * honours `close()` — an in-app browser view on iOS may ignore it — and a blank
- * window left covering the app is worse than the problem this all solves, so tell
- * the user what happened instead.
+ * @param fallbackMessage shown if the window refuses to close — an in-app browser
+ * view on iOS may ignore `close()`, and a blank window covering the app is worse
+ * than the problem this solves.
  */
 export function releaseReservedWindowForExternalOpen(fallbackMessage?: string): void {
 	const reserved = takeReservedWindowForExternalOpen();
@@ -1734,7 +1708,7 @@ export function releaseReservedWindowForExternalOpen(fallbackMessage?: string): 
 	try {
 		reserved.close();
 	} catch {
-		// Closing can throw once the window has navigated away; harmless.
+		// the window may already have navigated
 	}
 
 	if (!reserved.closed && fallbackMessage) {

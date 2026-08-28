@@ -355,11 +355,8 @@ export class BrowserWindow extends BaseWindow {
 
 				// HTTP(s): open in new window and deal with potential popup blockers
 				if (matchesScheme(href, Schemas.http) || matchesScheme(href, Schemas.https)) {
-					// Safari blocks popups that are not opened straight from a user
-					// gesture, and an installed web app (PWA) does the same in whichever
-					// browser installed it. Both need the open-then-navigate path, which
-					// reports whether the window was actually blocked and can pick up a
-					// window reserved during the click.
+					// Both block popups opened outside a user gesture, so use the
+					// open-then-navigate path, which can pick up a reserved window.
 					if (isSafari || isStandalone()) {
 						const opened = windowOpenWithSuccess(href, !isAllowedOpener);
 						if (!opened) {
