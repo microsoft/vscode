@@ -574,10 +574,14 @@ suite('ListView', function () {
 			listView.dispose();
 			selection.removeAllRanges();
 			document.dispatchEvent(new Event('selectionchange'));
-	test('does not throw when laid out at zero height with dynamic heights', function () {
+			element.remove();
+		}
+	});
+
+	test('does not throw when laid out with a collapsed viewport and zero-height dynamic items', function () {
 		type TestElement = { height: number };
 		const delegate: IListVirtualDelegate<TestElement> = {
-			getHeight() { return 100; },
+			getHeight() { return 0; },
 			getTemplateId() { return 'template'; },
 			getDynamicHeight(element) { return element.height; }
 		};
@@ -588,13 +592,15 @@ suite('ListView', function () {
 			disposeTemplate() { }
 		};
 
-		const elements: TestElement[] = [{ height: 40 }, { height: 100 }, { height: 160 }];
+		const elements: TestElement[] = [{ height: 0 }, { height: 0 }, { height: 0 }];
 		const listView = new ListView<TestElement>(document.createElement('div'), delegate, [renderer], { supportDynamicHeights: true });
 		try {
-			listView.layout(200, 200);
-			listView.splice(0, 0, elements);
-			listView.setScrollTop(100);
-			assert.doesNotThrow(() => listView.layout(0, 200));
+			// Collapse the viewport first so a subsequent splice re-renders with renderHeight <= 0.
+			// With zero-height items indexAt(renderTop) resolves to the item count while
+			// indexAfter(renderTop - 1) clamps to 0, so getVisibleRange previously produced an
+			// inverted range (e.g. { start: 3, end: 0 }) that crashed probeDynamicHeights.
+			listView.layout(0, 200);
+			assert.doesNotThrow(() => listView.splice(0, 0, elements));
 		} finally {
 			listView.dispose();
 		}
