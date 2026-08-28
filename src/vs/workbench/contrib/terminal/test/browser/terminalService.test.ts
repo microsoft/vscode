@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, fail, strictEqual } from 'assert';
+import { timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -76,6 +77,7 @@ suite('Workbench - TerminalService', () => {
 		});
 
 		deepStrictEqual(providerOptions?.location, { parentTerminal: parentTerminal.instanceId });
+		await timeout(0);
 	});
 
 	suite('background terminals', () => {

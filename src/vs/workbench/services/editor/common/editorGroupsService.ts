@@ -523,6 +523,11 @@ export interface IEditorPart extends IEditorGroupsContainer {
 export interface IAuxiliaryEditorPart extends IEditorPart {
 
 	/**
+	 * Enable or disable compact mode.
+	 */
+	setCompactMode(compact: boolean): void;
+
+	/**
 	 * Close this auxiliary editor part after moving all
 	 * dirty editors of all groups back to the main editor
 	 * part.

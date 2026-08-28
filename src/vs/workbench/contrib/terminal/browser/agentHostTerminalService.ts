@@ -272,7 +272,7 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 					const parentTerminalId = options.location.parentTerminal;
 					const parentTerminal = this._terminalService.instances.find(instance => instance.instanceId === parentTerminalId);
 					if (!parentTerminal) {
-						throw new Error(`Cannot split without parent terminal ${parentTerminalId}`);
+						throw new Error(localize('agentHostTerminal.missingSplitParent', "Cannot split because parent terminal {0} no longer exists.", parentTerminalId));
 					}
 					location = { parentTerminal };
 				} else {
