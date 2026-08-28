@@ -3401,9 +3401,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 				await projectFromCopilotContext({ cwd: (adoptedWorktree?.repositoryRoot ?? workingDirectory).fsPath }, this._gitService),
 				sessionId,
 			);
-			// Carry over the user-chosen session name (EH `customTitle`) so the
-			// adopted session keeps its title instead of regenerating one.
+			// Carry over the session's displayed title so the adopted session keeps it
+			// instead of regenerating (or showing the default "Session"). Priority: an
+			// explicit VS Code rename (`customTitle` marker), then the CLI-owned session
+			// name (`workspace.yaml` `name`, auto-generated or user-set — the title the
+			// legacy list actually shows), then the SDK summary.
 			const customTitle = await this._readExtensionHostCliCustomTitle(sessionId);
+			const cliName = typeof sdkMetadata?.name === 'string' && sdkMetadata.name.trim() ? sdkMetadata.name.trim() : undefined;
+			const cliSummary = typeof sdkMetadata?.summary === 'string' && sdkMetadata.summary.trim() ? sdkMetadata.summary.trim() : undefined;
+			const adoptedTitle = customTitle ?? cliName ?? cliSummary;
 			const archived = await this._isExtensionHostCliSessionArchived(sessionId);
 			if (archived === undefined) {
 				// Adoption commits the archived state, and the extension host stops listing
@@ -3419,9 +3425,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// `isolation: 'folder'` keeps the session in place in the reused cwd —
 			// a git repo would otherwise default to worktree and show a spurious
 			// "Creating worktree…".
-			await this._storeSessionMetadata(session, undefined, workingDirectory, [workingDirectory], workingDirectory, project, project !== undefined, { [SessionConfigKey.Isolation]: 'folder' }, customTitle, /* markRead */ true, archived, /* ehcliAdopted */ true);
+			await this._storeSessionMetadata(session, undefined, workingDirectory, [workingDirectory], workingDirectory, project, project !== undefined, { [SessionConfigKey.Isolation]: 'folder' }, adoptedTitle, /* markRead */ true, archived, /* ehcliAdopted */ true);
 			await this._adoptLegacyTurnUsage(session, sessionId);
-			this._logService.info(`[Copilot] Adopted legacy session ${sessionId}: project=${project ? project.uri.fsPath : '(unresolved)'} archived=${archived} customTitle=${customTitle !== undefined} worktreeBridged=${!!adoptedWorktree}`);
+			this._logService.info(`[Copilot] Adopted legacy session ${sessionId}: project=${project ? project.uri.fsPath : '(unresolved)'} archived=${archived} title=${adoptedTitle !== undefined ? (customTitle ? 'custom' : cliName ? 'name' : 'summary') : 'none'} worktreeBridged=${!!adoptedWorktree}`);
 			return { adopted: true, eligible: true, reason: 'adopted', ...(adoptedWorktree ? { worktree: adoptedWorktree } : {}) };
 		});
 	}

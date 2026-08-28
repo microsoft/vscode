@@ -12034,6 +12034,69 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('carries the legacy session name as the adopted title when there is no custom title', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/adopt-cwd-`);
+			const sessionId = 'legacy-named';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			// Auto-generated CLI name (`workspace.yaml` `name`) plus a summary; the name
+			// is the title the legacy list shows, so it must win and be carried over.
+			const client = new TestCopilotClient([{ ...sdkSession(sessionId, workingDirectory), name: 'Telemetry analysis for Agents window' }]);
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				// Marker without a customTitle: the session was never renamed in VS Code.
+				await writeExtensionHostMarker(userHome, sessionId);
+
+				const adopted = await ensureDefaultChatAdopted(agent, session);
+
+				const db = await sessionDataService.tryOpenDatabase(session);
+				const title = await db?.object.getMetadata('customTitle');
+				db?.dispose();
+
+				assert.deepStrictEqual(
+					{ adopted, title },
+					{ adopted: { adopted: true, eligible: true, reason: 'adopted' }, title: 'Telemetry analysis for Agents window' },
+				);
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		test('falls back to the SDK summary as the adopted title when there is no custom title or name', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/adopt-cwd-`);
+			const sessionId = 'legacy-summary-only';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			// `sdkSession` sets only a summary (no `name`); with no VS Code custom title
+			// the summary is the last remaining title source.
+			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await writeExtensionHostMarker(userHome, sessionId);
+
+				const adopted = await ensureDefaultChatAdopted(agent, session);
+
+				const db = await sessionDataService.tryOpenDatabase(session);
+				const title = await db?.object.getMetadata('customTitle');
+				db?.dispose();
+
+				assert.deepStrictEqual(
+					{ adopted, title },
+					{ adopted: { adopted: true, eligible: true, reason: 'adopted' }, title: `SDK ${sessionId}` },
+				);
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
 		test('marks the adopted session read so it is not surfaced as unread on open', async () => {
 			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
 			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/adopt-cwd-`);
