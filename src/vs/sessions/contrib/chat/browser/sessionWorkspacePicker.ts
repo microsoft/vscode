@@ -1581,8 +1581,8 @@ export class WorkspacePicker extends Disposable {
 			trigger.setAttribute('aria-label', contextCount > 0
 				? localize('workspacePicker.attachedContextCountAriaLabel', "{0}, {1} attached", options.ariaLabel, contextCount)
 				: label && label !== options.label && !selectedWorkspace
-				? localize('workspacePicker.categorySelectionAriaLabel', "{0}: {1}", options.label ?? options.ariaLabel, label)
-				: options.ariaLabel);
+					? localize('workspacePicker.categorySelectionAriaLabel', "{0}: {1}", options.label ?? options.ariaLabel, label)
+					: options.ariaLabel);
 			if (label) {
 				contents.label ??= dom.append(trigger, dom.$('span.sessions-chat-dropdown-label'));
 				contents.label.textContent = label;
