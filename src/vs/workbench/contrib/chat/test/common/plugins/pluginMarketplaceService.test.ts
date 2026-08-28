@@ -1502,3 +1502,180 @@ suite('getPluginSourceLabel', () => {
 		assert.strictEqual(getPluginSourceLabel({ kind: PluginSourceKind.Pip, package: 'my-plugin', version: '2.0' }), 'my-plugin==2.0');
 	});
 });
+
+suite('PluginMarketplaceService - per-marketplace auto-update enforcement', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const alwaysRef = parseMarketplaceReference('microsoft/always')!;
+	const neverRef = parseMarketplaceReference('microsoft/never')!;
+	const inheritedRef = parseMarketplaceReference('microsoft/inherited')!;
+
+	function makePlugin(name: string, reference: IMarketplaceReference): IMarketplacePlugin {
+		return {
+			name,
+			description: `${name} description`,
+			version: '1.0.0',
+			source: name,
+			sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: name } as const,
+			marketplace: reference.displayLabel,
+			marketplaceReference: reference,
+			marketplaceType: MarketplaceType.Copilot,
+		};
+	}
+
+	interface ICreateResult {
+		readonly service: PluginMarketplaceService;
+		readonly runIdle: () => void;
+		readonly fetchedMarketplaces: string[];
+	}
+
+	function createService(options: {
+		autoUpdate: AutoUpdateConfigurationValue;
+		extraMarketplaces?: Record<string, string>;
+		strictMarketplaces?: readonly unknown[];
+	}): ICreateResult {
+		let runner: ((idle: IdleDeadline) => void) | undefined;
+		store.add(installFakeRunWhenIdle((_target, fn) => {
+			runner = fn;
+			return Disposable.None;
+		}));
+
+		const instantiationService = store.add(new TestInstantiationService());
+		const fetchedMarketplaces: string[] = [];
+
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+			[ChatConfiguration.PluginMarketplaces]: [alwaysRef.canonicalId, neverRef.canonicalId, inheritedRef.canonicalId],
+			[ChatConfiguration.ExtraMarketplaces]: options.extraMarketplaces ?? {},
+			[ChatConfiguration.PluginsEnabled]: true,
+			...(options.strictMarketplaces ? { [ChatConfiguration.StrictMarketplaces]: options.strictMarketplaces } : {}),
+		}));
+		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as Partial<IEnvironmentService> as IEnvironmentService);
+		instantiationService.stub(IFileService, {} as unknown as IFileService);
+		instantiationService.stub(IAgentPluginRepositoryService, {
+			agentPluginsHome: URI.file('/agent-plugins'),
+			fetchRepository: async (ref: IMarketplaceReference) => {
+				fetchedMarketplaces.push(ref.canonicalId);
+				return true;
+			},
+		} as unknown as IAgentPluginRepositoryService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IRequestService, {} as unknown as IRequestService);
+		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
+		instantiationService.stub(IWorkspacePluginSettingsService, {
+			extraMarketplaces: observableValue('test.extraMarketplaces', []),
+			enabledPlugins: observableValue('test.enabledPlugins', new Map()),
+		} as Partial<IWorkspacePluginSettingsService> as IWorkspacePluginSettingsService);
+		instantiationService.stub(IWorkspaceTrustManagementService, {
+			isWorkspaceTrusted: () => true,
+			onDidChangeTrust: Event.None,
+		} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService);
+		instantiationService.stub(IExtensionsWorkbenchService, {
+			getAutoUpdateValue: () => options.autoUpdate,
+		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
+		stubMeteredConnectionService(instantiationService);
+
+		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
+		return {
+			service,
+			fetchedMarketplaces,
+			runIdle: () => {
+				assert.ok(runner, 'expected a scheduled idle callback');
+				runner({ didTimeout: false, timeRemaining: () => 50 });
+			},
+		};
+	}
+
+	function installAll(service: PluginMarketplaceService): void {
+		for (const ref of [alwaysRef, neverRef, inheritedRef]) {
+			service.addInstalledPlugin(URI.file(`/agent-plugins/${ref.canonicalId}/plugin`), makePlugin(`${ref.displayLabel}-plugin`, ref));
+		}
+	}
+
+	const managedMarketplaces = {
+		always: '{"source":"microsoft/always","autoUpdate":true}',
+		never: '{"source":"microsoft/never","autoUpdate":false}',
+		inherited: 'microsoft/inherited',
+	};
+
+	test('autoUpdate:true refreshes its marketplace even when global auto-update is off', async () => {
+		const { service, runIdle, fetchedMarketplaces } = createService({ autoUpdate: 'off', extraMarketplaces: managedMarketplaces });
+		installAll(service);
+
+		runIdle();
+		await timeout(0);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			fetched: fetchedMarketplaces,
+			withUpdates: [...service.marketplacesWithUpdates.get()],
+		}, {
+			fetched: [alwaysRef.canonicalId],
+			withUpdates: [alwaysRef.canonicalId],
+		});
+	});
+
+	test('autoUpdate:false blocks its marketplace even when global auto-update is on', async () => {
+		const { service, runIdle, fetchedMarketplaces } = createService({ autoUpdate: 'on', extraMarketplaces: managedMarketplaces });
+		installAll(service);
+
+		runIdle();
+		await timeout(0);
+		await timeout(0);
+
+		assert.deepStrictEqual(fetchedMarketplaces.sort(), [alwaysRef.canonicalId, inheritedRef.canonicalId].sort());
+	});
+
+	test('undefined autoUpdate follows the global setting (on)', async () => {
+		const { service, runIdle, fetchedMarketplaces } = createService({ autoUpdate: 'on' });
+		installAll(service);
+
+		runIdle();
+		await timeout(0);
+		await timeout(0);
+
+		assert.deepStrictEqual(fetchedMarketplaces.sort(), [alwaysRef.canonicalId, inheritedRef.canonicalId, neverRef.canonicalId].sort());
+	});
+
+	test('undefined autoUpdate follows the global setting (off)', async () => {
+		const { service, runIdle, fetchedMarketplaces } = createService({ autoUpdate: 'off' });
+		installAll(service);
+
+		runIdle();
+		await timeout(0);
+		await timeout(0);
+
+		assert.deepStrictEqual(fetchedMarketplaces, []);
+	});
+
+	test('strictMarketplaces still gates a managed autoUpdate:true marketplace', async () => {
+		const { service, runIdle, fetchedMarketplaces } = createService({
+			autoUpdate: 'off',
+			extraMarketplaces: managedMarketplaces,
+			strictMarketplaces: [{ source: 'github', repo: 'microsoft/inherited' }],
+		});
+		installAll(service);
+
+		runIdle();
+		await timeout(0);
+		await timeout(0);
+
+		assert.deepStrictEqual(fetchedMarketplaces, []);
+	});
+
+	test('plugins hydrated after startup idle are still checked (microsoft/vscode#330090)', async () => {
+		const { service, runIdle, fetchedMarketplaces } = createService({ autoUpdate: 'on', extraMarketplaces: managedMarketplaces });
+
+		// Startup idle fires before `installed.json` metadata has been
+		// hydrated, so the first check sees nothing installed.
+		runIdle();
+		await timeout(0);
+		await timeout(0);
+		assert.deepStrictEqual(fetchedMarketplaces, []);
+
+		installAll(service);
+		await timeout(0);
+		await timeout(0);
+
+		assert.deepStrictEqual(fetchedMarketplaces.sort(), [alwaysRef.canonicalId, inheritedRef.canonicalId].sort());
+	});
+});

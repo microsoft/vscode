@@ -320,6 +320,15 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	private readonly _updateCheckDelayer = this._register(new ThrottledDelayer<void>(PLUGIN_UPDATE_CHECK_INTERVAL_MS));
 	private _updateChecksInitialized = false;
 	private _updateCheckRunning = false;
+	/**
+	 * Whether the most recent update check bailed out because no installed
+	 * plugin metadata was available yet. Installed entries are hydrated
+	 * asynchronously from `installed.json`, so the check scheduled at startup
+	 * idle usually observes an empty list; without this flag it would back off
+	 * for a full {@link PLUGIN_UPDATE_CHECK_INTERVAL_MS} and plugins would
+	 * never auto-update (microsoft/vscode#330090).
+	 */
+	private _lastCheckFoundNoInstalledPlugins = true;
 
 	readonly onDidChangeMarketplaces: Event<void>;
 
@@ -411,6 +420,18 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		this._register(runWhenGlobalIdle(() => {
 			this._updateChecksInitialized = true;
 			this._scheduleUpdateCheck();
+			// Installed plugin metadata is hydrated asynchronously, so the
+			// check above typically runs against an empty list. Re-arm as soon
+			// as installed entries become observable instead of waiting a full
+			// check interval.
+			this._register(autorun(reader => {
+				if (this.installedPlugins.read(reader).length === 0
+					|| !this._lastCheckFoundNoInstalledPlugins
+					|| this._updateCheckRunning) {
+					return;
+				}
+				this._scheduleUpdateCheck(0);
+			}));
 			this._register(Event.filter(
 				_configurationService.onDidChangeConfiguration,
 				e => e.affectsConfiguration(AutoUpdateConfigurationKey)
@@ -865,7 +886,13 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			} finally {
 				this._updateCheckRunning = false;
 				if (!this._updateCheckDelayer.isTriggered()) {
-					this._scheduleUpdateCheck(PLUGIN_UPDATE_CHECK_INTERVAL_MS);
+					// A check that found nothing installed did not really run;
+					// retry immediately if entries have appeared since.
+					this._scheduleUpdateCheck(
+						this._lastCheckFoundNoInstalledPlugins && this.installedPlugins.get().length > 0
+							? 0
+							: PLUGIN_UPDATE_CHECK_INTERVAL_MS
+					);
 				}
 			}
 		}, delay).catch(error => {
@@ -882,6 +909,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 
 		try {
 			const installed = this.installedPlugins.get();
+			this._lastCheckFoundNoInstalledPlugins = installed.length === 0;
 			if (installed.length === 0) {
 				return;
 			}
