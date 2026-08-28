@@ -13,7 +13,7 @@ import { getAgentMergeRequestLabel } from './widget/chatContentParts/chatAgentMe
  * summary of its machine-facing state block) contributes its own label; every
  * other request keeps its message text. Further kinds add a check of their own.
  */
-export function getChatRequestLabel(item: IChatRequestViewModel): string {
+export function getChatRequestText(item: IChatRequestViewModel): string {
 	const agentMergeLabel = getAgentMergeRequestLabel(item);
 	if (agentMergeLabel !== undefined) {
 		return agentMergeLabel;

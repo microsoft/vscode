@@ -16,7 +16,7 @@ import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiff
 import { MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { IMultiDiffEditorOptions } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
 import { ChatWidget } from '../widget/chatWidget.js';
-import { getChatRequestLabel } from '../chatRequestLabel.js';
+import { getChatRequestText } from '../chatRequestText.js';
 import { ChatTreeItem } from '../chat.js';
 import { IChatResponseFileChangesService } from '../chatResponseFileChangesService.js';
 import { IChatEditingService, IEditSessionEntryDiff } from '../../common/editing/chatEditingService.js';
@@ -374,7 +374,7 @@ export class PromptTimelineModel extends Disposable {
 		if (cached && cached.messageText === messageText) {
 			return cached.preview;
 		}
-		const preview = getPromptPreview(getChatRequestLabel(item));
+		const preview = getPromptPreview(getChatRequestText(item));
 		this._previewCache.set(item.id, { messageText, preview });
 		return preview;
 	}
