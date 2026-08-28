@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -50,6 +51,7 @@ function createSubscriptionService(...changesets: string[]): IAgentHostChangeset
 	return {
 		_serviceBrand: undefined,
 		subscriptions,
+		onDidChangeSessionSubscriptions: Event.None,
 		getSessionSubscriptions: () => subscriptions,
 		addSubscription: (_session, changeset) => { subscriptions.add(changeset); },
 		removeSubscription: (_session, changeset) => { subscriptions.delete(changeset); },
