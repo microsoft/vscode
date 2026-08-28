@@ -233,18 +233,22 @@ suite('FileDialogService', function () {
 			dispose(): void { }
 		};
 		const dialogService = instantiationService.createInstance(TestFileDialogService, simplifiedDialog);
-		sinon.stub(dialogService, 'defaultFolderPath').resolves(URI.file('/default/folder'));
-		sinon.stub(dialogService, 'defaultFilePath').resolves(URI.file('/default/file'));
+		const defaultFolder = URI.file('/default/folder');
+		const defaultFile = URI.file('/default/file');
+		const providedOpen = URI.file('/provided/open');
+		const providedSave = URI.file('/provided/save');
+		sinon.stub(dialogService, 'defaultFolderPath').resolves(defaultFolder);
+		sinon.stub(dialogService, 'defaultFilePath').resolves(defaultFile);
 
 		await dialogService.showOpenDialog({ canSelectFiles: false, canSelectFolders: true, canSelectMany: false });
 		await dialogService.showOpenDialog({ canSelectFiles: true, canSelectFolders: true, canSelectMany: false });
-		await dialogService.showOpenDialog({ defaultUri: URI.file('/provided/open'), canSelectFiles: true, canSelectFolders: false, canSelectMany: false });
+		await dialogService.showOpenDialog({ defaultUri: providedOpen, canSelectFiles: true, canSelectFolders: false, canSelectMany: false });
 		await dialogService.showSaveDialog({});
-		await dialogService.showSaveDialog({ defaultUri: URI.file('/provided/save') });
+		await dialogService.showSaveDialog({ defaultUri: providedSave });
 
 		assert.deepStrictEqual(nativeOptions, {
-			open: ['/default/folder', '/default/file', '/provided/open'],
-			save: ['/default/file', '/provided/save']
+			open: [defaultFolder.fsPath, defaultFile.fsPath, providedOpen.fsPath],
+			save: [defaultFile.fsPath, providedSave.fsPath]
 		});
 	});
 });
