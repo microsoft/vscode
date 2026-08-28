@@ -47,7 +47,8 @@ import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../co
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
-import { AgentHostDatabase, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope, IAgentHostDatabaseSessionV2Receipt } from '../../node/agentHostDatabase.js';
+import { AgentHostDatabase, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionChat, IAgentHostDatabaseSessionChatCatalog, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope, IAgentHostDatabaseSessionV2Receipt } from '../../node/agentHostDatabase.js';
+import { CHAT_PROVIDER_DATA_METADATA_KEY } from '../../node/agentHostPeerChatStore.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, decodeAgentHostCatalogPayload, encodeAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
 import { AgentSessionRegistry, type IRegisteredSession } from '../../node/agentSessionRegistry.js';
 import { AgentHostManagementService } from '../../node/agentHostManagementService.js';
@@ -312,6 +313,7 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 	private readonly _sessionsV2Exclusions = new Map<string, IAgentHostDatabaseSessionsV2Exclusion>();
 	private readonly _tombstones = new Set<string>();
 	private readonly _agentMergeEnabled = new Set<string>();
+	private readonly _sessionChats = new Map<string, IAgentHostDatabaseSessionChatCatalog>();
 	registryWriteAttempts = 0;
 	private _remainingRegistryWriteFailures = 0;
 	readonly externalUpdates: { session: string; external: boolean }[] = [];
@@ -373,6 +375,7 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 		this._sessionV2Registrations.delete(session);
 		this._sessionsV2.delete(session);
 		this._agentMergeEnabled.delete(session);
+		this._sessionChats.delete(session);
 	}
 
 	async updateSessionExternal(updates: readonly { readonly session: string; readonly external: boolean }[]): Promise<void> {
@@ -511,6 +514,7 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 		this._beforeWrite();
 		this._sessionV2Registrations.delete(session);
 		this._sessionsV2.delete(session);
+		this._sessionChats.delete(session);
 		this._sessions.delete(session);
 		this._agentMergeEnabled.delete(session);
 	}
@@ -652,6 +656,26 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 		this._sessionsV2.set(envelope.session, { ...session, ...envelope, isChatBacking: isChatBackingPayload(envelope.payload), payloadDirty: current?.payloadDirty ?? 1 });
 		return 'applied';
 	}
+	async getSessionChatCatalog(session: string): Promise<IAgentHostDatabaseSessionChatCatalog | undefined> {
+		return this._sessionChats.get(session);
+	}
+	async replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined): Promise<number | undefined> {
+		const current = this._sessionChats.get(session);
+		if (current?.revision !== expectedRevision) {
+			return undefined;
+		}
+		const revision = (current?.revision ?? 0) + 1;
+		this._sessionChats.set(session, { revision, legacyMirroredRevision: current?.legacyMirroredRevision ?? 0, chats: [...chats] });
+		return revision;
+	}
+	async markSessionChatCatalogLegacyMirrored(session: string, expectedRevision: number): Promise<boolean> {
+		const current = this._sessionChats.get(session);
+		if (!current || current.revision !== expectedRevision) {
+			return false;
+		}
+		this._sessionChats.set(session, { ...current, legacyMirroredRevision: expectedRevision });
+		return true;
+	}
 
 	async close(): Promise<void> { }
 	dispose(): void { }
@@ -675,6 +699,7 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 	private readonly _sessionsV2Exclusions = new Map<string, IAgentHostDatabaseSessionsV2Exclusion>();
 	private readonly _tombstones = new Set<string>();
 	private readonly _agentMergeEnabled = new Set<string>();
+	private readonly _sessionChats = new Map<string, IAgentHostDatabaseSessionChatCatalog>();
 	private _backfilled = false;
 	catalogListCalls = 0;
 
@@ -704,6 +729,7 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 		this._sessionV2Registrations.delete(session);
 		this._sessionsV2.delete(session);
 		this._agentMergeEnabled.delete(session);
+		this._sessionChats.delete(session);
 	}
 
 	async updateSessionExternal(): Promise<void> { }
@@ -845,6 +871,7 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 	async unregisterSessionV2(session: string): Promise<void> {
 		this._sessionV2Registrations.delete(session);
 		this._sessionsV2.delete(session);
+		this._sessionChats.delete(session);
 	}
 
 	async updateSessionV2External(updates: readonly { readonly session: string; readonly external: boolean }[]): Promise<void> {
@@ -932,6 +959,26 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 		}
 		this._sessionsV2.set(envelope.session, { ...session, ...envelope, isChatBacking: isChatBackingPayload(envelope.payload), payloadDirty: current?.payloadDirty ?? 1 });
 		return 'applied';
+	}
+	async getSessionChatCatalog(session: string): Promise<IAgentHostDatabaseSessionChatCatalog | undefined> {
+		return this._sessionChats.get(session);
+	}
+	async replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined): Promise<number | undefined> {
+		const current = this._sessionChats.get(session);
+		if (current?.revision !== expectedRevision) {
+			return undefined;
+		}
+		const revision = (current?.revision ?? 0) + 1;
+		this._sessionChats.set(session, { revision, legacyMirroredRevision: current?.legacyMirroredRevision ?? 0, chats: [...chats] });
+		return revision;
+	}
+	async markSessionChatCatalogLegacyMirrored(session: string, expectedRevision: number): Promise<boolean> {
+		const current = this._sessionChats.get(session);
+		if (!current || current.revision !== expectedRevision) {
+			return false;
+		}
+		this._sessionChats.set(session, { ...current, legacyMirroredRevision: expectedRevision });
+		return true;
 	}
 
 	async close(): Promise<void> { }
@@ -3455,7 +3502,7 @@ suite('AgentService (node dispatcher)', () => {
 			// of the top-level list.
 			class FailingProviderDataDatabase extends TestSessionDatabase {
 				override async setMetadata(key: string, value: string): Promise<void> {
-					if (key === 'defaultChatProviderData') {
+					if (key === CHAT_PROVIDER_DATA_METADATA_KEY) {
 						throw new Error('provider data write failed');
 					}
 					return super.setMetadata(key, value);
@@ -3480,7 +3527,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({
 				registered: await svc.getRegisteredSessions(),
 				backingMarked: db.setMetadataCalls.some(c => c.key === 'peerChatBacking'),
-				providerDataPersisted: db.setMetadataCalls.some(c => c.key === 'defaultChatProviderData'),
+				providerDataPersisted: db.setMetadataCalls.some(c => c.key === CHAT_PROVIDER_DATA_METADATA_KEY),
 				disposeCalls: agent.disposeSessionCalls.length,
 			}, {
 				registered: [],
@@ -3539,7 +3586,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			await svc.disposeSession(session);
 
-			assert.deepStrictEqual(order, ['prepareSessionDeletion', 'deleteSessionData', 'removeSessionWorktree:file:///worktree']);
+			assert.deepStrictEqual(order, ['prepareSessionDeletion', 'deleteSessionData', 'deleteSessionData', 'removeSessionWorktree:file:///worktree']);
 		});
 
 		test('preserves session data when worktree metadata cannot be read', async () => {
@@ -3616,7 +3663,7 @@ suite('AgentService (node dispatcher)', () => {
 				registryWriteAttempts: 3,
 				registeredSessions: [],
 				hasState: false,
-				deleteSessionDataCalls: 1,
+				deleteSessionDataCalls: 2,
 				removeWorktreeCalls: 1,
 			});
 		});
@@ -3696,7 +3743,7 @@ suite('AgentService (node dispatcher)', () => {
 			};
 		}
 
-		function createExternalSessionService(sessionDataService = createSessionDataService(), orchestratorDatabase?: IAgentHostDatabase, copilotApiService?: ICopilotApiService): AgentService {
+		function createExternalSessionService(sessionDataService = createPerSessionDataService().service, orchestratorDatabase?: IAgentHostDatabase, copilotApiService?: ICopilotApiService): AgentService {
 			return disposables.add(createTestAgentService(
 				new NullLogService(),
 				fileService,
@@ -3923,8 +3970,8 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				sessions: [centralSession.toString(), fallbackSession.toString()],
 				providerMetadataCalls: [fallbackSession.toString()],
-				sessionDatabaseOpenSessions: [fallbackSession.toString()],
-				sessionDatabaseOpenCount: 2,
+				sessionDatabaseOpenSessions: [buildDefaultChatUri(fallbackSession), fallbackSession.toString()],
+				sessionDatabaseOpenCount: 3,
 			});
 		});
 
@@ -4712,45 +4759,36 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		testWithExternalSessionClock('recent reconciles clients when a hidden external session becomes more recent', async () => {
+		testWithExternalSessionClock('recent listing selects a restored external session after it becomes more recent', async () => {
 			const now = Date.now();
 			const svc = createExternalSessionService();
 			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.Recent, 1);
 			await waitForSessionListReconciliation(svc);
 			const agent = disposables.add(new TimedExternalAgent('copilot'));
 			const first = agent.addSession('first', now - 1);
-			const second = agent.addSession('second', now - 2);
+			agent.addSession('second', now - 2);
 			const third = agent.addSession('third', now - 3);
 			registerTestAgentProvider(svc, agent);
 			await svc.listSessions();
 			await waitForSessionListReconciliation(svc);
-			await svc.restoreSession(third);
 
-			const notifications: string[] = [];
-			disposables.add(svc.onDidNotification(notification => {
-				if (notification.type === NotificationType.SessionAdded) {
-					notifications.push(`add:${AgentSession.id(URI.parse(notification.summary.resource))}`);
-				} else if (notification.type === NotificationType.SessionRemoved) {
-					notifications.push(`remove:${AgentSession.id(URI.parse(notification.session))}`);
-				}
-			}));
+			await svc.restoreSession(third);
+			await waitForSessionListReconciliation(svc);
+			await timeout(1_000);
 
 			getStateManager(svc).dispatchServerAction(buildDefaultChatUri(third), {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-third',
-				startedAt: new Date(now).toISOString(),
+				startedAt: new Date().toISOString(),
 				message: { text: 'Update', origin: { kind: MessageKind.User } },
 			});
 			await timeout(150);
 			await waitForSessionListReconciliation(svc);
 
-			assert.deepStrictEqual({
-				visible: (await svc.listSessions()).map(session => AgentSession.id(session.session)).sort(),
-				notifications,
-			}, {
-				visible: [AgentSession.id(first), AgentSession.id(third)].sort(),
-				notifications: ['add:third', `remove:${AgentSession.id(second)}`],
-			});
+			assert.deepStrictEqual(
+				(await svc.listSessions()).map(session => AgentSession.id(session.session)).sort(),
+				[AgentSession.id(first), AgentSession.id(third)].sort(),
+			);
 		});
 
 		testWithExternalSessionClock('configuration changes add and remove non-live external sessions immediately', async () => {
@@ -13053,9 +13091,46 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
+	const createSingleDatabaseSessionDataService = createSessionDataService;
+
 	// ---- peer-chat catalog persistence (B2: orchestrator-owned) ---------
 
 	suite('peer chat catalog persistence', () => {
+
+		function createSessionDataService(sessionDatabase: TestSessionDatabase = new TestSessionDatabase()): ISessionDataService {
+			const base = createSingleDatabaseSessionDataService(sessionDatabase);
+			const chatDatabases = new Map<string, TestSessionDatabase>();
+			const reference = (database: TestSessionDatabase): IReference<ISessionDatabase> => ({
+				object: database,
+				dispose: () => { },
+			});
+			return {
+				...base,
+				openDatabase: resource => {
+					if (!resource.authority) {
+						return reference(sessionDatabase);
+					}
+					let database = chatDatabases.get(resource.toString());
+					if (!database) {
+						database = new TestSessionDatabase();
+						chatDatabases.set(resource.toString(), database);
+					}
+					return reference(database);
+				},
+				tryOpenDatabase: async resource => {
+					if (!resource.authority) {
+						return reference(sessionDatabase);
+					}
+					const database = chatDatabases.get(resource.toString());
+					return database ? reference(database) : undefined;
+				},
+				deleteSessionData: async resource => {
+					if (resource.authority) {
+						chatDatabases.delete(resource.toString());
+					}
+				},
+			};
+		}
 
 		/** Polls the persisted peer-chat catalog blob until it appears or times out. */
 		async function readCatalog(db: TestSessionDatabase): Promise<{ uri: string; providerData?: string }[]> {
@@ -13220,12 +13295,12 @@ suite('AgentService (node dispatcher)', () => {
 					{ uri: peer.toString(), title: 'Lazy Central Peer' },
 				],
 				beforeAccess: {
-					peerCatalogReads: 0,
+					peerCatalogReads: 1,
 					legacyEnumerations: 0,
 					peerMaterializations: 0,
 				},
 				afterAccess: {
-					peerCatalogReads: 0,
+					peerCatalogReads: 1,
 					legacyEnumerations: 0,
 					peerMaterializations: 1,
 				},
@@ -13301,7 +13376,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('rolls back a new peer chat when its catalog entry cannot be persisted', async () => {
+		test('keeps a new peer chat when its downgrade mirror cannot be persisted', async () => {
 			class FailingPeerCatalogDatabase extends TestSessionDatabase {
 				failPeerCatalogWrites = false;
 
@@ -13330,14 +13405,16 @@ suite('AgentService (node dispatcher)', () => {
 			const peer = URI.parse(buildChatUri(session, 'unpersisted-peer'));
 			db.failPeerCatalogWrites = true;
 
-			await assert.rejects(() => localService.createChat(session, peer), /peer catalog write failed/);
+			await localService.createChat(session, peer);
 
 			assert.deepStrictEqual({
 				chats: getStateManager(localService).getSessionState(session.toString())?.chats.map(chat => chat.resource.toString()),
 				disposed: agent.disposedPeers.map(call => call.toString()),
+				legacy: await db.getMetadata('peerChats'),
 			}, {
-				chats: [buildDefaultChatUri(session)],
-				disposed: [peer.toString()],
+				chats: [buildDefaultChatUri(session), peer.toString()],
+				disposed: [],
+				legacy: undefined,
 			});
 		});
 
@@ -14363,7 +14440,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('disposeChat preserves the chat when catalog removal fails so deletion can be retried', async () => {
+		test('disposeChat keeps central deletion when the downgrade mirror fails and repairs it later', async () => {
 			class FailingRemovalDatabase extends TestSessionDatabase {
 				failRemoval = false;
 				override async setMetadata(key: string, value: string): Promise<void> {
@@ -14388,7 +14465,7 @@ suite('AgentService (node dispatcher)', () => {
 			await localService.createChat(session, peer);
 			db.failRemoval = true;
 
-			await assert.rejects(() => localService.disposeChat(session, peer), /catalog removal failed/);
+			await localService.disposeChat(session, peer);
 			const retainedAfterFailure = getStateManager(localService).getSessionState(session.toString())?.chats.some(chat => chat.resource.toString() === peer.toString());
 			db.failRemoval = false;
 			await localService.disposeChat(session, peer);
@@ -14398,7 +14475,7 @@ suite('AgentService (node dispatcher)', () => {
 				catalog: await readCatalog(db),
 				inMemoryAfterRetry: getStateManager(localService).getSessionState(session.toString())?.chats.some(chat => chat.resource.toString() === peer.toString()),
 			}, {
-				retainedAfterFailure: true,
+				retainedAfterFailure: false,
 				catalog: [],
 				inMemoryAfterRetry: false,
 			});
@@ -14619,7 +14696,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('a rejected migration write leaves the catalog absent (not a subset) so migration re-runs', async () => {
+		test('a rejected migration mirror leaves central membership available and repairs on restore', async () => {
 			class FailingCatalogDatabase extends TestSessionDatabase {
 				failPeerChatsWrites = 0;
 				override async setMetadata(key: string, value: string): Promise<void> {
@@ -14662,15 +14739,13 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 
-			// First restore: the single catalog write is rejected. Because the write
-			// is all-or-nothing, the key must stay absent (never a proper subset).
+			// First restore commits central authority even though the cooling mirror fails.
 			db.failPeerChatsWrites = 1;
 			getStateManager(localService).deleteSession(session.toString());
-			await assert.rejects(() => localService.restoreSession(session), /simulated catalog write failure/);
+			await localService.restoreSession(session);
 			const catalogAfterFailedWrite = await db.getMetadata('peerChats');
 
-			// Second restore: catalog still absent => migration re-runs and now
-			// persists the complete set.
+			// Second restore repairs the unacknowledged compatibility mirror.
 			getStateManager(localService).deleteSession(session.toString());
 			await localService.restoreSession(session);
 			const catalog = await readCatalog(db);

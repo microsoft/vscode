@@ -79,7 +79,7 @@ function persistedMetadata(): Readonly<Record<string, string>> {
 	};
 }
 
-function createResolver(metadata: Readonly<Record<string, string>>, unpersistedBacking = false): AgentHostCatalogSourceResolver {
+function createResolver(metadata: Readonly<Record<string, string>>, unpersistedBacking = false, chatMetadata?: Readonly<Record<string, string>>): AgentHostCatalogSourceResolver {
 	return new AgentHostCatalogSourceResolver({
 		openDatabase: () => ({
 			object: {
@@ -88,6 +88,13 @@ function createResolver(metadata: Readonly<Record<string, string>>, unpersistedB
 			},
 			dispose: () => { },
 		}),
+		tryOpenDatabase: async () => chatMetadata ? ({
+			object: {
+				getMetadataObject: async <T extends Record<string, unknown>>(keys: T): Promise<{ [K in keyof T]: string | undefined }> =>
+					Object.fromEntries(Object.keys(keys).map(key => [key, chatMetadata[key]])) as { [K in keyof T]: string | undefined },
+			},
+			dispose: () => { },
+		}) : undefined,
 		isUnpersistedChatBacking: () => unpersistedBacking,
 		worktreeProjectFromRepositoryRoot: root => root ? { uri: URI.parse(root), displayName: 'Persisted worktree' } : undefined,
 	});
@@ -95,6 +102,31 @@ function createResolver(metadata: Readonly<Record<string, string>>, unpersistedB
 
 suite('AgentHostCatalogSourceResolver', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('prefers chat-local titles over the downgrade-compatible session mirror', async () => {
+		const result = await createResolver(persistedMetadata(), false, {
+			[SESSION_CUSTOM_TITLE_KEY]: 'Chat-local title',
+			[SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user',
+		}).buildCatalogSyncRequest(session, sourceState(), {}, true);
+
+		assert.deepStrictEqual(result.data.chats, [{
+			uri: chat,
+			order: 0,
+			kind: 'default',
+			summary: 'Chat-local title',
+			titleSource: 'user',
+			origin: { kind: ChatOriginKind.Fork, chat: 'agenthost-chat:source/default', turnId: 'turn-1' },
+		}]);
+	});
+
+	test('prefers live chat titles over stale chat-local metadata during live synchronization', async () => {
+		const result = await createResolver(persistedMetadata(), false, {
+			[SESSION_CUSTOM_TITLE_KEY]: 'Stale chat-local title',
+			[SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user',
+		}).buildCatalogSyncRequest(session, sourceState(), {}, false);
+
+		assert.strictEqual(result.data.chats[0].summary, 'Live chat');
+	});
 
 	test('prefers live state while preserving persisted-only source and legacy metadata', async () => {
 		const metadata = persistedMetadata();

@@ -9,6 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { ChatOriginKind } from '../../common/state/protocol/state.js';
 import { buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
+import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentHostPeerChatStore, PEER_CHATS_METADATA_KEY } from '../../node/agentHostPeerChatStore.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
@@ -26,8 +27,23 @@ const origin = {
 suite('AgentHostPeerChatStore', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	let orchestrator: AgentHostDatabase;
+
+	setup(async () => {
+		orchestrator = new AgentHostDatabase(':memory:');
+		await orchestrator.registerRuntimeSession(session.toString(), {
+			provider: 'copilot',
+			startTime: 1,
+			source: 'explicit',
+		}, { checkTombstone: false });
+	});
+
+	teardown(async () => {
+		await orchestrator.close();
+	});
+
 	function createStore(database: TestSessionDatabase): AgentHostPeerChatStore {
-		return new AgentHostPeerChatStore(createSessionDataService(database), new NullLogService());
+		return new AgentHostPeerChatStore(orchestrator, createSessionDataService(database), new NullLogService());
 	}
 
 	test('heals malformed metadata on the next write', async () => {
@@ -35,7 +51,7 @@ suite('AgentHostPeerChatStore', () => {
 		const store = createStore(database);
 		await database.setMetadata(PEER_CHATS_METADATA_KEY, '{"not":"an array"}');
 
-		const before = await store.tryRead(session);
+		const before = await store.tryReadLegacy(session);
 		await store.upsert(session, first, 'provider-data', { kind: ChatOriginKind.User });
 
 		assert.deepStrictEqual({
@@ -70,7 +86,7 @@ suite('AgentHostPeerChatStore', () => {
 			},
 		]));
 
-		assert.deepStrictEqual(await store.tryRead(session), [
+		assert.deepStrictEqual(await store.tryReadLegacy(session), [
 			{ uri: first.toString(), providerData: 'first', origin },
 			{
 				uri: third.toString(),
@@ -103,6 +119,26 @@ suite('AgentHostPeerChatStore', () => {
 		]);
 	});
 
+	test('retries concurrent mutations from separate store instances', async () => {
+		const database = new TestSessionDatabase();
+		const firstStore = createStore(database);
+		const secondStore = createStore(database);
+		await firstStore.replace(session, []);
+
+		await Promise.all([
+			firstStore.upsert(session, first, 'first'),
+			secondStore.upsert(session, second, 'second'),
+		]);
+
+		assert.deepStrictEqual(
+			(await firstStore.tryRead(session))?.slice().sort((a, b) => a.uri.localeCompare(b.uri)),
+			[
+				{ uri: first.toString(), providerData: 'first' },
+				{ uri: second.toString(), providerData: 'second' },
+			].sort((a, b) => a.uri.localeCompare(b.uri)),
+		);
+	});
+
 	test('refreshes provider data without dropping persisted origin or inherited turn', async () => {
 		const database = new TestSessionDatabase();
 		const store = createStore(database);
@@ -127,6 +163,30 @@ suite('AgentHostPeerChatStore', () => {
 		}, {
 			entries: [],
 			raw: '[]',
+		});
+	});
+
+	test('imports membership changed by an older build into central authority', async () => {
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([
+			{ uri: first.toString(), providerData: 'first' },
+		]));
+
+		const firstImport = await store.reconcileLegacy(session);
+		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([
+			{ uri: second.toString(), providerData: 'second' },
+		]));
+		const secondImport = await store.reconcileLegacy(session);
+
+		assert.deepStrictEqual({
+			firstImport,
+			secondImport,
+			central: await store.tryRead(session),
+		}, {
+			firstImport: [{ uri: first.toString(), providerData: 'first' }],
+			secondImport: [{ uri: second.toString(), providerData: 'second' }],
+			central: [{ uri: second.toString(), providerData: 'second' }],
 		});
 	});
 });

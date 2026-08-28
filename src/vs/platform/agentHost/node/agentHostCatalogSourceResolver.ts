@@ -39,6 +39,12 @@ export interface IAgentHostCatalogSourceResolverDependencies {
 		};
 		dispose(): void;
 	};
+	readonly tryOpenDatabase?: (session: URI) => Promise<{
+		readonly object: {
+			getMetadataObject<T extends Record<string, unknown>>(keys: T): Promise<{ [K in keyof T]: string | undefined }>;
+		};
+		dispose(): void;
+	} | undefined>;
 	readonly isUnpersistedChatBacking: (session: URI) => boolean;
 	readonly worktreeProjectFromRepositoryRoot: (repositoryRoot: string | undefined) => { readonly uri: URI; readonly displayName: string } | undefined;
 }
@@ -78,6 +84,20 @@ export class AgentHostCatalogSourceResolver {
 			ref.dispose();
 		}
 		const metadata = { ...persisted, ...metadataOverrides };
+		const chatMetadata = new Map(await Promise.all(state.chats.map(async chat => {
+			const ref = await this._dependencies.tryOpenDatabase?.(URI.parse(chat.uri));
+			if (!ref) {
+				return [chat.uri, undefined] as const;
+			}
+			try {
+				return [chat.uri, await ref.object.getMetadataObject({
+					[SESSION_CUSTOM_TITLE_KEY]: true,
+					[SESSION_CUSTOM_TITLE_SOURCE_KEY]: true,
+				})] as const;
+			} finally {
+				ref.dispose();
+			}
+		})));
 		const title = (preferPersistedMetadata ? metadata[SESSION_CUSTOM_TITLE_KEY] : metadataOverrides[SESSION_CUSTOM_TITLE_KEY]) ?? state.title ?? '';
 		const titleSource = normalizeCatalogTitleSource(metadata[SESSION_CUSTOM_TITLE_SOURCE_KEY]);
 		const persistedMultiRoot = metadata[SESSION_META_MULTI_ROOT_KEY] !== undefined
@@ -163,14 +183,29 @@ export class AgentHostCatalogSourceResolver {
 			workingDirectories: state.workingDirectories,
 			changes,
 			_meta: Object.keys(meta).length > 0 ? meta : undefined,
-			chats: state.chats.map((chat, order) => ({
-				uri: chat.uri,
-				order,
-				kind: chat.kind,
-				summary: (preferPersistedMetadata ? metadata[customChatTitleMetadataKey(chat.uri)] : metadataOverrides[customChatTitleMetadataKey(chat.uri)]) || chat.title || undefined,
-				titleSource: normalizeCatalogTitleSource(metadata[customChatTitleSourceMetadataKey(chat.uri)]),
-				origin: chat.origin,
-			})),
+			chats: state.chats.map((chat, order) => {
+				const local = chatMetadata.get(chat.uri);
+				const summary = preferPersistedMetadata
+					? local?.[SESSION_CUSTOM_TITLE_KEY]
+					|| metadata[customChatTitleMetadataKey(chat.uri)]
+					|| chat.title
+					|| undefined
+					: metadataOverrides[customChatTitleMetadataKey(chat.uri)]
+					|| chat.title
+					|| local?.[SESSION_CUSTOM_TITLE_KEY]
+					|| undefined;
+				const titleSource = preferPersistedMetadata
+					? local?.[SESSION_CUSTOM_TITLE_SOURCE_KEY] ?? metadata[customChatTitleSourceMetadataKey(chat.uri)]
+					: metadataOverrides[customChatTitleSourceMetadataKey(chat.uri)] ?? local?.[SESSION_CUSTOM_TITLE_SOURCE_KEY] ?? metadata[customChatTitleSourceMetadataKey(chat.uri)];
+				return {
+					uri: chat.uri,
+					order,
+					kind: chat.kind,
+					summary,
+					titleSource: normalizeCatalogTitleSource(titleSource),
+					origin: chat.origin,
+				};
+			}),
 		};
 		const legacyMetadata: Record<string, string> = {
 			...metadataOverrides,

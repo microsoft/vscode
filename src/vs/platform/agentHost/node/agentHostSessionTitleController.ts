@@ -253,16 +253,32 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 	/** Persists `title` as the custom title of the addressed independent chat or session. */
 	private _persistAutoTitle(channel: ProtocolURI, independentChat: ProtocolURI | undefined, title: string): void {
 		if (independentChat) {
+			this._persistSessionFlag(independentChat, SESSION_CUSTOM_TITLE_KEY, title);
+			this._persistSessionFlag(independentChat, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_AUTO);
 			this._persistSessionFlag(channel, customChatTitleMetadataKey(independentChat), title);
 			this._persistSessionFlag(channel, customChatTitleSourceMetadataKey(independentChat), AGENT_HOST_TITLE_SOURCE_AUTO);
 			return;
+		}
+		const defaultChat = this._stateManager.getSessionState(channel)?.defaultChat;
+		if (defaultChat) {
+			this._persistSessionFlag(defaultChat, SESSION_CUSTOM_TITLE_KEY, title);
+			this._persistSessionFlag(defaultChat, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_AUTO);
 		}
 		this._persistSessionFlag(channel, SESSION_CUSTOM_TITLE_KEY, title);
 		this._persistSessionFlag(channel, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_AUTO);
 	}
 
 	private _persistAutoTitleSource(channel: ProtocolURI, independentChat: ProtocolURI | undefined): void {
-		this._persistSessionFlag(channel, independentChat ? customChatTitleSourceMetadataKey(independentChat) : SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_AUTO);
+		if (independentChat) {
+			this._persistSessionFlag(independentChat, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_AUTO);
+			this._persistSessionFlag(channel, customChatTitleSourceMetadataKey(independentChat), AGENT_HOST_TITLE_SOURCE_AUTO);
+			return;
+		}
+		const defaultChat = this._stateManager.getSessionState(channel)?.defaultChat;
+		if (defaultChat) {
+			this._persistSessionFlag(defaultChat, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_AUTO);
+		}
+		this._persistSessionFlag(channel, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_AUTO);
 	}
 
 	/** The live title of the addressed independent chat or session. */

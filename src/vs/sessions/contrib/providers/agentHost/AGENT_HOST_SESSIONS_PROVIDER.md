@@ -93,14 +93,30 @@ The local Agent Host maintains a host-wide `sessions_v2` SQLite registry and
 catalog. Each row contains a small indexed registry and synchronization envelope
 plus one bounded, versioned payload for list-visible session and chat metadata.
 The payload's structural validator is also its TypeScript type authority and
-normalizes all data before canonical serialization and hashing. Per-session
-databases continue to own turns, drafts, annotations, detailed changesets, and
-opaque provider backing required when a session or chat is opened.
+normalizes all data before canonical serialization and hashing.
 
 The row has two different ownership contracts. Registry identity and provenance
 (`session_uri`, provider, start time, external state, and registration source)
-remain authoritative. The list payload is a derived, rebuildable cache: provider
-state plus per-session metadata can reproduce its canonical bytes and hash.
+remain authoritative. The list payload is a derived, rebuildable aggregate:
+central session/chat identity, provider state, and member-chat metadata can
+reproduce its canonical bytes and hash. Ordinary session-list reads use this
+stored aggregate rather than opening every member-chat database.
+
+Peer-chat membership and routing data are authoritative in the central
+`session_chat_catalogs` and `session_chats` tables. The default chat is implicit
+in session identity; ordered peer rows retain their URI, provider backing,
+origin, and inherited-turn identity. A chat database owns its conversation
+content and chat-local metadata, including its durable provider backing and
+title. Central chat rows and the list payload retain only the copies needed to
+enumerate, route, and present the containing session.
+
+During the downgrade-compatibility window, a revisioned participant mirrors
+central peer membership into the legacy `peerChats` session-metadata value.
+Current runtime reads remain central. A startup/restore importer may read that
+legacy value to incorporate chats created by an older build; after import,
+central membership wins and the compatibility mirror is regenerated. Failed
+mirror writes do not roll back central authority and remain unacknowledged for
+retry.
 
 Catalog persistence is legacy-first during the compatibility window: one
 per-session transaction updates downgrade-compatible metadata and a durable

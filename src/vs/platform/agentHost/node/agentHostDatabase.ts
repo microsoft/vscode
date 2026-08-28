@@ -78,6 +78,20 @@ export interface IAgentHostDatabaseSessionV2 extends IAgentHostDatabaseSessionV2
 	readonly payload: string;
 }
 
+export interface IAgentHostDatabaseSessionChat {
+	readonly chat: string;
+	readonly order: number;
+	readonly providerData?: string;
+	readonly origin?: string;
+	readonly inheritedTurnId?: string;
+}
+
+export interface IAgentHostDatabaseSessionChatCatalog {
+	readonly revision: number;
+	readonly legacyMirroredRevision: number;
+	readonly chats: readonly IAgentHostDatabaseSessionChat[];
+}
+
 export type AgentHostDatabaseSessionV2UpsertResult = 'applied' | 'replayed' | 'stale' | 'conflict' | 'generationMismatch' | 'missingSession' | 'tombstoned';
 
 export interface IAgentHostDatabase extends IDisposable {
@@ -175,6 +189,12 @@ export interface IAgentHostDatabase extends IDisposable {
 	/** Clears a dirty marker only when no newer mutation superseded it. */
 	markSessionV2PayloadClean(session: string, expectedDirty: number): Promise<boolean>;
 	upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult>;
+	/** Reads authoritative peer-chat membership. `undefined` means legacy import has not completed. */
+	getSessionChatCatalog(session: string): Promise<IAgentHostDatabaseSessionChatCatalog | undefined>;
+	/** Replaces authoritative peer-chat membership when its revision still matches. */
+	replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined): Promise<number | undefined>;
+	/** Acknowledges the exact central revision written to the downgrade-compatibility mirror. */
+	markSessionChatCatalogLegacyMirrored(session: string, expectedRevision: number): Promise<boolean>;
 	close(): Promise<void>;
 }
 
@@ -347,6 +367,26 @@ const migrations = [
 			'UPDATE sessions_v2 SET modified_time = start_time',
 		].join(';\n'),
 	},
+	{
+		version: 11,
+		sql: [
+			`CREATE TABLE session_chat_catalogs (
+				session_uri             TEXT PRIMARY KEY NOT NULL,
+				revision                INTEGER NOT NULL DEFAULT 0 CHECK (revision >= 0),
+				legacy_mirrored_revision INTEGER NOT NULL DEFAULT 0 CHECK (legacy_mirrored_revision >= 0)
+			)`,
+			`CREATE TABLE session_chats (
+				session_uri       TEXT NOT NULL REFERENCES session_chat_catalogs(session_uri) ON DELETE CASCADE,
+				chat_uri          TEXT NOT NULL,
+				chat_order        INTEGER NOT NULL CHECK (chat_order >= 0),
+				provider_data     TEXT,
+				origin            TEXT,
+				inherited_turn_id TEXT,
+				PRIMARY KEY (session_uri, chat_uri),
+				UNIQUE (session_uri, chat_order)
+			)`,
+		].join(';\n'),
+	},
 ] as const;
 
 function openDatabase(path: string): Promise<Database> {
@@ -501,6 +541,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [agentMergeEnabledKey(session)]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(session)]);
 				await run(database, 'DELETE FROM sessions WHERE session_uri = ?', [session]);
+				await run(database, 'DELETE FROM session_chat_catalogs WHERE session_uri = ?', [session]);
 				await run(database, 'DELETE FROM sessions_v2 WHERE session_uri = ?', [session]);
 				await exec(database, 'COMMIT');
 			} catch (error) {
@@ -667,6 +708,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					JSON.stringify({ reason: exclusion.reason, fingerprint: exclusion.fingerprint }),
 				]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(exclusion.session)]);
+				await run(database, 'DELETE FROM session_chat_catalogs WHERE session_uri = ?', [exclusion.session]);
 				await run(database, 'DELETE FROM sessions_v2 WHERE session_uri = ?', [exclusion.session]);
 				await exec(database, 'COMMIT');
 			} catch (error) {
@@ -795,6 +837,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			const database = await this._ensureDatabase();
 			await exec(database, 'BEGIN IMMEDIATE');
 			try {
+				await run(database, 'DELETE FROM session_chat_catalogs WHERE session_uri = ?', [session]);
 				await run(database, 'DELETE FROM sessions_v2 WHERE session_uri = ?', [session]);
 				await run(database, 'DELETE FROM sessions WHERE session_uri = ?', [session]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [agentMergeEnabledKey(session)]);
@@ -910,6 +953,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			const database = await this._ensureDatabase();
 			await exec(database, 'BEGIN IMMEDIATE');
 			try {
+				await run(database, 'DELETE FROM session_chat_catalogs WHERE session_uri = ?', [session]);
 				await run(database, 'DELETE FROM sessions_v2 WHERE session_uri = ?', [session]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [agentMergeEnabledKey(session)]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(session)]);
@@ -1091,6 +1135,98 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		});
 	}
 
+	async getSessionChatCatalog(session: string): Promise<IAgentHostDatabaseSessionChatCatalog | undefined> {
+		const rows = await all(await this._ensureDatabase(), `SELECT
+				catalog.revision,
+				catalog.legacy_mirrored_revision,
+				chat.chat_uri,
+				chat.chat_order,
+				chat.provider_data,
+				chat.origin,
+				chat.inherited_turn_id
+			FROM session_chat_catalogs AS catalog
+			LEFT JOIN session_chats AS chat ON chat.session_uri = catalog.session_uri
+			WHERE catalog.session_uri = ?
+			ORDER BY chat.chat_order`, [session]);
+		const catalog = rows[0];
+		if (!catalog) {
+			return undefined;
+		}
+		return {
+			revision: catalog.revision as number,
+			legacyMirroredRevision: catalog.legacy_mirrored_revision as number,
+			chats: rows.filter(row => row.chat_uri !== null).map(row => ({
+				chat: row.chat_uri as string,
+				order: row.chat_order as number,
+				...(row.provider_data === null ? {} : { providerData: row.provider_data as string }),
+				...(row.origin === null ? {} : { origin: row.origin as string }),
+				...(row.inherited_turn_id === null ? {} : { inheritedTurnId: row.inherited_turn_id as string }),
+			})),
+		};
+	}
+
+	async replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined): Promise<number | undefined> {
+		this._validateSessionChats(chats);
+		if (expectedRevision !== undefined && (!Number.isSafeInteger(expectedRevision) || expectedRevision <= 0)) {
+			throw new Error('Expected session chat catalog revision must be a positive safe integer');
+		}
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			await exec(database, 'BEGIN IMMEDIATE');
+			try {
+				const current = await get(database, 'SELECT revision FROM session_chat_catalogs WHERE session_uri = ?', [session]);
+				const currentRevision = current?.revision as number | undefined;
+				if (currentRevision !== expectedRevision) {
+					await exec(database, 'COMMIT');
+					return undefined;
+				}
+				const revision = (currentRevision ?? 0) + 1;
+				if (!Number.isSafeInteger(revision)) {
+					throw new Error(`Session chat catalog revision overflow for ${session}`);
+				}
+				await run(database, `INSERT INTO session_chat_catalogs (session_uri, revision)
+					VALUES (?, ?)
+					ON CONFLICT(session_uri) DO UPDATE SET revision = excluded.revision`, [session, revision]);
+				await run(database, 'DELETE FROM session_chats WHERE session_uri = ?', [session]);
+				for (const chat of chats) {
+					await run(database, `INSERT INTO session_chats (
+						session_uri, chat_uri, chat_order, provider_data, origin, inherited_turn_id
+					) VALUES (?, ?, ?, ?, ?, ?)`, [
+						session,
+						chat.chat,
+						chat.order,
+						chat.providerData ?? null,
+						chat.origin ?? null,
+						chat.inheritedTurnId ?? null,
+					]);
+				}
+				await exec(database, 'COMMIT');
+				return revision;
+			} catch (error) {
+				return this._rollback(database, error, `Failed to replace the chat catalog for ${session}`);
+			}
+		});
+	}
+
+	async markSessionChatCatalogLegacyMirrored(session: string, expectedRevision: number): Promise<boolean> {
+		if (!Number.isSafeInteger(expectedRevision) || expectedRevision <= 0) {
+			throw new Error('Session chat catalog revision must be a positive safe integer');
+		}
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			await run(database, `UPDATE session_chat_catalogs SET legacy_mirrored_revision = ?
+				WHERE session_uri = ? AND revision = ? AND legacy_mirrored_revision < ?`, [
+				expectedRevision,
+				session,
+				expectedRevision,
+				expectedRevision,
+			]);
+			const row = await get(database, `SELECT revision, legacy_mirrored_revision
+				FROM session_chat_catalogs WHERE session_uri = ?`, [session]);
+			return row?.revision === expectedRevision && row.legacy_mirrored_revision === expectedRevision;
+		});
+	}
+
 	async upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> {
 		const isChatBacking = this._validateSessionV2Envelope(envelope);
 		return this._transactionSequencer.queue(async () => {
@@ -1242,6 +1378,23 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	private _validatePayloadVersion(payloadVersion: number): void {
 		if (!Number.isSafeInteger(payloadVersion) || payloadVersion < 0) {
 			throw new Error('Catalog payloadVersion must be a non-negative safe integer');
+		}
+	}
+
+	private _validateSessionChats(chats: readonly IAgentHostDatabaseSessionChat[]): void {
+		const uris = new Set<string>();
+		for (let index = 0; index < chats.length; index++) {
+			const chat = chats[index];
+			if (!chat.chat) {
+				throw new Error('Session chat URI must not be empty');
+			}
+			if (chat.order !== index) {
+				throw new Error('Session chat order must be contiguous and zero-based');
+			}
+			if (uris.has(chat.chat)) {
+				throw new Error(`Session chat URI must be unique: ${chat.chat}`);
+			}
+			uris.add(chat.chat);
 		}
 	}
 

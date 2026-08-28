@@ -175,7 +175,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('creates the single-table schema without changing the legacy registry', async () => {
+	test('creates the central catalog schema without changing the legacy registry', async () => {
 		const path = join(temporaryDirectory!, 'agent-host.db');
 		database = new AgentHostDatabase(path);
 		await database.registerSessionV2('session://fresh', {
@@ -211,8 +211,8 @@ suite('AgentHostDatabase sessions_v2', () => {
 				sessionV2Columns: sessionV2Columns.map(row => row.name),
 				sessionV2ForeignKeys,
 			}, {
-				version: [{ user_version: 10 }],
-				tables: ['metadata', 'sessions', 'sessions_v2'],
+				version: [{ user_version: 11 }],
+				tables: ['metadata', 'session_chat_catalogs', 'session_chats', 'sessions', 'sessions_v2'],
 				sessionColumns: ['session_uri', 'provider', 'start_time', 'external', 'registration_source', 'modified_time'],
 				sessionV2Columns: [
 					'session_uri', 'provider', 'start_time', 'external', 'registration_source', 'session_generation',
@@ -226,7 +226,67 @@ suite('AgentHostDatabase sessions_v2', () => {
 		}
 	});
 
-	test('upgrades published v4 through v6 rows through v8 and invalidates old projections', async () => {
+	test('stores revisioned authoritative peer-chat membership', async () => {
+		database = new AgentHostDatabase(join(temporaryDirectory!, 'agent-host.db'));
+		const session = 'session://chat-catalog';
+		await database.registerRuntimeSession(session, {
+			provider: 'copilot',
+			startTime: 1,
+			source: 'explicit',
+		}, { checkTombstone: false });
+
+		const before = await database.getSessionChatCatalog(session);
+		const firstRevision = await database.replaceSessionChatCatalog(session, [
+			{ chat: 'ahp-chat://first', order: 0, providerData: 'first', origin: '{"kind":"user"}' },
+			{ chat: 'ahp-chat://second', order: 1, inheritedTurnId: 'turn-1' },
+		], undefined);
+		if (firstRevision === undefined) {
+			throw new Error('Expected the initial chat catalog write to succeed');
+		}
+		const first = await database.getSessionChatCatalog(session);
+		const firstAcknowledged = await database.markSessionChatCatalogLegacyMirrored(session, firstRevision);
+		const secondRevision = await database.replaceSessionChatCatalog(session, [
+			{ chat: 'ahp-chat://second', order: 0, inheritedTurnId: 'turn-1' },
+		], firstRevision);
+		const conflictingRevision = await database.replaceSessionChatCatalog(session, [], firstRevision);
+		const staleAcknowledgement = await database.markSessionChatCatalogLegacyMirrored(session, firstRevision);
+		const second = await database.getSessionChatCatalog(session);
+
+		assert.deepStrictEqual({
+			before,
+			firstRevision,
+			first,
+			firstAcknowledged,
+			secondRevision,
+			conflictingRevision,
+			staleAcknowledgement,
+			second,
+		}, {
+			before: undefined,
+			firstRevision: 1,
+			first: {
+				revision: 1,
+				legacyMirroredRevision: 0,
+				chats: [
+					{ chat: 'ahp-chat://first', order: 0, providerData: 'first', origin: '{"kind":"user"}' },
+					{ chat: 'ahp-chat://second', order: 1, inheritedTurnId: 'turn-1' },
+				],
+			},
+			firstAcknowledged: true,
+			secondRevision: 2,
+			conflictingRevision: undefined,
+			staleAcknowledgement: false,
+			second: {
+				revision: 2,
+				legacyMirroredRevision: 1,
+				chats: [
+					{ chat: 'ahp-chat://second', order: 0, inheritedTurnId: 'turn-1' },
+				],
+			},
+		});
+	});
+
+	test('upgrades published v4 through v6 rows and invalidates old projections', async () => {
 		const results: object[] = [];
 		for (const version of [4, 5, 6] as const) {
 			const path = join(temporaryDirectory!, `agent-host-published-v${version}.db`);
@@ -258,7 +318,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 
 		assert.deepStrictEqual(results, [4, 5, 6].map(version => ({
 			version,
-			schemaVersion: [{ user_version: 10 }],
+			schemaVersion: [{ user_version: 11 }],
 			foreignKeys: [],
 			published: undefined,
 			directLegacy: undefined,
