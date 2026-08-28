@@ -4,8 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Codicon } from '../../../../../../../base/common/codicons.js';
+import { Event } from '../../../../../../../base/common/event.js';
 import { URI } from '../../../../../../../base/common/uri.js';
+import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../../common/customizationHarnessService.js';
 import { SessionType } from '../../../../common/chatSessionsService.js';
 import { PromptFileSource, PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
 import { CustomizationMigrationService } from '../../../../common/promptSyntax/service/customizationMigrationServiceImpl.js';
@@ -25,6 +29,46 @@ class TestPromptsService extends MockPromptsService {
 	}
 }
 
+class TestCustomizationHarnessService extends mock<ICustomizationHarnessService>() {
+	readonly requestedSourceFolderTypes: PromptsType[] = [];
+
+	constructor(
+		private readonly sessionType = SessionType.AgentHostCopilot,
+		private readonly harnessLabel = 'Copilot',
+	) {
+		super();
+	}
+
+	override findHarnessById(sessionType: string): IHarnessDescriptor | undefined {
+		if (sessionType !== this.sessionType) {
+			return undefined;
+		}
+		return {
+			id: sessionType,
+			label: this.harnessLabel,
+			icon: Codicon.copilot,
+			itemProvider: {
+				onDidChange: Event.None,
+				provideChatSessionCustomizations: async () => [],
+				provideSourceFolders: async (_sessionResource, type) => {
+					this.requestedSourceFolderTypes.push(type);
+					switch (type) {
+						case PromptsType.agent:
+							return [{ uri: URI.file('/copilot/agents'), label: 'Agents', source: PromptsStorage.user }];
+						case PromptsType.skill:
+							return [
+								{ uri: URI.file('/workspace/.github/skills'), label: 'Workspace Skills', source: PromptsStorage.local },
+								{ uri: URI.file('/copilot/skills'), label: 'User Skills', source: PromptsStorage.user },
+							];
+						default:
+							return [];
+					}
+				},
+			},
+		};
+	}
+}
+
 suite('CustomizationMigrationService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -37,10 +81,15 @@ suite('CustomizationMigrationService', () => {
 			{ uri: URI.file('/home/test/.copilot/agents/planner.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, source: PromptFileSource.CopilotPersonal },
 			{ uri: URI.file('/workspace/.github/skills/deploy/SKILL.md'), storage: PromptsStorage.local, type: PromptsType.skill, source: PromptFileSource.GitHubWorkspace },
 		]));
-		const service = new CustomizationMigrationService(promptsService);
+		const harnessService = new TestCustomizationHarnessService();
+		const service = new CustomizationMigrationService(promptsService, harnessService);
+		const agentHostSessionResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' });
+		const localSessionResource = URI.from({ scheme: SessionType.Local, path: '/session' });
 
-		const migrations = await service.computeMigrations(SessionType.AgentHostCopilot);
-		const localMigrations = await service.computeMigrations(SessionType.Local);
+		const migrations = await service.computeMigrations(agentHostSessionResource);
+		const localMigrations = await service.computeMigrations(localSessionResource);
+		const hint = await service.computeMigrationHint(agentHostSessionResource);
+		const localHint = await service.computeMigrationHint(localSessionResource);
 
 		assert.deepStrictEqual({
 			migrations: migrations.map(migration => ({
@@ -49,18 +98,19 @@ suite('CustomizationMigrationService', () => {
 				candidates: migration.candidates.map(candidate => candidate.uri.path),
 			})),
 			localMigrations,
+			hint,
+			localHint,
 			requestedTypes: promptsService.requestedTypes,
+			requestedSourceFolderTypes: harnessService.requestedSourceFolderTypes.toSorted(),
 		}, {
 			migrations: [
 				{
 					type: 'userData',
 					files: [
 						'/user-data/prompts/reviewer.agent.md',
-						'/user-data/prompts/style.instructions.md',
 					],
 					candidates: [
 						'/user-data/prompts/reviewer.agent.md',
-						'/user-data/prompts/style.instructions.md',
 					],
 				},
 				{
@@ -79,7 +129,28 @@ suite('CustomizationMigrationService', () => {
 				{ type: 'userData', files: [], candidates: [] },
 				{ type: 'promptFiles', files: [], candidates: [] },
 			],
-			requestedTypes: [PromptsType.agent, PromptsType.instructions, PromptsType.prompt],
+			hint: 'Found 3 customization files that are present but not used by Copilot and could be migrated.',
+			localHint: undefined,
+			requestedTypes: [
+				PromptsType.agent, PromptsType.instructions, PromptsType.prompt,
+				PromptsType.agent, PromptsType.instructions, PromptsType.prompt,
+			],
+			requestedSourceFolderTypes: [
+				PromptsType.agent, PromptsType.agent, PromptsType.instructions,
+				PromptsType.instructions, PromptsType.skill, PromptsType.skill,
+			],
 		});
+	});
+
+	test('uses the session harness label in migration hints', async () => {
+		const promptsService = store.add(new TestPromptsService([
+			{ uri: URI.file('/workspace/.github/prompts/review.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt, source: PromptFileSource.GitHubWorkspace },
+		]));
+		const harnessService = new TestCustomizationHarnessService(SessionType.AgentHostClaude, 'Claude');
+		const service = new CustomizationMigrationService(promptsService, harnessService);
+
+		const hint = await service.computeMigrationHint(URI.from({ scheme: SessionType.AgentHostClaude, path: '/session' }));
+
+		assert.strictEqual(hint, 'Found 1 customization file that is present but not used by Claude and could be migrated.');
 	});
 });
