@@ -895,15 +895,9 @@ export class CapiReplayProxy {
 	private _normalizeMessageContent(content: AnthropicContentBlock[]): AnthropicContentBlock[] {
 		return content.map((block): AnthropicContentBlock => {
 			if (block.type === 'text') {
-				return { type: 'text', text: this._normalize(block.text) };
+				return { type: 'text', text: this._normalizeValue(block.text) as string };
 			}
-			let input = block.input;
-			try {
-				input = JSON.parse(this._normalize(JSON.stringify(block.input ?? {})));
-			} catch {
-				// non-serializable input; keep as-is
-			}
-			return { type: 'tool_use', id: block.id, name: normalizeShellToolNameForCapture(block.name), input };
+			return { type: 'tool_use', id: block.id, name: normalizeShellToolNameForCapture(block.name), input: this._normalizeValue(block.input) };
 		});
 	}
 
@@ -920,7 +914,8 @@ export class CapiReplayProxy {
 
 	private _normalizeValue(value: unknown): unknown {
 		if (typeof value === 'string') {
-			return this._normalize(value);
+			const normalized = this._normalize(value);
+			return isSerializedJson(normalized) ? normalized : normalizePlaceholderPathSeparators(normalized);
 		}
 		if (Array.isArray(value)) {
 			return value.map(item => this._normalizeValue(item));
@@ -1148,6 +1143,23 @@ function replaceTemporaryWorkspacePaths(text: string, tempDirectory: string, rep
 		text = text.replace(new RegExp(pattern, isWindows ? 'gi' : 'g'), variantReplacement);
 	}
 	return text;
+}
+
+function normalizePlaceholderPathSeparators(text: string): string {
+	return text.replace(/\$\{(?:workdir|homedir)\}(?:[\\/][^\r\n"'`]*)?/g, path => path.replaceAll('\\', '/'));
+}
+
+function isSerializedJson(value: string): boolean {
+	const trimmed = value.trim();
+	if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+		return false;
+	}
+	try {
+		JSON.parse(trimmed);
+		return true;
+	} catch {
+		return false;
+	}
 }
 
 function escapeJsonString(value: string): string {

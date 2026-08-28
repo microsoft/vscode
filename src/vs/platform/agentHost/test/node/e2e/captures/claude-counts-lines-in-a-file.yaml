@@ -15,7 +15,7 @@ exchanges:
           id: toolcall_0
           name: Read
           input:
-            file_path: ${workdir}\lines.txt
+            file_path: ${workdir}/lines.txt
       stopReason: tool_use
   - request:
       model: claude-opus-5
@@ -30,7 +30,7 @@ exchanges:
             - type: tool_use
               name: Read
               input:
-                file_path: ${workdir}\lines.txt
+                file_path: ${workdir}/lines.txt
         - role: user
           content:
             - type: tool_result

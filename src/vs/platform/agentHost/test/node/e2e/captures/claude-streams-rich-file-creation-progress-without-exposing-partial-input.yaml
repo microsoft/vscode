@@ -18,7 +18,7 @@ exchanges:
           id: toolcall_0
           name: Write
           input:
-            file_path: ${workdir}\streaming.txt
+            file_path: ${workdir}/streaming.txt
             content: |
               STREAM_ALPHA
               STREAM_BETA
@@ -40,7 +40,7 @@ exchanges:
             - type: tool_use
               name: Write
               input:
-                file_path: ${workdir}\streaming.txt
+                file_path: ${workdir}/streaming.txt
                 content: |
                   STREAM_ALPHA
                   STREAM_BETA
@@ -49,7 +49,7 @@ exchanges:
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: 'File created successfully at: ${workdir}\streaming.txt (file state is current in your context — no need to Read it back)'
+              content: 'File created successfully at: ${workdir}/streaming.txt (file state is current in your context — no need to Read it back)'
     response:
       content: done
       stopReason: end_turn

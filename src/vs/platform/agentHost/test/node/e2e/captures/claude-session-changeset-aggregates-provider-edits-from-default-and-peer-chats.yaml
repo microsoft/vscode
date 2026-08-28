@@ -13,7 +13,7 @@ exchanges:
           id: toolcall_0
           name: Write
           input:
-            file_path: ${workdir}\default-provider.txt
+            file_path: ${workdir}/default-provider.txt
             content: DEFAULT_PROVIDER
       stopReason: tool_use
   - request:
@@ -27,13 +27,13 @@ exchanges:
             - type: tool_use
               name: Write
               input:
-                file_path: ${workdir}\default-provider.txt
+                file_path: ${workdir}/default-provider.txt
                 content: DEFAULT_PROVIDER
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: 'File created successfully at: ${workdir}\default-provider.txt (file state is current in your context — no need to Read it back)'
+              content: 'File created successfully at: ${workdir}/default-provider.txt (file state is current in your context — no need to Read it back)'
     response:
       content: created
       stopReason: end_turn
@@ -49,7 +49,7 @@ exchanges:
           id: toolcall_1
           name: Write
           input:
-            file_path: ${workdir}\peer-provider.txt
+            file_path: ${workdir}/peer-provider.txt
             content: PEER_PROVIDER
       stopReason: tool_use
   - request:
@@ -63,13 +63,13 @@ exchanges:
             - type: tool_use
               name: Write
               input:
-                file_path: ${workdir}\peer-provider.txt
+                file_path: ${workdir}/peer-provider.txt
                 content: PEER_PROVIDER
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_1
-              content: 'File created successfully at: ${workdir}\peer-provider.txt (file state is current in your context — no need to Read it back)'
+              content: 'File created successfully at: ${workdir}/peer-provider.txt (file state is current in your context — no need to Read it back)'
     response:
       content: created
       stopReason: end_turn

@@ -44,7 +44,7 @@ rounds:
           turnId: ${turn_0}
           part:
             kind: markdown
-            content: Created `result.txt` with the contents `CREATED_VALUE`.
+            content: Created `result.txt` containing `CREATED_VALUE`.
       - channel: ${chat_0}
         action:
           type: chat/turnComplete

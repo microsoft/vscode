@@ -15,7 +15,7 @@ exchanges:
           id: toolcall_0
           name: Write
           input:
-            file_path: ${workdir}\denied.lock
+            file_path: ${workdir}/denied.lock
             content: DENIED_CONTENT
       stopReason: tool_use
   - request:
@@ -31,7 +31,7 @@ exchanges:
             - type: tool_use
               name: Write
               input:
-                file_path: ${workdir}\denied.lock
+                file_path: ${workdir}/denied.lock
                 content: DENIED_CONTENT
         - role: user
           content:

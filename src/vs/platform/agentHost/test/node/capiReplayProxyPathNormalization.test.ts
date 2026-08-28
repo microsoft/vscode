@@ -34,7 +34,18 @@ suite('CapiReplayProxy path normalization', () => {
 			recordingModelResponse: {
 				status: 200,
 				headers: { 'content-type': 'text/event-stream' },
-				body: anthropicMessageToSse({ content: [{ type: 'text', text: 'listed' }], stopReason: 'end_turn' }),
+				body: anthropicMessageToSse({
+					content: [
+						{ type: 'text', text: `${join(unrelatedCurrentWorkspace, 'child.txt')}\nnext` },
+						{
+							type: 'tool_use',
+							id: 'toolu_2',
+							name: 'Read',
+							input: { file_path: join(unrelatedCurrentWorkspace, 'child.txt') },
+						},
+					],
+					stopReason: 'tool_use',
+				}),
 			},
 		});
 
@@ -64,11 +75,15 @@ suite('CapiReplayProxy path normalization', () => {
 			const fixture = readFileSync(fixturePath, 'utf8');
 			assert.deepStrictEqual({
 				workdirPlaceholders: fixture.match(/\$\{workdir\}/g)?.length,
+				hasPortableToolInput: fixture.includes('file_path: ${workdir}/child.txt'),
+				hasCorruptedNewline: fixture.includes('${workdir}/n'),
 				hasTempDirectory: fixture.includes(tmpdir()),
 				hasScrubbedTempDirectory: fixture.includes(scrubUserName(tmpdir(), userName)),
 				hasRandomSuffix: fixture.includes('6Al4'),
 			}, {
-				workdirPlaceholders: 2,
+				workdirPlaceholders: 4,
+				hasPortableToolInput: true,
+				hasCorruptedNewline: false,
 				hasTempDirectory: false,
 				hasScrubbedTempDirectory: false,
 				hasRandomSuffix: false,
