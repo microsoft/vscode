@@ -370,6 +370,10 @@ registerSingleton(IChatInputNotificationService, ChatInputNotificationService, I
 /**
  * Reads the ids a user has dismissed for good, kept in application storage so a dismissal in one
  * window applies to every other. Returns an empty set for absent or corrupt data.
+ *
+ * The set is stored under one key, so two windows dismissing different notices in the same
+ * instant can leave the later write without the earlier id. Re-reading before each write keeps
+ * that to a genuine race, and the cost is only that a notice may appear once more.
  */
 export function readDismissedNotificationIds(storageService: IStorageService, key: string): Set<string> {
 	const raw = storageService.get(key, StorageScope.APPLICATION);
