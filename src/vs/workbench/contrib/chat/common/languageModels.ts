@@ -336,12 +336,14 @@ export interface ILanguageModelChatMetadata {
 	 * surfaces the full promotional UI; `0` is a message-only promo that features the
 	 * model without a price change; a negative value is malformed and is ignored.
 	 * `endsAt` is optional — open-ended promos omit it and render no end date.
+	 * `showBanner` is optional — the promo is banner-eligible unless it is `false`.
 	 */
 	readonly promo?: {
 		readonly id: string;
 		readonly discountPercent: number;
 		readonly endsAt?: string;
 		readonly message: string;
+		readonly showBanner?: boolean;
 	};
 }
 
@@ -369,6 +371,14 @@ export namespace ILanguageModelChatMetadata {
 	/** Whether the model has a promo message to surface, including message-only (0%) promos. */
 	export function hasPromoMessage(metadata: ILanguageModelChatMetadata): metadata is ILanguageModelChatMetadata & { readonly promo: NonNullable<ILanguageModelChatMetadata['promo']> } {
 		return !!metadata.promo && metadata.promo.discountPercent >= 0 && !!metadata.promo.message;
+	}
+
+	/**
+	 * Whether the model's promo may also be surfaced as a banner above the chat input.
+	 * Promos are banner-eligible by default; `showBanner: false` keeps them in the model picker only.
+	 */
+	export function hasPromoBanner(metadata: ILanguageModelChatMetadata): metadata is ILanguageModelChatMetadata & { readonly promo: NonNullable<ILanguageModelChatMetadata['promo']> } {
+		return hasPromoMessage(metadata) && metadata.promo.showBanner !== false;
 	}
 
 	/** The localized "Ends {date}." sentence, or `undefined` for a missing or unparsable end date. */
