@@ -11,16 +11,12 @@ different hooks; registration order only breaks ties.
 
 ## Standing caveats
 
-- `markUnread` and `sideChat` both declare `order` 500 on `onTurnEnd`, so their relative
-  sequence rests on registration order. Give a new contribution a distinct order rather than
-  adding to the tie.
-- Mementos with extra key segments must be deleted with `deleteMemento` when their segment
-  value goes out of use. Setting the value to `undefined` keeps the entry until the owning
-  chat or session is disposed.
-- `onHydrateChat` runs before its chat is registered in the catalog, and chat mementos are
-  evicted by chat disposal. A contribution that took a chat memento during hydration for a
-  chat that then failed to register would leak that entry. Neither `chatDraft` nor
-  `sessionTitle` takes a memento, so this is currently theoretical.
+- A contribution on `onDidDispatchAction` must filter tightly, because the hook fires for
+  every dispatched action. `sessionInputNeeded` and `persistedTurnUsage` both re-check
+  `isAhpChatChannel` + `isChatAction`, reproducing the guard their code sat behind in
+  `AgentSideEffects`. Neither checks `rejectionReason`, deliberately: both derive from or
+  key off current state rather than trusting the action. `sessionFlags` does check it, for
+  read and archived state but not config values.
 - `TurnEndReason` intentionally omits `AgentHostTurnFailureStage`: error-hook dispatch comes
   only from `ChatError`, where the stage is hardcoded `provider`. Add it only when a
   contribution needs a stage that reflects every error source.
@@ -54,7 +50,7 @@ different hooks; registration order only breaks ties.
   action's existing `queuedMessageId` rather than passing it. The bridge would swap
   `sendTurnMessage` for `handleAction`. This is a behavior change, not a shape change:
   `handleAction` ends by calling `_chatContributions.action(...)`, so queued turns would begin
-  firing `onAction` for their `ChatTurnStarted`.
+  firing `onDidApplyClientAction` for their `ChatTurnStarted`.
 
 ### Side chat
 

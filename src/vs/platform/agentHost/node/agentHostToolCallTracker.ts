@@ -6,10 +6,12 @@
 import { disposableTimeout } from '../../../base/common/async.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import type { SessionToolAuthenticationRequest, SessionToolClientExecutionRequest, SessionToolConfirmationRequest } from '../common/state/protocol/state.js';
 import { ToolCallContributorKind, type ToolCallContributor, type ToolCallResult } from '../common/state/sessionState.js';
-import type { AgentHostModelTelemetryKind, AgentHostTelemetryReporter, IAgentHostToolInvokedReport } from './agentHostTelemetryReporter.js';
+import { IAgentHostTelemetryReporter, type AgentHostModelTelemetryKind, type AgentHostTelemetryReporter, type IAgentHostToolInvokedReport } from './agentHostTelemetryReporter.js';
+import { IAgentHostTurnTracker, type AgentHostTurnTracker } from './agentHostTurnTracker.js';
 
 export type ToolInvokedResult = 'success' | 'error' | 'userCancelled';
 
@@ -104,7 +106,11 @@ interface IStalledToolCall {
  * tool call) are dropped via {@link clearSession} / {@link clear} so the
  * tracking map cannot leak.
  */
+export const IAgentHostToolCallTracker = createDecorator<AgentHostToolCallTracker>('agentHostToolCallTracker');
+
 export class AgentHostToolCallTracker extends Disposable {
+
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _toolCalls = new Map<string, IToolCallTiming>();
 	private readonly _turnModels = new Map<string, { model: string; modelTelemetryKind: AgentHostModelTelemetryKind }>();
@@ -113,8 +119,8 @@ export class AgentHostToolCallTracker extends Disposable {
 	private readonly _stalledToolCalls = new Map<string, IStalledToolCall>();
 
 	constructor(
-		private readonly _reporter: AgentHostTelemetryReporter,
-		private readonly _getClientContext: (session: string, turnId: string) => IAgentHostClientTelemetryContext | undefined = () => undefined,
+		@IAgentHostTelemetryReporter private readonly _reporter: AgentHostTelemetryReporter,
+		@IAgentHostTurnTracker private readonly _turnTracker: AgentHostTurnTracker,
 	) {
 		super();
 	}
@@ -132,7 +138,7 @@ export class AgentHostToolCallTracker extends Disposable {
 			model: resolvedModel?.model ?? model,
 			modelTelemetryKind: resolvedModel?.modelTelemetryKind ?? modelTelemetryKind,
 			modelResolvedFromUsage: resolvedModel !== undefined,
-			clientContext: this._getClientContext(session, turnId),
+			clientContext: this._turnTracker.getClientTelemetryContext(session, turnId),
 		});
 	}
 

@@ -51,6 +51,7 @@ import { createTestAgentHostProviderService } from './testAgentHostProviderServi
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter, type IAgentHostAskQuestionsToolInvokedEvent } from '../../node/agentHostTelemetryReporter.js';
+import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/agentHostToolCallTracker.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
@@ -189,6 +190,7 @@ function createTestSideEffects(
 	services.set(IAgentHostTelemetryReporter, telemetryReporter);
 	const turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
 	services.set(IAgentHostTurnTracker, turnTracker);
+	services.set(IAgentHostToolCallTracker, disposables.add(instantiationService.createInstance(AgentHostToolCallTracker)));
 	const localTurns = options.localTurns ?? new AgentHostLocalTurns(options.sessionDataService, logService);
 	services.set(IAgentHostLocalTurns, localTurns);
 	const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands));

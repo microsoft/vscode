@@ -125,12 +125,29 @@ export interface IRestoredChat {
 }
 
 /** A client action after it has been reduced into host state. */
-export interface IObservedAction {
+export interface IAppliedClientAction {
 	readonly channel: ProtocolURI;
 	readonly session: ProtocolURI;
 	readonly action: StateAction;
 	readonly clientId: string | undefined;
 	readonly clientContext: IAgentHostClientTelemetryContext;
+}
+
+/**
+ * A dispatched action, from any origin, after its outcome is known.
+ *
+ * Unlike {@link IAppliedClientAction}, this covers server-dispatched actions — which is
+ * most agent-produced state — and rejected actions, which never reduced. A contribution
+ * that only cares about client dispatch should use `onDidApplyClientAction` instead;
+ * observing both would see the same client action twice.
+ */
+export interface IDispatchedAction {
+	readonly channel: ProtocolURI;
+	/** The owning session URI, or the channel itself when it is not a chat channel. */
+	readonly session: ProtocolURI;
+	readonly action: StateAction;
+	/** Set when the action was rejected and never reached state. */
+	readonly rejectionReason?: string;
 }
 
 export interface IQueuedMessageSender {
@@ -219,8 +236,24 @@ export interface IAgentHostChatContribution extends IDisposable {
 	 * Must not throw; the dispatcher isolates failures.
 	 */
 	onTurnEnd?(turn: ITurnEnd): void;
-	/** Observes actions submitted through the client dispatch path after state reduction. */
-	onAction?(action: IObservedAction): void;
+	/**
+	 * Observes a client-dispatched action after it was applied to host state.
+	 * Rejected client actions never reach this hook, so an action seen here always
+	 * reduced.
+	 */
+	onDidApplyClientAction?(action: IAppliedClientAction): void;
+	/**
+	 * Observes a dispatched action from any origin, after its outcome is known.
+	 * This covers server-dispatched actions — which is most agent-produced state — and
+	 * rejected actions, which never reduced. Check `rejectionReason` before acting on
+	 * one.
+	 *
+	 * Prefer `onDidApplyClientAction` when a behavior genuinely only concerns client
+	 * dispatch: a contribution implementing both sees every client action twice.
+	 *
+	 * Must not throw; the dispatcher isolates failures.
+	 */
+	onDidDispatchAction?(dispatched: IDispatchedAction): void;
 	/**
 	 * Awaited before the turn is sent. Instructions are concatenated in `order`;
 	 * text replacements are threaded in `order`, so each contribution observes
@@ -280,7 +313,8 @@ export interface IAgentHostChatContributions extends IDisposable {
 	/** Returns the currently registered host, if AgentSideEffects has been constructed. */
 	getHost(): IAgentHostChatContributionHost | undefined;
 	turnEnd(turn: ITurnEnd): void;
-	action(action: IObservedAction): void;
+	didApplyClientAction(action: IAppliedClientAction): void;
+	didDispatchAction(dispatched: IDispatchedAction): void;
 	outgoingTurn(turn: IOutgoingTurn): Promise<IOutgoingTurnContributionResult>;
 	incomingRequest(request: IIncomingRequest): IncomingRequestDisposition;
 	hydrateTurns(context: IHydrationContext, turns: readonly Turn[]): Promise<readonly Turn[]>;
