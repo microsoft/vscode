@@ -412,6 +412,8 @@ export async function mapSessionEvents(
 	let rootAssistantTurnActive = false;
 	let rootRequestActive = false;
 	let pendingAutoModeResolved: Extract<SessionEvent, { type: 'session.auto_mode_resolved' }>['data'] | undefined;
+	/** Same, per subagent tool call: applied when that subagent's turn is built. */
+	const pendingSubagentAutoModeResolved = new Map<string, Extract<SessionEvent, { type: 'session.auto_mode_resolved' }>['data']>();
 
 	/** Envelope timestamp of the event currently being processed. */
 	let currentEventTimestamp: string | undefined;
@@ -458,6 +460,11 @@ export async function mapSessionEvents(
 			subagentBuilders.set(parentToolCallId, builder);
 			if (!subagentTurnStates.has(parentToolCallId)) {
 				subagentTurnStates.set(parentToolCallId, TurnState.Complete);
+			}
+			const autoModeResolved = pendingSubagentAutoModeResolved.get(parentToolCallId);
+			if (autoModeResolved) {
+				builder.usage = { model: autoModeResolved.chosenModel, _meta: { autoModeResolved } };
+				pendingSubagentAutoModeResolved.delete(parentToolCallId);
 			}
 		}
 		touch(builder);
@@ -520,13 +527,11 @@ export async function mapSessionEvents(
 			}
 			case 'session.auto_mode_resolved': {
 				// A subagent routes its own model calls, so the decision belongs to the
-				// subagent's turn. The parent's is held until the turn that uses it starts.
+				// subagent's turn. Both are held until the turn that uses them starts,
+				// so routing never pulls a turn's start time earlier than its content.
 				const parentToolCallId = resolveParentToolCallId(e.agentId, undefined);
 				if (parentToolCallId) {
-					ensureSubagentBuilder(parentToolCallId).usage = {
-						model: e.data.chosenModel,
-						_meta: { autoModeResolved: e.data },
-					};
+					pendingSubagentAutoModeResolved.set(parentToolCallId, e.data);
 				} else if (!e.agentId) {
 					pendingAutoModeResolved = e.data;
 				}

@@ -125,7 +125,10 @@ export function shouldShowSubagentModel(subagentModelName: string | undefined, p
 	}
 	const parentIdSuffix = parentModelId?.slice(parentModelId.lastIndexOf(':') + 1);
 	const parents = [parentModelId, parentIdSuffix, parentModelName, parentModelMetadataId].map(normalize);
-	return parents.includes(AUTO_RAW_MODEL_ID) || !parents.includes(subagent);
+	// The picker can move to Auto after the request starts, so decide Auto from the
+	// request's own model id and consult the live selection only when it is absent.
+	const autoCandidates = parentModelId ? [parentModelId, parentIdSuffix].map(normalize) : parents;
+	return autoCandidates.includes(AUTO_RAW_MODEL_ID) || !parents.includes(subagent);
 }
 
 export function formatCompactSubagentDuration(startedAt: number, duration: number | undefined, now: number = Date.now()): string {

@@ -84,10 +84,10 @@ suite('mapSessionEvents — history replay', () => {
 			{ type: 'tool.execution_start', data: { toolCallId: 'tc-task', toolName: 'task', arguments: { description: 'Summarize', agent_type: 'explore' } } },
 			{ type: 'subagent.started', agentId: 'agent-1', data: { toolCallId: 'tc-task', agentName: 'explore', agentDisplayName: 'Explore Agent', agentDescription: 'Explores' } },
 			// Auto routes before the model call, so the decision lands before the
-			// subagent's first message and must not strand a builder of its own.
-			{ type: 'session.auto_mode_resolved', agentId: 'agent-1', data: autoModeResolved },
-			{ type: 'user.message', agentId: 'agent-1', data: { interactionId: 'subagent-prompt', content: 'Inspect the implementation.' } },
-			{ type: 'assistant.message', agentId: 'agent-1', data: { messageId: 'm3', content: 'Subagent is done.' } },
+			// subagent's first message. It must not pull the turn's start time back.
+			{ type: 'session.auto_mode_resolved', agentId: 'agent-1', timestamp: '2025-01-01T00:00:10.000Z', data: autoModeResolved },
+			{ type: 'user.message', agentId: 'agent-1', timestamp: '2025-01-01T00:00:20.000Z', data: { interactionId: 'subagent-prompt', content: 'Inspect the implementation.' } },
+			{ type: 'assistant.message', agentId: 'agent-1', timestamp: '2025-01-01T00:00:30.000Z', data: { messageId: 'm3', content: 'Subagent is done.' } },
 			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-task', success: true } },
 		];
 
@@ -95,11 +95,13 @@ suite('mapSessionEvents — history replay', () => {
 
 		assert.deepStrictEqual({
 			parentUsage: turns.map(turn => turn.usage),
-			subagentTurns: subagentTurnsByToolCallId.get('tc-task')?.map(turn => ({ text: turn.message.text, usage: turn.usage })),
+			subagentTurns: subagentTurnsByToolCallId.get('tc-task')?.map(turn => ({ text: turn.message.text, startedAt: turn.startedAt, duration: turn.duration, usage: turn.usage })),
 		}, {
 			parentUsage: [undefined],
 			subagentTurns: [{
 				text: 'Inspect the implementation.',
+				startedAt: '2025-01-01T00:00:20.000Z',
+				duration: 10000,
 				usage: { model: 'claude-opus-4.8', _meta: { autoModeResolved } },
 			}],
 		});

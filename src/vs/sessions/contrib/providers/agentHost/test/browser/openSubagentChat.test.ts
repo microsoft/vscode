@@ -51,12 +51,16 @@ suite('OpenSubagentChatActionViewItem', () => {
 			shouldShowSubagentModel('Claude Opus 4.8', 'agent-host-copilotcli:auto', 'Auto', 'auto'),
 			// The parent resolved to this very model, yet its chip still only says "Auto".
 			shouldShowSubagentModel('gpt-5.6-sol', 'agent-host-copilotcli:auto', 'Auto', 'gpt-5.6-sol'),
+			// The picker moved to Auto after the request started, but the request itself
+			// ran on a concrete model, so a matching subagent model is still redundant.
+			shouldShowSubagentModel('gpt-5.6-sol', 'agent-host-copilotcli:gpt-5.6-sol', 'Auto', 'auto'),
 		], [
 			false,
 			false,
 			true,
 			true,
 			true,
+			false,
 		]);
 	});
 
