@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isSafari, setFullscreen } from '../../base/browser/browser.js';
+import { isSafari, isStandalone, setFullscreen } from '../../base/browser/browser.js';
 import { addDisposableListener, EventHelper, EventType, getWindow, getWindowById, getWindows, getWindowsCount, hasAppFocus, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from '../../base/browser/dom.js';
 import { DomEmitter } from '../../base/browser/event.js';
 import { HidDeviceData, requestHidDevice, requestSerialPort, requestUsbDevice, SerialPortData, UsbDeviceData } from '../../base/browser/deviceAccess.js';
@@ -355,7 +355,12 @@ export class BrowserWindow extends BaseWindow {
 
 				// HTTP(s): open in new window and deal with potential popup blockers
 				if (matchesScheme(href, Schemas.http) || matchesScheme(href, Schemas.https)) {
-					if (isSafari) {
+					// Safari blocks popups that are not opened straight from a user
+					// gesture, and an installed web app (PWA) does the same in whichever
+					// browser installed it. Both need the open-then-navigate path, which
+					// reports whether the window was actually blocked and can pick up a
+					// window reserved during the click.
+					if (isSafari || isStandalone()) {
 						const opened = windowOpenWithSuccess(href, !isAllowedOpener);
 						if (!opened) {
 							await this.dialogService.prompt({

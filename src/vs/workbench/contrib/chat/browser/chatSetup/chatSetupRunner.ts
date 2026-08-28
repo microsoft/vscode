@@ -5,7 +5,7 @@
 
 import './media/chatSetup.css';
 import { $, releaseReservedWindowForExternalOpen, reserveWindowForExternalOpen } from '../../../../../base/browser/dom.js';
-import { isSafari } from '../../../../../base/browser/browser.js';
+import { isSafari, isStandalone } from '../../../../../base/browser/browser.js';
 import { IButton } from '../../../../../base/browser/ui/button/button.js';
 import { Dialog, DialogContentsAlignment } from '../../../../../base/browser/ui/dialog/dialog.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
@@ -140,10 +140,14 @@ export class ChatSetupDialog extends Disposable {
 					// Sign-in continues in a browser window. Claim that window here, while
 					// the click's user activation is still live — by the time the flow has
 					// an authorization URL the gesture has expired and the browser refuses
-					// to open anything. Safari enforces this strictly, and on an installed
-					// web app (PWA) there is no tab to fall back to, so sign-in dead-ends.
-					// See `reserveWindowForExternalOpen`.
-					const opensBrowser = isSafari && button.strategy !== ChatSetupStrategy.Canceled;
+					// to open anything. See `reserveWindowForExternalOpen`.
+					//
+					// This matters in two places. In an installed web app (PWA) there is no
+					// tab to fall back to and the failure is fatal, whichever browser
+					// installed it. In Safari the popup is blocked too, but a browser tab
+					// can recover via the "Retry" prompt. Everywhere else popups still work
+					// after the gesture, so nothing is reserved and behaviour is unchanged.
+					const opensBrowser = (isStandalone() || isSafari) && button.strategy !== ChatSetupStrategy.Canceled;
 					if (!classes && !opensBrowser) {
 						return undefined;
 					}
