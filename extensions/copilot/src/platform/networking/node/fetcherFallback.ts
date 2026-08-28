@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 import { Config, ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { collectSingleLineErrorMessage, ILogService } from '../../log/common/logService';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
@@ -18,11 +17,81 @@ const fetcherConfigKeys: Partial<Record<FetcherId, Config<boolean>>> = {
 	'node-http': ConfigKey.Shared.DebugUseNodeFetcher,
 };
 
+const terminalResponseStatusCodes = new Set([429, 502, 503]);
+const allFetchersFailedTelemetryIntervalMs = 15 * 60 * 1000;
+const allFetchersFailedErrors = new Map<string, number>();
+let lastAllFetchersFailedTelemetryTime = Date.now();
+const terminalResponseErrors = new Map<string, number>();
+let lastTerminalResponseTelemetryTime = Date.now();
+
+function reportAllFetchersFailed(telemetryService: ITelemetryService | undefined): void {
+	const now = Date.now();
+	if (!telemetryService || now - lastAllFetchersFailedTelemetryTime <= allFetchersFailedTelemetryIntervalMs || allFetchersFailedErrors.size === 0) {
+		return;
+	}
+
+	/* __GDPR__
+		"fetcherAllFailed" : {
+			"owner": "chrmarti",
+			"comment": "Aggregates errors from requests for which every fallback fetcher failed during a 15-minute reporting interval",
+			"errors": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "comment": "JSON object mapping each fetcher failure message to the number of times it occurred" }
+		}
+	*/
+	telemetryService.sendTelemetryEvent('fetcherAllFailed', { github: true, microsoft: true }, {
+		errors: JSON.stringify(Object.fromEntries(allFetchersFailedErrors)),
+	});
+
+	allFetchersFailedErrors.clear();
+	lastAllFetchersFailedTelemetryTime = now;
+}
+
+function reportTerminalResponses(telemetryService: ITelemetryService | undefined): void {
+	const now = Date.now();
+	if (!telemetryService || now - lastTerminalResponseTelemetryTime <= allFetchersFailedTelemetryIntervalMs || terminalResponseErrors.size === 0) {
+		return;
+	}
+
+	/* __GDPR__
+		"fetcherTerminalResponse" : {
+			"owner": "chrmarti",
+			"comment": "Aggregates errors from fetcher fallback sweeps stopped by a terminal response during a 15-minute reporting interval",
+			"errors": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "comment": "JSON object mapping each fetcher failure message from a sweep stopped by a terminal response to the number of times it occurred" }
+		}
+	*/
+	telemetryService.sendTelemetryEvent('fetcherTerminalResponse', { github: true, microsoft: true }, {
+		errors: JSON.stringify(Object.fromEntries(terminalResponseErrors)),
+	});
+
+	terminalResponseErrors.clear();
+	lastTerminalResponseTelemetryTime = now;
+}
+
+function recordAllFetchersFailed(errors: readonly string[]): void {
+	for (const error of errors) {
+		allFetchersFailedErrors.set(error, (allFetchersFailedErrors.get(error) ?? 0) + 1);
+	}
+}
+
+function recordTerminalResponseErrors(errors: readonly string[]): void {
+	for (const error of errors) {
+		terminalResponseErrors.set(error, (terminalResponseErrors.get(error) ?? 0) + 1);
+	}
+}
+
 export async function fetchWithFallbacks(availableFetchers: readonly IFetcher[], url: string, options: FetchOptions, knownBadFetchers: Set<string>, configurationService: IConfigurationService, logService: ILogService, telemetryService: ITelemetryService | undefined, experimentationService: IExperimentationService | undefined): Promise<{ response: Response; updatedFetchers?: IFetcher[]; updatedKnownBadFetchers?: Set<string> }> {
 	if (options.retryFallbacks && availableFetchers.length > 1) {
+		reportAllFetchersFailed(telemetryService);
+		reportTerminalResponses(telemetryService);
 		let firstResult: { ok: boolean; response: Response } | { ok: false; err: any } | undefined;
 		const updatedKnownBadFetchers = new Set<string>();
-		let lastError: string | undefined;
+		const errors: string[] = [];
+		const promoteFallbackFetcher = (fetcher: IFetcher, response: Response) => {
+			logService.info(`FetcherService: using ${fetcher.getUserAgentLibrary()} from now on`);
+			const updatedFetchers = availableFetchers.slice();
+			updatedFetchers.splice(updatedFetchers.indexOf(fetcher), 1);
+			updatedFetchers.unshift(fetcher);
+			return { response, updatedFetchers, updatedKnownBadFetchers };
+		};
 		for (const fetcher of availableFetchers) {
 			const result = await tryFetch(fetcher, url, options, logService);
 			if (fetcher === availableFetchers[0]) {
@@ -31,9 +100,18 @@ export async function fetchWithFallbacks(availableFetchers: readonly IFetcher[],
 			if (!result.ok) {
 				const fetcherId = fetcher.getUserAgentLibrary();
 				if ('response' in result) {
-					lastError = `${fetcherId}: ${result.response.status} ${result.response.statusText}`;
+					errors.push(result.response.ok
+						? `${fetcherId}: invalid-json`
+						: `${fetcherId}: ${result.response.status} ${result.response.statusText}`);
 				} else {
-					lastError = `${fetcherId}: ${collectSingleLineErrorMessage(result.err, true)}`;
+					errors.push(`${fetcherId}: ${collectSingleLineErrorMessage(result.err, true)}`);
+				}
+				if ('response' in result && terminalResponseStatusCodes.has(result.response.status)) {
+					recordTerminalResponseErrors(errors);
+					if (fetcher === availableFetchers[0]) {
+						return { response: result.response };
+					}
+					return promoteFallbackFetcher(fetcher, result.response);
 				}
 				updatedKnownBadFetchers.add(fetcherId);
 				continue;
@@ -43,7 +121,6 @@ export async function fetchWithFallbacks(availableFetchers: readonly IFetcher[],
 				if (retry.ok) {
 					return { response: retry.response };
 				}
-				logService.info(`FetcherService: using ${fetcher.getUserAgentLibrary()} from now on`);
 				/* __GDPR__
 					"fetcherFallback" : {
 						"owner": "chrmarti",
@@ -57,17 +134,15 @@ export async function fetchWithFallbacks(availableFetchers: readonly IFetcher[],
 				telemetryService?.sendTelemetryEvent('fetcherFallback', { github: true, microsoft: true }, {
 					newFetcher: fetcher.getUserAgentLibrary(),
 					knownBadFetchers: Array.from(updatedKnownBadFetchers).join(','),
-					lastError,
+					lastError: errors[errors.length - 1],
 				}, {
 					knownBadFetchersCount: updatedKnownBadFetchers.size,
 				});
-				const updatedFetchers = availableFetchers.slice();
-				updatedFetchers.splice(updatedFetchers.indexOf(fetcher), 1);
-				updatedFetchers.unshift(fetcher);
-				return { response: result.response, updatedFetchers, updatedKnownBadFetchers };
+				return promoteFallbackFetcher(fetcher, result.response);
 			}
 			return { response: result.response };
 		}
+		recordAllFetchersFailed(errors);
 		if ('response' in firstResult!) {
 			return { response: firstResult.response };
 		}

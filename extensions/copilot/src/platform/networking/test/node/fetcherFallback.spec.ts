@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { suite, test } from 'vitest';
+import { suite, test, vi } from 'vitest';
 import { ConfigKey } from '../../../configuration/common/configurationService';
 import { DefaultsOnlyConfigurationService } from '../../../configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
 import { NullExperimentationService } from '../../../telemetry/common/nullExperimentationService';
 import { NullTelemetryService } from '../../../telemetry/common/nullTelemetryService';
+import { SpyingTelemetryService } from '../../../telemetry/node/spyingTelemetryService';
 import { FakeHeaders } from '../../../test/node/fetcher';
 import { TestLogService } from '../../../testing/common/testLogService';
 import { FetcherId, FetchOptions, PaginationOptions, Response } from '../../common/fetcherService';
@@ -41,6 +42,91 @@ suite('FetcherFallback Test Suite', function () {
 		assert.deepStrictEqual(json, JSON.parse(someJSON));
 	});
 
+	test('terminal responses stop fallback, preserve fallback state, and aggregate telemetry', async function () {
+		vi.useFakeTimers();
+		const spyingTelemetryService = new SpyingTelemetryService();
+		try {
+			const primaryResults = [];
+			for (const { status, fetchers } of [
+				{ status: 429, fetchers: ['electron-fetch', 'node-fetch', 'node-http'] },
+				{ status: 502, fetchers: ['node-fetch', 'electron-fetch', 'node-http'] },
+				{ status: 503, fetchers: ['node-http', 'electron-fetch', 'node-fetch'] },
+			]) {
+				const serverResponse = createFakeResponse(status, someHTML);
+				const testFetchers = createTestFetchers([
+					{ name: fetchers[0], response: serverResponse },
+					{ name: fetchers[1], response: createFakeResponse(200, someJSON) },
+					{ name: fetchers[2], response: createFakeResponse(200, someJSON) },
+				]);
+				const { response, updatedFetchers, updatedKnownBadFetchers } = await fetchWithFallbacks(testFetchers.fetchers, 'https://example.com', { callSite: 'test', expectJSON: true, retryFallbacks: true }, knownBadFetchers, configurationService, logService, spyingTelemetryService, experimentationService);
+				primaryResults.push({
+					calls: testFetchers.calls.map(c => c.name),
+					responseIsUnchanged: response === serverResponse,
+					updatedFetchers,
+					updatedKnownBadFetchers,
+				});
+			}
+
+			const fallbackResponse = createFakeResponse(503, someJSON);
+			const fallbackTestFetchers = createTestFetchers([
+				{ name: 'electron-fetch', response: createFakeResponse(200, someHTML) },
+				{ name: 'node-fetch', response: fallbackResponse },
+				{ name: 'node-http', response: createFakeResponse(200, someJSON) },
+			]);
+			const fallbackResult = await fetchWithFallbacks(fallbackTestFetchers.fetchers, 'https://example.com', { callSite: 'test', expectJSON: true, retryFallbacks: true }, knownBadFetchers, configurationService, logService, spyingTelemetryService, experimentationService);
+			const eventsBeforeInterval = [...spyingTelemetryService.getEvents().telemetryServiceEvents];
+
+			vi.advanceTimersByTime(15 * 60 * 1000 + 1);
+			const successfulFetchers = createTestFetchers([
+				{ name: 'fetcher1', response: createFakeResponse(200, someJSON) },
+				{ name: 'fetcher2', response: createFakeResponse(200, someJSON) },
+			]);
+			await fetchWithFallbacks(successfulFetchers.fetchers, 'https://example.com', { callSite: 'test', expectJSON: true, retryFallbacks: true }, knownBadFetchers, configurationService, logService, spyingTelemetryService, experimentationService);
+
+			assert.deepStrictEqual({
+				primaryResults,
+				fallbackResult: {
+					calls: fallbackTestFetchers.calls.map(c => c.name),
+					responseIsUnchanged: fallbackResult.response === fallbackResponse,
+					updatedFetchers: fallbackResult.updatedFetchers?.map(fetcher => fetcher.getUserAgentLibrary()),
+					updatedKnownBadFetchers: Array.from(fallbackResult.updatedKnownBadFetchers ?? []),
+				},
+				eventsBeforeInterval,
+				eventsAfterInterval: spyingTelemetryService.getEvents().telemetryServiceEvents.map(event => ({
+					eventName: event.eventName,
+					properties: event.properties,
+				})),
+			}, {
+				primaryResults: [
+					{ calls: ['electron-fetch'], responseIsUnchanged: true, updatedFetchers: undefined, updatedKnownBadFetchers: undefined },
+					{ calls: ['node-fetch'], responseIsUnchanged: true, updatedFetchers: undefined, updatedKnownBadFetchers: undefined },
+					{ calls: ['node-http'], responseIsUnchanged: true, updatedFetchers: undefined, updatedKnownBadFetchers: undefined },
+				],
+				fallbackResult: {
+					calls: ['electron-fetch', 'node-fetch'],
+					responseIsUnchanged: true,
+					updatedFetchers: ['node-fetch', 'electron-fetch', 'node-http'],
+					updatedKnownBadFetchers: ['electron-fetch'],
+				},
+				eventsBeforeInterval: [],
+				eventsAfterInterval: [{
+					eventName: 'fetcherTerminalResponse',
+					properties: {
+						errors: JSON.stringify({
+							'electron-fetch: 429 status text': 1,
+							'node-fetch: 502 status text': 1,
+							'node-http: 503 status text': 1,
+							'electron-fetch: invalid-json': 1,
+							'node-fetch: 503 status text': 1,
+						}),
+					},
+				}],
+			});
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	test('first fetcher is retried to confirm failure', async function () {
 		const fetcherSpec = [
 			{ name: 'fetcher1', response: createFakeResponse(200, someHTML) },
@@ -59,6 +145,51 @@ suite('FetcherFallback Test Suite', function () {
 		assert.strictEqual(response.status, 200);
 		const json = await response.json();
 		assert.deepStrictEqual(json, JSON.parse(someJSON));
+	});
+
+	test('aggregates all-failed errors and reports them after 15 minutes', async function () {
+		vi.useFakeTimers();
+		const spyingTelemetryService = new SpyingTelemetryService();
+		const failingFetcherSpec = [
+			{ name: 'fetcher1', response: createFakeResponse(200, someHTML) },
+			{ name: 'fetcher2', response: new Error('fetcher2 error') },
+		];
+		try {
+			for (let i = 0; i < 2; i++) {
+				const testFetchers = createTestFetchers(failingFetcherSpec);
+				await fetchWithFallbacks(testFetchers.fetchers, 'https://example.com', { callSite: 'test', expectJSON: true, retryFallbacks: true }, knownBadFetchers, configurationService, logService, spyingTelemetryService, experimentationService);
+			}
+			const eventsBeforeInterval = [...spyingTelemetryService.getEvents().telemetryServiceEvents];
+
+			vi.advanceTimersByTime(15 * 60 * 1000 + 1);
+			const successfulFetcherSpec = [
+				{ name: 'fetcher1', response: createFakeResponse(200, someJSON) },
+				{ name: 'fetcher2', response: createFakeResponse(200, someJSON) },
+			];
+			await fetchWithFallbacks(createTestFetchers(successfulFetcherSpec).fetchers, 'https://example.com', { callSite: 'test', expectJSON: true, retryFallbacks: true }, knownBadFetchers, configurationService, logService, spyingTelemetryService, experimentationService);
+			const eventsAfterInterval = spyingTelemetryService.getEvents().telemetryServiceEvents.map(event => ({
+				eventName: event.eventName,
+				properties: event.properties,
+			}));
+
+			assert.deepStrictEqual({
+				eventsBeforeInterval,
+				eventsAfterInterval,
+			}, {
+				eventsBeforeInterval: [],
+				eventsAfterInterval: [{
+					eventName: 'fetcherAllFailed',
+					properties: {
+						errors: JSON.stringify({
+							'fetcher1: invalid-json': 2,
+							'fetcher2: fetcher2 error': 2,
+						}),
+					},
+				}],
+			});
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	test('no fetcher succeeds', async function () {
