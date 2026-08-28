@@ -111,9 +111,6 @@ export interface IWorkspacePickerTrigger {
 	readonly hideWhenWorkspaceSelected?: boolean;
 	readonly hideWhenNoWorkspaceSelected?: boolean;
 	readonly hideWhenNoGitHubRepository?: boolean;
-	readonly selectedWorkspace?: ISessionWorkspace;
-	readonly remove?: () => void;
-	readonly removeAriaLabel?: string;
 }
 
 export interface IResolvedBrowseSelection {
@@ -205,20 +202,12 @@ export class WorkspacePicker extends Disposable {
 	private readonly _triggerContents = new Map<HTMLElement, IWorkspacePickerTriggerElements>();
 	private readonly _contextSelections = new Map<string, ISessionWorkspace[]>();
 	private readonly _renderDisposables = this._register(new DisposableStore());
-	private readonly _additionalRepositoryTriggerDisposables = this._register(new DisposableStore());
 	private readonly _additionalRepositorySelections = new Map<string, IAttachedRepositorySelection>();
-	private readonly _additionalFolderTriggerDisposables = this._register(new DisposableStore());
 	private readonly _additionalFolderSelections = new Map<string, IResolvedFolderWorkspace>();
 	private _attachedContext: readonly IChatRequestVariableEntry[] = [];
 	private readonly _tabbedWidget: TabbedActionListWidget;
 	private readonly _pickerGroupContext: IContextKey<string>;
 	private _activeTriggerElement: HTMLElement | undefined;
-	private _categoryRow: HTMLElement | undefined;
-	private _workspaceTriggerOptions: IWorkspacePickerTrigger | undefined;
-	private _folderTriggerOptions: IWorkspacePickerTrigger | undefined;
-	private _repositoryTriggerOptions: IWorkspacePickerTrigger | undefined;
-	private _repositoryTriggerSlot: HTMLElement | undefined;
-	private _repositoryContextTriggerSlot: HTMLElement | undefined;
 	protected _directPickerGroup: string | undefined;
 	protected _directPickerAttachesContext: boolean | undefined;
 
@@ -264,8 +253,7 @@ export class WorkspacePicker extends Disposable {
 		}
 		this._additionalFolderSelections.clear();
 		this._additionalRepositorySelections.clear();
-		this._renderAdditionalFolderTriggers();
-		this._renderAdditionalRepositoryTriggers();
+		this._updateTriggerLabel();
 		this._onDidChangeSelection.fire();
 	}
 
@@ -321,8 +309,6 @@ export class WorkspacePicker extends Disposable {
 			}
 		}
 		if (changed) {
-			this._renderAdditionalFolderTriggers();
-			this._renderAdditionalRepositoryTriggers();
 			this._updateTriggerLabel();
 			this._onDidChangeSelection.fire();
 		}
@@ -451,21 +437,8 @@ export class WorkspacePicker extends Disposable {
 
 	renderCategoryTriggers(container: HTMLElement, triggers: readonly IWorkspacePickerTrigger[], label?: string): HTMLElement {
 		this._renderDisposables.clear();
-		this._additionalRepositoryTriggerDisposables.clear();
-		this._additionalFolderTriggerDisposables.clear();
 		const row = dom.append(container, dom.$('.sessions-workspace-category-picker'));
-		this._categoryRow = row;
 		this._renderDisposables.add({ dispose: () => row.remove() });
-		this._renderDisposables.add({
-			dispose: () => {
-				this._categoryRow = undefined;
-				this._workspaceTriggerOptions = undefined;
-				this._folderTriggerOptions = undefined;
-				this._repositoryTriggerOptions = undefined;
-				this._repositoryTriggerSlot = undefined;
-				this._repositoryContextTriggerSlot = undefined;
-			},
-		});
 		if (label) {
 			const rowLabel = dom.append(row, dom.$('span.sessions-workspace-category-picker-label'));
 			rowLabel.textContent = label;
@@ -473,31 +446,8 @@ export class WorkspacePicker extends Disposable {
 		for (const options of triggers) {
 			const slot = dom.append(row, dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot'));
 			slot.classList.toggle('sessions-workspace-picker-trigger', options.reflectsWorkspace === true);
-			if (options.reflectsWorkspace === true) {
-				this._workspaceTriggerOptions = options;
-				this._folderTriggerOptions ??= {
-					...options,
-					reflectsWorkspace: false,
-					group: SESSION_WORKSPACE_GROUP_LOCAL,
-				};
-				this._repositoryTriggerOptions ??= {
-					...options,
-					reflectsWorkspace: false,
-					group: SESSION_WORKSPACE_GROUP_GITHUB,
-					attachesContext: false,
-				};
-			} else if (options.group === SESSION_WORKSPACE_GROUP_LOCAL) {
-				this._folderTriggerOptions = options;
-			} else if (options.group === SESSION_WORKSPACE_GROUP_GITHUB && options.attachesContext === false) {
-				this._repositoryTriggerOptions = options;
-				this._repositoryTriggerSlot = slot;
-			} else if (options.group === SESSION_WORKSPACE_GROUP_GITHUB && options.attachesContext === true) {
-				this._repositoryContextTriggerSlot = slot;
-			}
 			this._renderDisposables.add(this._addTrigger(slot, options));
 		}
-		this._renderAdditionalFolderTriggers();
-		this._renderAdditionalRepositoryTriggers();
 
 		return row;
 	}
@@ -524,18 +474,6 @@ export class WorkspacePicker extends Disposable {
 		this._renderTriggerLabel(trigger);
 		if (options?.tooltip) {
 			triggerDisposables.add(this.hoverService.setupDelayedHover(trigger, { content: options.tooltip }));
-		}
-		if (options?.remove && options.removeAriaLabel) {
-			slot.classList.add('has-remove-action');
-			const removeButton = dom.append(slot, dom.$<HTMLButtonElement>('button.sessions-workspace-picker-remove'));
-			removeButton.type = 'button';
-			removeButton.setAttribute('aria-label', options.removeAriaLabel);
-			const removeIcon = dom.append(removeButton, renderIcon(Codicon.closeCompact));
-			removeIcon.setAttribute('aria-hidden', 'true');
-			triggerDisposables.add(dom.addDisposableListener(removeButton, dom.EventType.CLICK, e => {
-				dom.EventHelper.stop(e, true);
-				options.remove?.();
-			}));
 		}
 		// Onboarding spotlight target — id is referenced by the "new session" tour
 		// in vs/sessions/contrib/onboardingTours.
@@ -881,7 +819,7 @@ export class WorkspacePicker extends Disposable {
 		if (!this._additionalFolderSelections.has(key)) {
 			this._additionalFolderSelections.set(key, resolved);
 			this.recentWorkspacesService.addRecentWorkspace(folderUri, providerId, false);
-			this._renderAdditionalFolderTriggers();
+			this._updateTriggerLabel();
 			this._onDidSelectFolderContext.fire(folderUri);
 		}
 		return true;
@@ -902,7 +840,7 @@ export class WorkspacePicker extends Disposable {
 				attachmentId: getAdditionalRepositoryContextId(workspace.uri),
 			});
 			this.recentWorkspacesService.addRecentWorkspace(workspace.folders[0].root, providerId, false);
-			this._renderAdditionalRepositoryTriggers();
+			this._updateTriggerLabel();
 			this._onDidSelectRepositoryContext.fire(selection);
 			this._onDidChangeSelection.fire();
 		}
@@ -1057,11 +995,9 @@ export class WorkspacePicker extends Disposable {
 		const additionalRepository = repositoryId ? this._additionalRepositorySelections.get(repositoryId) : undefined;
 		const removedAdditionalRepository = repositoryId ? this._additionalRepositorySelections.delete(repositoryId) : false;
 		if (removedAdditionalFolder && additionalFolder) {
-			this._renderAdditionalFolderTriggers();
 			this._onDidRemoveAttachedContext.fire(getAdditionalFolderContextId(additionalFolder.workspace.folders[0].root));
 		}
 		if (removedAdditionalRepository && additionalRepository) {
-			this._renderAdditionalRepositoryTriggers();
 			this._onDidRemoveAttachedContext.fire(additionalRepository.attachmentId);
 		}
 		this._selectedFolderUri = folderUri;
@@ -1466,79 +1402,6 @@ export class WorkspacePicker extends Disposable {
 		}
 	}
 
-	private _renderAdditionalRepositoryTriggers(): void {
-		this._additionalRepositoryTriggerDisposables.clear();
-		if (!this._categoryRow || !this._repositoryTriggerOptions) {
-			return;
-		}
-		for (const selection of this._additionalRepositorySelections.values()) {
-			const { workspace } = selection;
-			const slot = dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot');
-			this._categoryRow.insertBefore(slot, this._repositoryContextTriggerSlot ?? null);
-			this._additionalRepositoryTriggerDisposables.add({ dispose: () => slot.remove() });
-			this._additionalRepositoryTriggerDisposables.add(this._addTrigger(slot, {
-				...this._repositoryTriggerOptions,
-				label: workspace.label,
-				ariaLabel: localize('workspacePicker.attachedRepositoryAriaLabel', "Attached repository {0}", workspace.label),
-				selectedWorkspace: workspace,
-				remove: () => this._removeAdditionalRepository(selection),
-				removeAriaLabel: localize('workspacePicker.removeAttachedRepository', "Remove attached repository {0}", workspace.label),
-			}));
-		}
-	}
-
-	private _removeAdditionalRepository(selection: IAttachedRepositorySelection): void {
-		const repositoryId = this._getRepositoryId(selection.workspace);
-		if (!repositoryId || !this._additionalRepositorySelections.delete(repositoryId)) {
-			return;
-		}
-		this._renderAdditionalRepositoryTriggers();
-		this._updateTriggerLabel();
-		this._onDidChangeSelection.fire();
-		this._onDidRemoveAttachedContext.fire(selection.attachmentId);
-		this._focusCategoryTrigger(this._workspaceTriggerOptions ?? this._repositoryTriggerOptions);
-	}
-
-	private _renderAdditionalFolderTriggers(): void {
-		this._additionalFolderTriggerDisposables.clear();
-		if (!this._categoryRow || !this._folderTriggerOptions) {
-			return;
-		}
-		for (const selection of this._additionalFolderSelections.values()) {
-			const slot = dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot');
-			this._categoryRow.insertBefore(slot, this._repositoryTriggerSlot ?? this._repositoryContextTriggerSlot ?? null);
-			this._additionalFolderTriggerDisposables.add({ dispose: () => slot.remove() });
-			this._additionalFolderTriggerDisposables.add(this._addTrigger(slot, {
-				...this._folderTriggerOptions,
-				label: selection.workspace.label,
-				ariaLabel: localize('workspacePicker.attachedFolderAriaLabel', "Attached folder {0}", selection.workspace.label),
-				selectedWorkspace: selection.workspace,
-				remove: () => this._removeAdditionalFolder(selection.workspace.folders[0].root),
-				removeAriaLabel: localize('workspacePicker.removeAttachedFolder', "Remove attached folder {0}", selection.workspace.label),
-			}));
-		}
-	}
-
-	private _removeAdditionalFolder(folderUri: URI): void {
-		const key = this.uriIdentityService.extUri.getComparisonKey(folderUri);
-		if (!this._additionalFolderSelections.delete(key)) {
-			return;
-		}
-		this._renderAdditionalFolderTriggers();
-		this._onDidChangeSelection.fire();
-		this._onDidRemoveAttachedContext.fire(getAdditionalFolderContextId(folderUri));
-		this._focusCategoryTrigger(this._workspaceTriggerOptions ?? this._folderTriggerOptions);
-	}
-
-	private _focusCategoryTrigger(options: IWorkspacePickerTrigger | undefined): void {
-		for (const [trigger, triggerOptions] of this._triggerOptions) {
-			if (triggerOptions === options) {
-				trigger.focus();
-				return;
-			}
-		}
-	}
-
 	protected _renderTriggerLabel(trigger: HTMLElement): void {
 		const options = this._triggerOptions.get(trigger);
 		const contents = this._triggerContents.get(trigger);
@@ -1559,11 +1422,14 @@ export class WorkspacePicker extends Disposable {
 						: 0,
 				)
 				: 0;
+			const additionalWorkspaceCount = options.attachesContext !== true && (reflectsWorkspace || isSelectedCategory)
+				? this._additionalFolderSelections.size + this._additionalRepositorySelections.size
+				: 0;
+			const badgeCount = Math.max(contextCount, additionalWorkspaceCount);
 			const repositoryWorkspace = this._getSelectedRepositoryWorkspace();
 			const relatedGitHubInfo = options.group === SESSION_WORKSPACE_GROUP_GITHUB && options.attachesContext === false
 				? repositoryWorkspace?.folders.map(folder => folder.gitRepository?.gitHubInfo.get()).find(info => info !== undefined)
 				: undefined;
-			const selectedWorkspace = options.selectedWorkspace;
 			const hideForSelectedWorkspace = workspace !== undefined
 				&& options.hideWhenWorkspaceSelected === true
 				&& options.group !== workspace.group;
@@ -1571,21 +1437,19 @@ export class WorkspacePicker extends Disposable {
 			const hideForMissingGitHubRepository = options.hideWhenNoGitHubRepository === true
 				&& this._getCurrentRepositoryId() === undefined;
 			trigger.parentElement?.toggleAttribute('hidden', hideForSelectedWorkspace || hideForMissingWorkspace || hideForMissingGitHubRepository);
-			trigger.classList.toggle('selected', selectedWorkspace !== undefined || (reflectsWorkspace && workspace !== undefined) || isSelectedCategory || contextCount > 0 || relatedGitHubInfo !== undefined);
-			const icon = selectedWorkspace?.icon
-				?? (reflectsWorkspace ? workspace?.icon : undefined)
+			trigger.classList.toggle('selected', (reflectsWorkspace && workspace !== undefined) || isSelectedCategory || badgeCount > 0 || relatedGitHubInfo !== undefined);
+			const icon = (reflectsWorkspace ? workspace?.icon : undefined)
 				?? (relatedGitHubInfo ? Codicon.repo : (isSelectedCategory && workspace ? workspace.icon : options.icon));
 			if (!contents.icon) {
 				contents.icon = renderIcon(icon);
 				trigger.prepend(contents.icon);
 			}
 			contents.icon.className = ThemeIcon.asClassName(icon);
-			const label = selectedWorkspace?.label
-				?? (reflectsWorkspace ? workspace?.label : undefined)
+			const label = (reflectsWorkspace ? workspace?.label : undefined)
 				?? (relatedGitHubInfo ? `${relatedGitHubInfo.owner}/${relatedGitHubInfo.repo}` : (isSelectedCategory && workspace ? workspace.label : options.label));
-			trigger.setAttribute('aria-label', contextCount > 0
-				? localize('workspacePicker.attachedContextCountAriaLabel', "{0}, {1} attached", options.ariaLabel, contextCount)
-				: label && label !== options.label && !selectedWorkspace
+			trigger.setAttribute('aria-label', badgeCount > 0
+				? localize('workspacePicker.attachedContextCountAriaLabel', "{0}, {1} attached", options.ariaLabel, badgeCount)
+				: label && label !== options.label
 					? localize('workspacePicker.categorySelectionAriaLabel', "{0}: {1}", options.label ?? options.ariaLabel, label)
 					: options.ariaLabel);
 			if (label) {
@@ -1595,9 +1459,9 @@ export class WorkspacePicker extends Disposable {
 				contents.label?.remove();
 				contents.label = undefined;
 			}
-			if (contextCount > 0) {
-				contents.badge ??= new CountBadge(trigger, { count: contextCount }, defaultCountBadgeStyles);
-				contents.badge.setCount(contextCount);
+			if (badgeCount > 0) {
+				contents.badge ??= new CountBadge(trigger, { count: badgeCount }, defaultCountBadgeStyles);
+				contents.badge.setCount(badgeCount);
 			} else {
 				contents.badge?.dispose();
 				contents.badge = undefined;

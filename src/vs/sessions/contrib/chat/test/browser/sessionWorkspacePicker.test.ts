@@ -1558,7 +1558,7 @@ suite('WorkspacePicker - Category Triggers', () => {
 		});
 	});
 
-	test('keeps the primary folder and adds later folders as pills and context', async () => {
+	test('keeps the primary folder and counts later folders attached as context', async () => {
 		const providersService = disposables.add(new MockSessionsProvidersService());
 		const baseProvider = createMockProvider('local-1');
 		providersService.setProviders([{
@@ -1602,39 +1602,48 @@ suite('WorkspacePicker - Category Triggers', () => {
 		picker.setDirectFilter(undefined, false);
 		picker.selectTab(SESSION_WORKSPACE_GROUP_LOCAL);
 		await picker.dispatchItem({ browseActionIndex: 0, attachAsContext: true });
-		const pillsBeforeRemove = Array.from(container.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')).map(element => element.textContent);
-		const removeButton = container.querySelector<HTMLButtonElement>('[aria-label="Remove attached folder local/additional"]');
-		removeButton?.click();
-		const pillsAfterRemove = Array.from(container.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')).map(element => element.textContent);
+		const labelsBeforeRemove = Array.from(container.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')).map(element => element.textContent);
+		const badgeBeforeRemove = container.querySelector<HTMLElement>('.monaco-count-badge')?.textContent;
+		const otherAttachment: IChatRequestVariableEntry = {
+			kind: 'directory',
+			id: getAdditionalFolderContextId(otherFolder),
+			name: 'other',
+			value: otherFolder,
+		};
+		picker.syncAttachedContext([otherAttachment]);
+		const badgeAfterRemove = container.querySelector<HTMLElement>('.monaco-count-badge')?.textContent;
 		const restoredAttachment: IChatRequestVariableEntry = {
 			kind: 'directory',
 			id: getAdditionalFolderContextId(additionalFolder),
 			name: 'additional',
 			value: additionalFolder,
 		};
-		picker.syncAttachedContext([restoredAttachment]);
-		const pillsAfterRestore = Array.from(container.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')).map(element => element.textContent);
+		picker.syncAttachedContext([otherAttachment, restoredAttachment]);
+		const badgeAfterRestore = container.querySelector<HTMLElement>('.monaco-count-badge')?.textContent;
 		picker.setSelectedWorkspace(additionalFolder, { fireEvent: false, persist: false });
 
 		assert.deepStrictEqual({
 			selectedFolder: picker.selectedFolderUri?.toString(),
-			pillsBeforeRemove,
-			pillsAfterRemove,
-			pillsAfterRestore,
-			pills: Array.from(container.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')).map(element => element.textContent),
+			labelsBeforeRemove,
+			labels: Array.from(container.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')).map(element => element.textContent),
+			badgeBeforeRemove,
+			badgeAfterRemove,
+			badgeAfterRestore,
+			badgeAfterSelectingAttachedFolder: container.querySelector<HTMLElement>('.monaco-count-badge')?.textContent,
 			folderContexts: folderContexts.map(uri => uri.toString()),
 			additionalFolderUris: picker.additionalFolderUris.map(uri => uri.toString()),
 			removedContextIds,
 		}, {
 			selectedFolder: additionalFolder.toString(),
-			pillsBeforeRemove: ['local/primary', 'local/additional', 'local/other'],
-			pillsAfterRemove: ['local/primary', 'local/other'],
-			pillsAfterRestore: ['local/primary', 'local/additional'],
-			pills: ['local/additional'],
+			labelsBeforeRemove: ['local/primary'],
+			labels: ['local/additional'],
+			badgeBeforeRemove: '2',
+			badgeAfterRemove: '1',
+			badgeAfterRestore: '2',
+			badgeAfterSelectingAttachedFolder: '1',
 			folderContexts: [additionalFolder.toString(), otherFolder.toString()],
-			additionalFolderUris: [],
+			additionalFolderUris: [otherFolder.toString()],
 			removedContextIds: [
-				getAdditionalFolderContextId(additionalFolder),
 				getAdditionalFolderContextId(additionalFolder),
 			],
 		});
@@ -1670,10 +1679,12 @@ suite('WorkspacePicker - Category Triggers', () => {
 			beforeProvider,
 			afterProvider: picker.additionalFolderUris.map(uri => uri.toString()),
 			pills: Array.from(container.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')).map(element => element.textContent),
+			badge: container.querySelector<HTMLElement>('.monaco-count-badge')?.textContent,
 		}, {
 			beforeProvider: [],
 			afterProvider: [folder.toString()],
-			pills: ['Folder', 'local/delayed'],
+			pills: ['Folder'],
+			badge: undefined,
 		});
 	});
 
@@ -2321,46 +2332,52 @@ suite('WorkspacePicker - Category Triggers', () => {
 		picker.setDirectFilter(undefined, false);
 		picker.selectTab(SESSION_WORKSPACE_GROUP_GITHUB);
 		await picker.dispatchItem({ browseActionIndex: 0, attachAsContext: true });
-		const pillsBeforeRemove = Array.from(container.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')).map(element => element.textContent);
-		container.querySelector<HTMLButtonElement>('[aria-label="Remove attached repository microsoft/other"]')?.click();
-		const pillsAfterRemove = Array.from(container.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')).map(element => element.textContent);
-		const attachedRepository = repositoryContexts.at(-1);
-		assert.ok(attachedRepository);
-		const restoredAttachment: IChatRequestVariableEntry = {
+		const labels = Array.from(container.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')).map(element => element.textContent);
+		const badgeBeforeRemove = container.querySelector<HTMLElement>('.sessions-workspace-picker-trigger .monaco-count-badge')?.textContent;
+		const firstRepository = repositoryContexts[0];
+		const secondRepository = repositoryContexts[1];
+		assert.ok(firstRepository);
+		assert.ok(secondRepository);
+		const firstAttachment: IChatRequestVariableEntry = {
 			kind: 'generic',
-			id: getAdditionalRepositoryContextId(attachedRepository.workspace.uri),
-			name: attachedRepository.workspace.label,
-			value: attachedRepository.workspace.folders[0].root,
+			id: getAdditionalRepositoryContextId(firstRepository.workspace.uri),
+			name: firstRepository.workspace.label,
+			value: firstRepository.workspace.folders[0].root,
 		};
-		picker.syncAttachedContext([restoredAttachment]);
-		const pillsAfterRestore = Array.from(container.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')).map(element => element.textContent);
-		picker.syncAttachedContext([restoredAttachment]);
-		container.querySelector<HTMLButtonElement>('[aria-label="Remove attached repository microsoft/other"]')?.click();
-		const pillsAfterRestoredRemove = Array.from(container.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')).map(element => element.textContent);
+		const secondAttachment: IChatRequestVariableEntry = {
+			kind: 'generic',
+			id: getAdditionalRepositoryContextId(secondRepository.workspace.uri),
+			name: secondRepository.workspace.label,
+			value: secondRepository.workspace.folders[0].root,
+		};
+		picker.syncAttachedContext([firstAttachment]);
+		const badgeAfterRemove = container.querySelector<HTMLElement>('.sessions-workspace-picker-trigger .monaco-count-badge')?.textContent;
+		picker.syncAttachedContext([secondAttachment]);
+		const badgeAfterRestore = container.querySelector<HTMLElement>('.sessions-workspace-picker-trigger .monaco-count-badge')?.textContent;
+		picker.syncAttachedContext([]);
 
 		assert.deepStrictEqual({
 			selectedFolder: picker.selectedFolderUri?.toString(),
 			selectedProvider: picker.selectedResolved?.providerId,
-			pillsBeforeRemove,
-			pillsAfterRemove,
-			pillsAfterRestore,
-			pillsAfterRestoredRemove,
+			labels,
+			badgeBeforeRemove,
+			badgeAfterRemove,
+			badgeAfterRestore,
+			badgeAfterClear: container.querySelector<HTMLElement>('.sessions-workspace-picker-trigger .monaco-count-badge')?.textContent,
 			contexts: contexts.map(context => context.uri.toString()),
 			attachedContextWorkspaces: picker.attachedContextWorkspaces.map(context => context.uri.toString()),
 			removedContextIds,
 		}, {
 			selectedFolder: localUri.toString(),
 			selectedProvider: localProvider.id,
-			pillsBeforeRemove: ['local/vscode', 'microsoft/vscode', 'microsoft/other', 'Issue/PR'],
-			pillsAfterRemove: ['local/vscode', 'microsoft/vscode', 'Issue/PR'],
-			pillsAfterRestore: ['local/vscode', 'microsoft/other', 'Issue/PR'],
-			pillsAfterRestoredRemove: ['local/vscode', 'Issue/PR'],
+			labels: ['local/vscode', 'Issue/PR'],
+			badgeBeforeRemove: '2',
+			badgeAfterRemove: '1',
+			badgeAfterRestore: '1',
+			badgeAfterClear: undefined,
 			contexts: [],
 			attachedContextWorkspaces: [],
-			removedContextIds: [
-				getAdditionalRepositoryContextId(URI.parse('https://github.com/microsoft/other')),
-				getAdditionalRepositoryContextId(URI.parse('https://github.com/microsoft/other')),
-			],
+			removedContextIds: [],
 		});
 	});
 });

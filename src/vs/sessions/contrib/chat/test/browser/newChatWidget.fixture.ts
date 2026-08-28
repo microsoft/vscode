@@ -54,7 +54,7 @@ import '../../../../browser/parts/media/sessionView.css';
 
 const DEFAULT_WIDTH = 800;
 const DEFAULT_HEIGHT = 560;
-const ATTACHED_FOLDER_URI = URI.file('C:\\Code\\docs');
+const ATTACHED_FOLDER_URI = URI.file('/Code/docs');
 const ATTACHED_REPOSITORY_URI = URI.parse('https://github.com/microsoft/typescript');
 const ATTACHED_REPOSITORY_ROOT = URI.parse('vscode-vfs://github/microsoft/typescript/HEAD');
 
@@ -327,7 +327,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	}),
 	NewSessionAttachedContext: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['The new-session composer shows Copilot, microsoft/vscode, docs, microsoft/typescript, and Issue/PR pills. The folder and repository attachments are separate removable pills, and Issue/PR retains its label with a count badge showing 1.'],
+		expectedVisualDescriptions: ['The new-session workspace row shows Copilot, microsoft/vscode with a count badge showing 2, and Issue/PR with a count badge showing 1. The composer attachment row shows removable docs, microsoft/typescript, and microsoft/vscode#333053 context pills with compact dismiss icons.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, withAttachedContext: true }),
 	}),
 	NewSessionRemoteWorkspace: defineComponentFixture({
