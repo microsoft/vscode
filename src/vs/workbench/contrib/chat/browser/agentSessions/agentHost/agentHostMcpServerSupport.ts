@@ -116,6 +116,8 @@ export interface IAgentHostMcpServerSupport {
 	readonly delivery: AgentHostMcpServerDelivery;
 	/** Whether that delivery preserves the configuration's behavior. */
 	readonly compatibility: AgentHostMcpServerCompatibility;
+	/** Configuration that can be safely persisted to a declarative MCP destination. */
+	readonly migrationConfiguration?: IMcpServerConfiguration;
 }
 
 export interface IAgentHostMcpServerSupportAssessment {
@@ -137,6 +139,7 @@ export interface IAgentHostMcpServerDeliveryResolution {
 	readonly compatibility: AgentHostMcpServerCompatibility;
 	readonly source: IAgentHostMcpServerSource;
 	readonly projectedConfiguration: IMcpServerConfiguration | undefined;
+	readonly migrationConfiguration?: IMcpServerConfiguration;
 }
 
 export interface IAgentHostInstalledMcpServer {
@@ -166,7 +169,7 @@ export async function assessMcpServersForCopilotAgentHost(
 
 	const resolved = await resolveMcpServersForAgentHostDelivery(servers, configurationResolverService, sessionType, workingDirectories);
 	return {
-		servers: resolved.map(({ server, source, applicability, delivery, compatibility }) => ({
+		servers: resolved.map(({ server, source, applicability, delivery, compatibility, migrationConfiguration }) => ({
 			id: server.definition.id,
 			name: server.definition.label,
 			collectionId: server.collection.id,
@@ -175,6 +178,7 @@ export async function assessMcpServersForCopilotAgentHost(
 			applicability,
 			delivery,
 			compatibility,
+			...(source.kind === AgentHostMcpServerSourceKind.VscodeWorkspaceFolder && migrationConfiguration ? { migrationConfiguration } : {}),
 		})),
 		discoveryComplete: lazyCollectionState === LazyCollectionState.AllKnown,
 	};
@@ -275,6 +279,10 @@ async function resolveMcpServerForAgentHostDelivery(
 			unsupported([AgentHostMcpSupportReason.LaunchNotRepresentable]),
 		);
 	}
+	const migrationConfiguration = Iterable.isEmpty(ConfigurationResolverExpression.parse(projectedConfiguration).unresolved())
+		&& !(projectedConfiguration.type === McpServerType.LOCAL && projectedConfiguration.cwd !== undefined)
+		? projectedConfiguration
+		: undefined;
 
 	const unsupportedReasons: AgentHostMcpSupportReason[] = [];
 	if (collection && McpCollectionDefinition.isVscodeMcpJson(collection)) {
@@ -307,6 +315,7 @@ async function resolveMcpServerForAgentHostDelivery(
 			: delivery,
 		compatibility: getCompatibility(unsupportedReasons, partialReasons, unknownReasons),
 		projectedConfiguration,
+		migrationConfiguration,
 	};
 }
 
@@ -620,14 +629,14 @@ function projectMcpServerConfiguration(launch: McpServerLaunch): IMcpServerConfi
 				command: launch.command,
 				args: launch.args.length > 0 ? [...launch.args] : undefined,
 				env: Object.keys(launch.env).length > 0 ? { ...launch.env } : undefined,
-				envFile: launch.envFile,
-				cwd: launch.cwd,
+				...(launch.envFile !== undefined ? { envFile: launch.envFile } : {}),
+				...(launch.cwd !== undefined ? { cwd: launch.cwd } : {}),
 			};
 		case McpServerTransportType.HTTP:
 			return {
 				type: McpServerType.REMOTE,
 				url: launch.uri.toString(),
-				headers: launch.headers.length > 0 ? Object.fromEntries(launch.headers) : undefined,
+				...(launch.headers.length > 0 ? { headers: Object.fromEntries(launch.headers) } : {}),
 			};
 	}
 }

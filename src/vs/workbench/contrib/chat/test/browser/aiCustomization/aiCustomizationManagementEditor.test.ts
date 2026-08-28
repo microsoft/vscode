@@ -4,18 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../../../base/common/map.js';
 import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import type { IManagedHover } from '../../../../../../base/browser/ui/hover/hover.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { AICustomizationManagementEditor, isCurrentPluginContributionNavigation } from '../../../browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { MigratableConfiguration } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationCandidate, CustomizationMigrationType, IMcpServerCustomizationMigrationCandidate, isMcpServerCustomizationMigrationCandidate, MigratableConfiguration } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { IHeaderAttribute } from '../../../common/promptSyntax/promptFileParser.js';
 import { PromptFileSource, PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
@@ -24,6 +25,8 @@ import { CustomizationMigrationCategoryId } from '../../../browser/aiCustomizati
 import type { ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
 import type { ICustomizationMigrationCategorySummary } from '../../../browser/aiCustomization/aiCustomizationWelcomePage.js';
 import { AICustomizationManagementEditorInput } from '../../../browser/aiCustomization/aiCustomizationManagementEditorInput.js';
+import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
+import { IAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 
 suite('aiCustomizationManagementEditor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -55,7 +58,7 @@ suite('aiCustomizationManagementEditor', () => {
 		currentEditingPromptType: PromptsType | undefined;
 		currentEditingSource: string | undefined;
 		currentEditingReadOnly: boolean;
-		customizationsByMigrationCategory: Map<CustomizationMigrationCategoryId, readonly MigratableConfiguration[]>;
+		customizationsByMigrationCategory: Map<CustomizationMigrationCategoryId, readonly CustomizationMigrationCandidate[]>;
 		customizationMigrationTargetFoldersByType: Map<PromptsType, readonly ICustomizationSourceFolder[]>;
 		activeMigrationCategoryId: CustomizationMigrationCategoryId | undefined;
 		editorDisplayMode: 'preview' | 'raw';
@@ -68,13 +71,15 @@ suite('aiCustomizationManagementEditor', () => {
 		configurationService: IConfigurationService;
 		editorDisposables: DisposableStore;
 		harnessService: { activeSessionResource: ISettableObservable<URI> };
+		mcpService: IMcpService;
+		agentHostCustomizationService: IAgentHostCustomizationService;
 		migrationListContainer: HTMLElement | undefined;
 		migrationMigrateButton: { enabled: boolean; label: string } | undefined;
 		migrationTitleElement: HTMLElement | undefined;
 		migrationDescriptionElement: HTMLElement | undefined;
 		migrationBannerContainer: HTMLElement | undefined;
 		migrationLinkElement: HTMLAnchorElement | undefined;
-		selectedCustomizationMigrationItems: ResourceMap<Set<PromptsStorage>>;
+		selectedCustomizationMigrationItems: Set<string>;
 		migrationPageDisposables: DisposableStore;
 		labelService: { getUriLabel(uri: URI, options?: { relative?: boolean }): string };
 		showEmbeddedEditor(...args: unknown[]): Promise<void>;
@@ -90,9 +95,9 @@ suite('aiCustomizationManagementEditor', () => {
 		refreshCustomizationMigrationInfo(): Promise<void>;
 		registerCustomizationMigrationSessionRefresh(): void;
 		renderCustomizationMigrationPage(): void;
-		setCustomizationsToMigrate(candidates: Map<CustomizationMigrationCategoryId, readonly MigratableConfiguration[]>, targetFoldersByType: Map<PromptsType, readonly ICustomizationSourceFolder[]>): void;
-		isCustomizationSelectedForMigration(customization: MigratableConfiguration): boolean;
-		setCustomizationSelectedForMigration(customization: MigratableConfiguration, selected: boolean): void;
+		setCustomizationsToMigrate(candidates: Map<CustomizationMigrationCategoryId, readonly CustomizationMigrationCandidate[]>, targetFoldersByType: Map<PromptsType, readonly ICustomizationSourceFolder[]>): void;
+		isCustomizationSelectedForMigration(customization: CustomizationMigrationCandidate): boolean;
+		setCustomizationSelectedForMigration(customization: CustomizationMigrationCandidate, selected: boolean): void;
 		updateContentVisibility(): void;
 		setVisible(visible: boolean): void;
 	};
@@ -124,6 +129,13 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.harnessService = {
 			activeSessionResource: observableValue('activeSessionResource', URI.parse('agent-host-test:/session-a')),
 		};
+		editor.mcpService = {
+			servers: observableValue('mcpServers', []),
+		} as Partial<IMcpService> as IMcpService;
+		editor.agentHostCustomizationService = {
+			onDidChangeCustomizations: Event.None,
+			getWorkingDirectories: () => [],
+		} as Partial<IAgentHostCustomizationService> as IAgentHostCustomizationService;
 		editor.hoverService = hoverService ?? {
 			setupManagedHover: () => ({
 				dispose() { },
@@ -139,7 +151,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.migrationDescriptionElement = undefined;
 		editor.migrationBannerContainer = undefined;
 		editor.migrationLinkElement = undefined;
-		editor.selectedCustomizationMigrationItems = new ResourceMap();
+		editor.selectedCustomizationMigrationItems = new Set();
 		editor.migrationPageDisposables = editor.editorPreviewDisposables.add(new DisposableStore());
 		editor.labelService = {
 			getUriLabel: uri => uri.path,
@@ -264,7 +276,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.editorPreviewDisposables.dispose();
 	});
 
-	test('gates each migration category on its own experimental setting', () => {
+	test('gates optional migration categories on their experimental settings', () => {
 		const welcomePageCalls: ICustomizationMigrationCategorySummary[][] = [];
 		const configurationService = createConfigurationServiceStub({
 			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: false,
@@ -284,6 +296,14 @@ suite('aiCustomizationManagementEditor', () => {
 				type: PromptsType.agent,
 				source: PromptFileSource.UserData,
 			} as MigratableConfiguration]],
+			[CustomizationMigrationCategoryId.McpServers, [{
+				type: CustomizationMigrationType.McpServers,
+				id: 'mcp.config.ws0.server',
+				name: 'server',
+				sourceUri: URI.file('/workspace/.vscode/mcp.json'),
+				targetUri: URI.file('/workspace/.mcp.json'),
+				configuration: { type: McpServerType.LOCAL, command: 'server' },
+			} as IMcpServerCustomizationMigrationCandidate]],
 		]);
 		editor.welcomePage = {
 			setMigrationCategories: categories => welcomePageCalls.push([...categories as readonly ICustomizationMigrationCategorySummary[]]),
@@ -296,9 +316,9 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.refreshCustomizationMigrationUi();
 
 		assert.deepStrictEqual(welcomePageCalls.map(categories => categories.map(category => category.id)), [
-			[],
-			[CustomizationMigrationCategoryId.UserData],
-			[CustomizationMigrationCategoryId.PromptFiles, CustomizationMigrationCategoryId.UserData],
+			[CustomizationMigrationCategoryId.McpServers],
+			[CustomizationMigrationCategoryId.UserData, CustomizationMigrationCategoryId.McpServers],
+			[CustomizationMigrationCategoryId.PromptFiles, CustomizationMigrationCategoryId.UserData, CustomizationMigrationCategoryId.McpServers],
 		]);
 		editor.editorPreviewDisposables.dispose();
 	});
@@ -331,11 +351,50 @@ suite('aiCustomizationManagementEditor', () => {
 		assert.deepStrictEqual({
 			workspaceSelected: editor.isCustomizationSelectedForMigration(workspacePrompt),
 			userSelected: editor.isCustomizationSelectedForMigration(userPrompt),
-			selectedStorages: [...(editor.selectedCustomizationMigrationItems.get(sharedUri) ?? [])],
+			selectedItems: [...editor.selectedCustomizationMigrationItems],
 		}, {
 			workspaceSelected: false,
 			userSelected: true,
-			selectedStorages: [PromptsStorage.user],
+			selectedItems: [`file:${sharedUri.toString()}:${PromptsStorage.user}`],
+		});
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('renders individually selectable MCP server migration candidates', () => {
+		const editor = createTestEditor();
+		const serverA: IMcpServerCustomizationMigrationCandidate = {
+			type: CustomizationMigrationType.McpServers,
+			id: 'mcp.config.ws0.server-a',
+			name: 'server-a',
+			sourceUri: URI.file('/workspace/.vscode/mcp.json'),
+			targetUri: URI.file('/workspace/.mcp.json'),
+			configuration: { type: McpServerType.LOCAL, command: 'server-a' },
+		};
+		const serverB: IMcpServerCustomizationMigrationCandidate = {
+			...serverA,
+			id: 'mcp.config.ws0.server-b',
+			name: 'server-b',
+			configuration: { type: McpServerType.LOCAL, command: 'server-b' },
+		};
+		editor.customizationsByMigrationCategory = new Map([[CustomizationMigrationCategoryId.McpServers, [serverA, serverB]]]);
+		editor.activeMigrationCategoryId = CustomizationMigrationCategoryId.McpServers;
+		editor.selectedCustomizationMigrationItems = new Set([`mcp:${serverA.id}`]);
+		editor.migrationListContainer = document.createElement('div');
+		editor.migrationMigrateButton = { enabled: false, label: '' };
+
+		editor.renderCustomizationMigrationPage();
+
+		assert.deepStrictEqual({
+			rowText: [...editor.migrationListContainer.querySelectorAll('.prompt-migration-item')].map(row => row.textContent),
+			selectAriaLabel: [...editor.migrationListContainer.querySelectorAll('.prompt-migration-item [aria-label]')].map(element => element.getAttribute('aria-label')),
+			button: editor.migrationMigrateButton,
+		}, {
+			rowText: [
+				'server-a/workspace/.vscode/mcp.json to /workspace/.mcp.json',
+				'server-b/workspace/.vscode/mcp.json to /workspace/.mcp.json',
+			],
+			selectAriaLabel: ['Select server-a', 'Select server-b'],
+			button: { enabled: true, label: 'Migrate 1' },
 		});
 		editor.editorPreviewDisposables.dispose();
 	});
@@ -373,13 +432,55 @@ suite('aiCustomizationManagementEditor', () => {
 
 		assert.deepStrictEqual({
 			refreshedSessions,
-			candidatePaths: [...editor.customizationsByMigrationCategory.values()].flat().map(candidate => candidate.uri.path),
+			candidatePaths: [...editor.customizationsByMigrationCategory.values()].flat()
+				.filter(candidate => !isMcpServerCustomizationMigrationCandidate(candidate))
+				.map(candidate => candidate.uri.path),
 			destinationPaths: [...editor.customizationMigrationTargetFoldersByType.values()].flat().map(folder => folder.uri.path),
 		}, {
 			refreshedSessions: ['/session-a', '/session-b'],
 			candidatePaths: ['/user-data/session-b.instructions.md'],
 			destinationPaths: ['/home/test/.test-harness/session-b/instructions'],
 		});
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('refreshes migration state when MCP server inventory changes', () => {
+		const editor = createTestEditor();
+		const mcpServers = observableValue<readonly never[]>('mcpServers', []);
+		editor.mcpService = {
+			servers: mcpServers,
+		} as Partial<IMcpService> as IMcpService;
+		let refreshCount = 0;
+		editor.refreshCustomizationMigrationInfo = async () => {
+			refreshCount++;
+		};
+
+		editor.registerCustomizationMigrationSessionRefresh();
+		mcpServers.set([], undefined);
+
+		assert.strictEqual(refreshCount, 2);
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('refreshes migration state when active session working directories change', () => {
+		const editor = createTestEditor();
+		const onDidChangeCustomizations = editor.editorPreviewDisposables.add(new Emitter<void>());
+		let workingDirectories: readonly string[] = [];
+		editor.agentHostCustomizationService = {
+			onDidChangeCustomizations: onDidChangeCustomizations.event,
+			getWorkingDirectories: () => workingDirectories,
+		} as Partial<IAgentHostCustomizationService> as IAgentHostCustomizationService;
+		let refreshCount = 0;
+		editor.refreshCustomizationMigrationInfo = async () => {
+			refreshCount++;
+		};
+
+		editor.registerCustomizationMigrationSessionRefresh();
+		workingDirectories = ['file:///workspace'];
+		onDidChangeCustomizations.fire();
+		onDidChangeCustomizations.fire();
+
+		assert.strictEqual(refreshCount, 2);
 		editor.editorPreviewDisposables.dispose();
 	});
 
@@ -421,7 +522,7 @@ suite('aiCustomizationManagementEditor', () => {
 			[PromptsType.agent, [{ uri: URI.file('/home/test/.copilot/agents'), label: '~/.copilot', source: AICustomizationSources.user }]],
 			[PromptsType.instructions, [{ uri: URI.file('/home/test/.copilot/instructions'), label: '~/.copilot', source: AICustomizationSources.user }]],
 		]);
-		editor.selectedCustomizationMigrationItems = new ResourceMap();
+		editor.selectedCustomizationMigrationItems = new Set();
 		editor.migrationListContainer = document.createElement('div');
 		editor.migrationTitleElement = document.createElement('h2');
 		editor.migrationDescriptionElement = document.createElement('p');
