@@ -1563,9 +1563,7 @@ export class ListView<T> implements IListView<T> {
 		const start = this.rangeMap.indexAt(renderTop);
 		return {
 			start,
-			// When the viewport is collapsed or hidden (renderHeight <= 0), the end
-			// position can resolve to an index before `start`, producing an inverted
-			// range. Clamp it so consumers always receive `end >= start`.
+			// Clamp so a collapsed viewport (renderHeight <= 0) cannot produce an inverted range.
 			end: Math.max(start, this.rangeMap.indexAfter(renderTop + renderHeight - 1))
 		};
 	}
