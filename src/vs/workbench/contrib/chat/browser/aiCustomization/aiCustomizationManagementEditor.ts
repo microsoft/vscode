@@ -65,6 +65,7 @@ import {
 import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, pluginIcon, toolsIcon } from './aiCustomizationIcons.js';
 import { ChatModelsWidget } from '../chatManagement/chatModelsWidget.js';
 import { PromptsType, Target } from '../../common/promptSyntax/promptTypes.js';
+import { CustomizationMigrationType, ICustomizationMigrationService } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { IPromptsService, IPromptPath, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { IHeaderAttribute, IValue, ParsedPromptFile } from '../../common/promptSyntax/promptFileParser.js';
 import { AGENT_MD_FILENAME } from '../../common/promptSyntax/config/promptFileLocations.js';
@@ -103,7 +104,7 @@ import { ICustomizationHarnessService, type ICustomizationSourceFolder } from '.
 import { ChatConfiguration } from '../../common/constants.js';
 import { AICustomizationWelcomePage, type ICustomizationMigrationCategorySummary } from './aiCustomizationWelcomePage.js';
 import { type CustomizationMigrationTargetFolders, getCustomizationMigrationTargetType, migrateCustomizations } from './customizationMigration.js';
-import { CUSTOMIZATION_MIGRATION_CATEGORIES, CustomizationMigrationCategoryId, getCustomizationMigrationCategory, getCustomizationMigrationSourceTypes, type ICustomizationMigrationBanner, type ICustomizationMigrationCategory } from './customizationMigrationCategories.js';
+import { CUSTOMIZATION_MIGRATION_CATEGORIES, CustomizationMigrationCategoryId, getCustomizationMigrationCategory, type ICustomizationMigrationBanner, type ICustomizationMigrationCategory } from './customizationMigrationCategories.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { showNoFoldersDialog } from '../promptSyntax/pickers/askForPromptSourceFolder.js';
@@ -414,6 +415,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@ICommandService private readonly commandService: ICommandService,
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IPromptsService private readonly promptsService: IPromptsService,
+		@ICustomizationMigrationService private readonly customizationMigrationService: ICustomizationMigrationService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
@@ -1130,17 +1132,18 @@ export class AICustomizationManagementEditor extends EditorPane {
 				return;
 			}
 
-			const sourceTypes = getCustomizationMigrationSourceTypes(enabledCategories);
-			const customizationsByType = await Promise.all(sourceTypes.map(type => this.promptsService.listPromptFiles(type, CancellationToken.None)));
+			const migrationCandidates = await Promise.all(enabledCategories.map(async category => {
+				const type = category.id === CustomizationMigrationCategoryId.PromptFiles
+					? CustomizationMigrationType.PromptFiles
+					: CustomizationMigrationType.UserData;
+				const migration = await this.customizationMigrationService.computeMigration(activeHarnessId, type);
+				return [category.id, migration.candidates] as const;
+			}));
 			if (refreshSequence !== this.customizationMigrationRefreshSequence || activeHarnessId !== this.harnessService.activeHarness.get()) {
 				return;
 			}
 
-			const allCustomizations = customizationsByType.flat();
-			const unfilteredCandidatesByCategory = new Map<CustomizationMigrationCategoryId, readonly IPromptPath[]>();
-			for (const category of enabledCategories) {
-				unfilteredCandidatesByCategory.set(category.id, allCustomizations.filter(customization => category.isCandidate(customization)));
-			}
+			const unfilteredCandidatesByCategory = new Map<CustomizationMigrationCategoryId, readonly IPromptPath[]>(migrationCandidates);
 
 			const targetTypes = new Set([...unfilteredCandidatesByCategory.values()].flat().map(getCustomizationMigrationTargetType));
 			const itemSource = this.itemsModel.getActiveItemSource();
