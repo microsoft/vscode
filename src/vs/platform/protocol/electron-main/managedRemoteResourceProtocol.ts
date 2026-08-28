@@ -29,7 +29,7 @@ export function createManagedRemoteResourceRequestHandler(
 			});
 		} catch (error) {
 			logService.warn('error dispatching remote resource call', error);
-			return new Response(String(error), { status: 500 });
+			return new Response(null, { status: 500 });
 		}
 	};
 }
