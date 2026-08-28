@@ -263,8 +263,69 @@ export abstract class AbstractConfigurationService extends Disposable implements
 	abstract inspectConfig<T>(key: BaseConfig<T>, scope?: ConfigurationScope): InspectConfigResult<T> | undefined;
 	abstract getNonExtensionConfig<T>(configKey: string): T | undefined;
 	abstract setConfig<T>(key: BaseConfig<T>, value: T, target?: ConfigTarget): Thenable<void>;
-	abstract getExperimentBasedConfig<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService): T;
 	abstract dumpConfig(): { [key: string]: string };
+
+	public getExperimentBasedConfig<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService, scope?: ConfigurationScope): T {
+		const configuredValue = this._getUserConfiguredExperimentBasedValue(key, scope);
+		if (configuredValue !== undefined) {
+			return configuredValue;
+		}
+
+		const treatmentValue = this._getExperimentTreatment(key, experimentationService);
+		if (treatmentValue !== undefined) {
+			return treatmentValue;
+		}
+
+		return this.getDefaultValue(key);
+	}
+
+	/**
+	 * The value the user explicitly configured for `key` in any settings scope, or `undefined` when the
+	 * setting is not configured. Implementations backed only by defaults have nothing to report.
+	 */
+	protected _getUserConfiguredExperimentBasedValue<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, scope?: ConfigurationScope): T | undefined {
+		return undefined;
+	}
+
+	/**
+	 * The value assigned to `key` by experimentation, looked up under every treatment name the key has
+	 * ever been published as, or `undefined` when no experiment assigns it.
+	 */
+	protected _getExperimentTreatment<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService): T | undefined {
+		if (key.experimentName) {
+			const expValue = experimentationService.getTreatmentVariable<Exclude<T, undefined>>(key.experimentName);
+			if (expValue !== undefined) {
+				return expValue;
+			}
+		}
+
+		// This is the pattern we've been using for a while now. We need to maintain it for older experiments.
+		const expValue = experimentationService.getTreatmentVariable<Exclude<T, undefined>>(`copilotchat.config.${key.id}`);
+		if (expValue !== undefined) {
+			return expValue;
+		}
+
+		// This is the pattern vscode uses for settings using the `onExp` tag. But vscode only supports it for
+		// settings defined in package.json, so this is why we're also reading the value from exp here.
+		const expValue2 = experimentationService.getTreatmentVariable<Exclude<T, undefined>>(`config.${key.fullyQualifiedId}`);
+		if (expValue2 !== undefined) {
+			return expValue2;
+		}
+
+		if (key.fullyQualifiedOldId) {
+			const oldExpValue = experimentationService.getTreatmentVariable<Exclude<T, undefined>>(`copilotchat.config.${key.oldId}`);
+			if (oldExpValue !== undefined) {
+				return oldExpValue;
+			}
+
+			const oldExpValue2 = experimentationService.getTreatmentVariable<Exclude<T, undefined>>(`config.${key.fullyQualifiedOldId}`);
+			if (oldExpValue2 !== undefined) {
+				return oldExpValue2;
+			}
+		}
+
+		return undefined;
+	}
 	public updateExperimentBasedConfiguration(treatments: string[]): void {
 		if (treatments.length === 0) {
 			return;
