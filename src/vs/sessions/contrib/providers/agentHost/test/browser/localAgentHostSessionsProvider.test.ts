@@ -6354,7 +6354,15 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		pullRequest.set(makePullRequest(), undefined);
 
-		assert.strictEqual(updateCount, 1);
+		assert.deepStrictEqual({
+			updateCount,
+			mainTitle: gitHubInfo.get()?.pullRequest?.title,
+			historyTitles: gitHubInfo.get()?.pullRequests?.map(ref => ref.title),
+		}, {
+			updateCount: 1,
+			mainTitle: 'PR',
+			historyTitles: ['PR'],
+		});
 	}));
 
 	test.skip('keeps a resolved PR number sticky across gitHubInfo recomputes (no re-lookup / icon flap)', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -6485,7 +6493,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				{
 					number: 41,
 					uri: 'https://github.com/owner/repo/pull/41',
-					icon: undefined,
+					icon: computePullRequestIcon(GitHubPullRequestState.Open),
 				},
 			]
 		});

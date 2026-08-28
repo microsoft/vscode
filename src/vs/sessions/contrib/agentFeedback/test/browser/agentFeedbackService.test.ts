@@ -960,6 +960,33 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 		});
 	});
 
+	test('submits only selected feedback with a custom request', async () => {
+		const first = service.addFeedback(session, fileA, r(10), 'Fix the PR comment');
+		const second = service.addFeedback(session, fileA, r(20), 'Keep this for later');
+		let accepted = 0;
+
+		await service.submitFeedback(session, {
+			query: '/act-on-feedback for #42',
+			feedbackIds: [first.id],
+			onRequestAccepted: () => accepted++,
+		});
+
+		assert.deepStrictEqual({
+			accepted,
+			request: widgetOps.find(operation => operation.startsWith('accept:')),
+			attachedTexts: addedEntries[0]?.feedbackItems.map(item => item.text),
+			states: service.getFeedback(session).map(item => ({ id: item.id, state: item.state })),
+		}, {
+			accepted: 1,
+			request: 'accept:/act-on-feedback for #42',
+			attachedTexts: ['Fix the PR comment'],
+			states: [
+				{ id: first.id, state: AgentFeedbackState.Submitted },
+				{ id: second.id, state: AgentFeedbackState.Accepted },
+			],
+		});
+	});
+
 	test('marks feedback as submitted once the request is queued behind an in-progress request', async () => {
 		service.addFeedback(session, fileA, r(10), 'Please simplify');
 
