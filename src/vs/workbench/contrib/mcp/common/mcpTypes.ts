@@ -968,6 +968,8 @@ export interface IMcpWorkbenchService {
 	readonly onChange: Event<IWorkbenchMcpServer | undefined>;
 	readonly onReset: Event<void>;
 	readonly local: readonly IWorkbenchMcpServer[];
+	/** Resolves after the initial installed MCP server query attempt completes. Never rejects. */
+	readonly whenInitialLocalMcpServersLoaded: Promise<void>;
 	getEnabledLocalMcpServers(): IWorkbenchLocalMcpServer[];
 	queryLocal(): Promise<IWorkbenchMcpServer[]>;
 	queryGallery(options?: IQueryOptions, token?: CancellationToken): Promise<IIterativePager<IWorkbenchMcpServer>>;

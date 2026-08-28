@@ -131,6 +131,7 @@ suite('AgentHostClientTools', () => {
 		instantiationService.stub(IMcpWorkbenchService, {
 			local: [],
 			onChange: Event.None,
+			whenInitialLocalMcpServersLoaded: Promise.resolve(),
 		} as Partial<IMcpWorkbenchService> as IMcpWorkbenchService);
 		instantiationService.stub(ILanguageModelToolsService, {
 			observeTools: () => tools,

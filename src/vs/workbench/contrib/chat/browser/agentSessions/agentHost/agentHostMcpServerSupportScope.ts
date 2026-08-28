@@ -71,6 +71,7 @@ export class AgentHostMcpServerSupportScope extends Disposable {
 				if (!initialAssessment) {
 					return;
 				}
+				await this._mcpWorkbenchService.whenInitialLocalMcpServersLoaded;
 				const installedServers = this._mcpWorkbenchService.local.flatMap(server => {
 					const local = server.local;
 					return local ? [{

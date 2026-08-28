@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { ISettableObservable, observableValue, waitForState } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -17,9 +18,10 @@ import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostM
 import { AgentHostMcpServerSupportScope } from '../../../browser/agentSessions/agentHost/agentHostMcpServerSupportScope.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { ExternalDiscoverySource } from '../../../../mcp/common/mcpConfiguration.js';
-import { IMcpServer, IMcpService, IMcpWorkbenchService, LazyCollectionState, McpCollectionDefinition, McpCollectionProvenance, McpServerDefinition, McpServerEnablementState, McpServerLaunch, McpServerTransportStdio, McpServerTransportType, McpServerTrust } from '../../../../mcp/common/mcpTypes.js';
+import { IMcpConfigPath, IMcpServer, IMcpService, IMcpWorkbenchService, IWorkbenchMcpServer, LazyCollectionState, McpCollectionDefinition, McpCollectionProvenance, McpServerDefinition, McpServerEnablementState, McpServerLaunch, McpServerTransportStdio, McpServerTransportType, McpServerTrust } from '../../../../mcp/common/mcpTypes.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
 import { ConfigurationResolverExpression } from '../../../../../services/configurationResolver/common/configurationResolverExpression.js';
+import { IWorkbenchLocalMcpServer } from '../../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 
 suite('agentHostMcpServerSupport', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -398,6 +400,7 @@ suite('agentHostMcpServerSupport', () => {
 		const mcpWorkbenchService = {
 			local: [],
 			onChange: Event.None,
+			whenInitialLocalMcpServersLoaded: Promise.resolve(),
 		} as Partial<IMcpWorkbenchService> as IMcpWorkbenchService;
 		const configurationService = {
 			getValue: (section: string) => section === mcpAccessConfig ? McpAccessValue.All : false,
@@ -421,6 +424,67 @@ suite('agentHostMcpServerSupport', () => {
 		assert.deepStrictEqual((await updated).servers[0].enablement, {
 			enabled: false,
 			state: AgentHostMcpServerEnablementState.DisabledWorkspace,
+		});
+	});
+
+	test('waits for the installed inventory before resolving the initial snapshot', async () => {
+		const inventoryReady = new DeferredPromise<void>();
+		const readinessRequested = new DeferredPromise<void>();
+		let localServers: readonly IWorkbenchMcpServer[] = [];
+		const mcpService = {
+			servers: observableValue<readonly IMcpServer[]>('mcpServers', []),
+			lazyCollectionState: observableValue('lazyCollectionState', { state: LazyCollectionState.AllKnown, collections: [] }),
+		} as Partial<IMcpService> as IMcpService;
+		const mcpWorkbenchService = {
+			get local() { return localServers; },
+			onChange: Event.None,
+			getMcpConfigPath: getUndefinedMcpConfigPath,
+			get whenInitialLocalMcpServersLoaded() {
+				readinessRequested.complete();
+				return inventoryReady.p;
+			},
+		} as Partial<IMcpWorkbenchService> as IMcpWorkbenchService;
+		const configurationService = {
+			getValue: (section: string) => section === mcpAccessConfig ? McpAccessValue.All : false,
+			onDidChangeConfiguration: Event.None,
+		} as Partial<IConfigurationService> as IConfigurationService;
+		const owner = new AgentHostMcpServerSupportScope(
+			'agent-host-copilotcli',
+			[],
+			() => { },
+			mcpService,
+			mcpWorkbenchService,
+			makeConfigurationResolverService(),
+			configurationService,
+		);
+		const scope = store.add(owner.acquire());
+		await readinessRequested.p;
+		const resolvedBeforeInventory = scope.isResolved.get();
+
+		localServers = [{
+			name: 'delayed',
+			label: 'Delayed server',
+			local: {
+				id: 'mcp.config.usrlocal.delayed',
+				config: {
+					type: McpServerType.LOCAL,
+					command: 'server',
+				},
+				rootSandbox: undefined,
+			},
+			runtimeStatus: { state: McpServerEnablementState.DisabledByAccess },
+		} as Partial<IWorkbenchMcpServer> as IWorkbenchMcpServer];
+		await inventoryReady.complete();
+		await scope.whenResolved();
+
+		assert.deepStrictEqual({
+			resolvedBeforeInventory,
+			resolvedAfterInventory: scope.isResolved.get(),
+			serverIds: scope.support.get().servers.map(server => server.id),
+		}, {
+			resolvedBeforeInventory: false,
+			resolvedAfterInventory: true,
+			serverIds: ['mcp.config.usrlocal.delayed'],
 		});
 	});
 
@@ -534,6 +598,12 @@ function makeConfigurationResolverService(resolutions: Record<string, string> = 
 			return expression.toObject();
 		},
 	} as unknown as IConfigurationResolverService;
+}
+
+function getUndefinedMcpConfigPath(arg: IWorkbenchLocalMcpServer): IMcpConfigPath | undefined;
+function getUndefinedMcpConfigPath(arg: URI): Promise<IMcpConfigPath | undefined>;
+function getUndefinedMcpConfigPath(arg: IWorkbenchLocalMcpServer | URI): IMcpConfigPath | undefined | Promise<IMcpConfigPath | undefined> {
+	return URI.isUri(arg) ? Promise.resolve(undefined) : undefined;
 }
 
 async function assess(servers: readonly IMcpServer[], roots: readonly URI[] | undefined) {
