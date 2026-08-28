@@ -17,6 +17,10 @@ import { AgentsWindowOpenSource, IColorScheme, IOpenedAuxiliaryWindow, IOpenedMa
 
 export interface IToastOptions {
 	readonly id: string;
+	/**
+	 * Prevents another live toast with the same key from being shown.
+	 */
+	readonly dedupeKey?: string;
 
 	readonly title: string;
 	readonly body?: string;
@@ -28,6 +32,10 @@ export interface IToastOptions {
 
 export interface IToastResult {
 	readonly supported: boolean;
+	/**
+	 * True when a live toast with the requested dedupe key is already visible.
+	 */
+	readonly suppressed?: boolean;
 
 	readonly clicked: boolean;
 	readonly actionIndex?: number;
@@ -38,11 +46,17 @@ export interface IToastResult {
  */
 export type INativeZipFile =
 	| { readonly path: string; readonly contents: string }
-	| { readonly path: string; readonly source: URI; readonly size: number }
+	| {
+		readonly path: string;
+		readonly source: URI;
+		readonly size: number;
+		/** Skip this entry when its source cannot be opened or inspected. */
+		readonly skipSourceErrors?: boolean;
+	}
 	| { readonly sourceArchive: URI };
 
 export interface INativeZipOptions {
-	readonly maxSize: number;
+	readonly maxSize?: number;
 	readonly maxEntries: number;
 }
 

@@ -22,15 +22,25 @@ import { ChatConfiguration } from '../../common/constants.js';
 import { getEditorOverrideForChatResource } from './chatEditorAssociations.js';
 import { ChatPillsWidget, getChatPillEntries, IChatPill, type IChatPillSection } from '../../../../browser/chatPills.js';
 import { ChatChangesPillActionViewItem } from '../../../../browser/chatChangesPill.js';
-import { createChatSectionPill, type IChatDropdownPillOptions } from '../../../../browser/chatDropdownPill.js';
+import { ChatPillSingleEntry, createChatSectionPill, type IChatDropdownPillOptions } from '../../../../browser/chatDropdownPill.js';
 
-/** Presentation of the artifacts pill. */
+/**
+ * Presentation of the artifacts pill. Only a file artifact is worth showing in
+ * place of the summary — its name and themed icon say what it is — while any
+ * other lone artifact stays behind the count, so the row keeps a stable shape
+ * instead of turning into whichever artifact happens to be recorded first.
+ */
 export const chatArtifactPillOptions: IChatDropdownPillOptions = {
 	widgetId: 'chatArtifacts',
-	icon: Codicon.archive,
+	icon: Codicon.package,
 	title: localize('chatArtifacts.title', "Artifacts"),
-	summaryLabel: count => localize('chatArtifacts.count', "{0} Artifacts", count),
-	summaryAriaLabel: count => localize('chatArtifacts.show', "Show {0} artifacts", count),
+	summaryLabel: count => count === 1
+		? localize('chatArtifacts.countSingle', "1 Artifact")
+		: localize('chatArtifacts.count', "{0} Artifacts", count),
+	summaryAriaLabel: count => count === 1
+		? localize('chatArtifacts.showSingle', "Show 1 artifact")
+		: localize('chatArtifacts.show', "Show {0} artifacts", count),
+	singleEntry: ChatPillSingleEntry.InlineResource,
 };
 
 export const CHAT_TURN_CHANGES_PILL_ID = 'chat.turnPills.changes';

@@ -63,9 +63,9 @@
 	}
 
 	.chat-tool-carousel-collapsed-title {
-		flex: 1 1 auto;
+		flex: 0 1 auto;
 		min-width: 0;
-		font-weight: var(--vscode-agents-fontWeight-semiBold);
+		font-weight: var(--vscode-fontWeight-semiBold);
 		font-size: var(--vscode-chat-font-size-body-s);
 		overflow-wrap: anywhere;
 		white-space: normal;
@@ -73,6 +73,8 @@
 	}
 
 	.chat-tool-carousel-agent-label {
+		flex: 0 1 auto;
+		min-width: 0;
 		background: none;
 		border: none;
 		cursor: pointer;

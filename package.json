@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.135.0",
-  "distro": "c842171bd42ca4aef20b0a186c94d99edd763842",
+  "version": "1.136.0",
+  "distro": "ebabac9aa9cfb4c9351977aa0d1cab83b357ffaa",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -100,6 +100,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
+    "@devcontainers/cli": "0.88.0",
     "@github/copilot": "1.0.81-0",
     "@github/copilot-sdk": "1.0.11",
     "@microsoft/1ds-core-js": "^3.2.13",
@@ -112,14 +113,14 @@
     "@microsoft/mxc-sdk": "0.7.0",
     "@parcel/watcher": "^2.5.6",
     "@types/semver": "^7.5.8",
-    "@vscode/codicons": "^0.0.46-37",
+    "@vscode/codicons": "^0.0.46-38",
     "@vscode/copilot-api": "^0.5.2",
     "@vscode/deviceid": "^0.1.1",
     "@vscode/diff": "0.0.2-7",
     "@vscode/fs-copyfile": "2.0.0",
     "@vscode/iconv-lite-umd": "0.7.1",
     "@vscode/native-watchdog": "^1.4.6",
-    "@vscode/os-proxy-resolver": "^0.3.0",
+    "@vscode/os-proxy-resolver": "^0.4.0",
     "@vscode/policy-watcher": "^1.4.0",
     "@vscode/proxy-agent": "^0.44.0",
     "@vscode/ripgrep-universal": "^1.18.0",
@@ -219,7 +220,6 @@
     "cookie": "^0.7.2",
     "debounce": "^1.0.0",
     "deemon": "^1.13.6",
-    "electron": "42.8.1",
     "eslint": "10.8.0",
     "eslint-formatter-compact": "^8.40.0",
     "eslint-plugin-header": "3.1.1",

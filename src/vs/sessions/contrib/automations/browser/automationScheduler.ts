@@ -137,7 +137,10 @@ export class AutomationSchedulerCore extends Disposable {
 
 	private async dispatchDue(trigger: 'schedule' | 'catch_up'): Promise<void> {
 		const now = this._now();
-		const due = this.automationService.automations.get().filter(a => isDue(a, now));
+		const due = this.automationService.automations.get().filter(automation =>
+			this.automationService.isSchedulingOwnedByHost?.(automation.id) !== true
+			&& isDue(automation, now)
+		);
 		if (due.length === 0) {
 			return;
 		}

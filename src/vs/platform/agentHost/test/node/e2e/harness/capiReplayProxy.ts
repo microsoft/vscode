@@ -225,6 +225,8 @@ export interface ICapiReplayProxyOptions {
 	 * `STALE_RECORDED_REQUEST_EXCEPTIONS` in `agentHostE2ETestHarness.ts`.
 	 */
 	readonly allowStaleRecordedRequest?: boolean;
+	/** Synthetic first model response used by deterministic provider-error recordings. */
+	readonly recordingModelResponse?: ICapiReplayResponse;
 }
 
 /** A replayable item: raw bytes (ancillary) or a model reply to regenerate. */
@@ -257,7 +259,7 @@ export class CapiReplayProxy {
 	private readonly _replayPlaceholderValues = new Map<string, string>();
 	private _modelTurnCount = 0;
 	private _workingDirectory: string | undefined;
-	private _recordingModelResponse: ICapiReplayResponse | undefined;
+	private _recordingModelResponse: { readonly response: ICapiReplayResponse; readonly path?: string } | undefined;
 
 	/**
 	 * Fixture currently being replayed. Mutable so a single long-lived proxy can
@@ -281,6 +283,7 @@ export class CapiReplayProxy {
 		const fixtureExists = existsSync(this._fixturePath);
 		this._mode = _options.mode ?? 'replay';
 		this._strict = _options.strict ?? true;
+		this._recordingModelResponse = _options.recordingModelResponse ? { response: _options.recordingModelResponse } : undefined;
 
 		if (this._mode === 'replay' && !fixtureExists) {
 			throw new Error(`[capi-replay] replay mode requires a fixture but none exists at ${this._fixturePath}`);
@@ -375,11 +378,11 @@ export class CapiReplayProxy {
 		this._workingDirectory = workingDirectory;
 	}
 
-	setRecordingModelResponse(response: ICapiReplayResponse): void {
+	setRecordingModelResponse(response: ICapiReplayResponse, path?: string): void {
 		if (this._isReplaying) {
 			throw new Error('[capi-replay] setRecordingModelResponse is only valid in record mode');
 		}
-		this._recordingModelResponse = response;
+		this._recordingModelResponse = { response, path };
 	}
 
 	get observedModelRequestBodies(): readonly string[] {
@@ -573,8 +576,9 @@ export class CapiReplayProxy {
 		if (MODEL_ENDPOINTS.has(path)) {
 			this._observedModelRequestBodies.push(this._normalize(body));
 		}
-		if (MODEL_ENDPOINTS.has(path) && this._recordingModelResponse) {
-			const response = this._recordingModelResponse;
+		if (MODEL_ENDPOINTS.has(path) && this._recordingModelResponse && (!this._recordingModelResponse.path || this._recordingModelResponse.path === path)) {
+			const response = this._recordingModelResponse.response;
+			this._recordingModelResponse = undefined;
 			res.writeHead(response.status, response.headers);
 			res.end(response.body);
 			this._recorded.push({

@@ -45,7 +45,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
-import { IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agent.js';
+import { AgentChatMigrationDeferred, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agent.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostClaudeMultiRootEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
@@ -68,7 +68,7 @@ import { AgentHostSessionTitleSignal, IAgentHostSessionTitleSignal } from '../..
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { IAgentHostAuthenticationService, type IAgentHostAuthTokenChangeEvent } from '../../node/agentHostAuthenticationService.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
-import { createTestAgentService } from './agentServiceTestUtils.js';
+import { createTestAgentService, getTestAgentStateManager, registerTestAgentProvider } from './agentServiceTestUtils.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { makeMcpServerCustomization } from '../../../agentPlugins/common/pluginParsers.js';
 import { ClaudeAgent, fromSdkModelInfo } from '../../node/claude/claudeAgent.js';
@@ -87,7 +87,6 @@ import { IClaudeProxyCreditsReport, IClaudeProxyHandle, IClaudeProxyService } fr
 import { resolvePromptToContentBlocks } from '../../node/claude/claudePromptResolver.js';
 import { ICopilotApiService, type ICopilotApiServiceRequestOptions } from '../../node/shared/copilotApiService.js';
 import { createAgentChatContext } from '../../node/agentChatContext.js';
-import { injectSideChatContext } from '../../node/agentPeerChats.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, RecordingCheckpointService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
 // #region Test fakes
@@ -2157,12 +2156,12 @@ suite('ClaudeAgent', () => {
 			createNoopGitService(),
 		));
 
-		service.registerProvider(agent);
+		registerTestAgentProvider(service, agent);
 
 		// AgentSideEffects publishes registered providers into root state
 		// on the next autorun tick. The state manager exposes the root
 		// state via a public accessor.
-		const rootAgents = service.stateManager.rootState.agents;
+		const rootAgents = getTestAgentStateManager(service).rootState.agents;
 		assert.deepStrictEqual(
 			rootAgents.map(a => ({ provider: a.provider, displayName: a.displayName })),
 			[{ provider: 'claude', displayName: 'Claude' }],
@@ -4963,7 +4962,7 @@ suite('ClaudeAgent', () => {
 			modifiedB: b?.modifiedTime,
 			sdkCalls: sdk.listSessionsCallCount,
 			availabilityRequests: sdk.ensureAvailableCalls,
-			migrationChats: chatsToMigrate?.map(r => sessionIdOfChat(r.chat)),
+			migrationChats: chatsToMigrate === AgentChatMigrationDeferred ? undefined : chatsToMigrate?.map(r => sessionIdOfChat(r.chat)),
 		}, {
 			count: 3,
 			ids: ['a', 'b', 'c'],
@@ -6235,7 +6234,6 @@ suite('ClaudeAgent — agent SDK setup channel', () => {
 		await settle();
 		const cold = {
 			discovered: [...discovered],
-			// `undefined` is "ask again later", as distinct from "nothing to migrate".
 			migratable: await ctx.agent.listChatsToMigrate(),
 			fetches: ctx.sdk.ensureAvailableCalls,
 		};
@@ -6252,7 +6250,7 @@ suite('ClaudeAgent — agent SDK setup channel', () => {
 		await settle();
 
 		assert.deepStrictEqual({ cold, inFlight, after: discovered, migratable: await ctx.agent.listChatsToMigrate() }, {
-			cold: { discovered: [], migratable: undefined, fetches: 0 },
+			cold: { discovered: [], migratable: AgentChatMigrationDeferred, fetches: 0 },
 			inFlight: [],
 			after: [1],
 			migratable: [],
@@ -9817,7 +9815,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		});
 	});
 
-	test('createChat({ sideChat }) forks hidden context and filters inherited turns', async () => {
+	test('createChat({ fork }) keeps provider history intact', async () => {
 		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
@@ -9825,8 +9823,6 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		sdk.sessionMessagesById.set(parentId, forkSourceMessages(parentId));
 		sdk.forkSessionResult = { sessionId: 'side-1' };
 		sdk.sessionList = [{ sessionId: 'side-1', summary: 'side', lastModified: 1, cwd: URI.file('/work').fsPath }];
-		const partialResponse = 'partial source answer';
-		const injectedPrompt = injectSideChatContext('side question', partialResponse);
 		sdk.sessionMessagesById.set('side-1', forkSourceMessages('side-1').slice(0, 2));
 
 		const chatUri = URI.parse(buildChatUri(created.session.toString(), 'chat-side'));
@@ -9844,8 +9840,8 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const createTimeout = timeout(5_000);
 		try {
 			result = await Promise.race([
-				agent.chats.createChat(chatUri, created.session, { sideChat: { source: defaultChatUri(created.session), turnId: 'u1', partialResponse }, ...resolvedChatOptions() }),
-				createTimeout.then(() => { throw new Error('Side chat creation waited for the source turn lock'); }),
+				agent.chats.createChat(chatUri, created.session, { fork: { source: defaultChatUri(created.session), turnId: 'u1' }, ...resolvedChatOptions() }),
+				createTimeout.then(() => { throw new Error('Fork creation waited for the source turn lock'); }),
 			]);
 		} finally {
 			createTimeout.cancel();
@@ -9860,7 +9856,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			: sentContent?.filter(block => block.type === 'text').map(block => block.text).join('\n');
 		sdk.sessionMessagesById.set('side-1', [
 			...forkSourceMessages('side-1').slice(0, 2),
-			{ type: 'user', uuid: 'turn-side', session_id: 'side-1', parent_tool_use_id: null, parent_agent_id: null, message: { role: 'user', content: [{ type: 'text', text: injectedPrompt }] } },
+			{ type: 'user', uuid: 'turn-side', session_id: 'side-1', parent_tool_use_id: null, parent_agent_id: null, message: { role: 'user', content: [{ type: 'text', text: 'side question' }] } },
 			{ type: 'assistant', uuid: 'a3', session_id: 'side-1', parent_tool_use_id: null, parent_agent_id: null, message: { id: 'msg_a3', role: 'assistant', content: [{ type: 'text', text: 'side answer' }] } },
 		]);
 		await agent.chats.changeModel(chatUri, { id: 'claude-opus-4-6' }, chatContext(chatUri));
@@ -9869,71 +9865,60 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		assert.deepStrictEqual({
 			forkCall: sdk.forkSessionCalls[0],
 			sentPrompt,
-			turns: turns.map(turn => turn.message.text),
-			sideChat: result ? JSON.parse(result.providerData!).sideChat : undefined,
+			returnsInheritedTurns: turns.length > 1,
+			providerData: result ? JSON.parse(result.providerData!) : undefined,
+			inheritedTurnId: result?.inheritedTurnId,
 		}, {
 			forkCall: { sessionId: parentId, options: { upToMessageId: 'a1' } },
-			sentPrompt: injectedPrompt,
-			turns: ['side question'],
-			sideChat: { turnId: 'u1', inheritedTurnId: 'u1', partialResponse },
+			sentPrompt: 'side question',
+			returnsInheritedTurns: true,
+			providerData: { sdkSessionId: 'side-1' },
+			inheritedTurnId: 'u1',
 		});
 	});
 
-	test('createChat({ sideChat }) records the host-supplied source context when the source transcript is unavailable', async () => {
-		// The source turn exists only in the host's authoritative chat state
-		// (nothing in the SDK transcript to fork), so Agent Host captures the
-		// bounded source context itself and hands it over on
-		// `sideChat.sourceContext`. The provider records it verbatim and never
-		// reaches back into host state to rebuild it.
+	test('createChat({ fork }) creates a fresh provider chat when the source transcript is unavailable', async () => {
 		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
-		const sourceContext = 'User request:\nremember\n\nAgent response:\nready';
-
 		const chatUri = URI.parse(buildChatUri(created.session.toString(), 'chat-side-live'));
-		const result = await agent.chats.createChat(chatUri, created.session, { sideChat: { source: defaultChatUri(created.session), turnId: 'turn-source', sourceContext }, ...resolvedChatOptions() });
+		const result = await agent.chats.createChat(chatUri, created.session, { fork: { source: defaultChatUri(created.session), turnId: 'turn-source' }, ...resolvedChatOptions() });
 
 		assert.deepStrictEqual({
 			forked: sdk.forkSessionCalls.length,
-			sideChat: result ? JSON.parse(result.providerData!).sideChat : undefined,
+			hasProviderData: result?.providerData !== undefined,
 		}, {
 			forked: 0,
-			sideChat: {
-				turnId: 'turn-source',
-				context: sourceContext,
-			},
+			hasProviderData: true,
 		});
 	});
 
-	test('createChat({ sideChat }) still creates the chat when nothing is inheritable', async () => {
-		// The fork cannot be anchored, Agent Host published no bounded
-		// `sourceContext`, and there is no partial response. The side chat is
-		// created without branching context rather than failing outright — the
-		// provider reads no host state to recover it.
+	test('createChat({ fork }) still creates the chat when nothing is inheritable', async () => {
+		// The fork is created without provider inheritance rather than failing
+		// outright when the requested turn is unavailable to the SDK.
 		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
 
 		const chatUri = URI.parse(buildChatUri(created.session.toString(), 'chat-side-orphan'));
-		const result = await agent.chats.createChat(chatUri, created.session, { sideChat: { source: defaultChatUri(created.session), turnId: 'turn-source' }, ...resolvedChatOptions() });
+		const result = await agent.chats.createChat(chatUri, created.session, { fork: { source: defaultChatUri(created.session), turnId: 'turn-source' }, ...resolvedChatOptions() });
 
 		assert.deepStrictEqual({
 			forked: sdk.forkSessionCalls.length,
-			sideChat: result ? JSON.parse(result.providerData!).sideChat : undefined,
+			hasProviderData: result?.providerData !== undefined,
 		}, {
 			forked: 0,
-			sideChat: { turnId: 'turn-source' },
+			hasProviderData: true,
 		});
 	});
 
-	test('createChat({ sideChat }) falls back to injected source context while the source turn is awaiting its first response', async () => {
+	test('createChat({ fork }) creates a fresh provider chat when a source fork is rejected', async () => {
 		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
 		const parentId = created.sdkSessionId;
 		const sourceChat = defaultChatUri(created.session);
 		const turnId = 'request_31bb16da-2a24-4312-8adb-04781b463d41';
-		const sourceContext = 'User request:\nsource question';
 		sdk.sessionMessagesById.set(parentId, [{
 			type: 'user',
 			uuid: turnId,
@@ -9946,24 +9931,21 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 
 		const chatUri = URI.parse(buildChatUri(created.session.toString(), 'chat-side-active'));
 		const result = await agent.chats.createChat(chatUri, created.session, {
-			sideChat: { source: sourceChat, turnId, sourceContext },
+			fork: { source: sourceChat, turnId },
 			...resolvedChatOptions(),
 		});
 		assert.ok(result?.providerData);
 
 		assert.deepStrictEqual({
 			forked: sdk.forkSessionCalls.length,
-			sideChat: JSON.parse(result.providerData).sideChat,
+			hasProviderData: result.providerData !== undefined,
 		}, {
 			forked: 0,
-			sideChat: {
-				turnId,
-				context: sourceContext,
-			},
+			hasProviderData: true,
 		});
 	});
 
-	test('createChat({ sideChat }) preserves a local source turn id while forking from the concrete provider anchor', async () => {
+	test('createChat({ fork }) uses the supplied provider anchor', async () => {
 		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
@@ -9971,17 +9953,13 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		sdk.sessionMessagesById.set(parentId, forkSourceMessages(parentId));
 		sdk.forkSessionResult = { sessionId: 'side-local-1' };
 		sdk.sessionList = [{ sessionId: 'side-local-1', summary: 'side local', lastModified: 1, cwd: URI.file('/work').fsPath }];
-		const sourceContext = 'User request:\nsource question\n\nAgent response:\nsource answer\n\n---\n\nUser request:\n!command';
-		const injectedPrompt = injectSideChatContext('side question', undefined, sourceContext);
 		sdk.sessionMessagesById.set('side-local-1', forkSourceMessages('side-local-1').slice(0, 2));
 
 		const chatUri = URI.parse(buildChatUri(created.session.toString(), 'chat-side-local'));
 		const result = await agent.chats.createChat(chatUri, created.session, {
-			sideChat: {
+			fork: {
 				source: defaultChatUri(created.session),
-				turnId: 'local-1',
-				providerAnchorTurnId: 'u1',
-				sourceContext,
+				turnId: 'u1',
 			},
 			...resolvedChatOptions(),
 		});
@@ -9993,7 +9971,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			: sentContent?.filter(block => block.type === 'text').map(block => block.text).join('\n');
 		sdk.sessionMessagesById.set('side-local-1', [
 			...forkSourceMessages('side-local-1').slice(0, 2),
-			{ type: 'user', uuid: 'turn-side-local', session_id: 'side-local-1', parent_tool_use_id: null, parent_agent_id: null, message: { role: 'user', content: [{ type: 'text', text: injectedPrompt }] } },
+			{ type: 'user', uuid: 'turn-side-local', session_id: 'side-local-1', parent_tool_use_id: null, parent_agent_id: null, message: { role: 'user', content: [{ type: 'text', text: 'side question' }] } },
 			{ type: 'assistant', uuid: 'a3', session_id: 'side-local-1', parent_tool_use_id: null, parent_agent_id: null, message: { id: 'msg_a3', role: 'assistant', content: [{ type: 'text', text: 'side answer' }] } },
 		]);
 		const turns = await agent.chats.getMessages(chatUri, chatContext(chatUri));
@@ -10001,17 +9979,15 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		assert.deepStrictEqual({
 			forkCall: sdk.forkSessionCalls[0],
 			sentPrompt,
-			turns: turns.map(turn => turn.message.text),
-			sideChat: result ? JSON.parse(result.providerData!).sideChat : undefined,
+			returnsInheritedTurns: turns.length > 1,
+			providerData: result ? JSON.parse(result.providerData!) : undefined,
+			inheritedTurnId: result?.inheritedTurnId,
 		}, {
 			forkCall: { sessionId: parentId, options: { upToMessageId: 'a1' } },
-			sentPrompt: injectedPrompt,
-			turns: ['side question'],
-			sideChat: {
-				turnId: 'local-1',
-				inheritedTurnId: 'u1',
-				context: sourceContext,
-			},
+			sentPrompt: 'side question',
+			returnsInheritedTurns: true,
+			providerData: { sdkSessionId: 'side-local-1' },
+			inheritedTurnId: 'u1',
 		});
 	});
 

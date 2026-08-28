@@ -511,6 +511,89 @@ suite('ChatThinkingContentPart', () => {
 			assert.ok(scrollable, 'Should have scrollable container');
 		});
 
+		test('splits summary headers as they stream without replacing the scroll container', () => {
+			const markdownRenderer: IMarkdownRenderer = {
+				render: (markdown, options, target) => renderMarkdown(markdown, options, target),
+			};
+			const firstSummary = '**Evaluating issue and PR status**';
+			const content = createThinkingPart('**Evaluating issue and PR sta');
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				createMockRenderContext(false),
+				markdownRenderer,
+				false
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+			const scrollable = part.domNode.querySelector('.monaco-scrollable-element');
+			const firstRow = part.domNode.querySelector('.chat-thinking-item.markdown-content');
+			const button = part.domNode.querySelector<HTMLElement>('.monaco-button');
+			const initialTitle = button?.textContent?.trim();
+
+			part.updateThinking(createThinkingPart(
+				`${firstSummary}\n\n**Analyzing code fix and lifecycle nuances**`,
+				content.id
+			));
+			part.updateThinking(createThinkingPart(
+				`${firstSummary}\n\n**Analyzing code fix and lifecycle nuances**\n\n**Evaluating PR merge status**`,
+				content.id
+			));
+
+			const rows = Array.from(part.domNode.querySelectorAll<HTMLElement>('.chat-thinking-item.markdown-content'));
+			assert.deepStrictEqual({
+				scrollContainerPreserved: part.domNode.querySelector('.monaco-scrollable-element') === scrollable,
+				firstRowPreserved: rows[0] === firstRow,
+				rowTexts: rows.map(row => row.textContent?.trim()),
+				hasLiteralMarkers: part.domNode.textContent?.includes('**') ?? false,
+				initialTitle,
+				streamingTitle: button?.textContent?.trim(),
+				streamingAriaLabel: button?.ariaLabel,
+			}, {
+				scrollContainerPreserved: true,
+				firstRowPreserved: true,
+				rowTexts: ['Analyzing code fix and lifecycle nuances', 'Evaluating PR merge status'],
+				hasLiteralMarkers: false,
+				initialTitle: 'Thinking',
+				streamingTitle: 'Thinking: Evaluating issue and PR status',
+				streamingAriaLabel: 'Thinking: Evaluating issue and PR status',
+			});
+		});
+
+		test('splits restored summary headers when fixed scrolling is expanded', () => {
+			const markdownRenderer: IMarkdownRenderer = {
+				render: (markdown, options, target) => renderMarkdown(markdown, options, target),
+			};
+			const content = createThinkingPart([
+				'**Evaluating issue and PR status**',
+				'**Analyzing code fix and lifecycle nuances**',
+				'**Evaluating PR merge status**',
+			].join('\n\n'));
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				createMockRenderContext(true),
+				markdownRenderer,
+				true
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+			part.domNode.querySelector<HTMLElement>('.monaco-button')?.click();
+
+			const rows = Array.from(part.domNode.querySelectorAll<HTMLElement>('.chat-thinking-item.markdown-content'));
+			assert.deepStrictEqual({
+				hasScrollContainer: !!part.domNode.querySelector('.monaco-scrollable-element'),
+				rowTexts: rows.map(row => row.textContent?.trim()),
+				title: part.domNode.querySelector('.chat-used-context-label .monaco-button')?.textContent?.trim(),
+			}, {
+				hasScrollContainer: true,
+				rowTexts: ['Analyzing code fix and lifecycle nuances', 'Evaluating PR merge status'],
+				title: 'Evaluating issue and PR status',
+			});
+		});
+
 		test('should collapse without animation when streaming completes', async () => {
 			const content = createThinkingPart('**Content with scrolling**');
 			const context = createMockRenderContext(false);
@@ -1783,7 +1866,7 @@ suite('ChatThinkingContentPart', () => {
 			part.finalizeTitleIfDefault();
 
 			// The button should now show a check icon
-			const iconElement = part.domNode.querySelector('.codicon-check');
+			const iconElement = part.domNode.querySelector('.codicon-check-compact');
 			assert.ok(iconElement, 'Should have check icon after finalization');
 			assert.ok(part.domNode.classList.contains('chat-collapsible-content-animated'), 'Should enable content animation after finalization');
 		});
@@ -2067,7 +2150,7 @@ suite('ChatThinkingContentPart', () => {
 			disposables.add(toDisposable(() => part.domNode.remove()));
 
 			// Should have circle-filled icon (not loading spinner) while streaming
-			const circleIcon = part.domNode.querySelector('.codicon-circle-filled');
+			const circleIcon = part.domNode.querySelector('.codicon-circle-filled-compact');
 			assert.ok(circleIcon, 'Should have circle-filled icon while streaming');
 		});
 
@@ -2664,7 +2747,7 @@ suite('ChatThinkingContentPart', () => {
 				childClasses: [
 					'monaco-button monaco-icon-button monaco-text-button chat-thinking-title-with-diff',
 					'monaco-button chat-thinking-title-diff',
-					'chat-collapsible-hover-chevron codicon codicon-chevron-right expanded',
+					'chat-collapsible-hover-chevron codicon codicon-chevron-right-compact expanded',
 				],
 				initialExpanded: 'false',
 				expandedAfterChevronClick: 'true',

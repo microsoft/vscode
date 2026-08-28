@@ -16,8 +16,14 @@ export const UNARCHIVE_SESSION_COMMAND_ID = 'sessionsViewPane.unarchiveSession';
 /** Renames a session. Registered in `sessionsViewActions.ts`. */
 export const RENAME_SESSION_COMMAND_ID = 'sessionsViewPane.renameSession';
 
+/** Archives one or more sessions. Registered in `sessionsViewActions.ts`. */
+export const ARCHIVE_SESSION_COMMAND_ID = 'sessionsViewPane.archiveSession';
+
 /** Closes a chat tab. Registered in `sessionsActions.ts`. */
 export const CLOSE_CHAT_COMMAND_ID = 'sessions.chatCompositeBar.closeChat';
+
+/** Focuses the active session. Registered in `sessionsActions.ts`. */
+export const FOCUS_ACTIVE_SESSION_COMMAND_ID = 'sessions.focusActiveSession';
 
 export const FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID = 'sessions.focusPreviousChatGroup';
 
