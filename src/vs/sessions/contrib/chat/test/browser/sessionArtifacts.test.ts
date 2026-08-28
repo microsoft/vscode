@@ -5,10 +5,9 @@
 
 import assert from 'assert';
 import { isMarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { buildSessionArtifactSections, type ISessionArtifactActions } from '../../browser/sessionArtifacts.js';
+import { buildSessionArtifactSections, sessionArtifactLocationText, type ISessionArtifactActions } from '../../browser/sessionArtifacts.js';
 import { type ISessionArtifact, SessionArtifactKind } from '../../../../services/sessions/common/session.js';
 
 suite('Session Artifacts', () => {
@@ -21,10 +20,31 @@ suite('Session Artifacts', () => {
 		copy() { },
 	};
 
-	/** Stands in for the label service: a path without its scheme, tildified. */
+	/** Stands in for the label service: a path without its scheme, tildified and relative to the mounted `~/repo` folder. */
 	const labelService = {
-		getUriLabel: (uri: URI) => uri.scheme === Schemas.file ? uri.path.replace('/home/alice', '~') : uri.toString(true),
+		getUriLabel: (uri: URI, options?: { relative?: boolean }) => {
+			const path = uri.path.replace('/home/alice', '~');
+			return options?.relative ? path.replace(/^~\/repo\/?/, '') : path;
+		},
 	};
+
+	test('reads files as paths and leaves every other location whole', () => {
+		const locations = [
+			URI.file('/home/alice/repo/src/app.ts'),
+			URI.file('/home/alice/notes.md'),
+			URI.file('/home/alice/repo'),
+			URI.parse('https://example.com/dashboard'),
+			URI.parse('myapp://team/board?id=42'),
+		];
+
+		assert.deepStrictEqual(locations.map(uri => sessionArtifactLocationText(uri, labelService)), [
+			'src/app.ts',
+			'~/notes.md',
+			'~/repo', // the mounted folder itself has no relative path
+			'https://example.com/dashboard',
+			'myapp://team/board?id=42',
+		]);
+	});
 
 	test('shows each artifact path or link beside its dropdown entry', () => {
 		const fileUri = URI.file('/home/alice/artifacts/report.md');

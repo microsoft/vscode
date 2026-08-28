@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
+import { Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
@@ -15,12 +16,14 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { toAction } from '../../../../base/common/actions.js';
+import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import type { IChatPillEntry, IChatPillSection } from '../../../../workbench/browser/chatPills.js';
 import { ChatPillSingleEntry, type IChatDropdownPillOptions } from '../../../../workbench/browser/chatDropdownPill.js';
 import { openChatTurnFile, previewKind } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
@@ -91,14 +94,24 @@ function artifactValueKey(artifact: ISessionArtifact): string {
 }
 
 /**
- * How an artifact's location reads: a link keeps its URL, while anything on a
- * file system reads as a path — no scheme, tildified when it is under the user
- * home, and relative to the workspace folder holding it.
+ * Schemes naming a file on a file system. Their URIs read as paths, while
+ * everything else — a web link, a scheme an agent made up — keeps its URI,
+ * since a path label drops the scheme, authority and query and would leave
+ * such a location reading like a file that is nowhere to be found.
+ */
+const pathSchemes = [Schemas.file, Schemas.vscodeRemote, Schemas.vscodeUserData, AGENT_HOST_SCHEME];
+
+/**
+ * How an artifact's location reads: a link keeps its URL, while a file reads as
+ * a path — no scheme, tildified when it is under the user home, and relative to
+ * the workspace folder holding it. A folder that is itself the workspace root
+ * has no relative path, so it falls back to its full path.
  */
 export function sessionArtifactLocationText(uri: URI, labelService: Pick<ILabelService, 'getUriLabel'>): string {
-	return matchesSomeScheme(uri, Schemas.http, Schemas.https, Schemas.mailto)
-		? uri.toString(true)
-		: labelService.getUriLabel(uri, { relative: true });
+	if (!matchesSomeScheme(uri, ...pathSchemes)) {
+		return uri.toString(true);
+	}
+	return labelService.getUriLabel(uri, { relative: true }) || labelService.getUriLabel(uri);
 }
 
 /**
@@ -282,20 +295,22 @@ export class SessionArtifacts extends Disposable {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IOpenerService private readonly _openerService: IOpenerService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 
 		const imageCarouselEnabled = observableConfigValue<boolean>(ChatConfiguration.ImageCarouselEnabled, true, this._configurationService);
-		// A formatter arriving late (a remote session's, say) changes how the
-		// locations read, so the sections are built again when one does.
-		const labelFormatters = observableSignalFromEvent(this, this._labelService.onDidChangeFormatters);
+		// How a location reads depends on the formatters and on the folder it is
+		// relative to, and the session's folder is mounted a moment after the
+		// session becomes active, so the sections are built again on either.
+		const locationFormatting = observableSignalFromEvent(this, Event.any<unknown>(this._labelService.onDidChangeFormatters, workspaceContextService.onDidChangeWorkspaceFolders));
 
 		const sectionsFor = (isArtifact: boolean) => derived(this, reader => {
 			const current = session.read(reader);
 			if (!current) {
 				return [];
 			}
-			labelFormatters.read(reader);
+			locationFormatting.read(reader);
 			return buildSessionArtifactSections(
 				(current.artifacts?.read(reader) ?? []).filter(artifact => artifact.isArtifact === isArtifact),
 				this._actions(),
