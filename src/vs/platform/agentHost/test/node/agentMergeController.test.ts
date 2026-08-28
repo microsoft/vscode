@@ -330,6 +330,7 @@ suite('AgentMergeController', () => {
 			stateManager,
 			configurationService,
 			gitStateService,
+			noopGitService,
 			new class extends mock<IGitHubService>() { }(),
 			endpointService,
 			logService,
