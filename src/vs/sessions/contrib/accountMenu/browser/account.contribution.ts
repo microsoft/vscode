@@ -77,7 +77,7 @@ export function shouldShowAccountPanelSummary(state: Pick<IAccountTitleBarState,
 
 // Register the shared VS Code update entry beside the Agents command center.
 registerUpdateTitleBarMenuPlacement(Menus.TitleBarUpdate, {
-	when: IsAuxiliaryWindowContext.toNegated(),
+	when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), IsPhoneLayoutContext.negate()),
 });
 
 // Sign In (shown when signed out)

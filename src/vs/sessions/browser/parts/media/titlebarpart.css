@@ -101,6 +101,8 @@
 .monaco-workbench .part.titlebar > .sessions-titlebar-container .titlebar-status-badge {
 	display: flex;
 	align-items: center;
+	flex: 0 0 auto;
+	width: max-content;
 	height: 22px;
 	padding: 0 var(--vscode-spacing-size80);
 	border-radius: var(--vscode-cornerRadius-medium);
@@ -131,6 +133,8 @@
 }
 
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-update-container:not(.has-no-actions) {
+	flex: 0 0 auto;
+	width: max-content;
 	margin-right: var(--vscode-spacing-size40);
 }
 

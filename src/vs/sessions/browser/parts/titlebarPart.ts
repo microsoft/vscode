@@ -12,7 +12,7 @@ import { hasCustomTitlebar, hasNativeTitlebar, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, T
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
-import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { agentsBackground, agentsPanelForeground } from '../../common/theme.js';
 import { isMacintosh, isWeb, isNative, platformLocale } from '../../../base/common/platform.js';
@@ -34,8 +34,45 @@ import { Menus } from '../menus.js';
 import { IsNewChatSessionContext } from '../../common/contextkeys.js';
 import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
 import { localize } from '../../../nls.js';
+import { Button } from '../../../base/browser/ui/button/button.js';
+import { ICommandService } from '../../../platform/commands/common/commands.js';
 
 const commandCenterContextKeys = new Set([IsNewChatSessionContext.key]);
+const TOGGLE_SCREEN_READER_ACCESSIBILITY_MODE_COMMAND_ID = 'editor.action.toggleScreenReaderAccessibilityMode';
+
+export class ScreenReaderOptimizedButton extends Disposable {
+
+	readonly element: HTMLElement;
+
+	constructor(
+		container: HTMLElement,
+		accessibilityService: IAccessibilityService,
+		commandService: ICommandService,
+		onDidChangeVisibility: () => void,
+	) {
+		super();
+
+		const label = localize('screenReaderOptimizedBadge', "Screen Reader Optimized");
+		const button = this._register(new Button(container, {
+			ariaLabel: localize('disableScreenReaderOptimizedMode', "Disable Screen Reader Optimized Mode"),
+			title: localize('disableScreenReaderOptimizedMode', "Disable Screen Reader Optimized Mode"),
+		}));
+		button.label = label;
+		button.element.classList.add('titlebar-status-badge', 'screen-reader-optimized-badge');
+		this.element = button.element;
+
+		this._register(button.onDidClick(() => {
+			void commandService.executeCommand(TOGGLE_SCREEN_READER_ACCESSIBILITY_MODE_COMMAND_ID);
+		}));
+
+		const updateVisibility = () => {
+			setVisibility(accessibilityService.isScreenReaderOptimized(), this.element);
+			onDidChangeVisibility();
+		};
+		updateVisibility();
+		this._register(accessibilityService.onDidChangeScreenReaderOptimized(updateVisibility));
+	}
+}
 
 /**
  * Simplified agent sessions titlebar part.
@@ -108,6 +145,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IHostService private readonly hostService: IHostService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(id, { hasTitle: false }, themeService, storageService, layoutService);
 
@@ -272,16 +310,14 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			toolbarOptions: { primaryGroup: () => true },
 		}));
 
-		const screenReaderBadge = prepend(this.rightContent, $('span.titlebar-status-badge.screen-reader-optimized-badge'));
-		screenReaderBadge.textContent = localize('screenReaderOptimizedBadge', "Screen Reader Optimized");
-		screenReaderBadge.tabIndex = 0;
-		const updateScreenReaderBadge = () => {
-			setVisibility(this.accessibilityService.isScreenReaderOptimized(), screenReaderBadge);
-			this.updateTitleBarToolBarOverflow();
-		};
-		updateScreenReaderBadge();
-		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(updateScreenReaderBadge));
-		this.overflowManagedToolBarElements.push(screenReaderBadge);
+		const screenReaderButton = this._register(new ScreenReaderOptimizedButton(
+			this.rightContent,
+			this.accessibilityService,
+			this.commandService,
+			() => this.updateTitleBarToolBarOverflow()
+		));
+		prepend(this.rightContent, screenReaderButton.element);
+		this.overflowManagedToolBarElements.push(screenReaderButton.element);
 
 		this.registerOverflowManagedToolBar(centerActionsContainer, centerActionsToolBar);
 		this.registerOverflowManagedToolBar(centerNavContainer, centerNavToolBar);
@@ -411,8 +447,9 @@ export class MainTitlebarPart extends TitlebarPart {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService hostService: IHostService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@ICommandService commandService: ICommandService,
 	) {
-		super(Parts.TITLEBAR_PART, mainWindow, contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, accessibilityService);
+		super(Parts.TITLEBAR_PART, mainWindow, contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, accessibilityService, commandService);
 	}
 }
 
@@ -437,9 +474,10 @@ export class AuxiliaryTitlebarPart extends TitlebarPart implements IAuxiliaryTit
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService hostService: IHostService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@ICommandService commandService: ICommandService,
 	) {
 		const id = AuxiliaryTitlebarPart.COUNTER++;
-		super(`workbench.parts.auxiliaryTitle.${id}`, getWindow(container), contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, accessibilityService);
+		super(`workbench.parts.auxiliaryTitle.${id}`, getWindow(container), contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, accessibilityService, commandService);
 	}
 
 	override get preventZoom(): boolean {
