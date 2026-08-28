@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -284,6 +284,59 @@ suite('AgentMergeController', () => {
 			refreshCount: 1,
 			branchName: 'feature',
 		});
+	});
+
+	test('does not reevaluate when its own git state refresh completes', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		configurationService.updateRootConfig({ [AgentMergeConfigKey.Enabled]: true });
+		const session = `copilot:/agent-merge-controller-${++sessionCounter}`;
+		const onDidRefreshSessionGitState = disposables.add(new Emitter<string>());
+		const firstAttach = new DeferredPromise<void>();
+		let attachCount = 0;
+		const gitStateService = new class extends mock<IAgentHostGitStateService>() {
+			override readonly onDidRefreshSessionGitState = onDidRefreshSessionGitState.event;
+			override readonly onDidChangeSessionGitHubState = Event.None;
+			override async attachSessionGitHubPullRequest(sessionKey: string): Promise<void> {
+				attachCount++;
+				if (attachCount === 1) {
+					onDidRefreshSessionGitState.fire(sessionKey);
+					firstAttach.complete();
+				}
+			}
+		}();
+		const endpointService = disposables.add(new AgentHostGitHubEndpointService(configurationService, logService));
+		disposables.add(new AgentMergeController(
+			{
+				startTurn: () => false,
+				cancelTurn: () => { },
+				postNotice: () => { },
+				getAutonomousSessionConfig: () => ({}),
+			},
+			stateManager,
+			configurationService,
+			gitStateService,
+			new class extends mock<IGitHubService>() { }(),
+			endpointService,
+			logService,
+		));
+		stateManager.createSession(summary(session));
+		stateManager.setSessionConfig(session, {
+			schema: platformSessionSchema.toProtocol(),
+			values: {},
+		});
+		stateManager.setSessionMeta(session, withSessionGitState(undefined, { branchName: 'feature', baseBranchName: 'main' }));
+		configurationService.updateSessionConfig(session, {
+			[SessionConfigKey.AgentMerge]: { enabled: true },
+		});
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+
+		await firstAttach.p;
+		await timeout(0);
+		await timeout(0);
+
+		assert.strictEqual(attachCount, 1);
 	});
 
 	test('recomputes git state at most once per runtime and never for a detached HEAD', async () => {

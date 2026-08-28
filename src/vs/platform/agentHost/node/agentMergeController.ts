@@ -86,6 +86,7 @@ export class AgentMergeController extends Disposable {
 
 	private readonly _runtimes = this._register(new DisposableMap<string, AgentMergeRuntime>());
 	private readonly _evaluations = new SequencerByKey<string>();
+	private readonly _evaluatingSessions = new Set<string>();
 	private readonly _activeTurns = new Map<string, IAgentMergeTurnContext>();
 
 	private readonly _onDidReleaseHold = this._register(new Emitter<string>());
@@ -130,7 +131,11 @@ export class AgentMergeController extends Disposable {
 			this._monitoredSessions.delete(session);
 			this._stopRuntime(session);
 		}));
-		this._register(this._gitStateService.onDidRefreshSessionGitState(session => this._schedule(session, 0)));
+		this._register(this._gitStateService.onDidRefreshSessionGitState(session => {
+			if (!this._evaluatingSessions.has(session)) {
+				this._schedule(session, 0);
+			}
+		}));
 		this._register(this._gitStateService.onDidChangeSessionGitHubState(session => this._schedule(session, 0)));
 		this._register(this._configurationService.onDidRootConfigChange(() => {
 			for (const session of this._stateManager.getSessionUris()) {
@@ -350,6 +355,7 @@ export class AgentMergeController extends Disposable {
 
 	private _queueEvaluation(session: string): void {
 		void this._evaluations.queue(session, async () => {
+			this._evaluatingSessions.add(session);
 			try {
 				this._logService.trace(`[AgentMergeController] Evaluation started: session=${session}`);
 				await this._evaluate(session);
@@ -363,6 +369,8 @@ export class AgentMergeController extends Disposable {
 				}
 				this._logService.error(error, `[AgentMergeController] Evaluation failed: session=${session}, kind=${githubErrorKind(error)}`);
 				this._runtimes.get(session)?.backstopScheduler.schedule();
+			} finally {
+				this._evaluatingSessions.delete(session);
 			}
 		});
 	}
