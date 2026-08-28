@@ -519,7 +519,15 @@ export async function mapSessionEvents(
 				break;
 			}
 			case 'session.auto_mode_resolved': {
-				if (!e.agentId) {
+				// A subagent routes its own model calls, so the decision belongs to the
+				// subagent's turn. The parent's is held until the turn that uses it starts.
+				const parentToolCallId = resolveParentToolCallId(e.agentId, undefined);
+				if (parentToolCallId) {
+					ensureSubagentBuilder(parentToolCallId).usage = {
+						model: e.data.chosenModel,
+						_meta: { autoModeResolved: e.data },
+					};
+				} else if (!e.agentId) {
 					pendingAutoModeResolved = e.data;
 				}
 				break;
