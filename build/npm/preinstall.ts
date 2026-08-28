@@ -178,6 +178,9 @@ function getLocalHeaderPath(target: string): string | undefined {
 		}
 		return path.join(localAppData, 'node-gyp', 'Cache', target, 'include', 'node');
 	}
+	if (process.platform === 'darwin') {
+		return path.join(os.homedir(), 'Library', 'Caches', 'node-gyp', target, 'include', 'node');
+	}
 	const homedir = os.homedir();
 	const cachePath = process.env.XDG_CACHE_HOME || path.join(homedir, '.cache');
 	return path.join(cachePath, 'node-gyp', target, 'include', 'node');
