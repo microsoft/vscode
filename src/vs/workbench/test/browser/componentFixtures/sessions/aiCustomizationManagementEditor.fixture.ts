@@ -855,7 +855,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			}());
 			const promptsService = createMockPromptsService(fixtureFiles, agentInstructions, fileContents, promptFilesDidChangeEmitter.event);
 			reg.defineInstance(IPromptsService, promptsService);
-			reg.defineInstance(ICustomizationMigrationService, new CustomizationMigrationService(promptsService));
+			reg.defineInstance(ICustomizationMigrationService, new CustomizationMigrationService(promptsService, harnessService));
 			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
 				override readonly isSessionsWindow = isSessionsWindow;
 				override readonly welcomePageFeatures = {

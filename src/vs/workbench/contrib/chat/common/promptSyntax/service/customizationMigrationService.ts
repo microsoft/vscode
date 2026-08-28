@@ -6,7 +6,7 @@
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { PromptFileSource, PromptsType } from '../promptTypes.js';
-import { IPromptPath, PromptsStorage } from './promptsService.js';
+import { PromptsStorage } from './promptsService.js';
 
 export const ICustomizationMigrationService = createDecorator<ICustomizationMigrationService>('customizationMigrationService');
 
@@ -15,12 +15,25 @@ export enum CustomizationMigrationType {
 	PromptFiles = 'promptFiles',
 }
 
-export function isPromptFileMigrationCandidate(customization: IPromptPath): boolean {
+export interface MigratableConfiguration {
+	readonly uri: URI;
+	readonly type: PromptsType;
+	readonly storage: PromptsStorage;
+	readonly name?: string;
+	readonly description?: string;
+	readonly source?: PromptFileSource;
+}
+
+export function getCustomizationMigrationTargetType(customization: MigratableConfiguration): PromptsType {
+	return customization.type === PromptsType.prompt ? PromptsType.skill : customization.type;
+}
+
+export function isPromptFileMigrationCandidate(customization: MigratableConfiguration): boolean {
 	return customization.type === PromptsType.prompt
 		&& (customization.storage === PromptsStorage.local || customization.storage === PromptsStorage.user);
 }
 
-export function isUserDataMigrationCandidate(customization: IPromptPath): boolean {
+export function isUserDataMigrationCandidate(customization: MigratableConfiguration): boolean {
 	return customization.source === PromptFileSource.UserData
 		&& (customization.type === PromptsType.agent || customization.type === PromptsType.instructions);
 }
@@ -28,12 +41,13 @@ export function isUserDataMigrationCandidate(customization: IPromptPath): boolea
 export interface CustomizationMigration {
 	readonly type: CustomizationMigrationType;
 	readonly files: readonly URI[];
-	readonly candidates: readonly IPromptPath[];
+	readonly candidates: readonly MigratableConfiguration[];
 }
 
 export interface ICustomizationMigrationService {
 	readonly _serviceBrand: undefined;
 
-	computeMigration(sessionType: string, type: CustomizationMigrationType): Promise<CustomizationMigration>;
-	computeMigrations(sessionType: string): Promise<CustomizationMigration[]>;
+	computeMigration(sessionResource: URI, type: CustomizationMigrationType): Promise<CustomizationMigration>;
+	computeMigrations(sessionResource: URI): Promise<CustomizationMigration[]>;
+	computeMigrationHint(sessionResource: URI): Promise<string | undefined>;
 }
