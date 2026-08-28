@@ -7,7 +7,9 @@ import assert from 'assert';
 import { Event } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IMenu, IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { IContextViewDelegate, IContextViewService, IOpenContextView } from '../../../../../platform/contextview/browser/contextView.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { AccessibleView } from '../../browser/accessibleView.js';
 
@@ -36,5 +38,53 @@ suite('AccessibleView', () => {
 
 		accessibleView.dispose();
 		assert.strictEqual(disposeCount, 2);
+	});
+
+	test('disposes the toolbar menu when the context view hides', () => {
+		let disposeCount = 0;
+		let delegate: IContextViewDelegate | undefined;
+		const contextViewService = new class extends mock<IContextViewService>() {
+			override showContextView(contextViewDelegate: IContextViewDelegate): IOpenContextView {
+				delegate = contextViewDelegate;
+				return { close: () => this.hideContextView() };
+			}
+
+			override hideContextView(): void {
+				delegate?.onHide?.();
+				delegate = undefined;
+			}
+		};
+		const instantiationService = workbenchInstantiationService({}, disposables);
+		instantiationService.stub(IContextViewService, contextViewService);
+		instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
+			override createMenu(): IMenu {
+				return new class extends mock<IMenu>() {
+					override readonly onDidChange = Event.None;
+					override getActions() { return []; }
+					override dispose() { disposeCount++; }
+				};
+			}
+		});
+
+		const accessibleView = disposables.add(instantiationService.createInstance(AccessibleView));
+		const provider = disposables.add(new AccessibleContentProvider(
+			AccessibleViewProviderId.Editor,
+			{ type: AccessibleViewType.View },
+			() => 'content',
+			() => { },
+			'test.verbosity'
+		));
+
+		const updateToolbar = (accessibleView as unknown as { _updateToolbar(): void })._updateToolbar.bind(accessibleView);
+		updateToolbar();
+
+		accessibleView.show(provider, undefined, true);
+		assert.strictEqual(disposeCount, 0);
+
+		contextViewService.hideContextView();
+		assert.strictEqual(disposeCount, 1);
+
+		accessibleView.dispose();
+		assert.strictEqual(disposeCount, 1);
 	});
 });
