@@ -426,6 +426,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			sessionId: 'session-1',
 			on: () => () => { },
 			disconnect: async () => { },
+			rpc: { options: { update: async () => ({ success: true }) } },
 		} as unknown as CopilotSession;
 		const client = {
 			createSession: async (config: Parameters<CopilotClient['createSession']>[0]) => {
@@ -899,6 +900,63 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 		const wrapper = await launcher.launch(plan, testRuntime);
 		try {
 			assert.deepStrictEqual(updates, [{ enableScriptSafety: true }]);
+		} finally {
+			wrapper.dispose();
+			await launcher.disposeByokProxyHandle();
+		}
+	});
+
+	test('fails the launch closed and disconnects when script safety cannot be enabled under managed rules', async () => {
+		let disconnected = false;
+		const session = {
+			sessionId: 'session-1',
+			on: () => () => { },
+			disconnect: async () => { disconnected = true; },
+			rpc: { options: { update: async () => ({ success: false }) } },
+		} as unknown as CopilotSession;
+		const launcher = createTestLauncher({ deny: ['Shell(rm -rf *)'] });
+		const plan: CopilotSessionLaunchPlan = {
+			kind: 'create',
+			client: { createSession: async () => session } as unknown as CopilotClient,
+			sessionId: 'session-1',
+			workingDirectory: testWorkingDirectory,
+			resolvedAgentName: undefined,
+			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			activeClientToolSet: new ActiveClientToolSet(),
+			shellManager: undefined,
+			githubToken: undefined,
+			model: { id: 'claude-sonnet-4.5', config: {} },
+		};
+
+		await assert.rejects(() => launcher.launch(plan, testRuntime), /script safety/);
+		assert.strictEqual(disconnected, true, 'expected the orphaned session to be disconnected');
+		await launcher.disposeByokProxyHandle();
+	});
+
+	test('keeps the session usable when script safety fails and no managed rules are in force', async () => {
+		const session = {
+			sessionId: 'session-1',
+			on: () => () => { },
+			disconnect: async () => { },
+			rpc: { options: { update: async () => ({ success: false }) } },
+		} as unknown as CopilotSession;
+		const launcher = createTestLauncher();
+		const plan: CopilotSessionLaunchPlan = {
+			kind: 'create',
+			client: { createSession: async () => session } as unknown as CopilotClient,
+			sessionId: 'session-1',
+			workingDirectory: testWorkingDirectory,
+			resolvedAgentName: undefined,
+			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			activeClientToolSet: new ActiveClientToolSet(),
+			shellManager: undefined,
+			githubToken: undefined,
+			model: { id: 'claude-sonnet-4.5', config: {} },
+		};
+
+		const wrapper = await launcher.launch(plan, testRuntime);
+		try {
+			assert.ok(wrapper, 'expected the launch to succeed without managed rules');
 		} finally {
 			wrapper.dispose();
 			await launcher.disposeByokProxyHandle();

@@ -629,7 +629,14 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 
 	private async _finalizeSession(raw: CopilotSessionWrapper['session'], sandboxConfig: SandboxConfig | undefined, sessionId: string, modelId: string | undefined): Promise<CopilotSessionWrapper> {
 		await this._applySandboxConfig(raw, sandboxConfig, sessionId);
-		await this._applyScriptSafety(raw, sessionId);
+		try {
+			await this._applyScriptSafety(raw, sessionId);
+		} catch (err) {
+			// Nothing owns `raw` until it is wrapped below, so a fail-closed launch has
+			// to disconnect it here or the runtime keeps an orphaned session alive.
+			await raw.disconnect().catch(() => { /* best-effort teardown */ });
+			throw err;
+		}
 		// TODO: Remove these post-launch updates once the SDK exposes verbosity and
 		// reasoningSummary in SessionConfig, alongside launch options such as reasoningEffort.
 		if (isGpt56Model(modelId)) {
@@ -648,15 +655,34 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	 * letting `echo ... >> denied/path` bypass a managed deny. The Copilot CLI opts in at
 	 * session creation; the SDK exposes it to hosts only through `options.update`, so it
 	 * is applied here to cover both created and resumed sessions.
+	 *
+	 * When managed permission rules are in force this is a security control, so a
+	 * failure fails the launch closed rather than leaving a session whose shell
+	 * operations silently escape enterprise policy. Without managed rules there is no
+	 * policy to escape, and degrading availability for every user over a transient or
+	 * compatibility failure would be the worse trade, so it is logged and the session
+	 * continues.
 	 */
 	private async _applyScriptSafety(session: CopilotSessionWrapper['session'], sessionId: string): Promise<void> {
+		const managed = this._managedSettingsService.permissions;
+		const managedRulesActive = (managed.deny?.length ?? 0) > 0 || (managed.ask?.length ?? 0) > 0;
+		const failure = (reason: string): void => {
+			const message = `[Copilot:${sessionId}] ${reason}; managed permissions cannot govern shell paths`;
+			if (managedRulesActive) {
+				throw new Error(message);
+			}
+			this._logService.warn(message);
+		};
 		try {
 			const result = await session.rpc.options.update({ enableScriptSafety: true });
 			if (!result.success) {
-				this._logService.error(`[Copilot:${sessionId}] SDK rejected enabling script safety; managed permissions cannot govern shell paths`);
+				failure('SDK rejected enabling script safety');
 			}
 		} catch (err) {
-			this._logService.error(err, `[Copilot:${sessionId}] Failed to enable script safety; managed permissions cannot govern shell paths`);
+			if (managedRulesActive) {
+				throw err;
+			}
+			this._logService.warn(`[Copilot:${sessionId}] Failed to enable script safety; managed permissions cannot govern shell paths`, err);
 		}
 	}
 

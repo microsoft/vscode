@@ -1100,18 +1100,19 @@ function str(value: unknown): string | undefined {
  * A read is gated for several reasons — the path lies outside the workspace, a
  * managed or scoped rule matched it, or the model asked to escape the sandbox.
  * Only the first is about location, so the title is claimed only when the path
- * is absolute and genuinely outside `workingDirectory`. A relative path, an
- * unknown path, or an unknown workspace falls back to the neutral title rather
- * than asserting a location the request does not establish.
+ * is absolute and contained by none of the session's workspace roots. A
+ * relative path, an unknown path, or an unknown workspace falls back to the
+ * neutral title rather than asserting a location the request does not
+ * establish.
  */
-function readConfirmationTitle(path: string | undefined, workingDirectory: URI | undefined, requestSandboxBypass: boolean | undefined): string {
+function readConfirmationTitle(path: string | undefined, workspaceRoots: readonly URI[], requestSandboxBypass: boolean | undefined): string {
 	if (requestSandboxBypass) {
 		return localize('copilot.permission.read.bypass.title', "Read file outside the sandbox?");
 	}
 	const outsideWorkspace = path !== undefined
 		&& isAbsolute(path)
-		&& workingDirectory !== undefined
-		&& !extUriBiasedIgnorePathCase.isEqualOrParent(URI.file(path), workingDirectory);
+		&& workspaceRoots.length > 0
+		&& !workspaceRoots.some(root => extUriBiasedIgnorePathCase.isEqualOrParent(URI.file(path), root));
 	return outsideWorkspace
 		? localize('copilot.permission.read.title', "Allow reading file outside of workspace?")
 		: localize('copilot.permission.read.generic.title', "Allow reading file?");
@@ -1119,8 +1120,11 @@ function readConfirmationTitle(path: string | undefined, workingDirectory: URI |
 
 /**
  * Derives display fields from a permission request for the tool confirmation UI.
+ *
+ * `additionalDirectories` carries the peer roots of a multi-root session, so a
+ * read under any root is recognized as inside the workspace.
  */
-export function getPermissionDisplay(request: PermissionRequest, workingDirectory?: URI, isNewFile?: boolean): {
+export function getPermissionDisplay(request: PermissionRequest, workingDirectory?: URI, isNewFile?: boolean, additionalDirectories?: readonly URI[]): {
 	confirmationTitle: string;
 	invocationMessage: StringOrMarkdown;
 	toolInput?: string;
@@ -1211,7 +1215,7 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 		}
 		case 'read':
 			return {
-				confirmationTitle: readConfirmationTitle(path, workingDirectory, requestSandboxBypass),
+				confirmationTitle: readConfirmationTitle(path, workingDirectory ? [workingDirectory, ...(additionalDirectories ?? [])] : [], requestSandboxBypass),
 				invocationMessage: getInvocationMessage(CopilotToolName.View, getToolDisplayName(CopilotToolName.View), path ? { path } : undefined),
 				permissionKind: 'read',
 				permissionPath: path,
