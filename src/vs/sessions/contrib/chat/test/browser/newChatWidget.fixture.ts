@@ -27,17 +27,18 @@ import { IAICustomizationWorkspaceService } from '../../../../../workbench/contr
 import { ICustomizationHarnessService } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { IPromptsService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { IHistoryService } from '../../../../../workbench/services/history/common/history.js';
+import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ISearchService } from '../../../../../workbench/services/search/common/search.js';
 import { registerChatFixtureServices } from '../../../../../workbench/test/browser/componentFixtures/chat/chatFixtureUtils.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { activeSessionViewBackground } from '../../../../common/theme.js';
-import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { AgentHostFilterConnectionStatus, IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ISessionsChatBackgroundService } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ChatModelSource, IChat, ISession, ISessionWorkspace, ISessionType, SessionStatus, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
+import { ChatModelSource, IChat, ISession, ISessionWorkspace, ISessionType, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE, SessionStatus, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
 import { IAquariumService } from '../../../aquarium/browser/aquariumOverlay.js';
@@ -60,6 +61,9 @@ interface INewChatWidgetFixtureOptions {
 	readonly promptOptions?: NewSessionPromptOptionsState;
 	readonly selectedOptionIndex?: number;
 	readonly editedInput?: string;
+	readonly withWorkspace?: boolean;
+	readonly withRemoteWorkspace?: boolean;
+	readonly openWorkspacePicker?: boolean;
 }
 
 /**
@@ -83,6 +87,9 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		promptOptions,
 		selectedOptionIndex,
 		editedInput,
+		withWorkspace = false,
+		withRemoteWorkspace = false,
+		openWorkspacePicker = false,
 	} = options;
 	const feedbackItems: readonly IAgentFeedback[] = Array.from({ length: commentCount }, (_, index) => ({
 		id: `feedback-${index}`,
@@ -93,10 +100,10 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		kind: AgentFeedbackKind.UserReview,
 		state: AgentFeedbackState.Accepted,
 	}));
-	const workspace = createFixtureWorkspace();
+	const workspace = createFixtureWorkspace(withRemoteWorkspace);
 	const sessionTypes = createFixtureSessionTypes();
 	const provider = createFixtureProvider(workspace, sessionTypes);
-	const activeSession = promptOptions ? createFixtureActiveSession(workspace, sessionTypes[0]) : undefined;
+	const activeSession = promptOptions || withWorkspace || withRemoteWorkspace ? createFixtureActiveSession(workspace, sessionTypes[0]) : undefined;
 	const activeSessionObservable = observableValue<IActiveSession | undefined>('activeSession', activeSession);
 	const composerService = disposableStore.add(new NewSessionComposerService());
 	const sessionsService = new class extends mock<ISessionsService>() {
@@ -126,6 +133,11 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				override readonly onShow = Event.None;
 				override readonly onHide = Event.None;
 			}());
+			reg.defineInstance(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
+				override readonly mainContainer = container;
+				override readonly mainContainerDimension = { width, height };
+				override getContainer() { return container; }
+			}());
 			reg.defineInstance(ISearchService, new class extends mock<ISearchService>() { }());
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override readonly onDidChangeSessionTypes = Event.None;
@@ -143,7 +155,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			}());
 			reg.defineInstance(ISessionsRecentWorkspacesService, new class extends mock<ISessionsRecentWorkspacesService>() {
 				override readonly onDidChangeRecentWorkspaces = Event.None;
-				override getRecentWorkspaces() { return []; }
+				override getRecentWorkspaces() { return activeSession ? [{ workspace, providerId: provider.id, checked: true }] : []; }
 				override addRecentWorkspace(): void { }
 				override removeRecentWorkspace(): void { }
 				override clearCheckedWorkspace(): void { }
@@ -152,7 +164,17 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			reg.defineInstance(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
 				override readonly onDidChange = Event.None;
 				override readonly onDidChangeDiscovering = Event.None;
-				override readonly selectedProviderId = undefined;
+				override readonly selectedHostId = provider.id;
+				override readonly selectedHost = {
+					id: provider.id,
+					providerIds: [provider.id],
+					label: provider.label,
+					grouped: false,
+					address: undefined,
+					icon: provider.icon,
+					status: AgentHostFilterConnectionStatus.Connected,
+					connectable: true,
+				};
 				override readonly hosts = [];
 				override readonly isDiscovering = false;
 				override async rediscover(): Promise<void> { }
@@ -246,11 +268,16 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	sessionViewContent.style.width = '100%';
 	sessionViewContent.style.height = '100%';
 
-	const view = disposableStore.add(instantiationService.createInstance(NewChatView, false, {
-		renderSessionTypePickerInControls: constObservable(!promptOptions),
-	}));
+	const view = disposableStore.add(instantiationService.createInstance(NewChatView, false, {}));
 	sessionViewContent.appendChild(view.element);
 	view.layout(width, height, 0, 0);
+	if (openWorkspacePicker) {
+		const targetWindow = dom.getWindow(container);
+		const nextFrame = () => new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
+		await nextFrame();
+		await nextFrame();
+		view.element.querySelector<HTMLElement>('.sessions-workspace-picker-trigger .action-label')?.click();
+	}
 
 	if (promptOptions) {
 		composerService.activeComposer.get()?.showPromptOptions(promptOptions);
@@ -267,6 +294,22 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
+	NewSessionDefault: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderNewChatWidget(context, { withWorkspace: true }),
+	}),
+	NewSessionWorkspacePicker: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderNewChatWidget(context, { withWorkspace: true, openWorkspacePicker: true }),
+	}),
+	NewSessionRemoteWorkspace: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderNewChatWidget(context, { withRemoteWorkspace: true }),
+	}),
+	NewSessionNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderNewChatWidget(context, { width: 420, height: 760, withWorkspace: true }),
+	}),
 	NewSessionComments: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: context => renderNewChatWidget(context, { commentCount: 3 }),
@@ -315,18 +358,21 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	}),
 });
 
-function createFixtureWorkspace(): ISessionWorkspace {
-	const resource = URI.file('C:\\Code\\vscode');
+function createFixtureWorkspace(remote: boolean): ISessionWorkspace {
+	const resource = remote
+		? URI.parse('vscode-remote://ssh-remote+devbox/workspaces/vscode')
+		: URI.file('C:\\Code\\vscode');
 	return {
 		uri: resource,
-		label: 'microsoft/vscode',
-		icon: Codicon.repo,
+		label: remote ? 'devbox · microsoft/vscode' : 'microsoft/vscode',
+		icon: remote ? Codicon.remote : Codicon.repo,
+		group: remote ? SESSION_WORKSPACE_GROUP_REMOTE : SESSION_WORKSPACE_GROUP_LOCAL,
 		folders: [{
 			root: resource,
 			workingDirectory: resource,
 			name: 'microsoft/vscode',
 			description: undefined,
-			gitRepository: {
+			gitRepository: remote ? undefined : {
 				uri: resource,
 				workTreeUri: undefined,
 				baseBranchName: 'main',
@@ -342,7 +388,7 @@ function createFixtureSessionTypes(): readonly ISessionType[] {
 	return [
 		{
 			id: 'copilotcli',
-			label: 'Copilot CLI',
+			label: 'Copilot',
 			icon: Codicon.terminal,
 			authRequirement: SessionTypeAuthRequirement.None,
 		},
@@ -365,7 +411,14 @@ function createFixtureProvider(workspace: ISessionWorkspace, sessionTypes: reado
 		override readonly onDidChangeSessionTypes = Event.None;
 		override readonly onDidChangeSessions = Event.None;
 		override readonly onDidChangeModels = Event.None;
-		override readonly browseActions = [];
+		override readonly browseActions = [{
+			label: 'Repository...',
+			group: SESSION_WORKSPACE_GROUP_GITHUB,
+			icon: Codicon.repo,
+			providerId: this.id,
+			run: async () => workspace,
+		}];
+		override readonly supportsLocalWorkspaces = true;
 
 		override getSessions(): ISession[] {
 			return [];

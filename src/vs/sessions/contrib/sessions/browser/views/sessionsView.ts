@@ -53,6 +53,7 @@ const GROUPING_STORAGE_KEY = 'sessionsViewPane.grouping';
 const SORTING_STORAGE_KEY = 'sessionsViewPane.sorting';
 const CUSTOMIZATIONS_MIN_HEIGHT = 129;
 const SESSIONS_SECTION_MIN_HEIGHT = 120;
+const SESSIONS_HEADER_ELLIPSIS_MIN_WIDTH = 8;
 
 export const SessionsViewFilterSubMenu = new MenuId('SessionsViewPaneFilterSubMenu');
 export const SessionsViewFilterOptionsSubMenu = new MenuId('SessionsViewPaneFilterOptionsSubMenu');
@@ -215,10 +216,10 @@ export class SessionsView extends ViewPane {
 				const mainChat = session.mainChat.get();
 				if (sideBySide) {
 					// Alt-click: open the session to the right of the last visible session in the grid.
-					this.sessionsService.openSessionToSide(session, { preserveFocus, chatResource: mainChat.resource }).then(onOpened).catch(onUnexpectedError);
+					this.sessionsService.openSessionToSide(session, { preserveFocus, chatResource: mainChat.resource, source: 'sessionsList' }).then(onOpened).catch(onUnexpectedError);
 					return;
 				}
-				this.sessionsService.openChat(session, mainChat.resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
+				this.sessionsService.openChat(session, mainChat.resource, { preserveFocus, source: 'sessionsList' }).then(onOpened).catch(onUnexpectedError);
 			},
 			canOpenSession: session => this.sessionsService.canOpenSession(session),
 			onChatOpen: (session, chat, preserveFocus, sideBySide) => {
@@ -648,6 +649,9 @@ export class SessionsView extends ViewPane {
 
 		this.headerLabel.style.display = '';
 		this.headerActions.style.display = '';
+		if (this.headerLabel.clientWidth < SESSIONS_HEADER_ELLIPSIS_MIN_WIDTH) {
+			this.headerLabel.style.display = 'none';
+		}
 	}
 
 	/**

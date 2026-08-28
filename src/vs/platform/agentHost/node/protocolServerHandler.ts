@@ -20,11 +20,11 @@ import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportK
 import { AgentSession, type IAgentCreateChatRequestOptions, type IMcpNotification } from '../common/agent.js';
 import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { type IAgentService } from '../common/agentService.js';
-import { collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod } from '../common/agentHostExtensionProtocol.js';
+import { collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, type IAgentHostExtensionInitializeResult } from '../common/agentHostExtensionProtocol.js';
 import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
 import { ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
-import { ActionEnvelope, ActionType, INotification, isAnnotationsAction, isChangesetAction, isChatAction, isSessionAction, isTerminalAction, type ChatAction, type ClientAnnotationsAction, type ClientChangesetAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
+import { ActionEnvelope, ActionType, INotification, isAnnotationsAction, isAutomationAction, isAutomationRunAction, isChangesetAction, isChatAction, isSessionAction, isTerminalAction, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import { negotiateProtocolVersion } from '../common/state/protocol/version/negotiation.js';
 import { VSCODE_UPGRADE_METHOD, type UnsupportedProtocolVersionErrorDataEx } from '../common/state/protocolUpgrade.js';
@@ -49,7 +49,7 @@ import {
 	type SubscribeResult,
 	type ListSessionsResult,
 } from '../common/state/sessionProtocol.js';
-import { isAhpResourceWatchChannel, isAhpRootChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, isAhpChatChannel, parseChatUri, parseRequiredSessionUriFromChatUri, type ISessionWithDefaultChat, type SessionState } from '../common/state/sessionState.js';
+import { isAhpAutomationCatalogChannel, isAhpResourceWatchChannel, isAhpRootChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, isAhpChatChannel, parseChatUri, parseRequiredSessionUriFromChatUri, type ISessionWithDefaultChat, type SessionState } from '../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 import { IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
@@ -79,7 +79,6 @@ const CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT = 30_000;
 const UNSUPPORTED_CLIENT_ACTION_TYPES: ReadonlySet<ActionType> = new Set([
 	ActionType.ChatWorkingDirectorySet,
 	ActionType.ChatWorkingDirectoryRemoved,
-	ActionType.ChatTurnResume,
 ]);
 
 /** A client tool call in any of these statuses is still awaiting its result. */
@@ -190,11 +189,13 @@ const enum ChannelKind {
  *
  * `uri` is the canonical channel URI string used everywhere a subscription
  * is referenced — the same string is broadcast on outbound notifications
- * and persists across reconnects.
+ * and persists across reconnects. State subscriptions remain inactive while
+ * their baseline snapshot is resolving so disconnect can cancel them without
+ * exposing pre-snapshot actions to the client.
  */
 type ChannelSubscription =
-	| { readonly kind: ChannelKind.State; readonly uri: string }
-	| { readonly kind: ChannelKind.ResourceWatch; readonly uri: string }
+	| { readonly kind: ChannelKind.State; readonly uri: string; readonly active: boolean }
+	| { readonly kind: ChannelKind.ResourceWatch; readonly uri: string; readonly active: boolean }
 	| { readonly kind: ChannelKind.OtlpLogs; readonly uri: string; readonly level: OtlpLogLevelName };
 
 /**
@@ -298,9 +299,9 @@ function classifyChannel(channel: string): ChannelSubscription | undefined {
 		return { kind: ChannelKind.OtlpLogs, uri: buildOtlpLogsChannelUri(level), level };
 	}
 	if (isAhpResourceWatchChannel(channel)) {
-		return { kind: ChannelKind.ResourceWatch, uri: channel };
+		return { kind: ChannelKind.ResourceWatch, uri: channel, active: true };
 	}
-	return { kind: ChannelKind.State, uri: channel };
+	return { kind: ChannelKind.State, uri: channel, active: true };
 }
 
 /**
@@ -500,7 +501,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					case 'dispatchAction':
 						if (client) {
 							this._logService.trace(`[ProtocolServer] dispatchAction: ${JSON.stringify(msg.params.action.type)}`);
-							const action = msg.params.action as SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction;
+							const action = msg.params.action as SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction;
 							const channel = msg.params.channel;
 							// Unsupported actions are echoed as rejections so optimistic clients roll back.
 							if (UNSUPPORTED_CLIENT_ACTION_TYPES.has(action.type)) {
@@ -511,7 +512,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 									{ clientId: client.clientId, clientSeq: msg.params.clientSeq },
 									`Unsupported action: ${action.type}`,
 								);
-							} else if (isSessionAction(action) || isChatAction(action) || isTerminalAction(action) || isChangesetAction(action) || isAnnotationsAction(action) || action.type === ActionType.RootConfigChanged) {
+							} else if (isSessionAction(action) || isChatAction(action) || isTerminalAction(action) || isChangesetAction(action) || isAnnotationsAction(action) || isAutomationAction(action) || isAutomationRunAction(action) || action.type === ActionType.RootConfigChanged) {
 								this._agentService.dispatchAction(channel, action, client.clientId, msg.params.clientSeq, client.telemetryContext);
 							}
 						}
@@ -572,7 +573,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		params: InitializeParams,
 		transport: IProtocolTransport,
 		disposables: DisposableStore,
-	): { client: IConnectedClient; response: unknown } {
+	): { client: IConnectedClient; response: IAgentHostExtensionInitializeResult } {
 		const offered = Array.isArray(params.protocolVersions) ? params.protocolVersions : [];
 		this._logService.info(`[ProtocolServer] Initialize: clientId=${params.clientId}, protocolVersions=[${offered.join(', ')}]`);
 
@@ -649,11 +650,13 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				response: {
 					protocolVersion: negotiated,
 					serverSeq: this._stateManager.serverSeq,
+					_meta: getAgentHostExtensionInitializeResultMeta(),
 					snapshots,
 					defaultDirectory: this._config.defaultDirectory,
-					completionTriggerCharacters: this._config.completionTriggerCharacters,
+					completionTriggerCharacters: this._config.completionTriggerCharacters ? [...this._config.completionTriggerCharacters] : undefined,
 					terminalCommandPrefix: this._config.terminalCommandPrefix,
 					telemetry: this._config.otlpLogEmitter ? { logs: OTLP_LOGS_CHANNEL_TEMPLATE } : undefined,
+					automations: this._agentService.automationCapabilities,
 				},
 			};
 		} catch (error) {
@@ -695,6 +698,21 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		client.subscriptions.set(sub.uri, sub);
 		this._agentService.addSubscriber(URI.parse(sub.uri), client.clientId);
 		this._clearClientToolCallDisconnectTimeout(client.clientId, sub.uri);
+		return snapshot;
+	}
+
+	private async _subscribeStateChannel(channel: string, clientId: string, isActive?: () => boolean): Promise<IStateSnapshot> {
+		if (!isAhpAutomationCatalogChannel(channel)) {
+			return this._agentService.subscribe(URI.parse(channel), clientId, isActive);
+		}
+		if (isActive && !isActive()) {
+			throw new Error(`Subscription cancelled: ${channel}`);
+		}
+		const snapshot = this._stateManager.getSnapshot(channel);
+		if (!snapshot) {
+			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Automation catalogue is unavailable: ${channel}`);
+		}
+		this._agentService.addSubscriber(URI.parse(channel), clientId);
 		return snapshot;
 	}
 
@@ -836,12 +854,18 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		canReplay: boolean,
 	): Promise<unknown> {
 		const missing: string[] = [];
+		const restoredUris = new Set<string>();
+		const pendingSubscriptions: { readonly pending: ChannelSubscription; readonly active: ChannelSubscription }[] = [];
 		const snapshots = await Promise.all(params.subscriptions.map(async sub => {
 			const key = sub.toString();
 			const classified = classifyChannel(key);
 			if (!classified) {
 				return undefined;
 			}
+			if (restoredUris.has(classified.uri)) {
+				return undefined;
+			}
+			restoredUris.add(classified.uri);
 			if (classified.kind === ChannelKind.OtlpLogs) {
 				if (!this._config.otlpLogEmitter) {
 					this._logService.warn(`[ProtocolServer] Reconnect: dropping OTLP subscription ${key}: no OTLP emitter configured.`);
@@ -858,25 +882,50 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					missing.push(sub);
 					return undefined;
 				}
-				client.subscriptions.set(classified.uri, classified);
+				if (canReplay) {
+					const pendingSubscription: ChannelSubscription = { ...classified, active: false };
+					pendingSubscriptions.push({ pending: pendingSubscription, active: classified });
+					client.subscriptions.set(classified.uri, pendingSubscription);
+				} else {
+					client.subscriptions.set(classified.uri, classified);
+				}
 				return {
 					resource: classified.uri,
 					state: descriptor,
 					fromSeq: this._stateManager.serverSeq,
 				};
 			}
+			const pendingSubscription: ChannelSubscription = { ...classified, active: false };
+			pendingSubscriptions.push({ pending: pendingSubscription, active: classified });
+			client.subscriptions.set(classified.uri, pendingSubscription);
 			try {
-				const snapshot = await this._agentService.subscribe(URI.parse(key), client.clientId);
-				client.subscriptions.set(classified.uri, classified);
+				const snapshot = await this._subscribeStateChannel(
+					key,
+					client.clientId,
+					() => client.subscriptions.get(classified.uri) === pendingSubscription,
+				);
+				if (client.subscriptions.get(classified.uri) !== pendingSubscription) {
+					throw new Error(`Subscription cancelled: ${key}`);
+				}
 				this._clearClientToolCallDisconnectTimeout(client.clientId, classified.uri);
 				return snapshot;
 			} catch (err) {
+				if (client.subscriptions.get(classified.uri) === pendingSubscription) {
+					client.subscriptions.delete(classified.uri);
+				}
 				this._logService.info(`[ProtocolServer] Reconnect: failed to restore subscription ${key}: ${err instanceof Error ? err.message : String(err)}`);
 				missing.push(sub);
 				return undefined;
 			}
 		}));
 
+		// Activate the batch only after every restore settles so no channel can
+		// receive an action both live and through the reconnect replay.
+		for (const { pending, active } of pendingSubscriptions) {
+			if (client.subscriptions.get(pending.uri) === pending) {
+				client.subscriptions.set(active.uri, active);
+			}
+		}
 		this._reconcileActiveClientsAfterReconnect(client);
 
 		if (canReplay) {
@@ -890,7 +939,16 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			}
 			return { type: 'replay', actions, missing };
 		}
-		return { type: 'snapshot', snapshots: snapshots.filter((s): s is IStateSnapshot => s !== undefined) };
+		const refreshedSnapshots = snapshots.map(snapshot => {
+			if (!snapshot) {
+				return undefined;
+			}
+			const subscription = client.subscriptions.get(snapshot.resource.toString());
+			return subscription?.kind === ChannelKind.State
+				? this._stateManager.getSnapshot(subscription.uri)
+				: snapshot;
+		});
+		return { type: 'snapshot', snapshots: refreshedSnapshots.filter((s): s is IStateSnapshot => s !== undefined) };
 	}
 
 	/**
@@ -1352,8 +1410,20 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					},
 				};
 			}
+			const existingSubscription = client.subscriptions.get(classified.uri);
+			const pendingSubscription = existingSubscription?.kind === ChannelKind.State && existingSubscription.active
+				? existingSubscription
+				: { ...classified, active: false };
+			client.subscriptions.set(classified.uri, pendingSubscription);
 			try {
-				const snapshot = await this._agentService.subscribe(URI.parse(params.channel), client.clientId);
+				const snapshot = await this._subscribeStateChannel(
+					params.channel,
+					client.clientId,
+					() => client.subscriptions.get(classified.uri) === pendingSubscription,
+				);
+				if (client.subscriptions.get(classified.uri) !== pendingSubscription) {
+					throw new Error(`Subscription cancelled: ${params.channel}`);
+				}
 				client.subscriptions.set(classified.uri, classified);
 				this._clearClientToolCallDisconnectTimeout(client.clientId, classified.uri);
 				// `IStateSnapshot` is widened with `ChatState` (see sessionProtocol.ts);
@@ -1361,6 +1431,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				// is JSON over the wire, so narrowing at this boundary is safe.
 				return { snapshot: snapshot as SubscribeResult['snapshot'] };
 			} catch (err) {
+				if (!pendingSubscription.active && client.subscriptions.get(classified.uri) === pendingSubscription) {
+					client.subscriptions.delete(classified.uri);
+				}
 				if (err instanceof ProtocolError) {
 					throw err;
 				}
@@ -1475,6 +1548,15 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			});
 			return { items: this._stateManager.prepareSessionSummariesForListing(items) };
 		},
+		listAutomationTriggerDefinitions: async (_client, params) => {
+			return this._agentService.listAutomationTriggerDefinitions(params);
+		},
+		runAutomation: async (_client, params) => {
+			return this._agentService.runAutomation(params);
+		},
+		fetchAutomationRuns: async (_client, params) => {
+			return this._agentService.fetchAutomationRuns(params);
+		},
 		resolveSessionConfig: async (_client, params) => {
 			return this._agentService.resolveSessionConfig({
 				provider: params.provider,
@@ -1555,18 +1637,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		},
 		invokeChangesetOperation: async (_client, params) => {
 			return this._agentService.invokeChangesetOperation(params);
-		},
-		// Automations are declared by the protocol but not implemented by this
-		// host: `initialize` never advertises the `automations` capability, so
-		// a conforming client does not reach these methods.
-		listAutomationTriggerDefinitions: async () => {
-			throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, 'Automations are not supported by this agent host');
-		},
-		runAutomation: async () => {
-			throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, 'Automations are not supported by this agent host');
-		},
-		fetchAutomationRuns: async () => {
-			throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, 'Automations are not supported by this agent host');
 		},
 	};
 
@@ -1711,7 +1781,23 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				if (!AgentSession.provider(session)) {
 					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be an Agent Session URI'));
 				}
-				return this._agentService.getSessionStateFile(session).then(resource => ({ resource: resource?.toString() }));
+				const chatParam = params['chat'];
+				let chat: URI | undefined;
+				if (chatParam !== undefined) {
+					if (typeof chatParam !== 'string') {
+						return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must be a URI string'));
+					}
+					try {
+						chat = URI.parse(chatParam, true);
+					} catch {
+						return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must be a valid URI string'));
+					}
+					const parsedChat = parseChatUri(chat);
+					if (!parsedChat || parsedChat.session !== session.toString()) {
+						return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must belong to the requested Agent Session'));
+					}
+				}
+				return this._agentService.getSessionStateFile(session, chat).then(resource => ({ resource: resource?.toString() }));
 			}
 			case CollectAgentHostDebugLogsExtensionMethod: {
 				if (!this._agentService.collectDebugLogs) {
@@ -1855,6 +1941,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				return;
 			}
 			this._agentService.unsubscribe(URI.parse(sub.uri), client.clientId);
+			if (!sub.active) {
+				return;
+			}
 			if (isAhpChatChannel(sub.uri)) {
 				this._releaseActiveClientForSession(parseRequiredSessionUriFromChatUri(sub.uri), client.clientId, sub.uri);
 			} else {
@@ -1901,7 +1990,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 
 	private _isRelevantToClient(client: IConnectedClient, envelope: ActionEnvelope): boolean {
 		const sub = client.subscriptions.get(envelope.channel);
-		if (sub?.kind === ChannelKind.State || sub?.kind === ChannelKind.ResourceWatch) {
+		if ((sub?.kind === ChannelKind.State || sub?.kind === ChannelKind.ResourceWatch) && sub.active) {
 			return true;
 		}
 		if (!isAhpRootChannel(envelope.channel)) {
@@ -1912,7 +2001,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 
 	private *_stateAndResourceWatchUris(client: IConnectedClient): Iterable<string> {
 		for (const sub of client.subscriptions.values()) {
-			if (sub.kind === ChannelKind.State || sub.kind === ChannelKind.ResourceWatch) {
+			if ((sub.kind === ChannelKind.State || sub.kind === ChannelKind.ResourceWatch) && sub.active) {
 				yield sub.uri;
 			}
 		}

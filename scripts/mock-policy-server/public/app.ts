@@ -12,6 +12,7 @@
  * `endpoints.ts` (loaded via an earlier `<script>` tag).
  */
 type EndpointDef = import('../endpoints').EndpointDef;
+type EndpointResponseMode = import('../endpoints').EndpointResponseMode;
 
 declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 
@@ -22,6 +23,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		url?: string;
 		status?: number;
 		body?: unknown;
+		mode?: EndpointResponseMode;
 		active?: boolean;
 	}
 
@@ -39,10 +41,6 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		path: string;
 		outcome: 'mocked' | 'passthrough' | 'upstream-error';
 		status: number;
-	}
-
-	interface CacheResult {
-		cleared: { dir: string; files: number }[];
 	}
 
 	interface SchemaResult {
@@ -80,6 +78,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		endpoint: string;
 		status: number;
 		body: unknown;
+		mode: EndpointResponseMode;
 		active: boolean;
 		editorText: string;
 	}
@@ -90,13 +89,17 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 	const tabs = $('tabs');
 	const editor = $('editor') as HTMLTextAreaElement;
 	const responseStatusInput = $('response-status') as HTMLInputElement;
+	const responseModeSelect = $('response-mode') as HTMLSelectElement;
+	const responseConfiguration = $('response-configuration');
 	const responseStatusValidation = $('response-status-validation');
 	const presetSelect = $('preset') as HTMLSelectElement;
 	const endpointMeta = $('endpoint-meta');
 	const editorStatus = $('editor-status');
 	const saveStateEl = $('save-state');
 	const setupDialog = $('setup-dialog') as HTMLDialogElement;
-	const vscodeProxySettings = '{\n\t"http.proxy": "http://localhost:9090"\n}';
+	const vscodeProxySetting = '"http.proxy": "http://localhost:9090"';
+	const macOsCacheClearCommand = 'rm -rf -- "${COPILOT_CACHE_HOME:-$HOME/Library/Caches/copilot}/managed-settings"';
+	const windowsCacheClearCommand = '$root = if ($env:COPILOT_CACHE_HOME) { $env:COPILOT_CACHE_HOME } elseif ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA \'copilot\' } else { Join-Path $HOME \'.cache\\copilot\' }; $path = Join-Path $root \'managed-settings\'; if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Recurse -Force }';
 
 	let endpoints: Endpoint[] = [];
 	let activeId = '';
@@ -107,6 +110,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 	let proxyBaseUrl = '';
 	let proxyUpstream = '';
 	let proxyCheckInFlight = false;
+	let renderedLogSignature = '';
 	let stateUpdateQueue: Promise<void> = Promise.resolve();
 	const pendingSaves = new Map<string, ReturnType<typeof setTimeout>>();
 
@@ -402,6 +406,8 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 
 		endpointMeta.replaceChildren(routeSpan);
 		responseStatusInput.value = String(endpoint.status ?? 200);
+		responseModeSelect.value = endpoint.mode ?? 'json';
+		updateResponseConfigurationVisibility();
 		parseResponseStatus();
 		editor.value = drafts[id] ?? JSON.stringify(endpoint.body ?? {}, null, '\t');
 		renderTabs();
@@ -453,6 +459,34 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		action.textContent = state.wired ? 'Restore Original' : 'Apply Overrides';
 		action.className = state.wired ? 'btn-secondary' : 'btn-primary';
 		updateReadiness();
+	}
+
+	function updateResponseConfigurationVisibility(): void {
+		responseConfiguration.hidden = responseModeSelect.value !== 'json';
+	}
+
+	async function setResponseMode(endpoint: Endpoint, mode: EndpointResponseMode): Promise<void> {
+		const previousMode = endpoint.mode ?? 'json';
+		endpoint.mode = mode;
+		updateResponseConfigurationVisibility();
+		const snapshot = captureSaveSnapshot();
+		clearPendingSave(endpoint.id);
+		if (snapshot) {
+			if (!await saveSnapshot(snapshot)) {
+				endpoint.mode = previousMode;
+				responseModeSelect.value = previousMode;
+				updateResponseConfigurationVisibility();
+			}
+			return;
+		}
+		try {
+			applyState(await updateState({ endpoint: endpoint.id, mode }));
+		} catch (error) {
+			endpoint.mode = previousMode;
+			responseModeSelect.value = previousMode;
+			updateResponseConfigurationVisibility();
+			toast(`Save failed: ${error instanceof Error ? error.message : String(error)}`, true);
+		}
 	}
 
 	function renderProxy(): void {
@@ -620,6 +654,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 			endpoint: endpoint.id,
 			status: responseStatus,
 			body: parsed,
+			mode: endpoint.mode ?? 'json',
 			active: endpoint.active === true,
 			editorText: editor.value
 		};
@@ -631,6 +666,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 				endpoint: snapshot.endpoint,
 				status: snapshot.status,
 				body: snapshot.body,
+				mode: snapshot.mode,
 				active: snapshot.active
 			});
 			applyState(state);
@@ -824,13 +860,41 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		}
 		const list = $('log');
 		$('log-empty').hidden = entries.length > 0;
+		const displayedEntries = entries.slice(0, 40);
+		const signature = JSON.stringify(displayedEntries);
+		if (signature === renderedLogSignature) {
+			return;
+		}
+		renderedLogSignature = signature;
+		const focusedEntryKey = document.activeElement instanceof HTMLButtonElement && document.activeElement.classList.contains('log-item')
+			? document.activeElement.dataset.entryKey
+			: undefined;
+		let rowToRefocus: HTMLButtonElement | undefined;
 		list.replaceChildren();
-		for (const entry of entries.slice(0, 40)) {
+		for (const entry of displayedEntries) {
 			const item = document.createElement('li');
-			item.className = `log-item ${entry.outcome}`;
-			item.title = entry.outcome === 'mocked'
+			item.className = 'log-row';
+			const endpoint = endpoints.find(candidate => candidate.path === entry.path);
+			const entryKey = `${entry.at}:${entry.method}:${entry.path}`;
+			const outcomeLabel = entry.outcome === 'mocked'
 				? 'Served from this server'
 				: entry.outcome === 'passthrough' ? 'Proxied to the real API' : 'Upstream request failed';
+			let row: HTMLButtonElement | HTMLDivElement;
+			if (endpoint) {
+				row = document.createElement('button');
+				row.type = 'button';
+				row.classList.add('clickable');
+				row.setAttribute('aria-label', `Open ${endpoint.label}: ${entry.method} ${entry.path}, status ${entry.status}. ${outcomeLabel}`);
+				row.addEventListener('click', () => selectEndpoint(endpoint.id));
+				if (focusedEntryKey === entryKey) {
+					rowToRefocus = row;
+				}
+			} else {
+				row = document.createElement('div');
+			}
+			row.classList.add('log-item', entry.outcome);
+			row.dataset.entryKey = entryKey;
+			row.title = endpoint ? `Open ${endpoint.label}. ${outcomeLabel}` : outcomeLabel;
 
 			const time = document.createElement('span');
 			time.className = 'log-time';
@@ -842,21 +906,17 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 			route.className = 'log-path';
 			route.textContent = `${entry.method} ${entry.path}`;
 
-			item.append(time, status, route);
+			row.append(time, status, route);
+			if (!endpoint) {
+				const outcome = document.createElement('span');
+				outcome.className = 'sr-only';
+				outcome.textContent = `. ${outcomeLabel}`;
+				row.appendChild(outcome);
+			}
+			item.appendChild(row);
 			list.appendChild(item);
 		}
-	}
-
-	async function clearPolicyCache(): Promise<void> {
-		try {
-			const result = await api<CacheResult>('/api/cache', { method: 'DELETE' });
-			const count = result.cleared.reduce((total, item) => total + item.files, 0);
-			toast(result.cleared.length === 0
-				? 'No managed-settings cache found \u2014 nothing to clear'
-				: `Cleared ${count} cached ${count === 1 ? 'entry' : 'entries'} \u2014 restart Local Agent Host to refetch`);
-		} catch (e) {
-			toast(`Could not clear cache: ${e instanceof Error ? e.message : String(e)}`, true);
-		}
+		rowToRefocus?.focus();
 	}
 
 	async function copy(text: string, button: HTMLElement): Promise<void> {
@@ -864,6 +924,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 			await navigator.clipboard.writeText(text);
 			const original = button.textContent;
 			button.textContent = 'Copied \u2713';
+			toast('Copied to clipboard');
 			setTimeout(() => { button.textContent = original; }, 1500);
 		} catch {
 			toast('Copy failed — check clipboard permissions', true);
@@ -881,7 +942,9 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 	}
 
 	async function init(): Promise<void> {
-		$('proxy-settings').textContent = vscodeProxySettings;
+		$('proxy-settings').textContent = vscodeProxySetting;
+		$('macos-cache-command').textContent = macOsCacheClearCommand;
+		$('windows-cache-command').textContent = windowsCacheClearCommand;
 
 		editor.addEventListener('input', () => {
 			drafts[activeId] = editor.value;
@@ -894,13 +957,26 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 			parseEditor();
 			debouncedSave();
 		});
+		responseModeSelect.addEventListener('change', () => {
+			const endpoint = activeEndpoint();
+			if (!endpoint) {
+				return;
+			}
+			void setResponseMode(endpoint, responseModeSelect.value as EndpointResponseMode);
+		});
 		presetSelect.addEventListener('change', applyPreset);
 		$('overrides-action').addEventListener('click', () => wire(!overridesWired));
 		$('copy-map').addEventListener('click', e => {
 			copy(`${$('map-from').textContent}\n${$('map-to').textContent}`, e.currentTarget as HTMLElement);
 		});
 		$('copy-proxy-settings').addEventListener('click', e => {
-			copy(vscodeProxySettings, e.currentTarget as HTMLElement);
+			copy(vscodeProxySetting, e.currentTarget as HTMLElement);
+		});
+		$('copy-macos-cache-command').addEventListener('click', e => {
+			copy(macOsCacheClearCommand, e.currentTarget as HTMLElement);
+		});
+		$('copy-windows-cache-command').addEventListener('click', e => {
+			copy(windowsCacheClearCommand, e.currentTarget as HTMLElement);
 		});
 		for (const method of ['proxy', 'overrides'] as const) {
 			$(`setup-method-${method}`).addEventListener('change', () => selectSetupMethod(method));
@@ -937,7 +1013,6 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 			void save();
 			setStatus('Generated an example from the schema.', 'ok');
 		});
-		$('clear-cache').addEventListener('click', () => { void clearPolicyCache(); });
 		$('clear-log').addEventListener('click', async () => {
 			try {
 				await api('/api/log', { method: 'DELETE' });
@@ -964,7 +1039,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 			selectSetupMethod('proxy');
 			// Fall back to the shared endpoint definitions so the GUI still shows
 			// what exists (read-only) rather than rendering a blank page.
-			endpoints = MOCK_POLICY_ENDPOINTS.map(def => ({ ...def, status: def.presets[0]?.status ?? 200, body: def.presets[0]?.body ?? {} }));
+			endpoints = MOCK_POLICY_ENDPOINTS.map(def => ({ ...def, status: def.presets[0]?.status ?? 200, body: def.presets[0]?.body ?? {}, mode: 'json' }));
 			renderTabs();
 			if (endpoints.length) {
 				selectEndpoint(endpoints[0].id);

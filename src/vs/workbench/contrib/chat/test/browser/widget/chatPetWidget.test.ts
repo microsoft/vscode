@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
+import { IContextMenuDelegate } from '../../../../../../base/browser/contextmenu.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -169,6 +170,66 @@ suite('ChatPetWidget', () => {
 		assert.deepStrictEqual(observedTargets, new Set([dragBounds, movementBounds, parent]));
 		service.toggle();
 		assert.strictEqual(observedTargets.size, 0);
+	});
+
+	test('resets pet size from the context menu', async () => {
+		const parent = mainWindow.document.createElement('div');
+		const dragBounds = mainWindow.document.createElement('div');
+		const movementBounds = mainWindow.document.createElement('div');
+		mainWindow.document.body.append(parent, dragBounds, movementBounds);
+		disposables.add(toDisposable(() => {
+			parent.remove();
+			dragBounds.remove();
+			movementBounds.remove();
+		}));
+		let contextMenuDelegate: IContextMenuDelegate | undefined;
+		const contextMenuService = new class extends mock<IContextMenuService>() {
+			override showContextMenu(delegate: IContextMenuDelegate): void {
+				contextMenuDelegate = delegate;
+			}
+		}();
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		service.toggle();
+		service.setScale(4);
+		disposables.add(new ChatPetWidget(
+			createPetHost(parent, dragBounds, movementBounds),
+			undefined,
+			service,
+			new TestAccessibilityService(),
+			contextMenuService,
+			new class extends mock<ICommandService>() { }(),
+			new NullLogService(),
+			new class extends mock<IHostService>() {
+				override readonly hasFocus = true;
+				override readonly onDidChangeFocus = Event.None;
+				override readonly onDidChangeActiveWindow = Event.None;
+			}(),
+		));
+		const button = parent.getElementsByClassName('chat-pet-button')[0] as HTMLElement;
+
+		button.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		assert.ok(contextMenuDelegate);
+		const resetSizeAction = contextMenuDelegate.getActions().find(action => action.id === 'chat.pet.resetSize');
+		assert.ok(resetSizeAction);
+		const enabledBeforeReset = resetSizeAction.enabled;
+		await resetSizeAction.run();
+		button.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		assert.ok(contextMenuDelegate);
+		const resetSizeActionAtDefault = contextMenuDelegate.getActions().find(action => action.id === 'chat.pet.resetSize');
+
+		assert.deepStrictEqual({
+			label: resetSizeAction.label,
+			enabledBeforeReset,
+			scale: service.scale.get(),
+			displaySize: button.style.width,
+			enabledAtDefault: resetSizeActionAtDefault?.enabled,
+		}, {
+			label: 'Reset Size',
+			enabledBeforeReset: true,
+			scale: 1,
+			displaySize: '48px',
+			enabledAtDefault: false,
+		});
 	});
 
 	test('stacks the run cycle behind the input', () => {
@@ -1098,7 +1159,7 @@ suite('ChatPetWidget', () => {
 			disabledAchievementIds: disabledChatPetAchievements.map(achievement => achievement.id),
 			disabledAccessoryIds: disabledChatPetAchievements.flatMap(achievement => achievement.accessories.map(accessory => accessory.id)),
 		}, {
-			count: 14,
+			count: 13,
 			achievementIds: [
 				ChatPetAchievementIds.RequestRevision,
 				ChatPetAchievementIds.FirstChatMessage,
@@ -1109,7 +1170,6 @@ suite('ChatPetWidget', () => {
 				ChatPetAchievementIds.AgentsWindowOpened,
 				ChatPetAchievementIds.CreatePullRequest,
 				ChatPetAchievementIds.AgentEditKept,
-				ChatPetAchievementIds.SessionArchived,
 				ChatPetAchievementIds.AgentChangesReviewed,
 				ChatPetAchievementIds.ChatReferenceOpened,
 				ChatPetAchievementIds.UsefulOutputCopied,
@@ -1125,13 +1185,12 @@ suite('ChatPetWidget', () => {
 				ChatPetAccessoryIds.PropellerHat,
 				ChatPetAccessoryIds.DarkSailorHat,
 				ChatPetAccessoryIds.WhiteChefHat,
-				ChatPetAccessoryIds.SantaHat,
-				ChatPetAccessoryIds.RiceHat,
+				ChatPetAccessoryIds.BambooHat,
 				ChatPetAccessoryIds.StrawHat,
 				ChatPetAccessoryIds.PinkPartyHat,
 				ChatPetAccessoryIds.WizardHat,
 			],
-			uniqueAccessoryCount: 14,
+			uniqueAccessoryCount: 13,
 			atlasNames: [
 				'grand-top-hat-monocle',
 				'cowboy-hat',
@@ -1142,14 +1201,13 @@ suite('ChatPetWidget', () => {
 				'propeller-hat',
 				'dark-sailor-hat',
 				'white-chef-hat',
-				'santa-hat',
-				'rice-hat',
+				'bamboo-hat',
 				'straw-hat',
 				'pink-party-hat',
 				'wizard-hat',
 			],
-			atlasCellSizes: Array(14).fill(96),
-			rewardCounts: Array(14).fill(1),
+			atlasCellSizes: Array(13).fill(96),
+			rewardCounts: Array(13).fill(1),
 			coversAntennae: true,
 			crownAccessoryId: 'crown',
 			disabledAchievementIds: [
@@ -1186,7 +1244,6 @@ suite('ChatPetWidget', () => {
 
 	test('maps every newly added hat to a distinct achievement', () => {
 		const achievementIds = [
-			ChatPetAchievementIds.SessionArchived,
 			ChatPetAchievementIds.AgentChangesReviewed,
 			ChatPetAchievementIds.ChatReferenceOpened,
 			ChatPetAchievementIds.UsefulOutputCopied,
@@ -1205,8 +1262,7 @@ suite('ChatPetWidget', () => {
 		}, {
 			firstMessageRewards: [ChatPetAccessoryIds.CowboyHat],
 			newAchievements: [
-				{ title: 'Wrapped Up', reward: ChatPetAccessoryIds.SantaHat },
-				{ title: 'Trust but Verify', reward: ChatPetAccessoryIds.RiceHat },
+				{ title: 'Trust but Verify', reward: ChatPetAccessoryIds.BambooHat },
 				{ title: 'Follow the Trail', reward: ChatPetAccessoryIds.StrawHat },
 				{ title: 'Copy That', reward: ChatPetAccessoryIds.PinkPartyHat },
 				{ title: 'Party Mode', reward: ChatPetAccessoryIds.WizardHat },
@@ -1328,8 +1384,7 @@ suite('ChatPetWidget', () => {
 				ChatPetAccessoryIds.PropellerHat,
 				ChatPetAccessoryIds.DarkSailorHat,
 				ChatPetAccessoryIds.WhiteChefHat,
-				ChatPetAccessoryIds.SantaHat,
-				ChatPetAccessoryIds.RiceHat,
+				ChatPetAccessoryIds.BambooHat,
 				ChatPetAccessoryIds.StrawHat,
 				ChatPetAccessoryIds.PinkPartyHat,
 				ChatPetAccessoryIds.WizardHat,
