@@ -3,25 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Floating status pills centered above the chat input. The pills themselves are
-	the shared `.chat-turn-pills` widget (styled in chatTurnPills.css) and the
-	session activity pills (sessionActivityPill.css); this file only positions and
-	centers them above the input. */
+/* Horizontally scrollable status pills above the chat input. */
 
 .session-chat-input-toolbar {
+	width: 100%;
+	min-width: 0;
+}
+
+.session-chat-input-toolbar-content {
 	display: flex;
 	align-items: center;
-	justify-content: center;
+	justify-content: flex-start;
 	gap: var(--vscode-spacing-size60);
+	width: 100%;
 	min-width: 0;
+	box-sizing: border-box;
 	padding: var(--vscode-spacing-size20) 0 var(--vscode-spacing-size60) 0;
 }
 
-/* The turn pills size to their content and deliberately don't shrink internally,
-	so squeezing them would spill their pills over the activity pills next to
-	them. Keep them at their natural width and let the activity pills, which
-	ellipsize their labels, absorb the shrinking instead. */
-.session-chat-input-toolbar > .chat-turn-pills {
+.session-chat-input-toolbar-content > .chat-pills,
+.session-chat-input-toolbar-content > .session-activity-pill {
 	flex-shrink: 0;
 }
 
@@ -29,3 +30,34 @@
 	display: none;
 }
 
+/* No pill is left to right-click, so the row takes back a slim hit-testable
+	strip to keep the visibility menu (and with it the hidden pills) reachable. */
+.session-chat-input-toolbar.empty {
+	pointer-events: auto;
+}
+
+.session-chat-input-toolbar.empty .session-chat-input-toolbar-content {
+	min-height: var(--vscode-spacing-size120);
+}
+
+/* The floating row is click-through, so the slider shows the scroll position but
+	cannot be dragged; wheeling over a pill scrolls the row. */
+.session-chat-input-toolbar > .scrollbar > .slider {
+	background: transparent;
+}
+
+.session-chat-input-toolbar > .scrollbar.horizontal > .slider::before {
+	content: '';
+	position: absolute;
+	inset: var(--vscode-strokeThickness);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: var(--vscode-scrollbarSlider-background);
+}
+
+.session-chat-input-toolbar > .scrollbar > .slider:hover::before {
+	background: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+.session-chat-input-toolbar > .scrollbar > .slider.active::before {
+	background: var(--vscode-scrollbarSlider-activeBackground);
+}

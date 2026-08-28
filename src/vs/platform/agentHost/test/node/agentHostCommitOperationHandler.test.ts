@@ -7,6 +7,7 @@ import assert from 'assert';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
 import type { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -18,10 +19,11 @@ import { AgentHostCommitOperationHandler } from '../../node/agentHostCommitOpera
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { CopilotApiError, type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
-import { GITHUB_COPILOT_PROTECTED_RESOURCE, IAgentService } from '../../common/agentService.js';
+import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agent.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ChangesSummary } from '../../common/state/protocol/state.js';
 import type { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, StaticChangesetKind } from '../../common/agentHostChangesetService.js';
+import type { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 
 class TestGitService implements IAgentHostGitService {
 	declare readonly _serviceBrand: undefined;
@@ -53,6 +55,7 @@ class TestGitService implements IAgentHostGitService {
 		this.calls.push(`commitAll:${message}`);
 		this.uncommitted = false;
 	}
+	async mergeBranch(): Promise<string> { return ''; }
 	async restore(): Promise<void> { }
 	async hasUpstream(): Promise<boolean> { return false; }
 	async pull(): Promise<void> { }
@@ -128,7 +131,6 @@ class TestChangesetService implements IAgentHostChangesetService {
 	refreshSessionChangeset(session: string): void { this.calls.push(`refreshSession:${session}`); }
 	onWorkingDirectoryAvailable(_session: string): void { }
 	recomputeSubscribedChangesets(_session: string): void { }
-	onSessionDisposed(_session: string): void { }
 	async computeUncommittedChangeset(session: string): Promise<string> { this.calls.push(`computeUncommitted:${session}`); return `${session}/changeset/uncommitted`; }
 	async computeTurnChangeset(_session: string, _turnId: string): Promise<string> { return ''; }
 	async computeCompareTurnsChangeset(_session: string, _originalTurnId: string, _modifiedTurnId: string): Promise<string> { return ''; }
@@ -137,10 +139,12 @@ class TestChangesetService implements IAgentHostChangesetService {
 	onSessionTruncated(_session: string): void { }
 }
 
-function createAgentService(token: string | undefined): IAgentService {
+function createAuthenticationService(token: string | undefined): IAgentHostAuthenticationService {
 	return {
+		_serviceBrand: undefined,
+		onDidChangeAuthToken: Event.None,
 		getAuthToken: () => token,
-	} as Partial<IAgentService> as IAgentService;
+	};
 }
 
 function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitService, copilotApiService: TestCopilotApiService, changesets: TestChangesetService, options?: { readonly onCommittedError?: Error }): { handler: AgentHostCommitOperationHandler; session: URI; committedSessions: string[] } {
@@ -167,7 +171,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 			if (options?.onCommittedError) {
 				throw options.onCommittedError;
 			}
-		}, createAgentService('gh-repo-token'), createTestGitHubEndpointService(), gitService, copilotApiService, new NullLogService()),
+		}, createAuthenticationService('gh-repo-token'), createTestGitHubEndpointService(), gitService, copilotApiService, new NullLogService()),
 		session,
 		committedSessions,
 	};
@@ -176,7 +180,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 suite('AgentHostCommitOperationHandler', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test.skip('generates a commit message, commits all changes, and refreshes changesets', async () => {
+	test('generates a commit message, commits all changes, and invokes post-commit refresh', async () => {
 		const gitService = new TestGitService();
 		const copilotApiService = new TestCopilotApiService();
 		const changesets = new TestChangesetService();
@@ -194,7 +198,7 @@ suite('AgentHostCommitOperationHandler', () => {
 			message: { markdown: 'Committed changes with message: `Update session changes`' },
 			gitCalls: ['hasUncommittedChanges', 'computeSessionFileDiffs', 'commitAll:Update session changes'],
 			completion: [{ token: 'gh-repo-token', fileIncluded: true }],
-			changesetCalls: ['onCommitted:agent:/session', 'computeUncommitted:agent:/session', 'refreshSession:agent:/session'],
+			changesetCalls: ['onCommitted:agent:/session'],
 			committedSessions: ['agent:/session'],
 		});
 	});
@@ -216,7 +220,7 @@ suite('AgentHostCommitOperationHandler', () => {
 		});
 	});
 
-	test.skip('returns success when post-commit refresh fails', async () => {
+	test('returns success when post-commit refresh fails', async () => {
 		const gitService = new TestGitService();
 		const copilotApiService = new TestCopilotApiService();
 		const changesets = new TestChangesetService();
@@ -232,7 +236,7 @@ suite('AgentHostCommitOperationHandler', () => {
 		}, {
 			message: { markdown: 'Committed changes with message: `Update session changes`' },
 			gitCalls: ['hasUncommittedChanges', 'computeSessionFileDiffs', 'commitAll:Update session changes'],
-			changesetCalls: ['onCommitted:agent:/session', 'computeUncommitted:agent:/session', 'refreshSession:agent:/session'],
+			changesetCalls: ['onCommitted:agent:/session'],
 			committedSessions: ['agent:/session'],
 		});
 	});
@@ -292,10 +296,10 @@ suite('AgentHostCommitOperationHandler', () => {
 		});
 	});
 
-	test('maps Copilot token mint auth failures to AHP_AUTH_REQUIRED before committing', async () => {
+	test('maps Copilot API auth failures to AHP_AUTH_REQUIRED before committing', async () => {
 		const gitService = new TestGitService();
 		const copilotApiService = new TestCopilotApiService();
-		copilotApiService.error = new Error('Copilot session token mint failed: 403 Forbidden');
+		copilotApiService.error = new Error('Copilot API authorization failed: 403 Forbidden');
 		const changesets = new TestChangesetService();
 		const { handler, session, committedSessions } = setup(disposables, gitService, copilotApiService, changesets);
 

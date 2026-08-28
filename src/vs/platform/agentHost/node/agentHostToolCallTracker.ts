@@ -6,6 +6,7 @@
 import { disposableTimeout } from '../../../base/common/async.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
+import type { IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import type { SessionToolAuthenticationRequest, SessionToolClientExecutionRequest, SessionToolConfirmationRequest } from '../common/state/protocol/state.js';
 import { ToolCallContributorKind, type ToolCallContributor, type ToolCallResult } from '../common/state/sessionState.js';
 import type { AgentHostModelTelemetryKind, AgentHostTelemetryReporter, IAgentHostToolInvokedReport } from './agentHostTelemetryReporter.js';
@@ -55,7 +56,13 @@ export function toolSourceKindFromContributor(contributor: ToolCallContributor |
 	}
 }
 
-function canRefineContributor(current: ToolCallContributor | undefined, next: ToolCallContributor): boolean {
+/**
+ * Whether `next` is a safe refinement of the currently recorded contributor.
+ * A client contributor may only be refined by the same client, and a client
+ * contributor is never replaced by a non-client one, so execution ownership
+ * cannot be reassigned by a later, less specific signal.
+ */
+export function canRefineContributor(current: ToolCallContributor | undefined, next: ToolCallContributor): boolean {
 	if (current?.kind === ToolCallContributorKind.Client) {
 		return next.kind === ToolCallContributorKind.Client && next.clientId === current.clientId;
 	}
@@ -75,6 +82,7 @@ interface IToolCallTiming {
 	model: string | undefined;
 	modelTelemetryKind: AgentHostModelTelemetryKind | undefined;
 	modelResolvedFromUsage: boolean;
+	readonly clientContext: IAgentHostClientTelemetryContext | undefined;
 }
 
 interface IStalledToolCall {
@@ -104,7 +112,10 @@ export class AgentHostToolCallTracker extends Disposable {
 	private readonly _toolCallStallTimers = this._register(new DisposableMap<string>());
 	private readonly _stalledToolCalls = new Map<string, IStalledToolCall>();
 
-	constructor(private readonly _reporter: AgentHostTelemetryReporter) {
+	constructor(
+		private readonly _reporter: AgentHostTelemetryReporter,
+		private readonly _getClientContext: (session: string, turnId: string) => IAgentHostClientTelemetryContext | undefined = () => undefined,
+	) {
 		super();
 	}
 
@@ -121,6 +132,7 @@ export class AgentHostToolCallTracker extends Disposable {
 			model: resolvedModel?.model ?? model,
 			modelTelemetryKind: resolvedModel?.modelTelemetryKind ?? modelTelemetryKind,
 			modelResolvedFromUsage: resolvedModel !== undefined,
+			clientContext: this._getClientContext(session, turnId),
 		});
 	}
 
@@ -176,16 +188,20 @@ export class AgentHostToolCallTracker extends Disposable {
 		const resultSizeInCharacters = JSON.stringify(result).length;
 
 		const report: IAgentHostToolInvokedReport = {
+			clientContext: timing.clientContext,
 			provider: timing.provider,
 			session: timing.session,
 			turnId: timing.turnId,
 			toolId: timing.toolId,
 			toolSourceKind: timing.toolSourceKind,
+			toolCallId,
 			result: resultBucket,
 			invocationTimeMs: timing.invocationStopWatch?.elapsed(),
 			resultSizeInCharacters,
 			model: timing.model,
 			modelTelemetryKind: timing.modelTelemetryKind,
+			errorCode: result.error?.code,
+			errorMessage: result.error?.message,
 		};
 		if (timing.modelResolvedFromUsage) {
 			this._reporter.toolInvoked(report);
@@ -195,11 +211,11 @@ export class AgentHostToolCallTracker extends Disposable {
 			pending.push(report);
 			this._pendingToolReports.set(turnKey, pending);
 		}
-
 		const stalled = this._stalledToolCalls.get(key);
 		if (stalled) {
 			this._stalledToolCalls.delete(key);
 			this._reporter.stalledToolCallCompleted({
+				clientContext: timing.clientContext,
 				provider: timing.provider,
 				session: timing.session,
 				blockerKind: stalled.blockerKind,
@@ -222,8 +238,10 @@ export class AgentHostToolCallTracker extends Disposable {
 		const stopWatch = StopWatch.create(true);
 		this._toolCallStallTimers.set(key, disposableTimeout(() => {
 			const stalledTimeMs = stopWatch.elapsed();
+			const clientContext = this._toolCalls.get(toolCallKey)?.clientContext;
 			this._stalledToolCalls.set(toolCallKey, { blockerKind: request.kind, completionStopWatch: StopWatch.create(true) });
 			this._reporter.toolCallStalled({
+				clientContext,
 				provider,
 				session,
 				blockerKind: request.kind,

@@ -17,7 +17,7 @@ import type { IProductService } from '../../../product/common/productService.js'
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AgentHostTelemetryLevelConfigKey, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { AgentHostRestrictedTelemetrySender, IAgentHostRestrictedTelemetry, IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetryContext, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
-import { AgentHostTelemetryService, createAgentHostTelemetryService, updateAgentHostTelemetryLevelFromConfig } from '../../node/agentHostTelemetryService.js';
+import { AgentHostTelemetryService, createAgentHostTelemetryService, type IAgentHostTelemetryService, updateAgentHostTelemetryLevelFromConfig } from '../../node/agentHostTelemetryService.js';
 import { AgentHostInternalTelemetrySender } from '../../node/agentHostMicrosoftTelemetry.js';
 
 class TestTelemetryService implements ITelemetryService {
@@ -64,6 +64,7 @@ class TestRestrictedSink implements IAgentHostRestrictedTelemetry {
 	readonly enabledFlags: boolean[] = [];
 	readonly internal: string[] = [];
 	readonly internalContexts: (IAgentHostInternalTelemetryContext | undefined)[] = [];
+	readonly commonProperties: Record<string, string | boolean> = {};
 
 	sendGHTelemetryEvent(eventName: string, _properties?: TelemetryProps): void {
 		this.standard.push(eventName);
@@ -92,10 +93,61 @@ class TestRestrictedSink implements IAgentHostRestrictedTelemetry {
 	setInternalTelemetryContext(context: IAgentHostInternalTelemetryContext | undefined): void {
 		this.internalContexts.push(context);
 	}
+	setCommonProperty(name: string, value: string | boolean): void {
+		this.commonProperties[name] = value;
+	}
 }
 
 suite('AgentHostTelemetryService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	async function createFactoryService(telemetryLevelArg: string | undefined, telemetryLevelEnvironment: string | undefined): Promise<IAgentHostTelemetryService> {
+		const localDisposables = disposables.add(new DisposableStore());
+		const logService = new NullLogService();
+		const fileService = localDisposables.add(new FileService(logService));
+		localDisposables.add(fileService.registerProvider(Schemas.file, localDisposables.add(new InMemoryFileSystemProvider())));
+		return createAgentHostTelemetryService({
+			environmentService: {
+				args: telemetryLevelArg === undefined ? {} : { 'telemetry-level': telemetryLevelArg },
+				isBuilt: true,
+				disableTelemetry: false,
+				appRoot: '/app',
+				extensionsPath: '/extensions',
+				userHome: URI.file('/home'),
+				tmpDir: URI.file('/tmp'),
+				userDataPath: '/user-data',
+				appSettingsHome: URI.file('/User'),
+			} as INativeEnvironmentService,
+			productService: {
+				_serviceBrand: undefined,
+				version: '1.130.0',
+				enableTelemetry: true,
+			} as IProductService,
+			fileService,
+			loggerService: localDisposables.add(new NullLoggerService()),
+			logService,
+			disposables: localDisposables,
+			readTelemetryLevelEnvironment: () => telemetryLevelEnvironment,
+		});
+	}
+
+	test('uses the most restrictive valid launch source and fails closed for malformed sources', async () => {
+		const services = await Promise.all([
+			createFactoryService('all', 'off'),
+			createFactoryService('off', 'all'),
+			createFactoryService('invalid', 'all'),
+			createFactoryService('all', 'invalid'),
+			createFactoryService(undefined, undefined),
+		]);
+
+		assert.deepStrictEqual(services.map(service => service.telemetryLevel), [
+			TelemetryLevel.NONE,
+			TelemetryLevel.NONE,
+			TelemetryLevel.NONE,
+			TelemetryLevel.NONE,
+			TelemetryLevel.USAGE,
+		]);
+	});
 
 	test('logging-only builds do not create restricted network senders', async () => {
 		const localDisposables = disposables.add(new DisposableStore());
@@ -161,17 +213,18 @@ suite('AgentHostTelemetryService', () => {
 		assert.strictEqual((internalSender as unknown as { _options: { extensionVersion: string | undefined } })._options.extensionVersion, '0.58.0');
 	});
 
-	test('permanently disables usage and error telemetry after TelemetryLevel.NONE', async () => {
+	test('uses the launch telemetry level before a client connects and only becomes more restrictive', () => {
 		const delegate = new TestTelemetryService();
-		const service = disposables.add(new AgentHostTelemetryService(delegate));
+		const service = disposables.add(new AgentHostTelemetryService(delegate, undefined, undefined, undefined, TelemetryLevel.USAGE));
 
-		service.publicLog('beforeDisable', { count: 1 });
+		service.publicLog('beforeClientLevel', { count: 1 });
+		service.updateTelemetryLevel(TelemetryLevel.ERROR);
+		service.publicLog('afterClientLevel', { count: 2 });
+		service.publicLogError('afterClientLevelError', { count: 3 });
 		service.updateTelemetryLevel(TelemetryLevel.NONE);
 		service.updateTelemetryLevel(TelemetryLevel.USAGE);
 		service.publicLog2('afterDisable');
 		service.publicLogError2('afterDisableError');
-		service.publicLog('afterDisableAsync', { count: 4 });
-		service.publicLogError('afterDisableErrorAsync', { count: 5 });
 
 		assert.deepStrictEqual({
 			telemetryLevel: service.telemetryLevel,
@@ -181,8 +234,21 @@ suite('AgentHostTelemetryService', () => {
 		}, {
 			telemetryLevel: TelemetryLevel.NONE,
 			sendErrorTelemetry: false,
-			events: [{ eventName: 'beforeDisable', data: { count: 1 } }],
-			errorEvents: [],
+			events: [{ eventName: 'beforeClientLevel', data: { count: 1 } }],
+			errorEvents: [{ eventName: 'afterClientLevelError', data: { count: 3 } }],
+		});
+	});
+
+	test('forwards common properties to standard and restricted telemetry', () => {
+		const delegate = new TestTelemetryService();
+		const sink = new TestRestrictedSink();
+		const service = disposables.add(new AgentHostTelemetryService(delegate, sink));
+
+		service.setCommonProperty('copilotSku', 'copilot_for_business_seat');
+
+		assert.deepStrictEqual({ delegate: delegate.commonProperties, restricted: sink.commonProperties }, {
+			delegate: { copilotSku: 'copilot_for_business_seat' },
+			restricted: { copilotSku: 'copilot_for_business_seat' },
 		});
 	});
 
@@ -218,6 +284,7 @@ suite('AgentHostTelemetryService', () => {
 	test('enhanced GH telemetry is gated on the restricted (rt) opt-in; standard GH telemetry is not', () => {
 		const restricted = new TestRestrictedSink();
 		const service = disposables.add(new AgentHostTelemetryService(new TestTelemetryService(), restricted));
+		service.updateTelemetryLevel(TelemetryLevel.USAGE);
 
 		service.sendEnhancedGHTelemetryEvent('request.options.tools'); // dropped: rt disabled by default
 		service.sendGHTelemetryEvent('completion'); // sent: standard GH telemetry is not rt-gated
@@ -247,6 +314,7 @@ suite('AgentHostTelemetryService', () => {
 		delegate.telemetryLevel = TelemetryLevel.ERROR; // user opted below USAGE
 		const restricted = new TestRestrictedSink();
 		const service = disposables.add(new AgentHostTelemetryService(delegate, restricted));
+		service.updateTelemetryLevel(TelemetryLevel.USAGE);
 
 		service.setRestrictedTelemetryEnabled(true); // rt=1
 		service.sendEnhancedGHTelemetryEvent('request.options.tools');
@@ -259,6 +327,7 @@ suite('AgentHostTelemetryService', () => {
 	test('internal telemetry is independently gated and identity is cleared on account changes', () => {
 		const restricted = new TestRestrictedSink();
 		const service = disposables.add(new AgentHostTelemetryService(new TestTelemetryService(), restricted));
+		service.updateTelemetryLevel(TelemetryLevel.USAGE);
 		const internalContext = { isInternal: true, trackingId: 'tid-1', userName: 'octocat', isVscodeTeamMember: true };
 
 		service.sendInternalMSFTTelemetryEvent('beforeIdentity');

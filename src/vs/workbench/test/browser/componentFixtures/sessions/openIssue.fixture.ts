@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
+import { toAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IObservable, constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { MenuItemAction } from '../../../../../platform/actions/common/actions.js';
@@ -21,7 +23,7 @@ import { IGitHubService } from '../../../../../sessions/contrib/github/browser/g
 // eslint-disable-next-line local/code-import-patterns
 import { createIssueHoverElement } from '../../../../../sessions/contrib/github/browser/issueHover.js';
 // eslint-disable-next-line local/code-import-patterns
-import { createGitHubReferenceListElement } from '../../../../../sessions/contrib/github/browser/githubReferenceList.js';
+import { GitHubReferenceList } from '../../../../../sessions/contrib/github/browser/githubReferenceList.js';
 // eslint-disable-next-line local/code-import-patterns
 import { OpenIssueActionViewItem } from '../../../../../sessions/contrib/github/browser/issueActions.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
@@ -29,6 +31,7 @@ import { createFixtureGitHubService } from './githubFixtureUtils.js';
 
 // eslint-disable-next-line local/code-import-patterns
 import '../../../../../sessions/browser/parts/media/chatCompositeBar.css';
+import '../../../../../base/browser/ui/actionbar/actionbar.css';
 import '../../../../../base/browser/ui/hover/hoverWidget.css';
 import '../../../../../platform/hover/browser/hover.css';
 
@@ -111,10 +114,9 @@ function renderIssuePill(ctx: ComponentFixtureContext, issues: readonly IGitHubI
 
 	const item = disposableStore.add(instantiationService.createInstance(OpenIssueActionViewItem, action, {}));
 
-	// Recreate the session header meta toolbar host so the inline-label styling
-	// (.chat-composite-bar-meta-toolbar) applies as in production.
+	// Host the metadata action with its inline-label styling.
 	const toolbar = document.createElement('div');
-	toolbar.classList.add('chat-composite-bar-meta-toolbar');
+	toolbar.classList.add('session-metadata-pill-toolbar');
 	container.appendChild(toolbar);
 	item.render(toolbar);
 
@@ -157,11 +159,18 @@ function renderIssueHover(ctx: ComponentFixtureContext, issue: IGitHubIssue): vo
 }
 
 function renderIssueList(ctx: ComponentFixtureContext, issues: readonly IGitHubIssue[]): void {
-	renderInHoverWidget(ctx, createGitHubReferenceListElement(issues.map(issue => ({
+	const list = ctx.disposableStore.add(new GitHubReferenceList(issues.map(issue => ({
 		number: issue.number,
 		title: issue.title,
 		icon: computeIssueIcon(issue.state, issue.stateReason),
-	})), () => { }), '480px');
+		toolbarActions: [toAction({
+			id: 'fixture.copyIssueLink',
+			label: 'Copy Issue Link',
+			class: ThemeIcon.asClassName(Codicon.copy),
+			run: () => { },
+		})],
+	})), () => { }));
+	renderInHoverWidget(ctx, list.element, '480px');
 }
 
 // ============================================================================
@@ -178,6 +187,16 @@ const openIssue: IGitHubIssue = {
 	createdAt: '2026-06-22T10:00:00Z',
 	updatedAt: '2026-06-24T12:00:00Z',
 	closedAt: undefined,
+};
+
+const shortDescriptionIssue: IGitHubIssue = {
+	...openIssue,
+	body: 'The terminal stops streaming output.',
+};
+
+const longDescriptionIssue: IGitHubIssue = {
+	...openIssue,
+	body: 'Steps to reproduce: open a session on a worktree, start a long-running build, and switch to another session while output is still streaming. Return to the original session and observe that the terminal no longer updates even though the task is still running. The task also never reports completion, so it is unclear whether the build finished, failed, or remains active in the background. This description is intentionally long enough to exceed three lines and verify that the issue hover clamps the text without revealing any part of a fourth line.',
 };
 
 const completedIssue: IGitHubIssue = {
@@ -223,7 +242,11 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}),
 
 	OpenIssue_Hover: defineComponentFixture({
-		render: (ctx) => renderIssueHover(ctx, openIssue),
+		render: (ctx) => renderIssueHover(ctx, shortDescriptionIssue),
+	}),
+
+	OpenIssue_Hover_LongDescription: defineComponentFixture({
+		render: (ctx) => renderIssueHover(ctx, longDescriptionIssue),
 	}),
 
 	OpenIssue_List: defineComponentFixture({

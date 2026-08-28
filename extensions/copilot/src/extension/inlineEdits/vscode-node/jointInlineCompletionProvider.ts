@@ -12,6 +12,7 @@ import { IEnvService } from '../../../platform/env/common/envService';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { JointCompletionsProviderStrategy, JointCompletionsProviderTriggerChangeStrategy } from '../../../platform/inlineEdits/common/dataTypes/jointCompletionsProviderOptions';
 import { InlineEditRequestLogContext } from '../../../platform/inlineEdits/common/inlineEditLogContext';
+import { IInlineEditsModelService } from '../../../platform/inlineEdits/common/inlineEditsModelService';
 import { ObservableGit } from '../../../platform/inlineEdits/common/observableGit';
 import { checkIfCursorAtEndOfLine, shortenOpportunityId } from '../../../platform/inlineEdits/common/utils/utils';
 import { NesHistoryContextProvider } from '../../../platform/inlineEdits/common/workspaceEditTracker/nesHistoryContextProvider';
@@ -66,6 +67,7 @@ export class JointCompletionsProviderContribution extends Disposable implements 
 	// private readonly _yieldToCopilot = this._configurationService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.InlineEditsYieldToCopilot, this._expService);
 	private readonly _excludedProviders = this._configurationService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.InlineEditsExcludedProviders, this._expService).map(v => v ? v.split(',').map(v => v.trim()).filter(v => v !== '') : []);
 	private readonly _copilotToken = observableFromEvent(this, this._authenticationService.onDidCopilotTokenChange, () => this._authenticationService.copilotToken);
+	private readonly _supportsUnifiedCompletions = observableFromEvent(this, this._modelService.onModelListUpdated, () => this._modelService.selectedModelConfiguration().supportsUnifiedCompletions ?? false);
 
 	/** Whether custom BYOK (OpenAI-compatible) completion models are configured — these work fully offline. */
 	private readonly _hasCustomCompletionModels = observableFromEvent(
@@ -104,6 +106,7 @@ export class JointCompletionsProviderContribution extends Disposable implements 
 		@IExperimentationService private readonly _expService: IExperimentationService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@IEnvService private readonly _envService: IEnvService,
+		@IInlineEditsModelService private readonly _modelService: IInlineEditsModelService,
 	) {
 		super();
 
@@ -124,6 +127,11 @@ export class JointCompletionsProviderContribution extends Disposable implements 
 
 			reader.store.add(autorun((reader) => {
 				const unificationStateValue = unificationState.read(reader);
+
+				// A model whose strategy bakes in `supportsUnifiedCompletions` runs as the single unified
+				// provider: this stands in for the `modelUnification` deployment toggle so the behavior can
+				// be driven purely from the selected model's prompting strategy.
+				const modelUnification = this._supportsUnifiedCompletions.read(reader) || (unificationStateValue?.modelUnification ?? false);
 
 				const excludes = this._excludedProviders.read(reader).slice();
 
@@ -219,18 +227,17 @@ export class JointCompletionsProviderContribution extends Disposable implements 
 					const isExcluded = excludes.includes(JointCompletionsProviderContribution.COMPLETIONS_GROUP_ID) && this.inlineEditsEnabled.read(reader);
 
 					// @ulugbekna: note that we don't want it if modelUnification is on
-					const modelUnification = unificationStateValue?.modelUnification ?? false;
-				// Custom BYOK (OpenAI-compatible) completion models work fully offline:
-				// register the completions provider without a Copilot token when any
-				// are configured (same semantics as CompletionsCoreContribution).
-				const hasCustomModels = this._hasCustomCompletionModels.read(reader);
-				if (
-					(!modelUnification || unificationStateValue?.codeUnification || extensionUnification || configEnabled || this._copilotToken.read(reader)?.isNoAuthUser || hasCustomModels) &&
-					(this._copilotToken.read(reader) || hasCustomModels) &&
-					!isExcluded
-				) {
-					completionsProvider = this._copilotInlineCompletionItemProviderService.getOrCreateProvider() as CopilotInlineCompletionItemProvider;
-				}
+					// Custom BYOK (OpenAI-compatible) completion models work fully offline:
+					// register the completions provider without a Copilot token when any
+					// are configured (same semantics as CompletionsCoreContribution).
+					const hasCustomModels = this._hasCustomCompletionModels.read(reader);
+					if (
+						(!modelUnification || unificationStateValue?.codeUnification || extensionUnification || configEnabled || this._copilotToken.read(reader)?.isNoAuthUser || hasCustomModels) &&
+						(this._copilotToken.read(reader) || hasCustomModels) &&
+						!isExcluded
+					) {
+						completionsProvider = this._copilotInlineCompletionItemProviderService.getOrCreateProvider() as CopilotInlineCompletionItemProvider;
+					}
 
 				void vscode.commands.executeCommand('setContext', 'github.copilot.extensionUnification.activated', extensionUnification);
 
@@ -242,7 +249,7 @@ export class JointCompletionsProviderContribution extends Disposable implements 
 
 				const singularProvider = reader.store.add(this._instantiationService.createInstance(JointCompletionsProvider, completionsProvider, inlineEditProvider));
 
-				if (unificationStateValue?.modelUnification) {
+				if (modelUnification) {
 					if (!excludes.includes('github.copilot')) {
 						excludes.push('github.copilot');
 					}

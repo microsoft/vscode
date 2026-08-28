@@ -57,6 +57,8 @@ export interface IDialogOptions {
 	readonly checkboxChecked?: boolean;
 	readonly type?: 'none' | 'info' | 'error' | 'question' | 'warning' | 'pending';
 	readonly extraClasses?: string[];
+	/** Classes to add to the full-window modal blocker. */
+	readonly modalBlockExtraClasses?: string[];
 	readonly inputs?: IDialogInputOptions[];
 	readonly keyEventProcessor?: (event: StandardKeyboardEvent) => void;
 	readonly renderBody?: (container: HTMLElement) => void;
@@ -113,6 +115,7 @@ export class Dialog extends Disposable {
 	private readonly messageDetailElement: HTMLElement;
 	private readonly messageContainer: HTMLElement;
 	private readonly footerContainer: HTMLElement | undefined;
+	private footerActionToFocus: HTMLAnchorElement | undefined;
 	private readonly iconElement: HTMLElement;
 	private readonly checkbox: Checkbox | undefined;
 	private readonly toolbarContainer: HTMLElement;
@@ -127,6 +130,9 @@ export class Dialog extends Disposable {
 
 		// Modal background blocker
 		this.modalElement = this.container.appendChild($(`.monaco-dialog-modal-block.dimmed`));
+		if (options.modalBlockExtraClasses) {
+			this.modalElement.classList.add(...options.modalBlockExtraClasses);
+		}
 		this._register(addStandardDisposableListener(this.modalElement, EventType.CLICK, e => {
 			if (e.target === this.modalElement) {
 				this.element.focus(); // guide users back into the dialog if clicked elsewhere
@@ -156,6 +162,7 @@ export class Dialog extends Disposable {
 			// eslint-disable-next-line no-restricted-syntax
 			for (const el of this.footerContainer.querySelectorAll('a')) {
 				el.tabIndex = 0;
+				this.footerActionToFocus ??= el;
 			}
 		}
 
@@ -579,11 +586,16 @@ export class Dialog extends Disposable {
 				this.inputs[0].focus();
 				this.inputs[0].select();
 			} else {
+				let focusedButton = false;
 				buttonMap.forEach((value, index) => {
 					if (value.index === 0) {
 						buttonBar.buttons[index].focus();
+						focusedButton = true;
 					}
 				});
+				if (!focusedButton) {
+					(this.footerActionToFocus ?? this.element).focus();
+				}
 			}
 		});
 	}
@@ -606,6 +618,9 @@ export class Dialog extends Disposable {
 		if (linkFgColor) {
 			// eslint-disable-next-line no-restricted-syntax
 			for (const el of [...this.messageContainer.getElementsByTagName('a'), ...this.footerContainer?.getElementsByTagName('a') ?? []]) {
+				if (el.classList.contains('monaco-button')) {
+					continue;
+				}
 				el.style.color = linkFgColor;
 				// Ensure links are distinguishable by more than just color (WCAG 1.4.1)
 				el.style.textDecoration = 'underline';

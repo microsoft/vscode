@@ -15,8 +15,8 @@ import { testUrlMatchesGlob } from './urlGlob.js';
  * - Star matches all subdomains. For example https://*.microsoft.com matches https://www.microsoft.com and https://foo.bar.microsoft.com
  */
 export function isURLDomainTrusted(url: URI, trustedDomains: string[]): boolean {
-	url = URI.parse(normalizeURL(url));
-	trustedDomains = trustedDomains.map(normalizeURL);
+	url = URI.parse(normalizeURL(url.toString(true).replace(/\\/g, '/')));
+	trustedDomains = trustedDomains.map(domain => normalizeURL(domain.replace(/\\/g, '/')));
 
 	if (isLocalhostAuthority(url.authority)) {
 		return true;

@@ -37,6 +37,7 @@ async function runRecording(
 	entries: readonly LogEntry[],
 	sampleTask: NesDatagenSampleTask,
 	generateScoredEdits = false,
+	maxOracleEdits = 10,
 ): Promise<{ samples: ISample[]; logs: string[]; scoredEdits: { fileName: string; value: Scoring.t }[] }> {
 	const inputPath = path.join(tmpDir, `input-${sampleTask}.workspaceRecording.jsonl`);
 	const outputPath = path.join(tmpDir, `output-${sampleTask}.jsonl`);
@@ -56,6 +57,7 @@ async function runRecording(
 			sameFileJumpMinAbove: 2,
 			sameFileJumpMinBelow: 5,
 			maxSamplesPerRecording: 100,
+			maxOracleEdits,
 			generateScoredEdits,
 		},
 		configFile: configPath,
@@ -111,6 +113,14 @@ describe('nes-datagen workspace recording pipeline', () => {
 				v: 3,
 				metadata: { source: 'cursor', kind: 'type', detailedSource: 'keyboard' },
 			},
+			{
+				kind: 'changed',
+				id: 0,
+				time: 1005,
+				edit: [[0, 0, 'generated']],
+				v: 4,
+				metadata: { source: 'applyEdits' },
+			},
 		];
 
 		const { samples, logs, scoredEdits } = await runRecording(entries, NesDatagenSampleTask.Xtab, true);
@@ -139,11 +149,11 @@ describe('nes-datagen workspace recording pipeline', () => {
 				workspaceRecording: {
 					sourceFormat: 'workspace-recording',
 					recordingRevision: 4,
-					policyVersion: 1,
+					policyVersion: 2,
 					pivotKind: 'user-edit',
 					pivotOperationIndex: 2,
 					oracleOperationCount: 1,
-					oracleStopReason: 'end-of-recording',
+					oracleStopReason: 'generated-edit',
 					contextTruncated: false,
 				},
 			}],
@@ -163,6 +173,46 @@ describe('nes-datagen workspace recording pipeline', () => {
 				},
 			}],
 		});
+	});
+
+	it('limits the composed oracle edits using the configured maximum', async () => {
+		const documentContent = 'const value = 1;\n';
+		const entries: LogEntry[] = [
+			header,
+			{ kind: 'documentEncountered', id: 0, time: 1000, relativePath: 'src/value.ts' },
+			{ kind: 'setContent', id: 0, time: 1000, content: documentContent, v: 1 },
+			{ kind: 'selectionChanged', id: 0, time: 1001, selection: [[documentContent.length, documentContent.length]] },
+			{
+				kind: 'changed',
+				id: 0,
+				time: 1002,
+				edit: [[documentContent.length, documentContent.length, 'p']],
+				v: 2,
+				metadata: { source: 'cursor', kind: 'type', detailedSource: 'keyboard' },
+			},
+			{
+				kind: 'changed',
+				id: 0,
+				time: 1003,
+				edit: [[0, 0, 'a'], [6, 6, 'b'], [12, 12, 'c']],
+				v: 3,
+				metadata: { source: 'cursor', kind: 'type', detailedSource: 'keyboard' },
+			},
+			{
+				kind: 'changed',
+				id: 0,
+				time: 1004,
+				edit: [[documentContent.length + 1, documentContent.length + 1, 'generated']],
+				v: 4,
+				metadata: { source: 'applyEdits' },
+			},
+		];
+
+		const { samples, logs } = await runRecording(entries, NesDatagenSampleTask.Xtab, false, 2);
+		expect(samples.map(sample => sample.metadata.oracleEdits), logs.join('\n')).toEqual([[
+			[0, 0, 'a'],
+			[6, 6, 'b'],
+		]]);
 	});
 
 	it('retains the first deliberate cursor boundary for cursor-task generation', async () => {

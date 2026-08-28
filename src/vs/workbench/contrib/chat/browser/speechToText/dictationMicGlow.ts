@@ -12,6 +12,7 @@ import { autorun, IObservable } from '../../../../../base/common/observable.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IColorTheme, IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { isDark } from '../../../../../platform/theme/common/theme.js';
+import { inputBackground } from '../../../../../platform/theme/common/colors/inputColors.js';
 import { chatDictationActiveMicGlow } from '../../common/widget/chatColors.js';
 import { readVoiceGlowIntensity } from '../voiceClient/voiceGlow.js';
 import { createVoiceRimLight, IVoiceRimLight } from '../voiceClient/voiceGlowController.js';
@@ -126,10 +127,11 @@ export function setupDictationMicGlow(
 			return;
 		}
 		const kind = isDark(theme.type) ? 'dark' : 'light';
+		const background = theme.getColor(inputBackground);
 		if (rim.value) {
-			rim.value.refresh(accent, kind);
+			rim.value.refresh(accent, kind, background);
 		} else {
-			rim.value = createVoiceRimLight(target, accent, kind);
+			rim.value = createVoiceRimLight(target, accent, kind, 'cool', background);
 		}
 	};
 

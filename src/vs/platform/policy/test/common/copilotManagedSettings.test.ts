@@ -7,7 +7,7 @@ import assert from 'assert';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { collectManagedSettingsDefinitions, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, hasManagedSettingsDefinitions, managedSettingValue, projectManagedSettings, pickManagedSettings, shouldForceRemoteSettingsRefresh } from '../../common/copilotManagedSettings.js';
+import { collectManagedSettingsDefinitions, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_MODEL_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, hasManagedSettingsDefinitions, managedModelValue, managedSettingValue, projectManagedSettings, pickManagedSettings, resolveForceRemoteSettingsRefresh } from '../../common/copilotManagedSettings.js';
 import { PolicyDefinition } from '../../common/policy.js';
 
 suite('Copilot managed settings projection', () => {
@@ -74,19 +74,58 @@ suite('Copilot managed settings projection', () => {
 		);
 	});
 
-	test('forceRemoteSettingsRefresh uses native MDM over the cached server value', () => {
+	test('managedModelValue prefers the top-level key, falls back to the legacy nested key', () => {
+		const value = managedModelValue();
+		assert.deepStrictEqual(
+			{
+				bothPresent: value({ managedSettings: { [COPILOT_TOP_LEVEL_MODEL_KEY]: 'opus', [COPILOT_MODEL_KEY]: 'gemini' } } as IPolicyData),
+				topLevelOnly: value({ managedSettings: { [COPILOT_TOP_LEVEL_MODEL_KEY]: 'opus' } } as IPolicyData),
+				legacyOnly: value({ managedSettings: { [COPILOT_MODEL_KEY]: 'gemini' } } as IPolicyData),
+				neither: value({ managedSettings: { 'other.key': 'x' } } as IPolicyData),
+				noBag: value({} as IPolicyData),
+			},
+			{ bothPresent: 'opus', topLevelOnly: 'opus', legacyOnly: 'gemini', neither: undefined, noBag: undefined },
+		);
+	});
+
+	test('managedModelValue trims values and treats a blank top-level value as unset (falls through to legacy)', () => {
+		const value = managedModelValue();
+		assert.deepStrictEqual(
+			{
+				trimsTopLevel: value({ managedSettings: { [COPILOT_TOP_LEVEL_MODEL_KEY]: '  opus  ' } } as IPolicyData),
+				trimsLegacy: value({ managedSettings: { [COPILOT_MODEL_KEY]: '  gemini  ' } } as IPolicyData),
+				blankTopLevelFallsBack: value({ managedSettings: { [COPILOT_TOP_LEVEL_MODEL_KEY]: '   ', [COPILOT_MODEL_KEY]: 'gemini' } } as IPolicyData),
+				bothBlank: value({ managedSettings: { [COPILOT_TOP_LEVEL_MODEL_KEY]: '   ', [COPILOT_MODEL_KEY]: '  ' } } as IPolicyData),
+				nonString: value({ managedSettings: { [COPILOT_TOP_LEVEL_MODEL_KEY]: 42 } } as IPolicyData),
+			},
+			{ trimsTopLevel: 'opus', trimsLegacy: 'gemini', blankTopLevelFallsBack: 'gemini', bothBlank: undefined, nonString: undefined },
+		);
+	});
+
+	test('managedModelValue returns the same memoized callback (stable reference identity)', () => {
+		assert.strictEqual(managedModelValue(), managedModelValue());
+	});
+
+	test('forceRemoteSettingsRefresh resolves across all channels and reports the winning source', () => {
+		const key = COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY;
 		assert.deepStrictEqual({
-			serverTrue: shouldForceRemoteSettingsRefresh(undefined, { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true }),
-			nativeTrue: shouldForceRemoteSettingsRefresh({ [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true }, { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: false }),
-			nativeFalse: shouldForceRemoteSettingsRefresh({ [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: false }, { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true }),
-			malformedNative: shouldForceRemoteSettingsRefresh({ [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: 'true' }, { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true }),
-			unset: shouldForceRemoteSettingsRefresh(undefined, undefined),
+			serverTrue: resolveForceRemoteSettingsRefresh(undefined, { [key]: true }, undefined),
+			nativeTrue: resolveForceRemoteSettingsRefresh({ [key]: true }, { [key]: false }, undefined),
+			nativeFalse: resolveForceRemoteSettingsRefresh({ [key]: false }, { [key]: true }, undefined),
+			malformedNative: resolveForceRemoteSettingsRefresh({ [key]: 'true' }, { [key]: true }, undefined),
+			fileTrue: resolveForceRemoteSettingsRefresh(undefined, undefined, { [key]: true }),
+			serverBeatsFile: resolveForceRemoteSettingsRefresh(undefined, { [key]: false }, { [key]: true }),
+			unset: resolveForceRemoteSettingsRefresh(undefined, undefined, undefined),
 		}, {
-			serverTrue: true,
-			nativeTrue: true,
-			nativeFalse: false,
-			malformedNative: true,
-			unset: false,
+			serverTrue: { effective: true, source: 'server' },
+			nativeTrue: { effective: true, source: 'nativeMdm' },
+			nativeFalse: { effective: false },
+			// A malformed value is treated as absent so it cannot mask a lower-precedence channel.
+			malformedNative: { effective: true, source: 'server' },
+			// The file channel participates; a native/server-only resolver ignored it.
+			fileTrue: { effective: true, source: 'file' },
+			serverBeatsFile: { effective: false },
+			unset: { effective: false },
 		});
 	});
 

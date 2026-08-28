@@ -19,7 +19,7 @@ import { DEFAULT_MCP_APP } from '../../../agentHost/common/state/protocol/mcpApp
 import { customizationId } from '../../../agentHost/common/state/sessionState.js';
 
 function stubMcpCustomization(): McpServerCustomization {
-	return { type: CustomizationType.McpServer, id: 'stub', uri: 'file:///plugin', name: 'test', enabled: true, state: { kind: McpServerStatus.Starting } };
+	return { type: CustomizationType.McpServer, id: 'stub', uri: 'file:///plugin', name: 'test', state: { kind: McpServerStatus.Starting } };
 }
 import {
 	IParsedHookCommand,
@@ -183,8 +183,27 @@ suite('pluginParsers', () => {
 				url: 'https://example.com',
 				headers: { 'X-Key': 'val' },
 			});
-			assert.ok(result);
-			assert.strictEqual(result!.type, McpServerType.REMOTE);
+			assert.deepStrictEqual(result, {
+				type: McpServerType.REMOTE,
+				transport: 'sse',
+				url: 'https://example.com',
+				headers: { 'X-Key': 'val' },
+				dev: undefined,
+			});
+		});
+
+		test('preserves canonical SSE transport', () => {
+			assert.deepStrictEqual(normalizeMcpServerConfiguration({
+				type: 'http',
+				transport: 'sse',
+				url: 'https://example.com/sse',
+			}), {
+				type: McpServerType.REMOTE,
+				transport: 'sse',
+				url: 'https://example.com/sse',
+				headers: undefined,
+				dev: undefined,
+			});
 		});
 
 		test('infers remote type from url without explicit type', () => {
@@ -255,9 +274,11 @@ suite('pluginParsers', () => {
 	suite('interpolateMcpPluginRoot', () => {
 
 		test('replaces tokens and sets env vars without pairing array entries', () => {
+			const defaultCwd = URI.file('/plugin');
 			const result = interpolateMcpPluginRoot({
 				name: 'test',
 				uri: URI.file('/plugin/.mcp.json'),
+				defaultCwd,
 				configuration: {
 					type: McpServerType.LOCAL,
 					command: '${PLUGIN_ROOT}/bin/server',
@@ -272,6 +293,7 @@ suite('pluginParsers', () => {
 				args: ['--data', '/plugin/data'],
 				env: { PLUGIN_ROOT: '/plugin' },
 			});
+			assert.strictEqual(result.defaultCwd, defaultCwd);
 		});
 	});
 
@@ -416,7 +438,6 @@ suite('pluginParsers', () => {
 				id: `${customizationId(uri.toString())}#mcp=${encodeURIComponent('fs server')}`,
 				uri: uri.toString(),
 				name: 'fs server',
-				enabled: true,
 				state: { kind: McpServerStatus.Stopped },
 				mcpApp: DEFAULT_MCP_APP,
 			});
@@ -471,6 +492,117 @@ suite('pluginParsers', () => {
 				});
 			});
 
+			test('reads Copilot components from the sanctioned extension directory by default', async () => {
+				await write('/plugins/example/plugin.json', JSON.stringify({
+					$schema: AGENT_PLUGIN_SCHEMA,
+					name: 'example',
+					extensions: {
+						'com.example.client': {
+							agents: { paths: ['agents'], exclusive: true },
+						},
+						'com.github.copilot': {},
+					},
+				}));
+				await write('/plugins/example/com.github.copilot/agents/helper.agent.md', '---\nname: helper\ndescription: Helps\n---');
+				await write('/plugins/example/com.github.copilot/rules/project.instructions.md', '---\nname: project-rule\n---');
+				await write('/plugins/example/com.github.copilot/hooks/hooks.json', JSON.stringify({
+					hooks: {
+						PostToolUse: [{ hooks: [{ type: 'command', command: 'echo done' }] }],
+					},
+				}));
+				await write('/plugins/example/agents/legacy.md', '# Legacy agent');
+				await write('/plugins/example/rules/legacy.instructions.md', '# Legacy rule');
+
+				const plugin = await parse();
+				assert.deepStrictEqual({
+					agents: plugin.agents.map(agent => agent.name),
+					instructions: plugin.instructions.map(instruction => instruction.name),
+					hooks: plugin.hooks.map(hook => ({
+						type: hook.type,
+						commands: hook.commands.map(command => command.command),
+					})),
+				}, {
+					agents: ['helper'],
+					instructions: ['project'],
+					hooks: [{ type: 'PostToolUse', commands: ['echo done'] }],
+				});
+			});
+
+			test('resolves namespaced component paths relative to the extension directory', async () => {
+				await write('/plugins/example/plugin.json', JSON.stringify({
+					$schema: AGENT_PLUGIN_SCHEMA,
+					name: 'example',
+					extensions: {
+						'com.github.copilot': {
+							agents: { paths: ['custom/agents', '../outside-agents'], exclusive: true },
+							rules: { paths: ['custom/rules'], exclusive: true },
+							hooks: { paths: ['custom/hooks.json'], exclusive: true },
+							skills: { paths: ['custom/skills'] },
+							mcpServers: { paths: ['custom/mcp.json'], exclusive: true },
+						},
+					},
+				}));
+				await write('/plugins/example/com.github.copilot/custom/agents/helper.md', '---\nname: custom-agent\n---');
+				await write('/plugins/example/com.github.copilot/custom/rules/project.mdc', '# Custom rule');
+				await write('/plugins/example/com.github.copilot/custom/hooks.json', JSON.stringify({
+					hooks: {
+						Stop: [{ type: 'command', command: 'echo stop' }],
+					},
+				}));
+				await write('/plugins/example/skills/core/SKILL.md', '---\nname: core\ndescription: Core skill\n---');
+				await write('/plugins/example/com.github.copilot/custom/skills/extra/SKILL.md', '---\nname: extra\ndescription: Extra skill\n---');
+				await write('/plugins/example/com.github.copilot/custom/mcp.json', JSON.stringify({
+					mcpServers: {
+						custom: { type: 'stdio', command: 'custom-server' },
+					},
+				}));
+				await write('/plugins/example/outside-agents/escape.md', '---\nname: escaped\n---');
+
+				const plugin = await parse();
+				assert.deepStrictEqual({
+					agents: plugin.agents.map(agent => agent.name),
+					instructions: plugin.instructions.map(instruction => instruction.name),
+					hooks: plugin.hooks.map(hook => hook.type),
+					skills: plugin.skills.map(skill => skill.name),
+					mcpServers: plugin.mcpServers.map(server => server.name),
+				}, {
+					agents: ['custom-agent'],
+					instructions: ['project'],
+					hooks: ['Stop'],
+					skills: ['core', 'extra'],
+					mcpServers: ['custom'],
+				});
+			});
+
+			test('reads inline Copilot extension hooks and MCP servers', async () => {
+				await write('/plugins/example/plugin.json', JSON.stringify({
+					$schema: AGENT_PLUGIN_SCHEMA,
+					name: 'example',
+					extensions: {
+						'com.github.copilot': {
+							hooks: {
+								SessionStart: [{ type: 'command', command: 'echo start' }],
+							},
+							mcpServers: {
+								inline: { type: 'stdio', command: 'inline-server' },
+							},
+						},
+					},
+				}));
+
+				const plugin = await parse();
+				assert.deepStrictEqual({
+					hooks: plugin.hooks.map(hook => ({
+						type: hook.type,
+						commands: hook.commands.map(command => command.command),
+					})),
+					mcpServers: plugin.mcpServers.map(server => server.name),
+				}, {
+					hooks: [{ type: 'SessionStart', commands: ['echo start'] }],
+					mcpServers: ['inline'],
+				});
+			});
+
 			test('reads usable immediate-child skills permissively', async () => {
 				await write('/plugins/example/plugin.json', JSON.stringify({ $schema: AGENT_PLUGIN_SCHEMA, name: 'example' }));
 				await write('/plugins/example/skills/SKILL.md', '---\nname: ignored\ndescription: Not an immediate child\n---');
@@ -493,16 +625,18 @@ suite('pluginParsers', () => {
 							env: { ROOT: '${PLUGIN_ROOT}' },
 							cwd: './work',
 						},
+						implicit: { type: 'stdio', command: 'implicit-server' },
 						http: { type: 'streamable-http', url: 'https://example.com/mcp' },
 						sse: { type: 'sse', url: 'http://127.0.0.2:3000/sse' },
 					},
 				}));
 
-				const servers = new Map((await parse()).mcpServers.map(server => [server.name, server.configuration]));
-				assert.deepStrictEqual([...servers.keys()], ['http', 'sse', 'stdio']);
-				assert.strictEqual(servers.get('http')?.type, McpServerType.REMOTE);
-				assert.strictEqual(servers.get('sse')?.type, McpServerType.REMOTE);
-				const stdio = servers.get('stdio');
+				const parsed = await parse();
+				const servers = new Map(parsed.mcpServers.map(server => [server.name, server]));
+				assert.deepStrictEqual([...servers.keys()], ['http', 'implicit', 'sse', 'stdio']);
+				assert.strictEqual(servers.get('http')?.configuration.type, McpServerType.REMOTE);
+				assert.strictEqual(servers.get('sse')?.configuration.type, McpServerType.REMOTE);
+				const stdio = servers.get('stdio')?.configuration;
 				assert.ok(stdio?.type === McpServerType.LOCAL);
 				assert.deepStrictEqual({
 					command: stdio.command,
@@ -515,24 +649,52 @@ suite('pluginParsers', () => {
 					env: { ROOT: '${PLUGIN_ROOT}' },
 					cwd: './work',
 				});
+				const implicit = servers.get('implicit');
+				assert.ok(implicit);
+				assert.strictEqual(implicit?.configuration.type, McpServerType.LOCAL);
+				assert.strictEqual(implicit.configuration.type === McpServerType.LOCAL ? implicit.configuration.cwd : undefined, undefined);
+				assert.strictEqual(implicit.defaultCwd, undefined);
 			});
 
-			test('rejects filesystem-resolved skill escapes', async () => {
+			test('rejects filesystem-resolved component escapes', async () => {
 				class RealpathProvider extends InMemoryFileSystemProvider {
 					override get capabilities(): FileSystemProviderCapabilities {
 						return super.capabilities | FileSystemProviderCapabilities.FileRealpath;
 					}
 					async realpath(resource: URI): Promise<string> {
-						return resource.path.endsWith('/skills/escape/SKILL.md') ? '/outside/SKILL.md' : resource.path;
+						return resource.path.includes('/escape')
+							|| resource.path.endsWith('/hooks/hooks.json')
+							? `/outside/${resource.path.split('/').at(-1)}`
+							: resource.path;
 					}
 				}
 
 				fileService = store.add(new FileService(new NullLogService()));
 				store.add(fileService.registerProvider(Schemas.inMemory, store.add(new RealpathProvider())));
-				await write('/plugins/example/plugin.json', JSON.stringify({ $schema: AGENT_PLUGIN_SCHEMA, name: 'example' }));
+				await write('/plugins/example/plugin.json', JSON.stringify({
+					$schema: AGENT_PLUGIN_SCHEMA,
+					name: 'example',
+					extensions: { 'com.github.copilot': {} },
+				}));
 				await write('/plugins/example/skills/escape/SKILL.md', '---\nname: escape\ndescription: Escaped\n---');
+				await write('/plugins/example/com.github.copilot/agents/escape.md', '# Escaped agent');
+				await write('/plugins/example/com.github.copilot/rules/escape.instructions.md', '# Escaped rule');
+				await write('/plugins/example/com.github.copilot/hooks/hooks.json', JSON.stringify({
+					hooks: { Stop: [{ type: 'command', command: 'echo stop' }] },
+				}));
 
-				assert.deepStrictEqual((await parse()).skills, []);
+				const plugin = await parse();
+				assert.deepStrictEqual({
+					skills: plugin.skills,
+					agents: plugin.agents,
+					instructions: plugin.instructions,
+					hooks: plugin.hooks,
+				}, {
+					skills: [],
+					agents: [],
+					instructions: [],
+					hooks: [],
+				});
 			});
 		});
 

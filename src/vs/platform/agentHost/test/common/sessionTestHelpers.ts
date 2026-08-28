@@ -9,7 +9,9 @@ import { URI } from '../../../../base/common/uri.js';
 import { Event } from '../../../../base/common/event.js';
 import type { IDetailedDiffResult, IDiffComputeService, IDiffCountResult } from '../../common/diffComputeService.js';
 import type { IFileEditContent, IFileEditRecord, ILocalTurnRecord, IReviewedFileRecord, ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
-import type { Message } from '../../common/state/sessionState.js';
+import type { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
+import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
+import type { ISessionGitHubState, Message } from '../../common/state/sessionState.js';
 
 export class TestSessionDatabase implements ISessionDatabase {
 	private readonly _edits: (IFileEditRecord & IFileEditContent)[] = [];
@@ -18,6 +20,8 @@ export class TestSessionDatabase implements ISessionDatabase {
 	private readonly _reviewedFiles: IReviewedFileRecord[] = [];
 	private readonly _localTurns = new Map<string, ILocalTurnRecord>();
 	private readonly _turnUsages = new Map<string, string>();
+	private readonly _turnDelegations = new Map<string, string>();
+	private readonly _turnEventIds = new Map<string, string>();
 
 	getAllFileEditsCalls = 0;
 	getFileEditsByTurnCalls = 0;
@@ -33,6 +37,8 @@ export class TestSessionDatabase implements ISessionDatabase {
 	async createTurn(): Promise<void> { }
 
 	async deleteTurn(turnId: string): Promise<void> {
+		this._turnDelegations.delete(turnId);
+		this._turnEventIds.delete(turnId);
 		for (let i = this._edits.length - 1; i >= 0; i--) {
 			if (this._edits[i].turnId === turnId) {
 				this._edits.splice(i, 1);
@@ -81,6 +87,31 @@ export class TestSessionDatabase implements ISessionDatabase {
 		this._metadata.set(key, value);
 	}
 
+	async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
+		for (const [key, value] of Object.entries(values)) {
+			this.setMetadataCalls.push({ key, value });
+			this._metadata.set(key, value);
+		}
+	}
+
+	async setMetadataValuesIfAbsent(key: string, values: Readonly<Record<string, string>>, copies: Readonly<Record<string, string>> = {}): Promise<boolean> {
+		if (this._metadata.has(key)) {
+			return false;
+		}
+		for (const [targetKey, value] of Object.entries(values)) {
+			this.setMetadataCalls.push({ key: targetKey, value });
+			this._metadata.set(targetKey, value);
+		}
+		for (const [targetKey, sourceKey] of Object.entries(copies)) {
+			const value = this._metadata.get(sourceKey);
+			if (value !== undefined) {
+				this.setMetadataCalls.push({ key: targetKey, value });
+				this._metadata.set(targetKey, value);
+			}
+		}
+		return true;
+	}
+
 	async setChatDraft(chat: URI, draft: Message | undefined): Promise<void> {
 		const key = chat.toString();
 		if (draft) {
@@ -102,9 +133,12 @@ export class TestSessionDatabase implements ISessionDatabase {
 
 	async setTurnEventId(turnId: string, eventId: string): Promise<void> {
 		this.setTurnEventIdCalls.push({ turnId, eventId });
+		this._turnEventIds.set(turnId, eventId);
 	}
 
-	async getTurnEventId(_turnId: string): Promise<string | undefined> { return undefined; }
+	async getTurnEventId(turnId: string): Promise<string | undefined> {
+		return this._turnEventIds.get(turnId) ?? [...this._turnEventIds].find(([, eventId]) => eventId === turnId)?.[1];
+	}
 
 	async getNextTurnEventId(_turnId: string): Promise<string | undefined> { return undefined; }
 
@@ -116,6 +150,21 @@ export class TestSessionDatabase implements ISessionDatabase {
 
 	async getTurnUsages(): Promise<Map<string, string>> { return new Map(this._turnUsages); }
 
+	async setTurnDelegation(turnId: string, delegation: string): Promise<void> {
+		this._turnDelegations.set(turnId, delegation);
+	}
+
+	async getTurnDelegations(): Promise<Map<string, string>> {
+		const result = new Map(this._turnDelegations);
+		for (const [turnId, eventId] of this._turnEventIds) {
+			const delegation = this._turnDelegations.get(turnId);
+			if (delegation) {
+				result.set(eventId, delegation);
+			}
+		}
+		return result;
+	}
+
 	async truncateFromTurn(_turnId: string): Promise<void> { }
 
 	async deleteTurnsAfter(turnId: string): Promise<void> {
@@ -125,6 +174,8 @@ export class TestSessionDatabase implements ISessionDatabase {
 	async deleteAllTurns(): Promise<void> {
 		this.deleteAllTurnsCalls++;
 		this._edits.length = 0;
+		this._turnDelegations.clear();
+		this._turnEventIds.clear();
 	}
 
 	async insertLocalTurn(record: ILocalTurnRecord): Promise<void> {
@@ -140,7 +191,25 @@ export class TestSessionDatabase implements ISessionDatabase {
 			this._localTurns.delete(id);
 		}
 	}
-	async remapTurnIds(_mapping: ReadonlyMap<string, string>): Promise<void> { }
+	async remapTurnIds(mapping: ReadonlyMap<string, string>, eventIds?: ReadonlyMap<string, string>): Promise<void> {
+		for (const turnId of [...this._turnDelegations.keys()]) {
+			if (!mapping.has(turnId)) {
+				this._turnDelegations.delete(turnId);
+			}
+		}
+		for (const [oldId, newId] of mapping) {
+			const delegation = this._turnDelegations.get(oldId);
+			if (delegation) {
+				this._turnDelegations.delete(oldId);
+				this._turnDelegations.set(newId, delegation);
+			}
+			const eventId = eventIds?.get(newId) ?? this._turnEventIds.get(oldId);
+			this._turnEventIds.delete(oldId);
+			if (eventId) {
+				this._turnEventIds.set(newId, eventId);
+			}
+		}
+	}
 
 	async markFileReviewed(uri: URI, nonce: string): Promise<void> {
 		if (!this._reviewedFiles.some(r => r.uri.toString() === uri.toString() && r.nonce === nonce)) {
@@ -283,6 +352,7 @@ export function createNoopGitService(): import('../../common/agentHostGitService
 		branchExists: async () => false,
 		hasUncommittedChanges: async () => false,
 		commitAll: async () => { },
+		mergeBranch: async () => '',
 		restore: async () => { },
 		hasUpstream: async () => false,
 		pull: async () => { },
@@ -328,7 +398,6 @@ export function createNoopChangesetService(): import('../../common/agentHostChan
 		refreshSessionChangeset: () => { },
 		onWorkingDirectoryAvailable: () => { },
 		recomputeSubscribedChangesets: () => { },
-		onSessionDisposed: () => { },
 		computeTurnChangeset: async session => session,
 		computeCompareTurnsChangeset: async session => session,
 		computeUncommittedChangeset: async session => session,
@@ -338,9 +407,44 @@ export function createNoopChangesetService(): import('../../common/agentHostChan
 	};
 }
 
+export function createNoopGitStateService(): IAgentHostGitStateService {
+	return {
+		_serviceBrand: undefined,
+		onDidRefreshSessionGitState: Event.None,
+		onDidChangeSessionGitHubState: Event.None,
+		refreshSessionGitState: async (_sessionKey: string, _workingDirectory?: URI) => { },
+		resolveSessionBaseBranchName: async (_sessionKey: string) => undefined,
+		setSessionGitHubState: async (_sessionKey: string, _state: ISessionGitHubState) => { },
+		recordSessionMerge: async (_sessionKey: string, _commit: string) => { },
+		attachSessionGitHubPullRequest: async (_sessionKey: string, _workingDirectory?: URI) => { },
+	};
+}
+
 function createReference<T>(object: T): IReference<T> {
 	return {
 		object,
 		dispose: () => { },
 	};
+}
+
+/**
+ * Recording {@link IAgentHostCheckpointService} double that captures
+ * {@link captureBaselineCheckpoint} invocations (session + resolved working
+ * directories) so tests can assert baseline capture on the fresh materialize
+ * path — and its absence on resume / subsequent sends. All other methods are
+ * no-ops, mirroring `NULL_CHECKPOINT_SERVICE`.
+ */
+export class RecordingCheckpointService implements IAgentHostCheckpointService {
+	declare readonly _serviceBrand: undefined;
+	readonly baselineCalls: { readonly session: string; readonly workingDirectories: readonly string[] | undefined }[] = [];
+	async captureBaselineCheckpoint(sessionUri: URI, workingDirectories: readonly URI[] | undefined): Promise<void> {
+		this.baselineCalls.push({ session: sessionUri.toString(), workingDirectories: workingDirectories?.map(w => w.toString()) });
+	}
+	async captureTurnStartCheckpoint(): Promise<void> { }
+	async captureTurnCheckpoint(): Promise<void> { }
+	async discardTurnStartCheckpoint(): Promise<void> { }
+	async discardChatTurnStartCheckpoints(): Promise<void> { }
+	async getTurnCheckpointPair(): Promise<{ parent: string; current: string } | undefined> { return undefined; }
+	async getBaselineCheckpoint(): Promise<string | undefined> { return undefined; }
+	async deleteCheckpoints(): Promise<void> { }
 }

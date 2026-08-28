@@ -21,10 +21,18 @@ interface IFileEditAttributionMarkerBase {
 	readonly sequence: number;
 }
 
+export interface IFileEditAttributionSource {
+	readonly modelId?: string;
+	readonly conversationId: string;
+	readonly requestId: string;
+	readonly harness: string;
+}
+
 export interface ITrackedFileEditAttributionMarker extends IFileEditAttributionMarkerBase {
 	readonly status?: 'tracked';
 	readonly beforeDigest: string;
 	readonly afterDigest: string;
+	readonly source?: IFileEditAttributionSource;
 }
 
 export interface ISkippedFileEditAttributionMarker extends IFileEditAttributionMarkerBase {
@@ -144,7 +152,25 @@ export function getFileEditAttributionMarker(content: ToolResultFileEditContent)
 	if (marker.status !== undefined && marker.status !== 'tracked') {
 		return undefined;
 	}
-	return typeof marker.beforeDigest === 'string' && typeof marker.afterDigest === 'string' ? marker : undefined;
+	if (
+		typeof marker.beforeDigest !== 'string' ||
+		typeof marker.afterDigest !== 'string' ||
+		(marker.source !== undefined && !isFileEditAttributionSource(marker.source))
+	) {
+		return undefined;
+	}
+	return marker;
+}
+
+function isFileEditAttributionSource(source: unknown): source is IFileEditAttributionSource {
+	if (typeof source !== 'object' || source === null || Array.isArray(source)) {
+		return false;
+	}
+	const candidate = source as Partial<IFileEditAttributionSource>;
+	return (candidate.modelId === undefined || typeof candidate.modelId === 'string') &&
+		typeof candidate.conversationId === 'string' &&
+		typeof candidate.requestId === 'string' &&
+		typeof candidate.harness === 'string';
 }
 
 export function createFileEditContentDigest(content: string): string {

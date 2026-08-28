@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
+import { toAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { themeColorFromId } from '../../../../../base/common/themables.js';
+import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IObservable, constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { MenuItemAction } from '../../../../../platform/actions/common/actions.js';
@@ -26,12 +27,13 @@ import { OpenPullRequestActionViewItem } from '../../../../../sessions/contrib/g
 // eslint-disable-next-line local/code-import-patterns
 import { IPullRequestIconCache } from '../../../../../sessions/contrib/github/browser/pullRequestIconCache.js';
 // eslint-disable-next-line local/code-import-patterns
-import { createGitHubReferenceListElement } from '../../../../../sessions/contrib/github/browser/githubReferenceList.js';
+import { GitHubReferenceList } from '../../../../../sessions/contrib/github/browser/githubReferenceList.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import { createFixtureGitHubService, createFixturePullRequestIconCache } from './githubFixtureUtils.js';
 
 // eslint-disable-next-line local/code-import-patterns
 import '../../../../../sessions/browser/parts/media/chatCompositeBar.css';
+import '../../../../../base/browser/ui/actionbar/actionbar.css';
 import '../../../../../base/browser/ui/hover/hoverWidget.css';
 import '../../../../../platform/hover/browser/hover.css';
 
@@ -112,10 +114,9 @@ function renderPullRequestPill(ctx: ComponentFixtureContext, pullRequest: IGitHu
 
 	const item = disposableStore.add(instantiationService.createInstance(OpenPullRequestActionViewItem, action, {}));
 
-	// Recreate the session header meta toolbar host so the inline-label styling
-	// (.chat-composite-bar-meta-toolbar) applies as in production.
+	// Host the metadata action with its inline-label styling.
 	const toolbar = document.createElement('div');
-	toolbar.classList.add('chat-composite-bar-meta-toolbar');
+	toolbar.classList.add('session-metadata-pill-toolbar');
 	container.appendChild(toolbar);
 	item.render(toolbar);
 
@@ -124,11 +125,18 @@ function renderPullRequestPill(ctx: ComponentFixtureContext, pullRequest: IGitHu
 }
 
 function renderPullRequestList(ctx: ComponentFixtureContext, pullRequests: readonly IGitHubPullRequest[]): void {
-	renderInHoverWidget(ctx, createGitHubReferenceListElement(pullRequests.map(pullRequest => ({
+	const list = ctx.disposableStore.add(new GitHubReferenceList(pullRequests.map(pullRequest => ({
 		number: pullRequest.number,
 		title: pullRequest.title,
 		icon: computePullRequestIcon(pullRequest.isDraft ? 'draft' : pullRequest.state),
-	})), () => { }), '480px');
+		toolbarActions: [toAction({
+			id: 'fixture.copyPullRequestLink',
+			label: 'Copy Pull Request Link',
+			class: ThemeIcon.asClassName(Codicon.copy),
+			run: () => { },
+		})],
+	})), () => { }));
+	renderInHoverWidget(ctx, list.element, '480px');
 }
 
 function renderPullRequestHover(ctx: ComponentFixtureContext, pullRequest: IGitHubPullRequest): void {
@@ -193,6 +201,16 @@ const openPullRequestDetails: IGitHubPullRequest = {
 	mergeableState: 'clean',
 };
 
+const shortDescriptionPullRequest: IGitHubPullRequest = {
+	...openPullRequestDetails,
+	body: 'Suppresses the expected EPIPE error on graceful disconnect.',
+};
+
+const longDescriptionPullRequest: IGitHubPullRequest = {
+	...openPullRequestDetails,
+	body: 'Every graceful client disconnect currently logs an unexpected EPIPE error. This makes a routine shutdown look like a server failure and adds noise for anyone scanning logs while investigating connection issues. The change recognizes the expected disconnect path and avoids reporting it as an error while preserving diagnostics for unexpected failures. This description is intentionally long enough to exceed three lines and verify that the pull request hover clamps the text without revealing any part of a fourth line.',
+};
+
 const draftPullRequestDetails: IGitHubPullRequest = {
 	...openPullRequestDetails,
 	number: draftPr.number,
@@ -233,7 +251,11 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}),
 
 	OpenPullRequest_Hover: defineComponentFixture({
-		render: (ctx) => renderPullRequestHover(ctx, openPullRequestDetails),
+		render: (ctx) => renderPullRequestHover(ctx, shortDescriptionPullRequest),
+	}),
+
+	OpenPullRequest_Hover_LongDescription: defineComponentFixture({
+		render: (ctx) => renderPullRequestHover(ctx, longDescriptionPullRequest),
 	}),
 
 	OpenPullRequest_List: defineComponentFixture({

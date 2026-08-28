@@ -17,6 +17,7 @@ import { IExtensionContributionFactory, asContributionFactory } from '../../comm
 import { ByokCompletionBridgeContribution } from '../../completions/vscode-node/byokCompletionBridgeContribution';
 import { CompletionsUnificationContribution } from '../../completions/vscode-node/completionsUnificationContribution';
 import { ConfigurationMigrationContribution } from '../../configuration/vscode-node/configurationMigration';
+import { InternalConfigurationInformationCommandContribution } from '../../configuration/vscode-node/internalConfigurationInformationCommand';
 import { ContextKeysContribution } from '../../contextKeys/vscode-node/contextKeys.contribution';
 import { ByokUtilityModelNotificationContribution } from '../../chatInputNotification/vscode-node/byokUtilityModel.contribution';
 import { AiMappedEditsContrib } from '../../conversation/vscode-node/aiMappedEditsContrib';
@@ -89,6 +90,7 @@ export const vscodeNodeContributions: IExtensionContributionFactory[] = [
 	// regardless of which completions provider mode is active.
 	asContributionFactory(ByokCompletionBridgeContribution),
 	asContributionFactory(SettingsSchemaFeature),
+	asContributionFactory(InternalConfigurationInformationCommandContribution),
 	asContributionFactory(WorkspaceRecorderFeature),
 	asContributionFactory(SurveyCommandContribution),
 	asContributionFactory(FeedbackCommandContribution),

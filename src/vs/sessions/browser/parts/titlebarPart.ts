@@ -83,7 +83,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	private leftToolbarContainer!: HTMLElement;
 	private centerContent!: HTMLElement;
 	private rightContent!: HTMLElement;
-	private updateToolBarElement: HTMLElement | undefined;
+	private readonly overflowManagedToolBarElements: HTMLElement[] = [];
 
 	get leftContainer(): HTMLElement { return this.leftContent; }
 	get rightContainer(): HTMLElement { return this.rightContent; }
@@ -152,7 +152,6 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		this.rightContent = append(this.rootContainer, $('.titlebar-right'));
 
 		// Window Controls Container (must be before left toolbar for correct ordering)
-		let rightWindowControlsContainer: HTMLElement | undefined;
 		if (!hasNativeTitlebar(this.configurationService, this.titleBarStyle)) {
 			let primaryWindowControlsLocation = isMacintosh ? 'left' : 'right';
 			if (isMacintosh && isNative) {
@@ -185,15 +184,9 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			} else if (getWindowControlsStyle(this.configurationService) === WindowControlsStyle.HIDDEN) {
 				// controls explicitly disabled
 			} else {
-				const primaryWindowControlsContainer = this.windowControlsContainer = append(primaryWindowControlsLocation === 'left' ? this.leftContent : this.rightContent, $('div.window-controls-container'));
-				if (primaryWindowControlsLocation === 'right') {
-					rightWindowControlsContainer = primaryWindowControlsContainer;
-				}
+				this.windowControlsContainer = append(primaryWindowControlsLocation === 'left' ? this.leftContent : this.rightContent, $('div.window-controls-container'));
 				if (isWeb) {
-					const secondaryWindowControlsContainer = append(primaryWindowControlsLocation === 'left' ? this.rightContent : this.leftContent, $('div.window-controls-container'));
-					if (primaryWindowControlsLocation === 'left') {
-						rightWindowControlsContainer = secondaryWindowControlsContainer;
-					}
+					append(primaryWindowControlsLocation === 'left' ? this.rightContent : this.leftContent, $('div.window-controls-container'));
 				}
 
 				if (isWCOEnabled()) {
@@ -216,7 +209,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 
 		// Navigation toolbar (Back/Forward), rendered left of the command center.
 		const centerNavContainer = append(this.centerContent, $('div.titlebar-actions-container.titlebar-center-nav-container'));
-		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerNavContainer, Menus.TitleBarCenterLeft, {
+		const centerNavToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerNavContainer, Menus.TitleBarCenterLeft, {
 			contextMenu: Menus.TitleBarContext,
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			telemetrySource: 'titlePart.centerLeft',
@@ -241,7 +234,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 
 		// Actions toolbar (Open in VS Code), rendered right of the command center.
 		const centerActionsContainer = append(this.centerContent, $('div.titlebar-actions-container.titlebar-center-actions-container'));
-		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerActionsContainer, Menus.TitleBarCenterRight, {
+		const centerActionsToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerActionsContainer, Menus.TitleBarCenterRight, {
 			contextMenu: Menus.TitleBarContext,
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			telemetrySource: 'titlePart.centerRight',
@@ -250,7 +243,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 
 		// Right toolbar (driven by Menus.TitleBarRightLayout - includes layout actions)
 		const rightToolbarContainer = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-right-layout-container'));
-		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, rightToolbarContainer, Menus.TitleBarRightLayout, {
+		const rightToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, rightToolbarContainer, Menus.TitleBarRightLayout, {
 			contextMenu: Menus.TitleBarContext,
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			telemetrySource: 'titlePart.right',
@@ -259,24 +252,27 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 
 		// Session title actions toolbar (before right toolbar)
 		const sessionActionsContainer = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-session-actions-container'));
-		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, sessionActionsContainer, Menus.TitleBarSessionMenu, {
+		const sessionActionsToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, sessionActionsContainer, Menus.TitleBarSessionMenu, {
 			contextMenu: Menus.TitleBarContext,
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			telemetrySource: 'titlePart.sessionActions',
 			toolbarOptions: { primaryGroup: () => true },
 		}));
 
-		// Update toolbar (rightmost, immediately before native window controls)
-		const updateToolBarElement = $('div.titlebar-actions-container.titlebar-update-container');
-		this.rightContent.insertBefore(updateToolBarElement, rightWindowControlsContainer ?? null);
-		this.updateToolBarElement = updateToolBarElement;
+		// Update toolbar (leftmost in the right-side controls)
+		const updateToolBarElement = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-update-container'));
 		const updateToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, updateToolBarElement, Menus.TitleBarUpdate, {
 			contextMenu: Menus.TitleBarContext,
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			telemetrySource: 'titlePart.update',
 			toolbarOptions: { primaryGroup: () => true },
 		}));
-		this._register(updateToolBar.onDidChangeMenuItems(() => this.updateUpdateToolBarOverflow()));
+
+		this.registerOverflowManagedToolBar(centerActionsContainer, centerActionsToolBar);
+		this.registerOverflowManagedToolBar(centerNavContainer, centerNavToolBar);
+		this.registerOverflowManagedToolBar(rightToolbarContainer, rightToolBar);
+		this.registerOverflowManagedToolBar(sessionActionsContainer, sessionActionsToolBar);
+		this.registerOverflowManagedToolBar(updateToolBarElement, updateToolBar);
 
 		// Context menu on the titlebar
 		this._register(addDisposableListener(this.rootContainer, EventType.CONTEXT_MENU, e => {
@@ -327,22 +323,37 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	override layout(width: number, height: number): void {
 		this.updateLayout();
 		super.layoutContents(width, height);
-		this.updateUpdateToolBarOverflow();
+		this.updateTitleBarToolBarOverflow();
 	}
 
-	private updateUpdateToolBarOverflow(): void {
-		const element = this.updateToolBarElement;
-		if (!element) {
-			return;
-		}
+	private registerOverflowManagedToolBar(element: HTMLElement, toolBar: MenuWorkbenchToolBar): void {
+		this.overflowManagedToolBarElements.push(element);
+		this._register(toolBar.onDidChangeMenuItems(() => this.updateTitleBarToolBarOverflow()));
+	}
 
-		if (element.classList.contains('has-no-actions')) {
+	private updateTitleBarToolBarOverflow(): void {
+		for (const element of this.overflowManagedToolBarElements) {
 			element.classList.remove('overflowing');
+		}
+
+		if (this.rootContainer.clientWidth === 0) {
 			return;
 		}
 
-		element.classList.remove('overflowing');
-		element.classList.toggle('overflowing', this.rootContainer.scrollWidth > this.rootContainer.clientWidth);
+		for (const element of this.overflowManagedToolBarElements) {
+			if (!this.isTitleBarOverflowing()) {
+				return;
+			}
+
+			if (!element.classList.contains('has-no-actions')) {
+				element.classList.add('overflowing');
+			}
+		}
+	}
+
+	private isTitleBarOverflowing(): boolean {
+		return [this.rootContainer, this.leftContent, this.centerContent, this.rightContent]
+			.some(element => element.scrollWidth > element.clientWidth);
 	}
 
 	private updateLayout(): void {

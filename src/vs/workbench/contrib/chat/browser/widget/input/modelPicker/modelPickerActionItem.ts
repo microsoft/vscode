@@ -128,8 +128,8 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 		this._showPicker();
 	}
 
-	public show(): void {
-		this._showPicker();
+	public show(anchor?: HTMLElement): void {
+		this._pickerWidget.show(anchor ?? this._getAnchorElement());
 	}
 
 	public setEnabled(enabled: boolean): void {

@@ -75,6 +75,11 @@ jobs:
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
         displayName: Setup PyPI Authentication
 
+      - template: ../common/foundry-local.yml@self
+        parameters:
+          phase: prepare
+          onlyOnNodeModulesCacheMiss: true
+
       - script: |
           set -e
           c++ --version
@@ -102,7 +107,12 @@ jobs:
         displayName: Install dependencies
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-      - script: node build/azure-pipelines/common/checkNativeOptionalDeps.ts darwin $(VSCODE_ARCH)
+      - template: ../common/foundry-local.yml@self
+        parameters:
+          phase: install
+          onlyOnNodeModulesCacheMiss: true
+
+      - script: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
         displayName: Verify native optional dependency binaries
 

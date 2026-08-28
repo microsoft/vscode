@@ -23,6 +23,11 @@ export default defineThemedFixtureGroup({ path: 'sessions/inputBanners/' }, {
 		render: (context) => renderBanners(context, [commentsBanner(3, 'mixed')]),
 	}),
 
+	CommentsLoading: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (context) => renderBanners(context, [commentsBanner(3, 'mixed')], 480, true),
+	}),
+
 	PRComments: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: (context) => renderBanners(context, [commentsBanner(2, 'pr')]),
@@ -55,7 +60,7 @@ function ciBanner(failed: number, completed: number, pending: number): ISessionI
 		dismissTooltip: 'Hide for this session',
 		actions: [
 			{ label: 'Fix Checks', primary: true, run: () => console.log('Fix Checks') },
-			{ label: 'Reveal', run: () => console.log('Reveal Checks') },
+			{ label: 'Reveal', run: () => console.log('Open Pull Request') },
 		],
 		dismiss: () => console.log('Dismiss CI banner'),
 	};

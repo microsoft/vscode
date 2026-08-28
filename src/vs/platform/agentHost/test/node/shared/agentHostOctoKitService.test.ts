@@ -8,8 +8,18 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { NullLogService } from '../../../../log/common/log.js';
 import { AgentHostOctoKitService, type FetchFunction } from '../../../node/shared/agentHostOctoKitService.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
+import { deriveGitHubEndpoints } from '../../../common/githubEndpoints.js';
+import type { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
 
 type Captured = { url: string; init: RequestInit | undefined };
+
+class RecordingLogService extends NullLogService {
+	readonly errors: string[] = [];
+
+	override error(message: string | Error, ...args: unknown[]): void {
+		this.errors.push([message, ...args].map(value => value instanceof Error ? value.message : String(value)).join(' '));
+	}
+}
 
 function getUrl(input: string | URL | Request): string {
 	if (typeof input === 'string') {
@@ -18,8 +28,8 @@ function getUrl(input: string | URL | Request): string {
 	return input instanceof URL ? input.href : input.url;
 }
 
-function makeService(fetchImpl: FetchFunction, enterpriseUri?: string): AgentHostOctoKitService {
-	return new AgentHostOctoKitService(fetchImpl, new NullLogService(), createTestGitHubEndpointService(enterpriseUri));
+function makeService(fetchImpl: FetchFunction, enterpriseUri?: string, logService = new NullLogService()): AgentHostOctoKitService {
+	return new AgentHostOctoKitService(fetchImpl, logService, createTestGitHubEndpointService(enterpriseUri));
 }
 
 function signal(): AbortSignal {
@@ -91,7 +101,7 @@ suite('AgentHostOctoKitService', () => {
 	});
 
 	test('findPullRequestByHeadBranch fetches the latest matching pull request', async () => {
-		const { fetch, captured } = capturingFetch(jsonResponse([{ html_url: 'https://github.com/o/r/pull/9', number: 9, node_id: 'PR_node_9' }]));
+		const { fetch, captured } = capturingFetch(jsonResponse([{ html_url: 'https://github.com/o/r/pull/9', number: 9, node_id: 'PR_node_9', created_at: '2026-08-09T12:00:00.000Z' }]));
 		const service = makeService(fetch);
 
 		const result = await service.findPullRequestByHeadBranch('o', 'r', 'feature/test', 'tok', signal());
@@ -101,7 +111,7 @@ suite('AgentHostOctoKitService', () => {
 			url: captured().url,
 			method: captured().init?.method,
 		}, {
-			result: { url: 'https://github.com/o/r/pull/9', number: 9, nodeId: 'PR_node_9' },
+			result: { url: 'https://github.com/o/r/pull/9', number: 9, nodeId: 'PR_node_9', createdAt: Date.parse('2026-08-09T12:00:00.000Z') },
 			url: 'https://api.github.com/repos/o/r/pulls?head=o%3Afeature%2Ftest&state=all&sort=updated&direction=desc&per_page=1',
 			method: 'GET',
 		});
@@ -114,6 +124,137 @@ suite('AgentHostOctoKitService', () => {
 		await service.findPullRequestByHeadBranch('o', 'r', 'feature/test', 'tok', signal(), 'fork-owner');
 
 		assert.strictEqual(captured().url, 'https://api.github.com/repos/o/r/pulls?head=fork-owner%3Afeature%2Ftest&state=all&sort=updated&direction=desc&per_page=1');
+	});
+
+	test('findPullRequestByHeadSha returns the pull request whose head is the commit', async () => {
+		// Pull request 1 only contains the commit; 9 has it as its head.
+		const { fetch, captured } = capturingFetch(jsonResponse([
+			{ html_url: 'https://github.com/o/r/pull/1', number: 1, state: 'open', head: { sha: 'aaa' } },
+			{ html_url: 'https://github.com/o/r/pull/9', number: 9, state: 'open', head: { sha: 'bbb' }, node_id: 'PR_node_9' },
+		]));
+		const service = makeService(fetch);
+
+		const result = await service.findPullRequestByHeadSha('o', 'r', 'bbb', 'tok', signal());
+
+		assert.deepStrictEqual({
+			result,
+			url: captured().url,
+			method: captured().init?.method,
+		}, {
+			result: { url: 'https://github.com/o/r/pull/9', number: 9, nodeId: 'PR_node_9' },
+			url: 'https://api.github.com/repos/o/r/commits/bbb/pulls?per_page=100',
+			method: 'GET',
+		});
+	});
+
+	test('findPullRequestByHeadSha treats an unpushed commit as no pull request', async () => {
+		const logService = new RecordingLogService();
+		const service = makeService(
+			capturingFetch(jsonResponse({ message: 'No commit found for SHA: bbb' }, 422)).fetch,
+			undefined,
+			logService,
+		);
+
+		const result = await service.findPullRequestByHeadSha('o', 'r', 'bbb', 'tok', signal());
+
+		assert.deepStrictEqual({ result, errors: logService.errors }, { result: undefined, errors: [] });
+	});
+
+	test('findPullRequestByHeadSha throws and logs other unprocessable responses', async () => {
+		const logService = new RecordingLogService();
+		const service = makeService(
+			capturingFetch(new Response('{"message":"Validation Failed"}', { status: 422, statusText: 'Unprocessable Entity' })).fetch,
+			undefined,
+			logService,
+		);
+
+		await assert.rejects(
+			() => service.findPullRequestByHeadSha('o', 'r', 'bbb', 'tok', signal()),
+			/GitHub API request failed: GET repos\/o\/r\/commits\/bbb\/pulls\?per_page=100 - 422 Unprocessable Entity - {"message":"Validation Failed"}/,
+		);
+		assert.deepStrictEqual(logService.errors, [
+			'[AgentHostOctoKit] GET https://api.github.com/repos/o/r/commits/bbb/pulls?per_page=100 - Status: 422 - {"message":"Validation Failed"}',
+		]);
+	});
+
+	test('findPullRequestByHeadSha throws and logs server errors', async () => {
+		const logService = new RecordingLogService();
+		const service = makeService(
+			capturingFetch(new Response('{"message":"Server Error"}', { status: 500, statusText: 'Server Error' })).fetch,
+			undefined,
+			logService,
+		);
+
+		await assert.rejects(
+			() => service.findPullRequestByHeadSha('o', 'r', 'bbb', 'tok', signal()),
+			/GitHub API request failed: GET repos\/o\/r\/commits\/bbb\/pulls\?per_page=100 - 500 Server Error - {"message":"Server Error"}/,
+		);
+		assert.deepStrictEqual(logService.errors, [
+			'[AgentHostOctoKit] GET https://api.github.com/repos/o/r/commits/bbb/pulls?per_page=100 - Status: 500 - {"message":"Server Error"}',
+		]);
+	});
+
+	test('findPullRequestByHeadSha ignores pull requests that only contain the commit', async () => {
+		const service = makeService(capturingFetch(jsonResponse([
+			{ html_url: 'https://github.com/o/r/pull/1', number: 1, state: 'open', head: { sha: 'aaa' } },
+		])).fetch);
+
+		assert.strictEqual(await service.findPullRequestByHeadSha('o', 'r', 'bbb', 'tok', signal()), undefined);
+	});
+
+	test('findPullRequestByHeadSha reports none when several pull requests share the head commit', async () => {
+		const service = makeService(capturingFetch(jsonResponse([
+			{ html_url: 'https://github.com/o/r/pull/1', number: 1, state: 'open', head: { sha: 'bbb' } },
+			{ html_url: 'https://github.com/o/r/pull/2', number: 2, state: 'open', head: { sha: 'bbb' } },
+		])).fetch);
+
+		assert.strictEqual(await service.findPullRequestByHeadSha('o', 'r', 'bbb', 'tok', signal()), undefined);
+	});
+
+	test('serves the previously fetched pull request when the ETag still validates', async () => {
+		let call = 0;
+		const service = makeService(async () => {
+			call++;
+			return call === 1
+				? new Response(JSON.stringify([{ html_url: 'https://github.com/o/r/pull/9', number: 9 }]), { status: 200, headers: { 'content-type': 'application/json', etag: 'W/"tag"' } })
+				: new Response(null, { status: 304, headers: { etag: 'W/"tag"' } });
+		});
+
+		const first = await service.findPullRequestByHeadBranch('o', 'r', 'feature', 'tok', signal());
+		const revalidated = await service.findPullRequestByHeadBranch('o', 'r', 'feature', 'tok', signal());
+
+		assert.deepStrictEqual({ first, revalidated }, {
+			first: { url: 'https://github.com/o/r/pull/9', number: 9, nodeId: undefined },
+			revalidated: { url: 'https://github.com/o/r/pull/9', number: 9, nodeId: undefined },
+		});
+	});
+
+	test('findPullRequestByHeadSha reports none when the commit fills a whole page of pull requests', async () => {
+		const page = Array.from({ length: 100 }, (_, index) => ({ html_url: `https://github.com/o/r/pull/${index}`, number: index, state: 'open', head: { sha: index === 0 ? 'bbb' : 'aaa' } }));
+		const service = makeService(capturingFetch(jsonResponse(page)).fetch);
+
+		assert.strictEqual(await service.findPullRequestByHeadSha('o', 'r', 'bbb', 'tok', signal()), undefined);
+	});
+
+	test('scopes the pull request cache to the GitHub host that issued the validator', async () => {
+		let apiBaseUri = deriveGitHubEndpoints(undefined).apiBaseUri;
+		const endpointService: IAgentHostGitHubEndpointService = {
+			...createTestGitHubEndpointService(),
+			getApiBaseUri: () => apiBaseUri,
+		};
+		const requests: (string | undefined)[] = [];
+		const service = new AgentHostOctoKitService(async (_input, init) => {
+			requests.push((init?.headers as Record<string, string>)['If-None-Match']);
+			return new Response(JSON.stringify([{ html_url: 'https://github.com/o/r/pull/9', number: 9 }]), { status: 200, headers: { 'content-type': 'application/json', etag: 'W/"tag"' } });
+		}, new NullLogService(), endpointService);
+
+		await service.findPullRequestByHeadBranch('o', 'r', 'feature', 'tok', signal());
+		await service.findPullRequestByHeadBranch('o', 'r', 'feature', 'tok', signal());
+		apiBaseUri = deriveGitHubEndpoints('https://ghe.example.com').apiBaseUri;
+		await service.findPullRequestByHeadBranch('o', 'r', 'feature', 'tok', signal());
+
+		// The validator is replayed only against the host that issued it.
+		assert.deepStrictEqual(requests, [undefined, 'W/"tag"', undefined]);
 	});
 
 	test('getIssueOrPullRequest fetches the title and body from the issues endpoint', async () => {

@@ -26,7 +26,9 @@ function hydrateBYOKErrorMessages(response: ChatResponse): ChatResponse {
 			type: response.type,
 			requestId: response.requestId,
 			serverRequestId: response.serverRequestId,
-			reason: JSON.stringify(response.streamError),
+			// A stream error carrying no message has no diagnostic value, so keep the
+			// original reason rather than replacing it with a hollow serialized struct.
+			reason: response.streamError.message ? JSON.stringify(response.streamError) : response.reason,
 		};
 	} else if (response.type === ChatFetchResponseType.RateLimited) {
 		return {
