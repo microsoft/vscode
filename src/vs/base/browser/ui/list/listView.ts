@@ -1560,9 +1560,13 @@ export class ListView<T> implements IListView<T> {
 	}
 
 	private getVisibleRange(renderTop: number, renderHeight: number): IRange {
+		const start = this.rangeMap.indexAt(renderTop);
 		return {
-			start: this.rangeMap.indexAt(renderTop),
-			end: this.rangeMap.indexAfter(renderTop + renderHeight - 1)
+			start,
+			// When the viewport is collapsed or hidden (renderHeight <= 0), the end
+			// position can resolve to an index before `start`, producing an inverted
+			// range. Clamp it so consumers always receive `end >= start`.
+			end: Math.max(start, this.rangeMap.indexAfter(renderTop + renderHeight - 1))
 		};
 	}
 
