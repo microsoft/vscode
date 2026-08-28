@@ -23,7 +23,7 @@ export interface IGrepResultService {
 	readonly _serviceBrand: undefined;
 
 	addGrepResult(requestId: string, result: MatchResult): void;
-	getGrepResult(requestId: string, uri: vscode.Uri, startLine: number, endLine: number): { line: number } | undefined;
+	getGrepResult(requestId: string, uri: vscode.Uri, startLine: number, endLine: number): vscode.Range[] | undefined;
 }
 
 export class NullGrepResultService implements IGrepResultService {
@@ -33,7 +33,7 @@ export class NullGrepResultService implements IGrepResultService {
 		// No-op
 	}
 
-	getGrepResult(requestId: string, uri: vscode.Uri, startLine: number, endLine: number): { line: number } | undefined {
+	getGrepResult(requestId: string, uri: vscode.Uri, startLine: number, endLine: number): vscode.Range[] | undefined {
 		return undefined;
 	}
 }
@@ -58,7 +58,7 @@ export class GrepResultService implements IGrepResultService {
 		this.cache.set(requestId, matches);
 	}
 
-	getGrepResult(requestId: string, uri: vscode.Uri, startLine: number, endLine: number): { line: number } | undefined {
+	getGrepResult(requestId: string, uri: vscode.Uri, startLine: number, endLine: number): vscode.Range[] | undefined {
 		const matches = this.cache.get(requestId);
 		if (!matches) {
 			return undefined;
@@ -79,22 +79,15 @@ export class GrepResultService implements IGrepResultService {
 			}
 		}
 
-		const middleLine = startLine + (endLine - startLine) / 2;
-		let closestLine: number | undefined;
-		let closestDistance = Number.POSITIVE_INFINITY;
+		const result: vscode.Range[] = [];
 		for (let i = low; i < fileMatches.length; i++) {
-			const line = fileMatches[i].start.line;
-			if (line > endLine) {
+			const match = fileMatches[i];
+			if (match.start.line > endLine) {
 				break;
 			}
-
-			const distance = Math.abs(line - middleLine);
-			if (distance < closestDistance) {
-				closestLine = line;
-				closestDistance = distance;
-			}
+			result.push(match);
 		}
 
-		return closestLine === undefined ? undefined : { line: closestLine };
+		return result;
 	}
 }

@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 import type * as vscode from 'vscode';
 
-import { type IContainerContextProviderService, type Container, NullContainerContextProviderService } from '../../../platform/languageContextProvider/common/containerContextProvider';
+import { type IRegionContextProviderService, type Region, type LineRange, NullRegionContextProviderService } from '../../../platform/languageContextProvider/common/regionContextProvider';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { TypeScript } from './tsService';
-import { TS7ContainerContextProvider } from './ts7/containerContextProvider';
-import { TS6ContainerContextProvider } from './ts6/containerContextProvider';
+import { TS7RegionContextProvider } from './ts7/regionContextProvider';
+import { TS6RegionContextProvider } from './ts6/regionContextProvider';
 import { DisposableStore } from '../../../util/vs/base/common/lifecycle';
 
-export class ContainerContextProviderService implements IContainerContextProviderService {
+export class ContainerContextProviderService implements IRegionContextProviderService {
 
 	readonly _serviceBrand: undefined;
 
 	private readonly disposables: DisposableStore;
-	private provider: Omit<IContainerContextProviderService, '_serviceBrand'>;
+	private provider: Omit<IRegionContextProviderService, '_serviceBrand'>;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -36,17 +36,17 @@ export class ContainerContextProviderService implements IContainerContextProvide
 		this.disposables.dispose();
 	}
 
-	getContainers(document: vscode.Uri, languageId: string, line: number): Promise<Container[] | undefined> {
-		return this.provider.getContainers(document, languageId, line);
+	getRegions(document: vscode.Uri, languageId: string, ranges: vscode.Range[], requested?: LineRange): Promise<Region[] | undefined> {
+		return this.provider.getRegions(document, languageId, ranges, requested);
 	}
 
-	private createProvider(): Omit<IContainerContextProviderService, '_serviceBrand'> {
+	private createProvider(): Omit<IRegionContextProviderService, '_serviceBrand'> {
 		if (!TypeScript.runsVersion7()) {
-			return new TS6ContainerContextProvider();
+			return new TS6RegionContextProvider();
 		}
 		return TypeScript.isVersion7SupportEnabled(this.configurationService)
-			? new TS7ContainerContextProvider(this.logService)
-			: new NullContainerContextProviderService();
+			? new TS7RegionContextProvider(this.logService)
+			: new NullRegionContextProviderService();
 	}
 
 	private updateProvider(): void {
@@ -54,17 +54,17 @@ export class ContainerContextProviderService implements IContainerContextProvide
 		const enableTS7 = TypeScript.isVersion7SupportEnabled(this.configurationService);
 		const oldProvider = this.provider;
 		if (runsTS7) {
-			if (oldProvider instanceof TS6ContainerContextProvider) {
+			if (oldProvider instanceof TS6RegionContextProvider) {
 				this.provider = enableTS7
-					? new TS7ContainerContextProvider(this.logService)
-					: new NullContainerContextProviderService();
-			} else if (oldProvider instanceof TS7ContainerContextProvider && !enableTS7) {
-				this.provider = new NullContainerContextProviderService();
-			} else if (oldProvider instanceof NullContainerContextProviderService && enableTS7) {
-				this.provider = new TS7ContainerContextProvider(this.logService);
+					? new TS7RegionContextProvider(this.logService)
+					: new NullRegionContextProviderService();
+			} else if (oldProvider instanceof TS7RegionContextProvider && !enableTS7) {
+				this.provider = new NullRegionContextProviderService();
+			} else if (oldProvider instanceof NullRegionContextProviderService && enableTS7) {
+				this.provider = new TS7RegionContextProvider(this.logService);
 			}
-		} else if (!(oldProvider instanceof TS6ContainerContextProvider)) {
-			this.provider = new TS6ContainerContextProvider();
+		} else if (!(oldProvider instanceof TS6RegionContextProvider)) {
+			this.provider = new TS6RegionContextProvider();
 		}
 		if (oldProvider !== this.provider) {
 			oldProvider.dispose();

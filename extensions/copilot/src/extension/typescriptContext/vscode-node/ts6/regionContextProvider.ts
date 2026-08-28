@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
 
-import type { IContainerContextProviderService, Container } from '../../../../platform/languageContextProvider/common/containerContextProvider';
+import type { IRegionContextProviderService, Region, LineRange } from '../../../../platform/languageContextProvider/common/regionContextProvider';
 
-export class TS6ContainerContextProvider implements Omit<IContainerContextProviderService, '_serviceBrand'>, vscode.Disposable {
-	getContainers(document: vscode.Uri, languageId: string, line: number): Promise<Container[] | undefined> {
+export class TS6RegionContextProvider implements Omit<IRegionContextProviderService, '_serviceBrand'>, vscode.Disposable {
+	getRegions(document: vscode.Uri, languageId: string, ranges: vscode.Range[], requested?: LineRange): Promise<Region[] | undefined> {
 		return Promise.resolve(undefined);
 	}
 

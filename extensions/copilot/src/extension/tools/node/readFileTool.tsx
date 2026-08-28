@@ -37,7 +37,7 @@ import { formatUriForFileWidget } from '../common/toolUtils';
 import { getImageMimeType } from './imageToolUtils';
 import { assertFileNotContentExcluded, isFileExternalAndNeedsConfirmation, resolveToolInputPath } from './toolUtils';
 import { IGrepResultService } from './grepResultService';
-import { IContainerContextProviderService } from '../../../platform/languageContextProvider/common/containerContextProvider';
+import { IRegionContextProviderService } from '../../../platform/languageContextProvider/common/regionContextProvider';
 import { ILogService } from '../../../platform/log/common/logService';
 
 export const getReadFileV2Description = (orig: vscode.LanguageModelToolInformation): vscode.LanguageModelToolInformation => ({
@@ -137,7 +137,7 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 		@IFileSystemService private readonly fileSystemService: IFileSystemService,
 		@IExtensionsService private readonly extensionsService: IExtensionsService,
 		@IGrepResultService private readonly grepResultService: IGrepResultService,
-		@IContainerContextProviderService private readonly containerContextProvider: IContainerContextProviderService,
+		@IRegionContextProviderService private readonly regionContextProvider: IRegionContextProviderService,
 		@ILogService private readonly logService: ILogService
 	) { }
 
@@ -187,14 +187,16 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 			const documentSnapshot = await this.getSnapshot(uri);
 			ranges = getParamRanges(options.input, documentSnapshot);
 			if (options.chatRequestId !== undefined && uri.scheme === 'file' && documentSnapshot.languageId === 'typescript') {
-				const grepResultMatch = this.grepResultService.getGrepResult(options.chatRequestId, uri, ranges.start, ranges.end);
-				if (grepResultMatch && documentSnapshot.version === documentSnapshot.document.version) {
-					const containers = await this.containerContextProvider.getContainers(documentSnapshot.uri, documentSnapshot.languageId, grepResultMatch.line);
-					if (containers !== undefined && containers.length > 0 && documentSnapshot.version === documentSnapshot.document.version) {
-						const saving = (ranges.end - ranges.start) - (containers[0].range.end - containers[0].range.start);
-						this.logService.info(`Saving ${saving} lines reading ${documentSnapshot.uri.fsPath}. Requests [${ranges.start}-${ranges.end}], Grep match: ${grepResultMatch.line}, container [${containers[0].range.start}-${containers[0].range.end}]`);
+				const startLine = ranges.start - 1;
+				const endLine = ranges.end - 1;
+				const grepResultMatches = this.grepResultService.getGrepResult(options.chatRequestId, uri, startLine, endLine);
+				if (grepResultMatches !== undefined && grepResultMatches.length > 0 && documentSnapshot.version === documentSnapshot.document.version) {
+					const regions = await this.regionContextProvider.getRegions(documentSnapshot.uri, documentSnapshot.languageId, grepResultMatches, { start: startLine, end: endLine});
+					if (regions !== undefined && regions.length > 0 && documentSnapshot.version === documentSnapshot.document.version) {
+						const saving = (ranges.end - ranges.start) - (regions[0].range.end - regions[0].range.start);
+					this.logService.info(`Saving ${saving} lines reading ${documentSnapshot.uri.fsPath}. Requests [${ranges.start}-${ranges.end}], Grep matches: [${grepResultMatches.map(m => m.start.line + 1).join(',')}], region [${regions[0].range.start + 1}-${regions[0].range.end + 1}]`);
 					} else {
-						this.logService.info(`No containers found for grep result match at line ${grepResultMatch.line}`);
+						this.logService.info(`No regions found for grep result match in file ${documentSnapshot.uri.fsPath} at lines [${grepResultMatches.map(m => m.start.line + 1).join(',')}]`);
 					}
 				} else {
 					this.logService.info(`No grep result match found for requestId ${options.chatRequestId}`);

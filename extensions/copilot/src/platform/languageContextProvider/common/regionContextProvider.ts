@@ -11,24 +11,25 @@ export interface LineRange {
 	end: number;
 }
 
-export interface Container {
+export interface Region {
 	kind: string;
 	name?: string;
 	range: LineRange;
 }
 
-export const IContainerContextProviderService = createServiceIdentifier<IContainerContextProviderService>('IContainerContextProviderService');
+export const IRegionContextProviderService = createServiceIdentifier<IRegionContextProviderService>('IRegionContextProviderService');
 
-export interface IContainerContextProviderService extends vscode.Disposable {
+export interface IRegionContextProviderService extends vscode.Disposable {
 	readonly _serviceBrand: undefined;
 
-	getContainers(document: vscode.Uri, languageId: string, line: number): Promise<Container[] | undefined>;
+	getRegions(document: vscode.Uri, languageId: string, ranges: vscode.Range[]): Promise<Region[] | undefined>;
+	getRegions(document: vscode.Uri, languageId: string, ranges: vscode.Range[], requested?: LineRange): Promise<Region[] | undefined>;
 }
 
-export class NullContainerContextProviderService implements IContainerContextProviderService {
+export class NullRegionContextProviderService implements IRegionContextProviderService {
 	readonly _serviceBrand: undefined;
 
-	async getContainers(document: vscode.Uri, languageId: string, line: number): Promise<Container[] | undefined> {
+	async getRegions(): Promise<Region[] | undefined> {
 		return undefined;
 	}
 

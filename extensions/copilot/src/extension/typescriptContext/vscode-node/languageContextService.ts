@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { Copilot } from '../../../platform/inlineCompletions/common/api';
+import { IRegionContextProviderService } from '../../../platform/languageContextProvider/common/regionContextProvider';
 import { ILanguageContextProviderService, ProviderTarget } from '../../../platform/languageContextProvider/common/languageContextProviderService';
 import { ContextKind, ILanguageContextService, KnownSources, TriggerKind, type ContextItem, type RequestContext } from '../../../platform/languageServer/common/languageContextService';
 import { ILogService } from '../../../platform/log/common/logService';
@@ -333,6 +334,7 @@ export class InlineCompletionContribution implements vscode.Disposable, TokenBud
 		@ILogService private readonly logService: ILogService,
 		@ILanguageContextService private readonly languageContextService: ILanguageContextService,
 		@ILanguageContextProviderService private readonly languageContextProviderService: ILanguageContextProviderService,
+		@IRegionContextProviderService private readonly containerContextProviderService: IRegionContextProviderService,
 	) {
 		this.registrations = undefined;
 		this.telemetrySender = new TelemetrySender(telemetryService, logService);
@@ -346,6 +348,20 @@ export class InlineCompletionContribution implements vscode.Disposable, TokenBud
 			}));
 			this.disposables.add(vscode.window.registerTreeDataProvider('context-inspector', new InspectorDataProvider(languageContextService)));
 		}
+		this.disposables.add(vscode.commands.registerCommand('github.copilot.debug.logTypeScriptContainers', async () => {
+			const editor = vscode.window.activeTextEditor;
+			if (!editor || (editor.document.languageId !== 'typescript' && editor.document.languageId !== 'typescriptreact')) {
+				return;
+			}
+
+			const position = editor.selection.active;
+			const containers = await this.containerContextProviderService.getRegions(
+				editor.document.uri,
+				editor.document.languageId,
+				[new vscode.Range(position, position)]
+			);
+			this.logService.info(`[ContainerContextProvider] Containers at ${editor.document.uri.toString()}:${position.line + 1}:${position.character + 1}: ${JSON.stringify(containers, undefined, 2)}`);
+		}));
 
 		// Check if there are any TypeScript files open in the workspace.
 		const open = vscode.workspace.textDocuments.some((document) => document.languageId === 'typescript' || document.languageId === 'typescriptreact');
