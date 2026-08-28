@@ -704,6 +704,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 	// #region Descriptor + auth
 
+	/** The in-process MCP server announces every client tool call the SDK makes. */
+	readonly drivesClientToolExecution = true;
+
 	getDescriptor(): IAgentDescriptor {
 		return {
 			provider: this.id,

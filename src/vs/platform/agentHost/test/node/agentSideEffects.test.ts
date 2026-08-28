@@ -1962,6 +1962,48 @@ suite('AgentSideEffects', () => {
 			});
 		});
 
+		test('client_tool_invoked synthesizes execution for a replayed call and leaves a streamed one alone', () => {
+			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
+			stateManager.dispatchClientAction(sessionUri.toString(), {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: { clientId: 'client-A', tools: [{ name: 'openBrowserPage', inputSchema: { type: 'object' } }] },
+			}, { clientId: 'test', clientSeq: 1 });
+			startTurn('turn-1');
+
+			// Replay: the call is absent from turn state, so the host must create it.
+			agent.fireProgress({ kind: 'client_tool_invoked', chat: URI.parse(defaultChatUri), toolCallId: 'tu_replay', toolName: 'openBrowserPage', toolInput: '{"url":"http://x/"}' });
+			// Streamed: the call already has state and must not be duplicated.
+			agent.fireProgress({ kind: 'client_tool_invoked', chat: URI.parse(defaultChatUri), toolCallId: 'tu_replay', toolName: 'openBrowserPage', toolInput: '{"url":"http://x/"}' });
+
+			const parts = stateManager.getChatState(defaultChatUri)?.activeTurn?.responseParts ?? [];
+			const toolCalls = parts.filter(part => part.kind === ResponsePartKind.ToolCall).map(part => part.toolCall);
+			const inputNeeded = stateManager.getSessionState(sessionUri.toString())?.inputNeeded ?? [];
+			assert.deepStrictEqual({
+				toolCalls: toolCalls.map(tc => ({ id: tc.toolCallId, status: tc.status, contributor: tc.contributor, toolInput: tc.status === ToolCallStatus.Running ? tc.toolInput : undefined })),
+				executionRequests: inputNeeded.filter(request => request.kind === SessionInputRequestKind.ToolClientExecution).map(request => ({ toolCallId: request.toolCall.toolCallId, clientId: request.clientId })),
+			}, {
+				toolCalls: [{ id: 'tu_replay', status: ToolCallStatus.Running, contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-A' }, toolInput: '{"url":"http://x/"}' }],
+				executionRequests: [{ toolCallId: 'tu_replay', clientId: 'client-A' }],
+			});
+		});
+
+		test('a replayed call no client provides completes as a visible failure', () => {
+			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
+			startTurn('turn-1');
+
+			// No active client contributes the tool, so the call can only be failed.
+			agent.fireProgress({ kind: 'client_tool_invoked', chat: URI.parse(defaultChatUri), toolCallId: 'tu_orphan', toolName: 'openBrowserPage', toolInput: '{}' });
+
+			const parts = stateManager.getChatState(defaultChatUri)?.activeTurn?.responseParts ?? [];
+			const toolCalls = parts.filter(part => part.kind === ResponsePartKind.ToolCall).map(part => part.toolCall);
+			assert.deepStrictEqual(
+				toolCalls.map(tc => ({ id: tc.toolCallId, status: tc.status, success: tc.status === ToolCallStatus.Completed ? tc.success : undefined })),
+				[{ id: 'tu_orphan', status: ToolCallStatus.Completed, success: false }],
+			);
+		});
+
 		test('does not duplicate a Codex provider-owned failure when sendMessage resolves', async () => {
 			setupSession();
 			disposables.add(sideEffects.registerProgressListener(agent));
@@ -6719,6 +6761,39 @@ suite('AgentSideEffects', () => {
 			});
 
 			assert.deepStrictEqual(sessionInputNeeded(), []);
+		});
+
+		test('a runtime that announces invocations executes on the invocation, not on the streamed ready', () => {
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+			agent.drivesClientToolExecution = true;
+
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatToolCallStart, turnId: 'turn-1',
+				toolCallId: 'tc-client', toolName: 'runTask', displayName: 'Run Task',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-1' },
+			});
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatToolCallReady, turnId: 'turn-1',
+				toolCallId: 'tc-client', invocationMessage: 'Run Task', toolInput: '{"task":"build"}',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+			const afterReady = sessionInputNeeded().filter(r => r.kind === SessionInputRequestKind.ToolClientExecution);
+
+			agent.fireProgress({
+				kind: 'client_tool_invoked', chat: URI.parse(defaultChatUri),
+				toolCallId: 'tc-client', toolName: 'runTask', toolInput: '{"task":"build"}',
+			});
+			const afterInvocation = sessionInputNeeded().filter(r => r.kind === SessionInputRequestKind.ToolClientExecution);
+
+			assert.deepStrictEqual({
+				requestsAfterReady: afterReady.length,
+				requestsAfterInvocation: afterInvocation.map(r => r.toolCall.toolCallId),
+			}, {
+				requestsAfterReady: 0,
+				requestsAfterInvocation: ['tc-client'],
+			});
 		});
 
 		test('client tool execution is produced while running and removed once complete', () => {

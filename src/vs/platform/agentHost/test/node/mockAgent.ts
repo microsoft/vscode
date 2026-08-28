@@ -441,6 +441,9 @@ export class MockAgent implements IAgent {
 		this.removeActiveClientCalls.push({ chat, clientId });
 	}
 
+	/** Mutable so a test can model a runtime that announces its invocations. */
+	drivesClientToolExecution = false;
+
 	onClientToolCallComplete(chat: URI, toolCallId: string, result: ToolCallResult, context?: IAgentChatContext): void {
 		this.clientToolCallCompleteCalls.push({ chat, toolCallId, result, context });
 	}
