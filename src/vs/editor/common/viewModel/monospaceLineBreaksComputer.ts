@@ -465,7 +465,7 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: st
 		}
 
 		// literal \n shall trigger a softwrap
-		if (wrapOnEscapedLineFeeds && isEscapedLineBreakAtPosition(lineText, i)) {
+		if (wrapOnEscapedLineFeeds && isEscapedLineBreakAtPosition(lineText, charStartOffset)) {
 			breakOffset = charStartOffset;
 			breakOffsetVisibleColumn = visibleColumn;
 			breakOffsetPixelWidth = currentLinePixelWidth;

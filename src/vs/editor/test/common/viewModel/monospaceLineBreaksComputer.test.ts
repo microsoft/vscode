@@ -165,6 +165,15 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 		});
 	});
 
+	test('wraps after an escaped line feed followed by fixed-width injected text', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('', '');
+		const lineBreakData = getLineBreakData(factory, 4, 100, 2, WrappingIndent.None, 'normal', true, '"a\\nb"', null, [
+			new LineInjectedText(0, 1, 5, { content: 'hint', widthInEm: 1 }, 0)
+		]);
+
+		assert.deepStrictEqual(lineBreakData?.breakOffsets, [4, 10]);
+	});
+
 	test('treats adjacent fixed-width injected texts as separate atomic spans', () => {
 		const factory = new MonospaceLineBreaksComputerFactory('', '');
 		const lineBreakData = getLineBreakData(factory, 4, 5, 2, WrappingIndent.None, 'normal', false, 'abcdef', null, [
