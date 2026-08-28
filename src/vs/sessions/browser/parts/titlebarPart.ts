@@ -236,17 +236,6 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		}));
 
 		const centerRightContainer = append(this.centerContent, $('div.titlebar-center-right-container'));
-		const screenReaderBadge = append(centerRightContainer, $('span.titlebar-status-badge.screen-reader-optimized-badge'));
-		screenReaderBadge.textContent = localize('screenReaderOptimizedBadge', "Screen Reader Optimized");
-		screenReaderBadge.tabIndex = 0;
-		const updateScreenReaderBadge = () => {
-			setVisibility(this.accessibilityService.isScreenReaderOptimized(), screenReaderBadge);
-			this.updateTitleBarToolBarOverflow();
-		};
-		updateScreenReaderBadge();
-		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(updateScreenReaderBadge));
-		this.overflowManagedToolBarElements.push(screenReaderBadge);
-
 		// Actions toolbar (Open in VS Code), rendered after the status badges.
 		const centerActionsContainer = append(centerRightContainer, $('div.titlebar-actions-container.titlebar-center-actions-container'));
 		const centerActionsToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerActionsContainer, Menus.TitleBarCenterRight, {
@@ -282,6 +271,17 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			telemetrySource: 'titlePart.update',
 			toolbarOptions: { primaryGroup: () => true },
 		}));
+
+		const screenReaderBadge = prepend(this.rightContent, $('span.titlebar-status-badge.screen-reader-optimized-badge'));
+		screenReaderBadge.textContent = localize('screenReaderOptimizedBadge', "Screen Reader Optimized");
+		screenReaderBadge.tabIndex = 0;
+		const updateScreenReaderBadge = () => {
+			setVisibility(this.accessibilityService.isScreenReaderOptimized(), screenReaderBadge);
+			this.updateTitleBarToolBarOverflow();
+		};
+		updateScreenReaderBadge();
+		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(updateScreenReaderBadge));
+		this.overflowManagedToolBarElements.push(screenReaderBadge);
 
 		this.registerOverflowManagedToolBar(centerActionsContainer, centerActionsToolBar);
 		this.registerOverflowManagedToolBar(centerNavContainer, centerNavToolBar);

@@ -134,9 +134,13 @@
 	margin-right: var(--vscode-spacing-size40);
 }
 
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-status-badge {
+	margin-right: var(--vscode-spacing-size40);
+}
+
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-actions-container.overflowing,
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-center-right-container > .titlebar-actions-container.overflowing,
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-center-right-container > .titlebar-status-badge.overflowing,
+.monaco-workbench .part.titlebar > .sessions-titlebar-container .titlebar-status-badge.overflowing,
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container.overflowing {
 	display: none;
 }
