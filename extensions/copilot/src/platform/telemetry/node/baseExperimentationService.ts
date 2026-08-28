@@ -282,8 +282,8 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 
 	/**
 	 * Reads a treatment by its bare name, falling back to the `/vscode/`-scoped key when the bare
-	 * lookup misses. Interim workaround till its fixed upstream: the new TAS assignments endpoint
-	 * namespaces its returned feature variable keys with a `/vscode/` scope  so treatments served
+	 * lookup misses. This is an interim workaround until it is fixed upstream: the new TAS assignments endpoint
+	 * namespaces its returned feature variable keys with a `/vscode/` scope, so treatments served
 	 * only by the new endpoint would otherwise miss the bare lookup.
 	 */
 	private _readTreatmentVariable<T extends boolean | number | string>(name: string): T | undefined {
