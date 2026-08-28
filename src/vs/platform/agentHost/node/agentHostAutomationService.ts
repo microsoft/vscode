@@ -39,7 +39,7 @@ interface IStoredManualRunRequest {
 }
 
 interface IStoredAutomations {
-	readonly version?: 1;
+	readonly version: 2;
 	readonly catalog: AutomationState;
 	readonly runs?: readonly AutomationRunState[];
 	readonly manualRunRequests?: readonly IStoredManualRunRequest[];
@@ -412,15 +412,16 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			this._logService.error('[AgentHostAutomationService] Agent Host storage failed to load; automation state and execution remain unavailable.');
 			return undefined;
 		}
-		const stored = this._storageService.get<IStoredAutomations>(STORAGE_KEY);
+		const stored = this._storageService.get<unknown>(STORAGE_KEY);
 		if (stored === undefined) {
-			return { catalog: { entries: [] } };
+			return { version: 2, catalog: { entries: [] } };
 		}
-		if (!isStoredAutomations(stored)) {
+		const normalized = normalizeStoredAutomations(stored);
+		if (!normalized) {
 			this._logService.error('[AgentHostAutomationService] Automation storage is invalid; automation execution remains unavailable until it is recovered.');
 			return undefined;
 		}
-		return stored;
+		return normalized;
 	}
 
 	private async _persist(
@@ -430,7 +431,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		migrationCompletedAt = this._migrationCompletedAt,
 	): Promise<void> {
 		await this._storageService.setAndFlush<IStoredAutomations>(STORAGE_KEY, {
-			version: 1,
+			version: 2,
 			catalog,
 			runs: [...runs.values()],
 			manualRunRequests: [...manualRunRequests.values()],
@@ -944,16 +945,54 @@ function isAutomationState(value: unknown): value is AutomationState {
 	return Array.isArray(entries) && entries.every(isAutomationEntry);
 }
 
-function isStoredAutomations(value: unknown): value is IStoredAutomations {
+function normalizeStoredAutomations(value: unknown): IStoredAutomations | undefined {
 	if (!value || typeof value !== 'object' || Array.isArray(value)) {
-		return false;
+		return undefined;
 	}
 	const stored = value as Record<string, unknown>;
-	return (stored['version'] === undefined || stored['version'] === 1)
-		&& isAutomationState(stored['catalog'])
-		&& (stored['runs'] === undefined || Array.isArray(stored['runs']) && stored['runs'].every(isAutomationRunState))
-		&& (stored['manualRunRequests'] === undefined || Array.isArray(stored['manualRunRequests']) && stored['manualRunRequests'].every(isStoredManualRunRequest))
-		&& (stored['migration'] === undefined || isCompletedMigration(stored['migration']));
+	const version = stored['version'];
+	const catalog = version === 2
+		? isAutomationState(stored['catalog']) ? stored['catalog'] : undefined
+		: version === undefined || version === 1
+			? normalizeLegacyAutomationState(stored['catalog'])
+			: undefined;
+	const runs = stored['runs'];
+	const manualRunRequests = stored['manualRunRequests'];
+	const migration = stored['migration'];
+	if (!catalog
+		|| runs !== undefined && (!Array.isArray(runs) || !runs.every(isAutomationRunState))
+		|| manualRunRequests !== undefined && (!Array.isArray(manualRunRequests) || !manualRunRequests.every(isStoredManualRunRequest))
+		|| migration !== undefined && !isCompletedMigration(migration)) {
+		return undefined;
+	}
+	return {
+		version: 2,
+		catalog,
+		...(runs !== undefined ? { runs } : {}),
+		...(manualRunRequests !== undefined ? { manualRunRequests } : {}),
+		...(migration !== undefined ? { migration } : {}),
+	};
+}
+
+function normalizeLegacyAutomationState(value: unknown): AutomationState | undefined {
+	if (isAutomationState(value)) {
+		return value;
+	}
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+	const catalog = value as Record<string, unknown>;
+	const automations = catalog['automations'];
+	const meta = catalog['_meta'];
+	if (!Array.isArray(automations)
+		|| !automations.every(isAutomationEntry)
+		|| meta !== undefined && (!meta || typeof meta !== 'object' || Array.isArray(meta))) {
+		return undefined;
+	}
+	return {
+		entries: automations,
+		...(meta !== undefined ? { _meta: meta as Record<string, unknown> } : {}),
+	};
 }
 
 function isAutomationEntry(value: unknown): value is AutomationEntry {

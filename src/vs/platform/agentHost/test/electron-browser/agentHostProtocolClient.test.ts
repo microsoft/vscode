@@ -1014,9 +1014,9 @@ suite('AgentHostProtocolClient', () => {
 			clientInfo: params.clientInfo,
 			_meta: params._meta,
 		}, {
-			// Every negotiable version is offered so an older host can negotiate down,
+			// Every compatible version is offered so an older host can negotiate down,
 			// newest first so a current host still picks it.
-			protocolVersions: [...SUPPORTED_PROTOCOL_VERSIONS],
+			protocolVersions: SUPPORTED_PROTOCOL_VERSIONS.filter(version => version !== '0.8.0'),
 			clientId: 'renderer-client-id',
 			clientInfo,
 			_meta: {
@@ -1027,6 +1027,7 @@ suite('AgentHostProtocolClient', () => {
 			},
 		});
 		assert.strictEqual(params.protocolVersions[0], PROTOCOL_VERSION);
+		assert.ok(!params.protocolVersions.includes('0.8.0'));
 
 		// Reply with a successful handshake so `connect()` resolves and the
 		// test can finish cleanly.

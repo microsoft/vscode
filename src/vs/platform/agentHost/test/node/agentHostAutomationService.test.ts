@@ -113,7 +113,7 @@ suite('AgentHostAutomationService', () => {
 
 	test('a future host automation storage version disables the capability without rewriting data', async () => {
 		storageService.set('automations', {
-			version: 2,
+			version: 3,
 			catalog: { entries: [] },
 		});
 		await storageService.whenIdle();
@@ -127,7 +127,40 @@ suite('AgentHostAutomationService', () => {
 		}, {
 			isAvailable: false,
 			capabilities: undefined,
-			storedVersion: 2,
+			storedVersion: 3,
+		});
+	});
+
+	test('version 1 automation storage is migrated from automations to entries', async () => {
+		const resource = 'ahp-automation:/review-changes';
+		storageService.set('automations', {
+			version: 1,
+			catalog: {
+				automations: [{
+					resource,
+					definition: definition(),
+					runs: [],
+					operations: [AutomationOperation.Update, AutomationOperation.Remove],
+					createdAt: '2026-01-01T00:00:00.000Z',
+					modifiedAt: '2026-01-01T00:00:00.000Z',
+				}],
+			},
+		});
+		await storageService.whenIdle();
+		const service = createService();
+
+		assert.deepStrictEqual(stateManager.getAutomationCatalogState()?.entries.map(entry => entry.resource), [resource]);
+
+		await service.completeMigration([resource]);
+		const stored = storageService.get<{ version: number; catalog: { entries?: unknown[]; automations?: unknown[] } }>('automations');
+		assert.deepStrictEqual({
+			version: stored?.version,
+			entryCount: stored?.catalog.entries?.length,
+			hasAutomations: Object.hasOwn(stored?.catalog ?? {}, 'automations'),
+		}, {
+			version: 2,
+			entryCount: 1,
+			hasAutomations: false,
 		});
 	});
 
