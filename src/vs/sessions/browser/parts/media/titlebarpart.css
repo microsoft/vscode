@@ -118,6 +118,13 @@
 	margin-right: var(--vscode-spacing-size40);
 }
 
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-update-container .update-indicator {
+	height: 26px;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-small);
+	line-height: 16px;
+}
+
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-actions-container.overflowing,
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-center-right-container > .titlebar-actions-container.overflowing,
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container.overflowing {
