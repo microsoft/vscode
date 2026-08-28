@@ -18,7 +18,6 @@ $cloneExtensions = $false
 $full = $false
 $skipPreLaunch = $false
 $disableWorkspaceTrust = $false
-$setupProfile = $false
 if ($null -eq $cliArgs) {
 	$cliArgs = @()
 }
@@ -477,10 +476,6 @@ for ($index = 0; $index -lt $cliArgs.Count; $index++) {
 			$disableWorkspaceTrust = $true
 			continue
 		}
-		'--setup-profile' {
-			$setupProfile = $true
-			continue
-		}
 		'--' {
 			for ($forwardIndex = $index + 1; $forwardIndex -lt $cliArgs.Count; $forwardIndex++) {
 				$extraArgs.Add($cliArgs[$forwardIndex])
@@ -519,91 +514,12 @@ try {
 		}
 	}
 	if (-not (Test-Path -LiteralPath $sourceUserDataDir -PathType Container)) {
-		if ($setupProfile) {
-			New-Item -ItemType Directory -Force -Path $sourceUserDataDir | Out-Null
-		} else {
-			Exit-Usage "Source user-data-dir does not exist: $sourceUserDataDir`nRun with --setup-profile to create and authenticate it, pass --source-user-data-dir <path>, or set CODE_OSS_DEV_AUTHED_USER_DATA_DIR."
-		}
+		Exit-Usage "Source user-data-dir does not exist: $sourceUserDataDir`nRun .agents\skills\launch\scripts\bootstrap-profile.ps1 to create and authenticate it, pass --source-user-data-dir <path>, or set CODE_OSS_DEV_AUTHED_USER_DATA_DIR."
 	}
 	$sourceUserDataDir = [IO.Path]::GetFullPath($sourceUserDataDir)
 
 	$node = Get-UsableNode $repo
 	Write-LaunchError "[launch.ps1] using Node: $node"
-	if ($setupProfile) {
-		$sourceSharedDataDir = Get-SourceSharedDataDir $repo
-		New-Item -ItemType Directory -Force -Path $sourceSharedDataDir | Out-Null
-		$setupArgs = [System.Collections.Generic.List[string]]::new()
-		$setupArgs.Add("--user-data-dir=$sourceUserDataDir")
-		$setupArgs.Add("--shared-data-dir=$sourceSharedDataDir")
-		if ($agents) {
-			$setupArgs.Add('--agents')
-		}
-		if ($disableWorkspaceTrust) {
-			$setupArgs.Add('--disable-workspace-trust')
-		}
-		foreach ($argument in $extraArgs) {
-			$setupArgs.Add($argument)
-		}
-
-		Write-LaunchError "[launch.ps1] opening persistent setup profile: $sourceUserDataDir"
-		Write-LaunchError '[launch.ps1] Sign in to GitHub/Copilot, then close Code OSS to verify the profile.'
-		$electronRunAsNode = $env:ELECTRON_RUN_AS_NODE
-		$skipPreLaunchEnvironment = $env:VSCODE_SKIP_PRELAUNCH
-		try {
-			[Environment]::SetEnvironmentVariable('ELECTRON_RUN_AS_NODE', $null, 'Process')
-			if (-not $skipPreLaunch) {
-				Write-LaunchError '[launch.ps1] running pre-launch (ensures electron + compiled output + built-ins)...'
-				Push-Location -LiteralPath $repo
-				try {
-					$preLaunchOutput = & $node 'build/lib/preLaunch.ts' 2>&1
-					$preLaunchExitCode = $LASTEXITCODE
-				} finally {
-					Pop-Location
-				}
-				foreach ($line in $preLaunchOutput) {
-					Write-LaunchError $line
-				}
-				if ($preLaunchExitCode -ne 0) {
-					throw "Profile setup pre-launch failed with exit code $preLaunchExitCode."
-				}
-			}
-			[Environment]::SetEnvironmentVariable('VSCODE_SKIP_PRELAUNCH', '1', 'Process')
-			Push-Location -LiteralPath $repo
-			try {
-				$setupArguments = $setupArgs.ToArray()
-				& $codeBat @setupArguments
-				$setupExitCode = $LASTEXITCODE
-			} finally {
-				Pop-Location
-			}
-		} finally {
-			[Environment]::SetEnvironmentVariable('ELECTRON_RUN_AS_NODE', $electronRunAsNode, 'Process')
-			[Environment]::SetEnvironmentVariable('VSCODE_SKIP_PRELAUNCH', $skipPreLaunchEnvironment, 'Process')
-		}
-		if ($setupExitCode -ne 0) {
-			throw "Profile setup launch failed with exit code $setupExitCode."
-		}
-
-		$temporaryDb = Join-Path $env:TEMP "code-oss-auth-preflight-$PID.vscdb"
-		$hasGitHubAuthenticationSecret = Test-SourceHasGitHubAuthenticationSecret $node $sourceUserDataDir $sourceSharedDataDir $temporaryDb
-		if ($hasGitHubAuthenticationSecret -eq $false) {
-			throw "Profile setup completed, but no stored GitHub session was found in $sourceUserDataDir or $sourceSharedDataDir."
-		}
-		if ($null -eq $hasGitHubAuthenticationSecret) {
-			Write-LaunchError '[launch.ps1] profile setup completed; authentication verification was inconclusive.'
-		} else {
-			Write-LaunchError '[launch.ps1] profile setup completed and a stored GitHub session was found.'
-		}
-		[PSCustomObject]@{
-			profileReady = $true
-			authenticationVerified = $hasGitHubAuthenticationSecret
-			userDataDir = $sourceUserDataDir
-			sharedDataDir = $sourceSharedDataDir
-			repo = $repo
-		} | ConvertTo-Json -Compress
-		exit 0
-	}
-
 	$ports = Get-FreePorts
 	$cdpPort = $ports[0]
 	$extHostPort = $ports[1]
@@ -636,8 +552,7 @@ try {
 	$hasGitHubAuthenticationSecret = Test-SourceHasGitHubAuthenticationSecret $node $sourceUserDataDir $sourceSharedDataDir (Join-Path $runDir 'auth-preflight.vscdb')
 	if ($hasGitHubAuthenticationSecret -eq $false) {
 		Write-LaunchError "[launch.ps1] WARNING: source profile $sourceUserDataDir has no stored GitHub session; the launched instance will prompt you to sign in."
-		Write-LaunchError 'To fix once and for all, launch Code OSS directly against the source profile (no copy), sign in, then close it:'
-		Write-LaunchError "  .\scripts\code.bat --user-data-dir=$sourceUserDataDir"
+		Write-LaunchError 'To pre-authenticate future launches, use scripts\bootstrap-profile.ps1 after the user chooses the bootstrap option.'
 		Write-LaunchError 'Every future launch copies that profile and inherits the session.'
 	}
 

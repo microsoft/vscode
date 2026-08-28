@@ -28,7 +28,7 @@ The clone is **slim**: workspace storage, browser caches, file history, cached V
 - A VS Code checkout with `node_modules/` installed (`npm install` if missing — do **not** symlink from a sibling worktree; that breaks builds in subtle ways).
 - A VS Code checkout with sources built. Run `npm run compile` once (one-shot) or `npm run watch` for incremental rebuilds. Both build the full client **and** all built-in extensions under `extensions/`. You must build the full product to run successfully, building just the client is not enough.
 - An **authenticated** Code OSS profile to seed from. By default the launcher uses `~/.vscode-oss-dev` on macOS/Linux or `$env:USERPROFILE\.vscode-oss-dev` on Windows, which is the user-data-dir the repo's `launch.json` configs use - if the user has ever signed in to Copilot in a dev build, this should work. Only pass `--source-user-data-dir <path>` (or set `$CODE_OSS_DEV_AUTHED_USER_DATA_DIR`) when you specifically want to seed from a different profile (e.g. your regular `~/Library/Application Support/Code` install).
-  - If Code OSS launches and needs a sign-in, don't give up! Use the questions tool to ask the user to sign in.
+  - If the profile does not exist, use the bootstrap flow below rather than creating an empty profile implicitly.
 - `@playwright/cli` available (it's a devDependency in the vscode repo - `npm install` then use `npx @playwright/cli`).
 - For debugger work: `dap-cli` on `PATH`. If debugger support would be useful but the `dap-cli` skill is not present, prompt the user to install it from https://github.com/roblourens/dap-cli.
 - CSS selectors are internal implementation details. If a selector-based `eval` stops working, take a fresh `snapshot`, inspect the current DOM, and update the selector rather than assuming an old one still applies.
@@ -49,7 +49,6 @@ The launcher script lives next to this SKILL.md at `scripts/launch.sh` (macOS/Li
 "$LAUNCH" --agents                           # Agents window
 "$LAUNCH" -- <extra-code-args>               # forward uncommon arguments to code.sh
 "$LAUNCH" --source-user-data-dir <path>      # pick a specific authed profile
-"$LAUNCH" --setup-profile                    # create/open the persistent profile for sign-in
 "$LAUNCH" --repo <vscode-repo-root>          # if not run from the repo
 "$LAUNCH" --clone-extensions                 # start with a copy of the source extensions/ (~few seconds)
 "$LAUNCH" --full                             # skip slim excludes; copy everything
@@ -66,7 +65,6 @@ $launch = Join-Path $skillDir 'scripts\launch.ps1'
 & $launch --agents                             # Agents window
 & $launch '--' '--use-mock-keychain'           # forward uncommon arguments to code.bat
 & $launch --source-user-data-dir C:\path\to\profile
-& $launch --setup-profile
 & $launch --repo C:\path\to\vscode
 & $launch --clone-extensions
 & $launch --full
@@ -76,19 +74,30 @@ $launch = Join-Path $skillDir 'scripts\launch.ps1'
 
 If the local execution policy blocks scripts, invoke it with `powershell -ExecutionPolicy Bypass -File <path-to-launch.ps1>`. The Windows implementation has the same profile isolation, slim-copy excludes, settings merge, port allocation, foreground pre-launch, and CDP-ready contract as the bash launcher; only the shell commands and path syntax differ.
 
-### Set up the authenticated source profile
+### Handle a missing sign-in
 
-If the default source profile does not exist or has no stored GitHub session, run the launcher in setup mode:
+If the launched Code OSS window requires GitHub/Copilot authentication, use the questions tool with these choices:
+
+- **I have signed in**
+- **Bootstrap profile to pre-authenticate future launches**
+
+If the user has signed in, continue with the current isolated launch. If they choose to bootstrap, clean up the current isolated launch and run the platform bootstrap script:
 
 ```bash
-"$LAUNCH" --setup-profile
+BOOTSTRAP=<dir-of-this-SKILL.md>/scripts/bootstrap-profile.sh
+"$BOOTSTRAP" --repo <vscode-repo-root>
 ```
 
 ```powershell
-& $launch --setup-profile
+$bootstrap = Join-Path $skillDir 'scripts\bootstrap-profile.ps1'
+& $bootstrap -Repo <vscode-repo-root>
 ```
 
-Setup mode creates the source profile when necessary and opens Code OSS directly against it instead of making an isolated copy. It is interactive and blocks until the window closes, so run it with a long timeout, ask the user to sign in to GitHub/Copilot, and wait for them to close the window. On Windows, the launcher then verifies that the profile or shared-data directory contains a stored GitHub session. Authentication verification is reported as `null` on macOS/Linux because those platforms can store secrets in the OS keychain. Normal launches remain isolated and never mutate this source profile.
+If the failed launch used a custom `--source-user-data-dir`, pass the same path as `--user-data-dir <path>` on macOS/Linux or `-UserDataDir <path>` on Windows.
+
+The bootstrap script returns after starting Code OSS directly against the persistent source profile; pre-launch preparation may delay the window briefly. It reports a log path for diagnosing startup failures. Ask the user to sign in to GitHub/Copilot in that window and close it, using **I have signed in** as the acknowledgement choice. Then run the normal launcher again; its isolated copy will inherit the stored authentication.
+
+Do not bootstrap without the user's explicit choice. The bootstrap window uses persistent profile and shared-authentication storage, unlike normal isolated launches.
 
 ### What gets copied (slim mode, the default)
 
@@ -107,7 +116,7 @@ The launcher therefore seeds **both**: it copies the source profile *and* copies
 
 > This asymmetry is invisible on macOS/Linux, where the same token lands inside the profile. A Windows-only "always signed out" symptom is a shared-data-dir problem, **not** a profile problem: signing in against the source profile writes a perfectly good session, but before this seeding existed every launch handed Code OSS an empty shared dir and threw it away.
 
-To (re)establish the source session, run `& $launch --setup-profile`, sign in once, and close Code OSS. That writes the blob to `%USERPROFILE%\.vscode-oss-shared` and the key to the profile's `Local State`; later launches copy both and inherit the session.
+The bootstrap script writes the session blob to `%USERPROFILE%\.vscode-oss-shared` and the key to the profile's `Local State`; later launches copy both and inherit the session.
 
 > Profiles that predate the `APPLICATION_SHARED` migration can still hold the secret in `User/globalStorage/state.vscdb`. `ApplicationSharedStorageMain` registers application storage as a read fallback, so those profiles authenticate even with no shared-data-dir present - which is why a missing shared dir is reported as a fact rather than assumed fatal.
 
@@ -465,4 +474,4 @@ Code OSS is a full Electron app and easily eats 1-4 GB. Always clean up.
 - **`launch.sh` exits non-zero with a log tail** - either pre-launch failed, `code.sh` died before CDP came up, or CDP never opened within 90s. The tail printed to stderr is from `runDir/code.log` - read it to diagnose.
 - **Snapshot shows the wrong page or no expected controls** - use `tab-list`, switch with `tab-select <index>` if needed, then re-snapshot before interacting.
 - **CLI typing commands complete but the input stays empty** - run `playwrightScripts/focus-chat-input.ts`, use `press` or clipboard paste rather than `fill` / `type`, and verify the input state before sending.
-- **Auth missing in the launched window** - confirm the source profile is actually authed (`ls "$SOURCE_UDD"` should contain `User/`, and `ls "$SOURCE_UDD/User/globalStorage"` should show persisted extension state). **On Windows, check the shared-data-dir first**: the GitHub session blob lives in `%USERPROFILE%\.vscode-oss-shared\sharedStorage\state.vscdb`, not in the profile. The launcher logs `copying shared data: <src> -> <dst>` on stderr when it finds it, and warns `no shared-data-dir at <path>` when it doesn't. A missing or empty source shared-data-dir means signing in again against the source profile is what you need - see [Windows authentication](#windows-authentication).
+- **Auth missing in the launched window** - use the [missing sign-in flow](#handle-a-missing-sign-in) so the user can either finish signing into the current isolated window or choose to bootstrap the persistent source profile. **On Windows, check the shared-data-dir first**: the GitHub session blob lives in `%USERPROFILE%\.vscode-oss-shared\sharedStorage\state.vscdb`, not in the profile. The launcher logs `copying shared data: <src> -> <dst>` on stderr when it finds it, and warns `no shared-data-dir at <path>` when it doesn't.
