@@ -16,6 +16,7 @@ import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiff
 import { MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { IMultiDiffEditorOptions } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
 import { ChatWidget } from '../widget/chatWidget.js';
+import { getAgentMergeRequestLabel } from '../widget/chatContentParts/chatAgentMergeContentPart.js';
 import { ChatTreeItem } from '../chat.js';
 import { IChatResponseFileChangesService } from '../chatResponseFileChangesService.js';
 import { IChatEditingService, IEditSessionEntryDiff } from '../../common/editing/chatEditingService.js';
@@ -109,6 +110,15 @@ const PRIOR_PX_PER_UNIT: Record<PromptItemKind, number> = { request: 18, respons
 function getPromptPreview(text: string): string {
 	const firstLine = text.split('\n').map(l => l.trim()).find(l => l.length > 0) ?? '';
 	return firstLine.length <= MAX_PREVIEW_LENGTH ? firstLine : `${firstLine.slice(0, MAX_PREVIEW_LENGTH)}…`;
+}
+
+/**
+ * Preview of a request, which for an Agent Merge turn is the summary the
+ * transcript shows in place of its machine-facing state block — the block's
+ * opening tag is all a preview of that text would say.
+ */
+function getRequestPreview(item: IChatRequestViewModel): string {
+	return getPromptPreview(getAgentMergeRequestLabel(item) ?? item.messageText);
 }
 
 /** Whether two derived prompt lists are equivalent (order, id, text and time). */
@@ -371,7 +381,7 @@ export class PromptTimelineModel extends Disposable {
 		const prompts: PromptItem[] = [];
 		for (const item of this.widget.viewModel?.getItems() ?? []) {
 			if (isPromptTimelineRequest(item)) {
-				prompts.push({ requestId: item.id, text: getPromptPreview(item.messageText), timestamp: item.timestamp });
+				prompts.push({ requestId: item.id, text: getRequestPreview(item), timestamp: item.timestamp });
 			}
 		}
 
