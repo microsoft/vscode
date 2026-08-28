@@ -16,7 +16,7 @@ import { ServiceCollection } from '../../../../../../platform/instantiation/comm
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { INotebookService } from '../../../../notebook/common/notebookService.js';
 import { ChatEditingCheckpointTimelineImpl, IChatEditingTimelineFsDelegate } from '../../../browser/chatEditing/chatEditingCheckpointTimelineImpl.js';
-import { FileOperation, FileOperationType } from '../../../browser/chatEditing/chatEditingOperations.js';
+import { FileOperation, FileOperationType, IFileCreateOperation } from '../../../browser/chatEditing/chatEditingOperations.js';
 import { IModifiedEntryTelemetryInfo } from '../../../common/editing/chatEditingService.js';
 
 suite('ChatEditingCheckpointTimeline', function () {
@@ -521,6 +521,72 @@ suite('ChatEditingCheckpointTimeline', function () {
 		assert.strictEqual(restoredState.operations.length, savedState.operations.length);
 		assert.strictEqual(restoredState.currentEpoch, savedState.currentEpoch);
 		assert.strictEqual(restoredState.epochCounter, savedState.epochCounter);
+	});
+
+	test('persistence - revives getter-backed sessionResource after JSON round-trip', function () {
+		const uri = URI.parse('file:///test.txt');
+		const createUri = URI.parse('file:///created.txt');
+
+		// Mirror the production producer (`_getTelemetryInfoForModel`), which exposes
+		// `sessionResource` via a prototype getter that `JSON.stringify` drops.
+		const getterBackedTelemetryInfo = new (class {
+			get sessionResource() { return URI.parse('chat://test-session'); }
+			readonly agentId = 'testAgent';
+			readonly requestId = 'req1';
+			readonly command = undefined;
+			readonly result = undefined;
+			readonly modelId = undefined;
+			readonly modeId = undefined;
+			readonly applyCodeBlockSuggestionId = undefined;
+			readonly feature = undefined;
+		})() as unknown as IModifiedEntryTelemetryInfo;
+
+		timeline.recordFileBaseline(upcastPartial({
+			uri,
+			requestId: 'req1',
+			content: 'initial',
+			epoch: timeline.incrementEpoch(),
+			telemetryInfo: getterBackedTelemetryInfo
+		}));
+
+		timeline.recordFileOperation(upcastPartial<FileOperation>({
+			type: FileOperationType.Create,
+			uri: createUri,
+			requestId: 'req1',
+			epoch: timeline.incrementEpoch(),
+			initialContent: 'created',
+			telemetryInfo: getterBackedTelemetryInfo
+		}));
+
+		// Round-trip through JSON.stringify/parse, which drops the getters.
+		const persistedState = JSON.parse(JSON.stringify(timeline.getStateForPersistence()));
+
+		const collection = new ServiceCollection();
+		collection.set(INotebookService, new SyncDescriptor(TestNotebookService));
+		const insta = store.add(workbenchInstantiationService(undefined, store).createChild(collection));
+
+		const restoreSessionResource = URI.parse('chat://restore-session');
+		const newTimeline = insta.createInstance(
+			ChatEditingCheckpointTimelineImpl,
+			restoreSessionResource,
+			fileDelegate
+		);
+
+		transaction(tx => {
+			newTimeline.restoreFromState(persistedState, tx);
+		});
+
+		const restoredState = newTimeline.getStateForPersistence();
+		const restoredBaseline = restoredState.fileBaselines[0]?.[1];
+		const restoredCreateOp = restoredState.operations.find(op => op.type === FileOperationType.Create) as IFileCreateOperation | undefined;
+
+		assert.deepStrictEqual({
+			baselineSessionResource: restoredBaseline?.telemetryInfo.sessionResource?.toString(),
+			createOpSessionResource: restoredCreateOp?.telemetryInfo.sessionResource?.toString(),
+		}, {
+			baselineSessionResource: restoreSessionResource.toString(),
+			createOpSessionResource: restoreSessionResource.toString(),
+		});
 	});
 
 	test('navigating between multiple requests', async function () {

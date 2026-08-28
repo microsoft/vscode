@@ -464,11 +464,7 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 	}
 
 	/**
-	 * The persisted timeline state is round-tripped through `JSON.stringify`,
-	 * which drops the getter-backed properties of the telemetry info produced
-	 * by `_getTelemetryInfoForModel` (they live on the prototype, not as own
-	 * enumerable properties). Re-inject the owning session resource so consumers
-	 * reading `telemetryInfo.sessionResource` do not observe `undefined`.
+	 * Re-injects the owning session resource into telemetry info whose getter-backed `sessionResource` was dropped during `JSON.stringify` persistence.
 	 */
 	private _reviveTelemetryInfo(telemetryInfo: IModifiedEntryTelemetryInfo): IModifiedEntryTelemetryInfo {
 		if (telemetryInfo.sessionResource) {
