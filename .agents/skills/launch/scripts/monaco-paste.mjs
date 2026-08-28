@@ -40,6 +40,14 @@ for (let index = 2; index < process.argv.length; index++) {
 			}
 			session = process.argv[++index];
 			break;
+		case '--': {
+			const remainingArguments = process.argv.slice(index + 1);
+			if (remainingArguments.length > 0) {
+				text = remainingArguments.join(' ');
+			}
+			index = process.argv.length;
+			break;
+		}
 		case '--help':
 		case '-h':
 			process.stdout.write(`Usage: monaco-paste.mjs [--append] [--no-verify] [--session NAME] [text]
