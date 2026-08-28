@@ -707,6 +707,18 @@ function handleRequest(req: import('http').IncomingMessage, res: import('http').
 		return;
 	}
 
+	// -- Auto v2 (prompt-backed Auto routing) -------------------------
+	if (path === '/auto' && req.method === 'POST') {
+		readBody().then(() => {
+			json(200, {
+				session_token: 'perf-auto-session-token-' + Date.now(),
+				selected_model: { id: MODEL },
+				expires_at: Math.floor(Date.now() / 1000) + 3600,
+			});
+		});
+		return;
+	}
+
 	// -- Auto Models / Model Session (DomainService.capiAutoModelURL = /models/session) --
 	// Returns AutoModeAPIResponse: { available_models, session_token, expires_at }
 	if (path === '/models/session' && req.method === 'POST') {
