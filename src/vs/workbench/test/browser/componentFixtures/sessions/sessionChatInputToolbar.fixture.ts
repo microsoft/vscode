@@ -129,7 +129,7 @@ function createBrowserViewService(inputs: readonly BrowserEditorInput[]): IBrows
 // Render helpers
 // ============================================================================
 
-function renderPills(ctx: ComponentFixtureContext, sessionMock: IMockSessionAndChat, options?: { readonly debugData?: ISessionChatPillsDebugData; readonly enabled?: boolean; readonly width?: string }): void {
+function renderPills(ctx: ComponentFixtureContext, sessionMock: IMockSessionAndChat, options?: { readonly compact?: boolean | 'auto'; readonly debugData?: ISessionChatPillsDebugData; readonly enabled?: boolean; readonly width?: string }): void {
 	const { container, disposableStore } = ctx;
 
 	const instantiationService = createEditorServices(disposableStore, {
@@ -165,7 +165,7 @@ function renderPills(ctx: ComponentFixtureContext, sessionMock: IMockSessionAndC
 
 	(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.TurnStatusPills, options?.enabled ?? true);
 
-	const pills = disposableStore.add(instantiationService.createInstance(SessionChatInputToolbar));
+	const pills = disposableStore.add(instantiationService.createInstance(SessionChatInputToolbar, options?.compact ?? false));
 	pills.setSession(sessionMock.session, sessionMock.chat);
 	pills.setDebugData(options?.debugData);
 	container.appendChild(pills.element);
@@ -198,7 +198,7 @@ async function renderChatViewWithPills(ctx: ComponentFixtureContext, mock: IMock
 			instantiationService.invokeFunction(accessor => {
 				(accessor.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.TurnStatusPills, true);
 			});
-			const pills = ctx.disposableStore.add(instantiationService.createInstance(SessionChatInputToolbar));
+			const pills = ctx.disposableStore.add(instantiationService.createInstance(SessionChatInputToolbar, false));
 			const updateChatPillsVisibility = (visible: boolean) => {
 				inputPart.persistentContentContainerElement.classList.toggle(chatPersistentContentVisibleClass, visible);
 			};
@@ -476,6 +476,44 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		}),
 	}),
 
+	SessionChatPills_Compact: defineComponentFixture({
+		render: ctx => renderPills(ctx, createMockSession({
+			status: SessionStatus.NeedsInput,
+			turnChanges: [editedFile('app.ts', 452, 85), editedFile('util.ts', 8, 2)],
+			artifacts: [
+				{ id: 'a1', kind: SessionArtifactKind.File, label: 'Implementation plan', isArtifact: true, uri: URI.file('/repo/docs/plan.md') },
+			],
+			browsers: [{ title: 'Project Preview' }, { title: 'Component Explorer' }],
+		}), {
+			compact: true,
+			width: '280px',
+		}),
+	}),
+
+	SessionChatPills_ResponsiveWide: defineComponentFixture({
+		render: ctx => renderPills(ctx, createMockSession({
+			status: SessionStatus.NeedsInput,
+			turnChanges: [editedFile('app.ts', 452, 85), editedFile('util.ts', 8, 2)],
+			artifacts: [{ id: 'a1', kind: SessionArtifactKind.File, label: 'Implementation plan', isArtifact: true, uri: URI.file('/repo/docs/plan.md') }],
+			browsers: [{ title: 'Project Preview' }, { title: 'Component Explorer' }],
+		}), {
+			compact: 'auto',
+			width: '600px',
+		}),
+	}),
+
+	SessionChatPills_ResponsiveNarrow: defineComponentFixture({
+		render: ctx => renderPills(ctx, createMockSession({
+			status: SessionStatus.NeedsInput,
+			turnChanges: [editedFile('app.ts', 452, 85), editedFile('util.ts', 8, 2)],
+			artifacts: [{ id: 'a1', kind: SessionArtifactKind.File, label: 'Implementation plan', isArtifact: true, uri: URI.file('/repo/docs/plan.md') }],
+			browsers: [{ title: 'Project Preview' }, { title: 'Component Explorer' }],
+		}), {
+			compact: 'auto',
+			width: '180px',
+		}),
+	}),
+
 	// --- Gating -------------------------------------------------------------
 
 	SessionChatPills_NotAgentHost_Hidden: defineComponentFixture({
@@ -529,7 +567,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 					instantiationService.invokeFunction(accessor => {
 						(accessor.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.TurnStatusPills, true);
 					});
-					const pills = ctx.disposableStore.add(instantiationService.createInstance(SessionChatInputToolbar));
+					const pills = ctx.disposableStore.add(instantiationService.createInstance(SessionChatInputToolbar, false));
 					pills.setSession(mock.session, mock.chat);
 					inputPart.persistentContentContainerElement.appendChild(pills.element);
 				},

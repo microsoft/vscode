@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { $ } from '../../base/browser/dom.js';
 import { IActionViewItemOptions } from '../../base/browser/ui/actionbar/actionViewItems.js';
 import { Button } from '../../base/browser/ui/button/button.js';
 import { IAction } from '../../base/common/actions.js';
+import { Codicon } from '../../base/common/codicons.js';
 import { onUnexpectedError } from '../../base/common/errors.js';
 import { IObservable, autorun } from '../../base/common/observable.js';
+import { ThemeIcon } from '../../base/common/themables.js';
 import { localize } from '../../nls.js';
 import { FileKind } from '../../platform/files/common/files.js';
 import { ChatPillActionViewItemBase, type IChatPillEntry } from './chatPills.js';
@@ -32,6 +35,7 @@ export class ChatResourcePillActionViewItem extends ChatPillActionViewItemBase {
 	}
 
 	protected override renderContent(button: Button): void {
+		button.element.appendChild($(`span.chat-pill-icon.chat-resource-pill-compact-icon${ThemeIcon.asCSSSelector(Codicon.file)}`, { 'aria-hidden': 'true' }));
 		const label = this._register(this._resourceLabels.create(button.element));
 		this._register(autorun(reader => {
 			const entry = this._entry.read(reader);

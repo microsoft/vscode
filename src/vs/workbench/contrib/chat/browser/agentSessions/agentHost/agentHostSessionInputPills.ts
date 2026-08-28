@@ -27,7 +27,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
-import { CHAT_INPUT_PILLS_ROW_HEIGHT, ChatPillsRow, ChatPillsWidget, getChatPillEntries, getChatPillResourceLocation, IChatPill, IChatPillEntry, IChatPillSection, IChatPillsModel } from '../../../../../browser/chatPills.js';
+import { CHAT_INPUT_PILLS_ROW_HEIGHT, ChatPillsRow, ChatPillsWidget, getChatPillEntries, getChatPillResourceLocation, IChatPill, IChatPillEntry, IChatPillSection, IChatPillsModel, type ChatPillsCompactMode } from '../../../../../browser/chatPills.js';
 import { ChatChangesPillActionViewItem, chatChangesStatsEqual, EMPTY_CHAT_CHANGES_STATS, IChatChangesStats } from '../../../../../browser/chatChangesPill.js';
 import { ChatPillSingleEntry, createChatSectionPill, IChatDropdownPillOptions } from '../../../../../browser/chatDropdownPill.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../../browser/labels.js';
@@ -246,7 +246,7 @@ export class AgentHostSessionInputPills extends Disposable {
 
 	constructor(
 		private readonly _widget: ChatWidget,
-		compact: boolean,
+		compact: ChatPillsCompactMode,
 		@IAgentHostConnectionsService connectionsService: IAgentHostConnectionsService,
 		@IBrowserViewWorkbenchService private readonly _browserViewService: IBrowserViewWorkbenchService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,

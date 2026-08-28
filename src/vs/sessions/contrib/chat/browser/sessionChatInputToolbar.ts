@@ -19,7 +19,7 @@ import { CHAT_TURN_ARTIFACT_PILL_ID, CHAT_TURN_CHANGES_PILL_ID, ChatTurnPillsPro
 import { SessionArtifacts, sessionArtifactLocation, sessionReferencesPillOptions, SESSION_REFERENCES_PILL_ID } from './sessionArtifacts.js';
 import { chatCustomizationPillOptions, SessionCustomizations, SESSION_CUSTOMIZATIONS_PILL_ID } from './sessionCustomizations.js';
 import { localize } from '../../../../nls.js';
-import { CHAT_INPUT_PILLS_ROW_HEIGHT, ChatPillsRow, getChatPillEntries, ChatPillsWidget, IChatPill, IChatPillsModel, type IChatPillSection } from '../../../../workbench/browser/chatPills.js';
+import { CHAT_INPUT_PILLS_ROW_HEIGHT, ChatPillsRow, getChatPillEntries, ChatPillsWidget, IChatPill, IChatPillsModel, type ChatPillsCompactMode, type IChatPillSection } from '../../../../workbench/browser/chatPills.js';
 import { createChatSectionPill, type IChatDropdownPillOptions } from '../../../../workbench/browser/chatDropdownPill.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../workbench/browser/labels.js';
 import { VIEW_SESSION_CHANGES_COMMAND_ID } from '../../changes/common/changes.js';
@@ -136,6 +136,7 @@ export class SessionChatInputToolbar extends Disposable {
 	private readonly _customizationSections: IObservable<readonly IChatPillSection[]>;
 
 	constructor(
+		compact: ChatPillsCompactMode,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
@@ -145,7 +146,7 @@ export class SessionChatInputToolbar extends Disposable {
 	) {
 		super();
 
-		this._row = this._register(new ChatPillsRow('SessionChatInputToolbar.content'));
+		this._row = this._register(new ChatPillsRow('SessionChatInputToolbar.content', { compact }));
 		this._content = this._row.content;
 		this.element = this._row.element;
 		this.element.classList.add('session-chat-input-toolbar', 'hidden');

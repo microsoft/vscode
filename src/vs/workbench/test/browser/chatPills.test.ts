@@ -99,4 +99,99 @@ suite('ChatPills', () => {
 
 		disposables.dispose();
 	});
+
+	test('compact rows collapse pill details while retaining icons', () => {
+		const disposables = store.add(new DisposableStore());
+		const row = disposables.add(new ChatPillsRow('ChatPills.compactTest', { compact: true }));
+		mainWindow.document.body.appendChild(row.element);
+		disposables.add(toDisposable(() => row.element.remove()));
+
+		const button = mainWindow.document.createElement('button');
+		button.className = 'monaco-button chat-pill-button chat-resource-pill-button';
+		const item = mainWindow.document.createElement('div');
+		item.className = 'chat-pill-item';
+		const icon = mainWindow.document.createElement('span');
+		icon.className = 'chat-pill-icon';
+		const label = mainWindow.document.createElement('span');
+		label.className = 'chat-pill-label';
+		const counter = mainWindow.document.createElement('div');
+		counter.className = 'monaco-animated-counter';
+		const chevron = mainWindow.document.createElement('span');
+		chevron.className = 'chat-pill-chevron';
+		const resourceIcon = mainWindow.document.createElement('span');
+		resourceIcon.className = 'chat-resource-pill-compact-icon';
+		const resourceName = mainWindow.document.createElement('span');
+		resourceName.className = 'monaco-icon-label';
+		button.append(icon, label, counter, chevron, resourceIcon, resourceName);
+		item.appendChild(button);
+		row.content.appendChild(item);
+
+		const compactState = {
+			iconVisible: mainWindow.getComputedStyle(icon).display !== 'none',
+			labelVisible: mainWindow.getComputedStyle(label).display !== 'none',
+			counterVisible: mainWindow.getComputedStyle(counter).display !== 'none',
+			chevronVisible: mainWindow.getComputedStyle(chevron).display !== 'none',
+			resourceIconVisible: mainWindow.getComputedStyle(resourceIcon).display !== 'none',
+			resourceNameVisible: mainWindow.getComputedStyle(resourceName).display !== 'none',
+		};
+		row.element.classList.remove('compact');
+
+		assert.deepStrictEqual({
+			compactState,
+			expandedResourceIconVisible: mainWindow.getComputedStyle(resourceIcon).display !== 'none',
+		}, {
+			compactState: {
+				iconVisible: true,
+				labelVisible: false,
+				counterVisible: false,
+				chevronVisible: false,
+				resourceIconVisible: true,
+				resourceNameVisible: false,
+			},
+			expandedResourceIconVisible: false,
+		});
+
+		disposables.dispose();
+	});
+
+	test('automatic compact mode follows available width', () => {
+		const disposables = store.add(new DisposableStore());
+		const row = disposables.add(new ChatPillsRow('ChatPills.responsiveTest', { compact: 'auto' }));
+		row.element.style.width = '600px';
+		mainWindow.document.body.appendChild(row.element);
+		disposables.add(toDisposable(() => row.element.remove()));
+
+		const item = mainWindow.document.createElement('div');
+		item.className = 'chat-pill-item';
+		const button = mainWindow.document.createElement('button');
+		button.className = 'monaco-button chat-pill-button';
+		const icon = mainWindow.document.createElement('span');
+		icon.className = 'chat-pill-icon';
+		const label = mainWindow.document.createElement('span');
+		label.className = 'chat-pill-label';
+		label.textContent = 'A detailed pill label that needs room';
+		button.append(icon, label);
+		item.appendChild(button);
+		row.content.appendChild(item);
+
+		row.layout();
+		const wideCompact = row.element.classList.contains('compact');
+		row.element.style.width = '40px';
+		row.layout();
+		const narrowCompact = row.element.classList.contains('compact');
+		row.element.style.width = '600px';
+		row.layout();
+
+		assert.deepStrictEqual({
+			wideCompact,
+			narrowCompact,
+			expandedAgain: !row.element.classList.contains('compact'),
+		}, {
+			wideCompact: false,
+			narrowCompact: true,
+			expandedAgain: true,
+		});
+
+		disposables.dispose();
+	});
 });

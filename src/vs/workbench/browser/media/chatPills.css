@@ -132,6 +132,10 @@
 	padding-left: var(--vscode-spacing-size20);
 }
 
+.chat-pill-item .monaco-button.chat-resource-pill-button .chat-resource-pill-compact-icon {
+	display: none;
+}
+
 .chat-resource-pill-button .monaco-icon-label {
 	align-items: center;
 	min-width: 0;
@@ -205,11 +209,18 @@
 	padding-right: var(--vscode-spacing-size40);
 }
 
-.chat-pills-row.compact .chat-pills .monaco-action-bar .chat-dropdown-pill,
-.chat-pills-row.compact .chat-pills .monaco-action-bar .chat-resource-pill,
-.chat-pills-row.compact .chat-pill-item .monaco-button.chat-dropdown-pill-button,
-.chat-pills-row.compact .chat-pill-item .monaco-button.chat-resource-pill-button {
-	max-width: 160px;
+/* Compact rows are truly collapsed rather than merely tighter: all current
+	pill renderers keep their identifying icon while labels, counters and dropdown
+	chevrons remain available through the button's tooltip and accessible name. */
+.chat-pills-row.compact .chat-pill-label,
+.chat-pills-row.compact .monaco-animated-counter,
+.chat-pills-row.compact .chat-pill-chevron,
+.chat-pills-row.compact .chat-resource-pill-button .monaco-icon-label {
+	display: none;
+}
+
+.chat-pills-row.compact .chat-pill-item .monaco-button.chat-resource-pill-button .chat-resource-pill-compact-icon {
+	display: inline-flex;
 }
 
 /* Keep the visibility menu reachable when every pill with data is hidden. */

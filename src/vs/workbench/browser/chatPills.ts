@@ -101,9 +101,11 @@ export interface IChatPillsWidgetOptions {
  */
 export const CHAT_INPUT_PILLS_ROW_HEIGHT = 28;
 
+export type ChatPillsCompactMode = boolean | 'auto';
+
 export interface IChatPillsRowOptions {
-	/** Uses tighter horizontal spacing while preserving the pill content and hit targets. */
-	readonly compact?: boolean;
+	/** Collapses pills to their icons and uses tighter spacing while preserving full accessible labels and tooltips. */
+	readonly compact?: ChatPillsCompactMode;
 	/** Window that owns the row. Required when rendering in an auxiliary window. */
 	readonly targetWindow?: CodeWindow;
 }
@@ -116,6 +118,8 @@ export class ChatPillsRow extends Disposable {
 
 	private readonly _scrollable: DomScrollableElement;
 	private readonly _resizeObserver: DisposableResizeObserver;
+	private readonly _mutationObserver: MutationObserver | undefined;
+	private _isLayouting = false;
 	private readonly _onDidChangeLayout = this._register(new Emitter<void>());
 	readonly onDidChangeLayout: Event<void> = this._onDidChangeLayout.event;
 	private readonly _onDidRequestContextMenu = this._register(new Emitter<HTMLElement>());
@@ -136,13 +140,18 @@ export class ChatPillsRow extends Disposable {
 		}));
 		this.element = this._scrollable.getDomNode();
 		this.element.classList.add('chat-pills-row');
-		this.element.classList.toggle('compact', options?.compact === true);
+		const compactMode = options?.compact ?? false;
+		this.element.classList.toggle('compact', compactMode === true);
 
-		this._resizeObserver = this._register(new DisposableResizeObserver(debugName, () => {
-			this.scanDomNode();
-			this._onDidChangeLayout.fire();
-		}, targetWindow));
+		this._resizeObserver = this._register(new DisposableResizeObserver(debugName, () => this.layout(), targetWindow));
 		this._register(this._resizeObserver.observe(this.content));
+		if (compactMode === 'auto') {
+			this._mutationObserver = new targetWindow.MutationObserver(() => this.layout());
+			this._observeMutations();
+			this._register({ dispose: () => this._mutationObserver?.disconnect() });
+		} else {
+			this._mutationObserver = undefined;
+		}
 		this._register(this._scrollable.onScroll(event => {
 			if (event.scrollLeftChanged) {
 				this._onDidChangeLayout.fire();
@@ -164,11 +173,42 @@ export class ChatPillsRow extends Disposable {
 
 	observe(element: HTMLElement): void {
 		this._register(this._resizeObserver.observe(element));
-		this.scanDomNode();
+		this.layout();
+	}
+
+	layout(): void {
+		if (this._isLayouting || !this.element.isConnected) {
+			return;
+		}
+
+		this._isLayouting = true;
+		this._mutationObserver?.disconnect();
+		try {
+			if (this._mutationObserver) {
+				this.element.classList.remove('compact');
+				const availableWidth = this.element.getBoundingClientRect().width;
+				this.element.classList.toggle('compact', availableWidth > 0 && this.content.scrollWidth > availableWidth + 1);
+			}
+			this.scanDomNode();
+			this._onDidChangeLayout.fire();
+		} finally {
+			this._observeMutations();
+			this._isLayouting = false;
+		}
 	}
 
 	scanDomNode(): void {
 		this._scrollable.scanDomNode();
+	}
+
+	private _observeMutations(): void {
+		this._mutationObserver?.observe(this.content, {
+			attributes: true,
+			attributeFilter: ['class', 'hidden', 'style'],
+			characterData: true,
+			childList: true,
+			subtree: true,
+		});
 	}
 
 	setEmpty(empty: boolean, ariaLabel: string): void {
@@ -394,9 +434,7 @@ export abstract class ChatPillActionViewItemBase extends BaseActionViewItem {
 	}
 }
 
-/**
- * Compact `icon + label` rendering, the default for chat pill actions.
- */
+/** The default `icon + label` rendering for chat pill actions. */
 export class ChatPillActionViewItem extends ChatPillActionViewItemBase {
 
 	constructor(context: unknown, action: IAction, options: IActionViewItemOptions) {

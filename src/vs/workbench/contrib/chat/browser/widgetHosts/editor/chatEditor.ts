@@ -152,7 +152,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 			}
 		}));
 		this.widget.render(parent);
-		this._register(scopedInstantiationService.createInstance(AgentHostSessionInputPills, this.widget, false));
+		this._register(scopedInstantiationService.createInstance(AgentHostSessionInputPills, this.widget, 'auto'));
 		this.widget.setVisible(true);
 	}
 

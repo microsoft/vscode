@@ -296,7 +296,7 @@ export class ChatView extends AbstractChatView {
 		this._banners.setActive(this._isActive);
 
 		// Floating status pills above the input.
-		this._chatPills = this._register(instantiationService.createInstance(SessionChatInputToolbar));
+		this._chatPills = this._register(instantiationService.createInstance(SessionChatInputToolbar, false));
 		const updateChatPillsVisibility = (visible: boolean) => {
 			this._widget.inputPart.persistentContentContainerElement.classList.toggle(chatPersistentContentVisibleClass, visible);
 		};
