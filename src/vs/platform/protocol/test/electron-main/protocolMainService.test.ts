@@ -77,8 +77,8 @@ suite('ProtocolMainService', () => {
 			},
 			failed: {
 				statusCode: 500,
-				data: 'Error: failed',
-				mimeType: 'text/plain;charset=UTF-8',
+				data: '',
+				mimeType: null,
 			},
 			requestCount: 1,
 		});
