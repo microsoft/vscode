@@ -104,7 +104,7 @@ suite('SessionInputBanners', () => {
 		}();
 
 		let feedbackItems: IAgentFeedback[] = [
-			prFeedback('pr-42-a', sessionResource, 42),
+			{ ...prFeedback('pr-42-a', sessionResource, 42), sourcePullRequest: undefined },
 			prFeedback('pr-42-b', sessionResource, 42),
 			prFeedback('pr-41', sessionResource, 41),
 			agentFeedback('agent', sessionResource),

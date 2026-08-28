@@ -170,6 +170,38 @@ suite('SessionInputBannerWidget', () => {
 		assert.deepStrictEqual({ primaryRuns, inputFocusCount }, { primaryRuns: 0, inputFocusCount: 1 });
 	}));
 
+	test('runs a pending primary action after the same banner is refreshed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const ready = new DeferredPromise<boolean>();
+		let primaryRuns = 0;
+		const hoverService = upcastPartial<IHoverService>({
+			setupManagedHover: () => upcastPartial<IManagedHover>({ dispose() { } }),
+		});
+		const contextMenuService = upcastPartial<IContextMenuService>({ showContextMenu() { } });
+		const banner = (text: string): ISessionInputBanner => ({
+			id: 'same',
+			icon: Codicon.warning,
+			accent: true,
+			text,
+			ariaLabel: text,
+			actions: [{
+				id: 'fixCI',
+				label: 'Fix CI',
+				primary: true,
+				waitUntilReady: () => ready.p,
+				run: () => { primaryRuns++; },
+			}],
+		});
+		const widget = disposables.add(new SessionInputBannerWidget(banner('2 Checks Failing'), hoverService, contextMenuService));
+
+		widget.domNode.querySelector<HTMLElement>('.session-input-banner-action')?.click();
+		await timeout(0);
+		widget.setBanners([banner('3 Checks Failing')]);
+		ready.complete(true);
+		await timeout(0);
+
+		assert.strictEqual(primaryRuns, 1);
+	}));
+
 	test('navigates carousel items and preserves one banner surface', () => {
 		const hoverService = upcastPartial<IHoverService>({
 			setupManagedHover: () => upcastPartial<IManagedHover>({ dispose() { } }),

@@ -27,6 +27,7 @@ import { chartsOrange } from '../../../../platform/theme/common/colors/chartsCol
 const SHOW_WORKING_DELAY_MS = 1_000;
 
 export interface ISessionInputBannerAction {
+	readonly id?: string;
 	readonly label: string;
 	/** Renders the action with the prominent button colors. */
 	readonly primary?: boolean;
@@ -83,7 +84,6 @@ export class SessionInputBannerWidget extends Disposable {
 	private _working = false;
 	private _banners: readonly ISessionInputBanner[] = [];
 	private _activeIndex = 0;
-	private _renderGeneration = 0;
 	private _previousButton: IButton | undefined;
 	private _nextButton: IButton | undefined;
 	private _dismissButton: HTMLButtonElement | undefined;
@@ -110,7 +110,6 @@ export class SessionInputBannerWidget extends Disposable {
 	}
 
 	private _render(focus: BannerFocus | undefined = this._captureFocus()): void {
-		this._renderGeneration++;
 		const store = this._content.value = new DisposableStore();
 		this._buttons.length = 0;
 		this._previousButton = undefined;
@@ -154,7 +153,7 @@ export class SessionInputBannerWidget extends Disposable {
 				? store.add(new ButtonWithDropdown(actions, {
 					...options,
 					actions: action.dropdownActions.map((dropdownAction, dropdownIndex) => toAction({
-						id: `session.inputBanner.${actionIndex}.${dropdownIndex}`,
+						id: dropdownAction.id ?? `session.inputBanner.${actionIndex}.${dropdownIndex}`,
 						label: dropdownAction.label,
 						run: () => this._runAction(dropdownAction),
 					})),
@@ -330,7 +329,9 @@ export class SessionInputBannerWidget extends Disposable {
 
 		this._runningPrimaryAction = true;
 		this._setPrimaryButtonsEnabled(false);
-		const renderGeneration = this._renderGeneration;
+		const banner = this._banners[this._activeIndex];
+		const bannerIdentity = banner?.id ?? banner;
+		const actionIdentity = action.id ?? action.label;
 		try {
 			if (action.waitUntilReady && !await this._waitUntilReady(action.waitUntilReady)) {
 				return;
@@ -338,7 +339,8 @@ export class SessionInputBannerWidget extends Disposable {
 			// Readiness can resolve after the banner was replaced or torn down
 			// (e.g. the comments it acted on disappeared), and running then would
 			// act on state this banner no longer represents.
-			if (this._disposed || renderGeneration !== this._renderGeneration) {
+			const currentBanner = this._banners[this._activeIndex];
+			if (this._disposed || (currentBanner?.id ?? currentBanner) !== bannerIdentity || !this._hasAction(currentBanner, actionIdentity)) {
 				return;
 			}
 			await action.run();
@@ -346,6 +348,12 @@ export class SessionInputBannerWidget extends Disposable {
 			this._setPrimaryButtonsEnabled(true);
 			this._runningPrimaryAction = false;
 		}
+	}
+
+	private _hasAction(banner: ISessionInputBanner | undefined, actionIdentity: string): boolean {
+		return banner?.actions.some(action =>
+			(action.id ?? action.label) === actionIdentity ||
+			action.dropdownActions?.some(dropdownAction => (dropdownAction.id ?? dropdownAction.label) === actionIdentity)) === true;
 	}
 
 	private async _waitUntilReady(waitUntilReady: () => Promise<boolean>): Promise<boolean> {

@@ -112,6 +112,7 @@ export interface IAgentFeedbackSubmittedEvent {
 /** Controls which accepted feedback items are submitted and the request used for them. */
 export interface ISubmitFeedbackOptions {
 	readonly query?: string;
+	/** Selected feedback for Agent Host requests. Other providers submit their complete reactive attachment. */
 	readonly feedbackIds?: readonly string[];
 	readonly onRequestAccepted?: () => void;
 }
@@ -993,7 +994,8 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		// For non-agent-host sessions the reactive attachment contribution also
 		// marks submission on send; marking from the helper is idempotent and
 		// covers sessions without that contribution.
-		return this._sendActOnFeedbackRequest(widget, sessionResource, options);
+		const nonAgentHostOptions = options?.feedbackIds ? { ...options, feedbackIds: undefined } : options;
+		return this._sendActOnFeedbackRequest(widget, sessionResource, nonAgentHostOptions);
 	}
 
 	/**

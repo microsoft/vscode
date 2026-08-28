@@ -89,10 +89,12 @@ suite('SessionEditorComments', () => {
 		};
 
 		const comments = getSessionEditorComments(session, [], prState);
-		assert.strictEqual(comments.length, 2);
-		assert.deepStrictEqual(comments.map(c => `${c.resourceUri.path}:${c.range.startLineNumber}:${c.source}`), [
-			'/a.ts:5:prReview',
-			'/b.ts:1:prReview',
+		assert.deepStrictEqual(comments.map(c => ({
+			location: `${c.resourceUri.path}:${c.range.startLineNumber}:${c.source}`,
+			pullRequest: c.sourcePullRequest,
+		})), [
+			{ location: '/a.ts:5:prReview', pullRequest: { owner: 'owner', repo: 'repo', number: 1 } },
+			{ location: '/b.ts:1:prReview', pullRequest: { owner: 'owner', repo: 'repo', number: 1 } },
 		]);
 		assert.strictEqual(comments[0].canConvertToAgentFeedback, true);
 	});
