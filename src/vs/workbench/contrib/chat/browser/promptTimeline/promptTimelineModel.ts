@@ -112,15 +112,6 @@ function getPromptPreview(text: string): string {
 	return firstLine.length <= MAX_PREVIEW_LENGTH ? firstLine : `${firstLine.slice(0, MAX_PREVIEW_LENGTH)}…`;
 }
 
-/**
- * Preview of a request, which for an Agent Merge turn is the summary the
- * transcript shows in place of its machine-facing state block — the block's
- * opening tag is all a preview of that text would say.
- */
-function getRequestPreview(item: IChatRequestViewModel): string {
-	return getPromptPreview(getAgentMergeRequestLabel(item) ?? item.messageText);
-}
-
 /** Whether two derived prompt lists are equivalent (order, id, text and time). */
 function promptsEqual(a: readonly PromptItem[], b: readonly PromptItem[]): boolean {
 	return a.length === b.length && a.every((p, i) =>
@@ -234,6 +225,9 @@ export class PromptTimelineModel extends Disposable {
 
 	/** Per-item content-signal cache (id -> {version, signal}) for height estimation; version invalidates on content growth. */
 	private readonly _signalCache = new Map<string, { version: number; signal: number }>();
+
+	/** Per-request preview cache (id -> {messageText, preview}); recognizing an Agent Merge turn parses its whole state block, and `_recompute` runs on every streamed token. */
+	private readonly _previewCache = new Map<string, { messageText: string; preview: string }>();
 
 	constructor(
 		private readonly widget: ChatWidget,
@@ -370,9 +364,26 @@ export class PromptTimelineModel extends Disposable {
 		return 1;
 	}
 
+	/**
+	 * Preview of a prompt, which for an Agent Merge turn is the summary the
+	 * transcript shows in place of its machine-facing state block — the block's
+	 * opening tag is all a preview of that text would say.
+	 */
+	private _requestPreview(item: IChatRequestViewModel): string {
+		const messageText = item.messageText;
+		const cached = this._previewCache.get(item.id);
+		if (cached && cached.messageText === messageText) {
+			return cached.preview;
+		}
+		const preview = getPromptPreview(getAgentMergeRequestLabel(item) ?? messageText);
+		this._previewCache.set(item.id, { messageText, preview });
+		return preview;
+	}
+
 	private _bindViewModel(): void {
-		// Different session's items have unrelated ids; drop stale signal estimates.
+		// Different session's items have unrelated ids; drop stale per-item caches.
 		this._signalCache.clear();
+		this._previewCache.clear();
 		this._viewModelListener.value = this.widget.viewModel?.onDidChange(() => this._recompute());
 		this._recompute();
 	}
@@ -381,7 +392,7 @@ export class PromptTimelineModel extends Disposable {
 		const prompts: PromptItem[] = [];
 		for (const item of this.widget.viewModel?.getItems() ?? []) {
 			if (isPromptTimelineRequest(item)) {
-				prompts.push({ requestId: item.id, text: getRequestPreview(item), timestamp: item.timestamp });
+				prompts.push({ requestId: item.id, text: this._requestPreview(item), timestamp: item.timestamp });
 			}
 		}
 
