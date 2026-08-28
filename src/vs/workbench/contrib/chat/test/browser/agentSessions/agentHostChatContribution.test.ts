@@ -67,6 +67,7 @@ import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, Resour
 import { AgentHostContribution, AgentHostSessionHandler } from '../../../browser/agentSessions/agentHost/agentHostChatContribution.js';
 import { AgentHostAuthTokenCache } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
 import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
+import { AgentHostSnapshotController } from '../../../browser/agentSessions/agentHost/agentHostSnapshotController.js';
 import { AgentHostSessionListContribution } from '../../../browser/agentSessions/agentHost/agentHostSessionListContribution.js';
 import { AgentHostSessionListController } from '../../../browser/agentSessions/agentHost/agentHostSessionListController.js';
 import { AgentHostSessionListStore, type IAgentHostSessionListConnection } from '../../../browser/agentSessions/agentHost/agentHostSessionListStore.js';
@@ -10971,6 +10972,51 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(toolInvocation!.toolCallId, 'tc-running');
 		});
 
+		test('records edits from a tool that completed before reconnect once the model appears', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatService, instantiationService } = createContribution(disposables);
+
+			const sessionUri = AgentSession.uri('copilot', 'reconnect-edit-checkpoint');
+			const sessionState = makeSessionStateWithActiveTurn(sessionUri.toString());
+			sessionState.activeTurn!.responseParts.unshift({
+				kind: ResponsePartKind.ToolCall,
+				toolCall: {
+					toolCallId: 'tc-edit',
+					toolName: 'edit',
+					displayName: 'Edit',
+					invocationMessage: 'Editing file',
+					pastTenseMessage: 'Edited file',
+					status: ToolCallStatus.Completed,
+					confirmed: ToolCallConfirmationReason.NotNeeded,
+					success: true,
+					content: [{
+						type: ToolResultContentType.FileEdit,
+						after: { uri: 'file:///repo/file.ts', content: { uri: 'agenthost-content://bang/after' } },
+					}],
+				},
+			});
+			agentHostService.sessionStates.set(sessionUri.toString(), sessionState);
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/reconnect-edit-checkpoint' });
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+
+			assert.deepStrictEqual(
+				(session.progressObs?.get() ?? []).filter(part => part.kind === 'externalEdit').map(part => part.uri.path),
+				['/repo/file.ts'],
+			);
+
+			const controller = disposables.add(instantiationService.createInstance(AgentHostSnapshotController, sessionResource, 'bang'));
+			chatService.setSession(sessionResource, upcastPartial<IChatModel>({
+				sessionResource,
+				editingSession: controller,
+				startEditingSession: () => { },
+				onDidChangePendingRequests: Event.None,
+				getPendingRequests: () => [],
+			}));
+
+			assert.strictEqual(controller.hasEditsInRequest('turn-active'), true);
+		}));
+
 		test('replays a settled tool call once, keeping the streamed markdown in one part', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			// A tool part between the two markdown fragments stops the response
 			// model from merging them, splitting the answer mid-word.
@@ -11008,7 +11054,7 @@ suite('AgentHostChatContribution', () => {
 
 			assert.deepStrictEqual(
 				(session.progressObs?.get() ?? []).map(part => part.kind === 'markdownContent' ? `markdown:${part.content.value}` : part.kind),
-				['toolInvocationSerialized', 'markdown:that fallback fails to', 'markdown:ward destroying history.'],
+				['toolInvocation', 'markdown:that fallback fails to', 'markdown:ward destroying history.'],
 			);
 		}));
 
@@ -11062,7 +11108,7 @@ suite('AgentHostChatContribution', () => {
 
 			assert.deepStrictEqual(
 				(session.progressObs?.get() ?? []).map(part => part.kind === 'markdownContent' ? `markdown:${part.content.value}` : part.kind),
-				['toolInvocationSerialized', 'markdown:that fallback fails to', 'markdown:ward destroying history.'],
+				['toolInvocation', 'markdown:that fallback fails to', 'markdown:ward destroying history.'],
 			);
 		}));
 

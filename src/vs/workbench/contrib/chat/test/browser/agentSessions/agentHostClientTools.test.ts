@@ -2070,7 +2070,7 @@ suite('AgentHostClientTools', () => {
 			await timeout(0);
 		});
 
-		test('reconnecting to an active turn with owned client tool completes the initial snapshot invocation', async () => {
+		test('reconnecting to an active turn with an owned client tool renders exactly one invocation', async () => {
 			const { handler, connection } = createHandlerWithMocks(disposables, [testRunTaskTool]);
 			const sessionResource = URI.parse('agent-host-copilot:/session-1');
 			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
@@ -2100,23 +2100,13 @@ suite('AgentHostClientTools', () => {
 
 			const session = await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
 
-			// activeTurnToProgress creates a generic ChatToolInvocation for
-			// the running client tool which appears in the session's progress
-			// observable. Grab it before _reconnectToActiveTurn replaces it.
-			const snapshotInvocation = (session as unknown as { progressObs: { get(): IChatProgress[] } })
+			await timeout(0);
+			await timeout(0);
+
+			const invocations = (session as unknown as { progressObs: { get(): IChatProgress[] } })
 				.progressObs.get()
-				.find((p): p is ChatToolInvocation => p instanceof ChatToolInvocation && p.toolCallId === 'tool-call-1');
-			assert.ok(snapshotInvocation, 'activeTurnToProgress should have created a snapshot invocation');
-
-			await timeout(0);
-			await timeout(0);
-
-			// The snapshot invocation from activeTurnToProgress should have
-			// been completed (via didExecuteTool) so it does not remain
-			// orphaned in the UI while the replacement from
-			// _beginClientToolInvocation takes over.
-			assert.ok(IChatToolInvocation.isComplete(snapshotInvocation),
-				'the initial snapshot invocation should be completed, not orphaned');
+				.filter((p): p is ChatToolInvocation => p instanceof ChatToolInvocation && p.toolCallId === 'tool-call-1');
+			assert.strictEqual(invocations.length, 1, 'exactly one invocation for the reconnected client tool');
 		});
 
 		test('does not auto-deny an unclaimed session confirmation', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
