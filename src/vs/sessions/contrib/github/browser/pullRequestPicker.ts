@@ -38,12 +38,12 @@ export async function resolvePullRequestSessionRepository(
 		const workspace = session.workspace.get();
 		for (const folder of workspace?.folders ?? []) {
 			if (folder.root.scheme !== GITHUB_REMOTE_FILE_SCHEME) {
-				folderUri = folder.root;
-				break;
+				folderUri ??= folder.root;
+				const gitHubInfo = folder.gitRepository?.gitHubInfo.get();
+				if (gitHubInfo) {
+					return { folderUri: folder.root, owner: gitHubInfo.owner, repo: gitHubInfo.repo };
+				}
 			}
-		}
-		if (folderUri) {
-			break;
 		}
 	}
 	if (!folderUri) {
