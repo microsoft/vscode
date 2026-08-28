@@ -271,14 +271,6 @@
 	transform: translateY(var(--vscode-spacing-size400));
 }
 
-.chat-pet-button[data-state='searching']:not(.exiting) {
-	animation: chat-pet-search-up 160ms steps(4, end) forwards;
-}
-
-.chat-pet-button[data-state='searchingDown']:not(.exiting) {
-	animation: chat-pet-search-down 160ms steps(4, end) forwards;
-}
-
 .chat-pet-button.dragging .chat-pet-sprite,
 .chat-pet-button.dragging .chat-pet-eyes,
 .chat-pet-button.dragging .chat-pet-eye-accessory {
@@ -472,34 +464,6 @@
 	}
 }
 
-@keyframes chat-pet-search-up {
-	0% {
-		transform: translateY(var(--vscode-spacing-size400));
-	}
-
-	50% {
-		transform: translateY(var(--vscode-spacing-size240));
-	}
-
-	100% {
-		transform: translateY(var(--vscode-spacing-size60));
-	}
-}
-
-@keyframes chat-pet-search-down {
-	0% {
-		transform: translateY(var(--vscode-spacing-size60));
-	}
-
-	50% {
-		transform: translateY(var(--vscode-spacing-size240));
-	}
-
-	100% {
-		transform: translateY(var(--vscode-spacing-size400));
-	}
-}
-
 @keyframes chat-pet-eye-bob {
 	0%,
 	39.999% {
@@ -552,8 +516,6 @@
 .monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='complete'] .chat-pet-eye-accessory,
 .monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='yapping'] .chat-pet-sprite,
 .monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='yapping'] .chat-pet-eye-accessory,
-.monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='searching'],
-.monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='searchingDown'],
 .monaco-workbench.monaco-reduce-motion .chat-pet-eyes,
 .monaco-workbench.monaco-reduce-motion .chat-pet-pupil {
 	animation: none;
@@ -563,12 +525,4 @@
 .monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='yapping'] .chat-pet-eyes,
 .monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='yapping'] .chat-pet-eye-accessory {
 	transform: translateY(calc(-1 * var(--vscode-spacing-size40))) rotate(-90deg);
-}
-
-.monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='searching'] {
-	transform: translateY(var(--vscode-spacing-size400));
-}
-
-.monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='searchingDown'] {
-	transform: translateY(var(--vscode-spacing-size400));
 }
