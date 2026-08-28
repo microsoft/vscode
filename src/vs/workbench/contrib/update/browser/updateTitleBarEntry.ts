@@ -263,6 +263,7 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 
 		this.content = dom.append(container, dom.$('.update-indicator'));
 		container.setAttribute('role', 'button');
+		container.tabIndex = 0;
 		this.updateTooltip();
 		this.onStateChange(this.updateService.state);
 

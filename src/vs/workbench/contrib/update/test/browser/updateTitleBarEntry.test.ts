@@ -132,9 +132,11 @@ suite('UpdateTitleBarEntry', () => {
 		assert.deepStrictEqual({
 			text: container.textContent,
 			ariaLabel: container.getAttribute('aria-label'),
+			tabIndex: container.tabIndex,
 		}, {
 			text: 'VS Code needs update',
 			ariaLabel: 'VS Code needs update',
+			tabIndex: 0,
 		});
 	});
 });

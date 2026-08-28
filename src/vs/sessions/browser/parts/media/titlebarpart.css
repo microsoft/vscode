@@ -112,6 +112,11 @@
 	-webkit-app-region: no-drag;
 }
 
+.monaco-workbench .part.titlebar > .sessions-titlebar-container .titlebar-status-badge:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
 /* Session Title Actions Container (before right toolbar) */
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container {
 	display: none;

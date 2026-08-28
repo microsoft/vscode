@@ -238,6 +238,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		const centerRightContainer = append(this.centerContent, $('div.titlebar-center-right-container'));
 		const screenReaderBadge = append(centerRightContainer, $('span.titlebar-status-badge.screen-reader-optimized-badge'));
 		screenReaderBadge.textContent = localize('screenReaderOptimizedBadge', "Screen Reader Optimized");
+		screenReaderBadge.tabIndex = 0;
 		const updateScreenReaderBadge = () => {
 			setVisibility(this.accessibilityService.isScreenReaderOptimized(), screenReaderBadge);
 			this.updateTitleBarToolBarOverflow();
