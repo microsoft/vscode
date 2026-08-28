@@ -595,10 +595,7 @@ suite('ListView', function () {
 		const elements: TestElement[] = [{ height: 0 }, { height: 0 }, { height: 0 }];
 		const listView = new ListView<TestElement>(document.createElement('div'), delegate, [renderer], { supportDynamicHeights: true });
 		try {
-			// Collapse the viewport first so a subsequent splice re-renders with renderHeight <= 0.
-			// With zero-height items indexAt(renderTop) resolves to the item count while
-			// indexAfter(renderTop - 1) clamps to 0, so getVisibleRange previously produced an
-			// inverted range (e.g. { start: 3, end: 0 }) that crashed probeDynamicHeights.
+			// Collapsing the viewport before splicing zero-height items previously yielded an inverted range that crashed probeDynamicHeights.
 			listView.layout(0, 200);
 			assert.doesNotThrow(() => listView.splice(0, 0, elements));
 		} finally {
