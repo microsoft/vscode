@@ -357,10 +357,11 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		}
 
 		// Update lookup
-		this._tabInfoLookup.delete(removedTab[0]?.id ?? '');
+		const tabInfo = this._tabInfoLookup.get(removedTab[0].id);
+		this._tabInfoLookup.delete(removedTab[0].id);
 
-		if (removedTab[0]?.input instanceof MultiDiffEditorInput) {
-			this._multiDiffEditorInputListeners.deleteAndDispose(removedTab[0]?.input);
+		if (tabInfo?.editorInput instanceof MultiDiffEditorInput) {
+			this._multiDiffEditorInputListeners.deleteAndDispose(tabInfo.editorInput);
 		}
 
 		this._proxy.$acceptTabOperation({

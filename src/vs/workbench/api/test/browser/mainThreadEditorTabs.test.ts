@@ -258,7 +258,7 @@ suite('MainThreadEditorTabs', () => {
 		const extHostEditorTabs = new ExtHostEditorTabs(
 			SingleProxyRPCProtocol(new class extends mock<MainThreadEditorTabsShape>() { })
 		);
-		disposables.add(new MainThreadEditorTabs(
+		const mainThreadEditorTabs = disposables.add(new MainThreadEditorTabs(
 			SingleProxyRPCProtocol(extHostEditorTabs),
 			editorGroupsService,
 			new TestConfigurationService(),
@@ -301,5 +301,13 @@ suite('MainThreadEditorTabs', () => {
 			afterActivatingOther: other.getName(),
 			afterLabelChange: other.getName(),
 		});
+
+		assert.strictEqual(mainThreadEditorTabs['_multiDiffEditorInputListeners'].size, 1);
+		editors.splice(1, 1);
+		editorChanges.fire({
+			groupId: group.id,
+			event: { kind: GroupModelChangeKind.EDITOR_CLOSE, editor: multiDiffInput, editorIndex: 1 }
+		});
+		assert.strictEqual(mainThreadEditorTabs['_multiDiffEditorInputListeners'].size, 0);
 	});
 });
