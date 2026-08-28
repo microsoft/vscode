@@ -3064,9 +3064,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: none;
 }
 
-/* The turn summary exposes only aggregate file and line counts. The +/- counts are
-	the "View All File Changes" button, so reset the native button chrome and add
-	the standard toolbar hover/focus affordances. */
+/* Turn changes summary: reuses the compact checkpoint summary styling. The +/- counts
+	are themselves the "View All File Changes" button, so reset the native button chrome
+	and add the standard toolbar hover/focus affordances. */
 .interactive-session .chat-turn-pills-part .chat-file-changes-counts {
 	align-items: center;
 	padding: var(--vscode-spacing-sizeNone) var(--vscode-spacing-size20);
@@ -3085,14 +3085,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-turn-pills-part .chat-file-changes-counts:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
-}
-
-.interactive-session .chat-turn-pills-part .checkpoint-file-changes-summary-header {
-	cursor: default;
-}
-
-.interactive-session .chat-turn-pills-part .checkpoint-file-changes-summary-header:hover {
-	color: var(--vscode-descriptionForeground);
 }
 
 /* The header already spaces its children with `gap`, so the label's own margin
