@@ -203,8 +203,8 @@ interface IRenderFormHandle {
 }
 
 export type AutomationSessionDraftTarget =
-	| { readonly kind: 'workspace'; readonly folderUri: URI; readonly providerId: string | undefined; readonly sessionTypeId: string; readonly modelId?: string; readonly agentId?: string; readonly configuration?: Record<string, unknown> }
-	| { readonly kind: 'quickChat'; readonly providerId: string; readonly sessionTypeId: string; readonly modelId?: string; readonly agentId?: string; readonly configuration?: Record<string, unknown> };
+	| { readonly kind: 'workspace'; readonly folderUri: URI; readonly providerId: string | undefined; readonly sessionTypeId: string; readonly modelId?: string; readonly modeId?: string; readonly permissionLevel?: string; readonly agentId?: string; readonly configuration?: Record<string, unknown> }
+	| { readonly kind: 'quickChat'; readonly providerId: string; readonly sessionTypeId: string; readonly modelId?: string; readonly modeId?: string; readonly permissionLevel?: string; readonly agentId?: string; readonly configuration?: Record<string, unknown> };
 
 type AutomationSessionDraftService = Pick<
 	ISessionsManagementService,
@@ -280,6 +280,8 @@ export class AutomationSessionDraftSynchronizer extends Disposable {
 					providerId: target.providerId,
 					sessionTypeId: target.sessionTypeId,
 					modelId: target.modelId,
+					modeId: target.modeId,
+					permissionLevel: target.permissionLevel,
 					agentId: target.agentId,
 					configuration: target.configuration,
 				})
@@ -287,6 +289,8 @@ export class AutomationSessionDraftSynchronizer extends Disposable {
 					providerId: target.providerId,
 					sessionTypeId: target.sessionTypeId,
 					modelId: target.modelId,
+					modeId: target.modeId,
+					permissionLevel: target.permissionLevel,
 					agentId: target.agentId,
 					configuration: target.configuration,
 				});
@@ -624,6 +628,8 @@ export function renderForm(
 		const restoreInitialConfiguration = matchesInitialTarget(pick?.providerId, pick?.sessionTypeId, isQuickChat, folderUri);
 		const draftOptions = restoreInitialConfiguration ? {
 			modelId: initialModelId,
+			modeId: initialMode,
+			permissionLevel: initialPermissionLevel,
 			agentId: initialAgentId,
 			configuration: initialConfiguration,
 		} : {};

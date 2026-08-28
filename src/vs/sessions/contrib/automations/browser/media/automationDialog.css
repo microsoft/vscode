@@ -617,12 +617,8 @@
 	margin-left: var(--vscode-spacing-size40);
 }
 
-/* The voice toolbar is always appended to the input toolbar even when the
- * controller renders no actions. A zero-width flex child still contributes the
- * toolbar's `gap`, leaving a sliver of space to the right of the dictation mic.
- * Collapse it when it holds no action item so the trailing control reads flush.
- * (The experimental voice-input pill already self-hides via a `.hidden` class.) */
-.automation-form-prompt-host .sessions-chat-voice-toolbar:not(:has(.action-item)) {
+/* Collapse the empty voice toolbar so it does not contribute to the toolbar gap. */
+.automation-form-prompt-host .sessions-chat-voice-toolbar.empty {
 	display: none;
 }
 
@@ -724,7 +720,7 @@
 .automation-form-prompt-host .new-chat-bottom-container .action-label {
 	height: 16px;
 	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
-	font-size: var(--vscode-agents-fontSize-label2, 11px);
+	font-size: var(--vscode-fontSize-label2, 11px);
 	color: var(--vscode-icon-foreground);
 }
 
@@ -748,7 +744,7 @@
 .automation-form-prompt-host .new-chat-extra-controls .sessions-chat-picker-slot .action-label {
 	height: 16px;
 	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
-	font-size: var(--vscode-agents-fontSize-label2, 11px);
+	font-size: var(--vscode-fontSize-label2, 11px);
 	line-height: normal;
 	color: var(--vscode-icon-foreground);
 	border: none;

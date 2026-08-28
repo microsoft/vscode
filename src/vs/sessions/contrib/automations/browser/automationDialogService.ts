@@ -119,6 +119,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 		let getAgentId: () => string | undefined = () => initial?.agentId;
 		let getConfiguration: () => Record<string, unknown> | undefined = () => initial?.configuration;
 		let getBranch: () => string | undefined = () => initialWorkspaceTarget?.isolation.kind === 'worktree' ? initialWorkspaceTarget.isolation.branch : undefined;
+		let isLoading: () => boolean = () => false;
 		let waitForAutomationSessionSync: () => Promise<void> = async () => { };
 		let getFocusableElements: () => readonly HTMLElement[] = () => [];
 		let focusFirst: () => void = () => { };
@@ -191,7 +192,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 						isAutomationDialogPopupTarget,
 					));
 					focusFirst = keyboardNavigation.focusFirst;
-					const isLoading = () => handle.loading.get();
+					isLoading = () => handle.loading.get();
 					revalidate = () => updateSaveButtonState(saveButton, state, validation, form, getPrompt, getBranch, isLoading());
 					// Re-run validation when the composer's draft finishes (or restarts)
 					// loading so Save enables/disables with it.
@@ -217,7 +218,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 			}
 			// Guard against submit-with-Enter bypassing live validation.
 			revalidate();
-			if (validation.nameError || validation.promptError || validation.folderError || validation.sessionTypeError || validation.branchError) {
+			if (isLoading() || validation.nameError || validation.promptError || validation.folderError || validation.sessionTypeError || validation.branchError) {
 				return undefined;
 			}
 			if ((!state.isQuickChat && !state.folderUri) || !state.sessionTypeId || (state.isQuickChat && !state.providerId)) {

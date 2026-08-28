@@ -79,7 +79,7 @@ function createWorkspace(requiresWorkspaceTrust: boolean): ISessionWorkspace {
 function createAutomationDraftService() {
 	const automationSession = observableValue<ISession | undefined>('automationSession', undefined);
 	const created: Array<{ kind: 'workspace' | 'quickChat'; providerId: string | undefined; sessionTypeId: string; folderUri?: string }> = [];
-	const creationOptions: Array<{ readonly modelId?: string; readonly agentId?: string; readonly configuration?: Record<string, unknown> }> = [];
+	const creationOptions: Array<{ readonly modelId?: string; readonly modeId?: string; readonly permissionLevel?: string; readonly agentId?: string; readonly configuration?: Record<string, unknown> }> = [];
 	const discarded: string[] = [];
 	let nextId = 1;
 	const createDraft = (kind: 'workspace' | 'quickChat', providerId: string | undefined, sessionTypeId: string, folderUri?: URI): ISession => {
@@ -99,11 +99,11 @@ function createAutomationDraftService() {
 	const service = upcastPartial<ISessionsManagementService>({
 		automationSession,
 		createAutomationSession: (folderUri, options) => {
-			creationOptions.push({ modelId: options?.modelId, agentId: options?.agentId, configuration: options?.configuration });
+			creationOptions.push({ modelId: options?.modelId, modeId: options?.modeId, permissionLevel: options?.permissionLevel, agentId: options?.agentId, configuration: options?.configuration });
 			return createDraft('workspace', options?.providerId, options?.sessionTypeId ?? 'default', folderUri);
 		},
 		createAutomationQuickChat: options => {
-			creationOptions.push({ modelId: options?.modelId, agentId: options?.agentId, configuration: options?.configuration });
+			creationOptions.push({ modelId: options?.modelId, modeId: options?.modeId, permissionLevel: options?.permissionLevel, agentId: options?.agentId, configuration: options?.configuration });
 			return createDraft('quickChat', options?.providerId, options?.sessionTypeId ?? 'default');
 		},
 		discardAutomationSession: session => {
@@ -166,6 +166,8 @@ suite('Automation session draft synchronization', () => {
 				providerId: 'provider-a',
 				sessionTypeId: 'type-a',
 				modelId: 'model-a',
+				modeId: 'ask',
+				permissionLevel: 'assisted',
 				agentId: 'file:///agent.md',
 				configuration: { permission: 'autoApprove' },
 			});
@@ -173,6 +175,8 @@ suite('Automation session draft synchronization', () => {
 
 			assert.deepStrictEqual(creationOptions, [{
 				modelId: 'model-a',
+				modeId: 'ask',
+				permissionLevel: 'assisted',
 				agentId: 'file:///agent.md',
 				configuration: { permission: 'autoApprove' },
 			}]);

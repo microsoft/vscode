@@ -1095,7 +1095,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// The controller also handles voice target routing + input glow, which the
 		// segmented pill relies on, so it is created regardless of the pill; its
 		// toolbar items hide (via `when`) when the pill is active.
-		const voiceContainer = dom.append(toolbar, dom.$('.sessions-chat-voice-toolbar'));
+		const voiceContainer = dom.append(toolbar, dom.$('.sessions-chat-voice-toolbar.empty'));
 		try {
 			this._register(this.instantiationService.createInstance(NewChatVoiceController, {
 				toolbarContainer: voiceContainer,
@@ -1103,6 +1103,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				composer: this,
 				onDidChangeActions: actionCount => {
 					voiceActionCount = actionCount;
+					voiceContainer.classList.toggle('empty', actionCount === 0);
 					updateVoiceInputActionBorder();
 				},
 			}));
