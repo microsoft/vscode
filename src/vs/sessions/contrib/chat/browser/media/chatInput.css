@@ -617,10 +617,10 @@
 .sessions-chat-attachment-image {
 	width: 13px;
 	height: 13px;
-	border-radius: 2px;
+	border-radius: var(--vscode-cornerRadius-xSmall);
 	object-fit: cover;
 	flex-shrink: 0;
-	margin: 0 3px;
+	margin: 0 var(--vscode-spacing-size40);
 }
 
 .sessions-chat-attachment-pill {
@@ -719,7 +719,7 @@
 	cursor: pointer;
 	flex-shrink: 0;
 	color: var(--vscode-descriptionForeground);
-	margin-left: var(--vscode-spacing-size20);
+	margin-right: var(--vscode-spacing-size20);
 }
 
 .sessions-chat-attachment-pill.openable:hover {
