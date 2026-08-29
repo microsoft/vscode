@@ -14,18 +14,16 @@ try {
 		fs.readdirSync(import.meta.dirname)
 			.filter(file => file.endsWith('.ts') && !file.endsWith('index.ts') && !file.endsWith('utils.ts'))
 			.map(async file => {
-				try {
-					const ruleModule = await import('./' + file);
-					if (ruleModule.default) {
-						rules[path.basename(file, '.ts')] = ruleModule.default;
-					}
-				} catch (error) {
-					console.error(`Failed to load ESLint rule from ${file}:`, error);
+				const ruleModule = await import('./' + file);
+				if (!ruleModule.default) {
+					throw new Error(`ESLint rule module '${file}' is missing a default export.`);
 				}
+				rules[path.basename(file, '.ts')] = ruleModule.default;
 			})
 	);
 } catch (error) {
-	console.error('Failed to read ESLint rules directory:', error);
+	// Fail fast with contextual error to prevent silent cascading failures in eslint.config.js
+	throw new Error(`Failed to initialize Copilot ESLint plugin rules: ${error instanceof Error ? error.message : error}`);
 }
 
 export { rules };
