@@ -573,14 +573,15 @@ class SavePageAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
-		if (!(browserEditor instanceof BrowserEditor) || !browserEditor.model) {
+		const model = browserEditor instanceof BrowserEditor ? browserEditor.model : undefined;
+		if (!model) {
 			return;
 		}
 
 		const fileDialogService = accessor.get(IFileDialogService);
 		const defaultUri = joinPath(
 			await fileDialogService.defaultFilePath(Schemas.file),
-			getSuggestedMhtmlFileName(browserEditor.model.title)
+			getSuggestedMhtmlFileName(model.title)
 		);
 		const target = await fileDialogService.showSaveDialog({
 			title: localize('browser.savePageDialogTitle', "Save Page As"),
@@ -589,7 +590,7 @@ class SavePageAction extends Action2 {
 			availableFileSystems: [Schemas.file],
 		});
 		if (target) {
-			await browserEditor.model.savePage(target.fsPath);
+			await model.savePage(target.fsPath);
 		}
 	}
 }
