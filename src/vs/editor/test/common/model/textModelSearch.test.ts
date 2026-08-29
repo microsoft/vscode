@@ -11,7 +11,7 @@ import { getMapForWordSeparators } from '../../../common/core/wordCharacterClass
 import { USUAL_WORD_SEPARATORS } from '../../../common/core/wordHelper.js';
 import { EndOfLineSequence, FindMatch, SearchData } from '../../../common/model.js';
 import { TextModel } from '../../../common/model/textModel.js';
-import { SearchParams, TextModelSearch, isMultilineRegexSource } from '../../../common/model/textModelSearch.js';
+import { SearchParams, Searcher, TextModelSearch, isMultilineRegexSource } from '../../../common/model/textModelSearch.js';
 import { PieceTreeTextBufferBuilder } from '../../../common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder.js';
 import { createTextModel } from '../testTextModel.js';
 
@@ -412,6 +412,20 @@ suite('TextModelSearch', () => {
 		const actual = model.findMatches('aa-aa', null, false, true, USUAL_WORD_SEPARATORS, false).map(m => m.range);
 		model.dispose();
 		assert.deepStrictEqual(actual, expected.map(entry => new Range(entry[0], entry[1], entry[2], entry[3])));
+	});
+
+	test('issue #291591: whole word search stays linear on long lines', () => {
+		// a rejected candidate must skip the whole run of `a`s, not retry one character at a time
+		const model = createTextModel('x' + 'a'.repeat(100000));
+		const range = model.getFullModelRange();
+		assert.deepStrictEqual(TextModelSearch.findMatches(model, new SearchParams('a+', true, false, USUAL_WORD_SEPARATORS), range, false, 1000), []);
+		assert.deepStrictEqual(TextModelSearch.findMatches(model, new SearchParams('aa', false, true, USUAL_WORD_SEPARATORS), range, false, 1000), []);
+		model.dispose();
+	});
+
+	test('issue #291591: a regex that cannot advance still terminates', () => {
+		// a non-global regex ignores `lastIndex`, so only the duplicate-match check can end the loop
+		assert.strictEqual(new Searcher(usualWordSeparators, /abc/).next('xabc'), null);
 	});
 
 	test('findNextMatch without regex', () => {

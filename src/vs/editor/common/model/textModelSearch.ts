@@ -494,10 +494,26 @@ export function findSimpleMatchesInLine(wordSeparators: WordCharacterClassifier 
 			lastMatchIndex = text.indexOf(searchString, lastMatchIndex + searchStringLen);
 		} else {
 			// a rejected candidate can still contain a whole-word match starting inside it
-			lastMatchIndex = text.indexOf(searchString, lastMatchIndex + 1);
+			lastMatchIndex = text.indexOf(searchString, nextWholeWordStart(wordSeparators, text, textLength, lastMatchIndex));
 		}
 	}
 	return resultLen;
+}
+
+/**
+ * The first index after `fromIndex` where a whole-word match can begin.
+ */
+function nextWholeWordStart(wordSeparators: WordCharacterClassifier, text: string, textLength: number, fromIndex: number): number {
+	for (let i = fromIndex + 1; i < textLength; i++) {
+		const charBefore = text.charCodeAt(i - 1);
+		if (wordSeparators.get(charBefore) !== WordCharacterClass.Regular || charBefore === CharCode.CarriageReturn || charBefore === CharCode.LineFeed) {
+			return i;
+		}
+		if (wordSeparators.get(text.charCodeAt(i)) !== WordCharacterClass.Regular) {
+			return i;
+		}
+	}
+	return textLength;
 }
 
 export class Searcher {
@@ -505,18 +521,21 @@ export class Searcher {
 	private readonly _searchRegex: RegExp;
 	private _prevMatchStartIndex: number;
 	private _prevMatchLength: number;
+	private _didAdvance: boolean;
 
 	constructor(wordSeparators: WordCharacterClassifier | null, searchRegex: RegExp,) {
 		this._wordSeparators = wordSeparators;
 		this._searchRegex = searchRegex;
 		this._prevMatchStartIndex = -1;
 		this._prevMatchLength = 0;
+		this._didAdvance = false;
 	}
 
 	public reset(lastIndex: number): void {
 		this._searchRegex.lastIndex = lastIndex;
 		this._prevMatchStartIndex = -1;
 		this._prevMatchLength = 0;
+		this._didAdvance = false;
 	}
 
 	public next(text: string): RegExpExecArray | null {
@@ -524,10 +543,11 @@ export class Searcher {
 
 		let m: RegExpExecArray | null;
 		do {
-			if (this._prevMatchStartIndex + this._prevMatchLength === textLength) {
+			if (!this._didAdvance && this._prevMatchStartIndex + this._prevMatchLength === textLength) {
 				// Reached the end of the line
 				return null;
 			}
+			this._didAdvance = false;
 
 			m = this._searchRegex.exec(text);
 			if (!m) {
@@ -557,10 +577,9 @@ export class Searcher {
 				return m;
 			}
 
-			// Not a whole-word match; advance one code point so overlapping whole-word matches aren't skipped.
-			this._searchRegex.lastIndex = matchStartIndex + (strings.getNextCodePoint(text, textLength, matchStartIndex) > 0xFFFF ? 2 : 1);
-			this._prevMatchStartIndex = -1;
-			this._prevMatchLength = 0;
+			// a rejected candidate can still contain a whole-word match starting inside it
+			this._searchRegex.lastIndex = nextWholeWordStart(this._wordSeparators, text, textLength, matchStartIndex);
+			this._didAdvance = true;
 
 		} while (m);
 
