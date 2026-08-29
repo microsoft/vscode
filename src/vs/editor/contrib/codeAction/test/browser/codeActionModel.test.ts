@@ -201,7 +201,7 @@ suite('CodeActionModel', () => {
 		assert.strictEqual(disposeCount, 1);
 	});
 
-	test('does not dispose claimed manual code actions when a canceled automatic request completes', async () => {
+	async function assertManualActionsSurviveCanceledAutomaticRequest(claimBeforeAutomaticResultCompletes: boolean): Promise<void> {
 		const { promise: automaticResult, resolve: resolveAutomaticResult } = promiseWithResolvers<languages.CodeActionList>();
 		let provideCount = 0;
 		let manualDisposeCount = 0;
@@ -236,21 +236,34 @@ suite('CodeActionModel', () => {
 
 		codeActionModel.trigger({
 			type: languages.CodeActionTriggerType.Invoke,
-			triggerAction: CodeActionTriggerSource.Default,
+			triggerAction: CodeActionTriggerSource.QuickFix,
 		});
-		const manualActions = codeActionModel.takeCodeActions(await (await promise).actions);
+		const manualActionSet = await (await promise).actions;
+		let manualActions = claimBeforeAutomaticResultCompletes ? codeActionModel.takeCodeActions(manualActionSet) : undefined;
 
 		resolveAutomaticResult({ actions: [], dispose() { } });
 		await new Promise(resolve => setTimeout(resolve, 0));
+		manualActions ??= codeActionModel.takeCodeActions(manualActionSet);
+		const wasClaimed = !!manualActions;
 		const disposeCountBeforeRelease = manualDisposeCount;
 		manualActions?.dispose();
 
 		assert.deepStrictEqual({
+			wasClaimed,
 			disposeCountBeforeRelease,
 			disposeCountAfterRelease: manualDisposeCount,
 		}, {
+			wasClaimed: true,
 			disposeCountBeforeRelease: 0,
 			disposeCountAfterRelease: 1,
 		});
+	}
+
+	test('does not dispose claimed manual code actions when a canceled automatic request completes', async () => {
+		await assertManualActionsSurviveCanceledAutomaticRequest(true);
+	});
+
+	test('does not replace manual code actions when a canceled automatic request completes before claim', async () => {
+		await assertManualActionsSurviveCanceledAutomaticRequest(false);
 	});
 });

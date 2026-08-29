@@ -359,10 +359,18 @@ export class CodeActionModel extends Disposable {
 					// Case for manual triggers - specifically Source Actions and Refactors
 					if (trigger.trigger.type === CodeActionTriggerType.Invoke) {
 						const codeActions = await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
+						if (token.isCancellationRequested) {
+							codeActions.dispose();
+							return emptyCodeActionSet;
+						}
 						return this._setCodeActions(codeActions);
 					}
 
 					const codeActionSet = await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
+					if (token.isCancellationRequested) {
+						codeActionSet.dispose();
+						return emptyCodeActionSet;
+					}
 					return this._setCodeActions(codeActionSet);
 				});
 
