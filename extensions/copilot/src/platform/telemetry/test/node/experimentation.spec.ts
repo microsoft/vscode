@@ -831,6 +831,17 @@ describe('ExP Service delegate recreation', () => {
 
 		service.dispose();
 	});
+});
+
+describe('ExP Service scoped treatment resolution', () => {
+	let accessor: ITestingServicesAccessor;
+
+	beforeAll(() => {
+		const testingServiceCollection = createPlatformServices();
+		accessor = testingServiceCollection.createTestingAccessor();
+	});
+
+	const create = () => accessor.get(IInstantiationService).createInstance(RecreatableExperimentationService);
 
 	it('resolves a treatment served only under the /vscode/ assignments scope prefix', () => {
 		const service = create();
