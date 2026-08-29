@@ -9,6 +9,8 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { Location } from '../../../../../../editor/common/languages.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
+import { mcpServerIdentityFromConfiguration } from '../../../../../../platform/mcp/common/allowedMcpServers.js';
+import { IAllowedMcpServersService } from '../../../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpSandboxConfiguration, IMcpServerConfiguration, McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IWorkspaceFolderData } from '../../../../../../platform/workspace/common/workspace.js';
 import { AICustomizationSource, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
@@ -76,6 +78,7 @@ export const enum AgentHostMcpSupportReason {
 	OAuthClientConfigurationIgnored = 'oauthClientConfigurationIgnored',
 	DefinitionNotLoaded = 'definitionNotLoaded',
 	SourceUnknown = 'sourceUnknown',
+	BlockedByPolicy = 'blockedByPolicy',
 }
 
 export type AgentHostMcpServerCompatibility =
@@ -156,6 +159,7 @@ export function agentHostProviderHasBuiltInGitHubMcpServer(provider: string): bo
 export async function assessMcpServersForCopilotAgentHost(
 	servers: readonly IMcpServer[],
 	configurationResolverService: IConfigurationResolverService,
+	allowedMcpServersService: IAllowedMcpServersService,
 	sessionType: string,
 	workingDirectories: readonly URI[] | undefined,
 	lazyCollectionState: LazyCollectionState,
@@ -164,7 +168,7 @@ export async function assessMcpServersForCopilotAgentHost(
 		return undefined;
 	}
 
-	const resolved = await resolveMcpServersForAgentHostDelivery(servers, configurationResolverService, sessionType, workingDirectories);
+	const resolved = await resolveMcpServersForAgentHostDelivery(servers, configurationResolverService, allowedMcpServersService, sessionType, workingDirectories);
 	return {
 		servers: resolved.map(({ server, source, applicability, delivery, compatibility }) => ({
 			id: server.definition.id,
@@ -212,15 +216,17 @@ export async function mergeInstalledMcpServersIntoAgentHostSupportAssessment(
 export function resolveMcpServersForAgentHostDelivery(
 	servers: readonly IMcpServer[],
 	configurationResolverService: IConfigurationResolverService,
+	allowedMcpServersService: IAllowedMcpServersService,
 	sessionType: string,
 	workingDirectories: readonly URI[] | undefined,
 ): Promise<readonly IAgentHostMcpServerDeliveryResolution[]> {
-	return Promise.all(servers.map(server => resolveMcpServerForAgentHostDelivery(server, configurationResolverService, sessionType, workingDirectories)));
+	return Promise.all(servers.map(server => resolveMcpServerForAgentHostDelivery(server, configurationResolverService, allowedMcpServersService, sessionType, workingDirectories)));
 }
 
 async function resolveMcpServerForAgentHostDelivery(
 	server: IMcpServer,
 	configurationResolverService: IConfigurationResolverService,
+	allowedMcpServersService: IAllowedMcpServersService,
 	sessionType: string,
 	workingDirectories: readonly URI[] | undefined,
 ): Promise<IAgentHostMcpServerDeliveryResolution> {
@@ -297,6 +303,22 @@ async function resolveMcpServerForAgentHostDelivery(
 		? AgentHostMcpServerDelivery.ClientForwarded
 		: deliveryForInapplicable(applicability);
 
+	// Enterprise allow/deny policy is enforced here, on the *resolved* configuration that would be
+	// forwarded, so that a server blocked for the local agent (in `McpServer`) is blocked identically
+	// for a delegated agent-host session. Forwarding hands the server to a separate process that
+	// launches it itself, so it is the only point at which the client can still refuse.
+	if (isBlockedByMcpPolicy(allowedMcpServersService, server.definition.label, projectedConfiguration)) {
+		return {
+			server,
+			definition,
+			source,
+			applicability,
+			delivery: AgentHostMcpServerDelivery.NotDelivered,
+			compatibility: unsupported([AgentHostMcpSupportReason.BlockedByPolicy]),
+			projectedConfiguration: undefined,
+		};
+	}
+
 	return {
 		server,
 		definition,
@@ -308,6 +330,17 @@ async function resolveMcpServerForAgentHostDelivery(
 		compatibility: getCompatibility(unsupportedReasons, partialReasons, unknownReasons),
 		projectedConfiguration,
 	};
+}
+
+/**
+ * Whether the enterprise `chat.mcp.allowedServers` / `chat.mcp.deniedServers` policy blocks
+ * forwarding this server. The check runs against the configuration as it would be forwarded, so a
+ * configuration whose URL or command still carries unresolved `${...}` variables cannot match an
+ * allow entry and is therefore blocked whenever an allowlist is configured — failing closed rather
+ * than handing an unverifiable server to the agent host.
+ */
+function isBlockedByMcpPolicy(allowedMcpServersService: IAllowedMcpServersService, name: string, configuration: IMcpServerConfiguration): boolean {
+	return allowedMcpServersService.isServerAllowed(mcpServerIdentityFromConfiguration(name, configuration)) !== true;
 }
 
 function createResolution(

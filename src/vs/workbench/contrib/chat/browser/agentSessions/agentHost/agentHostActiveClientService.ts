@@ -30,6 +30,7 @@ import { IAgentPluginService } from '../../../common/plugins/agentPluginService.
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { ILanguageModelToolsService, IToolData, IToolSet } from '../../../common/tools/languageModelToolsService.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
+import { IAllowedMcpServersService } from '../../../../../../platform/mcp/common/mcpManagement.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
 import { AgentCustomizationSyncProvider } from './agentCustomizationSyncProvider.js';
 import { type ILocalCustomizationSyncOptions, resolveCustomizationRefs, resolveLocalCustomAgents } from './agentHostLocalCustomizations.js';
@@ -119,6 +120,7 @@ class AgentCustomizationScope extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMcpService private readonly _mcpService: IMcpService,
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
+		@IAllowedMcpServersService private readonly _allowedMcpServersService: IAllowedMcpServersService,
 	) {
 		super();
 		this._bundler = this._register(instantiationService.createInstance(SyncedCustomizationBundler, createScopeAuthority(_sessionType, scopeKey)));
@@ -136,6 +138,7 @@ class AgentCustomizationScope extends Disposable {
 						this._agentPluginService,
 						this._mcpService,
 						this._configurationResolverService,
+						this._allowedMcpServersService,
 						this._bundler,
 						this._sessionType,
 						this._options,
@@ -198,6 +201,9 @@ class AgentCustomizationScope extends Disposable {
 			}
 			scheduleUpdate();
 		}));
+		// Republish when the enterprise MCP allow/deny policy changes so a newly blocked server is
+		// withdrawn from the forwarded bundle rather than lingering for the life of the session.
+		this._register(this._allowedMcpServersService.onDidChangeAllowedMcpServers(() => scheduleUpdate()));
 	}
 
 	acquire(): IAgentCustomizationScope {

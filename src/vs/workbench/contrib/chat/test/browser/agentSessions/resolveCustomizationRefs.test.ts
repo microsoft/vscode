@@ -29,6 +29,10 @@ import { type IMcpServer, type IMcpService, McpCollectionDefinition, McpServerLa
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
 import { ConfigurationResolverExpression } from '../../../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
+import { IAllowedMcpServersService, McpAccessValue } from '../../../../../../platform/mcp/common/mcpManagement.js';
+import { IMcpServerMatcher } from '../../../../../../platform/mcp/common/allowedMcpServers.js';
+import { AllowedMcpServersService } from '../../../../../../platform/mcp/common/allowedMcpServersService.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 
 function makePromptPath(uri: URI, type: PromptsType, storage: PromptsStorage): IPromptPath {
 	return { uri, type, storage } as IPromptPath;
@@ -39,6 +43,13 @@ function makePromptPath(uri: URI, type: PromptsType, storage: PromptsStorage): I
  * real service: it resolves the given `${...}` variables from `resolutions` and
  * leaves any others (e.g. `${input:…}`) untouched so they remain unresolved.
  */
+function makeAllowedMcpServersService(isServerAllowed: IAllowedMcpServersService['isServerAllowed'] = () => true): IAllowedMcpServersService {
+	return {
+		onDidChangeAllowedMcpServers: Event.None,
+		isServerAllowed,
+	} as unknown as IAllowedMcpServersService;
+}
+
 function makeConfigurationResolverService(resolutions: Record<string, string> = {}): IConfigurationResolverService {
 	return {
 		async resolveAsync(_folder: unknown, config: unknown) {
@@ -219,6 +230,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeAgentPluginService(),
 			makeMcpService(),
 			makeConfigurationResolverService(),
+			makeAllowedMcpServersService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
 			undefined,
@@ -250,6 +262,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeAgentPluginService(),
 			makeMcpService(),
 			makeConfigurationResolverService(),
+			makeAllowedMcpServersService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
 			undefined,
@@ -282,6 +295,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeAgentPluginService(),
 			makeMcpService(),
 			makeConfigurationResolverService(),
+			makeAllowedMcpServersService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
 			undefined,
@@ -306,6 +320,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeAgentPluginService(),
 			makeMcpService(),
 			makeConfigurationResolverService(),
+			makeAllowedMcpServersService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
 			undefined,
@@ -341,6 +356,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeAgentPluginService(),
 			makeMcpService(),
 			makeConfigurationResolverService(),
+			makeAllowedMcpServersService(),
 			localBundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
 			undefined,
@@ -352,6 +368,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeAgentPluginService(),
 			makeMcpService(),
 			makeConfigurationResolverService(),
+			makeAllowedMcpServersService(),
 			remoteBundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
 			{ includeUserStorage: true },
@@ -380,6 +397,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeAgentPluginService(),
 			makeMcpService(),
 			makeConfigurationResolverService(),
+			makeAllowedMcpServersService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
 			undefined,
@@ -401,6 +419,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeAgentPluginService([makePlugin(pluginUri, { label: 'MCP Only', mcpServers: 1 })]),
 			makeMcpService(),
 			makeConfigurationResolverService(),
+			makeAllowedMcpServersService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
 			undefined,
@@ -421,6 +440,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeAgentPluginService([makePlugin(pluginUri, { label: 'Agent Only', agents: 1 })]),
 			makeMcpService(),
 			makeConfigurationResolverService(),
+			makeAllowedMcpServersService(),
 			new FakeBundler() as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
 			undefined,
@@ -440,6 +460,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeAgentPluginService([makePlugin(pluginUri, { enabled: false, mcpServers: 1 })], new Map([[pluginUri.toString(), false]])),
 			makeMcpService(),
 			makeConfigurationResolverService(),
+			makeAllowedMcpServersService(),
 			new FakeBundler() as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
 			undefined,
@@ -459,6 +480,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeAgentPluginService([makePlugin(pluginUri, { enabled: false })], new Map([[pluginUri.toString(), false]])),
 			makeMcpService(),
 			makeConfigurationResolverService(),
+			makeAllowedMcpServersService(),
 			new FakeBundler() as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
 			undefined,
@@ -475,6 +497,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeAgentPluginService([makePlugin(pluginUri, { mcpServers: 1 })]),
 			makeMcpService(),
 			makeConfigurationResolverService(),
+			makeAllowedMcpServersService(),
 			new FakeBundler() as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
 			undefined,
@@ -495,6 +518,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeAgentPluginService([makePlugin(pluginUri, { label: 'Combined', mcpServers: 2 })]),
 			makeMcpService(),
 			makeConfigurationResolverService(),
+			makeAllowedMcpServersService(),
 			new FakeBundler() as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
 			undefined,
@@ -513,6 +537,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeAgentPluginService(),
 			makeMcpService(),
 			makeConfigurationResolverService(),
+			makeAllowedMcpServersService(),
 			new FakeBundler() as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
 			undefined,
@@ -535,6 +560,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeAgentPluginService(),
 			mcpService,
 			makeConfigurationResolverService(),
+			makeAllowedMcpServersService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
 			undefined,
@@ -569,6 +595,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeAgentPluginService(),
 			mcpService,
 			makeConfigurationResolverService(),
+			makeAllowedMcpServersService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			'agent-host-copilotcli',
 			undefined,
@@ -590,6 +617,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeAgentPluginService(),
 			makeMcpService([makeCopilotChatGitHubMcpServer()]),
 			makeConfigurationResolverService(),
+			makeAllowedMcpServersService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			'remote-test-copilotcli',
 			undefined,
@@ -611,6 +639,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 				makeAgentPluginService(),
 				makeMcpService([makeCopilotChatGitHubMcpServer()]),
 				makeConfigurationResolverService(),
+				makeAllowedMcpServersService(),
 				bundler as unknown as SyncedCustomizationBundler,
 				`agent-host-${provider}`,
 				undefined,
@@ -638,6 +667,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeAgentPluginService(),
 			mcpService,
 			makeConfigurationResolverService(),
+			makeAllowedMcpServersService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
 			undefined,
@@ -661,6 +691,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeAgentPluginService(),
 			mcpService,
 			makeConfigurationResolverService(),
+			makeAllowedMcpServersService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
 			undefined,
@@ -684,6 +715,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeAgentPluginService([plugin], new Map([[pluginUri.toString(), true]])),
 			makeMcpService([server], new Map([['user.workspace-disabled', true]])),
 			makeConfigurationResolverService(),
+			makeAllowedMcpServersService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
 			undefined,
@@ -706,6 +738,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeAgentPluginService(),
 			mcpService,
 			makeConfigurationResolverService(),
+			makeAllowedMcpServersService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
 			undefined,
@@ -727,6 +760,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeAgentPluginService(),
 			mcpService,
 			makeConfigurationResolverService(),
+			makeAllowedMcpServersService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
 			undefined,
@@ -749,6 +783,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeAgentPluginService(),
 			mcpService,
 			makeConfigurationResolverService(),
+			makeAllowedMcpServersService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
 			undefined,
@@ -794,6 +829,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeAgentPluginService(),
 			mcpService,
 			makeConfigurationResolverService(),
+			makeAllowedMcpServersService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
 			undefined,
@@ -817,6 +853,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeAgentPluginService(),
 			mcpService,
 			makeConfigurationResolverService(),
+			makeAllowedMcpServersService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
 			undefined,
@@ -840,6 +877,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeAgentPluginService(),
 			mcpService,
 			makeConfigurationResolverService({ '${workspaceFolder}': '/ws' }),
+			makeAllowedMcpServersService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
 			undefined,
@@ -870,6 +908,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeAgentPluginService(),
 			mcpService,
 			throwingResolver,
+			makeAllowedMcpServersService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
 			undefined,
@@ -893,6 +932,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeAgentPluginService(),
 			mcpService,
 			makeConfigurationResolverService(),
+			makeAllowedMcpServersService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
 			undefined,
@@ -909,6 +949,119 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		assert.strictEqual(refs.length, 1);
 	});
 });
+
+suite('resolveCustomizationRefs - enterprise MCP policy', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	/**
+	 * The real allow/deny evaluation, driven by configuration, so these tests exercise the same
+	 * matching the local agent path uses rather than a hand-rolled stub.
+	 */
+	function makePolicyAllowedMcpServersService(allowed?: readonly IMcpServerMatcher[], denied?: readonly IMcpServerMatcher[]): IAllowedMcpServersService {
+		const configurationService = new TestConfigurationService({
+			chat: { mcp: { access: McpAccessValue.All, allowedServers: allowed ?? null, deniedServers: denied ?? null } },
+		});
+		return store.add(new AllowedMcpServersService(configurationService));
+	}
+
+	async function bundleWith(mcpService: IMcpService, allowedMcpServersService: IAllowedMcpServersService, bundler: FakeBundler): Promise<void> {
+		await resolveCustomizationRefs(
+			makeFileService(),
+			makePromptsService(new Map()),
+			new FakeSyncProvider(),
+			makeAgentPluginService(),
+			mcpService,
+			makeConfigurationResolverService(),
+			allowedMcpServersService,
+			bundler as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
+			undefined,
+		);
+	}
+
+	// The allowlist reported in microsoft/vscode#328241: only an `npx`-launched registry server.
+	const allowNpxOnly: readonly IMcpServerMatcher[] = [{ serverCommand: ['npx', '--yes', '--registry', 'https://registry.example.com', 'my-server'] }];
+
+	test('does not forward an `http` server that the allowlist blocks', async () => {
+		const bundler = new FakeBundler();
+		const mcpService = makeMcpService([
+			makeMcpServer({
+				id: 'mcp.config.usrlocal.deepwiki',
+				collectionId: 'mcp.config.usrlocal',
+				label: 'deepwiki',
+				launch: { type: McpServerTransportType.HTTP, uri: URI.parse('https://mcp.deepwiki.com/mcp'), headers: [] },
+			}),
+		]);
+
+		await bundleWith(mcpService, makePolicyAllowedMcpServersService(allowNpxOnly), bundler);
+
+		assert.strictEqual(bundler.received.length, 0);
+	});
+
+	test('does not forward a `stdio` server that the allowlist blocks', async () => {
+		const bundler = new FakeBundler();
+		const mcpService = makeMcpService([
+			makeMcpServer({ id: 'mcp.config.usrlocal.blocked', collectionId: 'mcp.config.usrlocal', label: 'blocked', launch: stdioLaunch }),
+		]);
+
+		await bundleWith(mcpService, makePolicyAllowedMcpServersService(allowNpxOnly), bundler);
+
+		assert.strictEqual(bundler.received.length, 0);
+	});
+
+	test('still forwards a server that matches the allowlist', async () => {
+		const bundler = new FakeBundler();
+		const mcpService = makeMcpService([
+			makeMcpServer({
+				id: 'mcp.config.usrlocal.allowed',
+				collectionId: 'mcp.config.usrlocal',
+				label: 'allowed',
+				launch: { type: McpServerTransportType.Stdio, command: 'npx', args: ['--yes', '--registry', 'https://registry.example.com', 'my-server'], env: {}, envFile: undefined, cwd: undefined, sandbox: undefined },
+			}),
+		]);
+
+		await bundleWith(mcpService, makePolicyAllowedMcpServersService(allowNpxOnly), bundler);
+
+		assert.deepStrictEqual(bundler.receivedMcp[0].map(entry => entry.name), ['allowed']);
+	});
+
+	test('does not forward `http` or `stdio` servers that the denylist blocks', async () => {
+		const bundler = new FakeBundler();
+		const mcpService = makeMcpService([
+			makeMcpServer({
+				id: 'mcp.config.usrlocal.deepwiki',
+				collectionId: 'mcp.config.usrlocal',
+				label: 'deepwiki',
+				launch: { type: McpServerTransportType.HTTP, uri: URI.parse('https://mcp.deepwiki.com/mcp'), headers: [] },
+			}),
+			makeMcpServer({ id: 'mcp.config.usrlocal.local', collectionId: 'mcp.config.usrlocal', label: 'local', launch: stdioLaunch }),
+		]);
+		const denied: readonly IMcpServerMatcher[] = [{ serverUrl: 'https://mcp.deepwiki.com/*' }, { serverCommand: ['my-server', '--flag'] }];
+
+		await bundleWith(mcpService, makePolicyAllowedMcpServersService(undefined, denied), bundler);
+
+		assert.strictEqual(bundler.received.length, 0);
+	});
+
+	test('forwards every server when no allow or deny list is configured', async () => {
+		const bundler = new FakeBundler();
+		const mcpService = makeMcpService([
+			makeMcpServer({
+				id: 'mcp.config.usrlocal.deepwiki',
+				collectionId: 'mcp.config.usrlocal',
+				label: 'deepwiki',
+				launch: { type: McpServerTransportType.HTTP, uri: URI.parse('https://mcp.deepwiki.com/mcp'), headers: [] },
+			}),
+			makeMcpServer({ id: 'mcp.config.usrlocal.local', collectionId: 'mcp.config.usrlocal', label: 'local', launch: stdioLaunch }),
+		]);
+
+		await bundleWith(mcpService, makePolicyAllowedMcpServersService(), bundler);
+
+		assert.deepStrictEqual(bundler.receivedMcp[0].map(entry => entry.name), ['deepwiki', 'local']);
+	});
+});
+
 
 suite('resolveLocalCustomAgents', () => {
 

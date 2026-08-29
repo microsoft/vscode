@@ -51,7 +51,7 @@ import { MockLabelService } from '../../../../../services/label/test/common/mock
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
 import { IStorageService, InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
-import { mcpAccessConfig, McpAccessValue } from '../../../../../../platform/mcp/common/mcpManagement.js';
+import { IAllowedMcpServersService, mcpAccessConfig, McpAccessValue } from '../../../../../../platform/mcp/common/mcpManagement.js';
 import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../../services/assignment/test/common/nullAssignmentService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -128,6 +128,10 @@ suite('AgentHostClientTools', () => {
 			servers: observableValue('mcpServers', []),
 			lazyCollectionState: observableValue('mcpLazyCollectionState', { state: LazyCollectionState.AllKnown, collections: [] }),
 		});
+		instantiationService.stub(IAllowedMcpServersService, {
+			onDidChangeAllowedMcpServers: Event.None,
+			isServerAllowed: () => true,
+		} as Partial<IAllowedMcpServersService> as IAllowedMcpServersService);
 		instantiationService.stub(IMcpWorkbenchService, {
 			local: [],
 			onChange: Event.None,
@@ -840,6 +844,10 @@ suite('AgentHostClientTools', () => {
 			instantiationService.stub(IMcpService, {
 				servers: observableValue('mcpServers', []),
 			});
+			instantiationService.stub(IAllowedMcpServersService, {
+				onDidChangeAllowedMcpServers: Event.None,
+				isServerAllowed: () => true,
+			} as Partial<IAllowedMcpServersService> as IAllowedMcpServersService);
 			instantiationService.stub(IConfigurationResolverService, {} as Partial<IConfigurationResolverService>);
 			instantiationService.stub(IPromptsService, new class extends mock<IPromptsService>() {
 				override readonly onDidChangeCustomAgents = Event.None;
