@@ -243,6 +243,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._requireClient().readDebugLogsChunk(resource, position);
 	}
 
+	/** Unwraps the shared client's resource URIs to retain the translated remote workspace identities. */
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
 		const sessions = await this._requireClient().listSessions();
 		return sessions.map(session => ({
