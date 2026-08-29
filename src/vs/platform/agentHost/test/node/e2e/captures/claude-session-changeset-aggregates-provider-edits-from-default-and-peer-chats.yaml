@@ -14,8 +14,7 @@ exchanges:
           name: Write
           input:
             file_path: ${workdir}/default-provider.txt
-            content: |
-              DEFAULT_PROVIDER
+            content: DEFAULT_PROVIDER
       stopReason: tool_use
   - request:
       model: claude-opus-5
@@ -29,8 +28,7 @@ exchanges:
               name: Write
               input:
                 file_path: ${workdir}/default-provider.txt
-                content: |
-                  DEFAULT_PROVIDER
+                content: DEFAULT_PROVIDER
         - role: user
           content:
             - type: tool_result
@@ -47,8 +45,6 @@ exchanges:
           content: Create peer-provider.txt containing exactly PEER_PROVIDER using your file creation tool; do not run a shell command. Then reply exactly "created".
     response:
       content:
-        - type: text
-          text: I'll create the file with the Write tool.
         - type: tool_use
           id: toolcall_1
           name: Write
@@ -64,8 +60,6 @@ exchanges:
           content: Create peer-provider.txt containing exactly PEER_PROVIDER using your file creation tool; do not run a shell command. Then reply exactly "created".
         - role: assistant
           content:
-            - type: text
-              text: I'll create the file with the Write tool.
             - type: tool_use
               name: Write
               input:

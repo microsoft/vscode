@@ -9,9 +9,10 @@ import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { BugIndicatingError, ErrorNoTelemetry } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { createMarkdownCommandLink, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
-import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { revive } from '../../../../../base/common/marshalling.js';
 import { equals } from '../../../../../base/common/objects.js';
@@ -52,7 +53,7 @@ import { IChatTransferService } from '../model/chatTransferService.js';
 import { chatSessionResourceToId, getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../model/chatUri.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, isPromptTextVariableEntry } from '../attachments/chatVariableEntries.js';
 import { IDynamicVariable } from '../attachments/chatVariables.js';
-import { ChatAgentLocation, SessionTypeSelectionReason, ChatConfiguration, ChatModeKind } from '../constants.js';
+import { ChatAgentLocation, SessionTypeSelectionReason, ChatConfiguration, ChatModeKind, CustomizationMigrationHintMode } from '../constants.js';
 import { ChatMessageRole, IChatMessage, ILanguageModelsService } from '../languageModels.js';
 import { ModelSelectionReason } from '../modelSelection.js';
 import { ILanguageModelToolsService, ToolAndToolSetEnablementMap } from '../tools/languageModelToolsService.js';
@@ -63,8 +64,10 @@ import { ChatRequestHooks, mergeHooks } from '../promptSyntax/hookSchema.js';
 import { ComputeAutomaticInstructions } from '../promptSyntax/computeAutomaticInstructions.js';
 import { findLast } from '../../../../../base/common/arraysFind.js';
 import { ChatMode } from '../chatModes.js';
+import { AICustomizationManagementCommands, getCustomizationMigrationHintDismissedStorageKey } from '../aiCustomizationWorkspaceService.js';
 
 const serializedChatKey = 'interactive.sessions';
+const customizationMigrationHintShownStateKey = 'customizationMigrationHintShown';
 
 /**
  * True when the user has typed text or attached non-trivial context to the input
@@ -219,6 +222,7 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _sessionFollowupCancelTokens = this._register(new DisposableResourceMap<CancellationTokenSource>());
 	private readonly _chatServiceTelemetry: ChatServiceTelemetry;
 	private readonly _chatSessionStore: ChatSessionStore;
+	private _customizationMigrationHintProvider: ((sessionResource: URI) => Promise<string | undefined>) | undefined;
 
 	readonly requestInProgressObs: IObservable<boolean>;
 
@@ -236,6 +240,19 @@ export class ChatService extends Disposable implements IChatService {
 	 */
 	waitForModelDisposals(): Promise<void> {
 		return this._sessionModels.waitForModelDisposals();
+	}
+
+	registerCustomizationMigrationHintProvider(provider: (sessionResource: URI) => Promise<string | undefined>): IDisposable {
+		if (this._customizationMigrationHintProvider) {
+			throw new BugIndicatingError('A customization migration hint provider is already registered');
+		}
+
+		this._customizationMigrationHintProvider = provider;
+		return toDisposable(() => {
+			if (this._customizationMigrationHintProvider === provider) {
+				this._customizationMigrationHintProvider = undefined;
+			}
+		});
 	}
 
 	private get isEmptyWindow(): boolean {
@@ -1560,6 +1577,30 @@ export class ChatService extends Disposable implements IChatService {
 				return { hooks: collectedHooks, hasDisabledClaudeHooks };
 			};
 
+			const collectCustomizationMigrationHint = async (): Promise<string | undefined> => {
+				const sessionType = getChatSessionType(sessionResource);
+				const hintMode = this.configurationService.getValue<CustomizationMigrationHintMode>(ChatConfiguration.ChatCustomizationsMigrationHint);
+				const hintAlreadyShown = model.inputModel.state.get()?.contrib[customizationMigrationHintShownStateKey] === true;
+				if (!isAgentHostTarget(sessionType)
+					|| (hintMode !== CustomizationMigrationHintMode.Once && hintMode !== CustomizationMigrationHintMode.Always)
+					|| this.storageService.getBoolean(getCustomizationMigrationHintDismissedStorageKey(sessionType), StorageScope.WORKSPACE)
+					|| (hintMode === CustomizationMigrationHintMode.Once && hintAlreadyShown)
+					|| !this._customizationMigrationHintProvider) {
+					return undefined;
+				}
+
+				try {
+					const message = await this._customizationMigrationHintProvider(sessionResource);
+					if (message && !token.isCancellationRequested) {
+						return message;
+					}
+					return undefined;
+				} catch (error) {
+					this.logService.warn('[ChatService] Failed to compute customization migration hint:', error);
+					return undefined;
+				}
+			};
+
 			// Collect automatic instructions (.instructions.md, skills, etc.)
 			const collectInstructions = async (): Promise<IChatRequestVariableEntry[]> => {
 				const ctx = options?.instructionContext;
@@ -1624,10 +1665,11 @@ export class ChatService extends Disposable implements IChatService {
 					const thisRequest = request;
 					completeResponseCreated();
 
-					// --- Step 2: Collect hooks + instructions in parallel (after UI is shown) ---
-					const [hooksResult, instructionEntries] = await Promise.all([
+					// --- Step 2: Collect request context and hints in parallel (after UI is shown) ---
+					const [hooksResult, instructionEntries, customizationMigrationHint] = await Promise.all([
 						collectHooks(),
 						collectInstructions(),
+						collectCustomizationMigrationHint(),
 					]);
 					const collectedHooks = hooksResult.hooks;
 					const hasDisabledClaudeHooks = hooksResult.hasDisabledClaudeHooks;
@@ -1757,6 +1799,37 @@ export class ChatService extends Disposable implements IChatService {
 						if (pendingRequest.requestId) {
 							this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'add', source: 'sendRequestId', requestId: pendingRequest.requestId, chatSessionId: chatSessionResourceToId(sessionResource) });
 						}
+					}
+
+					const hintMode = this.configurationService.getValue<CustomizationMigrationHintMode>(ChatConfiguration.ChatCustomizationsMigrationHint);
+					const hintAlreadyShown = model.inputModel.state.get()?.contrib[customizationMigrationHintShownStateKey] === true;
+					if (customizationMigrationHint
+						&& !token.isCancellationRequested
+						&& (hintMode !== CustomizationMigrationHintMode.Once || !hintAlreadyShown)) {
+						if (hintMode === CustomizationMigrationHintMode.Once) {
+							model.inputModel.setState({
+								contrib: { ...model.inputModel.state.get()?.contrib, [customizationMigrationHintShownStateKey]: true }
+							});
+						}
+
+						const reviewLink = createMarkdownCommandLink({
+							id: AICustomizationManagementCommands.OpenEditor,
+							text: localize('customizationMigrationHint.review', "Review customizations"),
+							tooltip: localize('customizationMigrationHint.review.tooltip', "Open Chat Customizations"),
+						});
+						const dismissLink = createMarkdownCommandLink({
+							id: AICustomizationManagementCommands.DismissMigrationHint,
+							text: localize('customizationMigrationHint.dismiss', "Hide for this workspace"),
+							tooltip: localize('customizationMigrationHint.dismiss.tooltip', "Stop Showing Migration Hints for This Harness"),
+						});
+						progressCallback([{
+							kind: 'systemNotification',
+							content: new MarkdownString(
+								localize('customizationMigrationHint', "*{0} {1} | {2}*", customizationMigrationHint, reviewLink, dismissLink),
+								{ isTrusted: { enabledCommands: [AICustomizationManagementCommands.OpenEditor, AICustomizationManagementCommands.DismissMigrationHint] } }
+							),
+							icon: Codicon.info,
+						}]);
 					}
 
 					// Check for disabled Claude Code hooks and notify the user once per workspace.

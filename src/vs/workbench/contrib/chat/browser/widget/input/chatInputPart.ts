@@ -162,7 +162,7 @@ import { registerChatInputOnboardingHosts } from './chatInputOnboardingHosts.js'
 import { IChatInputNoticeHubService } from './chatInputNoticeHub.js';
 import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ChatInputPickerResponsiveLayout, IChatInputPickerResponsiveLayoutItem, isChatInputPickerResponsiveState } from './chatInputPickerResponsiveLayout.js';
-import { chatInputStackClass, chatInputStackSlotClass, ChatInputStackSlot, setChatInputStackInputFocused, setChatInputStackSlot } from './chatInputStack.js';
+import { chatInputStackClass, chatInputStackSlotClass, chatInputSurfaceStackClass, chatInputSurfaceStackSlotClass, ChatInputStackSlot, setChatInputStackInputFocused, setChatInputStackSlot } from './chatInputStack.js';
 import { ChatSelectedTools } from './chatSelectedTools.js';
 import { ChatPetAchievementIds, didExplicitlySwitchChatPetModel } from '../../chatPetAchievements.js';
 import { IChatPetService } from '../../chatPetService.js';
@@ -3141,12 +3141,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		let elements;
 		if (this.options.renderStyle === 'compact') {
-			elements = dom.h('.interactive-input-part', [
+			elements = dom.h(`.interactive-input-part.${chatInputSurfaceStackClass}`, [
 				dom.h('.chat-input-persistent-content@persistentContentContainer'),
-				dom.h('.interactive-input-and-edit-session', [
-					dom.h('.chat-plan-review-widget-container@chatPlanReviewContainer'),
-					dom.h('.chat-question-carousel-widget-container@chatQuestionCarouselContainer'),
-					dom.h('.chat-tool-confirmation-carousel-container@chatToolConfirmationCarouselContainer'),
+				dom.h(`.interactive-input-and-edit-session.${chatInputSurfaceStackClass}`, [
+					dom.h(`.chat-plan-review-widget-container.${chatInputSurfaceStackSlotClass}@chatPlanReviewContainer`),
+					dom.h(`.chat-question-carousel-widget-container.${chatInputSurfaceStackSlotClass}@chatQuestionCarouselContainer`),
+					dom.h(`.chat-tool-confirmation-carousel-container.${chatInputSurfaceStackSlotClass}@chatToolConfirmationCarouselContainer`),
 					dom.h(`.${chatInputStackClass}`, [
 						dom.h(`.chat-input-notification-container.${chatInputStackSlotClass}@chatInputNotificationContainer`),
 						dom.h(`.voice-mode-onboarding-container.${chatInputStackSlotClass}@voiceModeOnboardingContainer`),
@@ -3168,19 +3168,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						dom.h('.chat-context-usage-container@contextUsageWidgetContainer'),
 						dom.h('.chat-input-status-container@statusToolbarContainer'),
 					]),
-					dom.h('.chat-attachments-container@attachmentsContainer', [
+					dom.h(`.chat-attachments-container.${chatInputSurfaceStackSlotClass}@attachmentsContainer`, [
 						dom.h('.chat-attached-context@attachedContextContainer'),
 					]),
-					dom.h('.interactive-input-followups@followupsContainer'),
+					dom.h(`.interactive-input-followups.${chatInputSurfaceStackSlotClass}@followupsContainer`),
 				])
 			]);
 		} else {
-			elements = dom.h('.interactive-input-part', [
+			elements = dom.h(`.interactive-input-part.${chatInputSurfaceStackClass}`, [
 				dom.h('.chat-input-persistent-content@persistentContentContainer'),
-				dom.h('.chat-plan-review-widget-container@chatPlanReviewContainer'),
-				dom.h('.chat-question-carousel-widget-container@chatQuestionCarouselContainer'),
-				dom.h('.chat-tool-confirmation-carousel-container@chatToolConfirmationCarouselContainer'),
-				dom.h('.interactive-input-followups@followupsContainer'),
+				dom.h(`.chat-plan-review-widget-container.${chatInputSurfaceStackSlotClass}@chatPlanReviewContainer`),
+				dom.h(`.chat-question-carousel-widget-container.${chatInputSurfaceStackSlotClass}@chatQuestionCarouselContainer`),
+				dom.h(`.chat-tool-confirmation-carousel-container.${chatInputSurfaceStackSlotClass}@chatToolConfirmationCarouselContainer`),
+				dom.h(`.interactive-input-followups.${chatInputSurfaceStackSlotClass}@followupsContainer`),
 				dom.h(`.${chatInputStackClass}`, [
 					dom.h(`.chat-input-notification-container.${chatInputStackSlotClass}@chatInputNotificationContainer`),
 					dom.h(`.voice-mode-onboarding-container.${chatInputStackSlotClass}@voiceModeOnboardingContainer`),

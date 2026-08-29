@@ -10,7 +10,7 @@ import { localize } from '../../../../../nls.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 
 // Re-export for convenience — consumers import from this file
-export { AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
+export { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
 export type { AICustomizationSource } from '../../common/aiCustomizationWorkspaceService.js';
 export { BUILTIN_STORAGE } from '../../common/aiCustomizationWorkspaceService.js';
 
@@ -39,19 +39,6 @@ export const AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID = 'workbench.editor.aiCustomi
  * Editor input type ID for serialization.
  */
 export const AI_CUSTOMIZATION_MANAGEMENT_EDITOR_INPUT_ID = 'workbench.input.aiCustomizationManagement';
-
-/**
- * Command IDs for the AI Customizations Management Editor.
- */
-export const AICustomizationManagementCommands = {
-	OpenEditor: 'aiCustomization.openManagementEditor',
-	OpenMarketplace: 'aiCustomization.openMarketplace',
-	CreateNewAgent: 'aiCustomization.createNewAgent',
-	CreateNewSkill: 'aiCustomization.createNewSkill',
-	CreateNewInstructions: 'aiCustomization.createNewInstructions',
-	CreateNewPrompt: 'aiCustomization.createNewPrompt',
-	GenerateDebugReport: 'aiCustomization.generateDebugReport',
-} as const;
 
 /**
  * Context key indicating the AI Customization Management Editor is focused.

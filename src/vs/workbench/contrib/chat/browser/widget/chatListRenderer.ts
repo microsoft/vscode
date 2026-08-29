@@ -2135,6 +2135,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				templateData.value.appendChild(explicitFileAttachmentsPart.domNode);
 				templateData.elementDisposables.add(explicitFileAttachmentsPart);
 			}
+			if (otherVariables.length) {
+				const otherAttachmentsPart = this.renderAttachments(otherVariables, element.contentReferences, element.modelId, templateData);
+				if (otherAttachmentsPart.domNode) {
+					templateData.value.appendChild(otherAttachmentsPart.domNode);
+				}
+				templateData.elementDisposables.add(otherAttachmentsPart);
+			}
 		}
 		const contentContainer = templateData.value;
 
@@ -2261,15 +2268,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const stickyScrollSourcePart = parts.find(part => part.domNode === templateData.stickyScrollSource);
 		if (stickyScrollSourcePart?.addDisposable && templateData.stickyScrollSource?.classList.contains('clickable')) {
 			stickyScrollSourcePart.addDisposable(this.registerSynchronizedRequestBubbleHover(element.id, templateData, templateData.stickyScrollSource));
-		}
-
-		if (!isStickyScrollRow && otherVariables.length) {
-			const newPart = this.renderAttachments(otherVariables, element.contentReferences, element.modelId, templateData);
-			if (newPart.domNode) {
-				// p has a :last-child rule for margin
-				templateData.value.appendChild(newPart.domNode);
-			}
-			templateData.elementDisposables.add(newPart);
 		}
 
 		if (!isStickyScrollRow && !element.pendingKind && !element.confirmation && this.rendererOptions.renderStyle !== 'minimal' && templateData.value.childElementCount > 0) {

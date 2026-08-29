@@ -1464,6 +1464,7 @@ suite('CopilotAgentSession', () => {
 				errorType: 'executionInterrupted',
 				message: 'The agent was interrupted before this request finished.',
 			},
+			resumable: true,
 		});
 	});
 
@@ -3288,6 +3289,101 @@ suite('CopilotAgentSession', () => {
 			],
 			parsed: autoModeResolved,
 		});
+	});
+
+	test('scopes a subagent Auto resolution to the subagent instead of the parent turn', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-1');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent',
+			agentName: 'explore',
+			agentDisplayName: 'Explore',
+			agentDescription: 'Explore tests',
+		} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+
+		// The subagent routes its own model call; the parent never picked this model.
+		mockSession.fire('session.auto_mode_resolved', { chosenModel: 'gpt-5.5' }, { agentId: 'agent-1' });
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.5',
+			inputTokens: 5,
+			outputTokens: 7,
+		} as unknown as SessionEventPayload<'assistant.usage'>['data'], { agentId: 'agent-1' });
+
+		const routed = signals.flatMap(signal =>
+			signal.kind === 'action' && signal.action.type === ActionType.ChatUsage
+				? [{
+					parentToolCallId: signal.parentToolCallId,
+					chosenModel: readUsageInfoMeta(signal.action.usage).autoModeResolved?.chosenModel,
+				}]
+				: []);
+
+		assert.deepStrictEqual(routed, [
+			// The parent aggregate keeps describing the parent's own model call...
+			{ parentToolCallId: undefined, chosenModel: undefined },
+			// ...while the subagent's own component carries the routing.
+			{ parentToolCallId: 'tc-subagent', chosenModel: 'gpt-5.5' },
+		]);
+	});
+
+	test('keeps a subagent Auto resolution when the root turn moves on beneath it', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-1');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent',
+			agentName: 'explore',
+			agentDisplayName: 'Explore',
+			agentDescription: 'Explore tests',
+		} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+
+		mockSession.fire('session.auto_mode_resolved', { chosenModel: 'gpt-5.5' }, { agentId: 'agent-1' });
+		// Steering mints a new root turn while the subagent is still running. Losing
+		// the routing here would show the routed model to the hidden cohort, which
+		// reads "no routing reported" as "not routed".
+		session.resetTurnState('turn-2');
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.5',
+			inputTokens: 5,
+			outputTokens: 7,
+		} as unknown as SessionEventPayload<'assistant.usage'>['data'], { agentId: 'agent-1' });
+
+		const subagentRouting = signals.flatMap(signal =>
+			signal.kind === 'action' && signal.action.type === ActionType.ChatUsage && signal.parentToolCallId === 'tc-subagent'
+				? [readUsageInfoMeta(signal.action.usage).autoModeResolved?.chosenModel]
+				: []);
+
+		assert.deepStrictEqual(subagentRouting, ['gpt-5.5']);
+	});
+
+	test('keeps a subagent Auto resolution when the root turn has already been cleared', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-1');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent',
+			agentName: 'explore',
+			agentDisplayName: 'Explore',
+			agentDescription: 'Explore tests',
+		} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+
+		// A root-scope error clears the active turn while the subagent runs on.
+		// Its routing must still be recorded, since the client reads "no routing
+		// reported" as "not routed" and would name the concrete model.
+		session.resetTurnState('');
+		mockSession.fire('session.auto_mode_resolved', { chosenModel: 'gpt-5.5' }, { agentId: 'agent-1' });
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.5',
+			inputTokens: 5,
+			outputTokens: 7,
+		} as unknown as SessionEventPayload<'assistant.usage'>['data'], { agentId: 'agent-1' });
+
+		const subagentRouting = signals.flatMap(signal =>
+			signal.kind === 'action' && signal.action.type === ActionType.ChatUsage && signal.parentToolCallId === 'tc-subagent'
+				? [readUsageInfoMeta(signal.action.usage).autoModeResolved?.chosenModel]
+				: []);
+
+		assert.deepStrictEqual(subagentRouting, ['gpt-5.5']);
 	});
 
 	test('accumulates whole-turn token totals per model across parent and subagent calls', async () => {
@@ -5609,7 +5705,7 @@ Use the attached image as context.
 			});
 		});
 
-		test('the development $error-ui path emits an error even with attachments', async () => {
+		test('the development $error-ui path emits a resumable error even with attachments', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 
 			await session.send('$error-ui', [{
@@ -5635,6 +5731,7 @@ Use the attached image as context.
 							errorType: 'developmentRecoverableError',
 							message: 'Injected recoverable development error (1/1).',
 						},
+						resumable: true,
 					},
 				}],
 			});

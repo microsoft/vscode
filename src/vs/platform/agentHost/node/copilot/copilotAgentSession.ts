@@ -748,6 +748,11 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _rootTurnIdBySubagentToolCallId = new Map<string, string>();
 	private readonly _subagentDirectUsageByToolCallId = new Map<string, DirectUsageAccumulator>();
 	private readonly _lastSubagentUsageByToolCallId = new Map<string, UsageInfo>();
+	/**
+	 * Auto's routing decision per subagent. Keyed by tool call rather than turn: a
+	 * subagent outlives the root turn that spawned it when steering mints a new one.
+	 */
+	private readonly _autoModeResolvedByToolCallId = new Map<string, NonNullable<UsageInfoMeta['autoModeResolved']>>();
 	private readonly _activeSubagentAgentIds = new Set<string>();
 	private readonly _unroutableSubagentToolCallIds = new Set<string>();
 	private readonly _autoApprovals = new Map<string, PermissionAutoApproval | null>();
@@ -1336,6 +1341,7 @@ export class CopilotAgentSession extends Disposable {
 			this._rootTurnIdBySubagentToolCallId.delete(parentToolCallId);
 			this._subagentDirectUsageByToolCallId.delete(parentToolCallId);
 			this._lastSubagentUsageByToolCallId.delete(parentToolCallId);
+			this._autoModeResolvedByToolCallId.delete(parentToolCallId);
 			return;
 		}
 		this._onDidSessionProgress.fire({
@@ -1346,6 +1352,7 @@ export class CopilotAgentSession extends Disposable {
 		this._rootTurnIdBySubagentToolCallId.delete(parentToolCallId);
 		this._subagentDirectUsageByToolCallId.delete(parentToolCallId);
 		this._lastSubagentUsageByToolCallId.delete(parentToolCallId);
+		this._autoModeResolvedByToolCallId.delete(parentToolCallId);
 	}
 
 	private _directUsageFor(parentToolCallId: string | undefined, create: boolean): DirectUsageAccumulator | undefined {
@@ -1587,7 +1594,7 @@ export class CopilotAgentSession extends Disposable {
 			type: ActionType.ChatError,
 			turnId: turn.id,
 			duration: turn.duration,
-			part: createErrorResponsePart(error),
+			part: createErrorResponsePart(error, true),
 		});
 		this._clearActiveTurn();
 		return turn.id;
@@ -2637,7 +2644,7 @@ export class CopilotAgentSession extends Disposable {
 			part: createErrorResponsePart({
 				errorType: 'developmentRecoverableError',
 				message: localize('copilotAgent.developmentRecoverableError', "Injected recoverable development error ({0}/{1}).", attempt, totalFailures),
-			}),
+			}, true),
 		});
 		this._clearActiveTurn();
 	}
@@ -4996,7 +5003,7 @@ export class CopilotAgentSession extends Disposable {
 				type: ActionType.ChatError,
 				turnId: this._turnId,
 				duration: turn?.duration ?? 0,
-				part: createErrorResponsePart(buildChatErrorInfoFromCopilotSdkFields(e.data)),
+				part: createErrorResponsePart(buildChatErrorInfoFromCopilotSdkFields(e.data), !e.agentId && turn !== undefined),
 			}, parentToolCallId);
 			if (!parentToolCallId) {
 				this._clearActiveTurn();
@@ -5020,7 +5027,9 @@ export class CopilotAgentSession extends Disposable {
 			this._lastSeenModelId = e.data.chosenModel;
 			const turnId = this._turnId;
 			this._logService.info(`[Copilot:${sessionId}] Auto mode resolved to ${e.data.chosenModel}${e.data.reasoningBucket ? ` (${e.data.reasoningBucket})` : ''}`);
-			if (!turnId) {
+			// A subagent's routing is recorded against its tool call, so unlike the
+			// parent's it does not need an active root turn to attach to.
+			if (!turnId && !e.agentId) {
 				return;
 			}
 			if (!e.agentId) {
@@ -5043,6 +5052,18 @@ export class CopilotAgentSession extends Disposable {
 					chosenShortfall: e.data.chosenShortfall,
 					hasImage: e.data.hasImage,
 				});
+			}
+			// A subagent routes its own model calls, so record the decision against the
+			// subagent rather than letting it describe the parent turn. Auto routes
+			// before the model call, so the usage event that follows picks this up.
+			if (e.agentId) {
+				const subagentToolCallId = this._parentToolCallIdForSubagentEvent(e);
+				if (!subagentToolCallId) {
+					this._logService.warn(`[Copilot:${sessionId}] Unable to attribute Auto mode resolution for unknown subagent agentId=${e.agentId}; leaving the parent turn's routing untouched`);
+				} else {
+					this._autoModeResolvedByToolCallId.set(subagentToolCallId, e.data);
+				}
+				return;
 			}
 			autoModeResolved = { turnId, data: e.data };
 			const priorUsage = lastParentUsageTurnId === turnId ? lastParentUsage : undefined;
@@ -5139,6 +5160,11 @@ export class CopilotAgentSession extends Disposable {
 				}
 				if (isParentScope && autoModeResolved?.turnId === this._turnId) {
 					metadata.autoModeResolved = autoModeResolved.data;
+				} else if (!isParentScope && directOwnerToolCallId) {
+					const subagentAutoMode = this._autoModeResolvedByToolCallId.get(directOwnerToolCallId);
+					if (subagentAutoMode) {
+						metadata.autoModeResolved = subagentAutoMode;
+					}
 				}
 				if (scopedCopilotUsage) {
 					metadata.copilotUsage = scopedCopilotUsage;
@@ -5340,6 +5366,9 @@ export class CopilotAgentSession extends Disposable {
 			if (parentToolCallId && directUsage) {
 				const priorUsage = this._lastSubagentUsageByToolCallId.get(parentToolCallId);
 				const metadata: UsageInfoMeta = { ...(priorUsage?._meta ?? {}) };
+				// A compaction can be the first usage this subagent reports, so carry
+				// its routing across rather than describing it by a concrete model.
+				metadata.autoModeResolved ??= this._autoModeResolvedByToolCallId.get(parentToolCallId);
 				if (directUsage.tokenTotals) {
 					metadata.directTurnTokenTotals = directUsage.tokenTotals;
 				}

@@ -22,7 +22,8 @@ function isPromoVisible(context: IChatInputNotificationContext): boolean {
  * Surfaces a model's promo as a chat input notification, scoped to the harness
  * (chat session type) of the model that carries it. Promos only render where a
  * model switch is still plausible: persistent chat surfaces whose session has
- * not started yet. Dismissals are persisted by promo id in application storage,
+ * not started yet, and only when the promo is banner-eligible (`showBanner` is
+ * not `false`). Dismissals are persisted by promo id in application storage,
  * so they survive reloads and apply to every open window.
  */
 export class ChatPromoNotificationContribution extends Disposable implements IWorkbenchContribution {
@@ -61,10 +62,11 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 
 		// Bucket one non-dismissed promo per harness (a model's `targetChatSessionType`,
 		// or the local pool when unset), preferring a discounted promo over a message-only one.
+		// Promos that opt out of the banner (`showBanner: false`) stay in the model picker only.
 		const promoByHarness = new Map<string, ILanguageModelChatMetadataAndIdentifier>();
 		for (const id of modelIds) {
 			const meta = this._languageModelsService.lookupLanguageModel(id);
-			if (!meta || !ILanguageModelChatMetadata.hasPromoMessage(meta) || dismissed.has(meta.promo.id)) {
+			if (!meta || !ILanguageModelChatMetadata.hasPromoBanner(meta) || dismissed.has(meta.promo.id)) {
 				continue;
 			}
 			const harness = meta.targetChatSessionType ?? localChatSessionType;
