@@ -44,17 +44,13 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 
 	const stylesheets = getLanguageModelCache<Stylesheet>(10, 60, document => {
 		// Avoid parsing documents that are not handled by any language service (e.g. plain PHP files).
-		// Parsing a non-CSS document as CSS produced false positives (colors in selectors). Return
-		// an empty stylesheet instead of trying to parse arbitrary content.
+		// Parsing a non-CSS document as CSS produced false positives (colors in selectors).
+		// For unsupported documents, return the stylesheet for an empty CSS document.
+		// Do NOT fall back to parsing the unsupported document itself — let the caller
+		// (runSafeAsync) handle any parsing exceptions.
 		if (!languageServices[document.languageId]) {
-			// Create an empty CSS document to produce an empty stylesheet
-			try {
-				const emptyDoc = TextDocument.create(document.uri + '.css', 'css', document.version, '');
-				return languageServices['css'].parseStylesheet(emptyDoc);
-			} catch (e) {
-				// Fallback: if creation/parsing fails for any reason, parse the original document
-				return getLanguageService(document).parseStylesheet(document);
-			}
+			const emptyDoc = TextDocument.create(document.uri + '.css', 'css', document.version, '');
+			return languageServices['css'].parseStylesheet(emptyDoc);
 		}
 		return getLanguageService(document).parseStylesheet(document);
 	});
@@ -211,7 +207,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	}
 
 	function isSupportedDocument(document: TextDocument) {
-		return !!languageServices[document.languageId];
+		return Object.prototype.hasOwnProperty.call(languageServices, document.languageId);
 	}
 
 	connection.onCompletion((textDocumentPosition, token) => {
