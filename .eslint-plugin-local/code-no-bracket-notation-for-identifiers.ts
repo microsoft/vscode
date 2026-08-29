@@ -38,10 +38,8 @@ export default new class NoBracketNotationForIdentifiers implements eslint.Rule.
 		 * Check if a string is a valid JavaScript identifier
 		 */
 		function isValidIdentifier(str: string): boolean {
-			// Check if it's a valid JavaScript identifier
-			// Must start with letter, underscore, or dollar sign
-			// Can contain letters, digits, underscores, or dollar signs
-			return /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(str);
+			// Reserved words are valid IdentifierNames when used as properties.
+			return /^[$_\p{ID_Start}](?:[$_\p{ID_Continue}]|\u200C|\u200D)*$/u.test(str);
 		}
 
 		return {
@@ -76,10 +74,20 @@ export default new class NoBracketNotationForIdentifiers implements eslint.Rule.
 								return null;
 							}
 
-							return fixer.replaceTextRange(
+							const bracketFix = fixer.replaceTextRange(
 								[leftBracket.range[0], rightBracket.range[1]],
 								`${memberExpr.optional ? '' : '.'}${propertyName}`
 							);
+							if (memberExpr.object.type === 'Literal' && typeof memberExpr.object.value === 'number') {
+								const object = memberExpr.object as unknown as eslint.Rule.Node;
+								return [
+									fixer.insertTextBefore(object, '('),
+									fixer.insertTextAfter(object, ')'),
+									bracketFix
+								];
+							}
+
+							return bracketFix;
 						}
 					});
 				}
