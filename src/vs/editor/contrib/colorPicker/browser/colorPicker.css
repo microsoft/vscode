@@ -15,8 +15,8 @@
 .hc-light .colorpicker-color-decoration {
 	border: solid 0.1em #000;
 	box-sizing: border-box;
-	margin: 0.1em 0.2em 0 0.2em;
-	width: 0.8em;
+	margin: 0.1em var(--vscode-colorPicker-colorDecoratorMargin) 0;
+	width: var(--vscode-colorPicker-colorDecoratorWidth);
 	height: 0.8em;
 	line-height: 0.8em;
 	display: inline-block;
@@ -206,6 +206,6 @@
 	cursor: pointer;
 }
 
-.colorpicker-body .insert-button:hover{
+.colorpicker-body .insert-button:hover {
 	background: var(--vscode-button-hoverBackground);
 }

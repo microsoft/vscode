@@ -15,7 +15,8 @@ import { IProductService } from '../../../product/common/productService.js';
 import { ISandboxHelperService } from '../../../sandbox/common/sandboxHelperService.js';
 import type { ITerminalSandboxResolvedNetworkDomains } from '../../../sandbox/common/terminalSandboxService.js';
 import { TerminalSandboxEngine } from '../../../sandbox/common/terminalSandboxEngine.js';
-import { TerminalClaimKind, type TerminalSessionClaim } from '../../common/state/protocol/state.js';
+import { TerminalClaimKind, TerminalLifecycleStatus, type TerminalSessionClaim } from '../../common/state/protocol/state.js';
+import { parseRequiredSessionUriFromChatUri } from '../../common/state/sessionState.js';
 import { isZsh } from '../agentHostShellUtils.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 import { createAgentHostSandboxEngine } from './agentHostSandboxEngine.js';
@@ -57,8 +58,6 @@ interface IManagedShell {
  * the session ends.
  */
 export class ShellManager extends Disposable {
-	private _managedSandboxEnabled: boolean | undefined;
-
 	private readonly _shells = new Map<string, IManagedShell>();
 	private readonly _toolCallShells = new Map<string, string>();
 	private _resolvedExecutable: Promise<string> | undefined;
@@ -112,10 +111,6 @@ export class ShellManager extends Disposable {
 		return this._resolvedExecutable;
 	}
 
-	setManagedSandboxEnabled(enabled: boolean | undefined): void {
-		this._managedSandboxEnabled = enabled;
-	}
-
 	/**
 	 * Lazily constructs the per-session {@link TerminalSandboxEngine}. The engine
 	 * is registered for disposal alongside the {@link ShellManager}; its temp dir
@@ -132,7 +127,6 @@ export class ShellManager extends Disposable {
 				this._sandboxHelper,
 				sessionId,
 				this.workingDirectory,
-				() => this._managedSandboxEnabled,
 			);
 			this._register(engine);
 			this._register(toDisposable(() => {
@@ -152,6 +146,7 @@ export class ShellManager extends Disposable {
 	 */
 	async getOrCreateShell(
 		shellType: ShellType,
+		chat: URI,
 		turnId: string,
 		toolCallId: string,
 		cwd?: string,
@@ -160,8 +155,8 @@ export class ShellManager extends Disposable {
 			if (shell.shellType !== shellType || !this._terminalManager.hasTerminal(shell.terminalUri)) {
 				continue;
 			}
-			const exitCode = this._terminalManager.getExitCode(shell.terminalUri);
-			if (exitCode !== undefined) {
+			const lifecycle = this._terminalManager.getTerminalState(shell.terminalUri)?.lifecycle;
+			if (lifecycle?.status === TerminalLifecycleStatus.Exited) {
 				this._shells.delete(shell.id);
 				continue;
 			}
@@ -180,7 +175,10 @@ export class ShellManager extends Disposable {
 
 		const claim: TerminalSessionClaim = {
 			kind: TerminalClaimKind.Session,
-			session: this._sessionUri.toString(),
+			// The chat URI is authoritative: this manager's own scope URI is the
+			// chat for a peer chat, so the owning session comes from the chat.
+			session: parseRequiredSessionUriFromChatUri(chat),
+			chat: chat.toString(),
 			turnId,
 			toolCallId,
 		};
@@ -391,6 +389,7 @@ interface IShutdownShellArgs {
  */
 export async function createShellTools(
 	shellManager: ShellManager,
+	chat: URI,
 	terminalManager: IAgentHostTerminalManager,
 	logService: ILogService,
 	confirmUnsandboxedExecution?: UnsandboxedCommandConfirmationHandler,
@@ -430,6 +429,7 @@ export async function createShellTools(
 			const timeoutMs = args.timeout ?? DEFAULT_SHELL_COMMAND_TIMEOUT_MS;
 			const ref = await shellManager.getOrCreateShell(
 				shellType,
+				chat,
 				invocation.toolCallId,
 				invocation.toolCallId,
 			);
@@ -611,8 +611,10 @@ export async function createShellTools(
 				return makeSuccessResult('No active shells.');
 			}
 			const descriptions = shells.map(s => {
-				const exitCode = terminalManager.getExitCode(s.terminalUri);
-				const status = exitCode !== undefined ? `exited (${exitCode})` : 'running';
+				const lifecycle = terminalManager.getTerminalState(s.terminalUri)?.lifecycle;
+				const status = lifecycle?.status === TerminalLifecycleStatus.Exited
+					? lifecycle.exitCode === undefined ? 'exited' : `exited (${lifecycle.exitCode})`
+					: 'running';
 				return `- ${s.id}: ${s.shellType} [${status}]`;
 			});
 			return makeSuccessResult(descriptions.join('\n'));

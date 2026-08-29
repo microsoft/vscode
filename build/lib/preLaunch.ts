@@ -48,7 +48,7 @@ async function getElectron() {
 
 async function isExpectedElectronInstalled(): Promise<boolean> {
 	try {
-		const { getElectronVersion } = await import('./util.ts');
+		const { getElectronVersion } = await import('./electronVersion.ts');
 		const { electronVersion } = getElectronVersion();
 		const installedVersion = (await fs.readFile(path.join(rootDir, '.build', 'electron', 'version'), 'utf8')).trim().replace(/^v/, '');
 		return installedVersion === electronVersion;
@@ -66,6 +66,9 @@ async function ensureCompiled() {
 async function main() {
 	await ensureNodeModules();
 	await getElectron();
+	if (process.argv.includes('--only-electron')) {
+		return;
+	}
 	await ensureCompiled();
 
 	// Can't require this until after dependencies are installed

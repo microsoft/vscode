@@ -2,15 +2,13 @@ version: 1
 dialect: anthropic
 exchanges:
   - request:
-      model: claude-opus-4.8
+      model: claude-opus-5
       system: ${system}
       messages:
         - role: user
-          content: Create the file at ${workdir}/first-peer.txt containing exactly FIRST_PEER.
+          content: Create the file at ${workdir}/first-peer.txt containing exactly FIRST_PEER with no trailing newline. Use your file tools; do not run a shell command. Do not verify it with another tool. Then reply exactly "created".
     response:
       content:
-        - type: text
-          text: I'll create that file for you.
         - type: tool_use
           id: toolcall_0
           name: Write
@@ -19,15 +17,13 @@ exchanges:
             content: FIRST_PEER
       stopReason: tool_use
   - request:
-      model: claude-opus-4.8
+      model: claude-opus-5
       system: ${system}
       messages:
         - role: user
-          content: Create the file at ${workdir}/first-peer.txt containing exactly FIRST_PEER.
+          content: Create the file at ${workdir}/first-peer.txt containing exactly FIRST_PEER with no trailing newline. Use your file tools; do not run a shell command. Do not verify it with another tool. Then reply exactly "created".
         - role: assistant
           content:
-            - type: text
-              text: I'll create that file for you.
             - type: tool_use
               name: Write
               input:
@@ -39,18 +35,16 @@ exchanges:
               tool_use_id: toolcall_0
               content: 'File created successfully at: ${workdir}/first-peer.txt (file state is current in your context — no need to Read it back)'
     response:
-      content: Created `first-peer.txt` containing exactly `FIRST_PEER`.
+      content: created
       stopReason: end_turn
   - request:
-      model: claude-opus-4.8
+      model: claude-opus-5
       system: ${system}
       messages:
         - role: user
-          content: Create the file at ${workdir}/second-peer.txt containing exactly SECOND_PEER.
+          content: Create the file at ${workdir}/second-peer.txt containing exactly SECOND_PEER with no trailing newline. Use your file tools; do not run a shell command. Do not verify it with another tool. Then reply exactly "created".
     response:
       content:
-        - type: text
-          text: I'll create that file.
         - type: tool_use
           id: toolcall_1
           name: Write
@@ -59,15 +53,13 @@ exchanges:
             content: SECOND_PEER
       stopReason: tool_use
   - request:
-      model: claude-opus-4.8
+      model: claude-opus-5
       system: ${system}
       messages:
         - role: user
-          content: Create the file at ${workdir}/second-peer.txt containing exactly SECOND_PEER.
+          content: Create the file at ${workdir}/second-peer.txt containing exactly SECOND_PEER with no trailing newline. Use your file tools; do not run a shell command. Do not verify it with another tool. Then reply exactly "created".
         - role: assistant
           content:
-            - type: text
-              text: I'll create that file.
             - type: tool_use
               name: Write
               input:
@@ -79,5 +71,5 @@ exchanges:
               tool_use_id: toolcall_1
               content: 'File created successfully at: ${workdir}/second-peer.txt (file state is current in your context — no need to Read it back)'
     response:
-      content: Done. Created `second-peer.txt` containing exactly `SECOND_PEER`.
+      content: created
       stopReason: end_turn

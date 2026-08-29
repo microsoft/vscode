@@ -3,53 +3,48 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, reset } from '../../../../../base/browser/dom.js';
-import { ActionsOrientation } from '../../../../../base/browser/ui/actionbar/actionbar.js';
-import { BaseActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { Button, IButtonStyles } from '../../../../../base/browser/ui/button/button.js';
-import { ToolBar } from '../../../../../base/browser/ui/toolbar/toolbar.js';
-import { Action, IAction, toAction } from '../../../../../base/common/actions.js';
+import { Action } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { autorun, derived, IObservable, IReader } from '../../../../../base/common/observable.js';
+import { derived, IObservable, IReader } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
-import { basename, isEqual } from '../../../../../base/common/resources.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
-import { FileKind } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
-import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { AnimatedCounterWidget } from '../../../../browser/animatedCounterWidget.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../browser/labels.js';
 import { BrowserViewEditorId } from '../../../browserView/common/browserView.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { getEditorOverrideForChatResource } from './chatEditorAssociations.js';
-import '../media/chatTurnPills.css';
-
-const CHANGES_PILL_ACTION_ID = 'chat.turnPills.changes';
-const PREVIEW_PILL_ACTION_ID = 'chat.turnPills.preview';
+import { ChatPillsWidget, getChatPillEntries, IChatPill, type IChatPillSection } from '../../../../browser/chatPills.js';
+import { ChatChangesPillActionViewItem } from '../../../../browser/chatChangesPill.js';
+import { ChatPillSingleEntry, createChatSectionPill, type IChatDropdownPillOptions } from '../../../../browser/chatDropdownPill.js';
 
 /**
- * All-transparent button styles so the inner preview-pill buttons inherit the
- * pill container's own background/border and read as a single control.
+ * Presentation of the artifacts pill. Only a file artifact is worth showing in
+ * place of the summary — its name and themed icon say what it is — while any
+ * other lone artifact stays behind the count, so the row keeps a stable shape
+ * instead of turning into whichever artifact happens to be recorded first.
  */
-const TRANSPARENT_BUTTON_STYLES: IButtonStyles = {
-	buttonBackground: undefined,
-	buttonHoverBackground: undefined,
-	buttonForeground: undefined,
-	buttonSeparator: undefined,
-	buttonSecondaryBackground: undefined,
-	buttonSecondaryHoverBackground: undefined,
-	buttonSecondaryForeground: undefined,
-	buttonSecondaryBorder: undefined,
-	buttonBorder: undefined,
+export const chatArtifactPillOptions: IChatDropdownPillOptions = {
+	widgetId: 'chatArtifacts',
+	icon: Codicon.package,
+	title: localize('chatArtifacts.title', "Artifacts"),
+	summaryLabel: count => count === 1
+		? localize('chatArtifacts.countSingle', "1 Artifact")
+		: localize('chatArtifacts.count', "{0} Artifacts", count),
+	summaryAriaLabel: count => count === 1
+		? localize('chatArtifacts.showSingle', "Show 1 artifact")
+		: localize('chatArtifacts.show', "Show {0} artifacts", count),
+	singleEntry: ChatPillSingleEntry.InlineResource,
 };
+
+export const CHAT_TURN_CHANGES_PILL_ID = 'chat.turnPills.changes';
+export const CHAT_TURN_ARTIFACT_PILL_ID = 'chat.turnPills.artifact';
 
 /** Aggregate diff counts shown in the changes pill (scoped to a single turn). */
 export interface IDiffStats {
@@ -60,7 +55,7 @@ export interface IDiffStats {
 
 export const EMPTY_DIFF_STATS: IDiffStats = { files: 0, insertions: 0, deletions: 0 };
 
-/** A file outside the workspace that the preview pill can open. */
+/** A file outside the workspace that the artifact pill can open. */
 export interface IPreviewFile {
 	readonly uri: URI;
 	readonly kind: 'markdown' | 'html';
@@ -110,13 +105,13 @@ export async function openChatTurnFile(file: IPreviewFile, openerService: IOpene
 /** The data and interactions a {@link ChatTurnPillsWidget} reflects. */
 export interface IChatTurnPillsModel {
 	readonly stats: IObservable<IDiffStats>;
-	readonly previewFiles: IObservable<readonly IPreviewFile[]>;
+	/** Artifact sections shown in the artifact pill, in display order. */
+	readonly artifacts: IObservable<readonly IChatPillSection[]>;
 	/** When `false` the changes pill stays hidden regardless of the data. */
 	readonly changesEnabled: IObservable<boolean>;
-	/** When `false` the preview pill stays hidden regardless of the data. */
-	readonly previewEnabled: IObservable<boolean>;
+	/** When `false` the artifact pill stays hidden regardless of the data. */
+	readonly artifactsEnabled: IObservable<boolean>;
 	openChanges(): void;
-	openFile(file: IPreviewFile): void;
 }
 
 /** The former per-pill setting shape, retained for existing user settings. */
@@ -140,262 +135,89 @@ export function observeTurnStatusPillsEnabled(configurationService: IConfigurati
 }
 
 /**
- * The changes pill: `<diff-icon> <n> Files +insertions -deletions`, updating
- * live as {@link _statsObs} changes.
- */
-class ChangesPillActionViewItem extends BaseActionViewItem {
-
-	private _button: Button | undefined;
-	private _filesLabel: HTMLElement | undefined;
-
-	constructor(
-		action: IAction,
-		options: IActionViewItemOptions,
-		private readonly _statsObs: IObservable<IDiffStats>,
-		private readonly _instantiationService: IInstantiationService,
-	) {
-		super(undefined, action, options);
-	}
-
-	override render(container: HTMLElement): void {
-		this.element = container;
-		container.classList.add('chat-turn-pill-changes');
-
-		const button = this._button = this._register(new Button(container, { secondary: true, small: true, ...defaultButtonStyles }));
-		button.element.classList.add('monaco-text-button', 'chat-turn-pill-changes-button');
-		this._register(button.onDidClick(() => {
-			if (this._action.enabled) {
-				this.actionRunner.run(this._action, this._context);
-			}
-		}));
-
-		// Build the label structure once so the animated counters persist across
-		// updates and can transition smoothly between values instead of being
-		// torn down and rebuilt on every stats change.
-		this._filesLabel = $('span.chat-turn-pill-meta-label');
-		reset(
-			button.element,
-			$(`span.chat-turn-pill-meta-icon${ThemeIcon.asCSSSelector(Codicon.diffMultiple)}`),
-			this._filesLabel,
-		);
-
-		this._register(this._instantiationService.createInstance(AnimatedCounterWidget, button.element, {
-			prefix: '+',
-			direction: 'topToBottom',
-			cssClassName: 'chat-turn-pill-meta-added',
-			count: derived(this, reader => this._statsObs.read(reader).insertions),
-		}));
-		this._register(this._instantiationService.createInstance(AnimatedCounterWidget, button.element, {
-			prefix: '-',
-			direction: 'bottomToTop',
-			cssClassName: 'chat-turn-pill-meta-removed',
-			count: derived(this, reader => this._statsObs.read(reader).deletions),
-		}));
-
-		this._register(autorun(reader => {
-			this._updateLabel(this._statsObs.read(reader));
-		}));
-	}
-
-	private _updateLabel(stats: IDiffStats): void {
-		if (!this._button || !this._filesLabel) {
-			return;
-		}
-		const { files, insertions, deletions } = stats;
-		const filesLabel = files === 1
-			? localize('chatTurnPills.changes.file', "{0} File", files)
-			: localize('chatTurnPills.changes.files', "{0} Files", files);
-		this._filesLabel.textContent = filesLabel;
-		this._button.setTitle(localize('chatTurnPills.changes.tooltip', "View Current Turn Changes"));
-		this._button.element.setAttribute('aria-label', localize('chatTurnPills.changes.ariaLabel', "View Current Turn Changes: {0}, +{1}, -{2}", filesLabel, insertions, deletions));
-	}
-
-	override focus(): void {
-		this._button?.focus();
-	}
-}
-
-/**
- * The preview pill: renders the primary previewable file as a resource label
- * (file icon + name). When more than one previewable file exists, a separator
- * and a dropdown chevron are shown; the chevron lists every previewable file.
- * Activating the label opens the primary file.
- */
-class PreviewPillActionViewItem extends BaseActionViewItem {
-
-	private _primary: Button | undefined;
-
-	constructor(
-		action: IAction,
-		options: IActionViewItemOptions,
-		private readonly _previewFilesObs: IObservable<readonly IPreviewFile[]>,
-		private readonly _resourceLabels: ResourceLabels,
-		private readonly _openFile: (file: IPreviewFile) => void,
-		private readonly _showAll: (anchor: HTMLElement) => void,
-	) {
-		super(undefined, action, options);
-	}
-
-	override render(container: HTMLElement): void {
-		this.element = container;
-		container.classList.add('chat-turn-pill-preview');
-
-		const primary = this._primary = this._register(new Button(container, { ...TRANSPARENT_BUTTON_STYLES }));
-		primary.element.classList.add('chat-turn-pill-preview-primary');
-		const label = this._register(this._resourceLabels.create(primary.element));
-		this._register(primary.onDidClick(() => {
-			const primaryFile = this._previewFilesObs.get().at(0);
-			if (primaryFile) {
-				this._openFile(primaryFile);
-			}
-		}));
-
-		const separator = append(container, $('.chat-turn-pill-preview-separator'));
-
-		const chevron = this._register(new Button(container, { ...TRANSPARENT_BUTTON_STYLES }));
-		chevron.element.classList.add('chat-turn-pill-preview-chevron');
-		// Render the chevron as a child element (not via `chevron.icon`, which puts a
-		// fixed-height codicon class on the button itself) so the button can stretch
-		// to the pill's full height and its hover background spans top to bottom.
-		append(chevron.element, $(`span${ThemeIcon.asCSSSelector(Codicon.chevronDown)}`));
-		const moreLabel = localize('chatTurnPills.preview.more', "Show All Previewable Files");
-		chevron.setTitle(moreLabel);
-		chevron.setAriaLabel(moreLabel);
-		this._register(chevron.onDidClick(() => this._showAll(chevron.element)));
-
-		this._register(autorun(reader => {
-			const files = this._previewFilesObs.read(reader);
-			const primaryFile = files.at(0);
-			if (primaryFile) {
-				label.setResource(
-					{ resource: primaryFile.uri, name: basename(primaryFile.uri) },
-					{ fileKind: FileKind.FILE },
-				);
-				const tooltip = localize('chatTurnPills.preview.tooltipOne', "Open Preview: {0}", basename(primaryFile.uri));
-				primary.setTitle(tooltip);
-				primary.setAriaLabel(tooltip);
-			}
-			const hasMultiple = files.length > 1;
-			separator.classList.toggle('hidden', !hasMultiple);
-			chevron.element.classList.toggle('hidden', !hasMultiple);
-		}));
-	}
-
-	override focus(): void {
-		this._primary?.focus();
-	}
-}
-
-/**
  * A toolbar of clickable pills reflecting a single turn's status. Used both as a
  * floating widget above the chat input (live, active turn) and inside a completed
  * chat response. The pills are actions inside a {@link ToolBar}:
  *
  * - **Changes** — `<n> Files +ins -del` for the turn. Activating it opens the
  *   changes.
- * - **Preview** — shown when the turn created or edited a previewable file outside
+ * - **Artifact** — shown when the turn created or edited a previewable file outside
  *   the current workspace.
- *   Rendered as a resource label for the primary file. Activating it opens that
- *   file; when several exist, a dropdown lists them all.
+ *   A single artifact opens directly; multiple artifacts open a dropdown.
  * The data and the open actions are supplied by the {@link IChatTurnPillsModel}
  * so the same widget serves surfaces with different data sources.
  */
-export class ChatTurnPillsWidget extends Disposable {
+export class ChatTurnPillsProvider extends Disposable {
 
-	readonly element: HTMLElement;
+	readonly pills: IObservable<readonly IChatPill[]>;
 
-	/** Whether the widget currently has any pill to show. */
-	readonly isVisible: IObservable<boolean>;
-
-	private readonly _toolbar: ToolBar;
 	private readonly _changesAction: Action;
-	private readonly _previewAction: Action;
+	private readonly _artifactAction: Action;
 	private readonly _resourceLabels: ResourceLabels;
-
-	/** Ids of the currently mounted pills, so we only rebuild the toolbar when the set changes. */
-	private _visibleSignature: string | undefined;
 
 	constructor(
 		private readonly _model: IChatTurnPillsModel,
-		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
-		// `show-file-icons` lets the preview pill's resource label render the file's
+		// `show-file-icons` lets the artifact pill's resource label render the file's
 		// themed icon — the label always computes the file-icon classes, but they
 		// only paint when an ancestor opts in.
-		this.element = $('.chat-turn-pills.show-file-icons.hidden');
 		this._resourceLabels = this._register(this._instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
 
-		this._changesAction = this._register(new Action(CHANGES_PILL_ACTION_ID, localize('chatTurnPills.changes.tooltip', "View Current Turn Changes"), undefined, true, async () => this._model.openChanges()));
-		this._previewAction = this._register(new Action(PREVIEW_PILL_ACTION_ID, localize('chatTurnPills.preview.label', "Open Preview"), undefined, true, async () => this._openPrimaryFile()));
+		this._changesAction = this._register(new Action(CHAT_TURN_CHANGES_PILL_ID, localize('chatTurnPills.changes.tooltip', "View Current Turn Changes"), undefined, true, async () => this._model.openChanges()));
+		this._artifactAction = this._register(new Action(CHAT_TURN_ARTIFACT_PILL_ID, localize('chatTurnPills.artifact.label', "Open Artifact"), undefined, true, async () => this._openPrimaryArtifact()));
 
-		this._toolbar = this._register(new ToolBar(this.element, this._contextMenuService, {
-			orientation: ActionsOrientation.HORIZONTAL,
-			ariaLabel: localize('chatTurnPills.ariaLabel', "Turn status"),
-			actionViewItemProvider: (action, options) => {
-				if (action.id === CHANGES_PILL_ACTION_ID) {
-					return new ChangesPillActionViewItem(action, options, this._model.stats, this._instantiationService);
-				}
-				if (action.id === PREVIEW_PILL_ACTION_ID) {
-					return new PreviewPillActionViewItem(action, options, this._model.previewFiles, this._resourceLabels, file => this._model.openFile(file), anchor => this._showAllFiles(anchor));
-				}
-				return undefined;
-			},
-		}));
-
-		this.isVisible = derived(this, reader => this._showChanges(reader) || this._showPreview(reader));
-
-		this._register(autorun(reader => {
-			this._updateVisibleActions(this._showChanges(reader), this._showPreview(reader));
-		}));
+		const changesPill: IChatPill = {
+			action: this._changesAction,
+			createActionViewItem: options => new ChatChangesPillActionViewItem(this._changesAction, options, this._model.stats, this._instantiationService),
+		};
+		const artifactPill = createChatSectionPill(this._artifactAction, this._model.artifacts, chatArtifactPillOptions, this._resourceLabels, this._instantiationService);
+		this.pills = derived(this, reader => {
+			const pills: IChatPill[] = [];
+			if (this._showChanges(reader)) {
+				pills.push(changesPill);
+			}
+			if (this._showArtifacts(reader)) {
+				pills.push(artifactPill.read(reader));
+			}
+			return pills;
+		});
 	}
 
 	private _showChanges(reader: IReader): boolean {
 		return this._model.changesEnabled.read(reader) && this._model.stats.read(reader).files > 0;
 	}
 
-	private _showPreview(reader: IReader): boolean {
-		return this._model.previewEnabled.read(reader) && this._model.previewFiles.read(reader).length > 0;
+	private _showArtifacts(reader: IReader): boolean {
+		return this._model.artifactsEnabled.read(reader) && getChatPillEntries(this._model.artifacts.read(reader)).length > 0;
 	}
 
-	private _updateVisibleActions(showChanges: boolean, showPreview: boolean): void {
-		const actions: IAction[] = [];
-		if (showChanges) {
-			actions.push(this._changesAction);
-		}
-		if (showPreview) {
-			actions.push(this._previewAction);
-		}
-		const signature = actions.map(a => a.id).join(',');
-		if (signature !== this._visibleSignature) {
-			this._visibleSignature = signature;
-			this._toolbar.setActions(actions);
-		}
-		this.element.classList.toggle('hidden', actions.length === 0);
+	private _openPrimaryArtifact(): void {
+		getChatPillEntries(this._model.artifacts.get()).at(0)?.open();
 	}
 
-	private _openPrimaryFile(): void {
-		const primaryFile = this._model.previewFiles.get().at(0);
-		if (primaryFile) {
-			this._model.openFile(primaryFile);
-		}
-	}
+}
 
-	private _showAllFiles(anchor: HTMLElement): void {
-		const files = this._model.previewFiles.get();
-		if (files.length === 0) {
-			return;
-		}
-		this._contextMenuService.showContextMenu({
-			getAnchor: () => anchor,
-			getActions: () => files.map(file => toAction({
-				id: `${PREVIEW_PILL_ACTION_ID}.${file.uri.toString()}`,
-				label: basename(file.uri),
-				class: ThemeIcon.asClassName(Codicon.goToFile),
-				run: () => this._model.openFile(file),
-			})),
-		});
+/** A standalone widget for a single turn's pills. */
+export class ChatTurnPillsWidget extends Disposable {
+
+	readonly element: HTMLElement;
+	readonly isVisible: IObservable<boolean>;
+
+	constructor(
+		model: IChatTurnPillsModel,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super();
+
+		const provider = this._register(instantiationService.createInstance(ChatTurnPillsProvider, model));
+		const widget = this._register(instantiationService.createInstance(ChatPillsWidget, { pills: provider.pills }, {
+			ariaLabel: localize('chatTurnPills.ariaLabel', "Turn status"),
+		}));
+		widget.element.classList.add('chat-turn-pills', 'show-file-icons');
+		this.element = widget.element;
+		this.isVisible = widget.isVisible;
 	}
 }

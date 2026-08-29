@@ -37,7 +37,10 @@ import type * as http from 'http';
 import type * as https from 'https';
 import { createRequire } from 'module';
 import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
 import { basename, dirname } from '../../../../../../base/common/path.js';
+import { isWindows } from '../../../../../../base/common/platform.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { aggregateAnthropicSse, anthropicMessageToSse, ANTHROPIC_MESSAGES_PATH, aggregateResponsesSse, responsesMessageToSse, RESPONSES_PATH, summarizeResponsesRequest, deserializeAnthropicContent, serializeAnthropicContent, summarizeAnthropicRequest, type AnthropicContentBlock, type IAnthropicMessage, type IReadableAnthropicRequest } from './capiWireCodec.js';
 import { getAncillaryStub } from './capiStubs.js';
 import { findPosixOnlyCommands, formatPosixCommandError, getRecordedShellCommand, type IRecordedCommand } from './posixCommandLint.js';
@@ -65,6 +68,8 @@ const COPIED_PLUGIN_DIR_PLACEHOLDER = '${plugin_copy}';
 const COPIED_PLUGIN_DIR_RE = /\$\{homedir\}(?:\/|\\\\)user-data(?:\/|\\\\)agentPlugins(?:\/|\\\\)[^\/\\"]+/g;
 const TEMP_DIR_SUFFIX_PLACEHOLDER = '${temp}';
 const TEMP_DIR_SUFFIX_RE = /(\$\{workdir\}(?:\/|\\\\)(?:ahp-(?:snapshot|perm-test|plan-test|abort|test|wt-test|subagent-test|subagent-replay|attachment-test|cd-strip-test|coverage-[a-z-]+)-|copilot-(?:cost-report|text-blob)-|read-sdk-simple))[A-Za-z0-9]{6}/g;
+const TEMP_WORKSPACE_COMPONENT_PATTERN = '(?:ahp-|copilot-|read-sdk-simple)[A-Za-z0-9._-]*';
+const PATH_SEPARATOR_PATTERN = '(?:\\\\\\\\|\\\\|/)';
 const UUID_PLACEHOLDER_RE = /\$\{uuid_\d+\}/g;
 const UUID_PATTERN = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 const FILE_LISTING_DATE_RE = /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s+(?:\d{2}:\d{2}|\d{4})\b/g;
@@ -223,6 +228,8 @@ export interface ICapiReplayProxyOptions {
 	 * `STALE_RECORDED_REQUEST_EXCEPTIONS` in `agentHostE2ETestHarness.ts`.
 	 */
 	readonly allowStaleRecordedRequest?: boolean;
+	/** Synthetic first model response used by deterministic provider-error recordings. */
+	readonly recordingModelResponse?: ICapiReplayResponse;
 }
 
 /** A replayable item: raw bytes (ancillary) or a model reply to regenerate. */
@@ -255,7 +262,7 @@ export class CapiReplayProxy {
 	private readonly _replayPlaceholderValues = new Map<string, string>();
 	private _modelTurnCount = 0;
 	private _workingDirectory: string | undefined;
-	private _recordingModelResponse: ICapiReplayResponse | undefined;
+	private _recordingModelResponse: { readonly response: ICapiReplayResponse; readonly path?: string } | undefined;
 
 	/**
 	 * Fixture currently being replayed. Mutable so a single long-lived proxy can
@@ -279,6 +286,7 @@ export class CapiReplayProxy {
 		const fixtureExists = existsSync(this._fixturePath);
 		this._mode = _options.mode ?? 'replay';
 		this._strict = _options.strict ?? true;
+		this._recordingModelResponse = _options.recordingModelResponse ? { response: _options.recordingModelResponse } : undefined;
 
 		if (this._mode === 'replay' && !fixtureExists) {
 			throw new Error(`[capi-replay] replay mode requires a fixture but none exists at ${this._fixturePath}`);
@@ -373,11 +381,11 @@ export class CapiReplayProxy {
 		this._workingDirectory = workingDirectory;
 	}
 
-	setRecordingModelResponse(response: ICapiReplayResponse): void {
+	setRecordingModelResponse(response: ICapiReplayResponse, path?: string): void {
 		if (this._isReplaying) {
 			throw new Error('[capi-replay] setRecordingModelResponse is only valid in record mode');
 		}
-		this._recordingModelResponse = response;
+		this._recordingModelResponse = { response, path };
 	}
 
 	get observedModelRequestBodies(): readonly string[] {
@@ -571,8 +579,9 @@ export class CapiReplayProxy {
 		if (MODEL_ENDPOINTS.has(path)) {
 			this._observedModelRequestBodies.push(this._normalize(body));
 		}
-		if (MODEL_ENDPOINTS.has(path) && this._recordingModelResponse) {
-			const response = this._recordingModelResponse;
+		if (MODEL_ENDPOINTS.has(path) && this._recordingModelResponse && (!this._recordingModelResponse.path || this._recordingModelResponse.path === path)) {
+			const response = this._recordingModelResponse.response;
+			this._recordingModelResponse = undefined;
 			res.writeHead(response.status, response.headers);
 			res.end(response.body);
 			this._recorded.push({
@@ -863,7 +872,7 @@ export class CapiReplayProxy {
 			const message = aggregateAnthropicSse(exchange.response.body);
 			if (request && message) {
 				const content = this._normalizeMessageContent(message.content);
-				return { exchange: { request, response: { content: serializeAnthropicContent(content), stopReason: message.stopReason } }, dialect: 'anthropic' };
+				return { exchange: { request: this._normalizeRequest(request), response: { content: serializeAnthropicContent(content), stopReason: message.stopReason } }, dialect: 'anthropic' };
 			}
 		}
 		if (exchange.method === 'POST' && exchange.path === RESPONSES_PATH) {
@@ -871,7 +880,7 @@ export class CapiReplayProxy {
 			const message = aggregateResponsesSse(exchange.response.body);
 			if (request && message) {
 				const content = this._normalizeMessageContent(message.content);
-				return { exchange: { request, response: { content: serializeAnthropicContent(content), stopReason: message.stopReason } }, dialect: 'responses' };
+				return { exchange: { request: this._normalizeRequest(request), response: { content: serializeAnthropicContent(content), stopReason: message.stopReason } }, dialect: 'responses' };
 			}
 		}
 		return { exchange: { method: exchange.method, path: exchange.path, response: exchange.response } };
@@ -886,16 +895,35 @@ export class CapiReplayProxy {
 	private _normalizeMessageContent(content: AnthropicContentBlock[]): AnthropicContentBlock[] {
 		return content.map((block): AnthropicContentBlock => {
 			if (block.type === 'text') {
-				return { type: 'text', text: this._normalize(block.text) };
+				return { type: 'text', text: this._normalizeValue(block.text) as string };
 			}
-			let input = block.input;
-			try {
-				input = JSON.parse(this._normalize(JSON.stringify(block.input ?? {})));
-			} catch {
-				// non-serializable input; keep as-is
-			}
-			return { type: 'tool_use', id: block.id, name: normalizeShellToolNameForCapture(block.name), input };
+			return { type: 'tool_use', id: block.id, name: normalizeShellToolNameForCapture(block.name), input: this._normalizeValue(block.input) };
 		});
+	}
+
+	private _normalizeRequest(request: IReadableAnthropicRequest): IReadableAnthropicRequest {
+		return {
+			...request,
+			system: this._normalize(request.system),
+			messages: request.messages.map(message => ({
+				...message,
+				content: this._normalizeValue(message.content),
+			})),
+		};
+	}
+
+	private _normalizeValue(value: unknown): unknown {
+		if (typeof value === 'string') {
+			const normalized = this._normalize(value);
+			return isSerializedJson(normalized) ? normalized : normalizePlaceholderPathSeparators(normalized);
+		}
+		if (Array.isArray(value)) {
+			return value.map(item => this._normalizeValue(item));
+		}
+		if (value && typeof value === 'object') {
+			return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, this._normalizeValue(item)]));
+		}
+		return value;
 	}
 
 	private _normalize(text: string): string {
@@ -908,13 +936,20 @@ export class CapiReplayProxy {
 				// The recording work directory can disappear during teardown.
 			}
 			for (const workDir of [...workDirs].sort((a, b) => b.length - a.length)) {
-				result = replaceAll(result, escapeJsonString(workDir), WORKDIR_PLACEHOLDER);
-				result = replaceAll(result, workDir, WORKDIR_PLACEHOLDER);
+				result = replacePath(result, workDir, WORKDIR_PLACEHOLDER, this._options.userName);
 			}
 		}
+		const tempDirectories = new Set([tmpdir()]);
+		try {
+			tempDirectories.add(realpathSync.native(tmpdir()));
+		} catch {
+			// The platform temp directory can disappear during teardown.
+		}
+		for (const tempDirectory of [...tempDirectories].sort((a, b) => b.length - a.length)) {
+			result = replaceTemporaryWorkspacePaths(result, tempDirectory, WORKDIR_PLACEHOLDER, this._options.userName);
+		}
 		if (this._options.homeDir) {
-			result = replaceAll(result, escapeJsonString(this._options.homeDir), HOMEDIR_PLACEHOLDER);
-			result = replaceAll(result, this._options.homeDir, HOMEDIR_PLACEHOLDER);
+			result = replacePath(result, this._options.homeDir, HOMEDIR_PLACEHOLDER, this._options.userName);
 		}
 		if (this._options.userName) {
 			result = scrubUserName(result, this._options.userName);
@@ -1062,6 +1097,69 @@ function replaceAll(text: string, search: string, replacement: string): string {
 		return text;
 	}
 	return text.split(search).join(replacement);
+}
+
+function pathVariants(search: string, replacement: string, userName: string | undefined): ReadonlyMap<string, string> {
+	const variants = new Map<string, string>([
+		[search, replacement],
+		[escapeJsonString(search), replacement],
+	]);
+	const fileUriReplacement = `file://${replacement}`;
+	for (const fileUri of [URI.file(search).toString(), URI.file(search).toString(true)]) {
+		variants.set(fileUri, fileUriReplacement);
+		variants.set(escapeJsonString(fileUri), fileUriReplacement);
+	}
+	if (isWindows) {
+		const forwardSlashPath = search.replaceAll('\\', '/');
+		const backslashPath = search.replaceAll('/', '\\');
+		variants.set(forwardSlashPath, replacement);
+		variants.set(escapeJsonString(forwardSlashPath), replacement);
+		variants.set(backslashPath, replacement);
+		variants.set(escapeJsonString(backslashPath), replacement);
+	}
+	if (userName) {
+		for (const [variant, variantReplacement] of [...variants]) {
+			variants.set(scrubUserName(variant, userName), variantReplacement);
+		}
+	}
+	return variants;
+}
+
+function replacePath(text: string, search: string, replacement: string, userName?: string): string {
+	const variants = pathVariants(search, replacement, userName);
+	for (const [variant, variantReplacement] of [...variants].sort(([a], [b]) => b.length - a.length)) {
+		text = isWindows
+			? text.replace(new RegExp(escapeRegExpCharacters(variant), 'gi'), variantReplacement)
+			: replaceAll(text, variant, variantReplacement);
+	}
+	return text;
+}
+
+/** Normalize harness temp workspaces even when a session title contains only a truncated path. */
+function replaceTemporaryWorkspacePaths(text: string, tempDirectory: string, replacement: string, userName?: string): string {
+	const variants = pathVariants(tempDirectory, replacement, userName);
+	for (const [variant, variantReplacement] of [...variants].sort(([a], [b]) => b.length - a.length)) {
+		const pattern = `${escapeRegExpCharacters(variant)}${PATH_SEPARATOR_PATTERN}${TEMP_WORKSPACE_COMPONENT_PATTERN}`;
+		text = text.replace(new RegExp(pattern, isWindows ? 'gi' : 'g'), variantReplacement);
+	}
+	return text;
+}
+
+function normalizePlaceholderPathSeparators(text: string): string {
+	return text.replace(/\$\{(?:workdir|homedir)\}(?:[\\/][^\r\n"'`]*)?/g, path => path.replaceAll('\\', '/'));
+}
+
+function isSerializedJson(value: string): boolean {
+	const trimmed = value.trim();
+	if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+		return false;
+	}
+	try {
+		JSON.parse(trimmed);
+		return true;
+	} catch {
+		return false;
+	}
 }
 
 function escapeJsonString(value: string): string {

@@ -11,6 +11,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { buildTurnChangesetUri } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { fromAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -86,6 +87,14 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		} as unknown as SessionState;
 	}
 
+	function createProvider(
+		conn: IAgentConnection,
+		resolveBackendSession: () => URI | undefined = () => backendSession,
+		resolveBackendChat?: (sessionResource: URI) => URI | undefined,
+	): AgentHostResponseFileChangesProvider {
+		return new AgentHostResponseFileChangesProvider(conn, authority, resolveBackendSession, resolveBackendChat, new NullLogService());
+	}
+
 	function observe(provider: AgentHostResponseFileChangesProvider, ds: DisposableStore): { latest: () => readonly IEditSessionEntryDiff[] } {
 		const obs = provider.getChangesForRequest(chatResource, 't1')!;
 		let latest: readonly IEditSessionEntryDiff[] = [];
@@ -96,7 +105,7 @@ suite('AgentHostResponseFileChangesProvider', () => {
 	test('maps per-turn changeset files into entry diffs', () => {
 		const ds = store.add(new DisposableStore());
 		const conn = new FakeAgentConnection();
-		const provider = ds.add(new AgentHostResponseFileChangesProvider(conn, authority, () => backendSession));
+		const provider = ds.add(createProvider(conn));
 
 		conn.setState(backendSession.toString(), sessionStateWithTurnSupport());
 		conn.setState(turnChangesetUri('t1'), {
@@ -126,7 +135,7 @@ suite('AgentHostResponseFileChangesProvider', () => {
 	test('keeps the changeset subscription when session state updates', () => {
 		const ds = store.add(new DisposableStore());
 		const conn = new FakeAgentConnection();
-		const provider = ds.add(new AgentHostResponseFileChangesProvider(conn, authority, () => backendSession));
+		const provider = ds.add(createProvider(conn));
 
 		conn.setState(backendSession.toString(), sessionStateWithTurnSupport());
 		conn.setState(turnChangesetUri('t1'), { status: ChangesetStatus.Ready, files: [] } satisfies ChangesetState);
@@ -148,9 +157,8 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		const otherPeerResource = URI.parse('agent-host-copilot:/sess-1/peer-2');
 		const peerChatUri = URI.parse('ahp-chat://peer-1/sess-1');
 		const otherPeerChatUri = URI.parse('ahp-chat://peer-2/sess-1');
-		const provider = ds.add(new AgentHostResponseFileChangesProvider(
+		const provider = ds.add(createProvider(
 			conn,
-			authority,
 			() => backendSession,
 			resource => resource.toString() === peerResource.toString() ? peerChatUri : otherPeerChatUri,
 		));
@@ -198,7 +206,7 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		const ds = store.add(new DisposableStore());
 		const conn = new FakeAgentConnection();
 		const defaultChatUri = URI.parse(buildDefaultChatUri(backendSession.toString()));
-		const provider = ds.add(new AgentHostResponseFileChangesProvider(conn, authority, () => backendSession, () => defaultChatUri));
+		const provider = ds.add(createProvider(conn, () => backendSession, () => defaultChatUri));
 
 		conn.setState(backendSession.toString(), sessionStateWithTurnSupport());
 		conn.setState(turnChangesetUri('t1'), { status: ChangesetStatus.Ready, files: [] } satisfies ChangesetState);
@@ -223,9 +231,45 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		assert.deepStrictEqual(latest(), []);
 	});
 
+	test('keeps a turn visible across changeset recomputes and losses', () => {
+		const ds = store.add(new DisposableStore());
+		const conn = new FakeAgentConnection();
+		const provider = ds.add(createProvider(conn));
+		const readyFiles = [
+			{ id: '1', edit: { before: { uri: URI.file('/repo/a.ts').toString(), content: { uri: 'git-blob://a-before' } }, after: { uri: URI.file('/repo/a.ts').toString(), content: { uri: 'git-blob://a-after' } }, diff: { added: 3, removed: 1 } } },
+		];
+
+		conn.setState(backendSession.toString(), sessionStateWithTurnSupport());
+		conn.setState(turnChangesetUri('t1'), { status: ChangesetStatus.Ready, files: readyFiles } satisfies ChangesetState);
+
+		const { latest } = observe(provider, ds);
+		const counts: { files: number; added: number }[] = [];
+		const record = () => counts.push({ files: latest().length, added: latest().reduce((total, diff) => total + diff.added, 0) });
+		record();
+
+		// Recompute, failure, reconnect, and an authoritative empty recompute.
+		conn.setState(turnChangesetUri('t1'), { status: ChangesetStatus.Computing, files: [] } satisfies ChangesetState);
+		record();
+		conn.setState(turnChangesetUri('t1'), new Error('compute failed'));
+		record();
+		conn.setState(backendSession.toString(), undefined);
+		record();
+		conn.setState(backendSession.toString(), sessionStateWithTurnSupport());
+		conn.setState(turnChangesetUri('t1'), { status: ChangesetStatus.Ready, files: [] } satisfies ChangesetState);
+		record();
+
+		assert.deepStrictEqual(counts, [
+			{ files: 1, added: 3 },
+			{ files: 1, added: 3 },
+			{ files: 1, added: 3 },
+			{ files: 1, added: 3 },
+			{ files: 1, added: 3 },
+		]);
+	});
+
 	test('bounds per-request observable caches', () => {
 		const ds = store.add(new DisposableStore());
-		const provider = ds.add(new AgentHostResponseFileChangesProvider(new FakeAgentConnection(), authority, () => backendSession));
+		const provider = ds.add(createProvider(new FakeAgentConnection()));
 		const firstChanges = provider.getChangesForRequest(chatResource, 'request-0');
 		const firstFileEdits = provider.getFileEditsForRequest(chatResource, 'request-0');
 
@@ -252,7 +296,7 @@ suite('AgentHostResponseFileChangesProvider', () => {
 	test('classifies project files as workspace files without working directories', () => {
 		const ds = store.add(new DisposableStore());
 		const conn = new FakeAgentConnection();
-		const provider = ds.add(new AgentHostResponseFileChangesProvider(conn, authority, () => backendSession));
+		const provider = ds.add(createProvider(conn));
 		const defaultChatUri = URI.parse(buildDefaultChatUri(backendSession.toString()));
 
 		conn.setState(backendSession.toString(), {
@@ -317,7 +361,7 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		const ds = store.add(new DisposableStore());
 		const conn = new FakeAgentConnection();
 		const defaultChatUri = URI.parse(buildDefaultChatUri(backendSession.toString()));
-		const provider = ds.add(new AgentHostResponseFileChangesProvider(conn, authority, () => backendSession, () => defaultChatUri));
+		const provider = ds.add(createProvider(conn, () => backendSession, () => defaultChatUri));
 
 		conn.setState(backendSession.toString(), { changesets: [{ label: 'All', uriTemplate: `${backendSession}/changeset/session`, changeKind: 'session' }] } as unknown as SessionState);
 		conn.setState(defaultChatUri.toString(), {
@@ -344,7 +388,7 @@ suite('AgentHostResponseFileChangesProvider', () => {
 	test('memoizes the observable per request', () => {
 		const ds = store.add(new DisposableStore());
 		const conn = new FakeAgentConnection();
-		const provider = ds.add(new AgentHostResponseFileChangesProvider(conn, authority, () => backendSession));
+		const provider = ds.add(createProvider(conn));
 
 		assert.strictEqual(
 			provider.getChangesForRequest(chatResource, 't1'),
@@ -355,7 +399,7 @@ suite('AgentHostResponseFileChangesProvider', () => {
 	test('returns undefined when the backend session cannot be resolved', () => {
 		const ds = store.add(new DisposableStore());
 		const conn = new FakeAgentConnection();
-		const provider = ds.add(new AgentHostResponseFileChangesProvider(conn, authority, () => undefined));
+		const provider = ds.add(createProvider(conn, () => undefined));
 
 		assert.strictEqual(provider.getChangesForRequest(chatResource, 't1'), undefined);
 	});

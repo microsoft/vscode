@@ -43,6 +43,10 @@ export interface EnablePullRequestAutoMergeOptions {
 	readonly method: 'MERGE' | 'SQUASH' | 'REBASE';
 }
 
+export interface PullRequestNodeOptions {
+	readonly pullRequestId: string;
+}
+
 export interface PullRequestCommentOptions extends PullRequestOperation {
 	readonly body: string;
 }
@@ -147,6 +151,8 @@ export interface PullRequestEnqueueResult {
 export interface PullRequestMutationApi {
 	createPullRequest(ref: GitHubRepositoryRef, options: CreatePullRequestOptions, signal: AbortSignal): Promise<CreatedPullRequest>;
 	enableAutoMerge(ref: GitHubRepositoryRef, options: EnablePullRequestAutoMergeOptions, signal: AbortSignal): Promise<void>;
+	disableAutoMerge(ref: PullRequestRef, options: PullRequestNodeOptions, signal: AbortSignal): Promise<void>;
+	markReadyForReview(ref: PullRequestRef, options: PullRequestNodeOptions, signal: AbortSignal): Promise<void>;
 	addComment(ref: PullRequestRef, options: PullRequestCommentOptions, signal: AbortSignal): Promise<PullRequestMutationResult<PullRequestComment>>;
 	replyToThread(ref: PullRequestRef, options: PullRequestReplyOptions, signal: AbortSignal): Promise<PullRequestMutationResult<PullRequestInlineComment>>;
 	resolveThread(ref: PullRequestRef, threadId: string, signal: AbortSignal): Promise<void>;

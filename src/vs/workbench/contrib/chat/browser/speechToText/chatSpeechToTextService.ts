@@ -63,6 +63,14 @@ export function stripDictationFillers(text: string): string {
 		.replace(/^[ \t]+|[ \t]+$/g, '');
 }
 
+export function selectFinalDictationTranscript(liveTranscript: string, backendTranscript: string | undefined, preserveLiveTranscript: boolean): string {
+	const visibleLiveTranscript = stripDictationFillers(liveTranscript);
+	if (preserveLiveTranscript && visibleLiveTranscript && !stripDictationFillers(backendTranscript ?? '').startsWith(visibleLiveTranscript)) {
+		return liveTranscript;
+	}
+	return backendTranscript || liveTranscript;
+}
+
 function isRefusalLikeCleanupOutput(text: string): boolean {
 	return /^(?:i(?:\s+am|'m)?\s+(?:sorry|unable)|i\s+can(?:not|'t)|sorry[,.\s]|unable\s+to|cannot\s+assist|can't\s+help)/i.test(text);
 }
@@ -130,10 +138,12 @@ const LLM_CLEANUP_MODEL_SELECTOR = { vendor: 'copilot', id: 'copilot-utility-sma
 
 const LLM_CLEANUP_MODEL_TREATMENT = 'dictationLlmCleanupModel';
 const LLM_CLEANUP_MODEL_SETTING = 'dictation.experimental.llmCleanupModel';
+const LLM_CLEANUP_NANO_MODEL_ID = 'gpt-5.4-nano';
+const LLM_CLEANUP_NANO_MODEL_SELECTOR = { vendor: 'copilot', id: 'copilot-dictation-cleanup-nano' } as const;
 const LLM_CLEANUP_LUNA_MODEL_ID = 'gpt-5.6-luna';
 const LLM_CLEANUP_LUNA_MODEL_SELECTOR = { vendor: 'copilot', id: 'copilot-dictation-cleanup-luna' } as const;
 
-type DictationCleanupModel = 'none' | 'copilot-utility-small' | 'gpt-5.6-luna';
+type DictationCleanupModel = 'none' | 'copilot-utility-small' | 'gpt-5.4-nano' | 'gpt-5.6-luna';
 
 /**
  * Which backend transcribes dictation audio:
@@ -265,6 +275,11 @@ export interface IChatDictationTranscript {
 	readonly finalizedText: string;
 }
 
+export interface IChatSpeechToTextStopOptions {
+	/** Keep the cumulative transcript emitted while recording unless the backend's post-stop hypothesis extends it. */
+	readonly preserveLiveTranscript?: boolean;
+}
+
 export interface IChatSpeechToTextService {
 	readonly _serviceBrand: undefined;
 
@@ -343,7 +358,7 @@ export interface IChatSpeechToTextService {
 	 * Stop capturing, flush the final utterance, and resolve with the complete
 	 * cumulative transcript (or `undefined` when nothing was transcribed).
 	 */
-	stopAndTranscribe(): Promise<string | undefined>;
+	stopAndTranscribe(options?: IChatSpeechToTextStopOptions): Promise<string | undefined>;
 
 	/** Abort an in-progress recording without keeping the transcript. */
 	cancel(): Promise<void>;
@@ -577,12 +592,16 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 
 	private _getLlmCleanupModel(): Exclude<DictationCleanupModel, 'none'> {
 		const configuredModel = this._configurationService.getValue<string>(LLM_CLEANUP_MODEL_SETTING);
-		if (configuredModel === LLM_CLEANUP_LUNA_MODEL_ID || configuredModel === LLM_CLEANUP_MODEL_SELECTOR.id) {
+		if (configuredModel === LLM_CLEANUP_NANO_MODEL_ID || configuredModel === LLM_CLEANUP_LUNA_MODEL_ID || configuredModel === LLM_CLEANUP_MODEL_SELECTOR.id) {
 			return configuredModel;
 		}
-		return this._llmCleanupModelTreatment === LLM_CLEANUP_LUNA_MODEL_ID
-			? LLM_CLEANUP_LUNA_MODEL_ID
-			: LLM_CLEANUP_MODEL_SELECTOR.id;
+		switch (this._llmCleanupModelTreatment) {
+			case LLM_CLEANUP_NANO_MODEL_ID:
+			case LLM_CLEANUP_LUNA_MODEL_ID:
+				return this._llmCleanupModelTreatment;
+			default:
+				return LLM_CLEANUP_MODEL_SELECTOR.id;
+		}
 	}
 
 	/** Read the configured dictation backend, derived from the selected model. */
@@ -965,7 +984,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		// Session is live; drop the connecting spinner so the mic reads as
 		// recording when start() transitions to the Recording state.
 		this._setPreparingModel(false);
-		this._voiceClientService.sendPttStart(this._maiTurnId);
+		this._voiceClientService.sendPttStart(this._maiTurnId, { hasActiveSession: false });
 	}
 
 	/**
@@ -1306,13 +1325,13 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._failSession('audio', localize('chatStt.audioError', "Speech-to-text stopped because audio could not be sent for transcription: {0}", toErrorMessage(err instanceof Error ? err : new Error(String(err)))));
 	}
 
-	async stopAndTranscribe(): Promise<string | undefined> {
+	async stopAndTranscribe(options?: IChatSpeechToTextStopOptions): Promise<string | undefined> {
 		if (this._state !== ChatSpeechToTextState.Recording || this._pendingStop) {
 			return undefined;
 		}
 
 		const generation = this._sessionGeneration;
-		const operation = this._stopAndTranscribe(generation);
+		const operation = this._stopAndTranscribe(generation, options);
 		const pendingStop = operation.then(() => undefined, () => undefined);
 		this._pendingStop = pendingStop;
 		try {
@@ -1324,7 +1343,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		}
 	}
 
-	private async _stopAndTranscribe(generation: number): Promise<string | undefined> {
+	private async _stopAndTranscribe(generation: number, options?: IChatSpeechToTextStopOptions): Promise<string | undefined> {
 		this._setState(ChatSpeechToTextState.Transcribing);
 		// Flush trailing audio before stopping the backend so transport ordering is preserved.
 		await this._flushCapture?.();
@@ -1332,15 +1351,14 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStopped);
 
 		const stopMs = Date.now();
-		let text = this._transcript;
+		const liveTranscript = this._transcript;
+		let text = liveTranscript;
 		try {
 			const finalText = await this._finishBackend();
 			if (generation !== this._sessionGeneration) {
 				return undefined;
 			}
-			if (finalText) {
-				text = finalText;
-			}
+			text = selectFinalDictationTranscript(liveTranscript, finalText, options?.preserveLiveTranscript === true);
 		} catch (err) {
 			if (generation !== this._sessionGeneration) {
 				return undefined;
@@ -1410,9 +1428,11 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		}, LLM_CLEANUP_TIMEOUT_MS);
 		try {
 			const cleanupModel = this._getLlmCleanupModel();
-			const modelSelector = cleanupModel === LLM_CLEANUP_LUNA_MODEL_ID
-				? LLM_CLEANUP_LUNA_MODEL_SELECTOR
-				: LLM_CLEANUP_MODEL_SELECTOR;
+			const modelSelector = cleanupModel === LLM_CLEANUP_NANO_MODEL_ID
+				? LLM_CLEANUP_NANO_MODEL_SELECTOR
+				: cleanupModel === LLM_CLEANUP_LUNA_MODEL_ID
+					? LLM_CLEANUP_LUNA_MODEL_SELECTOR
+					: LLM_CLEANUP_MODEL_SELECTOR;
 			let models = await raceCancellation(
 				this._languageModelsService.selectLanguageModels(modelSelector),
 				cts.token,
@@ -1423,8 +1443,8 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 				this._logService.info(`[chat-stt] skipped language model cleanup (reason=${timedOut ? 'timeout' : 'cancelledBeforeRequest'}, phase=${phase}, elapsedMs=${Date.now() - cleanupStartMs}); using raw transcript`);
 				return undefined;
 			}
-			if (!models.length && cleanupModel === LLM_CLEANUP_LUNA_MODEL_ID) {
-				this._logService.info('[chat-stt] Luna cleanup model unavailable; falling back to copilot-utility-small');
+			if (!models.length && cleanupModel !== LLM_CLEANUP_MODEL_SELECTOR.id) {
+				this._logService.info(`[chat-stt] ${cleanupModel} cleanup model unavailable; falling back to copilot-utility-small`);
 				models = await raceCancellation(
 					this._languageModelsService.selectLanguageModels(LLM_CLEANUP_MODEL_SELECTOR),
 					cts.token,
@@ -1464,6 +1484,9 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			this._sessionCleanupModel = selectedCleanupModel;
 			phase = 'startRequest';
 			this._logService.trace(`[chat-stt] language model cleanup sending request (elapsedMs=${Date.now() - cleanupStartMs})`);
+			const requestOptions = selectedCleanupModel === LLM_CLEANUP_NANO_MODEL_ID || selectedCleanupModel === LLM_CLEANUP_LUNA_MODEL_ID
+				? { configuration: { reasoningEffort: 'none' } }
+				: {};
 			const response = await raceCancellation(
 				this._languageModelsService.sendChatRequest(
 					models[0],
@@ -1472,7 +1495,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 						{ role: ChatMessageRole.System, content: [{ type: 'text', value: systemPrompt }] },
 						{ role: ChatMessageRole.User, content: [{ type: 'text', value: transcriptPayload }] },
 					],
-					{},
+					requestOptions,
 					cts.token,
 				),
 				cts.token,
