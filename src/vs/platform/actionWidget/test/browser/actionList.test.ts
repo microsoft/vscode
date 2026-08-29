@@ -164,6 +164,73 @@ function createActionList(disposables: ReturnType<typeof ensureNoDisposablesAreL
 suite('ActionListWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('renders and activates a standalone toggle row', () => {
+		let checked = false;
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('Sandboxing for terminal'),
+				standaloneToggle: {
+					label: 'Sandboxing for terminal',
+					checked: false,
+					onChange: value => { checked = value; },
+				},
+			}],
+			listOptions: { showFilter: false },
+		});
+
+		widget.focus();
+		widget.acceptSelected();
+
+		const row = widget.domNode.querySelector<HTMLElement>('.monaco-list-row');
+		assert.deepStrictEqual({
+			checked,
+			standaloneClass: row?.classList.contains('has-standalone-toggle'),
+			label: row?.querySelector('.title')?.textContent,
+			toggleLabelCount: row?.querySelectorAll('.action-list-item-inline-toggle-label').length,
+			switchChecked: row?.querySelector('.action-list-inline-switch')?.classList.contains('checked'),
+			title: row?.title,
+		}, {
+			checked: true,
+			standaloneClass: true,
+			label: 'Sandboxing for terminal',
+			toggleLabelCount: 0,
+			switchChecked: true,
+			title: '',
+		});
+	});
+
+	test('does not activate a disabled standalone toggle row', () => {
+		let changeCount = 0;
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('Sandboxing for terminal'),
+				standaloneToggle: {
+					label: 'Sandboxing for terminal',
+					title: 'Managed by your organization',
+					checked: true,
+					disabled: true,
+					onChange: () => { changeCount++; },
+				},
+			}],
+		});
+
+		widget.focus();
+		widget.acceptSelected();
+		const toggle = widget.domNode.querySelector<HTMLElement>('.action-list-inline-switch');
+
+		assert.deepStrictEqual({
+			changeCount,
+			checked: toggle?.classList.contains('checked'),
+			disabled: toggle?.getAttribute('aria-disabled'),
+			title: toggle?.getAttribute('aria-label'),
+		}, {
+			changeCount: 0,
+			checked: true,
+			disabled: 'true',
+			title: 'Managed by your organization',
+		});
+	});
+
 	test('Escape from a submenu hides the action list', () => {
 		let hideCount = 0;
 		const widget = createActionListWidget(disposables, {
@@ -320,6 +387,38 @@ suite('ActionListWidget', () => {
 		typeFilter(widget, 'beta');
 
 		assert.deepStrictEqual(getVisibleRowText(widget), ['Provider B', 'beta']);
+	});
+
+	test('excludes separators from accessible list positions after filtering', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [
+				action('selected'),
+				separator(),
+				action('alpha'),
+				action('beta'),
+			],
+		});
+		const getAriaPositions = () => Array.from(widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row[role="option"]')).map(row => ({
+			label: row.getAttribute('aria-label'),
+			setSize: row.getAttribute('aria-setsize'),
+			posInSet: row.getAttribute('aria-posinset'),
+		}));
+
+		const initial = getAriaPositions();
+		typeFilter(widget, 'a');
+		const filtered = getAriaPositions();
+
+		assert.deepStrictEqual({ initial, filtered }, {
+			initial: [
+				{ label: 'selected', setSize: '3', posInSet: '1' },
+				{ label: 'alpha', setSize: '3', posInSet: '2' },
+				{ label: 'beta', setSize: '3', posInSet: '3' },
+			],
+			filtered: [
+				{ label: 'alpha', setSize: '2', posInSet: '1' },
+				{ label: 'beta', setSize: '2', posInSet: '2' },
+			],
+		});
 	});
 
 	test('leaves room for action widget chrome when clamping dynamic height', () => withWindowInnerHeight(300, () => {

@@ -10,13 +10,16 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IRange } from '../../../../../editor/common/core/range.js';
 import { withTestCodeEditor } from '../../../../../editor/test/browser/testCodeEditor.js';
+import { IFeedbackPullRequest } from '../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
-import { ICodeReviewService } from '../../../codeReview/browser/codeReviewService.js';
+import { ICodeReviewService, ICodeReviewSuggestion } from '../../../codeReview/browser/codeReviewService.js';
 import { AgentFeedbackEditorWidget, IComposerDraftState } from '../../browser/agentFeedbackEditorWidget.js';
-import { AgentFeedbackKind, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
+import { IAgentFeedbackContext } from '../../browser/agentFeedbackEditorUtils.js';
+import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
 import { ISessionEditorComment, SessionEditorCommentSource } from '../../browser/sessionEditorComments.js';
 
 suite('AgentFeedbackEditorWidget', () => {
@@ -41,17 +44,38 @@ suite('AgentFeedbackEditorWidget', () => {
 	interface ITestHarness {
 		/** Comment ids passed to `setNavigationAnchor`, in call order. */
 		readonly navigations: readonly string[];
+		readonly hiddenFeedbackIds: readonly string[];
+		readonly sourcePullRequests: readonly (IFeedbackPullRequest | undefined)[];
 		readonly domNode: HTMLElement;
 		/** Tears the widget down and builds a new one, as the contribution does on any feedback change. */
 		rebuild(): HTMLElement;
 	}
 
-	function withWidget(callback: (harness: ITestHarness) => void): void {
+	function withWidget(callback: (harness: ITestHarness) => void, testComment: ISessionEditorComment = comment): void {
 		const navigations: string[] = [];
+		const hiddenFeedbackIds: string[] = [];
+		const sourcePullRequests: (IFeedbackPullRequest | undefined)[] = [];
 		const services = new ServiceCollection();
 		services.set(IAgentFeedbackService, new class extends mock<IAgentFeedbackService>() {
 			override setNavigationAnchor(_sessionResource: URI, commentId: string): void { navigations.push(commentId); }
 			override updateFeedback(): void { }
+			override hideFeedbackInEditor(_sessionResource: URI, feedbackId: string): void { hiddenFeedbackIds.push(feedbackId); }
+			override addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, _context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, kind: AgentFeedbackKind = AgentFeedbackKind.UserReview, state: AgentFeedbackState = AgentFeedbackState.Accepted, sourcePullRequest?: IFeedbackPullRequest): IAgentFeedback {
+				sourcePullRequests.push(sourcePullRequest);
+				return {
+					id: 'converted',
+					text,
+					resourceUri,
+					range,
+					sessionResource,
+					suggestion,
+					kind,
+					sourcePRReviewCommentId,
+					sourcePullRequest,
+					state,
+				};
+			}
+			override addReply(): void { }
 		});
 		services.set(ICodeReviewService, new class extends mock<ICodeReviewService>() { });
 		services.set(IMarkdownRendererService, new SyncDescriptor(MarkdownRendererService));
@@ -62,7 +86,7 @@ suite('AgentFeedbackEditorWidget', () => {
 			let widget: AgentFeedbackEditorWidget | undefined;
 
 			const createWidget = () => {
-				widget = store.add(instantiationService.createInstance(AgentFeedbackEditorWidget, editor, [comment], sessionResource, draftState));
+				widget = store.add(instantiationService.createInstance(AgentFeedbackEditorWidget, editor, [testComment], sessionResource, draftState));
 				const domNode = widget.getDomNode();
 				// The test editor has no real view, so attach the overlay ourselves for focus to work.
 				mainWindow.document.body.appendChild(domNode);
@@ -81,7 +105,7 @@ suite('AgentFeedbackEditorWidget', () => {
 			};
 
 			try {
-				callback({ navigations, domNode: createWidget(), rebuild });
+				callback({ navigations, hiddenFeedbackIds, sourcePullRequests, domNode: createWidget(), rebuild });
 			} finally {
 				widget?.getDomNode().remove();
 				store.dispose();
@@ -108,6 +132,12 @@ suite('AgentFeedbackEditorWidget', () => {
 		target.dispatchEvent(event);
 	}
 
+	function dispatchEnter(target: HTMLElement): void {
+		const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+		Object.defineProperty(event, 'keyCode', { get: () => 13 });
+		target.dispatchEvent(event);
+	}
+
 	test('clicking inside the edit composer keeps it open and focused without navigating', () => {
 		withWidget(({ domNode, navigations }) => {
 			triggerAction(domNode, 'codicon-edit');
@@ -130,6 +160,59 @@ suite('AgentFeedbackEditorWidget', () => {
 
 			assert.deepStrictEqual([...navigations], [comment.id]);
 		});
+	});
+
+	test('resolved feedback only has a hide action', () => {
+		const resolvedComment: ISessionEditorComment = { ...comment, state: AgentFeedbackState.Resolved };
+		withWidget(({ domNode, hiddenFeedbackIds }) => {
+			const actions = [...domNode.querySelectorAll<HTMLElement>('.agent-feedback-widget-item-actions .action-label')];
+			const hideAction = domNode.querySelector<HTMLElement>('.agent-feedback-widget-item-actions .action-label.codicon-close');
+			hideAction?.click();
+
+			assert.deepStrictEqual({
+				actionCount: actions.length,
+				hasEdit: actions.some(action => action.classList.contains('codicon-edit')),
+				hasReply: actions.some(action => action.classList.contains('codicon-comment-discussion')),
+				hideLabel: hideAction?.ariaLabel || hideAction?.title,
+				hiddenFeedbackIds: [...hiddenFeedbackIds],
+			}, {
+				actionCount: 1,
+				hasEdit: false,
+				hasReply: false,
+				hideLabel: 'Hide',
+				hiddenFeedbackIds: [resolvedComment.sourceId],
+			});
+
+			test('preserves pull request identity when editing and replying to PR comments', () => {
+				const sourcePullRequest = { owner: 'owner', repo: 'repo', number: 42 };
+				const prComment: ISessionEditorComment = {
+					...comment,
+					id: 'prReview:thread-1',
+					sourceId: 'thread-1',
+					source: SessionEditorCommentSource.PRReview,
+					kind: AgentFeedbackKind.PRReview,
+					canConvertToAgentFeedback: true,
+					sourcePullRequest,
+				};
+				const captured: (IFeedbackPullRequest | undefined)[] = [];
+				withWidget(({ domNode, sourcePullRequests }) => {
+					triggerAction(domNode, 'codicon-edit');
+					const textarea = composer(domNode)!;
+					type(textarea, 'Edited PR comment');
+					dispatchEnter(textarea);
+					captured.push(...sourcePullRequests);
+				}, prComment);
+				withWidget(({ domNode, sourcePullRequests }) => {
+					triggerAction(domNode, 'codicon-comment-discussion');
+					const textarea = composer(domNode)!;
+					type(textarea, 'Reply to PR comment');
+					dispatchEnter(textarea);
+					captured.push(...sourcePullRequests);
+				}, prComment);
+
+				assert.deepStrictEqual(captured, [sourcePullRequest, sourcePullRequest]);
+			});
+		}, resolvedComment);
 	});
 
 	test('the edit composer survives losing focus and is closed by Escape from the widget', () => {

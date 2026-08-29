@@ -176,6 +176,15 @@ export function getByokLmAgentModelId(model: IByokLmModelInfo): string {
 	return `${model.vendor}/${getByokLmSelectionModelId(model)}`;
 }
 
+/** Resolves BYOK enablement and trace context from synchronized root configuration. */
+export function resolveByokLmEnablement(rootConfigValue: boolean | undefined): { readonly enabled: boolean; readonly trace: string } {
+	const enabled = rootConfigValue === true;
+	return {
+		enabled,
+		trace: `enabled: ${enabled} (root config: ${rootConfigValue ?? 'unset'})`,
+	};
+}
+
 export const IAgentHostByokLmHandler = createDecorator<IAgentHostByokLmHandler>('agentHostByokLmHandler');
 
 /**

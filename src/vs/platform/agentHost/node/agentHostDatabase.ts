@@ -22,6 +22,7 @@ export interface IAgentHostDatabaseSession {
 	readonly session: string;
 	readonly provider: AgentProvider;
 	readonly startTime: number;
+	readonly modifiedTime: number;
 	readonly external: boolean | undefined;
 	readonly source: AgentSessionRegistrationSource;
 }
@@ -29,6 +30,8 @@ export interface IAgentHostDatabaseSession {
 export interface IAgentHostDatabaseSessionOptions {
 	readonly provider: AgentProvider;
 	readonly startTime: number;
+	/** Last observed provider modification time; defaults to {@link startTime}. */
+	readonly modifiedTime?: number;
 	readonly source: AgentSessionRegistrationSource;
 }
 
@@ -51,6 +54,9 @@ export interface IAgentHostDatabase extends IDisposable {
 	/** Atomically tombstones and removes a session so concurrent backfill cannot re-register it. */
 	tombstoneAndUnregisterSession(session: string): Promise<void>;
 	updateSessionExternal(updates: readonly IAgentHostDatabaseExternalUpdate[]): Promise<void>;
+	/** Advances the durable last-observed modification time. */
+	updateSessionModifiedTime(session: string, modifiedTime: number): Promise<boolean>;
+	getSession(session: string): Promise<IAgentHostDatabaseSession | undefined>;
 	listSessions(): Promise<readonly IAgentHostDatabaseSession[]>;
 	isSessionRegistryEmpty(): Promise<boolean>;
 	/**
@@ -71,6 +77,14 @@ export interface IAgentHostDatabase extends IDisposable {
 	markSessionTombstoned(session: string): Promise<void>;
 	/** Clears a session's deletion tombstone (used on explicit create/restore). */
 	clearSessionTombstone(session: string): Promise<void>;
+	/**
+	 * Records whether Agent Merge is enabled for `session`. This host-owned index
+	 * lets startup find the few monitored sessions without opening every session
+	 * database.
+	 */
+	setSessionAgentMergeEnabled(session: string, enabled: boolean): Promise<void>;
+	/** Session URIs currently marked Agent-Merge-enabled. */
+	listAgentMergeEnabledSessions(): Promise<readonly string[]>;
 	close(): Promise<void>;
 }
 
@@ -98,6 +112,13 @@ const migrations = [
 		sql: [
 			`ALTER TABLE sessions ADD COLUMN registration_source TEXT NOT NULL DEFAULT 'explicit'`,
 			`UPDATE sessions SET registration_source = CASE WHEN external = 1 THEN 'discovery' ELSE 'explicit' END`,
+		].join(';\n'),
+	},
+	{
+		version: 4,
+		sql: [
+			'ALTER TABLE sessions ADD COLUMN modified_time INTEGER NOT NULL DEFAULT 0',
+			'UPDATE sessions SET modified_time = start_time',
 		].join(';\n'),
 	},
 ] as const;
@@ -153,6 +174,13 @@ function tombstoneKey(session: string): string {
 	return `sessionTombstone:${session}`;
 }
 
+const agentMergeEnabledKeyPrefix = 'agentMergeEnabled:';
+
+/** Metadata key marking a session as Agent-Merge-enabled. */
+function agentMergeEnabledKey(session: string): string {
+	return `${agentMergeEnabledKeyPrefix}${session}`;
+}
+
 function quoteSqlString(value: string): string {
 	return `'${value.replaceAll('\'', '\'\'')}'`;
 }
@@ -169,14 +197,15 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	constructor(private readonly _path: string) { }
 
 	async registerSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
-		const { provider, startTime, source } = sessionOptions;
+		const { provider, startTime, modifiedTime = startTime, source } = sessionOptions;
 		const changes = await runReturningChanges(
 			await this._ensureDatabase(),
-			`INSERT INTO sessions (session_uri, provider, start_time, external, registration_source)
-				SELECT ?, ?, ?, CASE WHEN ? = 'discovery' THEN 1 ELSE 0 END, ?
+			`INSERT INTO sessions (session_uri, provider, start_time, modified_time, external, registration_source)
+				SELECT ?, ?, ?, ?, CASE WHEN ? = 'discovery' THEN 1 ELSE 0 END, ?
 				WHERE ? = 0 OR NOT EXISTS (SELECT 1 FROM metadata WHERE key = ? AND value = 'true')
 				ON CONFLICT(session_uri) DO UPDATE SET
 					provider = CASE WHEN excluded.registration_source = 'explicit' THEN excluded.provider ELSE sessions.provider END,
+					modified_time = MAX(sessions.modified_time, excluded.modified_time),
 					external = CASE
 						WHEN excluded.registration_source = 'explicit' THEN 0
 						WHEN excluded.registration_source = 'restore' THEN 0
@@ -188,7 +217,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 						WHEN sessions.registration_source = 'explicit' THEN 'explicit'
 						ELSE excluded.registration_source
 					END`,
-			[session, provider, startTime, source, source, registerOptions.checkTombstone ? 1 : 0, tombstoneKey(session)],
+			[session, provider, startTime, modifiedTime, source, source, registerOptions.checkTombstone ? 1 : 0, tombstoneKey(session)],
 		);
 		if (!registerOptions.checkTombstone) {
 			await this.clearSessionTombstone(session);
@@ -196,8 +225,24 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		return changes > 0;
 	}
 
-	unregisterSession(session: string): Promise<void> {
-		return this._run('DELETE FROM sessions WHERE session_uri = ?', [session]);
+	async unregisterSession(session: string): Promise<void> {
+		const database = await this._ensureDatabase();
+		try {
+			await exec(
+				database,
+				`BEGIN IMMEDIATE;
+				DELETE FROM sessions WHERE session_uri = ${quoteSqlString(session)};
+				DELETE FROM metadata WHERE key = ${quoteSqlString(agentMergeEnabledKey(session))};
+				COMMIT;`,
+			);
+		} catch (error) {
+			try {
+				await exec(database, 'ROLLBACK');
+			} catch (rollbackError) {
+				throw new AggregateError([error, rollbackError], `Failed to unregister session ${session}`);
+			}
+			throw error;
+		}
 	}
 
 	async tombstoneAndUnregisterSession(session: string): Promise<void> {
@@ -210,6 +255,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				`BEGIN IMMEDIATE;
 				INSERT INTO metadata (key, value) VALUES (${tombstoneValue}, 'true')
 					ON CONFLICT(key) DO UPDATE SET value = excluded.value;
+				DELETE FROM metadata WHERE key = ${quoteSqlString(agentMergeEnabledKey(session))};
 				DELETE FROM sessions WHERE session_uri = ${sessionValue};
 				COMMIT;`,
 			);
@@ -247,15 +293,40 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		}
 	}
 
+	async updateSessionModifiedTime(session: string, modifiedTime: number): Promise<boolean> {
+		const changes = await runReturningChanges(
+			await this._ensureDatabase(),
+			'UPDATE sessions SET modified_time = ? WHERE session_uri = ? AND modified_time < ?',
+			[modifiedTime, session, modifiedTime],
+		);
+		return changes > 0;
+	}
+
 	async listSessions(): Promise<readonly IAgentHostDatabaseSession[]> {
-		const rows = await all(await this._ensureDatabase(), 'SELECT session_uri, provider, start_time, external, registration_source FROM sessions', []);
+		const rows = await all(await this._ensureDatabase(), 'SELECT session_uri, provider, start_time, modified_time, external, registration_source FROM sessions', []);
 		return rows.map(row => ({
 			session: row.session_uri as string,
 			provider: row.provider as AgentProvider,
 			startTime: row.start_time as number,
+			modifiedTime: row.modified_time as number,
 			external: row.external === null ? undefined : row.external === 1,
 			source: row.registration_source as AgentSessionRegistrationSource,
 		}));
+	}
+
+	async getSession(session: string): Promise<IAgentHostDatabaseSession | undefined> {
+		const row = await get(await this._ensureDatabase(), 'SELECT session_uri, provider, start_time, modified_time, external, registration_source FROM sessions WHERE session_uri = ?', [session]);
+		if (!row) {
+			return undefined;
+		}
+		return {
+			session: row.session_uri as string,
+			provider: row.provider as AgentProvider,
+			startTime: row.start_time as number,
+			modifiedTime: row.modified_time as number,
+			external: row.external === null || row.external === undefined ? undefined : row.external === 1,
+			source: row.registration_source as AgentSessionRegistrationSource,
+		};
 	}
 
 	async isSessionRegistryEmpty(): Promise<boolean> {
@@ -304,6 +375,25 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 
 	clearSessionTombstone(session: string): Promise<void> {
 		return this._run('DELETE FROM metadata WHERE key = ?', [tombstoneKey(session)]);
+	}
+
+	setSessionAgentMergeEnabled(session: string, enabled: boolean): Promise<void> {
+		return enabled
+			? this._run(
+				`INSERT INTO metadata (key, value) VALUES (?, 'true')
+					ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+				[agentMergeEnabledKey(session)],
+			)
+			: this._run('DELETE FROM metadata WHERE key = ?', [agentMergeEnabledKey(session)]);
+	}
+
+	async listAgentMergeEnabledSessions(): Promise<readonly string[]> {
+		const rows = await all(
+			await this._ensureDatabase(),
+			`SELECT key FROM metadata WHERE key LIKE ? || '%' AND value = 'true'`,
+			[agentMergeEnabledKeyPrefix],
+		);
+		return rows.map(row => (row.key as string).slice(agentMergeEnabledKeyPrefix.length));
 	}
 
 	private async _run(sql: string, parameters: readonly unknown[]): Promise<void> {

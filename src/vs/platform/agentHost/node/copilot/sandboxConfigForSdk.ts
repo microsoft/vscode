@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession } from '@github/copilot-sdk';
 import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
 import { AgentHostSandboxKey, type ISandboxConfigValue } from '../../common/sandboxConfigSchema.js';
 
@@ -20,11 +19,85 @@ export interface IAgentSandboxFileSystemSetting {
 	denyWrite?: string[];
 }
 
-type SdkSandboxConfig = NonNullable<Parameters<CopilotSession['rpc']['options']['update']>[0]['sandboxConfig']>;
+/**
+ * ToDo: This will be removed as the SDK's built-in sandbox configuration types are exported.
+ */
+export interface SandboxConfig {
+	/** Whether sandboxing is enabled for the session. */
+	enabled: boolean;
 
-export type CopilotSandboxConfig = SdkSandboxConfig & {
-	readonly allowBypass?: boolean;
-};
+	/** Whether all sandbox restrictions can be bypassed. */
+	allowBypass?: boolean;
+
+	/** Automatically grant read/write access to the current working directory. */
+	addCurrentWorkingDirectory?: boolean;
+
+	/** Automatically grant access to common developer tools and caches. */
+	allowDevToolAccess?: boolean;
+
+	/** Credential injection available while sandboxing is enabled. */
+	auth?: SandboxAuthConfig;
+
+	/** User-defined filesystem, network, and macOS policies. */
+	userPolicy?: SandboxUserPolicy;
+}
+
+export interface SandboxAuthConfig {
+	/** Inject credentials for authenticated Git operations. */
+	git?: boolean;
+
+	/** Export GH_TOKEN for GitHub CLI operations. */
+	gh?: boolean;
+}
+
+export interface SandboxUserPolicy {
+	filesystem?: SandboxFilesystemPolicy;
+	network?: SandboxNetworkPolicy;
+
+	/** Only relevant on macOS. */
+	seatbelt?: SandboxSeatbeltPolicy;
+}
+
+export interface SandboxFilesystemPolicy {
+	/** Paths that sandboxed processes can read and write. */
+	readwritePaths?: string[];
+
+	/** Paths that sandboxed processes can only read. */
+	readonlyPaths?: string[];
+
+	/** Paths that sandboxed processes cannot access. */
+	deniedPaths?: string[];
+
+	/** Whether to clear the filesystem policy when the session exits. */
+	clearPolicyOnExit?: boolean;
+}
+
+export interface SandboxNetworkPolicy {
+	/** Whether outbound network connections are permitted. */
+	allowOutbound?: boolean;
+
+	/** Whether localhost and local-network connections are permitted. */
+	allowLocalNetwork?: boolean;
+
+	/** Optional proxy used by sandboxed processes. */
+	proxy?: SandboxNetworkProxyPolicy;
+}
+
+export interface SandboxNetworkProxyPolicy {
+	/** HTTP or HTTPS proxy URL. */
+	url: string;
+
+	/** Optional proxy username. */
+	username?: string;
+
+	/** Optional proxy password or secret/environment reference. */
+	password?: string;
+}
+
+export interface SandboxSeatbeltPolicy {
+	/** Whether macOS Keychain access is permitted. */
+	keychainAccess?: boolean;
+}
 
 /**
  * Translate the AgentHost's host-side sandbox configuration into the
@@ -54,23 +127,19 @@ export type CopilotSandboxConfig = SdkSandboxConfig & {
 export function buildSandboxConfigForSdk(
 	platform: NodeJS.Platform,
 	sandbox: ISandboxConfigValue | undefined,
-): CopilotSandboxConfig | undefined {
-	if (!sandbox) {
-		return undefined;
-	}
-
+): SandboxConfig | undefined {
 	const enabledRaw = platform === 'win32'
-		? sandbox[AgentHostSandboxKey.WindowsEnabled]
-		: sandbox[AgentHostSandboxKey.Enabled];
+		? sandbox?.[AgentHostSandboxKey.WindowsEnabled]
+		: sandbox?.[AgentHostSandboxKey.Enabled];
 	if (enabledRaw !== AgentSandboxEnabledValue.On) {
 		return undefined;
 	}
 
 	const fsRaw = platform === 'win32'
-		? sandbox[AgentHostSandboxKey.WindowsFileSystem]
+		? sandbox?.[AgentHostSandboxKey.WindowsFileSystem]
 		: platform === 'darwin'
-			? sandbox[AgentHostSandboxKey.MacFileSystem]
-			: sandbox[AgentHostSandboxKey.LinuxFileSystem];
+			? sandbox?.[AgentHostSandboxKey.MacFileSystem]
+			: sandbox?.[AgentHostSandboxKey.LinuxFileSystem];
 	const hasFileSystemPolicy = fsRaw !== undefined && typeof fsRaw === 'object';
 	const fs = hasFileSystemPolicy ? fsRaw as IAgentSandboxFileSystemSetting : {};
 
@@ -93,25 +162,29 @@ export function buildSandboxConfigForSdk(
 		}
 	}
 
-	const allowNetwork = sandbox[AgentHostSandboxKey.AllowNetwork];
-	const allowBypass = sandbox[AgentHostSandboxKey.AllowUnsandboxedCommands];
-	const filesystem = hasFileSystemPolicy
-		? {
-			...(denied.size ? { deniedPaths: [...denied] } : {}),
-			...(readonly.size ? { readonlyPaths: [...readonly] } : {}),
-			...(readwrite.size ? { readwritePaths: [...readwrite] } : {}),
-		}
-		: undefined;
-	const network = typeof allowNetwork === 'boolean' ? { allowOutbound: allowNetwork } : undefined;
-	const userPolicy = filesystem || network
-		? {
-			...(filesystem ? { filesystem } : {}),
-			...(network ? { network } : {}),
-		}
-		: undefined;
-	return {
+	const allowNetwork = sandbox?.[AgentHostSandboxKey.AllowNetwork];
+	const allowBypass = sandbox?.[AgentHostSandboxKey.AllowUnsandboxedCommands] ?? false;
+	const sandboxConfig: SandboxConfig = {
 		enabled: true,
-		...(typeof allowBypass === 'boolean' ? { allowBypass } : {}),
-		...(userPolicy ? { userPolicy } : {}),
+		allowBypass,
+		addCurrentWorkingDirectory: true,
+		allowDevToolAccess: true,
+		auth: {
+			git: false,
+			gh: false,
+		},
+		userPolicy: {
+			filesystem: {
+				...(denied.size ? { deniedPaths: [...denied] } : {}),
+				...(readonly.size ? { readonlyPaths: [...readonly] } : {}),
+				...(readwrite.size ? { readwritePaths: [...readwrite] } : {}),
+				clearPolicyOnExit: true,
+			},
+			network: {
+				allowOutbound: typeof allowNetwork === 'boolean' ? allowNetwork : false,
+				allowLocalNetwork: true,
+			},
+		},
 	};
+	return sandboxConfig;
 }

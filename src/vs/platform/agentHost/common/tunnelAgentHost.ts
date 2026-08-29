@@ -100,6 +100,9 @@ export interface ITunnelInfo {
 	readonly hostConnectionCount: number;
 }
 
+/** How startup auto-connect should establish a tunnel connection. */
+export type TunnelAutoConnectMode = 'background' | 'prompt';
+
 /** Kind of process that owns a gateway-reported endpoint. Mirrors `AgentHostServerType` in the CLI's agent-host registry (`cli/src/tunnels/agent_host_registry.rs`). */
 export type TunnelGatewayServerType = 'editor' | 'standalone';
 
@@ -299,6 +302,25 @@ export function isTunnelGatewaySelectionRejectedError(error: unknown): boolean {
 }
 
 /**
+ * Error name for a connect attempt whose requested tunnel no longer exists.
+ * Matching on the name survives the shared-process IPC boundary.
+ */
+export const TUNNEL_NOT_FOUND_ERROR_NAME = 'TunnelNotFoundError';
+
+/** Raised when the requested tunnel cannot be resolved. */
+export class TunnelNotFoundError extends Error {
+	constructor(tunnelId: string) {
+		super(`[TunnelAgentHost] Tunnel ${tunnelId} not found`);
+		this.name = TUNNEL_NOT_FOUND_ERROR_NAME;
+	}
+}
+
+/** Whether `error` is a {@link TunnelNotFoundError}, including across IPC. */
+export function isTunnelNotFoundError(error: unknown): boolean {
+	return error instanceof Error && error.name === TUNNEL_NOT_FOUND_ERROR_NAME;
+}
+
+/**
  * Serializable result from a successful tunnel connect operation.
  * Returned over IPC from the shared process.
  */
@@ -445,6 +467,12 @@ export interface ITunnelAgentHostService {
 	listTunnels(options?: { silent?: boolean }): Promise<ITunnelInfo[]>;
 
 	/**
+	 * Determine whether startup auto-connect can run silently or must first ask
+	 * the user to choose an agent-host location.
+	 */
+	getAutoConnectMode(tunnel: ITunnelInfo): TunnelAutoConnectMode;
+
+	/**
 	 * Connect to a tunnel's agent host and register the connection
 	 * with {@link IRemoteAgentHostService}.
 	 *
@@ -452,9 +480,9 @@ export interface ITunnelAgentHostService {
 	 * @param authProvider Optional auth provider to use. If omitted, uses cached/last known.
 	 * @param options.userInitiated Whether this connection was explicitly
 	 * requested by the user (default `true`). When `false` (background/auto
-	 * connect), a protocol-v6 gateway selection must never prompt via
-	 * {@link IQuickInputService} and must never choose an `editor` endpoint —
-	 * it deterministically reuses a standalone or spawns `newDedicated`.
+	 * connect), a protocol-v6 gateway selection must never prompt. Background
+	 * connections may prompt only when {@link getAutoConnectMode} returns
+	 * `'prompt'`; otherwise they reuse the saved preference silently.
 	 */
 	connect(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft', options?: { readonly userInitiated?: boolean }): Promise<void>;
 

@@ -10,7 +10,6 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { isWeb } from '../../../../../base/common/platform.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -26,7 +25,8 @@ import { ITunnelHostService } from '../../../../../workbench/contrib/chat/common
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IRemoteAgentHostService, parseRemoteAgentHostInput, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostInputValidationError, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { addWebSocketRemoteAgentHostEntry, IRemoteAgentHostService, parseRemoteAgentHostInput, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostInputValidationError, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ISSHRemoteAgentHostService, isSSHHostKeyDeniedError, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHAgentHostConnection, type ISSHResolvedConfig } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { isTunnelHosted, ITunnelAgentHostService, TUNNEL_ADDRESS_PREFIX, type ITunnelInfo } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IWSLRemoteAgentHostService, WSL_INSTALL_DOCS_URL, type IWSLDistro } from '../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
@@ -75,6 +75,7 @@ registerAction2(class extends Action2 {
 		const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const notificationService = accessor.get(INotificationService);
+		const configurationService = accessor.get(IConfigurationService);
 
 		// Prompt for address
 		const address = await quickInputService.input({
@@ -118,7 +119,7 @@ registerAction2(class extends Action2 {
 
 		// Connect
 		try {
-			await remoteAgentHostService.addRemoteAgentHost({
+			await addWebSocketRemoteAgentHostEntry(configurationService, {
 				name: name.trim(),
 				connectionToken: parsed.parsed.connectionToken,
 				connection: {
@@ -126,6 +127,7 @@ registerAction2(class extends Action2 {
 					address: parsed.parsed.address,
 				},
 			});
+			await remoteAgentHostService.waitForConnection(parsed.parsed.address);
 		} catch {
 			notificationService.error(localize('addRemoteFailed', "Failed to connect to remote agent host {0}.", parsed.parsed.address));
 		}
@@ -850,7 +852,7 @@ async function promptToConnectViaTunnel(
 	const instantiationService = accessor.get(IInstantiationService);
 	const productService = accessor.get(IProductService);
 	const dialogService = accessor.get(IDialogService);
-	const tunnelHostService = isWeb ? undefined : accessor.get(ITunnelHostService);
+	const tunnelHostService = accessor.get(ITunnelHostService);
 
 	// Step 1: Determine auth provider — try cached sessions first, then prompt
 	// This used to call tunnelService.getAuthProvider, but for now we're Github-
@@ -898,7 +900,7 @@ async function promptToConnectViaTunnel(
 		iconClass: ThemeIcon.asClassName(Codicon.trash),
 		tooltip: localize('tunnelDeleteTooltip', "Delete Dev Tunnel"),
 	};
-	const isHostedTunnel = (tunnel: ITunnelInfo): boolean => isTunnelHosted(tunnelHostService?.sharingInfo, tunnel);
+	const isHostedTunnel = (tunnel: ITunnelInfo): boolean => isTunnelHosted(tunnelHostService.sharingInfo, tunnel);
 	const toTunnelPickItems = (tunnelInfos: readonly ITunnelInfo[]): ITunnelPickItem[] => tunnelInfos
 		.filter(tunnel => !isHostedTunnel(tunnel))
 		.map(tunnel => ({
@@ -920,9 +922,7 @@ async function promptToConnectViaTunnel(
 	}
 
 	updateTunnelPickerItems();
-	if (tunnelHostService) {
-		store.add(tunnelHostService.onDidChangeStatus(updateTunnelPickerItems));
-	}
+	store.add(tunnelHostService.onDidChangeStatus(updateTunnelPickerItems));
 	tunnelPicker.busy = false;
 
 	// Step 3: Wait for user selection

@@ -18,9 +18,9 @@ import { INativeMcpDiscoveryData } from '../../../../../platform/mcp/common/nati
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { Dto } from '../../../../services/extensions/common/proxyIdentifier.js';
-import { DiscoverySource, discoverySourceLabel, mcpDiscoverySection } from '../mcpConfiguration.js';
+import { ExternalDiscoverySource, discoverySourceLabel, mcpDiscoverySection } from '../mcpConfiguration.js';
 import { IMcpRegistry } from '../mcpRegistryTypes.js';
-import { McpCollectionDefinition, McpCollectionSortOrder, McpServerDefinition, McpServerTrust } from '../mcpTypes.js';
+import { McpCollectionDefinition, McpCollectionProvenance, McpCollectionSortOrder, McpServerDefinition, McpServerTrust } from '../mcpTypes.js';
 import { IMcpDiscovery } from './mcpDiscovery.js';
 import { ClaudeDesktopMpcDiscoveryAdapter, CursorDesktopMpcDiscoveryAdapter, NativeMpcDiscoveryAdapter, WindsurfDesktopMpcDiscoveryAdapter } from './nativeMcpDiscoveryAdapters.js';
 
@@ -30,7 +30,7 @@ export abstract class FilesystemMcpDiscovery extends Disposable implements IMcpD
 
 	readonly fromGallery: boolean = false;
 
-	protected readonly _fsDiscoveryEnabled: IObservable<{ [K in DiscoverySource]: boolean } | undefined>;
+	protected readonly _fsDiscoveryEnabled: IObservable<{ [K in ExternalDiscoverySource]: boolean } | undefined>;
 
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService,
@@ -42,7 +42,7 @@ export abstract class FilesystemMcpDiscovery extends Disposable implements IMcpD
 		this._fsDiscoveryEnabled = observableConfigValue(mcpDiscoverySection, undefined, configurationService);
 	}
 
-	protected _isDiscoveryEnabled(reader: IReader, discoverySource: DiscoverySource): boolean {
+	protected _isDiscoveryEnabled(reader: IReader, discoverySource: ExternalDiscoverySource): boolean {
 		const fsDiscovery = this._fsDiscoveryEnabled.read(reader);
 		if (typeof fsDiscovery === 'boolean') {
 			return fsDiscovery; // old commands
@@ -56,7 +56,7 @@ export abstract class FilesystemMcpDiscovery extends Disposable implements IMcpD
 	protected watchFile(
 		file: URI,
 		collection: WritableMcpCollectionDefinition,
-		discoverySource: DiscoverySource,
+		discoverySource: ExternalDiscoverySource,
 		adaptFile: (contents: VSBuffer) => Promise<McpServerDefinition[] | undefined>,
 	): IDisposable {
 		const store = new DisposableStore();
@@ -145,6 +145,8 @@ export abstract class NativeFilesystemMcpDiscovery extends FilesystemMcpDiscover
 
 			const collection: WritableMcpCollectionDefinition = {
 				id: adapter.id,
+				provenance: McpCollectionProvenance.ExternalConfiguration,
+				discoverySource: adapter.discoverySource,
 				label: discoverySourceLabel[adapter.discoverySource] + this.suffix,
 				remoteAuthority: adapter.remoteAuthority,
 				configTarget: ConfigurationTarget.USER,

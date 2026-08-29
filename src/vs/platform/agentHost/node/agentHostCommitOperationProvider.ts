@@ -7,6 +7,8 @@ import { Disposable, DisposableStore, IDisposable } from '../../../base/common/l
 import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
+import { ChangesetKind } from '../common/changesetUri.js';
+import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, hasSessionPullRequestForBranch, type ChangesetOperation } from '../common/state/sessionState.js';
 import { AgentHostCommitOperationHandler } from './agentHostCommitOperationHandler.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
@@ -32,18 +34,19 @@ export class AgentHostCommitOperationContribution extends Disposable implements 
 		return store;
 	}
 
-	getOperations({ changesetKind, gitHubState, gitState }: IChangesetOperationContext): ChangesetOperation[] {
+	getOperations({ sessionKey, changesetKind, gitHubState, gitState }: IChangesetOperationContext): ChangesetOperation[] {
 		if ((gitState?.uncommittedChanges ?? 0) <= 0) {
 			return [];
 		}
 
-		if (!hasSessionPullRequestForBranch(gitHubState, gitState?.branchName) && changesetKind !== 'uncommitted') {
+		const isFolderSession = this._stateManager.getSessionState(sessionKey)?.config?.values[SessionConfigKey.Isolation] === 'folder';
+		if (!isFolderSession && !hasSessionPullRequestForBranch(gitHubState, gitState?.branchName) && changesetKind !== ChangesetKind.Uncommitted) {
 			return [];
 		}
 
 		return [{
 			id: AgentHostCommitOperationHandler.OPERATION_COMMIT,
-			label: localize('agentHost.changeset.commit', "Commit Changes"),
+			label: localize('agentHost.changeset.commit', "Commit"),
 			icon: 'git-commit',
 			group: 'commit',
 			scopes: [ChangesetOperationScope.Changeset],

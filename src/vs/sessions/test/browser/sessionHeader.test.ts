@@ -21,7 +21,7 @@ import { ISessionsService } from '../../services/sessions/browser/sessionsServic
 import { IChat, ISessionCapabilities, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
 
-function createHarness(disposables: Pick<DisposableStore, 'add'>) {
+function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: ISessionCapabilities = { supportsMultipleChats: false }) {
 	const store = disposables.add(new DisposableStore());
 	const instantiationService = workbenchInstantiationService(undefined, store);
 
@@ -60,7 +60,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>) {
 		override readonly closedChats: IObservable<readonly IChat[]> = constObservable([]);
 		override readonly visibleChatTabs: IObservable<readonly IChat[]> = constObservable([mainChat]);
 		override readonly shouldShowChatTabs: IObservable<boolean> = constObservable(false);
-		override readonly capabilities: IObservable<ISessionCapabilities> = constObservable({ supportsMultipleChats: false });
+		override readonly capabilities: IObservable<ISessionCapabilities> = constObservable(capabilities);
 	}();
 
 	const header = store.add(instantiationService.createInstance(SessionHeader));
@@ -85,17 +85,6 @@ suite('Sessions - SessionHeader', () => {
 		return dragEvent;
 	}
 
-	test('a small pointer move over the meta row (e.g. the changed-files pill) does not start a session drag', () => {
-		const { header } = createHarness(disposables);
-
-		const metaRow = header.element.querySelector<HTMLElement>('.chat-composite-bar-meta-row');
-		assert.ok(metaRow, 'meta row should be rendered');
-
-		const dragEvent = simulateDragFrom(header, metaRow);
-
-		assert.strictEqual(dragEvent.defaultPrevented, true, 'drag-start originating in the meta row must be prevented so the underlying click is not swallowed');
-	});
-
 	test('a small pointer move over the title actions toolbar does not start a session drag', () => {
 		const { header } = createHarness(disposables);
 
@@ -113,5 +102,48 @@ suite('Sessions - SessionHeader', () => {
 		const dragEvent = simulateDragFrom(header, header.element);
 
 		assert.strictEqual(dragEvent.defaultPrevented, false);
+	});
+
+	test('hides the header while it is replaced by the single-group tabs row', () => {
+		const { header } = createHarness(disposables);
+
+		header.setVisible(false);
+		const hiddenDisplay = header.element.style.display;
+		header.setVisible(true);
+
+		assert.deepStrictEqual({
+			hiddenDisplay,
+			restoredDisplay: header.element.style.display,
+			hasMetadataRow: header.element.querySelector('.chat-composite-bar-meta-row') !== null,
+		}, {
+			hiddenDisplay: 'none',
+			restoredDisplay: '',
+			hasMetadataRow: false,
+		});
+	});
+
+	test('reports whether the inline rename could be started', () => {
+		const renameable = createHarness(disposables, { supportsMultipleChats: false, supportsRename: true });
+		const notRenameable = createHarness(disposables);
+
+		const startedWhenVisible = renameable.header.startTitleEditing();
+		const hasInput = renameable.header.element.querySelector('.chat-composite-bar-session-title-input') !== null;
+		// The header is hidden while the single-group tabs row replaces it, so
+		// there is no title to rename inline.
+		renameable.header.setVisible(false);
+
+		assert.deepStrictEqual({
+			startedWhenVisible,
+			hasInput,
+			startedWhenHidden: renameable.header.startTitleEditing(),
+			startedWhenNotRenameable: notRenameable.header.startTitleEditing(),
+			hasInputWhenNotRenameable: notRenameable.header.element.querySelector('.chat-composite-bar-session-title-input') !== null,
+		}, {
+			startedWhenVisible: true,
+			hasInput: true,
+			startedWhenHidden: false,
+			startedWhenNotRenameable: false,
+			hasInputWhenNotRenameable: false,
+		});
 	});
 });

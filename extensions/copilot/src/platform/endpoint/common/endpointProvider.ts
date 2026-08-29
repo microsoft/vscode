@@ -113,6 +113,7 @@ export interface IModelPromo {
 	/** ISO 8601 end date; absent for open-ended promotions. */
 	ends_at?: string;
 	message: string;
+	show_banner?: boolean;
 }
 
 export interface IModelBilling {
@@ -180,14 +181,13 @@ export function isCompletionModelInformation(model: IModelAPIResponse): model is
 	return model.capabilities.type === 'completion';
 }
 
-export type ChatEndpointFamily = 'copilot-utility' | 'copilot-utility-small';
+export type ChatEndpointFamily = 'copilot-utility' | 'copilot-utility-small' | 'copilot-dictation-cleanup-nano' | 'copilot-dictation-cleanup-luna';
 
 /**
  * A model family accepted by {@link IEndpointProvider.getChatEndpoint}: either
- * an internal utility alias ({@link ChatEndpointFamily}) or any CAPI model
- * family id (e.g. `gemini-3-flash`, `gpt-5-mini`). The utility literals are
- * kept for editor autocomplete while still allowing arbitrary CAPI family
- * strings.
+ * an internal model alias ({@link ChatEndpointFamily}) or any CAPI model family
+ * id (e.g. `gemini-3-flash`, `gpt-5-mini`). The internal literals are kept for
+ * editor autocomplete while still allowing arbitrary CAPI family strings.
  */
 export type ChatModelFamily = ChatEndpointFamily | (string & {});
 

@@ -15,6 +15,20 @@ export const IAgentHostChangesetOperationService = createDecorator<IAgentHostCha
 export const AGENT_HOST_MERGE_CHANGESET_OPERATION_ID = 'merge';
 
 /**
+ * Changeset operations advertised for a branch that already has a pull
+ * request. Declared here rather than next to their handler so the client can
+ * recognise them without reaching into the host-only implementation.
+ */
+export const AgentHostPullRequestOperationId = {
+	MarkReady: 'pr-mark-ready',
+	Merge: 'pr-merge',
+	EnableAutoMerge: 'pr-enable-auto-merge',
+	DisableAutoMerge: 'pr-disable-auto-merge',
+} as const;
+
+export const AGENT_HOST_PULL_REQUEST_OPERATION_IDS: ReadonlySet<string> = new Set(Object.values(AgentHostPullRequestOperationId));
+
+/**
  * Server-side handler for a changeset operation advertised via
  * `changeset/operationsChanged`.
  *

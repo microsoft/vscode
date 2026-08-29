@@ -15,6 +15,7 @@ suite('SessionEditorComments', () => {
 	const session = URI.parse('test://session/1');
 	const fileA = URI.parse('file:///a.ts');
 	const fileB = URI.parse('file:///b.ts');
+	const pullRequest = { owner: 'owner', repo: 'repo', number: 1, uri: URI.parse('https://github.com/owner/repo/pull/1') };
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -22,8 +23,8 @@ suite('SessionEditorComments', () => {
 		const prState: IPRReviewState = {
 			kind: PRReviewStateKind.Loaded,
 			comments: [
-				{ id: 'review-a', uri: fileA, range: new Range(3, 1, 3, 1), body: 'review a', author: 'reviewer' },
-				{ id: 'review-b', uri: fileB, range: new Range(2, 1, 2, 1), body: 'review b', author: 'reviewer' },
+				{ id: 'review-a', pullRequest, uri: fileA, range: new Range(3, 1, 3, 1), body: 'review a', author: 'reviewer' },
+				{ id: 'review-b', pullRequest, uri: fileB, range: new Range(2, 1, 2, 1), body: 'review b', author: 'reviewer' },
 			],
 		};
 		const comments = getSessionEditorComments(session, [
@@ -43,8 +44,8 @@ suite('SessionEditorComments', () => {
 		const prState: IPRReviewState = {
 			kind: PRReviewStateKind.Loaded,
 			comments: [
-				{ id: 'review-a', uri: fileA, range: new Range(13, 1, 13, 1), body: 'review a', author: 'reviewer' },
-				{ id: 'review-b', uri: fileB, range: new Range(11, 1, 11, 1), body: 'review b', author: 'reviewer' },
+				{ id: 'review-a', pullRequest, uri: fileA, range: new Range(13, 1, 13, 1), body: 'review a', author: 'reviewer' },
+				{ id: 'review-b', pullRequest, uri: fileB, range: new Range(11, 1, 11, 1), body: 'review b', author: 'reviewer' },
 			],
 		};
 		const comments = getSessionEditorComments(session, [
@@ -66,7 +67,7 @@ suite('SessionEditorComments', () => {
 		const prState: IPRReviewState = {
 			kind: PRReviewStateKind.Loaded,
 			comments: [
-				{ id: 'review-b', uri: fileB, range: new Range(2, 1, 2, 1), body: 'review b', author: 'reviewer' },
+				{ id: 'review-b', pullRequest, uri: fileB, range: new Range(2, 1, 2, 1), body: 'review b', author: 'reviewer' },
 			],
 		};
 		const comments = getSessionEditorComments(session, [
@@ -82,16 +83,18 @@ suite('SessionEditorComments', () => {
 		const prState: IPRReviewState = {
 			kind: PRReviewStateKind.Loaded,
 			comments: [
-				{ id: 'pr-thread-1', uri: fileA, range: new Range(5, 1, 5, 1), body: 'Please fix this', author: 'reviewer' },
-				{ id: 'pr-thread-2', uri: fileB, range: new Range(1, 1, 1, 1), body: 'Looks wrong', author: 'reviewer' },
+				{ id: 'pr-thread-1', pullRequest, uri: fileA, range: new Range(5, 1, 5, 1), body: 'Please fix this', author: 'reviewer' },
+				{ id: 'pr-thread-2', pullRequest, uri: fileB, range: new Range(1, 1, 1, 1), body: 'Looks wrong', author: 'reviewer' },
 			],
 		};
 
 		const comments = getSessionEditorComments(session, [], prState);
-		assert.strictEqual(comments.length, 2);
-		assert.deepStrictEqual(comments.map(c => `${c.resourceUri.path}:${c.range.startLineNumber}:${c.source}`), [
-			'/a.ts:5:prReview',
-			'/b.ts:1:prReview',
+		assert.deepStrictEqual(comments.map(c => ({
+			location: `${c.resourceUri.path}:${c.range.startLineNumber}:${c.source}`,
+			pullRequest: c.sourcePullRequest,
+		})), [
+			{ location: '/a.ts:5:prReview', pullRequest: { owner: 'owner', repo: 'repo', number: 1 } },
+			{ location: '/b.ts:1:prReview', pullRequest: { owner: 'owner', repo: 'repo', number: 1 } },
 		]);
 		assert.strictEqual(comments[0].canConvertToAgentFeedback, true);
 	});
@@ -100,7 +103,7 @@ suite('SessionEditorComments', () => {
 		const prState: IPRReviewState = {
 			kind: PRReviewStateKind.Loaded,
 			comments: [
-				{ id: 'pr-thread-1', uri: fileA, range: new Range(7, 1, 7, 1), body: 'PR comment', author: 'reviewer' },
+				{ id: 'pr-thread-1', pullRequest, uri: fileA, range: new Range(7, 1, 7, 1), body: 'PR comment', author: 'reviewer' },
 			],
 		};
 
@@ -122,19 +125,27 @@ suite('SessionEditorComments', () => {
 	});
 
 	test('excludes resolved feedback from the editor comments', () => {
-		const comments = getSessionEditorComments(session, [
+		const feedback = [
 			{ id: 'feedback-accepted', text: 'accepted', resourceUri: fileA, range: new Range(2, 1, 2, 1), sessionResource: session, kind: AgentFeedbackKind.UserReview, state: AgentFeedbackState.Accepted },
 			{ id: 'feedback-resolved', text: 'resolved', resourceUri: fileA, range: new Range(4, 1, 4, 1), sessionResource: session, kind: AgentFeedbackKind.UserReview, state: AgentFeedbackState.Resolved },
-		]);
+		];
+		const comments = getSessionEditorComments(session, feedback);
+		const commentsWithResolvedVisible = getSessionEditorComments(session, feedback, undefined, new Set(['feedback-resolved']));
 
-		assert.deepStrictEqual(comments.map(comment => comment.sourceId), ['feedback-accepted']);
+		assert.deepStrictEqual({
+			hidden: comments.map(comment => comment.sourceId),
+			visible: commentsWithResolvedVisible.map(comment => comment.sourceId),
+		}, {
+			hidden: ['feedback-accepted'],
+			visible: ['feedback-accepted', 'feedback-resolved'],
+		});
 	});
 
 	test('hides a created PR-review mirror and shows the raw PR comment instead', () => {
 		const prState: IPRReviewState = {
 			kind: PRReviewStateKind.Loaded,
 			comments: [
-				{ id: 'pr-thread-1', uri: fileA, range: new Range(5, 1, 5, 1), body: 'Please fix this', author: 'reviewer' },
+				{ id: 'pr-thread-1', pullRequest, uri: fileA, range: new Range(5, 1, 5, 1), body: 'Please fix this', author: 'reviewer' },
 			],
 		};
 		const comments = getSessionEditorComments(session, [
@@ -148,7 +159,7 @@ suite('SessionEditorComments', () => {
 		const prState: IPRReviewState = {
 			kind: PRReviewStateKind.Loaded,
 			comments: [
-				{ id: 'pr-thread-1', uri: fileA, range: new Range(5, 1, 5, 1), body: 'Please fix this', author: 'reviewer' },
+				{ id: 'pr-thread-1', pullRequest, uri: fileA, range: new Range(5, 1, 5, 1), body: 'Please fix this', author: 'reviewer' },
 			],
 		};
 		const comments = getSessionEditorComments(session, [
