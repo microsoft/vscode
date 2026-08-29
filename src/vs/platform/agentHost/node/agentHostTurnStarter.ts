@@ -10,7 +10,7 @@ import type { IAgent } from '../common/agent.js';
 import type { IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { IAgentHostChatContributions } from '../common/agentHostChatContributionsService.js';
 import { ActionType } from '../common/state/sessionActions.js';
-import { createErrorResponsePart, type Message, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { createErrorResponsePart, type ErrorInfo, type Message, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { createAgentChatContext } from './agentChatContext.js';
 import { IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
@@ -37,7 +37,22 @@ export interface ITurnStartRequest {
 	readonly turnStopWatch: StopWatch;
 }
 
-/** Admits a turn, records its telemetry, and resolves the provider that will send it. */
+/**
+ * Admits a turn, records its telemetry, and resolves the provider that will send it.
+ * Both the direct (`handleAction`) and queued (`QueueDrainContribution`) admission paths
+ * run this, so the preamble has one copy.
+ *
+ * This is a plain function rather than a service because it holds no state: registering it
+ * in DI bought nothing and cost a registration in every hand-built test service graph. Keep
+ * it a function unless it acquires state.
+ *
+ * The gate runs before {@link IAgentHostTurnTracker.turnStarted}, so a refused request has
+ * no turn to complete: it reports neither `userMessageSent` nor `turnCompleted`, and does
+ * not call `_completeTurn` or clear the tool-call tracker. That is deliberate, not an
+ * oversight — a rejection is observable through `onTurnEnd` with `kind === 'rejected'`, so
+ * measure rejection volume from a contribution rather than by reviving the turn-completion
+ * path.
+ */
 export function startTurn(accessor: ServicesAccessor, request: ITurnStartRequest): IStartedTurn | undefined {
 	const chatContributions = accessor.get(IAgentHostChatContributions);
 	const stateManager = accessor.get(IAgentHostStateManager);
@@ -66,6 +81,13 @@ export function startTurn(accessor: ServicesAccessor, request: ITurnStartRequest
 			duration: Math.max(0, request.turnStopWatch.elapsed()),
 			part: createErrorResponsePart(disposition.error),
 		});
+		chatContributions.turnEnd({
+			session: request.session,
+			channel: request.turnChannel,
+			turnId: request.turnId,
+			reason: { kind: 'rejected', error: disposition.error },
+			clientContext: request.clientContext,
+		});
 		return undefined;
 	}
 
@@ -77,11 +99,19 @@ export function startTurn(accessor: ServicesAccessor, request: ITurnStartRequest
 
 	const agent = providerService.getProviderForSession(request.session);
 	if (!agent) {
+		const error: ErrorInfo = { errorType: 'noAgent', message: 'No agent found for session' };
 		stateManager.dispatchServerAction(request.turnChannel, {
 			type: ActionType.ChatError,
 			turnId: request.turnId,
 			duration: Math.max(0, request.turnStopWatch.elapsed()),
-			part: createErrorResponsePart({ errorType: 'noAgent', message: 'No agent found for session' }),
+			part: createErrorResponsePart(error),
+		});
+		chatContributions.turnEnd({
+			session: request.session,
+			channel: request.turnChannel,
+			turnId: request.turnId,
+			reason: { kind: 'rejected', error },
+			clientContext: request.clientContext,
 		});
 		return undefined;
 	}

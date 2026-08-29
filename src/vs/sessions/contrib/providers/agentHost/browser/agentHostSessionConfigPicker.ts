@@ -103,7 +103,7 @@ export interface IConfigPickerItem {
 	readonly checked?: boolean;
 }
 
-export function getConfigIcon(property: string, value: unknown | undefined): ThemeIcon | undefined {
+export function getConfigIcon(property: string, value: unknown | undefined, hasUncommittedChanges = false): ThemeIcon | undefined {
 	if (property === SessionConfigKey.Isolation) {
 		if (value === 'folder') {
 			return Codicon.folder;
@@ -113,7 +113,9 @@ export function getConfigIcon(property: string, value: unknown | undefined): The
 		}
 	}
 	if (property === SessionConfigKey.Branch) {
-		return Codicon.gitBranch;
+		return hasUncommittedChanges
+			? Codicon.gitBranchChanges
+			: Codicon.gitBranch;
 	}
 	if (property === SessionConfigKey.AutoApprove) {
 		if (value === 'autopilot') {
@@ -130,20 +132,51 @@ export function getConfigIcon(property: string, value: unknown | undefined): The
 	return undefined;
 }
 
-function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: unknown | undefined, policyRestricted?: boolean): IActionListItem<IConfigPickerItem>[] {
-	return items.map(item => {
+function formatUncommittedChanges(count: number): string {
+	return count === 1
+		? localize('agentHostSessionConfig.branchItemUncommittedSingular', "1 uncommitted file")
+		: localize('agentHostSessionConfig.branchItemUncommittedPlural', "{0} uncommitted files", count);
+}
+
+function getBranchUncommittedChanges(branchName: string, repositoryBranchName: string | undefined, repositoryUncommittedChanges: number | undefined): number | undefined {
+	return branchName === repositoryBranchName && (repositoryUncommittedChanges ?? 0) > 0
+		? repositoryUncommittedChanges
+		: undefined;
+}
+
+function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: unknown | undefined, policyRestricted?: boolean, repositoryBranchName?: string, repositoryUncommittedChanges?: number): IActionListItem<IConfigPickerItem>[] {
+	const actionItems: IActionListItem<IConfigPickerItem>[] = items.map(item => {
 		const disabled = property === SessionConfigKey.AutoApprove && isAutoApproveValuePolicyRestricted(item.value, policyRestricted === true);
+		const checked = isSelectedValue(currentValue, item.value);
+		const uncommittedChanges = property === SessionConfigKey.Branch
+			? getBranchUncommittedChanges(item.value, repositoryBranchName, repositoryUncommittedChanges)
+			: undefined;
+		const uncommittedChangesDescription = uncommittedChanges !== undefined ? formatUncommittedChanges(uncommittedChanges) : undefined;
 		return {
 			kind: ActionListItemKind.Action,
 			label: item.label,
 			detail: disabled
 				? localize('agentHostSessionConfig.policyDisabled', "Disabled by your organization. Contact your administrator.")
-				: item.description,
-			group: { title: '', icon: getConfigIcon(property, item.value) },
+				: uncommittedChangesDescription ?? item.description,
+			group: { title: '', icon: getConfigIcon(property, item.value, uncommittedChanges !== undefined) },
+			ariaDescription: uncommittedChangesDescription,
 			disabled,
-			item: { ...item, checked: isSelectedValue(currentValue, item.value) },
+			item: { ...item, checked },
 		};
 	});
+
+	if (property === SessionConfigKey.Branch) {
+		const currentIndex = actionItems.findIndex(item => item.item?.checked);
+		if (currentIndex >= 0) {
+			const [current] = actionItems.splice(currentIndex, 1);
+			actionItems.unshift(current);
+			if (actionItems.length > 1) {
+				actionItems.splice(1, 0, { kind: ActionListItemKind.Separator, label: '' });
+			}
+		}
+	}
+
+	return actionItems;
 }
 
 function isSelectedValue(currentValue: unknown | undefined, itemValue: string): boolean {
@@ -215,8 +248,8 @@ async function confirmAutoApproveLevel(value: string, label: string, dialogServi
 function triggerAriaLabel(title: string, label: string, isReadOnly: boolean, hasUncommittedChanges: boolean): string {
 	if (hasUncommittedChanges) {
 		return isReadOnly
-			? localize('agentHostSessionConfig.triggerAriaReadOnlyUncommitted', "{0}: {1}, Uncommitted Changes, Read-Only", title, label)
-			: localize('agentHostSessionConfig.triggerAriaUncommitted', "{0}: {1}, Uncommitted Changes", title, label);
+			? localize('agentHostSessionConfig.triggerAriaReadOnlyUncommitted', "{0}: {1}, Uncommitted Files, Read-Only", title, label)
+			: localize('agentHostSessionConfig.triggerAriaUncommitted', "{0}: {1}, Uncommitted Files", title, label);
 	}
 
 	return isReadOnly
@@ -584,7 +617,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		trigger.setAttribute('aria-label', triggerAriaLabel(schema.title, label, isReadOnly, false));
 
 		if (property === SessionConfigKey.Branch && icon && iconElement) {
-			this._trackBranchRepositoryState(trigger, iconElement, icon, schema, label, isReadOnly);
+			this._trackBranchRepositoryState(trigger, iconElement, icon, schema, label, value, isReadOnly);
 		} else if (property === SessionConfigKey.AutoApprove) {
 			trigger.classList.toggle('warning', value === 'autopilot' || value === 'assisted');
 			trigger.classList.toggle('info', value === 'autoApprove');
@@ -593,20 +626,17 @@ export class AgentHostSessionConfigPicker extends Disposable {
 
 	/**
 	 * Keeps the Branch chip's glyph, aria label, and hover in sync with the
-	 * uncommitted-changes count reported by the agent host.
+	 * checked-out branch and uncommitted-changes count reported by the agent host.
 	 *
-	 * Dirtiness is ambient repository state rather than a property of the
-	 * selected branch, which is why it is applied to the chip here instead of
-	 * inside {@link getConfigIcon} — that function also renders every row of
-	 * the branch dropdown and of the mobile repository sheet, where a
-	 * repository-level glyph would be meaningless.
+	 * The chip only adopts the dirty state when its selected base branch matches
+	 * the repository's checked-out branch. Picker rows apply the same rule.
 	 *
 	 * The state is patched onto the existing nodes rather than routed through
 	 * `_renderConfigPickers`, which tears the whole chip row down: the host
 	 * re-probes git whenever it observes a file change, so a flip while the
 	 * user has the branch dropdown open would otherwise destroy its anchor.
 	 */
-	private _trackBranchRepositoryState(trigger: HTMLElement, iconElement: HTMLElement, icon: ThemeIcon, schema: SessionConfigPropertySchema, label: string, isReadOnly: boolean): void {
+	private _trackBranchRepositoryState(trigger: HTMLElement, iconElement: HTMLElement, icon: ThemeIcon, schema: SessionConfigPropertySchema, label: string, value: unknown | undefined, isReadOnly: boolean): void {
 		let appliedHoverContent: string | undefined;
 		const hover = this._renderDisposables.add(new MutableDisposable<IDisposable>());
 
@@ -617,8 +647,11 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			// still resolving its directory — and an unknown state must never
 			// render as if the repository were dirty.
 			const session = this._session.read(reader);
-			const uncommittedChanges = session?.workspace.read(reader)?.folders[0]?.gitRepository?.uncommittedChanges;
-			const hasUncommittedChanges = (uncommittedChanges ?? 0) > 0;
+			const repository = session?.workspace.read(reader)?.folders[0]?.gitRepository;
+			const uncommittedChanges = typeof value === 'string'
+				? getBranchUncommittedChanges(value, repository?.branchName, repository?.uncommittedChanges)
+				: undefined;
+			const hasUncommittedChanges = uncommittedChanges !== undefined;
 
 			iconElement.className = '';
 			iconElement.classList.add(...ThemeIcon.asClassNameArray(hasUncommittedChanges ? Codicon.gitBranchChanges : icon));
@@ -628,8 +661,8 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			const content = !hasUncommittedChanges
 				? branchName
 				: uncommittedChanges === 1
-					? localize('agentHostSessionConfig.branchHoverUncommittedChangeWithDescription', "{0}, {1} uncommitted change", branchName, uncommittedChanges)
-					: localize('agentHostSessionConfig.branchHoverUncommittedChangesWithDescription', "{0}, {1} uncommitted changes", branchName, uncommittedChanges);
+					? localize('agentHostSessionConfig.branchHoverUncommittedChangeWithDescription', "{0}, {1} uncommitted file", branchName, uncommittedChanges)
+					: localize('agentHostSessionConfig.branchHoverUncommittedChangesWithDescription', "{0}, {1} uncommitted files", branchName, uncommittedChanges);
 
 			// This autorun re-runs for any workspace change, not just an
 			// uncommitted-changes flip, so only touch the hover when the text
@@ -749,7 +782,10 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		const isAutoApproveProperty = property === SessionConfigKey.AutoApprove;
 		const currentValue = provider.getSessionConfig(sessionId)?.values[property] ?? schema.default;
 		const currentItem = items.find(i => isSelectedValue(currentValue, i.value));
-		const actionItems = toActionItems(property, items, currentValue, policyRestricted);
+		const repositoryState = property === SessionConfigKey.Branch
+			? this._getRepositoryBranchState(sessionId)
+			: undefined;
+		const actionItems = toActionItems(property, items, currentValue, policyRestricted, repositoryState?.branchName, repositoryState?.uncommittedChanges);
 
 		const delegate: IActionListDelegate<IConfigPickerItem> = {
 			onSelect: async item => {
@@ -779,7 +815,8 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				? query => this._filterDelayer.trigger(async () => {
 					const filteredRawItems = await this._getItems(provider, sessionId, property, schema, query);
 					const { items: filteredItems, policyRestricted: filteredPolicyRestricted } = applyAutoApproveFiltering(filteredRawItems, property, this._configurationService);
-					return toActionItems(property, filteredItems, provider.getSessionConfig(sessionId)?.values[property] ?? schema.default, filteredPolicyRestricted);
+					const filteredRepositoryState = this._getRepositoryBranchState(sessionId);
+					return toActionItems(property, filteredItems, provider.getSessionConfig(sessionId)?.values[property] ?? schema.default, filteredPolicyRestricted, filteredRepositoryState.branchName, filteredRepositoryState.uncommittedChanges);
 				})
 				: undefined,
 			onHide: () => trigger.focus(),
@@ -794,13 +831,26 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			undefined,
 			[],
 			{
-				getAriaLabel: item => item.label ?? '',
+				getAriaLabel: item => item.ariaDescription
+					? localize('agentHostSessionConfig.itemAriaLabelWithDescription', "{0}, {1}", item.label ?? '', item.ariaDescription)
+					: item.label ?? '',
 				getWidgetAriaLabel: () => localize('agentHostSessionConfig.ariaLabel', "{0} Picker", schema.title),
 			},
-			actionItems.length > 10
+			items.length > 10
 				? { showFilter: true, filterPlaceholder: localize('agentHostSessionConfig.filter', "Filter options..."), minWidth: 255 }
 				: { minWidth: 255 },
 		);
+	}
+
+	protected _getRepositoryBranchState(sessionId: string): { branchName: string | undefined; uncommittedChanges: number | undefined } {
+		const session = this._session.get();
+		const repository = session?.sessionId === sessionId
+			? session.workspace.get()?.folders[0]?.gitRepository
+			: undefined;
+		return {
+			branchName: repository?.branchName,
+			uncommittedChanges: repository?.uncommittedChanges,
+		};
 	}
 
 	protected async _getItems(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: SessionConfigPropertySchema, query?: string): Promise<readonly IConfigPickerItem[]> {
@@ -1007,6 +1057,7 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 
 		const isolationValue = config.values[SessionConfigKey.Isolation];
 		const branchValue = config.values[SessionConfigKey.Branch];
+		const repositoryState = this._getRepositoryBranchState(sessionId);
 		const sheetItems: IMobilePickerSheetItem[] = [];
 
 		const idToConfig = new Map<string, { property: string; value: string; label: string; isPII: boolean }>();
@@ -1030,11 +1081,15 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 		const branchSectionTitle = branchSchema?.title ?? localize('mobileAgentHostSessionConfig.repoSheet.branchSection', "Base Branch");
 		if (!branchSchema?.enumDynamic) {
 			branchItems.forEach((item, index) => {
+				const uncommittedChanges = getBranchUncommittedChanges(item.value, repositoryState.branchName, repositoryState.uncommittedChanges);
+
 				sheetItems.push({
 					id: registerId(SessionConfigKey.Branch, item.value, item.label, !!branchSchema?.enumDynamic),
 					label: item.label,
-					description: item.description,
-					icon: getConfigIcon(SessionConfigKey.Branch, item.value),
+					description: uncommittedChanges !== undefined
+						? formatUncommittedChanges(uncommittedChanges)
+						: item.description,
+					icon: getConfigIcon(SessionConfigKey.Branch, item.value, uncommittedChanges !== undefined),
 					checked: item.value === branchValue,
 					sectionTitle: index === 0 ? branchSectionTitle : undefined,
 				});
@@ -1059,13 +1114,19 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 					if (token.isCancellationRequested) {
 						return [];
 					}
-					return items.map(item => ({
-						id: registerId(SessionConfigKey.Branch, item.value, item.label, !!branchSchema.enumDynamic),
-						label: item.label,
-						description: item.description,
-						icon: getConfigIcon(SessionConfigKey.Branch, item.value),
-						checked: item.value === branchValue,
-					}));
+					return items.map(item => {
+						const uncommittedChanges = getBranchUncommittedChanges(item.value, repositoryState.branchName, repositoryState.uncommittedChanges);
+
+						return {
+							id: registerId(SessionConfigKey.Branch, item.value, item.label, !!branchSchema.enumDynamic),
+							label: item.label,
+							description: uncommittedChanges !== undefined
+								? formatUncommittedChanges(uncommittedChanges)
+								: item.description,
+							icon: getConfigIcon(SessionConfigKey.Branch, item.value, uncommittedChanges !== undefined),
+							checked: item.value === branchValue,
+						};
+					});
 				},
 			};
 		}

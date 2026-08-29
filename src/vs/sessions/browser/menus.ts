@@ -18,6 +18,7 @@ export const Menus = {
 	TitleBarCenterRight: new MenuId('SessionsTitleBarCenterRight'),
 	TitleBarSessionTitle: new MenuId('SessionsTitleBarSessionTitle'),
 	TitleBarSessionMenu: new MenuId('SessionsTitleBarSessionMenu'),
+	TitleBarAccessibility: new MenuId('SessionsTitleBarAccessibility'),
 	TitleBarUpdate: new MenuId('SessionsTitleBarUpdate'),
 	BlockedSessionsHeader: new MenuId('SessionsBlockedSessionsHeader'),
 	BlockedSessionsItem: new MenuId('SessionsBlockedSessionsItem'),
@@ -41,8 +42,12 @@ export const Menus = {
 
 	/** Header actions of the Automations custom view. */
 	CustomViewAutomations: new MenuId('SessionsCustomViewAutomations'),
+	/** Context menu actions for an Automation definition card. */
+	AutomationCardContext: new MenuId('SessionsAutomationCardContext'),
 	/** Unified toolbar for all session-backed Automation history rows. Actions are conditionally shown via sessionItem.status context key. */
 	AutomationsHistoryItem: new MenuId('SessionsAutomationsHistoryItem'),
+	/** Context menu for session-backed Automation history rows. */
+	AutomationsHistoryItemContext: new MenuId('SessionsAutomationsHistoryItemContext'),
 
 	NewSessionConfig: new MenuId('NewSessions.SessionConfigMenu'),
 	NewSessionControl: new MenuId('NewSessions.SessionControlMenu'),
@@ -59,6 +64,18 @@ export const Menus = {
 	SessionsEditorTabsBarContext: new MenuId('SessionsEditorTabsBarContext'),
 	SessionsEditorTabsBarAddTab: new MenuId('SessionsEditorTabsBarAddTab'),
 	SessionHeaderMeta: new MenuId('SessionsSessionHeaderMeta'),
+
+	/**
+	 * Entries merged into the dropdown of the changes button bar's primary
+	 * button. A submenu contributed to its `primary` group names a group of
+	 * related actions and takes over the button when it applies.
+	 */
+	ChangesOperationsDropdown: new MenuId('SessionsChangesOperationsDropdown'),
+	/** Agent Merge's own entries, opened as a context menu from its button. */
+	ChangesAgentMerge: new MenuId('SessionsChangesAgentMerge'),
+	/** Choices for when Agent Merge may merge the pull request. */
+	ChangesAgentMergeMergePullRequest: new MenuId('SessionsChangesAgentMergeMergePullRequest'),
+
 	SessionHeaderContext: MenuId.SessionHeaderContext,
 	SessionItemContextMenu: MenuId.SessionItemContextMenu,
 } as const;

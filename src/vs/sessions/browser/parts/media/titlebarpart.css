@@ -97,6 +97,8 @@
 	flex-shrink: 0;
 	-webkit-app-region: no-drag;
 	height: 100%;
+	position: relative;
+	z-index: 2500;
 }
 
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container:not(.has-no-actions) {
@@ -105,6 +107,10 @@
 }
 
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-update-container:not(.has-no-actions) {
+	margin-right: var(--vscode-spacing-size40);
+}
+
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-screen-reader-container:not(.has-no-actions) {
 	margin-right: var(--vscode-spacing-size40);
 }
 

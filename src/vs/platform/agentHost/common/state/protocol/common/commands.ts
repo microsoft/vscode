@@ -281,7 +281,7 @@ export interface InitializeResult {
 	telemetry?: TelemetryCapabilities;
 	/**
 	 * Host-owned automation support. Presence means clients may subscribe to
-	 * `ahp-automations://` for {@link AutomationCatalogState}; absence means the
+	 * `ahp-automations://catalog` for {@link AutomationCatalogState}; absence means the
 	 * host does not expose an automation catalogue or automation commands.
 	 *
 	 * @see {@link /guide/automations | Automations Guide}
@@ -292,7 +292,7 @@ export interface InitializeResult {
 /**
  * Automation features supported by this host authority.
  *
- * The presence of this object advertises the baseline `ahp-automations://`
+ * The presence of this object advertises the baseline `ahp-automations://catalog`
  * catalogue. Optional fields describe additional host features and
  * restrictions.
  *

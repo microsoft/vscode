@@ -174,10 +174,25 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._openSessionDisposables.add(this._handleContextKeys(session));
 
 		this._header.setSession(session);
-		if (session) {
-			this._standaloneView.clear();
-			this._contentContainer.replaceChildren(this._groupsView.element);
-			this._groupsView.setSession(session, options);
+		if (session && !session.isCreated.get()) {
+			this._groupsView.setSession(undefined, options);
+			let view = this._standaloneView.value;
+			if (!view || view.kind !== 'newSession') {
+				view = this._chatViewFactory.createNewChatView(false, options);
+				this._standaloneView.value = view;
+			}
+			if (view.element.parentElement !== this._contentContainer) {
+				this._contentContainer.replaceChildren(view.element);
+			}
+			view.setActive(this._isActive);
+			view.setVisible(this._isVisible);
+			this._openSessionDisposables.add(autorun(reader => {
+				if (session.isCreated.read(reader) && this._currentSession === session) {
+					this._showSessionGroups(session, options);
+				}
+			}));
+		} else if (session) {
+			this._showSessionGroups(session, options);
 		} else {
 			this._groupsView.setSession(undefined, options);
 			const view = this._chatViewFactory.createNewChatView(false, options);
@@ -187,6 +202,13 @@ export class SessionView extends Disposable implements ISerializableView {
 			view.setVisible(this._isVisible);
 		}
 		this._floatingToolbar.setSession(session);
+		this._layoutChildren();
+	}
+
+	private _showSessionGroups(session: IActiveSession, options: ISessionViewOptions): void {
+		this._standaloneView.clear();
+		this._contentContainer.replaceChildren(this._groupsView.element);
+		this._groupsView.setSession(session, options);
 		this._layoutChildren();
 	}
 

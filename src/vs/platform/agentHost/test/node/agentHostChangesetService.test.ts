@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -50,6 +51,7 @@ function createSubscriptionService(...changesets: string[]): IAgentHostChangeset
 	return {
 		_serviceBrand: undefined,
 		subscriptions,
+		onDidChangeSessionSubscriptions: Event.None,
 		getSessionSubscriptions: () => subscriptions,
 		addSubscription: (_session, changeset) => { subscriptions.add(changeset); },
 		removeSubscription: (_session, changeset) => { subscriptions.delete(changeset); },
@@ -628,7 +630,7 @@ suite.skip('AgentHostChangesetService', () => {
 		});
 	});
 
-	suite('deferred refresh (working directory unknown)', () => {
+	suite('materialization refresh (working directory unknown)', () => {
 
 		function createDeferringService(subscriptions: Iterable<string> = []): { service: AgentHostChangesetService; localStateManager: AgentHostStateManager; computes: string[]; subscriptions: Set<string> } {
 			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
@@ -668,7 +670,7 @@ suite.skip('AgentHostChangesetService', () => {
 			return sessionStr;
 		}
 
-		test('refreshSessionChangeset / refreshBranchChangeset defer until the working directory is known, then drain the subscribed changesets', async () => {
+		test('refreshSessionChangeset / refreshBranchChangeset skip until the working directory is known, then recompute the subscribed changesets', async () => {
 			const sessionStr = sessionUri.toString();
 			const { service, localStateManager, computes } = createDeferringService([
 				buildBranchChangesetUri(sessionStr),
@@ -688,13 +690,13 @@ suite.skip('AgentHostChangesetService', () => {
 			assert.deepStrictEqual(computes.sort(), ['session', 'session']);
 		});
 
-		test('computeUncommittedChangeset defers until the working directory is known, then drains', async () => {
+		test('computeUncommittedChangeset skips until the working directory is known, then recomputes', async () => {
 			const sessionStr = sessionUri.toString();
 			const { service, localStateManager, computes } = createDeferringService([buildUncommittedChangesetUri(sessionStr)]);
 			createSessionState(localStateManager, undefined);
 
 			await service.computeUncommittedChangeset(sessionStr);
-			assert.deepStrictEqual(computes, [], 'uncommitted compute deferred while the working directory is unknown');
+			assert.deepStrictEqual(computes, [], 'uncommitted compute skipped while the working directory is unknown');
 
 			const summary = localStateManager.getSessionSummary(sessionStr)!;
 			localStateManager.markSessionPersisted(sessionStr, { ...summary, workingDirectories: ['file:///wd'] });
@@ -703,7 +705,7 @@ suite.skip('AgentHostChangesetService', () => {
 			assert.deepStrictEqual(computes, ['uncommitted']);
 		});
 
-		test('a changeset unsubscribed before materialization is naturally skipped on drain', async () => {
+		test('a changeset unsubscribed before materialization is skipped', async () => {
 			const sessionStr = sessionUri.toString();
 			const { service, localStateManager, computes, subscriptions } = createDeferringService([buildSessionChangesetUri(sessionStr)]);
 			createSessionState(localStateManager, undefined);
@@ -719,26 +721,6 @@ suite.skip('AgentHostChangesetService', () => {
 			assert.deepStrictEqual(computes, []);
 		});
 
-		test('onSessionDisposed clears every pending refresh for the session', async () => {
-			const sessionStr = sessionUri.toString();
-			const { service, localStateManager, computes } = createDeferringService([
-				buildBranchChangesetUri(sessionStr),
-				buildSessionChangesetUri(sessionStr),
-				buildUncommittedChangesetUri(sessionStr),
-			]);
-			createSessionState(localStateManager, undefined);
-
-			service.refreshBranchChangeset(sessionStr);
-			service.refreshSessionChangeset(sessionStr);
-			await service.computeUncommittedChangeset(sessionStr);
-			service.onSessionDisposed(sessionStr);
-
-			const summary = localStateManager.getSessionSummary(sessionStr)!;
-			localStateManager.markSessionPersisted(sessionStr, { ...summary, workingDirectories: ['file:///wd'] });
-			service.onWorkingDirectoryAvailable(sessionStr);
-			await timeout(0);
-			assert.deepStrictEqual(computes, []);
-		});
 	});
 
 	suite('restorePersistedStaticChangesets', () => {
@@ -1266,6 +1248,68 @@ suite.skip('AgentHostChangesetService', () => {
 			assert.strictEqual(state?.status, 'error');
 			assert.ok(state?.error?.message.includes('git'), `expected git-failure error message, got ${state?.error?.message}`);
 		});
+	});
+});
+
+suite('AgentHostChangesetService - materialization refresh', () => {
+
+	const disposables = new DisposableStore();
+
+	teardown(() => {
+		disposables.clear();
+	});
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('recomputes an uncommitted subscription added after worktree pending clears but before materialization', async () => {
+		const sessionStr = AgentSession.uri('mock', 'session-materialization').toString();
+		const sourceDirectory = 'file:///repo/source';
+		const worktreeDirectory = 'file:///repo/worktree';
+		const computedWorkingDirectories: string[] = [];
+		const gitService = createNoopGitService();
+		gitService.computeSessionFileDiffs = async workingDirectory => {
+			computedWorkingDirectories.push(workingDirectory.toString());
+			return [];
+		};
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const diffService = new TestDiffComputeService();
+		class TestableChangesetService extends TestAgentHostChangesetService {
+			protected override _createDiffComputeService() {
+				return diffService;
+			}
+		}
+		const subscriptionService = createSubscriptionService();
+		const service = disposables.add(new TestableChangesetService(
+			stateManager,
+			new NullLogService(),
+			createNullSessionDataService(),
+			gitService,
+			NULL_CHECKPOINT_SERVICE,
+			disposables.add(new AgentConfigurationService(stateManager, new NullLogService())),
+			createOperationService(),
+			subscriptionService,
+			NULL_REVIEW_SERVICE,
+			NullTelemetryService,
+		));
+		stateManager.createSession({
+			resource: sessionStr,
+			provider: 'mock',
+			title: 'Test',
+			status: SessionStatus.Idle,
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
+			workingDirectories: [sourceDirectory],
+		}, { emitNotification: false });
+
+		const uncommittedChangeset = buildUncommittedChangesetUri(sessionStr);
+		subscriptionService.addSubscription(sessionStr, uncommittedChangeset);
+		await service.computeUncommittedChangeset(sessionStr);
+
+		const summary = stateManager.getSessionSummary(sessionStr)!;
+		stateManager.markSessionPersisted(sessionStr, { ...summary, workingDirectories: [worktreeDirectory] });
+		service.onWorkingDirectoryAvailable(sessionStr);
+		await timeout(0);
+
+		assert.deepStrictEqual(computedWorkingDirectories, [sourceDirectory, worktreeDirectory]);
 	});
 });
 

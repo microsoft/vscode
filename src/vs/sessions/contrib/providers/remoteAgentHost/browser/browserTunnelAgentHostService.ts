@@ -10,9 +10,10 @@ import { agentsWindowAgentHostClientInfo } from '../../../../../platform/agentHo
 import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { IRemoteAgentHostLocationPreferenceService } from '../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { ReconnectingTransport, type IEstablishedTransport } from '../../../../../platform/agentHost/common/reconnectingTransport.js';
 import { PROTOCOL_VERSION } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import type { AhpServerNotification, JsonRpcResponse, ProtocolMessage } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import type { IProtocolTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
+import { NonReconnectableTransportError, type IProtocolTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 import {
 	TunnelAgentHostConnector,
 	parseTunnelInfo,
@@ -23,6 +24,7 @@ import {
 } from '../../../../../platform/agentHost/common/tunnelAgentHostConnector.js';
 import {
 	isTunnelGatewaySelectionRejectedError,
+	isTunnelNotFoundError,
 	TUNNEL_ADDRESS_PREFIX,
 	TUNNEL_GATEWAY_MIN_PROTOCOL_VERSION,
 	TUNNEL_LAUNCHER_LABEL,
@@ -231,9 +233,57 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 		if (!result) {
 			return;
 		}
-		const transport = new BrowserTunnelConnectionTransport(result.connectionId, this._connector, this._logService);
+		let useSeedConnection = true;
+		const establish = async (): Promise<IEstablishedTransport> => {
+			if (useSeedConnection) {
+				useSeedConnection = false;
+				// The initial relay is already owned by the transport established for this managed connection.
+				return { transport: new BrowserTunnelConnectionTransport(result.connectionId, this._connector, this._logService) };
+			}
+
+			const authForReconnect = await this._getTokenForProvider(auth.provider, true);
+			if (!authForReconnect) {
+				throw new NonReconnectableTransportError('No cached authentication available to reconnect the tunnel.');
+			}
+
+			try {
+				const reconnected = await connectThroughTunnelGateway(
+					this._connector,
+					this._resolveGatewaySelection,
+					this._locationPreferenceService,
+					this._dialogService,
+					this._productService.nameShort,
+					authForReconnect,
+					tunnel,
+					false,
+				);
+				if (!reconnected) {
+					throw new NonReconnectableTransportError('Tunnel agent host selection requires user interaction.');
+				}
+				try {
+					return {
+						transport: new BrowserTunnelConnectionTransport(reconnected.connectionId, this._connector, this._logService),
+						close: () => this._connector.disconnect(reconnected.connectionId),
+					};
+				} catch (error) {
+					await this._connector.disconnect(reconnected.connectionId);
+					throw error;
+				}
+			} catch (error) {
+				if (isTunnelNotFoundError(error)) {
+					throw new NonReconnectableTransportError(error.message);
+				}
+				throw error;
+			}
+		};
+		const transportFactory = () => new ReconnectingTransport(
+			establish,
+			this._logService,
+			LOG_PREFIX,
+			AgentHostClientConnectionKind.DevTunnel,
+		);
 		const protocolClient = this._instantiationService.createInstance(
-			AgentHostProtocolClient, result.address, transport, undefined, undefined, agentsWindowAgentHostClientInfo,
+			AgentHostProtocolClient, result.address, transportFactory, { clientInfo: agentsWindowAgentHostClientInfo },
 		);
 
 		let status: RemoteAgentHostConnectionStatus = RemoteAgentHostConnectionStatus.connected;
