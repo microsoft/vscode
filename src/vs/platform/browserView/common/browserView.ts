@@ -33,6 +33,7 @@ export enum BrowserViewCommandId {
 	FocusUrlInput = `${commandPrefix}.focusUrlInput`,
 	OpenExternal = `${commandPrefix}.openExternal`,
 	OpenSettings = `${commandPrefix}.openSettings`,
+	SavePage = `${commandPrefix}.savePage`,
 
 	// Favorites
 	ToggleFavorite = `${commandPrefix}.toggleFavorite`,
@@ -621,6 +622,13 @@ export interface IBrowserViewService {
 	 * @returns Screenshot as a buffer
 	 */
 	captureScreenshot(id: string, options?: IBrowserViewCaptureScreenshotOptions): Promise<VSBuffer>;
+
+	/**
+	 * Save the browser view's current page as MHTML.
+	 * @param id The browser view identifier
+	 * @param fullPath The absolute file path to save to
+	 */
+	savePage(id: string, fullPath: string): Promise<void>;
 
 	/**
 	 * Focus the browser view

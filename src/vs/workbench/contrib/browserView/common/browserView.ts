@@ -418,6 +418,7 @@ export interface IBrowserViewModel extends IDisposable {
 	reload(hard?: boolean): Promise<void>;
 	toggleDevTools(): Promise<void>;
 	captureScreenshot(options?: IBrowserViewCaptureScreenshotOptions): Promise<VSBuffer>;
+	savePage(fullPath: string): Promise<void>;
 	focus(force?: boolean): Promise<void>;
 	findInPage(text: string, options?: IBrowserViewFindInPageOptions): Promise<void>;
 	stopFindInPage(keepSelection?: boolean): Promise<void>;
@@ -761,6 +762,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 			this._screenshot = result;
 		}
 		return result;
+	}
+
+	async savePage(fullPath: string): Promise<void> {
+		return this.browserViewService.savePage(this.id, fullPath);
 	}
 
 	async focus(force?: boolean): Promise<void> {

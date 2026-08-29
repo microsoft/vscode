@@ -281,6 +281,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return this._getBrowserView(id).captureScreenshot(options);
 	}
 
+	async savePage(id: string, fullPath: string): Promise<void> {
+		return this._getBrowserView(id).savePage(fullPath);
+	}
+
 	async focus(id: string, force?: boolean): Promise<void> {
 		return this._getBrowserView(id).focus(force);
 	}

@@ -869,6 +869,13 @@ export class BrowserView extends Disposable {
 		return screenshot;
 	}
 
+	/**
+	 * Save the current page as MHTML.
+	 */
+	async savePage(fullPath: string): Promise<void> {
+		await this._view.webContents.savePage(fullPath, 'MHTML');
+	}
+
 	// Capture a screenshot of the full scrollable document (beyond the viewport) via CDP.
 	private async _captureFullPageScreenshot(format: 'jpeg' | 'png', quality: number): Promise<VSBuffer> {
 		const metrics = await this.debugger.sendCommand('Page.getLayoutMetrics') as { cssContentSize?: { width: number; height: number } };
