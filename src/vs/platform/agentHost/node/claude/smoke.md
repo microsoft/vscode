@@ -27,7 +27,7 @@ refs that change between runs.
 ## Prerequisites
 
 - A fresh build. Confirm via the `VS Code - Build` task or run
-  `npm run compile-check-ts-native` once.
+  `npm run typecheck-client` once.
 - `@playwright/cli` available (`npx @playwright/cli --version` should work).
 - A real GitHub Copilot login. Models only populate after authenticate, and
   the Anthropic catalog is only visible to authenticated Copilot accounts.

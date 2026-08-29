@@ -490,6 +490,7 @@ export interface RequestIdDetails {
 	readonly modeInstructions?: StoredModeInstructions;
 	readonly responseModelId?: string;
 	readonly creditsUsed?: number;
+	readonly isUsingAutoModel?: boolean;
 }
 
 /**
@@ -609,7 +610,7 @@ export function buildChatHistoryFromEvents(sessionId: string, modelId: string | 
 					}
 				});
 				((event.data.attachments || []))
-					.filter(attachment => attachment.type === 'selection' || attachment.type === 'github_reference' || attachment.type === 'blob' || attachment.type === 'extension_context' ? true : !isInstructionAttachmentPath(attachment.path))
+					.filter(attachment => attachment.type === 'selection' || attachment.type === 'github_reference' || attachment.type === 'blob' || attachment.type === 'github_actions_job' || attachment.type === 'github_url' || attachment.type === 'github_tree_comparison' || attachment.type === 'github_release' || attachment.type === 'github_repository' || attachment.type === 'github_file_diff' || attachment.type === 'github_commit' || attachment.type === 'github_file' || attachment.type === 'extension_context' ? true : !isInstructionAttachmentPath(attachment.path))
 					.forEach(attachment => {
 						if (attachment.type === 'github_reference') {
 							return;
@@ -642,9 +643,13 @@ export function buildChatHistoryFromEvents(sessionId: string, modelId: string | 
 								range
 							});
 						} else if (attachment.type === 'blob') {
+							if (typeof attachment.data !== 'string') {
+								return;
+							}
+							const data = attachment.data;
 							const binaryDataSupplier = async () => {
 								try {
-									return decodeBase64(attachment.data).buffer;
+									return decodeBase64(data).buffer;
 								} catch (error) {
 									logger.error(error, `Failed to decode blob attachment ${attachment.displayName || ''}`);
 									throw error;
@@ -700,7 +705,7 @@ export function buildChatHistoryFromEvents(sessionId: string, modelId: string | 
 				const resolvedRequestModelId = details?.responseModelId ?? currentModelId;
 				currentResponseModelId = resolvedRequestModelId;
 				currentCreditsUsed = details?.creditsUsed;
-				turns.push(new ChatRequestTurn2(`${commandPrefix}${prompt}`, undefined, references, '', [], undefined, details?.requestId ?? event.id, resolvedRequestModelId, modeInstructions2));
+				turns.push(new ChatRequestTurn2(`${commandPrefix}${prompt}`, undefined, references, '', [], undefined, details?.requestId ?? event.id, details?.isUsingAutoModel ? 'auto' : resolvedRequestModelId, modeInstructions2));
 				currentRequestTurnIndex = turns.length - 1;
 				continue;
 			}
@@ -1259,6 +1264,9 @@ function formatSearchToolInvocationCompleted(invocation: ChatToolInvocationPart,
 		}
 		const searchInPath = toolCall.arguments.path ? ` in \`${toolCall.arguments.path}\`` : '';
 		let files: string[] = [];
+		// TODO: Revisit this legacy SDK terminal content usage. SDK `terminal`
+		// content is deprecated for shell command exit metadata; this search
+		// result parsing should not rely on it long term.
 		if (Array.isArray(result.result?.contents) && result.result.contents.length > 0 && result.result.contents[0].type === 'terminal' && typeof result.result.contents[0].text === 'string') {
 			const matches = result.result.contents[0].text.trim();
 			const noMatches = matches.length === 0;

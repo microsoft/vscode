@@ -293,7 +293,7 @@ import { assertNoRpc, closeAllEditors } from '../utils';
 			throw new Error(`Timed out waiting for trust-harness title to update (target=${target}, last title=${tab.title})`);
 		}
 
-		test('file:// inside a trusted workspace folder loads', async function () {
+		test.skip('file:// inside a trusted workspace folder loads', async function () {
 			this.timeout(30_000);
 
 			const folders = workspace.workspaceFolders!;
@@ -303,7 +303,11 @@ import { assertNoRpc, closeAllEditors } from '../utils';
 			assert.ok(title.startsWith('status:200'), `Expected status 200 for trusted file, got: ${title}`);
 		});
 
-		test('file:// outside any trusted root is blocked with 403', async function () {
+		// Skipped: the test runner always launches with `--disable-workspace-trust`,
+		// which makes the browser view trust all `file://` requests (see
+		// `trustAllFiles` in `IBrowserViewWindowConfiguration`). Re-enable once the
+		// test infrastructure supports running with Workspace Trust enabled.
+		test.skip('file:// outside any trusted root is blocked with 403', async function () {
 			this.timeout(30_000);
 
 			const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'vscode-browser-trust-'));

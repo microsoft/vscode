@@ -274,6 +274,9 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 				kind: TabModelOperationKind.TAB_UPDATE
 			});
 		} else {
+			if (this._editorGroupsService.activeModalEditorPart?.groups.some(group => group.id === groupId)) {
+				return;
+			}
 			this._logService.error('Invalid model for label change, rebuilding');
 			this._createTabsModel();
 		}
@@ -311,7 +314,10 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 				if (!tabInfo) {
 					return;
 				}
-				tabInfo.tab = this._buildTabObject(group, editorInput, editorIndex);
+				// Refresh the DTO in place. The group's `tabs` array holds this very object,
+				// so swapping in a new one would leave that copy behind and let the two
+				// caches drift apart, e.g. a later update could re-send a stale `isActive`.
+				Object.assign(tabInfo.tab, this._buildTabObject(group, editorInput, editorIndex));
 				this._proxy.$acceptTabOperation({
 					groupId,
 					index: editorIndex,
@@ -377,8 +383,15 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 			return;
 		}
 		const activeTab = tabs[editorIndex];
-		// No need to loop over as the exthost uses the most recently marked active tab
 		activeTab.isActive = true;
+		// Clear the flag on the other tabs of the group. Otherwise a later `TAB_UPDATE`
+		// re-sending one of those still-cached DTOs (label, dirty, pin or preview change)
+		// would repoint the exthost at a tab that is no longer active.
+		for (const tab of tabs) {
+			if (tab !== activeTab) {
+				tab.isActive = false;
+			}
+		}
 		// Send DTO update to the exthost
 		this._proxy.$acceptTabOperation({
 			groupId,
@@ -530,26 +543,6 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		// notify the ext host of the new model
 		this._proxy.$acceptEditorTabModel(this._tabGroupModel);
 	}
-
-	// TODOD @lramos15 Remove this after done finishing the tab model code
-	// private _eventToString(event: IEditorsChangeEvent | IEditorsMoveEvent): string {
-	// 	let eventString = '';
-	// 	switch (event.kind) {
-	// 		case GroupModelChangeKind.GROUP_INDEX: eventString += 'GROUP_INDEX'; break;
-	// 		case GroupModelChangeKind.EDITOR_ACTIVE: eventString += 'EDITOR_ACTIVE'; break;
-	// 		case GroupModelChangeKind.EDITOR_PIN: eventString += 'EDITOR_PIN'; break;
-	// 		case GroupModelChangeKind.EDITOR_OPEN: eventString += 'EDITOR_OPEN'; break;
-	// 		case GroupModelChangeKind.EDITOR_CLOSE: eventString += 'EDITOR_CLOSE'; break;
-	// 		case GroupModelChangeKind.EDITOR_MOVE: eventString += 'EDITOR_MOVE'; break;
-	// 		case GroupModelChangeKind.EDITOR_LABEL: eventString += 'EDITOR_LABEL'; break;
-	// 		case GroupModelChangeKind.GROUP_ACTIVE: eventString += 'GROUP_ACTIVE'; break;
-	// 		case GroupModelChangeKind.GROUP_LOCKED: eventString += 'GROUP_LOCKED'; break;
-	// 		case GroupModelChangeKind.EDITOR_DIRTY: eventString += 'EDITOR_DIRTY'; break;
-	// 		case GroupModelChangeKind.EDITOR_STICKY: eventString += 'EDITOR_STICKY'; break;
-	// 		default: eventString += `UNKNOWN: ${event.kind}`; break;
-	// 	}
-	// 	return eventString;
-	// }
 
 	/**
 	 * The main handler for the tab events

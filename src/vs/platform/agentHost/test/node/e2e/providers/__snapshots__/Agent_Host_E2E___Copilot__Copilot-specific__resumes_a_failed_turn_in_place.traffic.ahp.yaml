@@ -1,0 +1,65 @@
+version: 1
+rounds:
+  - clientToServer:
+      - channel: ${session_0}
+        action:
+          type: session/titleChanged
+      - channel: ${chat_0}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_0}
+          message:
+            text: $error
+            origin:
+              kind: user
+    serverToClient:
+      - channel: ${session_0}
+        action:
+          type: session/titleChanged
+      - channel: ${chat_0}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_0}
+          message:
+            text: $error
+            origin:
+              kind: user
+      - method: root/sessionAdded
+      - channel: ${session_0}
+        action:
+          type: session/ready
+      - channel: ${chat_0}
+        action:
+          type: chat/error
+          turnId: ${turn_0}
+          part:
+            kind: error
+            error:
+              errorType: query
+              message: 'Execution failed: CAPIError: 400 Injected recoverable E2E failure.'
+            resumable: true
+  - clientToServer:
+      - channel: ${chat_0}
+        action:
+          type: chat/turnResume
+          turnId: ${turn_0}
+    serverToClient:
+      - channel: ${chat_0}
+        action:
+          type: chat/turnResume
+          turnId: ${turn_0}
+      - channel: ${chat_0}
+        action:
+          type: chat/turnResume
+          turnId: ${turn_0}
+      - channel: ${chat_0}
+        action:
+          type: chat/responsePart
+          turnId: ${turn_0}
+          part:
+            kind: markdown
+            content: It looks like your message came through empty (just "$error" with no actual content). Could you let me know what you'd like help with?
+      - channel: ${chat_0}
+        action:
+          type: chat/turnComplete
+          turnId: ${turn_0}

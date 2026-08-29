@@ -16,6 +16,7 @@ Integration tests in VS Code are split into two categories:
 - **Windows:** `.\scripts\test-integration.bat [options]`
 
 When run **without filters**, both scripts execute all node.js integration tests followed by all extension host tests.
+The deterministic Agent Host E2E entrypoints are parallelized across isolated test processes during the node.js phase, then excluded from the remaining serial node.js run.
 
 When run **with `--run` or `--runGlob`** (without `--suite`), only the node.js integration tests are run and the filter is applied. Extension host tests are skipped since these filters are node.js-specific.
 

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as l10n from '@vscode/l10n';
 import { Raw } from '@vscode/prompt-tsx';
 import type { OpenAI } from 'openai';
 import { Response } from '../../../platform/networking/common/fetcherService';
@@ -27,10 +28,10 @@ import { IChatWebSocketManager } from '../../networking/node/chatWebSocketManage
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { TelemetryData } from '../../telemetry/common/telemetryData';
-import { getVerbosityForModelSync } from '../common/chatModelCapabilities';
+import { getVerbosityForModelSync, modelSupportCacheBreakPoints } from '../common/chatModelCapabilities';
 import { rawPartAsCompactionData } from '../common/compactionDataContainer';
 import { rawPartAsPhaseData } from '../common/phaseDataContainer';
-import { getIndexOfStatefulMarker, getStatefulMarkerAndIndex } from '../common/statefulMarkerContainer';
+import { getIndexOfStatefulMarker, getStatefulMarkerAndIndex, MISSING_STATEFUL_TOOL_RESULT } from '../common/statefulMarkerContainer';
 import { rawPartAsThinkingData } from '../common/thinkingDataContainer';
 import { createResponsesStreamDumper } from './responsesApiDebugDump';
 
@@ -45,14 +46,18 @@ export function getResponsesApiCompactionThreshold(configService: IConfiguration
 		: 50000;
 }
 
+export function getVerbosityForModelSyncBasedOnExp(configService: IConfigurationService, expService: IExperimentationService, endpoint: IChatEndpoint): 'low' | 'medium' | 'high' | undefined {
+	return getVerbosityForModelSync(endpoint, configService.getExperimentBasedConfig(ConfigKey.EnableGpt56Verbosity, expService));
+}
+
 export function createResponsesRequestBody(accessor: ServicesAccessor, options: ICreateEndpointBodyOptions, model: string, endpoint: IChatEndpoint): IEndpointBody {
 	const configService = accessor.get(IConfigurationService);
 	const expService = accessor.get(IExperimentationService);
-	const verbosity = getVerbosityForModelSync(endpoint);
+	const verbosity = getVerbosityForModelSyncBasedOnExp(configService, expService, endpoint);
 	const compactThreshold = getResponsesApiCompactionThreshold(configService, expService, endpoint);
 	// compaction supported for all the models but works well for codex models and any future models after 5.3
 
-	const webSocketStatefulMarker = resolveWebSocketStatefulMarker(accessor, options);
+	const webSocketStatefulMarker = resolveWebSocketStatefulMarker(accessor, options, model);
 	// When WebSocket is in use, always defer to the WebSocket marker (which may be
 	// undefined if the connection is new or the summary state changed). Never fall
 	// back to the HTTP marker lookup in that case.
@@ -92,7 +97,7 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 				...tool.function,
 				type: 'function',
 				strict: false,
-				parameters: (tool.function.parameters || {}) as Record<string, unknown>,
+				parameters: (tool.function.parameters || { type: 'object', properties: {} }) as Record<string, unknown>,
 			});
 		}
 	}
@@ -123,13 +128,16 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 		? new Map(options.requestOptions.tools.map(t => [t.function.name, t]))
 		: undefined;
 	const shouldLoadToolFromToolSearch = shouldDeferTools ? (name: string) => !toolDeferralService!.isNonDeferredTool(name) : undefined;
-
+	const promptCacheBreakpointsEnabled = configService.getExperimentBasedConfig(ConfigKey.ResponsesApiPromptCacheBreakpointEnabled, expService);
+	const modelSupportsCacheBreakpoints = modelSupportCacheBreakPoints(endpoint);
+	const supportsCacheBreakpoints = promptCacheBreakpointsEnabled && modelSupportsCacheBreakpoints;
 	const body: IEndpointBody = {
 		model,
 		...rawMessagesToResponseAPI(model, options.messages, ignoreStatefulMarker, webSocketStatefulMarker, {
 			toolsMap,
 			shouldLoadToolFromToolSearch,
 			modeChanged,
+			supportsCacheBreakpoints,
 		}),
 		stream: true,
 		tools: finalTools.length > 0 ? finalTools : undefined,
@@ -142,6 +150,7 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 		top_logprobs: options.postOptions.logprobs ? 3 : undefined,
 		store: false,
 		text: verbosity ? { verbosity } : undefined,
+		prompt_cache_options: modelSupportsCacheBreakpoints ? { mode: supportsCacheBreakpoints ? 'explicit' : 'implicit' } : undefined,
 	};
 
 	if (compactThreshold !== undefined) {
@@ -155,14 +164,11 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 	body.truncation = configService.getConfig(ConfigKey.Advanced.UseResponsesApiTruncation) ?
 		'auto' :
 		'disabled';
-	const thinkingExplicitlyDisabled = options.modelCapabilities?.enableThinking === false;
-	const summaryConfig = configService.getExperimentBasedConfig(ConfigKey.ResponsesApiReasoningSummary, expService);
-	const shouldDisableReasoningSummary = endpoint.family === 'gpt-5.3-codex-spark-preview' || thinkingExplicitlyDisabled;
 	const effortFromSetting = configService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride);
 	const effort = endpoint.supportsReasoningEffort?.length
 		? (effortFromSetting || options.modelCapabilities?.reasoningEffort || 'medium')
 		: undefined;
-	const summary = summaryConfig === 'off' || shouldDisableReasoningSummary ? undefined : summaryConfig;
+	const summary: string | undefined = undefined;
 	if (effort || summary) {
 		body.reasoning = {
 			...(effort ? { effort } : {}),
@@ -282,29 +288,31 @@ interface ResponseStreamEventWithResponseOutput {
 	};
 }
 
-function resolveWebSocketStatefulMarker(accessor: ServicesAccessor, options: ICreateEndpointBodyOptions): string | undefined {
+function resolveWebSocketStatefulMarker(accessor: ServicesAccessor, options: ICreateEndpointBodyOptions, modelId: string): string | undefined {
 	if (options.ignoreStatefulMarker || !options.useWebSocket || !options.conversationId) {
 		return undefined;
 	}
 	const wsManager = accessor.get(IChatWebSocketManager);
+	const connectionKey = { conversationId: options.conversationId, modelId, connectionId: options.webSocketConnectionId };
 	// If client-side summarization state changed since the stateful marker
 	// was stored (new summary, or rollback removing a summary), the server's
 	// state no longer matches. Skip the marker so the full history is sent.
-	const connSummarizedAt = wsManager.getSummarizedAtRoundId(options.conversationId);
+	const connSummarizedAt = wsManager.getSummarizedAtRoundId(connectionKey);
 	if (options.summarizedAtRoundId !== connSummarizedAt) {
 		return undefined;
 	}
-	return wsManager.getStatefulMarker(options.conversationId);
+	return wsManager.getStatefulMarker(connectionKey);
 }
 
 interface RawMessagesToResponseAPIOptions {
 	readonly toolsMap?: Map<string, OpenAiFunctionTool>;
 	readonly shouldLoadToolFromToolSearch?: (name: string) => boolean;
 	readonly modeChanged?: boolean;
+	readonly supportsCacheBreakpoints?: boolean;
 }
 
 function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMessage[], ignoreStatefulMarker: boolean, webSocketStatefulMarker: string | undefined, options: RawMessagesToResponseAPIOptions = {}): { input: OpenAI.Responses.ResponseInputItem[]; previous_response_id?: string } {
-	const { toolsMap, shouldLoadToolFromToolSearch, modeChanged = false } = options;
+	const { toolsMap, shouldLoadToolFromToolSearch, modeChanged = false, supportsCacheBreakpoints = false } = options;
 	const latestCompactionMessageIndex = getLatestCompactionMessageIndex(messages);
 	const latestCompactionMessage = latestCompactionMessageIndex !== undefined ? createCompactionRoundTripMessage(messages[latestCompactionMessageIndex]) : undefined;
 
@@ -329,6 +337,14 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 	if (modeChanged) {
 		previousResponseId = undefined;
 		markerIndex = undefined;
+	}
+
+	let statefulToolCalls: Array<{ id: string; name: string }> = [];
+	if (markerIndex !== undefined) {
+		const markerMessage = messages[markerIndex];
+		if (markerMessage.role === Raw.ChatRole.Assistant && markerMessage.toolCalls?.length) {
+			statefulToolCalls = markerMessage.toolCalls.map(toolCall => ({ id: toolCall.id, name: toolCall.function.name }));
+		}
 	}
 
 	const toolSearchCallIds = new Set<string>();
@@ -373,7 +389,33 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 		messages = messages.slice(latestCompactionMessageIndex);
 	}
 
+	// The server retains calls from previous_response_id even when prompt pruning removes
+	// their local results. Close every call absent from the final post-marker message slice.
+	const sentToolResultIds = new Set(messages
+		.filter((message): message is Raw.ToolChatMessage => message.role === Raw.ChatRole.Tool)
+		.map(message => message.toolCallId));
+	statefulToolCalls = statefulToolCalls.filter(toolCall => !sentToolResultIds.has(toolCall.id));
+
 	const input: OpenAI.Responses.ResponseInputItem[] = [];
+	for (const toolCall of statefulToolCalls) {
+		if (toolCall.name === CUSTOM_TOOL_SEARCH_NAME) {
+			input.push({
+				type: 'tool_search_output',
+				execution: 'client',
+				call_id: toolCall.id,
+				status: 'completed',
+				tools: [],
+			} satisfies ResponsesToolSearchOutputInput as unknown as OpenAI.Responses.ResponseInputItem);
+		} else {
+			input.push({
+				type: 'function_call_output',
+				call_id: toolCall.id,
+				output: supportsCacheBreakpoints
+					? [{ type: 'input_text', text: MISSING_STATEFUL_TOOL_RESULT }]
+					: MISSING_STATEFUL_TOOL_RESULT,
+			});
+		}
+	}
 	for (const message of messages) {
 		switch (message.role) {
 			case Raw.ChatRole.Assistant:
@@ -435,6 +477,15 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 							tools: loadedTools,
 						} satisfies ResponsesToolSearchOutputInput as unknown as OpenAI.Responses.ResponseInputItem);
 					} else {
+						if (supportsCacheBreakpoints) {
+							input.push({
+								type: 'function_call_output',
+								call_id: message.toolCallId,
+								output: rawContentToResponsesContentList(message.content, true),
+							});
+							break;
+						}
+
 						const asText = message.content
 							.filter(c => c.type === Raw.ChatCompletionContentPartKind.Text)
 							.map(c => c.text)
@@ -451,22 +502,23 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 							.map(rawDocumentToResponsesInputFile)
 							.filter(isDefined);
 
-						// todod@connor4312: hack while responses API only supports text output from tools
+						// Preserve the legacy string output and synthetic media messages unless explicit
+						// prompt cache breakpoints are both enabled and supported by the model.
 						input.push({ type: 'function_call_output', call_id: message.toolCallId, output: asText });
 						if (asImages.length) {
-							input.push({ role: 'user', content: [{ type: 'input_text', text: 'Image associated with the above tool call:' }, ...asImages] });
+							input.push({ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Image associated with the above tool call:' }, ...asImages] });
 						}
 						if (asFiles.length) {
-							input.push({ role: 'user', content: [{ type: 'input_text', text: 'PDF associated with the above tool call:' }, ...asFiles] });
+							input.push({ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'PDF associated with the above tool call:' }, ...asFiles] });
 						}
 					}
 				}
 				break;
 			case Raw.ChatRole.User:
-				input.push({ role: 'user', content: message.content.map(rawContentToResponsesContent).filter(isDefined) });
+				input.push({ type: 'message', role: 'user', content: rawContentToResponsesContentList(message.content, supportsCacheBreakpoints) });
 				break;
 			case Raw.ChatRole.System:
-				input.push({ role: 'system', content: message.content.map(rawContentToResponsesContent).filter(isDefined) });
+				input.push({ type: 'message', role: 'system', content: rawContentToResponsesContentList(message.content, supportsCacheBreakpoints) });
 				break;
 		}
 	}
@@ -541,7 +593,9 @@ function rawDocumentToResponsesInputFile(part: RawDocumentContentPart): OpenAI.R
 	};
 }
 
-function rawContentToResponsesContent(part: Raw.ChatCompletionContentPart): OpenAI.Responses.ResponseInputContent | undefined {
+type ResponsesConvertibleContent = OpenAI.Responses.ResponseInputText | OpenAI.Responses.ResponseInputImage | OpenAI.Responses.ResponseInputFile;
+
+function rawContentToResponsesContent(part: Raw.ChatCompletionContentPart): ResponsesConvertibleContent | undefined {
 	switch (part.type) {
 		case Raw.ChatCompletionContentPartKind.Text:
 			return { type: 'input_text', text: part.text };
@@ -550,7 +604,7 @@ function rawContentToResponsesContent(part: Raw.ChatCompletionContentPart): Open
 		case Raw.ChatCompletionContentPartKind.Document:
 			return rawDocumentToResponsesInputFile(part);
 		case Raw.ChatCompletionContentPartKind.Opaque: {
-			const maybeCast = part.value as OpenAI.Responses.ResponseInputContent;
+			const maybeCast = part.value as ResponsesConvertibleContent;
 			if (maybeCast.type === 'input_text' || maybeCast.type === 'input_image' || maybeCast.type === 'input_file') {
 				return maybeCast;
 			}
@@ -567,11 +621,59 @@ function rawContentToResponsesAssistantContent(part: Raw.ChatCompletionContentPa
 	}
 }
 
+interface ResponsesPromptCacheBreakpoint {
+	readonly mode: 'explicit';
+}
+
+type ResponsesCacheableContent = ResponsesConvertibleContent & {
+	prompt_cache_breakpoint?: ResponsesPromptCacheBreakpoint;
+};
+
+const promptCacheBreakpoint: ResponsesPromptCacheBreakpoint = { mode: 'explicit' };
+
+function rawContentToResponsesContentList(parts: readonly Raw.ChatCompletionContentPart[], supportsCacheBreakpoints: boolean): ResponsesConvertibleContent[] {
+	const content: ResponsesCacheableContent[] = [];
+	let target: ResponsesCacheableContent | undefined;
+	for (const part of parts) {
+		if (part.type === Raw.ChatCompletionContentPartKind.CacheBreakpoint) {
+			if (supportsCacheBreakpoints && target) {
+				target.prompt_cache_breakpoint = promptCacheBreakpoint;
+			}
+			continue;
+		}
+
+		const converted = rawContentToResponsesContent(part);
+		if (converted) {
+			target = converted;
+			content.push(target);
+		} else {
+			target = undefined;
+		}
+	}
+	return content;
+}
+
+/**
+ * The Responses API rejects the entire request with
+ * `400 invalid_request_body: Invalid 'input[N].id': '...'. Expected an ID that begins with 'rs'.`
+ * when a reasoning item is round-tripped with an id it did not issue. Reasoning items
+ * produced by the Responses API always carry an id beginning with `rs`. Thinking blocks
+ * that originated from a different API (e.g. the Anthropic Messages API, whose accumulator
+ * generates `thinking_<index>` ids) can leak into a Responses request — most notably via the
+ * `vscode.lm` access path, which has no model gate — and their `encrypted_content` is not a
+ * valid Responses reasoning blob anyway. Such foreign reasoning items must be dropped, not sent.
+ */
+function isResponsesReasoningId(id: string | undefined): boolean {
+	return typeof id === 'string' && id.startsWith('rs');
+}
+
 function extractThinkingData(content: Raw.ChatCompletionContentPart[]): OpenAI.Responses.ResponseReasoningItem[] {
 	return coalesce(content.map(part => {
 		if (part.type === Raw.ChatCompletionContentPartKind.Opaque) {
 			const thinkingData = rawPartAsThinkingData(part);
-			if (thinkingData) {
+			// Only round-trip genuine Responses API reasoning items. A foreign id (or a thinking
+			// block with no encrypted payload) would otherwise 400 the whole request.
+			if (thinkingData && thinkingData.encrypted && isResponsesReasoningId(thinkingData.id)) {
 				return {
 					type: 'reasoning',
 					id: thinkingData.id,
@@ -1002,19 +1104,67 @@ function extractFilterReasonFromContentFilters(filters: CapiContentFilterEntry[]
 }
 
 /**
+ * Identifying details for the terminal Responses event that carried an error.
+ * Used to describe failures whose error object omits the fields the API
+ * contract requires.
+ */
+interface IResponsesErrorContext {
+	/** The terminal SSE event that carried the error, e.g. `response.failed`. */
+	readonly eventType: string;
+	/** `id` from the response envelope, so a user report stays correlatable upstream. */
+	readonly responseId?: string;
+	/** `status` from the response envelope, when present. */
+	readonly responseStatus?: string;
+}
+
+function toResponsesErrorContext(eventType: string, response?: Pick<OpenAI.Responses.Response, 'id' | 'status'>): IResponsesErrorContext {
+	return {
+		eventType,
+		responseId: response?.id || undefined,
+		responseStatus: response?.status || undefined,
+	};
+}
+
+/**
+ * Describe a terminal error that carries no usable message. Names only the
+ * event, status, response id, and provider code so the failure stays
+ * diagnosable and correlatable without exposing prompt content.
+ */
+function describeUninformativeResponsesError(code: string | undefined, context: IResponsesErrorContext): string {
+	// Structured diagnostic identifiers, kept verbatim so they stay greppable and
+	// pasteable into a provider support request.
+	const details = [
+		`event: ${context.eventType}`,
+		...(context.responseStatus ? [`status: ${context.responseStatus}`] : []),
+		...(context.responseId ? [`response: ${context.responseId}`] : []),
+	].join(', ');
+	return code
+		? l10n.t("The model provider reported a failed response with code '{0}' and no error message ({1}).", code, details)
+		: l10n.t("The model provider reported a failed response without any error details ({0}).", details);
+}
+
+/**
  * Map a Responses-API `response.error` (string-coded per the OpenAI SDK) onto
  * our {@link APIErrorResponse} shape (numeric `code`). We can't preserve the
  * string code in `code`, so we stash it in `metadata.code` for BYOK diagnostics
- * (which `JSON.stringify` the whole struct).
+ * (which `JSON.stringify` the whole struct). Providers do terminate streams with
+ * an error object that omits `code`/`message` entirely, so those are described
+ * rather than serialized as an empty struct that tells the user nothing.
  */
-function mapResponsesApiError(err: OpenAI.Responses.ResponseError | null | undefined): APIErrorResponse | undefined {
+function mapResponsesApiError(err: OpenAI.Responses.ResponseError | null | undefined, context: IResponsesErrorContext): APIErrorResponse | undefined {
 	if (!err) {
 		return undefined;
 	}
+	const code = typeof err.code === 'string' && err.code ? err.code : undefined;
+	const message = typeof err.message === 'string' && err.message ? err.message : undefined;
 	return {
 		code: 0,
-		message: err.message ?? '',
-		metadata: { code: err.code },
+		message: message ?? describeUninformativeResponsesError(code, context),
+		// Omit absent keys so `JSON.stringify` cannot collapse metadata to `{}`.
+		metadata: {
+			...(code ? { code } : {}),
+			...(context.responseId ? { responseId: context.responseId } : {}),
+		},
 	};
 }
 
@@ -1097,7 +1247,16 @@ export class OpenAIResponsesProcessor {
 
 		switch (chunk.type) {
 			case 'error':
-				return onProgress({ text: '', copilotErrors: [{ agent: 'openai', code: chunk.code || 'unknown', message: chunk.message, type: 'error', identifier: chunk.param || undefined }] });
+				// Surface the error as a progress delta, but also produce a terminal
+				// completion so the request resolves to a meaningful server error
+				// instead of collapsing into the generic "Response contained no
+				// choices" fallback when the stream ends without a terminal event.
+				onProgress({ text: '', copilotErrors: [{ agent: 'openai', code: chunk.code || 'unknown', message: chunk.message, type: 'error', identifier: chunk.param || undefined }] });
+				return this.buildTerminalCompletion(
+					{ output: [] } as unknown as CapiResponseTerminalEvent['response'],
+					FinishedCompletionReason.ServerError,
+					{ error: mapResponsesApiError({ code: chunk.code, message: chunk.message } as OpenAI.Responses.ResponseError, toResponsesErrorContext('error')) }
+				);
 			case 'response.output_text.delta': {
 				const capiChunk: CapiResponsesTextDeltaEvent = chunk;
 				// When text arrives from a new output item, emit a paragraph
@@ -1210,7 +1369,8 @@ export class OpenAIResponsesProcessor {
 				return onProgress({
 					text: '',
 					thinking: {
-						id: chunk.item_id
+						id: chunk.item_id,
+						metadata: { vscode_reasoning_summary_part_done: true },
 					}
 				});
 			case 'response.completed': {
@@ -1317,13 +1477,13 @@ export class OpenAIResponsesProcessor {
 				}
 				return this.buildTerminalCompletion(incomplete, finishReason, {
 					filterReason,
-					error: mapResponsesApiError(incomplete.error),
+					error: mapResponsesApiError(incomplete.error, toResponsesErrorContext('response.incomplete', incomplete)),
 				});
 			}
 			case 'response.failed': {
 				const failed = chunk.response as CapiResponseTerminalEvent['response'];
 				return this.buildTerminalCompletion(failed, FinishedCompletionReason.ServerError, {
-					error: mapResponsesApiError(failed.error),
+					error: mapResponsesApiError(failed.error, toResponsesErrorContext('response.failed', failed)),
 				});
 			}
 		}

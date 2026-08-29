@@ -23,9 +23,6 @@
 	box-sizing: border-box;
 	overflow: hidden;
 	padding: 16px 16px 20px 16px;
-	/* Establishes a size container so the @container (max-width: 330px) query below
-	 * can collapse picker labels to icon-only when the new-chat area is narrow. */
-	container-type: size;
 	position: relative;
 }
 
@@ -45,6 +42,7 @@
 	max-width: 800px;
 	padding: 0;
 	box-sizing: border-box;
+	margin-bottom: var(--vscode-spacing-size20);
 }
 
 .new-chat-widget-container.revealed .new-session-workspace-picker-container {
@@ -69,6 +67,19 @@
 	margin-bottom: 0;
 }
 
+/* Quick chat composer: no workspace to pick, so hide the picker row entirely. */
+.new-chat-widget-content.quick-chat .new-session-workspace-picker-container {
+	display: none;
+}
+
+.new-chat-widget-content .new-session-quick-chat-header {
+	display: none;
+}
+
+.new-chat-widget-content.quick-chat .new-session-quick-chat-header {
+	display: flex;
+}
+
 .new-chat-widget-content {
 	width: 100%;
 	max-width: 800px;
@@ -87,7 +98,7 @@
 	display: none;
 	flex-direction: row;
 	align-items: center;
-	gap: 4px;
+	gap: 2px;
 	min-height: 28px;
 	justify-content: space-between;
 }
@@ -96,9 +107,13 @@
 	display: flex;
 }
 
+.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container {
+	overflow: hidden;
+}
+
 .new-chat-widget-container .new-chat-bottom-container .new-chat-controls-container {
 	display: flex;
-	gap: 4px;
+	gap: 2px;
 	min-width: 0;
 	overflow: hidden;
 }
@@ -111,83 +126,84 @@
 	overflow: hidden;
 }
 
-/* Allow nested toolbar items to shrink so labels can ellipsize when space is tight.
- * Mirrors the regular chat-input-toolbar pattern: each flex layer between the
- * bounded container and the ellipsizing label gets `min-width: 0; overflow: hidden`. */
+/* Toolbar hosts can shrink, while individual expanded pickers remain intrinsic
+ * and switch to compact form before their labels would truncate. */
 .new-chat-widget-container .new-chat-bottom-container .new-chat-controls-container > *,
-.new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container > *,
-.new-chat-widget-container .new-chat-bottom-container .sessions-chat-picker-slot .action-label {
+.new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container > * {
 	min-width: 0;
 	overflow: hidden;
 }
 
-/* Floor each picker so the icon + chevron (+ padding) stay visible even when
- * the label is fully ellipsized. Approx: 7px padding-left + 12px icon + 2px
- * label margin + 16px chevron box + 1px padding-right ~= 38px. The floor must
- * be applied to the outermost flex item (.action-item), not just the label,
- * because the parent's `min-width: 0` would otherwise let it clip the chevron. */
-.new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .action-item,
-.new-chat-widget-container .new-chat-bottom-container .sessions-chat-picker-slot .action-label,
-.new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .action-item .action-label {
+/* Expanded picker controls never shrink or ellipsize. */
+.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .action-item:not(.compact-picker),
+.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .sessions-chat-picker-slot:not(.compact-picker),
+.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .sessions-chat-picker-slot:not(.compact-picker) .action-label {
+	flex-shrink: 0;
 	min-width: 30px;
-	overflow: hidden;
+	overflow: visible;
 }
 
-/* Below this width the bottom-row pickers can't fit their labels comfortably,
- * so collapse to icon + chevron only. The .new-chat-widget-container declares
- * `container-type: size` which makes this a size container query. The
- * permission picker (`.sessions-chat-permission-picker`) gets a more lenient
- * threshold below because its label ("Autopilot (Preview)" etc.) carries
- * important state that is worth preserving as long as there is room. */
-@container (max-width: 330px) {
-	/* Bottom-row pickers (Copilot CLI, Default Approvals, Worktree, branch): icon-only */
-	.new-chat-widget-container .new-chat-bottom-container .sessions-chat-dropdown-label {
-		display: none;
-	}
-
-	.new-chat-widget-container .new-chat-bottom-container .sessions-chat-permission-picker .sessions-chat-dropdown-label {
-		display: revert;
-	}
-
-	/* Chat input config toolbar: hide mode picker label (uses sessions-chat-dropdown-label),
-	 * but keep the model picker label (uses chat-input-picker-label) visible. */
-	.new-chat-widget-container .sessions-chat-config-toolbar .sessions-chat-dropdown-label {
-		display: none;
-	}
-
-	/* With both chevron and label hidden the only content is the icon. Center
-	 * it instead of leaving the 30px min-width as left-aligned padding.
-	 * Permission picker keeps its label so its action-item is excluded. */
-	.new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .action-item:not(.sessions-chat-permission-picker) .action-label,
-	.new-chat-widget-container .new-chat-bottom-container .sessions-chat-picker-slot:not(.sessions-chat-permission-picker) .action-label {
-		justify-content: center;
-		padding: 3px;
-	}
+.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .sessions-chat-picker-slot:not(.compact-picker) .sessions-chat-dropdown-label,
+.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .sessions-chat-picker-slot:not(.compact-picker) .chat-session-option-label {
+	flex-shrink: 0;
+	overflow: visible;
+	text-overflow: clip;
+	white-space: nowrap;
 }
 
-@container (max-width: 240px) {
-	.new-chat-widget-container .new-chat-bottom-container .sessions-chat-permission-picker .sessions-chat-dropdown-label {
-		display: none;
-	}
+/* Individual picker controls collapse from right to left as their row runs out of room. */
+.new-chat-widget-container .compact-picker .sessions-chat-dropdown-label {
+	display: none;
+}
+
+.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .compact-picker.action-item,
+.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .compact-picker.sessions-chat-picker-slot {
+	box-sizing: border-box;
+	width: 22px;
+	min-width: 22px;
+	padding: 0;
+}
+
+.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .compact-picker.action-item .action-label,
+.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .compact-picker.sessions-chat-picker-slot .action-label {
+	box-sizing: border-box;
+	width: 22px;
+	min-width: 22px;
+	justify-content: flex-start;
+	padding: 2px 2px 2px 8px;
+}
+
+.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .compact-picker.sessions-chat-picker-slot .action-label > .codicon {
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
+	line-height: var(--vscode-codiconFontSize-compact);
+}
+
+.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .compact-picker.sessions-chat-checkbox-chip .monaco-checkbox {
+	width: 12px;
+	height: 12px;
+	margin-right: 0;
 }
 
 /* Spacing between action items inside the bottom-row toolbars (e.g. Worktree, branch) */
 .new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .actions-container {
-	gap: 4px;
+	gap: 2px;
 }
 
 /* Match VS Code chat-secondary-toolbar sizing for action items in the bottom row
  * (e.g. session control pickers and repo config pickers) so they align with the
- * mode/model picker font in the input toolbar. */
+ * model picker font in the input toolbar. */
 .new-chat-widget-container .new-chat-bottom-container .action-label {
 	height: 16px;
-	padding: 3px 6px;
-	font-size: 11px;
+	padding: 3px 8px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	color: var(--vscode-icon-foreground);
 }
 
 .new-chat-widget-container .new-chat-bottom-container .action-label > .codicon {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
+	width: auto;
+	height: auto;
 }
 
 .new-chat-widget-container .new-chat-bottom-container .action-label > .codicon-chevron-down,
@@ -200,86 +216,82 @@
 	display: none;
 }
 
-
-.new-chat-widget-container .new-chat-bottom-container .new-chat-controls-container > * + *,
-.new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container .monaco-action-bar .actions-container > .action-item + .action-item,
-.new-chat-widget-container .sessions-chat-config-toolbar .monaco-action-bar .actions-container > .action-item + .action-item,
-.new-chat-widget-container .sessions-chat-attach-button + .sessions-chat-config-toolbar {
-	box-shadow: -5px 0 0 -4px var(--vscode-editorWidget-border);
+/* Icon-only action items in the bottom row (e.g. OpenTelemetry status pill)
+ * lack the chevron that visually balances the 7px left padding, so use
+ * symmetric horizontal padding and drop the picker min-width that would
+ * otherwise leave the icon left-aligned inside a 30px box. */
+.new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .monaco-action-bar .action-item,
+.new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .monaco-action-bar .action-item .action-label {
+	min-width: 0;
 }
 
-.new-chat-widget-container .sessions-chat-attach-button + .sessions-chat-config-toolbar {
-	padding-left: 4px;
+.new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .action-label {
+	padding: 3px 4px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
-/* Pickers row - two equal halves */
-.session-workspace-picker {
+/* The category row is quiet at rest, while hover/open state reveals the active target. */
+.sessions-workspace-category-picker {
 	display: flex;
 	flex-direction: row;
-	flex-wrap: nowrap;
+	flex-wrap: wrap;
 	align-items: center;
 	justify-content: flex-start;
-	gap: 6px;
+	gap: var(--vscode-spacing-size80);
 	width: 100%;
 	box-sizing: border-box;
 	padding: 0;
 }
 
-.session-workspace-picker:empty {
-	display: none;
-}
-
-.session-workspace-picker-label {
-	font-size: 18px;
-	line-height: 1.25;
+.sessions-workspace-category-picker-label {
 	color: var(--vscode-descriptionForeground);
-	white-space: nowrap;
+	font-size: var(--vscode-fontSize-body2);
 }
 
-.session-workspace-picker-with-label:has(+ .sessions-chat-session-type-picker .action-label.hidden) {
+.sessions-workspace-category-picker-slot {
+	flex: 0 1 auto;
+}
+
+.sessions-workspace-category-picker-slot[hidden] {
 	display: none;
 }
 
-/* Project picker in inline title row */
-.sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label,
-.sessions-chat-picker-slot.sessions-chat-session-type-picker .action-label {
-	height: auto;
-	padding: 4px;
-	font-size: 18px;
-	line-height: 1.25;
-	border: none;
-	background-color: transparent;
-	color: var(--vscode-foreground);
-	border-radius: 4px;
-	touch-action: manipulation;
+.sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label {
+	gap: var(--vscode-spacing-size80);
+	min-height: var(--vscode-spacing-size240);
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) solid var(--vscode-commandCenter-inactiveBorder, var(--vscode-widget-border));
+	border-radius: var(--vscode-cornerRadius-circle);
+	box-sizing: border-box;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+	line-height: var(--vscode-spacing-size160);
 }
 
-.sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label:hover,
-.sessions-chat-picker-slot.sessions-chat-session-type-picker .action-label:hover {
+.sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label:hover,
+.sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label[aria-expanded='true'] {
 	background-color: var(--vscode-toolbar-hoverBackground);
+	border-color: var(--vscode-commandCenter-activeBorder, var(--vscode-focusBorder));
 	color: var(--vscode-foreground);
 }
 
-.sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label .sessions-chat-dropdown-label,
-.sessions-chat-picker-slot.sessions-chat-session-type-picker .action-label .sessions-chat-dropdown-label {
-	font-size: 18px;
+.sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
-.sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label > .codicon:not(.sessions-chat-dropdown-chevron),
-.sessions-chat-picker-slot.sessions-chat-session-type-picker .action-label > .codicon:not(.codicon-chevron-down) {
-	font-size: 16px;
-	margin: 0;
+.sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label > .codicon {
+	font-size: var(--vscode-codiconFontSize);
 }
 
-.sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label .sessions-chat-dropdown-chevron,
-.sessions-chat-picker-slot.sessions-chat-session-type-picker .action-label .sessions-chat-dropdown-chevron {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	font-size: 16px;
-	margin-left: 6px;
-	line-height: 1;
-	transform: translateY(1px);
+.sessions-workspace-category-picker .sessions-chat-dropdown-label {
+	margin-left: 0;
+}
+
+.sessions-workspace-category-picker:empty {
+	display: none;
 }
 
 .sessions-chat-dropdown-label {
@@ -308,7 +320,7 @@
 	cursor: pointer;
 	touch-action: manipulation;
 	white-space: nowrap;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	min-width: 0;
 	overflow: hidden;
 }
@@ -329,6 +341,17 @@
 }
 
 .sessions-chat-picker-slot.disabled .action-label:hover {
+	background-color: transparent;
+	color: var(--vscode-icon-foreground);
+}
+
+.sessions-chat-picker-slot.resolving .action-label,
+.sessions-chat-config-resolving {
+	cursor: default;
+	pointer-events: none;
+}
+
+.sessions-chat-picker-slot.resolving .action-label:hover {
 	background-color: transparent;
 	color: var(--vscode-icon-foreground);
 }
@@ -362,8 +385,8 @@
 	}
 }
 
-.sessions-chat-picker-slot .action-label .codicon {
-	font-size: 12px;
+.interactive-input-part .sessions-chat-picker-slot .action-label .codicon {
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
 	flex-shrink: 0;
 	/* Override the base .monaco-action-bar .action-item .codicon { width:16px; height:16px }
 	 * so codicons here size naturally to their font-size, matching pickers (like Copilot CLI)
@@ -388,36 +411,33 @@
 	text-overflow: ellipsis;
 }
 
+.sessions-chat-picker-slot .action-label .monaco-count-badge {
+	min-width: var(--vscode-spacing-size160);
+	min-height: var(--vscode-spacing-size160);
+	padding: var(--vscode-spacing-size20);
+	border-radius: var(--vscode-cornerRadius-circle);
+	font-size: var(--vscode-fontSize-label3);
+	line-height: normal;
+}
+
 .sessions-chat-picker-slot .action-label span + .chat-session-option-label {
 	margin-left: 2px;
 }
 
 .sessions-chat-picker-slot .action-label.warning {
 	color: var(--vscode-problemsWarningIcon-foreground);
-	opacity: 0.75;
 }
 
 .sessions-chat-picker-slot .action-label.warning .codicon {
 	color: var(--vscode-problemsWarningIcon-foreground) !important;
 }
 
-.sessions-chat-picker-slot .action-label.warning:hover {
-	color: var(--vscode-problemsWarningIcon-foreground);
-	opacity: 1;
-}
-
 .sessions-chat-picker-slot .action-label.info {
 	color: var(--vscode-problemsInfoIcon-foreground);
-	opacity: 0.75;
 }
 
 .sessions-chat-picker-slot .action-label.info .codicon {
 	color: var(--vscode-problemsInfoIcon-foreground) !important;
-}
-
-.sessions-chat-picker-slot .action-label.info:hover {
-	color: var(--vscode-problemsInfoIcon-foreground);
-	opacity: 1;
 }
 
 /* Tab bar styles live with the platform widget

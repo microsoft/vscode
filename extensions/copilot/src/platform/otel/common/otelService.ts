@@ -160,6 +160,7 @@ export interface ISpanHandle {
 export interface OTelModelOptions {
 	readonly _capturingTokenCorrelationId?: string;
 	readonly _otelTraceContext?: TraceContext | null;
+	readonly _telemetryTurn?: number;
 }
 
 /**

@@ -81,7 +81,7 @@ class FavoriteIndicator extends Disposable {
 	}
 
 	private _tooltip(): string {
-		const kb = this._keybindingService.lookupKeybinding(BrowserViewCommandId.RemoveFavorite)?.getLabel();
+		const kb = this._keybindingService.lookupKeybinding(BrowserViewCommandId.ToggleFavorite)?.getLabel();
 		return kb
 			? localize('browser.removeFavoriteWithKb', "Remove from Favorites ({0})", kb)
 			: localize('browser.removeFavorite', "Remove from Favorites");
@@ -294,26 +294,30 @@ BrowserEditor.registerContribution(BrowserFavoritesFeature);
 
 // -- Actions ----------------------------------------------------------
 
-class AddFavoriteAction extends Action2 {
-	static readonly ID = BrowserViewCommandId.AddFavorite;
+class ToggleFavoriteAction extends Action2 {
+	static readonly ID = BrowserViewCommandId.ToggleFavorite;
 
 	constructor() {
 		super({
-			id: AddFavoriteAction.ID,
+			id: ToggleFavoriteAction.ID,
 			title: localize2('browser.addFavoriteAction', 'Add to Favorites'),
 			category: BrowserActionCategory,
 			icon: Codicon.star,
 			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_URL_IS_FAVORITED.negate()),
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL),
+			toggled: {
+				condition: CONTEXT_BROWSER_URL_IS_FAVORITED,
+				icon: Codicon.starFull,
+			},
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
 				group: BrowserActionGroup.Data,
-				order: 5,
-				when: CONTEXT_BROWSER_URL_IS_FAVORITED.negate(),
+				order: 2,
+				isHiddenByDefault: true,
 			},
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_URL_IS_FAVORITED.negate()),
+				when: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL),
 				primary: KeyMod.CtrlCmd | KeyCode.KeyD,
 			}
 		});
@@ -326,37 +330,4 @@ class AddFavoriteAction extends Action2 {
 	}
 }
 
-class RemoveFavoriteAction extends Action2 {
-	static readonly ID = BrowserViewCommandId.RemoveFavorite;
-
-	constructor() {
-		super({
-			id: RemoveFavoriteAction.ID,
-			title: localize2('browser.removeFavoriteAction', 'Remove from Favorites'),
-			category: BrowserActionCategory,
-			icon: Codicon.starFull,
-			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_URL_IS_FAVORITED),
-			menu: {
-				id: MenuId.BrowserActionsToolbar,
-				group: BrowserActionGroup.Data,
-				order: 5,
-				when: CONTEXT_BROWSER_URL_IS_FAVORITED,
-			},
-			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				when: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_URL_IS_FAVORITED),
-				primary: KeyMod.CtrlCmd | KeyCode.KeyD,
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
-		if (browserEditor instanceof BrowserEditor) {
-			browserEditor.getContribution(BrowserFavoritesFeature)?.toggleCurrent();
-		}
-	}
-}
-
-registerAction2(AddFavoriteAction);
-registerAction2(RemoveFavoriteAction);
+registerAction2(ToggleFavoriteAction);

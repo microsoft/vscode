@@ -1,0 +1,47 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember the code word ALPHA_PEER. Reply exactly "ready".
+    response:
+      content: ready
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember the code word BETA_PEER. Reply exactly "ready".
+    response:
+      content: ready
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember the code word ALPHA_PEER. Reply exactly "ready".
+        - role: assistant
+          content: ready
+        - role: user
+          content: Reply exactly "first".
+    response:
+      content: first
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember the code word BETA_PEER. Reply exactly "ready".
+        - role: assistant
+          content: ready
+        - role: user
+          content: Reply exactly "second".
+    response:
+      content: second
+      stopReason: end_turn

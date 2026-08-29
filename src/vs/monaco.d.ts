@@ -3129,7 +3129,7 @@ declare namespace monaco.editor {
 		 */
 		readonly reason: CursorChangeReason;
 		/**
-		 * Source of the call that caused the event.
+		 * Source of the call that caused the event. Possible sources include `'mouse'`, `'keyboard'`, and `'api'`.
 		 */
 		readonly source: string;
 	}
@@ -3159,7 +3159,7 @@ declare namespace monaco.editor {
 		 */
 		readonly oldModelVersionId: number;
 		/**
-		 * Source of the call that caused the event.
+		 * Source of the call that caused the event. Possible sources include `'mouse'`, `'keyboard'`, and `'api'`.
 		 */
 		readonly source: string;
 		/**
@@ -6613,6 +6613,11 @@ declare namespace monaco.languages {
 	export function getEncodedLanguageId(languageId: string): number;
 
 	/**
+	 * Compute the score of a language selector against a candidate Uri and language.
+	 */
+	export function score(selector: LanguageSelector | undefined, candidateUri: Uri, candidateLanguage: string): number;
+
+	/**
 	 * An event emitted when a language is associated for the first time with a text model.
 	 * @event
 	 */
@@ -7794,6 +7799,7 @@ declare namespace monaco.languages {
 		editKind: string | undefined;
 		longDistanceHintVisible?: boolean;
 		longDistanceHintDistance?: number;
+		isForAnotherDocument?: boolean;
 	};
 
 	export interface CodeAction {

@@ -88,6 +88,8 @@ export function createRecordingRealTimeApi(history: RecordedTimerEvent[]): TimeA
 		}) as TimeApi['requestAnimationFrame'] : undefined,
 		cancelAnimationFrame: realTimeApi.cancelAnimationFrame,
 		Date: realTimeApi.Date,
+		performanceNow: realTimeApi.performanceNow,
+		performanceTimeOrigin: realTimeApi.performanceTimeOrigin,
 	};
 
 	// Preserve the `originalFn` back-door used by polling loops to escape

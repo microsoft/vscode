@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { ActionType, type ActionEnvelope } from '../../common/state/sessionActions.js';
-import { MessageKind, SessionLifecycle, SessionStatus, TerminalClaimKind, TurnState, type RootState, type SessionState, type TerminalState } from '../../common/state/protocol/state.js';
-import { ROOT_STATE_URI, StateComponents } from '../../common/state/sessionState.js';
-import { AgentSubscriptionManager, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
+import { buildAnnotationsUri } from '../../common/annotationsUri.js';
+import { ActionType, type ActionEnvelope, type ClientChangesetAction } from '../../common/state/sessionActions.js';
+import { AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, ChangesetStatus, MessageKind, ResponsePartKind, SessionLifecycle, SessionStatus, TerminalClaimKind, TerminalLifecycleStatus, TurnState, type AnnotationsState, type AutomationCatalogState, type AutomationRunState, type ChangesetState, type ErrorInfo, type RootState, type SessionState, type SessionSummary, type TerminalState, type Turn } from '../../common/state/protocol/state.js';
+import { AUTOMATION_CATALOG_URI, buildDefaultChatUri, createChatState, createDefaultChatSummary, getTurnError, ROOT_STATE_URI, StateComponents, type ChatState } from '../../common/state/sessionState.js';
+import { AgentSubscriptionManager, AutomationCatalogSubscription, AutomationRunSubscription, ChangesetStateSubscription, ChatStateSubscription, isActionEnvelopeRelevantToSubscriptionUris, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
+import { normalizeLegacyActionEnvelope, readLegacyTurnError } from '../../common/state/legacyProtocolCompatibility.js';
 
 // Helpers
 
@@ -23,19 +26,34 @@ function makeRootState(overrides?: Partial<RootState>): RootState {
 	};
 }
 
+function makeSessionSummary(sessionUri: string): SessionSummary {
+	return {
+		resource: sessionUri,
+		provider: 'copilot',
+		title: 'Test',
+		status: SessionStatus.Idle,
+		createdAt: new Date(1).toISOString(),
+		modifiedAt: new Date(1).toISOString(),
+		project: { uri: 'file:///test-project', displayName: 'Test Project' },
+	};
+}
+
 function makeSessionState(sessionUri: string, overrides?: Partial<SessionState>): SessionState {
 	return {
-		summary: {
-			resource: sessionUri,
-			provider: 'copilot',
-			title: 'Test',
-			status: SessionStatus.Idle,
-			createdAt: 1,
-			modifiedAt: 1,
-			project: { uri: 'file:///test-project', displayName: 'Test Project' },
-		},
+		provider: 'copilot',
+		title: 'Test',
+		status: SessionStatus.Idle,
+		project: { uri: 'file:///test-project', displayName: 'Test Project' },
 		lifecycle: SessionLifecycle.Ready,
-		turns: [],
+		activeClients: [],
+		chats: [],
+		...overrides,
+	};
+}
+
+function makeChatState(chatUri: string, sessionSummary: SessionSummary = makeSessionSummary(sessionUri), overrides?: Partial<ChatState>): ChatState {
+	return {
+		...createChatState(createDefaultChatSummary(sessionSummary, chatUri)),
 		...overrides,
 	};
 }
@@ -45,6 +63,7 @@ function makeTerminalState(overrides?: Partial<TerminalState>): TerminalState {
 		title: 'bash',
 		content: [],
 		claim: { kind: TerminalClaimKind.Client, clientId: 'c1' },
+		lifecycle: { status: TerminalLifecycleStatus.Running },
 		...overrides,
 	};
 }
@@ -52,9 +71,10 @@ function makeTerminalState(overrides?: Partial<TerminalState>): TerminalState {
 function makeEnvelope(action: ActionEnvelope['action'], serverSeq: number, origin?: ActionEnvelope['origin'], rejectionReason?: string, channel?: string): ActionEnvelope {
 	const resolvedChannel = channel ?? (
 		action.type.startsWith('root/') ? ROOT_STATE_URI
-			: action.type.startsWith('terminal/') ? terminalUri
-				: action.type.startsWith('changeset/') ? changesetUri
-					: sessionUri
+			: action.type.startsWith('chat/') ? chatUri
+				: action.type.startsWith('terminal/') ? terminalUri
+					: action.type.startsWith('changeset/') ? changesetUri
+						: sessionUri
 	);
 	return { channel: resolvedChannel, action, serverSeq, origin, rejectionReason };
 }
@@ -62,7 +82,164 @@ function makeEnvelope(action: ActionEnvelope['action'], serverSeq: number, origi
 const noop = () => { };
 const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toString();
 const terminalUri = URI.from({ scheme: 'agenthost-terminal', path: '/term1' }).toString();
+const chatUri = buildDefaultChatUri(sessionUri);
 const changesetUri = `${sessionUri}/changeset/session`;
+const automationUri = 'ahp-automation:/test-automation';
+const automationRunUri = 'ahp-automation-run:/test-run';
+
+function makeAutomationCatalogState(): AutomationCatalogState {
+	return { automations: [] };
+}
+
+function makeAutomationRunState(): AutomationRunState {
+	return {
+		resource: automationRunUri,
+		automation: automationUri,
+		origin: { kind: AutomationRunOriginKind.Manual },
+		lifecycle: { status: AutomationRunStatus.Pending, createdAt: new Date(1).toISOString() },
+		sessions: [],
+	};
+}
+
+suite('Automation subscriptions', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('catalogue changes only after the authoritative set action', () => {
+		const subscription = disposables.add(new AutomationCatalogSubscription('c1', noop));
+		subscription.handleSnapshot(makeAutomationCatalogState(), 0);
+		const definition = {
+			title: 'Daily summary',
+			message: { text: 'Summarize the repository.', origin: { kind: MessageKind.Automation } },
+			session: {},
+			enabled: true,
+			triggers: [],
+		};
+
+		subscription.receiveEnvelope(makeEnvelope({
+			type: ActionType.AutomationCreateRequested,
+			resource: automationUri,
+			definition,
+		}, 1, { clientId: 'c1', clientSeq: 1 }, undefined, AUTOMATION_CATALOG_URI));
+
+		const requested = subscription.value as AutomationCatalogState;
+		subscription.receiveEnvelope(makeEnvelope({
+			type: ActionType.AutomationSet,
+			automation: {
+				resource: automationUri,
+				definition,
+				runs: [],
+				operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
+				createdAt: new Date(1).toISOString(),
+				modifiedAt: new Date(1).toISOString(),
+			},
+		}, 2, undefined, undefined, AUTOMATION_CATALOG_URI));
+
+		assert.deepStrictEqual({
+			requested: requested.automations,
+			authoritative: (subscription.value as AutomationCatalogState).automations.map(automation => automation.resource),
+		}, {
+			requested: [],
+			authoritative: [automationUri],
+		});
+	});
+
+	test('run cancellation remains side-effect-only until the lifecycle changes', () => {
+		const subscription = disposables.add(new AutomationRunSubscription(automationRunUri, 'c1', noop));
+		subscription.handleSnapshot(makeAutomationRunState(), 0);
+		subscription.receiveEnvelope(makeEnvelope({
+			type: ActionType.AutomationRunCancelRequested,
+		}, 1, { clientId: 'c1', clientSeq: 1 }, undefined, automationRunUri));
+		const requested = (subscription.value as AutomationRunState).lifecycle.status;
+		subscription.receiveEnvelope(makeEnvelope({
+			type: ActionType.AutomationRunLifecycleChanged,
+			lifecycle: {
+				status: AutomationRunStatus.Cancelled,
+				createdAt: new Date(1).toISOString(),
+				completedAt: new Date(2).toISOString(),
+			},
+		}, 2, undefined, undefined, automationRunUri));
+
+		assert.deepStrictEqual({
+			requested,
+			authoritative: (subscription.value as AutomationRunState).lifecycle.status,
+		}, {
+			requested: AutomationRunStatus.Pending,
+			authoritative: AutomationRunStatus.Cancelled,
+		});
+	});
+
+	test('rejected removal does not mutate the catalogue', () => {
+		const subscription = disposables.add(new AutomationCatalogSubscription('c1', noop));
+		const definition = {
+			title: 'Daily summary',
+			message: { text: 'Summarize the repository.', origin: { kind: MessageKind.Automation } },
+			session: {},
+			enabled: true,
+			triggers: [],
+		};
+		subscription.handleSnapshot({
+			automations: [{
+				resource: automationUri,
+				definition,
+				runs: [],
+				operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
+				createdAt: new Date(1).toISOString(),
+				modifiedAt: new Date(1).toISOString(),
+			}],
+		}, 0);
+
+		subscription.receiveEnvelope(makeEnvelope({
+			type: ActionType.AutomationRemoved,
+			resource: automationUri,
+		}, 1, { clientId: 'c1', clientSeq: 1 }, 'Automation has an active run.', AUTOMATION_CATALOG_URI));
+
+		assert.deepStrictEqual(
+			(subscription.value as AutomationCatalogState).automations.map(automation => automation.resource),
+			[automationUri],
+		);
+	});
+});
+
+suite('ChangesetStateSubscription', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('optimistically applies and reconciles file review state', () => {
+		const state: ChangesetState = {
+			status: ChangesetStatus.Ready,
+			files: [{
+				id: 'file:///test.txt',
+				edit: {
+					before: { uri: 'file:///test.txt', content: { uri: 'file:///before.txt' } },
+					after: { uri: 'file:///test.txt', content: { uri: 'file:///after.txt' } },
+				},
+			}],
+		};
+		const subscription = disposables.add(new ChangesetStateSubscription(changesetUri, 'c1', () => 1, noop));
+		subscription.handleSnapshot(state, 0);
+
+		const action: ClientChangesetAction = {
+			type: ActionType.ChangesetFilesReviewChanged,
+			files: ['file:///test.txt'],
+			reviewed: true,
+		};
+		const clientSeq = subscription.applyOptimistic(action);
+		const optimisticState = subscription.value as ChangesetState;
+		subscription.receiveEnvelope(makeEnvelope(action, 1, { clientId: 'c1', clientSeq }));
+
+		assert.deepStrictEqual({
+			optimisticReviewed: optimisticState.files[0].reviewed,
+			verifiedBeforeEcho: state.files[0].reviewed,
+			verifiedAfterEcho: subscription.verifiedValue?.files[0].reviewed,
+			pendingCleared: subscription.value === subscription.verifiedValue,
+		}, {
+			optimisticReviewed: true,
+			verifiedBeforeEcho: undefined,
+			verifiedAfterEcho: true,
+			pendingCleared: true,
+		});
+	});
+
+});
 
 // RootStateSubscription
 
@@ -165,10 +342,18 @@ suite('RootStateSubscription', () => {
 		const sub = disposables.add(new RootStateSubscription('c1', noop));
 		sub.handleSnapshot(makeRootState(), 0);
 		const err = new Error('failed');
+		const errors: Error[] = [];
+		disposables.add(sub.onDidError(error => errors.push(error)));
 		sub.setError(err);
-		assert.strictEqual(sub.value, err);
-		// verifiedValue should still be the state
-		assert.ok(sub.verifiedValue);
+		assert.deepStrictEqual({
+			value: sub.value,
+			verifiedValueExists: !!sub.verifiedValue,
+			errors,
+		}, {
+			value: err,
+			verifiedValueExists: true,
+			errors: [err],
+		});
 	});
 });
 
@@ -218,9 +403,9 @@ suite('SessionStateSubscription', () => {
 		});
 
 		assert.strictEqual(clientSeq, 1);
-		assert.strictEqual((sub.value as SessionState).summary.title, 'Optimistic');
+		assert.strictEqual((sub.value as SessionState).title, 'Optimistic');
 		// verifiedValue should remain unchanged
-		assert.strictEqual(sub.verifiedValue!.summary.title, 'Test');
+		assert.strictEqual(sub.verifiedValue!.title, 'Test');
 	});
 
 	test('confirmed own action removes pending and updates confirmed', () => {
@@ -240,9 +425,9 @@ suite('SessionStateSubscription', () => {
 		));
 
 		// After confirmation, verifiedValue should match
-		assert.strictEqual(sub.verifiedValue!.summary.title, 'Optimistic');
+		assert.strictEqual(sub.verifiedValue!.title, 'Optimistic');
 		// No pending, value falls through to confirmed
-		assert.strictEqual((sub.value as SessionState).summary.title, 'Optimistic');
+		assert.strictEqual((sub.value as SessionState).title, 'Optimistic');
 	});
 
 	test('rejected own action removes pending without updating confirmed', () => {
@@ -263,9 +448,9 @@ suite('SessionStateSubscription', () => {
 		));
 
 		// Confirmed state unchanged
-		assert.strictEqual(sub.verifiedValue!.summary.title, 'Test');
+		assert.strictEqual(sub.verifiedValue!.title, 'Test');
 		// No more pending, value = confirmed
-		assert.strictEqual((sub.value as SessionState).summary.title, 'Test');
+		assert.strictEqual((sub.value as SessionState).title, 'Test');
 	});
 
 	test('foreign action updates confirmed and recomputes optimistic', () => {
@@ -288,34 +473,21 @@ suite('SessionStateSubscription', () => {
 		// Confirmed state should have SessionReady applied
 		assert.strictEqual(sub.verifiedValue!.lifecycle, SessionLifecycle.Ready);
 		// Optimistic should still have 'Local' title on top
-		assert.strictEqual((sub.value as SessionState).summary.title, 'Local');
+		assert.strictEqual((sub.value as SessionState).title, 'Local');
 	});
 
-	test('server terminal turn action drops stale optimistic turn start', () => {
+	test('server terminal turn action remains ignored by session subscription', () => {
 		const sub = createSub();
-		sub.handleSnapshot(makeSessionState(sessionUri), 0);
-
-		sub.applyOptimistic({
-			type: ActionType.SessionTurnStarted,
-			turnId: 'turn-1',
-			message: { text: 'hello', origin: { kind: MessageKind.User } },
-		});
-
-		assert.strictEqual((sub.value as SessionState).activeTurn?.id, 'turn-1');
+		const state = makeSessionState(sessionUri);
+		sub.handleSnapshot(state, 0);
 
 		sub.receiveEnvelope(makeEnvelope(
-			{ type: ActionType.SessionTurnComplete, turnId: 'turn-1' },
+			{ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 },
 			1,
 			undefined,
 		));
 
-		assert.deepStrictEqual({
-			activeTurn: (sub.value as SessionState).activeTurn,
-			turns: (sub.value as SessionState).turns.map(turn => ({ id: turn.id, state: turn.state })),
-		}, {
-			activeTurn: undefined,
-			turns: [{ id: 'turn-1', state: TurnState.Complete }],
-		});
+		assert.deepStrictEqual(sub.value, state);
 	});
 
 	test('after all pending cleared, value falls through to verifiedValue', () => {
@@ -347,12 +519,12 @@ suite('SessionStateSubscription', () => {
 			title: 'Pending',
 		});
 
-		assert.strictEqual((sub.value as SessionState).summary.title, 'Pending');
+		assert.strictEqual((sub.value as SessionState).title, 'Pending');
 
 		sub.clearPending();
 
 		// Should fall back to confirmed
-		assert.strictEqual((sub.value as SessionState).summary.title, 'Test');
+		assert.strictEqual((sub.value as SessionState).title, 'Test');
 	});
 
 	test('ignores actions for different session', () => {
@@ -367,7 +539,7 @@ suite('SessionStateSubscription', () => {
 			'copilot:/other-session',
 		));
 
-		assert.strictEqual((sub.value as SessionState).summary.title, 'Test');
+		assert.strictEqual((sub.value as SessionState).title, 'Test');
 	});
 
 	test('buffers envelopes before snapshot and replays after', () => {
@@ -382,7 +554,7 @@ suite('SessionStateSubscription', () => {
 
 		sub.handleSnapshot(makeSessionState(sessionUri), 1);
 
-		assert.strictEqual((sub.value! as SessionState).summary.title, 'Buffered');
+		assert.strictEqual((sub.value! as SessionState).title, 'Buffered');
 	});
 
 	test('fires onDidChange on optimistic apply', () => {
@@ -398,7 +570,165 @@ suite('SessionStateSubscription', () => {
 		});
 
 		assert.strictEqual(fired.length, 1);
-		assert.strictEqual(fired[0].summary.title, 'Changed');
+		assert.strictEqual(fired[0].title, 'Changed');
+	});
+
+	suite('ordinary optimistic working-directory actions', () => {
+
+		test('accepted action moves the optimistic directory into confirmed state', () => {
+			const sub = createSub();
+			sub.handleSnapshot(makeSessionState(sessionUri), 0);
+			const action = { type: ActionType.SessionWorkingDirectorySet as const, directory: 'file:///ws2' };
+
+			const clientSeq = sub.applyOptimistic(action);
+			assert.deepStrictEqual((sub.value as SessionState).workingDirectories, ['file:///ws2']);
+			assert.strictEqual(sub.verifiedValue?.workingDirectories, undefined);
+
+			sub.receiveEnvelope(makeEnvelope(action, 1, { clientId: 'c1', clientSeq }));
+
+			assert.deepStrictEqual(sub.verifiedValue?.workingDirectories, ['file:///ws2']);
+			assert.strictEqual(sub.value, sub.verifiedValue);
+		});
+
+		test('rejected action rolls optimistic working directories back', () => {
+			const sub = createSub();
+			sub.handleSnapshot(makeSessionState(sessionUri), 0);
+			const action = { type: ActionType.SessionWorkingDirectorySet as const, directory: 'file:///ws2' };
+
+			const clientSeq = sub.applyOptimistic(action);
+			sub.receiveEnvelope(makeEnvelope(action, 1, { clientId: 'c1', clientSeq }, 'denied'));
+
+			assert.strictEqual(sub.verifiedValue?.workingDirectories, undefined);
+			assert.strictEqual((sub.value as SessionState).workingDirectories, undefined);
+		});
+	});
+});
+
+// ChatStateSubscription
+
+suite('ChatStateSubscription', () => {
+
+	let disposables: DisposableStore;
+	let seq: number;
+
+	setup(() => {
+		disposables = new DisposableStore();
+		seq = 0;
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createSub(uri: string = chatUri, clientId: string = 'c1'): ChatStateSubscription {
+		return disposables.add(new ChatStateSubscription(uri, clientId, () => ++seq, noop));
+	}
+
+	function makeLegacyErrorTurn(error: ErrorInfo): Turn & { readonly error: ErrorInfo } {
+		return {
+			id: 'turn-1',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+			responseParts: [],
+			usage: undefined,
+			state: TurnState.Error,
+			error,
+		};
+	}
+
+	test('normalizes legacy live errors to durable response parts', () => {
+		const error: ErrorInfo = { errorType: 'LegacyError', message: 'legacy failure' };
+		const envelope = normalizeLegacyActionEnvelope({
+			channel: chatUri,
+			serverSeq: 1,
+			origin: undefined,
+			action: {
+				type: ActionType.ChatError,
+				turnId: 'turn-1',
+				duration: 1000,
+				error,
+			},
+		});
+
+		assert.deepStrictEqual(envelope.action, {
+			type: ActionType.ChatError,
+			turnId: 'turn-1',
+			duration: 1000,
+			part: { kind: ResponsePartKind.Error, error },
+		});
+	});
+
+	test('normalizes legacy loaded turn errors to durable response parts', () => {
+		const error: ErrorInfo = { errorType: 'LegacyError', message: 'legacy failure' };
+		const envelope = normalizeLegacyActionEnvelope({
+			channel: chatUri,
+			serverSeq: 1,
+			origin: undefined,
+			action: {
+				type: ActionType.ChatTurnsLoaded,
+				turns: [makeLegacyErrorTurn(error)],
+			},
+		});
+
+		assert.deepStrictEqual(envelope.action, {
+			type: ActionType.ChatTurnsLoaded,
+			turns: [{
+				id: 'turn-1',
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+				responseParts: [{ kind: ResponsePartKind.Error, error }],
+				usage: undefined,
+				state: TurnState.Error,
+			}],
+		});
+	});
+
+	test('normalizes legacy snapshot errors to durable response parts', () => {
+		const error: ErrorInfo = { errorType: 'LegacyError', message: 'legacy failure' };
+		const legacyTurn = makeLegacyErrorTurn(error);
+		const sub = createSub();
+
+		sub.handleSnapshot(makeChatState(chatUri, undefined, { turns: [legacyTurn] }), 0);
+
+		assert.deepStrictEqual({
+			legacyError: getTurnError(legacyTurn),
+			error: getTurnError(sub.verifiedValue?.turns[0]),
+			responseParts: sub.verifiedValue?.turns[0].responseParts,
+			legacyField: sub.verifiedValue?.turns[0] && readLegacyTurnError(sub.verifiedValue.turns[0]),
+		}, {
+			legacyError: error,
+			error,
+			responseParts: [{ kind: ResponsePartKind.Error, error }],
+			legacyField: undefined,
+		});
+	});
+
+	test('server terminal turn action drops stale optimistic turn start', () => {
+		const sub = createSub();
+		sub.handleSnapshot(makeChatState(chatUri), 0);
+
+		sub.applyOptimistic({
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		});
+
+		assert.strictEqual((sub.value as ChatState | undefined)?.activeTurn?.id, 'turn-1');
+
+		sub.receiveEnvelope(makeEnvelope(
+			{ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 },
+			1,
+			undefined,
+		));
+
+		assert.deepStrictEqual({
+			activeTurn: (sub.value as ChatState | undefined)?.activeTurn,
+			turns: (sub.value as ChatState | undefined)?.turns.map(turn => ({ id: turn.id, state: turn.state })),
+		}, {
+			activeTurn: undefined,
+			turns: [{ id: 'turn-1', state: TurnState.Complete }],
+		});
 	});
 });
 
@@ -430,6 +760,39 @@ suite('TerminalStateSubscription', () => {
 		assert.deepStrictEqual((sub.value as TerminalState).content, [
 			{ type: 'unclassified', value: 'hello' },
 		]);
+	});
+
+	test('data between command executed and finished is attributed to the command', () => {
+		const sub = disposables.add(new TerminalStateSubscription(terminalUri, 'c1', noop));
+		sub.handleSnapshot(makeTerminalState(), 0);
+
+		// The server dispatches data in stream order relative to command
+		// events, so a command's output arrives between the executed and
+		// finished actions and must land in the command part, not in a
+		// trailing unclassified part.
+		sub.receiveEnvelope(makeEnvelope(
+			{ type: ActionType.TerminalCommandExecuted, commandId: 'cmd-1', commandLine: 'echo hi', timestamp: 1000 },
+			1,
+		));
+		sub.receiveEnvelope(makeEnvelope(
+			{ type: ActionType.TerminalData, data: 'hi\r\n' },
+			2,
+		));
+		sub.receiveEnvelope(makeEnvelope(
+			{ type: ActionType.TerminalCommandFinished, commandId: 'cmd-1', exitCode: 0, durationMs: 5 },
+			3,
+		));
+
+		assert.deepStrictEqual((sub.value as TerminalState).content, [{
+			type: 'command',
+			commandId: 'cmd-1',
+			commandLine: 'echo hi',
+			output: 'hi\r\n',
+			timestamp: 1000,
+			isComplete: true,
+			exitCode: 0,
+			durationMs: 5,
+		}]);
 	});
 
 	test('ignores terminal actions for other URIs', () => {
@@ -489,9 +852,12 @@ suite('AgentSubscriptionManager', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createManager(subscribe: (resource: URI) => Promise<{ resource: string; state: SessionState | TerminalState; fromSeq: number }> = async (resource) => {
-		subscribedResources.push(resource.toString());
+	function createManager(subscribe: (resource: URI) => Promise<{ resource: string; state: SessionState | TerminalState | ChangesetState | AnnotationsState | AutomationCatalogState; fromSeq: number }> = async resource => {
 		const key = resource.toString();
+		subscribedResources.push(key);
+		if (key.endsWith('/annotations')) {
+			return { resource: key, state: { annotations: [] }, fromSeq: 0 };
+		}
 		if (key.startsWith('copilot:')) {
 			return { resource: key, state: makeSessionState(key), fromSeq: 0 };
 		}
@@ -502,7 +868,7 @@ suite('AgentSubscriptionManager', () => {
 			() => ++seq,
 			noop,
 			subscribe,
-			(resource) => {
+			resource => {
 				unsubscribedResources.push(resource.toString());
 			},
 		));
@@ -524,7 +890,7 @@ suite('AgentSubscriptionManager', () => {
 	test('getSubscription returns IReference with subscription', async () => {
 		const mgr = createManager();
 		const uri = URI.parse(sessionUri);
-		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, uri);
+		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, uri, 'test');
 
 		assert.ok(ref.object);
 		assert.strictEqual(ref.object.value, undefined); // not yet initialized (async)
@@ -539,8 +905,8 @@ suite('AgentSubscriptionManager', () => {
 	test('second call for same resource increments refcount', async () => {
 		const mgr = createManager();
 		const uri = URI.parse(sessionUri);
-		const ref1 = mgr.getSubscription<SessionState>(StateComponents.Session, uri);
-		const ref2 = mgr.getSubscription<SessionState>(StateComponents.Session, uri);
+		const ref1 = mgr.getSubscription<SessionState>(StateComponents.Session, uri, 'test');
+		const ref2 = mgr.getSubscription<SessionState>(StateComponents.Session, uri, 'test');
 
 		await new Promise(r => setTimeout(r, 0));
 
@@ -559,7 +925,7 @@ suite('AgentSubscriptionManager', () => {
 	test('disposing last ref calls unsubscribe callback', async () => {
 		const mgr = createManager();
 		const uri = URI.parse(sessionUri);
-		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, uri);
+		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, uri, 'test');
 
 		await new Promise(r => setTimeout(r, 0));
 
@@ -572,7 +938,7 @@ suite('AgentSubscriptionManager', () => {
 		mgr.handleRootSnapshot(makeRootState(), 0);
 
 		const uri = URI.parse(sessionUri);
-		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, uri);
+		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, uri, 'test');
 		await new Promise(r => setTimeout(r, 0));
 
 		// Send a root action
@@ -587,15 +953,36 @@ suite('AgentSubscriptionManager', () => {
 			{ type: ActionType.SessionTitleChanged, title: 'Routed' },
 			2,
 		));
-		assert.strictEqual((ref.object.value as SessionState).summary.title, 'Routed');
+		assert.strictEqual((ref.object.value as SessionState).title, 'Routed');
 
 		ref.dispose();
+	});
+
+	test('isActionEnvelopeRelevantToSubscriptionUris filters by subscribed channel', () => {
+		assert.deepStrictEqual({
+			rootVariant: isActionEnvelopeRelevantToSubscriptionUris(
+				makeEnvelope({ type: ActionType.RootActiveSessionsChanged, activeSessions: 1 }, 1, undefined, undefined, ROOT_STATE_URI),
+				['ahp-root:'],
+			),
+			rootOnlyGetsSession: isActionEnvelopeRelevantToSubscriptionUris(
+				makeEnvelope({ type: ActionType.SessionTitleChanged, title: 'Nope' }, 2),
+				['ahp-root:'],
+			),
+			exactSession: isActionEnvelopeRelevantToSubscriptionUris(
+				makeEnvelope({ type: ActionType.SessionTitleChanged, title: 'Yep' }, 3),
+				['ahp-root:', sessionUri],
+			),
+		}, {
+			rootVariant: true,
+			rootOnlyGetsSession: false,
+			exactSession: true,
+		});
 	});
 
 	test('creating session subscription for copilot: URI', async () => {
 		const mgr = createManager();
 		const mySessionUri = URI.from({ scheme: 'copilot', path: '/my-session' });
-		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, mySessionUri);
+		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, mySessionUri, 'test');
 		await new Promise(r => setTimeout(r, 0));
 
 		assert.ok(ref.object.value);
@@ -607,7 +994,7 @@ suite('AgentSubscriptionManager', () => {
 	test('creating terminal subscription for terminal URI', async () => {
 		const mgr = createManager();
 		const uri = URI.parse(terminalUri);
-		const ref = mgr.getSubscription<TerminalState>(StateComponents.Terminal, uri);
+		const ref = mgr.getSubscription<TerminalState>(StateComponents.Terminal, uri, 'test');
 		await new Promise(r => setTimeout(r, 0));
 
 		assert.ok(ref.object.value);
@@ -616,10 +1003,32 @@ suite('AgentSubscriptionManager', () => {
 		ref.dispose();
 	});
 
+	test('uses the round-trippable automation catalogue URI', async () => {
+		const mgr = createManager(async resource => {
+			subscribedResources.push(resource.toString());
+			return { resource: resource.toString(), state: { automations: [] }, fromSeq: 0 };
+		});
+		const ref = mgr.getSubscription<AutomationCatalogState>(StateComponents.AutomationCatalog, URI.parse(AUTOMATION_CATALOG_URI), 'AutomationHolder');
+		await Event.toPromise(ref.object.onDidChange);
+
+		assert.deepStrictEqual({
+			subscribedResources,
+			resources: mgr.currentSubscriptionUris().map(resource => resource.toString()),
+			activeResource: mgr.getActiveSubscriptions()[0].resource.toString(),
+		}, {
+			subscribedResources: [AUTOMATION_CATALOG_URI],
+			resources: [AUTOMATION_CATALOG_URI],
+			activeResource: AUTOMATION_CATALOG_URI,
+		});
+
+		ref.dispose();
+		assert.deepStrictEqual(unsubscribedResources, [AUTOMATION_CATALOG_URI]);
+	});
+
 	test('dispatchOptimistic applies to matching session subscription', async () => {
 		const mgr = createManager();
 		const uri = URI.parse(sessionUri);
-		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, uri);
+		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, uri, 'test');
 		await new Promise(r => setTimeout(r, 0));
 
 		const clientSeq = mgr.dispatchOptimistic(uri.toString(), {
@@ -628,9 +1037,43 @@ suite('AgentSubscriptionManager', () => {
 		});
 
 		assert.ok(clientSeq > 0);
-		assert.strictEqual((ref.object.value as SessionState).summary.title, 'Dispatched');
+		assert.strictEqual((ref.object.value as SessionState).title, 'Dispatched');
 		// verifiedValue unchanged
-		assert.strictEqual(ref.object.verifiedValue!.summary.title, 'Test');
+		assert.strictEqual(ref.object.verifiedValue!.title, 'Test');
+
+		ref.dispose();
+	});
+
+	test('dispatchOptimistic applies to matching changeset subscription', async () => {
+		const state: ChangesetState = {
+			status: ChangesetStatus.Ready,
+			files: [{
+				id: 'file:///test.txt',
+				edit: {
+					after: { uri: 'file:///test.txt', content: { uri: 'file:///after.txt' } },
+				},
+			}],
+		};
+		const mgr = createManager(async resource => ({ resource: resource.toString(), state, fromSeq: 0 }));
+		const uri = URI.parse(changesetUri);
+		const ref = mgr.getSubscription<ChangesetState>(StateComponents.Changeset, uri, 'test');
+		await new Promise(r => setTimeout(r, 0));
+
+		const clientSeq = mgr.dispatchOptimistic(uri.toString(), {
+			type: ActionType.ChangesetFilesReviewChanged,
+			files: ['file:///test.txt'],
+			reviewed: true,
+		});
+
+		assert.deepStrictEqual({
+			clientSeq,
+			optimisticReviewed: (ref.object.value as ChangesetState).files[0].reviewed,
+			verifiedReviewed: ref.object.verifiedValue?.files[0].reviewed,
+		}, {
+			clientSeq: 1,
+			optimisticReviewed: true,
+			verifiedReviewed: undefined,
+		});
 
 		ref.dispose();
 	});
@@ -638,8 +1081,8 @@ suite('AgentSubscriptionManager', () => {
 	test('dispose clears all subscriptions and calls unsubscribe for each', async () => {
 		const mgr = createManager();
 
-		const ref1 = mgr.getSubscription<SessionState>(StateComponents.Session, URI.parse(sessionUri));
-		const ref2 = mgr.getSubscription<TerminalState>(StateComponents.Terminal, URI.parse(terminalUri));
+		const ref1 = mgr.getSubscription<SessionState>(StateComponents.Session, URI.parse(sessionUri), 'test');
+		const ref2 = mgr.getSubscription<TerminalState>(StateComponents.Terminal, URI.parse(terminalUri), 'test');
 		await new Promise(r => setTimeout(r, 0));
 
 		// Remove the manager from disposables so we can dispose it manually
@@ -666,7 +1109,7 @@ suite('AgentSubscriptionManager', () => {
 		const uri = URI.parse(sessionUri);
 
 		// Create a subscription via getSubscription
-		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, uri);
+		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, uri, 'test');
 		await new Promise(r => setTimeout(r, 0));
 
 		// Get it unmanaged
@@ -690,21 +1133,21 @@ suite('AgentSubscriptionManager', () => {
 			if (subscribeAttempts === 1) {
 				throw new Error('not found yet');
 			}
-			return { resource: resource.toString(), state: makeSessionState(resource.toString(), { summary: { ...makeSessionState(resource.toString()).summary, title: 'Retried' } }), fromSeq: 0 };
+			return { resource: resource.toString(), state: makeSessionState(resource.toString(), { title: 'Retried' }), fromSeq: 0 };
 		});
 		const uri = URI.parse(sessionUri);
 
-		const failedRef = mgr.getSubscription<SessionState>(StateComponents.Session, uri);
+		const failedRef = mgr.getSubscription<SessionState>(StateComponents.Session, uri, 'test');
 		await new Promise(r => setTimeout(r, 0));
 
 		assert.ok(failedRef.object.value instanceof Error);
 
-		const retryRef = mgr.getSubscription<SessionState>(StateComponents.Session, uri);
+		const retryRef = mgr.getSubscription<SessionState>(StateComponents.Session, uri, 'test');
 		await new Promise(r => setTimeout(r, 0));
 
 		assert.deepStrictEqual({
 			subscribeAttempts,
-			retriedTitle: (retryRef.object.value as SessionState).summary.title,
+			retriedTitle: (retryRef.object.value as SessionState).title,
 			unmanagedIsRetry: mgr.getSubscriptionUnmanaged<SessionState>(uri) === retryRef.object,
 		}, {
 			subscribeAttempts: 2,
@@ -717,5 +1160,160 @@ suite('AgentSubscriptionManager', () => {
 
 		retryRef.dispose();
 		assert.strictEqual(mgr.getSubscriptionUnmanaged<SessionState>(uri), undefined);
+	});
+
+	test('getActiveSubscriptions reports kind, refCount, holders and status per active subscription', async () => {
+		const mgr = createManager();
+		const sUri = URI.parse(sessionUri);
+		const tUri = URI.parse(terminalUri);
+
+		const sessionRef = mgr.getSubscription<SessionState>(StateComponents.Session, sUri, 'SessionHolder');
+		const sessionRef2 = mgr.getSubscription<SessionState>(StateComponents.Session, sUri, 'SessionHolder');
+		const terminalRef = mgr.getSubscription<TerminalState>(StateComponents.Terminal, tUri, 'TerminalHolder');
+
+		const map = () => mgr.getActiveSubscriptions().map(s => ({ resource: s.resource.toString(), kind: s.kind, refCount: s.refCount, holders: s.holders, status: s.status }));
+		const pending = map();
+
+		await new Promise(r => setTimeout(r, 0));
+
+		const active = map();
+
+		assert.deepStrictEqual({ pending, active }, {
+			pending: [
+				{ resource: sessionUri, kind: StateComponents.Session, refCount: 2, holders: [{ owner: 'SessionHolder', count: 2 }], status: 'pending' },
+				{ resource: terminalUri, kind: StateComponents.Terminal, refCount: 1, holders: [{ owner: 'TerminalHolder', count: 1 }], status: 'pending' },
+			],
+			active: [
+				{ resource: sessionUri, kind: StateComponents.Session, refCount: 2, holders: [{ owner: 'SessionHolder', count: 2 }], status: 'snapshot' },
+				{ resource: terminalUri, kind: StateComponents.Terminal, refCount: 1, holders: [{ owner: 'TerminalHolder', count: 1 }], status: 'snapshot' },
+			],
+		});
+
+		sessionRef.dispose();
+		sessionRef2.dispose();
+		terminalRef.dispose();
+
+		assert.strictEqual(mgr.getActiveSubscriptions().length, 0);
+	});
+
+	test('getActiveSubscriptions tracks distinct holders and drops them as references are disposed', async () => {
+		const mgr = createManager();
+		const sUri = URI.parse(sessionUri);
+
+		const refA = mgr.getSubscription<SessionState>(StateComponents.Session, sUri, 'HolderA');
+		const refB = mgr.getSubscription<SessionState>(StateComponents.Session, sUri, 'HolderB');
+		const refB2 = mgr.getSubscription<SessionState>(StateComponents.Session, sUri, 'HolderB');
+		await new Promise(r => setTimeout(r, 0));
+
+		const withAll = mgr.getActiveSubscriptions()[0].holders;
+
+		refB.dispose();
+		const afterOneB = mgr.getActiveSubscriptions()[0].holders;
+
+		// Disposing the same reference twice must not over-remove holders.
+		refB.dispose();
+		const afterDoubleDispose = mgr.getActiveSubscriptions()[0].holders;
+
+		refA.dispose();
+		refB2.dispose();
+
+		assert.deepStrictEqual({ withAll, afterOneB, afterDoubleDispose, remaining: mgr.getActiveSubscriptions().length }, {
+			// Sorted by descending count, so HolderB (2) precedes HolderA (1).
+			withAll: [{ owner: 'HolderB', count: 2 }, { owner: 'HolderA', count: 1 }],
+			afterOneB: [{ owner: 'HolderA', count: 1 }, { owner: 'HolderB', count: 1 }],
+			afterDoubleDispose: [{ owner: 'HolderA', count: 1 }, { owner: 'HolderB', count: 1 }],
+			remaining: 0,
+		});
+	});
+
+	test('getActiveSubscriptions reports error status for a failed subscription', async () => {
+		const mgr = createManager(async () => { throw new Error('nope'); });
+		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, URI.parse(sessionUri), 'test');
+		await new Promise(r => setTimeout(r, 0));
+
+		assert.deepStrictEqual(
+			mgr.getActiveSubscriptions().map(s => ({ kind: s.kind, status: s.status })),
+			[{ kind: StateComponents.Session, status: 'error' }],
+		);
+		ref.dispose();
+	});
+
+	suite('ordinary optimistic reconnect state', () => {
+
+		test('applyReconnectSnapshot clears pending actions and applies the fresh state', async () => {
+			const mgr = createManager();
+			const ref = mgr.getSubscription<SessionState>(StateComponents.Session, URI.parse(sessionUri), 'test');
+			await new Promise(r => setTimeout(r, 0));
+
+			mgr.dispatchOptimistic(sessionUri, { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///ws2' });
+			assert.deepStrictEqual((ref.object.value as SessionState).workingDirectories, ['file:///ws2']);
+
+			mgr.applyReconnectSnapshot(sessionUri, makeSessionState(sessionUri, { workingDirectories: ['file:///fresh'] }), 5);
+
+			assert.deepStrictEqual((ref.object.value as SessionState).workingDirectories, ['file:///fresh']);
+			assert.deepStrictEqual(mgr.getPendingActions(), []);
+			ref.dispose();
+		});
+
+		test('markSubscriptionsMissing clears pending actions and exposes an error', async () => {
+			const mgr = createManager();
+			const ref = mgr.getSubscription<SessionState>(StateComponents.Session, URI.parse(sessionUri), 'test');
+			await new Promise(r => setTimeout(r, 0));
+
+			mgr.dispatchOptimistic(sessionUri, { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///ws2' });
+
+			mgr.markSubscriptionsMissing([URI.parse(sessionUri)]);
+
+			assert.ok(ref.object.value instanceof Error);
+			assert.deepStrictEqual(mgr.getPendingActions(), []);
+			ref.dispose();
+		});
+
+		test('markSubscriptionsMissing handles the Automation catalogue URI', async () => {
+			const mgr = createManager(async resource => ({
+				resource: resource.toString(),
+				state: { automations: [] },
+				fromSeq: 0,
+			}));
+			const ref = mgr.getSubscription<AutomationCatalogState>(StateComponents.AutomationCatalog, URI.parse(AUTOMATION_CATALOG_URI), 'test');
+			await Event.toPromise(ref.object.onDidChange);
+
+			mgr.markSubscriptionsMissing([URI.parse(AUTOMATION_CATALOG_URI)]);
+
+			assert.deepStrictEqual({
+				valueIsError: ref.object.value instanceof Error,
+				resource: mgr.getActiveSubscriptions()[0].resource.toString(),
+			}, {
+				valueIsError: true,
+				resource: AUTOMATION_CATALOG_URI,
+			});
+			ref.dispose();
+		});
+
+		test('fresh reconnect snapshots preserve pending annotation actions for replay', async () => {
+			const mgr = createManager();
+			const annotationsUri = buildAnnotationsUri(sessionUri);
+			const ref = mgr.getSubscription<AnnotationsState>(StateComponents.Annotations, URI.parse(annotationsUri), 'test');
+			await new Promise(r => setTimeout(r, 0));
+			const annotation = {
+				id: 'feedback-1',
+				origin: { session: sessionUri, chat: chatUri, turnId: 'turn-1' },
+				resource: 'file:///reviewed.ts',
+				resolved: false,
+				entries: [{ id: 'feedback-1:0', text: 'Please revisit this.' }],
+			};
+
+			mgr.dispatchOptimistic(annotationsUri, { type: ActionType.AnnotationsSet, annotation });
+			mgr.applyReconnectSnapshot(annotationsUri, { annotations: [] }, 5, true);
+
+			assert.deepStrictEqual({
+				state: ref.object.value,
+				pending: mgr.getPendingActions().map(entry => entry.action),
+			}, {
+				state: { annotations: [annotation] },
+				pending: [{ type: ActionType.AnnotationsSet, annotation }],
+			});
+			ref.dispose();
+		});
 	});
 });

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { IProcessEnvironment, OS, OperatingSystem, isWindows } from '../../../base/common/platform.js';
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
@@ -37,10 +37,6 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	// ProxyChannel is not used here because events get lost when forwarding across multiple proxies
 	private __proxy?: IPtyService;
 
-	private get _connection(): IPtyHostConnection {
-		this._ensurePtyHost();
-		return this.__connection!;
-	}
 	private get _proxy(): IPtyService {
 		this._ensurePtyHost();
 		return this.__proxy!;
@@ -92,6 +88,8 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	private readonly _onProcessExit = this._register(new Emitter<{ id: number; event: number | undefined }>());
 	readonly onProcessExit = this._onProcessExit.event;
 
+	private readonly _ptyHostStore = this._register(new DisposableStore());
+
 	constructor(
 		private readonly _ptyHostStarter: IPtyHostStarter,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -142,9 +140,12 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 		}
 	}
 
-	private _startPtyHost(): [IPtyHostConnection, IPtyService] {
+	private _startPtyHost(): void {
 		const connection = this._ptyHostStarter.start();
 		const client = connection.client;
+		const store = this._ptyHostStore;
+		// Transfer ownership of the per-host connection store so it is disposed together with the listeners below on the next restart.
+		store.add(connection.store);
 
 		// Log a full stack trace which will tell the exact reason the pty host is starting up
 		if (this._logService.getLevel() === LogLevel.Trace) {
@@ -153,11 +154,11 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 
 		// Setup heartbeat service and trigger a heartbeat immediately to reset the timeouts
 		const heartbeatService = ProxyChannel.toService<IHeartbeatService>(client.getChannel(TerminalIpcChannels.Heartbeat));
-		heartbeatService.onBeat(() => this._handleHeartbeat());
+		store.add(heartbeatService.onBeat(() => this._handleHeartbeat()));
 		this._handleHeartbeat(true);
 
 		// Handle exit
-		this._register(connection.onDidProcessExit(e => {
+		store.add(connection.onDidProcessExit(e => {
 			this._onPtyHostExit.fire(e.code);
 			if (!this._wasQuitRequested && !this._store.isDisposed) {
 				if (this._restartCount <= Constants.MaxRestarts) {
@@ -172,29 +173,27 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 
 		// Create proxy and forward events
 		const proxy = ProxyChannel.toService<IPtyService>(client.getChannel(TerminalIpcChannels.PtyHost));
-		this._register(proxy.onProcessData(e => this._onProcessData.fire(e)));
-		this._register(proxy.onProcessReady(e => this._onProcessReady.fire(e)));
-		this._register(proxy.onProcessExit(e => this._onProcessExit.fire(e)));
-		this._register(proxy.onDidChangeProperty(e => this._onDidChangeProperty.fire(e)));
-		this._register(proxy.onProcessReplay(e => this._onProcessReplay.fire(e)));
-		this._register(proxy.onProcessOrphanQuestion(e => this._onProcessOrphanQuestion.fire(e)));
-		this._register(proxy.onDidRequestDetach(e => this._onDidRequestDetach.fire(e)));
+		store.add(proxy.onProcessData(e => this._onProcessData.fire(e)));
+		store.add(proxy.onProcessReady(e => this._onProcessReady.fire(e)));
+		store.add(proxy.onProcessExit(e => this._onProcessExit.fire(e)));
+		store.add(proxy.onDidChangeProperty(e => this._onDidChangeProperty.fire(e)));
+		store.add(proxy.onProcessReplay(e => this._onProcessReplay.fire(e)));
+		store.add(proxy.onProcessOrphanQuestion(e => this._onProcessOrphanQuestion.fire(e)));
+		store.add(proxy.onDidRequestDetach(e => this._onDidRequestDetach.fire(e)));
 
-		this._register(new RemoteLoggerChannelClient(this._loggerService, client.getChannel(TerminalIpcChannels.Logger)));
+		store.add(new RemoteLoggerChannelClient(this._loggerService, client.getChannel(TerminalIpcChannels.Logger)));
 
 		this.__connection = connection;
 		this.__proxy = proxy;
 
 		this._onPtyHostStart.fire();
 
-		this._register(this._configurationService.onDidChangeConfiguration(async e => {
+		store.add(this._configurationService.onDidChangeConfiguration(async e => {
 			if (e.affectsConfiguration(TerminalSettingId.IgnoreProcessNames)) {
 				await this._refreshIgnoreProcessNames();
 			}
 		}));
 		this._refreshIgnoreProcessNames();
-
-		return [connection, proxy];
 	}
 
 	async createProcess(
@@ -369,8 +368,15 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	}
 
 	private _disposePtyHost(): void {
-		this._proxy.shutdownAll();
-		this._connection.store.dispose();
+		// Heartbeat timers are bare setTimeout handles, not disposables in the store, so they need an explicit clear.
+		// shutdownAll() is fired before clearing the store so any in-flight exit listener still has a live proxy to read from;
+		// the per-host listener store is cleared last so the on-exit signal isn't dropped on the floor.
+		this._clearHeartbeatTimeouts();
+		// Fire-and-forget: the IPC channel may already be gone; swallow rejections so we don't surface an unhandled promise.
+		this._optionalProxy?.shutdownAll().catch(() => { });
+		this.__connection = undefined;
+		this.__proxy = undefined;
+		this._ptyHostStore.clear();
 	}
 
 	private _handleHeartbeat(isConnecting?: boolean) {

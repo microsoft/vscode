@@ -25,6 +25,7 @@ import { FileSystemProviderCapabilities, IFileService } from '../../../../../pla
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../browser/editor.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
@@ -34,8 +35,9 @@ import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../services/agentHost/comm
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IWorkbenchExtensionManagementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationSources, getCustomizationMigrationHintDismissedStorageKey, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
@@ -314,7 +316,7 @@ registerAction2(class extends Action2 {
 					type: 'question',
 				});
 				if (result.confirmed) {
-					plugin.remove?.();
+					await plugin.remove?.();
 				}
 			}
 			return;
@@ -424,7 +426,7 @@ registerAction2(class extends Action2 {
 
 const INSTALL_CHAT_CUSTOMIZATION_EXTENSION_ID = 'aiCustomizationManagement.installChatCustomizationExtension';
 const CHAT_CUSTOMIZATION_EXTENSION_ID = 'ms-vscode.vscode-chat-customizations-evaluations';
-const CHAT_CUSTOMIZATION_EXTENSION_NOT_INSTALLED_CONTEXT = new RawContextKey<boolean>('chat.customizationExtensionNotInstalled', false);
+const CHAT_CUSTOMIZATION_EXTENSION_NOT_INSTALLED_CONTEXT = new RawContextKey<boolean>('chat.customizationExtensionNotInstalled', true);
 const CHAT_CUSTOMIZATION_EXTENSION_NOT_INSTALLED = CHAT_CUSTOMIZATION_EXTENSION_NOT_INSTALLED_CONTEXT.isEqualTo(true);
 registerAction2(class extends Action2 {
 	constructor() {
@@ -548,7 +550,7 @@ registerAction2(class extends Action2 {
 			type: 'question',
 		});
 		if (result.confirmed) {
-			plugin.remove?.();
+			await plugin.remove?.();
 		}
 	}
 });
@@ -729,7 +731,7 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 		this._register(this.extensionManagementService.onProfileAwareDidInstallExtensions(refreshExtensionContext));
 		this._register(this.extensionManagementService.onProfileAwareDidUninstallExtension(refreshExtensionContext));
 		this._register(this.extensionManagementService.onDidChangeProfile(refreshExtensionContext));
-		void this.updateChatCustomizationExtensionContext();
+		this.updateChatCustomizationExtensionContext();
 		this.registerActions();
 	}
 
@@ -740,11 +742,35 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 			const isInstalled = installedExtensions.some(ext => ExtensionIdentifier.toKey(ext.identifier.id) === extensionKey);
 			this.chatCustomizationExtensionNotInstalledContext.set(!isInstalled);
 		} catch {
-			this.chatCustomizationExtensionNotInstalledContext.set(false);
+			this.chatCustomizationExtensionNotInstalledContext.set(true);
 		}
 	}
 
 	private registerActions(): void {
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: AICustomizationManagementCommands.DismissMigrationHint,
+					title: localize2('dismissCustomizationMigrationHint', "Don't Show Customization Migration Hints Again"),
+					f1: false,
+				});
+			}
+
+			run(accessor: ServicesAccessor): void {
+				const sessionResource = accessor.get(IChatWidgetService).lastFocusedWidget?.viewModel?.sessionResource;
+				if (!sessionResource) {
+					throw new Error('Expected an active chat session when dismissing customization migration hints');
+				}
+				const sessionType = getChatSessionType(sessionResource);
+				accessor.get(IStorageService).store(
+					getCustomizationMigrationHintDismissedStorageKey(sessionType),
+					true,
+					StorageScope.WORKSPACE,
+					StorageTarget.USER
+				);
+			}
+		}));
+
 		// Open AI Customizations Editor
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
@@ -758,22 +784,35 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				});
 			}
 
-			async run(accessor: ServicesAccessor, section?: AICustomizationManagementSection): Promise<void> {
+			async run(accessor: ServicesAccessor, target?: AICustomizationManagementSection | { readonly section?: AICustomizationManagementSection; readonly sessionType?: string; readonly revealUri?: URI }): Promise<void> {
 				const editorService = accessor.get(IEditorService);
 				const chatWidgetService = accessor.get(IChatWidgetService);
 				const harnessService = accessor.get(ICustomizationHarnessService);
+				const section = typeof target === 'string' ? target : target?.section;
+				const revealUri = typeof target === 'string' ? undefined : target?.revealUri;
 
 				// Detect the active chat session type and switch the harness
 				// so the customization editor opens in the matching context.
-				const sessionResource = chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
+				const explicitSessionType = typeof target === 'string' ? undefined : target?.sessionType;
+				const widget = explicitSessionType ? undefined : chatWidgetService.lastFocusedWidget;
+				const pendingSessionType = widget?.input.pendingDelegationTarget;
+				const sessionResource = explicitSessionType
+					? harnessService.getSessionResourceForHarness(explicitSessionType)
+					: pendingSessionType
+						? harnessService.getSessionResourceForHarness(pendingSessionType)
+						: widget?.viewModel?.sessionResource;
 				if (sessionResource) {
 					harnessService.setActiveSession(sessionResource);
 				}
 
 				const input = AICustomizationManagementEditorInput.getOrCreate();
+				input.setTargetLabel(harnessService.getActiveDescriptor().label);
 				const pane = await editorService.openEditor(input, { pinned: true });
 				if (section && pane instanceof AICustomizationManagementEditor) {
 					pane.selectSectionById(section);
+					if (revealUri) {
+						await pane.revealCustomizationByUri(revealUri);
+					}
 				}
 			}
 		}));

@@ -23,7 +23,7 @@ import { SyncDescriptor } from '../../../../platform/instantiation/common/descri
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IssueQuickAccess } from '../browser/issueQuickAccess.js';
 import '../browser/issueTroubleshoot.js';
-import '../browser/issueReporterKeybindings.js';
+import './issueReporterKeybindings.js';
 import { BaseIssueContribution } from '../common/issue.contribution.js';
 import { IIssueFormService, IWorkbenchIssueService, IssueType } from '../common/issue.js';
 import { NativeIssueService } from './issueService.js';
@@ -34,7 +34,7 @@ import { IRecordingService } from '../browser/recordingService.js';
 import { NativeRecordingService } from './nativeRecordingService.js';
 import { IGitHubUploadService } from '../browser/githubUploadService.js';
 import { NativeGitHubUploadService } from './nativeGitHubUploadService.js';
-import { IssueReporterEditorPane } from '../browser/issueReporterEditorPane.js';
+import { IssueReporterEditorPane } from './issueReporterEditorPane.js';
 import { IssueReporterEditorInput } from '../browser/issueReporterEditorInput.js';
 
 //#region Issue Contribution

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { registerAutorunSelfDisposable } from '../../../../base/common/observable.js';
+import { autorun, registerAutorunSelfDisposable } from '../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
@@ -30,6 +30,10 @@ export const AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING = 'chat.agentHost.run
  * Sessions whose runtime already runs these tasks server-side (signalled via
  * {@link ISessionCapabilities.runsWorktreeCreatedTasks}) are skipped to avoid
  * double-execution.
+ *
+ * The stop handles returned by the dispatched tasks are tracked per session and
+ * disposed when the session is marked done (archived) or removed, so the
+ * long-running setup/build processes don't leak. See #321021.
  *
  * We deliberately ignore sessions that predate this contribution so restored
  * sessions don't re-run setup tasks when the agents window opens.
@@ -61,7 +65,7 @@ export class WorktreeCreatedTaskDispatcher extends Disposable implements IWorkbe
 	}
 
 	private _trackSession(session: ISession): void {
-		if (session.capabilities.runsWorktreeCreatedTasks) {
+		if (session.capabilities.get().runsWorktreeCreatedTasks) {
 			// The session's runtime already runs these tasks itself.
 			return;
 		}
@@ -71,6 +75,8 @@ export class WorktreeCreatedTaskDispatcher extends Disposable implements IWorkbe
 
 		const store = new DisposableStore();
 		this._sessionDisposables.set(session.sessionId, store);
+
+		const taskHandles = store.add(new DisposableStore());
 
 		registerAutorunSelfDisposable(store, reader => {
 			if (session.loading.read(reader)) {
@@ -83,11 +89,17 @@ export class WorktreeCreatedTaskDispatcher extends Disposable implements IWorkbe
 				return;
 			}
 			reader.dispose();
-			this._dispatchWorktreeCreatedTasks(session);
+			this._dispatchWorktreeCreatedTasks(session, taskHandles);
 		});
+
+		store.add(autorun(reader => {
+			if (session.isArchived.read(reader)) {
+				taskHandles.clear();
+			}
+		}));
 	}
 
-	private async _dispatchWorktreeCreatedTasks(session: ISession): Promise<void> {
+	private async _dispatchWorktreeCreatedTasks(session: ISession, taskHandles: DisposableStore): Promise<void> {
 		if (isAgentHostProviderId(session.providerId) && !this._configurationService.getValue<boolean>(AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING)) {
 			this._logService.trace(`${LOG_PREFIX} Skipping worktreeCreated tasks for agent host session '${session.sessionId}' — '${AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING}' is disabled.`);
 			return;
@@ -107,7 +119,14 @@ export class WorktreeCreatedTaskDispatcher extends Disposable implements IWorkbe
 			}
 			this._logService.trace(`${LOG_PREFIX} Running worktreeCreated task '${task.label}' for session '${session.sessionId}'`);
 			try {
-				await this._sessionsTasksService.runTask(task, session);
+				const handle = await this._sessionsTasksService.runTask(task, session);
+				if (handle) {
+					if (session.isArchived.get()) {
+						handle.dispose();
+					} else {
+						taskHandles.add(handle);
+					}
+				}
 			} catch (err) {
 				this._logService.warn(`${LOG_PREFIX} Failed to run task '${task.label}' for session '${session.sessionId}': ${err}`);
 			}

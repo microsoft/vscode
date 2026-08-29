@@ -17,22 +17,10 @@ import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import type { IChatWidget } from '../../chat.js';
 import { AgentHostChatInputPicker, isClaimedByDedicatedPicker } from './agentHostChatInputPicker.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
+import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
-
-function toBackendSessionUri(sessionResource: URI): URI | undefined {
-	const scheme = sessionResource.scheme;
-	const prefix = 'agent-host-';
-	if (!scheme.startsWith(prefix)) {
-		return undefined;
-	}
-	const provider = scheme.substring(prefix.length);
-	if (!provider) {
-		return undefined;
-	}
-	const rawId = sessionResource.path.replace(/^\//, '');
-	return URI.from({ scheme: provider, path: `/${rawId}` });
-}
+import { toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
 
 /**
  * Direct-render chip lane for agent-host session-config properties that are
@@ -49,6 +37,7 @@ export class AgentHostGenericConfigChips extends Disposable {
 	private _container: HTMLElement | undefined;
 
 	private readonly _chips = this._register(new DisposableMap<string>());
+	private readonly _chipElements = new Map<string, HTMLElement>();
 
 	/**
 	 * Subscription to the active session's backend state. Maintained for the
@@ -70,6 +59,7 @@ export class AgentHostGenericConfigChips extends Disposable {
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisional: IAgentHostUntitledProvisionalSessionService,
 		@IAgentHostSessionWorkingDirectoryResolver private readonly _workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
 	) {
 		super();
 		this._register(this._widget.onDidChangeViewModel(() => this._reattach()));
@@ -87,11 +77,15 @@ export class AgentHostGenericConfigChips extends Disposable {
 		this._sync();
 	}
 
+	getCompactableElements(): readonly HTMLElement[] {
+		return Array.from(this._chipElements.values()).filter(element => element.classList.contains('agent-host-chat-input-picker-has-icon'));
+	}
+
 	private _reattach(): void {
 		const sessionResource = this._widget.viewModel?.sessionResource;
 		const provisionalBackend = sessionResource ? this._provisional.get(sessionResource) : undefined;
 		const backendSession = provisionalBackend
-			?? (sessionResource ? toBackendSessionUri(sessionResource) : undefined);
+			?? (sessionResource ? toAgentHostBackendSessionUri(sessionResource) : undefined);
 
 		if (!sessionResource || !backendSession) {
 			this._subRef.clear();
@@ -113,7 +107,7 @@ export class AgentHostGenericConfigChips extends Disposable {
 
 		this._initialResolved = undefined;
 		this._cancelInitialResolve();
-		const ref = this._agentHostService.getSubscription(StateComponents.Session, backendSession);
+		const ref = this._agentHostService.getSubscription(StateComponents.Session, backendSession, 'AgentHostGenericConfigChips');
 		const sub = ref.object;
 		const listener = sub.onDidChange(() => this._sync());
 		this._subRef.value = {
@@ -151,11 +145,13 @@ export class AgentHostGenericConfigChips extends Disposable {
 	private _readWorkingDirectory(): URI | undefined {
 		const state = this._subRef.value?.sub.value;
 		if (state && !(state instanceof Error)) {
-			const cwd = state.summary.workingDirectory;
+			const cwd = state.workingDirectories?.[0];
 			return typeof cwd === 'string' ? URI.parse(cwd) : cwd;
 		}
 		const sessionResource = this._widget.viewModel?.sessionResource;
-		return (sessionResource && this._workingDirectoryResolver.resolve(sessionResource))
+		return (sessionResource && this._newSessionFolderService.getFolder(sessionResource))
+			?? (sessionResource && this._workingDirectoryResolver.resolve(sessionResource))
+			?? this._newSessionFolderService.getDefaultFolder()
 			?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
 	}
 
@@ -195,6 +191,7 @@ export class AgentHostGenericConfigChips extends Disposable {
 		for (const property of [...this._chips.keys()]) {
 			if (!desired.has(property)) {
 				this._chips.deleteAndDispose(property);
+				this._chipElements.delete(property);
 			}
 		}
 
@@ -210,10 +207,12 @@ export class AgentHostGenericConfigChips extends Disposable {
 			// in `chat.css` (height, padding, chevron) applies here too.
 			const slot = dom.append(this._container, dom.$('.agent-host-generic-chip-slot.chat-input-picker-item'));
 			chip.render(slot);
+			this._chipElements.set(property, slot);
 			this._chips.set(property, {
 				dispose: () => {
 					chip.dispose();
 					slot.remove();
+					this._chipElements.delete(property);
 				},
 			});
 		}

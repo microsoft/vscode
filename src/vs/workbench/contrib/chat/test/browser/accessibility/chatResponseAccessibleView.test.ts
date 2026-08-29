@@ -65,14 +65,13 @@ suite('ChatResponseAccessibleView', () => {
 		test('returns description for subagent data', () => {
 			const subagentData: IChatSubagentToolInvocationData = {
 				kind: 'subagent',
-				agentName: 'TestAgent',
+				agentDisplayName: 'Test Agent',
+				agentName: 'test-agent',
 				description: 'Running analysis',
 				prompt: 'Analyze the code'
 			};
 			const result = getToolSpecificDataDescription(subagentData);
-			assert.ok(result.includes('TestAgent'));
-			assert.ok(result.includes('Running analysis'));
-			assert.ok(result.includes('Analyze the code'));
+			assert.strictEqual(result, 'Agent: Test Agent. Running analysis. Task: Analyze the code');
 		});
 
 		test('handles subagent with only description', () => {
@@ -208,6 +207,26 @@ suite('ChatResponseAccessibleView', () => {
 				values: []
 			};
 			assert.strictEqual(getToolSpecificDataDescription(resourcesData), '');
+		});
+
+		test('describes configured automation results', () => {
+			assert.deepStrictEqual([
+				getToolSpecificDataDescription({
+					kind: 'automationConfigured',
+					automationId: 'automation-1',
+					automationName: 'Morning review',
+					operation: 'created',
+				}),
+				getToolSpecificDataDescription({
+					kind: 'automationConfigured',
+					automationId: 'automation-1',
+					automationName: 'Morning review',
+					operation: 'updated',
+				}),
+			], [
+				'Created an automation: Morning review',
+				'Edited an automation: Morning review',
+			]);
 		});
 	});
 

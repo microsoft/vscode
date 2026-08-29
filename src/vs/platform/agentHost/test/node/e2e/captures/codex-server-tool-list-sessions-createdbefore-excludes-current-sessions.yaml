@@ -1,0 +1,41 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Call list_sessions exactly once with createdBefore "2000-01-01T00:00:00Z", then reply exactly "filtered".
+    response:
+      content:
+        - type: text
+          text: Running the requested filtered session query now, then I will return the exact required response.
+        - type: tool_use
+          id: toolcall_0
+          name: list_sessions
+          input:
+            createdBefore: '2000-01-01T00:00:00Z'
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Call list_sessions exactly once with createdBefore "2000-01-01T00:00:00Z", then reply exactly "filtered".
+        - role: assistant
+          content: Running the requested filtered session query now, then I will return the exact required response.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: list_sessions
+              input:
+                createdBefore: '2000-01-01T00:00:00Z'
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '{"sessions":[]}'
+    response:
+      content: filtered
+      stopReason: end_turn

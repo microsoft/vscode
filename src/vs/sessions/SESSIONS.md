@@ -1,245 +1,217 @@
-# Sessions Architecture
+# Sessions architecture
 
-## Overview
+> **Specification change gate:** Do not update this document for bug fixes, implementation details, telemetry, or UI behavior. Update it only when the shared service ownership, domain contract, or lifecycle intentionally changes.
 
-The sessions architecture provides a **pluggable provider model** for managing agent sessions in the Agents Window. Multiple providers register with a central registry, and a management service aggregates sessions from all providers and routes user actions to the correct one. This lets new compute environments (local CLI, remote agent hosts, cloud backends) plug in without modifying core code.
+## Scope
 
-## Architecture & Layers
+The Sessions subsystem provides the provider-neutral model used by the Agents Window. Providers adapt backend-specific sessions and chats into shared domain objects. Sessions services aggregate those providers and own model and presentation orchestration.
 
-The sessions system is organized in three layers, each with stricter import permissions. See [LAYERS.md](LAYERS.md) for the full ESLint-enforced rules.
+This specification covers stable service ownership, domain contracts, and lifecycles. Layout, list presentation, and provider implementations have separate owning specifications in [README.md](README.md).
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        UI Components                            │
-│  (SessionsView, TitleBar, NewSession, Changes, Terminal, etc.)  │
-└───────────────────────────┬─────────────────────────────────────┘
-                            │
-                ┌───────────▼────────────┐
-                │ SessionsManagementService│  ← orchestration layer
-                │  (active session, send,  │     aggregates sessions,
-                │   navigation, context    │     routes actions,
-                │   keys, deduplication)   │     manages context keys
-                └───────────┬──────────────┘
-                            │
-                ┌───────────▼────────────┐
-                │ SessionsProvidersService │  ← pure registry
-                │  (register / unregister  │     lookup by ID
-                │   providers)             │
-                └──────┬──────────┬────────┘
-                       │          │
-          ┌────────────▼──┐  ┌───▼──────────────────┐
-          │  CopilotChat  │  │ AgentHost / Remote    │
-          │  Sessions     │  │ AgentHost Sessions    │
-          │  Provider     │  │ Providers             │
-          └───────────────┘  └───────────────────────┘
+## Architecture
+
+```text
+Sessions UI and contributions
+        |
+        v
+ISessionsService -------------------- visible and active state
+        |
+        v
+ISessionsManagementService ---------- model orchestration
+        |
+        v
+ISessionsProvidersService ----------- provider registry
+        |
+        +--> ISessionsProvider (Copilot Chat)
+        +--> ISessionsProvider (Agent Host)
+        +--> ISessionsProvider (Remote Agent Host)
 ```
 
-### Layer 1 — Sessions Core (`services/sessions/`)
+The implementation follows [LAYERS.md](LAYERS.md). Shared Sessions code remains provider-neutral: provider implementations may consume shared contracts, but shared services and contributions must not depend on provider internals.
 
-Defines the foundational interfaces that all providers and consumers share:
+## Service ownership
 
-- **`ISession`** (`session.ts`) — Universal session facade. A self-contained observable object representing a session; consumers never reach back to provider internals. Each session has a globally unique ID built via `toSessionId(providerId, resource)` and groups one or more `IChat` instances.
-- **`ISessionsProvider`** (`sessionsProvider.ts`) — Contract every provider implements. Covers workspace discovery, session CRUD, sending requests, and firing change events.
-- **`ISessionsManagementService`** (`sessionsManagement.ts`) — High-level orchestration interface consumed by UI. Aggregates sessions from all providers, tracks the active session, manages navigation history, and updates context keys.
+### `ISessionsProvidersService`
 
-### Layer 2 — Sessions Services (`services/sessions/browser/`)
+The registry:
 
-Concrete implementations of the core interfaces:
+- registers and unregisters providers;
+- exposes providers in stable order;
+- resolves providers by identifier;
+- announces registration changes.
 
-- **`SessionsProvidersService`** — A pure registry. Providers register here; it fires `onDidChangeProviders` and provides lookup by ID. It does **not** aggregate sessions or route actions.
-- **`SessionsManagementService`** — Wraps the providers service with UI concerns: active session tracking, back/forward navigation, and context key management.
+It does not aggregate sessions, choose a provider for an operation, or own UI state.
 
-### Layer 3 — Providers (`contrib/providers/`)
+### `ISessionsManagementService`
 
-Each provider lives in its own subfolder and implements `ISessionsProvider`:
+The model-orchestration service:
 
-```
-src/vs/sessions/contrib/providers/
-├── agentHost/            # Local agent host provider
-├── copilotChatSessions/  # Copilot chat sessions provider (wraps ChatSessionsService)
-├── localChatSessions/    # Local in-process VS Code chat sessions provider
-└── remoteAgentHost/      # Remote agent host provider (one instance per connection)
-```
+- aggregates sessions and session types;
+- resolves workspaces and selects providers for new sessions;
+- owns pending workspace-session, quick-chat, and automation drafts;
+- routes model and lifecycle operations to the owning provider;
+- exposes provider-neutral lookup and recency APIs;
+- emits lifecycle notifications for operations initiated through the service.
 
-Providers can import from all layers below them (core, services, non-provider contribs). **Non-provider contribs must NOT import from providers.** Shared symbols should be extracted to `services/` or `common/`.
+It does not own active or visible session state, focus, or layout.
 
-### Provider-Specific Documentation
+### `ISessionsService`
 
-- [Copilot Chat Sessions Provider](contrib/providers/copilotChatSessions/COPILOT_CHAT_SESSIONS_PROVIDER.md) — wraps `ChatSessionsService`, metadata contract, workspace derivation
-- [Local Chat Sessions Provider](contrib/providers/localChatSessions/LOCAL_CHAT_SESSIONS_PROVIDER.md) — local in-process VS Code chat, self-managed session list via storage
-- [Remote Agent Host Provider](contrib/providers/remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md) — remote connections, per-host provider instances
+The view service:
 
-### Related Specifications
+- owns the active session and visible-session arrangement;
+- opens sessions and chats;
+- presents new-session and peer-chat composers;
+- owns session navigation, focus, and visible-session restoration.
 
-- [Sessions List](SESSIONS_LIST.md) — UI surface for browsing sessions: tree widget, grouping, filtering, pinning, read/unread state, mobile adaptations
+It delegates model lifecycle operations to `ISessionsManagementService`.
 
----
+### Scoped session context
 
-## Key Concepts
+Surfaces that can represent a session other than the window-global active session use `ISessionContext`. Commands and menus resolve their target through that scope rather than assuming the active session.
 
-### Sessions and Chats
+## Domain model
 
-A **session** groups one or more **chats** (conversations) that share the same workspace context. The relationship is:
+Provider-neutral interfaces live in `services/sessions/common/session.ts`.
 
-```
-ISession
-├── mainChat: IObservable<IChat>   ← primary (first) chat (settable by provider when committing a new session)
-├── chats: IObservable<IChat[]>    ← all chats in creation order
-├── capabilities.supportsMultipleChats
-└── session-level observables      ← derived from chats
-```
+### Identity
 
-Session-level properties are derived from chats:
-- Most properties (`title`, `changes`, `changesets`, `modelId`, etc.) come from the main chat
-- `updatedAt` and `lastTurnEnd` are the latest across all chats
-- `status` is aggregated (`NeedsInput` > `InProgress` > other)
-- `isRead` is `true` only when all chats are read
+An `ISession` has a provider-owned resource URI, provider identifier, session type, and globally unique session identifier. An `IChat` has its own provider-owned resource URI. Consumers compare resource identity and do not parse provider URI formats.
 
-The active session (`IActiveSession`) extends `ISession` with an `activeChat` observable that tracks which chat the user is viewing.
+### Observable state
 
-### Workspaces and Folders
+`ISession` and `IChat` are stable facades. Mutable state is exposed through `IObservable`, including status, title, workspace, chats, model, changes, archive state, and capabilities.
 
-Each session operates on an **`ISessionWorkspace`** containing one or more **`ISessionFolder`** instances. Folders encapsulate a working directory and optional git repository information (`ISessionGitRepository`), including branch state, upstream tracking, and GitHub PR info.
+Consumers derive state from those observables. Provider events announce catalog membership changes; they are not a parallel state store.
 
-Workspaces carry a `group` label (e.g., `"Local"`, `"Remote"`) used by the workspace picker to organize entries into tabs via the `SESSION_WORKSPACE_GROUP_LOCAL` / `SESSION_WORKSPACE_GROUP_REMOTE` constants.
+Providers may expose immutable creation provenance when a session was created by
+another session. `createdBySession` identifies the creating session and may also
+identify its chat and turn. The reference is observable so list presentation can
+keep related sessions together when creation metadata arrives after discovery.
+Creation paths that know the reference include it in the initial session
+publication.
 
-Tasks with `runOptions.runOn === "worktreeCreated"` are dispatched client-side only for sessions that this window has just started. `SessionsManagementService` emits `onDidStartSession` from `sendNewChatRequest` after `provider.sendRequest(...)` commits, and `WorktreeCreatedTaskDispatcher` tracks only those sessions until they report a concrete `gitRepository.workTreeUri`. Restored/synced catalog sessions and runtimes that declare `capabilities.runsWorktreeCreatedTasks` are skipped so setup tasks are not re-run on window open or double-run with server-side provisioning.
+### Sessions and chats
 
-### Session Types
+A session groups one or more chats and exposes a main chat. Providers advertise multi-chat, fork, side-chat, and other operations through observable capabilities. Shared code gates affordances on those capabilities rather than provider identifiers.
 
-An **`ISessionType`** identifies an agent backend (e.g., `'copilot-cli'`, `'copilot-cloud'`). Each provider declares which session types it supports and can dynamically update the list via `onDidChangeSessionTypes`. The management service exposes `getAllSessionTypes()` for UI pickers.
+Chat origin and interactivity describe whether a chat is user-created, tool-created, interactive, read-only, or hidden. Presentation code uses those contracts instead of inferring behavior from resource shape.
 
-Session types are surfaced ordered by each provider's `order` property (lower first; ties keep registration order). The default `order` is `0`, so the Copilot Chat sessions provider keeps precedence by default. The local agent host provider sets its `order` reactively from the experimental `chat.agentHost.defaultSessionsProvider` setting (default `false`, gated behind `chat.agentHost.enabled`): when enabled it returns a negative order so its session types sort before all other providers; otherwise it sorts after the defaults. The provider fires `onDidChangeSessionTypes` when the setting toggles so the management service re-collects and re-sorts. The sort itself lives in `SessionsManagementService._getOrderedProviders()` and applies to both `getAllSessionTypes()` and `getSessionTypesForFolder()` — the orchestration layer stays provider-agnostic (it sorts purely by `order`, with no knowledge of specific provider ids).
+### Workspaces and quick chats
 
-### Changesets
+`ISession.workspace` describes the workspace in which a session operates. A quick chat is workspace-less by product intent and is identified through `ISession.isQuickChat`. An absent workspace alone does not prove that a session is a quick chat because workspace state may still be hydrating.
 
-Sessions produce file changes organized into **`ISessionChangeset`** groups — named, togglable collections of file modifications that let users review and selectively apply changes.
+### Capabilities
 
----
+Capabilities describe operations supported by the backing provider and remain observable when support may change during hydration. Provider-specific checks belong in the provider; shared services and UI consume the capability contract.
 
-## Data Flow
+### Changes
 
-### Creating a New Session
+Sessions and chats expose provider-neutral file changes and changesets. Transport, reconciliation, and backend metadata stay in the provider. Presentation stays in the owning changes and layout contributions.
 
-```
-1. User picks a folder in the workspace picker
-   → WorkspacePicker fires onDidSelectWorkspace(folderUri)
-   → SessionsManagementService.createNewSession(folderUri, options?)
-   → Iterates providers, picks the first one whose resolveWorkspace(folderUri)
-     succeeds (filtered by options.sessionTypeId when given)
-   → Calls provider.createNewSession(folderUri, sessionTypeId)
-   → Returns ISession, set as activeSession
+Turn-level file changes route through `IChatResponseFileChangesService`. The editor workbench opens its standard multi-diff presentation; the Agents Window registers `SessionsChatResponseFileChangesService` to select its canonical Changes editor. Providers expose the data but do not choose the presentation.
 
-2. User picks a different session type for the same folder
-   → SessionTypePicker queries getSessionTypesForFolder(folderUri),
-     groups entries by provider, shows them in the dropdown
-   → On selection, fires onDidSelectSessionType({ providerId, sessionTypeId })
-   → SessionsManagementService.createNewSession(folderUri, { providerId, sessionTypeId })
-     routes through the picked provider — even when the same sessionType.id
-     is also offered by another provider
+### Artifacts, references, and customizations
 
-3. User types a message and sends
-   → SessionsManagementService.sendNewChatRequest(session, {query, attachedContext})
-   → Calls provider.createNewChat(sessionId)
-   → Provider creates the backend chat model and returns an IChat
-   → Management service opens the chat widget with that chat's resource
-  → ChatView locks the embedded ChatWidget to the contributed chat session type
-    (for example agent-host-codex) before setting the model, so follow-up turns
-    keep routing to the provider that owns the session; local chat sessions unlock
-   → Delegates to provider.sendRequest(sessionId, chatResource, options)
-   → Provider sends request, returns committed session
-   → Management service fires onDidStartSession(committedSession)
-   → isNewChatSession context → false
-```
-Follow-up messages to an existing chat go through
-`SessionsManagementService.sendRequest(session, chat, options)`. This always
-makes the sent chat the active chat.
+Sessions may expose the artifacts and references recorded by the agent. Both share one session-scoped observable and are told apart by `isArtifact`: an artifact is something the session produced that is not an ordinary workspace edit, while a reference is something it only points the user at. Consumers that surface one category must filter on that field rather than assuming the observable holds artifacts alone. Chats may expose the customizations used or read during their turns; these are chat-scoped. Providers that cannot determine either may omit the corresponding observable.
 
-`sendNewChatRequest(session, options)` accepts a `background` flag: a background
-new-session send returns the agents window to a fresh new-session view (via
-`openNewSessionView`) **before** creating and sending the session, and skips the
-visible-slot swap (`updateResourceOfSession`/`updateSession`) that the foreground
-path uses. This keeps the composer in view the whole time — the started session is
-never momentarily shown in the chat view — and it just appears in the sessions
-list once the provider commits it.
+## Provider contract
 
-Background sends are **fire-and-forget** at the management layer: the composer is
-allowed to reset and reseed immediately while the provider commit continues
-asynchronously. Providers are therefore required to support multiple concurrent
-new sessions. If that async commit fails, the management service calls
-`deleteNewSession(sessionId)` to dispose the stranded draft because it is no
-longer referenced by `_pendingNewSession`.
+`ISessionsProvider` is defined in `services/sessions/common/sessionsProvider.ts`. A provider represents one compute environment. A provider may advertise multiple session types, and multiple providers may advertise the same logical type.
 
-`background` lives on the management-layer `ISendRequestOptions` (which extends
-the provider's send-request options). Providers do not interpret the flag; it is
-purely a management/UI concern. In the new-session composer the gesture is
-**Alt+Enter** (or **Alt-click** the Send button); plain Enter / click sends in
-the foreground. The background gesture is only offered for the new-session
-composer, not when sending a new chat within an existing session.
+### Discovery and catalog
 
-For callers outside the new-session composer,
-`createAndSendNewChatRequest(folderUri, options, createOptions?)` creates a fresh
-session for the folder and sends the request in one call, **without** touching
-the pending/active session or navigating the current view — the started session
-just appears in the sessions list once the provider commits it. It shares the
-underlying commit helper with the composer's background send; if the send fails
-it disposes the stranded draft via `deleteNewSession` and rejects so the caller
-can react.
+A provider exposes:
 
-### Session Change Propagation
+- stable identity and presentation metadata;
+- supported session types and their changes;
+- the current session catalog and catalog changes;
+- workspace browsing and resolution;
+- provider capabilities.
 
-All session state flows through observables:
+Catalog events distinguish added, removed, and changed facades. Facade replacement is a separate `onDidReplaceSession` lifecycle notification; the management service also translates it into an ordinary catalog refresh. Mutable fields on a facade remain observable.
 
-```
-Backend state change (turn complete, status update, etc.)
-  → Provider detects change, updates ISession observables
-  → Provider fires onDidChangeSessions { added, removed, changed }
-  → SessionsProvidersService forwards the event
-  → SessionsManagementService forwards, updates active session & context keys
-  → UI re-renders via observable subscriptions
+A provider that supersedes sessions from another provider may implement `resolveSessionResource`. Open paths use this hook to redirect persisted or linked resources before lookup. Providers decline unfamiliar resources, in which case callers retain the original resource.
+
+### Drafts
+
+`createNewSession` and `createQuickChat` return untitled drafts. A draft remains `Untitled` while its first request is prepared; `isNewSessionRequestInProgress` separately lets the UI present that activity without treating the session as committed. A draft enters the committed catalog when its first request is sent. The management service owns the currently presented draft; the provider owns its backend resources. `deleteNewSession` disposes an abandoned draft.
+
+### Operations
+
+Providers implement only operations advertised by their contracts, including request sending, model selection, rename, archive, read state, deletion, and chat creation. Capability checks happen before invocation. Once invoked, an operation returns a defined result or rejects; unsupported behavior must not be reported as a success-shaped fallback.
+
+### Provider ownership
+
+Backend state, transport, URI formats, recovery, and authentication remain inside provider contributions. Providers adapt those details into `ISession`, `IChat`, and shared operations.
+
+Provider-specific contracts are documented in:
+
+- [Copilot Chat provider](contrib/providers/copilotChatSessions/COPILOT_CHAT_SESSIONS_PROVIDER.md)
+- [Agent Host provider](contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md)
+- [Remote Agent Host provider](contrib/providers/remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md)
+
+## Principal lifecycle
+
+### Registration
+
+```text
+provider contribution loads
+    -> registerProvider(provider)
+    -> management subscribes to provider state
+    -> aggregated types and sessions update
+    -> consumers react through services and observables
 ```
 
-Providers may fire `onDidReplaceSession` when a temporary (untitled) session is atomically replaced by a committed one after the first turn.
+Registration does not imply backend readiness. Providers publish usable types and capabilities as their backend becomes ready. Consumers that support partial state create the best available model and react to later capability changes.
 
----
+### New session
 
-## Adding a New Provider
+```text
+user chooses a workspace and session type
+    -> ISessionsService presents the flow
+    -> ISessionsManagementService resolves trust and provider
+    -> provider creates a draft
+    -> management owns the pending draft
+    -> view service presents it
+```
 
-1. **Implement `ISessionsProvider`** with a unique `id`, `sessionTypes`, and `browseActions`
-2. **Create session data classes** implementing `ISession` with observable properties
-3. **Place code under `contrib/providers/<name>/`**
-4. **Register via a workbench contribution** at `WorkbenchPhase.AfterRestored`:
-   ```typescript
-   class MyProviderContribution extends Disposable implements IWorkbenchContribution {
-       constructor(
-           @IInstantiationService instantiationService: IInstantiationService,
-           @ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
-       ) {
-           super();
-           const provider = this._register(instantiationService.createInstance(MyProvider));
-           this._register(sessionsProvidersService.registerProvider(provider));
-       }
-   }
-   registerWorkbenchContribution2(MyProviderContribution.ID, MyProviderContribution, WorkbenchPhase.AfterRestored);
-   ```
-5. Use `toSessionId(providerId, resource)` for session IDs
-6. Fire `onDidChangeSessions` on every session change and `onDidReplaceSession` on untitled→committed transitions
-7. Set `supportsLocalWorkspaces: true` if the provider can resolve local file-system workspaces
+On first send, the provider creates or selects the chat, sends the request, and commits the session. Providers may preserve the draft facade or notify the management service through the separate replacement lifecycle. Consumers follow that lifecycle rather than assuming one strategy or a replacement field on a catalog event.
 
----
+### Existing session
 
-## Interface Design Guidelines
+Requests route through `ISessionsManagementService` to the provider identified by the session. Providers update chat and session observables. Foreground sends may update view state through lifecycle notifications; background sends do not implicitly steal focus.
 
-### `ISessionsProvider` must have no optional methods
+### Multiple chats
 
-Every method on `ISessionsProvider` is part of the mandatory contract. Do **not** declare any method as optional (i.e., using `?`). Every provider must implement the full interface. If a method is not meaningful for a particular provider, implement it as a no-op or return a safe default.
+Creating or forking a chat is a capability-gated provider operation routed by the management service. Opening an existing chat is view orchestration: `ISessionsService` activates the session, resolves the chat from `session.chats`, and updates visible and active state.
 
-**Rationale:** Optional methods weaken the contract and force call sites to add guard code (`if (provider.method)`). Mandatory methods keep the management service clean and ensure the interface documents the complete capability set of every provider.
+## State propagation
 
-### Any addition to `ISession` or `ISessionsProvider` must be consumed in the agents window core workbench
+Use the narrowest mechanism that represents a change:
 
-The **agents window core workbench** is defined as all sessions code *outside* `src/vs/sessions/contrib/providers/` — that is, code in `src/vs/sessions/services/`, `src/vs/sessions/browser/`, `src/vs/sessions/common/`, and non-provider `src/vs/sessions/contrib/*` folders (views, UI contributions, toolbars, etc.).
+- observables for mutable session or chat state;
+- provider events for catalog membership;
+- management events for operation lifecycle notifications;
+- direct service calls for orchestration and control flow.
 
-When you add a property or method to `ISession` or `ISessionsProvider`, it **must** be referenced by at least one file in the core workbench, not only within provider implementations.
+Do not mirror observable state with events or use storage and provider internals as side channels between components.
 
-**Rationale:** If an interface member is only used inside providers, it belongs on the provider's concrete class, not on the shared interface. Interfaces should capture what the orchestration layer (management service, UI) needs from providers — not internal implementation details that leak outward.
+## Provider checklist
+
+1. Implement `ISessionsProvider` under `contrib/providers/<provider>/browser/`.
+2. Adapt backend state into stable `ISession` and `IChat` facades.
+3. Advertise types and capabilities truthfully and reactively.
+4. Register through the appropriate `sessions.*.main.ts` entry point.
+5. Keep shared contracts provider-neutral.
+6. Add focused lifecycle and failure tests.
+7. Update this specification only when the shared contract or ownership model changes.
+
+## Related specifications
+
+- [Documentation index](README.md)
+- [Layer rules](LAYERS.md)
+- [Layout](LAYOUT.md)
+- [Layout controller](LAYOUT_CONTROLLER.md)
+- [Sessions list](SESSIONS_LIST.md)
+- [Mobile](MOBILE.md)

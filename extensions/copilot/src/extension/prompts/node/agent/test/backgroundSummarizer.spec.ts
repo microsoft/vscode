@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { describe, expect, test } from 'vitest';
-import { BackgroundSummarizationState, BackgroundSummarizationThresholds, BackgroundSummarizer, IBackgroundSummarizationResult, shouldKickOffBackgroundSummarization } from '../backgroundSummarizer';
+import { BackgroundSummarizationState, BackgroundSummarizationThresholds, BackgroundSummarizer, IBackgroundSummarizationResult, resolveSummaryAnchorRoundId, shouldKickOffBackgroundSummarization } from '../backgroundSummarizer';
 
 describe('BackgroundSummarizer', () => {
 
@@ -305,5 +305,42 @@ describe('shouldKickOffBackgroundSummarization', () => {
 			// 0.82 meets it.
 			expect(shouldKickOffBackgroundSummarization(warmJitterMin + warmJitterSpan, true, maxRng)).toBe(true);
 		});
+	});
+});
+
+describe('resolveSummaryAnchorRoundId', () => {
+	const round = (id: string) => ({ id });
+	const turn = (...ids: string[]) => ({ rounds: ids.map(round) });
+
+	test('returns undefined with no current rounds and no history', () => {
+		// Regression for #319433: on an early turn (or a cold-cache emergency
+		// kick-off) there is no round to anchor a summary to. Returning undefined
+		// lets the caller skip *before* firing an expensive summarization request
+		// that could only fail with 'no round ID to apply summary to'.
+		expect(resolveSummaryAnchorRoundId([], [])).toBeUndefined();
+	});
+
+	test('returns undefined when there are no current rounds and every history turn is empty', () => {
+		expect(resolveSummaryAnchorRoundId([], [turn(), turn()])).toBeUndefined();
+	});
+
+	test('anchors to the only current-turn round', () => {
+		expect(resolveSummaryAnchorRoundId([round('r1')], [])).toBe('r1');
+	});
+
+	test('anchors to the round before the last so the most recent round is preserved verbatim', () => {
+		expect(resolveSummaryAnchorRoundId([round('r1'), round('r2'), round('r3')], [])).toBe('r2');
+	});
+
+	test('falls back to the most recent history round when the current turn has none', () => {
+		expect(resolveSummaryAnchorRoundId([], [turn('a1', 'a2'), turn('b1', 'b2')])).toBe('b2');
+	});
+
+	test('skips trailing empty history turns when falling back', () => {
+		expect(resolveSummaryAnchorRoundId([], [turn('a1'), turn('b1', 'b2'), turn()])).toBe('b2');
+	});
+
+	test('prefers current-turn rounds over history', () => {
+		expect(resolveSummaryAnchorRoundId([round('c1')], [turn('h1', 'h2')])).toBe('c1');
 	});
 });

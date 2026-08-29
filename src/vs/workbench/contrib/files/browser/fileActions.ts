@@ -911,8 +911,9 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 	const commandService = accessor.get(ICommandService);
 	const pathService = accessor.get(IPathService);
 
-	const wasHidden = !viewsService.isViewVisible(VIEW_ID);
-	const view = await viewsService.openView(VIEW_ID, true);
+	const explorerViewId = explorerService.getViewId() ?? VIEW_ID;
+	const wasHidden = !viewsService.isViewVisible(explorerViewId);
+	const view = await viewsService.openView(explorerViewId, true);
 	if (wasHidden) {
 		// Give explorer some time to resolve itself #111218
 		await timeout(500);

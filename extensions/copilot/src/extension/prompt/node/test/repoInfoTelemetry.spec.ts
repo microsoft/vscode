@@ -71,13 +71,19 @@ suite('RepoInfoTelemetry', () => {
 		services.define(IWorkspaceFileIndex, new SyncDescriptor(NullWorkspaceFileIndex));
 
 		// Override IGitService with a proper mock that has an observable activeRepository
+		const activeRepository = observableValue<any>('test-git-activeRepo', undefined);
 		const mockGitService: IGitService = {
 			_serviceBrand: undefined,
-			activeRepository: observableValue('test-git-activeRepo', undefined),
+			activeRepository,
 			onDidOpenRepository: Event.None,
 			onDidCloseRepository: Event.None,
 			onDidFinishInitialization: Event.None,
-			repositories: [],
+			get repositories() {
+				// Mirror activeRepository so existing tests that only set activeRepository
+				// continue to work after the multi-repo refactor of RepoInfoTelemetry.
+				const repo = activeRepository.get();
+				return repo ? [repo] : [];
+			},
 			isInitialized: true,
 			initRepository: vi.fn(),
 			openRepository: vi.fn(),
@@ -129,6 +135,7 @@ suite('RepoInfoTelemetry', () => {
 		// Properly mock the telemetry methods
 		(telemetryService as any).sendMSFTTelemetryEvent = vi.fn();
 		(telemetryService as any).sendInternalMSFTTelemetryEvent = vi.fn();
+		(telemetryService as any).sendEnhancedGHTelemetryEvent = vi.fn();
 	});
 
 	// ========================================
@@ -1098,7 +1105,7 @@ suite('RepoInfoTelemetry', () => {
 			status: Status.MODIFIED
 		}] as any);
 
-		// Create a diff that exceeds 900KB when serialized to JSON
+		// Create a diff that exceeds both the byte budget (900 KiB) and the character capacity (50 * 8192)
 		const largeDiff = 'x'.repeat(901 * 1024);
 		vi.spyOn(gitDiffService, 'getWorkingTreeDiffsFromRef').mockResolvedValue([{
 			uri: URI.file('/test/repo/file.ts'),
@@ -1130,6 +1137,153 @@ suite('RepoInfoTelemetry', () => {
 		assert.strictEqual(call[1].diffsJSON, undefined);
 		assert.strictEqual(call[1].remoteUrl, 'https://github.com/microsoft/vscode.git');
 		assert.strictEqual(call[1].headCommitHash, 'abc123');
+	});
+
+	test('should detect diffTooLarge via character capacity even when under the byte budget', async () => {
+		setupInternalUser();
+		mockGitServiceWithRepository();
+		mockGitExtensionWithUpstream('abc123');
+
+		vi.spyOn(gitService, 'diffWith').mockResolvedValue([{
+			uri: URI.file('/test/repo/file.ts'),
+			originalUri: URI.file('/test/repo/file.ts'),
+			renameUri: undefined,
+			status: Status.MODIFIED
+		}] as any);
+
+		// ASCII: ~500K chars = ~500KB bytes. Under the 900 KiB byte budget but over the 50 * 8192 (409600)
+		// character capacity, so it must still be rejected as diffTooLarge.
+		const largeDiff = 'x'.repeat(500 * 1024);
+		vi.spyOn(gitDiffService, 'getWorkingTreeDiffsFromRef').mockResolvedValue([{
+			uri: URI.file('/test/repo/file.ts'),
+			originalUri: URI.file('/test/repo/file.ts'),
+			renameUri: undefined,
+			status: Status.MODIFIED,
+			diff: largeDiff
+		}]);
+
+		const repoTelemetry = new RepoInfoTelemetry(
+			'test-message-id',
+			telemetryService,
+			gitService,
+			gitDiffService,
+			gitExtensionService,
+			logService,
+			fileSystemService,
+			workspaceFileIndex,
+			configurationService,
+			copilotTokenStore
+		);
+
+		await repoTelemetry.sendBeginTelemetryIfNeeded();
+
+		const call = (telemetryService.sendInternalMSFTTelemetryEvent as any).mock.calls[0];
+		assert.strictEqual(call[1].result, 'diffTooLarge');
+		assert.strictEqual(call[1].diffsJSON, undefined);
+	});
+
+	test('should detect diffTooLarge via byte budget even when under the character capacity', async () => {
+		setupInternalUser();
+		mockGitServiceWithRepository();
+		mockGitExtensionWithUpstream('abc123');
+
+		vi.spyOn(gitService, 'diffWith').mockResolvedValue([{
+			uri: URI.file('/test/repo/file.ts'),
+			originalUri: URI.file('/test/repo/file.ts'),
+			renameUri: undefined,
+			status: Status.MODIFIED
+		}] as any);
+
+		// A 3-byte UTF-8 CJK character repeated ~350K times: ~1.05MB bytes (over the 900 KiB byte budget)
+		// but only ~350K characters (under the 50 * 8192 (409600) capacity), so it must be rejected via bytes.
+		const largeDiff = '\u4e2d'.repeat(350 * 1024);
+		vi.spyOn(gitDiffService, 'getWorkingTreeDiffsFromRef').mockResolvedValue([{
+			uri: URI.file('/test/repo/file.ts'),
+			originalUri: URI.file('/test/repo/file.ts'),
+			renameUri: undefined,
+			status: Status.MODIFIED,
+			diff: largeDiff
+		}]);
+
+		const repoTelemetry = new RepoInfoTelemetry(
+			'test-message-id',
+			telemetryService,
+			gitService,
+			gitDiffService,
+			gitExtensionService,
+			logService,
+			fileSystemService,
+			workspaceFileIndex,
+			configurationService,
+			copilotTokenStore
+		);
+
+		await repoTelemetry.sendBeginTelemetryIfNeeded();
+
+		const call = (telemetryService.sendInternalMSFTTelemetryEvent as any).mock.calls[0];
+		assert.strictEqual(call[1].result, 'diffTooLarge');
+		assert.strictEqual(call[1].diffsJSON, undefined);
+	});
+
+	test('should chunk large diffs across multiple diffsJSON columns', async () => {
+		setupInternalUser();
+		mockGitServiceWithRepository();
+		mockGitExtensionWithUpstream('abc123');
+
+		vi.spyOn(gitService, 'diffWith').mockResolvedValue([{
+			uri: URI.file('/test/repo/file.ts'),
+			originalUri: URI.file('/test/repo/file.ts'),
+			renameUri: undefined,
+			status: Status.MODIFIED
+		}] as any);
+
+		// Create a diff whose serialized JSON spans several 8192-char chunks but stays within the cap.
+		const largeDiff = 'x'.repeat(30 * 1024);
+		vi.spyOn(gitDiffService, 'getWorkingTreeDiffsFromRef').mockResolvedValue([{
+			uri: URI.file('/test/repo/file.ts'),
+			originalUri: URI.file('/test/repo/file.ts'),
+			renameUri: undefined,
+			status: Status.MODIFIED,
+			diff: largeDiff
+		}]);
+
+		const repoTelemetry = new RepoInfoTelemetry(
+			'test-message-id',
+			telemetryService,
+			gitService,
+			gitDiffService,
+			gitExtensionService,
+			logService,
+			fileSystemService,
+			workspaceFileIndex,
+			configurationService,
+			copilotTokenStore
+		);
+
+		await repoTelemetry.sendBeginTelemetryIfNeeded();
+
+		// Assert: success, and the diffs JSON is multiplexed (via multiplexProperties) across ordered
+		// columns (`diffsJSON`, `diffsJSON_02`, `diffsJSON_03`, ...) that each stay within the 8192-char
+		// per-property budget and losslessly reassemble to the original JSON.
+		const call = (telemetryService.sendEnhancedGHTelemetryEvent as any).mock.calls[0];
+		assert.strictEqual(call[1].result, 'success');
+
+		const chunkColumns: string[] = [];
+		for (let n = 1; ; n++) {
+			const key = n === 1 ? 'diffsJSON' : `diffsJSON_${n < 10 ? '0' : ''}${n}`;
+			const value = call[1][key];
+			if (value === undefined) {
+				break;
+			}
+			assert.ok(value.length <= 8192, `${key} exceeds 8192 characters`);
+			chunkColumns.push(value);
+		}
+
+		assert.ok(chunkColumns.length > 1, 'expected the diff to be split across multiple columns');
+
+		const diffs = JSON.parse(chunkColumns.join(''));
+		assert.strictEqual(diffs.length, 1);
+		assert.strictEqual(diffs[0].diff, largeDiff);
 	});
 
 	test('should send diff when within size limits', async () => {
@@ -1593,7 +1747,7 @@ suite('RepoInfoTelemetry', () => {
 			status: Status.MODIFIED
 		}] as any);
 
-		// Create a diff that exceeds 900KB when serialized to JSON
+		// Create a diff that exceeds both the byte budget (900 KiB) and the character capacity (50 * 8192)
 		const largeDiff = 'x'.repeat(901 * 1024);
 		vi.spyOn(gitDiffService, 'getWorkingTreeDiffsFromRef').mockResolvedValue([{
 			uri: URI.file('/test/repo/file.ts'),
@@ -1949,6 +2103,162 @@ suite('RepoInfoTelemetry', () => {
 	});
 
 	// ========================================
+	// Multi-Repository Tests
+	// ========================================
+
+	test('should send one telemetry event per repository in a multi-repo workspace', async () => {
+		setupInternalUser();
+
+		const repoAUri = URI.file('/test/repoA');
+		const repoBUri = URI.file('/test/repoB');
+		mockMultiRepoSetup([
+			{ rootUri: repoAUri, remoteUrl: 'https://github.com/microsoft/vscode.git' },
+			{ rootUri: repoBUri, remoteUrl: 'https://github.com/microsoft/typescript.git' },
+		], repoAUri);
+
+		const repoTelemetry = new RepoInfoTelemetry(
+			'test-message-id',
+			telemetryService,
+			gitService,
+			gitDiffService,
+			gitExtensionService,
+			logService,
+			fileSystemService,
+			workspaceFileIndex,
+			configurationService,
+			copilotTokenStore
+		);
+
+		await repoTelemetry.sendBeginTelemetryIfNeeded();
+
+		const calls = (telemetryService.sendInternalMSFTTelemetryEvent as any).mock.calls;
+		assert.strictEqual(calls.length, 2, 'should emit one event per repo');
+
+		const propsByRepoIndex = new Map<number, any>();
+		for (const call of calls) {
+			assert.strictEqual(call[0], 'request.repoInfo');
+			propsByRepoIndex.set(call[2].repoIndex, { props: call[1], measurements: call[2] });
+		}
+
+		const first = propsByRepoIndex.get(0)!;
+		const second = propsByRepoIndex.get(1)!;
+		assert.strictEqual(first.measurements.repoCount, 2);
+		assert.strictEqual(second.measurements.repoCount, 2);
+		assert.strictEqual(first.props.isActiveRepository, 'true');
+		assert.strictEqual(second.props.isActiveRepository, 'false');
+		assert.strictEqual(first.props.remoteUrl, 'https://github.com/microsoft/vscode.git');
+		assert.strictEqual(second.props.remoteUrl, 'https://github.com/microsoft/typescript.git');
+	});
+
+	test('should include repoIndex/repoCount/isActiveRepository for single-repo workspace', async () => {
+		setupInternalUser();
+		mockGitServiceWithRepository();
+		mockGitExtensionWithUpstream('abc123');
+		mockGitDiffService([{ uri: '/test/repo/file.ts', diff: 'some diff' }]);
+
+		const repoTelemetry = new RepoInfoTelemetry(
+			'test-message-id',
+			telemetryService,
+			gitService,
+			gitDiffService,
+			gitExtensionService,
+			logService,
+			fileSystemService,
+			workspaceFileIndex,
+			configurationService,
+			copilotTokenStore
+		);
+
+		await repoTelemetry.sendBeginTelemetryIfNeeded();
+
+		assert.strictEqual((telemetryService.sendInternalMSFTTelemetryEvent as any).mock.calls.length, 1);
+		const call = (telemetryService.sendInternalMSFTTelemetryEvent as any).mock.calls[0];
+		assert.strictEqual(call[2].repoIndex, 0);
+		assert.strictEqual(call[2].repoCount, 1);
+		assert.strictEqual(call[1].isActiveRepository, 'true');
+	});
+
+	test('should gate end telemetry per repo', async () => {
+		setupInternalUser();
+
+		const repoAUri = URI.file('/test/repoA');
+		const repoBUri = URI.file('/test/repoB');
+		// Repo A: success path (1 change). Repo B: tooManyChanges (101 changes).
+		mockMultiRepoSetup([
+			{ rootUri: repoAUri, remoteUrl: 'https://github.com/microsoft/vscode.git' },
+			{ rootUri: repoBUri, remoteUrl: 'https://github.com/microsoft/typescript.git', changeCount: 101 },
+		], repoAUri);
+
+		const repoTelemetry = new RepoInfoTelemetry(
+			'test-message-id',
+			telemetryService,
+			gitService,
+			gitDiffService,
+			gitExtensionService,
+			logService,
+			fileSystemService,
+			workspaceFileIndex,
+			configurationService,
+			copilotTokenStore
+		);
+
+		await repoTelemetry.sendBeginTelemetryIfNeeded();
+		await repoTelemetry.sendEndTelemetry();
+
+		// 2 begin events (one per repo) + 1 end event (only the success repo)
+		const calls = (telemetryService.sendInternalMSFTTelemetryEvent as any).mock.calls;
+		assert.strictEqual(calls.length, 3);
+
+		const beginCalls = calls.filter((c: any) => c[1].location === 'begin');
+		const endCalls = calls.filter((c: any) => c[1].location === 'end');
+		assert.strictEqual(beginCalls.length, 2);
+		assert.strictEqual(endCalls.length, 1);
+		assert.strictEqual(endCalls[0][1].remoteUrl, 'https://github.com/microsoft/vscode.git');
+		assert.strictEqual(endCalls[0][1].result, 'success');
+	});
+
+	test('should cap telemetry at 5 repos with active repo always included', async () => {
+		setupInternalUser();
+
+		// 7 repos total; active repo is the 6th one (would normally be excluded by a naive slice).
+		const repos = Array.from({ length: 7 }, (_, i) => ({
+			rootUri: URI.file(`/test/repo${i}`),
+			remoteUrl: `https://github.com/microsoft/repo${i}.git`,
+		}));
+		const activeRepoUri = repos[5].rootUri;
+		mockMultiRepoSetup(repos, activeRepoUri);
+
+		const repoTelemetry = new RepoInfoTelemetry(
+			'test-message-id',
+			telemetryService,
+			gitService,
+			gitDiffService,
+			gitExtensionService,
+			logService,
+			fileSystemService,
+			workspaceFileIndex,
+			configurationService,
+			copilotTokenStore
+		);
+
+		await repoTelemetry.sendBeginTelemetryIfNeeded();
+
+		const calls = (telemetryService.sendInternalMSFTTelemetryEvent as any).mock.calls;
+		// Capped at 5 events even though 7 repos exist.
+		assert.strictEqual(calls.length, 5);
+
+		// Every event reports the TRUE repoCount (7), not the capped count.
+		for (const call of calls) {
+			assert.strictEqual(call[2].repoCount, 7);
+		}
+
+		// Active repo must be present exactly once and marked as active.
+		const activeCalls = calls.filter((c: any) => c[1].isActiveRepository === 'true');
+		assert.strictEqual(activeCalls.length, 1);
+		assert.strictEqual(activeCalls[0][1].remoteUrl, 'https://github.com/microsoft/repo5.git');
+	});
+
+	// ========================================
 	// Helper Functions
 	// ========================================
 
@@ -2062,6 +2372,96 @@ suite('RepoInfoTelemetry', () => {
 				diff: d.diff || 'test diff'
 			}))
 		);
+	}
+
+	function mockMultiRepoSetup(
+		repos: Array<{ rootUri: URI; remoteUrl: string; upstreamCommit?: string; changeCount?: number }>,
+		activeRootUri: URI
+	) {
+		const repoContexts = repos.map(r => ({
+			rootUri: r.rootUri,
+			changes: {
+				mergeChanges: [],
+				indexChanges: [],
+				workingTree: [{
+					uri: URI.joinPath(r.rootUri, 'file.ts'),
+					originalUri: URI.joinPath(r.rootUri, 'file.ts'),
+					renameUri: undefined,
+					status: Status.MODIFIED
+				}],
+				untrackedChanges: []
+			},
+			remotes: ['origin'],
+			remoteFetchUrls: [r.remoteUrl],
+			upstreamRemote: 'origin',
+			headBranchName: 'main',
+			headCommitHash: r.upstreamCommit ?? 'abc123',
+			upstreamBranchName: 'origin/main',
+			isRebasing: false,
+		}));
+
+		const active = repoContexts.find(r => r.rootUri.toString() === activeRootUri.toString());
+		vi.spyOn(gitService.activeRepository, 'get').mockReturnValue(active as any);
+		Object.defineProperty(gitService, 'repositories', {
+			configurable: true,
+			get: () => repoContexts,
+		});
+
+		// Per-repo git extension API: getRepository(uri) returns a mock repo with the upstream
+		// configured to point at <remoteUrl>.
+		const reposByPath = new Map<string, any>();
+		for (const ctx of repoContexts) {
+			const r = repos.find(x => x.rootUri.toString() === ctx.rootUri.toString())!;
+			const upstreamCommit = r.upstreamCommit ?? 'abc123';
+			const mockRepo: any = {
+				getMergeBase: vi.fn(async (ref1: string, ref2: string) =>
+					(ref1 === 'HEAD' && ref2 === '@{upstream}') ? upstreamCommit : undefined
+				),
+				getBranchBase: vi.fn().mockResolvedValue(undefined),
+				getCommit: vi.fn().mockResolvedValue({
+					hash: upstreamCommit,
+					message: 'test commit',
+					commitDate: new Date(),
+				}),
+				getConfig: vi.fn().mockResolvedValue(''),
+				log: vi.fn().mockResolvedValue([]),
+				state: {
+					HEAD: { upstream: { commit: upstreamCommit, remote: 'origin' } },
+					remotes: [{ name: 'origin', fetchUrl: r.remoteUrl, pushUrl: r.remoteUrl, isReadOnly: false }],
+					workingTreeChanges: [],
+					untrackedChanges: [],
+				},
+			};
+			reposByPath.set(ctx.rootUri.toString(), mockRepo);
+		}
+		vi.spyOn(gitExtensionService, 'getExtensionApi').mockReturnValue({
+			getRepository: (uri: URI) => reposByPath.get(uri.toString()),
+		} as any);
+
+		// diffWith: synthesize <changeCount> changes for this repo
+		vi.spyOn(gitService, 'diffWith').mockImplementation(async (uri: URI) => {
+			const r = repos.find(x => x.rootUri.toString() === uri.toString());
+			const count = r?.changeCount ?? 1;
+			return Array.from({ length: count }, (_, i) => ({
+				uri: URI.joinPath(uri, `file${i}.ts`),
+				originalUri: URI.joinPath(uri, `file${i}.ts`),
+				renameUri: undefined,
+				status: Status.MODIFIED,
+			})) as any;
+		});
+
+		vi.spyOn(gitDiffService, 'getWorkingTreeDiffsFromRef').mockImplementation(async (repositoryOrUri: any) => {
+			const uri: URI = URI.isUri(repositoryOrUri) ? repositoryOrUri : repositoryOrUri.rootUri;
+			const r = repos.find(x => x.rootUri.toString() === uri.toString());
+			const count = r?.changeCount ?? 1;
+			return Array.from({ length: count }, (_, i) => ({
+				uri: URI.joinPath(uri, `file${i}.ts`),
+				originalUri: URI.joinPath(uri, `file${i}.ts`),
+				renameUri: undefined,
+				status: Status.MODIFIED,
+				diff: 'test diff',
+			})) as any;
+		});
 	}
 });
 

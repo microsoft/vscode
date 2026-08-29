@@ -5,7 +5,6 @@
 
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { ILogService } from '../../log/common/log.js';
 import { CDPEvent, CDPTargetInfo, ICDPConnection } from '../common/cdp/types.js';
 import { BrowserView } from './browserView.js';
 
@@ -59,20 +58,20 @@ export class BrowserViewDebugger extends Disposable {
 	private _isPaused = false;
 	get isPaused(): boolean { return this._isPaused; }
 
-	private _targetId: string | undefined;
-	get targetId(): string | undefined { return this._targetId; }
+	readonly targetId: string;
 
 	private readonly _messageHandler: (event: Electron.Event, method: string, params: unknown, sessionId?: string) => void;
 	private readonly _electronDebugger: Electron.Debugger;
 	private readonly _interceptors = new Set<CDPCommandInterceptor>();
+	private _isDisposed = false;
 
 	constructor(
-		private readonly view: BrowserView,
-		readonly logService: ILogService
+		private readonly view: BrowserView
 	) {
 		super();
 
 		this._electronDebugger = view.webContents.debugger;
+		this.targetId = view.webContents.getOrCreateDevToolsTargetId();
 
 		this._messageHandler = (_event: Electron.Event, method: string, params: unknown, sessionId?: string) => {
 			this.routeCDPEvent(method, params, sessionId);
@@ -85,11 +84,7 @@ export class BrowserViewDebugger extends Disposable {
 	 * Works for both the root page and sub-targets.
 	 */
 	async attach(): Promise<ICDPConnection> {
-		if (!this._targetId) {
-			const targetInfo = await this.getTargetInfo();
-			this._targetId = targetInfo.targetId;
-		}
-		return this.attachToTarget(this._targetId);
+		return this.attachToTarget(this.targetId);
 	}
 
 	async attachToTarget(targetId: string): Promise<ICDPConnection> {
@@ -160,6 +155,12 @@ export class BrowserViewDebugger extends Disposable {
 	}
 
 	private ensureAttached(): void {
+		if (this._isDisposed) {
+			throw new Error('Browser view debugger is disposed');
+		}
+		if (this.view.webContents.isDestroyed()) {
+			throw new Error('Browser view is destroyed');
+		}
 		if (this._electronDebugger.isAttached()) {
 			return;
 		}
@@ -205,7 +206,7 @@ export class BrowserViewDebugger extends Disposable {
 			this.registerSession(p.sessionId, p.targetInfo, p.waitingForDebugger, sessionId);
 		} else if (method === 'Target.detachedFromTarget') {
 			const p = params as { sessionId: string };
-			this._sessions.deleteAndDispose(p.sessionId);
+			this.closeSession(p.sessionId);
 		} else if (method === 'Target.targetDestroyed') {
 			const p = params as { targetId: string };
 			this.destroyTarget(p.targetId);
@@ -240,7 +241,7 @@ export class BrowserViewDebugger extends Disposable {
 			}
 		}
 		for (const sessionId of toDispose) {
-			this._sessions.deleteAndDispose(sessionId);
+			this.closeSession(sessionId);
 		}
 
 		if (this._knownTargets.delete(targetId)) {
@@ -249,7 +250,7 @@ export class BrowserViewDebugger extends Disposable {
 	}
 
 	private registerSession(sessionId: string, targetInfo: CDPTargetInfo, waitingForDebugger: boolean, parentSessionId: string | undefined): DebugSession {
-		if (!this._knownTargets.has(targetInfo.targetId) && targetInfo.targetId !== this._targetId) {
+		if (!this._knownTargets.has(targetInfo.targetId) && targetInfo.targetId !== this.targetId) {
 			this._knownTargets.set(targetInfo.targetId, targetInfo);
 			this._onTargetDiscovered.fire(targetInfo);
 		}
@@ -260,14 +261,32 @@ export class BrowserViewDebugger extends Disposable {
 
 		const session = new DebugSession(parentSessionId, sessionId, targetInfo.targetId, this);
 		this._sessions.set(sessionId, session);
-		session.onClose(() => this._sessions.deleteAndDispose(sessionId));
+		const closeListener = session.onClose(() => {
+			closeListener.dispose();
+			if (this._sessions.deleteAndLeak(sessionId) !== session) {
+				return;
+			}
+			if (this._isDisposed || this.view.webContents.isDestroyed() || !this._electronDebugger.isAttached()) {
+				return;
+			}
+			void this._electronDebugger.sendCommand(
+				'Target.detachFromTarget',
+				{ sessionId },
+				parentSessionId
+			).catch(() => { });
+		});
 
 		this._onSessionCreated.fire({ session, waitingForDebugger });
 
 		return session;
 	}
 
+	private closeSession(sessionId: string): void {
+		this._sessions.deleteAndLeak(sessionId)?.dispose();
+	}
+
 	override dispose(): void {
+		this._isDisposed = true;
 		this.detachElectronDebugger();
 		super.dispose();
 	}
