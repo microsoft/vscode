@@ -342,7 +342,7 @@ class OpenFileInIntegratedBrowserAction extends Action2 {
 	constructor() {
 		const IS_LOCAL_HTML_FILE = ContextKeyExpr.and(
 			ResourceContextKey.Scheme.isEqualTo(Schemas.file),
-			ContextKeyExpr.regex(ResourceContextKey.Extension.key, /\.html?$/i),
+			ContextKeyExpr.regex(ResourceContextKey.Extension.key, /\.(?:html?|mht(?:ml)?)$/i),
 		);
 		super({
 			id: BrowserViewCommandId.OpenFile,
