@@ -73,6 +73,12 @@ export default new class NoBracketNotationForIdentifiers implements eslint.Rule.
 							if (leftBracket?.value !== '[' || rightBracket?.value !== ']') {
 								return null;
 							}
+							const hasComments = context.sourceCode
+								.getTokensBetween(leftBracket, rightBracket, { includeComments: true })
+								.some(token => token.type === 'Block' || token.type === 'Line');
+							if (hasComments) {
+								return null;
+							}
 
 							const bracketFix = fixer.replaceTextRange(
 								[leftBracket.range[0], rightBracket.range[1]],
