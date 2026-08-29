@@ -139,7 +139,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		const errorSignal = signals.find(s => s.kind === 'action' && s.action.type === ActionType.ChatError);
 		assert.ok(errorSignal && errorSignal.kind === 'action' && errorSignal.action.type === ActionType.ChatError);
 		assert.strictEqual(errorSignal.action.duration, 123);
-		const error = errorSignal.action.error;
+		const error = errorSignal.action.part.error;
 		const meta = error._meta as { chatError?: { fetchError?: { type?: string } } } | undefined;
 		assert.strictEqual(meta?.chatError?.fetchError?.type, 'quotaExceeded');
 		assert.ok(!error.message.includes(PROXY_ERROR_PREFIX), 'proxy marker should be stripped from the human-readable message');
@@ -159,7 +159,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 
 		const errorSignal = signals.find(s => s.kind === 'action' && s.action.type === ActionType.ChatError);
 		assert.ok(errorSignal && errorSignal.kind === 'action' && errorSignal.action.type === ActionType.ChatError);
-		const meta = errorSignal.action.error._meta as { chatError?: { fetchError?: { type?: string } } } | undefined;
+		const meta = errorSignal.action.part.error._meta as { chatError?: { fetchError?: { type?: string } } } | undefined;
 		assert.strictEqual(meta?.chatError?.fetchError?.type, 'quotaExceeded');
 	});
 

@@ -29,17 +29,20 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { ACTIVE_GROUP } from '../../../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { formatElapsedTime } from '../../../common/chatProgressFormatting.js';
+import { formatCopilotCreditsLabel } from '../../../common/chatService/chatService.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../../common/constants.js';
-import { ILanguageModelsService } from '../../../common/languageModels.js';
+import { AUTO_RAW_MODEL_ID, ILanguageModelsService } from '../../../common/languageModels.js';
 import { IChatWidgetService } from '../../chat.js';
 import { getChatMarkdownRenderOptions } from '../chatContentMarkdownRenderer.js';
 import { renderFileWidgets } from './chatInlineAnchorWidget.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
+import { getCompactCodicon } from '../../chatIcons.js';
 
 export interface IOpenSubagentChatContext {
 	readonly chatResource: string;
 	readonly parentSessionResource?: string;
 	readonly title?: string;
+	readonly agentType?: string;
 	/** Open the subagent chat to the side (in a new group) rather than in place. */
 	readonly toSide?: boolean;
 	readonly confirmationCount?: number;
@@ -47,6 +50,8 @@ export interface IOpenSubagentChatContext {
 	readonly startedAt?: number;
 	readonly duration?: number;
 	readonly modelName?: string;
+	/** Copilot credits (AIC) this subagent has consumed so far. */
+	readonly credits?: number;
 	readonly parentModelId?: string;
 	readonly parentModelName?: string;
 	readonly parentResolvedModelId?: string;
@@ -107,14 +112,23 @@ export function getSubagentEditorResource(context: IOpenSubagentChatContext): UR
 	}
 }
 
+/**
+ * Whether the subagent's model is worth showing next to the parent's. It is not when
+ * it merely repeats the parent's, nor when it is "Auto", which names no real model.
+ * Under an Auto parent a concrete model always shows, since the parent only says "Auto".
+ */
 export function shouldShowSubagentModel(subagentModelName: string | undefined, parentModelId: string | undefined, parentModelName: string | undefined, parentModelMetadataId: string | undefined): boolean {
-	if (!subagentModelName) {
+	const normalize = (value: string | undefined) => value?.trim().toLowerCase();
+	const subagent = normalize(subagentModelName);
+	if (!subagent || subagent === AUTO_RAW_MODEL_ID) {
 		return false;
 	}
-	const normalizedSubagentModel = subagentModelName.trim().toLowerCase();
-	const parentModelIdSuffix = parentModelId?.slice(parentModelId.lastIndexOf(':') + 1);
-	return ![parentModelId, parentModelIdSuffix, parentModelName, parentModelMetadataId]
-		.some(candidate => candidate?.trim().toLowerCase() === normalizedSubagentModel);
+	const parentIdSuffix = parentModelId?.slice(parentModelId.lastIndexOf(':') + 1);
+	const parents = [parentModelId, parentIdSuffix, parentModelName, parentModelMetadataId].map(normalize);
+	// The picker can move to Auto after the request starts, so decide Auto from the
+	// request's own model id and consult the live selection only when it is absent.
+	const autoCandidates = parentModelId ? [parentModelId, parentIdSuffix].map(normalize) : parents;
+	return autoCandidates.includes(AUTO_RAW_MODEL_ID) || !parents.includes(subagent);
 }
 
 export function formatCompactSubagentDuration(startedAt: number, duration: number | undefined, now: number = Date.now()): string {
@@ -193,7 +207,9 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 	private readonly _showElapsedOnly: boolean;
 	private _resolvedTitle: string | undefined;
 	private _trackedEnabled: boolean | undefined;
+	private _reportedAgentType: string | undefined;
 	private _reportedModelName: string | undefined;
+	private _reportedCredits: number | undefined;
 	private _renderedStatus: SubagentChatStatus | undefined;
 	private _confirmationCount = 0;
 	private readonly _spinner = this._register(new MutableDisposable<DisposableStore>());
@@ -206,8 +222,10 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 	private _enabledTrackerFactory: ((context: IOpenSubagentChatContext, update: (enabled: boolean) => void) => IDisposable) | undefined;
 	private _dragDataProvider: ((context: IOpenSubagentChatContext, event: DragEvent) => boolean) | undefined;
 	private _labelElement: HTMLElement | undefined;
+	private _agentTypeElement: HTMLElement | undefined;
 	private _pillContentElement: HTMLElement | undefined;
 	private _modelElement: HTMLElement | undefined;
+	private _creditsElement: HTMLElement | undefined;
 	private _durationElement: HTMLElement | undefined;
 	private _activeToolElement: HTMLElement | undefined;
 	private _activeToolIconElement: HTMLElement | undefined;
@@ -259,6 +277,7 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 
 		this._iconElement = $('span.chat-subagent-pill-icon');
 		this._iconElement.appendChild($(`span.chat-subagent-pill-open-icon${ThemeIcon.asCSSSelector(Codicon.commentDiscussion)}`));
+		this._agentTypeElement = $('span.chat-subagent-pill-agent-type.hidden');
 		this._labelElement = $('span.chat-subagent-pill-label');
 		this._modelElement = $('span.chat-subagent-pill-model.hidden');
 		this._confirmationCountElement = $('span.chat-subagent-pill-confirmation-count');
@@ -266,6 +285,7 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		this._pillContentElement = pillContent;
 		const pillHeader = $('span.chat-subagent-pill-header');
 		this._durationElement = $('span.chat-subagent-pill-duration.hidden');
+		this._creditsElement = $('span.chat-subagent-pill-credits.hidden');
 		this._activeToolElement = $('span.chat-subagent-pill-active-tool.hidden');
 		this._activeToolElement.inert = true;
 		const connector = $('span.chat-subagent-pill-active-tool-connector');
@@ -274,8 +294,8 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		this._activeToolIconElement.setAttribute('aria-hidden', 'true');
 		this._activeToolLabelElement = $('.chat-subagent-pill-active-tool-label');
 		this._activeToolElement.append(connector, this._activeToolIconElement, this._activeToolLabelElement);
-		pillContent.append(this._iconElement, this._labelElement, this._modelElement, this._confirmationCountElement);
-		pillHeader.append(pillContent, this._durationElement);
+		pillContent.append(this._iconElement, this._agentTypeElement, this._labelElement, this._modelElement, this._confirmationCountElement);
+		pillHeader.append(pillContent, this._durationElement, this._creditsElement);
 		container.append(pillHeader, this._activeToolElement);
 		this._pillHover.value = this.hoverService.setupDelayedHover(pillContent, () => ({ content: this.getTooltip() ?? '' }));
 		if (this.options.draggable) {
@@ -343,20 +363,23 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		const enabled = this._trackedEnabled ?? (!!context && !!getSubagentEditorResource(context));
 		this._setEnabled(enabled);
 		this._setResolvedTitle(context?.title || this._resolvedTitle);
+		this._setAgentType(context?.agentType);
 		this._reportedModelName = context?.modelName;
 		const parentModel = context?.parentModelId ? this.languageModelsService.lookupLanguageModel(context.parentModelId) : undefined;
 		const contextModelName = shouldShowSubagentModel(context?.modelName, context?.parentModelId, context?.parentModelName ?? parentModel?.name, context?.parentResolvedModelId ?? parentModel?.id)
 			? context?.modelName
 			: undefined;
 		this._setModelName(contextModelName);
+		this._setCredits(context?.credits);
 		this._updateConfirmationCount(context);
 		this._updateStatus(context);
 		this._updateDuration(context);
-		const activeToolLabel = context?.isActive ? context.activeToolLabel : undefined;
+		const showActivity = context?.isActive === true && (context.confirmationCount ?? 0) === 0;
+		const activeToolLabel = showActivity ? context.activeToolLabel : undefined;
 		this._setActiveTool(
-			context?.isActive ? activeToolLabel ?? localize('chat.subagent.working', "Working on it...") : undefined,
-			context?.isActive ? context.activeToolIcon ?? (activeToolLabel ? undefined : Codicon.comment) : undefined,
-			context?.isActive ? context.activeToolCallId : undefined,
+			showActivity ? activeToolLabel ?? localize('chat.subagent.working', "Working on it...") : undefined,
+			showActivity ? context.activeToolIcon ?? (activeToolLabel ? undefined : Codicon.comment) : undefined,
+			showActivity ? context.activeToolCallId : undefined,
 			!!activeToolLabel,
 		);
 		this.updateTooltip();
@@ -395,6 +418,24 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		if (this._modelElement) {
 			this._modelElement.textContent = modelName ?? '';
 			this._modelElement.classList.toggle('hidden', !modelName);
+		}
+	}
+
+	private _setCredits(credits: number | undefined): void {
+		// Zero-cost subagents report 0 rather than nothing, so normalize both to hidden.
+		const show = typeof credits === 'number' && credits > 0;
+		this._reportedCredits = show ? credits : undefined;
+		if (this._creditsElement) {
+			this._creditsElement.textContent = show ? formatCopilotCreditsLabel(credits) : '';
+			this._creditsElement.classList.toggle('hidden', !show);
+		}
+	}
+
+	private _setAgentType(agentType: string | undefined): void {
+		this._reportedAgentType = agentType;
+		if (this._agentTypeElement) {
+			this._agentTypeElement.textContent = agentType ?? '';
+			this._agentTypeElement.classList.toggle('hidden', !agentType);
 		}
 	}
 
@@ -566,7 +607,7 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		}
 		this._activeToolIconElement.className = 'chat-subagent-pill-active-tool-icon';
 		if (icon) {
-			this._activeToolIconElement.classList.add(...ThemeIcon.asClassNameArray(icon));
+			this._activeToolIconElement.classList.add(...ThemeIcon.asClassNameArray(getCompactCodicon(icon)));
 		}
 	}
 
@@ -615,8 +656,14 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		} else {
 			details.push(this._resolvedTitle ? localize('chat.subagent.openChat.aria', "Open subagent chat: {0}", this._resolvedTitle) : this._action.label);
 		}
+		if (this._reportedAgentType) {
+			details.push(localize('chat.subagent.agentTypeTooltip', "Subagent type: {0}", this._reportedAgentType));
+		}
 		if (this._reportedModelName) {
 			details.push(localize('chat.subagent.modelTooltip', "Model: {0}", this._reportedModelName));
+		}
+		if (this._reportedCredits !== undefined) {
+			details.push(formatCopilotCreditsLabel(this._reportedCredits));
 		}
 		if (this._displayedToolAccessibleLabel && this._displayedActivityIsTool) {
 			details.push(localize('chat.subagent.activeToolTooltip', "Active tool: {0}", this._displayedToolAccessibleLabel));
@@ -653,12 +700,14 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 				: this._renderedStatus === 'completed'
 					? localize('chat.subagent.status.completed', "Subagent completed")
 					: undefined;
+		const agentType = this._reportedAgentType ? localize('chat.subagent.agentTypeAria', "Subagent type {0}", this._reportedAgentType) : undefined;
 		const model = this._reportedModelName ? localize('chat.subagent.modelAria', "Model {0}", this._reportedModelName) : undefined;
 		const activeTool = this._displayedToolAccessibleLabel && this._displayedActivityIsTool
 			? localize('chat.subagent.activeToolAria', "Active tool {0}", this._displayedToolAccessibleLabel)
 			: undefined;
 		const duration = this._durationElement?.textContent;
-		this.element.setAttribute('aria-label', [label, status, model, activeTool, duration].filter(Boolean).join('. '));
+		const credits = this._creditsElement?.textContent;
+		this.element.setAttribute('aria-label', [label, agentType, status, model, activeTool, duration, credits].filter(Boolean).join('. '));
 	}
 }
 

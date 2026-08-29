@@ -93,9 +93,7 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 		}, 50, 20);
 	}
 
-	// Codex starts the restored follow-up but intermittently never completes it across replay platforms.
-	const sessionPersistenceEnabled = config.provider !== 'codex' || context.runKnownIssueTests;
-	(sessionPersistenceEnabled ? test : test.skip)('session metadata history and provider context survive a host restart', async function () {
+	test('session metadata history and provider context survive a host restart', async function () {
 		this.timeout(240_000);
 		const workspace = fs.mkdtempSync(`${tmpdir()}/ahp-persistence-`);
 		tempDirs.push(workspace);
@@ -152,7 +150,7 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 			action: {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-peer-local',
-				startedAt: '2025-01-01T00:00:00.000Z',
+				startedAt: new Date().toISOString(),
 				message: { text: '/rename Rehydrated Peer', origin: { kind: MessageKind.User } },
 			},
 		});

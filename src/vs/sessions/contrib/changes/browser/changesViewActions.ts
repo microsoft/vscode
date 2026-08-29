@@ -22,7 +22,7 @@ import { DiffEditorInput } from '../../../../workbench/common/editor/diffEditorI
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { Menus } from '../../../browser/menus.js';
-import { SessionHasChangesContext, SessionIsCreatedContext, SinglePaneDiffEditorInputActiveContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
+import { CustomViewVisibleContext, SessionHasChangesContext, SessionIsCreatedContext, SinglePaneDiffEditorInputActiveContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { OPEN_PULL_REQUEST_ACTION_ID } from '../../github/common/types.js';
@@ -185,6 +185,7 @@ class ChangesHeaderActionsAction extends Action2 {
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
 					IsAuxiliaryWindowContext.toNegated(),
+					CustomViewVisibleContext.negate(),
 					SinglePaneLayoutEnabledContext,
 					SessionIsCreatedContext,
 					SessionHasChangesContext
@@ -208,10 +209,8 @@ class SetChangesListViewModeAction extends Action2 {
 			icon: Codicon.listFlat,
 			f1: false,
 			menu: {
-				// Always in the overflow ("…") of the right header, whether the editor
-				// area is visible or collapsed (as long as the changes list is shown).
-				id: Menus.SessionsEditorHeaderSecondary,
-				group: 'secondary/2_viewMode',
+				id: Menus.SessionsEditorTitle,
+				group: '2_viewMode',
 				order: 20,
 				when: ContextKeyExpr.and(
 					singlePaneDiffEditorTitle,
@@ -239,10 +238,8 @@ class SetChangesTreeViewModeAction extends Action2 {
 			icon: Codicon.listTree,
 			f1: false,
 			menu: {
-				// Always in the overflow ("…") of the right header, whether the editor
-				// area is visible or collapsed (as long as the changes list is shown).
-				id: Menus.SessionsEditorHeaderSecondary,
-				group: 'secondary/2_viewMode',
+				id: Menus.SessionsEditorTitle,
+				group: '2_viewMode',
 				order: 20,
 				when: ContextKeyExpr.and(
 					singlePaneDiffEditorTitle,
@@ -270,7 +267,7 @@ class CollapseAllSessionChangesDiffsAction extends Action2 {
 			icon: Codicon.collapseAll,
 			f1: false,
 			menu: {
-				id: Menus.SessionsEditorHeaderSecondary,
+				id: Menus.SessionsEditorTitle,
 				group: '1_diff',
 				order: 10,
 				when: ContextKeyExpr.and(
@@ -300,7 +297,7 @@ class ExpandAllSessionChangesDiffsAction extends Action2 {
 			icon: Codicon.expandAll,
 			f1: false,
 			menu: {
-				id: Menus.SessionsEditorHeaderSecondary,
+				id: Menus.SessionsEditorTitle,
 				group: '1_diff',
 				order: 10,
 				when: ContextKeyExpr.and(
@@ -329,20 +326,13 @@ registerAction2(ExpandAllSessionChangesDiffsAction);
 
 // The action changes the preferred layout. Side by side still falls back to inline
 // when the editor is narrow, so the label must not promise an immediate layout.
-MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, {
+MenuRegistry.appendMenuItem(Menus.SessionsEditorTitle, {
 	command: {
 		id: TOGGLE_DIFF_SIDE_BY_SIDE,
-		title: localize('preferSideBySideDiff', "Prefer Side by Side Diff"),
-		tooltip: localize('preferSideBySideDiff.tooltip', "Uses inline layout when space is limited unless screen reader optimized mode is enabled."),
+		title: localize('alwaysShowInlineDiff', "Always Show Inline Diff"),
+		tooltip: localize('alwaysShowInlineDiff.tooltip', "Always uses inline layout."),
 		icon: Codicon.diffSidebyside,
-		toggled: {
-			condition: ContextKeyExpr.or(
-				ContextKeyExpr.and(singlePaneChangesEditorActive, SessionsDiffRenderSideBySideContext),
-				ContextKeyExpr.and(singlePaneFileDiffEditorActive, SessionsDiffRenderSideBySideContext)
-			)!,
-			title: localize('preferInlineDiff', "Prefer Inline Diff"),
-			tooltip: localize('preferInlineDiff.tooltip', "Always uses inline layout."),
-		},
+		toggled: SessionsDiffRenderSideBySideContext.negate(),
 	},
 	group: '1_diff',
 	order: 20,

@@ -11,7 +11,7 @@ import { localize } from '../../../../nls.js';
 import type { IChatDropdownPillOptions } from '../../../../workbench/browser/chatDropdownPill.js';
 import { getChatPillEntries, type IChatPillEntry, type IChatPillSection } from '../../../../workbench/browser/chatPills.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ChatOriginKind, IChat, isActiveSessionStatus } from '../../../services/sessions/common/session.js';
+import { ChatOriginKind, IChat } from '../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import type { ISessionChatPillsDebugData } from './sessionChatInputToolbarDebug.js';
 
@@ -22,14 +22,15 @@ export const sessionSubagentsPillOptions: IChatDropdownPillOptions = {
 	widgetId: 'sessionBackgroundActivities',
 	icon: Codicon.agent,
 	title: localize('backgroundActivities.ariaLabel', "Background Activities"),
-	summaryLabel: count => localize('backgroundActivities.activeSubagents', "{0} Active Subagents", count),
-	summaryAriaLabel: count => localize('backgroundActivities.show', "Show {0} background activities", count),
+	summaryLabel: count => localize('backgroundActivities.subagentsSummary', "{0} Subagents", count),
+	summaryAriaLabel: count => localize('backgroundActivities.showSubagents', "Show {0} subagents", count),
 };
 
 /**
- * Supplies the background activities of the viewed chat to its pill. Today those
- * are the chat's running subagents; browsers have their own pill, see
- * `SessionBrowsersControl`.
+ * Supplies the background activities of the viewed chat to its pill. Today
+ * those are all of the chat's direct subagents, regardless of status (still
+ * running, completed, failed, or waiting on input); browsers have their own
+ * pill, see `SessionBrowsersControl`.
  */
 export class SessionBackgroundActivitiesControl extends Disposable {
 
@@ -56,7 +57,7 @@ export class SessionBackgroundActivitiesControl extends Disposable {
 			const subagents = debugData
 				? debugData.subagents.map(label => this._entry(label, undefined, currentSession))
 				: enabled.read(reader) && currentSession && currentChat
-					? this._collectRunningSubagents(currentSession, currentChat, reader)
+					? this._collectSubagents(currentSession, currentChat, reader)
 					: [];
 			return subagents.length > 0
 				? [{ title: localize('backgroundActivities.subagents', "Subagents"), entries: subagents }]
@@ -71,13 +72,13 @@ export class SessionBackgroundActivitiesControl extends Disposable {
 		this._debugData.set(data, undefined);
 	}
 
-	private _collectRunningSubagents(session: IActiveSession, parentChat: IChat, reader: IReader): IChatPillEntry[] {
+	/** Returns direct subagents of `parentChat` in every status. */
+	private _collectSubagents(session: IActiveSession, parentChat: IChat, reader: IReader): IChatPillEntry[] {
 		return session.chats.read(reader)
 			.filter(chat =>
 				chat.origin?.kind === ChatOriginKind.Tool &&
 				!!chat.origin.parentChat &&
-				isEqual(chat.origin.parentChat, parentChat.resource) &&
-				isActiveSessionStatus(chat.status.read(reader)))
+				isEqual(chat.origin.parentChat, parentChat.resource))
 			.map(chat => this._entry(chat.title.read(reader), chat, session));
 	}
 
