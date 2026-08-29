@@ -39,6 +39,9 @@ export default new class NoBracketNotationForIdentifiers implements eslint.Rule.
 		 * Check if a string is a valid JavaScript identifier
 		 */
 		function isValidIdentifier(str: string): boolean {
+			if (str.includes('\\')) {
+				return false;
+			}
 			const scanner = ts.createScanner(ts.ScriptTarget.Latest, false, ts.LanguageVariant.Standard, str);
 			const token = scanner.scan();
 			const isIdentifierName = token === ts.SyntaxKind.Identifier
