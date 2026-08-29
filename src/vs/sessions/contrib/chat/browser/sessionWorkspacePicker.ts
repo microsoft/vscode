@@ -1344,7 +1344,7 @@ export class WorkspacePicker extends Disposable {
 				extended.hoverContent = getStatusHover(status, provider.remoteAddress);
 				if (provider.remoteAddress) {
 					extended.onRemove = async () => {
-						await removeRemoteHost(provider, this.remoteAgentHostService);
+						await removeRemoteHost(provider, this.remoteAgentHostService, this.configurationService);
 					};
 				}
 				manageActions.push(action);
@@ -1744,9 +1744,11 @@ export class WorkspacePicker extends Disposable {
 		let isFirstRun = true;
 		store.add(autorun(reader => {
 			const status = connStatus.read(reader);
+			const isBusy = RemoteAgentHostConnectionStatus.isConnecting(status)
+				|| RemoteAgentHostConnectionStatus.isReconnecting(status);
 			if (RemoteAgentHostConnectionStatus.isConnected(status)) {
 				this._connectionStatusWatch.clear();
-			} else if ((RemoteAgentHostConnectionStatus.isDisconnected(status) || RemoteAgentHostConnectionStatus.isIncompatible(status)) && !isFirstRun) {
+			} else if (!isBusy && !isFirstRun) {
 				fallback();
 			}
 			isFirstRun = false;

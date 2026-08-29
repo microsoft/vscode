@@ -10,7 +10,8 @@ import { timeout } from '../../../../../base/common/async.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { toAction } from '../../../../../base/common/actions.js';
 import Severity from '../../../../../base/common/severity.js';
-import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostService, removeWebSocketRemoteAgentHostEntry, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TUNNEL_ADDRESS_PREFIX } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IRemoteAgentHostLocationPreferenceService } from '../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
 import { promptRemoteAgentHostLocationPreference } from '../../../../../platform/agentHost/common/remoteAgentHostLocationPreferenceDialog.js';
@@ -19,6 +20,8 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
+import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
+import { ISSHRemoteAgentHostService } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { INotificationService, Severity as NotificationSeverity } from '../../../../../platform/notification/common/notification.js';
@@ -32,16 +35,19 @@ export async function reconnectRemoteHost(provider: IAgentHostSessionsProvider, 
 	}
 }
 
-export async function removeRemoteHost(provider: IAgentHostSessionsProvider, remoteAgentHostService: IRemoteAgentHostService): Promise<void> {
+export async function removeRemoteHost(provider: IAgentHostSessionsProvider, remoteAgentHostService: IRemoteAgentHostService, configurationService: IConfigurationService): Promise<void> {
 	if (provider.disconnect) {
 		await provider.disconnect();
 	} else if (provider.remoteAddress) {
+		await removeWebSocketRemoteAgentHostEntry(configurationService, provider.remoteAddress);
 		await remoteAgentHostService.removeRemoteAgentHost(provider.remoteAddress);
 	}
 }
 
 export function hasUpgradeReconnectStarted(status: RemoteAgentHostConnectionStatus): boolean {
-	return RemoteAgentHostConnectionStatus.isConnecting(status) || RemoteAgentHostConnectionStatus.isConnected(status);
+	return RemoteAgentHostConnectionStatus.isConnecting(status)
+		|| RemoteAgentHostConnectionStatus.isReconnecting(status)
+		|| RemoteAgentHostConnectionStatus.isConnected(status);
 }
 
 /**
@@ -206,6 +212,8 @@ export function getStatusLabel(status: RemoteAgentHostConnectionStatus): string 
 			return localize('workspacePicker.statusOnline', "Online");
 		case 'connecting':
 			return localize('workspacePicker.statusConnecting', "Connecting");
+		case 'reconnecting':
+			return localize('workspacePicker.statusReconnecting', "Reconnecting");
 		case 'disconnected':
 			return localize('workspacePicker.statusOffline', "Offline");
 		case 'incompatible':
@@ -223,6 +231,10 @@ export function getStatusHover(status: RemoteAgentHostConnectionStatus, address?
 			return address
 				? localize('workspacePicker.hoverConnectingAddr', "Attempting to connect to remote agent host...\n\nAddress: {0}", address)
 				: localize('workspacePicker.hoverConnecting', "Attempting to connect to remote agent host...");
+		case 'reconnecting':
+			return address
+				? localize('workspacePicker.hoverReconnectingAddr', "The remote agent host connection dropped and is being restored automatically.\n\nAddress: {0}", address)
+				: localize('workspacePicker.hoverReconnecting', "The remote agent host connection dropped and is being restored automatically.");
 		case 'disconnected':
 			return address
 				? localize('workspacePicker.hoverDisconnectedAddr', "Remote agent host is disconnected.\n\nAddress: {0}", address)
@@ -271,6 +283,23 @@ export function supportsRemoteAgentHostLocationPreference(preferenceKey: string,
 	return preferenceKey.startsWith(SSH_ADDRESS_PREFIX) || preferenceKey.startsWith(TUNNEL_ADDRESS_PREFIX);
 }
 
+/**
+ * Whether a host's connection details are authored in the user's SSH config
+ * file rather than in VS Code settings.
+ *
+ * True only for SSH hosts identified by an `~/.ssh/config` alias:
+ * `computeSSHConnectionKey` keys those as `ssh:<alias>`, while an SSH host
+ * connected with explicit credentials keys as `user@host:port` and has no
+ * file to open. Other kinds keep their entries in settings or in runtime-only
+ * storage. Always `false` on web, where SSH hosts cannot exist.
+ */
+export function usesSSHConfigFile(preferenceKey: string, isWebPlatform: boolean = isWeb): boolean {
+	if (isWebPlatform) {
+		return false;
+	}
+	return preferenceKey.startsWith(SSH_ADDRESS_PREFIX);
+}
+
 export type RemoteOptionPickItem = IQuickPickItem & { id: string };
 
 export interface IBuildRemoteHostOptionItemsOptions {
@@ -307,8 +336,12 @@ export function buildRemoteHostOptionItems(options: IBuildRemoteHostOptionItemsO
 	items.push(
 		{ label: '$(trash) ' + localize('workspacePicker.removeRemote', "Remove Remote"), id: 'remove' },
 		{ label: '$(copy) ' + localize('workspacePicker.copyAddress', "Copy Address"), id: 'copy' },
-		{ label: '$(settings-gear) ' + localize('workspacePicker.openSettings', "Open Settings"), id: 'settings' },
 	);
+	// An SSH host aliased in `~/.ssh/config` is authored there, not in
+	// settings, so point at the file that actually defines it.
+	items.push(usesSSHConfigFile(options.preferenceKey ?? options.address, options.isWebPlatform ?? isWeb)
+		? { label: '$(settings-gear) ' + localize('workspacePicker.openSSHConfig', "Open SSH Configuration"), id: 'sshConfig' }
+		: { label: '$(settings-gear) ' + localize('workspacePicker.openSettings', "Open Settings"), id: 'settings' });
 	if (supportsRemoteAgentHostLocationPreference(options.preferenceKey ?? options.address, options.isWebPlatform ?? isWeb)) {
 		items.push({ label: '$(server-process) ' + localize('workspacePicker.changeLocationPreference', "Change Preferred Agent Location"), id: 'locationPreference' });
 	}
@@ -413,6 +446,9 @@ export async function showRemoteHostOptions(accessor: ServicesAccessor, provider
 	const dialogService = accessor.get(IDialogService);
 	const notificationService = accessor.get(INotificationService);
 	const progressService = accessor.get(IProgressService);
+	const configurationService = accessor.get(IConfigurationService);
+	const sshService = accessor.get(ISSHRemoteAgentHostService);
+	const editorService = accessor.get(IEditorService);
 	// IRemoteAgentHostLocationPreferenceService is only registered on
 	// desktop (see sessions.desktop.main.ts) - the web tunnel service does
 	// not honor a preference at all, so avoid resolving an unregistered
@@ -485,7 +521,7 @@ export async function showRemoteHostOptions(accessor: ServicesAccessor, provider
 			await reconnectRemoteHost(provider, remoteAgentHostService);
 			break;
 		case 'remove':
-			await removeRemoteHost(provider, remoteAgentHostService);
+			await removeRemoteHost(provider, remoteAgentHostService, configurationService);
 			break;
 		case 'copy':
 			await clipboardService.writeText(address);
@@ -493,6 +529,14 @@ export async function showRemoteHostOptions(accessor: ServicesAccessor, provider
 		case 'settings':
 			await preferencesService.openSettings({ query: 'chat.remoteAgentHosts' });
 			break;
+		case 'sshConfig': {
+			// `ensureUserSSHConfig` creates `~/.ssh/config` with the right
+			// permissions when it does not exist yet, so this is safe for a
+			// host resolved through a system-wide config.
+			const configResource = await sshService.ensureUserSSHConfig();
+			await editorService.openEditor({ resource: configResource, options: { pinned: true } });
+			break;
+		}
 		case 'locationPreference':
 			// Only reachable when buildRemoteHostOptionItems() offered the
 			// item, i.e. never on web - locationPreferenceService is
