@@ -6,7 +6,8 @@
 import { IntervalTimer } from '../../../../../base/common/async.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { isWindows } from '../../../../../base/common/platform.js';
-import { IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, getEntryTypeConfig } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { computeReconnectDelay } from '../../../../../platform/agentHost/common/reconnectPolicy.js';
 import { IWSLRemoteAgentHostService, WSL_ADDRESS_PREFIX } from '../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -16,12 +17,6 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ManagedReconnectAgentHostContribution, ManagedReconnectState } from './managedReconnectAgentHostContribution.js';
 
-/** Initial auto-reconnect delay after a failed WSL reconnect attempt. */
-const WSL_RECONNECT_INITIAL_DELAY = 1000;
-/** Maximum auto-reconnect backoff delay for WSL. */
-const WSL_RECONNECT_MAX_DELAY = 30_000;
-/** Consecutive WSL reconnect failures before pausing auto-reconnect. */
-const WSL_RECONNECT_MAX_ATTEMPTS = 10;
 /** After this much wall-clock time, a paused auto-reconnect is auto-resumed. */
 const WSL_RECONNECT_PAUSE_AUTO_RESUME_MS = 5 * 60 * 1000;
 /**
@@ -153,7 +148,7 @@ export class WSLAgentHostContribution extends ManagedReconnectAgentHostContribut
 			if (connectionInfo) {
 				// Service has an entry for this address — its status is
 				// authoritative (including `incompatible` from the WebSocket
-				// connect failure path and `connecting` from a fresh reconnect).
+				// connect failure path and `connecting` or `reconnecting`).
 				provider.setConnectionStatus(connectionInfo.status);
 			} else if (this._pendingReconnects.has(this._distroForAddress(address))) {
 				provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connecting);
@@ -213,11 +208,17 @@ export class WSLAgentHostContribution extends ManagedReconnectAgentHostContribut
 			if (!running.has(entry.distro)) {
 				continue;
 			}
-			const hasConnection = this._remoteAgentHostService.connections.some(
-				c => c.address === entry.address && RemoteAgentHostConnectionStatus.isConnected(c.status)
-			);
-			if (hasConnection) {
+			const connection = this._remoteAgentHostService.connections.find(c => c.address === entry.address);
+			if (connection && RemoteAgentHostConnectionStatus.isConnected(connection.status)) {
 				this._reconnectStates.deleteAndDispose(entry.distro);
+				continue;
+			}
+			if (connection && RemoteAgentHostConnectionStatus.isConnecting(connection.status)) {
+				continue;
+			}
+			if (connection && RemoteAgentHostConnectionStatus.isReconnecting(connection.status)) {
+				// The protocol client is preserving its state while it reconnects; don't replace it.
+				this._reconnectStates.get(entry.distro)?.cancelTimer();
 				continue;
 			}
 			if (this._pendingReconnects.has(entry.distro)) {
@@ -259,7 +260,7 @@ export class WSLAgentHostContribution extends ManagedReconnectAgentHostContribut
 			key: distro,
 			address,
 			userInitiated: !!options.userInitiated,
-			maxAttempts: WSL_RECONNECT_MAX_ATTEMPTS,
+			reconnectPolicy: getEntryTypeConfig(RemoteAgentHostEntryType.WSL).reconnect,
 			shouldPause: shouldPauseWSLReconnectAfterFailure,
 			// WSL-specific gate: never auto-boot a stopped distro. The gate is
 			// skipped on user-initiated attempts (the user explicitly clicked
@@ -288,8 +289,9 @@ export class WSLAgentHostContribution extends ManagedReconnectAgentHostContribut
 	}
 
 	private _scheduleWSLReconnect(distro: string, name: string, address: string, state: ManagedReconnectState): void {
-		const delay = Math.min(WSL_RECONNECT_INITIAL_DELAY * Math.pow(2, state.attempts - 1), WSL_RECONNECT_MAX_DELAY);
-		this._logService.info(`[WSLAgentHost] Scheduling WSL reconnect for ${distro} in ${delay}ms (attempt ${state.attempts + 1}/${WSL_RECONNECT_MAX_ATTEMPTS})`);
+		const reconnectPolicy = getEntryTypeConfig(RemoteAgentHostEntryType.WSL).reconnect;
+		const delay = computeReconnectDelay(reconnectPolicy, state.attempts);
+		this._logService.info(`[WSLAgentHost] Scheduling WSL reconnect for ${distro} in ${delay}ms (attempt ${state.attempts + 1}/${reconnectPolicy.maxAttempts})`);
 		state.scheduleRetry(delay, () => {
 			if (!this._enabled) {
 				this._reconnectStates.deleteAndDispose(distro);
@@ -301,6 +303,13 @@ export class WSLAgentHostContribution extends ManagedReconnectAgentHostContribut
 			const live = this._remoteAgentHostService.connections.find(c => c.address === address);
 			if (live && RemoteAgentHostConnectionStatus.isConnected(live.status)) {
 				this._reconnectStates.deleteAndDispose(distro);
+				return;
+			}
+			if (live && RemoteAgentHostConnectionStatus.isConnecting(live.status)) {
+				return;
+			}
+			if (live && RemoteAgentHostConnectionStatus.isReconnecting(live.status)) {
+				// The protocol client is preserving its state while it reconnects; don't replace it.
 				return;
 			}
 			if (this._pendingReconnects.has(distro)) {

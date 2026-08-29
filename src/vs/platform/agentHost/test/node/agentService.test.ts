@@ -791,7 +791,7 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 
-			test('finalizes the same turn with a non-resumable error when continuation fails immediately', async () => {
+			test('finalizes the same turn with another resumable error when continuation fails immediately', async () => {
 				const { chat } = await createErroredTurn();
 				copilotAgent.chats.resumeTurn = async () => {
 					throw new Error('continuation failed');
@@ -814,7 +814,7 @@ suite('AgentService (node dispatcher)', () => {
 					state: TurnState.Error,
 					errors: [
 						createErrorResponsePart({ errorType: 'requestFailed', message: 'failed' }, true),
-						createErrorResponsePart({ errorType: 'sendFailed', message: 'Error: continuation failed' }),
+						createErrorResponsePart({ errorType: 'sendFailed', message: 'Error: continuation failed' }, true),
 					],
 					durationAtLeastInitial: true,
 				});
@@ -7267,12 +7267,10 @@ suite('AgentService (node dispatcher)', () => {
 			class LazyMetadataAgent extends MockAgent {
 				ambientReads = 0;
 				restoreReads = 0;
-				restoreRegistryFallback = false;
 
 				override async getChatMetadata(chat: URI, context: URI | IAgentChatContext, _providerData?: string, options?: IAgentChatMetadataOptions): Promise<IAgentChatMetadata | undefined> {
 					if (options?.activation === 'restore') {
 						this.restoreReads++;
-						this.restoreRegistryFallback = options.registryFallback !== undefined;
 					} else {
 						this.ambientReads++;
 					}
@@ -7296,11 +7294,9 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({
 				readsAfterAmbientListing,
 				readsAfterRestore: { ambient: agent.ambientReads, restore: agent.restoreReads },
-				restoreRegistryFallback: agent.restoreRegistryFallback,
 			}, {
 				readsAfterAmbientListing: { ambient: 1, restore: 0 },
 				readsAfterRestore: { ambient: 1, restore: 1 },
-				restoreRegistryFallback: true,
 			});
 		});
 

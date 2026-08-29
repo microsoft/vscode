@@ -42,6 +42,8 @@ export const Menus = {
 
 	/** Header actions of the Automations custom view. */
 	CustomViewAutomations: new MenuId('SessionsCustomViewAutomations'),
+	/** Context menu actions for an Automation definition card. */
+	AutomationCardContext: new MenuId('SessionsAutomationCardContext'),
 	/** Unified toolbar for all session-backed Automation history rows. Actions are conditionally shown via sessionItem.status context key. */
 	AutomationsHistoryItem: new MenuId('SessionsAutomationsHistoryItem'),
 	/** Context menu for session-backed Automation history rows. */

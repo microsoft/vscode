@@ -147,6 +147,7 @@
 					</ol>
 				</article>
 
+				<div class="setup-alternatives">
 				<article id="overrides-method" class="setup-method alternative" data-selected="false">
 					<div class="method-heading">
 						<div class="method-choice">
@@ -179,6 +180,51 @@
 						</li>
 					</ol>
 				</article>
+
+				<article id="file-method" class="setup-method alternative" data-selected="false">
+					<div class="method-heading">
+						<div class="method-choice">
+							<input id="setup-method-file" type="radio" name="setup-method" value="file">
+							<label class="method-label" for="setup-method-file">
+								<span class="method-badge secondary">No proxy</span>
+								<h3>File-based settings</h3>
+								<p>Deploy <code>managed-settings.json</code> to the client device. It loads from disk at startup &mdash; before sign-in and with no proxy or server round trip &mdash; so these requests never reach this server. Local clients only.</p>
+							</label>
+						</div>
+						<div class="method-status">
+							<p>Not detectable from here. Deploy the file, restart the client, then verify inside the client.</p>
+						</div>
+					</div>
+
+					<ol id="file-method-steps" class="setup-steps compact" inert>
+						<li>
+							<div class="step-number" aria-hidden="true">1</div>
+							<div class="step-content">
+								<h4>Write the policy file</h4>
+								<p>On the Policies page, edit the Managed Settings response body, then expand <strong>Deploy as a file</strong> to copy the command for the client platform and run it in a terminal.</p>
+								<button id="file-deploy-goto" type="button" class="btn-secondary">Go to Deploy as a File</button>
+								<details>
+									<summary>File locations</summary>
+									<ul>
+										<li>macOS: <code>/Library/Application Support/GitHubCopilot/managed-settings.json</code></li>
+										<li>Windows: <code>%ProgramFiles%\GitHubCopilot\managed-settings.json</code></li>
+										<li>Linux: <code>/etc/github-copilot/managed-settings.json</code></li>
+									</ul>
+									<p>On macOS and Linux, Copilot CLI requires a regular file owned by <code>root</code> that is not group- or world-writable, so the copied command uses <code>sudo</code>.</p>
+								</details>
+							</div>
+						</li>
+						<li>
+							<div class="step-number" aria-hidden="true">2</div>
+							<div class="step-content">
+								<h4>Reload the client</h4>
+								<p>Restart the client so it loads the file, or in VS Code run <code>&gt; Developer: Sync Account Policy</code>. File-based settings persist across accounts and don't expire like the SDK policy cache.</p>
+								<p class="helper-text">Use this to avoid proxying entirely, or deploy it alongside a server-managed response to test precedence. <a href="https://docs.github.com/en/copilot/how-tos/administer-copilot/manage-for-enterprise/manage-agents/configure-enterprise-managed-settings#deploying-file-based-settings" target="_blank" rel="noopener">Deploying file-based settings</a></p>
+							</div>
+						</li>
+					</ol>
+				</article>
+				</div>
 				</div>
 			</fieldset>
 
@@ -244,6 +290,39 @@
 									aria-describedby="editor-status"></textarea>
 								<p id="editor-status" class="status" aria-live="polite"></p>
 								<div id="validation-results" hidden></div>
+							</div>
+
+							<div id="file-deploy-section" class="section-block file-deploy-section" hidden>
+								<h2 class="file-deploy-heading">
+									<button type="button" class="section-header section-header-toggle" id="file-deploy-toggle"
+										aria-expanded="false" aria-controls="file-deploy-details">
+										<span class="chevron" id="file-deploy-chevron" aria-hidden="true">&#9654;</span>
+										<span>Deploy as a file</span>
+										<span class="file-deploy-badge">managed-settings.json</span>
+									</button>
+								</h2>
+								<div id="file-deploy-details" class="file-deploy-details" hidden>
+									<p class="helper-text">Write the current response body to <code>managed-settings.json</code> on the client device to enforce it as file-based settings &mdash; no proxy required. The client reads the file at startup, so these requests never reach this server and won't appear in Live Requests. Deploy it alongside a server-managed response to test precedence. <a href="https://docs.github.com/en/copilot/how-tos/administer-copilot/manage-for-enterprise/manage-agents/configure-enterprise-managed-settings#deploying-file-based-settings" target="_blank" rel="noopener">Deploying file-based settings</a></p>
+									<p class="helper-text">Run the command for the client platform in a terminal, then restart the client. On macOS and Linux <code>sudo</code> writes the root-owned, non-writable file that Copilot CLI requires; run the PowerShell command in an elevated terminal.</p>
+									<div id="file-deploy-commands" class="file-deploy-commands">
+										<details class="file-deploy-platform">
+											<summary>macOS</summary>
+											<code id="macos-file-command" class="block file-deploy-command"></code>
+											<button id="copy-macos-file-command" type="button" class="btn-secondary">Copy macOS Command</button>
+										</details>
+										<details class="file-deploy-platform">
+											<summary>Windows (PowerShell)</summary>
+											<code id="windows-file-command" class="block file-deploy-command"></code>
+											<button id="copy-windows-file-command" type="button" class="btn-secondary">Copy PowerShell Command</button>
+										</details>
+										<details class="file-deploy-platform">
+											<summary>Linux</summary>
+											<code id="linux-file-command" class="block file-deploy-command"></code>
+											<button id="copy-linux-file-command" type="button" class="btn-secondary">Copy Linux Command</button>
+										</details>
+									</div>
+									<p id="file-deploy-hint" class="helper-text" hidden>Enter a valid JSON body above to generate the deploy commands.</p>
+								</div>
 							</div>
 						</div>
 					</div>
