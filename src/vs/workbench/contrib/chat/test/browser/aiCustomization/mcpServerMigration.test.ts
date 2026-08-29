@@ -37,6 +37,7 @@ class TargetChangingFileSystemProvider extends InMemoryFileSystemProvider {
 
 	override async writeFile(resource: URI, content: Uint8Array, options: IFileWriteOptions): Promise<void> {
 		if (this.changeTargetBeforeSourceWrite && this.sourceUri && this.targetUri && isEqual(resource, this.sourceUri)) {
+			// Simulate another process replacing the target between the migration's target and source writes.
 			this.changeTargetBeforeSourceWrite = false;
 			await super.writeFile(this.targetUri, VSBuffer.fromString('{"mcpServers":{}}').buffer, {
 				create: true,

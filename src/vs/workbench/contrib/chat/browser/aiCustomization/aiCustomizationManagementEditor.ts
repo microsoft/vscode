@@ -110,6 +110,7 @@ import { showNoFoldersDialog } from '../promptSyntax/pickers/askForPromptSourceF
 import { isAgentHostTarget } from '../../common/chatSessionsService.js';
 import { IMcpService } from '../../../mcp/common/mcpTypes.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 
 const $ = DOM.$;
 
@@ -434,6 +435,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@IAICustomizationItemsModel private readonly itemsModel: IAICustomizationItemsModel,
 		@IMcpService private readonly mcpService: IMcpService,
 		@IAgentHostCustomizationService private readonly agentHostCustomizationService: IAgentHostCustomizationService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super(AICustomizationManagementEditor.ID, group, telemetryService, themeService, storageService);
 
@@ -1410,8 +1412,17 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const currentServers = currentMigration.candidates.filter(server => selectedIds.has(server.id));
 		const currentIds = new Set(currentServers.map(server => server.id));
 		const noLongerEligibleServerNames = servers.filter(server => !currentIds.has(server.id)).map(server => server.name);
-		const { migratedCount, failedServerNames } = await migrateMcpServers(currentServers, this.fileService);
+		this.logService.info(`[MCP Migration] Starting migration: selected=${servers.length}, eligible=${currentServers.length}, noLongerEligible=${noLongerEligibleServerNames.length}`);
+		const { migratedCount, failedServerNames } = await migrateMcpServers(
+			currentServers,
+			this.fileService,
+			error => this.logService.error('[MCP Migration] Failed to migrate a server', error),
+		);
 		const allFailedServerNames = [...noLongerEligibleServerNames, ...failedServerNames];
+		if (noLongerEligibleServerNames.length > 0) {
+			this.logService.warn(`[MCP Migration] Skipped ${noLongerEligibleServerNames.length} server(s) that were no longer eligible after confirmation`);
+		}
+		this.logService.info(`[MCP Migration] Finished migration: migrated=${migratedCount}, failed=${allFailedServerNames.length}`);
 		if (allFailedServerNames.length > 0) {
 			const displayedServerNames = allFailedServerNames.slice(0, 3);
 			this.notificationService.error(category.getFailedMessage(displayedServerNames, allFailedServerNames.length - displayedServerNames.length));

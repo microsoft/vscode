@@ -301,11 +301,15 @@ interface IJsonDocument {
 	readonly etag?: string;
 }
 
+/**
+ * Moves only the selected MCP server entries, updating each source file once and leaving unrelated entries untouched.
+ */
 export async function migrateMcpServers(
 	candidates: readonly IMcpServerCustomizationMigrationCandidate[],
 	fileService: IFileService,
 	onMigrationError?: (error: Error) => void,
 ): Promise<IMcpServerMigrationResult> {
+	// Batch by source so multiple selected servers share one guarded source/target transaction.
 	const groups = new ResourceMap<IMcpServerMigrationGroup>();
 	for (const candidate of candidates) {
 		const group = groups.get(candidate.sourceUri) ?? {
@@ -406,6 +410,7 @@ async function migrateMcpServerGroup(
 		sourceContent = setJsonValue(sourceContent, ['servers', candidate.name], undefined);
 	}
 
+	// The destination must exist before source entries are removed, so a failed target write cannot lose a server.
 	const writtenTarget = targetChanged
 		? await writeJsonDocument(group.targetUri, targetContent, target, fileService)
 		: undefined;
@@ -434,6 +439,7 @@ async function migrateMcpServerGroup(
 	try {
 		await verifyMigratedMcpServers(group.targetUri, candidatesToMigrate, fileService);
 	} catch (verificationError) {
+		// Two files cannot be updated atomically; restore the guarded source if another writer changed the target.
 		try {
 			await fileService.writeFile(group.sourceUri, VSBuffer.fromString(source.content), {
 				etag: writtenSource.etag,
@@ -555,6 +561,9 @@ function isMcpServerMigrationConfigurationRepresentable(configuration: IMcpServe
 	return configuration.transport === undefined && configuration.oauth === undefined;
 }
 
+/**
+ * Canonicalizes the original JSON while retaining fields that root `.mcp.json` discovery cannot preserve.
+ */
 export function canonicalizeMcpServerMigrationSourceConfiguration(rawConfiguration: unknown): Record<string, unknown> | undefined {
 	const configuration = normalizeMcpServerConfiguration(rawConfiguration);
 	if (!configuration || !isJsonObject(rawConfiguration)) {
