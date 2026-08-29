@@ -636,6 +636,19 @@
 	width: fit-content;
 }
 
+.sessions-chat-attachment-content {
+	display: flex;
+	align-items: center;
+	height: 100%;
+	min-width: 0;
+	overflow: hidden;
+}
+
+.sessions-chat-attachment-content:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
 .sessions-chat-attachment-name {
 	overflow: hidden;
 	text-overflow: ellipsis;

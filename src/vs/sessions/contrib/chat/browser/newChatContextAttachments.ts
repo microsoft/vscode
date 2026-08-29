@@ -215,10 +215,16 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 					dom.append(content, dom.$('span.sessions-chat-attachment-info', undefined, localize('pastedLines', "Pasted {0}", entry.pastedLines)));
 				} else {
 					const iconPath = (isStringVariableEntry(entry) || entry.kind === 'generic') ? entry.iconPath : undefined;
-					const icon = iconPath
-						? resolveChatContextIcon(iconPath, isDark(this.themeService.getColorTheme().type))
-						: entry.icon ?? Codicon.attach;
-					label.setLabel(entry.fullName ?? entry.name, undefined, { iconPath: icon });
+					const attachmentLabel = entry.fullName ?? entry.name;
+					if (isStringVariableEntry(entry) && ThemeIcon.isThemeIcon(iconPath) && (ThemeIcon.isFile(iconPath) || ThemeIcon.isFolder(iconPath)) && entry.resourceUri) {
+						const fileKind = ThemeIcon.isFolder(iconPath) ? FileKind.FOLDER : FileKind.FILE;
+						label.setLabel(attachmentLabel, undefined, { extraClasses: getIconClasses(this.modelService, this.languageService, entry.resourceUri, fileKind) });
+					} else {
+						const icon = iconPath
+							? resolveChatContextIcon(iconPath, isDark(this.themeService.getColorTheme().type))
+							: entry.icon ?? Codicon.attach;
+						label.setLabel(attachmentLabel, undefined, { iconPath: icon });
+					}
 				}
 			}
 
