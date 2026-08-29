@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { arrayEquals } from '../../../../base/common/equals.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IObservable, IReader } from '../../../../base/common/observable.js';
@@ -305,6 +306,8 @@ export interface IGitHubInfo {
 		readonly uri: URI;
 		/** Icon reflecting the PR state. */
 		readonly icon?: ThemeIcon;
+		/** Pull request title, when known. */
+		readonly title?: string;
 		/** Object ID of the base ref (merge target) commit. */
 		readonly baseRefOid?: string;
 		/** Object ID of the head ref (PR branch) commit. */
@@ -339,6 +342,50 @@ export interface IGitHubPullRequestRef {
 	 * inherited from the checkout it started from or merely referenced by the agent.
 	 */
 	readonly createdByThisSession?: boolean;
+}
+
+/** Returns all pull requests associated with GitHub info, including its legacy single-PR shape. */
+export function getGitHubPullRequestRefs(gitHubInfo: IGitHubInfo | undefined): readonly IGitHubPullRequestRef[] {
+	if (gitHubInfo?.pullRequests?.length) {
+		return gitHubInfo.pullRequests;
+	}
+	if (!gitHubInfo?.pullRequest) {
+		return [];
+	}
+	return [{
+		owner: gitHubInfo.owner,
+		repo: gitHubInfo.repo,
+		number: gitHubInfo.pullRequest.number,
+		uri: gitHubInfo.pullRequest.uri,
+		icon: gitHubInfo.pullRequest.icon,
+		title: gitHubInfo.pullRequest.title,
+	}];
+}
+
+const pullRequestIconPriority = new Map<string, number>([
+	[Codicon.gitPullRequestError.id, 6],
+	[Codicon.gitPullRequestComment.id, 5],
+	[Codicon.gitPullRequest.id, 4],
+	[Codicon.gitPullRequestDraft.id, 3],
+	[Codicon.gitPullRequestDone.id, 2],
+	[Codicon.gitPullRequestClosed.id, 1],
+]);
+
+/** Returns the most important status icon across a session's pull requests. */
+export function getHighestPriorityPullRequestIcon(icons: readonly (ThemeIcon | undefined)[]): ThemeIcon | undefined {
+	let result: ThemeIcon | undefined;
+	let resultPriority = -1;
+	for (const icon of icons) {
+		if (!icon) {
+			continue;
+		}
+		const priority = pullRequestIconPriority.get(icon.id) ?? 0;
+		if (priority > resultPriority) {
+			result = icon;
+			resultPriority = priority;
+		}
+	}
+	return result;
 }
 
 /** A GitHub issue referenced by a session. */
@@ -977,6 +1024,7 @@ export function gitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | und
 		a.pullRequest?.number === b.pullRequest?.number &&
 		isEqual(a.pullRequest?.uri, b.pullRequest?.uri) &&
 		(aIcon === bIcon || (!!aIcon && !!bIcon && ThemeIcon.isEqual(aIcon, bIcon))) &&
+		a.pullRequest?.title === b.pullRequest?.title &&
 		a.pullRequest?.baseRefOid === b.pullRequest?.baseRefOid &&
 		a.pullRequest?.headRefOid === b.pullRequest?.headRefOid;
 }
