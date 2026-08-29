@@ -26,7 +26,7 @@ import { measureExecTime } from '../../log/common/logExecTime';
 import { ILogService } from '../../log/common/logService';
 import { getRequest, postRequest } from '../../networking/common/networking';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
-import { CodeSearchOptions, CodeSearchResult, RemoteCodeSearchError, RemoteCodeSearchIndexState, RemoteCodeSearchIndexStatus } from './remoteCodeSearch';
+import { CodeSearchOptions, RemoteCodeSearchError, RemoteCodeSearchIndexState, RemoteCodeSearchIndexStatus, SemanticCodeSearchResult } from './remoteCodeSearch';
 
 
 interface ResponseShape {
@@ -100,7 +100,7 @@ export interface IAdoCodeSearchService {
 		options: CodeSearchOptions,
 		telemetryInfo: TelemetryCorrelationId,
 		token: CancellationToken,
-	): Promise<CodeSearchResult>;
+	): Promise<SemanticCodeSearchResult>;
 }
 
 /**
@@ -251,7 +251,7 @@ export class AdoCodeSearchService extends Disposable implements IAdoCodeSearchSe
 		options: CodeSearchOptions,
 		telemetryInfo: TelemetryCorrelationId,
 		token: CancellationToken
-	): Promise<CodeSearchResult> {
+	): Promise<SemanticCodeSearchResult> {
 		const totalSw = new StopWatch();
 
 		const authToken = await this.getAdoAuthToken(auth.silent);

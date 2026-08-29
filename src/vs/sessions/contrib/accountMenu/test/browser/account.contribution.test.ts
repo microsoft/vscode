@@ -4,74 +4,98 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter } from '../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { showSessionsWelcomeAfterSignOut } from '../../browser/account.contribution.js';
+import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { CHAT_SETUP_ACTION_ID } from '../../../../../workbench/contrib/chat/browser/actions/chatActions.js';
+import { ChatPetAchievementIds } from '../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
+import { Menus } from '../../../../browser/menus.js';
+import { shouldShowAccountPanelSummary } from '../../browser/account.contribution.js';
+import { getSessionsChatPetAchievementBadges } from '../../browser/chatPetAchievementBadges.js';
 
-suite('Sessions - Account Contribution', () => {
-
-	const disposables = new DisposableStore();
-
-	teardown(() => {
-		disposables.clear();
-	});
+suite('Sessions - Account Menu', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('shows welcome after sign out once entitlement becomes unknown', async () => {
-		const order: string[] = [];
-		const entitlementChangeEmitter = disposables.add(new Emitter<void>());
-		let entitlement = ChatEntitlement.Free;
+	test('labels the signed-out Copilot account action', () => {
+		const signIn = MenuRegistry.getMenuItems(Menus.AccountMenu)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === 'workbench.action.agenticSignIn');
 
-		const chatEntitlementService: Pick<IChatEntitlementService, 'entitlement' | 'onDidChangeEntitlement'> = {
-			get entitlement() {
-				return entitlement;
-			},
-			onDidChangeEntitlement: entitlementChangeEmitter.event,
-		};
-		const showWelcomePromise = showSessionsWelcomeAfterSignOut(chatEntitlementService, () => order.push('resetWelcome'));
-		order.push('signOut');
-		entitlement = ChatEntitlement.Unknown;
-		entitlementChangeEmitter.fire();
-		order.push('entitlementChanged');
-		await showWelcomePromise;
-
-		assert.deepStrictEqual(order, [
-			'signOut',
-			'entitlementChanged',
-			'resetWelcome',
-		]);
+		assert.ok(signIn);
+		assert.strictEqual(typeof signIn.command.title === 'string' ? signIn.command.title : signIn.command.title.value, 'Sign in to use GitHub Copilot');
 	});
 
-	test('shows welcome immediately when entitlement is already unknown', async () => {
-		const order: string[] = [];
-		const chatEntitlementService: Pick<IChatEntitlementService, 'entitlement' | 'onDidChangeEntitlement'> = {
-			entitlement: ChatEntitlement.Unknown,
-			onDidChangeEntitlement: disposables.add(new Emitter<void>()).event,
-		};
-		await showSessionsWelcomeAfterSignOut(chatEntitlementService, () => order.push('resetWelcome'));
+	test('uses the shared Chat setup flow for Copilot sign-in', async () => {
+		const executedCommands: string[] = [];
+		const command = CommandsRegistry.getCommand('workbench.action.agenticSignIn');
+		assert.ok(command);
+		const accessor = {
+			get: () => ({
+				executeCommand: async (commandId: string) => {
+					executedCommands.push(commandId);
+				},
+			}),
+		} as ServicesAccessor;
 
-		assert.deepStrictEqual(order, ['resetWelcome']);
+		await command.handler(accessor);
+
+		assert.deepStrictEqual(executedCommands, [CHAT_SETUP_ACTION_ID]);
 	});
 
-	test('handles entitlement becoming unknown while the listener is being attached', async () => {
-		const order: string[] = [];
-		let entitlement = ChatEntitlement.Free;
-		const onDidChangeEntitlement: IChatEntitlementService['onDidChangeEntitlement'] = listener => {
-			entitlement = ChatEntitlement.Unknown;
-			listener();
-			return { dispose() { } };
-		};
-		const chatEntitlementService: Pick<IChatEntitlementService, 'entitlement' | 'onDidChangeEntitlement'> = {
-			get entitlement() {
-				return entitlement;
-			},
-			onDidChangeEntitlement,
-		};
-		await showSessionsWelcomeAfterSignOut(chatEntitlementService, () => order.push('resetWelcome'));
+	test('omits the redundant signed-out summary', () => {
+		assert.deepStrictEqual({
+			signedOut: shouldShowAccountPanelSummary({ source: 'copilot', kind: 'prominent' }, false, false),
+			unavailable: shouldShowAccountPanelSummary({ source: 'copilot', kind: 'warning' }, false, false),
+			loading: shouldShowAccountPanelSummary({ source: 'account', kind: 'default' }, false, true),
+		}, {
+			signedOut: false,
+			unavailable: true,
+			loading: false,
+		});
+	});
 
-		assert.deepStrictEqual(order, ['resetWelcome']);
+	test('shows unlocked badges first while the pet is enabled', () => {
+		assert.deepStrictEqual({
+			disabled: getSessionsChatPetAchievementBadges(false, [ChatPetAchievementIds.FirstChatMessage]),
+			empty: getSessionsChatPetAchievementBadges(true, [])?.map(badge => ({ id: badge.achievement.id, unlocked: badge.unlocked })),
+			partial: getSessionsChatPetAchievementBadges(true, [
+				ChatPetAchievementIds.IntegratedBrowserShared,
+				ChatPetAchievementIds.FirstChatMessage,
+			])?.map(badge => ({ id: badge.achievement.id, unlocked: badge.unlocked })),
+		}, {
+			disabled: undefined,
+			empty: [
+				{ id: ChatPetAchievementIds.RequestRevision, unlocked: false },
+				{ id: ChatPetAchievementIds.FirstChatMessage, unlocked: false },
+				{ id: ChatPetAchievementIds.IntegratedBrowserShared, unlocked: false },
+				{ id: ChatPetAchievementIds.ModelSwitch, unlocked: false },
+				{ id: ChatPetAchievementIds.McpServerPresent, unlocked: false },
+				{ id: ChatPetAchievementIds.CustomSkillPresent, unlocked: false },
+				{ id: ChatPetAchievementIds.AgentsWindowOpened, unlocked: false },
+				{ id: ChatPetAchievementIds.CreatePullRequest, unlocked: false },
+				{ id: ChatPetAchievementIds.AgentEditKept, unlocked: false },
+				{ id: ChatPetAchievementIds.AgentChangesReviewed, unlocked: false },
+				{ id: ChatPetAchievementIds.ChatReferenceOpened, unlocked: false },
+				{ id: ChatPetAchievementIds.UsefulOutputCopied, unlocked: false },
+				{ id: ChatPetAchievementIds.AutopilotEnabled, unlocked: false },
+			],
+			partial: [
+				{ id: ChatPetAchievementIds.FirstChatMessage, unlocked: true },
+				{ id: ChatPetAchievementIds.IntegratedBrowserShared, unlocked: true },
+				{ id: ChatPetAchievementIds.RequestRevision, unlocked: false },
+				{ id: ChatPetAchievementIds.ModelSwitch, unlocked: false },
+				{ id: ChatPetAchievementIds.McpServerPresent, unlocked: false },
+				{ id: ChatPetAchievementIds.CustomSkillPresent, unlocked: false },
+				{ id: ChatPetAchievementIds.AgentsWindowOpened, unlocked: false },
+				{ id: ChatPetAchievementIds.CreatePullRequest, unlocked: false },
+				{ id: ChatPetAchievementIds.AgentEditKept, unlocked: false },
+				{ id: ChatPetAchievementIds.AgentChangesReviewed, unlocked: false },
+				{ id: ChatPetAchievementIds.ChatReferenceOpened, unlocked: false },
+				{ id: ChatPetAchievementIds.UsefulOutputCopied, unlocked: false },
+				{ id: ChatPetAchievementIds.AutopilotEnabled, unlocked: false },
+			],
+		});
 	});
 });

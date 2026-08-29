@@ -78,7 +78,7 @@ copilotcli/
 │   ├── copilotCLISkills.ts     # Skills location resolution
 │   ├── copilotCLIImageSupport.ts    # Image attachment handling
 │   ├── mcpHandler.ts           # MCP server configuration for SDK sessions
-│   ├── nodePtyShim.ts          # Copies VS Code's node-pty for SDK use
+│   ├── nodePtyShim.ts          # Runtime node-pty copy for separate extension installs
 │   ├── userInputHelpers.ts     # User question/input handling interface
 │   ├── exitPlanModeHandler.ts  # Plan mode exit flow with user choice
 │   ├── ripgrepShim.ts          # Copies VS Code's ripgrep for SDK use
@@ -313,11 +313,15 @@ Orchestrates the start and end of each chat request turn, coordinating worktree 
 
 ## Critical Pitfalls
 
-- **Shims before SDK import**: `ensureNodePtyShim()` and `ensureRipgrepShim()` in `node/nodePtyShim.ts` / `node/ripgrepShim.ts` MUST be called before any `import('@github/copilot/sdk')`. They copy VS Code's bundled native binaries to the SDK's expected locations. See `node/copilotCli.ts` for the initialization order.
+- **Shims before SDK import**: For separate Marketplace/VSIX extension installs, `CopilotCLISDK.ensureShims()` in `node/copilotCli.ts` MUST run before any `import('@github/copilot/sdk')`. That runtime path calls both `ensureRipgrepShim()` and `ensureNodePtyShim()` to copy VS Code's native binaries from `envService.appRoot` into the installed extension's SDK layout.
+
+- **Bundled/core shim path is different**: When Copilot Chat is bundled together with core VS Code, build-time packaging materializes only the ripgrep shim and writes `node_modules/@github/copilot/shims.txt`. That marker intentionally makes runtime `ensureShims()` return early, so node-pty is not copied in the bundled path; it is resolved from VS Code's own app tree instead.
 
 - **Delayed permission UI**: Tool invocation messages are held in `toolCallWaitingForPermissions` until permission resolves. `flushPendingInvocationMessageForToolCallId()` flushes only the specific approved tool, not all pending tools. This is intentional — don't bypass it.
 
 - **Steering mode**: When a session is already busy (`InProgress` or `NeedsInput`), use `send({ mode: 'immediate' })` to inject messages into the running conversation instead of starting a new request.
+
+- **External sessions are never listed**: `isExternalSession()` in `node/copilotcliSessionService.ts` filters out every session whose `IChatSessionMetadataStore` origin is not `vscode` (e.g. started from the terminal CLI). It is applied on *all* listing paths — `shouldShowSession()` (disk), `getSessionItemImpl()` (targeted refresh), and the in-progress wrapper fallback in `_getAllSessions()` — because `getSession()` can load an external session into `_sessionWrappers` without changing its origin. There is no setting for this — the Agent Host owns external session visibility via `chat.agentSessions.showExternalAgentSessions`.
 
 ## Commands & Slash Commands
 
@@ -339,7 +343,6 @@ The integration respects these VS Code settings (all under `github.copilot.chat.
 |---------|---------|-------------|
 | `mcp.enabled` | `true` | Enable MCP server proxying for CLI sessions |
 | `branchSupport.enabled` | `false` | Enable Git branch support features |
-| `showExternalSessions` | `false` | Show sessions created outside VS Code (e.g., terminal CLI) |
 | `planExitMode.enabled` | `true` | Show plan exit mode choices (Autopilot/Interactive/Exit) |
 | `planCommand.enabled` | `true` | Enable the `/plan` command |
 | `aiGenerateBranchNames.enabled` | `true` | AI-generated branch names for worktrees |

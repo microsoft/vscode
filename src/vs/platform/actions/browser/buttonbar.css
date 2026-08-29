@@ -1,0 +1,12 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Spinner shown on a button whose action is in flight. The button lays its
+ * content out with flex, so the spinner only needs to be separated from the
+ * label it precedes. It inherits the button foreground via `currentColor`. */
+.monaco-text-button > .monaco-pixel-spinner {
+	flex: 0 0 auto;
+	margin-right: 4px;
+}

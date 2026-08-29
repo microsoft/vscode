@@ -135,6 +135,9 @@ describe('Notebook Prompt Rendering', function () {
 			override applyEdit(edit: vscode.WorkspaceEdit): Thenable<boolean> {
 				throw new Error('Method not implemented.');
 			}
+			override isResourceTrusted(_resource: vscode.Uri): Thenable<boolean> {
+				return Promise.resolve(true);
+			}
 			override requestResourceTrust(_options: vscode.ResourceTrustRequestOptions): Thenable<boolean | undefined> {
 				return Promise.resolve(true);
 			}

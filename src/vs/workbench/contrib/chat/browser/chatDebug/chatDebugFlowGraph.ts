@@ -194,6 +194,18 @@ export function buildFlowGraph(events: readonly IChatDebugEvent[]): FlowNode[] {
 		}
 	}
 
+	// Order siblings chronologically so the flow reads in causal order. Events
+	// may arrive out of order — most notably Agent Host customization/discovery
+	// events, which are surfaced with a session-start timestamp but appended
+	// after the turns — so without this they would render as the last branch off
+	// the session-start root instead of at the beginning where they belong. The
+	// sort is stable, so events sharing a timestamp keep their emitted order.
+	const byCreated = (a: IChatDebugEvent, b: IChatDebugEvent): number => a.created.getTime() - b.created.getTime();
+	roots.sort(byCreated);
+	for (const children of idToChildren.values()) {
+		children.sort(byCreated);
+	}
+
 	function toFlowNode(event: IChatDebugEvent): FlowNode {
 		const children = event.id ? idToChildren.get(event.id) : undefined;
 
@@ -784,16 +796,19 @@ function getEventTooltip(event: IChatDebugEvent): string | undefined {
 			if (event.model) {
 				parts.push(event.model);
 			}
-			if (event.totalTokens) {
+			if (event.totalTokens !== undefined) {
 				parts.push(localize('tooltipTokens', "Tokens: {0}", event.totalTokens));
 			}
-			if (event.inputTokens) {
+			if (event.inputTokens !== undefined) {
 				parts.push(localize('tooltipInputTokens', "Input tokens: {0}", event.inputTokens));
 			}
-			if (event.outputTokens) {
+			if (event.outputTokens !== undefined) {
 				parts.push(localize('tooltipOutputTokens', "Output tokens: {0}", event.outputTokens));
 			}
-			if (event.durationInMillis) {
+			if (event.cachedTokens !== undefined) {
+				parts.push(localize('tooltipCachedTokens', "Cached tokens: {0}", event.cachedTokens));
+			}
+			if (event.durationInMillis !== undefined) {
 				parts.push(localize('tooltipDuration', "Duration: {0}", formatDuration(event.durationInMillis)));
 			}
 			return parts.length > 0 ? parts.join('\n') : undefined;

@@ -44,7 +44,6 @@ export interface INodeProcess {
 		chrome?: string;
 	};
 	type?: string;
-	isEmbeddedApp?: boolean;
 	cwd: () => string;
 }
 
@@ -275,6 +274,7 @@ export const isFirefox = !!(userAgent && userAgent.indexOf('Firefox') >= 0);
 export const isSafari = !!(!isChrome && (userAgent && userAgent.indexOf('Safari') >= 0));
 export const isEdge = !!(userAgent && userAgent.indexOf('Edg/') >= 0);
 export const isAndroid = !!(userAgent && userAgent.indexOf('Android') >= 0);
+export const hasElectronUserAgent = !!(userAgent && userAgent.indexOf('Electron') >= 0);
 
 export function isTahoeOrNewer(osVersion: string): boolean {
 	return parseFloat(osVersion) >= 25;

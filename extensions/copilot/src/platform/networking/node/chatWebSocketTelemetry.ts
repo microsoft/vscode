@@ -66,6 +66,7 @@ export interface IChatWebSocketRequestSentTelemetryProperties extends IChatWebSo
 	hasCompactionData: boolean;
 	summarizedAtRoundIdSet: boolean;
 	summarizedAtRoundIdMatched: boolean;
+	modeChanged: boolean | undefined;
 	compactionThreshold: number | undefined;
 	tokenCountMax: number;
 	modelMaxPromptTokens: number;
@@ -96,6 +97,7 @@ export interface IChatWebSocketRequestOutcomeTelemetryProperties extends IChatWe
 	hasCompactionData: boolean;
 	summarizedAtRoundIdSet: boolean;
 	summarizedAtRoundIdMatched: boolean;
+	modeChanged: boolean | undefined;
 	compactionThreshold: number | undefined;
 	promptTokenCount: number;
 	tokenCountMax: number;
@@ -316,6 +318,7 @@ export class ChatWebSocketTelemetrySender {
 				"hasCompactionData": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the request input contains compaction data", "isMeasurement": true },
 				"summarizedAtRoundIdSet": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether a summarized round ID was set in the request options", "isMeasurement": true },
 				"summarizedAtRoundIdMatched": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the summarized round ID matches the one stored on the connection", "isMeasurement": true },
+				"modeChanged": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the mode instructions changed since the previous request (-1 if unknown, 0 if unchanged, 1 if changed)", "isMeasurement": true },
 				"compactionThreshold": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Compaction threshold from context_management in the request body", "isMeasurement": true },
 				"tokenCountMax": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Maximum generated tokens", "isMeasurement": true },
 				"modelMaxPromptTokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Maximum prompt tokens for the model", "isMeasurement": true },
@@ -342,6 +345,7 @@ export class ChatWebSocketTelemetrySender {
 			hasCompactionData: properties.hasCompactionData ? 1 : 0,
 			summarizedAtRoundIdSet: properties.summarizedAtRoundIdSet ? 1 : 0,
 			summarizedAtRoundIdMatched: properties.summarizedAtRoundIdMatched ? 1 : 0,
+			modeChanged: properties.modeChanged === undefined ? -1 : properties.modeChanged ? 1 : 0,
 			compactionThreshold: properties.compactionThreshold,
 			tokenCountMax: properties.tokenCountMax,
 			modelMaxPromptTokens: properties.modelMaxPromptTokens,
@@ -421,6 +425,7 @@ export class ChatWebSocketTelemetrySender {
 				"hasCompactionData": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the request input contains compaction data", "isMeasurement": true },
 				"summarizedAtRoundIdSet": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether a summarized round ID was set in the request options", "isMeasurement": true },
 				"summarizedAtRoundIdMatched": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the summarized round ID matches the one stored on the connection", "isMeasurement": true },
+				"modeChanged": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the mode instructions changed since the previous request (-1 if unknown, 0 if unchanged, 1 if changed)", "isMeasurement": true },
 				"compactionThreshold": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Compaction threshold from context_management in the request body", "isMeasurement": true },
 				"promptTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of prompt tokens, locally counted", "isMeasurement": true },
 				"tokenCountMax": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Maximum generated tokens", "isMeasurement": true },
@@ -460,6 +465,7 @@ export class ChatWebSocketTelemetrySender {
 			hasCompactionData: properties.hasCompactionData ? 1 : 0,
 			summarizedAtRoundIdSet: properties.summarizedAtRoundIdSet ? 1 : 0,
 			summarizedAtRoundIdMatched: properties.summarizedAtRoundIdMatched ? 1 : 0,
+			modeChanged: properties.modeChanged === undefined ? -1 : properties.modeChanged ? 1 : 0,
 			compactionThreshold: properties.compactionThreshold,
 			promptTokenCount: properties.promptTokenCount,
 			tokenCountMax: properties.tokenCountMax,

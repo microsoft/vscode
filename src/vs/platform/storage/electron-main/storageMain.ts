@@ -12,7 +12,7 @@ import { join } from '../../../base/common/path.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { URI } from '../../../base/common/uri.js';
 import { Promises } from '../../../base/node/pfs.js';
-import { InMemoryStorageDatabase, IStorage, Storage, StorageHint, StorageState } from '../../../base/parts/storage/common/storage.js';
+import { InMemoryStorageDatabase, IStorage, Storage, StorageHint, StorageState, MigratingStorage } from '../../../base/parts/storage/common/storage.js';
 import { ISQLiteStorageDatabaseLoggingOptions, SQLiteStorageDatabase } from '../../../base/parts/storage/node/storage.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { IFileService } from '../../files/common/files.js';
@@ -345,6 +345,68 @@ export class ApplicationStorageMain extends BaseProfileAwareStorageMain {
 		const currentSessionDate = new Date().toUTCString();
 		storage.set(lastSessionDateStorageKey, typeof lastSessionDate === 'undefined' ? null : lastSessionDate);
 		storage.set(currentSessionDateStorageKey, currentSessionDate);
+	}
+}
+
+export class ApplicationSharedStorageMain extends BaseStorageMain {
+
+	private static readonly STORAGE_NAME = 'state.vscdb';
+
+	get path(): string | undefined {
+		if (!this.options.useInMemoryStorage) {
+			return join(this.storageFolderPath, ApplicationSharedStorageMain.STORAGE_NAME);
+		}
+
+		return undefined;
+	}
+
+	constructor(
+		private readonly options: IStorageMainOptions,
+		private readonly storageFolderPath: string,
+		private readonly applicationStorage: IStorageMain,
+		logService: ILogService,
+		fileService: IFileService,
+	) {
+		super(logService, fileService);
+	}
+
+	protected async doCreate(): Promise<Storage> {
+		const { storageFilePath, wasCreated } = await this.prepareStorageFolder();
+
+		this.logService.info(`[shared storage] Creating shared storage database at '${storageFilePath}' (wasCreated: ${wasCreated})`);
+
+		const database = new SQLiteStorageDatabase(storageFilePath, {
+			logging: this.createLoggingOptions()
+		});
+
+		this.logService.info(`[shared storage] Initializing fallback application storage (path: ${this.applicationStorage.path ?? 'in-memory'})`);
+		await this.applicationStorage.init();
+		this.logService.info(`[shared storage] Fallback application storage initialized with ${this.applicationStorage.items.size} items`);
+
+		const migratingStorage = this._register(new MigratingStorage(database, { hint: wasCreated ? StorageHint.STORAGE_DOES_NOT_EXIST : undefined }));
+		migratingStorage.setFallbackStorage(this.applicationStorage.storage, false);
+		return migratingStorage;
+	}
+
+	get applicationStorageItems(): Map<string, string> {
+		return this.applicationStorage.items;
+	}
+
+	private async prepareStorageFolder(): Promise<{ storageFilePath: string; wasCreated: boolean }> {
+		if (this.options.useInMemoryStorage) {
+			return { storageFilePath: SQLiteStorageDatabase.IN_MEMORY_PATH, wasCreated: true };
+		}
+
+		const storageDatabasePath = join(this.storageFolderPath, ApplicationSharedStorageMain.STORAGE_NAME);
+
+		const storageExists = await Promises.exists(this.storageFolderPath);
+		if (storageExists) {
+			return { storageFilePath: storageDatabasePath, wasCreated: false };
+		}
+
+		await fs.promises.mkdir(this.storageFolderPath, { recursive: true });
+
+		return { storageFilePath: storageDatabasePath, wasCreated: true };
 	}
 }
 

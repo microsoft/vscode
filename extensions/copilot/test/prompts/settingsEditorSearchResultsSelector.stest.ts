@@ -169,8 +169,14 @@ ssuite({ title: 'settingsEditorSearchResultsSelector', location: 'external' }, (
 			},
 			{
 				'key': 'terminal.integrated.accessibleViewPreserveCursorPosition',
-				'type': 'boolean',
-				'markdownDescription': `Preserve the cursor position on reopen of the terminal's accessible view rather than setting it to the bottom of the buffer.`
+				'type': 'boolean | string',
+				'markdownDescription': `Controls whether the cursor position is preserved in the terminal's accessible view.`,
+				'enum': [false, true, 'always'],
+				'enumDescriptions': [
+					'Always position the cursor at the bottom of the buffer.',
+					'Preserve the cursor position on reopen until new terminal content arrives.',
+					'Always preserve the cursor position, including when new terminal content arrives.'
+				]
 			},
 			{
 				'key': 'notebook.find.filters',
@@ -224,7 +230,7 @@ ssuite({ title: 'settingsEditorSearchResultsSelector', location: 'external' }, (
 			},
 		];
 		const endpointProvider = accessor.get(IEndpointProvider);
-		const endpoint = await endpointProvider.getChatEndpoint('copilot-base');
+		const endpoint = await endpointProvider.getChatEndpoint('copilot-utility');
 		const results = await selector.selectTopSearchResults(endpoint, 'Hide search bar at top of window', settingsList, CancellationToken.None);
 		assert.ok(results.length > 0, 'No settings were selected');
 		assert.ok(results.some(result => result === 'window.commandCenter'), 'Expected setting "window.commandCenter" was not found');
@@ -392,7 +398,7 @@ ssuite({ title: 'settingsEditorSearchResultsSelector', location: 'external' }, (
 		];
 
 		const endpointProvider = accessor.get(IEndpointProvider);
-		const endpoint = await endpointProvider.getChatEndpoint('copilot-base');
+		const endpoint = await endpointProvider.getChatEndpoint('copilot-utility');
 		const results = await selector.selectTopSearchResults(endpoint, 'agentmode', settingsList, CancellationToken.None);
 		assert.ok(results.length > 0, 'No settings were selected');
 		assert.ok(results.some(result => result === 'chat.agent.enabled'), 'Expected setting "chat.agent.enabled" was not found');

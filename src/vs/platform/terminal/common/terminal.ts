@@ -30,6 +30,9 @@ export const enum TerminalSettingId {
 	AutomationProfileLinux = 'terminal.integrated.automationProfile.linux',
 	AutomationProfileMacOs = 'terminal.integrated.automationProfile.osx',
 	AutomationProfileWindows = 'terminal.integrated.automationProfile.windows',
+	AgentHostProfileLinux = 'terminal.integrated.agentHostProfile.linux',
+	AgentHostProfileMacOs = 'terminal.integrated.agentHostProfile.osx',
+	AgentHostProfileWindows = 'terminal.integrated.agentHostProfile.windows',
 	ProfilesWindows = 'terminal.integrated.profiles.windows',
 	ProfilesMacOs = 'terminal.integrated.profiles.osx',
 	ProfilesLinux = 'terminal.integrated.profiles.linux',
@@ -153,6 +156,7 @@ export const enum WindowsShellType {
 export const enum GeneralShellType {
 	Claude = 'claude',
 	Codex = 'codex',
+	CommandCode = 'commandcode',
 	Copilot = 'copilot',
 	Gemini = 'gemini',
 	PowerShell = 'pwsh',
@@ -488,6 +492,7 @@ export interface IHeartbeatService {
 	readonly onBeat: Event<void>;
 }
 
+export const remoteResolverTerminal = Symbol('remoteResolverTerminal');
 
 export interface IShellLaunchConfig {
 	/**
@@ -622,6 +627,9 @@ export interface IShellLaunchConfig {
 	 * Whether this terminal was created by an extension.
 	 */
 	isExtensionOwnedTerminal?: boolean;
+
+	/** Whether this terminal is used to bootstrap a remote authority resolver. */
+	[remoteResolverTerminal]?: true;
 
 	/**
 	 * The icon for the terminal, used primarily in the terminal tab.

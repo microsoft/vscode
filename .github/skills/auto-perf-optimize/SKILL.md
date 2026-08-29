@@ -1,6 +1,8 @@
 ---
 name: auto-perf-optimize
 description: "Run agent-driven VS Code performance or memory investigations. Use when asked to launch Code OSS, automate a VS Code scenario, run the Chat memory smoke runner, capture renderer heap snapshots, take workflow screenshots, compare run summaries, or drive a repeatable scenario before heap-snapshot analysis."
+metadata:
+  allowed-tools: Bash(npx @playwright/cli:*)
 ---
 
 # VS Code Performance Workflow
@@ -20,7 +22,7 @@ Do not use this skill when snapshots already exist and the user only wants heap 
 ## The Story
 
 1. **Define the scenario.** Write down one warmup action, one repeatable iteration, and one quiescent point where it is fair to force GC and sample memory.
-2. **Develop the automation.** Start with a tiny no-snapshot run. If it fails or the UI state is uncertain, keep the Code window open, connect agent-browser to the same CDP port, take workspace-local screenshots, inspect snapshots, and update the runner's selectors/waits.
+2. **Develop the automation.** Start with a tiny no-snapshot run. If it fails or the UI state is uncertain, keep the Code window open, connect `@playwright/cli` to the same CDP port, take workspace-local screenshots, inspect snapshots, and update the runner's selectors/waits.
 3. **Run a fast smoke.** Disable heap snapshots first. Prove the scenario completes and the artifact summary says what you think it says.
 4. **Capture targeted snapshots.** Snapshot a warmed-up baseline and a later iteration. Do not snapshot every sample unless necessary; snapshots are huge and slow.
 5. **Verify the run.** Inspect `summary.json` and screenshots. Do not analyze a failed login, trust prompt, stuck progress row, or wrong UI state.
@@ -123,20 +125,20 @@ Suggested watch loop for the bundled Chat runner:
 node .github/skills/auto-perf-optimize/scripts/chat-memory-smoke.mts --keep-open --iterations 1 --no-heap-snapshots --port 9224 --output .build/chat-memory-smoke/watch-chat
 ```
 
-While that Code window is open, inspect it with agent-browser from the repo root:
+While that Code window is open, inspect it with `@playwright/cli` from the repo root:
 
 ```bash
-npx agent-browser connect 9224
-npx agent-browser tab
-npx agent-browser snapshot -i
-npx agent-browser screenshot .build/chat-memory-smoke/watch-chat/agent-browser-observation.png
+npx @playwright/cli attach --cdp=http://127.0.0.1:9224
+npx @playwright/cli tab-list
+npx @playwright/cli snapshot
+npx @playwright/cli screenshot --filename=.build/chat-memory-smoke/watch-chat/observation.png
 ```
 
-Agent-browser checkpoints:
+`@playwright/cli` checkpoints:
 
-- Run `tab` first. If the selected target is `about:blank` or a webview instead of the workbench, switch targets before trusting snapshots.
-- Use `snapshot -i` to rediscover buttons, textboxes, list rows, webviews, and current accessible names. Prefer discovered state over stale selectors.
-- Save screenshots inside the runner output folder or another workspace-local `.build/...` folder. Do not use `/tmp` for screenshots you expect the user to review.
+- Run `tab-list` first. If the selected target is `about:blank` or a webview instead of the workbench, switch targets before trusting snapshots.
+- Use `snapshot` to rediscover buttons, textboxes, list rows, webviews, and current accessible names. Prefer discovered state over stale selectors.
+- Save screenshots inside the runner output folder or another workspace-local `.build/...` folder. Do not use `/tmp` for screenshots you expect the user to review. The output directory must already exist — `screenshot --filename` will fail with `ENOENT` if it does not. Create it with `mkdir -p <dir>` first.
 - If the script is stuck, capture a screenshot and read the incremental `summary.json` before killing the window. The last submitted turn and last screenshot usually identify the missing wait condition.
 - If auth is required, use `--keep-open`, let the user sign in once in the persistent default profile, close the window, then rerun the fast smoke.
 

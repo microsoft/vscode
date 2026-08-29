@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import DOMPurify from 'dompurify';
+import DOMPurify, { type Config as DOMPurifyConfig } from 'dompurify';
 import MarkdownIt from 'markdown-it';
+import type Token from 'markdown-it/lib/token.mjs';
 import type { ActivationFunction } from 'vscode-notebook-renderer';
 
 const allowedHtmlTags = Object.freeze(['a',
@@ -121,7 +122,7 @@ const allowedSvgTags = Object.freeze([
 	'vkern',
 ]);
 
-const sanitizerOptions: DOMPurify.Config = {
+const sanitizerOptions: DOMPurifyConfig = {
 	ALLOWED_TAGS: [
 		...allowedHtmlTags,
 		...allowedSvgTags,
@@ -355,8 +356,8 @@ function addNamedHeaderRendering(md: MarkdownIt): void {
 	const slugCounter = new Map<string, number>();
 
 	const originalHeaderOpen = md.renderer.rules.heading_open;
-	md.renderer.rules.heading_open = (tokens: MarkdownIt.Token[], idx: number, options, env, self) => {
-		const title = tokens[idx + 1].children!.reduce<string>((acc, t) => acc + t.content, '');
+	md.renderer.rules.heading_open = (tokens: Token[], idx: number, options, env, self) => {
+		const title = tokens[idx + 1].children!.reduce<string>((acc: string, t: Token) => acc + t.content, '');
 		let slug = slugify(title);
 
 		if (slugCounter.has(slug)) {
@@ -386,7 +387,7 @@ function addNamedHeaderRendering(md: MarkdownIt): void {
 function addLinkRenderer(md: MarkdownIt): void {
 	const original = md.renderer.rules.link_open;
 
-	md.renderer.rules.link_open = (tokens: MarkdownIt.Token[], idx: number, options, env, self) => {
+	md.renderer.rules.link_open = (tokens: Token[], idx: number, options, env, self) => {
 		const token = tokens[idx];
 		const href = token.attrGet('href');
 		if (typeof href === 'string' && href.startsWith('#')) {

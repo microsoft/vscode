@@ -10,10 +10,12 @@ import { IChatSessionService } from '../../../platform/chat/common/chatSessionSe
 import { IInteractionService } from '../../../platform/chat/common/interactionService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
+import { isAutoExplainabilityHidden } from '../../../platform/endpoint/node/autoChatEndpoint';
+import { IAutomodeService, reportAutoModeRouting } from '../../../platform/endpoint/node/automodeService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { ChatExtPerfMark, clearChatExtMarks, markChatExt } from '../../../util/common/performance';
-import { DisposableStore, IDisposable } from '../../../util/vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from '../../../util/vs/base/common/lifecycle';
 import { autorun } from '../../../util/vs/base/common/observableInternal';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
@@ -69,6 +71,7 @@ class ChatAgents implements IDisposable {
 		@IChatQuotaService private readonly _chatQuotaService: IChatQuotaService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExperimentationService private readonly experimentationService: IExperimentationService,
+		@IAutomodeService private readonly automodeService: IAutomodeService,
 		@IPromptCategorizerService private readonly promptCategorizerService: IPromptCategorizerService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IChatSessionService chatSessionService: IChatSessionService,
@@ -204,6 +207,11 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 	private getChatParticipantHandler(id: string, name: string, defaultIntentIdOrGetter: IntentOrGetter): vscode.ChatExtendedRequestHandler {
 		return async (request, context, stream, token): Promise<vscode.ChatResult> => {
 			markChatExt(request.sessionId, ChatExtPerfMark.WillHandleParticipant);
+			// Installed before anything resolves an endpoint, since that is what
+			// triggers Auto's first route. Inline chat has no room for the row.
+			const autoRouting = request.location2 === undefined && !isAutoExplainabilityHidden(this.experimentationService)
+				? reportAutoModeRouting(request, stream, this.automodeService)
+				: Disposable.None;
 			try {
 				// If we need to switch to the base model, this function will handle it
 				// Otherwise it just returns the same request passed into it
@@ -269,29 +277,7 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 
 				return result;
 			} finally {
-				const rateLimitWarning = this._chatQuotaService.consumeRateLimitWarning();
-				if (rateLimitWarning) {
-					const resetDate = rateLimitWarning.resetDate;
-					const now = new Date();
-					const includeYear = resetDate.getFullYear() !== now.getFullYear();
-					const dateStr = new Intl.DateTimeFormat(undefined, includeYear
-						? { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }
-						: { month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' }
-					).format(resetDate);
-					stream.warning(new vscode.MarkdownString(
-						rateLimitWarning.type === 'session'
-							? vscode.l10n.t({
-								message: "You've used {0}% of your session rate limit. Your session rate limit will reset on {1}. [Learn More]({2})",
-								args: [rateLimitWarning.percentUsed, dateStr, 'https://aka.ms/github-copilot-rate-limit-error'],
-								comment: [`{Locked=']({'}`]
-							})
-							: vscode.l10n.t({
-								message: "You've used {0}% of your weekly rate limit. Your weekly rate limit will reset on {1}. [Learn More]({2})",
-								args: [rateLimitWarning.percentUsed, dateStr, 'https://aka.ms/github-copilot-rate-limit-error'],
-								comment: [`{Locked=']({'}`]
-							})
-					));
-				}
+				autoRouting.dispose();
 				markChatExt(request.sessionId, ChatExtPerfMark.DidHandleParticipant);
 				clearChatExtMarks(request.sessionId);
 			}
@@ -300,14 +286,14 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 
 	private async switchToBaseModel(request: vscode.ChatRequest, stream: vscode.ChatResponseStream): Promise<ChatRequest> {
 		const endpoint = await this.endpointProvider.getChatEndpoint(request);
-		const baseEndpoint = await this.endpointProvider.getChatEndpoint('copilot-base');
 		// If it has a 0x multipler, it's free so don't switch them. If it's BYOK, it's free so don't switch them.
 		if (endpoint.multiplier === 0 || request.model.vendor !== 'copilot' || endpoint.multiplier === undefined) {
 			return request;
 		}
-		if (this._chatQuotaService.overagesEnabled || !this._chatQuotaService.quotaExhausted) {
+		if (this._chatQuotaService.additionalUsageEnabled || !this._chatQuotaService.quotaExhausted) {
 			return request;
 		}
+		const baseEndpoint = await this.endpointProvider.getChatEndpoint('copilot-utility');
 		const baseLmModel = (await vscode.lm.selectChatModels({ id: baseEndpoint.model, family: baseEndpoint.family, vendor: 'copilot' }))[0];
 		if (!baseLmModel) {
 			return request;
@@ -318,14 +304,14 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 		let messageString: vscode.MarkdownString;
 		if (this.authenticationService.copilotToken?.isIndividual) {
 			messageString = new vscode.MarkdownString(vscode.l10n.t({
-				message: 'You have exceeded your premium request allowance. We have automatically switched you to {0} which is included with your plan. [Enable additional paid premium requests]({1}) to continue using premium models.',
-				args: [baseEndpoint.name, 'command:chat.enablePremiumOverages'],
+				message: 'You have reached your additional budget limit for this month. We have automatically switched you to {0} which is included with your plan. [Manage Budget]({1}) to keep going.',
+				args: [baseEndpoint.name, 'command:chat.enableAdditionalUsage'],
 				// To make sure the translators don't break the link
 				comment: [`{Locked=']({'}`]
 			}));
-			messageString.isTrusted = { enabledCommands: ['chat.enablePremiumOverages'] };
+			messageString.isTrusted = { enabledCommands: ['chat.enableAdditionalUsage'] };
 		} else {
-			messageString = new vscode.MarkdownString(vscode.l10n.t('You have exceeded your premium request allowance. We have automatically switched you to {0} which is included with your plan. To enable additional paid premium requests, contact your organization admin.', baseEndpoint.name));
+			messageString = new vscode.MarkdownString(vscode.l10n.t('You have reached your additional budget limit for this month. We have automatically switched you to {0} which is included with your plan. To manage budget, contact your organization admin.', baseEndpoint.name));
 		}
 		stream.warning(messageString);
 		return request;

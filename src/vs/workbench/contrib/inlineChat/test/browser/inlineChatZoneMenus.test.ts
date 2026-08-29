@@ -8,7 +8,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyValue, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
-import { KeepSessionAction2, UndoSessionAction2, UndoAndCloseSessionAction2, CancelSessionAction, ContinueInlineChatInChatViewAction, RephraseInlineChatSessionAction, } from '../../browser/inlineChatActions.js';
+import { KeepSessionAction2, UndoAndCloseSessionAction2, CancelSessionAction, ContinueInlineChatInChatViewAction, RephraseInlineChatSessionAction, } from '../../browser/inlineChatActions.js';
 import { registerChatExecuteActions } from '../../../chat/browser/actions/chatExecuteActions.js';
 import { registerChatContextActions } from '../../../chat/browser/actions/chatContextActions.js';
 import { registerChatToolActions } from '../../../chat/browser/actions/chatToolActions.js';
@@ -37,7 +37,6 @@ suite('Inline chat zone widget — menu contributions', function () {
 		disposables.add(registerChatToolActions());
 
 		disposables.add(registerAction2(KeepSessionAction2));
-		disposables.add(registerAction2(UndoSessionAction2));
 		disposables.add(registerAction2(UndoAndCloseSessionAction2));
 		disposables.add(registerAction2(CancelSessionAction));
 		disposables.add(registerAction2(ContinueInlineChatInChatViewAction));
@@ -102,40 +101,14 @@ suite('Inline chat zone widget — menu contributions', function () {
 		].sort());
 	});
 
-	test('ChatEditorInlineExecute — request in progress (hover mode)', () => {
+	test('ChatEditorInlineExecute — request in progress', () => {
 		const ctx = createContext({
 			'chatEdits.isRequestInProgress': true,
 			'chatSessionHasActiveRequest': true,
-			'config.inlineChat.renderMode': 'hover',
-		});
-		assert.deepStrictEqual(visibleIds(MenuId.ChatEditorInlineExecute, ctx), [
-			'inlineChat2.cancel',
-		].sort());
-	});
-
-	test('ChatEditorInlineExecute — request in progress (zone mode)', () => {
-		const ctx = createContext({
-			'chatEdits.isRequestInProgress': true,
-			'chatSessionHasActiveRequest': true,
-			'config.inlineChat.renderMode': 'zone',
 		});
 		assert.deepStrictEqual(visibleIds(MenuId.ChatEditorInlineExecute, ctx), [
 			'inlineChat2.close',
 			'workbench.action.chat.cancel',
-		].sort());
-	});
-
-	test('ChatEditorInlineExecute — completed with edits, no text (hover mode)', () => {
-		const ctx = createContext({
-			'chatEdits.hasEditorModifications': true,
-			'chatEdits.isRequestInProgress': false,
-			'chatSessionHasActiveRequest': false,
-			'chatInputHasText': false,
-			'config.inlineChat.renderMode': 'hover',
-		});
-		assert.deepStrictEqual(visibleIds(MenuId.ChatEditorInlineExecute, ctx), [
-			'inlineChat2.keep',
-			'inlineChat2.undo',
 		].sort());
 	});
 
@@ -145,7 +118,6 @@ suite('Inline chat zone widget — menu contributions', function () {
 			'chatEdits.hasEditorModifications': false,
 			'chatEdits.isRequestInProgress': false,
 			'chatSessionHasActiveRequest': false,
-			'config.inlineChat.renderMode': 'hover',
 		});
 		assert.deepStrictEqual(visibleIds(MenuId.ChatEditorInlineExecute, ctx), [
 			'inlineChat2.close',

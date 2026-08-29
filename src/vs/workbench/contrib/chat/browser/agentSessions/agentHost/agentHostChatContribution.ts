@@ -4,58 +4,129 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
-import { isEqualOrParent } from '../../../../../../base/common/resources.js';
+import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
+import { Event } from '../../../../../../base/common/event.js';
+import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../../base/common/observable.js';
+import { mark } from '../../../../../../base/common/performance.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
-import { URI } from '../../../../../../base/common/uri.js';
-import { AgentHostEnabledSettingId, IAgentHostService, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
-import { type IProtectedResourceMetadata, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { type IAgentInfo, type ICustomizationRef, type IRootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { localize } from '../../../../../../nls.js';
+import { affectsAgentHostProviderPreference, IAgentHostService, protectedResourcesRequireGitHubCopilotSignIn, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { LOCAL_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID } from '../../../../../../platform/agentHost/common/agentModelSource.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
-import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionsService, isLocalAgentHostTarget } from '../../../common/chatSessionsService.js';
+import { ChatAgentLocation } from '../../../common/constants.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
-import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
-import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
-import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
-import { AgentCustomizationSyncProvider } from './agentCustomizationSyncProvider.js';
-import { resolveTokenForResource } from './agentHostAuth.js';
-import { AgentHostLanguageModelProvider } from './agentHostLanguageModelProvider.js';
+import { languageModelSourcePresentationRegistry } from '../../../common/languageModelSourcePresentation.js';
+import { Target } from '../../../common/promptSyntax/promptTypes.js';
+import { AgentCustomizationItemProvider } from './agentCustomizationItemProvider.js';
+import { agentHostProviderHasBuiltInGitHubMcpServer, COPILOT_CHAT_GITHUB_MCP_COLLECTION_ID } from './agentHostMcpServerSupport.js';
+import { AgentHostDownloadProgress } from './agentHostDownloadProgress.js';
+import { authenticateProtectedResources, AgentHostAuthenticationRecovery, AgentHostAuthTokenCache, resolveAuthenticationInteractively } from './agentHostAuth.js';
+import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from './agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from './agentHostSessionHandler.js';
-import { AgentHostSessionListController } from './agentHostSessionListController.js';
-import { LoggingAgentConnection } from './loggingAgentConnection.js';
-import { SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
+import { AgentHostPromptCacheNotification } from './agentHostPromptCacheNotification.js';
+import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
+import { IAgentHostProtectedResourcesService } from './agentHostProtectedResourcesService.js';
+import { AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
 
-export { AgentHostSessionHandler, getAgentHostBranchNameHint } from './agentHostSessionHandler.js';
-export { AgentHostSessionListController } from './agentHostSessionListController.js';
+const LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX = 'agent-host-';
+
+languageModelSourcePresentationRegistry.register({
+	ownerVendor: 'agent-host-codex',
+	sourceId: CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID,
+	label: localize('agentHostModelSource.chatGPT.label', "ChatGPT"),
+	icon: Codicon.openai,
+	description: localize('agentHostModelSource.chatGPT.description', "Models provided by your ChatGPT subscription"),
+});
+
+Registry.as<IAsyncChatSessionActivationRegistry>(ChatSessionsExtensions.AsyncActivation).register({
+	matchSessionType: sessionType => isLocalAgentHostTarget(sessionType),
+	waitForActivation: waitForLocalAgentHostActivation,
+});
+
+async function waitForLocalAgentHostActivation(accessor: ServicesAccessor, sessionType: string): Promise<boolean> {
+	const agentHostEnablementService = accessor.get(IAgentHostEnablementService);
+	const agentHostService = accessor.get(IAgentHostService);
+	const configurationService = accessor.get(IConfigurationService);
+	const environmentService = accessor.get(IWorkbenchEnvironmentService);
+	if (!agentHostEnablementService.enabled.get()) {
+		return false;
+	}
+
+	const provider = getLocalAgentHostProviderForSessionType(sessionType);
+	if (!provider) {
+		return false;
+	}
+
+	while (true) {
+		const rootState = agentHostService.rootState.value;
+		if (rootState instanceof Error) {
+			return false;
+		}
+		if (rootState) {
+			return rootState.agents.some(agent => agent.provider === provider && shouldSurfaceLocalAgentHostProvider(agent.provider, configurationService, environmentService.isSessionsWindow));
+		}
+
+		const changed = await Promise.race([
+			Event.toPromise(agentHostService.rootState.onDidChange).then(() => true),
+			Event.toPromise(agentHostService.onAgentHostExit).then(() => false),
+		]);
+		if (!changed) {
+			return false;
+		}
+	}
+}
+
+function getLocalAgentHostProviderForSessionType(sessionType: string): AgentProvider | undefined {
+	if (!isLocalAgentHostTarget(sessionType) || !sessionType.startsWith(LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX)) {
+		return undefined;
+	}
+	return sessionType.slice(LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX.length) || undefined;
+}
+
+export { AgentHostSessionHandler } from './agentHostSessionHandler.js';
 
 /**
  * Discovers available agents from the agent host process and dynamically
  * registers each one as a chat session type with its own session handler,
- * list controller, and language model provider.
+ * customization harness, and language model provider.
  *
- * Gated on the `chat.agentHost.enabled` setting.
+ * Gated on Agent Host runtime availability.
  */
 export class AgentHostContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.agentHostContribution';
 
-	private _loggedConnection: LoggingAgentConnection | undefined;
-
 	private readonly _agentRegistrations = this._register(new DisposableMap<AgentProvider, DisposableStore>());
 	/** Model providers keyed by agent provider, for pushing model updates. */
 	private readonly _modelProviders = new Map<AgentProvider, AgentHostLanguageModelProvider>();
 
+	/** Dedupes redundant `authenticate` RPCs when the resolved token hasn't changed. */
+	private readonly _authTokenCache = new AgentHostAuthTokenCache();
+	private readonly _authRecovery = new AgentHostAuthenticationRecovery();
+
 	private readonly _isSessionsWindow: boolean;
+	private readonly _enableSmokeTestDriver: boolean;
+	private _initialized = false;
+	private readonly _enablementStore = this._register(new MutableDisposable<DisposableStore>());
+	private _authenticationGeneration = 0;
+	private _didStartInitialAuthentication = false;
+	private _promptCacheNotification: AgentHostPromptCacheNotification | undefined;
 
 	constructor(
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
@@ -65,29 +136,47 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		@ILogService private readonly _logService: ILogService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IAgentHostFileSystemService _agentHostFileSystemService: IAgentHostFileSystemService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IAgentHostFileSystemService private readonly _agentHostFileSystemService: IAgentHostFileSystemService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ICustomizationHarnessService private readonly _customizationHarnessService: ICustomizationHarnessService,
-		@IStorageService private readonly _storageService: IStorageService,
-		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
+		@IAgentHostProtectedResourcesService private readonly _protectedResourcesService: IAgentHostProtectedResourcesService,
+		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
 	) {
 		super();
-
 		this._isSessionsWindow = environmentService.isSessionsWindow;
+		this._enableSmokeTestDriver = !!environmentService.enableSmokeTestDriver;
 
-		if (!configurationService.getValue<boolean>(AgentHostEnabledSettingId)) {
+		this._register(autorun(reader => {
+			const enabled = this._agentHostEnablementService.enabled.read(reader);
+			if (enabled) {
+				const wasInitialized = this._initialized;
+				this._initialize();
+				this._enable();
+				const current = this._agentHostService.rootState.value;
+				if (wasInitialized && current && !(current instanceof Error)) {
+					this._handleRootStateChange(current);
+				}
+			} else {
+				this._authenticationGeneration++;
+				this._authTokenCache.clear();
+				this._authRecovery.clear();
+				this._enablementStore.clear();
+				this._agentHostService.setAuthenticationPending(false);
+				this._agentRegistrations.clearAndDisposeAll();
+				this._modelProviders.clear();
+			}
+		}));
+	}
+
+	private _initialize(): void {
+		if (this._initialized) {
 			return;
 		}
-
-		// Wrap the agent host service with logging to a dedicated output channel
-		this._loggedConnection = this._register(this._instantiationService.createInstance(
-			LoggingAgentConnection,
-			this._agentHostService,
-			`agenthost.${this._agentHostService.clientId}`,
-			'Agent Host (Local)'));
-
-		this._register(_agentHostFileSystemService.registerAuthority('local', this._agentHostService));
+		this._initialized = true;
+		this._promptCacheNotification = this._register(this._instantiationService.createInstance(AgentHostPromptCacheNotification));
+		this._register(this._agentHostFileSystemService.registerAuthority(LOCAL_AGENT_HOST_AUTHORITY, this._agentHostService));
 
 		// React to root state changes (agent discovery / removal)
 		this._register(this._agentHostService.rootState.onDidChange(rootState => {
@@ -99,12 +188,59 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		if (initialRootState && !(initialRootState instanceof Error)) {
 			this._handleRootStateChange(initialRootState);
 		}
+
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (!affectsAgentHostProviderPreference(e, this._isSessionsWindow)) {
+				return;
+			}
+			const current = this._agentHostService.rootState.value;
+			if (current && !(current instanceof Error)) {
+				this._handleRootStateChange(current);
+			}
+		}));
 	}
 
-	private _handleRootStateChange(rootState: IRootState): void {
-		const incoming = new Set(rootState.agents.map(a => a.provider));
+	private _enable(): void {
+		if (this._enablementStore.value) {
+			return;
+		}
+		const store = new DisposableStore();
+		store.add(this._agentHostService.onDidNotification(notification => {
+			if (notification.type !== NotificationType.AuthRequired) {
+				return;
+			}
+			this._authenticateNotificationResource(notification.resource);
+		}));
 
-		// Remove agents that are no longer present
+		// Surface the agent host's lazy, first-use SDK download as a progress
+		// notification. The Agents window renders this via its own sessions
+		// provider (`BaseAgentHostSessionsProvider`), so only wire it up here
+		// for regular editor windows to avoid duplicate notifications (this
+		// contribution runs in both windows). The matching `createSession`
+		// opt-in (`progressToken`) lives in the editor-window session handlers.
+		if (!this._isSessionsWindow) {
+			const downloadProgress = store.add(this._instantiationService.createInstance(AgentHostDownloadProgress));
+			store.add(this._agentHostService.onDidNotification(n => {
+				if (n.type === NotificationType.Progress) {
+					downloadProgress.handleProgress(n);
+				}
+			}));
+		}
+		this._enablementStore.value = store;
+	}
+
+	private _shouldRegisterAgent(provider: AgentProvider): boolean {
+		return shouldSurfaceLocalAgentHostProvider(provider, this._configurationService, this._isSessionsWindow);
+	}
+
+	private _handleRootStateChange(rootState: RootState): void {
+		if (!this._agentHostEnablementService.enabled.get()) {
+			return;
+		}
+		const allowed = rootState.agents.filter(a => this._shouldRegisterAgent(a.provider));
+		const incoming = new Set(allowed.map(a => a.provider));
+
+		// Remove agents that are no longer present OR no longer allowed
 		for (const [provider] of this._agentRegistrations) {
 			if (!incoming.has(provider)) {
 				this._agentRegistrations.deleteAndDispose(provider);
@@ -112,12 +248,15 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			}
 		}
 
-		// Authenticate using protectedResources from agent info
-		this._authenticateWithServer(rootState.agents)
+		// Authenticate using protectedResources from agent info. Only auth the
+		// allowed agents so a suppressed provider (e.g. EH-preferred Claude in
+		// this window) doesn't trigger token resolution work for an
+		// implementation we're not going to bridge.
+		this._authenticateWithServer(allowed)
 			.catch(() => { /* best-effort */ });
 
 		// Register new agents and push model updates to existing ones
-		for (const agent of rootState.agents) {
+		for (const agent of allowed) {
 			if (!this._agentRegistrations.has(agent.provider)) {
 				this._registerAgent(agent);
 			} else {
@@ -128,54 +267,70 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		}
 	}
 
-	private _registerAgent(agent: IAgentInfo): void {
+	private _registerAgent(agent: AgentInfo): void {
 		const store = new DisposableStore();
 		this._agentRegistrations.set(agent.provider, store);
 		const sessionType = `agent-host-${agent.provider}`;
 		const agentId = sessionType;
 		const vendor = sessionType;
+		const ahService = this._agentHostService;
 
 		// Chat session contribution.
-		// In the Agents app, hide the delegation picker for local agent host
-		// sessions (matches behavior of remote agent host sessions). In VS Code,
-		// keep the picker available so users can hand off to other targets.
+		// Keep the delegation picker available for local agent host sessions in
+		// both VS Code and the Agents app so users can hand off (continue) their
+		// conversation to any other agent host session or remote target.
 		store.add(this._chatSessionsService.registerChatSessionContribution({
 			type: sessionType,
 			name: agentId,
 			displayName: agent.displayName,
 			description: agent.description,
+			locations: agent.provider === 'copilotcli' ? [ChatAgentLocation.Chat, ChatAgentLocation.Terminal, ChatAgentLocation.EditorInline] : undefined,
+			customAgentTarget: this._isSessionsWindow ? undefined : Target.GitHubCopilot,
 			canDelegate: true,
 			requiresCustomModels: true,
-			supportsDelegation: !this._isSessionsWindow,
+			supportsAutoModel: agentHostProviderSupportsAutoModel(agent.provider),
+			// Derived live from the agent's currently-advertised protected resources
+			// (via the protected-resources service): an agent that marks the GitHub
+			// Copilot resource `required: false` (Claude in native mode, Codex on
+			// OpenAI) is usable without signing in. Falls back to "required" until the
+			// agent host resolves. The paired `onDidChangeRequiresCopilotSignIn` lets
+			// the sessions service re-evaluate this when the set changes.
+			requiresCopilotSignIn: () => {
+				const resources = this._protectedResourcesService.getProtectedResources(agent.provider);
+				return resources !== undefined ? protectedResourcesRequireGitHubCopilotSignIn(resources) : true;
+			},
+			onDidChangeRequiresCopilotSignIn: Event.signal(Event.filter(this._protectedResourcesService.onDidChange, provider => provider === agent.provider, store)),
+			agentHostProviderId: agent.provider,
+			supportsDelegation: true,
 			capabilities: {
 				supportsCheckpoints: true,
+				supportsPromptAttachments: true,
+				supportsImageAttachments: true,
+				get terminalCommandPrefix() {
+					return ahService.initializeResult.get()?.terminalCommandPrefix;
+				}
 			},
 		}));
 
-		// Session list controller
-		const listController = store.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType, agent.provider, this._loggedConnection!, undefined, 'local'));
-		store.add(this._chatSessionsService.registerChatSessionItemController(sessionType, listController));
+		const syncProvider = this._activeClientService.getSyncProvider(sessionType);
+		// The management UI remains ambient while individual sessions use their working-directory scopes.
+		const ambientScope = store.add(this._activeClientService.acquireScope(sessionType, []));
 
-		// Customization sync provider + bundler + observable
-		const syncProvider = store.add(new AgentCustomizationSyncProvider(sessionType, this._storageService));
-		const bundler = store.add(this._instantiationService.createInstance(SyncedCustomizationBundler, sessionType));
+		const itemProvider = store.add(this._instantiationService.createInstance(AgentCustomizationItemProvider, 'local', undefined,
+			syncedUri => this._activeClientService.getOrigin(syncedUri)));
+		itemProvider.setDraftCustomAgents(ambientScope.customAgents);
+		itemProvider.setDraftCustomizations(ambientScope.customizations);
 		store.add(this._customizationHarnessService.registerExternalHarness({
 			id: sessionType,
 			label: agent.displayName,
 			icon: ThemeIcon.fromId(Codicon.server.id),
-			hiddenSections: [],
+			// The Tools section is surfaced for the Copilot CLI agent host only.
+			hiddenSections: agent.provider === 'copilotcli' ? [AICustomizationManagementSection.Prompts] : [AICustomizationManagementSection.Tools, AICustomizationManagementSection.Prompts],
 			hideGenerateButton: true,
-			getStorageSourceFilter: () => ({ sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.plugin] }),
 			syncProvider,
+			itemProvider,
+			hiddenMcpServerCollectionIds: agentHostProviderHasBuiltInGitHubMcpServer(agent.provider) ? [COPILOT_CHAT_GITHUB_MCP_COLLECTION_ID] : undefined,
 		}));
-
-		const customizations = observableValue<ICustomizationRef[]>('agentCustomizations', []);
-		const updateCustomizations = async () => {
-			const refs = await this._resolveCustomizations(syncProvider, bundler);
-			customizations.set(refs, undefined);
-		};
-		store.add(syncProvider.onDidChange(() => updateCustomizations()));
-		updateCustomizations(); // resolve initial state
 
 		// Session handler
 		const sessionHandler = store.add(this._instantiationService.createInstance(AgentHostSessionHandler, {
@@ -184,16 +339,21 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			sessionType,
 			fullName: agent.displayName,
 			description: agent.description,
-			connection: this._loggedConnection!,
-			connectionAuthority: 'local',
+			connection: this._agentHostService,
+			connectionAuthority: LOCAL_AGENT_HOST_AUTHORITY,
+			onSessionMaterialized: resource => this._chatSessionsService.notifySessionMaterialized?.(resource),
 			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(resources),
-			customizations,
+			promptCacheNotification: this._promptCacheNotification,
 		}));
 		store.add(this._chatSessionsService.registerChatSessionContentProvider(sessionType, sessionHandler));
 
 		// Language model provider.
 		// Order matters: `updateModels` must be called after
 		// `registerLanguageModelProvider` so the initial `onDidChange` is observed.
+		// One vendor descriptor for this harness. Claude's `anthropic`/`copilot`
+		// model groups (per-session provider selection) resolve their display names
+		// from the Copilot extension's pre-existing vendors, so registering them
+		// here would add nothing and risk clobbering those shared vendors on dispose.
 		const vendorDescriptor = { vendor, displayName: agent.displayName, configuration: undefined, managementCommand: undefined, when: undefined };
 		this._languageModelsService.deltaLanguageModelChatProviderDescriptors([vendorDescriptor], []);
 		store.add(toDisposable(() => this._languageModelsService.deltaLanguageModelChatProviderDescriptors([], [vendorDescriptor])));
@@ -214,86 +374,75 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		}));
 	}
 
-	/**
-	 * Resolves the customizations to include in the active client set.
-	 *
-	 * Classifies sync provider entries as plugins (matched against
-	 * installed plugins) or individual files (bundled into a synthetic
-	 * Open Plugin).
-	 */
-	private async _resolveCustomizations(
-		syncProvider: AgentCustomizationSyncProvider,
-		bundler: SyncedCustomizationBundler,
-	): Promise<ICustomizationRef[]> {
-		const entries = syncProvider.getSelectedEntries();
-		if (entries.length === 0) {
-			return [];
-		}
-
-		const plugins = this._agentPluginService.plugins.get();
-		const refs: ICustomizationRef[] = [];
-		const individualFiles: { uri: URI; type: PromptsType }[] = [];
-
-		for (const entry of entries) {
-			const plugin = plugins.find(p => isEqualOrParent(entry.uri, p.uri));
-			if (plugin) {
-				refs.push({
-					uri: plugin.uri.toString() as ProtocolURI,
-					displayName: plugin.label,
-				});
-			} else if (entry.type) {
-				individualFiles.push({ uri: entry.uri, type: entry.type });
-			}
-		}
-
-		if (individualFiles.length > 0) {
-			const result = await bundler.bundle(individualFiles);
-			if (result) {
-				refs.push(result.ref);
-			}
-		}
-
-		return refs;
-	}
-
-	private _getRootAgents(): readonly IAgentInfo[] {
+	private _getRootAgents(): readonly AgentInfo[] {
 		const rootState = this._agentHostService.rootState.value;
-		return (rootState && !(rootState instanceof Error)) ? rootState.agents : [];
+		const agents = (rootState && !(rootState instanceof Error)) ? rootState.agents : [];
+		return agents.filter(a => this._shouldRegisterAgent(a.provider));
 	}
 
 	/**
 	 * Authenticate using protectedResources from agent info in root state.
 	 * Resolves tokens via the standard VS Code authentication service.
 	 */
-	private async _authenticateWithServer(agents: readonly IAgentInfo[]): Promise<void> {
+	private async _authenticateWithServer(agents: readonly AgentInfo[]): Promise<void> {
+		const generation = this._authenticationGeneration;
+		if (!this._isAuthenticationCurrent(generation)) {
+			return;
+		}
+		const isInitialAuthentication = agents.length > 0 && !this._didStartInitialAuthentication;
+		if (isInitialAuthentication) {
+			this._didStartInitialAuthentication = true;
+			mark('code/agentHost/willAuthenticate');
+		}
 		this._agentHostService.setAuthenticationPending(true);
 		try {
-			for (const agent of agents) {
-				for (const resource of agent.protectedResources ?? []) {
-					const resourceUri = URI.parse(resource.resource);
-					const token = await this._resolveTokenForResource(resourceUri, resource.authorization_servers ?? [], resource.scopes_supported ?? []);
-					if (token) {
-						this._logService.info(`[AgentHost] Authenticating for resource: ${resource.resource}`);
-						await this._loggedConnection!.authenticate({ resource: resource.resource, token });
-					} else {
-						this._logService.info(`[AgentHost] No token resolved for resource: ${resource.resource}`);
-					}
-				}
+			const testToken = this._getScenarioAutomationToken();
+			if (testToken !== undefined) {
+				await this._seedTestToken(agents, testToken, generation);
+				return;
 			}
+			await this._instantiationService.invokeFunction(authenticateProtectedResources, agents, {
+				authTokenCache: this._authTokenCache,
+				logPrefix: '[AgentHost]',
+				isCurrent: () => this._isAuthenticationCurrent(generation),
+				authenticate: request => this._authenticateIfCurrent(request, generation),
+			});
 		} catch (err) {
-			this._logService.error('[AgentHost] Failed to authenticate with server', err);
-			this._loggedConnection!.logError('authenticateWithServer', err);
+			if (!isCancellationError(err)) {
+				this._logService.error('[AgentHost] Failed to authenticate with server', err);
+			}
 		} finally {
-			this._agentHostService.setAuthenticationPending(false);
+			if (this._isAuthenticationCurrent(generation)) {
+				this._agentHostService.setAuthenticationPending(false);
+			}
+			if (isInitialAuthentication) {
+				mark('code/agentHost/didAuthenticate');
+			}
 		}
 	}
 
-	/**
-	 * Resolve a bearer token for a set of authorization servers using the
-	 * standard VS Code authentication service provider resolution.
-	 */
-	private _resolveTokenForResource(resourceServer: URI, authorizationServers: readonly string[], scopes: readonly string[]): Promise<string | undefined> {
-		return resolveTokenForResource(resourceServer, authorizationServers, scopes, this._authenticationService, this._logService, '[AgentHost]');
+	private _authenticateNotificationResource(protectedResource: ProtectedResourceMetadata): void {
+		const generation = this._authenticationGeneration;
+		if (!this._isAuthenticationCurrent(generation)) {
+			return;
+		}
+		this._agentHostService.setAuthenticationPending(true);
+		this._instantiationService.invokeFunction(accessor => this._authRecovery.recover(accessor, protectedResource, {
+			authTokenCache: this._authTokenCache,
+			logPrefix: '[AgentHost]',
+			isCurrent: () => this._isAuthenticationCurrent(generation),
+			authenticate: request => this._authenticateIfCurrent(request, generation),
+		}))
+			.catch(err => {
+				if (!isCancellationError(err)) {
+					this._logService.error(`[AgentHost] Failed to authenticate notified resource ${protectedResource.resource}`, err);
+				}
+			})
+			.finally(() => {
+				if (this._isAuthenticationCurrent(generation)) {
+					this._agentHostService.setAuthenticationPending(false);
+				}
+			});
 	}
 
 	/**
@@ -302,45 +451,61 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	 * creates a session (which triggers the login UI), and pushes the token
 	 * to the server. Returns true if authentication succeeded.
 	 */
-	private async _resolveAuthenticationInteractively(protectedResources: IProtectedResourceMetadata[]): Promise<boolean> {
-		try {
-			for (const resource of protectedResources) {
-				const resourceUri = URI.parse(resource.resource);
-				const resolved = await resolveTokenForResource(resourceUri, resource.authorization_servers || [], resource.scopes_supported || [], this._authenticationService, this._logService, '[AgentHost]');
-				if (resolved) {
-					await this._loggedConnection!.authenticate({
-						resource: resource.resource,
-						token: resolved,
-					});
-					return true;
-				}
-
-				for (const server of resource.authorization_servers ?? []) {
-					const serverUri = URI.parse(server);
-					const providerId = await this._authenticationService.getOrActivateProviderIdForServer(serverUri, resourceUri);
-					if (!providerId) {
-						continue;
-					}
-
-					// createSession will show the login UI if no session exists
-					const scopes = [...(resource.scopes_supported ?? [])];
-					const session = await this._authenticationService.createSession(providerId, scopes, {
-						activateImmediate: true,
-						authorizationServer: serverUri,
-					});
-
-					await this._loggedConnection!.authenticate({
-						resource: resource.resource,
-						token: session.accessToken,
-					});
-					this._logService.info(`[AgentHost] Interactive authentication succeeded for ${resource.resource}`);
-					return true;
-				}
-			}
-		} catch (err) {
-			this._logService.error('[AgentHost] Interactive authentication failed', err);
-			this._loggedConnection!.logError('resolveAuthenticationInteractively', err);
+	private async _resolveAuthenticationInteractively(protectedResources: ProtectedResourceMetadata[]): Promise<boolean> {
+		const generation = this._authenticationGeneration;
+		if (!this._isAuthenticationCurrent(generation)) {
+			return false;
 		}
-		return false;
+		const testToken = this._getScenarioAutomationToken();
+		if (testToken !== undefined) {
+			for (const resource of protectedResources) {
+				await this._authTokenCache.authenticate(
+					resource.resource,
+					resource.scopes_supported,
+					testToken,
+					() => this._authenticateIfCurrent({ resource: resource.resource, token: testToken }, generation),
+				);
+			}
+			return protectedResources.length > 0;
+		}
+		return this._instantiationService.invokeFunction(resolveAuthenticationInteractively, protectedResources, {
+			authTokenCache: this._authTokenCache,
+			logPrefix: '[AgentHost]',
+			isCurrent: () => this._isAuthenticationCurrent(generation),
+			authenticate: request => this._authenticateIfCurrent(request, generation),
+		});
+	}
+
+	private async _seedTestToken(agents: readonly AgentInfo[], token: string, generation: number): Promise<void> {
+		for (const agent of agents) {
+			for (const resource of agent.protectedResources ?? []) {
+				await this._authTokenCache.authenticate(
+					resource.resource,
+					resource.scopes_supported,
+					token,
+					() => this._authenticateIfCurrent({ resource: resource.resource, token }, generation),
+				);
+			}
+		}
+	}
+
+	private _getScenarioAutomationToken(): string | undefined {
+		// Smoke-test escape hatch.
+		if (!this._enableSmokeTestDriver) {
+			return undefined;
+		}
+		const token = this._configurationService.getValue('chat.agentHost.unsafeTestToken');
+		return typeof token === 'string' && token.length > 0 ? token : undefined;
+	}
+
+	private _isAuthenticationCurrent(generation: number): boolean {
+		return generation === this._authenticationGeneration && this._agentHostEnablementService.enabled.get();
+	}
+
+	private _authenticateIfCurrent(request: { resource: string; scopes?: readonly string[]; token: string }, generation: number): Promise<unknown> {
+		if (!this._isAuthenticationCurrent(generation)) {
+			return Promise.reject(new CancellationError());
+		}
+		return this._agentHostService.authenticate(request);
 	}
 }

@@ -21,7 +21,7 @@ import { IProxyModelsService } from '../../proxyModels/common/proxyModelsService
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { WireTypes } from '../common/dataTypes/inlineEditsModelsTypes';
-import { isPromptingStrategy, MODEL_CONFIGURATION_VALIDATOR, ModelConfiguration, PromptingStrategy } from '../common/dataTypes/xtabPromptOptions';
+import { applyStrategyConfig, isPromptingStrategy, MODEL_CONFIGURATION_VALIDATOR, ModelConfiguration, PromptingStrategy } from '../common/dataTypes/xtabPromptOptions';
 import { IInlineEditsModelService, IUndesiredModelsManager } from '../common/inlineEditsModelService';
 
 const enum ModelSource {
@@ -39,7 +39,7 @@ interface ModelConfigurationWithSource extends ModelConfiguration {
 type ModelInfo = {
 	models: ModelConfigurationWithSource[];
 	currentModelId: string;
-}
+};
 
 export class InlineEditsModelService extends Disposable implements IInlineEditsModelService {
 
@@ -75,7 +75,7 @@ export class InlineEditsModelService extends Disposable implements IInlineEditsM
 	private _fetchedModelsObs = observableFromEvent(this, this._proxyModelsService.onModelListUpdated, () => this._proxyModelsService.nesModels);
 
 	private _preferredModelNameObs = this._configService.getExperimentBasedConfigObservable(ConfigKey.Advanced.InlineEditsPreferredModel, this._expService);
-	private _localModelConfigObs = this._configService.getConfigObservable(ConfigKey.TeamInternal.InlineEditsXtabProviderModelConfiguration);
+	private _localModelConfigObs = this._configService.getConfigObservable(ConfigKey.Advanced.InlineEditsXtabProviderModelConfiguration);
 	private _expBasedModelConfigObs = this._configService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.InlineEditsXtabProviderModelConfigurationString, this._expService);
 	private _defaultModelConfigObs = this._configService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.InlineEditsXtabProviderDefaultModelConfigurationString, this._expService);
 	private _useSlashModelsObs = this._configService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.InlineEditsUseSlashModels, this._expService);
@@ -210,7 +210,7 @@ export class InlineEditsModelService extends Disposable implements IInlineEditsM
 		}: {
 			copilotToken: CopilotToken | undefined;
 			fetchedNesModels: WireTypes.Model.t[] | undefined;
-			localModelConfig: ModelConfiguration | undefined;
+			localModelConfig: ModelConfiguration | null;
 			modelConfigString: string | undefined;
 			defaultModelConfigString: string | undefined;
 			useSlashModels: boolean;
@@ -284,7 +284,7 @@ export class InlineEditsModelService extends Disposable implements IInlineEditsM
 	}
 
 	public selectedModelConfiguration(): ModelConfiguration {
-		return toModelConfiguration(this._currentModelObs.get());
+		return applyStrategyConfig(toModelConfiguration(this._currentModelObs.get()));
 	}
 
 	public defaultModelConfiguration(): ModelConfiguration {

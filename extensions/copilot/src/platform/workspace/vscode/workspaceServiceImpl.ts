@@ -111,6 +111,10 @@ export class ExtensionTextDocumentManager extends AbstractWorkspaceService {
 	}
 
 
+	override isResourceTrusted(resource: Uri): Thenable<boolean> {
+		return workspace.isResourceTrusted(resource);
+	}
+
 	override requestResourceTrust(options: ResourceTrustRequestOptions): Thenable<boolean | undefined> {
 		return workspace.requestResourceTrust(options);
 	}

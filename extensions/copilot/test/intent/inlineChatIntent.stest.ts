@@ -6,7 +6,6 @@
 import * as fs from 'fs';
 import { join } from 'path';
 import { Intent } from '../../src/extension/common/constants';
-import { InlineDocIntent } from '../../src/extension/intents/node/docIntent';
 import { EditCodeIntent } from '../../src/extension/intents/node/editCodeIntent';
 import { GenerateCodeIntent } from '../../src/extension/intents/node/generateCodeIntent';
 import { ChatLocation } from '../../src/platform/chat/common/commonTypes';
@@ -48,13 +47,6 @@ ssuite({ title: 'intent', location: 'inline' }, () => {
 
 	generateIntentTest({
 		location: ChatLocation.Editor,
-		name: 'add comment',
-		query: 'add comment',
-		expectedIntent: InlineDocIntent.ID,
-	});
-
-	generateIntentTest({
-		location: ChatLocation.Editor,
 		name: 'generate',
 		query: 'generate a nodejs server that responds with "Hello World"',
 		expectedIntent: GenerateCodeIntent.ID,
@@ -65,13 +57,6 @@ ssuite({ title: 'intent', location: 'inline' }, () => {
 		name: 'rewrite',
 		query: 'Rewrite the selection to use async/await',
 		expectedIntent: EditCodeIntent.ID,
-	});
-
-	generateIntentTest({
-		location: ChatLocation.Editor,
-		name: 'write jsdoc',
-		query: 'write a jsdoc comment',
-		expectedIntent: InlineDocIntent.ID,
 	});
 
 	generateIntentTest({

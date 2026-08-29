@@ -11,7 +11,9 @@ import { localize } from '../../../../nls.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { ITerminalLogService } from '../../../../platform/terminal/common/terminal.js';
 import { AgentHostPty } from './agentHostPty.js';
+import { AgentHostOutputChannel } from './agentHostOutputChannel.js';
 import { AhpTerminalCommandSource } from './ahpTerminalCommandSource.js';
 import { ITerminalChatService, ITerminalInstance, ITerminalLocationOptions, ITerminalService } from './terminal.js';
 import { ITerminalProfileProvider, ITerminalProfileService } from '../common/terminal.js';
@@ -39,6 +41,20 @@ export interface IAgentHostTerminalProfileInfo {
 	readonly profileId: string;
 	readonly title: string;
 	readonly address: string;
+}
+
+/**
+ * Tracks the {@link AgentHostPty} produced by one terminal creation's
+ * `customPtyImplementation` factory. The factory can legitimately run after
+ * the terminal instance was disposed (the process launch is driven
+ * asynchronously once the instance's xterm is ready), so — unlike
+ * `MutableDisposable`, which silently leaks a value set after disposal —
+ * setting a pty on a disposed registration disposes the pty locally without
+ * sending `disposeTerminal` to the host, and never touches the active pty map
+ * (a stale registration must not overwrite or delete a replacement's entry).
+ */
+interface IAgentHostPtyRegistration extends IDisposable {
+	setPty(pty: AgentHostPty): void;
 }
 
 const AGENT_HOST_PROFILE_EXT_ID = 'vscode.agent-host-terminal';
@@ -78,10 +94,20 @@ export interface IAgentHostTerminalService {
 	createTerminalForEntry(address: string, options?: IAgentHostTerminalCreateOptions): Promise<ITerminalInstance | undefined>;
 
 	/**
+	 * Reconnects all active terminals that belonged to {@link oldClientId}
+	 * to a new agent host connection. Only terminals matching the old
+	 * client are touched — terminals from other hosts are left alone.
+	 */
+	reconnectTerminals(newConnection: IAgentConnection, oldClientId: string): Promise<{ recovered: number; total: number }>;
+
+	/**
 	 * Attaches to an existing server-side terminal by subscribing to its
 	 * state without creating a new process.
 	 */
 	reviveTerminal(connection: IAgentConnection, terminalUri: URI, terminalToolSessionId: string): Promise<ITerminalInstance>;
+
+	/** Attach a non-pty output channel directly to chat without creating a terminal instance. */
+	attachOutputTerminal(connection: IAgentConnection, terminalUri: URI, terminalToolSessionId: string): IDisposable;
 
 	/**
 	 * Sets the default cwd used by profile providers when no explicit cwd
@@ -103,12 +129,19 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 
 	/** Revived terminal instances, keyed by terminal URI string. */
 	private readonly _revivedInstances = new Map<string, ITerminalInstance>();
+	/**
+	 * Active AgentHostPty instances with their owning connection clientId,
+	 * keyed by terminal URI string. Used for reconnection scoping.
+	 */
+	private readonly _activePtys = new Map<string, { pty: AgentHostPty; clientId: string }>();
+	private readonly _pendingRevives = new Map<string, Promise<ITerminalInstance>>();
 
 	constructor(
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
 		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
 		super();
 	}
@@ -277,44 +310,77 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 	async createTerminal(connection: IAgentConnection, options?: IAgentHostTerminalCreateOptions): Promise<ITerminalInstance> {
 		const terminalUri = URI.from({ scheme: 'agenthost-terminal', path: `/${generateUuid()}` });
 		const name = options?.name ?? localize('agentHostTerminal.default', "Agent Host Terminal");
+		const key = terminalUri.toString();
+		const ptyRegistration = this._createPtyRegistration(key, connection.clientId);
 
-		return this._terminalService.createTerminal({
-			config: {
-				customPtyImplementation: (id, cols, rows) => {
-					const pty = new AgentHostPty(id, connection, terminalUri, {
-						name,
-						cwd: options?.cwd,
-					});
-					if (cols > 0 && rows > 0) {
-						pty.resize(cols, rows);
-					}
-					return pty;
+		let instance: ITerminalInstance;
+		try {
+			instance = await this._terminalService.createTerminal({
+				config: {
+					customPtyImplementation: (id, cols, rows) => {
+						const pty = new AgentHostPty(id, connection, terminalUri, {
+							name,
+							cwd: options?.cwd,
+						}, this._logService);
+						if (cols > 0 && rows > 0) {
+							pty.resize(cols, rows);
+						}
+						ptyRegistration.setPty(pty);
+						return pty;
+					},
+					name,
+					icon: { id: 'remote' },
+					isFeatureTerminal: false,
 				},
-				name,
-				icon: { id: 'remote' },
-				isFeatureTerminal: false,
-			},
-			location: options?.location,
-		});
+				location: options?.location,
+			});
+		} catch (error) {
+			ptyRegistration.dispose();
+			throw error;
+		}
+
+		this._registerInstancePtyCleanup(instance, key, ptyRegistration);
+
+		return instance;
 	}
 
 	async reviveTerminal(connection: IAgentConnection, terminalUri: URI, terminalToolSessionId: string): Promise<ITerminalInstance> {
 		const key = terminalUri.toString();
+		const pending = this._pendingRevives.get(key);
+		if (pending) {
+			return pending;
+		}
+		const revive = this._doReviveTerminal(connection, terminalUri, terminalToolSessionId, key).finally(() => {
+			if (this._pendingRevives.get(key) === revive) {
+				this._pendingRevives.delete(key);
+			}
+		});
+		this._pendingRevives.set(key, revive);
+		return revive;
+	}
+
+	attachOutputTerminal(connection: IAgentConnection, terminalUri: URI, terminalToolSessionId: string): IDisposable {
+		const store = new DisposableStore();
+		const source = store.add(new AgentHostOutputChannel(connection, terminalUri));
+		store.add(this._terminalChatService.registerOutputSource(terminalToolSessionId, source));
+		return store;
+	}
+
+	private async _doReviveTerminal(connection: IAgentConnection, terminalUri: URI, terminalToolSessionId: string, key: string): Promise<ITerminalInstance> {
 		const existing = this._revivedInstances.get(key);
 		if (existing) {
 			return existing;
 		}
-
 		const store = new DisposableStore();
 		const commandSource = store.add(new AhpTerminalCommandSource());
-		store.add(this._terminalChatService.registerAhpCommandSource(terminalToolSessionId, commandSource));
+		const ptyRegistration = this._createPtyRegistration(key, connection.clientId);
 
-		const instance = await this._terminalService.createTerminal({
+		const instancePromise = Promise.resolve().then(() => this._terminalService.createTerminal({
 			config: {
 				customPtyImplementation: (id, cols, rows) => {
 					const pty = new AgentHostPty(id, connection, terminalUri, {
 						attachOnly: true,
-					});
+					}, this._logService);
 					if (cols > 0 && rows > 0) {
 						pty.resize(cols, rows);
 					}
@@ -323,20 +389,101 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 						commandSource.connect(instance, pty);
 					}
 
+					ptyRegistration.setPty(pty);
 					return pty;
 				},
 				name: localize('agentHostTerminal.tool', "Agent Host Terminal"),
 				isFeatureTerminal: true,
+				hideFromUser: true,
 			},
-		});
+		}));
+		store.add(this._terminalChatService.registerAhpCommandSource(terminalToolSessionId, commandSource, instancePromise));
+		let instance: ITerminalInstance;
+		try {
+			instance = await instancePromise;
+		} catch (error) {
+			store.dispose();
+			ptyRegistration.dispose();
+			throw error;
+		}
 		this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, instance);
 
 		this._revivedInstances.set(key, instance);
 		instance.store.add(store);
-		this._register(instance.onDisposed(() => {
-			this._revivedInstances.delete(key);
-		}));
+		this._registerInstancePtyCleanup(instance, key, ptyRegistration);
 
 		return instance;
+	}
+
+	/** Creates the registration that owns the pty produced for {@link key}. */
+	private _createPtyRegistration(key: string, clientId: string): IAgentHostPtyRegistration {
+		let pty: AgentHostPty | undefined;
+		let isDisposed = false;
+		return {
+			setPty: value => {
+				if (isDisposed) {
+					value.dispose();
+					return;
+				}
+				pty = value;
+				this._activePtys.set(key, { pty, clientId });
+			},
+			dispose: () => {
+				if (isDisposed) {
+					return;
+				}
+				isDisposed = true;
+				if (this._activePtys.get(key)?.pty === pty) {
+					this._activePtys.delete(key);
+				}
+				pty?.dispose();
+			},
+		};
+	}
+
+	/**
+	 * Ties the registration's lifetime to the terminal instance so the local
+	 * pty is disposed even on paths that never call `shutdown()`.
+	 */
+	private _registerInstancePtyCleanup(instance: ITerminalInstance, key: string, ptyRegistration: IAgentHostPtyRegistration): void {
+		const cleanup = () => {
+			if (this._revivedInstances.get(key) === instance) {
+				this._revivedInstances.delete(key);
+			}
+			// Instance disposal can bypass PTY shutdown (for example Detach Session).
+			ptyRegistration.dispose();
+		};
+		if (instance.isDisposed) {
+			cleanup();
+		} else {
+			instance.store.add(instance.onDisposed(cleanup));
+		}
+	}
+
+	async reconnectTerminals(newConnection: IAgentConnection, oldClientId: string): Promise<{ recovered: number; total: number }> {
+		// Only reconnect terminals that belonged to the old connection
+		// identified by oldClientId. In multi-host setups, other hosts'
+		// terminals are left untouched.
+		const entries = [...this._activePtys.entries()].filter(
+			([, entry]) => entry.clientId === oldClientId
+		);
+		const total = entries.length;
+		let recovered = 0;
+		const promises: Promise<void>[] = [];
+		for (const [key, entry] of entries) {
+			promises.push(
+				entry.pty.reconnect(newConnection).then(success => {
+					if (success) {
+						recovered++;
+						// Update the clientId to the new connection
+						entry.clientId = newConnection.clientId;
+					} else {
+						this._logService.warn(`[AgentHostTerminalService] Failed to reconnect terminal: ${key}`);
+					}
+				})
+			);
+		}
+		await Promise.all(promises);
+		return { recovered, total };
 	}
 }

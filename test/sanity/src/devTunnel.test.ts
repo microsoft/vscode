@@ -110,7 +110,7 @@ export function setup(context: TestContext) {
 					const tunnelUrl = /Open this link in your browser (https?:\/\/[^\s]+)/.exec(line)?.[1];
 					if (tunnelUrl) {
 						await connectToTunnel(tunnelUrl, page, test, auth);
-						await test.run(page, true);
+						await test.run(page);
 						test.validate();
 						return true;
 					}

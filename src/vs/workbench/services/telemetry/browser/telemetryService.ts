@@ -115,7 +115,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 			appenders.push(new TelemetryLogAppender('', false, loggerService, environmentService, productService));
 			const config: ITelemetryServiceConfig = {
 				appenders,
-				commonProperties: resolveWorkbenchCommonProperties(storageService, productService, isInternal, environmentService.remoteAuthority, environmentService.options && environmentService.options.resolveCommonTelemetryProperties),
+				commonProperties: resolveWorkbenchCommonProperties(storageService, productService, environmentService, isInternal, environmentService.options && environmentService.options.resolveCommonTelemetryProperties),
 				// Use the web origin as a cleanup pattern (analogous to appRoot on desktop).
 				// This strips the origin from web URLs in stack traces so the useful
 				// relative path (e.g. /static/build/bundle.js:1:200953) is preserved
@@ -135,7 +135,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 		return this.impl.setExperimentProperty(name, value);
 	}
 
-	setCommonProperty(name: string, value: string): void {
+	setCommonProperty(name: string, value: string | boolean): void {
 		this.impl.setCommonProperty(name, value);
 	}
 

@@ -5,17 +5,14 @@
 
 import * as l10n from '@vscode/l10n';
 import type * as vscode from 'vscode';
-import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { createDirectoryIfNotExists, IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
 import { FileType } from '../../../platform/filesystem/common/fileTypes';
 import { ILogService } from '../../../platform/log/common/logService';
-import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { URI } from '../../../util/vs/base/common/uri';
 import { LanguageModelTextPart, LanguageModelToolResult, MarkdownString } from '../../../vscodeTypes';
-import { IAgentMemoryService, RepoMemoryEntry } from '../common/agentMemoryService';
 import { IMemoryCleanupService } from '../common/memoryCleanupService';
 import { ToolName } from '../common/toolNames';
 import { ICopilotTool, ToolRegistry } from '../common/toolsRegistry';
@@ -140,7 +137,7 @@ function makeSnippet(fileContent: string, editLine: number, path: string): strin
 
 // --- Tool implementation ---
 
-type MemoryToolOutcome = 'success' | 'error' | 'notFound' | 'notEnabled';
+type MemoryToolOutcome = 'success' | 'error' | 'notFound';
 
 interface MemoryToolResult {
 	text: string;
@@ -153,17 +150,12 @@ export class MemoryTool implements ICopilotTool<MemoryToolParams> {
 
 	constructor(
 		@IFileSystemService private readonly fileSystemService: IFileSystemService,
-		@IAgentMemoryService private readonly agentMemoryService: IAgentMemoryService,
 		@IMemoryCleanupService private readonly memoryCleanupService: IMemoryCleanupService,
 		@IVSCodeExtensionContext private readonly extensionContext: IVSCodeExtensionContext,
 		@ILogService private readonly logService: ILogService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IExperimentationService private readonly experimentationService: IExperimentationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
-		if (this.configurationService.getExperimentBasedConfig(ConfigKey.MemoryToolEnabled, this.experimentationService)) {
-			this.memoryCleanupService.start();
-		}
+		this.memoryCleanupService.start();
 	}
 
 	prepareInvocation(options: vscode.LanguageModelToolInvocationPrepareOptions<MemoryToolParams>, _token: CancellationToken): vscode.ProviderResult<vscode.PreparedToolInvocation> {
@@ -270,15 +262,8 @@ export class MemoryTool implements ICopilotTool<MemoryToolParams> {
 			return pathError;
 		}
 
-		// Route /memories/repo/* to CAPI if enabled, otherwise local storage
+		// Route /memories/repo/* to local file-based repo memory
 		if (isRepoPath(path)) {
-			const capiEnabled = await this.agentMemoryService.checkMemoryEnabled();
-			if (capiEnabled) {
-				const result = await this._dispatchRepoCAPI(params, path);
-				this._sendRepoTelemetry(params.command, result.outcome, requestId, model);
-				return result.text;
-			}
-			// Fall back to local file-based repo memory
 			const result = await this._dispatchLocal(params, 'repo', sessionResource);
 			this._sendLocalTelemetry(params.command, 'repo', result.outcome, requestId, model);
 			return result.text;
@@ -290,56 +275,6 @@ export class MemoryTool implements ICopilotTool<MemoryToolParams> {
 		const result = await this._dispatchLocal(params, scope, sessionResource);
 		this._sendLocalTelemetry(params.command, scope, result.outcome, requestId, model);
 		return result.text;
-	}
-
-	private async _dispatchRepoCAPI(params: MemoryToolParams, path: string): Promise<MemoryToolResult> {
-		switch (params.command) {
-			case 'create':
-				return this._repoCreate(params);
-			default:
-				return { text: `Error: The '${params.command}' operation is not supported for repository memories at ${path}. Only 'create' is allowed for /memories/repo/.`, outcome: 'error' };
-		}
-	}
-
-	private async _repoCreate(params: ICreateParams): Promise<MemoryToolResult> {
-		try {
-			// Derive subject/category hint from the path (e.g. /memories/repo/testing.json → "testing")
-			const filename = params.path.split('/').pop() || 'memory';
-			const pathHint = filename.replace(/\.\w+$/, '');
-
-			// Parse the file_text as a memory entry.
-			// Accept either a JSON-formatted entry or a plain text fact.
-			let entry: RepoMemoryEntry;
-			try {
-				const parsed = JSON.parse(params.file_text);
-				entry = {
-					subject: parsed.subject || pathHint,
-					fact: parsed.fact || '',
-					citations: parsed.citations || '',
-					reason: parsed.reason || '',
-					category: parsed.category || pathHint,
-				};
-			} catch {
-				// Plain text: treat the whole content as a fact, use path as subject
-				entry = {
-					subject: pathHint,
-					fact: params.file_text,
-					citations: '',
-					reason: 'Stored from memory tool create command.',
-					category: pathHint,
-				};
-			}
-
-			const success = await this.agentMemoryService.storeRepoMemory(entry);
-			if (success) {
-				return { text: `File created successfully at: ${params.path}`, outcome: 'success' };
-			} else {
-				return { text: 'Error: Failed to store repository memory entry.', outcome: 'error' };
-			}
-		} catch (error) {
-			this.logService.error('[MemoryTool] Error creating repo memory:', error);
-			return { text: `Error: Cannot create repository memory: ${error.message}`, outcome: 'error' };
-		}
 	}
 
 	private _resolveUri(memoryPath: string, scope: MemoryScope, sessionResource?: string): URI {
@@ -541,34 +476,31 @@ export class MemoryTool implements ICopilotTool<MemoryToolParams> {
 			lines.push('/memories/session/');
 		}
 
-		// List local repo memory files under repo/ (only when CAPI is not enabled)
-		const capiEnabled = this.configurationService.getExperimentBasedConfig(ConfigKey.CopilotMemoryEnabled, this.experimentationService);
-		if (!capiEnabled) {
-			try {
-				const repoUri = this._resolveUri('/memories/repo/', 'repo');
-				const repoEntries = await this.fileSystemService.readDirectory(repoUri);
-				const repoFiles: string[] = [];
-				for (const [name, type] of repoEntries) {
-					if (name.startsWith('.')) {
-						continue;
-					}
-					if (type === FileType.Directory) {
-						repoFiles.push(`/memories/repo/${name}/`);
-					} else {
-						repoFiles.push(`/memories/repo/${name}`);
-					}
+		// List local repo memory files under repo/
+		try {
+			const repoUri = this._resolveUri('/memories/repo/', 'repo');
+			const repoEntries = await this.fileSystemService.readDirectory(repoUri);
+			const repoFiles: string[] = [];
+			for (const [name, type] of repoEntries) {
+				if (name.startsWith('.')) {
+					continue;
 				}
-				if (repoFiles.length > 0) {
-					hasContent = true;
-					lines.push('/memories/repo/');
-					lines.push(...repoFiles);
+				if (type === FileType.Directory) {
+					repoFiles.push(`/memories/repo/${name}/`);
 				} else {
-					lines.push('/memories/repo/');
+					repoFiles.push(`/memories/repo/${name}`);
 				}
-			} catch {
-				// Repo storage may not exist yet, but still mention it
+			}
+			if (repoFiles.length > 0) {
+				hasContent = true;
+				lines.push('/memories/repo/');
+				lines.push(...repoFiles);
+			} else {
 				lines.push('/memories/repo/');
 			}
+		} catch {
+			// Repo storage may not exist yet, but still mention it
+			lines.push('/memories/repo/');
 		}
 
 		if (!hasContent) {
@@ -586,9 +518,9 @@ export class MemoryTool implements ICopilotTool<MemoryToolParams> {
 		const entries = await this.fileSystemService.readDirectory(uri);
 		const lines: string[] = [];
 
-		// Sort: directories first, then files. Exclude hidden items and the repo directory (CAPI-backed).
+		// Sort: directories first, then files. Exclude hidden items.
 		const sorted = entries
-			.filter(([name]) => !name.startsWith('.') && name !== 'repo')
+			.filter(([name]) => !name.startsWith('.'))
 			.sort(([, a], [, b]) => {
 				if (a === FileType.Directory && b !== FileType.Directory) {
 					return -1;
@@ -809,7 +741,7 @@ export class MemoryTool implements ICopilotTool<MemoryToolParams> {
 				"comment": "Tracks memory tool invocations for local user, session, and repo scopes",
 				"command": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The memory command executed (view, create, str_replace, insert, delete, rename)" },
 				"scope": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The memory scope: user, session, or repo" },
-				"toolOutcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Normalized outcome: success, error, notFound, notEnabled" },
+				"toolOutcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Normalized outcome: success, error, notFound" },
 				"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The id of the current request turn" },
 				"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model that invoked the tool" }
 			}
@@ -817,25 +749,6 @@ export class MemoryTool implements ICopilotTool<MemoryToolParams> {
 		this.telemetryService.sendMSFTTelemetryEvent('memoryToolInvoked', {
 			command,
 			scope,
-			toolOutcome,
-			requestId,
-			model: model?.id,
-		});
-	}
-
-	private _sendRepoTelemetry(command: string, toolOutcome: MemoryToolOutcome, requestId?: string, model?: vscode.LanguageModelChat): void {
-		/* __GDPR__
-			"memoryRepoToolInvoked" : {
-				"owner": "digitarald",
-				"comment": "Tracks repository memory tool invocations",
-				"command": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The memory command executed" },
-				"toolOutcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Normalized outcome: success, error, notFound, notEnabled" },
-				"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The id of the current request turn" },
-				"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model that invoked the tool" }
-			}
-		*/
-		this.telemetryService.sendMSFTTelemetryEvent('memoryRepoToolInvoked', {
-			command,
 			toolOutcome,
 			requestId,
 			model: model?.id,

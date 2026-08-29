@@ -116,6 +116,7 @@ export async function withInMemoryTelemetry<T>(
 		reporters.setReporter(reporter);
 		reporters.setEnhancedReporter(enhancedReporter);
 		const result = await work(accessor);
+		// eslint-disable-next-line local/code-no-accessor-after-await
 		const queue = accessor.get(ICompletionsPromiseQueueService) as TestPromiseQueue;
 		await queue.awaitPromises();
 

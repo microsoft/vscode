@@ -8,6 +8,7 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
 import { IActionRunner } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, markAsSingleton, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
@@ -18,19 +19,21 @@ import { Action2, MenuId, MenuItemAction, registerAction2 } from '../../../../..
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { katexContainerClassName, katexContainerLatexAttributeName } from '../../../markdown/common/markedKatexExtension.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isChatTreeItem, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatTreeItem, IChatWidgetService } from '../chat.js';
 import { CHAT_CATEGORY, stringifyItem } from './chatActions.js';
+import { toPortableMarkdown } from '../widget/chatClipboard.js';
 
 const CopyItemActionId = 'workbench.action.chat.copyItem';
 const copyFeedbackDuration = 1200;
 const copyIconClasses = ThemeIcon.asClassNameArray(Codicon.copy);
 const copiedIconClasses = ThemeIcon.asClassNameArray(Codicon.check);
 
-class ChatCopyActionViewItem extends MenuEntryActionViewItem {
+export class ChatCopyActionViewItem extends MenuEntryActionViewItem {
 
 	private readonly copiedStateReset = this._register(new MutableDisposable());
 	private readonly actionRunnerListener = this._register(new MutableDisposable());
@@ -142,6 +145,15 @@ export class ChatCopyActionRendering extends Disposable implements IWorkbenchCon
 }
 
 export function registerChatCopyActions() {
+	// A plain paste in the chat input may become Markdown or an attachment, so
+	// keep the usual "paste without formatting" chord for verbatim text.
+	KeybindingsRegistry.registerKeybindingRule({
+		id: 'editor.action.pasteAsText',
+		weight: KeybindingWeight.WorkbenchContrib,
+		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyV,
+		when: ChatContextKeys.inputHasFocus,
+	});
+
 	registerAction2(class CopyAllAction extends Action2 {
 		constructor() {
 			super({
@@ -168,7 +180,7 @@ export function registerChatCopyActions() {
 					.map(item => stringifyItem(item))
 					.join('\n\n');
 				if (sessionAsText) {
-					clipboardService.writeText(sessionAsText);
+					clipboardService.writeText(toPortableMarkdown(sessionAsText));
 				}
 			}
 		}
@@ -225,7 +237,7 @@ export function registerChatCopyActions() {
 			}
 
 			const text = stringifyItem(item, false);
-			await clipboardService.writeText(text);
+			await clipboardService.writeText(toPortableMarkdown(text));
 		}
 	});
 
@@ -263,7 +275,7 @@ export function registerChatCopyActions() {
 
 			const text = item.response.getFinalResponse();
 			if (text) {
-				await clipboardService.writeText(text);
+				await clipboardService.writeText(toPortableMarkdown(text));
 			}
 		}
 	});

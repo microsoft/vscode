@@ -25,7 +25,7 @@ function run(args: { fileName: string; path: string[] }) {
 	runCurrentTest();
 }
 
-const g = globalThis as any as IDebugValueEditorGlobals & IPlaygroundRunnerGlobals;
+const g = globalThis as unknown as IDebugValueEditorGlobals & IPlaygroundRunnerGlobals;
 g.$$playgroundRunner_data = { currentPath: [] };
 
 // The timeout seems to fix a deadlock-issue of tsx, when the run function is called from the debugger.

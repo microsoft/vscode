@@ -3,17 +3,17 @@
 	"compilerOptions": {
 		"rootDir": ".",
 		"outDir": "./dist/",
-		"jsx": "react",
 		"module": "esnext",
+		"moduleResolution": "bundler",
 		"lib": [
 			"ES2024",
 			"DOM",
 			"DOM.Iterable"
 		],
 		"types": [],
-		"typeRoots": [
-			"../node_modules/@types"
-		],
 		"skipLibCheck": true
-	}
+	},
+	"include": [
+		"./**/*.ts"
+	]
 }

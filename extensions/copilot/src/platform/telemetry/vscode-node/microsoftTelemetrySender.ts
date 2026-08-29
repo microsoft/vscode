@@ -10,16 +10,13 @@ import { BaseMsftTelemetrySender } from '../common/msftTelemetrySender';
 export class MicrosoftTelemetrySender extends BaseMsftTelemetrySender {
 	constructor(
 		internalAIKey: string,
-		internalLargeEventAIKey: string,
 		externalAIKey: string,
 		tokenStore: ICopilotTokenStore,
 		customFetcher: CustomFetcher
 	) {
-		const telemetryReporterFactory = (internal: boolean, largeEventReporter: boolean) => {
-			if (internal && !largeEventReporter) {
+		const telemetryReporterFactory = (internal: boolean) => {
+			if (internal) {
 				return new TelemetryReporter(internalAIKey, undefined, undefined, customFetcher);
-			} else if (internal && largeEventReporter) {
-				return new TelemetryReporter(internalLargeEventAIKey, undefined, undefined, customFetcher);
 			} else {
 				return new TelemetryReporter(externalAIKey, undefined, undefined, customFetcher);
 			}

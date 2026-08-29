@@ -6,6 +6,7 @@
 import { Barrier } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IChannelServer } from '../../../base/parts/ipc/common/ipc.js';
+import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IExtensionGalleryManifest, IExtensionGalleryManifestService, ExtensionGalleryManifestStatus } from './extensionGalleryManifest.js';
 import { ExtensionGalleryManifestService } from './extensionGalleryManifestService.js';
@@ -29,7 +30,8 @@ export class ExtensionGalleryManifestIPCService extends ExtensionGalleryManifest
 
 	constructor(
 		server: IChannelServer<unknown>,
-		@IProductService productService: IProductService
+		@ILogService private readonly logService: ILogService,
+		@IProductService productService: IProductService,
 	) {
 		super(productService);
 		server.registerChannel('extensionGalleryManifest', {
@@ -50,6 +52,7 @@ export class ExtensionGalleryManifestIPCService extends ExtensionGalleryManifest
 	}
 
 	private setExtensionGalleryManifest(manifest: IExtensionGalleryManifest | null): void {
+		this.logService.trace(`[Marketplace] Setting manifest ${manifest ? 'available' : 'unavailable'}`);
 		this._extensionGalleryManifest = manifest;
 		this._onDidChangeExtensionGalleryManifest.fire(manifest);
 		this._onDidChangeExtensionGalleryManifestStatus.fire(this.extensionGalleryManifestStatus);

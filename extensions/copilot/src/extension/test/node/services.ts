@@ -10,12 +10,14 @@ import { IChatHookService } from '../../../platform/chat/common/chatHookService'
 import { IChatMLFetcher } from '../../../platform/chat/common/chatMLFetcher';
 import { ISessionTranscriptService, NullSessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { MockChatMLFetcher } from '../../../platform/chat/test/common/mockChatMLFetcher';
+import { ISessionStore } from '../../../platform/chronicle/common/sessionStore';
+import { SessionStore } from '../../../platform/chronicle/node/sessionStore';
 import { IDiffService } from '../../../platform/diff/common/diffService';
 import { DiffServiceImpl } from '../../../platform/diff/node/diffServiceImpl';
 import { EmbeddingType, IEmbeddingsComputer } from '../../../platform/embeddings/common/embeddingsComputer';
 import { RemoteEmbeddingsComputer } from '../../../platform/embeddings/common/remoteEmbeddingsComputer';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
-import { IAutomodeService } from '../../../platform/endpoint/node/automodeService';
+import { AutoModePickerMetadata, IAutomodeService } from '../../../platform/endpoint/node/automodeService';
 import { IModelConfig } from '../../../platform/endpoint/test/node/openaiCompatibleEndpoint';
 import { TestEndpointProvider } from '../../../platform/endpoint/test/node/testEndpointProvider';
 import { IGitCommitMessageService, NoopGitCommitMessageService } from '../../../platform/git/common/gitCommitMessageService';
@@ -49,19 +51,11 @@ import { TestLogService } from '../../../platform/testing/common/testLogService'
 import { ITestProvider } from '../../../platform/testing/common/testProvider';
 import { IGithubAvailableEmbeddingTypesService, MockGithubAvailableEmbeddingTypesService } from '../../../platform/workspaceChunkSearch/common/githubAvailableEmbeddingTypes';
 import { IWorkspaceChunkSearchService, NullWorkspaceChunkSearchService } from '../../../platform/workspaceChunkSearch/node/workspaceChunkSearchService';
+import { Event } from '../../../util/vs/base/common/event';
 import { DisposableStore } from '../../../util/vs/base/common/lifecycle';
 import { SyncDescriptor } from '../../../util/vs/platform/instantiation/common/descriptors';
 import { ILanguageModelServer } from '../../agents/node/langModelServer';
 import { MockLanguageModelServer } from '../../agents/node/test/mockLanguageModelServer';
-import { IClaudeRuntimeDataService } from '../../chatSessions/claude/common/claudeRuntimeDataService';
-import { IClaudeToolPermissionService } from '../../chatSessions/claude/common/claudeToolPermissionService';
-import { ClaudeCodeModels, IClaudeCodeModels } from '../../chatSessions/claude/node/claudeCodeModels';
-import { IClaudeCodeSdkService } from '../../chatSessions/claude/node/claudeCodeSdkService';
-import { ClaudeRuntimeDataService } from '../../chatSessions/claude/node/claudeRuntimeDataService';
-import { IClaudeSessionStateService } from '../../chatSessions/claude/common/claudeSessionStateService';
-import { ClaudeSessionStateService } from '../../chatSessions/claude/node/claudeSessionStateService';
-import { MockClaudeCodeSdkService } from '../../chatSessions/claude/node/test/mockClaudeCodeSdkService';
-import { MockClaudeToolPermissionService } from '../../chatSessions/claude/node/test/mockClaudeToolPermissionService';
 import { CommandServiceImpl, ICommandService } from '../../commands/node/commandService';
 import { IPromptWorkspaceLabels, PromptWorkspaceLabels } from '../../context/node/resolvers/promptWorkspaceLabels';
 import { ILinkifyService, LinkifyService } from '../../linkify/common/linkifyService';
@@ -73,7 +67,6 @@ import { IChatDiskSessionResources } from '../../prompts/common/chatDiskSessionR
 import { ChatDiskSessionResources } from '../../prompts/node/chatDiskSessionResourcesImpl';
 import { CodeMapperService, ICodeMapperService } from '../../prompts/node/codeMapper/codeMapperService';
 import { FixCookbookService, IFixCookbookService } from '../../prompts/node/inline/fixCookbookService';
-import { AgentMemoryService, IAgentMemoryService } from '../../tools/common/agentMemoryService';
 import { EditToolLearningService, IEditToolLearningService } from '../../tools/common/editToolLearningService';
 import { IMemoryCleanupService, MemoryCleanupService } from '../../tools/common/memoryCleanupService';
 import { ToolDeferralService } from '../../tools/common/toolDeferralService';
@@ -83,9 +76,7 @@ import { ToolGroupingService } from '../../tools/common/virtualTools/toolGroupin
 import '../../tools/node/allTools';
 import { TestToolsService } from '../../tools/node/test/testToolsService';
 import { TestToolEmbeddingsComputer } from '../../tools/test/node/virtualTools/testVirtualTools';
-import { ISimilarFilesContextService } from '../../xtab/common/similarFilesContextService';
-import { ISessionStore } from '../../../platform/chronicle/common/sessionStore';
-import { SessionStore } from '../../../platform/chronicle/node/sessionStore';
+import { ISimilarFilesContextService, NullSimilarFilesContextService } from '../../xtab/common/similarFilesContextService';
 
 export interface ISimulationModelConfig {
 	chatModel?: string;
@@ -124,11 +115,6 @@ export function createExtensionUnitTestingServices(disposables: Pick<DisposableS
 	testingServiceCollection.define(IToolsService, new SyncDescriptor(TestToolsService, [new Set()]));
 	testingServiceCollection.define(IToolDeferralService, new ToolDeferralService());
 	testingServiceCollection.define(IChatDiskSessionResources, new SyncDescriptor(ChatDiskSessionResources));
-	testingServiceCollection.define(IClaudeCodeSdkService, new SyncDescriptor(MockClaudeCodeSdkService));
-	testingServiceCollection.define(IClaudeToolPermissionService, new SyncDescriptor(MockClaudeToolPermissionService));
-	testingServiceCollection.define(IClaudeCodeModels, new SyncDescriptor(ClaudeCodeModels));
-	testingServiceCollection.define(IClaudeSessionStateService, new SyncDescriptor(ClaudeSessionStateService));
-	testingServiceCollection.define(IClaudeRuntimeDataService, new SyncDescriptor(ClaudeRuntimeDataService));
 	testingServiceCollection.define(IMcpService, new SyncDescriptor(NullMcpService));
 	testingServiceCollection.define(IEditLogService, new SyncDescriptor(EditLogService));
 	testingServiceCollection.define(IProxyModelsService, new SyncDescriptor(NullProxyModelsService));
@@ -151,7 +137,6 @@ export function createExtensionUnitTestingServices(disposables: Pick<DisposableS
 	testingServiceCollection.define(ITodoListContextProvider, new SyncDescriptor(TodoListContextProvider));
 	testingServiceCollection.define(ILanguageModelServer, new SyncDescriptor(MockLanguageModelServer));
 	testingServiceCollection.define(IEditToolLearningService, new SyncDescriptor(EditToolLearningService));
-	testingServiceCollection.define(IAgentMemoryService, new SyncDescriptor(AgentMemoryService));
 	testingServiceCollection.define(IMemoryCleanupService, new SyncDescriptor(MemoryCleanupService));
 	testingServiceCollection.define(IGitService, new SyncDescriptor(NullGitExtensionService));
 	testingServiceCollection.define(IGitExtensionService, new SyncDescriptor(NullGitExtensionService));
@@ -168,14 +153,6 @@ export function createExtensionUnitTestingServices(disposables: Pick<DisposableS
 	testingServiceCollection.define(IAutomodeService, new SyncDescriptor(NullAutomodeService));
 	testingServiceCollection.define(ISessionStore, new SessionStore(':memory:'));
 	return testingServiceCollection;
-}
-
-class NullSimilarFilesContextService implements ISimilarFilesContextService {
-	declare readonly _serviceBrand: undefined;
-
-	async compute(): Promise<undefined> {
-		return undefined;
-	}
 }
 
 class NullChatHookService implements IChatHookService {
@@ -202,6 +179,22 @@ class NullAutomodeService implements IAutomodeService {
 	async resolveAutoModeEndpoint(): Promise<never> {
 		throw new Error('Not implemented');
 	}
+
+	async resolveAutoModePickerEndpoint(): Promise<never> {
+		throw new Error('Not implemented');
+	}
+
+	getAutoPickerMetadata(): AutoModePickerMetadata {
+		return { discountRange: { low: 0, high: 0 } };
+	}
+
+	areAutoModeTiersSupported(): boolean {
+		return false;
+	}
+
+	readonly onDidChangeAutoModeTierSupport = Event.None;
+
+	readonly onDidRoute = Event.None;
 
 	invalidateRouterCache(): void { }
 }

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension, getWindowById } from '../../../../base/browser/dom.js';
+import { getWindow, getWindowById } from '../../../../base/browser/dom.js';
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { OverlayLayoutElement } from '../../../../base/browser/overlayLayoutElement.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -57,6 +57,10 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 
 	private _overlayLayout: OverlayLayoutElement | undefined;
 
+	private _anchorState: { readonly anchorElement: HTMLElement; readonly clippingContainer?: HTMLElement } | undefined;
+	private _outerEdgePart: Element | undefined;
+	private readonly _outerEdgeObserver = this._register(new MutableDisposable());
+
 	public constructor(
 		initInfo: WebviewInitInfo,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
@@ -104,17 +108,25 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 			throw new Error(`OverlayWebview has been disposed`);
 		}
 
+		return this.overlayLayout.content;
+	}
+
+	private get overlayLayout() {
 		if (!this._overlayLayout) {
 			this._overlayLayout = new OverlayLayoutElement();
 			this._overlayLayout.content.style.visibility = 'hidden';
 
-			// // Webviews cannot be reparented in the dom as it will destroy their contents.
-			// // Mount them to a high level node to avoid this depending on the active container.
+			// Marker used by floating panels (Modern UI) CSS to round the overlay content (and
+			// the iframe it directly hosts) to the card's rounded corners. See `floatingPanels.css`.
+			this._overlayLayout.content.classList.add('webview-overlay-content');
+
+			// Webviews cannot be reparented in the dom as it will destroy their contents.
+			// Mount them to a high level node to avoid this depending on the active container.
 			const root = this._layoutService.getContainer(this.window);
 			root.appendChild(this._overlayLayout.root);
 		}
 
-		return this._overlayLayout.content;
+		return this._overlayLayout;
 	}
 
 	public claim(owner: unknown, targetWindow: CodeWindow, scopedContextKeyService: IContextKeyService | undefined) {
@@ -137,6 +149,10 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		this._owner = owner;
 		this._windowId = targetWindow.vscodeWindowId;
 		this._show(targetWindow);
+
+		if (this._anchorState) {
+			this.setAnchorElement(this._anchorState.anchorElement, this._anchorState.clippingContainer);
+		}
 
 		if (oldOwner !== owner) {
 			const contextKeyService = (scopedContextKeyService || this._baseContextKeyService);
@@ -182,12 +198,34 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		}
 	}
 
-	public layoutWebviewOverElement(anchorElement: HTMLElement, dimension?: Dimension, clippingContainer?: HTMLElement) {
-		if (!this._overlayLayout || !this._overlayLayout.content.parentElement) {
-			return;
-		}
+	public setAnchorElement(anchorElement: HTMLElement, clippingContainer?: HTMLElement) {
+		this._anchorState = { anchorElement, clippingContainer };
+		// Force the overlay layout to be created if it doesn't exist
+		this.overlayLayout.setAnchorElement(anchorElement, { clippingContainer });
 
-		this._overlayLayout?.layoutOverAnchorElement(anchorElement, { clippingContainer, fallbackDimension: dimension });
+		const part = anchorElement.closest('.part');
+		this._syncOuterEdgeClasses(part);
+
+		if (part !== this._outerEdgePart) {
+			this._outerEdgeObserver.clear();
+			this._outerEdgePart = part ?? undefined;
+
+			if (part) {
+				const observer = new (getWindow(part).MutationObserver)(() => this._syncOuterEdgeClasses(part));
+				observer.observe(part, { attributes: true, attributeFilter: ['class'] });
+				this._outerEdgeObserver.value = toDisposable(() => observer.disconnect());
+			}
+		}
+	}
+
+	private _syncOuterEdgeClasses(part: Element | null): void {
+		this.overlayLayout.content.classList.toggle('webview-overlay-modal', part?.classList.contains('modal-editor-part') ?? false);
+		for (const edge of ['left', 'right', 'top', 'bottom']) {
+			const isOuterEdge = part?.classList.contains(`floating-part-outer-${edge}`)
+				|| part?.classList.contains(`floating-editor-outer-${edge}`)
+				|| false;
+			this.overlayLayout.content.classList.toggle(`webview-overlay-outer-${edge}`, isOuterEdge);
+		}
 	}
 
 	private _show(targetWindow: CodeWindow) {

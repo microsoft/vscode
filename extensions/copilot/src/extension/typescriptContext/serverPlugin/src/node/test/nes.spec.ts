@@ -80,12 +80,12 @@ type TrackedRenameInfo = {
 	oldName: string;
 	newName: string;
 	range: Range;
-}
+};
 
 type PostRenameTestCase = {
 	trackedRename: TrackedRenameInfo;
 	testCase: NesRenameTestCase;
-}
+};
 
 function computeNesRenameTestCases(filePath: string): NesRenameTestCase[] {
 	const text = fs.readFileSync(filePath, 'utf8');

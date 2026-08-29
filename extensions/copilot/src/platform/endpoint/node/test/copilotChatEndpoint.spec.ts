@@ -3,23 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Raw } from '@vscode/prompt-tsx';
+import { OpenAI, Raw } from '@vscode/prompt-tsx';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { IAuthenticationService } from '../../../authentication/common/authentication';
 import { IChatMLFetcher } from '../../../chat/common/chatMLFetcher';
 
+import { ConfigKey } from '../../../configuration/common/configurationService';
 import { DefaultsOnlyConfigurationService } from '../../../configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
 import { ICAPIClientService } from '../../../endpoint/common/capiClient';
 import { IDomainService } from '../../../endpoint/common/domainService';
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../endpoint/common/endpointProvider';
 import { IEnvService } from '../../../env/common/envService';
-import { ILogService } from '../../../log/common/logService';
 import { IFetcherService } from '../../../networking/common/fetcherService';
-import { ICreateEndpointBodyOptions } from '../../../networking/common/networking';
+import { ICreateEndpointBodyOptions, IEndpointBody } from '../../../networking/common/networking';
+import { CAPIChatMessage } from '../../../networking/common/openai';
 import { IChatWebSocketManager } from '../../../networking/node/chatWebSocketManager';
 import { NullExperimentationService } from '../../../telemetry/common/nullExperimentationService';
+import { TestLogService } from '../../../testing/common/testLogService';
 import { ITelemetryService } from '../../../telemetry/common/telemetry';
 import { ITokenizerProvider } from '../../../tokenizer/node/tokenizer';
 import { ChatEndpoint } from '../chatEndpoint';
@@ -65,7 +67,7 @@ const createMockServices = () => ({
 	configurationService: new InMemoryConfigurationService(new DefaultsOnlyConfigurationService()),
 	expService: new NullExperimentationService(),
 	chatWebSocketService: {} as IChatWebSocketManager,
-	logService: {} as ILogService
+	logService: new TestLogService()
 });
 
 
@@ -105,7 +107,7 @@ describe('CopilotChatEndpoint - Reasoning Properties', () => {
 	beforeEach(() => {
 		mockServices = createMockServices();
 		modelMetadata = {
-			id: 'copilot-base',
+			id: 'copilot-utility',
 			vendor: 'Copilot',
 			name: 'Copilot Base',
 			version: '1.0',
@@ -235,6 +237,145 @@ describe('CopilotChatEndpoint - Reasoning Properties', () => {
 			expect(messages).toHaveLength(1);
 			expect(messages[0].reasoning_opaque).toBeUndefined();
 			expect(messages[0].reasoning_text).toBeUndefined();
+		});
+	});
+});
+
+describe('CopilotChatEndpoint - Chat Completions token parameter (#328418)', () => {
+	let mockServices: ReturnType<typeof createMockServices>;
+
+	beforeEach(() => {
+		mockServices = createMockServices();
+	});
+
+	const createEndpoint = (modelId: string, family: string, displayName: string, customModel = true, thinking = true, supportedEndpoints = [ModelSupportedEndpoint.ChatCompletions]) => {
+		const baseMetadata = createNonAnthropicModelMetadata(family);
+		const modelMetadata: IChatModelInformation = {
+			...baseMetadata,
+			id: modelId,
+			name: displayName,
+			supported_endpoints: supportedEndpoints,
+			custom_model: customModel ? {
+				key_name: modelId,
+				owner_name: 'organization'
+			} : undefined,
+			capabilities: {
+				...baseMetadata.capabilities,
+				supports: {
+					...baseMetadata.capabilities.supports,
+					thinking
+				},
+				limits: {
+					max_prompt_tokens: 256000,
+					max_output_tokens: 256000,
+					max_context_window_tokens: 256000
+				}
+			}
+		};
+
+		return new CopilotChatEndpoint(
+			modelMetadata,
+			mockServices.domainService,
+			mockServices.capiClientService,
+			mockServices.fetcherService,
+			mockServices.envService,
+			mockServices.telemetryService,
+			mockServices.authService,
+			mockServices.chatMLFetcher,
+			mockServices.tokenizerProvider,
+			mockServices.instantiationService,
+			mockServices.configurationService,
+			mockServices.expService,
+			mockServices.chatWebSocketService,
+			mockServices.logService
+		);
+	};
+
+	it.each([
+		{ modelId: 'mbe_agent_gpt5_4_oai', family: 'gpt-5.4', displayName: 'custom GPT-5 model', customModel: true },
+		{ modelId: 'custom-claude', family: 'claude-sonnet-4', displayName: 'custom non-GPT model', customModel: true }
+	])('preserves max_tokens by default for $displayName', ({ modelId, family, displayName, customModel }) => {
+		const endpoint = createEndpoint(modelId, family, displayName, customModel);
+		const body = endpoint.createRequestBody({
+			...createTestOptions([{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hi' }]
+			}]),
+			postOptions: { max_tokens: 256000 }
+		});
+
+		endpoint.interceptBody(body);
+
+		expect({
+			max_tokens: body.max_tokens,
+			max_completion_tokens: body.max_completion_tokens
+		}).toEqual({
+			max_tokens: 256000,
+			max_completion_tokens: undefined
+		});
+	});
+
+	it('preserves max_tokens for built-in Chat Completions models', () => {
+		const endpoint = createEndpoint('gpt-5.4', 'gpt-5.4', 'Built-in GPT-5 Model', false);
+		const body: IEndpointBody = {
+			max_tokens: 4096
+		};
+
+		endpoint.interceptBody(body);
+
+		expect(body).toEqual({
+			max_tokens: 4096
+		});
+	});
+
+	it('sends max_completion_tokens when enabled', () => {
+		mockServices.configurationService.setConfig(ConfigKey.Advanced.ChatCompletionsTokenParameter, 'max_completion_tokens');
+		const endpoint = createEndpoint('custom-model', 'custom-family', 'Custom Model');
+		const body = endpoint.createRequestBody({
+			...createTestOptions([{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hi' }]
+			}]),
+			postOptions: { max_tokens: 4096 }
+		});
+
+		endpoint.interceptBody(body);
+
+		expect({
+			max_tokens: body.max_tokens,
+			max_completion_tokens: body.max_completion_tokens
+		}).toEqual({
+			max_tokens: undefined,
+			max_completion_tokens: 4096
+		});
+	});
+
+	it('replaces an explicitly provided max_completion_tokens with max_tokens by default', () => {
+		const endpoint = createEndpoint('custom-model', 'custom-family', 'Custom Model');
+		const body: IEndpointBody = {
+			max_completion_tokens: 4096
+		};
+
+		endpoint.interceptBody(body);
+
+		expect(body).toEqual({
+			max_tokens: 4096
+		});
+	});
+
+	it.each([
+		{ apiType: 'responses', supportedEndpoints: [ModelSupportedEndpoint.Responses] },
+		{ apiType: 'messages', supportedEndpoints: [ModelSupportedEndpoint.Messages] }
+	])('does not change max_tokens for the $apiType API', ({ supportedEndpoints }) => {
+		const endpoint = createEndpoint('custom-model', 'custom-family', 'Custom Model', true, true, supportedEndpoints);
+		const body: IEndpointBody = {
+			max_tokens: 4096
+		};
+
+		endpoint.interceptBody(body);
+
+		expect(body).toEqual({
+			max_tokens: 4096
 		});
 	});
 });
@@ -450,5 +591,262 @@ describe('ChatEndpoint - Image Count Validation', () => {
 			];
 			expect(() => filterImages(endpoint, messages, 2)).toThrow(/Too many images/);
 		});
+	});
+});
+
+describe('ChatEndpoint - Kimi CAPI customization', () => {
+	let mockServices: ReturnType<typeof createMockServices>;
+
+	beforeEach(() => {
+		mockServices = createMockServices();
+	});
+
+	const createEndpoint = (metadata: IChatModelInformation) =>
+		new ChatEndpoint(
+			metadata,
+			mockServices.domainService,
+			mockServices.chatMLFetcher,
+			mockServices.tokenizerProvider,
+			mockServices.instantiationService,
+			mockServices.configurationService,
+			mockServices.expService,
+			mockServices.chatWebSocketService,
+			mockServices.logService
+		);
+
+	const createTextMessage = (): Raw.ChatMessage => ({
+		role: Raw.ChatRole.User,
+		content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello' }]
+	});
+
+	const createAssistantToolCallMessage = (...toolCalls: { id: string; name: string }[]): Raw.ChatMessage => ({
+		role: Raw.ChatRole.Assistant,
+		content: [],
+		toolCalls: toolCalls.map(toolCall => ({
+			id: toolCall.id,
+			function: { name: toolCall.name, arguments: '{}' },
+			type: 'function'
+		}))
+	});
+
+	const createToolResultMessage = (toolCallId: string): Raw.ChatMessage => ({
+		role: Raw.ChatRole.Tool,
+		content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'result' }],
+		toolCallId
+	});
+
+	const createToolHistory = (): Raw.ChatMessage[] => [
+		createAssistantToolCallMessage(
+			{ id: 'toolu_read', name: 'read_file' },
+			{ id: 'call_edit', name: 'replace_string_in_file' }
+		),
+		createToolResultMessage('toolu_read'),
+		createToolResultMessage('call_edit'),
+		createAssistantToolCallMessage({ id: 'toolu_test', name: 'run_in_terminal' }),
+		createToolResultMessage('toolu_test'),
+		createToolResultMessage('unmatched_tool_call')
+	];
+
+	const getToolCallIds = (messages: CAPIChatMessage[]) => messages.map(message => {
+		if (message.role === OpenAI.ChatRole.Assistant) {
+			return {
+				role: message.role,
+				toolCallIds: message.tool_calls?.map(toolCall => toolCall.id)
+			};
+		}
+		if (message.role === OpenAI.ChatRole.Tool) {
+			return {
+				role: message.role,
+				toolCallId: message.tool_call_id
+			};
+		}
+		return { role: message.role };
+	});
+
+	const createOptionsWithPostOptions = (): ICreateEndpointBodyOptions => ({
+		...createTestOptions([createTextMessage()]),
+		postOptions: { temperature: 0, top_p: 1 }
+	});
+
+	it.each(['kimi-k2.6', 'kimi-k2.7-code', 'kimi-k3'])('should force temperature=1 and top_p=0.95 for %s', (family) => {
+		const endpoint = createEndpoint(createNonAnthropicModelMetadata(family));
+		const body = endpoint.createRequestBody(createOptionsWithPostOptions());
+		expect(body.temperature).toBe(1);
+		expect(body.top_p).toBe(0.95);
+	});
+
+	it.each([
+		{ family: 'kimi-k2.6', prefix: 'functions.' },
+		{ family: 'kimi-k2.7-code', prefix: 'functions.' },
+		{ family: 'kimi-k3', prefix: '' },
+	])('should normalize tool call IDs for $family', ({ family, prefix }) => {
+		const history = createToolHistory();
+		const endpoint = createEndpoint(createNonAnthropicModelMetadata(family));
+		const body = endpoint.createRequestBody(createTestOptions(history));
+
+		expect({
+			body: getToolCallIds(body.messages as CAPIChatMessage[]),
+			history: history.map(message => message.role === Raw.ChatRole.Assistant
+				? message.toolCalls?.map(toolCall => toolCall.id)
+				: message.role === Raw.ChatRole.Tool ? message.toolCallId : undefined)
+		}).toEqual({
+			body: [
+				{ role: OpenAI.ChatRole.Assistant, toolCallIds: [`${prefix}read_file:0`, `${prefix}replace_string_in_file:1`] },
+				{ role: OpenAI.ChatRole.Tool, toolCallId: `${prefix}read_file:0` },
+				{ role: OpenAI.ChatRole.Tool, toolCallId: `${prefix}replace_string_in_file:1` },
+				{ role: OpenAI.ChatRole.Assistant, toolCallIds: [`${prefix}run_in_terminal:2`] },
+				{ role: OpenAI.ChatRole.Tool, toolCallId: `${prefix}run_in_terminal:2` },
+				{ role: OpenAI.ChatRole.Tool, toolCallId: 'unmatched_tool_call' }
+			],
+			history: [
+				['toolu_read', 'call_edit'],
+				'toolu_read',
+				'call_edit',
+				['toolu_test'],
+				'toolu_test',
+				'unmatched_tool_call'
+			]
+		});
+	});
+
+	it('should not override temperature or top_p for non-Kimi models', () => {
+		const endpoint = createEndpoint(createNonAnthropicModelMetadata('gpt-4o'));
+		const body = endpoint.createRequestBody(createOptionsWithPostOptions());
+		expect(body.temperature).toBe(0);
+		expect(body.top_p).toBe(1);
+	});
+
+	it('should preserve tool call IDs for non-Kimi models', () => {
+		const endpoint = createEndpoint(createNonAnthropicModelMetadata('gpt-4o'));
+		const body = endpoint.createRequestBody(createTestOptions(createToolHistory()));
+
+		expect(getToolCallIds(body.messages as CAPIChatMessage[])).toEqual([
+			{ role: OpenAI.ChatRole.Assistant, toolCallIds: ['toolu_read', 'call_edit'] },
+			{ role: OpenAI.ChatRole.Tool, toolCallId: 'toolu_read' },
+			{ role: OpenAI.ChatRole.Tool, toolCallId: 'call_edit' },
+			{ role: OpenAI.ChatRole.Assistant, toolCallIds: ['toolu_test'] },
+			{ role: OpenAI.ChatRole.Tool, toolCallId: 'toolu_test' },
+			{ role: OpenAI.ChatRole.Tool, toolCallId: 'unmatched_tool_call' }
+		]);
+	});
+});
+
+describe('ChatEndpoint - CAPI reasoning effort', () => {
+	let mockServices: ReturnType<typeof createMockServices>;
+
+	beforeEach(() => {
+		mockServices = createMockServices();
+	});
+
+	const createEndpoint = (metadata: IChatModelInformation) =>
+		new ChatEndpoint(
+			metadata,
+			mockServices.domainService,
+			mockServices.chatMLFetcher,
+			mockServices.tokenizerProvider,
+			mockServices.instantiationService,
+			mockServices.configurationService,
+			mockServices.expService,
+			mockServices.chatWebSocketService,
+			mockServices.logService
+		);
+
+	// A CAPI chat-completions model (no supported_endpoints) that optionally
+	// declares the reasoning effort levels it accepts, mirroring how Gemini
+	// models are hydrated from the CAPI `/models` response.
+	const createReasoningModelMetadata = (family: string, reasoningEffort?: string[]): IChatModelInformation => {
+		const base = createNonAnthropicModelMetadata(family);
+		return {
+			...base,
+			capabilities: {
+				...base.capabilities,
+				supports: {
+					...base.capabilities.supports,
+					...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {})
+				}
+			}
+		};
+	};
+
+	const createTextMessage = (): Raw.ChatMessage => ({
+		role: Raw.ChatRole.User,
+		content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello' }]
+	});
+
+	const createOptions = (reasoningEffort?: string): ICreateEndpointBodyOptions => ({
+		...createTestOptions([createTextMessage()]),
+		modelCapabilities: reasoningEffort ? { reasoningEffort } : undefined
+	});
+
+	it('applies the UI-selected reasoning effort for a CAPI model that declares support', () => {
+		const endpoint = createEndpoint(createReasoningModelMetadata('gemini-2.5-pro', ['low', 'medium', 'high']));
+		const body = endpoint.createRequestBody(createOptions('high'));
+		expect(body.reasoning_effort).toBe('high');
+	});
+
+	it('lets the ReasoningEffortOverride setting win over the UI selection', () => {
+		mockServices.configurationService.setConfig(ConfigKey.Advanced.ReasoningEffortOverride, 'low');
+		const endpoint = createEndpoint(createReasoningModelMetadata('gemini-2.5-pro', ['low', 'medium', 'high']));
+		const body = endpoint.createRequestBody(createOptions('high'));
+		expect(body.reasoning_effort).toBe('low');
+	});
+
+	it('ignores a selection the model does not declare', () => {
+		const endpoint = createEndpoint(createReasoningModelMetadata('gemini-2.5-pro', ['low', 'medium', 'high']));
+		const body = endpoint.createRequestBody(createOptions('xhigh'));
+		expect(body.reasoning_effort).toBeUndefined();
+	});
+
+	it('does not set reasoning_effort when the model declares no levels', () => {
+		const endpoint = createEndpoint(createReasoningModelMetadata('gemini-2.5-pro'));
+		const body = endpoint.createRequestBody(createOptions('high'));
+		expect(body.reasoning_effort).toBeUndefined();
+	});
+});
+
+describe('ChatEndpoint - model picker notices', () => {
+	let mockServices: ReturnType<typeof createMockServices>;
+
+	beforeEach(() => {
+		mockServices = createMockServices();
+	});
+
+	const createEndpoint = (metadata: IChatModelInformation) =>
+		new ChatEndpoint(
+			metadata,
+			mockServices.domainService,
+			mockServices.chatMLFetcher,
+			mockServices.tokenizerProvider,
+			mockServices.instantiationService,
+			mockServices.configurationService,
+			mockServices.expService,
+			mockServices.chatWebSocketService,
+			mockServices.logService
+		);
+
+	it('shows a pending deprecation as a warning and other info messages as info', () => {
+		const endpoint = createEndpoint({
+			...createNonAnthropicModelMetadata('gpt-4.1'),
+			warning_text: { data_retention: 'Prompts are retained for 30 days.' },
+			warning_messages: [{ code: 'model_degraded', message: 'GPT-4.1 is currently degraded.' }],
+			info_messages: [
+				{ code: 'model_pending_deprecation', message: 'GPT-4.1 has a planned deprecation date of 2026-06-01.' },
+				{ code: 'model_relocated', message: 'GPT-4.1 now serves from a new region.' },
+			],
+		});
+
+		expect({ warningText: endpoint.warningText, infoText: endpoint.infoText, degradationReason: endpoint.degradationReason }).toEqual({
+			warningText: {
+				data_retention: 'Prompts are retained for 30 days.',
+				model_pending_deprecation: 'GPT-4.1 has a planned deprecation date of 2026-06-01.',
+			},
+			infoText: { model_relocated: 'GPT-4.1 now serves from a new region.' },
+			degradationReason: 'GPT-4.1 is currently degraded.',
+		});
+	});
+
+	it('has no notices when CAPI sends none', () => {
+		const endpoint = createEndpoint({ ...createNonAnthropicModelMetadata('gpt-4.1'), info_messages: [] });
+		expect({ warningText: endpoint.warningText, infoText: endpoint.infoText }).toEqual({ warningText: undefined, infoText: undefined });
 	});
 });

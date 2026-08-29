@@ -11,7 +11,7 @@ import { EmbeddedDiffEditorWidget } from '../../../../editor/browser/widget/diff
 import { EmbeddedCodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { InlineChatController, InlineChatRunOptions } from './inlineChatController.js';
-import { ACTION_ACCEPT_CHANGES, ACTION_ASK_IN_CHAT, CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_POSSIBLE, ACTION_START, CTX_INLINE_CHAT_V2_ENABLED, CTX_INLINE_CHAT_V1_ENABLED, CTX_HOVER_MODE, CTX_INLINE_CHAT_INPUT_HAS_TEXT, CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT, CTX_INLINE_CHAT_INPUT_WIDGET_FOCUSED, CTX_INLINE_CHAT_PENDING_CONFIRMATION, CTX_INLINE_CHAT_TERMINATED, InlineChatConfigKeys, CTX_FIX_DIAGNOSTICS_ENABLED, CTX_INLINE_CHAT_AFFORDANCE_VISIBLE, CTX_ASK_IN_CHAT_ENABLED } from '../common/inlineChat.js';
+import { ACTION_ASK_IN_CHAT, CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_POSSIBLE, ACTION_START, CTX_INLINE_CHAT_V2_ENABLED, CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT, CTX_INLINE_CHAT_TERMINATED, CTX_FIX_DIAGNOSTICS_ENABLED, CTX_INLINE_CHAT_AFFORDANCE_VISIBLE, CTX_ASK_IN_CHAT_ENABLED, CTX_INLINE_CHAT_HAS_NOTEBOOK_INLINE } from '../common/inlineChat.js';
 import { ctxHasEditorModification, ctxHasRequestInProgress } from '../../chat/browser/chatEditing/chatEditingEditorContextKeys.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, IAction2Options, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
@@ -25,20 +25,21 @@ import { CommandsRegistry } from '../../../../platform/commands/common/commands.
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IChatEditingService } from '../../chat/common/editing/chatEditingService.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
-import { ChatRequestQueueKind } from '../../chat/common/chatService/chatService.js';
 import { ChatEntitlementContextKeys } from '../../../services/chat/common/chatEntitlementService.js';
+import { NOTEBOOK_IS_ACTIVE_EDITOR } from '../../notebook/common/notebookContextKeys.js';
 
 CommandsRegistry.registerCommandAlias('interactiveEditor.start', 'inlineChat.start');
-CommandsRegistry.registerCommandAlias('interactive.acceptChanges', ACTION_ACCEPT_CHANGES);
 
+const START_INLINE_CHAT = registerIcon('start-inline-chat', Codicon.sparkle, localize('startInlineChat', 'Icon which spawns the inline chat from the editor toolbar.'));
 
-export const START_INLINE_CHAT = registerIcon('start-inline-chat', Codicon.sparkle, localize('startInlineChat', 'Icon which spawns the inline chat from the editor toolbar.'));
+const inlineChatNotebooksOldEnabled = ContextKeyExpr.or(
+	ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, CTX_INLINE_CHAT_HAS_NOTEBOOK_INLINE)
+);
 
 const inlineChatContextKey = ContextKeyExpr.and(
-	ContextKeyExpr.or(CTX_INLINE_CHAT_V1_ENABLED, CTX_INLINE_CHAT_V2_ENABLED),
+	ContextKeyExpr.or(inlineChatNotebooksOldEnabled, CTX_INLINE_CHAT_V2_ENABLED),
 	CTX_INLINE_CHAT_POSSIBLE,
 	EditorContextKeys.writable,
 	EditorContextKeys.editorSimpleInput.negate()
@@ -101,8 +102,6 @@ export class StartSessionAction extends Action2 {
 
 	private async _runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: unknown[]) {
 
-		const configServce = accessor.get(IConfigurationService);
-
 		const ctrl = InlineChatController.get(editor);
 		if (!ctrl) {
 			return;
@@ -112,17 +111,6 @@ export class StartSessionAction extends Action2 {
 		const arg = args[0];
 		if (arg && InlineChatRunOptions.isInlineChatRunOptions(arg)) {
 			options = arg;
-		}
-
-		// use hover overlay to ask for input
-		if (!options?.message && configServce.getValue<string>(InlineChatConfigKeys.RenderMode) === 'hover') {
-			const selection = editor.getSelection();
-			const placeholder = selection && !selection.isEmpty()
-				? localize('placeholderWithSelection', "Describe how to change this")
-				: localize('placeholderNoSelection', "Describe what to generate");
-			// show menu and RETURN because the menu is re-entrant
-			await ctrl.inputOverlayWidget.showMenuAtSelection(placeholder);
-			return;
 		}
 
 		await ctrl?.run({ ...options });
@@ -265,7 +253,6 @@ export class FixDiagnosticsAction extends AbstractInlineChatAction {
 	}
 
 	override runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController, _editor: ICodeEditor, ..._args: unknown[]): void {
-		ctrl.inputWidget.hide();
 		ctrl.run({ autoSend: true, attachDiagnostics: true });
 	}
 }
@@ -322,37 +309,6 @@ export class KeepSessionAction2 extends KeepOrUndoSessionAction {
 	}
 }
 
-export class UndoSessionAction2 extends KeepOrUndoSessionAction {
-
-	constructor() {
-		super(false, {
-			id: 'inlineChat2.undo',
-			title: localize2('undo', "Undo"),
-			f1: true,
-			icon: Codicon.discard,
-			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, CTX_HOVER_MODE),
-			keybinding: [{
-				when: ContextKeyExpr.or(
-					ContextKeyExpr.and(EditorContextKeys.focus, ctxHasEditorModification.negate()),
-					ChatContextKeys.inputHasFocus,
-				),
-				weight: KeybindingWeight.WorkbenchContrib + 1,
-				primary: KeyCode.Escape,
-			}],
-			menu: [{
-				id: MenuId.ChatEditorInlineExecute,
-				group: 'navigation',
-				order: 100,
-				when: ContextKeyExpr.and(
-					CTX_HOVER_MODE,
-					ctxHasRequestInProgress.negate(),
-					ctxHasEditorModification,
-				)
-			}]
-		});
-	}
-}
-
 export class UndoAndCloseSessionAction2 extends KeepOrUndoSessionAction {
 
 	constructor() {
@@ -374,11 +330,6 @@ export class UndoAndCloseSessionAction2 extends KeepOrUndoSessionAction {
 				id: MenuId.ChatEditorInlineExecute,
 				group: 'navigation',
 				order: 100,
-				when: ContextKeyExpr.or(
-					CTX_HOVER_MODE.negate(),
-					ContextKeyExpr.and(CTX_HOVER_MODE, ctxHasEditorModification.negate(), ctxHasRequestInProgress.negate()),
-					ContextKeyExpr.and(CTX_HOVER_MODE, CTX_INLINE_CHAT_PENDING_CONFIRMATION)
-				)
 			}]
 		});
 	}
@@ -399,12 +350,7 @@ export class CancelSessionAction extends KeepOrUndoSessionAction {
 				weight: KeybindingWeight.WorkbenchContrib + 1,
 				primary: KeyCode.Escape,
 			}],
-			menu: [{
-				id: MenuId.ChatEditorInlineExecute,
-				group: 'navigation',
-				order: 100,
-				when: ContextKeyExpr.and(CTX_HOVER_MODE, ctxHasRequestInProgress)
-			}]
+			menu: []
 		});
 	}
 }
@@ -452,58 +398,6 @@ export class RephraseInlineChatSessionAction extends AbstractInlineChatAction {
 	}
 }
 
-export class SubmitInlineChatInputAction extends AbstractInlineChatAction {
-
-	constructor() {
-		super({
-			id: 'inlineChat.submitInput',
-			title: localize2('submitInput', "Send"),
-			icon: Codicon.send,
-			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_INPUT_WIDGET_FOCUSED, CTX_INLINE_CHAT_INPUT_HAS_TEXT, ContextKeyExpr.or(CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT.negate(), CTX_ASK_IN_CHAT_ENABLED.negate())),
-			keybinding: {
-				when: ContextKeyExpr.and(CTX_INLINE_CHAT_INPUT_WIDGET_FOCUSED, ContextKeyExpr.or(CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT.negate(), CTX_ASK_IN_CHAT_ENABLED.negate())),
-				weight: KeybindingWeight.EditorCore + 10,
-				primary: KeyCode.Enter
-			},
-			menu: [{
-				id: MenuId.InlineChatInput,
-				group: '0_main',
-				order: 1,
-				when: ContextKeyExpr.or(CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT.negate(), CTX_ASK_IN_CHAT_ENABLED.negate())
-			}]
-		});
-	}
-
-	override runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController, _editor: ICodeEditor, ..._args: unknown[]): void {
-		const value = ctrl.inputWidget.value;
-		if (value) {
-			ctrl.inputWidget.addToHistory(value);
-			ctrl.inputWidget.hide();
-			ctrl.run({ message: value, autoSend: true });
-		}
-	}
-}
-
-export class HideInlineChatInputAction extends AbstractInlineChatAction {
-
-	constructor() {
-		super({
-			id: 'inlineChat.hideInput',
-			title: localize2('hideInput', "Hide Input"),
-			precondition: CTX_INLINE_CHAT_INPUT_WIDGET_FOCUSED,
-			keybinding: {
-				when: CTX_INLINE_CHAT_INPUT_WIDGET_FOCUSED,
-				weight: KeybindingWeight.EditorCore + 10,
-				primary: KeyCode.Escape
-			}
-		});
-	}
-
-	override runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController, _editor: ICodeEditor, ..._args: unknown[]): void {
-		ctrl.inputWidget.hide();
-	}
-}
-
 
 export class AskInChatAction extends EditorAction2 {
 
@@ -536,13 +430,21 @@ export class AskInChatAction extends EditorAction2 {
 
 	override async runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor) {
 		const chatEditingService = accessor.get(IChatEditingService);
-		const ctrl = InlineChatController.get(editor);
-		if (!ctrl || !editor.hasModel()) {
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		if (!editor.hasModel()) {
 			return;
 		}
-		const entry = chatEditingService.editingSessionsObs.get().find(value => value.getEntry(editor.getModel().uri));
-		if (entry) {
-			ctrl.inputOverlayWidget.showMenuAtSelection(localize('placeholderAskInChat', "Describe how to proceed in Chat"));
+		const session = chatEditingService.editingSessionsObs.get().find(s => s.getEntry(editor.getModel().uri));
+		if (!session) {
+			return;
+		}
+		const widget = await chatWidgetService.openSession(session.chatSessionResource);
+		if (!widget) {
+			return;
+		}
+		const selection = editor.getSelection();
+		if (selection && !selection.isEmpty()) {
+			await widget.attachmentModel.addFile(editor.getModel().uri, selection);
 		}
 	}
 }
@@ -564,62 +466,5 @@ export class DismissEditorAffordanceAction extends EditorAction2 {
 
 	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		InlineChatController.get(editor)?.inputOverlayWidget.dismiss();
-	}
-}
-
-export class QueueInChatAction extends AbstractInlineChatAction {
-
-
-	constructor() {
-		super({
-			id: 'inlineChat.queueInChat',
-			title: localize2('queueInChat', "Queue in Chat"),
-			icon: Codicon.arrowUp,
-			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_INPUT_WIDGET_FOCUSED, CTX_INLINE_CHAT_INPUT_HAS_TEXT, CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT, CTX_ASK_IN_CHAT_ENABLED),
-			keybinding: {
-				when: ContextKeyExpr.and(CTX_INLINE_CHAT_INPUT_WIDGET_FOCUSED, CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT, CTX_ASK_IN_CHAT_ENABLED),
-				weight: KeybindingWeight.EditorCore + 10,
-				primary: KeyCode.Enter
-			},
-			menu: [{
-				id: MenuId.InlineChatInput,
-				group: '0_main',
-				order: 1,
-				when: ContextKeyExpr.and(CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT, CTX_ASK_IN_CHAT_ENABLED),
-			}]
-		});
-	}
-
-	override async runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController, editor: ICodeEditor): Promise<void> {
-		const chatEditingService = accessor.get(IChatEditingService);
-		const chatWidgetService = accessor.get(IChatWidgetService);
-		if (!editor.hasModel()) {
-			return;
-		}
-
-		const value = ctrl.inputWidget.value;
-		if (value) {
-			ctrl.inputWidget.addToHistory(value);
-		}
-		ctrl.inputWidget.hide();
-		if (!value) {
-			return;
-		}
-
-		const session = chatEditingService.editingSessionsObs.get().find(s => s.getEntry(editor.getModel().uri));
-		if (!session) {
-			return;
-		}
-
-		const widget = await chatWidgetService.openSession(session.chatSessionResource);
-		if (!widget) {
-			return;
-		}
-
-		const selection = editor.getSelection();
-		if (selection && !selection.isEmpty()) {
-			await widget.attachmentModel.addFile(editor.getModel().uri, selection);
-		}
-		await widget.acceptInput(value, { queue: ChatRequestQueueKind.Queued });
 	}
 }

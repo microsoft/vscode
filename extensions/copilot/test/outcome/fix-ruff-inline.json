@@ -1,8 +1,0 @@
-[
-	{
-		"name": "fix (ruff) [inline] [python] - Ruff(E231) Missing whitespace after ':'",
-		"requests": [
-			"2e36ff8677f4c9a7e964938f1f985b632bdc5529f89edc82e7e0b486f4ba9d72"
-		]
-	}
-]

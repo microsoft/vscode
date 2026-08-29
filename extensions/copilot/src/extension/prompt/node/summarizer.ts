@@ -40,7 +40,7 @@ export class ChatSummarizerProvider implements vscode.ChatSummarizer {
 			return '';
 		}
 
-		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-fast');
+		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-utility-small');
 		const promptContext: IBuildPromptContext = {
 			requestId: 'chat-summary',
 			query: '',
@@ -90,16 +90,14 @@ export class ChatSummarizerProvider implements vscode.ChatSummarizer {
 			'summarize',
 		);
 
-		const response = await this.requestLogger.captureInvocation(capturingToken, () => endpoint.makeChatRequest(
-			'summarize',
-			allMessages,
-			undefined,
-			token,
-			ChatLocation.Panel,
-			undefined,
-			undefined,
-			false
-		));
+		const response = await this.requestLogger.captureInvocation(capturingToken, () => endpoint.makeChatRequest2({
+			debugName: 'summarize',
+			messages: allMessages,
+			finishedCb: undefined,
+			location: ChatLocation.Panel,
+			userInitiatedRequest: false,
+			interactionTypeOverride: 'conversation-background',
+		}, token));
 
 		if (token.isCancellationRequested) {
 			return '';

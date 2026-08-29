@@ -49,6 +49,7 @@ export interface IWorkspaceService {
 	 * has been downloaded before we can use them.
 	 */
 	ensureWorkspaceIsFullyLoaded(): Promise<void>;
+	isResourceTrusted(resource: Uri): Thenable<boolean>;
 	requestResourceTrust(options: ResourceTrustRequestOptions): Thenable<boolean | undefined>;
 	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Thenable<boolean | undefined>;
 }
@@ -75,6 +76,7 @@ export abstract class AbstractWorkspaceService implements IWorkspaceService {
 	abstract showWorkspaceFolderPicker(): Promise<WorkspaceFolder | undefined>;
 	abstract getWorkspaceFolderName(workspaceFolderUri: URI): string;
 	abstract applyEdit(edit: WorkspaceEdit): Thenable<boolean>;
+	abstract isResourceTrusted(resource: Uri): Thenable<boolean>;
 	abstract requestResourceTrust(options: ResourceTrustRequestOptions): Thenable<boolean | undefined>;
 	abstract requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Thenable<boolean | undefined>;
 
@@ -227,6 +229,10 @@ export class NullWorkspaceService extends AbstractWorkspaceService implements ID
 
 	public dispose() {
 		this.disposables.dispose();
+	}
+
+	override isResourceTrusted(_resource: Uri): Thenable<boolean> {
+		return Promise.resolve(true);
 	}
 
 	override requestResourceTrust(options: ResourceTrustRequestOptions): Thenable<boolean | undefined> {

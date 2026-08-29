@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable import/no-restricted-paths */
-
 import type { ChatRequest, LanguageModelChat } from 'vscode';
 import { CacheableRequest, SQLiteCache } from '../../../../../test/base/cache';
 import { TestingCacheSalts } from '../../../../../test/base/salts';
@@ -189,11 +187,13 @@ export class TestEndpointProvider implements IEndpointProvider {
 		}
 		return Array.from(this._chatEndpoints.values());
 	}
-	async getChatEndpoint(requestOrFamilyOrModel: LanguageModelChat | ChatRequest | ChatEndpointFamily): Promise<IChatEndpoint> {
+	getChatEndpoint(requestOrModel: LanguageModelChat | ChatRequest): Promise<IChatEndpoint>;
+	getChatEndpoint(family: ChatEndpointFamily): Promise<IChatEndpoint | undefined>;
+	async getChatEndpoint(requestOrFamilyOrModel: LanguageModelChat | ChatRequest | ChatEndpointFamily): Promise<IChatEndpoint | undefined> {
 		if (typeof requestOrFamilyOrModel !== 'string') {
-			requestOrFamilyOrModel = 'copilot-base';
+			requestOrFamilyOrModel = 'copilot-utility';
 		}
-		if (requestOrFamilyOrModel === 'copilot-base') {
+		if (requestOrFamilyOrModel === 'copilot-utility') {
 			return await this.getChatEndpointInfo(this.gpt4ModelToRunAgainst ?? CHAT_MODEL.GPT41, await this._modelLabChatModelMetadata, await this._prodChatModelMetadata);
 		} else {
 			return await this.getChatEndpointInfo(this.gpt4oMiniModelToRunAgainst ?? CHAT_MODEL.GPT4OMINI, await this._modelLabChatModelMetadata, await this._prodChatModelMetadata);

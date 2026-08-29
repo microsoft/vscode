@@ -9,6 +9,7 @@ import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { basename, dirname } from '../../../../../base/common/resources.js';
+import { escape as escapeXml } from '../../../../../base/common/strings.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -28,7 +29,7 @@ export type { InstructionsCollectionEvent, InstructionsCollectionDebugInfo } fro
 export { newInstructionsCollectionEvent, newInstructionsCollectionDebugInfo } from './service/promptsService.js';
 import { AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, TROUBLESHOOT_SKILL_PATH } from './promptTypes.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
-import { ChatConfiguration, ChatModeKind, GeneralPurposeAgentName } from '../constants.js';
+import { ChatModeKind } from '../constants.js';
 import { UserSelectedTools } from '../participants/chatAgents.js';
 import { hash } from '../../../../../base/common/hash.js';
 import { IAgentPlugin, IAgentPluginService } from '../plugins/agentPluginService.js';
@@ -341,15 +342,19 @@ export class ComputeAutomaticInstructions {
 
 	private async _getCustomizationsIndex(instructionFiles: readonly IInstructionFile[], _existingVariables: ChatRequestVariableSet, telemetryEvent: InstructionsCollectionEvent, debugInfo: InstructionsCollectionDebugInfo, token: CancellationToken): Promise<IPromptTextVariableEntry | undefined> {
 		const readTool = this._getTool('readFile');
+		const runInTerminalTool = this._getTool('runInTerminal');
+		const fileReadTool = readTool ?? runInTerminalTool;
 		const runSubagentTool = this._getTool(VSCodeToolReference.runSubagent);
+		const skillTool = this._getTool('skill');
 		const currentSessionType = this._currentSessionType;
 
 		const remoteEnv = await this._remoteAgentService.getEnvironment();
 		const remoteOS = remoteEnv?.os;
-		const filePath = (uri: URI) => getFilePath(uri, remoteOS);
+		const isRemote = this._remoteAgentService.getConnection() !== null;
+		const filePath = (uri: URI) => getFilePath(uri, remoteOS, isRemote);
 
 		const entries: string[] = [];
-		if (readTool) {
+		if (fileReadTool) {
 
 			const searchNestedAgentMd = this._configurationService.getValue(PromptsConfig.USE_NESTED_AGENT_MD);
 			const agentsMdPromise = searchNestedAgentMd ? this._promptsService.listNestedAgentMDs(token) : Promise.resolve([]);
@@ -357,21 +362,22 @@ export class ComputeAutomaticInstructions {
 			entries.push('<instructions>');
 			entries.push('Here is a list of instruction files that contain rules for working with this codebase.');
 			entries.push('These files are important for understanding the codebase structure, conventions, and best practices.');
-			entries.push('Please make sure to follow the rules specified in these files when working with the codebase.');
-			entries.push(`If the file is not already available as attachment, use the ${readTool.variable} tool to acquire it.`);
-			entries.push('Make sure to acquire the instructions before working with the codebase.');
+			entries.push('When an instruction file applies to your task (based on its description or applyTo pattern), follow the rules specified in it.');
+			entries.push(`If the file content is not already included in the context, use the ${fileReadTool.variable} tool to read it before proceeding. Use the exact value from the <file> element as-is with the tool; do not add or remove prefixes or otherwise modify it.`);
+			entries.push('Only load instruction files when they are relevant to the current task. Do not eagerly load all instructions upfront.');
+			entries.push('When modifying or creating files, check for instructions whose applyTo pattern matches the file path and follow them.');
 			let hasContent = false;
 			for (const instruction of instructionFiles) {
 				if (!matchesSessionType(instruction.sessionTypes, currentSessionType)) {
 					continue;
 				}
 				entries.push('<instruction>');
-				if (instruction.description) {
-					entries.push(`<description>${instruction.description}</description>`);
-				}
 				entries.push(`<file>${filePath(instruction.uri)}</file>`);
+				if (instruction.description) {
+					entries.push(`<description>${escapeXml(instruction.description)}</description>`);
+				}
 				if (instruction.pattern) {
-					entries.push(`<applyTo>${instruction.pattern}</applyTo>`);
+					entries.push(`<applyTo>${escapeXml(instruction.pattern)}</applyTo>`);
 				}
 				entries.push('</instruction>');
 				hasContent = true;
@@ -382,8 +388,8 @@ export class ComputeAutomaticInstructions {
 				const folderName = this._labelService.getUriLabel(dirname(uri), { relative: true });
 				const description = folderName.trim().length === 0 ? localize('instruction.file.description.agentsmd.root', 'Instructions for the workspace') : localize('instruction.file.description.agentsmd.folder', 'Instructions for folder \'{0}\'', folderName);
 				entries.push('<instruction>');
-				entries.push(`<description>${description}</description>`);
 				entries.push(`<file>${filePath(uri)}</file>`);
+				entries.push(`<description>${escapeXml(description)}</description>`);
 				entries.push('</instruction>');
 				hasContent = true;
 
@@ -401,6 +407,10 @@ export class ComputeAutomaticInstructions {
 			// Also filter out the troubleshoot skill when  agent debug log file logging setting is disabled
 			const isFileLoggingEnabled = this._configurationService.getValue<boolean>(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING);
 			const modelInvocableSkills = agentSkills?.filter(skill => {
+				if (!skill.description) {
+					debugInfo.debugDetails.push({ category: 'skipped', name: skill.name, uri: skill.uri, reason: localize('debugDetail.skillNoDescription', 'no description for model invocation') });
+					return false;
+				}
 				if (skill.disableModelInvocation) {
 					debugInfo.debugDetails.push({ category: 'skipped', name: skill.name, uri: skill.uri, reason: localize('debugDetail.skillNotModelInvocable', 'model invocation disabled') });
 					return false;
@@ -423,41 +433,84 @@ export class ComputeAutomaticInstructions {
 				}
 
 				const useSkillAdherencePrompt = this._configurationService.getValue(PromptsConfig.USE_SKILL_ADHERENCE_PROMPT);
+				// When the skill tool is available, direct the model to use it by name
+				// instead of reading SKILL.md files directly. This keeps file paths out of
+				// the listing and routes through the proper skill loading pipeline.
+				const skillLoadTool = skillTool ?? fileReadTool;
 				entries.push('<skills>');
 				if (useSkillAdherencePrompt) {
 					// Stronger skill adherence prompt for experimental feature
 					entries.push('Skills provide specialized capabilities, domain knowledge, and refined workflows for producing high-quality outputs. Each skill folder contains tested instructions for specific domains like testing strategies, API design, or performance optimization. Multiple skills can be combined when a task spans different domains.');
-					entries.push(`BLOCKING REQUIREMENT: When a skill applies to the user's request, you MUST load and read the SKILL.md file IMMEDIATELY as your first action, BEFORE generating any other response or taking action on the task. Use ${readTool.variable} to load the relevant skill(s).`);
-					entries.push('NEVER just mention or reference a skill in your response without actually reading it first. If a skill is relevant, load it before proceeding.');
+					if (skillTool) {
+						entries.push(`BLOCKING REQUIREMENT: When a skill applies to the user's request, you MUST invoke it IMMEDIATELY as your first action, BEFORE generating any other response or taking action on the task. Use ${skillTool.variable} with the skill name to load the relevant skill(s).`);
+					} else {
+						entries.push(`BLOCKING REQUIREMENT: When a skill applies to the user's request, you MUST load and read the SKILL.md file IMMEDIATELY as your first action, BEFORE generating any other response or taking action on the task. Use ${fileReadTool.variable} to load the relevant skill(s).`);
+					}
+					entries.push('NEVER just mention or reference a skill in your response without actually loading it first. If a skill is relevant, load it before proceeding.');
 					entries.push('How to determine if a skill applies:');
 					entries.push('1. Review the available skills below and match their descriptions against the user\'s request');
 					entries.push('2. If any skill\'s domain overlaps with the task, load that skill immediately');
 					entries.push('3. When multiple skills apply (e.g., a flowchart in documentation), load all relevant skills');
 					entries.push('Examples:');
-					entries.push(`- "Help me write unit tests for this module" -> Load the testing skill via ${readTool.variable} FIRST, then proceed`);
-					entries.push(`- "Optimize this slow function" -> Load the performance-profiling skill via ${readTool.variable} FIRST, then proceed`);
+					entries.push(`- "Help me write unit tests for this module" -> Load the testing skill via ${skillLoadTool.variable} FIRST, then proceed`);
+					entries.push(`- "Optimize this slow function" -> Load the performance-profiling skill via ${skillLoadTool.variable} FIRST, then proceed`);
 					entries.push(`- "Add a discount code field to checkout" -> Load both the checkout-flow and form-validation skills FIRST`);
 					entries.push('Available skills:');
 				} else {
-					entries.push('Here is a list of skills that contain domain specific knowledge on a variety of topics.');
-					entries.push('Each skill comes with a description of the topic and a file path that contains the detailed instructions.');
-					entries.push(`When a user asks you to perform a task that falls within the domain of a skill, use the ${readTool.variable} tool to acquire the full instructions from the file URI.`);
-				}
-				for (const skill of modelInvocableSkills) {
-					entries.push('<skill>');
-					entries.push(`<name>${skill.name}</name>`);
-					if (skill.description) {
-						entries.push(`<description>${skill.description}</description>`);
+					if (skillTool) {
+						entries.push('Here is a list of skills that contain domain specific knowledge on a variety of topics.');
+						entries.push(`When a user asks you to perform a task that falls within the domain of a skill, use the ${skillTool.variable} tool with the skill name to load it.`);
+					} else {
+						entries.push('Here is a list of skills that contain domain specific knowledge on a variety of topics.');
+						entries.push('Each skill comes with a description of the topic and a file path that contains the detailed instructions.');
+						entries.push(`When a user asks you to perform a task that falls within the domain of a skill, use the ${fileReadTool.variable} tool to acquire the full instructions from the file URI.`);
 					}
-					entries.push(`<file>${filePath(skill.uri)}</file>`);
-					entries.push('</skill>');
+				}
+				const SKILL_DESCRIPTION_CHAR_BUDGET = 15000;
+				const TRUNCATED_NAMES_CHAR_BUDGET = 5000;
+				let skillCharCount = 0;
+				let truncatedAtIndex = modelInvocableSkills.length;
+				for (let i = 0; i < modelInvocableSkills.length; i++) {
+					const skill = modelInvocableSkills[i];
+					const skillEntry = [`<skill>`, `<name>${escapeXml(skill.name)}</name>`];
+					if (skill.description) {
+						skillEntry.push(`<description>${escapeXml(skill.description)}</description>`);
+					}
+					skillEntry.push(`<file>${filePath(skill.uri)}</file>`);
+					skillEntry.push(`</skill>`);
+					const entryLength = skillEntry.join('\n').length + 1; // +1 for joining newline
+					if (skillTool && skillCharCount + entryLength > SKILL_DESCRIPTION_CHAR_BUDGET) {
+						truncatedAtIndex = i;
+						break;
+					}
+					skillCharCount += entryLength;
+					entries.push(...skillEntry);
+				}
+				// When skills are truncated by the character budget, include remaining
+				// skill names so the model can still discover and invoke them.
+				if (truncatedAtIndex < modelInvocableSkills.length) {
+					const truncatedSkills = modelInvocableSkills.slice(truncatedAtIndex);
+					const names: string[] = [];
+					let nameListLength = 0;
+					for (const skill of truncatedSkills) {
+						const escapedName = escapeXml(skill.name);
+						const addition = (names.length > 0 ? 2 : 0) + escapedName.length;
+						if (nameListLength + addition > TRUNCATED_NAMES_CHAR_BUDGET) {
+							break;
+						}
+						nameListLength += addition;
+						names.push(escapedName);
+					}
+					const remaining = truncatedSkills.length - names.length;
+					const nameList = names.join(', ');
+					entries.push(remaining > 0
+						? `Additional skills available (invoke by name): ${nameList}... and ${remaining} more`
+						: `Additional skills available (invoke by name): ${nameList}`);
 				}
 				entries.push('</skills>', '', ''); // add trailing newline
 			}
 		}
 		if (runSubagentTool) {
-			const generalPurposeAgentEnabled = !!this._configurationService.getValue<boolean>(ChatConfiguration.GeneralPurposeAgentEnabled);
-
 			const canUseAgent = (() => {
 				if (!this._enabledSubagents || this._enabledSubagents.includes('*')) {
 					return (agent: ICustomAgent) => agent.visibility.agentInvocable && matchesSessionType(agent.sessionTypes, currentSessionType);
@@ -466,31 +519,23 @@ export class ComputeAutomaticInstructions {
 					return (agent: ICustomAgent) => subagents.includes(agent.name) && matchesSessionType(agent.sessionTypes, currentSessionType);
 				}
 			})();
-			const agents = await this._promptsService.getCustomAgents(token);
+			const agents = (await this._promptsService.getCustomAgents(token)).filter(a => a.enabled);
 
-			if (generalPurposeAgentEnabled || agents.length > 0) {
+			if (agents.length > 0) {
 				entries.push('<agents>');
 				entries.push('Here is a list of agents that can be used when running a subagent.');
 				entries.push('Each agent has optionally a description with the agent\'s purpose and expertise. When asked to run a subagent, choose the most appropriate agent from this list.');
 				entries.push(`Use the ${runSubagentTool.variable} tool with the agent name to run the subagent.`);
 
-				if (generalPurposeAgentEnabled) {
-					// Built-in General Purpose agent, always available when experiment is on
-					entries.push('<agent>');
-					entries.push(`<name>${GeneralPurposeAgentName}</name>`);
-					entries.push(`<description>Full-capability agent for complex multi-step tasks requiring high-quality reasoning. Has access to the same tools and capabilities as the current agent and inherits the parent agent's model and system prompt. Use for tasks that don't fit a more specialized agent.</description>`);
-					entries.push('</agent>');
-				}
-
 				for (const agent of agents) {
 					if (canUseAgent(agent)) {
 						entries.push('<agent>');
-						entries.push(`<name>${agent.name}</name>`);
+						entries.push(`<name>${escapeXml(agent.name)}</name>`);
 						if (agent.description) {
-							entries.push(`<description>${agent.description}</description>`);
+							entries.push(`<description>${escapeXml(agent.description)}</description>`);
 						}
 						if (agent.argumentHint) {
-							entries.push(`<argumentHint>${agent.argumentHint}</argumentHint>`);
+							entries.push(`<argumentHint>${escapeXml(agent.argumentHint)}</argumentHint>`);
 						}
 						entries.push('</agent>');
 						debugInfo.debugDetails.push({ category: 'custom-agent', name: agent.name, uri: agent.uri });
@@ -519,8 +564,9 @@ export class ComputeAutomaticInstructions {
 				}
 			}
 		};
-		collectToolReference(readTool);
+		collectToolReference(fileReadTool);
 		collectToolReference(runSubagentTool);
+		collectToolReference(skillTool);
 		return toPromptTextVariableEntry(content, true, toolReferences);
 	}
 
@@ -579,7 +625,14 @@ export class ComputeAutomaticInstructions {
 }
 
 
-export function getFilePath(uri: URI, remoteOS: OperatingSystem | undefined): string {
+export function getFilePath(uri: URI, remoteOS: OperatingSystem | undefined, isRemote = false): string {
+	// When connected to a remote, local file:// URIs must be represented using
+	// the vscode-local scheme so the remote extension host can read them via the
+	// local file bridge. This works for WSL, SSH, and dev containers without
+	// any cache migration.
+	if (isRemote && uri.scheme === Schemas.file) {
+		return uri.with({ scheme: 'vscode-local' }).toString();
+	}
 	if (uri.scheme === Schemas.file || uri.scheme === Schemas.vscodeRemote) {
 		const fsPath = uri.fsPath;
 		// uri.fsPath uses the local OS's path separators, but the path
@@ -595,4 +648,3 @@ export function getFilePath(uri: URI, remoteOS: OperatingSystem | undefined): st
 	}
 	return uri.toString();
 }
-

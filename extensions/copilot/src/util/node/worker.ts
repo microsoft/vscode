@@ -60,11 +60,15 @@ export class RcpResponseHandler {
 
 export type RpcProxy<ProxyType> = {
 	[K in keyof ProxyType]: ProxyType[K] extends ((...args: infer Args) => infer R) ? (...args: Args) => Promise<Awaited<R>> : never;
-}
+};
 
 export function createRpcProxy<ProxyType>(remoteCall: (name: string, args: any[]) => Promise<any>): RpcProxy<ProxyType> {
 	const handler = {
 		get: (target: any, name: PropertyKey) => {
+			// Answering `then` makes this proxy a thenable, so `await` would call the worker and never settle.
+			if (name === 'then') {
+				return undefined;
+			}
 			if (typeof name === 'string' && !target[name]) {
 				target[name] = (...myArgs: any[]) => {
 					return remoteCall(name, myArgs);

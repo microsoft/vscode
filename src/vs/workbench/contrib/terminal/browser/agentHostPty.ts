@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Barrier } from '../../../../base/common/async.js';
+import { Barrier, DeferredPromise, disposableTimeout, raceCancellation } from '../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { DisposableStore, IReference } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IProcessPropertyMap, ITerminalChildProcess, ITerminalLaunchError, ITerminalLaunchResult, ProcessPropertyType } from '../../../../platform/terminal/common/terminal.js';
+import { IProcessPropertyMap, ITerminalChildProcess, ITerminalLaunchError, ITerminalLaunchResult, ITerminalLogService, ProcessPropertyType } from '../../../../platform/terminal/common/terminal.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
 import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
-import { ActionType, IActionEnvelope } from '../../../../platform/agentHost/common/state/sessionActions.js';
-import { TerminalClaimKind, type ITerminalContentPart, type ITerminalState } from '../../../../platform/agentHost/common/state/protocol/state.js';
+import { ActionType, ActionEnvelope } from '../../../../platform/agentHost/common/state/sessionActions.js';
+import { TerminalClaimKind, type TerminalContentPart, type TerminalState } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
 import { StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { BasePty } from '../common/basePty.js';
@@ -94,9 +95,11 @@ function isCopilotSentinelCommand(commandLine: string): boolean {
 export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 
 	private readonly _startBarrier = new Barrier();
-	private readonly _subscriptionDisposables = this._register(new DisposableStore());
-	private _subscriptionRef: IReference<IAgentSubscription<ITerminalState>> | undefined;
+	private readonly _lifetime = this._register(new CancellationTokenSource());
+	private readonly _subscription = this._register(new MutableDisposable<DisposableStore>());
+	private _terminalCreation: Promise<void> | undefined;
 	private _initialCwd = '';
+	private _didSignalReady = false;
 
 	private readonly _onCommandExecuted = this._register(new Emitter<IAgentHostPtyCommandExecutedEvent>());
 	readonly onCommandExecuted: Event<IAgentHostPtyCommandExecutedEvent> = this._onCommandExecuted.event;
@@ -120,44 +123,64 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 
 	constructor(
 		id: number,
-		private readonly _connection: IAgentConnection,
+		private _connection: IAgentConnection,
 		private readonly _terminalUri: URI,
-		private readonly _options?: IAgentHostPtyOptions,
+		private readonly _options: IAgentHostPtyOptions | undefined,
+		private readonly _logService: ITerminalLogService,
 	) {
 		super(id, /* shouldPersist */ false);
 	}
 
 	async start(): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined> {
+		// Reconnect can race a pending startup: the pty is registered before
+		// start() completes, so a successful reconnect() may replace the
+		// connection while terminal creation is still in flight. Capture the
+		// creation's connection so a superseded startup neither re-subscribes
+		// nor reports a stale launch failure.
+		const connection = this._connection;
 		try {
+			if (this._lifetime.token.isCancellationRequested) {
+				return undefined;
+			}
+
 			// 1. Create the terminal on the agent host (skip for attach-only mode
 			//    where the terminal already exists, e.g. created by a tool)
 			if (!this._options?.attachOnly) {
-				await this._connection.createTerminal({
-					terminal: this._terminalUri.toString(),
-					claim: { kind: TerminalClaimKind.Client, clientId: this._connection.clientId },
+				const terminalCreation = connection.createTerminal({
+					channel: this._terminalUri.toString(),
+					claim: { kind: TerminalClaimKind.Client, clientId: connection.clientId },
 					name: this._options?.name,
 					cwd: this._resolveCwdForProtocol(this._options?.cwd),
 					cols: this._lastDimensions.cols > 0 ? this._lastDimensions.cols : undefined,
 					rows: this._lastDimensions.rows > 0 ? this._lastDimensions.rows : undefined,
 				});
+				this._terminalCreation = terminalCreation;
+				terminalCreation.then(
+					() => this._clearTerminalCreation(terminalCreation),
+					() => this._clearTerminalCreation(terminalCreation),
+				);
+				const created = await raceCancellation(terminalCreation.then(() => true), this._lifetime.token, false);
+				if (!created) {
+					return undefined;
+				}
+			}
+
+			if (this._lifetime.token.isCancellationRequested || this._connection !== connection) {
+				return undefined;
 			}
 
 			// 2. Get a subscription for the terminal URI (auto-subscribes)
-			this._subscriptionRef = this._connection.getSubscription(StateComponents.Terminal, this._terminalUri);
-			const subscription = this._subscriptionRef.object;
+			const { subscription, store } = this._createSubscription(this._connection);
 
 			// 3. Wait for hydration via onDidChange, then replay snapshot
-			if (subscription.value === undefined) {
-				await new Promise<void>(resolve => {
-					const listener = subscription.onDidChange(() => {
-						listener.dispose();
-						resolve();
-					});
-					this._subscriptionDisposables.add(listener);
-				});
+			if (!await this._waitForHydration(subscription, store)) {
+				return undefined;
+			}
+			if (this._lifetime.token.isCancellationRequested || this._subscription.value !== store) {
+				return undefined;
 			}
 
-			const state = subscription.value as ITerminalState;
+			const state = subscription.value as TerminalState;
 
 			// 4. Replay any existing content from the snapshot
 			if (state.supportsCommandDetection) {
@@ -174,29 +197,50 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 				this._properties.title = state.title;
 			}
 
-			// 6. Wire up action listener for streaming updates via the subscription
-			this._subscriptionDisposables.add(subscription.onDidApplyAction(envelope => {
+			// 6. Signal that the process is ready
+			this._signalReady();
+
+			// 7. Wire up action listener for streaming updates via the subscription
+			store.add(subscription.onDidApplyAction(envelope => {
 				this._handleAction(envelope);
 			}));
 
-			// 7. Signal that the process is ready
-			this._startBarrier.open();
-			this.handleReady({ pid: -1, cwd: this._initialCwd, windowsPty: undefined });
 			return undefined;
 		} catch (err) {
-			this._startBarrier.open();
+			if (this._lifetime.token.isCancellationRequested || this._connection !== connection) {
+				return undefined;
+			}
 			return { message: err instanceof Error ? err.message : String(err) };
+		} finally {
+			this._startBarrier.open();
 		}
 	}
 
-	private _handleAction(envelope: IActionEnvelope): void {
+	private _clearTerminalCreation(terminalCreation: Promise<void>): void {
+		if (this._terminalCreation === terminalCreation) {
+			this._terminalCreation = undefined;
+		}
+	}
+
+	private _signalReady(): void {
+		if (this._didSignalReady || this._lifetime.token.isCancellationRequested) {
+			return;
+		}
+		this._didSignalReady = true;
+		this.handleReady({ pid: -1, cwd: this._initialCwd, windowsPty: undefined });
+	}
+
+	private _handleAction(envelope: ActionEnvelope): void {
+		if (this._lifetime.token.isCancellationRequested) {
+			return;
+		}
 		const action = envelope.action;
 		switch (action.type) {
 			case ActionType.TerminalData:
 				this.handleData(action.data);
 				break;
 			case ActionType.TerminalExited:
-				this.handleExit(action.exitCode);
+				this._exitAndDispose(action.exitCode);
 				break;
 			case ActionType.TerminalCwdChanged:
 				this._properties.cwd = action.cwd.toString();
@@ -254,7 +298,7 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 	 * Emits command lifecycle events for command parts so that consumers
 	 * (e.g. {@link AhpTerminalCommandSource}) can reconstruct command history.
 	 */
-	private _replayContent(content: ITerminalContentPart[]): void {
+	private _replayContent(content: TerminalContentPart[]): void {
 		for (const part of content) {
 			if (part.type === 'unclassified') {
 				if (part.value) {
@@ -300,41 +344,120 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 		return cwd.toString();
 	}
 
+	private _createSubscription(connection: IAgentConnection): { readonly subscription: IAgentSubscription<TerminalState>; readonly store: DisposableStore } {
+		const store = new DisposableStore();
+		try {
+			const subscription = store.add(connection.getSubscription(StateComponents.Terminal, this._terminalUri, 'AgentHostPty')).object;
+			this._subscription.value = store;
+			return { subscription, store };
+		} catch (error) {
+			store.dispose();
+			throw error;
+		}
+	}
+
+	private async _waitForHydration(subscription: IAgentSubscription<TerminalState>, store: DisposableStore, timeoutMs?: number): Promise<boolean> {
+		if (subscription.value !== undefined) {
+			return true;
+		}
+
+		const hydration = new DeferredPromise<boolean>();
+		const timeout = timeoutMs === undefined ? undefined : disposableTimeout(() => hydration.error(new Error('Reconnect hydration timed out')), timeoutMs, store);
+		store.add(toDisposable(() => hydration.complete(false)));
+		store.add(Event.once(subscription.onDidChange)(() => {
+			// Clear the timer explicitly — on successful hydration the store
+			// lives on as the active subscription generation.
+			timeout?.dispose();
+			hydration.complete(true);
+		}));
+		return raceCancellation(hydration.p, this._lifetime.token, false);
+	}
+
 	input(data: string): void {
-		if (this._inReplay) {
+		if (this._inReplay || this._lifetime.token.isCancellationRequested) {
 			return;
 		}
 		this._startBarrier.wait().then(() => {
+			if (this._lifetime.token.isCancellationRequested) {
+				return;
+			}
 			this._connection.dispatch(
-				{ type: ActionType.TerminalInput, terminal: this._terminalUri.toString(), data },
+				this._terminalUri.toString(),
+				{ type: ActionType.TerminalInput, data },
 			);
 		});
 	}
 
 	resize(cols: number, rows: number): void {
-		if (this._inReplay || (this._lastDimensions.cols === cols && this._lastDimensions.rows === rows)) {
+		if (this._lifetime.token.isCancellationRequested || this._inReplay || (this._lastDimensions.cols === cols && this._lastDimensions.rows === rows)) {
 			return;
 		}
 		this._lastDimensions.cols = cols;
 		this._lastDimensions.rows = rows;
 		this._startBarrier.wait().then(() => {
+			if (this._lifetime.token.isCancellationRequested) {
+				return;
+			}
 			this._connection.dispatch(
-				{ type: ActionType.TerminalResized, terminal: this._terminalUri.toString(), cols, rows },
+				this._terminalUri.toString(),
+				{ type: ActionType.TerminalResized, cols, rows },
 			);
 		});
 	}
 
 	shutdown(_immediate: boolean): void {
-		this._startBarrier.wait().then(() => {
-			// In attach-only mode, don't dispose the server-side terminal —
-			// it's owned by the tool/session, not by this client.
-			if (!this._options?.attachOnly) {
-				this._connection.disposeTerminal(this._terminalUri);
-			}
-			this._subscriptionRef?.dispose();
-			this._subscriptionRef = undefined;
-			this._subscriptionDisposables.clear();
-			this.handleExit(undefined);
+		if (this._lifetime.token.isCancellationRequested) {
+			return;
+		}
+		this._requestHostTerminalDisposal();
+		this._exitAndDispose(undefined);
+	}
+
+	private _requestHostTerminalDisposal(): void {
+		// Attach-only terminals are owned by the tool/session that created them.
+		if (this._options?.attachOnly) {
+			return;
+		}
+
+		// Request cleanup immediately for completed/lost-response creation, then
+		// retry after an in-flight request settles. Host disposal is idempotent.
+		this._disposeHostTerminal();
+		if (this._terminalCreation) {
+			void this._terminalCreation.then(
+				() => this._disposeHostTerminal(),
+				() => this._disposeHostTerminal(),
+			);
+		}
+	}
+
+	private _disposeHostTerminal(): void {
+		try {
+			void this._connection.disposeTerminal(this._terminalUri).catch(err => this._logHostDisposalError(err));
+		} catch (err) {
+			this._logHostDisposalError(err);
+		}
+	}
+
+	private _logHostDisposalError(err: unknown): void {
+		this._logService.warn(`[AgentHostPty] Failed to dispose host terminal: ${err instanceof Error ? err.message : String(err)}`);
+	}
+
+	private _exitAndDispose(exitCode: number | undefined): void {
+		if (this._lifetime.token.isCancellationRequested) {
+			return;
+		}
+		this._lifetime.cancel();
+		this._subscription.clear();
+		this._startBarrier.open();
+		// Defer the exit event: TerminalProcessManager calls shutdown() while its
+		// process exit listener is still attached — in dispose() (which disposes
+		// _processListeners only after shutdown) and via
+		// SeamlessRelaunchDataFilter.newProcess() during relaunch (where a
+		// synchronous exit would clobber the freshly assigned process and dispose
+		// the instance). Other ptys always deliver exit asynchronously (over RPC).
+		queueMicrotask(() => {
+			this.handleExit(exitCode);
+			this.dispose();
 		});
 	}
 
@@ -347,9 +470,13 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 	}
 
 	async clearBuffer(): Promise<void> {
+		if (this._lifetime.token.isCancellationRequested) {
+			return;
+		}
 		// Send a clear action to the agent host
 		this._connection.dispatch(
-			{ type: ActionType.TerminalCleared, terminal: this._terminalUri.toString() },
+			this._terminalUri.toString(),
+			{ type: ActionType.TerminalCleared },
 		);
 	}
 
@@ -378,9 +505,94 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 		// Not applicable
 	}
 
+	/**
+	 * Reconnect this pty to a new agent host connection. Tears down the
+	 * old subscription and re-subscribes with the new connection, replaying
+	 * content from the server-side snapshot. Terminal output during the
+	 * disconnect gap is a stream (not state), so some loss is expected.
+	 *
+	 * @returns `true` if reconnection succeeded, `false` otherwise.
+	 */
+	async reconnect(newConnection: IAgentConnection): Promise<boolean> {
+		if (this._lifetime.token.isCancellationRequested) {
+			return false;
+		}
+
+		// Replace the old subscription generation and swap the connection.
+		this._subscription.clear();
+		this._connection = newConnection;
+		let subscriptionStore: DisposableStore | undefined;
+
+		try {
+			// Re-subscribe to the terminal state
+			const result = this._createSubscription(this._connection);
+			const subscription = result.subscription;
+			subscriptionStore = result.store;
+
+			// Wait for hydration with a timeout — the terminal may no longer
+			// exist on the server (e.g. agent process restarted).
+			const RECONNECT_HYDRATE_TIMEOUT_MS = 10_000;
+			if (!await this._waitForHydration(subscription, subscriptionStore, RECONNECT_HYDRATE_TIMEOUT_MS)) {
+				return false;
+			}
+			if (this._lifetime.token.isCancellationRequested || this._subscription.value !== subscriptionStore) {
+				return false;
+			}
+
+			const state = subscription.value as TerminalState;
+
+			if (state.supportsCommandDetection && !this._supportsCommandDetection) {
+				this._supportsCommandDetection = true;
+				this._onSupportsCommandDetection.fire();
+			}
+
+			// Clear the terminal buffer before replaying to avoid duplicate
+			// content. ESC[2J clears the screen, ESC[3J clears scrollback,
+			// ESC[H moves cursor to home position.
+			this.handleData('\x1b[2J\x1b[3J\x1b[H');
+			this._replayContent(state.content);
+
+			// Update cwd/title if they changed
+			if (state.cwd) {
+				this._properties.cwd = state.cwd.toString();
+			}
+			if (state.title) {
+				this._properties.title = state.title;
+			}
+			this._signalReady();
+
+			// Wire up action listener for streaming updates
+			subscriptionStore.add(subscription.onDidApplyAction(envelope => {
+				this._handleAction(envelope);
+			}));
+
+			return true;
+		} catch (err) {
+			if (!this._lifetime.token.isCancellationRequested) {
+				this._logService.warn(`[AgentHostPty] Reconnection failed: ${err instanceof Error ? err.message : String(err)}`);
+			}
+			if (subscriptionStore && this._subscription.value === subscriptionStore) {
+				this._subscription.clear();
+			}
+			if (!this._didSignalReady && !this._lifetime.token.isCancellationRequested) {
+				// The terminal never became usable — release the host terminal
+				// like shutdown() would, then tear down locally. Attach-only
+				// terminals are left to their owning tool/session.
+				this._requestHostTerminalDisposal();
+				this._exitAndDispose(undefined);
+			}
+			return false;
+		}
+	}
+
+	/** The terminal URI this pty is subscribed to. */
+	get terminalUri(): URI {
+		return this._terminalUri;
+	}
+
 	override dispose(): void {
-		this._subscriptionRef?.dispose();
-		this._subscriptionRef = undefined;
+		this._lifetime.cancel();
+		this._subscription.clear();
 		super.dispose();
 	}
 }

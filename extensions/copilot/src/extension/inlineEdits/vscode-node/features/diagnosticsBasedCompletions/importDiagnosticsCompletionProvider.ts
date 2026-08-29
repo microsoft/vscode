@@ -361,7 +361,7 @@ export type ImportDetails = {
 	labelShort: string;
 	labelDeduped: string;
 	importSource: ImportSource;
-}
+};
 
 export interface ILanguageImportHandler {
 	isImportDiagnostic(diagnostic: Diagnostic): boolean;

@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// eslint-disable-next-line no-restricted-imports
 import * as path from 'path';
 import { loadEnv } from 'vite';
-import topLevelAwait from 'vite-plugin-top-level-await';
 import wasm from 'vite-plugin-wasm';
 import { defineConfig } from 'vitest/config';
 
@@ -21,8 +19,14 @@ export default defineConfig(({ mode }) => ({
 		include: ['**/*.spec.ts', '**/*.spec.tsx'],
 		exclude,
 		env: loadEnv(mode, process.cwd(), ''),
+		// Vitest defaults (5s test / 10s hook) are below the scheduling noise floor of loaded CI
+		// agents, where even trivial synchronous tests have been observed taking >5s and failing
+		// with `Test timed out in 5000ms`. Keep these generous enough to absorb that jitter while
+		// still catching genuinely hung tests.
+		testTimeout: 30_000,
+		hookTimeout: 30_000,
 		alias: {
-			// similar to aliasing in the esbuild config `.esbuild.ts`
+			// similar to aliasing in the esbuild config `.esbuild.mts`
 			// vitest requires aliases to be absolute paths. reference: https://vitejs.dev/config/shared-options#resolve-alias
 			'vscode': path.resolve(__dirname, 'src/util/common/test/shims/vscodeTypesShim.ts'),
 		}
@@ -32,8 +36,12 @@ export default defineConfig(({ mode }) => ({
 			ignored: exclude,
 		}
 	},
+	oxc: {
+		jsx: {
+			development: false,
+		}
+	},
 	plugins: [
-		wasm(),
-		topLevelAwait()
+		wasm()
 	]
 }));

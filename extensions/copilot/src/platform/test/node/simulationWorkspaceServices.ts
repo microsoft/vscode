@@ -124,6 +124,10 @@ export class SimulationWorkspaceService extends AbstractWorkspaceService {
 		return Promise.resolve(true);
 	}
 
+	override isResourceTrusted(_resource: vscode.Uri): Thenable<boolean> {
+		return Promise.resolve(true);
+	}
+
 	override requestResourceTrust(options: vscode.ResourceTrustRequestOptions): Thenable<boolean | undefined> {
 		return Promise.resolve(true);
 	}
@@ -797,7 +801,7 @@ export class TestingGitService implements IGitService {
 		return undefined;
 	}
 
-	async deleteWorktree(uri: URI, path: string, options?: { force?: boolean }): Promise<void> {
+	async deleteWorktree(uri: URI, path: string, options?: { force?: boolean; label?: string }): Promise<void> {
 		return;
 	}
 

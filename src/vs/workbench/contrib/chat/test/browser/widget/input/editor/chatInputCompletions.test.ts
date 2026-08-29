@@ -4,14 +4,222 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationToken } from '../../../../../../../../base/common/cancellation.js';
+import { DisposableStore, IDisposable } from '../../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
+import { EditorOptions } from '../../../../../../../../editor/common/config/editorOptions.js';
 import { Position } from '../../../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../../../editor/common/core/range.js';
+import { CompletionItem, CompletionItemKind, CompletionTriggerKind } from '../../../../../../../../editor/common/languages.js';
+import { ITextModel } from '../../../../../../../../editor/common/model.js';
+import { LanguageFeaturesService } from '../../../../../../../../editor/common/services/languageFeaturesService.js';
 import { createTextModel } from '../../../../../../../../editor/test/common/testTextModel.js';
-import { DisposableStore } from '../../../../../../../../base/common/lifecycle.js';
-import { computeCompletionRanges, escapeForCharClass } from '../../../../../browser/widget/input/editor/chatInputCompletionUtils.js';
+import { AgentHostInputCompletionsBase } from '../../../../../browser/widget/input/editor/agentHostInputCompletionsBase.js';
+import { AgentHostInputCompletions } from '../../../../../browser/widget/input/editor/agentHostInputCompletions.js';
+import { createChatReferenceVariableEntry } from '../../../../../common/attachments/chatVariableEntries.js';
+import { attachedContextCompletionAdditionalTriggerCharacters, attachedContextCompletionSortText, computeCompletionRanges, escapeForCharClass, getAttachedContextCompletionMatch, getAttachedContextCompletionSortText, getCompletionRangeWord, isAtTriggerCharacterToken } from '../../../../../browser/widget/input/editor/chatInputCompletionUtils.js';
+import { IChatInputCompletionItem, IChatInputCompletionsParams, IChatInputCompletionsResult, IChatSessionsService } from '../../../../../common/chatSessionsService.js';
 import { chatAgentLeader, chatVariableLeader } from '../../../../../common/requestParser/chatParserTypes.js';
+import { MockChatSessionsService } from '../../../../common/mockChatSessionsService.js';
+import { MockChatWidgetService } from '../../../widget/mockChatWidget.js';
+import { IChatWidget } from '../../../../../browser/chat.js';
+import { TestConfigurationService } from '../../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { upcastPartial } from '../../../../../../../../base/test/common/mock.js';
+
+class TestChatSessionsService extends MockChatSessionsService {
+	constructor(private readonly insertText = '#roadmap.md') {
+		super();
+	}
+
+	override async provideChatInputCompletions(_sessionResource: URI, _params: IChatInputCompletionsParams, _token: CancellationToken): Promise<IChatInputCompletionsResult> {
+		return {
+			items: [{
+				insertText: this.insertText,
+				start: { lineNumber: 1, column: 1 },
+				end: { lineNumber: 1, column: 2 },
+				attachment: {
+					kind: 'resource',
+					uri: URI.file('/workspace/roadmap.md'),
+				},
+			}],
+		};
+	}
+}
+
+class OrderedTestChatSessionsService extends MockChatSessionsService {
+	override async provideChatInputCompletions(_sessionResource: URI, _params: IChatInputCompletionsParams, _token: CancellationToken): Promise<IChatInputCompletionsResult> {
+		return {
+			items: [
+				{
+					insertText: '#z-index.ts',
+					start: { lineNumber: 1, column: 1 },
+					end: { lineNumber: 1, column: 11 },
+					attachment: { kind: 'resource', uri: URI.file('/long/workspace/src/index.ts') },
+				},
+				{
+					insertText: '#a-index.ts',
+					start: { lineNumber: 1, column: 1 },
+					end: { lineNumber: 1, column: 11 },
+					attachment: { kind: 'resource', uri: URI.file('/src/index.ts') },
+				},
+			],
+		};
+	}
+}
+
+class TestAgentHostInputCompletions extends AgentHostInputCompletionsBase<void> {
+	constructor(
+		languageFeaturesService: LanguageFeaturesService,
+		chatSessionsService: IChatSessionsService,
+		private readonly _completionKind = CompletionItemKind.File,
+		private readonly _triggerCharacters: readonly string[] = ['#'],
+	) {
+		super(languageFeaturesService, chatSessionsService);
+	}
+
+	register(): IDisposable {
+		return this._registerProvider({ scheme: 'test' }, 'testAgentHostInputCompletions', this._triggerCharacters, undefined);
+	}
+
+	protected override _resolveContext(_model: ITextModel): { sessionResource: URI; context: void } {
+		return { sessionResource: URI.parse('test:session'), context: undefined };
+	}
+
+	protected override _buildItem(position: Position, item: IChatInputCompletionItem): CompletionItem {
+		return {
+			label: item.insertText,
+			insertText: item.insertText,
+			filterText: this._completionKind === CompletionItemKind.Text ? item.insertText : undefined,
+			range: Range.fromPositions(position),
+			kind: this._completionKind,
+		};
+	}
+}
+
+suite('AgentHostInputCompletionsBase', () => {
+
+	const store = new DisposableStore();
+
+	teardown(() => store.clear());
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('marks results incomplete so the host is queried as the token changes', async () => {
+		const languageFeaturesService = new LanguageFeaturesService();
+		const completions = store.add(new TestAgentHostInputCompletions(languageFeaturesService, new TestChatSessionsService()));
+		store.add(completions.register());
+		const model = store.add(createTextModel('#', null, undefined, URI.parse('test:input')));
+		const provider = languageFeaturesService.completionProvider.ordered(model)[0];
+
+		const result = await provider.provideCompletionItems(model, new Position(1, 2), { triggerKind: CompletionTriggerKind.TriggerCharacter, triggerCharacter: '#' }, CancellationToken.None);
+
+		assert.deepStrictEqual(result, {
+			suggestions: [{
+				label: '#roadmap.md',
+				insertText: '#roadmap.md',
+				filterText: '#',
+				sortText: '000000',
+				range: new Range(1, 2, 1, 2),
+				kind: CompletionItemKind.File,
+			}],
+			incomplete: true,
+		});
+	});
+
+	test('preserves slash command filter text so Monaco can fuzzy rank it', async () => {
+		const languageFeaturesService = new LanguageFeaturesService();
+		const completions = store.add(new TestAgentHostInputCompletions(languageFeaturesService, new TestChatSessionsService('/vscode-pet'), CompletionItemKind.Text, ['/']));
+		store.add(completions.register());
+		const model = store.add(createTextModel('/pet', null, undefined, URI.parse('test:input')));
+		const provider = languageFeaturesService.completionProvider.ordered(model)[0];
+
+		const result = await provider.provideCompletionItems(model, new Position(1, 5), { triggerKind: CompletionTriggerKind.Invoke }, CancellationToken.None);
+
+		assert.deepStrictEqual(result, {
+			suggestions: [{
+				label: '/vscode-pet',
+				insertText: '/vscode-pet',
+				filterText: '/vscode-pet',
+				sortText: '000000',
+				range: new Range(1, 5, 1, 5),
+				kind: CompletionItemKind.Text,
+			}],
+			incomplete: true,
+		});
+	});
+
+	test('uses a common current-token filter score to preserve host order', async () => {
+		const languageFeaturesService = new LanguageFeaturesService();
+		const completions = store.add(new TestAgentHostInputCompletions(languageFeaturesService, new OrderedTestChatSessionsService()));
+		store.add(completions.register());
+		const model = store.add(createTextModel('#src/index', null, undefined, URI.parse('test:input')));
+		const provider = languageFeaturesService.completionProvider.ordered(model)[0];
+
+		const result = await provider.provideCompletionItems(model, new Position(1, 11), { triggerKind: CompletionTriggerKind.Invoke }, CancellationToken.None);
+
+		assert.deepStrictEqual(result?.suggestions.map(item => ({
+			label: item.label,
+			filterText: item.filterText,
+			sortText: item.sortText,
+		})), [
+			{ label: '#z-index.ts', filterText: '#src/index', sortText: '000000' },
+			{ label: '#a-index.ts', filterText: '#src/index', sortText: '000001' },
+		]);
+	});
+});
+
+/**
+ * Test double exposing the protected {@link AgentHostInputCompletions._buildItem}
+ * so the accepted-range invariant can be asserted directly.
+ */
+class TestableAgentHostInputCompletions extends AgentHostInputCompletions {
+	buildItem(position: Position, item: IChatInputCompletionItem, widget: IChatWidget): CompletionItem | undefined {
+		return this._buildItem(position, item, widget);
+	}
+}
+
+suite('AgentHostInputCompletions #chat references', () => {
+
+	const store = new DisposableStore();
+
+	teardown(() => store.clear());
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('accepting a multi-word #chat reference registers a range covering the whole token', () => {
+		const completions = store.add(new TestableAgentHostInputCompletions(
+			new LanguageFeaturesService(),
+			new MockChatWidgetService(),
+			new TestChatSessionsService(),
+			new TestConfigurationService(),
+		));
+		const widget = upcastPartial<IChatWidget>({});
+		// The completion carries the opaque backend chat URI, stored verbatim on
+		// the accepted reference entry.
+		const chatResource = URI.parse('ahp-chat://chat-2/base64session');
+
+		// The host inserts `#chat:<title> ` (trailing space) spanning columns 1..19.
+		const built = completions.buildItem(new Position(1, 19), {
+			insertText: '#chat:Design chat ',
+			start: { lineNumber: 1, column: 1 },
+			end: { lineNumber: 1, column: 19 },
+			attachment: {
+				kind: 'chat',
+				uri: chatResource,
+				endTurn: 'turn-5',
+				title: 'Design chat',
+			},
+		}, widget);
+
+		const argument = built?.command?.arguments?.[0] as { id: string; range: Range } | undefined;
+		assert.deepStrictEqual({ id: argument?.id, range: argument?.range }, {
+			// Stable dynamic-variable id, so the parser treats the reference as one part.
+			id: createChatReferenceVariableEntry(chatResource, 'turn-5', 'Design chat').id,
+			// Covers `#chat:Design chat` (columns 1..18, end-exclusive) — the whole
+			// token minus the trailing space, never a partial slice.
+			range: new Range(1, 1, 1, 18),
+		});
+	});
+});
 
 suite('escapeForCharClass', () => {
 
@@ -51,6 +259,86 @@ suite('escapeForCharClass', () => {
 		assert.ok(re.test('@'));
 		assert.ok(!re.test('a'));
 		assert.ok(!re.test('/'));
+	});
+});
+
+suite('attached context completion ranking', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const suggestOptions = EditorOptions.suggest.defaultValue;
+
+	test('sorts before other chat input completions', () => {
+		assert.ok(attachedContextCompletionSortText < ' ');
+	});
+
+	test('filters attachments before matching the current token exactly', () => {
+		assert.deepStrictEqual({
+			at: getAttachedContextCompletionMatch('@', '@', 'Screen Recording.mov', 'file', suggestOptions)?.filterText,
+			atAttachment: getAttachedContextCompletionMatch('@att', '@', 'Screen Recording.mov', 'file', suggestOptions)?.filterText,
+			hashName: getAttachedContextCompletionMatch('#screen', '#', 'Screen Recording.mov', 'file', suggestOptions)?.filterText,
+			hashAttachment: getAttachedContextCompletionMatch('#att', '#', 'Screen Recording.mov', 'file', suggestOptions)?.filterText,
+			unmatched: getAttachedContextCompletionMatch('#xyz', '#', 'Screen Recording.mov', 'file', suggestOptions)?.filterText,
+		}, {
+			at: '@',
+			atAttachment: '@att',
+			hashName: '#screen',
+			hashAttachment: '#att',
+			unmatched: undefined,
+		});
+	});
+
+	test('honors graceful Suggest filtering', () => {
+		assert.deepStrictEqual({
+			graceful: getAttachedContextCompletionMatch('#attahcment', '#', 'Screen Recording.mov', 'file', suggestOptions)?.filterText,
+			strict: getAttachedContextCompletionMatch('#attahcment', '#', 'Screen Recording.mov', 'file', { ...suggestOptions, filterGraceful: false })?.filterText,
+		}, {
+			graceful: '#attahcment',
+			strict: undefined,
+		});
+	});
+
+	test('refreshes across supported punctuation', () => {
+		assert.deepStrictEqual({
+			triggerCharacters: attachedContextCompletionAdditionalTriggerCharacters,
+			colon: getAttachedContextCompletionMatch('#attachment:', '#', 'Screen Recording.mov', 'file', suggestOptions)?.filterText,
+			hyphen: getAttachedContextCompletionMatch('#attachment:screen-', '#', 'Screen-Recording.mov', 'file', suggestOptions)?.filterText,
+		}, {
+			triggerCharacters: [':', '-'],
+			colon: '#attachment:',
+			hyphen: '#attachment:screen-',
+		});
+	});
+
+	test('uses only the token prefix through an interior cursor', () => {
+		const range = {
+			insert: new Range(1, 1, 1, 5),
+			replace: new Range(1, 1, 1, 8),
+			varWord: { word: '#attxyz', startColumn: 1, endColumn: 8 },
+		};
+		const typedWord = getCompletionRangeWord(range);
+
+		assert.deepStrictEqual({
+			typedWord,
+			filterText: typedWord === undefined ? undefined : getAttachedContextCompletionMatch(typedWord, '#', 'Screen Recording.mov', 'file', suggestOptions)?.filterText,
+		}, {
+			typedWord: '#att',
+			filterText: '#att',
+		});
+	});
+
+	test('preserves fuzzy relevance between attached contexts', () => {
+		const strongMatch = getAttachedContextCompletionMatch('#readme', '#', 'README.md', 'file', suggestOptions);
+		const weakMatch = getAttachedContextCompletionMatch('#readme', '#', 'Areadme-copy.txt', 'file', suggestOptions);
+
+		assert.deepStrictEqual({
+			matches: !!strongMatch && !!weakMatch,
+			strongBeforeWeak: !!strongMatch && !!weakMatch && getAttachedContextCompletionSortText(strongMatch.score) < getAttachedContextCompletionSortText(weakMatch.score),
+			weakBeforeAgentHost: !!weakMatch && getAttachedContextCompletionSortText(weakMatch.score) < '000000',
+		}, {
+			matches: true,
+			strongBeforeWeak: true,
+			weakBeforeAgentHost: true,
+		});
 	});
 });
 
@@ -271,5 +559,81 @@ suite('computeCompletionRanges', () => {
 			assert.ok(result);
 			assert.strictEqual(result.varWord?.word, '@file');
 		});
+	});
+});
+
+suite('isAtTriggerCharacterToken', () => {
+
+	let store: DisposableStore;
+
+	setup(() => {
+		store = new DisposableStore();
+	});
+
+	teardown(() => {
+		store.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const triggerChars = ['@', '#'];
+
+	function check(text: string, column: number, expected: boolean): void {
+		const model = store.add(createTextModel(text, null, undefined, URI.parse('test:input')));
+		assert.strictEqual(
+			isAtTriggerCharacterToken(model, new Position(1, column), triggerChars),
+			expected,
+			`text=${JSON.stringify(text)} column=${column}`,
+		);
+	}
+
+	test('cursor right after a trigger character at start of line', () => {
+		check('@', 2, true);
+	});
+
+	test('cursor inside a trigger-led token at start of line', () => {
+		check('@file', 4, true);
+	});
+
+	test('cursor at end of a trigger-led token at start of line', () => {
+		check('@file', 6, true);
+	});
+
+	test('cursor inside a trigger-led token mid-line', () => {
+		check('hello @file', 10, true);
+	});
+
+	test('cursor inside a # trigger-led token', () => {
+		check('hello #file', 10, true);
+	});
+
+	test('cursor inside a non-trigger-led word at start of line', () => {
+		check('hello', 4, false);
+	});
+
+	test('cursor inside a non-trigger-led word mid-line', () => {
+		check('say hello', 8, false);
+	});
+
+	test('cursor at start of empty line', () => {
+		check('', 1, false);
+	});
+
+	test('cursor right after whitespace, no token yet', () => {
+		check('hello ', 7, false);
+	});
+
+	test('cursor after a trigger-led token followed by space', () => {
+		// Cursor sits in the empty token after the space, not in the @file token.
+		check('@file ', 7, false);
+	});
+
+	test('cursor in token whose first char is not a trigger char', () => {
+		check('abc@def', 8, false); // first char of token is 'a', not '@'
+	});
+
+	test('returns false when no trigger characters are configured', () => {
+		const model = store.add(createTextModel('@file', null, undefined, URI.parse('test:input')));
+		assert.strictEqual(isAtTriggerCharacterToken(model, new Position(1, 4), []), false);
 	});
 });

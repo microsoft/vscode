@@ -12,15 +12,25 @@
 
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
-import type { IProtocolMessage, IAhpServerNotification, IJsonRpcNotification, IJsonRpcResponse, IJsonRpcRequest } from './sessionProtocol.js';
+import type { AgentHostClientConnectionKind, AgentHostTransportKind } from '../agentHostTelemetry.js';
+import type { ProtocolMessage, AhpServerNotification, JsonRpcNotification, JsonRpcParseErrorResponse, JsonRpcResponse, JsonRpcRequest } from './sessionProtocol.js';
+
+/** Signals that reconnecting the transport cannot recover the connection. */
+export class NonReconnectableTransportError extends Error { }
 
 /**
  * A bidirectional transport for protocol messages. Implementations handle
  * serialization, framing, and connection management.
  */
 export interface IProtocolTransport extends IDisposable {
+	/** Physical transport accepted by the agent host. */
+	readonly transportKind?: AgentHostTransportKind;
+
+	/** Route used by a VS Code client to reach the agent host. */
+	readonly clientConnectionKind?: AgentHostClientConnectionKind;
+
 	/** Fires when a message is received from the remote end. */
-	readonly onMessage: Event<IProtocolMessage>;
+	readonly onMessage: Event<ProtocolMessage>;
 
 	/** Fires when the transport connection closes. */
 	readonly onClose: Event<void>;
@@ -29,11 +39,11 @@ export interface IProtocolTransport extends IDisposable {
 	 * Send a message to the remote end.
 	 *
 	 * Accepts:
-	 * - `IProtocolMessage` — fully-typed client↔server messages.
-	 * - `IAhpServerNotification` — server→client notifications.
-	 * - `IJsonRpcResponse` — dynamically-constructed success/error responses.
+	 * - `ProtocolMessage` — fully-typed client↔server messages.
+	 * - `AhpServerNotification` — server→client notifications.
+	 * - `JsonRpcResponse` — dynamically-constructed success/error responses.
 	 */
-	send(message: IProtocolMessage | IAhpServerNotification | IJsonRpcNotification | IJsonRpcResponse | IJsonRpcRequest): void;
+	send(message: ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcParseErrorResponse | JsonRpcResponse | JsonRpcRequest): void;
 }
 
 /**

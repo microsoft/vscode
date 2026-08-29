@@ -17,7 +17,7 @@ export type ContextProviderExpSettings = {
 	excludeRelatedFiles: boolean;
 	timeBudget: number;
 	params?: Record<string, string | boolean | number>;
-}
+};
 
 export const ICompletionsFeaturesService = createServiceIdentifier<ICompletionsFeaturesService>('ICompletionsFeaturesService');
 export interface ICompletionsFeaturesService {
