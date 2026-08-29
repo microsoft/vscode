@@ -18,3 +18,4 @@ src/vs/workbench/services/extensions/common/extensionPoints.json @TylerLeonhardt
 # Adding entries here lets a new .js/.cjs/.mjs file land in the repo;
 # review is required to make sure TypeScript is not a better choice.
 .eslint-allowed-javascript-files @alexr00 @alexdima @sbatten @TylerLeonhardt
+

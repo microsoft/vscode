@@ -23,6 +23,7 @@ const stubChat: IChat = {
 	changes: constObservable([]),
 	checkpoints: constObservable(undefined),
 	modelId: constObservable(undefined),
+	modelSource: constObservable(undefined),
 	mode: constObservable(undefined),
 	isArchived: constObservable(false),
 	isRead: constObservable(true),
@@ -945,6 +946,28 @@ suite('VisibleSessions', () => {
 	});
 });
 
+suite('VisibleSession - property forwarding', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	// The wrapper forwards each ISession property by hand, so a newly added
+	// property is easy to drop silently (artifacts was, and its pill never showed).
+	test('forwards every session property, including optional ones', () => {
+		const session: ISession = {
+			...stubSession('S'),
+			artifacts: constObservable([]),
+		};
+		const visible = disposables.add(new VisibleSession(session, stubChat));
+
+		// `modelId` / `mode` intentionally reflect the active chat instead.
+		const perChatOverrides: ReadonlySet<string> = new Set(['modelId', 'mode']);
+		const notForwarded = (Object.keys(session) as (keyof ISession)[])
+			.filter(key => !perChatOverrides.has(key) && visible[key] !== session[key]);
+
+		assert.deepStrictEqual(notForwarded, []);
+	});
+});
+
 suite('VisibleSession - open/close chats', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -1436,6 +1459,7 @@ suite('VisibleSession - per-chat model/mode', () => {
 			resource: URI.parse(`test:///chat/${id}`),
 			title: constObservable(id),
 			modelId: constObservable(modelId),
+			modelSource: constObservable(undefined),
 			mode: constObservable(modeId ? { id: modeId, kind: 'agent' } : undefined),
 		};
 	}

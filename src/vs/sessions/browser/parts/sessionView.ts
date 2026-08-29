@@ -22,6 +22,7 @@ import { autorun, observableValue } from '../../../base/common/observable.js';
 import { SessionIsMaximizedContext } from '../../common/contextkeys.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../common/layoutConstants.js';
 import { setActiveSessionContextKeys } from '../../services/sessions/common/sessionContextKeys.js';
+import { ISessionChangesStatsCache } from '../../services/sessions/common/sessionChangesStatsCache.js';
 import { applySessionViewThemeColors } from './sessionBarStyles.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
 
@@ -89,6 +90,7 @@ export class SessionView extends Disposable implements ISerializableView {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService private readonly themeService: IThemeService,
+		@ISessionChangesStatsCache private readonly _changesStatsCache: ISessionChangesStatsCache,
 	) {
 		super();
 
@@ -148,6 +150,16 @@ export class SessionView extends Disposable implements ISerializableView {
 			this.element.classList.toggle('grid-layout', isGridLayout);
 			this._layoutChildren();
 		}));
+
+		this._register(autorun(reader => {
+			const session = this._sessionObs.read(reader);
+			const tabsReplaceHeader = this._groupsView.groupCount.read(reader) === 1
+				&& (session?.isCreated.read(reader) ?? false)
+				&& (session?.shouldShowChatTabs.read(reader) ?? false);
+			this._header.setVisible(!tabsReplaceHeader);
+			this._groupsView.setSingleGroupTabsReplaceHeader(tabsReplaceHeader);
+			this.element.classList.toggle('tabs-replace-header', tabsReplaceHeader);
+		}));
 	}
 
 	openSession(session: IActiveSession | undefined, options: ISessionViewOptions): void {
@@ -162,10 +174,25 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._openSessionDisposables.add(this._handleContextKeys(session));
 
 		this._header.setSession(session);
-		if (session) {
-			this._standaloneView.clear();
-			this._contentContainer.replaceChildren(this._groupsView.element);
-			this._groupsView.setSession(session, options);
+		if (session && !session.isCreated.get()) {
+			this._groupsView.setSession(undefined, options);
+			let view = this._standaloneView.value;
+			if (!view || view.kind !== 'newSession') {
+				view = this._chatViewFactory.createNewChatView(false, options);
+				this._standaloneView.value = view;
+			}
+			if (view.element.parentElement !== this._contentContainer) {
+				this._contentContainer.replaceChildren(view.element);
+			}
+			view.setActive(this._isActive);
+			view.setVisible(this._isVisible);
+			this._openSessionDisposables.add(autorun(reader => {
+				if (session.isCreated.read(reader) && this._currentSession === session) {
+					this._showSessionGroups(session, options);
+				}
+			}));
+		} else if (session) {
+			this._showSessionGroups(session, options);
 		} else {
 			this._groupsView.setSession(undefined, options);
 			const view = this._chatViewFactory.createNewChatView(false, options);
@@ -178,12 +205,19 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._layoutChildren();
 	}
 
+	private _showSessionGroups(session: IActiveSession, options: ISessionViewOptions): void {
+		this._standaloneView.clear();
+		this._contentContainer.replaceChildren(this._groupsView.element);
+		this._groupsView.setSession(session, options);
+		this._layoutChildren();
+	}
+
 	private _handleContextKeys(session: IActiveSession | undefined): IDisposable {
 		// A single autorun re-applies every session-derived context key on the
 		// scoped service whenever the session's observable properties change.
 		// Passing `undefined` resets the keys to their defaults.
 		return autorun(reader => {
-			setActiveSessionContextKeys(session, this._scopedContextKeyService, reader);
+			setActiveSessionContextKeys(session, this._scopedContextKeyService, reader, this._changesStatsCache);
 		});
 	}
 
@@ -240,8 +274,14 @@ export class SessionView extends Disposable implements ISerializableView {
 		standaloneView ? standaloneView.focus() : this._groupsView.focus();
 	}
 
-	startTitleEditing(): void {
-		this._header.startTitleEditing();
+	/**
+	 * Starts an inline rename of the session title in the header. Returns
+	 * `false` when the header cannot host it (e.g. this view is hidden or the
+	 * chat tabs row replaces the header) so callers can fall back to another
+	 * rename affordance.
+	 */
+	startTitleEditing(): boolean {
+		return this._isVisible && this._header.startTitleEditing();
 	}
 
 	selectWorkspace(folderUri: URI, providerId?: string): void {

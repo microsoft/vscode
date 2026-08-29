@@ -16,7 +16,6 @@ import {
 import { EditorActivation } from '../../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
-import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import {
 	IEditorGroup,
 	IEditorGroupsService,
@@ -33,6 +32,7 @@ import {
 } from './singlePaneDetailPanelCoordinator.js';
 import {
 	isChangesEditorInput,
+	isEditorWithoutDockedDetails,
 	isFileEditorInput,
 	isMainPartEmpty,
 } from './singlePaneSharedHelpers.js';
@@ -48,6 +48,7 @@ export class SinglePaneNewSessionStrategy extends SinglePaneLayoutStrategy {
 	private _pendingEntryHideSessionKey: string | undefined;
 	private _pendingSidePaneOpenHideSessionKey: string | undefined;
 	private _detailHiddenTransiently = false;
+	private _detailHiddenByEditor = false;
 
 	constructor(
 		ctx: ISinglePaneLayoutContext,
@@ -110,7 +111,7 @@ export class SinglePaneNewSessionStrategy extends SinglePaneLayoutStrategy {
 			if (editors.length === 0) {
 				return;
 			}
-			if (!editors.every((editor) => editor instanceof EmptyFileEditorInput)) {
+			if (!editors.every(editor => editor instanceof EmptyFileEditorInput || isChangesEditorInput(editor, this._sessionChangesService))) {
 				return;
 			}
 
@@ -164,10 +165,7 @@ export class SinglePaneNewSessionStrategy extends SinglePaneLayoutStrategy {
 				return;
 			}
 			this._pendingSidePaneOpenHideSessionKey = undefined;
-			if (
-				editors.length !== 1 ||
-				!(editors[0] instanceof EmptyFileEditorInput)
-			) {
+			if (!editors.every(editor => editor instanceof EmptyFileEditorInput || isChangesEditorInput(editor, this._sessionChangesService))) {
 				return;
 			}
 
@@ -406,6 +404,7 @@ export class SinglePaneNewSessionStrategy extends SinglePaneLayoutStrategy {
 					event.source !== 'resize'
 				) {
 					this._detailHiddenTransiently = false;
+					this._detailHiddenByEditor = false;
 				}
 			}),
 		);
@@ -427,10 +426,14 @@ export class SinglePaneNewSessionStrategy extends SinglePaneLayoutStrategy {
 		);
 		if (
 			target === DetailPanelTarget.Hidden ||
-			target === DetailPanelTarget.BrowserHidden
+			target === DetailPanelTarget.EditorHidden
 		) {
-			if (!revealOnly && detailVisible) {
+			if (
+				(target === DetailPanelTarget.EditorHidden || !revealOnly) &&
+				detailVisible
+			) {
 				this._detailHiddenTransiently = true;
+				this._detailHiddenByEditor = target === DetailPanelTarget.EditorHidden;
 				this._layoutService.setAuxiliaryBarHiddenForResize(true);
 			}
 			return;
@@ -438,12 +441,13 @@ export class SinglePaneNewSessionStrategy extends SinglePaneLayoutStrategy {
 
 		if (
 			!this._detailHiddenTransiently ||
-			revealOnly ||
+			(revealOnly && !this._detailHiddenByEditor) ||
 			!this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)
 		) {
 			return;
 		}
 		this._detailHiddenTransiently = false;
+		this._detailHiddenByEditor = false;
 		this._layoutService.setAuxiliaryBarHiddenForResize(false);
 	}
 
@@ -458,20 +462,15 @@ export class SinglePaneNewSessionStrategy extends SinglePaneLayoutStrategy {
 		// Session where an empty group means the whole side pane was closed — so, unlike
 		// Existing, New never hides on an empty group.
 
+		if (activeEditor && isEditorWithoutDockedDetails(activeEditor)) {
+			return editorPartVisibleObs.read(reader) ? DetailPanelTarget.EditorHidden : DetailPanelTarget.Files;
+		}
+
 		if (editorMaximizedObs.read(reader)) {
 			return DetailPanelTarget.Changes;
 		}
 
 		if (!activeEditor) {
-			return DetailPanelTarget.Files;
-		}
-
-		if (activeEditor instanceof BrowserEditorInput) {
-			// Browser has no detail of its own, so it only hides the panel while the editor
-			// area is visible; once hidden, fall back to Files instead of leaving it blank.
-			if (editorPartVisibleObs.read(reader)) {
-				return DetailPanelTarget.BrowserHidden;
-			}
 			return DetailPanelTarget.Files;
 		}
 

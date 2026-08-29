@@ -5,8 +5,9 @@
 
 import { localize } from '../../../../../nls.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { PromptFileSource, PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { IPromptPath, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
+import { isPromptFileMigrationCandidate, isUserDataMigrationCandidate, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 
 export const enum CustomizationMigrationCategoryId {
 	PromptFiles = 'promptFiles',
@@ -16,7 +17,7 @@ export const enum CustomizationMigrationCategoryId {
 export interface ICustomizationMigrationGroup {
 	readonly key: string;
 	readonly label: string;
-	readonly customizations: readonly IPromptPath[];
+	readonly customizations: readonly MigratableConfiguration[];
 }
 
 export interface ICustomizationMigrationConfirmation {
@@ -27,14 +28,11 @@ export interface ICustomizationMigrationConfirmation {
 }
 
 /**
- * Prominent explanation shown above the migration list, for migrations whose
- * trade-off needs stating before the user commits.
+ * Prominent explanation shown above the migration list.
  */
 export interface ICustomizationMigrationBanner {
-	readonly title: string;
 	readonly message: string;
-	/** What the user gives up by migrating, so the choice is made knowingly. */
-	readonly consequence: string;
+	readonly consequence?: string;
 }
 
 /**
@@ -56,18 +54,17 @@ export interface ICustomizationMigrationCategory {
 	readonly pageLinkLabel: string;
 	readonly pageLinkUrl: string;
 	readonly pageEmptyMessage: string;
-	readonly searchEmptyMessage: string;
 	readonly migrateButtonTooltip: string;
 	readonly backLabel: string;
 	readonly noFilesMigratedMessage: string;
-	isCandidate(customization: IPromptPath): boolean;
-	group(customizations: readonly IPromptPath[]): readonly ICustomizationMigrationGroup[];
+	isCandidate(customization: MigratableConfiguration): boolean;
+	group(customizations: readonly MigratableConfiguration[]): readonly ICustomizationMigrationGroup[];
 	getShortcutAriaLabel(count: number): string;
-	getCardDescription(customizations: readonly IPromptPath[], harnessLabel: string): string;
-	getPageDescription(customizations: readonly IPromptPath[], harnessLabel: string): string;
+	getCardDescription(customizations: readonly MigratableConfiguration[], harnessLabel: string): string;
+	getPageDescription(customizations: readonly MigratableConfiguration[], harnessLabel: string): string;
 	/** When present, replaces the page description with a prominent banner. */
-	getBanner?(customizations: readonly IPromptPath[], harnessLabel: string): ICustomizationMigrationBanner;
-	getConfirmation(customizations: readonly IPromptPath[], harnessLabel: string): ICustomizationMigrationConfirmation;
+	getBanner?(customizations: readonly MigratableConfiguration[], harnessLabel: string, destinationLabel?: string): ICustomizationMigrationBanner;
+	getConfirmation(customizations: readonly MigratableConfiguration[], harnessLabel: string, destinationLabel?: string): ICustomizationMigrationConfirmation;
 	getMigratedMessage(migratedCount: number): string;
 	getMigratedWithReviewMessage?(migratedCount: number, unsupportedHeaderKeys: string): string;
 	getFailedMessage(failedFileNames: readonly string[], hiddenFileCount: number): string;
@@ -93,15 +90,11 @@ const promptFilesMigrationCategory: ICustomizationMigrationCategory = {
 	pageLinkLabel: localize('promptMigrationLearnMore', "Learn more about agent skills"),
 	pageLinkUrl: SKILLS_DOCUMENTATION_URL,
 	pageEmptyMessage: localize('promptMigrationPageEmpty', "No prompt files are available to migrate."),
-	searchEmptyMessage: localize('promptMigrationSearchEmpty', "No prompt files match your search."),
 	migrateButtonTooltip: localize('promptMigrationPageButtonTooltip', "Convert selected prompt files to skills"),
 	backLabel: localize('backToPromptMigration', "Back to Migrate Prompt Files"),
 	noFilesMigratedMessage: localize('promptMigrationNoFilesConverted', "No prompt files were converted."),
 
-	isCandidate(customization) {
-		return customization.type === PromptsType.prompt
-			&& (customization.storage === PromptsStorage.local || customization.storage === PromptsStorage.user);
-	},
+	isCandidate: isPromptFileMigrationCandidate,
 
 	group(customizations) {
 		return [
@@ -171,6 +164,16 @@ const promptFilesMigrationCategory: ICustomizationMigrationCategory = {
 		);
 	},
 
+	getBanner(_customizations, harnessLabel) {
+		return {
+			message: localize(
+				'promptMigrationBannerMessage',
+				"Prompts are no longer supported by {0}. Convert them to skills to keep them available in both VS Code and this harness.",
+				harnessLabel,
+			),
+		};
+	},
+
 	getConfirmation(customizations) {
 		const { workspaceCount, userCount } = countPromptStorages(customizations);
 		const detail = workspaceCount > 0 && userCount > 0
@@ -224,15 +227,11 @@ const userDataMigrationCategory: ICustomizationMigrationCategory = {
 	pageLinkLabel: localize('userDataMigrationLearnMore', "Learn more about agent customizations"),
 	pageLinkUrl: CUSTOMIZATION_DOCUMENTATION_URL,
 	pageEmptyMessage: localize('userDataMigrationPageEmpty', "No user data customizations are available to migrate."),
-	searchEmptyMessage: localize('userDataMigrationSearchEmpty', "No user data customizations match your search."),
 	migrateButtonTooltip: localize('userDataMigrationPageButtonTooltip', "Move the selected user data customizations to the active harness"),
 	backLabel: localize('backToUserDataMigration', "Back to Migrate User Data Customizations"),
 	noFilesMigratedMessage: localize('userDataMigrationNoFilesMigrated', "No user data customizations were migrated."),
 
-	isCandidate(customization) {
-		return customization.source === PromptFileSource.UserData
-			&& (customization.type === PromptsType.agent || customization.type === PromptsType.instructions);
-	},
+	isCandidate: isUserDataMigrationCandidate,
 
 	group(customizations) {
 		return [
@@ -290,23 +289,22 @@ const userDataMigrationCategory: ICustomizationMigrationCategory = {
 			);
 	},
 
-	getBanner(customizations, harnessLabel) {
-		const { totalCount } = countUserDataTypes(customizations);
-
+	getBanner(_customizations, harnessLabel, destinationLabel) {
 		return {
-			title: totalCount === 1
-				? localize('userDataMigrationBannerTitleSingle', "1 customization is not available to {0}", harnessLabel)
-				: localize('userDataMigrationBannerTitle', "{0} customizations are not available to {1}", totalCount, harnessLabel),
-			// The grouped list below already breaks these down by type, so the
-			// message explains the move rather than repeating the counts.
-			message: localize(
-				'userDataMigrationBannerMessage',
-				"They are stored in user data, which only VS Code reads. Migrating moves them into the folders {0} reads, keeping their name, type, and content, so you can keep using them.",
-				harnessLabel,
-			),
+			message: destinationLabel
+				? localize(
+					'userDataMigrationBannerMessageWithDestination',
+					"They are stored in user data, which only VS Code reads. Move them to '{0}' so both VS Code and this harness can use them, keeping their name, type, and content.",
+					destinationLabel,
+				)
+				: localize(
+					'userDataMigrationBannerMessage',
+					"They are stored in user data, which only VS Code reads. Migrating moves them into the folders {0} reads, keeping their name, type, and content, so you can keep using them.",
+					harnessLabel,
+				),
 			consequence: localize(
 				'userDataMigrationBannerConsequence',
-				"Migrated files won't use Settings Sync. Commit them to a repository to share them.",
+				"Migrated files aren't currently included in Settings Sync.",
 			),
 		};
 	},
@@ -349,7 +347,7 @@ const userDataMigrationCategory: ICustomizationMigrationCategory = {
 			);
 	},
 
-	getConfirmation(customizations, harnessLabel) {
+	getConfirmation(customizations, harnessLabel, destinationLabel) {
 		const { agentCount, instructionsCount, totalCount } = countUserDataTypes(customizations);
 		let detail: string;
 		if (agentCount > 0 && instructionsCount > 0) {
@@ -364,7 +362,9 @@ const userDataMigrationCategory: ICustomizationMigrationCategory = {
 				: localize('userDataMigrationConfirmDetailInstructions', "This moves {0} instruction files out of user data.", instructionsCount);
 		}
 		return {
-			message: localize('userDataMigrationConfirmMessage', "Migrate user data customizations to {0}?", harnessLabel),
+			message: destinationLabel
+				? localize('userDataMigrationConfirmMessageWithDestination', "Migrate user data customizations to '{0}'?", destinationLabel)
+				: localize('userDataMigrationConfirmMessage', "Migrate user data customizations to {0}?", harnessLabel),
 			detail,
 			primaryButton: localize('userDataMigrationConfirmButton', "Migrate"),
 			deleteOriginalsLabel: localize('userDataMigrationDeleteOriginalFilesCheckbox', "Delete the original files from user data after migration"),
@@ -408,13 +408,13 @@ export function getCustomizationMigrationSourceTypes(categories: readonly ICusto
 	return Array.from(new Set(categories.flatMap(category => category.sourceTypes)));
 }
 
-function countPromptStorages(customizations: readonly IPromptPath[]): { workspaceCount: number; userCount: number; totalCount: number } {
+function countPromptStorages(customizations: readonly MigratableConfiguration[]): { workspaceCount: number; userCount: number; totalCount: number } {
 	const workspaceCount = customizations.filter(customization => customization.storage === PromptsStorage.local).length;
 	const userCount = customizations.filter(customization => customization.storage === PromptsStorage.user).length;
 	return { workspaceCount, userCount, totalCount: workspaceCount + userCount };
 }
 
-function countUserDataTypes(customizations: readonly IPromptPath[]): { agentCount: number; instructionsCount: number; totalCount: number } {
+function countUserDataTypes(customizations: readonly MigratableConfiguration[]): { agentCount: number; instructionsCount: number; totalCount: number } {
 	const agentCount = customizations.filter(customization => customization.type === PromptsType.agent).length;
 	const instructionsCount = customizations.filter(customization => customization.type === PromptsType.instructions).length;
 	return { agentCount, instructionsCount, totalCount: agentCount + instructionsCount };

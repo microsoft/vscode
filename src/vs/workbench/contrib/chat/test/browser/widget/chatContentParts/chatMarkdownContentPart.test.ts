@@ -144,6 +144,15 @@ suite('ChatMarkdownContentPart', () => {
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		chatSessionsService = new MockChatSessionsService();
 		instantiationService.stub(IChatSessionsService, chatSessionsService);
+		instantiationService.stub(ILinkPresentationService, {
+			_serviceBrand: undefined,
+			onDidChangeLinkPresentationRules: Event.None,
+			linkPresentationRules: [],
+			registerLinkPresentationProvider: () => ({ dispose: () => { } }),
+			registerExtensionLinkPresentationProvider: () => ({ dispose: () => { } }),
+			getLinkPresentationRule: () => undefined,
+			createLinkPresentationWatcher: () => undefined,
+		});
 		renderedCodeBlocks.length = 0;
 		renderedCodeBlockOutputs.length = 0;
 		outputStateCache = new Map<string, IOutputPartState>();
@@ -235,7 +244,7 @@ suite('ChatMarkdownContentPart', () => {
 			resolveChatResponseUri: (_resource, href) => rewriteAgentHostLinkTarget(href, 'my-host'),
 		}));
 
-		const part = createMarkdownPart('`[foo.ts](/code.ts)` [a[b].ts](/remote/a.ts "/remote/a.ts"), [a\\*b.ts](/remote/b.ts), [line.ts](/remote/line.ts:42), [column.ts](/remote/column.ts:42:7), [windows.ts](C:/remote/windows.ts:42), [unc.ts](//server/share/unc.ts:42), [skill](/remote/skill/SKILL.md), and [file-uri.ts](file:///remote/file-uri.ts:42). ![image](/remote/image.png)');
+		const part = createMarkdownPart('`[foo.ts](/code.ts)` [a[b].ts](/remote/a.ts "/remote/a.ts"), [a\\*b.ts](/remote/b.ts), [line.ts](/remote/line.ts:42), [column.ts](/remote/column.ts:42:7), [windows.ts](C:/remote/windows.ts:42), [unc.ts](//server/share/unc.ts:42), [skill](/remote/skill/SKILL.md), [file-uri.ts](file:///remote/file-uri.ts:42), [session](agent-host-session://copilotcli/session-1), and [chat](agent-host-session://copilotcli/session-1?chat=chat-2). ![image](/remote/image.png)');
 		const links = Array.from(part.domNode.querySelectorAll('a'));
 		const skillUri = toAgentHostUri(URI.file('/remote/skill/SKILL.md'), 'my-host');
 		assert.deepStrictEqual(
@@ -253,6 +262,8 @@ suite('ChatMarkdownContentPart', () => {
 					{ text: 'unc.ts', href: toAgentHostUri(URI.file('//server/share/unc.ts').with({ fragment: 'L42' }), 'my-host').toString() },
 					{ text: 'skill', href: skillUri.with({ query: `${skillUri.query}&vscodeLinkType=skill` }).toString() },
 					{ text: 'file-uri.ts', href: toAgentHostUri(URI.file('/remote/file-uri.ts').with({ fragment: 'L42' }), 'my-host').toString() },
+					{ text: 'session', href: 'agent-host-session://copilotcli/session-1' },
+					{ text: 'chat', href: 'agent-host-session://copilotcli/session-1?chat=chat-2' },
 				],
 				imageSource: null,
 			},
@@ -268,11 +279,16 @@ suite('ChatMarkdownContentPart', () => {
 		assert.ok(part.domNode.textContent?.includes('Hello, world!'));
 	});
 
-	test('gates rich link rendering behind the chat setting', () => {
-		const rule = {
+	test('always renders Agent Host session links as rich links', () => {
+		const pullRequestRule = {
 			id: 'test.linkPresentation',
 			uriPattern: /^https:\/\/github\.com\/microsoft\/vscode\/pull\/1$/,
-			initialKind: 'pullRequest' as const,
+			kind: 'pullRequest' as const,
+		};
+		const sessionRule = {
+			id: 'test.agentSessionLinkPresentation',
+			uriPattern: /^agent-host-session:\/\/copilotcli\/session-1(?:\?chat=chat-2)?$/,
+			kind: 'session' as const,
 		};
 		const presentation = observableValue<ILinkPresentation | undefined>('test.linkPresentation', {
 			kind: 'pullRequest',
@@ -283,12 +299,12 @@ suite('ChatMarkdownContentPart', () => {
 		instantiationService.stub(ILinkPresentationService, {
 			_serviceBrand: undefined,
 			onDidChangeLinkPresentationRules: Event.None,
-			linkPresentationRules: [rule],
+			linkPresentationRules: [pullRequestRule, sessionRule],
 			registerLinkPresentationProvider: () => ({ dispose: () => { } }),
 			registerExtensionLinkPresentationProvider: () => ({ dispose: () => { } }),
 			getLinkPresentationRule: resource => {
 				ruleChecks++;
-				return rule.uriPattern.test(resource.toString(true)) ? rule : undefined;
+				return [pullRequestRule, sessionRule].find(rule => rule.uriPattern.test(resource.toString(true)));
 			},
 			createLinkPresentationWatcher: () => {
 				watcherCreations++;
@@ -299,20 +315,23 @@ suite('ChatMarkdownContentPart', () => {
 		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 		configurationService.setUserConfiguration(ChatConfiguration.RichLinks, false);
 		const disabledPart = createMarkdownPart('[pull request](https://github.com/microsoft/vscode/pull/1)');
+		const sessionPart = createMarkdownPart('[session](agent-host-session://copilotcli/session-1) [chat](agent-host-session://copilotcli/session-1?chat=chat-2)');
 
 		configurationService.setUserConfiguration(ChatConfiguration.RichLinks, true);
 		const enabledPart = createMarkdownPart('[pull request](https://github.com/microsoft/vscode/pull/1)');
 
 		assert.deepStrictEqual({
 			disabledRichLinks: disabledPart.domNode.querySelectorAll('.chat-rich-link').length,
+			agentHostRichLinks: sessionPart.domNode.querySelectorAll('.chat-rich-link').length,
 			enabledRichLinks: enabledPart.domNode.querySelectorAll('.chat-rich-link').length,
 			ruleChecks,
 			watcherCreations,
 		}, {
 			disabledRichLinks: 0,
+			agentHostRichLinks: 2,
 			enabledRichLinks: 1,
-			ruleChecks: 1,
-			watcherCreations: 1,
+			ruleChecks: 3,
+			watcherCreations: 3,
 		});
 	});
 

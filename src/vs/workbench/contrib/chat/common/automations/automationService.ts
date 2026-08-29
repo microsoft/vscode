@@ -105,6 +105,12 @@ export interface IAutomationRunClaim {
 	readonly claimed: boolean;
 	/** The run occupying the slot: the newly recorded one, or the pre-existing one. */
 	readonly run: IAutomationRun;
+	/** Present when the backing authority already dispatched execution for this claim. */
+	readonly externalDispatch?: {
+		readonly sessionResource?: URI;
+		readonly whenCompleted: Promise<void>;
+		cancel?(): void;
+	};
 }
 
 /**
@@ -160,6 +166,11 @@ export interface IAutomationStore {
 
 export interface IAutomationService extends IAutomationStore {
 	readonly _serviceBrand: undefined;
+	canRunAutomation?(automationId: string): boolean;
+	canUpdateAutomation?(automationId: string): boolean;
+	canDeleteAutomation?(automationId: string): boolean;
+	/** Whether the target authority, rather than this window's scheduler, evaluates this Automation. */
+	isSchedulingOwnedByHost?(automationId: string): boolean;
 	/** Starts leader-scoped stale-run recovery and includes provider stores added while active. */
 	startStaleRunRecovery(reason: string): Promise<void>;
 	/** Stops leader-scoped stale-run recovery. */
