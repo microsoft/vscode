@@ -32,7 +32,7 @@ import {
 } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
-import { IChatResponseFileChangesProvider, IChatResponseFileEdit } from '../../chatResponseFileChangesService.js';
+import { AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES, IChatResponseFileChangesProvider, IChatResponseFileEdit } from '../../chatResponseFileChangesService.js';
 
 const SUBSCRIPTION_OWNER = 'AgentHostResponseFileChangesProvider';
 const REQUEST_CACHE_CAPACITY = 1000;
@@ -42,6 +42,13 @@ const REQUEST_CACHE_CAPACITY = 1000;
  * was momentarily empty and the previous result was kept instead.
  */
 type TurnDiffSource = 'unsupported' | 'changeset' | 'authoritativeEmpty' | 'response' | 'branchFallback' | 'retained';
+
+interface IResponseFileEdits {
+	readonly diffs: readonly IChatResponseFileEdit[];
+	readonly hasValidEdits: boolean;
+}
+
+const EMPTY_RESPONSE_FILE_EDITS: IResponseFileEdits = { diffs: [], hasValidEdits: false };
 
 function uriArrayEquals(a: readonly URI[], b: readonly URI[]): boolean {
 	return a.length === b.length && a.every((uri, index) => isEqual(uri, b[index]));
@@ -152,7 +159,8 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		const key = `${backendSession.toString()}\0${backendChat?.toString() ?? ''}\0${requestId}`;
 		let obs = this._perRequestFileEdits.get(key);
 		if (!obs) {
-			obs = this._createFileEditDiffsObservable(backendSession, backendChat, requestId);
+			const fileEdits = this._createFileEditDiffsObservable(backendSession, backendChat, requestId);
+			obs = derived(reader => fileEdits.read(reader).diffs);
 			this._perRequestFileEdits.set(key, obs);
 		}
 		return obs;
@@ -229,12 +237,12 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 				return select('unsupported', retained);
 			}
 			if (changeset?.status === ChangesetStatus.Ready && retained.length === 0) {
-				return select('authoritativeEmpty', [], changeset.status);
+				return select('authoritativeEmpty', AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES, changeset.status);
 			}
 
-			const responseDiffs = responseFileEditsObs.read(reader);
-			return responseDiffs.length
-				? select('response', responseDiffs, changeset?.status)
+			const responseFileEdits = responseFileEditsObs.read(reader);
+			return responseFileEdits.hasValidEdits
+				? select('response', responseFileEdits.diffs.length > 0 ? responseFileEdits.diffs : AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES, changeset?.status)
 				: select('retained', retained, changeset?.status);
 		});
 	}
@@ -274,12 +282,12 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 			const state = branchChangesetStateObs.read(reader).read(reader);
 			const changeset = state instanceof Error ? undefined : state;
 			return changeset?.files
-				.map(file => this._changesetFileToEntryDiff(file))
+				.map(file => agentHostChangesetFileToEntryDiff(file, this._connectionAuthority))
 				.filter(isDefined) ?? [];
 		});
 	}
 
-	private _createFileEditDiffsObservable(backendSession: URI, backendChat: URI | undefined, requestId: string): IObservable<readonly IChatResponseFileEdit[]> {
+	private _createFileEditDiffsObservable(backendSession: URI, backendChat: URI | undefined, requestId: string): IObservable<IResponseFileEdits> {
 		const sessionStateObs = this._subscribe<SessionState>(StateComponents.Session, constObservable(backendSession));
 		const defaultChatUri = URI.parse(buildDefaultChatUri(backendSession.toString()));
 
@@ -331,7 +339,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 					return this._responsePartsToEntryDiffs(turn.responseParts, workspaceRoots);
 				}
 			}
-			return [];
+			return EMPTY_RESPONSE_FILE_EDITS;
 		});
 	}
 
@@ -353,8 +361,9 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		});
 	}
 
-	private _responsePartsToEntryDiffs(responseParts: readonly ResponsePart[], workspaceRoots: readonly URI[]): IChatResponseFileEdit[] {
+	private _responsePartsToEntryDiffs(responseParts: readonly ResponsePart[], workspaceRoots: readonly URI[]): IResponseFileEdits {
 		const byUri = new Map<string, IChatResponseFileEdit>();
+		let hasValidEdits = false;
 		for (const responsePart of responseParts) {
 			if (responsePart.kind !== ResponsePartKind.ToolCall) {
 				continue;
@@ -364,6 +373,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 				if (!diff) {
 					continue;
 				}
+				hasValidEdits = true;
 				const key = getComparisonKey(diff.modifiedURI);
 				const existing = byUri.get(key);
 				if (existing) {
@@ -371,23 +381,27 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 					existing.removed += diff.removed;
 					existing.modifiedURI = diff.modifiedURI;
 					existing.modifiedSnapshotURI = diff.modifiedSnapshotURI;
-					existing.isCreated = existing.isCreated || diff.isCreated;
+					existing.isDeleted = diff.isDeleted;
+					// A file created and then deleted within the turn has no net diff to present.
+					if (existing.isCreated && existing.isDeleted) {
+						byUri.delete(key);
+					}
 				} else {
 					byUri.set(key, diff);
 				}
 			}
 		}
-		return [...byUri.values()];
+		return { diffs: [...byUri.values()], hasValidEdits };
 	}
 
 	private _fileEditToEntryDiff(fileEdit: ISessionFileDiff, workspaceRoots: readonly URI[]): IChatResponseFileEdit | undefined {
 		const normalized = normalizeFileEdit(fileEdit);
-		if (!normalized || !normalized.afterUri) {
+		if (!normalized) {
 			return undefined;
 		}
-		const afterUri = normalized.afterUri;
+		const resource = normalized.resource;
 
-		const modifiedURI = toAgentHostUri(afterUri, this._connectionAuthority);
+		const modifiedURI = toAgentHostUri(resource, this._connectionAuthority);
 		const originalURI = normalized.kind === FileEditKind.Create || !normalized.beforeContentUri
 			? modifiedURI
 			: toAgentHostContentUri(normalized.beforeContentUri, this._connectionAuthority);
@@ -400,13 +414,14 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 			modifiedURI,
 			modifiedSnapshotURI,
 			isCreated: normalized.kind === FileEditKind.Create,
+			isDeleted: normalized.kind === FileEditKind.Delete,
 			added: fileEdit.diff?.added ?? 0,
 			removed: fileEdit.diff?.removed ?? 0,
 			quitEarly: false,
 			identical: false,
 			isFinal: true,
 			isBusy: false,
-			isOutsideWorkspace: !workspaceRoots.some(root => isEqualOrParent(afterUri, root)),
+			isOutsideWorkspace: !workspaceRoots.some(root => isEqualOrParent(resource, root)),
 		};
 	}
 

@@ -130,8 +130,7 @@ export class ChatPillsRow extends Disposable {
 		super();
 
 		const targetWindow = options?.targetWindow ?? mainWindow;
-		this.content = targetWindow.document.createElement('div');
-		this.content.className = 'chat-pills-row-content';
+		this.content = $('.chat-pills-row-content');
 		this._scrollable = this._register(new DomScrollableElement(this.content, {
 			horizontal: ScrollbarVisibility.Auto,
 			horizontalScrollbarSize: 6,
@@ -217,10 +216,12 @@ export class ChatPillsRow extends Disposable {
 			this.content.tabIndex = 0;
 			this.content.setAttribute('role', 'button');
 			this.content.setAttribute('aria-label', ariaLabel);
+			this.content.setAttribute('aria-haspopup', 'menu');
 		} else {
 			this.content.removeAttribute('tabindex');
 			this.content.removeAttribute('role');
 			this.content.removeAttribute('aria-label');
+			this.content.removeAttribute('aria-haspopup');
 		}
 	}
 

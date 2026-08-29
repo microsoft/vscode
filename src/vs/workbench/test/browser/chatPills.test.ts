@@ -36,6 +36,7 @@ suite('ChatPills', () => {
 			compact: row.element.classList.contains('compact'),
 			role: row.content.getAttribute('role'),
 			ariaLabel: row.content.getAttribute('aria-label'),
+			ariaHasPopup: row.content.getAttribute('aria-haspopup'),
 			tabIndex: row.content.tabIndex,
 			contextMenuRequests,
 			focused: mainWindow.document.activeElement === row.content,
@@ -52,6 +53,7 @@ suite('ChatPills', () => {
 			restored: {
 				role: row.content.getAttribute('role'),
 				ariaLabel: row.content.getAttribute('aria-label'),
+				ariaHasPopup: row.content.getAttribute('aria-haspopup'),
 				tabIndex: row.content.getAttribute('tabindex'),
 				pillFocused: mainWindow.document.activeElement === pill,
 			},
@@ -60,6 +62,7 @@ suite('ChatPills', () => {
 				compact: true,
 				role: 'button',
 				ariaLabel: 'Configure Session Status Pills',
+				ariaHasPopup: 'menu',
 				tabIndex: 0,
 				contextMenuRequests: 1,
 				focused: true,
@@ -68,6 +71,7 @@ suite('ChatPills', () => {
 			restored: {
 				role: null,
 				ariaLabel: null,
+				ariaHasPopup: null,
 				tabIndex: null,
 				pillFocused: true,
 			},
@@ -76,7 +80,7 @@ suite('ChatPills', () => {
 		disposables.dispose();
 	});
 
-	test('creates the row in its target window realm', () => {
+	test('uses the main DOM realm and target auxiliary window', () => {
 		const disposables = store.add(new DisposableStore());
 		const iframe = mainWindow.document.createElement('iframe');
 		mainWindow.document.body.appendChild(iframe);
@@ -90,10 +94,14 @@ suite('ChatPills', () => {
 		assert.deepStrictEqual({
 			contentDocument: row.content.ownerDocument === auxiliaryWindow.document,
 			elementDocument: row.element.ownerDocument === auxiliaryWindow.document,
+			contentUsesMainPrototype: Object.getPrototypeOf(row.content) === mainWindow.HTMLDivElement.prototype,
+			elementUsesMainPrototype: Object.getPrototypeOf(row.element) === mainWindow.HTMLDivElement.prototype,
 			windowId: getWindow(row.content).vscodeWindowId,
 		}, {
 			contentDocument: true,
 			elementDocument: true,
+			contentUsesMainPrototype: true,
+			elementUsesMainPrototype: true,
 			windowId: 999,
 		});
 
