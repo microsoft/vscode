@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, JsonValue, McpServersLoadedServer, MessageOptions, PermissionAllowAllMode, PermissionAutoApproval, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
+import type { CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, JsonValue, McpServersLoadedServer, MessageOptions, PermissionMode, PermissionAssistedApproval, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
 import { cp, rm } from 'fs/promises';
 import { DeferredPromise, raceCancellation, RunOnceScheduler, Sequencer, SequencerByKey, Throttler, timeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
@@ -755,8 +755,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _autoModeResolvedByToolCallId = new Map<string, NonNullable<UsageInfoMeta['autoModeResolved']>>();
 	private readonly _activeSubagentAgentIds = new Set<string>();
 	private readonly _unroutableSubagentToolCallIds = new Set<string>();
-	private readonly _autoApprovals = new Map<string, PermissionAutoApproval | null>();
-	private readonly _pendingAutoApprovals = new PendingRequestRegistry<PermissionAutoApproval | undefined>();
+	private readonly _autoApprovals = new Map<string, PermissionAssistedApproval | null>();
+	private readonly _pendingAutoApprovals = new PendingRequestRegistry<PermissionAssistedApproval | undefined>();
 	/** Correlates tool execution with the SDK permission lifecycle for `chat.toolApproval` telemetry. */
 	private readonly _toolApprovalRecords = new Map<string, {
 		permissionRequested: boolean;
@@ -938,7 +938,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _slashCommandProvider: CopilotSlashCommandProvider;
 	/** Last agent mode pushed to the SDK via {@link applyMode}, to elide redundant `rpc.mode.set` calls. */
 	private _lastAppliedMode: CopilotSdkMode | undefined;
-	private _lastAppliedPermissionMode: PermissionAllowAllMode | undefined;
+	private _lastAppliedPermissionMode: PermissionMode | undefined;
 	private _autoApprovalExperimentalModeEnabled = false;
 	private readonly _permissionModeSequencer = new Sequencer();
 	private readonly _mcpEnablementSequencer = new Sequencer();
@@ -3355,7 +3355,7 @@ export class CopilotAgentSession extends Disposable {
 			const requestSandboxBypass = request.kind === 'shell' || request.kind === 'write' || request.kind === 'read' || request.kind === 'url'
 				? request.requestSandboxBypass
 				: undefined;
-			const autoApproval = !managedApprovalRequired && this._lastAppliedPermissionMode === 'auto'
+			const autoApproval = !managedApprovalRequired && this._lastAppliedPermissionMode === 'assisted'
 				? await this._takeAutoApproval(toolCallId)
 				: undefined;
 			const recommendation = autoApproval?.recommendation;
@@ -3656,13 +3656,13 @@ export class CopilotAgentSession extends Disposable {
 		return this._configurationService.getEffectiveValue(this._ownerSessionUri.toString(), platformSessionSchema, SessionConfigKey.AutoApprove) === 'autoApprove';
 	}
 
-	private _getSdkPermissionMode(): PermissionAllowAllMode {
+	private _getSdkPermissionMode(): PermissionMode {
 		if (this._isBypassApprovals()) {
-			return 'on';
+			return 'allow-all';
 		}
 		return this._getConfiguredApprovalLevel() === 'assisted'
-			? 'auto'
-			: 'off';
+			? 'assisted'
+			: 'manual';
 	}
 
 	private _getConfiguredApprovalLevel(): string {
@@ -3701,7 +3701,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	private async _takeAutoApproval(toolCallId: string): Promise<PermissionAutoApproval | undefined> {
+	private async _takeAutoApproval(toolCallId: string): Promise<PermissionAssistedApproval | undefined> {
 		if (this._autoApprovals.has(toolCallId)) {
 			const autoApproval = this._autoApprovals.get(toolCallId) ?? undefined;
 			this._autoApprovals.delete(toolCallId);
@@ -3710,7 +3710,7 @@ export class CopilotAgentSession extends Disposable {
 		return this._pendingAutoApprovals.register(toolCallId);
 	}
 
-	private _recordAutoApproval(toolCallId: string, autoApproval: PermissionAutoApproval | undefined): void {
+	private _recordAutoApproval(toolCallId: string, autoApproval: PermissionAssistedApproval | undefined): void {
 		if (this._pendingAutoApprovals.respond(toolCallId, autoApproval)) {
 			return;
 		}
@@ -3722,7 +3722,7 @@ export class CopilotAgentSession extends Disposable {
 			const mode = this._getSdkPermissionMode();
 			const configuredLevel = this._getConfiguredApprovalLevel();
 			this._logService.info(`[Copilot:${this.sessionId}] Syncing permission mode: source=${source}, agentMode=${this._getConfiguredAgentMode()}, configuredLevel=${configuredLevel}, sdkMode=${mode}, previousSdkMode=${this._lastAppliedPermissionMode ?? 'unknown'}, globalAutoApprove=${this._configurationService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) === true}`);
-			const experimentalModeEnabled = mode === 'auto';
+			const experimentalModeEnabled = mode === 'assisted';
 			if (this._autoApprovalExperimentalModeEnabled !== experimentalModeEnabled) {
 				const experimentalResult = await this._wrapper.session.rpc.options.update({ isExperimentalMode: experimentalModeEnabled });
 				if (!experimentalResult.success) {
@@ -3734,7 +3734,7 @@ export class CopilotAgentSession extends Disposable {
 			if (this._lastAppliedPermissionMode === mode) {
 				return;
 			}
-			const result = await this._wrapper.session.rpc.permissions.setAllowAll({ mode });
+			const result = await this._wrapper.session.rpc.permissions.setMode({ mode });
 			if (!result.success || (result.mode !== undefined && result.mode !== mode)) {
 				throw new Error(`Copilot SDK rejected permission mode '${mode}'`);
 			}
@@ -4468,7 +4468,7 @@ export class CopilotAgentSession extends Disposable {
 			if (!toolCallId) {
 				return;
 			}
-			this._recordAutoApproval(toolCallId, e.data.promptRequest?.autoApproval);
+			this._recordAutoApproval(toolCallId, e.data.promptRequest?.assistedApproval);
 			const existing = this._toolApprovalRecords.get(toolCallId);
 			const permissionRequest = e.data.permissionRequest as { requestSandboxBypass?: boolean; toolName?: string };
 			this._toolApprovalRecords.set(toolCallId, {
@@ -4710,7 +4710,7 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 
-			const clientToolAutoApproved = contributor?.kind === ToolCallContributorKind.Client && this._lastAppliedPermissionMode === 'on';
+			const clientToolAutoApproved = contributor?.kind === ToolCallContributorKind.Client && this._lastAppliedPermissionMode === 'allow-all';
 			if (isToolSearch && clientToolAutoApproved) {
 				meta.autoApproveBySetting = true;
 			}
