@@ -466,9 +466,10 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			return 'No models available.';
 		}
 
-		// A qualified name is only usable as a selector when it maps back to this exact
-		// model. Custom/BYOK models configured under one vendor share a qualified name,
-		// so advertise their unambiguous identifier instead.
+		// A qualified name is only usable as a selector when it unambiguously maps
+		// back to its model. Custom/BYOK models configured under one vendor share a
+		// qualified name, so first exclude names that collide within the agent-mode
+		// list.
 		const qualifiedNameCounts = new Map<string, number>();
 		for (const { metadata } of models) {
 			const qualifiedName = ILanguageModelChatMetadata.asQualifiedName(metadata);
@@ -480,7 +481,16 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 
 		for (const { id, metadata } of models) {
 			const qualifiedName = ILanguageModelChatMetadata.asQualifiedName(metadata);
-			const selector = qualifiedNameCounts.get(qualifiedName) === 1 ? qualifiedName : id;
+			// Advertise the qualified name only when it is unique among agent-mode
+			// models *and* resolves back to this identifier. The second check
+			// matters because `lookupLanguageModelByQualifiedName` scans the whole
+			// model cache — including models excluded above (e.g. non-agent or
+			// session-targeted) — so a same-named model outside this list could
+			// otherwise win the lookup and make the advertised name resolve to the
+			// wrong model. Fall back to the unambiguous identifier when either
+			// check fails.
+			const resolvesToSelf = this.languageModelsService.lookupLanguageModelByQualifiedName(qualifiedName)?.identifier === id;
+			const selector = qualifiedNameCounts.get(qualifiedName) === 1 && resolvesToSelf ? qualifiedName : id;
 			const check = this.checkMultiplierConstraint(id, mainModelId);
 
 			if (check.exceeds) {

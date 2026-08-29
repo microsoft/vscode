@@ -12,7 +12,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agent.js';
-import { getByokLmSelectionModelId, resolveByokLmEnablement, type IByokLmModelInfo } from '../../common/agentHostByokLm.js';
+import { getByokLmAgentModelId, getByokLmSelectionModelId, getByokLmUnfoldedAgentModelId, resolveByokLmEnablement, type IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { AgentHostByokModelsEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { CopilotCliConfigKey, copilotCliConfigSchema, normalizeModelFamilyAlias, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverrideField } from '../../common/copilotCliConfig.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
@@ -486,13 +486,24 @@ export async function resolveByokSessionConfig(
 	// serving during a window hand-off (continuing a chat into a new session) —
 	// and the runtime rejects a session config with duplicate BYOK model
 	// selection ids ("Duplicate BYOK model selection id ...").
-	const seenSelectionIds = new Set<string>();
+	//
+	// The selection id is case-folded (see `getByokLmSelectionModelId`), so two
+	// *distinct* models whose ids differ only in case collapse onto one entry.
+	// That is a genuine collision, not a redundant re-report: keeping the first
+	// and warning is better than silently serving whichever bridge was seen
+	// first, and mirrors the runtime's own "one selection id, one model" rule.
+	const seenByFoldedSelectionId = new Map<string, string>();
 	byokModels = byokModels.filter(m => {
-		const selectionId = `${m.vendor}/${getByokLmSelectionModelId(m)}`;
-		if (seenSelectionIds.has(selectionId)) {
+		const foldedSelectionId = getByokLmAgentModelId(m);
+		const unfoldedSelectionId = getByokLmUnfoldedAgentModelId(m);
+		const previousUnfolded = seenByFoldedSelectionId.get(foldedSelectionId);
+		if (previousUnfolded !== undefined) {
+			if (previousUnfolded !== unfoldedSelectionId) {
+				logService.warn(`[Copilot:${sessionId}] Dropping BYOK model '${unfoldedSelectionId}': its case-folded selection id '${foldedSelectionId}' collides with '${previousUnfolded}'. Configure distinct model ids to expose both.`);
+			}
 			return false;
 		}
-		seenSelectionIds.add(selectionId);
+		seenByFoldedSelectionId.set(foldedSelectionId, unfoldedSelectionId);
 		return true;
 	});
 	// `startProxy` binds a local loopback listener — unlikely to fail, but it

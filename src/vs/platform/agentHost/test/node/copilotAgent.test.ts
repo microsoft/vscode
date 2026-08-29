@@ -4894,9 +4894,11 @@ suite('CopilotAgent', () => {
 			]);
 			const models = await waitForState(agent.models, models => models.length === 2);
 
+			// Agent-facing ids are case-folded so the runtime can match the id it
+			// advertises (it lower-cases candidate ids but not the requested id).
 			assert.deepStrictEqual(models.map(model => model.id), [
-				'google/Gemini Personal/gemini-2.5-pro',
-				'google/Gemini Work/gemini-2.5-pro',
+				'google/gemini personal/gemini-2.5-pro',
+				'google/gemini work/gemini-2.5-pro',
 			]);
 		} finally {
 			await disposeAgent(agent);

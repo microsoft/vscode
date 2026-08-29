@@ -202,10 +202,11 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 	 * Find the LM API identifier for a BYOK model addressed by its vendor and
 	 * provider-local id (the `provider/id` selection id the picker surfaced).
 	 *
-	 * The agent host advertises selection ids case-folded (see
-	 * {@link getByokLmSelectionModelId}), so the id coming back over the bridge
-	 * may differ in case from the registered model. Matching is therefore
-	 * case-insensitive on the provider-local id.
+	 * The agent host advertises both the vendor and the provider-local id
+	 * case-folded (see {@link getByokLmSelectionModelId} and
+	 * {@link getByokLmAgentModelId}), so the id coming back over the bridge may
+	 * differ in case from the registered model. Matching is therefore
+	 * case-insensitive on both the vendor and the provider-local id.
 	 */
 	private _resolveModelIdentifier(vendor: string, modelId: string): string | undefined {
 		const exactIdentifier = `${vendor}/${modelId}`;
@@ -213,10 +214,11 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 		if (exactMetadata?.isBYOK && exactMetadata.vendor === vendor) {
 			return exactIdentifier;
 		}
+		const foldedVendor = vendor.toLowerCase();
 		const foldedModelId = modelId.toLowerCase();
 		for (const identifier of this._languageModelsService.getLanguageModelIds()) {
 			const metadata = this._languageModelsService.lookupLanguageModel(identifier);
-			if (!metadata?.isBYOK || metadata.vendor !== vendor) {
+			if (!metadata?.isBYOK || metadata.vendor.toLowerCase() !== foldedVendor) {
 				continue;
 			}
 			if (metadata.id === modelId || metadata.id.toLowerCase() === foldedModelId) {
@@ -225,7 +227,7 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 			// The bridge addresses models by their advertised selection id, which
 			// keeps any configured provider group (`group/id`) that the metadata
 			// id alone does not carry.
-			if (getByokLmSelectionModelId({ vendor, id: metadata.id, modelIdentifier: identifier }) === foldedModelId) {
+			if (getByokLmSelectionModelId({ vendor: metadata.vendor, id: metadata.id, modelIdentifier: identifier }) === foldedModelId) {
 				return identifier;
 			}
 		}

@@ -190,9 +190,20 @@ export function getByokLmUnfoldedSelectionModelId(model: IByokLmModelInfo): stri
 		: model.id;
 }
 
-/** Returns the provider-qualified model id advertised by the agent host. */
+/**
+ * Returns the provider-qualified model id advertised by the agent host.
+ *
+ * The vendor is folded together with the selection id: the agent runtime
+ * compares a requested subagent model against the whole `vendor/[group/]id`
+ * string with the same one-sided case fold described on
+ * {@link getByokLmSelectionModelId}, so an upper-case character anywhere in the
+ * id — including the vendor — would make the model unable to match itself.
+ * Vendor ids are lower-case by VS Code convention, so in practice this only
+ * guards against an unusual provider registration, but folding the full id
+ * keeps the guarantee total rather than suffix-only.
+ */
 export function getByokLmAgentModelId(model: IByokLmModelInfo): string {
-	return `${model.vendor}/${getByokLmSelectionModelId(model)}`;
+	return `${model.vendor.toLowerCase()}/${getByokLmSelectionModelId(model)}`;
 }
 
 /** The pre-folding counterpart of {@link getByokLmAgentModelId}. */

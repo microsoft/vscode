@@ -215,9 +215,31 @@ suite('resolveByokSessionConfig', () => {
 		const config = await resolveByokSessionConfig(sessionId, registry, proxy.startProxy, log);
 		registration.dispose();
 
+		// Selection ids are case-folded so the agent runtime can match the id it
+		// advertises (it lower-cases candidate ids but not the requested id).
 		assert.deepStrictEqual(config.models, [
-			{ id: 'Gemini Personal/gemini-2.5-pro', provider: 'google' },
-			{ id: 'Gemini Work/gemini-2.5-pro', provider: 'google' },
+			{ id: 'gemini personal/gemini-2.5-pro', provider: 'google' },
+			{ id: 'gemini work/gemini-2.5-pro', provider: 'google' },
+		]);
+	});
+
+	test('drops a model whose folded selection id collides with an earlier one', async () => {
+		// Two distinct models whose group names differ only in case fold onto a
+		// single selection id. The runtime allows one model per selection id, so
+		// the launcher keeps the first and drops the second rather than emitting
+		// a duplicate the runtime would reject.
+		const registry = new ByokLmBridgeRegistry();
+		const registration = registry.register('client-1', connectionOf([
+			{ vendor: 'google', id: 'gemini-2.5-pro', modelIdentifier: 'google/Team/gemini-2.5-pro' },
+			{ vendor: 'google', id: 'gemini-2.5-pro', modelIdentifier: 'google/team/gemini-2.5-pro' },
+		]));
+		const proxy = countingProxy();
+
+		const config = await resolveByokSessionConfig(sessionId, registry, proxy.startProxy, log);
+		registration.dispose();
+
+		assert.deepStrictEqual(config.models, [
+			{ id: 'team/gemini-2.5-pro', provider: 'google' },
 		]);
 	});
 
