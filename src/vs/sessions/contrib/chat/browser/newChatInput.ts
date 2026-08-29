@@ -481,13 +481,11 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			disableDraftPersistence?: boolean;
 			/**
 			 * Render caller-owned controls at the leading edge of the bottom
-			 * controls row, before the session-type picker and session controls.
+			 * controls row, before the session controls.
 			 * Used by embedded composers (e.g. the automations dialog) to place
 			 * their own workspace/session-type pickers under the input.
 			 */
 			renderExtraControls?: (container: HTMLElement) => void;
-			/** Whether to render the session type picker in the controls row. Defaults to false. */
-			renderSessionTypePickerInControls?: boolean;
 		},
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
@@ -702,10 +700,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		if (this.options.renderExtraControls) {
 			const extraControlsContainer = dom.append(newChatControlsContainer, dom.$('.new-chat-extra-controls'));
 			this.options.renderExtraControls(extraControlsContainer);
-		}
-		if (this.options.renderSessionTypePickerInControls) {
-			const sessionTypePickerHost = dom.append(newChatControlsContainer, dom.$('.new-chat-session-type-picker-host'));
-			this.sessionTypePicker.render(sessionTypePickerHost);
 		}
 		const sessionControlsContainer = this._sessionControlsContainer = dom.append(newChatControlsContainer, dom.$('.new-chat-session-controls'));
 		this._register(this._scopedInstantiationService.createInstance(MenuWorkbenchToolBar, sessionControlsContainer, Menus.NewSessionControl, {
