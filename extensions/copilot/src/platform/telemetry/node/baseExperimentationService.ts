@@ -281,15 +281,17 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 	}
 
 	/**
-	 * Reads a treatment by its bare name, falling back to the `/vscode/`-scoped key when the bare
-	 * lookup misses. This is an interim workaround until it is fixed upstream: the new TAS assignments endpoint
-	 * namespaces its returned feature variable keys with a `/vscode/` scope, so treatments served
-	 * only by the new endpoint would otherwise miss the bare lookup.
+	 * Reads a treatment, preferring the `/vscode/`-scoped key over the bare key. Interim workaround
+	 * till its fixed upstream: the new TAS assignments endpoint namespaces its returned feature
+	 * variable keys with a `/vscode/` scope that vscode-tas-client does not strip. Reading the
+	 * scoped key first makes the new endpoint win over the legacy (bare) key when both assign a
+	 * treatment - matching the behavior once the scope is stripped upstream - while still resolving
+	 * legacy-only treatments from the bare key.
 	 */
 	private _readTreatmentVariable<T extends boolean | number | string>(name: string): T | undefined {
-		let result = this._delegate.getTreatmentVariable('vscode', name) as T | undefined;
+		let result = this._delegate.getTreatmentVariable('vscode', `${ASSIGNMENTS_SCOPE_PREFIX}${name}`) as T | undefined;
 		if (result === undefined) {
-			result = this._delegate.getTreatmentVariable('vscode', `${ASSIGNMENTS_SCOPE_PREFIX}${name}`) as T | undefined;
+			result = this._delegate.getTreatmentVariable('vscode', name) as T | undefined;
 		}
 		return result;
 	}

@@ -135,6 +135,13 @@ class MockTASExperimentationService implements ITASExperimentationService {
 			return undefined;
 		}
 
+		// This suite models treatments served by the legacy endpoint (bare keys). The new
+		// assignments endpoint does not assign these, so scoped lookups resolve to undefined,
+		// exercising the service's bare-key fallback.
+		if (name.startsWith('/vscode/')) {
+			return undefined;
+		}
+
 		const org = this.userInfoStore.internalOrg;
 		const sku = this.userInfoStore.sku;
 
@@ -837,14 +844,14 @@ describe('ExP Service delegate recreation', () => {
 		service.dispose();
 	});
 
-	it('prefers the bare treatment key over the /vscode/ scoped fallback', () => {
+	it('prefers the /vscode/ scoped key (new endpoint) over the bare key on collision', () => {
 		const service = create();
 		const delegate = service.delegates[0];
 
 		delegate.setTreatment('config.foo', 'bare');
 		delegate.setTreatment('/vscode/config.foo', 'scoped');
 
-		expect(service.getTreatmentVariable<string>('config.foo')).toBe('bare');
+		expect(service.getTreatmentVariable<string>('config.foo')).toBe('scoped');
 
 		service.dispose();
 	});
