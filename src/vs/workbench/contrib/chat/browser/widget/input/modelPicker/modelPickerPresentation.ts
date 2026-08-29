@@ -5,6 +5,7 @@
 
 import { localize } from '../../../../../../../nls.js';
 import { ILanguageModelChatMetadataAndIdentifier, isAutoLanguageModel } from '../../../../common/languageModels.js';
+import { ChatEntitlement } from '../../../../../../services/chat/common/chatEntitlementService.js';
 
 export function isAutoModel(model: ILanguageModelChatMetadataAndIdentifier): boolean {
 	return isAutoLanguageModel(model);
@@ -36,6 +37,17 @@ export function getPriceCategoryLabel(priceCategory: string | undefined): string
 export const enum ModelPickerUnavailableReason {
 	Restricted = 'restricted',
 	SetupRequired = 'setupRequired',
+}
+
+export function modelPickerRequiresSetup(context: {
+	readonly entitlement: ChatEntitlement;
+	readonly anonymous: boolean;
+	readonly hasByokModels: boolean;
+}): boolean {
+	return context.entitlement === ChatEntitlement.Available
+		|| (context.entitlement === ChatEntitlement.Unknown
+			&& !context.anonymous
+			&& !context.hasByokModels);
 }
 
 export function getModelPickerUnavailableReason(context: {

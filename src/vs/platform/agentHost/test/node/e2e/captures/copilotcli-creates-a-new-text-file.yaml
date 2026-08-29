@@ -6,34 +6,34 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Create result.txt containing exactly CREATED_VALUE.
+          content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').writeFileSync(''result.txt'',''CREATED_VALUE'')"`. Then reply exactly "done".'
     response:
       content:
         - type: tool_use
           id: toolcall_0
-          name: create
+          name: ${shell}
           input:
-            path: ${workdir}/ahp-coverage-create-${temp}/result.txt
-            file_text: CREATED_VALUE
+            command: node -e "require('fs').writeFileSync('result.txt','CREATED_VALUE')"
+            description: Write result.txt with created value
       stopReason: tool_use
   - request:
       model: claude-sonnet-5
       system: ${system}
       messages:
         - role: user
-          content: Create result.txt containing exactly CREATED_VALUE.
+          content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').writeFileSync(''result.txt'',''CREATED_VALUE'')"`. Then reply exactly "done".'
         - role: assistant
           content:
             - type: tool_use
-              name: create
+              name: bash
               input:
-                path: ${workdir}/ahp-coverage-create-${temp}/result.txt
-                file_text: CREATED_VALUE
+                command: node -e "require('fs').writeFileSync('result.txt','CREATED_VALUE')"
+                description: Write result.txt with created value
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: Created file ${workdir}/ahp-coverage-create-${temp}/result.txt with 13 characters
+              content: '<shellId: 0 completed with exit code 0>'
     response:
-      content: Created result.txt with the exact content `CREATED_VALUE`.
+      content: done
       stopReason: end_turn

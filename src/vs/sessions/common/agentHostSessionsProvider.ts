@@ -6,13 +6,16 @@
 import { Event } from '../../base/common/event.js';
 import { IObservable } from '../../base/common/observable.js';
 import { equals } from '../../base/common/objects.js';
+import { ThemeIcon } from '../../base/common/themables.js';
 import { URI } from '../../base/common/uri.js';
 import { AuthenticateParams, AuthenticateResult, IAgentConnection } from '../../platform/agentHost/common/agentService.js';
 import { RemoteAgentHostConnectionStatus } from '../../platform/agentHost/common/remoteAgentHostService.js';
 import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentCustomization, Customization, McpServerStatus, RootConfigState, type McpServerState, type RootState } from '../../platform/agentHost/common/state/protocol/state.js';
+import { AgentCustomization, Customization, McpServerStatus, RootConfigState, type CustomizationEnablement, type McpServerState, type RootState, type TextRange } from '../../platform/agentHost/common/state/protocol/state.js';
+import { type CustomizationDisabledReason } from '../../platform/agentHost/common/customizationEnablement.js';
 import { ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
 import { ISessionAgentRef } from '../services/sessions/common/session.js';
+import type { AgentMergeSessionOverrides, AgentMergeSessionState } from '../../platform/agentHost/common/agentMerge.js';
 
 /**
  * Progress emitted while an agent-host provider is establishing a connection.
@@ -20,6 +23,31 @@ import { ISessionAgentRef } from '../services/sessions/common/session.js';
 export interface IAgentHostConnectProgress {
 	readonly connectionKey: string;
 	readonly message: string;
+}
+
+/**
+ * Declares that a provider is one of many interchangeable members of a single
+ * user-facing host. Members collapse into one `IAgentHostFilterEntry` that
+ * scopes the sessions list to all of them; hosts that are a place of their own
+ * (a tunnel machine, a WSL distro, an SSH target) leave this undefined.
+ */
+export interface IAgentHostGroup {
+	/** Stable id shared by every member, and the filter key of the collapsed entry. */
+	readonly id: string;
+	/** Display name of the collapsed entry (e.g. "GitHub Sandboxes"). */
+	readonly label: string;
+	/** Icon for the collapsed entry. Falls back to the generic remote icon. */
+	readonly icon?: ThemeIcon;
+	/**
+	 * Sort rank of the collapsed entry among host filter entries; lower comes
+	 * first. Ungrouped hosts rank `0`. Defaults to `0`.
+	 */
+	readonly order?: number;
+	/**
+	 * Whether the collapsed entry offers a manual connect/disconnect toggle.
+	 * `false` for groups whose members connect implicitly. Defaults to `true`.
+	 */
+	readonly connectable?: boolean;
 }
 
 /**
@@ -31,8 +59,15 @@ export interface IAgentHostMcpServer {
 	readonly id: string;
 	readonly name: string;
 	readonly enabled: boolean;
+	readonly enablement?: readonly CustomizationEnablement[];
+	readonly isPluginProvided?: boolean;
+	readonly isClientBundled?: boolean;
+	readonly owningPluginClientId?: string;
+	readonly disabledReason?: CustomizationDisabledReason;
 	readonly status: McpServerStatus;
 	readonly state: McpServerState;
+	readonly sourceUri?: URI;
+	readonly sourceRange?: TextRange;
 	readonly logOutputChannelId?: string;
 	/** Starts or restarts the server. Providers that cannot control lifecycle may no-op. */
 	start(): Promise<void>;
@@ -53,6 +88,24 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	readonly onDidReportConnectProgress?: Event<IAgentHostConnectProgress>;
 	/** Remote address string, present on remote providers. */
 	readonly remoteAddress?: string;
+	/**
+	 * Set when this provider is one member of a larger user-facing host (see
+	 * {@link IAgentHostGroup}). Members share one host filter entry instead of
+	 * getting one each.
+	 */
+	readonly hostGroup?: IAgentHostGroup;
+	/**
+	 * Stable preference key used to persist/read a
+	 * {@link IRemoteAgentHostLocationPreferenceService} choice for this
+	 * host, present on remote providers. Distinct from {@link remoteAddress}
+	 * for SSH hosts, whose live address is a forwarded local endpoint (e.g.
+	 * `localhost:4321`) rather than the stable `ssh:<alias>` (or
+	 * `user@host:port`) key `computeSSHConnectionKey()` and
+	 * `SSHRemoteAgentHostService` key preferences by. Providers with no
+	 * separate stable identity (tunnels, WSL, cloud sandbox) may omit this;
+	 * consumers should fall back to {@link remoteAddress}.
+	 */
+	readonly remoteLocationPreferenceKey?: string;
 	/**
 	 * Establish (or re-establish) the connection for this host on demand.
 	 * Tears down any existing connection first. Present on remote providers
@@ -77,6 +130,15 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 * because the user can't recover from it via a click.
 	 */
 	readonly canConnectOnDemand?: boolean;
+
+	// -- Dev Container drafts (optional, local provider only) --
+
+	/** Whether this draft's workspace supports Dev Container execution. */
+	isDevContainerAvailable?(sessionId: string): boolean;
+	/** Whether this draft should be prepared on a Dev Container Agent Host. */
+	isDevContainerEnabled?(sessionId: string): boolean;
+	/** Set whether this draft should run on a Dev Container Agent Host. */
+	setDevContainerEnabled?(sessionId: string, enabled: boolean): void;
 
 	// -- Dynamic Session Config --
 
@@ -113,6 +175,12 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	getCreateSessionConfig(sessionId: string): Record<string, unknown> | undefined;
 	/** Clears dynamic configuration state for an abandoned new session. */
 	clearSessionConfig(sessionId: string): void;
+	/** Returns the persisted Agent Merge state for a running session. */
+	getAgentMergeSessionState(sessionId: string): AgentMergeSessionState | undefined;
+	/** Enables or disables Agent Merge while preserving the session's action overrides. */
+	setAgentMergeEnabled(sessionId: string, enabled: boolean): Promise<void>;
+	/** Replaces the session's Agent Merge action overrides; `undefined` follows global defaults. */
+	setAgentMergeOverrides(sessionId: string, overrides: AgentMergeSessionOverrides | undefined): Promise<void>;
 
 	// -- Root (agent host) Config --
 
@@ -171,8 +239,7 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 
 	/**
 	 * Returns the full ordered set of working-directory roots for the session
-	 * (index 0 = primary), or an empty array when none are known. Used as the
-	 * workspace identity for durable MCP-server enablement.
+	 * (index 0 = primary), or an empty array when none are known.
 	 */
 	getWorkingDirectories(sessionId: string): readonly string[];
 
@@ -183,6 +250,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 * servers.
 	 */
 	getMcpServers(sessionId: string): readonly IAgentHostMcpServer[];
+	/** Replaces an agent-host customization's explicit enablement decisions. */
+	setCustomizationEnablement(sessionId: string, customizationId: string, enablement: readonly CustomizationEnablement[]): void;
 
 	/**
 	 * Set (or clear) the selected custom agent for a session. Optional so
@@ -220,14 +289,6 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 }
 
 export const LOCAL_AGENT_HOST_PROVIDER_ID = 'local-agent-host';
-
-/**
- * Experimental setting id controlling whether the local agent host acts as the
- * default sessions provider. When enabled (and `chat.agentHost.enabled` is
- * true), the local agent host's session types are surfaced before those of
- * other providers. Defaults to `true`.
- */
-export const LocalAgentHostDefaultProviderSettingId = 'chat.agentHost.defaultSessionsProvider';
 
 export const REMOTE_AGENT_HOST_PROVIDER_PREFIX = 'agenthost-';
 export const REMOTE_AGENT_HOST_PROVIDER_RE = /^agenthost-/;

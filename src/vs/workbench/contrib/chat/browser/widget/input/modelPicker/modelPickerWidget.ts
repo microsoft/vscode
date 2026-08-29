@@ -22,14 +22,17 @@ import { localize } from '../../../../../../../nls.js';
 import { IActionListHeaderLink } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
+import { AgentHostAllowSignedOutWhenUsableSettingId } from '../../../../../../../platform/agentHost/common/agentService.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { TelemetryTrustedValue } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../common/languageModels.js';
-import { chatRequiresSetup, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
+import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../../common/languageModelSourcePresentation.js';
+import { IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
 import { IModelPickerDelegate } from './modelPickerActionItem.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../actions/chatActions.js';
 import { IUriIdentityService } from '../../../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -37,11 +40,12 @@ import { GitHubPaths, IDefaultAccountService } from '../../../../../../../platfo
 import { IUpdateService } from '../../../../../../../platform/update/common/update.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../../platform/workspace/common/workspaceTrust.js';
+import { getCompactCodicon } from '../../../chatIcons.js';
 import { withChatInputPickerMotion } from '../chatInputPickerActionItem.js';
 import { buildModelPickerItems, createManageModelsAction, getModelPickerAccessibilityProvider, getModelPickerControlModels, ModelPickerSection, shouldShowManageModelsAction } from './modelPickerItems.js';
 import { ModelPickerConfiguration } from './modelPickerConfiguration.js';
-import { getModelPickerIcon } from './modelProviderIcons.js';
-import { getModelPickerUnavailableReason, isAutoModel, ModelPickerUnavailableReason, shouldShowCacheBreakHint as computeShouldShowCacheBreakHint } from './modelPickerPresentation.js';
+import { getCompactModelPickerIcon } from './modelProviderIcons.js';
+import { getModelPickerUnavailableReason, isAutoModel, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint as computeShouldShowCacheBreakHint } from './modelPickerPresentation.js';
 
 const CACHE_BREAK_HINT_DISMISSED_STORAGE_KEY = 'chat.cacheBreakHintDismissed';
 type ChatModelChangeClassification = {
@@ -139,6 +143,7 @@ export class ModelPickerWidget extends Disposable {
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
@@ -248,13 +253,7 @@ export class ModelPickerWidget extends Disposable {
 	}
 
 	private _requiresSetup(): boolean {
-		const sentiment = this._entitlementService.sentiment;
-		return chatRequiresSetup({
-			completed: !!sentiment.completed,
-			disabled: !!sentiment.disabled,
-			// Don't derive `untrusted` from sentiment (it lags after a Trust grant): trust is handled
-			// authoritatively by the Restricted branch, which runs first, so it's false here.
-			untrusted: false,
+		return modelPickerRequiresSetup({
 			entitlement: this._entitlementService.entitlement,
 			anonymous: this._entitlementService.anonymous,
 			hasByokModels: this._entitlementService.hasByokModels,
@@ -475,6 +474,7 @@ export class ModelPickerWidget extends Disposable {
 				...presentation,
 				restrictedMode: this.isRestrictedMode(),
 				setupRequired: this.isSetupRequired(),
+				showManageModelsInSetupRequired: this._configurationService.getValue<boolean>(AgentHostAllowSignedOutWhenUsableSettingId) === true,
 				isUBB: !!this._entitlementService.quotas.usageBasedBilling,
 			},
 			actions: {
@@ -562,7 +562,7 @@ export class ModelPickerWidget extends Disposable {
 	private _updateBadge(): void {
 		if (this._badgeIcon) {
 			if (this._badge) {
-				const icon = this._badge === 'info' ? Codicon.info : Codicon.warning;
+				const icon = this._badge === 'info' ? Codicon.info : Codicon.warningCompact;
 				dom.reset(this._badgeIcon, renderIcon(icon));
 				this._badgeIcon.style.display = '';
 				this._badgeIcon.classList.toggle('info', this._badge === 'info');
@@ -578,7 +578,9 @@ export class ModelPickerWidget extends Disposable {
 			return;
 		}
 
-		const { name } = this._selectedModel?.metadata || {};
+		const name = this._selectedModel
+			? getLanguageModelDisplayNameWithSubscriptionSource(this._selectedModel)
+			: undefined;
 
 		const { reason, activating, genericNoModels, noModels: noModelsAvailable } = this._availability();
 		const restrictedMode = reason === ModelPickerUnavailableReason.Restricted;
@@ -588,7 +590,9 @@ export class ModelPickerWidget extends Disposable {
 		// --- Name section ---
 		const nameChildren: (HTMLElement | string)[] = [];
 		const modelIcon = this._selectedModel
-			? (this._selectedModel.metadata.statusIcon ?? (this._delegate.getPresentationOptions().showModelIcon ? getModelPickerIcon(this._selectedModel) : undefined))
+			? (this._delegate.getPresentationOptions().showModelIcon
+				? getCompactModelPickerIcon(this._selectedModel)
+				: this._selectedModel.metadata.statusIcon ? getCompactCodicon(this._selectedModel.metadata.statusIcon) : undefined)
 			: undefined;
 		const compact = this._compact?.get() ?? false;
 		if (modelIcon && !noModelsAvailable) {
@@ -605,13 +609,16 @@ export class ModelPickerWidget extends Disposable {
 				: genericNoModels
 					? localize('chat.modelPicker.noModels', "No models available")
 					: (name ?? localize('chat.modelPicker.auto', "Auto"));
-		if (!compact || !modelIcon || noModelsAvailable) {
+		const showModelLabel = !compact || !modelIcon || noModelsAvailable;
+		if (showModelLabel) {
 			nameChildren.push(dom.$('span.chat-input-picker-label', undefined, modelLabel));
 		}
 		if (this._badgeIcon) {
 			nameChildren.push(this._badgeIcon);
 		}
 		dom.reset(this._nameButton, ...nameChildren);
+
+		this._domNode.classList.toggle('icon-only', !showModelLabel);
 
 		if (this._configButton) {
 			this._configuration.renderButton(this._configButton, compact, noModelsAvailable);

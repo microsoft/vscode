@@ -3,23 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout } from '../../../../base/common/async.js';
+import { disposableTimeout, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
-import { IObservable, autorun } from '../../../../base/common/observable.js';
+import { IObservable, autorun, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { localize } from '../../../../nls.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../common/session.js';
 import { IActiveSession, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, inheritableSessionTarget, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
+import { ensureSessionWorktreesTrusted } from './worktreeTrust.js';
+import { ClosedItemHistory } from './closedItemHistory.js';
 import { SessionsNavigation } from './sessionNavigation.js';
 import { SessionsRecencyHistory } from './sessionsRecencyHistory.js';
 import { VisibleSessions } from './visibleSessions.js';
@@ -28,8 +30,13 @@ import { ISessionsPartService } from './sessionsPartService.js';
 import { ICustomViewService } from '../../customView/browser/customViewService.js';
 import { IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { setActiveSessionContextKeys } from '../common/sessionContextKeys.js';
+import { ISessionChangesStatsCache } from '../common/sessionChangesStatsCache.js';
+import { ISessionOpenTelemetryAttempt, ISessionOpenTelemetryService, SessionOpenSource } from './sessionOpenTelemetryService.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
+
+/** Upper bound on redirecting every persisted slot before the grid is restored. */
+const RESTORE_RESOLVE_BUDGET_MS = 10_000;
 
 /**
  * Upper bound on how long restore waits for a persisted session to resurface
@@ -65,6 +72,21 @@ export interface IOpenNewSessionOptions extends ICreateNewSessionOptions {
 export interface IOpenNewSessionResult {
 	readonly session: ISession | undefined;
 	readonly trustDeclined: boolean;
+}
+
+/** Options for {@link ISessionsService.closeChat}. */
+export interface ICloseChatOptions {
+	/**
+	 * Do not remember the chat as the most recently closed item. Used by batch
+	 * closes (e.g. "Close All Chats"), where remembering just the final chat of
+	 * the batch would make one arbitrary member of it reopenable.
+	 */
+	readonly skipHistory?: boolean;
+}
+
+export interface IOpenSessionOptions {
+	readonly preserveFocus?: boolean;
+	readonly source?: SessionOpenSource;
 }
 
 /**
@@ -130,6 +152,9 @@ export interface ISessionsService {
 	 */
 	readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>;
 
+	/** Whether the initial persisted visible-session restore has settled. */
+	readonly initialRestoreComplete: IObservable<boolean>;
+
 	/** Fires after a session's stickiness was toggled via {@link toggleSessionStickiness}. */
 	readonly onDidToggleSessionStickiness: Event<IToggleSessionStickinessEvent>;
 
@@ -145,22 +170,56 @@ export interface ISessionsService {
 	getRecentlyOpenedSessions(): IRecentlyOpenedSessions;
 
 	/**
+	 * Synchronously select an existing session as active and show it in the grid
+	 * without waiting for its provider-backed state to load.
+	 */
+	showSession(sessionResource: URI, options?: { preserveFocus?: boolean }): void;
+
+	/**
 	 * Select an existing session as the active session and show it in the grid.
 	 * When `options.preserveFocus` is set, the session is shown without moving
 	 * keyboard focus into it.
 	 */
-	openSession(sessionResource: URI, options?: { preserveFocus?: boolean }): Promise<void>;
+	openSession(sessionResource: URI, options?: IOpenSessionOptions): Promise<void>;
+
+	/** Place a session to the right of the last visible session and activate it. */
+	openSessionToSide(session: ISession, options?: IOpenSessionOptions & { chatResource?: URI }): Promise<void>;
+
+	/** Open a chat to the side of its session view, redirecting a superseded resource first. */
+	openChatToSide(session: ISession, chatResource: URI, options?: { preserveFocus?: boolean }): Promise<void>;
+
+	/**
+	 * Whether the given session may be opened, honoring workspace trust. Prompts
+	 * for trust on any untrusted folder the session runs in and resolves to
+	 * `false` if the user declines.
+	 */
+	canOpenSession(session: ISession): Promise<boolean>;
 
 	/**
 	 * Open a specific chat within a session and show it in the grid.
+	 * When `options.preserveFocus` is set, the chat is shown without moving
+	 * keyboard focus into it.
 	 */
-	openChat(session: ISession, chatUri: URI): Promise<void>;
+	openChat(session: ISession, chatUri: URI, options?: IOpenSessionOptions): Promise<void>;
 
 	/**
 	 * Close a chat from the session view. The chat is hidden from the tab strip
 	 * and can be reopened from the session header's chats dropdown.
 	 */
-	closeChat(session: IActiveSession, chat: IChat): Promise<void>;
+	closeChat(session: IActiveSession, chat: IChat, options?: ICloseChatOptions): Promise<void>;
+
+	/**
+	 * Reopen the single most recently closed chat or session and focus it.
+	 *
+	 * A closed chat is un-hidden in its session. A session that was closed
+	 * explicitly returns to the grid at the index it occupied; a session that
+	 * was pushed out of the grid by a newly opened one takes its slot back,
+	 * removing the session that replaced it.
+	 *
+	 * The entry is consumed, so pressing the shortcut repeatedly does not walk
+	 * further back through history. No-op when nothing is remembered.
+	 */
+	reopenLastClosedItem(): Promise<void>;
 
 	/**
 	 * Open the new-session composer.
@@ -265,8 +324,13 @@ export class SessionsService extends Disposable implements ISessionsService {
 	private readonly _visibility: VisibleSessions;
 	readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>;
 
+	/** Remembers the single most recently closed chat or session for {@link reopenLastClosedItem}. */
+	private readonly _closedItems: ClosedItemHistory;
+
 	/** The canonical active session — the visible active slot. */
 	readonly activeSession: IObservable<IActiveSession | undefined>;
+	private readonly _initialRestoreComplete = observableValue<boolean>(this, false);
+	readonly initialRestoreComplete: IObservable<boolean> = this._initialRestoreComplete;
 
 	private readonly _isNewChatSessionContext: IContextKey<boolean>;
 
@@ -282,6 +346,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 	private readonly _restoreCts = this._register(new MutableDisposable<CancellationTokenSource>());
 
 	private readonly _sessionStates: ResourceMap<ISessionState>;
+	private readonly _pendingRestoredChatResources = new ResourceMap<URI>();
 	private readonly _navigation: SessionsNavigation;
 	/**
 	 * The single source of truth for session recency (most-recently-opened
@@ -312,6 +377,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 		@ICustomViewService private readonly customViewService: ICustomViewService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@ISessionChangesStatsCache private readonly changesStatsCache: ISessionChangesStatsCache,
+		@ISessionOpenTelemetryService private readonly sessionOpenTelemetryService: ISessionOpenTelemetryService,
 	) {
 		super();
 
@@ -324,9 +392,16 @@ export class SessionsService extends Disposable implements ISessionsService {
 			VisibleSessions,
 			session => this._restoreInitialChat(session),
 			session => this._restoreClosedChats(session),
+			(replaced, index, sticky, replacedBySessionId) => this._closedItems.recordReplacedSlot(replaced, index, sticky, replacedBySessionId),
 		));
 		this.visibleSessions = this._visibility.visibleSessions;
 		this.activeSession = this._visibility.activeSession;
+
+		this._closedItems = this._register(this.instantiationService.createInstance(
+			ClosedItemHistory,
+			this._visibility,
+			(session, chatResource) => this.openChat(session, chatResource),
+		));
 
 		// Bind active-session context keys. These reflect the visible active
 		// slot (the view's `activeSession`); `isNewChatSession` also consults
@@ -367,7 +442,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			// sent for the first time). Scoping to the active session avoids flipping
 			// into "new chat" mode while viewing a different established session.
 			this._isNewChatSessionContext.set(activeSession === undefined || activeSession.sessionId === newSession?.sessionId);
-			setActiveSessionContextKeys(activeSession, this.contextKeyService, reader);
+			setActiveSessionContextKeys(activeSession, this.contextKeyService, reader, this.changesStatsCache);
 		}));
 
 		// Per-active-session view reactions (archived → new-session view,
@@ -394,9 +469,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// one disappears.
 		this._register(this.sessionsManagementService.onDidChangeSessions(e => this._onDidChangeSessions(e)));
 
-		// Reflect provider session replacement (e.g. a draft graduating into a
-		// committed session) onto the grid slot.
+		// Reflect both provider session replacement (e.g. a draft graduating)
+		// and pre-send draft replacement onto the same visible grid slot.
 		this._register(this.sessionsManagementService.onDidReplaceSession(({ from, to }) => this._onDidReplaceSession(from, to)));
+		this._register(this.sessionsManagementService.onDidReplaceNewDraftSession(({ from, to }) => this._onDidReplaceSession(from, to)));
 
 		// While a foreground send materialises new chats, keep the newest chat
 		// active in the visible slot so the user sees the chat being sent.
@@ -444,6 +520,21 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	private _activeSessionViewListeners(activeSession: IActiveSession): IDisposable {
 		const disposables = new DisposableStore();
+		const initialChatResource = activeSession.activeChat.get()?.resource;
+		let pendingRestoredChatResource: URI | undefined;
+		this._pendingRestoredChatResources.delete(activeSession.resource);
+		const storedActiveChatResource = this._sessionStates.get(activeSession.resource)?.activeChatResource;
+		if (storedActiveChatResource) {
+			try {
+				const resource = URI.parse(storedActiveChatResource);
+				if (!initialChatResource || !this.uriIdentityService.extUri.isEqual(resource, initialChatResource)) {
+					pendingRestoredChatResource = resource;
+					this._pendingRestoredChatResources.set(activeSession.resource, resource);
+				}
+			} catch (error) {
+				this.logService.warn('[SessionsView] Failed to restore active chat from stored session state', error);
+			}
+		}
 
 		// When the active session becomes archived, return to the new-session
 		// view (or the quick-chat composer for a quick chat), keeping context.
@@ -479,6 +570,23 @@ export class SessionsService extends Disposable implements ISessionsService {
 			}));
 		}
 
+		if (pendingRestoredChatResource) {
+			disposables.add(autorun(reader => {
+				const resource = pendingRestoredChatResource;
+				if (!resource) {
+					return;
+				}
+				const chat = activeSession.chats.read(reader).find(candidate =>
+					this.uriIdentityService.extUri.isEqual(candidate.resource, resource));
+				if (chat) {
+					pendingRestoredChatResource = undefined;
+					this._pendingRestoredChatResources.delete(activeSession.resource);
+					this._visibility.openChat(activeSession, chat);
+					this._visibility.setActiveChat(activeSession, chat);
+				}
+			}));
+		}
+
 		// Track active chat changes to persist per-session state. The visible /
 		// active / sticky flags are snapshotted from the live grid at save time
 		// (see `_snapshotVisibleSessionStates`); here we only remember the last
@@ -489,6 +597,11 @@ export class SessionsService extends Disposable implements ISessionsService {
 		disposables.add(autorun(reader => {
 			const chat = activeSession.activeChat.read(reader);
 			if (chat && chat.status.read(undefined) !== SessionStatus.Untitled) {
+				if (pendingRestoredChatResource && initialChatResource && this.uriIdentityService.extUri.isEqual(chat.resource, initialChatResource)) {
+					return;
+				}
+				pendingRestoredChatResource = undefined;
+				this._pendingRestoredChatResources.delete(activeSession.resource);
 				const existing = this._sessionStates.get(activeSession.resource);
 				this._sessionStates.set(activeSession.resource, {
 					...existing,
@@ -523,7 +636,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (e.removed.length && e.removed.some(r => r.sessionId === currentActive.sessionId)) {
 			const fallback = this._visibility.activeSession.get();
 			if (fallback && this.sessionsManagementService.getSession(fallback.resource)) {
-				this.openSession(fallback.resource);
+				this.openSession(fallback.resource, { source: 'fallback' });
 			} else {
 				this.openNewSession();
 			}
@@ -621,12 +734,40 @@ export class SessionsService extends Disposable implements ISessionsService {
 		return this._visibility.setActive(session, preserveFocus);
 	}
 
-	async openChat(session: ISession, chatUri: URI): Promise<void> {
+	async openChat(session: ISession, chatUri: URI, options?: IOpenSessionOptions): Promise<void> {
 		const t0 = Date.now();
 		this._cancelRestore();
 		const token = this._startOpenSession();
+		// Redirect a superseded resource (e.g. a legacy session adopted into another
+		// provider) before activating, the same way `openSession` does for a URI, so
+		// opening by object migrates rather than activating the old facade as-is.
+		const resolved = await this._resolveSessionForOpen(session, chatUri);
+		if (token.isCancellationRequested) {
+			return;
+		}
+		session = resolved.session;
+		chatUri = resolved.chatUri ?? chatUri;
+		if (options?.source) {
+			await this.sessionOpenTelemetryService.withOpenRequest(options.source, token, telemetryAttempt =>
+				this._openChat(session, chatUri, options.preserveFocus, token, t0, telemetryAttempt));
+			return;
+		}
+		await this._openChat(session, chatUri, options?.preserveFocus, token, t0);
+	}
+
+	private async _openChat(session: ISession, chatUri: URI, preserveFocus: boolean | undefined, token: CancellationToken, startTime: number, telemetryAttempt?: ISessionOpenTelemetryAttempt): Promise<void> {
+		if (telemetryAttempt) {
+			this.sessionOpenTelemetryService.sessionResolved(
+				telemetryAttempt,
+				session.resource,
+				session.providerId,
+				this.activeSession.get()?.sessionId === session.sessionId,
+				session.loading.get(),
+			);
+			this.sessionOpenTelemetryService.sessionActivated(telemetryAttempt, chatUri);
+		}
 		this.logService.trace(`[SessionsView] openChat start uri=${chatUri.toString()} provider=${session.providerId}`);
-		this._activate(session);
+		this._activate(session, preserveFocus);
 		if (!await this._waitForSessionToLoad(session, token)) {
 			this.logService.trace(`[SessionsView] openChat cancelled while waiting for session to load uri=${chatUri.toString()}`);
 			return;
@@ -644,20 +785,33 @@ export class SessionsService extends Disposable implements ISessionsService {
 				this._setChatClosedState(session, chat, false);
 			}
 		}
+		if (telemetryAttempt) {
+			if (chat) {
+				this.sessionOpenTelemetryService.sessionActivated(telemetryAttempt, chat.resource);
+			}
+			this.sessionOpenTelemetryService.sessionLoaded(telemetryAttempt);
+		}
 
 		if (chat && chat.status.get() === SessionStatus.Untitled) {
-			this.logService.trace(`[SessionsView] openChat done total=${Date.now() - t0}ms uri=${chatUri.toString()} path=untitled`);
+			this.logService.trace(`[SessionsView] openChat done total=${Date.now() - startTime}ms uri=${chatUri.toString()} path=untitled`);
 			return;
 		}
 
-		this.logService.trace(`[SessionsView] openChat done total=${Date.now() - t0}ms uri=${chatUri.toString()}`);
+		this.logService.trace(`[SessionsView] openChat done total=${Date.now() - startTime}ms uri=${chatUri.toString()}`);
 	}
 
-	async closeChat(session: IActiveSession, chat: IChat): Promise<void> {
+	async closeChat(session: IActiveSession, chat: IChat, options?: ICloseChatOptions): Promise<void> {
 		// Closing hides the chat from the tab strip; it stays reopenable from the
 		// session header's chats dropdown.
 		this._visibility.closeChat(session, chat);
 		this._setChatClosedState(session, chat, true);
+		if (!options?.skipHistory) {
+			this._closedItems.recordClosedChat(session, chat.resource);
+		}
+	}
+
+	reopenLastClosedItem(): Promise<void> {
+		return this._closedItems.reopenLast();
 	}
 
 	/**
@@ -692,27 +846,180 @@ export class SessionsService extends Disposable implements ISessionsService {
 		});
 	}
 
-	async openSession(sessionResource: URI, options?: { preserveFocus?: boolean }): Promise<void> {
+	async openSession(sessionResource: URI, options?: IOpenSessionOptions): Promise<void> {
+		this.logService.trace(`[SessionsView] openSession requested uri=${sessionResource.toString()}`);
+		// Claim the open before resolving: resolution can take seconds for a legacy
+		// Copilot CLI resource, and a newer open must win regardless of which
+		// resolution finishes first.
 		this._cancelRestore();
 		const token = this._startOpenSession();
-		await this._doOpenSession(sessionResource, token, options);
+		await this.sessionOpenTelemetryService.withOpenRequest(options?.source ?? 'unknown', token, async telemetryAttempt => {
+			// Redirect a superseded resource (legacy session adopted into another
+			// provider) before lookup, so an open by URI migrates rather than reaching
+			// the old provider. Providers decline unfamiliar resources and the caller
+			// keeps the original resource.
+			const resolved = await this.sessionsManagementService.resolveSessionResource(sessionResource, 'open');
+			if (token.isCancellationRequested) {
+				return;
+			}
+			const sessionData = this._getSession(resolved);
+			this.sessionOpenTelemetryService.sessionResolved(
+				telemetryAttempt,
+				sessionData.resource,
+				sessionData.providerId,
+				this.activeSession.get()?.sessionId === sessionData.sessionId,
+				sessionData.loading.get(),
+			);
+			this._showSession(sessionData, options);
+			await this._waitForOpenSessionToLoad(sessionData, token, telemetryAttempt);
+		});
 	}
 
-	private async _doOpenSession(sessionResource: URI, token: CancellationToken, options?: { preserveFocus?: boolean }): Promise<void> {
-		const t0 = Date.now();
+	showSession(sessionResource: URI, options?: { preserveFocus?: boolean }): void {
+		this._cancelRestore();
+		this._startOpenSession();
+		this._showSession(this._getSession(sessionResource), options);
+	}
+
+	async canOpenSession(session: ISession): Promise<boolean> {
+		// Re-focusing the already-active session is not a new open, so never gate it.
+		if (this.activeSession.get()?.sessionId === session.sessionId) {
+			return true;
+		}
+		const workspace = session.workspace.get();
+		// A session that doesn't require workspace trust (virtual/cloud/quick-chat),
+		// or whose workspace metadata has not hydrated yet, opens without a check; a
+		// folder-less workspace has nothing to gate.
+		if (!workspace?.requiresWorkspaceTrust) {
+			return true;
+		}
+		// Inherit trust for any isolated worktree VS Code created off a base
+		// repository the user already trusts, before checking folders — so opening
+		// a worktree session does not prompt for a folder whose provenance is
+		// already trusted. This runs here (the imperative open path) because the
+		// reactive mount's equivalent step only runs once the session is active,
+		// i.e. after this gate.
+		await ensureSessionWorktreesTrusted(workspace, this.workspaceTrustManagementService);
+		// Every folder the session operates in must be trusted before it opens, not
+		// just the primary one: the agent — and its tasks, terminals and other
+		// tooling — can run against any of the session's working directories, so we
+		// make no assumptions about the non-primary folders being harmless. Check
+		// all in parallel (fast path when already trusted), then surface VS Code's
+		// standard workspace-trust dialog for each untrusted folder in turn.
+		// Declining any leaves the current session (or empty new-session slot)
+		// untouched. Run from this imperative open path (not the reactive mount),
+		// the prompt fires once per open and cannot loop.
+		const folders = workspace.folders.map(folder => folder.workingDirectory);
+		const trustInfos = await Promise.all(folders.map(folder => this.workspaceTrustManagementService.getUriTrustInfo(folder)));
+		const untrustedFolders = folders.filter((_, index) => !trustInfos[index].trusted);
+		for (const folder of untrustedFolders) {
+			const trusted = await this.workspaceTrustRequestService.requestResourcesTrust({
+				uri: folder,
+				message: localize('sessionsService.trustFolderMessage', "An agent session will be able to read files, run commands, and make changes in this folder."),
+			});
+			if (!trusted) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	async openSessionToSide(session: ISession, options?: IOpenSessionOptions & { chatResource?: URI }): Promise<void> {
+		const token = this._startOpenSession();
+		// Redirect a superseded resource before inserting a slot, so the side-by-side
+		// view/terminal never briefly binds to the old facade.
+		const resolved = await this._resolveSessionForOpen(session, options?.chatResource);
+		if (token.isCancellationRequested) {
+			return;
+		}
+		session = resolved.session;
+		if (options?.chatResource && resolved.chatUri) {
+			options = { ...options, chatResource: resolved.chatUri };
+		}
+		const visible = this.visibleSessions.get();
+		const lastVisible = visible[visible.length - 1];
+		if (lastVisible && lastVisible.sessionId !== session.sessionId) {
+			this.insertAt(session, lastVisible.sessionId, 'right');
+		}
+		if (options?.chatResource) {
+			await this.openChat(session, options.chatResource, { preserveFocus: options.preserveFocus, source: options.source });
+		} else {
+			await this.openSession(session.resource, { preserveFocus: options?.preserveFocus, source: options?.source });
+		}
+	}
+
+	/**
+	 * Opens a chat to the side of its session view, redirecting a superseded
+	 * resource first so a migrating session opens its adopted twin to the side
+	 * rather than the old facade. Provider-neutral: the redirect is the
+	 * `resolveSessionResource` hook, not a scheme check.
+	 */
+	async openChatToSide(session: ISession, chatResource: URI, options?: { preserveFocus?: boolean }): Promise<void> {
+		const token = this._startOpenSession();
+		const resolved = await this._resolveSessionForOpen(session, chatResource);
+		if (token.isCancellationRequested) {
+			return;
+		}
+		session = resolved.session;
+		chatResource = resolved.chatUri ?? chatResource;
+		this._showSession(this._getSession(session.resource), options);
+		const sessionView = this.sessionsPartService.getSessionView(session.sessionId);
+		if (!sessionView) {
+			throw new Error(`Unable to open chat to the side because session view '${session.sessionId}' is not mounted`);
+		}
+		await sessionView.openChatToSide(chatResource);
+	}
+
+	/**
+	 * Redirects a superseded session to its authoritative facade before it is
+	 * shown (mirrors `openSession`'s URI resolution). Provider-neutral: it asks
+	 * `resolveSessionResource`, which declines unfamiliar resources, rather than
+	 * inspecting the provider's URI scheme. Returns the redirected session (and
+	 * its main chat) when it changes, otherwise the inputs unchanged.
+	 */
+	private async _resolveSessionForOpen(session: ISession, chatUri: URI | undefined): Promise<{ session: ISession; chatUri: URI | undefined }> {
+		const resolved = await this.sessionsManagementService.resolveSessionResource(session.resource, 'open');
+		if (this.uriIdentityService.extUri.isEqual(resolved, session.resource)) {
+			return { session, chatUri };
+		}
+		const superseding = this.sessionsManagementService.getSession(resolved);
+		if (!superseding) {
+			return { session, chatUri };
+		}
+		return { session: superseding, chatUri: chatUri ? superseding.mainChat.get().resource : undefined };
+	}
+
+	private _getSession(sessionResource: URI): ISession {
 		const sessionData = this.sessionsManagementService.getSession(sessionResource);
 		if (!sessionData) {
 			this.logService.warn(`[SessionsView] openSession: session not found uri=${sessionResource.toString()}`);
 			throw new Error(`Session with resource ${sessionResource.toString()} not found`);
 		}
-		this.logService.trace(`[SessionsView] openSession start uri=${sessionResource.toString()} provider=${sessionData.providerId}`);
+		return sessionData;
+	}
+
+	private _showSession(sessionData: ISession, options?: { preserveFocus?: boolean }): void {
+		const t0 = Date.now();
+		this.logService.trace(`[SessionsView] openSession start uri=${sessionData.resource.toString()} provider=${sessionData.providerId}`);
+
 		this._activate(sessionData, options?.preserveFocus);
+		this.logService.trace(`[SessionsView] showSession done total=${Date.now() - t0}ms uri=${sessionData.resource.toString()}`);
+	}
+
+	private async _waitForOpenSessionToLoad(sessionData: ISession, token: CancellationToken, telemetryAttempt: ISessionOpenTelemetryAttempt): Promise<void> {
+		const t0 = Date.now();
 		if (!await this._waitForSessionToLoad(sessionData, token)) {
-			this.logService.trace(`[SessionsView] openSession cancelled while waiting for session to load uri=${sessionResource.toString()}`);
+			this.logService.trace(`[SessionsView] openSession cancelled while waiting for session to load uri=${sessionData.resource.toString()}`);
 			return;
 		}
 
-		this.logService.trace(`[SessionsView] openSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()}`);
+		const activeSession = this.activeSession.get();
+		const activeChat = activeSession?.sessionId === sessionData.sessionId ? activeSession.activeChat.get() : undefined;
+		if (activeChat) {
+			this.sessionOpenTelemetryService.sessionActivated(telemetryAttempt, activeChat.resource);
+		}
+		this.sessionOpenTelemetryService.sessionLoaded(telemetryAttempt);
+		this.logService.trace(`[SessionsView] openSession loaded total=${Date.now() - t0}ms uri=${sessionData.resource.toString()}`);
 	}
 
 	unsetNewSession(): void {
@@ -860,6 +1167,12 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// here means the empty slot is active.
 		const activeSessionId = this._visibility.activeSession.get()?.sessionId;
 		const wasActive = activeSessionId === sessionId;
+
+		// Remember the slot so Reopen Closed Chat or Session can put it back
+		// exactly where it was.
+		if (session) {
+			this._closedItems.recordClosedSession(session);
+		}
 
 		// Discard the in-progress new session when its slot (or the empty slot)
 		// is the one being closed; closing an unrelated session leaves it intact.
@@ -1019,7 +1332,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			const existing = this._sessionStates.get(session.resource);
 			const state: ISessionState = {
 				sessionResource: session.resource.toString(),
-				activeChatResource: session.activeChat.get()?.resource.toString() ?? existing?.activeChatResource,
+				activeChatResource: this._pendingRestoredChatResources.get(session.resource)?.toString() ?? session.activeChat.get()?.resource.toString() ?? existing?.activeChatResource,
 				closedChatResources: existing?.closedChatResources ?? session.closedChats.get().map(c => c.resource.toString()),
 				visibleOrder: index,
 				isSticky: session.sticky.get(),
@@ -1102,6 +1415,14 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	async restoreVisibleSessions(): Promise<void> {
+		try {
+			await this._restoreVisibleSessions();
+		} finally {
+			this._initialRestoreComplete.set(true, undefined);
+		}
+	}
+
+	private async _restoreVisibleSessions(): Promise<void> {
 		// Ordered list of slots to restore: real sessions plus, optionally, the
 		// empty (new-session) slot when it was active.
 		interface IRestoreTarget {
@@ -1111,12 +1432,38 @@ export class SessionsService extends Disposable implements ISessionsService {
 			readonly order: number;
 		}
 
-		const targets: IRestoreTarget[] = this._getVisibleSessionStates().map(state => ({
+		// Use a dedicated cancellation token (not the shared open-session one)
+		// so that a new-session draft created during restore (e.g. by the
+		// new-chat composer on startup) does not abort restoring the grid. The
+		// token is cancelled only when the user explicitly opens a session.
+		// Installed before resolving targets, which can wait on a cold agent
+		// host, so an explicit open during that wait can cancel this restore.
+		const cts = new CancellationTokenSource();
+		this._restoreCts.value = cts;
+		const token = cts.token;
+
+		const persisted = this._getVisibleSessionStates();
+		const unresolved: IRestoreTarget[] = persisted.map(state => ({
 			resource: URI.parse(state.sessionResource),
 			isSticky: !!state.isSticky,
 			isActive: !!state.isActive,
 			order: state.visibleOrder!,
 		}));
+		// Redirecting a persisted slot can wait on a cold agent host. Bound the whole
+		// pass so one slow slot cannot hold the entire grid blank; an unredirected
+		// slot still opens, just against its persisted resource.
+		const targets: IRestoreTarget[] = await raceTimeout(Promise.all(persisted.map(async (state, index) => ({
+			// Persisted state names a session by URI, so a legacy Copilot CLI slot
+			// restores through the old provider unless it is redirected here.
+			resource: await this.sessionsManagementService.resolveSessionResource(URI.parse(state.sessionResource), 'restore'),
+			isSticky: unresolved[index].isSticky,
+			isActive: unresolved[index].isActive,
+			order: unresolved[index].order,
+		}))), RESTORE_RESOLVE_BUDGET_MS) ?? unresolved;
+
+		if (token.isCancellationRequested) {
+			return;
+		}
 
 		if (targets.length === 0) {
 			targets.push({ resource: undefined, isSticky: false, isActive: true, order: 1 });
@@ -1128,14 +1475,6 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (activeIdx < 0) {
 			activeIdx = 0;
 		}
-
-		// Use a dedicated cancellation token (not the shared open-session one)
-		// so that a new-session draft created during restore (e.g. by the
-		// new-chat composer on startup) does not abort restoring the grid. The
-		// token is cancelled only when the user explicitly opens a session.
-		const cts = new CancellationTokenSource();
-		this._restoreCts.value = cts;
-		const token = cts.token;
 
 		// Sessions resolved so far, indexed by their position in `targets`.
 		// `null` marks the empty (new-session) slot, which has no session.

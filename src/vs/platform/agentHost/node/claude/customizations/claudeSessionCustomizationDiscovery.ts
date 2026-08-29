@@ -82,7 +82,6 @@ function makePlugin(plugin: IResolvedNativePlugin): PluginCustomization {
 		id: customizationId(uri),
 		uri,
 		name: plugin.id,
-		enabled: true,
 		load: { kind: CustomizationLoadStatus.Loaded },
 		children,
 	};
@@ -183,6 +182,14 @@ export function mapDiscoveredCustomizations(
  */
 function nonEditableUri(kind: string, name: string): URI {
 	return URI.from({ scheme: CLAUDE_INTERNAL_SCHEME, path: `/${kind}/${encodeURIComponent(name)}` });
+}
+
+/**
+ * Creates the stable fallback identity used when the SDK reports an MCP server
+ * that Claude's disk scan cannot attribute to a native plugin or definition.
+ */
+export function createClaudeInternalMcpServerCustomization(name: string): McpServerCustomization {
+	return makeMcpServerCustomization(nonEditableUri('mcp', name), name);
 }
 
 /**
@@ -419,7 +426,7 @@ export function buildDiscoveredCustomizations(
 		if (isHostInjectedMcpServerName(name)) {
 			continue;
 		}
-		servers.push({ ...makeMcpServerCustomization(nonEditableUri('mcp', name), name), state: deriveMcpState(sdkServer.status) });
+		servers.push({ ...createClaudeInternalMcpServerCustomization(name), state: deriveMcpState(sdkServer.status) });
 	}
 
 	// Native plugins were matched to the live SDK set at the top of this

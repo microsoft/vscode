@@ -16,14 +16,12 @@ import { asCssVariable } from '../../../platform/theme/common/colorUtils.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../common/layoutConstants.js';
 import { activeSessionViewBackground, activeSessionViewForeground } from '../../common/theme.js';
 import { AbstractCustomView, ICustomViewDescriptor } from '../../services/customView/browser/customView.js';
-import { SessionHeaderMetaActionViewItem } from './sessionHeaderMetaActionViewItem.js';
+import { ChatPillActionViewItem } from '../../../workbench/browser/chatPills.js';
 
 /**
  * A leaf of the custom view grid. Owns the shared chrome — a header with the
  * title, an optional description and the contributed actions, above a scroll
- * container — and hosts one {@link AbstractCustomView} inside it. The header
- * stays put while the content scrolls beneath it and grows a bottom border as
- * soon as the content is scrolled.
+ * container — and hosts one {@link AbstractCustomView} inside it.
  */
 export class CustomViewNode extends Disposable {
 
@@ -54,6 +52,7 @@ export class CustomViewNode extends Disposable {
 		this.element.style.setProperty('--session-view-background', asCssVariable(activeSessionViewBackground));
 		this.element.style.setProperty('--session-view-foreground', asCssVariable(activeSessionViewForeground));
 		this.element.setAttribute('role', 'region');
+		this.element.setAttribute('data-view-id', descriptor.id);
 
 		this._headerEl = $('.custom-view-header');
 		this.element.appendChild(this._headerEl);
@@ -82,7 +81,7 @@ export class CustomViewNode extends Disposable {
 				toolbarOptions: { primaryGroup: () => true },
 				actionViewItemProvider: buttonBar
 					? (action, options) => action instanceof MenuItemAction
-						? instantiationService.createInstance(SessionHeaderMetaActionViewItem, undefined, action, options)
+						? instantiationService.createInstance(ChatPillActionViewItem, undefined, action, options)
 						: undefined
 					: undefined,
 			}));
@@ -101,9 +100,6 @@ export class CustomViewNode extends Disposable {
 		}));
 		this._scrollable.getDomNode().classList.add('custom-view-body');
 		this.element.appendChild(this._scrollable.getDomNode());
-		this._register(this._scrollable.onScroll(e => {
-			this._headerEl.classList.toggle('scrolled', e.scrollTop > 0);
-		}));
 
 		this._view.render(this._contentEl);
 

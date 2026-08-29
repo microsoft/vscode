@@ -103,6 +103,8 @@ export class TerminalVoiceSession extends Disposable {
 	private _usingBuiltin = false;
 	/** True while awaiting the built-in engine's final transcript during accept. */
 	private _builtinFinalizing = false;
+	private _sessionTerminalInstanceId: number | undefined;
+	private _sessionTerminalDisposed = false;
 	static getInstance(instantiationService: IInstantiationService): TerminalVoiceSession {
 		if (!TerminalVoiceSession._instance) {
 			TerminalVoiceSession._instance = instantiationService.createInstance(TerminalVoiceSession);
@@ -123,8 +125,6 @@ export class TerminalVoiceSession extends Disposable {
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
-		this._register(this._terminalService.onDidChangeActiveInstance(() => this.stop()));
-		this._register(this._terminalService.onDidDisposeInstance(() => this.stop()));
 		this._disposables = this._register(new DisposableStore());
 		this._decorationDisposables = this._register(new DisposableStore());
 		this._terminalDictationInProgress = TerminalContextKeys.terminalDictationInProgress.bindTo(contextKeyService);
@@ -133,6 +133,19 @@ export class TerminalVoiceSession extends Disposable {
 	async start(): Promise<void> {
 		this.stop();
 		const activeInstance = this._terminalService.activeInstance;
+		this._sessionTerminalInstanceId = activeInstance?.instanceId;
+		this._sessionTerminalDisposed = false;
+		this._disposables.add(this._terminalService.onDidChangeActiveInstance(instance => {
+			if (instance?.instanceId !== this._sessionTerminalInstanceId) {
+				this.stop();
+			}
+		}));
+		this._disposables.add(this._terminalService.onDidDisposeInstance(instance => {
+			if (instance.instanceId === this._sessionTerminalInstanceId) {
+				this._sessionTerminalDisposed = true;
+				this.stop();
+			}
+		}));
 		if (activeInstance) {
 			TerminalInitialHintContribution.get(activeInstance)?.dispose();
 		}
@@ -214,9 +227,14 @@ export class TerminalVoiceSession extends Disposable {
 
 		// Only one dictation can run at a time (the on-device engine is a shared
 		// singleton). If it is already recording elsewhere (chat input or an
-		// editor), `service.start()` would no-op while these listeners stayed
-		// attached and streamed that other surface's transcript into the
-		// terminal. Reject a non-idle engine before subscribing.
+		// editor), cancel that session so the terminal can take over — the other
+		// surface clears its own state and UI when it observes the engine go Idle.
+		// This runs before we attach our own listeners below, so it cannot tear
+		// down this new terminal session.
+		if (service.isBusy) {
+			await service.cancel();
+		}
+		// If the engine somehow stayed busy, bail rather than subscribing to it.
 		if (service.state !== ChatSpeechToTextState.Idle) {
 			this.stop();
 			return;
@@ -314,6 +332,11 @@ export class TerminalVoiceSession extends Disposable {
 			this._finalizeBuiltinThenStop();
 			return;
 		}
+		if (this._builtinFinalizing && !send
+			&& !this._sessionTerminalDisposed
+			&& this._terminalService.activeInstance?.instanceId === this._sessionTerminalInstanceId) {
+			return;
+		}
 		this._setInactive();
 		if (send) {
 			this._acceptTranscriptionScheduler!.cancel();
@@ -329,13 +352,15 @@ export class TerminalVoiceSession extends Disposable {
 		// Abort the on-device engine on teardown. On the accept path the engine
 		// has already finished via stopAndTranscribe(), so this is a no-op there.
 		if (this._usingBuiltin) {
-			this._chatSpeechToTextService.cancel();
+			void this._chatSpeechToTextService.cancel();
 		}
 		this._disposables.clear();
 		this._input = '';
 		this._terminalDictationInProgress.reset();
 		this._usingBuiltin = false;
 		this._builtinFinalizing = false;
+		this._sessionTerminalInstanceId = undefined;
+		this._sessionTerminalDisposed = false;
 	}
 
 	private _sendText(): void {

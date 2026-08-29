@@ -519,6 +519,11 @@ export interface ITunnelDiscoveryProvider {
 	 * @param clusterId The cluster region of the tunnel.
 	 */
 	connect(tunnelId: string, clusterId: string): Promise<ITunnelConnection>;
+
+	/**
+	 * Delete a tunnel from the embedder's backing tunnel service.
+	 */
+	deleteTunnel?(tunnelId: string, clusterId: string): Promise<void>;
 }
 
 /**

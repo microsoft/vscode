@@ -15,11 +15,14 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { localize } from '../../../../../nls.js';
-import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { listErrorForeground, listWarningForeground } from '../../../../../platform/theme/common/colors/listColors.js';
+import { isDark } from '../../../../../platform/theme/common/theme.js';
+import { asCssVariableName } from '../../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
@@ -29,8 +32,21 @@ import { TreeViewsDnDService } from '../../../../../editor/common/services/treeV
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { EditorInputCapabilities, EditorsOrder, IEditorPartOptions, IToolbarActions, Verbosity } from '../../../../common/editor.js';
 import { EditorGroupModel } from '../../../../common/editor/editorGroupModel.js';
-import { EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_HEADER_TABS_BACKGROUND } from '../../../../common/theme.js';
-import { DEFAULT_EDITOR_PART_OPTIONS, IEditorGroupsView, IEditorGroupView, IEditorPartsView } from '../../../../browser/parts/editor/editor.js';
+import {
+	EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND,
+	EDITOR_GROUP_HEADER_TABS_BACKGROUND,
+	MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND,
+	MODERN_EDITOR_TAB_ACTIVE_BACKGROUND,
+	MODERN_EDITOR_TAB_ACTIVE_FOREGROUND,
+	MODERN_EDITOR_TAB_ACTIVE_HOVER_ACTION_BACKGROUND,
+	MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND,
+	MODERN_EDITOR_TAB_HOVER_ACTION_BACKGROUND,
+	MODERN_EDITOR_TAB_HOVER_BACKGROUND,
+	MODERN_EDITOR_TAB_HOVER_FOREGROUND,
+	MODERN_EDITOR_TAB_INACTIVE_BACKGROUND,
+	MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND,
+} from '../../../../common/theme.js';
+import { DEFAULT_EDITOR_PART_OPTIONS, IEditorGroupMenuIds, IEditorGroupsView, IEditorGroupView, IEditorPartsView } from '../../../../browser/parts/editor/editor.js';
 import { BreadcrumbsService, IBreadcrumbsService } from '../../../../browser/parts/editor/breadcrumbs.js';
 import { EditorTitleControl } from '../../../../browser/parts/editor/editorTitleControl.js';
 import { IDecorationData, IDecorationsProvider, IDecorationsService } from '../../../../services/decorations/common/decorations.js';
@@ -41,7 +57,8 @@ import { LayoutSettings } from '../../../../services/layout/browser/layoutServic
 import { TestContextService } from '../../../common/workbenchTestServices.js';
 import { workbenchInstantiationService } from '../../workbenchTestServices.js';
 import { ComponentFixtureAdditionalTheme, ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
-import '../../../../contrib/styleOverrides/browser/media/tabs.css';
+import '../../../../contrib/modernUI/browser/media/tabs.css';
+import './editorTabBar.fixture.css';
 
 // ============================================================================
 // Fixture editor input
@@ -185,6 +202,21 @@ function dirtyEditorSpecs(): IEditorSpec[] {
 	];
 }
 
+/**
+ * A mix of clean, dirty and sticky tabs used to show `tabActionReserveSpace`:
+ * clean tabs collapse to the compact width when the column is not reserved,
+ * while the dirty and sticky tabs keep their persistent-indicator column.
+ */
+function reserveSpaceEditorSpecs(): IEditorSpec[] {
+	return [
+		{ resource: file('/project/src/app/main.ts'), icon: ThemeIcon.fromId(Codicon.symbolFile.id), sticky: true, pinned: true },
+		{ resource: file('/project/src/app/index.ts'), pinned: true },
+		{ resource: file('/project/README.md'), icon: ThemeIcon.fromId(Codicon.markdown.id), pinned: true },
+		{ resource: file('/project/package.json'), icon: ThemeIcon.fromId(Codicon.json.id), pinned: true, dirty: true, active: true },
+		{ resource: file('/project/src/app/components/button.tsx'), pinned: true },
+	];
+}
+
 /** Sticky (pinned) editors to show the sticky tab styling. */
 function stickyEditorSpecs(): IEditorSpec[] {
 	return [
@@ -229,6 +261,28 @@ function longLabelEditorSpecs(): IEditorSpec[] {
 function singleDirtyEditorSpecs(): IEditorSpec[] {
 	return [
 		{ resource: file('/project/src/app/main.ts'), icon: ThemeIcon.fromId(Codicon.symbolFile.id), pinned: true, dirty: true, active: true },
+	];
+}
+
+function cannotCloseEditorSpecs(): IEditorSpec[] {
+	return [
+		{ resource: file('/project/Changes'), capabilities: EditorInputCapabilities.CannotClose, pinned: true, active: true },
+		{ resource: file('/project/src/app/main.ts'), pinned: true },
+		{ resource: file('/project/README.md'), icon: ThemeIcon.fromId(Codicon.markdown.id), pinned: true },
+	];
+}
+
+function cannotCloseDirtyEditorSpecs(): IEditorSpec[] {
+	return [
+		{ resource: file('/project/Changes'), capabilities: EditorInputCapabilities.CannotClose, pinned: true, dirty: true, active: true },
+		{ resource: file('/project/src/app/main.ts'), pinned: true },
+	];
+}
+
+function cannotCloseStickyEditorSpecs(): IEditorSpec[] {
+	return [
+		{ resource: file('/project/Changes'), capabilities: EditorInputCapabilities.CannotClose, pinned: true, sticky: true, active: true },
+		{ resource: file('/project/src/app/main.ts'), pinned: true },
 	];
 }
 
@@ -289,7 +343,7 @@ function createFixtureEditorTitleActions(store: DisposableStore, menuId: MenuId)
 // Rendering
 // ============================================================================
 
-interface IRenderOptions {
+export interface IEditorTabBarFixtureOptions {
 	readonly modernUI: boolean;
 	readonly partOptions?: Partial<IEditorPartOptions>;
 	readonly editors?: IEditorSpec[];
@@ -297,12 +351,16 @@ interface IRenderOptions {
 		readonly filePath?: 'on' | 'off' | 'last';
 		readonly icons?: boolean;
 	};
-	readonly breadcrumbsRightInset?: number;
 	readonly width?: number;
 	/** Whether this group is the active group. Inactive groups exercise the
 	 *  `alwaysShowEditorActions` filtering and unfocused tab styling. */
 	readonly active?: boolean;
 	readonly dropTargetBetweenTabs?: boolean;
+	readonly showHeader?: boolean;
+	readonly headerMenuIds?: IEditorGroupMenuIds;
+	readonly colorCustomizations?: Readonly<Record<string, string>>;
+	readonly forcedHoverTab?: number;
+	readonly focusedTabAction?: number;
 }
 
 function createPartOptions(overrides?: Partial<IEditorPartOptions>): IEditorPartOptions {
@@ -339,12 +397,16 @@ function populateModel(model: EditorGroupModel, specs: IEditorSpec[], disposable
 	}
 }
 
-function renderTabBar(ctx: ComponentFixtureContext, options: IRenderOptions): void {
+export function renderEditorTabBarFixture(ctx: ComponentFixtureContext, options: IEditorTabBarFixtureOptions): void {
 	const { container, disposableStore, theme } = ctx;
 
 	const width = options.width ?? 820;
 	const isGroupActive = options.active ?? true;
 	const partOptions = createPartOptions(options.partOptions);
+
+	for (const [colorId, color] of Object.entries(options.colorCustomizations ?? {})) {
+		container.style.setProperty(asCssVariableName(colorId), color);
+	}
 
 	const configurationService = new TestConfigurationService();
 	configurationService.setUserConfiguration('breadcrumbs', {
@@ -368,6 +430,10 @@ function renderTabBar(ctx: ComponentFixtureContext, options: IRenderOptions): vo
 
 	const contextKeyService = disposableStore.add(instantiationService.createInstance(ContextKeyService));
 	instantiationService.stub(IContextKeyService, contextKeyService);
+
+	if (options.headerMenuIds) {
+		instantiationService.stub(IMenuService, disposableStore.add(instantiationService.createInstance(MenuService)));
+	}
 
 	if (options.breadcrumbs) {
 		instantiationService.stub(IBreadcrumbsService, new BreadcrumbsService());
@@ -399,6 +465,7 @@ function renderTabBar(ctx: ComponentFixtureContext, options: IRenderOptions): vo
 		override get activeEditorPane() { return undefined; }
 		override get selectedEditors() { return model.selectedEditors; }
 		override get ariaLabel() { return 'Editor Group 1'; }
+		override get groupsView(): IEditorGroupsView { return groupsView; }
 		override getEditorByIndex(index: number) { return model.getEditorByIndex(index); }
 		override getIndexOfEditor(editor: EditorInput) { return model.indexOf(editor); }
 		override getEditors(order: EditorsOrder, opts?: { excludeSticky?: boolean }) { return model.getEditors(order, opts); }
@@ -408,6 +475,7 @@ function renderTabBar(ctx: ComponentFixtureContext, options: IRenderOptions): vo
 		override isSelected(editorOrIndex: EditorInput | number) { return model.isSelected(editorOrIndex); }
 		override createEditorActions(disposables: DisposableStore, menuId = MenuId.EditorTitle) { return createEditorActions(disposables, menuId); }
 		override relayout() { this.relayoutFn(); }
+		override readonly onDidActiveEditorChange = Event.None;
 	};
 
 	// Separate reference returned as the active group when this group is inactive, so that
@@ -418,8 +486,8 @@ function renderTabBar(ctx: ComponentFixtureContext, options: IRenderOptions): vo
 
 	const groupsView = new class extends mock<IEditorGroupsView>() {
 		override get partOptions() { return partOptions; }
-		override get activeGroup() { return isGroupActive ? groupView : otherActiveGroup; }
-		override get groups() { return [groupView]; }
+		override get activeGroup(): IEditorGroupView { return isGroupActive ? groupView : otherActiveGroup; }
+		override get groups(): IEditorGroupView[] { return [groupView]; }
 		override readonly onDidChangeEditorPartOptions = Event.None;
 		override readonly onDidVisibilityChange = Event.None;
 	};
@@ -435,7 +503,7 @@ function renderTabBar(ctx: ComponentFixtureContext, options: IRenderOptions): vo
 	const content = $('.content');
 	const groupContainer = $(isGroupActive ? '.editor-group-container.active' : '.editor-group-container');
 	const titleContainer = $('.title');
-	container.classList.toggle('style-override', options.modernUI);
+	container.classList.toggle('modern-ui-tabs', options.modernUI);
 	titleContainer.classList.toggle('tabs', partOptions.showTabs === 'multiple');
 	titleContainer.classList.toggle('show-file-icons', partOptions.showIcons);
 
@@ -464,29 +532,36 @@ function renderTabBar(ctx: ComponentFixtureContext, options: IRenderOptions): vo
 		groupsView,
 		groupView,
 		model,
-		undefined,
+		options.headerMenuIds,
+		options.showHeader ?? false,
 	));
 
 	const layout = () => {
 		titleControl.layout({
 			container: new Dimension(width, titleControl.getHeight().total),
 			available: new Dimension(width, 200),
-		}, options.breadcrumbsRightInset);
+		});
 	};
 	groupView.relayoutFn = layout;
 
 	titleControl.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
 	titleControl.setActive(isGroupActive);
+	const tabs = titleContainer.querySelectorAll<HTMLElement>('.tabs-container > .tab');
 	if (options.dropTargetBetweenTabs) {
-		const tabs = titleContainer.querySelectorAll<HTMLElement>('.tabs-container > .tab');
 		tabs[1]?.classList.add('drop-target-left');
 		tabs[2]?.classList.add('drop-target-right');
+	}
+	if (options.forcedHoverTab !== undefined) {
+		tabs[options.forcedHoverTab]?.classList.add('fixture-hover');
+	}
+	if (options.focusedTabAction !== undefined) {
+		tabs[options.focusedTabAction]?.querySelector<HTMLElement>('.tab-actions .action-label')?.focus();
 	}
 	layout();
 }
 
-function render(modernUI: boolean, options: Omit<IRenderOptions, 'modernUI'>): (ctx: ComponentFixtureContext) => void {
-	return (ctx: ComponentFixtureContext) => renderTabBar(ctx, { ...options, modernUI });
+function render(modernUI: boolean, options: Omit<IEditorTabBarFixtureOptions, 'modernUI'>): (ctx: ComponentFixtureContext) => void {
+	return (ctx: ComponentFixtureContext) => renderEditorTabBarFixture(ctx, { ...options, modernUI });
 }
 
 function createFixtures(modernUI: boolean, additionalThemes: readonly ComponentFixtureAdditionalTheme[] = []) {
@@ -506,7 +581,6 @@ function createFixtures(modernUI: boolean, additionalThemes: readonly ComponentF
 		// breadcrumbs
 		BreadcrumbsFilePathLast: defineComponentFixture({ render: render(modernUI, { breadcrumbs: { filePath: 'last' }, editors: nestedActiveEditorSpecs() }) }),
 		BreadcrumbsIconsOff: defineComponentFixture({ render: render(modernUI, { breadcrumbs: { icons: false } }) }),
-		BreadcrumbsWithRightInset: defineComponentFixture({ render: render(modernUI, { breadcrumbs: {}, breadcrumbsRightInset: 300 }) }),
 
 		// tabSizing
 		TabSizingShrink: defineComponentFixture({ render: render(modernUI, { partOptions: { tabSizing: 'shrink' }, editors: manyEditorSpecs() }) }),
@@ -526,6 +600,10 @@ function createFixtures(modernUI: boolean, additionalThemes: readonly ComponentF
 
 		// tabActionUnpinVisibility (with sticky/compact tabs where the unpin action shows)
 		TabActionUnpinHidden: defineComponentFixture({ render: render(modernUI, { partOptions: { tabActionUnpinVisibility: false, pinnedTabSizing: 'normal' }, editors: stickyEditorSpecs() }) }),
+
+		// tabActionReserveSpace (Modern UI: reserved by default; when disabled clean tabs go compact while dirty/sticky still reserve their indicator column)
+		TabActionReserveSpaceOn: defineComponentFixture({ render: render(modernUI, { partOptions: { tabActionReserveSpace: true }, editors: reserveSpaceEditorSpecs() }) }),
+		TabActionReserveSpaceOff: defineComponentFixture({ render: render(modernUI, { partOptions: { tabActionReserveSpace: false }, editors: reserveSpaceEditorSpecs() }) }),
 
 		// showTabIndex
 		ShowTabIndex: defineComponentFixture({ render: render(modernUI, { partOptions: { showTabIndex: true } }) }),
@@ -590,12 +668,57 @@ function createFixtures(modernUI: boolean, additionalThemes: readonly ComponentF
 		// Single-tab mode with a dirty editor: the single tab control renders the dirty dot.
 		SingleTabDirty: defineComponentFixture({ render: render(modernUI, { partOptions: { showTabs: 'single' }, editors: singleDirtyEditorSpecs() }) }),
 
+		// Protected editors hide close affordances while ordinary neighboring tabs remain closeable.
+		CannotCloseActive: defineComponentFixture({ render: render(modernUI, { editors: cannotCloseEditorSpecs() }), additionalThemes }),
+
+		// Protected dirty editors retain the modified indicator without exposing a close action.
+		CannotCloseDirty: defineComponentFixture({ render: render(modernUI, { editors: cannotCloseDirtyEditorSpecs() }), additionalThemes }),
+
+		// Sticky protected editors retain the Unpin affordance because unpinning does not close them.
+		CannotCloseSticky: defineComponentFixture({ render: render(modernUI, { partOptions: { pinnedTabSizing: 'normal', tabActionUnpinVisibility: true }, editors: cannotCloseStickyEditorSpecs() }), additionalThemes }),
+
 		// Pinned tabs on a separate row combined with compact pinned sizing.
 		PinnedSeparateRowCompact: defineComponentFixture({ render: render(modernUI, { partOptions: { pinnedTabsOnSeparateRow: true, pinnedTabSizing: 'compact' }, editors: stickyEditorSpecs() }) }),
 	};
 }
 
+function getModernEditorTabColorCustomizations(theme: ComponentFixtureContext['theme']): Readonly<Record<string, string>> {
+	const dark = isDark(theme.type);
+	return {
+		[MODERN_EDITOR_TAB_ACTIVE_BACKGROUND]: dark ? '#164E63' : '#BAE6FD',
+		[MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND]: dark ? '#0E3747' : '#7DD3FC',
+		[MODERN_EDITOR_TAB_ACTIVE_FOREGROUND]: dark ? '#CFFAFE' : '#0C4A6E',
+		[MODERN_EDITOR_TAB_INACTIVE_BACKGROUND]: dark ? '#1E293B' : '#E2E8F0',
+		[MODERN_EDITOR_TAB_HOVER_BACKGROUND]: dark ? '#7C2D12' : '#FED7AA',
+		[MODERN_EDITOR_TAB_HOVER_ACTION_BACKGROUND]: dark ? '#5A1F0C' : '#FDBA74',
+		[MODERN_EDITOR_TAB_HOVER_FOREGROUND]: dark ? '#FFEDD5' : '#7C2D12',
+		[MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND]: dark ? '#6B21A8' : '#E9D5FF',
+		[MODERN_EDITOR_TAB_ACTIVE_HOVER_ACTION_BACKGROUND]: dark ? '#4C1678' : '#D8B4FE',
+		[MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND]: dark ? '#166534' : '#BBF7D0',
+	};
+}
+
+function renderThemeColors(options: Omit<IEditorTabBarFixtureOptions, 'modernUI' | 'colorCustomizations'>): (ctx: ComponentFixtureContext) => void {
+	return ctx => renderEditorTabBarFixture(ctx, {
+		...options,
+		modernUI: true,
+		colorCustomizations: getModernEditorTabColorCustomizations(ctx.theme),
+	});
+}
+
+function createThemeColorFixtures() {
+	return {
+		TabStates: defineComponentFixture({ render: renderThemeColors({ forcedHoverTab: 2, focusedTabAction: 2 }) }),
+		ActiveAction: defineComponentFixture({ render: renderThemeColors({ focusedTabAction: 3 }) }),
+		ActiveHover: defineComponentFixture({ render: renderThemeColors({ forcedHoverTab: 3, focusedTabAction: 3 }) }),
+		SelectedAction: defineComponentFixture({ render: renderThemeColors({ editors: multiSelectEditorSpecs(), focusedTabAction: 0 }) }),
+	};
+}
+
 export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 	ModernUIOff: defineThemedFixtureGroup(createFixtures(false, ['darkHighContrast'])),
-	ModernUIOn: defineThemedFixtureGroup(createFixtures(true, ['darkHighContrast'])),
+	ModernUIOn: defineThemedFixtureGroup({
+		...createFixtures(true, ['darkHighContrast']),
+		ThemeColors: defineThemedFixtureGroup(createThemeColorFixtures()),
+	}),
 });

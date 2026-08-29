@@ -10,6 +10,7 @@ import { isEqual as _urisEqual } from '../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
+import { serializeChatRequestOrigin } from '../chatRequestOrigin.js';
 import { IChatMarkdownContent, IChatMcpAuthenticationRequired, IChatMcpServersStartingSlow, IChatVoiceProgressPart, ResponseModelState } from '../chatService/chatService.js';
 import { ModifiedFileEntryState } from '../editing/chatEditingService.js';
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
@@ -65,6 +66,9 @@ const responsePartSchema = Adapt.v<PersistedResponsePart, SerializedChatResponse
 				case 'multiDiffData':
 				case 'mcpServersStarting':
 				case 'thinking':
+				case 'planReview':
+				// Flips from routing to routed once the router answers.
+				case 'autoModeResolution':
 					return objectsEqual(a, b);
 
 				// Static types that won't change after being pushed can use strict equality.
@@ -81,7 +85,6 @@ const responsePartSchema = Adapt.v<PersistedResponsePart, SerializedChatResponse
 				case 'systemNotification':
 				case 'pullRequest':
 				case 'questionCarousel':
-				case 'planReview':
 				case 'undoStop':
 				case 'warning':
 				case 'info':
@@ -89,7 +92,6 @@ const responsePartSchema = Adapt.v<PersistedResponsePart, SerializedChatResponse
 				case 'workspaceEdit':
 				case 'externalEdit':
 				case 'disabledClaudeHooks':
-				case 'autoModeResolution':
 					return a.kind === b.kind;
 
 				default: {
@@ -139,6 +141,7 @@ const requestSchema = Adapt.object<IChatRequestModel, ISerializableChatRequestDa
 	editedFileEvents: Adapt.t(m => m.editedFileEvents, Adapt.array(agentEditedFileEventSchema)),
 	variableData: Adapt.t(m => m.variableData, chatVariableSchema),
 	isHidden: Adapt.v(() => undefined), // deprecated, always undefined for new data
+	hiddenFromTranscript: Adapt.v(m => m.isHiddenFromTranscript),
 	isCanceled: Adapt.v(() => undefined), // deprecated, modelState is used instead
 
 	response: Adapt.t(m => m.response?.entireResponse.value.filter((p): p is PersistedResponsePart => p.kind !== 'mcpAuthenticationRequired' && p.kind !== 'mcpServersStartingSlow' && p.kind !== 'voiceProgress'), Adapt.array(responsePartSchema)),
@@ -162,12 +165,14 @@ const requestSchema = Adapt.object<IChatRequestModel, ISerializableChatRequestDa
 	outputBuffer: Adapt.v(m => m.response?.usage?.outputBuffer),
 	promptTokenDetails: Adapt.v(m => m.response?.usage?.promptTokenDetails, objectsEqual),
 	copilotCredits: Adapt.v(m => m.response?.usage?.copilotCredits),
+	modelTotals: Adapt.v(m => m.response?.usage?.modelTotals, objectsEqual),
 	sessionCopilotCredits: Adapt.v(m => m.response?.usage?.sessionCopilotCredits),
 	elapsedMs: Adapt.v(m => m.response?.elapsedMs ?? (m.response?.completedAt ? Math.max(0, m.response.completedAt - m.response.confirmationAdjustedTimestamp.get()) : undefined)),
 	modeInfo: Adapt.v(m => m.modeInfo, objectsEqual),
 	isSystemInitiated: Adapt.v(m => m.isSystemInitiated),
 	systemInitiatedLabel: Adapt.v(m => m.systemInitiatedLabel),
 	terminalExecutionId: Adapt.v(m => m.terminalExecutionId),
+	origin: Adapt.v(m => m.origin ? serializeChatRequestOrigin(m.origin) : undefined, objectsEqual),
 }, {
 	sealed: (o) => o.modelState?.value === ResponseModelState.Cancelled || o.modelState?.value === ResponseModelState.Failed || o.modelState?.value === ResponseModelState.Complete,
 });

@@ -10,11 +10,12 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IAutomation, IAutomationSnapshotImportResult, IGuardedAutomationSnapshotRemovalResult } from '../../../services/sessions/common/sessionsProvider.js';
 import {
 	AutomationRunTrigger,
 	AutomationTarget,
 	AutomationWorkspaceIsolation,
-	IAutomation,
+	IAutomationDescriptor,
 	IAutomationRun,
 } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import {
@@ -25,6 +26,7 @@ import {
 	IGuardedAutomationUpdateResult,
 	serializeAutomationEditableState,
 	IUpdateAutomationOptions,
+	IAutomationStore,
 	IUpdateAutomationRunOptions,
 } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { publishAutomationCreated, publishAutomationDeleted, publishAutomationUpdated } from '../../../../workbench/contrib/chat/common/automations/automationTelemetry.js';
@@ -41,7 +43,7 @@ interface ISerializedAutomationBase {
 	readonly id: string;
 	readonly name: string;
 	readonly prompt: string;
-	readonly schedule: IAutomation['schedule'];
+	readonly schedule: IAutomationDescriptor['schedule'];
 	readonly modelId?: string;
 	readonly mode?: string;
 	readonly permissionLevel?: string;
@@ -84,18 +86,18 @@ interface ISerializedLedger {
 	// Optimistic-concurrency counter. 0 for legacy blobs without this field.
 	readonly revision?: number;
 	readonly automations: readonly ISerializedAutomation[];
-	readonly runs: readonly IAutomationRun[];
+	readonly runs: readonly (Omit<IAutomationRun, 'sessionResource'> & { readonly sessionResource?: string })[];
 }
 
 interface ILegacySerializedLedger {
 	readonly schemaVersion: 1 | 2;
 	readonly revision?: number;
 	readonly automations: readonly ILegacySerializedAutomation[];
-	readonly runs: readonly IAutomationRun[];
+	readonly runs: readonly (Omit<IAutomationRun, 'sessionResource'> & { readonly sessionResource?: string })[];
 }
 
 interface ILedger {
-	readonly automations: readonly IAutomation[];
+	readonly automations: readonly IAutomationDescriptor[];
 	readonly runs: readonly IAutomationRun[];
 }
 
@@ -107,23 +109,24 @@ const EMPTY_LEDGER: ILedger = Object.freeze({ automations: [], runs: [] });
 
 type ReadLedgerResult =
 	| { kind: 'ledger'; ledger: ILedger; revision: number }
+	| { kind: 'invalid'; ledger: ILedger; revision: number }
 	| { kind: 'unsupportedSchema' };
 
-export class AutomationService extends Disposable implements IAutomationService {
+export class AutomationStore extends Disposable implements IAutomationStore {
 
-	declare readonly _serviceBrand: undefined;
-
-	private readonly _automations: ISettableObservable<readonly IAutomation[]>;
+	private readonly _automations: ISettableObservable<readonly IAutomationDescriptor[]>;
 	private readonly _runs: ISettableObservable<readonly IAutomationRun[]>;
 	private _now: () => Date;
 	private readonly _runsForCache = new Map<string, IObservable<readonly IAutomationRun[]>>();
 
 	private _lastSeenRevision = 0;
+	private _canCompleteMigration = true;
 
-	readonly automations: IObservable<readonly IAutomation[]>;
+	readonly automations: IObservable<readonly IAutomationDescriptor[]>;
 	readonly runs: IObservable<readonly IAutomationRun[]>;
 
 	constructor(
+		private readonly storageKey: string,
 		@IStorageService private readonly storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -133,17 +136,18 @@ export class AutomationService extends Disposable implements IAutomationService 
 
 		this._now = () => new Date();
 
-		const result = this.readLedger(this.storageService.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION));
-		const initial = result.kind === 'ledger' ? result.ledger : EMPTY_LEDGER;
-		if (result.kind === 'ledger') {
+		const result = this.readLedger(this.storageService.get(this.storageKey, StorageScope.APPLICATION));
+		const initial = result.kind === 'unsupportedSchema' ? EMPTY_LEDGER : result.ledger;
+		this._canCompleteMigration = result.kind === 'ledger';
+		if (result.kind !== 'unsupportedSchema') {
 			this._lastSeenRevision = result.revision;
 		}
-		this._automations = observableValue<readonly IAutomation[]>(this, initial.automations);
+		this._automations = observableValue<readonly IAutomationDescriptor[]>(this, initial.automations);
 		this._runs = observableValue<readonly IAutomationRun[]>(this, initial.runs);
 		this.automations = this._automations;
 		this.runs = this._runs;
 
-		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, AUTOMATION_STORAGE_KEY, this._store)(() => {
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, this.storageKey, this._store)(() => {
 			this.refreshFromStorage();
 		}));
 	}
@@ -153,8 +157,12 @@ export class AutomationService extends Disposable implements IAutomationService 
 		this._now = now;
 	}
 
-	getAutomation(id: string): IAutomation | undefined {
+	getAutomation(id: string): IAutomationDescriptor | undefined {
 		return this._automations.get().find(a => a.id === id);
+	}
+
+	canCompleteMigration(): boolean {
+		return this._canCompleteMigration;
 	}
 
 	runsFor(automationId: string): IObservable<readonly IAutomationRun[]> {
@@ -166,11 +174,11 @@ export class AutomationService extends Disposable implements IAutomationService 
 		return cached;
 	}
 
-	async createAutomation(options: ICreateAutomationOptions, mutationGuard?: AutomationMutationGuard): Promise<IAutomation> {
+	async createAutomation(options: ICreateAutomationOptions, mutationGuard?: AutomationMutationGuard): Promise<IAutomationDescriptor> {
 		const now = this._now();
 		const nowIso = now.toISOString();
 		const nextRun = computeNextRunAt(options.schedule, now);
-		const automation: IAutomation = Object.freeze({
+		const automation: IAutomationDescriptor = Object.freeze({
 			id: generateUuid(),
 			name: options.name,
 			prompt: options.prompt,
@@ -194,7 +202,7 @@ export class AutomationService extends Disposable implements IAutomationService 
 		return automation;
 	}
 
-	async updateAutomation(id: string, patch: IUpdateAutomationOptions): Promise<IAutomation> {
+	async updateAutomation(id: string, patch: IUpdateAutomationOptions): Promise<IAutomationDescriptor> {
 		const now = this._now();
 		const result = await this.mutateLedger(ledger => {
 			const current = ledger.automations.find(automation => automation.id === id);
@@ -215,9 +223,9 @@ export class AutomationService extends Disposable implements IAutomationService 
 		return result.updated;
 	}
 
-	async updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomation, mutationGuard?: AutomationMutationGuard): Promise<IGuardedAutomationUpdateResult> {
+	async updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomationDescriptor, mutationGuard?: AutomationMutationGuard): Promise<IGuardedAutomationUpdateResult> {
 		const now = this._now();
-		let previous: IAutomation | undefined;
+		let previous: IAutomationDescriptor | undefined;
 		const result = await this.mutateLedger<IGuardedAutomationUpdateResult>(ledger => {
 			const current = ledger.automations.find(automation => automation.id === id);
 			if (!current || serializeAutomationEditableState(current) !== serializeAutomationEditableState(expected)) {
@@ -269,6 +277,81 @@ export class AutomationService extends Disposable implements IAutomationService 
 		publishAutomationDeleted(this.telemetryService, existing);
 	}
 
+	async importAutomationSnapshot(snapshot: IAutomation): Promise<IAutomationSnapshotImportResult> {
+		const { automation, runs } = snapshot;
+		return this.mutateLedger<IAutomationSnapshotImportResult>(ledger => {
+			const existing = ledger.automations.find(candidate => candidate.id === automation.id);
+			if (existing) {
+				const current: IAutomation = {
+					automation: existing,
+					runs: ledger.runs.filter(run => run.automationId === automation.id),
+				};
+				return areAutomationSnapshotsEqual(current, snapshot)
+					? { kind: 'noChange', result: { kind: 'alreadyPresent' } as const }
+					: { kind: 'noChange', result: { kind: 'conflict', current } as const };
+			}
+			return {
+				kind: 'commit',
+				ledger: {
+					automations: [automation, ...ledger.automations],
+					runs: [...runs, ...ledger.runs],
+				},
+				result: { kind: 'inserted' } as const,
+			};
+		});
+	}
+
+	async upsertAutomationSnapshot(snapshot: IAutomation): Promise<void> {
+		const { automation, runs } = snapshot;
+		await this.mutateLedger(ledger => {
+			const existing = ledger.automations.find(candidate => candidate.id === automation.id);
+			const existingRunIds = new Set(ledger.runs.map(run => run.id));
+			const missingRuns = runs.filter(run => !existingRunIds.has(run.id));
+			if (existing && JSON.stringify(serializeAutomation(existing)) === JSON.stringify(serializeAutomation(automation)) && missingRuns.length === 0) {
+				return { kind: 'noChange', result: undefined };
+			}
+			return {
+				kind: 'commit',
+				ledger: {
+					automations: existing
+						? ledger.automations.map(candidate => candidate.id === automation.id ? automation : candidate)
+						: [automation, ...ledger.automations],
+					runs: [...missingRuns, ...ledger.runs],
+				},
+				result: undefined,
+			};
+		});
+	}
+
+	async removeAutomationSnapshotIfUnchanged(expected: IAutomation): Promise<IGuardedAutomationSnapshotRemovalResult> {
+		const result = await this.mutateLedger<IGuardedAutomationSnapshotRemovalResult>(ledger => {
+			const current = ledger.automations.find(candidate => candidate.id === expected.automation.id);
+			if (!current) {
+				return { kind: 'noChange', result: { kind: 'missing' } };
+			}
+			const currentRuns = ledger.runs.filter(run => run.automationId === expected.automation.id);
+			const currentSnapshot: IAutomation = { automation: current, runs: currentRuns };
+			if (!areAutomationSnapshotsEqual(currentSnapshot, expected)) {
+				return {
+					kind: 'noChange',
+					result: { kind: 'conflict', current: currentSnapshot },
+				};
+			}
+			return {
+				kind: 'commit',
+				ledger: {
+					automations: ledger.automations.filter(candidate => candidate.id !== expected.automation.id),
+					runs: ledger.runs.filter(run => run.automationId !== expected.automation.id),
+				},
+				result: { kind: 'removed' },
+			};
+		});
+		if (result.kind === 'removed') {
+			this._runsForCache.delete(expected.automation.id);
+		}
+		return result;
+	}
+
 	async recordRunStart(automationId: string, trigger: AutomationRunTrigger, leaderWindowId: number): Promise<IAutomationRunClaim> {
 		const now = this._now();
 		const startedAt = now.toISOString();
@@ -293,7 +376,7 @@ export class AutomationService extends Disposable implements IAutomationService 
 			}
 			let automations = ledger.automations;
 			if (trigger !== 'manual') {
-				const updatedAutomation: IAutomation = Object.freeze({
+				const updatedAutomation: IAutomationDescriptor = Object.freeze({
 					...automation,
 					lastRunAt: startedAt,
 					nextRunAt: computeNextRunAt(automation.schedule, now)?.toISOString(),
@@ -333,6 +416,22 @@ export class AutomationService extends Disposable implements IAutomationService 
 		});
 	}
 
+	async deleteRun(runId: string): Promise<void> {
+		await this.mutateLedger(ledger => {
+			if (!ledger.runs.some(run => run.id === runId)) {
+				return { kind: 'noChange', result: undefined };
+			}
+			return {
+				kind: 'commit',
+				ledger: {
+					automations: ledger.automations,
+					runs: ledger.runs.filter(run => run.id !== runId),
+				},
+				result: undefined,
+			};
+		});
+	}
+
 	getActiveRunFor(automationId: string): IAutomationRun | undefined {
 		return findActiveRun(this._runs.get(), automationId);
 	}
@@ -362,11 +461,14 @@ export class AutomationService extends Disposable implements IAutomationService 
 	//#region Persistence
 
 	private async mutateLedger<T>(mutate: (ledger: ILedger) => ILedgerMutation<T>, mutationGuard?: AutomationMutationGuard): Promise<T> {
-		let raw = await this.automationStorageService.read();
+		let raw = await this.automationStorageService.read(this.storageKey);
 		while (true) {
 			const readResult = this.readLedger(raw);
 			if (readResult.kind === 'unsupportedSchema') {
 				throw new Error('Cannot modify automations: storage was written by a newer version');
+			}
+			if (readResult.kind === 'invalid') {
+				throw new Error('Cannot modify automations: persisted storage contains data this version cannot safely interpret');
 			}
 
 			this.acceptLedger(readResult.ledger, readResult.revision);
@@ -384,11 +486,11 @@ export class AutomationService extends Disposable implements IAutomationService 
 				schemaVersion: CURRENT_SCHEMA_VERSION,
 				revision,
 				automations: ledger.automations.map(serializeAutomation),
-				runs: [...ledger.runs],
+				runs: ledger.runs.map(run => ({ ...run, sessionResource: run.sessionResource?.toString() })),
 			};
 			const newValue = JSON.stringify(serialized);
 			mutationGuard?.();
-			const writeResult = await this.automationStorageService.compareAndSwap(raw, newValue);
+			const writeResult = await this.automationStorageService.compareAndSwap(this.storageKey, raw, newValue);
 			if (writeResult.swapped) {
 				this.setLedger(ledger, revision);
 				return mutation.result;
@@ -416,10 +518,13 @@ export class AutomationService extends Disposable implements IAutomationService 
 	}
 
 	private refreshFromStorage(): void {
-		const result = this.readLedger(this.storageService.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION));
+		const result = this.readLedger(this.storageService.get(this.storageKey, StorageScope.APPLICATION));
 		if (result.kind === 'unsupportedSchema') {
+			this._canCompleteMigration = false;
 			return;
 		}
+
+		this._canCompleteMigration = result.kind === 'ledger';
 		this.acceptLedger(result.ledger, result.revision);
 	}
 
@@ -435,9 +540,11 @@ export class AutomationService extends Disposable implements IAutomationService 
 			}
 			if (parsed?.schemaVersion !== CURRENT_SCHEMA_VERSION && !LEGACY_SCHEMA_VERSIONS.has(parsed?.schemaVersion)) {
 				this.logService.warn(`[AutomationService] Unsupported ledger schema version ${parsed?.schemaVersion}; ignoring.`);
-				return { kind: 'ledger', ledger: EMPTY_LEDGER, revision: 0 };
+				return { kind: 'invalid', ledger: EMPTY_LEDGER, revision: 0 };
 			}
-			const automations: IAutomation[] = [];
+			const automations: IAutomationDescriptor[] = [];
+			// Malformed rows are dropped individually; only structurally invalid ledgers remain read-only.
+			const invalid = !Array.isArray(parsed.automations) || !Array.isArray(parsed.runs);
 			if (parsed.schemaVersion === CURRENT_SCHEMA_VERSION) {
 				const entries = Array.isArray(parsed.automations) ? parsed.automations : [];
 				for (const entry of entries) {
@@ -470,20 +577,40 @@ export class AutomationService extends Disposable implements IAutomationService 
 			const validIds = new Set(automations.map(a => a.id));
 			const serializedRuns = Array.isArray(parsed.runs) ? parsed.runs : [];
 			const runs = serializedRuns
-				.filter(r => !!r && typeof r === 'object' && validIds.has(r.automationId))
-				.map(r => Object.freeze({ ...r }));
+				.filter((run): run is ISerializedAutomationRun => isSerializedAutomationRun(run) && validIds.has(run.automationId))
+				.map(r => Object.freeze({ ...r, sessionResource: r.sessionResource ? URI.parse(r.sessionResource) : undefined }));
 			const revision = typeof parsed.revision === 'number' ? parsed.revision : 0;
-			return { kind: 'ledger', ledger: { automations, runs: trimRunsPerAutomation(runs, MAX_RUNS_PER_AUTOMATION) }, revision };
+			return { kind: invalid ? 'invalid' : 'ledger', ledger: { automations, runs: trimRunsPerAutomation(runs, MAX_RUNS_PER_AUTOMATION) }, revision };
 		} catch (err) {
 			this.logService.error('[AutomationService] Failed to parse automations ledger; resetting.', err);
-			return { kind: 'ledger', ledger: EMPTY_LEDGER, revision: 0 };
+			return { kind: 'invalid', ledger: EMPTY_LEDGER, revision: 0 };
 		}
 	}
 
 	//#endregion
 }
 
-function serializeAutomation(a: IAutomation): ISerializedAutomation {
+export class AutomationService extends AutomationStore implements IAutomationService {
+
+	declare readonly _serviceBrand: undefined;
+
+	constructor(
+		@IStorageService storageService: IStorageService,
+		@ILogService logService: ILogService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IAutomationStorageService automationStorageService: IAutomationStorageService,
+	) {
+		super(AUTOMATION_STORAGE_KEY, storageService, logService, telemetryService, automationStorageService);
+	}
+
+	startStaleRunRecovery(reason: string): Promise<void> {
+		return this.markStaleRunsFailed(reason);
+	}
+
+	stopStaleRunRecovery(): void { }
+}
+
+function serializeAutomation(a: IAutomationDescriptor): ISerializedAutomation {
 	return {
 		id: a.id,
 		name: a.name,
@@ -501,12 +628,36 @@ function serializeAutomation(a: IAutomation): ISerializedAutomation {
 	};
 }
 
-function deserializeAutomation(s: ISerializedAutomation): IAutomation | undefined {
+function areAutomationSnapshotsEqual(first: IAutomation, second: IAutomation): boolean {
+	const normalizeRuns = (runs: readonly IAutomationRun[]) => runs.map(run => ({ ...run, sessionResource: run.sessionResource?.toString() }));
+	return JSON.stringify(serializeAutomation(first.automation)) === JSON.stringify(serializeAutomation(second.automation))
+		&& JSON.stringify(normalizeRuns(first.runs)) === JSON.stringify(normalizeRuns(second.runs));
+}
+
+type ISerializedAutomationRun = Omit<IAutomationRun, 'sessionResource'> & { readonly sessionResource?: string };
+
+function isSerializedAutomationRun(value: unknown): value is ISerializedAutomationRun {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return false;
+	}
+	const run = value as Record<string, unknown>;
+	return typeof run['id'] === 'string'
+		&& typeof run['automationId'] === 'string'
+		&& (run['status'] === 'pending' || run['status'] === 'running' || run['status'] === 'completed' || run['status'] === 'failed')
+		&& (run['trigger'] === 'schedule' || run['trigger'] === 'catch_up' || run['trigger'] === 'manual')
+		&& typeof run['startedAt'] === 'string'
+		&& typeof run['leaderWindowId'] === 'number'
+		&& (run['sessionResource'] === undefined || typeof run['sessionResource'] === 'string')
+		&& (run['completedAt'] === undefined || typeof run['completedAt'] === 'string')
+		&& (run['errorMessage'] === undefined || typeof run['errorMessage'] === 'string');
+}
+
+function deserializeAutomation(s: ISerializedAutomation): IAutomationDescriptor | undefined {
 	const target = deserializeAutomationTarget(s.target);
 	return target ? createAutomationFromSerialized(s, target) : undefined;
 }
 
-function deserializeLegacyAutomation(s: ILegacySerializedAutomation): IAutomation | undefined {
+function deserializeLegacyAutomation(s: ILegacySerializedAutomation): IAutomationDescriptor | undefined {
 	let target: AutomationTarget;
 	if (s.isQuickChat === true) {
 		if (!s.providerId || !s.sessionTypeId) {
@@ -527,7 +678,7 @@ function deserializeLegacyAutomation(s: ILegacySerializedAutomation): IAutomatio
 	return createAutomationFromSerialized(s, target);
 }
 
-function createAutomationFromSerialized(s: ISerializedAutomationBase, target: AutomationTarget): IAutomation {
+function createAutomationFromSerialized(s: ISerializedAutomationBase, target: AutomationTarget): IAutomationDescriptor {
 	// Default to most restrictive if the persisted value is invalid.
 	const permissionLevel = isChatPermissionLevel(s.permissionLevel)
 		? s.permissionLevel
@@ -550,7 +701,7 @@ function createAutomationFromSerialized(s: ISerializedAutomationBase, target: Au
 	});
 }
 
-function updateAutomation(current: IAutomation, patch: IUpdateAutomationOptions, now: Date): IAutomation {
+function updateAutomation(current: IAutomationDescriptor, patch: IUpdateAutomationOptions, now: Date): IAutomationDescriptor {
 	const merged = mergeAutomation(current, patch);
 	const scheduleChanged = patch.schedule !== undefined;
 	const enabledChanged = patch.enabled !== undefined;
@@ -563,7 +714,7 @@ function updateAutomation(current: IAutomation, patch: IUpdateAutomationOptions,
 	});
 }
 
-function mergeAutomation(current: IAutomation, patch: IUpdateAutomationOptions): IAutomation {
+function mergeAutomation(current: IAutomationDescriptor, patch: IUpdateAutomationOptions): IAutomationDescriptor {
 	return {
 		...current,
 		name: patch.name ?? current.name,
@@ -600,7 +751,16 @@ function serializeAutomationTarget(target: AutomationTarget): ISerializedAutomat
 		? { kind: 'quickChat', providerId: target.providerId, sessionTypeId: target.sessionTypeId }
 		: {
 			kind: 'workspace',
-			folderUri: target.folderUri.toJSON(),
+			// Serialize explicit components rather than URI.toJSON(). toJSON() emits lazily
+			// cached fsPath and formatted fields only after they have been accessed, so two URIs
+			// for the same folder can serialize differently and break snapshot equality checks.
+			folderUri: {
+				scheme: target.folderUri.scheme,
+				authority: target.folderUri.authority,
+				path: target.folderUri.path,
+				query: target.folderUri.query,
+				fragment: target.folderUri.fragment,
+			},
 			providerId: target.providerId,
 			sessionTypeId: target.sessionTypeId,
 			isolation: target.isolation,

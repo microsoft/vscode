@@ -244,6 +244,10 @@ export class CodeApplication extends Disposable {
 
 		const isUrlFromWindow = (requestingUrl?: string | undefined) => requestingUrl?.startsWith(`${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}`);
 		const isUrlFromWebview = (requestingUrl: string | undefined) => requestingUrl?.startsWith(`${Schemas.vscodeWebview}://`);
+		const isUrlFromAuxiliaryWindow = (webContents: Electron.WebContents | null, requestingUrl: string | undefined, isMainFrame: boolean) =>
+			isMainFrame && requestingUrl === 'about:blank' && !!(webContents && this.auxiliaryWindowsMainService?.getWindowByWebContents(webContents));
+		const isRequestFromWindow = (webContents: Electron.WebContents | null, requestingUrl: string | undefined, isMainFrame: boolean) =>
+			isUrlFromWindow(requestingUrl) || isUrlFromAuxiliaryWindow(webContents, requestingUrl, isMainFrame);
 
 		const alwaysAllowedPermissions = new Set(['pointerLock', 'notifications']);
 
@@ -265,21 +269,21 @@ export class CodeApplication extends Disposable {
 			'deprecated-sync-clipboard-read',
 		]);
 
-		session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback, details) => {
+		session.defaultSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
 			if (isUrlFromWebview(details.requestingUrl)) {
 				return callback(allowedPermissionsInWebview.has(permission));
 			}
-			if (isUrlFromWindow(details.requestingUrl)) {
+			if (isRequestFromWindow(webContents, details.requestingUrl, details.isMainFrame)) {
 				return callback(allowedPermissionsInCore.has(permission));
 			}
 			return callback(false);
 		});
 
-		session.defaultSession.setPermissionCheckHandler((_webContents, permission, _origin, details) => {
+		session.defaultSession.setPermissionCheckHandler((webContents, permission, _origin, details) => {
 			if (isUrlFromWebview(details.requestingUrl)) {
 				return allowedPermissionsInWebview.has(permission);
 			}
-			if (isUrlFromWindow(details.requestingUrl)) {
+			if (isRequestFromWindow(webContents, details.requestingUrl, details.isMainFrame)) {
 				return allowedPermissionsInCore.has(permission);
 			}
 			return false;
@@ -422,6 +426,20 @@ export class CodeApplication extends Disposable {
 				if (!isAllowedVsCodeFileRequest(details)) {
 					this.logService.error('Blocked vscode-file request', details.url);
 					return callback({ cancel: true });
+				}
+			}
+
+			if (uri.scheme === Schemas.vscodeManagedRemoteResource) {
+				let frame: WebFrameMain | null | undefined = details.frame;
+				if (!frame || frame.isDestroyed()) {
+					this.logService.error('Blocked vscode-managed-remote-resource request', details.url);
+					return callback({ cancel: true });
+				}
+				for (; frame; frame = frame.parent) {
+					if (frame.isDestroyed() || frame.url.startsWith(`${Schemas.vscodeWebview}://`)) {
+						this.logService.error('Blocked vscode-managed-remote-resource request', details.url);
+						return callback({ cancel: true });
+					}
 				}
 			}
 
@@ -729,12 +747,12 @@ export class CodeApplication extends Disposable {
 		// Always instantiate the starter + manager. They are cheap (the
 		// constructors only register an IPC listener and emitters) and the agent
 		// host utility process is spawned lazily on the first window connection
-		// request. The renderer is the gate: it only requests a connection when
-		// `chat.agentHost.enabled` resolves to `true` and AI features are enabled
-		// there (honoring experiment overrides + policy + web), which the main
-		// process cannot fully observe.
-		const agentHostStarter = new ElectronAgentHostStarter({ machineId, sqmId, devDeviceId }, this.configurationService, this.environmentMainService, this.lifecycleMainService, this.logService);
-		this._register(appInstantiationService.createInstance(AgentHostProcessManager, agentHostStarter));
+		// request. The renderer only requests a connection when the runtime is
+		// available and AI features are enabled there, which the main process
+		// cannot fully observe.
+		const agentHostStarter = appInstantiationService.createInstance(ElectronAgentHostStarter, { machineId, sqmId, devDeviceId });
+		// This manager self-disposes after its lifecycle join; CodeApplication disposes before later shutdown listeners run.
+		appInstantiationService.createInstance(AgentHostProcessManager, agentHostStarter, process.platform);
 
 		// Metered connection telemetry
 		appInstantiationService.invokeFunction(accessor => {
@@ -825,6 +843,10 @@ export class CodeApplication extends Disposable {
 		protocol.registerBufferProtocol(Schemas.vscodeManagedRemoteResource, (request, callback) => {
 			const url = URI.parse(request.url);
 			if (!url.authority.startsWith('window:')) {
+				return callback(notFound());
+			}
+
+			if (!request.referrer || request.referrer.startsWith(`${Schemas.vscodeWebview}://`)) {
 				return callback(notFound());
 			}
 

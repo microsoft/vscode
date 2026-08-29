@@ -7,6 +7,7 @@ import { disposableTimeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { hasExhaustedReconnectAttempts, type IRemoteAgentHostReconnectPolicy } from '../../../../../platform/agentHost/common/reconnectPolicy.js';
 import { PROTOCOL_VERSION } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -68,8 +69,8 @@ export interface IManagedReconnectAttemptOptions {
 	readonly address: string;
 	/** Whether the attempt was triggered by an explicit user action. */
 	readonly userInitiated: boolean;
-	/** Consecutive failures before pausing auto-reconnect. */
-	readonly maxAttempts: number;
+	/** Policy controlling automatic reconnect attempts. */
+	readonly reconnectPolicy: IRemoteAgentHostReconnectPolicy;
 	/** Whether the given error should pause (rather than retry) auto-reconnect. */
 	readonly shouldPause: (err: unknown) => boolean;
 	/**
@@ -182,7 +183,7 @@ export abstract class ManagedReconnectAgentHostContribution extends Disposable {
 
 	/**
 	 * Shared retry-loop body for managed-reconnect entries. Handles
-	 * `connecting`/`disconnected`/`incompatible` provider status, cached-session
+	 * `connecting`/`reconnecting`/`disconnected`/`incompatible` provider status, cached-session
 	 * unpublishing on failure, pause-on-cancel, and pause-after-max-attempts.
 	 * Type-specific behaviour is provided via {@link IManagedReconnectAttemptOptions}.
 	 */
@@ -190,6 +191,15 @@ export abstract class ManagedReconnectAgentHostContribution extends Disposable {
 		// Wrap the body so we can store our own promise in `_pendingReconnects`
 		// for concurrent on-demand callers to join.
 		const runPromise = (async () => {
+			const live = this._remoteAgentHostService.connections.find(connection => connection.address === opts.address);
+			if (!opts.userInitiated && RemoteAgentHostConnectionStatus.isConnecting(live?.status)) {
+				return;
+			}
+			if (!opts.userInitiated && RemoteAgentHostConnectionStatus.isReconnecting(live?.status)) {
+				// The protocol client is preserving its state while it reconnects; don't replace it.
+				this._reconnectStates.get(opts.key)?.cancelTimer();
+				return;
+			}
 			const state = this._getOrCreateReconnectState(opts.key);
 			const attempt = state.attempts;
 			const provider = this._providerInstances.get(opts.address);
@@ -246,7 +256,7 @@ export abstract class ManagedReconnectAgentHostContribution extends Disposable {
 				// reconnect was in flight — re-resolve to be safe.
 				const liveState = this._getOrCreateReconnectState(opts.key);
 				liveState.attempts = attempt + 1;
-				if (liveState.attempts >= opts.maxAttempts) {
+				if (hasExhaustedReconnectAttempts(opts.reconnectPolicy, liveState.attempts)) {
 					this._logService.info(`[RemoteAgentHost] Pausing ${opts.kind} auto-reconnect for ${opts.key} after ${liveState.attempts} consecutive failures`);
 					liveState.paused = true;
 					liveState.pausedAt = Date.now();

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ApiError, GenerateContentParameters, GoogleGenAI, Tool, Type } from '@google/genai';
+import { ApiError, GenerateContentParameters, GoogleGenAI, ThinkingLevel, Tool, Type } from '@google/genai';
 import { CancellationToken, LanguageModelChatInformation, LanguageModelChatMessage, LanguageModelChatMessage2, LanguageModelDataPart, LanguageModelResponsePart2, LanguageModelTextPart, LanguageModelThinkingPart, LanguageModelToolCallPart, Progress, ProvideLanguageModelChatResponseOptions } from 'vscode';
 import { ChatFetchResponseType, ChatLocation } from '../../../platform/chat/common/commonTypes';
 import { ILogService } from '../../../platform/log/common/logService';
@@ -19,11 +19,12 @@ import { toErrorMessage } from '../../../util/common/errorMessage';
 import { buildOTelInputFromChatMessages } from './byokOTelHelpers';
 import { RecordedProgress } from '../../../util/common/progressRecorder';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
-import { BYOKKnownModels, byokKnownModelsToAPIInfo, BYOKModelCapabilities, LMResponsePart } from '../common/byokProvider';
+import { BYOKKnownModels, BYOKModelCapabilities, LMResponsePart } from '../common/byokProvider';
 import { toGeminiFunction as toGeminiFunctionDeclaration, ToolJsonSchema } from '../common/geminiFunctionDeclarationConverter';
 import { apiMessageToGeminiMessage, geminiMessagesToRawMessagesForLogging } from '../common/geminiMessageConverter';
 import { AbstractLanguageModelChatProvider, ExtendedLanguageModelChatInformation, LanguageModelChatConfiguration } from './abstractLanguageModelChatProvider';
 import { IBYOKStorageService } from './byokStorageService';
+import { byokKnownModelsToAPIInfoWithEffort } from './byokModelInfo';
 
 export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvider {
 
@@ -62,7 +63,7 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 					modelList[modelId] = this._knownModels[modelId];
 				}
 			}
-			return byokKnownModelsToAPIInfo(this._name, modelList);
+			return byokKnownModelsToAPIInfoWithEffort(this._name, modelList);
 		} catch (e) {
 			let error: Error;
 			if (e instanceof ApiError) {
@@ -155,6 +156,12 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 				this._logService.trace('Gemini request aborted via VS Code cancellation token');
 			});
 
+			const rawEffort = options.modelConfiguration?.reasoningEffort;
+			const supportedEffortLevels = this._knownModels?.[model.id]?.supportsReasoningEffort;
+			const thinkingLevel = typeof rawEffort === 'string' && supportedEffortLevels?.includes(rawEffort)
+				? Object.values(ThinkingLevel).find(level => level.toLowerCase() === rawEffort)
+				: undefined;
+
 			const params: GenerateContentParameters = {
 				model: model.id,
 				contents: contents,
@@ -164,6 +171,7 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 					maxOutputTokens: model.maxOutputTokens,
 					thinkingConfig: {
 						includeThoughts: true,
+						thinkingLevel,
 					},
 					abortSignal: abortController.signal
 				}

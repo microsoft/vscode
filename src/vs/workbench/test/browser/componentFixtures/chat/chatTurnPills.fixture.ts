@@ -59,8 +59,6 @@ function renderTurnPills(ctx: ComponentFixtureContext, options: IRenderTurnPills
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: ctx.theme,
 		additionalServices: (reg) => {
-			// Broad chat service graph: IContextMenuService, IEditorService and the
-			// ResourceLabels dependencies the preview action needs.
 			registerChatFixtureServices(reg);
 			reg.defineInstance(IChatResponseFileChangesService, stubFileChangesService(options.diffs));
 		},
@@ -72,6 +70,7 @@ function renderTurnPills(ctx: ComponentFixtureContext, options: IRenderTurnPills
 		kind: 'turnPills',
 		requestId: 'request-1',
 		sessionResource: URI.parse('vscode-chat-session://agent-host/session-1'),
+		isLastTurn: true,
 	};
 	const partContext = upcastPartial<IChatContentPartRenderContext>({ container });
 
@@ -124,7 +123,7 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 			}),
 		}),
 
-		ChangesAndPreview_Markdown: defineComponentFixture({
+		WorkspaceMarkdown: defineComponentFixture({
 			render: (ctx) => renderTurnPills(ctx, {
 				diffs: [
 					fileDiff('README.md', 20, 0, true),
@@ -133,39 +132,10 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 			}),
 		}),
 
-		// Expanded list showing the per-row "Preview" action on the markdown row
-		// (edited `.ts`/`.css` and HTML rows have no preview action).
-		ChangesAndPreview_Expanded: defineComponentFixture({
-			render: (ctx) => renderTurnPills(ctx, {
-				expanded: true,
-				diffs: [
-					fileDiff('README.md', 20, 0, true),
-					fileDiff('index.html', 30, 4, true),
-					fileDiff('app.ts', 8, 3, false),
-					fileDiff('styles.css', 4, 1, false),
-				],
-			}),
-		}),
-
-		// With several previewable files only the first is offered.
-		ChangesAndPreview_MultiplePreviewable: defineComponentFixture({
-			render: (ctx) => renderTurnPills(ctx, {
-				diffs: [
-					fileDiff('app.ts', 8, 3, false),
-					fileDiff('README.md', 20, 0, true),
-					fileDiff('index.html', 30, 4, true),
-					fileDiff('CHANGELOG.md', 6, 1, false),
-				],
-			}),
-		}),
-
-		LegacyPreviewOptionEnablesAll: defineComponentFixture({
+		LegacyPreviewOptionEnablesChanges: defineComponentFixture({
 			render: (ctx) => renderTurnPills(ctx, {
 				setting: { preview: true },
-				diffs: [
-					fileDiff('README.md', 20, 0, true),
-					fileDiff('app.ts', 8, 3, false),
-				],
+				diffs: [fileDiff('app.ts', 8, 3, false)],
 			}),
 		}),
 
@@ -195,18 +165,18 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 			}),
 		}),
 
-		ChangesAndPreview: defineComponentFixture({
+		ChangesWithExternalFileIgnored: defineComponentFixture({
 			render: (ctx) => renderChatWidget(ctx, {
 				turnStatusPills: true,
 				messages: [
 					{
-						user: 'Add a README describing the project',
+						user: 'Create a Markdown handoff note in my home folder',
 						assistant: [
-							{ kind: 'markdown', text: 'I added a `README.md` with an overview, setup steps, and usage notes, and linked it from the docs index.' },
+							{ kind: 'markdown', text: 'I added `/home/user/session-notes.md` with the handoff details and updated `app.ts` in the workspace.' },
 						],
 						fileChanges: [
-							{ name: 'README.md', added: 42, removed: 0, created: true },
-							{ name: 'docs/index.md', added: 4, removed: 1, created: false },
+							{ name: 'session-notes.md', added: 42, removed: 0, created: true, isOutsideWorkspace: true },
+							{ name: 'app.ts', added: 4, removed: 1, created: false },
 						],
 					},
 				],

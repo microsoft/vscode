@@ -147,6 +147,7 @@ class TestNotificationService implements IChatInputNotificationService {
 	getActiveNotification(): IChatInputNotification | undefined {
 		return [...this.notifications.values()].find(notification => !this.dismissed.has(notification.id));
 	}
+	refresh(): void { }
 	handleMessageSent(): void { }
 	announceRendered(): void { }
 }

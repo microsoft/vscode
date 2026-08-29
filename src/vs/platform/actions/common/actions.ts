@@ -180,6 +180,7 @@ export class MenuId {
 	static readonly TouchBarContext = new MenuId('TouchBarContext');
 	static readonly TitleBar = new MenuId('TitleBar');
 	static readonly TitleBarAdjacentCenter = new MenuId('TitleBarAdjacentCenter');
+	static readonly TitleBarUpdate = new MenuId('TitleBarUpdate');
 	static readonly TitleBarContext = new MenuId('TitleBarContext');
 	static readonly TitleBarTitleContext = new MenuId('TitleBarTitleContext');
 	static readonly TunnelContext = new MenuId('TunnelContext');
@@ -315,6 +316,7 @@ export class MenuId {
 	static readonly BrowserChatActionsMenu = new MenuId('BrowserChatActionsMenu');
 	static readonly BrowserEmulationToolbar = new MenuId('BrowserEmulationToolbar');
 	static readonly AgentSessionsViewerFilterSubMenu = new MenuId('AgentSessionsViewerFilterSubMenu');
+	static readonly AgentSessionsExternalFilterSubMenu = new MenuId('AgentSessionsExternalFilterSubMenu');
 	static readonly AgentSessionsContext = new MenuId('AgentSessionsContext');
 	static readonly AgentSessionSectionContext = new MenuId('AgentSessionSectionContext');
 	static readonly AgentSessionsCreateSubMenu = new MenuId('AgentSessionsCreateSubMenu');

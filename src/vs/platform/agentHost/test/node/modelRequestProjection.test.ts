@@ -113,13 +113,14 @@ suite('modelRequestProjection', () => {
 		const pairs: [string, string][] = [
 			['Read the file at ${workdir}/peer-note.txt.', 'Read the file at C:\\Users\\CLOUDT~1\\Temp\\ws\\peer-note.txt.'],
 			['${homedir}/.copilot/session-state/${uuid_0}/plan.md', 'C:\\Users\\CLOUDT~1\\Temp\\home-x/.copilot/session-state/${uuid_0}/plan.md'],
+			['${homedir}/user-data/agentPlugins/${plugin_copy}/1/skills/probe-skill', 'D:\\a\\_temp\\home\\user-data\\agentPlugins\\e2e-probe\\1\\skills\\probe-skill'],
 			['* ${workdir}/calculator.py (2 lines)', '* ${workdir}\\calculator.py (2 lines)'],
 			['cd ${workdir} && echo hi', 'cd C:\\Users\\CLOUDT~1\\Temp\\ahp-cd-strip-test-kWEDtO && echo hi'],
 		];
 		assert.deepStrictEqual(pairs.map(([recorded, live]) => modelRequestsMatch(
 			projectModelRequest(request([{ role: 'user', content: recorded }])),
 			projectModelRequest(request([{ role: 'user', content: live }])),
-		)), [true, true, true, true]);
+		)), [true, true, true, true, true]);
 	});
 
 	test('the surrounding text still has to match', () => {

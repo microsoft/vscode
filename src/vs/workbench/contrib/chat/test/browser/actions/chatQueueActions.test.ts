@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { getActiveDocument } from '../../../../../../base/browser/dom.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { constObservable } from '../../../../../../base/common/observable.js';
 import { OS } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -26,8 +27,9 @@ import { ChatAskInSideChatAction, ChatQueueMessageAction, ChatSteerWithMessageAc
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IChatSideChatService } from '../../../common/chatSideChatService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { IChatModel } from '../../../common/model/chatModel.js';
+import { IChatModel, IChatRequestModel } from '../../../common/model/chatModel.js';
 import { IChatViewModel } from '../../../common/model/chatViewModel.js';
+import { ChatRequestQueueKind } from '../../../common/chatService/chatService.js';
 
 // Register actions once so the keybindings appear in KeybindingsRegistry.
 registerChatQueueActions();
@@ -83,6 +85,45 @@ suite('Queue/Steer keybinding resolution', () => {
 		} finally {
 			dispose();
 		}
+	});
+});
+
+suite('ChatSteerWithMessageAction', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function run(isHiddenFromTranscript: boolean): ChatRequestQueueKind | undefined {
+		const store = disposables.add(new DisposableStore());
+		const instantiationService = store.add(new TestInstantiationService());
+		let queue: ChatRequestQueueKind | undefined;
+		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
+			lastFocusedWidget: upcastPartial<IChatWidget>({
+				getInput: () => 'follow up',
+				acceptInput: async (_query, options) => {
+					queue = options?.queue;
+					return undefined;
+				},
+				viewModel: upcastPartial<IChatViewModel>({
+					model: upcastPartial<IChatModel>({
+						requestInProgress: constObservable(true),
+						lastRequest: upcastPartial<IChatRequestModel>({ isHiddenFromTranscript }),
+					}),
+				}),
+			}),
+		}));
+
+		const action = new ChatSteerWithMessageAction();
+		instantiationService.invokeFunction(accessor => action.run(accessor));
+		return queue;
+	}
+
+	test('queues behind a hidden active request instead of steering it', () => {
+		assert.deepStrictEqual({
+			hidden: run(true),
+			visible: run(false),
+		}, {
+			hidden: ChatRequestQueueKind.Queued,
+			visible: ChatRequestQueueKind.Steering,
+		});
 	});
 });
 

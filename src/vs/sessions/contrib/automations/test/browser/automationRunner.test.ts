@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -13,11 +14,13 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { createAutomationService } from './automationTestUtils.js';
+import { createAutomationService, TestAutomationStorageService } from './automationTestUtils.js';
 import { AutomationTarget, AutomationWorkspaceIsolation, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import type { IAutomationRunClaim } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { AutomationRunner } from '../../browser/automationRunner.js';
+import { AutomationService } from '../../browser/automationService.js';
 
 function hourly(): IAutomationSchedule {
 	return { interval: 'hourly', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
@@ -103,13 +106,41 @@ class RecordingNotificationService extends TestNotificationService {
 		this.infos.push(message);
 		return super.info(message);
 	}
+
 }
 
-function fakeSession(id: string, status = observableValue(`status-${id}`, SessionStatus.Completed)): ISession {
+class ExternalDispatchAutomationService extends AutomationService {
+	readonly completion = new DeferredPromise<void>();
+	cancelCalls = 0;
+
+	override async recordRunStart(automationId: string, trigger: 'manual' | 'schedule' | 'catch_up', leaderWindowId: number): Promise<IAutomationRunClaim> {
+		const sessionResource = URI.parse('vscode-chat-session://test/external');
+		return {
+			claimed: false,
+			run: {
+				id: 'external-run',
+				automationId,
+				status: 'running',
+				trigger,
+				sessionResource,
+				startedAt: new Date().toISOString(),
+				leaderWindowId,
+			},
+			externalDispatch: {
+				sessionResource,
+				whenCompleted: this.completion.p,
+				cancel: () => this.cancelCalls++,
+			},
+		};
+	}
+}
+
+function fakeSession(id: string, status = observableValue(`status-${id}`, SessionStatus.Completed), chatStatus = status): ISession {
 	return upcastPartial<ISession>({
 		sessionId: id,
 		resource: URI.from({ scheme: 'vscode-chat-session', authority: 'test', path: `/${id}` }),
 		status,
+		mainChat: observableValue(`main-chat-${id}`, upcastPartial<IChat>({ status: chatStatus })),
 	});
 }
 
@@ -142,9 +173,72 @@ suite('AutomationRunner', () => {
 		const runs = service.runs.get();
 		assert.strictEqual(runs.length, 1);
 		assert.strictEqual(runs[0].status, 'completed');
-		assert.strictEqual(runs[0].sessionResource, 'vscode-chat-session://test/s1');
+		assert.strictEqual(runs[0].sessionResource?.toString(), 'vscode-chat-session://test/s1');
 		assert.strictEqual(runs[0].trigger, 'schedule');
 		assert.strictEqual(runs[0].leaderWindowId, 99);
+	});
+
+	test('reports an authority-dispatched run as started without creating another session', async () => {
+		const storage = teardown.add(new InMemoryStorageService());
+		const log = new NullLogService();
+		const service = teardown.add(new ExternalDispatchAutomationService(storage, log, NullTelemetryService, new TestAutomationStorageService(storage)));
+		const sessionsMgmt = new FakeSessionsManagementService();
+		const runner = new AutomationRunner(service, sessionsMgmt, log, NullTelemetryService, new RecordingNotificationService());
+		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
+
+		const operation = runner.runOnce(automation, 'manual', 0);
+		const dispatch = await operation.whenDispatched;
+		let completed = false;
+		void operation.whenCompleted.then(() => completed = true);
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			dispatch: dispatch.kind === 'started' ? {
+				kind: dispatch.kind,
+				runId: dispatch.run.id,
+				automationId: dispatch.run.automationId,
+				status: dispatch.run.status,
+				trigger: dispatch.run.trigger,
+				runSession: dispatch.run.sessionResource?.toString(),
+				sessionResource: dispatch.sessionResource.toString(),
+			} : dispatch,
+			sessionCreateCalls: sessionsMgmt.calls.length,
+			completed,
+		}, {
+			dispatch: {
+				kind: 'started',
+				runId: 'external-run',
+				automationId: automation.id,
+				status: 'running',
+				trigger: 'manual',
+				runSession: 'vscode-chat-session://test/external',
+				sessionResource: 'vscode-chat-session://test/external',
+			},
+			sessionCreateCalls: 0,
+			completed: false,
+		});
+
+		await service.completion.complete();
+		await operation.whenCompleted;
+	});
+
+	test('forwards cancellation to an authority-dispatched run', async () => {
+		const storage = teardown.add(new InMemoryStorageService());
+		const log = new NullLogService();
+		const service = teardown.add(new ExternalDispatchAutomationService(storage, log, NullTelemetryService, new TestAutomationStorageService(storage)));
+		const runner = new AutomationRunner(service, new FakeSessionsManagementService(), log, NullTelemetryService, new RecordingNotificationService());
+		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
+		const cancellation = new CancellationTokenSource();
+		const operation = runner.runOnce(automation, 'manual', 0, cancellation.token);
+		await operation.whenDispatched;
+
+		cancellation.cancel();
+		await Promise.resolve();
+
+		assert.strictEqual(service.cancelCalls, 1);
+		await service.completion.complete();
+		await operation.whenCompleted;
+		cancellation.dispose();
 	});
 
 	test('keeps the run active through NeedsInput and records the session before completion', async () => {
@@ -162,7 +256,7 @@ suite('AutomationRunner', () => {
 		await dispatchPromise;
 		assert.deepStrictEqual(service.runs.get().map(run => ({
 			status: run.status,
-			sessionResource: run.sessionResource,
+			sessionResource: run.sessionResource?.toString(),
 			completedAt: run.completedAt,
 		})), [{
 			status: 'running',
@@ -188,6 +282,28 @@ suite('AutomationRunner', () => {
 		assert.strictEqual(service.runs.get()[0].status, 'completed');
 	});
 
+	test('completes the run when the main chat stops while the aggregate session remains active', async () => {
+		const { service, sessionsMgmt, runner } = setup();
+		const sessionStatus = observableValue('status-s1', SessionStatus.InProgress);
+		const chatStatus = observableValue('chat-status-s1', SessionStatus.InProgress);
+		sessionsMgmt.nextSession = fakeSession('s1', sessionStatus, chatStatus);
+
+		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
+		const operation = runner.runOnce(automation, 'manual', 1);
+		await operation.whenDispatched;
+
+		chatStatus.set(SessionStatus.Completed, undefined);
+		await operation.whenCompleted;
+
+		assert.deepStrictEqual({
+			sessionStatus: sessionStatus.get(),
+			runStatus: service.runs.get()[0].status,
+		}, {
+			sessionStatus: SessionStatus.InProgress,
+			runStatus: 'completed',
+		});
+	});
+
 	test('marks the run failed when the session reports an error', async () => {
 		const { service, sessionsMgmt, runner } = setup();
 		const status = observableValue('status-s1', SessionStatus.InProgress);
@@ -203,7 +319,7 @@ suite('AutomationRunner', () => {
 		const run = service.runs.get()[0];
 		assert.deepStrictEqual({
 			status: run.status,
-			sessionResource: run.sessionResource,
+			sessionResource: run.sessionResource?.toString(),
 			errorMessage: run.errorMessage,
 			hasCompletedAt: run.completedAt !== undefined,
 		}, {
@@ -373,7 +489,7 @@ suite('AutomationRunner', () => {
 		assert.strictEqual(runs.length, 1);
 		assert.strictEqual(runs[0].status, 'failed');
 		assert.strictEqual(runs[0].errorMessage, 'Cancelled');
-		assert.strictEqual(runs[0].sessionResource, 'vscode-chat-session://test/s-mid');
+		assert.strictEqual(runs[0].sessionResource?.toString(), 'vscode-chat-session://test/s-mid');
 		cts.dispose();
 	});
 
@@ -393,7 +509,7 @@ suite('AutomationRunner', () => {
 		const run = service.runs.get()[0];
 		assert.deepStrictEqual({
 			status: run.status,
-			sessionResource: run.sessionResource,
+			sessionResource: run.sessionResource?.toString(),
 			errorMessage: run.errorMessage,
 		}, {
 			status: 'failed',
