@@ -16,6 +16,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { removeDangerousEnvVariables } from '../../../base/common/processes.js';
 import { deepClone } from '../../../base/common/objects.js';
+import { isValidEnvVariableKey } from '../common/envKey.js';
 import { isWindows } from '../../../base/common/platform.js';
 import { isUNCAccessRestrictionsDisabled, getUNCHostAllowlist } from '../../../base/node/unc.js';
 
@@ -295,7 +296,7 @@ export class UtilityProcess extends Disposable {
 
 		// Ensure all values are strings, otherwise the process will not start (and valid keys are forwarded)
 		for (const key of Object.keys(env)) {
-			if (!UtilityProcess.isValidEnvVariableKey(key)) {
+			if (!isValidEnvVariableKey(key)) {
 				// An environment variable whose name Node.js considers invalid (e.g. leading digit,
 				// or characters outside [A-Za-z0-9_]) would break the utility process boundary:
 				// Electron's spawn() throws `TypeError: Invalid value for env`. Such keys leak in
@@ -308,15 +309,6 @@ export class UtilityProcess extends Disposable {
 		}
 
 		return env;
-	}
-
-	/**
-	 * Whether `key` is a name Node.js accepts on process environments.
-	 * Names beginning with a digit or containing characters other than `[A-Za-z0-9_]`
-	 * are rejected and must not be forwarded to child processes.
-	 */
-	static isValidEnvVariableKey(key: string): boolean {
-		return /^[A-Za-z_][A-Za-z0-9_]*$/.test(key);
 	}
 
 	private registerListeners(process: ElectronUtilityProcess, configuration: IUtilityProcessConfiguration, serviceName: string): void {
