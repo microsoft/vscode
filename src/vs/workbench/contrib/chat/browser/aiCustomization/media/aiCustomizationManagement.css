@@ -255,17 +255,13 @@
 .plugin-list-widget > .list-search-and-button-container,
 .plugin-list-widget > .mcp-list-container,
 .tools-list-widget > .section-title-header,
-.tools-list-widget > .tools-list-search-and-button-container,
-.ai-customization-management-editor .prompt-migration-content-container > .section-title-header {
+.tools-list-widget > .tools-list-search-and-button-container {
 	width: min(100%, 840px);
 	margin-inline: auto;
 	box-sizing: border-box;
 }
 
-.tools-list-widget > .tools-gallery-container,
-.ai-customization-management-editor .prompt-migration-content-container > .customization-migration-banner,
-.ai-customization-management-editor .prompt-migration-content-container > .prompt-migration-list-scrollable,
-.ai-customization-management-editor .prompt-migration-content-container > .prompt-migration-footer {
+.tools-list-widget > .tools-gallery-container {
 	width: min(calc(100% - var(--vscode-spacing-size40)), 840px);
 	margin-inline: auto;
 	box-sizing: border-box;
@@ -1069,8 +1065,7 @@ per-word capitalization does not survive translation. */
 	display: flex;
 	flex-direction: column;
 	overflow: hidden;
-	padding: 0 var(--vscode-spacing-size120) var(--vscode-spacing-size60) 0;
-	box-sizing: border-box;
+	padding-bottom: var(--vscode-spacing-size60);
 }
 
 .ai-customization-management-editor .prompt-migration-group {
@@ -1125,6 +1120,7 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-management-editor .prompt-migration-select-all-label {
+	padding-inline-end: var(--vscode-spacing-size20);
 	font-size: var(--vscode-agents-fontSize-body2);
 	color: var(--vscode-descriptionForeground);
 	cursor: pointer;
