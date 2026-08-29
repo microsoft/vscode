@@ -1031,8 +1031,9 @@ StartFindReplaceAction.addImplementation(0, (accessor: ServicesAccessor, editor:
 	const currentSelection = editor.getSelection();
 	const findInputFocused = controller.isFindInputFocused();
 	const seedSearchStringSetting = editor.getOption(EditorOption.find).seedSearchStringFromSelection;
-	const canSeedFromSelection = seedSearchStringSetting === 'always'
-		|| (seedSearchStringSetting === 'selection' && !currentSelection.isEmpty());
+	const seedSearchStringFromNonEmptySelection = seedSearchStringSetting === 'selection';
+	const canSeedFromSelection = seedSearchStringSetting !== 'never'
+		&& getSelectionSearchString(editor, 'single', seedSearchStringFromNonEmptySelection) !== null;
 	const seedSearchStringFromSelection = canSeedFromSelection
 		&& currentSelection.startLineNumber === currentSelection.endLineNumber
 		&& !findInputFocused;
@@ -1049,8 +1050,8 @@ StartFindReplaceAction.addImplementation(0, (accessor: ServicesAccessor, editor:
 	return controller.start({
 		forceRevealReplace: true,
 		seedSearchStringFromSelection: seedSearchStringFromSelection ? 'single' : 'none',
-		seedSearchStringFromNonEmptySelection: editor.getOption(EditorOption.find).seedSearchStringFromSelection === 'selection',
-		seedSearchStringFromGlobalClipboard: editor.getOption(EditorOption.find).seedSearchStringFromSelection !== 'never',
+		seedSearchStringFromNonEmptySelection: seedSearchStringFromNonEmptySelection,
+		seedSearchStringFromGlobalClipboard: seedSearchStringSetting !== 'never',
 		shouldFocus: shouldFocus,
 		shouldAnimate: true,
 		updateSearchScope: false,
