@@ -1731,7 +1731,7 @@ export class ActionListWidget<T> extends Disposable {
 		}
 
 		try {
-			return rows.map(({ element, item }) => element.getBoundingClientRect().width + this._computeToolbarWidth(item));
+			return rows.map(({ element, item }) => element.getBoundingClientRect().width + (item.detail ? 0 : this._computeToolbarWidth(item)));
 		} finally {
 			for (const { element } of rows) {
 				element.style.width = '';

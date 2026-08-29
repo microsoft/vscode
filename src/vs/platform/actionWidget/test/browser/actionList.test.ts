@@ -357,6 +357,26 @@ suite('ActionListWidget', () => {
 		});
 	});
 
+	test('does not double count a detail row toolbar when computing max width', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [
+				{ ...action('detail'), detail: 'Description', toolbarActions: [toAction({ id: 'toolbar', label: 'Toolbar', run: () => { } })] },
+			],
+		});
+		const row = widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!;
+		row.getBoundingClientRect = () => new mainWindow.DOMRect(0, 0, 240, 48);
+
+		const width = widget.computeMaxWidth(0);
+
+		assert.deepStrictEqual({
+			width,
+			restoredWidth: row.style.width,
+		}, {
+			width: 240,
+			restoredWidth: '',
+		});
+	});
+
 	test('keeps detail row geometry stable when its toolbar becomes visible', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [
@@ -410,14 +430,14 @@ suite('ActionListWidget', () => {
 				detailTop: initial.detailTop,
 				toolbarDisplay: 'flex',
 				toolbarVisibility: 'hidden',
-				toolbarMarginRight: '6px',
+				toolbarMarginRight: '10px',
 			},
 			focused: {
 				rowHeight: 48,
 				detailTop: initial.detailTop,
 				toolbarDisplay: 'flex',
 				toolbarVisibility: 'visible',
-				toolbarMarginRight: '6px',
+				toolbarMarginRight: '10px',
 				clearsScrollbar: true,
 			},
 		});
