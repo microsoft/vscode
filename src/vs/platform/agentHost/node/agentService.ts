@@ -5444,6 +5444,9 @@ export class AgentService extends Disposable implements IAgentService {
 			session: sessionStr,
 			chat: defaultChatUri.toString(),
 		}, {});
+		// This overlay stays here rather than moving into `ChatDraftContribution`: it seeds
+		// the draft's model from `IAgent`-supplied session metadata, so it is provider-shaped,
+		// and moving it would put provider metadata into `IHydrationContext` for one consumer.
 		const restoredDraft = meta.model
 			? { ...(defaultDraft ?? { text: '', origin: { kind: MessageKind.User } }), model: meta.model }
 			: defaultDraft;
