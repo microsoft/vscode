@@ -11,6 +11,7 @@ import { Location } from 'jsonc-parser';
 import type * as cp from 'child_process';
 import { dirname } from 'path';
 import { fromNow } from './date';
+import { compareSemver, parseNpmViewOutput, ViewPackageInfo } from './npmViewParser';
 
 const LIMIT = 40;
 const MAX_HISTORICAL_VERSIONS = 50;
@@ -21,59 +22,6 @@ const SORT_TEXT_TILDE = '02';
 const SORT_PREFIX_HISTORICAL = '03-';
 
 const USER_AGENT = 'Visual Studio Code';
-
-interface ParsedSemver {
-	major: number;
-	minor: number;
-	patch: number;
-	prerelease?: string;
-}
-
-function parseSemver(version: string): ParsedSemver | undefined {
-	const match = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+.*)?$/.exec(version.trim());
-	if (!match) {
-		return undefined;
-	}
-	return {
-		major: parseInt(match[1], 10),
-		minor: parseInt(match[2], 10),
-		patch: parseInt(match[3], 10),
-		prerelease: match[4]
-	};
-}
-
-function compareSemver(a: string, b: string): number {
-	const pa = parseSemver(a);
-	const pb = parseSemver(b);
-	if (pa && pb) {
-		if (pa.major !== pb.major) {
-			return pa.major - pb.major;
-		}
-		if (pa.minor !== pb.minor) {
-			return pa.minor - pb.minor;
-		}
-		if (pa.patch !== pb.patch) {
-			return pa.patch - pb.patch;
-		}
-		if (!pa.prerelease && pb.prerelease) {
-			return 1;
-		}
-		if (pa.prerelease && !pb.prerelease) {
-			return -1;
-		}
-		if (pa.prerelease && pb.prerelease) {
-			return pa.prerelease.localeCompare(pb.prerelease, undefined, { numeric: true });
-		}
-		return 0;
-	}
-	if (pa && !pb) {
-		return 1;
-	}
-	if (!pa && pb) {
-		return -1;
-	}
-	return a.localeCompare(b, undefined, { numeric: true });
-}
 
 export class PackageJSONContribution implements IJSONContribution {
 
@@ -402,26 +350,7 @@ export class PackageJSONContribution implements IJSONContribution {
 	private async npmView(npmCommandPath: string, pack: string, resource: Uri | undefined): Promise<ViewPackageInfo | undefined> {
 		const args = ['view', '--json', '--', pack, 'description', 'dist-tags.latest', 'homepage', 'version', 'time', 'versions'];
 		const stdout = await this.runNpmCommand(npmCommandPath, args, resource);
-		if (stdout) {
-			try {
-				const content = JSON.parse(stdout);
-				const rawVersions = content['versions'];
-				const versions = Array.isArray(rawVersions)
-					? rawVersions.slice().sort((a, b) => compareSemver(b, a))
-					: (typeof rawVersions === 'string' ? [rawVersions] : undefined);
-				const version = content['dist-tags.latest'] || content['version'] || (versions && versions[0]);
-				return {
-					description: content['description'],
-					version,
-					versions,
-					time: content.time?.[version],
-					homepage: content['homepage']
-				};
-			} catch (e) {
-				// ignore
-			}
-		}
-		return undefined;
+		return stdout ? parseNpmViewOutput(stdout) : undefined;
 	}
 
 	private async npmjsView(pack: string): Promise<ViewPackageInfo | undefined> {
@@ -512,13 +441,4 @@ interface SearchPackageInfo {
 	description?: string;
 	version?: string;
 	links?: { homepage?: string };
-}
-
-interface ViewPackageInfo {
-	description: string;
-	version?: string;
-	versions?: string[];
-	time?: string;
-	homepage?: string;
-	installedVersion?: string;
 }

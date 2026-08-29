@@ -67,6 +67,11 @@
 	padding-left: var(--vscode-spacing-size40);
 }
 
+.modern-ui.modern-ui-compact .monaco-pane-view .pane-body:not(.chat-viewpane) .monaco-list-row {
+	left: var(--vscode-spacing-size20);
+	right: var(--vscode-spacing-size20);
+}
+
 /*
  * In the Run and Debug view give the header actions (play button + launch
  * configuration dropdown) the extra room by letting the actions grow while the
@@ -107,6 +112,11 @@
 
 .modern-ui.monaco-workbench .pane-body .agent-sessions-viewer .monaco-scrollable-element {
 	padding: 0 var(--vscode-spacing-size80);
+}
+
+.modern-ui.modern-ui-compact.monaco-workbench .pane-body .agent-sessions-viewer .monaco-scrollable-element {
+	padding-left: var(--vscode-spacing-size40);
+	padding-right: var(--vscode-spacing-size40);
 }
 
 .modern-ui.monaco-workbench .agent-sessions-viewer .monaco-list-row.agent-session-list-row {
@@ -257,6 +267,11 @@
 	padding-right: var(--vscode-spacing-size40);
 	padding-left: var(--vscode-spacing-size20);
 	overflow: visible;
+}
+
+/* Remove classic 1px top border that shifts 32px pills off-center (#331013) */
+.modern-ui.monaco-workbench .part.panel.bottom .composite.title {
+	border-top: none;
 }
 
 .modern-ui.monaco-workbench .part.basepanel > .composite.title > .title-actions {

@@ -762,4 +762,9 @@ export const codiconsLibrary = {
 	xai: register('xai', 0xecec),
 	arrowCircleUpSparkle: register('arrow-circle-up-sparkle', 0xeced),
 	closeSmall: register('close-small', 0xecee),
+	bookCompact: register('book-compact', 0xecef),
+	micOff: register('mic-off', 0xecf0),
+	micOffCompact: register('mic-off-compact', 0xecf1),
+	copilotDot: register('copilot-dot', 0xecf2),
+	copilotDotCompact: register('copilot-dot-compact', 0xecf3),
 } as const;

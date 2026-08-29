@@ -24,7 +24,7 @@ const mcpActivationEventPrefix = 'onMcpCollection:';
 export const mcpActivationEvent = (contributedCollectionId: string) =>
 	mcpActivationEventPrefix + contributedCollectionId;
 
-export const enum DiscoverySource {
+export const enum ExternalDiscoverySource {
 	ClaudeDesktop = 'claude-desktop',
 	Windsurf = 'windsurf',
 	CursorGlobal = 'cursor-global',
@@ -32,23 +32,23 @@ export const enum DiscoverySource {
 }
 
 export const allDiscoverySources = Object.keys({
-	[DiscoverySource.ClaudeDesktop]: true,
-	[DiscoverySource.Windsurf]: true,
-	[DiscoverySource.CursorGlobal]: true,
-	[DiscoverySource.CursorWorkspace]: true,
-} satisfies Record<DiscoverySource, true>) as DiscoverySource[];
+	[ExternalDiscoverySource.ClaudeDesktop]: true,
+	[ExternalDiscoverySource.Windsurf]: true,
+	[ExternalDiscoverySource.CursorGlobal]: true,
+	[ExternalDiscoverySource.CursorWorkspace]: true,
+} satisfies Record<ExternalDiscoverySource, true>) as ExternalDiscoverySource[];
 
-export const discoverySourceLabel: Record<DiscoverySource, string> = {
-	[DiscoverySource.ClaudeDesktop]: localize('mcp.discovery.source.claude-desktop', "Claude Desktop"),
-	[DiscoverySource.Windsurf]: localize('mcp.discovery.source.windsurf', "Windsurf"),
-	[DiscoverySource.CursorGlobal]: localize('mcp.discovery.source.cursor-global', "Cursor (Global)"),
-	[DiscoverySource.CursorWorkspace]: localize('mcp.discovery.source.cursor-workspace', "Cursor (Workspace)"),
+export const discoverySourceLabel: Record<ExternalDiscoverySource, string> = {
+	[ExternalDiscoverySource.ClaudeDesktop]: localize('mcp.discovery.source.claude-desktop', "Claude Desktop"),
+	[ExternalDiscoverySource.Windsurf]: localize('mcp.discovery.source.windsurf', "Windsurf"),
+	[ExternalDiscoverySource.CursorGlobal]: localize('mcp.discovery.source.cursor-global', "Cursor (Global)"),
+	[ExternalDiscoverySource.CursorWorkspace]: localize('mcp.discovery.source.cursor-workspace', "Cursor (Workspace)"),
 };
-export const discoverySourceSettingsLabel: Record<DiscoverySource, string> = {
-	[DiscoverySource.ClaudeDesktop]: localize('mcp.discovery.source.claude-desktop.config', "Claude Desktop configuration (`claude_desktop_config.json`)"),
-	[DiscoverySource.Windsurf]: localize('mcp.discovery.source.windsurf.config', "Windsurf configurations (`~/.codeium/windsurf/mcp_config.json`)"),
-	[DiscoverySource.CursorGlobal]: localize('mcp.discovery.source.cursor-global.config', "Cursor global configuration (`~/.cursor/mcp.json`)"),
-	[DiscoverySource.CursorWorkspace]: localize('mcp.discovery.source.cursor-workspace.config', "Cursor workspace configuration (`.cursor/mcp.json`)"),
+export const discoverySourceSettingsLabel: Record<ExternalDiscoverySource, string> = {
+	[ExternalDiscoverySource.ClaudeDesktop]: localize('mcp.discovery.source.claude-desktop.config', "Claude Desktop configuration (`claude_desktop_config.json`)"),
+	[ExternalDiscoverySource.Windsurf]: localize('mcp.discovery.source.windsurf.config', "Windsurf configurations (`~/.codeium/windsurf/mcp_config.json`)"),
+	[ExternalDiscoverySource.CursorGlobal]: localize('mcp.discovery.source.cursor-global.config', "Cursor global configuration (`~/.cursor/mcp.json`)"),
+	[ExternalDiscoverySource.CursorWorkspace]: localize('mcp.discovery.source.cursor-workspace.config', "Cursor workspace configuration (`.cursor/mcp.json`)"),
 };
 
 export const mcpConfigurationSection = 'mcp';
@@ -390,4 +390,3 @@ Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).re
 	},
 	renderer: new SyncDescriptor(McpServerDefinitionsProviderRenderer),
 });
-

@@ -22,6 +22,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IRenderedMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { getCompactCodicon } from '../../chatIcons.js';
 import './media/chatCollapsibleContentPart.css';
 
 
@@ -43,6 +44,7 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 	private _contentElement?: HTMLElement;
 	private _contentInitialized = false;
 	private _animationContainer: HTMLElement | undefined;
+	private _isExpandable = true;
 	private ariaLabel: string;
 
 	public get icon(): ThemeIcon | undefined {
@@ -50,7 +52,7 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 	}
 
 	public set icon(value: ThemeIcon | undefined) {
-		this._overrideIcon.set(value, undefined);
+		this._overrideIcon.set(value ? getCompactCodicon(value) : undefined, undefined);
 	}
 
 	protected readonly element: ChatTreeItem;
@@ -106,7 +108,7 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 		}
 
 		// Add hover chevron indicator on the right (decorative, hide from screen readers)
-		const hoverChevron = $('span.chat-collapsible-hover-chevron.codicon.codicon-chevron-right', { 'aria-hidden': 'true' });
+		const hoverChevron = $('span.chat-collapsible-hover-chevron.codicon.codicon-chevron-right-compact', { 'aria-hidden': 'true' });
 		this._hoverChevron = hoverChevron;
 		collapseButton.element.appendChild(hoverChevron);
 
@@ -121,6 +123,11 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 
 		// Initialize the expanded state based on the subclass's isExpanded() method
 		this._isExpanded.set(this.isExpanded(), undefined);
+
+		// The header only exists now, so re-apply a non-expandable row's state.
+		if (!this._isExpandable) {
+			this.setExpandable(false);
+		}
 
 		this._register(autorun(r => {
 			const expanded = this._isExpanded.read(r);
@@ -159,9 +166,41 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 	}
 
 	protected toggleExpanded(): void {
+		if (!this._isExpandable) {
+			return;
+		}
 		const value = this._isExpanded.get();
 		this._domNode?.dispatchEvent(new CustomEvent(ChatCollapsibleContentPart.userToggleEvent, { bubbles: true }));
 		this._isExpanded.set(!value, undefined);
+	}
+
+	/**
+	 * Turns the row into a plain status line: it no longer toggles, and it drops
+	 * the affordances that would otherwise promise expansion — including its
+	 * place in the tab order, so it is not a focusable dead control.
+	 */
+	protected setExpandable(expandable: boolean): void {
+		this._isExpandable = expandable;
+		this._domNode?.classList.toggle('chat-collapsible-not-expandable', !expandable);
+		this._hoverChevron?.classList.toggle('hidden', !expandable);
+		const button = this._collapseButton?.element;
+		if (button) {
+			button.tabIndex = expandable ? 0 : -1;
+			if (expandable) {
+				button.setAttribute('role', 'button');
+				button.removeAttribute('aria-disabled');
+				button.ariaExpanded = String(this.isExpanded());
+			} else {
+				// A row that cannot expand is a status line, not a disabled button,
+				// so drop the button semantics rather than marking it unavailable.
+				button.removeAttribute('role');
+				button.removeAttribute('aria-disabled');
+				button.removeAttribute('aria-expanded');
+			}
+		}
+		if (!expandable) {
+			this.setExpanded(false);
+		}
 	}
 
 	protected abstract initContent(): HTMLElement;
@@ -194,7 +233,7 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 
 	private updateAriaLabel(element: HTMLElement, label: string, expanded?: boolean): void {
 		element.ariaLabel = label;
-		element.ariaExpanded = String(expanded);
+		element.ariaExpanded = this._isExpandable ? String(expanded) : null;
 	}
 
 	addDisposable(disposable: IDisposable): void {

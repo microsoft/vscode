@@ -68,7 +68,7 @@ suite('ChangesetSessionCoordinator', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const logService = new NullLogService();
 		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
-		const subscriptions = new AgentHostChangesetSubscriptionService();
+		const subscriptions = disposables.add(new AgentHostChangesetSubscriptionService());
 		const changesets = new TestChangesetService(subscriptions);
 		const monitor = disposables.add(new TestFileMonitorService());
 		const gitService = gitServiceOverride ?? createGitService(root);
@@ -220,7 +220,7 @@ suite('ChangesetSessionCoordinator', () => {
 		});
 	});
 
-	test('forwards session changeset refresh to the changeset service and drains pending work on materialization', async () => {
+	test('forwards session changeset refresh and recomputes current subscriptions on materialization', async () => {
 		const session = AgentSession.uri('mock', 'session-1').toString();
 		const environment = createEnvironment();
 		createSession(environment.stateManager, session, undefined, false);
@@ -858,7 +858,6 @@ class TestGitStateService extends Disposable implements IAgentHostGitStateServic
 	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }
 	async recordSessionMerge(_sessionKey: string, _commit?: string): Promise<void> { }
 	async attachSessionGitHubPullRequest(_sessionKey: string): Promise<void> { }
-	async attachSessionGitHubReferences(_sessionKey: string, _text: string): Promise<void> { }
 
 	fireGitHubStateChanged(sessionKey: string): void {
 		this._onDidChangeSessionGitHubState.fire(sessionKey);
@@ -948,7 +947,6 @@ class TestChangesetService implements IAgentHostChangesetService {
 	readonly sessionRefreshes: string[] = [];
 	readonly workingDirectoryAvailable: string[] = [];
 	readonly recomputed: string[] = [];
-	readonly disposed: string[] = [];
 
 	constructor(private readonly _subscriptions: IAgentHostChangesetSubscriptionService) { }
 
@@ -991,9 +989,6 @@ class TestChangesetService implements IAgentHostChangesetService {
 					break;
 			}
 		}
-	}
-	onSessionDisposed(session: string): void {
-		this.disposed.push(session);
 	}
 	async computeUncommittedChangeset(session: string): Promise<string> {
 		if (this._subscriptions.getSessionSubscriptions(session).has(URI.parse(buildUncommittedChangesetUri(session)).toString())) {

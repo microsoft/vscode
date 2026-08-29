@@ -51,6 +51,23 @@ export const AICustomizationManagementSection = {
 
 export type AICustomizationManagementSection = typeof AICustomizationManagementSection[keyof typeof AICustomizationManagementSection];
 
+/** Command IDs for the AI Customizations Management Editor. */
+export const AICustomizationManagementCommands = {
+	OpenEditor: 'aiCustomization.openManagementEditor',
+	OpenMarketplace: 'aiCustomization.openMarketplace',
+	CreateNewAgent: 'aiCustomization.createNewAgent',
+	CreateNewSkill: 'aiCustomization.createNewSkill',
+	CreateNewInstructions: 'aiCustomization.createNewInstructions',
+	CreateNewPrompt: 'aiCustomization.createNewPrompt',
+	GenerateDebugReport: 'aiCustomization.generateDebugReport',
+	DismissMigrationHint: 'aiCustomization.dismissMigrationHint',
+} as const;
+
+/** Returns the workspace storage key for a harness-specific migration hint dismissal. */
+export function getCustomizationMigrationHintDismissedStorageKey(sessionType: string): string {
+	return `chat.customizationMigrationHint.dismissed.${sessionType}`;
+}
+
 /**
  * Per-type filter policy controlling which storage sources are visible
  * for a given customization type.

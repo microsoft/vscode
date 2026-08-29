@@ -18,8 +18,6 @@ exchanges:
           content: Call send_message exactly once with session "claude:/${uuid_0}" and message "/rename Target Via Send", then reply exactly "sent".
     response:
       content:
-        - type: text
-          text: I'll send that message.
         - type: tool_use
           id: toolcall_0
           name: mcp__host__send_message
@@ -35,8 +33,6 @@ exchanges:
           content: Call send_message exactly once with session "claude:/${uuid_0}" and message "/rename Target Via Send", then reply exactly "sent".
         - role: assistant
           content:
-            - type: text
-              text: I'll send that message.
             - type: tool_use
               name: mcp__host__send_message
               input:
