@@ -5,6 +5,7 @@
 
 import * as eslint from 'eslint';
 import { TSESTree } from '@typescript-eslint/utils';
+import * as ts from 'typescript';
 
 /**
  * Disallow bracket notation for accessing properties that are valid identifiers,
@@ -38,8 +39,11 @@ export default new class NoBracketNotationForIdentifiers implements eslint.Rule.
 		 * Check if a string is a valid JavaScript identifier
 		 */
 		function isValidIdentifier(str: string): boolean {
-			// Reserved words are valid IdentifierNames when used as properties.
-			return /^[$_\p{ID_Start}](?:[$_\p{ID_Continue}]|\u200C|\u200D)*$/u.test(str);
+			const scanner = ts.createScanner(ts.ScriptTarget.Latest, false, ts.LanguageVariant.Standard, str);
+			const token = scanner.scan();
+			const isIdentifierName = token === ts.SyntaxKind.Identifier
+				|| (token >= ts.SyntaxKind.FirstKeyword && token <= ts.SyntaxKind.LastKeyword);
+			return isIdentifierName && scanner.getTokenText() === str && scanner.scan() === ts.SyntaxKind.EndOfFileToken;
 		}
 
 		return {
