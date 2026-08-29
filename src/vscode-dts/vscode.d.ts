@@ -3012,6 +3012,11 @@ declare module 'vscode' {
 		value: string;
 
 		/**
+		 * The plain text value of the markdown string (optional).
+		 */
+		plainTextValue?: string;
+
+		/**
 		 * Indicates that this markdown string is from a trusted source. Only *trusted*
 		 * markdown supports links that execute commands, e.g. `[Run it](command:myCommandId)`.
 		 *
@@ -7109,7 +7114,7 @@ declare module 'vscode' {
 		/**
 		 * The human-readable message.
 		 */
-		message: string;
+		message: string | MarkdownString;
 
 		/**
 		 * The severity, default is {@link DiagnosticSeverity.Error error}.
@@ -7157,7 +7162,7 @@ declare module 'vscode' {
 		 * @param message The human-readable message.
 		 * @param severity The severity, default is {@link DiagnosticSeverity.Error error}.
 		 */
-		constructor(range: Range, message: string, severity?: DiagnosticSeverity);
+		constructor(range: Range, message: string | MarkdownString, severity?: DiagnosticSeverity);
 	}
 
 	/**

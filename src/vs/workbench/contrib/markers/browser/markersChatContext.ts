@@ -12,7 +12,7 @@ import { extUri } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
-import { IMarkerService, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
+import { getMarkerMessageText, IMarkerService, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { EditorResourceAccessor } from '../../../common/editor.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
@@ -94,7 +94,7 @@ class MarkerChatContextPick implements IChatContextPickerItem {
 				severities.add(marker.severity);
 
 				items.push({
-					label: marker.message,
+					label: getMarkerMessageText(marker.message),
 					description: localize('markers.panel.at.ln.col.number', "[Ln {0}, Col {1}]", '' + marker.startLineNumber, '' + marker.startColumn),
 					asAttachment() {
 						return IDiagnosticVariableEntryFilterData.toEntry(IDiagnosticVariableEntryFilterData.fromMarker(marker));
