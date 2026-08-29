@@ -3,25 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { AsyncIterableObject, AsyncIterableSource } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { INotebookVariableElement, NotebookVariableDataSource } from 'vs/workbench/contrib/notebook/browser/contrib/notebookVariables/notebookVariablesDataSource';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { INotebookKernel, INotebookKernelService, VariablesResult } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { AsyncIterableProducer } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { INotebookVariableElement, NotebookVariableDataSource } from '../../browser/contrib/notebookVariables/notebookVariablesDataSource.js';
+import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
+import { INotebookKernel, INotebookKernelService, VariablesResult } from '../../common/notebookKernelService.js';
 
 
 suite('NotebookVariableDataSource', () => {
 	let dataSource: NotebookVariableDataSource;
 	const notebookModel = { uri: 'one.ipynb', languages: ['python'] } as unknown as NotebookTextModel;
-	let provideVariablesCalled = false;
+	let provideVariablesCalled: boolean;
 
 	type VariablesResultWithAction = VariablesResult & { action?: () => void };
-	let results: VariablesResultWithAction[] = [
-		{ id: 1, name: 'a', value: '1', hasNamedChildren: false, indexedChildrenCount: 0 },
-	];
+	let results: VariablesResultWithAction[];
 
 	const kernel = new class extends mock<INotebookKernel>() {
 		override hasVariableProvider = true;
@@ -31,21 +29,19 @@ suite('NotebookVariableDataSource', () => {
 			kind: 'named' | 'indexed',
 			start: number,
 			token: CancellationToken
-		): AsyncIterableObject<VariablesResult> {
+		): AsyncIterableProducer<VariablesResult> {
 			provideVariablesCalled = true;
-			const source = new AsyncIterableSource<VariablesResult>();
-			for (let i = 0; i < results.length; i++) {
-				if (token.isCancellationRequested) {
-					break;
+			return new AsyncIterableProducer<VariablesResult>((emitter) => {
+				for (let i = 0; i < results.length; i++) {
+					if (token.isCancellationRequested) {
+						break;
+					}
+					if (results[i].action) {
+						results[i].action!();
+					}
+					emitter.emitOne(results[i]);
 				}
-				if (results[i].action) {
-					results[i].action!();
-				}
-				source.emitOne(results[i]);
-			}
-
-			setTimeout(() => source.resolve(), 0);
-			return source.asyncIterable;
+			});
 		}
 	};
 
@@ -60,6 +56,9 @@ suite('NotebookVariableDataSource', () => {
 	setup(() => {
 		provideVariablesCalled = false;
 		dataSource = new NotebookVariableDataSource(kernelService);
+		results = [
+			{ id: 1, name: 'a', value: '1', hasNamedChildren: false, indexedChildrenCount: 0 },
+		];
 	});
 
 	test('Root element should return children', async () => {

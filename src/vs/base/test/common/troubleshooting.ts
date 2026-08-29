@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, IDisposableTracker, setDisposableTracker } from 'vs/base/common/lifecycle';
+import { IDisposable, IDisposableTracker, setDisposableTracker } from '../../common/lifecycle.js';
 
 class DisposableTracker implements IDisposableTracker {
 	allDisposables: [IDisposable, string][] = [];
@@ -47,9 +47,11 @@ export function endTrackingDisposables(): void {
 }
 
 export function beginLoggingFS(withStacks: boolean = false): void {
+	// eslint-disable-next-line local/code-no-any-casts
 	(<any>self).beginLoggingFS?.(withStacks);
 }
 
 export function endLoggingFS(): void {
+	// eslint-disable-next-line local/code-no-any-casts
 	(<any>self).endLoggingFS?.();
 }

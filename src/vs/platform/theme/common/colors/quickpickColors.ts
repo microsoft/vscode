@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import * as nls from '../../../../nls.js';
 
 // Import the effects we need
-import { Color, RGBA } from 'vs/base/common/color';
-import { registerColor, oneOf } from 'vs/platform/theme/common/colorUtils';
+import { Color, RGBA } from '../../../../base/common/color.js';
+import { registerColor, oneOf } from '../colorUtils.js';
 
 // Import the colors we need
-import { editorWidgetBackground, editorWidgetForeground } from 'vs/platform/theme/common/colors/editorColors';
-import { listActiveSelectionBackground, listActiveSelectionForeground, listActiveSelectionIconForeground } from 'vs/platform/theme/common/colors/listColors';
+import { editorWidgetBackground, editorWidgetForeground } from './editorColors.js';
+import { listActiveSelectionBackground, listActiveSelectionForeground, listActiveSelectionIconForeground, listFocusHighlightForeground } from './listColors.js';
 
 
 export const quickInputBackground = registerColor('quickInput.background',
@@ -49,3 +49,7 @@ export const quickInputListFocusIconForeground = registerColor('quickInputList.f
 export const quickInputListFocusBackground = registerColor('quickInputList.focusBackground',
 	{ dark: oneOf(_deprecatedQuickInputListFocusBackground, listActiveSelectionBackground), light: oneOf(_deprecatedQuickInputListFocusBackground, listActiveSelectionBackground), hcDark: null, hcLight: null },
 	nls.localize('quickInput.listFocusBackground', "Quick picker background color for the focused item."));
+
+export const quickInputListFocusHighlightForeground = registerColor('quickInputList.focusHighlightForeground',
+	listFocusHighlightForeground,
+	nls.localize('quickInput.listFocusHighlightForeground', "Quick picker foreground color of the match highlights on the focused item."));

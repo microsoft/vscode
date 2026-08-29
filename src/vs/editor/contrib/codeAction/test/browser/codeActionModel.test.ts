@@ -4,20 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { promiseWithResolvers } from 'vs/base/common/async';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import * as languages from 'vs/editor/common/languages';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { CodeActionModel, CodeActionsState } from 'vs/editor/contrib/codeAction/browser/codeActionModel';
-import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { MarkerService } from 'vs/platform/markers/common/markerService';
+import { promiseWithResolvers } from '../../../../../base/common/async.js';
+import { assertType } from '../../../../../base/common/types.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { MarkerService } from '../../../../../platform/markers/common/markerService.js';
+import { ICodeEditor } from '../../../../browser/editorBrowser.js';
+import { LanguageFeatureRegistry } from '../../../../common/languageFeatureRegistry.js';
+import * as languages from '../../../../common/languages.js';
+import { TextModel } from '../../../../common/model/textModel.js';
+import { createTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
+import { createTextModel } from '../../../../test/common/testTextModel.js';
+import { CodeActionModel, CodeActionsState } from '../../browser/codeActionModel.js';
+import { CodeActionTriggerSource } from '../../common/types.js';
 
 const testProvider = {
 	provideCodeActions(): languages.CodeActionList {
@@ -38,10 +40,8 @@ suite('CodeActionModel', () => {
 	let markerService: MarkerService;
 	let editor: ICodeEditor;
 	let registry: LanguageFeatureRegistry<languages.CodeActionProvider>;
-	const disposables = new DisposableStore();
 
 	setup(() => {
-		disposables.clear();
 		markerService = new MarkerService();
 		model = createTextModel('foobar  foo bar\nfarboo far boo', languageId, undefined, uri);
 		editor = createTestCodeEditor(model);
@@ -49,8 +49,9 @@ suite('CodeActionModel', () => {
 		registry = new LanguageFeatureRegistry();
 	});
 
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	teardown(() => {
-		disposables.clear();
 		editor.dispose();
 		model.dispose();
 		markerService.dispose();
@@ -61,11 +62,11 @@ suite('CodeActionModel', () => {
 
 		await runWithFakedTimers({ useFakeTimers: true }, () => {
 			const reg = registry.register(languageId, testProvider);
-			disposables.add(reg);
+			store.add(reg);
 
 			const contextKeys = new MockContextKeyService();
-			const model = disposables.add(new CodeActionModel(editor, registry, markerService, contextKeys, undefined));
-			disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
+			const model = store.add(new CodeActionModel(editor, registry, markerService, contextKeys, undefined));
+			store.add(model.onDidChangeState((e: CodeActionsState.State) => {
 				assertType(e.type === CodeActionsState.Type.Triggered);
 
 				assert.strictEqual(e.trigger.type, languages.CodeActionTriggerType.Auto);
@@ -93,7 +94,7 @@ suite('CodeActionModel', () => {
 	test('Oracle -> position changed', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, () => {
 			const reg = registry.register(languageId, testProvider);
-			disposables.add(reg);
+			store.add(reg);
 
 			markerService.changeOne('fake', uri, [{
 				startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 6,
@@ -107,8 +108,8 @@ suite('CodeActionModel', () => {
 
 			return new Promise((resolve, reject) => {
 				const contextKeys = new MockContextKeyService();
-				const model = disposables.add(new CodeActionModel(editor, registry, markerService, contextKeys, undefined));
-				disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
+				const model = store.add(new CodeActionModel(editor, registry, markerService, contextKeys, undefined));
+				store.add(model.onDidChangeState((e: CodeActionsState.State) => {
 					assertType(e.type === CodeActionsState.Type.Triggered);
 
 					assert.strictEqual(e.trigger.type, languages.CodeActionTriggerType.Auto);
@@ -129,12 +130,12 @@ suite('CodeActionModel', () => {
 		const { promise: donePromise, resolve: done } = promiseWithResolvers<void>();
 		await runWithFakedTimers({ useFakeTimers: true }, () => {
 			const reg = registry.register(languageId, testProvider);
-			disposables.add(reg);
+			store.add(reg);
 
 			let triggerCount = 0;
 			const contextKeys = new MockContextKeyService();
-			const model = disposables.add(new CodeActionModel(editor, registry, markerService, contextKeys, undefined));
-			disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
+			const model = store.add(new CodeActionModel(editor, registry, markerService, contextKeys, undefined));
+			store.add(model.onDidChangeState((e: CodeActionsState.State) => {
 				assertType(e.type === CodeActionsState.Type.Triggered);
 
 				assert.strictEqual(e.trigger.type, languages.CodeActionTriggerType.Auto);
@@ -160,5 +161,109 @@ suite('CodeActionModel', () => {
 
 			return donePromise;
 		});
+	});
+
+	test('disposes manually triggered code actions when the editor model is cleared', async () => {
+		let disposeCount = 0;
+		store.add(registry.register(languageId, {
+			provideCodeActions(_model, _range, context): languages.CodeActionList | undefined {
+				if (context.trigger !== languages.CodeActionTriggerType.Invoke) {
+					return undefined;
+				}
+				return {
+					actions: [
+						{ title: 'test', command: { id: 'test-command', title: 'test', arguments: [] } }
+					],
+					dispose() {
+						disposeCount++;
+					}
+				};
+			}
+		}));
+
+		const contextKeys = new MockContextKeyService();
+		const codeActionModel = store.add(new CodeActionModel(editor, registry, markerService, contextKeys, undefined));
+		const { promise, resolve } = promiseWithResolvers<CodeActionsState.Triggered>();
+		store.add(codeActionModel.onDidChangeState(state => {
+			if (state.type !== CodeActionsState.Type.Triggered || state.trigger.type !== languages.CodeActionTriggerType.Invoke) {
+				return;
+			}
+			resolve(state);
+		}));
+
+		codeActionModel.trigger({
+			type: languages.CodeActionTriggerType.Invoke,
+			triggerAction: CodeActionTriggerSource.Default,
+		});
+		const state = await promise;
+		await state.actions;
+		editor.setModel(null);
+		assert.strictEqual(disposeCount, 1);
+	});
+
+	async function assertManualActionsSurviveCanceledAutomaticRequest(claimBeforeAutomaticResultCompletes: boolean): Promise<void> {
+		const { promise: automaticResult, resolve: resolveAutomaticResult } = promiseWithResolvers<languages.CodeActionList>();
+		let provideCount = 0;
+		let manualDisposeCount = 0;
+		store.add(registry.register(languageId, {
+			provideCodeActions(_model, _range, context): languages.ProviderResult<languages.CodeActionList> {
+				if (provideCount++ === 0) {
+					return automaticResult;
+				}
+				assert.strictEqual(context.trigger, languages.CodeActionTriggerType.Invoke);
+				return {
+					actions: [{
+						title: 'test',
+						kind: 'quickfix',
+						command: { id: 'test-command', title: 'test', arguments: [{ value: true }] }
+					}],
+					dispose() {
+						manualDisposeCount++;
+					}
+				};
+			}
+		}));
+
+		const contextKeys = new MockContextKeyService();
+		const configurationService = new TestConfigurationService({ 'editor.codeActionWidget.includeNearbyQuickFixes': true });
+		const codeActionModel = store.add(new CodeActionModel(editor, registry, markerService, contextKeys, undefined, configurationService));
+		const { promise, resolve } = promiseWithResolvers<CodeActionsState.Triggered>();
+		store.add(codeActionModel.onDidChangeState(state => {
+			if (state.type === CodeActionsState.Type.Triggered && state.trigger.type === languages.CodeActionTriggerType.Invoke) {
+				resolve(state);
+			}
+		}));
+
+		codeActionModel.trigger({
+			type: languages.CodeActionTriggerType.Invoke,
+			triggerAction: CodeActionTriggerSource.QuickFix,
+		});
+		const manualActionSet = await (await promise).actions;
+		let manualActions = claimBeforeAutomaticResultCompletes ? codeActionModel.takeCodeActions(manualActionSet) : undefined;
+
+		resolveAutomaticResult({ actions: [], dispose() { } });
+		await new Promise(resolve => setTimeout(resolve, 0));
+		manualActions ??= codeActionModel.takeCodeActions(manualActionSet);
+		const wasClaimed = !!manualActions;
+		const disposeCountBeforeRelease = manualDisposeCount;
+		manualActions?.dispose();
+
+		assert.deepStrictEqual({
+			wasClaimed,
+			disposeCountBeforeRelease,
+			disposeCountAfterRelease: manualDisposeCount,
+		}, {
+			wasClaimed: true,
+			disposeCountBeforeRelease: 0,
+			disposeCountAfterRelease: 1,
+		});
+	}
+
+	test('does not dispose claimed manual code actions when a canceled automatic request completes', async () => {
+		await assertManualActionsSurviveCanceledAutomaticRequest(true);
+	});
+
+	test('does not replace manual code actions when a canceled automatic request completes before claim', async () => {
+		await assertManualActionsSurviveCanceledAutomaticRequest(false);
 	});
 });

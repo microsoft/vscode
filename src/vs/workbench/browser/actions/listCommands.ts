@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { List } from 'vs/base/browser/ui/list/listWidget';
-import { WorkbenchListFocusContextKey, IListService, WorkbenchListSupportsMultiSelectContextKey, ListWidget, WorkbenchListHasSelectionOrFocus, getSelectionKeyboardEvent, WorkbenchListWidget, WorkbenchListSelectionNavigation, WorkbenchTreeElementCanCollapse, WorkbenchTreeElementHasParent, WorkbenchTreeElementHasChild, WorkbenchTreeElementCanExpand, RawWorkbenchListFocusContextKey, WorkbenchTreeFindOpen, WorkbenchListSupportsFind, WorkbenchListScrollAtBottomContextKey, WorkbenchListScrollAtTopContextKey, WorkbenchTreeStickyScrollFocused } from 'vs/platform/list/browser/listService';
-import { PagedList } from 'vs/base/browser/ui/list/listPaging';
-import { equals, range } from 'vs/base/common/arrays';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
-import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { DataTree } from 'vs/base/browser/ui/tree/dataTree';
-import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { Table } from 'vs/base/browser/ui/table/tableWidget';
-import { AbstractTree, TreeFindMatchType, TreeFindMode } from 'vs/base/browser/ui/tree/abstractTree';
-import { isActiveElement } from 'vs/base/browser/dom';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { localize, localize2 } from 'vs/nls';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { KeyMod, KeyCode, KeyChord } from '../../../base/common/keyCodes.js';
+import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../platform/keybinding/common/keybindingsRegistry.js';
+import { List } from '../../../base/browser/ui/list/listWidget.js';
+import { WorkbenchListFocusContextKey, IListService, WorkbenchListSupportsMultiSelectContextKey, ListWidget, WorkbenchListHasSelectionOrFocus, getSelectionKeyboardEvent, WorkbenchListWidget, WorkbenchListSelectionNavigation, WorkbenchTreeElementCanCollapse, WorkbenchTreeElementHasParent, WorkbenchTreeElementHasChild, WorkbenchTreeElementCanExpand, RawWorkbenchListFocusContextKey, WorkbenchTreeFindOpen, WorkbenchListSupportsFind, WorkbenchListScrollAtBottomContextKey, WorkbenchListScrollAtTopContextKey, WorkbenchTreeStickyScrollFocused } from '../../../platform/list/browser/listService.js';
+import { PagedList } from '../../../base/browser/ui/list/listPaging.js';
+import { equals, range } from '../../../base/common/arrays.js';
+import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
+import { ObjectTree } from '../../../base/browser/ui/tree/objectTree.js';
+import { AsyncDataTree } from '../../../base/browser/ui/tree/asyncDataTree.js';
+import { DataTree } from '../../../base/browser/ui/tree/dataTree.js';
+import { ITreeNode } from '../../../base/browser/ui/tree/tree.js';
+import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
+import { Table } from '../../../base/browser/ui/table/tableWidget.js';
+import { AbstractTree, TreeFindMatchType, TreeFindMode } from '../../../base/browser/ui/tree/abstractTree.js';
+import { isActiveElement } from '../../../base/browser/dom.js';
+import { Action2, registerAction2 } from '../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { localize, localize2 } from '../../../nls.js';
+import { IHoverService } from '../../../platform/hover/browser/hover.js';
 
 function ensureDOMFocus(widget: ListWidget | undefined): void {
 	// it can happen that one of the commands is executed while
@@ -256,7 +256,7 @@ function expandMultiSelection(focused: WorkbenchListWidget, previousFocus: unkno
 	}
 }
 
-function revealFocusedStickyScroll(tree: ObjectTree<any, any> | DataTree<any, any> | AsyncDataTree<any, any>, postRevealAction?: (focus: any) => void): void {
+function revealFocusedStickyScroll(tree: ObjectTree<unknown, unknown> | DataTree<unknown, unknown> | AsyncDataTree<unknown, unknown>, postRevealAction?: (focus: unknown) => void): void {
 	const focus = tree.getStickyScrollFocus();
 
 	if (focus.length === 0) {
@@ -700,7 +700,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyI),
 	when: WorkbenchListFocusContextKey,
-	handler: async (accessor: ServicesAccessor, ...args: any[]) => {
+	handler: async (accessor: ServicesAccessor) => {
 		const listService = accessor.get(IListService);
 		const lastFocusedList = listService.lastFocusedList;
 		if (!lastFocusedList) {
@@ -716,8 +716,11 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		// As the tree does not know anything about the rendered DOM elements
 		// we have to traverse the dom to find the HTMLElements
 		const treeDOM = lastFocusedList.getHTMLElement();
+		// eslint-disable-next-line no-restricted-syntax
 		const scrollableElement = treeDOM.querySelector('.monaco-scrollable-element');
+		// eslint-disable-next-line no-restricted-syntax
 		const listRows = scrollableElement?.querySelector('.monaco-list-rows');
+		// eslint-disable-next-line no-restricted-syntax
 		const focusedElement = listRows?.querySelector('.focused');
 		if (!focusedElement) {
 			return;
@@ -725,7 +728,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 		const elementWithHover = getCustomHoverForElement(focusedElement as HTMLElement);
 		if (elementWithHover) {
-			accessor.get(IHoverService).showManagedHover(elementWithHover as HTMLElement);
+			accessor.get(IHoverService).showManagedHover(elementWithHover);
 		}
 	},
 });
@@ -738,6 +741,7 @@ function getCustomHoverForElement(element: HTMLElement): HTMLElement | undefined
 
 	// Only consider children that are not action items or have a tabindex
 	// as these element are focusable and the user is able to trigger them already
+	// eslint-disable-next-line no-restricted-syntax
 	const noneFocusableElementWithHover = element.querySelector('[custom-hover="true"]:not([tabindex]):not(.action-item)');
 	if (noneFocusableElementWithHover) {
 		return noneFocusableElementWithHover as HTMLElement;
@@ -759,7 +763,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			const tree = focused;
 			const focus = tree.getFocus();
 
-			if (focus.length > 0 && tree.isCollapsible(focus[0])) {
+			if (!tree.options.disableExpandOnSpacebar && focus.length > 0 && tree.isCollapsible(focus[0])) {
 				tree.toggleCollapsed(focus[0]);
 				return;
 			}

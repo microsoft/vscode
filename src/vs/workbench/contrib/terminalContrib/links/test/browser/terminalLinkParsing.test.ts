@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, ok, strictEqual } from 'assert';
-import { OperatingSystem } from 'vs/base/common/platform';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { detectLinks, detectLinkSuffixes, getLinkSuffix, IParsedLink, removeLinkQueryString, removeLinkSuffix } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
+import { OperatingSystem } from '../../../../../../base/common/platform.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { detectLinks, detectLinkSuffixes, getLinkSuffix, IParsedLink, removeLinkQueryString, removeLinkSuffix } from '../../browser/terminalLinkParsing.js';
 
 interface ITestLink {
 	link: string;
@@ -60,6 +60,7 @@ const testLinks: ITestLink[] = [
 	{ link: 'foo 339.12', prefix: undefined, suffix: ' 339.12', hasRow: true, hasCol: true },
 	{ link: 'foo 339.12-789', prefix: undefined, suffix: ' 339.12-789', hasRow: true, hasCol: true, hasRowEnd: false, hasColEnd: true },
 	{ link: 'foo 339.12-341.789', prefix: undefined, suffix: ' 339.12-341.789', hasRow: true, hasCol: true, hasRowEnd: true, hasColEnd: true },
+	{ link: 'foo, 339', prefix: undefined, suffix: ', 339', hasRow: true, hasCol: false },
 
 	// Double quotes
 	{ link: '"foo",339', prefix: '"', suffix: '",339', hasRow: true, hasCol: false },
@@ -125,6 +126,8 @@ const testLinks: ITestLink[] = [
 	{ link: 'foo: (339)', prefix: undefined, suffix: ': (339)', hasRow: true, hasCol: false },
 	{ link: 'foo: (339,12)', prefix: undefined, suffix: ': (339,12)', hasRow: true, hasCol: true },
 	{ link: 'foo: (339, 12)', prefix: undefined, suffix: ': (339, 12)', hasRow: true, hasCol: true },
+	{ link: 'foo(339:12)', prefix: undefined, suffix: '(339:12)', hasRow: true, hasCol: true },
+	{ link: 'foo (339:12)', prefix: undefined, suffix: ' (339:12)', hasRow: true, hasCol: true },
 
 	// Square brackets
 	{ link: 'foo[339]', prefix: undefined, suffix: '[339]', hasRow: true, hasCol: false },
@@ -136,6 +139,8 @@ const testLinks: ITestLink[] = [
 	{ link: 'foo: [339]', prefix: undefined, suffix: ': [339]', hasRow: true, hasCol: false },
 	{ link: 'foo: [339,12]', prefix: undefined, suffix: ': [339,12]', hasRow: true, hasCol: true },
 	{ link: 'foo: [339, 12]', prefix: undefined, suffix: ': [339, 12]', hasRow: true, hasCol: true },
+	{ link: 'foo[339:12]', prefix: undefined, suffix: '[339:12]', hasRow: true, hasCol: true },
+	{ link: 'foo [339:12]', prefix: undefined, suffix: ' [339:12]', hasRow: true, hasCol: true },
 
 	// OCaml-style
 	{ link: '"foo", line 339, character 12', prefix: '"', suffix: '", line 339, character 12', hasRow: true, hasCol: true },
@@ -251,7 +256,7 @@ suite('TerminalLinkParsing', () => {
 			strictEqual(removeLinkQueryString('foo?a=b&c=d'), 'foo');
 		});
 		test('should respect ? in UNC paths', () => {
-			strictEqual(removeLinkQueryString('\\\\?\\foo?a=b'), '\\\\?\\foo',);
+			strictEqual(removeLinkQueryString('\\\\?\\foo?a=b'), '\\\\?\\foo');
 		});
 	});
 	suite('detectLinks', () => {
@@ -313,6 +318,48 @@ suite('TerminalLinkParsing', () => {
 							}
 						}
 					}
+				] as IParsedLink[]
+			);
+		});
+
+		test('should detect multiple links when opening brackets are in the text', () => {
+			deepStrictEqual(
+				detectLinks('notlink[foo:45]', OperatingSystem.Linux),
+				[
+					{
+						path: {
+							index: 0,
+							text: 'notlink[foo'
+						},
+						prefix: undefined,
+						suffix: {
+							col: undefined,
+							row: 45,
+							rowEnd: undefined,
+							colEnd: undefined,
+							suffix: {
+								index: 11,
+								text: ':45'
+							}
+						}
+					},
+					{
+						path: {
+							index: 8,
+							text: 'foo'
+						},
+						prefix: undefined,
+						suffix: {
+							col: undefined,
+							row: 45,
+							rowEnd: undefined,
+							colEnd: undefined,
+							suffix: {
+								index: 11,
+								text: ':45'
+							}
+						}
+					},
 				] as IParsedLink[]
 			);
 		});
@@ -574,56 +621,164 @@ suite('TerminalLinkParsing', () => {
 
 		suite('should detect file names in git diffs', () => {
 			test('--- a/foo/bar', () => {
-				deepStrictEqual(
-					detectLinks('--- a/foo/bar', OperatingSystem.Linux),
-					[
-						{
-							path: {
-								index: 6,
-								text: 'foo/bar'
-							},
-							prefix: undefined,
-							suffix: undefined
-						}
-					] as IParsedLink[]
-				);
+				['a', 'c', 'w', 'i', 'o'].forEach(prefix => {
+					deepStrictEqual(
+						detectLinks(`--- ${prefix}/foo/bar`, OperatingSystem.Linux),
+						[
+							{
+								path: {
+									index: 6,
+									text: 'foo/bar'
+								},
+								prefix: undefined,
+								suffix: undefined
+							}
+						] as IParsedLink[]
+					);
+				});
 			});
 			test('+++ b/foo/bar', () => {
-				deepStrictEqual(
-					detectLinks('+++ b/foo/bar', OperatingSystem.Linux),
-					[
-						{
-							path: {
-								index: 6,
-								text: 'foo/bar'
-							},
-							prefix: undefined,
-							suffix: undefined
-						}
-					] as IParsedLink[]
-				);
+				['b', 'c', 'w', 'i', 'o'].forEach(prefix => {
+					deepStrictEqual(
+						detectLinks(`+++ ${prefix}/foo/bar`, OperatingSystem.Linux),
+						[
+							{
+								path: {
+									index: 6,
+									text: 'foo/bar'
+								},
+								prefix: undefined,
+								suffix: undefined
+							}
+						] as IParsedLink[]
+					);
+				});
 			});
 			test('diff --git a/foo/bar b/foo/baz', () => {
+				[['a', 'b'], ['c', 'w'], ['i', 'o']].forEach(([sourcePrefix, destinationPrefix]) => {
+					deepStrictEqual(
+						detectLinks(`diff --git ${sourcePrefix}/foo/bar ${destinationPrefix}/foo/baz`, OperatingSystem.Linux),
+						[
+							{
+								path: {
+									index: 13,
+									text: 'foo/bar'
+								},
+								prefix: undefined,
+								suffix: undefined
+							},
+							{
+								path: {
+									index: 23,
+									text: 'foo/baz'
+								},
+								prefix: undefined,
+								suffix: undefined
+							}
+						] as IParsedLink[]
+					);
+				});
+			});
+			test('numeric prefixes used by git diff --no-index', () => {
 				deepStrictEqual(
-					detectLinks('diff --git a/foo/bar b/foo/baz', OperatingSystem.Linux),
 					[
-						{
-							path: {
-								index: 13,
-								text: 'foo/bar'
-							},
+						detectLinks('--- 1/foo/bar', OperatingSystem.Linux),
+						detectLinks('+++ 2/foo/baz', OperatingSystem.Linux),
+						detectLinks('diff --git 1/foo/bar 2/foo/baz', OperatingSystem.Linux)
+					],
+					[
+						[{
+							path: { index: 6, text: 'foo/bar' },
 							prefix: undefined,
 							suffix: undefined
-						},
-						{
-							path: {
-								index: 23,
-								text: 'foo/baz'
-							},
+						}],
+						[{
+							path: { index: 6, text: 'foo/baz' },
 							prefix: undefined,
 							suffix: undefined
+						}],
+						[{
+							path: { index: 13, text: 'foo/bar' },
+							prefix: undefined,
+							suffix: undefined
+						}, {
+							path: { index: 23, text: 'foo/baz' },
+							prefix: undefined,
+							suffix: undefined
+						}]
+					] as IParsedLink[][]
+				);
+			});
+			test('reversed numeric prefixes used by git diff --no-index -R', () => {
+				deepStrictEqual(
+					[
+						detectLinks('--- 2/foo/baz', OperatingSystem.Linux),
+						detectLinks('+++ 1/foo/bar', OperatingSystem.Linux),
+						detectLinks('diff --git 2/foo/baz 1/foo/bar', OperatingSystem.Linux)
+					],
+					[
+						[{
+							path: { index: 6, text: 'foo/baz' },
+							prefix: undefined,
+							suffix: undefined
+						}],
+						[{
+							path: { index: 6, text: 'foo/bar' },
+							prefix: undefined,
+							suffix: undefined
+						}],
+						[{
+							path: { index: 13, text: 'foo/baz' },
+							prefix: undefined,
+							suffix: undefined
+						}, {
+							path: { index: 23, text: 'foo/bar' },
+							prefix: undefined,
+							suffix: undefined
+						}]
+					] as IParsedLink[][]
+				);
+			});
+			test('ordinary numeric line suffix', () => {
+				deepStrictEqual(
+					detectLinks('foo 1', OperatingSystem.Linux),
+					[{
+						path: { index: 0, text: 'foo' },
+						prefix: undefined,
+						suffix: {
+							row: 1,
+							col: undefined,
+							rowEnd: undefined,
+							colEnd: undefined,
+							suffix: { index: 3, text: ' 1' }
 						}
-					] as IParsedLink[]
+					}] as IParsedLink[]
+				);
+			});
+			test('numeric suffix followed by a path separator', () => {
+				deepStrictEqual(
+					detectLinks('foo 1/bar', OperatingSystem.Linux),
+					[{
+						path: { index: 4, text: '1/bar' },
+						prefix: undefined,
+						suffix: undefined
+					}] as IParsedLink[]
+				);
+			});
+			test('ordinary numeric line suffix after diff --git text', () => {
+				deepStrictEqual(
+					detectLinks('diff --git foo.ts:123', OperatingSystem.Linux),
+					[{
+						path: { index: 11, text: 'foo.ts' },
+						prefix: undefined,
+						suffix: {
+							row: 123,
+							col: undefined,
+							rowEnd: undefined,
+							colEnd: undefined,
+							suffix: { index: 17, text: ':123' }
+						}
+					}] as IParsedLink[]
 				);
 			});
 		});

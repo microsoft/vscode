@@ -3,11 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { env } from 'vs/base/common/process';
+import { IDisposable } from './lifecycle.js';
+
+let _isHotReloadEnabled = false;
+
+export function enableHotReload() {
+	_isHotReloadEnabled = true;
+}
 
 export function isHotReloadEnabled(): boolean {
-	return env && !!env['VSCODE_DEV'];
+	return _isHotReloadEnabled;
 }
 export function registerHotReloadHandler(handler: HotReloadHandler): IDisposable {
 	if (!isHotReloadEnabled()) {
@@ -94,12 +99,14 @@ if (isHotReloadEnabled()) {
 					if (oldExportedItem) {
 						for (const prop of Object.getOwnPropertyNames(exportedItem.prototype)) {
 							const descriptor = Object.getOwnPropertyDescriptor(exportedItem.prototype, prop)!;
+							// eslint-disable-next-line local/code-no-any-casts
 							const oldDescriptor = Object.getOwnPropertyDescriptor((oldExportedItem as any).prototype, prop);
 
 							if (descriptor?.value?.toString() !== oldDescriptor?.value?.toString()) {
 								console.log(`[hot-reload] Patching prototype method '${key}.${prop}'`);
 							}
 
+							// eslint-disable-next-line local/code-no-any-casts
 							Object.defineProperty((oldExportedItem as any).prototype, prop, descriptor);
 						}
 						newExports[key] = oldExportedItem;

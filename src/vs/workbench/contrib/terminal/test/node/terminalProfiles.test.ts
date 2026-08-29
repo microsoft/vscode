@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, fail, ok, strictEqual } from 'assert';
-import { isWindows } from 'vs/base/common/platform';
-import { ITerminalProfile, ProfileSource } from 'vs/platform/terminal/common/terminal';
-import { ITerminalConfiguration, ITerminalProfiles } from 'vs/workbench/contrib/terminal/common/terminal';
-import { detectAvailableProfiles, IFsProvider } from 'vs/platform/terminal/node/terminalProfiles';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { isWindows } from '../../../../../base/common/platform.js';
+import { ITerminalProfile, ProfileSource } from '../../../../../platform/terminal/common/terminal.js';
+import { ITerminalConfiguration, ITerminalProfiles } from '../../common/terminal.js';
+import { detectAvailableProfiles, IFsProvider } from '../../../../../platform/terminal/node/terminalProfiles.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 /**
  * Assets that two profiles objects are equal, this will treat explicit undefined and unset

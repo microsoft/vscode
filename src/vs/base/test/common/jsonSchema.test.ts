@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { getCompressedContent, IJSONSchema } from 'vs/base/common/jsonSchema';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { getCompressedContent, IJSONSchema } from '../../common/jsonSchema.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('JSON Schema', () => {
 
@@ -79,7 +79,7 @@ suite('JSON Schema', () => {
 				}
 			},
 			$defs: {
-				"_0": {
+				'_0': {
 					type: 'object',
 					properties: {
 						c: {
@@ -155,7 +155,7 @@ suite('JSON Schema', () => {
 				}
 			},
 			$defs: {
-				"_0": {
+				'_0': {
 					type: 'object',
 					properties: {
 						b: {
@@ -270,44 +270,44 @@ suite('JSON Schema', () => {
 		};
 
 		const expected: IJSONSchema = {
-			"type": "object",
-			"properties": {
-				"a": {
-					"type": "object",
-					"oneOf": [
+			'type': 'object',
+			'properties': {
+				'a': {
+					'type': 'object',
+					'oneOf': [
 						{
-							"allOf": [
+							'allOf': [
 								{
-									"$ref": "#/$defs/_0"
+									'$ref': '#/$defs/_0'
 								},
 								{
-									"$ref": "#/$defs/_1"
+									'$ref': '#/$defs/_1'
 								}
 							]
 						},
 						{
-							"allOf": [
+							'allOf': [
 								{
-									"$ref": "#/$defs/_0"
+									'$ref': '#/$defs/_0'
 								},
 								{
-									"properties": {
-										"river": {
-											"type": "string"
+									'properties': {
+										'river': {
+											'type': 'string'
 										}
 									}
 								}
 							]
 						},
 						{
-							"allOf": [
+							'allOf': [
 								{
-									"$ref": "#/$defs/_0"
+									'$ref': '#/$defs/_0'
 								},
 								{
-									"properties": {
-										"mountain": {
-											"type": "string"
+									'properties': {
+										'mountain': {
+											'type': 'string'
 										}
 									}
 								}
@@ -315,30 +315,30 @@ suite('JSON Schema', () => {
 						}
 					]
 				},
-				"b": {
-					"type": "object",
-					"properties": {
-						"street": {
-							"$ref": "#/$defs/_1"
+				'b': {
+					'type': 'object',
+					'properties': {
+						'street': {
+							'$ref': '#/$defs/_1'
 						}
 					}
 				}
 			},
-			"$defs": {
-				"_0": {
-					"properties": {
-						"name": {
-							"type": "string"
+			'$defs': {
+				'_0': {
+					'properties': {
+						'name': {
+							'type': 'string'
 						},
-						"description": {
-							"type": "string"
+						'description': {
+							'type': 'string'
 						}
 					}
 				},
-				"_1": {
-					"properties": {
-						"street": {
-							"type": "string"
+				'_1': {
+					'properties': {
+						'street': {
+							'type': 'string'
 						}
 					}
 				}
@@ -415,7 +415,7 @@ suite('JSON Schema', () => {
 				}
 			},
 			$defs: {
-				"_0": {
+				'_0': {
 					type: 'object',
 					properties: {
 						b: {
@@ -428,7 +428,7 @@ suite('JSON Schema', () => {
 						}
 					}
 				},
-				"_1": {
+				'_1': {
 					type: 'object',
 					properties: {
 						d: {
@@ -536,13 +536,13 @@ suite('JSON Schema', () => {
 				}
 			},
 			$defs: {
-				"_0": {
+				'_0': {
 					type: 'array',
 					items: {
 						$ref: '#/$defs/_2'
 					}
 				},
-				"_1": {
+				'_1': {
 					type: 'object',
 					properties: {
 						b: {
@@ -550,7 +550,7 @@ suite('JSON Schema', () => {
 						}
 					}
 				},
-				"_2": {
+				'_2': {
 					type: 'object',
 					properties: {
 						c: {

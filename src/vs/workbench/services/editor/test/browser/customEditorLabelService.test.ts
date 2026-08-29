@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { CustomEditorLabelService } from 'vs/workbench/services/editor/common/customEditorLabelService';
-import { ITestInstantiationService, TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { CustomEditorLabelService } from '../../common/customEditorLabelService.js';
+import { ITestInstantiationService, TestServiceAccessor, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
 suite('Custom Editor Label Service', () => {
 
@@ -33,7 +33,7 @@ suite('Custom Editor Label Service', () => {
 		return [customLabelService, configService, instantiationService.createInstance(TestServiceAccessor)];
 	}
 
-	async function updatePattern(configService: TestConfigurationService, value: any): Promise<void> {
+	async function updatePattern(configService: TestConfigurationService, value: unknown): Promise<void> {
 		await configService.setUserConfiguration(CustomEditorLabelService.SETTING_ID_PATTERNS, value);
 		configService.onDidChangeConfigurationEmitter.fire({
 			affectsConfiguration: (key: string) => key === CustomEditorLabelService.SETTING_ID_PATTERNS,

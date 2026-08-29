@@ -3,13 +3,17 @@ setlocal
 
 pushd %~dp0\..
 
+:: TODO(deepak1556): Remove this once we bump to node containing fix for https://github.com/nodejs/node/issues/63638.
+for /f "delims=" %%i in ('node -p "require('fs').realpathSync.native(require('os').tmpdir())"') do set "TMP=%%i"
+set "TEMP=%TMP%"
+
 IF "%~1" == "" (
 	set AUTHORITY=vscode-remote://test+test/
 	:: backward to forward slashed
 	set EXT_PATH=%CD:\=/%/extensions
 
 	:: Download nodejs executable for remote
-	call yarn gulp node
+	call npm run gulp node
 ) else (
 	set AUTHORITY=%1
 	set EXT_PATH=%2
@@ -26,8 +30,10 @@ if "%VSCODE_REMOTE_SERVER_PATH%"=="" (
 )
 
 if not exist ".\test\integration\browser\out\index.js" (
-	call yarn --cwd test/integration/browser compile
-	call yarn playwright-install
+	pushd test\integration\browser
+	call npm run compile
+	popd
+	call npm run playwright-install
 )
 
 

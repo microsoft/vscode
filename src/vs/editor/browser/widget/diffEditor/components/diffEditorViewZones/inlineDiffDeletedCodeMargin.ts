@@ -3,21 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addStandardDisposableListener, getDomNodePagePosition } from 'vs/base/browser/dom';
-import { Action } from 'vs/base/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isIOS } from 'vs/base/common/platform';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
-import { EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
-import { localize } from 'vs/nls';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { addStandardDisposableListener, getDomNodePagePosition } from '../../../../../../base/browser/dom.js';
+import { Action } from '../../../../../../base/common/actions.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { isIOS } from '../../../../../../base/common/platform.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { IEditorMouseEvent, MouseTargetType } from '../../../../editorBrowser.js';
+import { CodeEditorWidget } from '../../../codeEditor/codeEditorWidget.js';
+import { DiffEditorWidget } from '../../diffEditorWidget.js';
+import { EditorOption } from '../../../../../common/config/editorOptions.js';
+import { DetailedLineRangeMapping } from '../../../../../common/diff/rangeMapping.js';
+import { EndOfLineSequence, ITextModel } from '../../../../../common/model.js';
+import { localize } from '../../../../../../nls.js';
+import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
+import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
+import { enableCopySelection } from './copySelection.js';
+import { RenderLinesResult } from './renderLines.js';
 
 export class InlineDiffDeletedCodeMargin extends Disposable {
 	private readonly _diffActions: HTMLElement;
@@ -38,10 +40,11 @@ export class InlineDiffDeletedCodeMargin extends Disposable {
 	constructor(
 		private readonly _getViewZoneId: () => string,
 		private readonly _marginDomNode: HTMLElement,
+		private readonly _deletedCodeDomNode: HTMLElement,
 		private readonly _modifiedEditor: CodeEditorWidget,
 		private readonly _diff: DetailedLineRangeMapping,
 		private readonly _editor: DiffEditorWidget,
-		private readonly _viewLineCounts: number[],
+		private readonly _renderLinesResult: RenderLinesResult,
 		private readonly _originalTextModel: ITextModel,
 		private readonly _contextMenuService: IContextMenuService,
 		private readonly _clipboardService: IClipboardService,
@@ -64,12 +67,13 @@ export class InlineDiffDeletedCodeMargin extends Disposable {
 		let currentLineNumberOffset = 0;
 
 		const useShadowDOM = _modifiedEditor.getOption(EditorOption.useShadowDOM) && !isIOS; // Do not use shadow dom on IOS #122035
-		const showContextMenu = (x: number, y: number) => {
+		const showContextMenu = (anchor: { x: number; y: number }, baseActions?: Action[], onHide?: () => void) => {
 			this._contextMenuService.showContextMenu({
 				domForShadowRoot: useShadowDOM ? _modifiedEditor.getDomNode() ?? undefined : undefined,
-				getAnchor: () => ({ x, y }),
+				getAnchor: () => anchor,
+				onHide,
 				getActions: () => {
-					const actions: Action[] = [];
+					const actions: Action[] = baseActions ?? [];
 					const isDeletion = _diff.modified.isEmpty;
 
 					// default action
@@ -135,7 +139,7 @@ export class InlineDiffDeletedCodeMargin extends Disposable {
 			const { top, height } = getDomNodePagePosition(this._diffActions);
 			const pad = Math.floor(lineHeight / 3);
 			e.preventDefault();
-			showContextMenu(e.posx, top + height + pad);
+			showContextMenu({ x: e.posx, y: top + height + pad });
 		}));
 
 		this._register(_modifiedEditor.onMouseMove((e: IEditorMouseEvent) => {
@@ -147,18 +151,12 @@ export class InlineDiffDeletedCodeMargin extends Disposable {
 			}
 		}));
 
-		this._register(_modifiedEditor.onMouseDown((e: IEditorMouseEvent) => {
-			if (!e.event.leftButton) { return; }
-
-			if (e.target.type === MouseTargetType.CONTENT_VIEW_ZONE || e.target.type === MouseTargetType.GUTTER_VIEW_ZONE) {
-				const viewZoneId = e.target.detail.viewZoneId;
-
-				if (viewZoneId === this._getViewZoneId()) {
-					e.event.preventDefault();
-					currentLineNumberOffset = this._updateLightBulbPosition(this._marginDomNode, e.event.browserEvent.y, lineHeight);
-					showContextMenu(e.event.posx, e.event.posy + lineHeight);
-				}
-			}
+		this._register(enableCopySelection({
+			domNode: this._deletedCodeDomNode,
+			diffEntry: _diff,
+			originalModel: this._originalTextModel,
+			renderLinesResult: this._renderLinesResult,
+			clipboardService: _clipboardService,
 		}));
 	}
 
@@ -168,10 +166,10 @@ export class InlineDiffDeletedCodeMargin extends Disposable {
 		const lineNumberOffset = Math.floor(offset / lineHeight);
 		const newTop = lineNumberOffset * lineHeight;
 		this._diffActions.style.top = `${newTop}px`;
-		if (this._viewLineCounts) {
+		if (this._renderLinesResult.viewLineCounts) {
 			let acc = 0;
-			for (let i = 0; i < this._viewLineCounts.length; i++) {
-				acc += this._viewLineCounts[i];
+			for (let i = 0; i < this._renderLinesResult.viewLineCounts.length; i++) {
+				acc += this._renderLinesResult.viewLineCounts[i];
 				if (lineNumberOffset < acc) {
 					return i;
 				}

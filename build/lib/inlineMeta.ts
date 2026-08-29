@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as es from 'event-stream';
+import es from 'event-stream';
 import { basename } from 'path';
-import * as File from 'vinyl';
+import File from 'vinyl';
 
 export interface IInlineMetaContext {
 	readonly targetPaths: string[];
@@ -14,12 +14,19 @@ export interface IInlineMetaContext {
 }
 
 const packageJsonMarkerId = 'BUILD_INSERT_PACKAGE_CONFIGURATION';
-const productJsonMarkerId = 'BUILD_INSERT_PRODUCT_CONFIGURATION';
+
+// TODO in order to inline `product.json`, more work is
+// needed to ensure that we cover all cases where modifications
+// are done to the product configuration during build. There are
+// at least 2 more changes that kick in very late:
+// - a `darwinUniversalAssetId` is added in`create-universal-app.ts`
+// - a `target` is added in `gulpfile.vscode.win32.js`
+// const productJsonMarkerId = 'BUILD_INSERT_PRODUCT_CONFIGURATION';
 
 export function inlineMeta(result: NodeJS.ReadWriteStream, ctx: IInlineMetaContext): NodeJS.ReadWriteStream {
 	return result.pipe(es.through(function (file: File) {
 		if (matchesFile(file, ctx)) {
-			let content = file.contents.toString();
+			let content = file.contents!.toString();
 			let markerFound = false;
 
 			const packageMarker = `${packageJsonMarkerId}:"${packageJsonMarkerId}"`; // this needs to be the format after esbuild has processed the file (e.g. double quotes)
@@ -28,17 +35,14 @@ export function inlineMeta(result: NodeJS.ReadWriteStream, ctx: IInlineMetaConte
 				markerFound = true;
 			}
 
-			const productMarker = `${productJsonMarkerId}:"${productJsonMarkerId}"`; // this needs to be the format after esbuild has processed the file (e.g. double quotes)
-			if (content.includes(productMarker)) {
-				content = content.replace(productMarker, JSON.stringify(JSON.parse(ctx.productJsonFn())).slice(1, -1) /* trim braces */);
-				markerFound = true;
-			}
+			// const productMarker = `${productJsonMarkerId}:"${productJsonMarkerId}"`; // this needs to be the format after esbuild has processed the file (e.g. double quotes)
+			// if (content.includes(productMarker)) {
+			// 	content = content.replace(productMarker, JSON.stringify(JSON.parse(ctx.productJsonFn())).slice(1, -1) /* trim braces */);
+			// 	markerFound = true;
+			// }
 
 			if (markerFound) {
 				file.contents = Buffer.from(content);
-			} else if (content.includes(packageJsonMarkerId) || content.includes(productJsonMarkerId)) {
-				this.emit('error', new Error(`Unable to inline metadata because expected markers where not found in ${file.basename}.`));
-				return;
 			}
 		}
 

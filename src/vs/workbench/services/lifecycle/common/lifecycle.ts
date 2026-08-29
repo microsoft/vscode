@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
 export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
 
@@ -274,6 +274,11 @@ export interface ILifecycleService {
 	 * The event carries a shutdown reason that indicates how the shutdown was triggered.
 	 */
 	readonly onWillShutdown: Event<WillShutdownEvent>;
+
+	/**
+	 * A flag indicating that we are about to shutdown without further veto.
+	 */
+	readonly willShutdown: boolean;
 
 	/**
 	 * Fired when the shutdown is about to happen after long running shutdown operations

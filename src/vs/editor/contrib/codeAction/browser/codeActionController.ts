@@ -3,42 +3,45 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getDomNodePagePosition } from 'vs/base/browser/dom';
-import * as aria from 'vs/base/browser/ui/aria/aria';
-import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
-import { IAction } from 'vs/base/common/actions';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Color } from 'vs/base/common/color';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Lazy } from 'vs/base/common/lazy';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
-import { CodeActionTriggerType } from 'vs/editor/common/languages';
-import { IModelDeltaDecoration } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { ApplyCodeActionReason, applyCodeAction } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import { CodeActionKeybindingResolver } from 'vs/editor/contrib/codeAction/browser/codeActionKeybindingResolver';
-import { toMenuItems } from 'vs/editor/contrib/codeAction/browser/codeActionMenu';
-import { LightBulbWidget } from 'vs/editor/contrib/codeAction/browser/lightBulbWidget';
-import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
-import { localize } from 'vs/nls';
-import { IActionListDelegate } from 'vs/platform/actionWidget/browser/actionList';
-import { IActionWidgetService } from 'vs/platform/actionWidget/browser/actionWidget';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { IEditorProgressService } from 'vs/platform/progress/common/progress';
-import { editorFindMatchHighlight, editorFindMatchHighlightBorder } from 'vs/platform/theme/common/colorRegistry';
-import { isHighContrast } from 'vs/platform/theme/common/theme';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { CodeActionAutoApply, CodeActionFilter, CodeActionItem, CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
-import { CodeActionModel, CodeActionsState } from 'vs/editor/contrib/codeAction/browser/codeActionModel';
-import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
+import { getDomNodePagePosition } from '../../../../base/browser/dom.js';
+import * as aria from '../../../../base/browser/ui/aria/aria.js';
+import { IAnchor } from '../../../../base/browser/ui/contextview/contextview.js';
+import { IAction } from '../../../../base/common/actions.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Color } from '../../../../base/common/color.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
+import { Lazy } from '../../../../base/common/lazy.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { derivedOpts, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { Event } from '../../../../base/common/event.js';
+import { localize } from '../../../../nls.js';
+import { IActionListDelegate } from '../../../../platform/actionWidget/browser/actionList.js';
+import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IMarkerService } from '../../../../platform/markers/common/markers.js';
+import { IEditorProgressService } from '../../../../platform/progress/common/progress.js';
+import { editorFindMatchHighlight, editorFindMatchHighlightBorder } from '../../../../platform/theme/common/colorRegistry.js';
+import { isHighContrast } from '../../../../platform/theme/common/theme.js';
+import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { IPosition, Position } from '../../../common/core/position.js';
+import { IEditorContribution, ScrollType } from '../../../common/editorCommon.js';
+import { CodeActionTriggerType } from '../../../common/languages.js';
+import { IModelDeltaDecoration } from '../../../common/model.js';
+import { ModelDecorationOptions } from '../../../common/model/textModel.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
+import { MessageController } from '../../message/browser/messageController.js';
+import { CodeActionAutoApply, CodeActionFilter, CodeActionItem, CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../common/types.js';
+import { ApplyCodeActionReason, applyCodeAction, autoFixCommandId, quickFixCommandId } from './codeAction.js';
+import { CodeActionKeybindingResolver } from './codeActionKeybindingResolver.js';
+import { toMenuItems } from './codeActionMenu.js';
+import { CodeActionModel, CodeActionsState } from './codeActionModel.js';
+import { computeLightBulbInfo, LightBulbInfo, LightBulbWidget } from './lightBulbWidget.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 
 interface IActionShowOptions {
 	readonly includeDisabledActions?: boolean;
@@ -67,6 +70,36 @@ export class CodeActionController extends Disposable implements IEditorContribut
 
 	private _disposed = false;
 
+	set onlyLightBulbWithEmptySelection(value: boolean) {
+		const widget = this._lightBulbWidget.rawValue;
+		if (widget) {
+			widget.onlyWithEmptySelection = value;
+		}
+		this._onlyLightBulbWithEmptySelection = value;
+	}
+
+	private _onlyLightBulbWithEmptySelection = false;
+
+	private readonly _lightBulbInfoObs = observableValue<LightBulbInfo | undefined>(this, undefined);
+	private readonly _preferredKbLabel = observableValue<string | undefined>(this, undefined);
+	private readonly _quickFixKbLabel = observableValue<string | undefined>(this, undefined);
+
+	private _hasLightBulbStateObservers = false;
+
+	public readonly lightBulbState: IObservable<LightBulbInfo | undefined> = derivedOpts<LightBulbInfo | undefined>({
+		owner: this,
+		onLastObserverRemoved: () => {
+			this._hasLightBulbStateObservers = false;
+			this._model.ignoreLightbulbOff = false;
+		},
+	}, reader => {
+		if (!this._hasLightBulbStateObservers) {
+			this._hasLightBulbStateObservers = true;
+			this._model.ignoreLightbulbOff = true;
+		}
+		return this._lightBulbInfoObs.read(reader);
+	});
+
 	constructor(
 		editor: ICodeEditor,
 		@IMarkerService markerService: IMarkerService,
@@ -77,7 +110,9 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IEditorProgressService private readonly _progressService: IEditorProgressService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
 
@@ -85,10 +120,16 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		this._model = this._register(new CodeActionModel(this._editor, languageFeaturesService.codeActionProvider, markerService, contextKeyService, progressService, _configurationService));
 		this._register(this._model.onDidChangeState(newState => this.update(newState)));
 
+		this._register(Event.runAndSubscribe(this._keybindingService.onDidUpdateKeybindings, () => {
+			this._preferredKbLabel.set(this._keybindingService.lookupKeybinding(autoFixCommandId)?.getLabel() ?? undefined, undefined);
+			this._quickFixKbLabel.set(this._keybindingService.lookupKeybinding(quickFixCommandId)?.getLabel() ?? undefined, undefined);
+		}));
+
 		this._lightBulbWidget = new Lazy(() => {
 			const widget = this._editor.getContribution<LightBulbWidget>(LightBulbWidget.ID);
 			if (widget) {
 				this._register(widget.onClick(e => this.showCodeActionsFromLightbulb(e.actions, e)));
+				widget.onlyWithEmptySelection = this._onlyLightBulbWithEmptySelection;
 			}
 			return widget;
 		});
@@ -108,11 +149,11 @@ export class CodeActionController extends Disposable implements IEditorContribut
 			const actionItem = actions.validActions[0];
 			const command = actionItem.action.command;
 			if (command && command.id === 'inlineChat.start') {
-				if (command.arguments && command.arguments.length >= 1) {
+				if (command.arguments && command.arguments.length >= 1 && command.arguments[0]) {
 					command.arguments[0] = { ...command.arguments[0], autoSend: false };
 				}
 			}
-			await this._applyCodeAction(actionItem, false, false, ApplyCodeActionReason.FromAILightbulb);
+			await this.applyCodeAction(actionItem, false, false, ApplyCodeActionReason.FromAILightbulb);
 			return;
 		}
 		await this.showCodeActionList(actions, at, { includeDisabledActions: false, fromLightbulb: true });
@@ -145,39 +186,56 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		return this._model.trigger(trigger);
 	}
 
-	private async _applyCodeAction(action: CodeActionItem, retrigger: boolean, preview: boolean, actionReason: ApplyCodeActionReason): Promise<void> {
+	async applyCodeAction(action: CodeActionItem, retrigger: boolean, preview: boolean, actionReason: ApplyCodeActionReason): Promise<void> {
+		const progress = this._progressService.show(true, 500);
 		try {
 			await this._instantiationService.invokeFunction(applyCodeAction, action, actionReason, { preview, editor: this._editor });
 		} finally {
 			if (retrigger) {
 				this._trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.QuickFix, filter: {} });
 			}
+			progress.done();
 		}
 	}
 
 	public hideLightBulbWidget(): void {
 		this._lightBulbWidget.rawValue?.hide();
+		this._lightBulbWidget.rawValue?.gutterHide();
 	}
 
 	private async update(newState: CodeActionsState.State): Promise<void> {
 		if (newState.type !== CodeActionsState.Type.Triggered) {
-			this._lightBulbWidget.rawValue?.hide();
+			this.hideLightBulbWidget();
+			this._lightBulbInfoObs.set(undefined, undefined);
 			return;
 		}
 
-		let actions: CodeActionSet;
+		let actions: CodeActionSet | undefined;
 		try {
-			actions = await newState.actions;
+			actions = this._model.takeCodeActions(await newState.actions);
 		} catch (e) {
 			onUnexpectedError(e);
 			return;
 		}
 
+		if (!actions) {
+			return;
+		}
+
 		if (this._disposed) {
+			actions.dispose();
+			return;
+		}
+
+
+		const selection = this._editor.getSelection();
+		if (selection?.startLineNumber !== newState.position.lineNumber) {
+			actions.dispose();
 			return;
 		}
 
 		this._lightBulbWidget.value?.update(actions, newState.trigger, newState.position);
+		this._lightBulbInfoObs.set(computeLightBulbInfo(actions, newState.trigger, this._preferredKbLabel.get(), this._quickFixKbLabel.get()), undefined);
 
 		if (newState.trigger.type === CodeActionTriggerType.Invoke) {
 			if (newState.trigger.filter?.include) { // Triggered for specific scope
@@ -186,8 +244,8 @@ export class CodeActionController extends Disposable implements IEditorContribut
 				const validActionToApply = this.tryGetValidActionToApply(newState.trigger, actions);
 				if (validActionToApply) {
 					try {
-						this._lightBulbWidget.value?.hide();
-						await this._applyCodeAction(validActionToApply, false, false, ApplyCodeActionReason.FromCodeActions);
+						this.hideLightBulbWidget();
+						await this.applyCodeAction(validActionToApply, false, false, ApplyCodeActionReason.FromCodeActions);
 					} finally {
 						actions.dispose();
 					}
@@ -279,7 +337,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 
 		const delegate: IActionListDelegate<CodeActionItem> = {
 			onSelect: async (action: CodeActionItem, preview?: boolean) => {
-				this._applyCodeAction(action, /* retrigger */ true, !!preview, options.fromLightbulb ? ApplyCodeActionReason.FromAILightbulb : ApplyCodeActionReason.FromCodeActions);
+				this.applyCodeAction(action, /* retrigger */ true, !!preview, options.fromLightbulb ? ApplyCodeActionReason.FromAILightbulb : ApplyCodeActionReason.FromCodeActions);
 				this._actionWidgetService.hide(false);
 				currentDecorations.clear();
 			},

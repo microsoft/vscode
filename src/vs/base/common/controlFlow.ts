@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { BugIndicatingError } from 'vs/base/common/errors';
+import { BugIndicatingError } from './errors.js';
 
 /*
  * This file contains helper classes to manage control flow.
@@ -53,8 +53,8 @@ export class ReentrancyBarrier {
 		return this._isOccupied;
 	}
 
-	public makeExclusiveOrSkip<TFunction extends Function>(fn: TFunction): TFunction {
-		return ((...args: any[]) => {
+	public makeExclusiveOrSkip<TArgs extends unknown[]>(fn: (...args: TArgs) => void): (...args: TArgs) => void {
+		return ((...args: TArgs) => {
 			if (this._isOccupied) {
 				return;
 			}
@@ -64,6 +64,6 @@ export class ReentrancyBarrier {
 			} finally {
 				this._isOccupied = false;
 			}
-		}) as any;
+		});
 	}
 }

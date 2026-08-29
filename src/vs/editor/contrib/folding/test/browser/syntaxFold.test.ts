@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ITextModel } from 'vs/editor/common/model';
-import { FoldingContext, FoldingRange, FoldingRangeProvider, ProviderResult } from 'vs/editor/common/languages';
-import { SyntaxRangeProvider } from 'vs/editor/contrib/folding/browser/syntaxRangeProvider';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { FoldingLimitReporter } from 'vs/editor/contrib/folding/browser/folding';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { ITextModel } from '../../../../common/model.js';
+import { FoldingContext, FoldingRange, FoldingRangeProvider, ProviderResult } from '../../../../common/languages.js';
+import { SyntaxRangeProvider } from '../../browser/syntaxRangeProvider.js';
+import { createTextModel } from '../../../../test/common/testTextModel.js';
+import { FoldingLimitReporter } from '../../browser/folding.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 interface IndentRange {
 	start: number;

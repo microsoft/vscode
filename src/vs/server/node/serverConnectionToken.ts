@@ -5,13 +5,12 @@
 
 import * as cookie from 'cookie';
 import * as fs from 'fs';
-import * as http from 'http';
-import * as url from 'url';
-import * as path from 'vs/base/common/path';
-import { generateUuid } from 'vs/base/common/uuid';
-import { connectionTokenCookieName, connectionTokenQueryName } from 'vs/base/common/network';
-import { ServerParsedArgs } from 'vs/server/node/serverEnvironmentService';
-import { Promises } from 'vs/base/node/pfs';
+import type * as http from 'http';
+import * as path from '../../base/common/path.js';
+import { generateUuid } from '../../base/common/uuid.js';
+import { connectionTokenCookieName, connectionTokenQueryName } from '../../base/common/network.js';
+import { ServerParsedArgs } from './serverEnvironmentService.js';
+import { Promises } from '../../base/node/pfs.js';
 
 const connectionTokenRegex = /^[0-9A-Za-z_-]+$/;
 
@@ -24,7 +23,7 @@ export const enum ServerConnectionTokenType {
 export class NoneServerConnectionToken {
 	public readonly type = ServerConnectionTokenType.None;
 
-	public validate(connectionToken: any): boolean {
+	public validate(connectionToken: unknown): boolean {
 		return true;
 	}
 }
@@ -35,7 +34,7 @@ export class MandatoryServerConnectionToken {
 	constructor(public readonly value: string) {
 	}
 
-	public validate(connectionToken: any): boolean {
+	public validate(connectionToken: unknown): boolean {
 		return (connectionToken === this.value);
 	}
 }
@@ -120,9 +119,10 @@ export async function determineServerConnectionToken(args: ServerParsedArgs): Pr
 	return parseServerConnectionToken(args, readOrGenerateConnectionToken);
 }
 
-export function requestHasValidConnectionToken(connectionToken: ServerConnectionToken, req: http.IncomingMessage, parsedUrl: url.UrlWithParsedQuery) {
+export function requestHasValidConnectionToken(connectionToken: ServerConnectionToken, req: Pick<http.IncomingMessage, 'headers'>, searchParams: URLSearchParams) {
 	// First check if there is a valid query parameter
-	if (connectionToken.validate(parsedUrl.query[connectionTokenQueryName])) {
+	const queryTokens = searchParams.getAll(connectionTokenQueryName);
+	if (connectionToken.validate(queryTokens.length > 1 ? queryTokens : queryTokens[0])) {
 		return true;
 	}
 

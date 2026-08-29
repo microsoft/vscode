@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IChatAgentService, ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { TerminalChatContextKeys } from 'vs/workbench/contrib/terminal/browser/terminalContribExports';
-
+import { Event } from '../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IChatAgentService } from '../../../chat/common/participants/chatAgents.js';
+import { ChatAgentLocation } from '../../../chat/common/constants.js';
+import { TerminalChatContextKeys } from './terminalChat.js';
 
 export class TerminalChatEnabler {
 
@@ -18,11 +19,11 @@ export class TerminalChatEnabler {
 	private readonly _store = new DisposableStore();
 
 	constructor(
+		@IChatAgentService chatAgentService: IChatAgentService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IChatAgentService chatAgentService: IChatAgentService
 	) {
 		this._ctxHasProvider = TerminalChatContextKeys.hasChatAgent.bindTo(contextKeyService);
-		this._store.add(chatAgentService.onDidChangeAgents(() => {
+		this._store.add(Event.runAndSubscribe(chatAgentService.onDidChangeAgents, () => {
 			const hasTerminalAgent = Boolean(chatAgentService.getDefaultAgent(ChatAgentLocation.Terminal));
 			this._ctxHasProvider.set(hasTerminalAgent);
 		}));

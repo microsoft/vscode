@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { promiseWithResolvers } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IViewBadge } from 'vs/workbench/common/views';
-import { IOverlayWebview } from 'vs/workbench/contrib/webview/browser/webview';
+import { promiseWithResolvers } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IViewBadge } from '../../../common/views.js';
+import { IOverlayWebview } from '../../webview/browser/webview.js';
 
 /**
  * A webview shown in a view pane.
@@ -98,7 +98,7 @@ export class WebviewViewService extends Disposable implements IWebviewViewServic
 
 	private readonly _resolvers = new Map<string, IWebviewViewResolver>();
 
-	private readonly _awaitingRevival = new Map<string, { readonly webview: WebviewView; readonly resolve: () => void }>();
+	private readonly _awaitingRevival = new Map<string, { readonly webview: WebviewView; readonly resolve: () => void; readonly subscription: IDisposable }>();
 
 	private readonly _onNewResolverRegistered = this._register(new Emitter<{ readonly viewType: string }>());
 	public readonly onNewResolverRegistered = this._onNewResolverRegistered.event;
@@ -115,6 +115,7 @@ export class WebviewViewService extends Disposable implements IWebviewViewServic
 		if (pending) {
 			resolver.resolve(pending.webview, CancellationToken.None).then(() => {
 				this._awaitingRevival.delete(viewType);
+				pending.subscription.dispose();
 				pending.resolve();
 			});
 		}
@@ -131,8 +132,31 @@ export class WebviewViewService extends Disposable implements IWebviewViewServic
 				throw new Error('View already awaiting revival');
 			}
 
+			// Already cancelled: don't record a pending entry at all, otherwise it would
+			// never be cleaned up (the cancellation listener fires synchronously before
+			// the entry is registered).
+			if (cancellation.isCancellationRequested) {
+				return Promise.resolve();
+			}
+
 			const { promise, resolve } = promiseWithResolvers<void>();
-			this._awaitingRevival.set(viewType, { webview, resolve });
+
+			// If the caller is cancelled (e.g. the view pane is torn down or re-activated)
+			// at any point before the pending entry is revived by a resolver, drop the
+			// pending entry so a later resolve for the same view type does not throw
+			// "View already awaiting revival". The subscription is disposed on both settle
+			// paths (cancellation here, or revival in `register`) so the listener does not
+			// retain the closure or accumulate on the token.
+			const subscription = cancellation.onCancellationRequested(() => {
+				if (this._awaitingRevival.get(viewType)?.resolve === resolve) {
+					this._awaitingRevival.delete(viewType);
+					subscription.dispose();
+					resolve();
+				}
+			});
+
+			this._awaitingRevival.set(viewType, { webview, resolve, subscription });
+
 			return promise;
 		}
 

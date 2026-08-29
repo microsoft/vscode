@@ -43,7 +43,7 @@ export class DiskTypeScriptVersionProvider implements ITypeScriptVersionProvider
 		}
 
 		const nodeVersions = this.localNodeModulesVersions;
-		if (nodeVersions && nodeVersions.length === 1) {
+		if (nodeVersions?.length === 1) {
 			return nodeVersions[0];
 		}
 		return undefined;
@@ -183,7 +183,7 @@ export class DiskTypeScriptVersionProvider implements ITypeScriptVersionProvider
 		}
 
 		const contents = fs.readFileSync(fileName).toString();
-		let desc: any = null;
+		let desc: any;
 		try {
 			desc = JSON.parse(contents);
 		} catch (err) {

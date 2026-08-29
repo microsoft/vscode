@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { AccessibleDiffViewerNext, AccessibleDiffViewerPrev } from 'vs/editor/browser/widget/diffEditor/commands';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
-import { localize } from 'vs/nls';
-import { AccessibleViewProviderId, AccessibleViewType } from 'vs/platform/accessibility/browser/accessibleView';
-import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
-import { ContextKeyEqualsExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { getCommentCommandInfo } from 'vs/workbench/contrib/accessibility/browser/editorAccessibilityHelp';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { AccessibleDiffViewerNext, AccessibleDiffViewerPrev } from '../../../../editor/browser/widget/diffEditor/commands.js';
+import { DiffEditorWidget } from '../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
+import { localize } from '../../../../nls.js';
+import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { ContextKeyEqualsExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
+import { getCommentCommandInfo } from '../../accessibility/browser/editorAccessibilityHelp.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 
-export class DiffEditorAccessibilityHelp implements IAccessibleViewImplentation {
+export class DiffEditorAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 105;
 	readonly name = 'diff-editor';
 	readonly when = ContextKeyEqualsExpr.create('isInDiffEditor', true);
@@ -36,13 +36,13 @@ export class DiffEditorAccessibilityHelp implements IAccessibleViewImplentation 
 			return;
 		}
 
-		const switchSides = localize('msg3', "Run the command Diff Editor: Switch Side<keybinding:diffEditor.switchSide> to toggle between the original and modified editors.");
+		const switchSides = localize('msg3', "Run the command Diff Editor: Switch Side{0} to toggle between the original and modified editors.", '<keybinding:diffEditor.switchSide>');
 		const diffEditorActiveAnnouncement = localize('msg5', "The setting, accessibility.verbosity.diffEditorActive, controls if a diff editor announcement is made when it becomes the active editor.");
 
 		const keys = ['accessibility.signals.diffLineDeleted', 'accessibility.signals.diffLineInserted', 'accessibility.signals.diffLineModified'];
 		const content = [
 			localize('msg1', "You are in a diff editor."),
-			localize('msg2', "View the next<keybinding:{0}> or previous<keybinding:{1}> diff in diff review mode, which is optimized for screen readers.", AccessibleDiffViewerNext.id, AccessibleDiffViewerPrev.id),
+			localize('msg2', "View the next{0} or previous{1} diff in diff review mode, which is optimized for screen readers.", '<keybinding:' + AccessibleDiffViewerNext.id + '>', '<keybinding:' + AccessibleDiffViewerPrev.id + '>'),
 			switchSides,
 			diffEditorActiveAnnouncement,
 			localize('msg4', "To control which accessibility signals should be played, the following settings can be configured: {0}.", keys.join(', ')),
@@ -51,15 +51,12 @@ export class DiffEditorAccessibilityHelp implements IAccessibleViewImplentation 
 		if (commentCommandInfo) {
 			content.push(commentCommandInfo);
 		}
-		return {
-			id: AccessibleViewProviderId.DiffEditor,
-			verbositySettingKey: AccessibilityVerbositySettingId.DiffEditor,
-			provideContent: () => content.join('\n\n'),
-			onClose: () => {
-				codeEditor.focus();
-			},
-			options: { type: AccessibleViewType.Help }
-		};
+		return new AccessibleContentProvider(
+			AccessibleViewProviderId.DiffEditor,
+			{ type: AccessibleViewType.Help },
+			() => content.join('\n'),
+			() => codeEditor.focus(),
+			AccessibilityVerbositySettingId.DiffEditor,
+		);
 	}
-	dispose() { }
 }

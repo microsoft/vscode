@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as perf from 'vs/base/common/performance';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IUpdateService } from 'vs/platform/update/common/update';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Barrier, timeout } from 'vs/base/common/async';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
-import { isWeb } from 'vs/base/common/platform';
-import { createBlobWorker } from 'vs/base/browser/defaultWorkerFactory';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ITerminalBackendRegistry, TerminalExtensions } from 'vs/platform/terminal/common/terminal';
+import * as perf from '../../../../base/common/performance.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IExtensionService } from '../../extensions/common/extensions.js';
+import { IUpdateService } from '../../../../platform/update/common/update.js';
+import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
+import { IEditorService } from '../../editor/common/editorService.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { ITelemetryData, ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { Barrier, timeout } from '../../../../base/common/async.js';
+import { IWorkbenchLayoutService } from '../../layout/browser/layoutService.js';
+import { IPaneCompositePartService } from '../../panecomposite/browser/panecomposite.js';
+import { ViewContainerLocation } from '../../../common/views.js';
+import { TelemetryTrustedValue } from '../../../../platform/telemetry/common/telemetryUtils.js';
+import { isWeb } from '../../../../base/common/platform.js';
+import { createBlobWorker } from '../../../../platform/webWorker/browser/webWorkerServiceImpl.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { ITerminalBackendRegistry, TerminalExtensions } from '../../../../platform/terminal/common/terminal.js';
 
 /* __GDPR__FRAGMENT__
 	"IMemoryInfo" : {
@@ -37,7 +37,6 @@ export interface IMemoryInfo {
 
 /* __GDPR__FRAGMENT__
 	"IStartupMetrics" : {
-		"version" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 		"ellapsed" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"isLatestVersion": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 		"didUseCachedData": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
@@ -49,6 +48,7 @@ export interface IMemoryInfo {
 		"timers.ellapsedAppReady" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedNlsGeneration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedLoadMainBundle" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.ellapsedRunMainBundle" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedCrashReporter" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedMainServer" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedWindowCreate" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
@@ -64,6 +64,7 @@ export interface IMemoryInfo {
 		"timers.ellapsedExtensions" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedExtensionsReady" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedViewletRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.ellapsedAuxiliaryViewletRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedPanelRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedEditorRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedWorkbenchContributions" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
@@ -86,11 +87,6 @@ export interface IMemoryInfo {
 	}
 */
 export interface IStartupMetrics {
-
-	/**
-	 * The version of these metrics.
-	 */
-	readonly version: 2;
 
 	/**
 	 * If this started the main process and renderer or just a renderer (new or reloaded).
@@ -127,6 +123,11 @@ export interface IStartupMetrics {
 	 * The active viewlet id or `undedined`
 	 */
 	readonly viewletId?: string;
+
+	/**
+	 * The active auxiliary viewlet id or `undedined`
+	 */
+	readonly auxiliaryViewletId?: string;
 
 	/**
 	 * The active panel id or `undefined`
@@ -187,6 +188,14 @@ export interface IStartupMetrics {
 		 * * Measured with the `willLoadMainBundle` and `didLoadMainBundle` performance marks.
 		 */
 		readonly ellapsedLoadMainBundle?: number;
+
+		/**
+		 * The time it took to run the main bundle.
+		 *
+		 * * Happens in the main-process
+		 * * Measured with the `didStartMain` and `didRunMainBundle` performance marks.
+		 */
+		readonly ellapsedRunMainBundle?: number;
 
 		/**
 		 * The time it took to start the crash reporter.
@@ -335,7 +344,7 @@ export interface IStartupMetrics {
 		readonly ellapsedExtensionsReady: number;
 
 		/**
-		 * The time it took to restore the viewlet.
+		 * The time it took to restore the primary sidebar viewlet.
 		 *
 		 * * Happens in the renderer-process
 		 * * Measured with the `willRestoreViewlet` and `didRestoreViewlet` performance marks.
@@ -343,6 +352,16 @@ export interface IStartupMetrics {
 		 * * Happens in parallel to other things, depends on async timing
 		 */
 		readonly ellapsedViewletRestore: number;
+
+		/**
+		 * The time it took to restore the auxiliary bar viewlet.
+		 *
+		 * * Happens in the renderer-process
+		 * * Measured with the `willRestoreAuxiliaryBar` and `didRestoreAuxiliaryBar` performance marks.
+		 * * This should be looked at per viewlet-type/id.
+		 * * Happens in parallel to other things, depends on async timing
+		 */
+		readonly ellapsedAuxiliaryViewletRestore: number;
 
 		/**
 		 * The time it took to restore the panel.
@@ -505,7 +524,7 @@ export abstract class AbstractTimerService implements ITimerService {
 
 	private readonly _barrier = new Barrier();
 	private readonly _marks = new PerfMarks();
-	private readonly _rndValueShouldSendTelemetry = Math.random() < .05; // 5% of users
+	private readonly _rndValueShouldSendTelemetry = Math.random() < .03; // 3% of users
 
 	private _startupMetrics?: IStartupMetrics;
 
@@ -566,8 +585,7 @@ export abstract class AbstractTimerService implements ITimerService {
 					const t1 = performance.now();
 					fib(24);
 					const value = Math.round(performance.now() - t1);
-					// eslint-disable-next-line no-restricted-globals
-					postMessage({ value: tooSlow ? -1 : value });
+					self.postMessage({ value: tooSlow ? -1 : value });
 
 				}).toString();
 
@@ -626,7 +644,7 @@ export abstract class AbstractTimerService implements ITimerService {
 				]
 			}
 		*/
-		this._telemetryService.publicLog('startupTimeVaried', metrics);
+		this._telemetryService.publicLog('startupTimeVaried', metrics as unknown as ITelemetryData);
 	}
 
 	protected _shouldReportPerfMarks(): boolean {
@@ -674,9 +692,10 @@ export abstract class AbstractTimerService implements ITimerService {
 		}
 
 		const activeViewlet = this._paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
+		const activeAuxiliaryViewlet = this._paneCompositeService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar);
 		const activePanel = this._paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
 		const info: Writeable<IStartupMetrics> = {
-			version: 2,
+
 			ellapsed: this._marks.getDuration(startMark, 'code/didStartWorkbench'),
 
 			// reflections
@@ -685,6 +704,7 @@ export abstract class AbstractTimerService implements ITimerService {
 			windowKind: this._lifecycleService.startupKind,
 			windowCount: await this._getWindowCount(),
 			viewletId: activeViewlet?.getId(),
+			auxiliaryViewletId: activeAuxiliaryViewlet?.getId(),
 			editorIds: this._editorService.visibleEditors.map(input => input.typeId),
 			panelId: activePanel ? activePanel.getId() : undefined,
 
@@ -693,6 +713,7 @@ export abstract class AbstractTimerService implements ITimerService {
 				ellapsedAppReady: initialStartup ? this._marks.getDuration('code/didStartMain', 'code/mainAppReady') : undefined,
 				ellapsedNlsGeneration: initialStartup ? this._marks.getDuration('code/willGenerateNls', 'code/didGenerateNls') : undefined,
 				ellapsedLoadMainBundle: initialStartup ? this._marks.getDuration('code/willLoadMainBundle', 'code/didLoadMainBundle') : undefined,
+				ellapsedRunMainBundle: initialStartup ? this._marks.getDuration('code/didStartMain', 'code/didRunMainBundle') : undefined,
 				ellapsedCrashReporter: initialStartup ? this._marks.getDuration('code/willStartCrashReporter', 'code/didStartCrashReporter') : undefined,
 				ellapsedMainServer: initialStartup ? this._marks.getDuration('code/willStartMainServer', 'code/didStartMainServer') : undefined,
 				ellapsedWindowCreate: initialStartup ? this._marks.getDuration('code/willCreateCodeWindow', 'code/didCreateCodeWindow') : undefined,
@@ -711,6 +732,7 @@ export abstract class AbstractTimerService implements ITimerService {
 				ellapsedExtensions: this._marks.getDuration('code/willLoadExtensions', 'code/didLoadExtensions'),
 				ellapsedEditorRestore: this._marks.getDuration('code/willRestoreEditors', 'code/didRestoreEditors'),
 				ellapsedViewletRestore: this._marks.getDuration('code/willRestoreViewlet', 'code/didRestoreViewlet'),
+				ellapsedAuxiliaryViewletRestore: this._marks.getDuration('code/willRestoreAuxiliaryBar', 'code/didRestoreAuxiliaryBar'),
 				ellapsedPanelRestore: this._marks.getDuration('code/willRestorePanel', 'code/didRestorePanel'),
 				ellapsedWorkbenchContributions: this._marks.getDuration('code/willCreateWorkbenchContributions/1', 'code/didCreateWorkbenchContributions/2'),
 				ellapsedWorkbench: this._marks.getDuration('code/willStartWorkbench', 'code/didStartWorkbench'),

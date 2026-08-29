@@ -3,29 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFilesConfiguration, AutoSaveConfiguration, HotExitConfiguration, FILES_READONLY_INCLUDE_CONFIG, FILES_READONLY_EXCLUDE_CONFIG, IFileStatWithMetadata, IFileService, IBaseFileStat, hasReadonlyCapability, IFilesConfigurationNode } from 'vs/platform/files/common/files';
-import { equals } from 'vs/base/common/objects';
-import { URI } from 'vs/base/common/uri';
-import { isWeb } from 'vs/base/common/platform';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
-import { GlobalIdleValue } from 'vs/base/common/async';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { LRUCache, ResourceMap } from 'vs/base/common/map';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorResourceAccessor, SaveReason, SideBySideEditor } from 'vs/workbench/common/editor';
-import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { IStringDictionary } from 'vs/base/common/collections';
+import { localize } from '../../../../nls.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { RawContextKey, IContextKeyService, IContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IFilesConfiguration, AutoSaveConfiguration, HotExitConfiguration, FILES_READONLY_INCLUDE_CONFIG, FILES_READONLY_EXCLUDE_CONFIG, IFileStatWithMetadata, IFileService, IBaseFileStat, hasReadonlyCapability, IFilesConfigurationNode } from '../../../../platform/files/common/files.js';
+import { equals } from '../../../../base/common/objects.js';
+import { URI } from '../../../../base/common/uri.js';
+import { isWeb } from '../../../../base/common/platform.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { ResourceGlobMatcher } from '../../../common/resources.js';
+import { GlobalIdleValue } from '../../../../base/common/async.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { LRUCache, ResourceMap } from '../../../../base/common/map.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { EditorResourceAccessor, SaveReason, SideBySideEditor } from '../../../common/editor.js';
+import { IMarkerService, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
+import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
 
 export const AutoSaveAfterShortDelayContext = new RawContextKey<boolean>('autoSaveAfterShortDelayContext', false, true);
 
@@ -92,6 +92,7 @@ export interface IFilesConfigurationService {
 
 	toggleAutoSave(): Promise<void>;
 
+	enableAutoSaveAfterShortDelay(resourceOrEditor: EditorInput | URI): IDisposable;
 	disableAutoSave(resourceOrEditor: EditorInput | URI): IDisposable;
 
 	//#endregion
@@ -102,7 +103,11 @@ export interface IFilesConfigurationService {
 
 	isReadonly(resource: URI, stat?: IBaseFileStat): boolean | IMarkdownString;
 
-	updateReadonly(resource: URI, readonly: true | false | 'toggle' | 'reset'): Promise<void>;
+	/**
+	 * Passing an IMarkdownString marks the resource read-only and displays it as the reason instead of the default session read-only message.
+	 */
+	updateReadonly(resource: URI, readonly: true | IMarkdownString | false | 'toggle' | 'reset'): Promise<void>;
+	updateReadonly(resource: URI[], readonly: true | IMarkdownString | false | 'reset'): Promise<void>;
 
 	//#endregion
 
@@ -139,26 +144,28 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	private readonly _onDidChangeFilesAssociation = this._register(new Emitter<void>());
 	readonly onDidChangeFilesAssociation = this._onDidChangeFilesAssociation.event;
 
-	private readonly _onDidChangeReadonly = this._register(new Emitter<void>());
+	private readonly _onDidChangeReadonly = this._register(new Emitter<void>({ leakWarningThreshold: 500, leakWarningName: 'FilesConfigurationService._onDidChangeReadonly' /* increased for users with hundreds of inputs opened */ }));
 	readonly onDidChangeReadonly = this._onDidChangeReadonly.event;
 
 	private currentGlobalAutoSaveConfiguration: IAutoSaveConfiguration;
-	private currentFilesAssociationConfiguration: IStringDictionary<string>;
+	private currentFilesAssociationConfiguration: IStringDictionary<string> | undefined;
 	private currentHotExitConfiguration: string;
 
 	private readonly autoSaveConfigurationCache = new LRUCache<URI, ICachedAutoSaveConfiguration>(1000);
+
+	private readonly autoSaveAfterShortDelayOverrides = new ResourceMap<number /* counter */>();
 	private readonly autoSaveDisabledOverrides = new ResourceMap<number /* counter */>();
 
-	private readonly autoSaveAfterShortDelayContext = AutoSaveAfterShortDelayContext.bindTo(this.contextKeyService);
+	private readonly autoSaveAfterShortDelayContext: IContextKey<boolean>;
 
 	private readonly readonlyIncludeMatcher = this._register(new GlobalIdleValue(() => this.createReadonlyMatcher(FILES_READONLY_INCLUDE_CONFIG)));
 	private readonly readonlyExcludeMatcher = this._register(new GlobalIdleValue(() => this.createReadonlyMatcher(FILES_READONLY_EXCLUDE_CONFIG)));
 	private configuredReadonlyFromPermissions: boolean | undefined;
 
-	private readonly sessionReadonlyOverrides = new ResourceMap<boolean>(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
+	private readonly sessionReadonlyOverrides = new ResourceMap<boolean | IMarkdownString>(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
 
 	constructor(
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
@@ -168,6 +175,8 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService
 	) {
 		super();
+
+		this.autoSaveAfterShortDelayContext = AutoSaveAfterShortDelayContext.bindTo(contextKeyService);
 
 		const configuration = configurationService.getValue<IFilesConfiguration>();
 
@@ -208,6 +217,9 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		if (typeof sessionReadonlyOverride === 'boolean') {
 			return sessionReadonlyOverride === true ? FilesConfigurationService.READONLY_MESSAGES.sessionReadonly : false;
 		}
+		if (sessionReadonlyOverride !== undefined) {
+			return sessionReadonlyOverride;
+		}
 
 		if (
 			this.uriIdentityService.extUri.isEqualOrParent(resource, this.environmentService.userRoamingDataHome) ||
@@ -234,7 +246,17 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		return false;
 	}
 
-	async updateReadonly(resource: URI, readonly: true | false | 'toggle' | 'reset'): Promise<void> {
+	async updateReadonly(resource: URI | URI[], readonly: true | IMarkdownString | false | 'toggle' | 'reset'): Promise<void> {
+		if (Array.isArray(resource)) {
+			for (const r of resource) {
+				this.applyReadonly(r, readonly as true | IMarkdownString | false | 'reset');
+			}
+			if (resource.length > 0) {
+				this._onDidChangeReadonly.fire();
+			}
+			return;
+		}
+
 		if (readonly === 'toggle') {
 			let stat: IFileStatWithMetadata | undefined = undefined;
 			try {
@@ -246,13 +268,16 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 			readonly = !this.isReadonly(resource, stat);
 		}
 
+		this.applyReadonly(resource, readonly);
+		this._onDidChangeReadonly.fire();
+	}
+
+	private applyReadonly(resource: URI, readonly: true | IMarkdownString | false | 'reset'): void {
 		if (readonly === 'reset') {
 			this.sessionReadonlyOverrides.delete(resource);
 		} else {
 			this.sessionReadonlyOverrides.set(resource, readonly);
 		}
-
-		this._onDidChangeReadonly.fire();
 	}
 
 	private registerListeners(): void {
@@ -317,7 +342,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		return this.currentGlobalAutoSaveConfiguration;
 	}
 
-	private computeAutoSaveConfiguration(resource: URI | undefined, filesConfiguration: IFilesConfigurationNode): ICachedAutoSaveConfiguration {
+	private computeAutoSaveConfiguration(resource: URI | undefined, filesConfiguration: IFilesConfigurationNode | undefined): ICachedAutoSaveConfiguration {
 		let autoSave: 'afterDelay' | 'onFocusChange' | 'onWindowChange' | undefined;
 		let autoSaveDelay: number | undefined;
 		let autoSaveWorkspaceFilesOnly: boolean | undefined;
@@ -326,10 +351,10 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		let isOutOfWorkspace: boolean | undefined;
 		let isShortAutoSaveDelay: boolean | undefined;
 
-		switch (filesConfiguration.autoSave ?? FilesConfigurationService.DEFAULT_AUTO_SAVE_MODE) {
+		switch (filesConfiguration?.autoSave ?? FilesConfigurationService.DEFAULT_AUTO_SAVE_MODE) {
 			case AutoSaveConfiguration.AFTER_DELAY: {
 				autoSave = 'afterDelay';
-				autoSaveDelay = typeof filesConfiguration.autoSaveDelay === 'number' && filesConfiguration.autoSaveDelay >= 0 ? filesConfiguration.autoSaveDelay : FilesConfigurationService.DEFAULT_AUTO_SAVE_DELAY;
+				autoSaveDelay = typeof filesConfiguration?.autoSaveDelay === 'number' && filesConfiguration.autoSaveDelay >= 0 ? filesConfiguration.autoSaveDelay : FilesConfigurationService.DEFAULT_AUTO_SAVE_DELAY;
 				isShortAutoSaveDelay = autoSaveDelay <= FilesConfigurationService.DEFAULT_AUTO_SAVE_DELAY;
 				break;
 			}
@@ -343,7 +368,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 				break;
 		}
 
-		if (filesConfiguration.autoSaveWorkspaceFilesOnly === true) {
+		if (filesConfiguration?.autoSaveWorkspaceFilesOnly === true) {
 			autoSaveWorkspaceFilesOnly = true;
 
 			if (resource && !this.contextService.isInsideWorkspace(resource)) {
@@ -352,7 +377,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 			}
 		}
 
-		if (filesConfiguration.autoSaveWhenNoErrors === true) {
+		if (filesConfiguration?.autoSaveWhenNoErrors === true) {
 			autoSaveWhenNoErrors = true;
 			isShortAutoSaveDelay = undefined; // this configuration disables short auto save delay
 		}
@@ -377,6 +402,11 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 
 	hasShortAutoSaveDelay(resourceOrEditor: EditorInput | URI | undefined): boolean {
 		const resource = this.toResource(resourceOrEditor);
+
+		if (resource && this.autoSaveAfterShortDelayOverrides.has(resource)) {
+			return true; // overridden to be enabled after short delay
+		}
+
 		if (this.getAutoSaveConfiguration(resource).isShortAutoSaveDelay) {
 			return !resource || !this.autoSaveDisabledOverrides.has(resource);
 		}
@@ -386,6 +416,10 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 
 	getAutoSaveMode(resourceOrEditor: EditorInput | URI | undefined, saveReason?: SaveReason): IAutoSaveMode {
 		const resource = this.toResource(resourceOrEditor);
+		if (resource && this.autoSaveAfterShortDelayOverrides.has(resource)) {
+			return { mode: AutoSaveMode.AFTER_SHORT_DELAY }; // overridden to be enabled after short delay
+		}
+
 		if (resource && this.autoSaveDisabledOverrides.has(resource)) {
 			return { mode: AutoSaveMode.OFF, reason: AutoSaveDisabledReason.DISABLED };
 		}
@@ -444,6 +478,25 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		}
 
 		return this.configurationService.updateValue('files.autoSave', newAutoSaveValue);
+	}
+
+	enableAutoSaveAfterShortDelay(resourceOrEditor: EditorInput | URI): IDisposable {
+		const resource = this.toResource(resourceOrEditor);
+		if (!resource) {
+			return Disposable.None;
+		}
+
+		const counter = this.autoSaveAfterShortDelayOverrides.get(resource) ?? 0;
+		this.autoSaveAfterShortDelayOverrides.set(resource, counter + 1);
+
+		return toDisposable(() => {
+			const counter = this.autoSaveAfterShortDelayOverrides.get(resource) ?? 0;
+			if (counter <= 1) {
+				this.autoSaveAfterShortDelayOverrides.delete(resource);
+			} else {
+				this.autoSaveAfterShortDelayOverrides.set(resource, counter - 1);
+			}
+		});
 	}
 
 	disableAutoSave(resourceOrEditor: EditorInput | URI): IDisposable {

@@ -18,7 +18,7 @@
 }
 
 .monaco-editor-pane-placeholder .editor-placeholder-icon-container .codicon {
-	font-size: 48px;
+	font-size: 48px !important;
 }
 
 .monaco-editor-pane-placeholder .editor-placeholder-icon-container .codicon.codicon-error {
@@ -57,8 +57,6 @@
 }
 
 .monaco-editor-pane-placeholder .editor-placeholder-buttons-container > .monaco-button {
-	font-size: 14px;
 	width: fit-content;
-	padding: 6px 11px;
 	outline-offset: 2px !important;
 }

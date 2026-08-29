@@ -4,15 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TreeProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/treeProjection';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
-import { TestDiffOpType, TestItemExpandState, TestResultItem, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
-import { TestTreeTestHarness } from 'vs/workbench/contrib/testing/test/browser/testObjectTree';
-import { TestTestItem } from 'vs/workbench/contrib/testing/test/common/testStubs';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { TreeProjection } from '../../../browser/explorerProjections/treeProjection.js';
+import { TestId } from '../../../common/testId.js';
+import { TestResultItemChange, TestResultItemChangeReason } from '../../../common/testResult.js';
+import { TestDiffOpType, TestItemExpandState, TestResultItem, TestResultState } from '../../../common/testTypes.js';
+import { TestTreeTestHarness } from '../testObjectTree.js';
+import { TestTestItem } from '../../common/testStubs.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { ITestResultService } from '../../../common/testResultService.js';
 
 class TestHierarchicalByLocationProjection extends TreeProjection {
 }
@@ -20,7 +22,7 @@ class TestHierarchicalByLocationProjection extends TreeProjection {
 suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 	let harness: TestTreeTestHarness<TestHierarchicalByLocationProjection>;
 	let onTestChanged: Emitter<TestResultItemChange>;
-	let resultsService: any;
+	let resultsService: ITestResultService;
 	let ds: DisposableStore;
 
 	teardown(() => {
@@ -32,14 +34,14 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 	setup(() => {
 		ds = new DisposableStore();
 		onTestChanged = ds.add(new Emitter());
-		resultsService = {
+		resultsService = upcastPartial<ITestResultService>({
 			results: [],
-			onResultsChanged: () => undefined,
+			onResultsChanged: Event.None,
 			onTestChanged: onTestChanged.event,
-			getStateById: () => ({ state: { state: 0 }, computedState: 0 }),
-		};
+			getStateById: () => undefined,
+		});
 
-		harness = ds.add(new TestTreeTestHarness(l => new TestHierarchicalByLocationProjection({}, l, resultsService as any)));
+		harness = ds.add(new TestTreeTestHarness(l => new TestHierarchicalByLocationProjection({}, l, resultsService)));
 	});
 
 	test('renders initial tree', async () => {
@@ -130,10 +132,10 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 		});
 
 		// Applies the change:
-		resultsService.getStateById = () => [undefined, resultInState(TestResultState.Queued)];
+		resultsService.getStateById = () => [undefined!, resultInState(TestResultState.Queued)];
 		onTestChanged.fire({
 			reason: TestResultItemChangeReason.OwnStateChange,
-			result: null as any,
+			result: undefined!,
 			previousState: TestResultState.Unset,
 			item: resultInState(TestResultState.Queued),
 			previousOwnDuration: undefined,
@@ -146,10 +148,10 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 		]);
 
 		// Falls back if moved into unset state:
-		resultsService.getStateById = () => [undefined, resultInState(TestResultState.Failed)];
+		resultsService.getStateById = () => [undefined!, resultInState(TestResultState.Failed)];
 		onTestChanged.fire({
 			reason: TestResultItemChangeReason.OwnStateChange,
-			result: null as any,
+			result: undefined!,
 			previousState: TestResultState.Queued,
 			item: resultInState(TestResultState.Unset),
 			previousOwnDuration: undefined,
@@ -171,10 +173,10 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 		// sortText causes order to change
 		harness.pushDiff({
 			op: TestDiffOpType.Update,
-			item: { extId: new TestId(['ctrlId', 'id-a', 'id-aa']).toString(), item: { sortText: "z" } }
+			item: { extId: new TestId(['ctrlId', 'id-a', 'id-aa']).toString(), item: { sortText: 'z' } }
 		}, {
 			op: TestDiffOpType.Update,
-			item: { extId: new TestId(['ctrlId', 'id-a', 'id-ab']).toString(), item: { sortText: "a" } }
+			item: { extId: new TestId(['ctrlId', 'id-a', 'id-ab']).toString(), item: { sortText: 'a' } }
 		});
 		assert.deepStrictEqual(harness.flush(), [
 			{ e: 'a', children: [{ e: 'ab' }, { e: 'aa' }] }, { e: 'b' }
@@ -182,20 +184,20 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 		// label causes order to change
 		harness.pushDiff({
 			op: TestDiffOpType.Update,
-			item: { extId: new TestId(['ctrlId', 'id-a', 'id-aa']).toString(), item: { sortText: undefined, label: "z" } }
+			item: { extId: new TestId(['ctrlId', 'id-a', 'id-aa']).toString(), item: { sortText: undefined, label: 'z' } }
 		}, {
 			op: TestDiffOpType.Update,
-			item: { extId: new TestId(['ctrlId', 'id-a', 'id-ab']).toString(), item: { sortText: undefined, label: "a" } }
+			item: { extId: new TestId(['ctrlId', 'id-a', 'id-ab']).toString(), item: { sortText: undefined, label: 'a' } }
 		});
 		assert.deepStrictEqual(harness.flush(), [
 			{ e: 'a', children: [{ e: 'a' }, { e: 'z' }] }, { e: 'b' }
 		]);
 		harness.pushDiff({
 			op: TestDiffOpType.Update,
-			item: { extId: new TestId(['ctrlId', 'id-a', 'id-aa']).toString(), item: { label: "a2" } }
+			item: { extId: new TestId(['ctrlId', 'id-a', 'id-aa']).toString(), item: { label: 'a2' } }
 		}, {
 			op: TestDiffOpType.Update,
-			item: { extId: new TestId(['ctrlId', 'id-a', 'id-ab']).toString(), item: { label: "z2" } }
+			item: { extId: new TestId(['ctrlId', 'id-a', 'id-ab']).toString(), item: { label: 'z2' } }
 		});
 		assert.deepStrictEqual(harness.flush(), [
 			{ e: 'a', children: [{ e: 'a2' }, { e: 'z2' }] }, { e: 'b' }
@@ -210,7 +212,7 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 		// sortText causes order to change
 		harness.pushDiff({
 			op: TestDiffOpType.Update,
-			item: { extId: new TestId(['ctrlId', 'id-a']).toString(), item: { error: "bad" } }
+			item: { extId: new TestId(['ctrlId', 'id-a']).toString(), item: { error: 'bad' } }
 		});
 		assert.deepStrictEqual(harness.flush(), [
 			{ e: 'a' }, { e: 'b' }
@@ -221,7 +223,7 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 		]);
 		harness.pushDiff({
 			op: TestDiffOpType.Update,
-			item: { extId: new TestId(['ctrlId', 'id-a']).toString(), item: { error: "badder" } }
+			item: { extId: new TestId(['ctrlId', 'id-a']).toString(), item: { error: 'badder' } }
 		});
 		assert.deepStrictEqual(harness.flush(), [
 			{ e: 'a', children: [{ e: 'badder' }, { e: 'aa' }, { e: 'ab' }] }, { e: 'b' }

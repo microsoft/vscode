@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { VSBufferReadableStream } from 'vs/base/common/buffer';
-import { URI } from 'vs/base/common/uri';
-import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { Event } from '../../../../base/common/event.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { VSBufferReadableStream } from '../../../../base/common/buffer.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IWorkingCopy } from './workingCopy.js';
 
 export interface IFileWorkingCopyModelFactory<M extends IFileWorkingCopyModel> {
 

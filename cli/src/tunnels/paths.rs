@@ -64,7 +64,7 @@ impl ServerPaths {
 
 	// VS Code Server pid
 	pub fn write_pid(&self, pid: u32) -> Result<(), WrappedError> {
-		write(&self.pidfile, format!("{}", pid)).map_err(|e| {
+		write(&self.pidfile, format!("{pid}")).map_err(|e| {
 			wrap(
 				e,
 				format!("error writing process id into {}", self.pidfile.display()),
@@ -155,5 +155,5 @@ pub fn get_all_servers(lp: &LauncherPaths) -> Vec<InstalledServer> {
 }
 
 pub fn get_server_folder_name(quality: Quality, commit: &str) -> String {
-	format!("{}-{}", quality, commit)
+	format!("{quality}-{commit}")
 }

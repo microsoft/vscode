@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IEditorFactoryRegistry, EditorExtensions, EditorInputCapabilities } from 'vs/workbench/common/editor';
-import { URI } from 'vs/base/common/uri';
-import { workbenchInstantiationService, TestFileEditorInput, registerTestEditor, TestEditorPart, createEditorPart, registerTestSideBySideEditor } from 'vs/workbench/test/browser/workbenchTestServices';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { GroupDirection, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { EditorActivation } from 'vs/platform/editor/common/editor';
-import { WillSaveStateReason } from 'vs/platform/storage/common/storage';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { EditorsObserver } from 'vs/workbench/browser/parts/editor/editorsObserver';
-import { timeout } from 'vs/base/common/async';
-import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { IEditorFactoryRegistry, EditorExtensions, EditorInputCapabilities } from '../../../../common/editor.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { workbenchInstantiationService, TestFileEditorInput, registerTestEditor, TestEditorPart, createEditorPart, registerTestSideBySideEditor } from '../../../../test/browser/workbenchTestServices.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { EditorPart } from '../../../../browser/parts/editor/editorPart.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { GroupDirection, IEditorGroupsService } from '../../common/editorGroupsService.js';
+import { EditorActivation } from '../../../../../platform/editor/common/editor.js';
+import { WillSaveStateReason } from '../../../../../platform/storage/common/storage.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { EditorsObserver } from '../../../../browser/parts/editor/editorsObserver.js';
+import { timeout } from '../../../../../base/common/async.js';
+import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('EditorsObserver', function () {
 
@@ -667,6 +667,48 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), false);
 		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), true);
 		assert.strictEqual(observer.hasEditor({ resource: input4.resource, typeId: input4.typeId, editorId: input4.editorId }), true);
+	});
+
+	test('observer does not close editors excluded from the limit but still honors the limit for others', async () => {
+		const [part] = await createPart();
+		disposables.add(part.enforcePartOptions({ limit: { enabled: true, value: 1, perEditorGroup: true } }));
+
+		const storage = disposables.add(new TestStorageService());
+		const observer = disposables.add(new EditorsObserver(undefined, part, storage));
+
+		const rootGroup = part.activeGroup;
+
+		const managed1 = disposables.add(new TestFileEditorInput(URI.parse('foo://managed1'), TEST_EDITOR_INPUT_ID));
+		managed1.capabilities = EditorInputCapabilities.ExcludeFromEditorLimit;
+		const managed2 = disposables.add(new TestFileEditorInput(URI.parse('foo://managed2'), TEST_EDITOR_INPUT_ID));
+		managed2.capabilities = EditorInputCapabilities.ExcludeFromEditorLimit;
+		const file1 = disposables.add(new TestFileEditorInput(URI.parse('foo://file1'), TEST_EDITOR_INPUT_ID));
+		const file2 = disposables.add(new TestFileEditorInput(URI.parse('foo://file2'), TEST_EDITOR_INPUT_ID));
+
+		await rootGroup.openEditor(managed1, { pinned: true });
+		await rootGroup.openEditor(managed2, { pinned: true });
+		await rootGroup.openEditor(file1, { pinned: true });
+		await rootGroup.openEditor(file2, { pinned: true });
+
+		// Excluded editors are never evicted (no open/close loop), while a normal
+		// editor still honors the limit of 1 (only the most recent survives).
+		assert.deepStrictEqual({
+			count: rootGroup.count,
+			managed1: rootGroup.contains(managed1),
+			managed2: rootGroup.contains(managed2),
+			file1: rootGroup.contains(file1),
+			file2: rootGroup.contains(file2),
+			file1Observed: observer.hasEditor({ resource: file1.resource, typeId: file1.typeId, editorId: file1.editorId }),
+			file2Observed: observer.hasEditor({ resource: file2.resource, typeId: file2.typeId, editorId: file2.editorId }),
+		}, {
+			count: 3,
+			managed1: true,
+			managed2: true,
+			file1: false,
+			file2: true,
+			file1Observed: false,
+			file2Observed: true,
+		});
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

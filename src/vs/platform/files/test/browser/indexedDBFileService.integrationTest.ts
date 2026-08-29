@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IndexedDB } from 'vs/base/browser/indexedDB';
-import { bufferToReadable, bufferToStream, VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { basename, joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { flakySuite } from 'vs/base/test/common/testUtils';
-import { IndexedDBFileSystemProvider } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
-import { FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileSystemProviderError, FileSystemProviderErrorCode, FileType } from 'vs/platform/files/common/files';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { NullLogService } from 'vs/platform/log/common/log';
+import { IndexedDB } from '../../../../base/browser/indexedDB.js';
+import { bufferToReadable, bufferToStream, VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../../base/common/buffer.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { basename, joinPath } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { flakySuite } from '../../../../base/test/common/testUtils.js';
+import { IndexedDBFileSystemProvider } from '../../browser/indexedDBFileSystemProvider.js';
+import { FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileSystemProviderError, FileSystemProviderErrorCode, FileType } from '../../common/files.js';
+import { FileService } from '../../common/fileService.js';
+import { NullLogService } from '../../../log/common/log.js';
 
 flakySuite('IndexedDBFileSystemProvider', function () {
 
@@ -189,7 +189,7 @@ flakySuite('IndexedDBFileSystemProvider', function () {
 				assert.strictEqual(value.mtime, undefined);
 				assert.strictEqual(value.ctime, undefined);
 			} else {
-				assert.ok(!'Unexpected value ' + basename(value.resource));
+				assert.fail('Unexpected value ' + basename(value.resource));
 			}
 		});
 	});
@@ -583,5 +583,96 @@ flakySuite('IndexedDBFileSystemProvider', function () {
 		assert.deepStrictEqual(await service.exists(file1), false);
 		assert.deepStrictEqual(await service.exists(file2), false);
 		assert.deepStrictEqual(await service.exists(emptyFolder), false);
+	});
+
+	test('writeFile with append - existing file', async () => {
+		const parent = await service.resolve(userdataURIFromPaths([]));
+		const resource = joinPath(parent.resource, 'appendTest.txt');
+
+		// Create initial file
+		await service.writeFile(resource, VSBuffer.fromString('Hello '));
+
+		// Append to existing file
+		await service.writeFile(resource, VSBuffer.fromString('World!'), { append: true });
+
+		// Verify content
+		const content = await service.readFile(resource);
+		assert.strictEqual(content.value.toString(), 'Hello World!');
+	});
+
+	test('writeFile with append - non-existent file', async () => {
+		const parent = await service.resolve(userdataURIFromPaths([]));
+		const resource = joinPath(parent.resource, 'newAppendTest.txt');
+
+		// Append to non-existent file (should create it)
+		await service.writeFile(resource, VSBuffer.fromString('First content'), { append: true });
+
+		// Verify content
+		const content = await service.readFile(resource);
+		assert.strictEqual(content.value.toString(), 'First content');
+	});
+
+	test('writeFile with append - multiple appends', async () => {
+		const parent = await service.resolve(userdataURIFromPaths([]));
+		const resource = joinPath(parent.resource, 'multiAppend.txt');
+
+		// Create and append multiple times
+		await service.writeFile(resource, VSBuffer.fromString('Line 1\n'));
+		await service.writeFile(resource, VSBuffer.fromString('Line 2\n'), { append: true });
+		await service.writeFile(resource, VSBuffer.fromString('Line 3\n'), { append: true });
+
+		// Verify content
+		const content = await service.readFile(resource);
+		assert.strictEqual(content.value.toString(), 'Line 1\nLine 2\nLine 3\n');
+	});
+
+	test('writeFile without append - overwrites content', async () => {
+		const parent = await service.resolve(userdataURIFromPaths([]));
+		const resource = joinPath(parent.resource, 'overwriteTest.txt');
+
+		// Create initial file
+		await service.writeFile(resource, VSBuffer.fromString('Original content'));
+
+		// Write without append (should overwrite)
+		await service.writeFile(resource, VSBuffer.fromString('New content'));
+
+		// Verify content is overwritten
+		const content = await service.readFile(resource);
+		assert.strictEqual(content.value.toString(), 'New content');
+	});
+
+	test('writeFile with append - binary content', async () => {
+		const parent = await service.resolve(userdataURIFromPaths([]));
+		const resource = joinPath(parent.resource, 'binaryAppend.bin');
+
+		const data1 = new Uint8Array([1, 2, 3, 4, 5]);
+		const data2 = new Uint8Array([6, 7, 8, 9, 10]);
+
+		// Create initial file with binary data
+		await service.writeFile(resource, VSBuffer.wrap(data1));
+
+		// Append binary data
+		await service.writeFile(resource, VSBuffer.wrap(data2), { append: true });
+
+		// Verify combined content
+		const content = await service.readFile(resource);
+		const expected = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+		assert.strictEqual(content.value.byteLength, expected.byteLength);
+		for (let i = 0; i < expected.byteLength; i++) {
+			assert.strictEqual(content.value.buffer[i], expected[i]);
+		}
+	});
+
+	test('provider writeFile with append - direct provider API', async () => {
+		const parent = await service.resolve(userdataURIFromPaths([]));
+		const resource = joinPath(parent.resource, 'providerAppend.txt');
+
+		// Use provider directly
+		await userdataFileProvider.writeFile(resource, VSBuffer.fromString('First ').buffer, { create: true, overwrite: true, unlock: false, atomic: false });
+		await userdataFileProvider.writeFile(resource, VSBuffer.fromString('Second').buffer, { create: true, overwrite: true, unlock: false, atomic: false, append: true });
+
+		// Verify content
+		const content = await userdataFileProvider.readFile(resource);
+		assert.strictEqual(new TextDecoder().decode(content), 'First Second');
 	});
 });

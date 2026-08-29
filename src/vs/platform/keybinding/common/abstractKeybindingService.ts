@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
-import * as arrays from 'vs/base/common/arrays';
-import { IntervalTimer, TimeoutTimer } from 'vs/base/common/async';
-import { illegalState } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IME } from 'vs/base/common/ime';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Keybinding, ResolvedChord, ResolvedKeybinding, SingleModifierChord } from 'vs/base/common/keybindings';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import * as nls from 'vs/nls';
+import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../base/common/actions.js';
+import * as arrays from '../../../base/common/arrays.js';
+import { IntervalTimer, TimeoutTimer } from '../../../base/common/async.js';
+import { illegalState } from '../../../base/common/errors.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { IME } from '../../../base/common/ime.js';
+import { KeyCode } from '../../../base/common/keyCodes.js';
+import { Keybinding, ResolvedChord, ResolvedKeybinding, SingleModifierChord } from '../../../base/common/keybindings.js';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
+import * as nls from '../../../nls.js';
 
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingService, IKeyboardEvent, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
-import { ResolutionResult, KeybindingResolver, ResultKind, NoMatchingKb } from 'vs/platform/keybinding/common/keybindingResolver';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ICommandService } from '../../commands/common/commands.js';
+import { IContextKeyService, IContextKeyServiceTarget } from '../../contextkey/common/contextkey.js';
+import { IKeybindingService, IKeyboardEvent, KeybindingsSchemaContribution } from './keybinding.js';
+import { ResolutionResult, KeybindingResolver, ResultKind, NoMatchingKb } from './keybindingResolver.js';
+import { ResolvedKeybindingItem } from './resolvedKeybindingItem.js';
+import { ILogService } from '../../log/common/log.js';
+import { INotificationService, IStatusHandle } from '../../notification/common/notification.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 
 interface CurrentChord {
 	keypress: string;
@@ -29,6 +29,15 @@ interface CurrentChord {
 }
 
 const HIGH_FREQ_COMMANDS = /^(cursor|delete|undo|redo|tab|editor\.action\.clipboard)/;
+
+/**
+ * Whether the keystroke belongs to an in-flight IME composition. `StandardKeyboardEvent` normalizes
+ * every composing keystroke to {@link KeyCode.KEY_IN_COMPOSITION}, including the platform/IME
+ * combinations that would otherwise report the real key code for keys the IME owns.
+ */
+function isKeyInComposition(e: IKeyboardEvent): boolean {
+	return e.keyCode === KeyCode.KEY_IN_COMPOSITION;
+}
 
 export abstract class AbstractKeybindingService extends Disposable implements IKeybindingService {
 
@@ -49,7 +58,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	private _currentChords: CurrentChord[];
 
 	private _currentChordChecker: IntervalTimer;
-	private _currentChordStatusMessage: IDisposable | null;
+	private _currentChordStatusMessage: IStatusHandle | null;
 	private _ignoreSingleModifiers: KeybindingModifierSet;
 	private _currentSingleModifier: SingleModifierChord | null;
 	private _currentSingleModifierClearTimeout: TimeoutTimer;
@@ -80,16 +89,13 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		this._logging = false;
 	}
 
-	public override dispose(): void {
-		super.dispose();
-	}
 
 	protected abstract _getResolver(): KeybindingResolver;
 	protected abstract _documentHasFocus(): boolean;
 	public abstract resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[];
 	public abstract resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding;
 	public abstract resolveUserBinding(userBinding: string): ResolvedKeybinding[];
-	public abstract registerSchemaContribution(contribution: KeybindingsSchemaContribution): void;
+	public abstract registerSchemaContribution(contribution: KeybindingsSchemaContribution): IDisposable;
 	public abstract _dumpDebugInfo(): string;
 	public abstract _dumpDebugInfoJSON(): string;
 
@@ -126,8 +132,8 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		);
 	}
 
-	public lookupKeybinding(commandId: string, context?: IContextKeyService): ResolvedKeybinding | undefined {
-		const result = this._getResolver().lookupPrimaryKeybinding(commandId, context || this._contextKeyService);
+	public lookupKeybinding(commandId: string, context?: IContextKeyService, enforceContextCheck = false): ResolvedKeybinding | undefined {
+		const result = this._getResolver().lookupPrimaryKeybinding(commandId, context || this._contextKeyService, enforceContextCheck);
 		if (!result) {
 			return undefined;
 		}
@@ -142,6 +148,13 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	// TODO@ulugbekna: this fn doesn't seem to take into account single-modifier keybindings, eg `shift shift`
 	public softDispatch(e: IKeyboardEvent, target: IContextKeyServiceTarget): ResolutionResult {
 		this._log(`/ Soft dispatching keyboard event`);
+		if (isKeyInComposition(e)) {
+			// Must agree with `_dispatch`: callers use this to decide whether the workbench will
+			// claim the key, and a "yes" here followed by a "no" there would drop the keystroke on
+			// the floor - stopping the widget (e.g. the terminal) from passing it to the IME.
+			this._log(`\\ Keyboard event is part of an IME composition`);
+			return NoMatchingKb;
+		}
 		const keybinding = this.resolveKeyboardEvent(e);
 		if (keybinding.hasMultipleChords()) {
 			console.warn('keyboard event should not be mapped to multiple chords');
@@ -203,7 +216,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 
 	private _leaveChordMode(): void {
 		if (this._currentChordStatusMessage) {
-			this._currentChordStatusMessage.dispose();
+			this._currentChordStatusMessage.close();
 			this._currentChordStatusMessage = null;
 		}
 		this._currentChordChecker.cancel();
@@ -222,10 +235,21 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	}
 
 	protected _dispatch(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean {
+		if (isKeyInComposition(e)) {
+			// The keystroke belongs to the IME, which owns Enter (commit), Space and the arrows
+			// (candidate selection) and Escape (cancel) for the duration of the composition.
+			// Dispatching would run commands the user never invoked - e.g. accepting a picker or
+			// submitting a form while they are still choosing characters.
+			this._log(`+ Ignoring keybinding dispatch because an IME composition is in progress.`);
+			return false;
+		}
 		return this._doDispatch(this.resolveKeyboardEvent(e), target, /*isSingleModiferChord*/false);
 	}
 
 	protected _singleModifierDispatch(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean {
+		if (isKeyInComposition(e)) {
+			return false;
+		}
 		const keybinding = this.resolveKeyboardEvent(e);
 		const [singleModifier,] = keybinding.getSingleModifierDispatchChords();
 
@@ -399,6 +423,20 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 			return true;
 		}
 		return false;
+	}
+
+	public appendKeybinding(label: string, commandId: string | undefined | null, context?: IContextKeyService, enforceContextCheck?: boolean): string {
+		if (commandId) {
+			const keybindingLabel = this.lookupKeybinding(commandId, context, enforceContextCheck)?.getLabel();
+			if (keybindingLabel) {
+				return nls.localize(
+					{ key: 'keybindingLabel', comment: ['UI element label', 'A keybinding label'] },
+					"{0} ({1})",
+					label,
+					keybindingLabel);
+			}
+		}
+		return label;
 	}
 }
 

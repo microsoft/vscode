@@ -3,19 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import * as resources from 'vs/base/common/resources';
-import { isString } from 'vs/base/common/types';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Extensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
-import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { MarkdownString } from 'vs/base/common/htmlContent';
+import * as nls from '../../../nls.js';
+import { ExtensionsRegistry } from '../../services/extensions/common/extensionsRegistry.js';
+import * as resources from '../../../base/common/resources.js';
+import { isString } from '../../../base/common/types.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { Extensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData } from '../../services/extensionManagement/common/extensionFeatures.js';
+import { IExtensionManifest } from '../../../platform/extensions/common/extensions.js';
+import { Registry } from '../../../platform/registry/common/platform.js';
+import { SyncDescriptor } from '../../../platform/instantiation/common/descriptors.js';
+import { MarkdownString } from '../../../base/common/htmlContent.js';
 
 interface IJSONValidationExtensionPoint {
 	fileMatch: string | string[];
+	url: string;
+}
+
+interface IJSONValidationRegistryExtensionPoint {
 	url: string;
 }
 
@@ -39,6 +43,26 @@ const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IJSONVal
 				},
 				url: {
 					description: nls.localize('contributes.jsonValidation.url', 'A schema URL (\'http:\', \'https:\') or relative path to the extension folder (\'./\').'),
+					type: 'string'
+				}
+			}
+		}
+	}
+});
+
+const registryExtPoint = ExtensionsRegistry.registerExtensionPoint<IJSONValidationRegistryExtensionPoint[]>({
+	extensionPoint: 'jsonValidationRegistry',
+	defaultExtensionKind: ['workspace', 'web'],
+	jsonSchema: {
+		description: nls.localize('contributes.jsonValidationRegistry', 'Contributes a JSON validation registry. The registry can be a dynamic resource from a filesystem provider and allows associations to change at runtime.'),
+		type: 'array',
+		defaultSnippets: [{ body: [{ url: '${1:url}' }] }],
+		items: {
+			type: 'object',
+			defaultSnippets: [{ body: { url: '${1:url}' } }],
+			properties: {
+				url: {
+					description: nls.localize('contributes.jsonValidationRegistry.url', 'A registry URI or relative path to the extension folder (\'./\').'),
 					type: 'string'
 				}
 			}
@@ -83,6 +107,38 @@ export class JSONValidationExtensionPoint {
 						return;
 					}
 				});
+			}
+		});
+
+		registryExtPoint.setHandler(extensions => {
+			for (const extension of extensions) {
+				const catalogs = extension.value;
+				const collector = extension.collector;
+				const extensionLocation = extension.description.extensionLocation;
+
+				if (!Array.isArray(catalogs)) {
+					collector.error(nls.localize('invalid.jsonValidationRegistry', "'configuration.jsonValidationRegistry' must be an array"));
+					continue;
+				}
+				for (const catalog of catalogs) {
+					const uri = catalog?.url;
+					if (!isString(uri)) {
+						collector.error(nls.localize('invalid.jsonValidationRegistry.url', "'configuration.jsonValidationRegistry.url' must be a URI or relative path"));
+						continue;
+					}
+					if (uri.startsWith('./')) {
+						try {
+							const catalogLocation = resources.joinPath(extensionLocation, uri);
+							if (!resources.isEqualOrParent(catalogLocation, extensionLocation)) {
+								collector.warn(nls.localize('invalid.jsonValidationRegistry.path', "Expected `contributes.{0}.url` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", registryExtPoint.name, catalogLocation.toString(), extensionLocation.path));
+							}
+						} catch (e) {
+							collector.error(nls.localize('invalid.jsonValidationRegistry.fileschema', "'configuration.jsonValidationRegistry.url' is an invalid relative URI: {0}", e.message));
+						}
+					} else if (!/^[^:/?#]+:\/\//.test(uri)) {
+						collector.error(nls.localize('invalid.jsonValidationRegistry.schema', "'configuration.jsonValidationRegistry.url' must be an absolute URI or start with './' to reference a registry located in the extension."));
+					}
+				}
 			}
 		});
 	}

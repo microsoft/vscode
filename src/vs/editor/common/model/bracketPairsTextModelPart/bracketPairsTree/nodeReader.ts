@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AstNode } from './ast';
-import { lengthAdd, lengthZero, Length, lengthLessThan } from './length';
+import { AstNode } from './ast.js';
+import { lengthAdd, lengthZero, Length, lengthLessThan } from './length.js';
 
 /**
  * Allows to efficiently find a longest child at a given offset in a fixed node.

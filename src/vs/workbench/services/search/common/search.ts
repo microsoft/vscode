@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mapArrayOrNot } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import * as glob from 'vs/base/common/glob';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import * as objects from 'vs/base/common/objects';
-import * as extpath from 'vs/base/common/extpath';
-import { fuzzyContains, getNLines } from 'vs/base/common/strings';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IFilesConfiguration } from 'vs/platform/files/common/files';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { Event } from 'vs/base/common/event';
-import * as paths from 'vs/base/common/path';
-import { isCancellationError } from 'vs/base/common/errors';
-import { TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/searchExtTypes';
-import { isThenable } from 'vs/base/common/async';
-import { ResourceSet } from 'vs/base/common/map';
+import { mapArrayOrNot } from '../../../../base/common/arrays.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import * as glob from '../../../../base/common/glob.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import * as objects from '../../../../base/common/objects.js';
+import * as extpath from '../../../../base/common/extpath.js';
+import { fuzzyContains, getNLines } from '../../../../base/common/strings.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { IFilesConfiguration } from '../../../../platform/files/common/files.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { ITelemetryData } from '../../../../platform/telemetry/common/telemetry.js';
+import { Event } from '../../../../base/common/event.js';
+import * as paths from '../../../../base/common/path.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
+import { AISearchKeyword, GlobPattern, TextSearchCompleteMessageType } from './searchExtTypes.js';
+import { isThenable } from '../../../../base/common/async.js';
+import { ResourceSet } from '../../../../base/common/map.js';
 
 export { TextSearchCompleteMessageType };
 
@@ -46,8 +46,10 @@ export interface ISearchService {
 	readonly _serviceBrand: undefined;
 	textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete>;
 	aiTextSearch(query: IAITextQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete>;
+	getAIName(): Promise<string | undefined>;
 	textSearchSplitSyncAsync(query: ITextQuery, token?: CancellationToken | undefined, onProgress?: ((result: ISearchProgressItem) => void) | undefined, notebookFilesToIgnore?: ResourceSet, asyncNotebookFilesToIgnore?: Promise<ResourceSet>): { syncResults: ISearchComplete; asyncResults: Promise<ISearchComplete> };
 	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete>;
+	schemeHasFileSearchProvider(scheme: string): boolean;
 	clearCache(cacheKey: string): Promise<void>;
 	registerSearchResultProvider(scheme: string, type: SearchProviderType, provider: ISearchResultProvider): IDisposable;
 }
@@ -62,16 +64,24 @@ export const enum SearchProviderType {
 }
 
 export interface ISearchResultProvider {
+	getAIName(): Promise<string | undefined>;
 	textSearch(query: ITextQuery, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): Promise<ISearchComplete>;
 	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete>;
 	clearCache(cacheKey: string): Promise<void>;
 }
 
+
+export interface ExcludeGlobPattern<U extends UriComponents = URI> {
+	folder?: U;
+	pattern: glob.IExpression;
+}
+
 export interface IFolderQuery<U extends UriComponents = URI> {
 	folder: U;
 	folderName?: string;
-	excludePattern?: glob.IExpression;
+	excludePattern?: ExcludeGlobPattern<U>[];
 	includePattern?: glob.IExpression;
+	ignoreGlobCase?: boolean;
 	fileEncoding?: string;
 	disregardIgnoreFiles?: boolean;
 	disregardGlobalIgnoreFiles?: boolean;
@@ -88,12 +98,14 @@ export interface ICommonQueryProps<U extends UriComponents> {
 	// Note that this will override any ignore files if applicable.
 	includePattern?: glob.IExpression;
 	excludePattern?: glob.IExpression;
+	ignoreGlobCase?: boolean;
 	extraFileResources?: U[];
 
 	onlyOpenEditors?: boolean;
 
 	maxResults?: number;
 	usingSearchPaths?: boolean;
+	onlyFileScheme?: boolean;
 }
 
 export interface IFileQueryProps<U extends UriComponents> extends ICommonQueryProps<U> {
@@ -119,9 +131,7 @@ export interface ITextQueryProps<U extends UriComponents> extends ICommonQueryPr
 
 	previewOptions?: ITextSearchPreviewOptions;
 	maxFileSize?: number;
-	usePCRE2?: boolean;
-	afterContext?: number;
-	beforeContext?: number;
+	surroundingContext?: number;
 
 	userDisabledExcludesAndIgnoreFiles?: boolean;
 }
@@ -132,8 +142,7 @@ export interface IAITextQueryProps<U extends UriComponents> extends ICommonQuery
 
 	previewOptions?: ITextSearchPreviewOptions;
 	maxFileSize?: number;
-	afterContext?: number;
-	beforeContext?: number;
+	surroundingContext?: number;
 
 	userDisabledExcludesAndIgnoreFiles?: boolean;
 }
@@ -147,6 +156,7 @@ export type IRawAITextQuery = IAITextQueryProps<UriComponents>;
 
 export type IRawQuery = IRawTextQuery | IRawFileQuery | IRawAITextQuery;
 export type ISearchQuery = ITextQuery | IFileQuery | IAITextQuery;
+export type ITextSearchQuery = ITextQuery | IAITextQuery;
 
 export const enum QueryType {
 	File = 1,
@@ -182,10 +192,6 @@ export interface INotebookPatternInfo {
 	isInNotebookCellOutput?: boolean;
 }
 
-export interface IExtendedExtensionSearchOptions {
-	usePCRE2?: boolean;
-}
-
 export interface IFileMatch<U extends UriComponents = URI> {
 	resource: U;
 	results?: ITextSearchResult<U>[];
@@ -205,17 +211,12 @@ export interface ISearchRange {
 	readonly endColumn: number;
 }
 
-export interface ITextSearchResultPreview {
-	text: string;
-	matches: ISearchRange | ISearchRange[];
-	cellFragment?: string;
-}
-
 export interface ITextSearchMatch<U extends UriComponents = URI> {
 	uri?: U;
-	ranges: ISearchRange | ISearchRange[];
-	preview: ITextSearchResultPreview;
+	rangeLocations: SearchRangeSetPairing[];
+	previewText: string;
 	webviewIndex?: number;
+	cellFragment?: string;
 }
 
 export interface ITextSearchContext<U extends UriComponents = URI> {
@@ -227,17 +228,21 @@ export interface ITextSearchContext<U extends UriComponents = URI> {
 export type ITextSearchResult<U extends UriComponents = URI> = ITextSearchMatch<U> | ITextSearchContext<U>;
 
 export function resultIsMatch(result: ITextSearchResult): result is ITextSearchMatch {
-	return !!(<ITextSearchMatch>result).preview;
+	return !!(<ITextSearchMatch>result).rangeLocations && !!(<ITextSearchMatch>result).previewText;
 }
 
 export interface IProgressMessage {
 	message: string;
 }
 
-export type ISearchProgressItem = IFileMatch | IProgressMessage;
+export type ISearchProgressItem = IFileMatch | IProgressMessage | AISearchKeyword;
 
 export function isFileMatch(p: ISearchProgressItem): p is IFileMatch {
 	return !!(<IFileMatch>p).resource;
+}
+
+export function isAIKeyword(p: ISearchProgressItem): p is AISearchKeyword {
+	return !!(<AISearchKeyword>p).keyword;
 }
 
 export function isProgressMessage(p: ISearchProgressItem | ISerializedSearchProgressItem): p is IProgressMessage {
@@ -259,6 +264,7 @@ export interface ISearchCompleteStats {
 export interface ISearchComplete extends ISearchCompleteStats {
 	results: IFileMatch[];
 	exit?: SearchCompletionExitCode;
+	aiKeywords?: AISearchKeyword[];
 }
 
 export const enum SearchCompletionExitCode {
@@ -306,20 +312,25 @@ export class FileMatch implements IFileMatch {
 	}
 }
 
+export interface SearchRangeSetPairing {
+	source: ISearchRange;
+	preview: ISearchRange;
+}
+
 export class TextSearchMatch implements ITextSearchMatch {
-	ranges: ISearchRange | ISearchRange[];
-	preview: ITextSearchResultPreview;
+	rangeLocations: SearchRangeSetPairing[] = [];
+	previewText: string;
 	webviewIndex?: number;
 
-	constructor(text: string, range: ISearchRange | ISearchRange[], previewOptions?: ITextSearchPreviewOptions, webviewIndex?: number) {
-		this.ranges = range;
+	constructor(text: string, ranges: ISearchRange | ISearchRange[], previewOptions?: ITextSearchPreviewOptions, webviewIndex?: number) {
 		this.webviewIndex = webviewIndex;
 
 		// Trim preview if this is one match and a single-line match with a preview requested.
 		// Otherwise send the full text, like for replace or for showing multiple previews.
 		// TODO this is fishy.
-		const ranges = Array.isArray(range) ? range : [range];
-		if (previewOptions && previewOptions.matchLines === 1 && isSingleLineRangeList(ranges)) {
+		const rangesArr = Array.isArray(ranges) ? ranges : [ranges];
+
+		if (previewOptions && previewOptions.matchLines === 1 && isSingleLineRangeList(rangesArr)) {
 			// 1 line preview requested
 			text = getNLines(text, previewOptions.matchLines);
 
@@ -327,8 +338,7 @@ export class TextSearchMatch implements ITextSearchMatch {
 			let shift = 0;
 			let lastEnd = 0;
 			const leadingChars = Math.floor(previewOptions.charsPerLine / 5);
-			const matches: ISearchRange[] = [];
-			for (const range of ranges) {
+			for (const range of rangesArr) {
 				const previewStart = Math.max(range.startColumn - leadingChars, 0);
 				const previewEnd = range.startColumn + previewOptions.charsPerLine;
 				if (previewStart > lastEnd + leadingChars + SEARCH_ELIDED_MIN_LEN) {
@@ -339,18 +349,25 @@ export class TextSearchMatch implements ITextSearchMatch {
 					result += text.slice(lastEnd, previewEnd);
 				}
 
-				matches.push(new OneLineRange(0, range.startColumn - shift, range.endColumn - shift));
 				lastEnd = previewEnd;
+				this.rangeLocations.push({
+					source: range,
+					preview: new OneLineRange(0, range.startColumn - shift, range.endColumn - shift)
+				});
+
 			}
 
-			this.preview = { text: result, matches: Array.isArray(this.ranges) ? matches : matches[0] };
+			this.previewText = result;
 		} else {
-			const firstMatchLine = Array.isArray(range) ? range[0].startLineNumber : range.startLineNumber;
+			const firstMatchLine = Array.isArray(ranges) ? ranges[0].startLineNumber : ranges.startLineNumber;
 
-			this.preview = {
-				text,
-				matches: mapArrayOrNot(range, r => new SearchRange(r.startLineNumber - firstMatchLine, r.startColumn, r.endLineNumber - firstMatchLine, r.endColumn))
-			};
+			const rangeLocs = mapArrayOrNot(ranges, r => ({
+				preview: new SearchRange(r.startLineNumber - firstMatchLine, r.startColumn, r.endLineNumber - firstMatchLine, r.endColumn),
+				source: r
+			}));
+
+			this.rangeLocations = Array.isArray(rangeLocs) ? rangeLocs : [rangeLocs];
+			this.previewText = text;
 		}
 	}
 }
@@ -400,9 +417,14 @@ export const enum SearchSortOrder {
 	CountAscending = 'countAscending'
 }
 
+export const enum SemanticSearchBehavior {
+	Auto = 'auto',
+	Manual = 'manual',
+	RunOnEmpty = 'runOnEmpty',
+}
+
 export interface ISearchConfigurationProperties {
 	exclude: glob.IExpression;
-	useRipgrep: boolean;
 	/**
 	 * Use ignore file for file search.
 	 */
@@ -412,12 +434,9 @@ export interface ISearchConfigurationProperties {
 	followSymlinks: boolean;
 	smartCase: boolean;
 	globalFindClipboard: boolean;
-	location: 'sidebar' | 'panel';
 	useReplacePreview: boolean;
 	showLineNumbers: boolean;
-	usePCRE2: boolean;
 	actionsPosition: 'auto' | 'right';
-	maintainFileSearchCache: boolean;
 	maxResults: number | null;
 	collapseResults: 'auto' | 'alwaysCollapse' | 'alwaysExpand';
 	searchOnType: boolean;
@@ -430,6 +449,7 @@ export interface ISearchConfigurationProperties {
 		singleClickBehaviour: 'default' | 'peekDefinition';
 		reusePriorSearchConfiguration: boolean;
 		defaultNumberOfContextLines: number | null;
+		focusResultsOnSearch: boolean;
 		experimental: {};
 	};
 	sortOrder: SearchSortOrder;
@@ -444,10 +464,14 @@ export interface ISearchConfigurationProperties {
 	experimental: {
 		closedNotebookRichContentResults: boolean;
 	};
+	searchView: {
+		semanticSearchBehavior: string;
+		keywordSuggestions: boolean;
+	};
 }
 
 export interface ISearchConfiguration extends IFilesConfiguration {
-	search: ISearchConfigurationProperties;
+	search?: ISearchConfigurationProperties;
 	editor: {
 		wordSeparators: string;
 	};
@@ -462,7 +486,7 @@ export function getExcludes(configuration: ISearchConfiguration, includeSearchEx
 	}
 
 	if (!fileExcludes || !searchExcludes) {
-		return fileExcludes || searchExcludes;
+		return fileExcludes || searchExcludes || undefined;
 	}
 
 	let allExcludes: glob.IExpression = Object.create(null);
@@ -474,12 +498,13 @@ export function getExcludes(configuration: ISearchConfiguration, includeSearchEx
 }
 
 export function pathIncludedInQuery(queryProps: ICommonQueryProps<URI>, fsPath: string): boolean {
-	if (queryProps.excludePattern && glob.match(queryProps.excludePattern, fsPath)) {
+	const globOptions = queryProps.ignoreGlobCase ? { ignoreCase: true } : undefined;
+	if (queryProps.excludePattern && glob.match(queryProps.excludePattern, fsPath, globOptions)) {
 		return false;
 	}
 
 	if (queryProps.includePattern || queryProps.usingSearchPaths) {
-		if (queryProps.includePattern && glob.match(queryProps.includePattern, fsPath)) {
+		if (queryProps.includePattern && glob.match(queryProps.includePattern, fsPath, globOptions)) {
 			return true;
 		}
 
@@ -487,9 +512,9 @@ export function pathIncludedInQuery(queryProps: ICommonQueryProps<URI>, fsPath: 
 		if (queryProps.usingSearchPaths) {
 			return !!queryProps.folderQueries && queryProps.folderQueries.some(fq => {
 				const searchPath = fq.folder.fsPath;
-				if (extpath.isEqualOrParent(fsPath, searchPath)) {
+				if (extpath.isEqualOrParent(fsPath, searchPath, queryProps.ignoreGlobCase)) {
 					const relPath = paths.relative(searchPath, fsPath);
-					return !fq.includePattern || !!glob.match(fq.includePattern, relPath);
+					return !fq.includePattern || !!glob.match(fq.includePattern, relPath, globOptions);
 				} else {
 					return false;
 				}
@@ -594,8 +619,10 @@ export interface ISerializedSearchError {
 export type ISerializedSearchComplete = ISerializedSearchSuccess | ISerializedSearchError;
 
 export function isSerializedSearchComplete(arg: ISerializedSearchProgressItem | ISerializedSearchComplete): arg is ISerializedSearchComplete {
+	// eslint-disable-next-line local/code-no-any-casts
 	if ((arg as any).type === 'error') {
 		return true;
+		// eslint-disable-next-line local/code-no-any-casts
 	} else if ((arg as any).type === 'success') {
 		return true;
 	} else {
@@ -611,11 +638,13 @@ export function isSerializedFileMatch(arg: ISerializedSearchProgressItem): arg i
 	return !!(<ISerializedFileMatch>arg).path;
 }
 
-export function isFilePatternMatch(candidate: IRawFileMatch, filePatternToUse: string, fuzzy = true): boolean {
+const filePatternIgnoreCaseOptions = { ignoreCase: true };
+
+export function isFilePatternMatch(candidate: IRawFileMatch, filePatternToUse: string, fuzzy = true, ignoreCase?: boolean): boolean {
 	const pathToMatch = candidate.searchPath ? candidate.searchPath : candidate.relativePath;
 	return fuzzy ?
 		fuzzyContains(pathToMatch, filePatternToUse) :
-		glob.match(filePatternToUse, pathToMatch);
+		glob.match(filePatternToUse, pathToMatch, ignoreCase ? filePatternIgnoreCaseOptions : undefined);
 }
 
 export interface ISerializedFileMatch {
@@ -669,17 +698,28 @@ export function resolvePatternsForProvider(globalPattern: glob.IExpression | und
 
 export class QueryGlobTester {
 
-	private _excludeExpression: glob.IExpression;
-	private _parsedExcludeExpression: glob.ParsedExpression;
+	private _excludeExpression: glob.IExpression[]; // TODO: evaluate globs based on baseURI of pattern
+	private _parsedExcludeExpression: glob.ParsedExpression[];
 
 	private _parsedIncludeExpression: glob.ParsedExpression | null = null;
 
 	constructor(config: ISearchQuery, folderQuery: IFolderQuery) {
-		this._excludeExpression = {
-			...(config.excludePattern || {}),
-			...(folderQuery.excludePattern || {})
-		};
-		this._parsedExcludeExpression = glob.parse(this._excludeExpression);
+		const globOptions = config.ignoreGlobCase || folderQuery.ignoreGlobCase ? { ignoreCase: true } : undefined;
+
+		// todo: try to incorporate folderQuery.excludePattern.folder if available
+		this._excludeExpression = folderQuery.excludePattern?.map(excludePattern => {
+			return {
+				...(config.excludePattern || {}),
+				...(excludePattern.pattern || {})
+			} satisfies glob.IExpression;
+		}) ?? [];
+
+		if (this._excludeExpression.length === 0) {
+			// even if there are no folderQueries, we want to observe  the global excludes
+			this._excludeExpression = [config.excludePattern || {}];
+		}
+
+		this._parsedExcludeExpression = this._excludeExpression.map(e => glob.parse(e, globOptions));
 
 		// Empty includeExpression means include nothing, so no {} shortcuts
 		let includeExpression: glob.IExpression | undefined = config.includePattern;
@@ -695,12 +735,30 @@ export class QueryGlobTester {
 		}
 
 		if (includeExpression) {
-			this._parsedIncludeExpression = glob.parse(includeExpression);
+			this._parsedIncludeExpression = glob.parse(includeExpression, globOptions);
 		}
 	}
 
+	private _evalParsedExcludeExpression(testPath: string, basename: string | undefined, hasSibling?: (name: string) => boolean): string | null {
+		// todo: less hacky way of evaluating sync vs async sibling clauses
+		let result: string | null = null;
+
+		for (const folderExclude of this._parsedExcludeExpression) {
+
+			// find first non-null result
+			const evaluation = folderExclude(testPath, basename, hasSibling);
+
+			if (typeof evaluation === 'string') {
+				result = evaluation;
+				break;
+			}
+		}
+		return result;
+	}
+
+
 	matchesExcludesSync(testPath: string, basename?: string, hasSibling?: (name: string) => boolean): boolean {
-		if (this._parsedExcludeExpression && this._parsedExcludeExpression(testPath, basename, hasSibling)) {
+		if (this._parsedExcludeExpression && this._evalParsedExcludeExpression(testPath, basename, hasSibling)) {
 			return true;
 		}
 
@@ -711,7 +769,7 @@ export class QueryGlobTester {
 	 * Guaranteed sync - siblingsFn should not return a promise.
 	 */
 	includedInQuerySync(testPath: string, basename?: string, hasSibling?: (name: string) => boolean): boolean {
-		if (this._parsedExcludeExpression && this._parsedExcludeExpression(testPath, basename, hasSibling)) {
+		if (this._parsedExcludeExpression && this._evalParsedExcludeExpression(testPath, basename, hasSibling)) {
 			return false;
 		}
 
@@ -727,7 +785,6 @@ export class QueryGlobTester {
 	 * unless the expression is async.
 	 */
 	includedInQuery(testPath: string, basename?: string, hasSibling?: (name: string) => boolean | Promise<boolean>): Promise<boolean> | boolean {
-		const excluded = this._parsedExcludeExpression(testPath, basename, hasSibling);
 
 		const isIncluded = () => {
 			return this._parsedIncludeExpression ?
@@ -735,21 +792,27 @@ export class QueryGlobTester {
 				true;
 		};
 
-		if (isThenable(excluded)) {
-			return excluded.then(excluded => {
-				if (excluded) {
-					return false;
-				}
+		return Promise.all(this._parsedExcludeExpression.map(e => {
+			const excluded = e(testPath, basename, hasSibling);
+			if (isThenable(excluded)) {
+				return excluded.then(excluded => {
+					if (excluded) {
+						return false;
+					}
 
-				return isIncluded();
-			});
-		}
+					return isIncluded();
+				});
+			}
 
-		return isIncluded();
+			return isIncluded();
+
+		})).then(e => e.some(e => !!e));
+
+
 	}
 
 	hasSiblingExcludeClauses(): boolean {
-		return hasSiblingClauses(this._excludeExpression);
+		return this._excludeExpression.reduce((prev, curr) => hasSiblingClauses(curr) || prev, false);
 	}
 }
 
@@ -800,3 +863,18 @@ function listToMap(list: string[]) {
 	}
 	return map;
 }
+
+export function excludeToGlobPattern(excludesForFolder: { baseUri?: URI | undefined; patterns: string[] }[]): GlobPattern[] {
+	return excludesForFolder.flatMap(exclude => exclude.patterns.map(pattern => {
+		return exclude.baseUri ?
+			{
+				baseUri: exclude.baseUri,
+				pattern: pattern
+			} : pattern;
+	}));
+}
+
+export const DEFAULT_TEXT_SEARCH_PREVIEW_OPTIONS = {
+	matchLines: 100,
+	charsPerLine: 10000
+};

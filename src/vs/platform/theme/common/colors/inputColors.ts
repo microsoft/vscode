@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import * as nls from '../../../../nls.js';
 
 // Import the effects we need
-import { Color, RGBA } from 'vs/base/common/color';
-import { registerColor, transparent, lighten, darken } from 'vs/platform/theme/common/colorUtils';
+import { Color, RGBA } from '../../../../base/common/color.js';
+import { registerColor, transparent, lighten, darken, ColorTransformType } from '../colorUtils.js';
 
 // Import the colors we need
-import { foreground, contrastBorder, focusBorder, iconForeground } from 'vs/platform/theme/common/colors/baseColors';
-import { editorWidgetBackground } from 'vs/platform/theme/common/colors/editorColors';
+import { foreground, contrastBorder, focusBorder, iconForeground } from './baseColors.js';
+import { editorWidgetBackground } from './editorColors.js';
+import { listHoverBackground } from './listColors.js';
 
 
 // ----- input
@@ -118,7 +119,7 @@ export const buttonSeparator = registerColor('button.separator',
 	nls.localize('buttonSeparator', "Button separator color."));
 
 export const buttonBackground = registerColor('button.background',
-	{ dark: '#0E639C', light: '#007ACC', hcDark: null, hcLight: '#0F4A85' },
+	{ dark: '#0E639C', light: '#007ACC', hcDark: Color.black, hcLight: '#0F4A85' },
 	nls.localize('buttonBackground', "Button background color."));
 
 export const buttonHoverBackground = registerColor('button.hoverBackground',
@@ -130,17 +131,50 @@ export const buttonBorder = registerColor('button.border',
 	nls.localize('buttonBorder', "Button border color."));
 
 export const buttonSecondaryForeground = registerColor('button.secondaryForeground',
-	{ dark: Color.white, light: Color.white, hcDark: Color.white, hcLight: foreground },
+	{ dark: foreground, light: foreground, hcDark: Color.white, hcLight: foreground },
 	nls.localize('buttonSecondaryForeground', "Secondary button foreground color."));
 
 export const buttonSecondaryBackground = registerColor('button.secondaryBackground',
-	{ dark: '#3A3D41', light: '#5F6A79', hcDark: null, hcLight: Color.white },
+	{ dark: listHoverBackground, light: listHoverBackground, hcDark: null, hcLight: Color.white },
 	nls.localize('buttonSecondaryBackground', "Secondary button background color."));
 
+export const buttonSecondaryBorder = registerColor('button.secondaryBorder',
+	{ dark: transparent(foreground, 0.15), light: transparent(foreground, 0.15), hcDark: contrastBorder, hcLight: contrastBorder },
+	nls.localize('buttonSecondaryBorder', "Secondary button border color."));
+
 export const buttonSecondaryHoverBackground = registerColor('button.secondaryHoverBackground',
-	{ dark: lighten(buttonSecondaryBackground, 0.2), light: darken(buttonSecondaryBackground, 0.2), hcDark: null, hcLight: null },
+	{ dark: lighten(listHoverBackground, 0.2), light: lighten(listHoverBackground, 0.2), hcDark: null, hcLight: null },
 	nls.localize('buttonSecondaryHoverBackground', "Secondary button background color when hovering."));
 
+// ------ radio
+
+export const radioActiveForeground = registerColor('radio.activeForeground',
+	inputActiveOptionForeground,
+	nls.localize('radioActiveForeground', "Foreground color of active radio option."));
+
+export const radioActiveBackground = registerColor('radio.activeBackground',
+	inputActiveOptionBackground,
+	nls.localize('radioBackground', "Background color of active radio option."));
+
+export const radioActiveBorder = registerColor('radio.activeBorder',
+	inputActiveOptionBorder,
+	nls.localize('radioActiveBorder', "Border color of the active radio option."));
+
+export const radioInactiveForeground = registerColor('radio.inactiveForeground',
+	null,
+	nls.localize('radioInactiveForeground', "Foreground color of inactive radio option."));
+
+export const radioInactiveBackground = registerColor('radio.inactiveBackground',
+	null,
+	nls.localize('radioInactiveBackground', "Background color of inactive radio option."));
+
+export const radioInactiveBorder = registerColor('radio.inactiveBorder',
+	{ light: transparent(radioActiveForeground, .2), dark: transparent(radioActiveForeground, .2), hcDark: transparent(radioActiveForeground, .4), hcLight: transparent(radioActiveForeground, .2) },
+	nls.localize('radioInactiveBorder', "Border color of the inactive radio option."));
+
+export const radioInactiveHoverBackground = registerColor('radio.inactiveHoverBackground',
+	inputActiveOptionHoverBackground,
+	nls.localize('radioHoverBackground', "Background color of inactive active radio option when hovering."));
 
 // ------ checkbox
 
@@ -163,6 +197,14 @@ export const checkboxBorder = registerColor('checkbox.border',
 export const checkboxSelectBorder = registerColor('checkbox.selectBorder',
 	iconForeground,
 	nls.localize('checkbox.select.border', "Border color of checkbox widget when the element it's in is selected."));
+
+export const checkboxDisabledBackground = registerColor('checkbox.disabled.background',
+	{ op: ColorTransformType.Mix, color: checkboxBackground, with: checkboxForeground, ratio: 0.33 },
+	nls.localize('checkbox.disabled.background', "Background of a disabled checkbox."));
+
+export const checkboxDisabledForeground = registerColor('checkbox.disabled.foreground',
+	{ op: ColorTransformType.Mix, color: checkboxForeground, with: checkboxBackground, ratio: 0.33 },
+	nls.localize('checkbox.disabled.foreground', "Foreground of a disabled checkbox."));
 
 
 // ------ keybinding label

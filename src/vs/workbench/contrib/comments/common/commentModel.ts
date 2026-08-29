@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { IRange } from 'vs/editor/common/core/range';
-import { Comment, CommentThread, CommentThreadChangedEvent, CommentThreadApplicability, CommentThreadState } from 'vs/editor/common/languages';
+import { URI } from '../../../../base/common/uri.js';
+import { IRange } from '../../../../editor/common/core/range.js';
+import { Comment, CommentThread, CommentThreadChangedEvent, CommentThreadApplicability, CommentThreadState } from '../../../../editor/common/languages.js';
 
 export interface ICommentThreadChangedEvent extends CommentThreadChangedEvent<IRange> {
 	uniqueOwner: string;
@@ -42,6 +42,23 @@ export class CommentNode {
 	hasReply(): boolean {
 		return this.replies && this.replies.length !== 0;
 	}
+
+	private _lastUpdatedAt: string | undefined;
+
+	get lastUpdatedAt(): string {
+		if (this._lastUpdatedAt === undefined) {
+			let updatedAt = this.comment.timestamp || '';
+			if (this.replies.length) {
+				const reply = this.replies[this.replies.length - 1];
+				const replyUpdatedAt = reply.lastUpdatedAt;
+				if (replyUpdatedAt > updatedAt) {
+					updatedAt = replyUpdatedAt;
+				}
+			}
+			this._lastUpdatedAt = updatedAt;
+		}
+		return this._lastUpdatedAt;
+	}
 }
 
 export class ResourceWithCommentThreads {
@@ -70,6 +87,26 @@ export class ResourceWithCommentThreads {
 		commentNodes[0].isRoot = true;
 
 		return commentNodes[0];
+	}
+
+	private _lastUpdatedAt: string | undefined;
+
+	get lastUpdatedAt() {
+		if (this._lastUpdatedAt === undefined) {
+			let updatedAt = '';
+			// Return result without cahcing as we expect data to arrive later
+			if (!this.commentThreads.length) {
+				return updatedAt;
+			}
+			for (const thread of this.commentThreads) {
+				const threadUpdatedAt = thread.lastUpdatedAt;
+				if (threadUpdatedAt && threadUpdatedAt > updatedAt) {
+					updatedAt = threadUpdatedAt;
+				}
+			}
+			this._lastUpdatedAt = updatedAt;
+		}
+		return this._lastUpdatedAt;
 	}
 }
 

@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getWindow, runWhenWindowIdle } from 'vs/base/browser/dom';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable, DisposableMap, IDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorContributionInstantiation, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { getWindow, runWhenWindowIdle } from '../../../../base/browser/dom.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { Disposable, DisposableMap, IDisposable } from '../../../../base/common/lifecycle.js';
+import { ICodeEditor } from '../../editorBrowser.js';
+import { EditorContributionInstantiation, IEditorContributionDescription } from '../../editorExtensions.js';
+import { IEditorContribution } from '../../../common/editorCommon.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 
 export class CodeEditorContributions extends Disposable {
 
@@ -76,8 +76,8 @@ export class CodeEditorContributions extends Disposable {
 		}, 5000));
 	}
 
-	public saveViewState(): { [key: string]: any } {
-		const contributionsState: { [key: string]: any } = {};
+	public saveViewState(): { [key: string]: unknown } {
+		const contributionsState: { [key: string]: unknown } = {};
 		for (const [id, contribution] of this._instances) {
 			if (typeof contribution.saveViewState === 'function') {
 				contributionsState[id] = contribution.saveViewState();
@@ -86,7 +86,7 @@ export class CodeEditorContributions extends Disposable {
 		return contributionsState;
 	}
 
-	public restoreViewState(contributionsState: { [key: string]: any }): void {
+	public restoreViewState(contributionsState: { [key: string]: unknown }): void {
 		for (const [id, contribution] of this._instances) {
 			if (typeof contribution.restoreViewState === 'function') {
 				contribution.restoreViewState(contributionsState[id]);

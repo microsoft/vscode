@@ -25,13 +25,13 @@
 	opacity: 0.5;
 	position: absolute;
 	pointer-events: none;
-	z-index: 1;
 }
 
 .monaco-workbench .outline-pane.message .outline-message {
 	display: inherit;
 }
 
-.monaco-workbench .outline-pane.message .outline-progress {
+.monaco-workbench .outline-pane.message .outline-progress,
+.monaco-workbench .outline-pane.message .outline-tree {
 	display: none;
 }

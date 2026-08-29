@@ -6,15 +6,83 @@
 import * as cp from 'child_process';
 import * as net from 'net';
 import * as stream from 'stream';
-import * as objects from 'vs/base/common/objects';
-import * as path from 'vs/base/common/path';
-import * as platform from 'vs/base/common/platform';
-import * as strings from 'vs/base/common/strings';
-import { Promises } from 'vs/base/node/pfs';
-import * as nls from 'vs/nls';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IDebugAdapterExecutable, IDebugAdapterNamedPipeServer, IDebugAdapterServer, IDebuggerContribution, IPlatformSpecificAdapterContribution } from 'vs/workbench/contrib/debug/common/debug';
-import { AbstractDebugAdapter } from '../common/abstractDebugAdapter';
+import * as objects from '../../../../base/common/objects.js';
+import * as path from '../../../../base/common/path.js';
+import * as platform from '../../../../base/common/platform.js';
+import * as strings from '../../../../base/common/strings.js';
+import { Promises } from '../../../../base/node/pfs.js';
+import * as nls from '../../../../nls.js';
+import { IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { IDebugAdapterExecutable, IDebugAdapterNamedPipeServer, IDebugAdapterServer, IDebuggerContribution, IPlatformSpecificAdapterContribution } from '../common/debug.js';
+import { AbstractDebugAdapter } from '../common/abstractDebugAdapter.js';
+import { killTree } from '../../../../base/node/processes.js';
+
+const windowsBatchUnquotedCharacters = '#$*+-./:?@\\_';
+const windowsBatchInvalidCharacters = /[\0\r\n]/;
+const windowsBatchControlCharacter = /\p{Cc}/u;
+
+function windowsBatchArgumentNeedsQuotes(argument: string): boolean {
+	if (!argument || argument.endsWith('\\')) {
+		return true;
+	}
+
+	for (const character of argument) {
+		const codePoint = character.codePointAt(0)!;
+		const isAsciiAlphaNumeric = codePoint >= 0x30 && codePoint <= 0x39
+			|| codePoint >= 0x41 && codePoint <= 0x5A
+			|| codePoint >= 0x61 && codePoint <= 0x7A;
+		if (codePoint <= 0x7F && !isAsciiAlphaNumeric && !windowsBatchUnquotedCharacters.includes(character)
+			|| windowsBatchControlCharacter.test(character)) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+function escapeWindowsBatchArgument(argument: string, forceQuotes = false): string {
+	const quote = forceQuotes || windowsBatchArgumentNeedsQuotes(argument);
+	let result = quote ? '"' : '';
+	let backslashes = 0;
+
+	for (const character of argument) {
+		if (character === '\\') {
+			backslashes++;
+		} else {
+			if (character === '"') {
+				result += '\\'.repeat(backslashes);
+				result += '"';
+			} else if (character === '%') {
+				result += '%%cd:~,';
+			}
+			backslashes = 0;
+		}
+		result += character;
+	}
+
+	if (quote) {
+		result += '\\'.repeat(backslashes);
+		result += '"';
+	}
+
+	return result;
+}
+
+/**
+ * Builds an injection-safe cmd.exe invocation for a Windows batch file.
+ */
+export function prepareWindowsBatchCommand(command: string, args: readonly string[]): string[] {
+	if (command.includes('"') || windowsBatchInvalidCharacters.test(command) || args.some(argument => windowsBatchInvalidCharacters.test(argument))) {
+		throw new Error(nls.localize('invalidWindowsBatchCommand', "Debug adapter commands and arguments contain invalid characters."));
+	}
+
+	const shellCommand = [
+		escapeWindowsBatchArgument(command, true),
+		...args.map(argument => escapeWindowsBatchArgument(argument))
+	].join(' ');
+
+	return ['/e:ON', '/v:OFF', '/d', '/c', `"${shellCommand}"`];
+}
 
 /**
  * An implementation that communicates via two streams with the debug adapter.
@@ -114,6 +182,11 @@ export abstract class NetworkDebugAdapter extends StreamDebugAdapter {
 			});
 
 			this.socket.on('error', error => {
+				// On ipv6 posix this can be an AggregateError which lacks a message. Use the first.
+				if (error instanceof AggregateError) {
+					error = error.errors[0];
+				}
+
 				if (connected) {
 					this._onError.fire(error);
 				} else {
@@ -222,13 +295,22 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 					throw new Error(nls.localize('unableToLaunchDebugAdapterNoArgs', "Unable to launch debug adapter."));
 				}
 			} else {
+				let spawnCommand = command;
+				let spawnArgs = args;
 				const spawnOptions: cp.SpawnOptions = {
 					env: env
 				};
 				if (options.cwd) {
 					spawnOptions.cwd = options.cwd;
 				}
-				this.serverProcess = cp.spawn(command, args, spawnOptions);
+				if (platform.isWindows && /\.(bat|cmd)$/i.test(command)) {
+					// https://github.com/microsoft/vscode/issues/224184
+					spawnOptions.windowsVerbatimArguments = true;
+					spawnCommand = process.env['ComSpec'] || 'cmd.exe';
+					spawnArgs = prepareWindowsBatchCommand(command, args);
+				}
+
+				this.serverProcess = cp.spawn(spawnCommand, spawnArgs, spawnOptions);
 			}
 
 			this.serverProcess.on('error', err => {
@@ -270,14 +352,8 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 		// processes. Therefore we use TASKKILL.EXE
 		await this.cancelPendingRequests();
 		if (platform.isWindows) {
-			return new Promise<void>((c, e) => {
-				const killer = cp.exec(`taskkill /F /T /PID ${this.serverProcess!.pid}`, function (err, stdout, stderr) {
-					if (err) {
-						return e(err);
-					}
-				});
-				killer.on('exit', c);
-				killer.on('error', e);
+			return killTree(this.serverProcess!.pid!, true).catch(() => {
+				this.serverProcess?.kill();
 			});
 		} else {
 			this.serverProcess.kill('SIGTERM');

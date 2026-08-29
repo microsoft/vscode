@@ -3,33 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { ETAG_DISABLED, FileOperationError, FileOperationResult, IFileReadLimits, IFileService, IFileStatWithMetadata, IFileStreamContent, IWriteFileOptions, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
-import { ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopyBackup, IWorkingCopyBackupMeta, IWorkingCopySaveEvent, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { raceCancellation, TaskSequentializer, timeout } from 'vs/base/common/async';
-import { ILogService } from 'vs/platform/log/common/log';
-import { assertIsDefined } from 'vs/base/common/types';
-import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { VSBufferReadableStream } from 'vs/base/common/buffer';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IWorkingCopyBackupService, IResolvedWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { hash } from 'vs/base/common/hash';
-import { isErrorWithActions, toErrorMessage } from 'vs/base/common/errorMessage';
-import { IAction, toAction } from 'vs/base/common/actions';
-import { isWindows } from 'vs/base/common/platform';
-import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
-import { IResourceWorkingCopy, ResourceWorkingCopy } from 'vs/workbench/services/workingCopy/common/resourceWorkingCopy';
-import { IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory, SnapshotContext } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IProgress, IProgressService, IProgressStep, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { localize } from '../../../../nls.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { ETAG_DISABLED, FileOperationError, FileOperationResult, IFileReadLimits, IFileService, IFileStatWithMetadata, IFileStreamContent, IWriteFileOptions, NotModifiedSinceFileOperationError } from '../../../../platform/files/common/files.js';
+import { ISaveOptions, IRevertOptions, SaveReason } from '../../../common/editor.js';
+import { IWorkingCopyService } from './workingCopyService.js';
+import { IWorkingCopyBackup, IWorkingCopyBackupMeta, IWorkingCopySaveEvent, WorkingCopyCapabilities } from './workingCopy.js';
+import { raceCancellation, TaskSequentializer, timeout } from '../../../../base/common/async.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
+import { IWorkingCopyFileService } from './workingCopyFileService.js';
+import { VSBufferReadableStream } from '../../../../base/common/buffer.js';
+import { IFilesConfigurationService } from '../../filesConfiguration/common/filesConfigurationService.js';
+import { IWorkingCopyBackupService, IResolvedWorkingCopyBackup } from './workingCopyBackup.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { hash } from '../../../../base/common/hash.js';
+import { isErrorWithActions, toErrorMessage } from '../../../../base/common/errorMessage.js';
+import { IAction, toAction } from '../../../../base/common/actions.js';
+import { isWindows } from '../../../../base/common/platform.js';
+import { IWorkingCopyEditorService } from './workingCopyEditorService.js';
+import { IEditorService } from '../../editor/common/editorService.js';
+import { IElevatedFileService } from '../../files/common/elevatedFileService.js';
+import { IResourceWorkingCopy, ResourceWorkingCopy } from './resourceWorkingCopy.js';
+import { IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory, SnapshotContext } from './fileWorkingCopy.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { IProgress, IProgressService, IProgressStep, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 
 /**
  * Stored file specific working copy model factory.
@@ -439,7 +440,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 
 	//#region Resolve
 
-	private lastResolvedFileStat: IFileStatWithMetadata | undefined;
+	lastResolvedFileStat: IFileStatWithMetadata | undefined; // !!! DO NOT MARK PRIVATE! USED IN TESTS !!!
 
 	isResolved(): this is IResolvedStoredFileWorkingCopy<M> {
 		return !!this.model;
@@ -526,7 +527,8 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			etag,
 			value: buffer,
 			readonly: false,
-			locked: false
+			locked: false,
+			executable: false
 		}, true /* dirty (resolved from buffer) */);
 	}
 
@@ -567,11 +569,12 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			etag: backup.meta ? backup.meta.etag : ETAG_DISABLED, // etag disabled if unknown!
 			value: backup.value,
 			readonly: false,
-			locked: false
+			locked: false,
+			executable: false
 		}, true /* dirty (resolved from backup) */);
 
 		// Restore orphaned flag based on state
-		if (backup.meta && backup.meta.orphaned) {
+		if (backup.meta?.orphaned) {
 			this.setOrphaned(true);
 		}
 	}
@@ -663,6 +666,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			etag: content.etag,
 			readonly: content.readonly,
 			locked: content.locked,
+			executable: false,
 			isFile: true,
 			isDirectory: false,
 			isSymbolicLink: false,
@@ -982,6 +986,11 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 						this.ignoreSaveFromSaveParticipants = true;
 						try {
 							await this.workingCopyFileService.runSaveParticipants(this, { reason: options.reason ?? SaveReason.EXPLICIT, savedFrom: options.from }, progress, saveCancellation.token);
+						} catch (err) {
+							if (isCancellationError(err) && !saveCancellation.token.isCancellationRequested) {
+								// participant wants to cancel this operation
+								saveCancellation.cancel();
+							}
 						} finally {
 							this.ignoreSaveFromSaveParticipants = false;
 						}
@@ -1023,7 +1032,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			// participant triggering
 			progress.report({ message: localize('saveTextFile', "Writing into file...") });
 			this.trace(`doSave(${versionId}) - before write()`);
-			const lastResolvedFileStat = assertIsDefined(this.lastResolvedFileStat);
+			const lastResolvedFileStat = assertReturnsDefined(this.lastResolvedFileStat);
 			const resolvedFileWorkingCopy = this;
 			return this.saveSequentializer.run(versionId, (async () => {
 				try {
@@ -1068,9 +1077,9 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 
 						// Write them to disk
 						if (options?.writeElevated && this.elevatedFileService.isSupported(lastResolvedFileStat.resource)) {
-							stat = await this.elevatedFileService.writeFileElevated(lastResolvedFileStat.resource, assertIsDefined(snapshot), writeFileOptions);
+							stat = await this.elevatedFileService.writeFileElevated(lastResolvedFileStat.resource, assertReturnsDefined(snapshot), writeFileOptions);
 						} else {
-							stat = await this.fileService.writeFile(lastResolvedFileStat.resource, assertIsDefined(snapshot), writeFileOptions);
+							stat = await this.fileService.writeFile(lastResolvedFileStat.resource, assertReturnsDefined(snapshot), writeFileOptions);
 						}
 					}
 
@@ -1143,7 +1152,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			message = localize('staleSaveError', "Failed to save '{0}': The content of the file is newer. Do you want to overwrite the file with your changes?", this.name);
 
 			primaryActions.push(toAction({ id: 'fileWorkingCopy.overwrite', label: localize('overwrite', "Overwrite"), run: () => this.save({ ...options, ignoreModifiedSince: true, reason: SaveReason.EXPLICIT }) }));
-			primaryActions.push(toAction({ id: 'fileWorkingCopy.revert', label: localize('discard', "Discard"), run: () => this.revert() }));
+			primaryActions.push(toAction({ id: 'fileWorkingCopy.revert', label: localize('revert', "Revert"), run: () => this.revert() }));
 		}
 
 		// Any other save error
@@ -1196,8 +1205,8 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 				}
 			}));
 
-			// Discard
-			primaryActions.push(toAction({ id: 'fileWorkingCopy.revert', label: localize('discard', "Discard"), run: () => this.revert() }));
+			// Revert
+			primaryActions.push(toAction({ id: 'fileWorkingCopy.revert', label: localize('revert', "Revert"), run: () => this.revert() }));
 
 			// Message
 			if (isWriteLocked) {
@@ -1240,6 +1249,11 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		// sync.
 		else if (this.lastResolvedFileStat.mtime <= newFileStat.mtime) {
 			this.lastResolvedFileStat = newFileStat;
+		}
+
+		// In all other cases update only the readonly and locked flags
+		else {
+			this.lastResolvedFileStat = { ...this.lastResolvedFileStat, readonly: newFileStat.readonly, locked: newFileStat.locked };
 		}
 
 		// Signal that the readonly state changed

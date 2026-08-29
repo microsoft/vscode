@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ISocket } from 'vs/base/parts/ipc/common/ipc.net';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { RemoteConnectionOfType, RemoteConnectionType, RemoteConnection } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { ISocket } from '../../../base/parts/ipc/common/ipc.net.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { RemoteConnectionOfType, RemoteConnectionType, RemoteConnection } from './remoteAuthorityResolver.js';
 
 export const IRemoteSocketFactoryService = createDecorator<IRemoteSocketFactoryService>('remoteSocketFactoryService');
 
@@ -46,7 +46,7 @@ export class RemoteSocketFactoryService implements IRemoteSocketFactoryService {
 	}
 
 	private getSocketFactory<T extends RemoteConnectionType>(messagePassing: RemoteConnectionOfType<T>): ISocketFactory<T> | undefined {
-		const factories = (this.factories[messagePassing.type] || []) as ISocketFactory<T>[];
+		const factories = (this.factories[messagePassing.type] || []);
 		return factories.find(factory => factory.supports(messagePassing));
 	}
 

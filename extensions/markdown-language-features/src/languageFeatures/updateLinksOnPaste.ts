@@ -9,23 +9,28 @@ import { Mime } from '../util/mimes';
 
 class UpdatePastedLinksEditProvider implements vscode.DocumentPasteEditProvider {
 
-	public static readonly kind = vscode.DocumentDropOrPasteEditKind.Empty.append('text', 'markdown', 'updateLinks');
+	public static readonly kind = vscode.DocumentDropOrPasteEditKind.Text.append('updateLinks', 'markdown');
 
-	public static readonly metadataMime = 'vnd.vscode.markdown.updateLinksMetadata';
+	public static readonly metadataMime = 'application/vnd.vscode.markdown.updatelinks.metadata';
+
+	readonly #client: MdLanguageClient;
 
 	constructor(
-		private readonly _client: MdLanguageClient,
-	) { }
+		client: MdLanguageClient,
+	) {
+		this.#client = client;
+	}
 
 	async prepareDocumentPaste(document: vscode.TextDocument, ranges: readonly vscode.Range[], dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<void> {
-		if (!this._isEnabled(document)) {
+		if (!this.#isEnabled(document)) {
 			return;
 		}
 
-		const metadata = await this._client.prepareUpdatePastedLinks(document.uri, ranges, token);
+		const metadata = await this.#client.prepareUpdatePastedLinks(document.uri, ranges, token);
 		if (token.isCancellationRequested) {
 			return;
 		}
+
 		dataTransfer.set(UpdatePastedLinksEditProvider.metadataMime, new vscode.DataTransferItem(metadata));
 	}
 
@@ -33,10 +38,10 @@ class UpdatePastedLinksEditProvider implements vscode.DocumentPasteEditProvider 
 		document: vscode.TextDocument,
 		ranges: readonly vscode.Range[],
 		dataTransfer: vscode.DataTransfer,
-		_context: vscode.DocumentPasteEditContext,
+		context: vscode.DocumentPasteEditContext,
 		token: vscode.CancellationToken,
 	): Promise<vscode.DocumentPasteEdit[] | undefined> {
-		if (!this._isEnabled(document)) {
+		if (!this.#isEnabled(document)) {
 			return;
 		}
 
@@ -55,8 +60,8 @@ class UpdatePastedLinksEditProvider implements vscode.DocumentPasteEditProvider 
 		// - copy empty line
 		// - Copy with multiple cursors and paste into multiple locations
 		// - ...
-		const edits = await this._client.getUpdatePastedLinksEdit(document.uri, ranges.map(x => new vscode.TextEdit(x, text)), metadata, token);
-		if (!edits || !edits.length || token.isCancellationRequested) {
+		const edits = await this.#client.getUpdatePastedLinksEdit(document.uri, ranges.map(x => new vscode.TextEdit(x, text)), metadata, token);
+		if (!edits?.length || token.isCancellationRequested) {
 			return;
 		}
 
@@ -64,11 +69,16 @@ class UpdatePastedLinksEditProvider implements vscode.DocumentPasteEditProvider 
 		const workspaceEdit = new vscode.WorkspaceEdit();
 		workspaceEdit.set(document.uri, edits.map(x => new vscode.TextEdit(new vscode.Range(x.range.start.line, x.range.start.character, x.range.end.line, x.range.end.character,), x.newText)));
 		pasteEdit.additionalEdit = workspaceEdit;
+
+		if (!context.only || !UpdatePastedLinksEditProvider.kind.contains(context.only)) {
+			pasteEdit.yieldTo = [vscode.DocumentDropOrPasteEditKind.Text];
+		}
+
 		return [pasteEdit];
 	}
 
-	private _isEnabled(document: vscode.TextDocument): boolean {
-		return vscode.workspace.getConfiguration('markdown', document.uri).get<boolean>('experimental.updateLinksOnPaste', false);
+	#isEnabled(document: vscode.TextDocument): boolean {
+		return vscode.workspace.getConfiguration('markdown', document.uri).get<boolean>('editor.updateLinksOnPaste.enabled', true);
 	}
 }
 

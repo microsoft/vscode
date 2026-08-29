@@ -8,20 +8,37 @@ import { ExperimentationTelemetry } from './common/experimentationService';
 import { AuthProviderType, UriEventHandler } from './github';
 import { Log } from './common/logger';
 import { isSupportedClient, isSupportedTarget } from './common/env';
+import { AccountLinks } from './common/accountLinks';
+import { fetchUserInfo, IGitHubUserInfo } from './common/gitHubAccount';
+import { IHttpClient } from './common/http';
+import { IMicrosoftAuthentication } from './common/microsoftAuthentication';
+import { FetchHttpClient } from './httpClient';
 import { crypto } from './node/crypto';
 import { fetching } from './node/fetch';
-import { ExtensionHost, GitHubTarget, getFlows } from './flows';
-import { CANCELLATION_ERROR, NETWORK_ERROR, USER_CANCELLATION_ERROR } from './common/errors';
+import { ExtensionHost, GitHubOAuthSignInProvider, GitHubTarget, getFlows } from './flows';
+import { CANCELLATION_ERROR, USER_CANCELLATION_ERROR } from './common/errors';
 import { Config } from './config';
 import { base64Encode } from './node/buffer';
+import { EntraTokenExchange, IEntraExchangedToken, IEntraLoginOptions, IEntraRenewal, IEntraRenewedToken, ModalConfirmationDialog } from './entraTokenExchange';
 
 const REDIRECT_URL_STABLE = 'https://vscode.dev/redirect';
 const REDIRECT_URL_INSIDERS = 'https://insiders.vscode.dev/redirect';
 
 export interface IGitHubServer {
-	login(scopes: string, existingLogin?: string): Promise<string>;
+	login(scopes: string, signInProvider?: GitHubOAuthSignInProvider, extraAuthorizeParameters?: Record<string, string>, existingLogin?: string): Promise<string>;
+	/**
+	 * Signs in with Microsoft and exchanges the resulting Entra identity for a GitHub token on this
+	 * host. Fails when the host does not accept an exchange, which is every self-hosted GitHub
+	 * Enterprise Server: the Entra to GitHub identity mapping is a service GitHub runs.
+	 */
+	loginWithMicrosoft(scopes: readonly string[], options?: IEntraLoginOptions): Promise<IEntraExchangedToken>;
+	/**
+	 * Mints a fresh token for a session that was brokered through Microsoft, without showing the
+	 * user anything. Fails rather than prompting when it cannot be done silently.
+	 */
+	renewWithMicrosoft(renewal: IEntraRenewal): Promise<IEntraRenewedToken>;
 	logout(session: vscode.AuthenticationSession): Promise<void>;
-	getUserInfo(token: string): Promise<{ id: string; accountName: string }>;
+	getUserInfo(token: string): Promise<IGitHubUserInfo>;
 	sendAdditionalTelemetryInfo(session: vscode.AuthenticationSession): Promise<void>;
 	friendlyName: string;
 }
@@ -31,6 +48,8 @@ export class GitHubServer implements IGitHubServer {
 	readonly friendlyName: string;
 
 	private readonly _type: AuthProviderType;
+	private readonly _entraTokenExchange: EntraTokenExchange;
+	private readonly _http: IHttpClient;
 
 	private _redirectEndpoint: string | undefined;
 
@@ -39,10 +58,29 @@ export class GitHubServer implements IGitHubServer {
 		private readonly _telemetryReporter: ExperimentationTelemetry,
 		private readonly _uriHandler: UriEventHandler,
 		private readonly _extensionKind: vscode.ExtensionKind,
+		microsoft: IMicrosoftAuthentication,
+		accountLinks: AccountLinks,
 		private readonly _ghesUri?: vscode.Uri
 	) {
 		this._type = _ghesUri ? AuthProviderType.githubEnterprise : AuthProviderType.github;
 		this.friendlyName = this._type === AuthProviderType.github ? 'GitHub' : _ghesUri?.authority!;
+		this._http = new FetchHttpClient(_logger);
+		// The Entra to GitHub identity mapping is a service GitHub runs, so a self-hosted GitHub
+		// Enterprise Server has no endpoint to exchange against. Where there is one it is the same
+		// endpoint the authorization code flow posts to, and it authenticates the client the same
+		// way, so the client id and secret carry over unchanged.
+		const tokenExchange = isSupportedTarget(this._type, _ghesUri)
+			? this.baseUri.with({ path: '/login/oauth/access_token' }).toString(true)
+			: undefined;
+		// Both endpoints come from this host, so a token minted here can only ever be described by
+		// this host's `GET /user`.
+		this._entraTokenExchange = new EntraTokenExchange(
+			_logger,
+			{ tokenExchange, userInfo: this.getServerUri('/user').toString() },
+			microsoft,
+			accountLinks,
+			this._http,
+			new ModalConfirmationDialog());
 	}
 
 	get baseUri() {
@@ -50,6 +88,14 @@ export class GitHubServer implements IGitHubServer {
 			return vscode.Uri.parse('https://github.com/');
 		}
 		return this._ghesUri!;
+	}
+
+	async loginWithMicrosoft(scopes: readonly string[], options?: IEntraLoginOptions): Promise<IEntraExchangedToken> {
+		return await this._entraTokenExchange.login(scopes, options);
+	}
+
+	async renewWithMicrosoft(renewal: IEntraRenewal): Promise<IEntraRenewedToken> {
+		return await this._entraTokenExchange.renew(renewal);
 	}
 
 	private async getRedirectEndpoint(): Promise<string> {
@@ -87,7 +133,7 @@ export class GitHubServer implements IGitHubServer {
 		return this._isNoCorsEnvironment;
 	}
 
-	public async login(scopes: string, existingLogin?: string): Promise<string> {
+	public async login(scopes: string, signInProvider?: GitHubOAuthSignInProvider, extraAuthorizeParameters?: Record<string, string>, existingLogin?: string): Promise<string> {
 		this._logger.info(`Logging in for the following scopes: ${scopes}`);
 
 		// Used for showing a friendlier message to the user when the explicitly cancel a flow.
@@ -114,11 +160,12 @@ export class GitHubServer implements IGitHubServer {
 		const supportedClient = isSupportedClient(callbackUri);
 		const supportedTarget = isSupportedTarget(this._type, this._ghesUri);
 
+		const isNodeEnvironment = typeof process !== 'undefined' && typeof process?.versions?.node === 'string';
 		const flows = getFlows({
 			target: this._type === AuthProviderType.github
 				? GitHubTarget.DotCom
 				: supportedTarget ? GitHubTarget.HostedEnterprise : GitHubTarget.Enterprise,
-			extensionHost: typeof navigator === 'undefined'
+			extensionHost: isNodeEnvironment
 				? this._extensionKind === vscode.ExtensionKind.UI ? ExtensionHost.Local : ExtensionHost.Remote
 				: ExtensionHost.WebWorker,
 			isSupportedClient: supportedClient
@@ -134,6 +181,8 @@ export class GitHubServer implements IGitHubServer {
 					scopes,
 					callbackUri,
 					nonce,
+					signInProvider,
+					extraAuthorizeParameters,
 					baseUri: this.baseUri,
 					logger: this._logger,
 					uriHandler: this._uriHandler,
@@ -175,6 +224,9 @@ export class GitHubServer implements IGitHubServer {
 		try {
 			// Defined here: https://docs.github.com/en/rest/apps/oauth-applications?apiVersion=2022-11-28#delete-an-app-token
 			const result = await fetching(uri.toString(true), {
+				logger: this._logger,
+				retryFallbacks: true,
+				expectJSON: false,
 				method: 'DELETE',
 				headers: {
 					Accept: 'application/vnd.github+json',
@@ -197,7 +249,7 @@ export class GitHubServer implements IGitHubServer {
 				throw new Error(`${result.status} ${result.statusText}`);
 			}
 		} catch (e) {
-			this._logger.warn('Failed to delete token from server.' + e.message ?? e);
+			this._logger.warn('Failed to delete token from server.' + (e.message ?? e));
 		}
 	}
 
@@ -211,44 +263,8 @@ export class GitHubServer implements IGitHubServer {
 		return vscode.Uri.parse(`${apiUri.scheme}://${apiUri.authority}/api/v3${path}`);
 	}
 
-	public async getUserInfo(token: string): Promise<{ id: string; accountName: string }> {
-		let result;
-		try {
-			this._logger.info('Getting user info...');
-			result = await fetching(this.getServerUri('/user').toString(), {
-				headers: {
-					Authorization: `token ${token}`,
-					'User-Agent': `${vscode.env.appName} (${vscode.env.appHost})`
-				}
-			});
-		} catch (ex) {
-			this._logger.error(ex.message);
-			throw new Error(NETWORK_ERROR);
-		}
-
-		if (result.ok) {
-			try {
-				const json = await result.json();
-				this._logger.info('Got account info!');
-				return { id: json.id, accountName: json.login };
-			} catch (e) {
-				this._logger.error(`Unexpected error parsing response from GitHub: ${e.message ?? e}`);
-				throw e;
-			}
-		} else {
-			// either display the response message or the http status text
-			let errorMessage = result.statusText;
-			try {
-				const json = await result.json();
-				if (json.message) {
-					errorMessage = json.message;
-				}
-			} catch (err) {
-				// noop
-			}
-			this._logger.error(`Getting account info failed: ${errorMessage}`);
-			throw new Error(errorMessage);
-		}
+	public async getUserInfo(token: string): Promise<IGitHubUserInfo> {
+		return await fetchUserInfo(this._http, this.getServerUri('/user').toString(), token, this._logger);
 	}
 
 	public async sendAdditionalTelemetryInfo(session: vscode.AuthenticationSession): Promise<void> {
@@ -274,6 +290,9 @@ export class GitHubServer implements IGitHubServer {
 
 		try {
 			const result = await fetching('https://education.github.com/api/user', {
+				logger: this._logger,
+				retryFallbacks: true,
+				expectJSON: true,
 				headers: {
 					Authorization: `token ${session.accessToken}`,
 					'faculty-check-preview': 'true',
@@ -289,9 +308,11 @@ export class GitHubServer implements IGitHubServer {
 						? 'faculty'
 						: 'none';
 			} else {
+				this._logger.info(`Unable to resolve optional EDU details. Status: ${result.status} ${result.statusText}`);
 				edu = 'unknown';
 			}
 		} catch (e) {
+			this._logger.info(`Unable to resolve optional EDU details. Error: ${e}`);
 			edu = 'unknown';
 		}
 
@@ -314,6 +335,9 @@ export class GitHubServer implements IGitHubServer {
 			let version: string;
 			if (!isSupportedTarget(this._type, this._ghesUri)) {
 				const result = await fetching(this.getServerUri('/meta').toString(), {
+					logger: this._logger,
+					retryFallbacks: true,
+					expectJSON: true,
 					headers: {
 						Authorization: `token ${token}`,
 						'User-Agent': `${vscode.env.appName} (${vscode.env.appHost})`

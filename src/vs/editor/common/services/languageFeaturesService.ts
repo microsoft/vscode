@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { LanguageFeatureRegistry, NotebookInfo, NotebookInfoResolver } from 'vs/editor/common/languageFeatureRegistry';
-import { CodeActionProvider, CodeLensProvider, CompletionItemProvider, DocumentPasteEditProvider, DeclarationProvider, DefinitionProvider, DocumentColorProvider, DocumentFormattingEditProvider, MultiDocumentHighlightProvider, DocumentHighlightProvider, DocumentDropEditProvider, DocumentRangeFormattingEditProvider, DocumentRangeSemanticTokensProvider, DocumentSemanticTokensProvider, DocumentSymbolProvider, EvaluatableExpressionProvider, FoldingRangeProvider, HoverProvider, ImplementationProvider, InlayHintsProvider, InlineCompletionsProvider, InlineValuesProvider, LinkedEditingRangeProvider, LinkProvider, OnTypeFormattingEditProvider, ReferenceProvider, RenameProvider, SelectionRangeProvider, SignatureHelpProvider, TypeDefinitionProvider, MappedEditsProvider, NewSymbolNamesProvider, InlineEditProvider } from 'vs/editor/common/languages';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { URI } from '../../../base/common/uri.js';
+import { LanguageFeatureRegistry, NotebookInfo, NotebookInfoResolver } from '../languageFeatureRegistry.js';
+import { CodeActionProvider, CodeLensProvider, CompletionItemProvider, DocumentPasteEditProvider, DeclarationProvider, DefinitionProvider, DocumentColorProvider, DocumentFormattingEditProvider, MultiDocumentHighlightProvider, DocumentHighlightProvider, DocumentDropEditProvider, DocumentRangeFormattingEditProvider, DocumentRangeSemanticTokensProvider, DocumentSemanticTokensProvider, DocumentSymbolProvider, EvaluatableExpressionProvider, FoldingRangeProvider, HoverProvider, ImplementationProvider, InlayHintsProvider, InlineCompletionsProvider, InlineValuesProvider, LinkedEditingRangeProvider, LinkProvider, OnTypeFormattingEditProvider, ReferenceProvider, RenameProvider, SelectionRangeProvider, SignatureHelpProvider, TypeDefinitionProvider, NewSymbolNamesProvider } from '../languages.js';
+import { ILanguageFeaturesService } from './languageFeatures.js';
+import { InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions.js';
 
 export class LanguageFeaturesService implements ILanguageFeaturesService {
 
@@ -36,7 +36,6 @@ export class LanguageFeaturesService implements ILanguageFeaturesService {
 	readonly foldingRangeProvider = new LanguageFeatureRegistry<FoldingRangeProvider>(this._score.bind(this));
 	readonly linkProvider = new LanguageFeatureRegistry<LinkProvider>(this._score.bind(this));
 	readonly inlineCompletionsProvider = new LanguageFeatureRegistry<InlineCompletionsProvider>(this._score.bind(this));
-	readonly inlineEditProvider = new LanguageFeatureRegistry<InlineEditProvider>(this._score.bind(this));
 	readonly completionProvider = new LanguageFeatureRegistry<CompletionItemProvider>(this._score.bind(this));
 	readonly linkedEditingRangeProvider = new LanguageFeatureRegistry<LinkedEditingRangeProvider>(this._score.bind(this));
 	readonly inlineValuesProvider = new LanguageFeatureRegistry<InlineValuesProvider>(this._score.bind(this));
@@ -45,7 +44,6 @@ export class LanguageFeaturesService implements ILanguageFeaturesService {
 	readonly documentSemanticTokensProvider = new LanguageFeatureRegistry<DocumentSemanticTokensProvider>(this._score.bind(this));
 	readonly documentDropEditProvider = new LanguageFeatureRegistry<DocumentDropEditProvider>(this._score.bind(this));
 	readonly documentPasteEditProvider = new LanguageFeatureRegistry<DocumentPasteEditProvider>(this._score.bind(this));
-	readonly mappedEditsProvider: LanguageFeatureRegistry<MappedEditsProvider> = new LanguageFeatureRegistry<MappedEditsProvider>(this._score.bind(this));
 
 	private _notebookTypeResolver?: NotebookInfoResolver;
 

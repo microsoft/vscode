@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { registerEditorCommand } from 'vs/editor/browser/editorExtensions';
-import { DeleteWordContext, WordNavigationType, WordPartOperations } from 'vs/editor/common/cursor/cursorWordOperations';
-import { WordCharacterClassifier } from 'vs/editor/common/core/wordCharacterClassifier';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ITextModel } from 'vs/editor/common/model';
-import { DeleteWordCommand, MoveWordCommand } from 'vs/editor/contrib/wordOperations/browser/wordOperations';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { registerEditorCommand } from '../../../browser/editorExtensions.js';
+import { DeleteWordContext, WordNavigationType, WordPartOperations } from '../../../common/cursor/cursorWordOperations.js';
+import { WordCharacterClassifier } from '../../../common/core/wordCharacterClassifier.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { ITextModel } from '../../../common/model.js';
+import { DeleteWordCommand, MoveWordCommand } from '../../wordOperations/browser/wordOperations.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 
 export class DeleteWordPartLeft extends DeleteWordCommand {
 	constructor() {

@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./placeholderText';
-import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { ghostTextForeground } from 'vs/editor/common/core/editorColorRegistry';
-import { localize } from 'vs/nls';
-import { registerColor } from 'vs/platform/theme/common/colorUtils';
-import { PlaceholderTextContribution } from './placeholderTextContribution';
-import { wrapInReloadableClass1 } from 'vs/platform/observable/common/wrapInReloadableClass';
+import './placeholderText.css';
+import { EditorContributionInstantiation, registerEditorContribution } from '../../../browser/editorExtensions.js';
+import { ghostTextForeground } from '../../../common/core/editorColorRegistry.js';
+import { localize } from '../../../../nls.js';
+import { registerColor } from '../../../../platform/theme/common/colorUtils.js';
+import { PlaceholderTextContribution } from './placeholderTextContribution.js';
+import { wrapInReloadableClass1 } from '../../../../platform/observable/common/wrapInReloadableClass.js';
 
 registerEditorContribution(PlaceholderTextContribution.ID, wrapInReloadableClass1(() => PlaceholderTextContribution), EditorContributionInstantiation.Eager);
 

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ExtHostEmbeddingsShape, IMainContext, MainContext, MainThreadEmbeddingsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { ExtHostEmbeddingsShape, IMainContext, MainContext, MainThreadEmbeddingsShape } from './extHost.protocol.js';
 import type * as vscode from 'vscode';
 
 
@@ -15,6 +15,7 @@ export class ExtHostEmbeddings implements ExtHostEmbeddingsShape {
 
 	private readonly _proxy: MainThreadEmbeddingsShape;
 	private readonly _provider = new Map<number, { id: string; provider: vscode.EmbeddingsProvider }>();
+	private readonly _registeredModels = new Set<string>();
 
 	private readonly _onDidChange = new Emitter<void>();
 	readonly onDidChange: Event<void> = this._onDidChange.event;
@@ -29,16 +30,18 @@ export class ExtHostEmbeddings implements ExtHostEmbeddingsShape {
 	}
 
 	registerEmbeddingsProvider(_extension: IExtensionDescription, embeddingsModel: string, provider: vscode.EmbeddingsProvider): IDisposable {
-		if (this._allKnownModels.has(embeddingsModel)) {
-			throw new Error('An embeddings provider for this model is already registered');
+		if (this._registeredModels.has(embeddingsModel)) {
+			throw new Error(`An embeddings provider for model '${embeddingsModel}' is already registered`);
 		}
 
 		const handle = this._handlePool++;
 
 		this._proxy.$registerEmbeddingProvider(handle, embeddingsModel);
 		this._provider.set(handle, { id: embeddingsModel, provider });
+		this._registeredModels.add(embeddingsModel);
 
 		return toDisposable(() => {
+			this._registeredModels.delete(embeddingsModel);
 			this._proxy.$unregisterEmbeddingProvider(handle);
 			this._provider.delete(handle);
 		});

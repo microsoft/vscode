@@ -3,27 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { h, reset } from 'vs/base/browser/dom';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { autorun, IObservable, IReader, ISettableObservable, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, transaction } from 'vs/base/common/observable';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
-import { LineRange } from 'vs/editor/common/core/lineRange';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
+import { h, reset } from '../../../../../base/browser/dom.js';
+import { Disposable, DisposableMap, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, IObservable, IReader, ISettableObservable, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { CodeEditorWidget } from '../../codeEditor/codeEditorWidget.js';
+import { LineRange } from '../../../../common/core/ranges/lineRange.js';
+import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 
 export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends Disposable {
-	private readonly scrollTop = observableFromEvent(this,
-		this._editor.onDidScrollChange,
-		(e) => /** @description editor.onDidScrollChange */ this._editor.getScrollTop()
-	);
-	private readonly isScrollTopZero = this.scrollTop.map((scrollTop) => /** @description isScrollTopZero */ scrollTop === 0);
-	private readonly modelAttached = observableFromEvent(this,
-		this._editor.onDidChangeModel,
-		(e) => /** @description editor.onDidChangeModel */ this._editor.hasModel()
-	);
+	private readonly scrollTop;
+	private readonly isScrollTopZero;
+	private readonly modelAttached;
 
-	private readonly editorOnDidChangeViewZones = observableSignalFromEvent('onDidChangeViewZones', this._editor.onDidChangeViewZones);
-	private readonly editorOnDidContentSizeChange = observableSignalFromEvent('onDidContentSizeChange', this._editor.onDidContentSizeChange);
-	private readonly domNodeSizeChanged = observableSignal('domNodeSizeChanged');
+	private readonly editorOnDidChangeViewZones;
+	private readonly editorOnDidContentSizeChange;
+	private readonly domNodeSizeChanged;
 
 	constructor(
 		private readonly _editor: CodeEditorWidget,
@@ -31,6 +25,19 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 		private readonly itemProvider: IGutterItemProvider<T>
 	) {
 		super();
+		this.scrollTop = observableFromEvent(this,
+			this._editor.onDidScrollChange,
+			(e) => /** @description editor.onDidScrollChange */ this._editor.getScrollTop()
+		);
+		this.isScrollTopZero = this.scrollTop.map((scrollTop) => /** @description isScrollTopZero */ scrollTop === 0);
+		this.modelAttached = observableFromEvent(this,
+			this._editor.onDidChangeModel,
+			(e) => /** @description editor.onDidChangeModel */ this._editor.hasModel()
+		);
+		this.editorOnDidChangeViewZones = observableSignalFromEvent('onDidChangeViewZones', this._editor.onDidChangeViewZones);
+		this.editorOnDidContentSizeChange = observableSignalFromEvent('onDidContentSizeChange', this._editor.onDidContentSizeChange);
+		this.domNodeSizeChanged = observableSignal('domNodeSizeChanged');
+		this.views = this._register(new DisposableMap<string, ManagedGutterItemView>());
 		this._domNode.className = 'gutter monaco-editor';
 		const scrollDecoration = this._domNode.appendChild(
 			h('div.scroll-decoration', { role: 'presentation', ariaHidden: 'true', style: { width: '100%' } })
@@ -60,7 +67,7 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 		reset(this._domNode);
 	}
 
-	private readonly views = new Map<string, ManagedGutterItemView>();
+	private readonly views;
 
 	private render(reader: IReader): void {
 		if (!this.modelAttached.read(reader)) {
@@ -117,11 +124,13 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 						const top =
 							gutterItem.range.startLineNumber <= this._editor.getModel()!.getLineCount()
 								? this._editor.getTopForLineNumber(gutterItem.range.startLineNumber, true) - scrollTop
-								: this._editor.getBottomForLineNumber(gutterItem.range.startLineNumber - 1, false) - scrollTop;
-						const bottom = gutterItem.range.isEmpty
-							// Don't trust that `getBottomForLineNumber` for the previous line equals `getTopForLineNumber` for the current one.
-							? top
-							: (this._editor.getBottomForLineNumber(gutterItem.range.endLineNumberExclusive - 1, true) - scrollTop);
+								: gutterItem.range.startLineNumber > 1
+									? this._editor.getBottomForLineNumber(gutterItem.range.startLineNumber - 1, false) - scrollTop
+									: 0;
+						const bottom =
+							gutterItem.range.endLineNumberExclusive === 1 ?
+								Math.max(top, this._editor.getTopForLineNumber(gutterItem.range.startLineNumber, false) - scrollTop)
+								: Math.max(top, this._editor.getBottomForLineNumber(gutterItem.range.endLineNumberExclusive - 1, true) - scrollTop);
 
 						const height = bottom - top;
 						view.domNode.style.top = `${top}px`;
@@ -134,20 +143,22 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 		}
 
 		for (const id of unusedIds) {
-			const view = this.views.get(id)!;
-			view.gutterItemView.dispose();
-			view.domNode.remove();
-			this.views.delete(id);
+			this.views.deleteAndDispose(id);
 		}
 	}
 }
 
-class ManagedGutterItemView {
+class ManagedGutterItemView implements IDisposable {
 	constructor(
 		public readonly item: ISettableObservable<IGutterItemInfo>,
 		public readonly gutterItemView: IGutterItemView,
 		public readonly domNode: HTMLDivElement,
 	) { }
+
+	dispose(): void {
+		this.gutterItemView.dispose();
+		this.domNode.remove();
+	}
 }
 
 export interface IGutterItemProvider<TItem extends IGutterItemInfo> {

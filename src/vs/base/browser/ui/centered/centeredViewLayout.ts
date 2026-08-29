@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, IDomNodePagePosition } from 'vs/base/browser/dom';
-import { IView, IViewSize } from 'vs/base/browser/ui/grid/grid';
-import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
-import { DistributeSizing, ISplitViewStyles, IView as ISplitViewView, Orientation, SplitView } from 'vs/base/browser/ui/splitview/splitview';
-import { Color } from 'vs/base/common/color';
-import { Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { $, IDomNodePagePosition } from '../../dom.js';
+import { IView, IViewSize } from '../grid/grid.js';
+import { IBoundarySashes } from '../sash/sash.js';
+import { DistributeSizing, ISplitViewStyles, IView as ISplitViewView, Orientation, SplitView } from '../splitview/splitview.js';
+import { Color } from '../../../common/color.js';
+import { Event } from '../../../common/event.js';
+import { DisposableStore, IDisposable } from '../../../common/lifecycle.js';
 
 export interface CenteredViewState {
 	// width of the fixed centered layout

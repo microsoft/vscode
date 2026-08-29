@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AstNode, AstNodeKind, BracketAstNode, InvalidBracketAstNode, ListAstNode, PairAstNode, TextAstNode } from './ast';
-import { BeforeEditPositionMapper, TextEditInfo } from './beforeEditPositionMapper';
-import { SmallImmutableSet } from './smallImmutableSet';
-import { lengthIsZero, lengthLessThan } from './length';
-import { concat23Trees, concat23TreesOfSameHeight } from './concat23Trees';
-import { NodeReader } from './nodeReader';
-import { OpeningBracketId, Tokenizer, TokenKind } from './tokenizer';
+import { AstNode, AstNodeKind, BracketAstNode, InvalidBracketAstNode, ListAstNode, PairAstNode, TextAstNode } from './ast.js';
+import { BeforeEditPositionMapper, TextEditInfo } from './beforeEditPositionMapper.js';
+import { SmallImmutableSet } from './smallImmutableSet.js';
+import { lengthIsZero, lengthLessThan } from './length.js';
+import { concat23Trees, concat23TreesOfSameHeight } from './concat23Trees.js';
+import { NodeReader } from './nodeReader.js';
+import { OpeningBracketId, Tokenizer, TokenKind } from './tokenizer.js';
 
 /**
  * Non incrementally built ASTs are immutable.

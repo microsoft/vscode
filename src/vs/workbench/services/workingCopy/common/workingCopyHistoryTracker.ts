@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { GlobalIdleValue, Limiter } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { SaveSource, SaveSourceRegistry } from 'vs/workbench/common/editor';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { isStoredFileWorkingCopySaveEvent, IStoredFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
-import { IStoredFileWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopyManager';
-import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { IWorkingCopyHistoryService, MAX_PARALLEL_HISTORY_IO_OPS } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
-import { IWorkingCopySaveEvent, IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { Schemas } from 'vs/base/common/network';
-import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { FileOperation, FileOperationEvent, IFileOperationEventWithMetadata, IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
+import { localize } from '../../../../nls.js';
+import { URI } from '../../../../base/common/uri.js';
+import { GlobalIdleValue, Limiter } from '../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IUndoRedoService } from '../../../../platform/undoRedo/common/undoRedo.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { SaveSource, SaveSourceRegistry } from '../../../common/editor.js';
+import { IPathService } from '../../path/common/pathService.js';
+import { isStoredFileWorkingCopySaveEvent, IStoredFileWorkingCopyModel } from './storedFileWorkingCopy.js';
+import { IStoredFileWorkingCopySaveEvent } from './storedFileWorkingCopyManager.js';
+import { IWorkingCopy } from './workingCopy.js';
+import { IWorkingCopyHistoryService, MAX_PARALLEL_HISTORY_IO_OPS } from './workingCopyHistory.js';
+import { IWorkingCopySaveEvent, IWorkingCopyService } from './workingCopyService.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { ResourceGlobMatcher } from '../../../common/resources.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { FileOperation, FileOperationEvent, IFileOperationEventWithMetadata, IFileService, IFileStatWithMetadata } from '../../../../platform/files/common/files.js';
 
 export class WorkingCopyHistoryTracker extends Disposable implements IWorkbenchContribution {
 

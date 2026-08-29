@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { createSerializedGrid, Direction, getRelativeLocation, Grid, GridNode, GridNodeDescriptor, ISerializableView, isGridBranchNode, IViewDeserializer, Orientation, sanitizeGridNodeDescriptor, SerializableGrid, Sizing } from 'vs/base/browser/ui/grid/grid';
-import { Event } from 'vs/base/common/event';
-import { deepClone } from 'vs/base/common/objects';
-import { nodesToArrays, TestView } from 'vs/base/test/browser/ui/grid/util';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { createSerializedGrid, Direction, getRelativeLocation, Grid, GridNode, GridNodeDescriptor, ISerializableView, isGridBranchNode, IViewDeserializer, Orientation, sanitizeGridNodeDescriptor, SerializableGrid, Sizing } from '../../../../browser/ui/grid/grid.js';
+import { Event } from '../../../../common/event.js';
+import { deepClone } from '../../../../common/objects.js';
+import { nodesToArrays, TestView } from './util.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
+import { DisposableStore } from '../../../../common/lifecycle.js';
 
 // Simple example:
 //
@@ -663,6 +663,32 @@ suite('Grid', function () {
 		assert.deepStrictEqual(grid.isViewVisible(view2), true);
 		assert.deepStrictEqual(grid.isViewVisible(view3), true);
 		assert.deepStrictEqual(grid.isViewVisible(view4), true);
+	});
+
+	test('Distribute sibling sizes when revealing a view', function () {
+		const view1 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+		const grid = store.add(new Grid(view1));
+		container.appendChild(grid.element);
+		grid.layout(800, 600);
+
+		const view2 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+		grid.addView(view2, Sizing.Distribute, view1, Direction.Right);
+		const view3 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+		grid.addView(view3, Sizing.Distribute, view2, Direction.Down);
+
+		grid.setViewVisible(view1, false);
+		grid.resizeView(view2, { width: 200, height: 450 });
+		grid.setViewVisible(view1, true, Sizing.Distribute);
+
+		assert.deepStrictEqual({
+			view1: grid.getViewSize(view1),
+			view2: grid.getViewSize(view2),
+			view3: grid.getViewSize(view3),
+		}, {
+			view1: { width: 400, height: 600 },
+			view2: { width: 400, height: 450 },
+			view3: { width: 400, height: 150 },
+		});
 	});
 });
 

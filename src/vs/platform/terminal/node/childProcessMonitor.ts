@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { parse } from 'vs/base/common/path';
-import { debounce, throttle } from 'vs/base/common/decorators';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ProcessItem } from 'vs/base/common/processes';
-import { listProcesses } from 'vs/base/node/ps';
-import { ILogService } from 'vs/platform/log/common/log';
+import { parse } from '../../../base/common/path.js';
+import { debounce, throttle } from '../../../base/common/decorators.js';
+import { Emitter } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { ProcessItem } from '../../../base/common/processes.js';
+import { listProcesses } from '../../../base/node/ps.js';
+import { ILogService } from '../../log/common/log.js';
 
 const enum Constants {
 	/**
@@ -49,10 +49,18 @@ export class ChildProcessMonitor extends Disposable {
 	readonly onDidChangeHasChildProcesses = this._onDidChangeHasChildProcesses.event;
 
 	constructor(
-		private readonly _pid: number,
+		private _pid: number,
 		@ILogService private readonly _logService: ILogService
 	) {
 		super();
+	}
+
+	/**
+	 * Updates the pid to monitor. This is needed when the pid is not available
+	 * immediately after spawn (e.g. node-pty deferred conpty connection).
+	 */
+	setPid(pid: number): void {
+		this._pid = pid;
 	}
 
 	/**

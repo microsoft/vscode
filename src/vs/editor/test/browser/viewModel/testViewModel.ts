@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
-import { TestConfiguration } from 'vs/editor/test/browser/config/testConfiguration';
-import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { IEditorOptions } from '../../../common/config/editorOptions.js';
+import { TextModel } from '../../../common/model/textModel.js';
+import { ViewModel } from '../../../common/viewModel/viewModelImpl.js';
+import { TestConfiguration } from '../config/testConfiguration.js';
+import { MonospaceLineBreaksComputerFactory } from '../../../common/viewModel/monospaceLineBreaksComputer.js';
+import { createTextModel } from '../../common/testTextModel.js';
+import { TestLanguageConfigurationService } from '../../common/modes/testLanguageConfigurationService.js';
+import { TestThemeService } from '../../../../platform/theme/test/common/testThemeService.js';
 
 export function testViewModel(text: string[], options: IEditorOptions, callback: (viewModel: ViewModel, model: TextModel) => void): void {
 	const EDITOR_ID = 1;

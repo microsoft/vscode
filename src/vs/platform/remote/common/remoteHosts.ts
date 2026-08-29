@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
+import { Schemas } from '../../../base/common/network.js';
+import { URI } from '../../../base/common/uri.js';
 
 export function getRemoteAuthority(uri: URI): string | undefined {
 	return uri.scheme === Schemas.vscodeRemote ? uri.authority : undefined;
@@ -23,6 +23,30 @@ export function getRemoteName(authority: string | undefined): string | undefined
 		return authority;
 	}
 	return authority.substr(0, pos);
+}
+
+/**
+ * Returns the suffix part of the authority after the '+' character.
+ * For remote connections, this is typically the server/tunnel identifier.
+ * Examples:
+ * - For tunnels: `tunnel+myTunnel` returns `myTunnel`
+ * - For SSH: `ssh+myserver` returns `myserver`
+ * - For localhost: `localhost:8000` returns `undefined`
+ * @param authority The remote authority string.
+ * @returns The suffix after the '+' character, or undefined if there is no '+' character.
+ */
+export function getRemoteServerRootPath(authority: string): string | undefined;
+export function getRemoteServerRootPath(authority: undefined): undefined;
+export function getRemoteServerRootPath(authority: string | undefined): string | undefined;
+export function getRemoteServerRootPath(authority: string | undefined): string | undefined {
+	if (!authority) {
+		return undefined;
+	}
+	const pos = authority.indexOf('+');
+	if (pos < 0) {
+		return undefined;
+	}
+	return authority.substring(pos + 1);
 }
 
 export function parseAuthorityWithPort(authority: string): { host: string; port: number } {
@@ -62,4 +86,24 @@ function parseAuthority(authority: string): { host: string; port: number | undef
 
 	// doesn't contain a port
 	return { host: authority, port: undefined };
+}
+
+const loopbackHosts = new Set([
+	'localhost',
+	'127.0.0.1',
+	'::1',
+	'[::1]',
+	'0000:0000:0000:0000:0000:0000:0000:0001',
+	'[0000:0000:0000:0000:0000:0000:0000:0001]'
+]);
+
+/**
+ * Returns whether the given host (as found in a direct `<host>:<port>` remote
+ * authority) refers to the local loopback interface. The check is intentionally
+ * strict: only `localhost` and the IPv4/IPv6 loopback literals are considered
+ * local. Any other host (a routable IP address or a hostname) is treated as a
+ * connection that leaves the local machine.
+ */
+export function isLoopbackHost(host: string): boolean {
+	return loopbackHosts.has(host.toLowerCase());
 }

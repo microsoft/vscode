@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as objects from 'vs/base/common/objects';
-import { ICodeEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { DiffEditorWidget, IDiffCodeEditorWidgetOptions } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
-import { ConfigurationChangedEvent, IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorProgressService } from 'vs/platform/progress/common/progress';
+import * as objects from '../../../../base/common/objects.js';
+import { ICodeEditor, IDiffEditorConstructionOptions } from '../../editorBrowser.js';
+import { ICodeEditorService } from '../../services/codeEditorService.js';
+import { DiffEditorWidget, IDiffCodeEditorWidgetOptions } from './diffEditorWidget.js';
+import { ConfigurationChangedEvent, IDiffEditorOptions, IEditorOptions } from '../../../common/config/editorOptions.js';
+import { IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IEditorProgressService } from '../../../../platform/progress/common/progress.js';
 export class EmbeddedDiffEditorWidget extends DiffEditorWidget {
 
 	private readonly _parentEditor: ICodeEditor;

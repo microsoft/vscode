@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { getMapForWordSeparators } from 'vs/editor/common/core/wordCharacterClassifier';
-import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/core/wordHelper';
-import { EndOfLineSequence, FindMatch, SearchData } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { SearchParams, TextModelSearch, isMultilineRegexSource } from 'vs/editor/common/model/textModelSearch';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { getMapForWordSeparators } from '../../../common/core/wordCharacterClassifier.js';
+import { USUAL_WORD_SEPARATORS } from '../../../common/core/wordHelper.js';
+import { EndOfLineSequence, FindMatch, SearchData } from '../../../common/model.js';
+import { TextModel } from '../../../common/model/textModel.js';
+import { SearchParams, TextModelSearch, isMultilineRegexSource } from '../../../common/model/textModelSearch.js';
+import { createTextModel } from '../testTextModel.js';
 
 // --------- Find
 suite('TextModelSearch', () => {
@@ -752,6 +752,29 @@ suite('TextModelSearch', () => {
 		assert(isMultilineRegexSource('foo\\W'));
 		assert(isMultilineRegexSource('foo\n'));
 		assert(isMultilineRegexSource('foo\r\n'));
+	});
+
+	test('isMultilineRegexSource correctly identifies multiline patterns', () => {
+		const singleLinePatterns = [
+			'MARK:\\s*(?<label>.*)$',
+			'^// Header$',
+			'\\s*[-=]+\\s*',
+		];
+
+		const multiLinePatterns = [
+			'^\/\/ =+\\n^\/\/ (?<label>[^\\n]+?)\\n^\/\/ =+$',
+			'header\\r\\nfooter',
+			'start\\r|\\nend',
+			'top\nmiddle\r\nbottom'
+		];
+
+		for (const pattern of singleLinePatterns) {
+			assert.strictEqual(isMultilineRegexSource(pattern), false, `Pattern should not be multiline: ${pattern}`);
+		}
+
+		for (const pattern of multiLinePatterns) {
+			assert.strictEqual(isMultilineRegexSource(pattern), true, `Pattern should be multiline: ${pattern}`);
+		}
 	});
 
 	test('issue #74715. \\d* finds empty string and stops searching.', () => {

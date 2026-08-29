@@ -3,25 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Color, RGBA } from 'vs/base/common/color';
-import { localize } from 'vs/nls';
-import { badgeBackground, badgeForeground, chartsGreen, chartsRed, contrastBorder, diffInserted, diffRemoved, editorBackground, editorErrorForeground, editorForeground, editorInfoForeground, opaque, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { TestMessageType, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
+import { localize } from '../../../../nls.js';
+import { activityErrorBadgeBackground, activityErrorBadgeForeground, badgeBackground, badgeForeground, chartsGreen, chartsRed, contrastBorder, diffInserted, diffRemoved, editorBackground, editorErrorForeground, editorForeground, editorInfoForeground, opaque, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
+import { listErrorForeground, listWarningForeground } from '../../../../platform/theme/common/colors/listColors.js';
+import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
+import { TestResultState } from '../common/testTypes.js';
 
-export const testingColorIconFailed = registerColor('testing.iconFailed', {
-	dark: '#f14c4c',
-	light: '#f14c4c',
-	hcDark: '#f14c4c',
-	hcLight: '#B5200D'
-}, localize('testing.iconFailed', "Color for the 'failed' icon in the test explorer."));
+export const testingColorIconFailed = registerColor('testing.iconFailed', listErrorForeground, localize('testing.iconFailed', "Color for the 'failed' icon in the test explorer."));
 
-export const testingColorIconErrored = registerColor('testing.iconErrored', {
-	dark: '#f14c4c',
-	light: '#f14c4c',
-	hcDark: '#f14c4c',
-	hcLight: '#B5200D'
-}, localize('testing.iconErrored', "Color for the 'Errored' icon in the test explorer."));
+export const testingColorIconErrored = registerColor('testing.iconErrored', listErrorForeground, localize('testing.iconErrored', "Color for the 'Errored' icon in the test explorer."));
 
 export const testingColorIconPassed = registerColor('testing.iconPassed', {
 	dark: '#73c991',
@@ -32,7 +22,7 @@ export const testingColorIconPassed = registerColor('testing.iconPassed', {
 
 export const testingColorRunAction = registerColor('testing.runAction', testingColorIconPassed, localize('testing.runAction', "Color for 'run' icons in the editor."));
 
-export const testingColorIconQueued = registerColor('testing.iconQueued', '#cca700', localize('testing.iconQueued', "Color for the 'Queued' icon in the test explorer."));
+export const testingColorIconQueued = registerColor('testing.iconQueued', listWarningForeground, localize('testing.iconQueued', "Color for the 'Queued' icon in the test explorer."));
 
 export const testingColorIconUnset = registerColor('testing.iconUnset', '#848484', localize('testing.iconUnset', "Color for the 'Unset' icon in the test explorer."));
 
@@ -115,41 +105,55 @@ export const testingUncoveredGutterBackground = registerColor('testing.uncovered
 	hcLight: chartsRed
 }, localize('testing.uncoveredGutterBackground', 'Gutter color of regions where code not covered.'));
 
+export const testingCoveredMinimapBackground = registerColor('testing.coveredMinimapBackground', {
+	dark: transparent(diffInserted, 0.6),
+	light: transparent(diffInserted, 0.6),
+	hcDark: chartsGreen,
+	hcLight: chartsGreen
+}, localize('testing.coveredMinimapBackground', 'Minimap color of regions where code was covered.'));
+
+export const testingUncoveredMinimapBackground = registerColor('testing.uncoveredMinimapBackground', {
+	dark: transparent(diffRemoved, 1.5),
+	light: transparent(diffRemoved, 1.5),
+	hcDark: chartsRed,
+	hcLight: chartsRed
+}, localize('testing.uncoveredMinimapBackground', 'Minimap color of regions where code was not covered.'));
+
 export const testingCoverCountBadgeBackground = registerColor('testing.coverCountBadgeBackground', badgeBackground, localize('testing.coverCountBadgeBackground', 'Background for the badge indicating execution count'));
 
 export const testingCoverCountBadgeForeground = registerColor('testing.coverCountBadgeForeground', badgeForeground, localize('testing.coverCountBadgeForeground', 'Foreground for the badge indicating execution count'));
 
-export const testMessageSeverityColors: {
-	[K in TestMessageType]: {
-		decorationForeground: string;
-		marginBackground: string;
-	};
-} = {
-	[TestMessageType.Error]: {
-		decorationForeground: registerColor(
-			'testing.message.error.decorationForeground',
-			{ dark: editorErrorForeground, light: editorErrorForeground, hcDark: editorForeground, hcLight: editorForeground },
-			localize('testing.message.error.decorationForeground', 'Text color of test error messages shown inline in the editor.')
-		),
-		marginBackground: registerColor(
-			'testing.message.error.lineBackground',
-			{ dark: new Color(new RGBA(255, 0, 0, 0.2)), light: new Color(new RGBA(255, 0, 0, 0.2)), hcDark: null, hcLight: null },
-			localize('testing.message.error.marginBackground', 'Margin color beside error messages shown inline in the editor.')
-		),
-	},
-	[TestMessageType.Output]: {
-		decorationForeground: registerColor(
-			'testing.message.info.decorationForeground',
-			transparent(editorForeground, 0.5),
-			localize('testing.message.info.decorationForeground', 'Text color of test info messages shown inline in the editor.')
-		),
-		marginBackground: registerColor(
-			'testing.message.info.lineBackground',
-			null,
-			localize('testing.message.info.marginBackground', 'Margin color beside info messages shown inline in the editor.')
-		),
-	},
-};
+
+const messageBadgeBackground = registerColor(
+	'testing.message.error.badgeBackground',
+	activityErrorBadgeBackground,
+	localize('testing.message.error.badgeBackground', 'Background color of test error messages shown inline in the editor.')
+);
+registerColor(
+	'testing.message.error.badgeBorder',
+	messageBadgeBackground,
+	localize('testing.message.error.badgeBorder', 'Border color of test error messages shown inline in the editor.')
+);
+registerColor(
+	'testing.message.error.badgeForeground',
+	activityErrorBadgeForeground,
+	localize('testing.message.error.badgeForeground', 'Text color of test error messages shown inline in the editor.')
+);
+registerColor(
+	'testing.message.error.lineBackground',
+	null,
+	localize('testing.message.error.marginBackground', 'Margin color beside error messages shown inline in the editor.')
+);
+registerColor(
+	'testing.message.info.decorationForeground',
+	transparent(editorForeground, 0.5),
+	localize('testing.message.info.decorationForeground', 'Text color of test info messages shown inline in the editor.')
+);
+registerColor(
+	'testing.message.info.lineBackground',
+	null,
+	localize('testing.message.info.marginBackground', 'Margin color beside info messages shown inline in the editor.')
+);
 
 export const testStatesToIconColors: { [K in TestResultState]?: string } = {
 	[TestResultState.Errored]: testingColorIconErrored,
@@ -184,7 +188,6 @@ export const testStatesToRetiredIconColors: { [K in TestResultState]?: string } 
 registerThemingParticipant((theme, collector) => {
 
 	const editorBg = theme.getColor(editorBackground);
-	const missBadgeBackground = editorBg && theme.getColor(testingUncoveredBackground)?.transparent(2).makeOpaque(editorBg);
 
 	collector.addRule(`
 	.coverage-deco-inline.coverage-deco-hit.coverage-deco-hovered {
@@ -195,9 +198,22 @@ registerThemingParticipant((theme, collector) => {
 		background: ${theme.getColor(testingUncoveredBackground)?.transparent(1.3)};
 		outline-color: ${theme.getColor(testingUncoveredBorder)?.transparent(2)};
 	}
-	.coverage-deco-branch-miss-indicator::before {
-		border-color: ${missBadgeBackground?.transparent(1.3)};
-		background-color: ${missBadgeBackground};
+		`);
+
+	if (editorBg) {
+		const missBadgeBackground = theme.getColor(testingUncoveredBackground)?.transparent(2).makeOpaque(editorBg);
+		const errorBadgeBackground = theme.getColor(messageBadgeBackground)?.makeOpaque(editorBg);
+		collector.addRule(`
+			.coverage-deco-branch-miss-indicator::before {
+				border-color: ${missBadgeBackground?.transparent(1.3)};
+				background-color: ${missBadgeBackground};
+			}
+			.monaco-workbench .test-error-content-widget .inner{
+				background: ${errorBadgeBackground};
+			}
+			.monaco-workbench .test-error-content-widget .inner .arrow svg {
+				fill: ${errorBadgeBackground};
+			}
+		`);
 	}
-	`);
 });

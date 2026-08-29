@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html>
 	<head>
-		<script>
+		<script nonce="{{WORKBENCH_SCRIPT_NONCE}}">
 			performance.mark('code/didStartRenderer');
 		</script>
 		<meta charset="utf-8" />
@@ -18,16 +18,19 @@
 
 		<!-- Workbench Configuration -->
 		<meta id="vscode-workbench-web-configuration" data-settings="{{WORKBENCH_WEB_CONFIGURATION}}">
+		<meta id="vscode-workbench-web-base-url" data-settings="{{WORKBENCH_WEB_BASE_URL}}">
 
 		<!-- Workbench Auth Session -->
 		<meta id="vscode-workbench-auth-session" data-settings="{{WORKBENCH_AUTH_SESSION}}">
 
 		<!-- Builtin Extensions (running out of sources) -->
 		<meta id="vscode-workbench-builtin-extensions" data-settings="{{WORKBENCH_BUILTIN_EXTENSIONS}}">
+		<meta id="vscode-workbench-css-modules" data-settings="{{WORKBENCH_DEV_CSS_MODULES}}">
 
 		<!-- Workbench Icon/Manifest/CSS -->
 		<link rel="icon" href="{{WORKBENCH_WEB_BASE_URL}}/resources/server/favicon.ico" type="image/x-icon" />
 		<link rel="manifest" href="{{WORKBENCH_WEB_BASE_URL}}/resources/server/manifest.json" crossorigin="use-credentials" />
+		<style id="vscode-css-modules" type="text/css" media="screen"></style>
 
 	</head>
 
@@ -35,31 +38,32 @@
 	</body>
 
 	<!-- Startup (do not modify order of script tags!) -->
-	<script src="{{WORKBENCH_WEB_BASE_URL}}/out/vs/loader.js"></script>
-	<script src="{{WORKBENCH_WEB_BASE_URL}}/out/vs/webPackagePaths.js"></script>
-	<script>
-		const baseUrl = new URL('{{WORKBENCH_WEB_BASE_URL}}', window.location.origin).toString();
-		Object.keys(self.webPackagePaths).map(function (key, index) {
-			self.webPackagePaths[key] = `${baseUrl}/remote/web/node_modules/${key}/${self.webPackagePaths[key]}`;
-		});
-		require.config({
-			baseUrl: `${baseUrl}/out`,
-			recordStats: true,
-			trustedTypesPolicy: window.trustedTypes?.createPolicy('amdLoader', {
-				createScriptURL(value) {
-					if(value.startsWith(window.location.origin)) {
-						return value;
-					}
-					throw new Error(`Invalid script url: ${value}`)
-				}
-			}),
-			paths: self.webPackagePaths
-		});
+	<script nonce="{{WORKBENCH_SCRIPT_NONCE}}">
+		const baseUrl = new URL(document.getElementById('vscode-workbench-web-base-url').getAttribute('data-settings'), window.location.origin).toString();
+		globalThis._VSCODE_FILE_ROOT = baseUrl + '/out/';
 	</script>
-	<script>
+	<script nonce="{{WORKBENCH_SCRIPT_NONCE}}">
+		const sheet = document.getElementById('vscode-css-modules').sheet;
+		globalThis._VSCODE_CSS_LOAD = function (url) {
+			sheet.insertRule(`@import url(${url});`);
+		};
+
+		const importMap = { imports: {} };
+		const cssModules = JSON.parse(document.getElementById('vscode-workbench-css-modules').getAttribute('data-settings'));
+		for (const cssModule of cssModules) {
+			const cssUrl = new URL(cssModule, globalThis._VSCODE_FILE_ROOT).href;
+			const jsSrc = `globalThis._VSCODE_CSS_LOAD('${cssUrl}');\n`;
+			const blob = new Blob([jsSrc], { type: 'application/javascript' });
+			importMap.imports[cssUrl] = URL.createObjectURL(blob);
+		}
+		const importMapElement = document.createElement('script');
+		importMapElement.type = 'importmap';
+		importMapElement.nonce = document.currentScript.nonce;
+		importMapElement.textContent = JSON.stringify(importMap, undefined, 2);
+		document.head.appendChild(importMapElement);
+	</script>
+	<script nonce="{{WORKBENCH_SCRIPT_NONCE}}">
 		performance.mark('code/willLoadWorkbenchMain');
 	</script>
-	<script>
-		require(['vs/code/browser/workbench/workbench'], function() {});
-	</script>
+	<script type="module" src="{{WORKBENCH_WEB_BASE_URL}}/out/vs/code/browser/workbench/workbench.js"></script>
 </html>

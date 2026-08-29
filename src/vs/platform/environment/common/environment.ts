@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { createDecorator, refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { URI } from '../../../base/common/uri.js';
+import { NativeParsedArgs } from './argv.js';
+import { createDecorator, refineServiceDecorator } from '../../instantiation/common/instantiation.js';
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
 export const INativeEnvironmentService = refineServiceDecorator<IEnvironmentService, INativeEnvironmentService>(IEnvironmentService);
@@ -58,6 +58,7 @@ export interface IEnvironmentService {
 	workspaceStorageHome: URI;
 	localHistoryHome: URI;
 	cacheHome: URI;
+	appSharedDataHome: URI;
 
 	// --- settings sync
 	userDataSyncHome: URI;
@@ -71,6 +72,7 @@ export interface IEnvironmentService {
 	debugExtensionHost: IExtensionHostDebugParams;
 	isExtensionDevelopment: boolean;
 	disableExtensions: boolean | string[];
+	skipBuiltinExtensions?: readonly string[];
 	enableExtensions?: readonly string[];
 	extensionDevelopmentLocationURI?: URI[];
 	extensionDevelopmentKind?: ExtensionKind[];
@@ -83,10 +85,13 @@ export interface IEnvironmentService {
 	verbose: boolean;
 	isBuilt: boolean;
 
-	// --- telemetry
+	// --- telemetry/exp
 	disableTelemetry: boolean;
+	disableExperiments: boolean;
 	serviceMachineIdResource: URI;
 
+	// --- agent sessions workspace
+	agentSessionsWorkspace: URI;
 	// --- Policy
 	policyFile?: URI;
 
@@ -134,7 +139,6 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	appSettingsHome: URI;
 	tmpDir: URI;
 	userDataPath: string;
-	machineSettingsResource: URI;
 
 	// --- extensions
 	extensionsPath: string;
@@ -145,6 +149,8 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	useInMemorySecretStorage?: boolean;
 
 	crossOriginIsolated?: boolean;
+	exportPolicyData?: string;
+	exportDefaultKeybindings?: string;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//

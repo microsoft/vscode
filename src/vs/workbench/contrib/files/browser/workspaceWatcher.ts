@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IDisposable, Disposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { IFileService, IFilesConfiguration } from 'vs/platform/files/common/files';
-import { IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
-import { ResourceMap } from 'vs/base/common/map';
-import { INotificationService, Severity, NeverShowAgainScope, NotificationPriority } from 'vs/platform/notification/common/notification';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { isAbsolute } from 'vs/base/common/path';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { localize } from '../../../../nls.js';
+import { IDisposable, Disposable, dispose, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IConfigurationService, IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
+import { IFileService, IFilesConfiguration } from '../../../../platform/files/common/files.js';
+import { IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from '../../../../platform/workspace/common/workspace.js';
+import { ResourceMap } from '../../../../base/common/map.js';
+import { INotificationService, Severity, NeverShowAgainScope, NotificationPriority } from '../../../../platform/notification/common/notification.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { isAbsolute } from '../../../../base/common/path.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 
 export class WorkspaceWatcher extends Disposable {
 

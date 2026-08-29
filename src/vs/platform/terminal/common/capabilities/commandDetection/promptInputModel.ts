@@ -3,17 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import type { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { throttle } from 'vs/base/common/decorators';
+import type { IBuffer, IBufferCell, IBufferLine, IMarker, Terminal } from '@xterm/headless';
+import { throttle } from '../../../../../base/common/decorators.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { ILogService, LogLevel } from '../../../../log/common/log.js';
+import { PosixShellType, TerminalShellType } from '../../terminal.js';
+import type { ITerminalCommand } from '../capabilities.js';
 
-// Importing types is safe in any layer
-// eslint-disable-next-line local/code-import-patterns
-import type { Terminal, IMarker, IBufferCell, IBufferLine, IBuffer } from '@xterm/headless';
-
-const enum PromptInputState {
+export const enum PromptInputState {
 	Unknown = 0,
 	Input = 1,
 	Execute = 2,
@@ -23,7 +21,9 @@ const enum PromptInputState {
  * A model of the prompt input state using shell integration and analyzing the terminal buffer. This
  * may not be 100% accurate but provides a best guess.
  */
-export interface IPromptInputModel {
+export interface IPromptInputModel extends IPromptInputModelState {
+	readonly state: PromptInputState;
+
 	readonly onDidStartInput: Event<IPromptInputModelState>;
 	readonly onDidChangeInput: Event<IPromptInputModelState>;
 	readonly onDidFinishInput: Event<IPromptInputModelState>;
@@ -32,20 +32,39 @@ export interface IPromptInputModel {
 	 */
 	readonly onDidInterrupt: Event<IPromptInputModelState>;
 
-	readonly value: string;
-	readonly cursorIndex: number;
-	readonly ghostTextIndex: number;
-
 	/**
 	 * Gets the prompt input as a user-friendly string where `|` is the cursor position and `[` and
 	 * `]` wrap any ghost text.
+	 *
+	 * @param emptyStringWhenEmpty If true, an empty string is returned when the prompt input is
+	 * empty (as opposed to '|').
 	 */
-	getCombinedString(): string;
+	getCombinedString(emptyStringWhenEmpty?: boolean): string;
+
+	setShellType(shellType?: TerminalShellType): void;
 }
 
 export interface IPromptInputModelState {
+	/**
+	 * The full prompt input include ghost text.
+	 */
 	readonly value: string;
+	/**
+	 * The prompt input up to the cursor index, this will always exclude the ghost text.
+	 */
+	readonly prefix: string;
+	/**
+	 * The prompt input from the cursor to the end, this _does not_ include ghost text.
+	 */
+	readonly suffix: string;
+	/**
+	 * The index of the cursor in {@link value}.
+	 */
 	readonly cursorIndex: number;
+	/**
+	 * The index of the start of ghost text in {@link value}. This is -1 when there is no ghost
+	 * text.
+	 */
 	readonly ghostTextIndex: number;
 }
 
@@ -59,16 +78,20 @@ export interface ISerializedPromptInputModel {
 
 export class PromptInputModel extends Disposable implements IPromptInputModel {
 	private _state: PromptInputState = PromptInputState.Unknown;
+	get state() { return this._state; }
 
 	private _commandStartMarker: IMarker | undefined;
 	private _commandStartX: number = 0;
 	private _lastPromptLine: string | undefined;
 	private _continuationPrompt: string | undefined;
+	private _shellType: TerminalShellType | undefined;
 
 	private _lastUserInput: string = '';
 
 	private _value: string = '';
 	get value() { return this._value; }
+	get prefix() { return this._value.substring(0, this._cursorIndex); }
+	get suffix() { return this._value.substring(this._cursorIndex, this._ghostTextIndex === -1 ? undefined : this._ghostTextIndex); }
 
 	private _cursorIndex: number = 0;
 	get cursorIndex() { return this._cursorIndex; }
@@ -88,7 +111,9 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 	constructor(
 		private readonly _xterm: Terminal,
 		onCommandStart: Event<ITerminalCommand>,
+		onCommandStartChanged: Event<void>,
 		onCommandExecuted: Event<ITerminalCommand>,
+		onCommandFinished: Event<ITerminalCommand>,
 		@ILogService private readonly _logService: ILogService
 	) {
 		super();
@@ -101,7 +126,9 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		this._register(this._xterm.onData(e => this._handleUserInput(e)));
 
 		this._register(onCommandStart(e => this._handleCommandStart(e as { marker: IMarker })));
+		this._register(onCommandStartChanged(() => this._handleCommandStartChanged()));
 		this._register(onCommandExecuted(() => this._handleCommandExecuted()));
+		this._register(onCommandFinished(() => this._handleCommandFinished()));
 
 		this._register(this.onDidStartInput(() => this._logCombinedStringIfTrace('PromptInputModel#onDidStartInput')));
 		this._register(this.onDidChangeInput(() => this._logCombinedStringIfTrace('PromptInputModel#onDidChangeInput')));
@@ -114,6 +141,10 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		if (this._logService.getLevel() === LogLevel.Trace) {
 			this._logService.trace(message, this.getCombinedString());
 		}
+	}
+
+	setShellType(shellType: TerminalShellType): void {
+		this._shellType = shellType;
 	}
 
 	setContinuationPrompt(value: string): void {
@@ -135,7 +166,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		}
 	}
 
-	getCombinedString(): string {
+	getCombinedString(emptyStringWhenEmpty?: boolean): string {
 		const value = this._value.replaceAll('\n', '\u23CE');
 		if (this._cursorIndex === -1) {
 			return value;
@@ -146,6 +177,9 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			result += `${value.substring(this.ghostTextIndex)}]`;
 		} else {
 			result += value.substring(this.cursorIndex);
+		}
+		if (result === '|' && emptyStringWhenEmpty) {
+			return '';
 		}
 		return result;
 	}
@@ -195,6 +229,16 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		}
 	}
 
+	private _handleCommandStartChanged() {
+		if (this._state !== PromptInputState.Input) {
+			return;
+		}
+
+		this._commandStartX = this._xterm.buffer.active.cursorX;
+		this._onDidChangeInput.fire(this._createStateObject());
+		this._sync();
+	}
+
 	private _handleCommandExecuted() {
 		if (this._state === PromptInputState.Execute) {
 			return;
@@ -219,6 +263,13 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		this._onDidChangeInput.fire(event);
 	}
 
+	private _handleCommandFinished() {
+		// Clear the prompt input value when command finishes to prepare for the next command
+		// This prevents runCommand from detecting leftover text and sending ^C unnecessarily
+		this._value = '';
+		this._onDidChangeInput.fire(this._createStateObject());
+	}
+
 	@throttle(0)
 	private _sync() {
 		try {
@@ -233,49 +284,70 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			return;
 		}
 
-		const commandStartY = this._commandStartMarker?.line;
+		let commandStartY = this._commandStartMarker?.line;
 		if (commandStartY === undefined) {
 			return;
 		}
 
 		const buffer = this._xterm.buffer.active;
 		let line = buffer.getLine(commandStartY);
-		const commandLine = line?.translateToString(true, this._commandStartX);
-		if (!line || commandLine === undefined) {
+		const absoluteCursorY = buffer.baseY + buffer.cursorY;
+		let cursorIndex: number | undefined;
+
+		let commandLine = line?.translateToString(true, this._commandStartX);
+		if (this._shellType === PosixShellType.Fish && (!line || !commandLine)) {
+			commandStartY += 1;
+			line = buffer.getLine(commandStartY);
+			if (line) {
+				commandLine = line.translateToString(true);
+				cursorIndex = absoluteCursorY === commandStartY ? buffer.cursorX : commandLine?.trimEnd().length;
+			}
+		}
+		if (line === undefined || commandLine === undefined) {
 			this._logService.trace(`PromptInputModel#_sync: no line`);
 			return;
 		}
 
-		const absoluteCursorY = buffer.baseY + buffer.cursorY;
 		let value = commandLine;
 		let ghostTextIndex = -1;
-		let cursorIndex: number;
-		if (absoluteCursorY === commandStartY) {
-			cursorIndex = this._getRelativeCursorIndex(this._commandStartX, buffer, line);
-		} else {
-			cursorIndex = commandLine.trimEnd().length;
-		}
-
-		// Detect ghost text by looking for italic or dim text in or after the cursor and
-		// non-italic/dim text in the cell closest non-whitespace cell before the cursor
-		if (absoluteCursorY === commandStartY && buffer.cursorX > 1) {
-			// Ghost text in pwsh only appears to happen on the cursor line
-			ghostTextIndex = this._scanForGhostText(buffer, line, cursorIndex);
+		if (cursorIndex === undefined) {
+			if (absoluteCursorY === commandStartY) {
+				cursorIndex = Math.min(this._getRelativeCursorIndex(this._commandStartX, buffer, line), commandLine.length);
+			} else {
+				cursorIndex = commandLine.trimEnd().length;
+			}
 		}
 
 		// From command start line to cursor line
 		for (let y = commandStartY + 1; y <= absoluteCursorY; y++) {
-			line = buffer.getLine(y);
-			const lineText = line?.translateToString(true);
-			if (lineText && line) {
-				// Check if the line wrapped without a new line (continuation)
-				if (line.isWrapped) {
-					value += lineText;
-					const relativeCursorIndex = this._getRelativeCursorIndex(0, buffer, line);
+			const nextLine = buffer.getLine(y);
+			const lineText = nextLine?.translateToString(true);
+			if (lineText && nextLine) {
+				// Check if the line wrapped without a new line (continuation) or
+				// we're on the last line and the continuation prompt is not present, so we need to add the value
+				if (nextLine.isWrapped || (absoluteCursorY === y && this._continuationPrompt && !this._lineContainsContinuationPrompt(lineText))) {
+					value += `${lineText}`;
+					const relativeCursorIndex = this._getRelativeCursorIndex(0, buffer, nextLine);
 					if (absoluteCursorY === y) {
 						cursorIndex += relativeCursorIndex;
 					} else {
 						cursorIndex += lineText.length;
+					}
+				} else if (this._shellType === PosixShellType.Fish) {
+					if (value.endsWith('\\')) {
+						// Trim off the trailing backslash
+						value = value.substring(0, value.length - 1);
+						value += `${lineText.trim()}`;
+						cursorIndex += lineText.trim().length - 1;
+					} else {
+						if (/^ {6,}/.test(lineText)) {
+							// Was likely a new line
+							value += `\n${lineText.trim()}`;
+							cursorIndex += lineText.trim().length + 1;
+						} else {
+							value += lineText;
+							cursorIndex += lineText.length;
+						}
 					}
 				}
 				// Verify continuation prompt if we have it, if this line doesn't have it then the
@@ -284,27 +356,27 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 					const trimmedLineText = this._trimContinuationPrompt(lineText);
 					value += `\n${trimmedLineText}`;
 					if (absoluteCursorY === y) {
-						const continuationCellWidth = this._getContinuationPromptCellWidth(line, lineText);
-						const relativeCursorIndex = this._getRelativeCursorIndex(continuationCellWidth, buffer, line);
+						const continuationCellWidth = this._getContinuationPromptCellWidth(nextLine, lineText);
+						const relativeCursorIndex = this._getRelativeCursorIndex(continuationCellWidth, buffer, nextLine);
 						cursorIndex += relativeCursorIndex + 1;
 					} else {
 						cursorIndex += trimmedLineText.length + 1;
 					}
-				} else {
-					break;
 				}
 			}
 		}
 
 		// Below cursor line
 		for (let y = absoluteCursorY + 1; y < buffer.baseY + this._xterm.rows; y++) {
-			line = buffer.getLine(y);
-			const lineText = line?.translateToString(true);
-			if (lineText && line) {
-				if (this._continuationPrompt === undefined || this._lineContainsContinuationPrompt(lineText)) {
+			const belowCursorLine = buffer.getLine(y);
+			const lineText = belowCursorLine?.translateToString(true);
+			if (lineText && belowCursorLine) {
+				if (this._shellType === PosixShellType.Fish) {
+					value += `${lineText}`;
+				} else if (this._continuationPrompt === undefined || this._lineContainsContinuationPrompt(lineText)) {
 					value += `\n${this._trimContinuationPrompt(lineText)}`;
 				} else {
-					break;
+					value += lineText;
 				}
 			} else {
 				break;
@@ -375,6 +447,8 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			value = valueLines.map(e => e.trimEnd()).join('\n') + ' '.repeat(trailingWhitespace);
 		}
 
+		ghostTextIndex = this._scanForGhostText(buffer, line, cursorIndex);
+
 		if (this._value !== value || this._cursorIndex !== cursorIndex || this._ghostTextIndex !== ghostTextIndex) {
 			this._value = value;
 			this._cursorIndex = cursorIndex;
@@ -389,9 +463,12 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 	/**
 	 * Detect ghost text by looking for italic or dim text in or after the cursor and
-	 * non-italic/dim text in the cell closest non-whitespace cell before the cursor.
+	 * non-italic/dim text in the first non-whitespace cell following command start and before the cursor.
 	 */
 	private _scanForGhostText(buffer: IBuffer, line: IBufferLine, cursorIndex: number): number {
+		if (!this.value.trim().length) {
+			return -1;
+		}
 		// Check last non-whitespace character has non-ghost text styles
 		let ghostTextIndex = -1;
 		let proceedWithGhostTextCheck = false;
@@ -412,6 +489,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		if (proceedWithGhostTextCheck) {
 			let potentialGhostIndexOffset = 0;
 			let x = buffer.cursorX;
+
 			while (x < line.length) {
 				const cell = line.getCell(x++);
 				if (!cell || cell.getCode() === 0) {
@@ -421,11 +499,143 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 					ghostTextIndex = cursorIndex + potentialGhostIndexOffset;
 					break;
 				}
+
 				potentialGhostIndexOffset += cell.getChars().length;
 			}
 		}
 
+		// Ghost text may not be italic or dimmed, but will have a different style than the
+		// rest of the line that precedes it.
+		if (ghostTextIndex === -1) {
+			ghostTextIndex = this._scanForGhostTextAdvanced(buffer, line, cursorIndex);
+		}
+
+		if (ghostTextIndex > -1 && this.value.substring(ghostTextIndex).endsWith(' ')) {
+			this._value = this.value.trim();
+			if (!this.value.substring(ghostTextIndex)) {
+				ghostTextIndex = -1;
+			}
+		}
 		return ghostTextIndex;
+	}
+
+	private _scanForGhostTextAdvanced(buffer: IBuffer, line: IBufferLine, cursorIndex: number): number {
+		let ghostTextIndex = -1;
+		let currentPos = buffer.cursorX; // Start scanning from the cursor position
+
+		// Map to store styles and their corresponding positions
+		const styleMap = new Map<string, number[]>();
+
+		// Identify the last non-whitespace character in the line
+		let lastNonWhitespaceCell = line.getCell(currentPos);
+		let nextCell: IBufferCell | undefined = lastNonWhitespaceCell;
+
+		// Scan from the cursor position to the end of the line
+		while (nextCell && currentPos < line.length) {
+			const styleKey = this._getCellStyleAsString(nextCell);
+
+			// Track all occurrences of each unique style in the line
+			styleMap.set(styleKey, [...(styleMap.get(styleKey) ?? []), currentPos]);
+
+			// Move to the next cell
+			nextCell = line.getCell(++currentPos);
+
+			// Update `lastNonWhitespaceCell` only if the new cell contains visible characters
+			if (nextCell?.getChars().trim().length) {
+				lastNonWhitespaceCell = nextCell;
+			}
+		}
+
+		// If there's no valid last non-whitespace cell OR the first and last styles match (indicating no ghost text)
+		if (!lastNonWhitespaceCell?.getChars().trim().length ||
+			this._cellStylesMatch(line.getCell(this._commandStartX), lastNonWhitespaceCell)) {
+			return -1;
+		}
+
+		// Retrieve the positions of all cells with the same style as `lastNonWhitespaceCell`
+		const positionsWithGhostStyle = styleMap.get(this._getCellStyleAsString(lastNonWhitespaceCell));
+		if (positionsWithGhostStyle) {
+			// Ghost text must start at the cursor or one char after (e.g. a space)
+			// To account for cursor movement, we also ensure there are not 5+ spaces preceding the ghost text position
+			if (positionsWithGhostStyle[0] > buffer.cursorX + 1 && this._isPositionRightPrompt(line, positionsWithGhostStyle[0])) {
+				return -1;
+			}
+			// Ensure these positions are contiguous
+			for (let i = 1; i < positionsWithGhostStyle.length; i++) {
+				if (positionsWithGhostStyle[i] !== positionsWithGhostStyle[i - 1] + 1) {
+					// Discontinuous styles, so may be syntax highlighting vs ghost text
+					return -1;
+				}
+			}
+			// Calculate the ghost text start index
+			if (buffer.baseY + buffer.cursorY === this._commandStartMarker?.line) {
+				ghostTextIndex = positionsWithGhostStyle[0] - this._commandStartX;
+			} else {
+				ghostTextIndex = positionsWithGhostStyle[0];
+			}
+		}
+
+		// Ensure no earlier cells in the line match `lastNonWhitespaceCell`'s style,
+		// which would indicate the text is not ghost text.
+		if (ghostTextIndex !== -1) {
+			for (let checkPos = buffer.cursorX; checkPos >= this._commandStartX; checkPos--) {
+				const checkCell = line.getCell(checkPos);
+				if (!checkCell?.getChars.length) {
+					continue;
+				}
+				if (checkCell && checkCell.getCode() !== 0 && this._cellStylesMatch(lastNonWhitespaceCell, checkCell)) {
+					return -1;
+				}
+			}
+		}
+
+		return ghostTextIndex >= cursorIndex ? ghostTextIndex : -1;
+	}
+
+	/**
+	 * 5+ spaces preceding the position, following the command start,
+	 * indicates that we're likely in a right prompt at the current position
+	 */
+	private _isPositionRightPrompt(line: IBufferLine, position: number): boolean {
+		let count = 0;
+		for (let i = position - 1; i >= this._commandStartX; i--) {
+			const cell = line.getCell(i);
+			// treat missing cell or whitespace-only cell as empty; reset count on first non-empty
+			if (!cell || cell.getChars().trim().length === 0) {
+				count++;
+				// If we've already found 5 consecutive empties we can early-return
+				if (count >= 5) {
+					return true;
+				}
+			} else {
+				// consecutive sequence broken
+				count = 0;
+			}
+		}
+		return false;
+	}
+
+	private _getCellStyleAsString(cell: IBufferCell): string {
+		return `${cell.getFgColor()}${cell.getBgColor()}${cell.isBold()}${cell.isItalic()}${cell.isDim()}${cell.isUnderline()}${cell.isBlink()}${cell.isInverse()}${cell.isInvisible()}${cell.isStrikethrough()}${cell.isOverline()}${cell.getFgColorMode()}${cell.getBgColorMode()}`;
+	}
+
+	private _cellStylesMatch(a: IBufferCell | undefined, b: IBufferCell | undefined): boolean {
+		if (!a || !b) {
+			return false;
+		}
+		return a.getFgColor() === b.getFgColor()
+			&& a.getBgColor() === b.getBgColor()
+			&& a.isBold() === b.isBold()
+			&& a.isItalic() === b.isItalic()
+			&& a.isDim() === b.isDim()
+			&& a.isUnderline() === b.isUnderline()
+			&& a.isBlink() === b.isBlink()
+			&& a.isInverse() === b.isInverse()
+			&& a.isInvisible() === b.isInvisible()
+			&& a.isStrikethrough() === b.isStrikethrough()
+			&& a.isOverline() === b.isOverline()
+			&& a?.getBgColorMode() === b?.getBgColorMode()
+			&& a?.getFgColorMode() === b?.getFgColorMode();
 	}
 
 	private _trimContinuationPrompt(lineText: string): string {
@@ -436,23 +646,28 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 	}
 
 	private _lineContainsContinuationPrompt(lineText: string): boolean {
-		return !!(this._continuationPrompt && lineText.startsWith(this._continuationPrompt));
+		return !!(this._continuationPrompt && lineText.startsWith(this._continuationPrompt.trimEnd()));
 	}
 
 	private _getContinuationPromptCellWidth(line: IBufferLine, lineText: string): number {
-		if (!this._continuationPrompt || !lineText.startsWith(this._continuationPrompt)) {
+		if (!this._continuationPrompt || !lineText.startsWith(this._continuationPrompt.trimEnd())) {
 			return 0;
 		}
 		let buffer = '';
 		let x = 0;
+		let cell: IBufferCell | undefined;
 		while (buffer !== this._continuationPrompt) {
-			buffer += line.getCell(x++)!.getChars();
+			cell = line.getCell(x++);
+			if (!cell) {
+				break;
+			}
+			buffer += cell.getChars();
 		}
 		return x;
 	}
 
 	private _getRelativeCursorIndex(startCellX: number, buffer: IBuffer, line: IBufferLine): number {
-		return line?.translateToString(true, startCellX, buffer.cursorX).length ?? 0;
+		return line?.translateToString(false, startCellX, buffer.cursorX).length ?? 0;
 	}
 
 	private _isCellStyledLikeGhostText(cell: IBufferCell): boolean {
@@ -462,6 +677,8 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 	private _createStateObject(): IPromptInputModelState {
 		return Object.freeze({
 			value: this._value,
+			prefix: this.prefix,
+			suffix: this.suffix,
 			cursorIndex: this._cursorIndex,
 			ghostTextIndex: this._ghostTextIndex
 		});

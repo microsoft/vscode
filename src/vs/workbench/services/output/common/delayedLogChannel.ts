@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILogger, ILoggerService, log, LogLevel } from 'vs/platform/log/common/log';
-import { URI } from 'vs/base/common/uri';
+import { ILogger, ILoggerService, log, LogLevel } from '../../../../platform/log/common/log.js';
+import { URI } from '../../../../base/common/uri.js';
 
 export class DelayedLogChannel {
 

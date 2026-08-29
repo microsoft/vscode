@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { isLinux, isWindows } from 'vs/base/common/platform';
-import { isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { FileChangeFilter, FileChangesEvent, FileChangeType, IFileChange } from 'vs/platform/files/common/files';
-import { coalesceEvents, reviveFileChanges, parseWatcherPatterns, isFiltered } from 'vs/platform/files/common/watcher';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { isLinux, isWindows } from '../../../../base/common/platform.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { FileChangeFilter, FileChangesEvent, FileChangeType, IFileChange } from '../../common/files.js';
+import { coalesceEvents, reviveFileChanges, parseWatcherPatterns, isFiltered } from '../../common/watcher.js';
 
 class TestFileWatcher extends Disposable {
 	private readonly _onDidFilesChange: Emitter<{ raw: IFileChange[]; event: FileChangesEvent }>;
@@ -56,25 +56,25 @@ suite('Watcher', () => {
 
 	(isWindows ? test.skip : test)('parseWatcherPatterns - posix', () => {
 		const path = '/users/data/src';
-		let parsedPattern = parseWatcherPatterns(path, ['*.js'])[0];
+		let parsedPattern = parseWatcherPatterns(path, ['*.js'], false)[0];
 
 		assert.strictEqual(parsedPattern('/users/data/src/foo.js'), true);
 		assert.strictEqual(parsedPattern('/users/data/src/foo.ts'), false);
 		assert.strictEqual(parsedPattern('/users/data/src/bar/foo.js'), false);
 
-		parsedPattern = parseWatcherPatterns(path, ['/users/data/src/*.js'])[0];
+		parsedPattern = parseWatcherPatterns(path, ['/users/data/src/*.js'], false)[0];
 
 		assert.strictEqual(parsedPattern('/users/data/src/foo.js'), true);
 		assert.strictEqual(parsedPattern('/users/data/src/foo.ts'), false);
 		assert.strictEqual(parsedPattern('/users/data/src/bar/foo.js'), false);
 
-		parsedPattern = parseWatcherPatterns(path, ['/users/data/src/bar/*.js'])[0];
+		parsedPattern = parseWatcherPatterns(path, ['/users/data/src/bar/*.js'], false)[0];
 
 		assert.strictEqual(parsedPattern('/users/data/src/foo.js'), false);
 		assert.strictEqual(parsedPattern('/users/data/src/foo.ts'), false);
 		assert.strictEqual(parsedPattern('/users/data/src/bar/foo.js'), true);
 
-		parsedPattern = parseWatcherPatterns(path, ['**/*.js'])[0];
+		parsedPattern = parseWatcherPatterns(path, ['**/*.js'], false)[0];
 
 		assert.strictEqual(parsedPattern('/users/data/src/foo.js'), true);
 		assert.strictEqual(parsedPattern('/users/data/src/foo.ts'), false);
@@ -83,29 +83,105 @@ suite('Watcher', () => {
 
 	(!isWindows ? test.skip : test)('parseWatcherPatterns - windows', () => {
 		const path = 'c:\\users\\data\\src';
-		let parsedPattern = parseWatcherPatterns(path, ['*.js'])[0];
+		let parsedPattern = parseWatcherPatterns(path, ['*.js'], true)[0];
 
 		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\foo.js'), true);
 		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\foo.ts'), false);
 		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\bar/foo.js'), false);
 
-		parsedPattern = parseWatcherPatterns(path, ['c:\\users\\data\\src\\*.js'])[0];
+		parsedPattern = parseWatcherPatterns(path, ['c:\\users\\data\\src\\*.js'], true)[0];
 
 		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\foo.js'), true);
 		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\foo.ts'), false);
 		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\bar\\foo.js'), false);
 
-		parsedPattern = parseWatcherPatterns(path, ['c:\\users\\data\\src\\bar/*.js'])[0];
+		parsedPattern = parseWatcherPatterns(path, ['c:\\users\\data\\src\\bar/*.js'], true)[0];
 
 		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\foo.js'), false);
 		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\foo.ts'), false);
 		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\bar\\foo.js'), true);
 
-		parsedPattern = parseWatcherPatterns(path, ['**/*.js'])[0];
+		parsedPattern = parseWatcherPatterns(path, ['**/*.js'], true)[0];
 
 		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\foo.js'), true);
 		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\foo.ts'), false);
 		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\bar\\foo.js'), true);
+	});
+
+	(isWindows ? test.skip : test)('parseWatcherPatterns - posix (case insensitive)', () => {
+		const path = '/users/data/src';
+		let parsedPattern = parseWatcherPatterns(path, ['*.JS'], false)[0];
+
+		// Case sensitive by default on posix
+		assert.strictEqual(parsedPattern('/users/data/src/foo.js'), false);
+		assert.strictEqual(parsedPattern('/users/data/src/foo.JS'), true);
+		assert.strictEqual(parsedPattern('/users/data/src/foo.Js'), false);
+
+		// Now test with GlobCaseSensitivity.caseInsensitive
+		parsedPattern = parseWatcherPatterns(path, ['*.JS'], true)[0];
+
+		assert.strictEqual(parsedPattern('/users/data/src/foo.js'), true);
+		assert.strictEqual(parsedPattern('/users/data/src/foo.JS'), true);
+		assert.strictEqual(parsedPattern('/users/data/src/foo.Js'), true);
+		assert.strictEqual(parsedPattern('/users/data/src/foo.ts'), false);
+
+		parsedPattern = parseWatcherPatterns(path, ['/users/data/src/*.JS'], true)[0];
+
+		assert.strictEqual(parsedPattern('/users/data/src/foo.js'), true);
+		assert.strictEqual(parsedPattern('/users/data/src/foo.JS'), true);
+		assert.strictEqual(parsedPattern('/users/data/src/foo.ts'), false);
+		assert.strictEqual(parsedPattern('/users/data/src/bar/foo.js'), false);
+
+		parsedPattern = parseWatcherPatterns(path, ['**/Test*.JS'], true)[0];
+
+		assert.strictEqual(parsedPattern('/users/data/src/test1.js'), true);
+		assert.strictEqual(parsedPattern('/users/data/src/Test1.js'), true);
+		assert.strictEqual(parsedPattern('/users/data/src/TEST1.JS'), true);
+		assert.strictEqual(parsedPattern('/users/data/src/bar/test2.js'), true);
+		assert.strictEqual(parsedPattern('/users/data/src/bar/TEST2.JS'), true);
+		assert.strictEqual(parsedPattern('/users/data/src/foo.js'), false);
+	});
+
+	(!isWindows ? test.skip : test)('parseWatcherPatterns - windows (case insensitive)', () => {
+		const path = 'c:\\users\\data\\src';
+		let parsedPattern = parseWatcherPatterns(path, ['*.JS'], true)[0];
+
+		// Windows is case insensitive by default
+		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\foo.js'), true);
+		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\foo.JS'), true);
+		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\foo.Js'), true);
+		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\foo.ts'), false);
+
+		// Explicit GlobCaseSensitivity.caseInsensitive should work the same
+		parsedPattern = parseWatcherPatterns(path, ['*.JS'], true)[0];
+
+		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\foo.js'), true);
+		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\foo.JS'), true);
+		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\foo.Js'), true);
+		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\foo.ts'), false);
+
+		parsedPattern = parseWatcherPatterns(path, ['c:\\users\\data\\src\\*.JS'], true)[0];
+
+		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\foo.js'), true);
+		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\foo.JS'), true);
+		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\foo.ts'), false);
+		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\bar\\foo.js'), false);
+
+		parsedPattern = parseWatcherPatterns(path, ['**/Test*.JS'], true)[0];
+
+		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\test1.js'), true);
+		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\Test1.js'), true);
+		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\TEST1.JS'), true);
+		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\bar\\test2.js'), true);
+		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\bar\\TEST2.JS'), true);
+		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\foo.js'), false);
+
+		// Test with case sensitive mode explicitly
+		parsedPattern = parseWatcherPatterns(path, ['*.JS'], false)[0];
+
+		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\foo.js'), false);
+		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\foo.JS'), true);
+		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\foo.Js'), false);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

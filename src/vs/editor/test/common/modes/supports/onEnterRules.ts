@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IndentAction } from 'vs/editor/common/languages/languageConfiguration';
+import { IndentAction } from '../../../../common/languages/languageConfiguration.js';
 
 export const javascriptOnEnterRules = [
 	{
@@ -128,6 +128,16 @@ export const htmlOnEnterRules = [
 		beforeText: /<(?!(?:area|base|br|col|embed|hr|img|input|keygen|link|menuitem|meta|param|source|track|wbr))([_:\w][_:\w\-.\d]*)(?:(?:[^'"/>]|"[^"]*"|'[^']*')*?(?!\/)>)[^<]*$/i,
 		action: {
 			indentAction: IndentAction.Indent
+		}
+	}
+];
+
+export const vbOnEnterRules = [
+	// Prevent indent after End statements and block terminators (but NOT ElseIf...Then or Else which should indent)
+	{
+		beforeText: /^\s*((End\s+(If|Sub|Function|Class|Module|Enum|Structure|Interface|Namespace|With|Select|Try|While|For|Property|Get|Set|SyncLock|Using|AddHandler|RaiseEvent|RemoveHandler|Event|Operator))|Loop|Next|Wend|Until)\b.*$/i,
+		action: {
+			indentAction: IndentAction.None
 		}
 	}
 ];

@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { EndOfLineSequence, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { EditOperation } from '../../../common/core/editOperation.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { EndOfLineSequence, IModelDeltaDecoration, TrackedRangeStickiness } from '../../../common/model.js';
+import { TextModel } from '../../../common/model/textModel.js';
+import { createTextModel } from '../testTextModel.js';
 
 // --------- utils
 
@@ -111,6 +111,26 @@ suite('Editor Model - Model Decorations', () => {
 		lineHasNoDecorations(thisModel, 3);
 		lineHasNoDecorations(thisModel, 4);
 		lineHasNoDecorations(thisModel, 5);
+	});
+
+	test('injected text width must be finite and non-negative', () => {
+		const widths = [NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, -1, 0, 1];
+		const decorationIds = thisModel.deltaDecorations([], widths.map(widthInEm => ({
+			range: new Range(1, 1, 1, 1),
+			options: {
+				description: 'test',
+				after: { content: 'x', widthInEm }
+			}
+		})));
+
+		assert.deepStrictEqual(decorationIds.map(id => thisModel.getDecorationOptions(id)?.after?.widthInEm), [
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			0,
+			1
+		]);
 	});
 
 	test('line decoration', () => {

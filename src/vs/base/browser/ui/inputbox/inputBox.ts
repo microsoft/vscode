@@ -3,26 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { DomEmitter } from 'vs/base/browser/event';
-import { renderFormattedText, renderText } from 'vs/base/browser/formattedTextRenderer';
-import { IHistoryNavigationWidget } from 'vs/base/browser/history';
-import { MarkdownRenderOptions } from 'vs/base/browser/markdownRenderer';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import * as aria from 'vs/base/browser/ui/aria/aria';
-import { AnchorAlignment, IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
-import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { IAction } from 'vs/base/common/actions';
-import { Emitter, Event } from 'vs/base/common/event';
-import { HistoryNavigator } from 'vs/base/common/history';
-import { equals } from 'vs/base/common/objects';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import 'vs/css!./inputBox';
-import * as nls from 'vs/nls';
+import * as dom from '../../dom.js';
+import * as cssJs from '../../cssValue.js';
+import { DomEmitter } from '../../event.js';
+import { renderFormattedText, renderText } from '../../formattedTextRenderer.js';
+import { IHistoryNavigationWidget } from '../../history.js';
+import { ActionBar, IActionViewItemProvider } from '../actionbar/actionbar.js';
+import * as aria from '../aria/aria.js';
+import { AnchorAlignment, IContextViewProvider } from '../contextview/contextview.js';
+import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
+import { ScrollableElement } from '../scrollbar/scrollableElement.js';
+import { Widget } from '../widget.js';
+import { IAction } from '../../../common/actions.js';
+import { Emitter, Event } from '../../../common/event.js';
+import { HistoryNavigator, IHistory } from '../../../common/history.js';
+import { equals } from '../../../common/objects.js';
+import { ScrollbarVisibility } from '../../../common/scrollable.js';
+import './inputBox.css';
+import * as nls from '../../../../nls.js';
+import { MutableDisposable, type IDisposable } from '../../../common/lifecycle.js';
 
 
 const $ = dom.$;
@@ -38,7 +37,10 @@ export interface IInputOptions {
 	readonly flexibleWidth?: boolean;
 	readonly flexibleMaxHeight?: number;
 	readonly actions?: ReadonlyArray<IAction>;
+	readonly actionViewItemProvider?: IActionViewItemProvider;
 	readonly inputBoxStyles: IInputBoxStyles;
+	readonly history?: IHistory<string>;
+	readonly hideHoverOnValueChange?: boolean;
 }
 
 export interface IInputBoxStyles {
@@ -114,13 +116,14 @@ export class InputBox extends Widget {
 	private cachedContentHeight: number | undefined;
 	private maxHeight: number = Number.POSITIVE_INFINITY;
 	private scrollableElement: ScrollableElement | undefined;
-	private hover: IManagedHover | undefined;
+	private readonly hover: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
+	private readonly messageResizeObserver: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 
 	private _onDidChange = this._register(new Emitter<string>());
-	public readonly onDidChange: Event<string> = this._onDidChange.event;
+	public get onDidChange(): Event<string> { return this._onDidChange.event; }
 
 	private _onDidHeightChange = this._register(new Emitter<number>());
-	public readonly onDidHeightChange: Event<number> = this._onDidHeightChange.event;
+	public get onDidHeightChange(): Event<number> { return this._onDidHeightChange.event; }
 
 	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider | undefined, options: IInputOptions) {
 		super();
@@ -206,11 +209,31 @@ export class InputBox extends Widget {
 
 		// Support actions
 		if (this.options.actions) {
-			this.actionbar = this._register(new ActionBar(this.element));
+			this.actionbar = this._register(new ActionBar(this.element, {
+				actionViewItemProvider: this.options.actionViewItemProvider
+			}));
 			this.actionbar.push(this.options.actions, { icon: true, label: false });
 		}
 
 		this.applyStyles();
+	}
+
+	public setActions(actions: ReadonlyArray<IAction> | undefined, actionViewItemProvider?: IActionViewItemProvider): void {
+		if (this.actionbar) {
+			this.actionbar.clear();
+			if (actions) {
+				this.actionbar.push(actions, { icon: true, label: false });
+			}
+		} else if (actions) {
+			this.actionbar = this._register(new ActionBar(this.element, {
+				actionViewItemProvider: actionViewItemProvider ?? this.options.actionViewItemProvider
+			}));
+			this.actionbar.push(actions, { icon: true, label: false });
+		}
+	}
+
+	public get actionsWidth(): number {
+		return this.actionbar?.getContainer().offsetWidth ?? 0;
 	}
 
 	protected onBlur(): void {
@@ -234,10 +257,13 @@ export class InputBox extends Widget {
 
 	public setTooltip(tooltip: string): void {
 		this.tooltip = tooltip;
-		if (!this.hover) {
-			this.hover = this._register(getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('mouse'), this.input, tooltip));
-		} else {
-			this.hover.update(tooltip);
+		if (!this.hover.value) {
+			this.hover.value = this._register(getBaseLayerHoverDelegate().setupDelayedHoverAtMouse(this.input, () => ({
+				content: this.tooltip,
+				appearance: {
+					compact: true,
+				}
+			})));
 		}
 	}
 
@@ -403,7 +429,7 @@ export class InputBox extends Widget {
 		this.element.classList.add(this.classForType(message.type));
 
 		const styles = this.stylesForType(this.message.type);
-		this.element.style.border = `1px solid ${dom.asCssValueWithDefault(styles.border, 'transparent')}`;
+		this.element.style.border = `1px solid ${cssJs.asCssValueWithDefault(styles.border, 'transparent')}`;
 
 		if (this.message.content && (this.hasFocus() || force)) {
 			this._showMessage();
@@ -481,14 +507,14 @@ export class InputBox extends Widget {
 				div = dom.append(container, $('.monaco-inputbox-container'));
 				layout();
 
-				const renderOptions: MarkdownRenderOptions = {
-					inline: true,
-					className: 'monaco-inputbox-message'
-				};
 
-				const spanElement = (this.message.formatContent
-					? renderFormattedText(this.message.content!, renderOptions)
-					: renderText(this.message.content!, renderOptions));
+				const spanElement = $('span.monaco-inputbox-message');
+				if (this.message.formatContent) {
+					renderFormattedText(this.message.content!, undefined, spanElement);
+				} else {
+					renderText(this.message.content!, undefined, spanElement);
+				}
+
 				spanElement.classList.add(this.classForType(this.message.type));
 
 				const styles = this.stylesForType(this.message.type);
@@ -502,9 +528,12 @@ export class InputBox extends Widget {
 			},
 			onHide: () => {
 				this.state = 'closed';
+				this.messageResizeObserver.clear();
 			},
 			layout: layout
 		});
+
+		this.observeElementResize();
 
 		// ARIA Support
 		let alertText: string;
@@ -530,7 +559,31 @@ export class InputBox extends Widget {
 			this.contextViewProvider.hideContextView();
 		}
 
+		this.messageResizeObserver.clear();
 		this.state = 'idle';
+	}
+
+	/**
+	 * Keeps the validation message sized and anchored to the input while the
+	 * message is showing and the input itself is resized, e.g. because the
+	 * containing view was resized.
+	 */
+	private observeElementResize(): void {
+		const observer = new dom.DisposableResizeObserver('InputBox.validationMessage', () => {
+			// Ignore notifications for a hidden or detached input, laying out
+			// against a degenerate anchor would move the message to the corner.
+			if (this.element.isConnected && dom.getTotalWidth(this.element) > 0) {
+				this.layoutMessage();
+			}
+		}, dom.getWindow(this.element));
+		observer.observe(this.element);
+		this.messageResizeObserver.value = observer;
+	}
+
+	private layoutMessage(): void {
+		if (this.state === 'open' && this.contextViewProvider) {
+			this.contextViewProvider.layout();
+		}
 	}
 
 	private onValueChange(): void {
@@ -542,6 +595,10 @@ export class InputBox extends Widget {
 
 		if (this.state === 'open' && this.contextViewProvider) {
 			this.contextViewProvider.layout();
+		}
+
+		if (this.options.hideHoverOnValueChange) {
+			getBaseLayerHoverDelegate().hideHover();
 		}
 	}
 
@@ -578,11 +635,12 @@ export class InputBox extends Widget {
 		this.input.style.color = foreground;
 
 		// there's always a border, even if the color is not set.
-		this.element.style.border = `1px solid ${dom.asCssValueWithDefault(border, 'transparent')}`;
+		this.element.style.border = `1px solid ${cssJs.asCssValueWithDefault(border, 'transparent')}`;
 	}
 
 	public layout(): void {
 		if (!this.mirror) {
+			this.layoutMessage();
 			return;
 		}
 
@@ -594,6 +652,8 @@ export class InputBox extends Widget {
 			this.input.style.height = this.cachedHeight + 'px';
 			this._onDidHeightChange.fire(this.cachedContentHeight);
 		}
+
+		this.layoutMessage();
 	}
 
 	public insertAtCursor(text: string): void {
@@ -621,7 +681,6 @@ export class InputBox extends Widget {
 }
 
 export interface IHistoryInputOptions extends IInputOptions {
-	history: string[];
 	readonly showHistoryHint?: () => boolean;
 }
 
@@ -647,7 +706,7 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 		}, ' ({0} for history)', `\u21C5`);
 
 		super(container, contextViewProvider, options);
-		this.history = new HistoryNavigator<string>(options.history, 100);
+		this.history = this._register(new HistoryNavigator<string>(options.history, 100));
 
 		// Function to append the history suffix to the placeholder if necessary
 		const addSuffix = () => {

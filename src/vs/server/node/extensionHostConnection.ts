@@ -5,23 +5,23 @@
 
 import * as cp from 'child_process';
 import * as net from 'net';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { FileAccess } from 'vs/base/common/network';
-import { delimiter, join } from 'vs/base/common/path';
-import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
-import { removeDangerousEnvVariables } from 'vs/base/common/processes';
-import { createRandomIPCHandle, NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IRemoteExtensionHostStartParams } from 'vs/platform/remote/common/remoteAgentConnection';
-import { getResolvedShellEnv } from 'vs/platform/shell/node/shellEnv';
-import { IExtensionHostStatusService } from 'vs/server/node/extensionHostStatusService';
-import { getNLSConfiguration } from 'vs/server/node/remoteLanguagePacks';
-import { IServerEnvironmentService } from 'vs/server/node/serverEnvironmentService';
-import { IPCExtHostConnection, SocketExtHostConnection, writeExtHostConnection } from 'vs/workbench/services/extensions/common/extensionHostEnv';
-import { IExtHostReadyMessage, IExtHostReduceGraceTimeMessage, IExtHostSocketMessage } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { VSBuffer } from '../../base/common/buffer.js';
+import { Emitter, Event } from '../../base/common/event.js';
+import { Disposable, DisposableStore, toDisposable } from '../../base/common/lifecycle.js';
+import { FileAccess } from '../../base/common/network.js';
+import { delimiter, join } from '../../base/common/path.js';
+import { IProcessEnvironment, isWindows } from '../../base/common/platform.js';
+import { removeDangerousEnvVariables } from '../../base/common/processes.js';
+import { createRandomIPCHandle, NodeSocket, WebSocketNodeSocket } from '../../base/parts/ipc/node/ipc.net.js';
+import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
+import { ILogService } from '../../platform/log/common/log.js';
+import { IRemoteExtensionHostStartParams } from '../../platform/remote/common/remoteAgentConnection.js';
+import { getResolvedShellEnv } from '../../platform/shell/node/shellEnv.js';
+import { IExtensionHostStatusService } from './extensionHostStatusService.js';
+import { getNLSConfiguration } from './remoteLanguagePacks.js';
+import { IServerEnvironmentService } from './serverEnvironmentService.js';
+import { IPCExtHostConnection, SocketExtHostConnection, writeExtHostConnection } from '../../workbench/services/extensions/common/extensionHostEnv.js';
+import { IExtHostReadyMessage, IExtHostReduceGraceTimeMessage, IExtHostSocketMessage } from '../../workbench/services/extensions/common/extensionHostProtocol.js';
 
 export async function buildUserEnvironment(startParamsEnv: { [key: string]: string | null } = {}, withUserShellEnvironment: boolean, language: string, environmentService: IServerEnvironmentService, logService: ILogService, configurationService: IConfigurationService): Promise<IProcessEnvironment> {
 	const nlsConfig = await getNLSConfiguration(language, environmentService.userDataPath);
@@ -40,12 +40,10 @@ export async function buildUserEnvironment(startParamsEnv: { [key: string]: stri
 	const env: IProcessEnvironment = {
 		...processEnv,
 		...userShellEnv,
-		...{
-			VSCODE_AMD_ENTRYPOINT: 'vs/workbench/api/node/extensionHostProcess',
-			VSCODE_HANDLES_UNCAUGHT_ERRORS: 'true',
-			VSCODE_NLS_CONFIG: JSON.stringify(nlsConfig)
-		},
-		...startParamsEnv
+		...startParamsEnv,
+		VSCODE_ESM_ENTRYPOINT: 'vs/workbench/api/node/extensionHostProcess',
+		VSCODE_HANDLES_UNCAUGHT_ERRORS: 'true',
+		VSCODE_NLS_CONFIG: JSON.stringify(nlsConfig)
 	};
 
 	const binFolder = environmentService.isBuilt ? join(environmentService.appRoot, 'bin') : join(environmentService.appRoot, 'resources', 'server', 'bin-dev');
@@ -62,6 +60,9 @@ export async function buildUserEnvironment(startParamsEnv: { [key: string]: stri
 	if (!environmentService.args['without-browser-env-var']) {
 		env.BROWSER = join(binFolder, 'helpers', isWindows ? 'browser.cmd' : 'browser.sh'); // a command that opens a browser on the local machine
 	}
+
+	env.VSCODE_RECONNECTION_GRACE_TIME = String(environmentService.reconnectionGraceTime);
+	logService.trace(`[reconnection-grace-time] Setting VSCODE_RECONNECTION_GRACE_TIME env var for extension host: ${environmentService.reconnectionGraceTime}ms (${Math.floor(environmentService.reconnectionGraceTime / 1000)}s)`);
 
 	removeNulls(env);
 	return env;
@@ -91,6 +92,7 @@ class ConnectionData {
 			skipWebSocketFrames = false;
 			permessageDeflate = this.socket.permessageDeflate;
 			inflateBytes = this.socket.recordedInflateBytes;
+			this.socket.setRecordInflateBytes(false);
 		}
 
 		return {
@@ -105,7 +107,7 @@ class ConnectionData {
 
 export class ExtensionHostConnection extends Disposable {
 
-	private _onClose = new Emitter<void>();
+	private _onClose = this._register(new Emitter<void>());
 	readonly onClose: Event<void> = this._onClose.event;
 
 	private readonly _canSendSocket: boolean;
@@ -130,6 +132,9 @@ export class ExtensionHostConnection extends Disposable {
 		this._remoteAddress = remoteAddress;
 		this._extensionHostProcess = null;
 		this._connectionData = new ConnectionData(socket, initialDataChunk);
+		if (!this._canSendSocket && socket instanceof WebSocketNodeSocket) {
+			socket.setRecordInflateBytes(false);
+		}
 
 		this._log(`New connection established.`);
 	}
@@ -156,7 +161,9 @@ export class ExtensionHostConnection extends Disposable {
 		const disposables = new DisposableStore();
 		disposables.add(connectionData.socket);
 		disposables.add(toDisposable(() => {
-			extHostSocket.destroy();
+			if (!extHostSocket.destroyed && !extHostSocket.writableEnded) {
+				extHostSocket.end();
+			}
 		}));
 
 		const stopAndCleanup = () => {
@@ -206,6 +213,9 @@ export class ExtensionHostConnection extends Disposable {
 	public acceptReconnection(remoteAddress: string, _socket: NodeSocket | WebSocketNodeSocket, initialDataChunk: VSBuffer): void {
 		this._remoteAddress = remoteAddress;
 		this._log(`The client has reconnected.`);
+		if (!this._canSendSocket && _socket instanceof WebSocketNodeSocket) {
+			_socket.setRecordInflateBytes(false);
+		}
 		const connectionData = new ConnectionData(_socket, initialDataChunk);
 
 		if (!this._extensionHostProcess) {
@@ -237,9 +247,15 @@ export class ExtensionHostConnection extends Disposable {
 	public async start(startParams: IRemoteExtensionHostStartParams): Promise<void> {
 		try {
 			let execArgv: string[] = process.execArgv ? process.execArgv.filter(a => !/^--inspect(-brk)?=/.test(a)) : [];
+			// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 			if (startParams.port && !(<any>process).pkg) {
-				execArgv = [`--inspect${startParams.break ? '-brk' : ''}=${startParams.port}`];
+				execArgv = [
+					`--inspect${startParams.break ? '-brk' : ''}=${startParams.port}`,
+					'--experimental-network-inspection'
+				];
 			}
+
+			this._log(`Starting extension host process...`);
 
 			const env = await buildUserEnvironment(startParams.env, true, startParams.language, this._environmentService, this._logService, this._configurationService);
 			removeDangerousEnvVariables(env);
@@ -268,6 +284,9 @@ export class ExtensionHostConnection extends Disposable {
 			const args = ['--type=extensionHost', `--transformURIs`];
 			const useHostProxy = this._environmentService.args['use-host-proxy'];
 			args.push(`--useHostProxy=${useHostProxy ? 'true' : 'false'}`);
+			if (this._configurationService.getValue<boolean>('extensions.supportNodeGlobalNavigator')) {
+				args.push('--supportGlobalNavigator');
+			}
 			this._extensionHostProcess = cp.fork(FileAccess.asFileUri('bootstrap-fork').fsPath, args, opts);
 			const pid = this._extensionHostProcess.pid;
 			this._log(`<${pid}> Launched Extension Host Process.`);
@@ -310,10 +329,9 @@ export class ExtensionHostConnection extends Disposable {
 			}
 
 		} catch (error) {
-			console.error('ExtensionHostConnection errored');
-			if (error) {
-				console.error(error);
-			}
+			this._logError(`Failed to start extension host process`);
+			this._logService.error(error);
+			this._cleanResources();
 		}
 	}
 

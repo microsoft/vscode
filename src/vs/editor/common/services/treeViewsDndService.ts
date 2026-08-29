@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { VSDataTransfer } from 'vs/base/common/dataTransfer';
-import { ITreeViewsDnDService as ITreeViewsDnDServiceCommon, TreeViewsDnDService } from 'vs/editor/common/services/treeViewsDnd';
+import { InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
+import { VSDataTransfer } from '../../../base/common/dataTransfer.js';
+import { ITreeViewsDnDService as ITreeViewsDnDServiceCommon, TreeViewsDnDService } from './treeViewsDnd.js';
 
 export interface ITreeViewsDnDService extends ITreeViewsDnDServiceCommon<VSDataTransfer> { }
 export const ITreeViewsDnDService = createDecorator<ITreeViewsDnDService>('treeViewsDndService');

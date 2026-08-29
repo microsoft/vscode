@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isObject } from 'vs/base/common/types';
+import { isObject } from './types.js';
 
 interface IVerifier<T> {
 	verify(value: unknown): T;
@@ -79,6 +79,7 @@ export function verifyObject<T extends Object>(verifiers: { [K in keyof T]: IVer
 	for (const key in verifiers) {
 		if (Object.hasOwnProperty.call(verifiers, key)) {
 			const verifier = verifiers[key];
+			// eslint-disable-next-line local/code-no-any-casts
 			result[key] = verifier.verify((value as any)[key]);
 		}
 	}

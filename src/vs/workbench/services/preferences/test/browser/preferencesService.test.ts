@@ -4,55 +4,99 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TestCommandService } from 'vs/editor/test/browser/editorTestServices';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
-import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { TestJSONEditingService } from 'vs/workbench/services/configuration/test/common/testServices';
-import { PreferencesService } from 'vs/workbench/services/preferences/browser/preferencesService';
-import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { TestRemoteAgentService, ITestInstantiationService, TestEditorService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { TestCommandService } from '../../../../../editor/test/browser/editorTestServices.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { IURLService } from '../../../../../platform/url/common/url.js';
+import { DEFAULT_EDITOR_ASSOCIATION, isEditorInput, IUntypedEditorInput } from '../../../../common/editor.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { IJSONEditingService } from '../../../configuration/common/jsonEditing.js';
+import { TestJSONEditingService } from '../../../configuration/test/common/testServices.js';
+import { IEditorService, MODAL_GROUP, PreferredGroup } from '../../../editor/common/editorService.js';
+import { IEditorGroupsService, IModalEditorPart } from '../../../editor/common/editorGroupsService.js';
+import { PreferencesService } from '../../browser/preferencesService.js';
+import { IPreferencesService, ISettingsEditorOptions } from '../../common/preferences.js';
+import { IRemoteAgentService } from '../../../remote/common/remoteAgentService.js';
+import { TestRemoteAgentService, ITestInstantiationService, workbenchInstantiationService, TestEditorService, TestEditorGroupsService, TestEditorGroupView } from '../../../../test/browser/workbenchTestServices.js';
+import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 
 suite('PreferencesService', () => {
-	let testInstantiationService: ITestInstantiationService;
-	let testObject: PreferencesService;
-	let editorService: TestEditorService2;
+	let lastOpenEditorOptions: IEditorOptions | undefined;
+	let lastOpenEditorGroup: PreferredGroup | undefined;
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	setup(() => {
-		editorService = disposables.add(new TestEditorService2());
-		testInstantiationService = workbenchInstantiationService({
-			editorService: () => editorService
-		}, disposables);
+	function createTestObject(editorGroupsService?: IEditorGroupsService, configurationService?: TestConfigurationService): PreferencesService {
+		lastOpenEditorOptions = undefined;
+		lastOpenEditorGroup = undefined;
 
+		const testInstantiationService: ITestInstantiationService = workbenchInstantiationService(
+			configurationService ? { configurationService: () => configurationService } : {},
+			disposables
+		);
+
+		class TestPreferencesEditorService extends TestEditorService {
+			override async openEditor(editor: EditorInput | IUntypedEditorInput, optionsOrGroup?: IEditorOptions | PreferredGroup, group?: PreferredGroup): Promise<undefined> {
+				lastOpenEditorOptions = optionsOrGroup as IEditorOptions;
+				lastOpenEditorGroup = group;
+				// openEditor takes ownership of the input
+				if (isEditorInput(editor)) {
+					editor.dispose();
+				}
+				return undefined;
+			}
+		}
+
+		testInstantiationService.stub(IEditorService, disposables.add(new TestPreferencesEditorService()));
 		testInstantiationService.stub(IJSONEditingService, TestJSONEditingService);
 		testInstantiationService.stub(IRemoteAgentService, TestRemoteAgentService);
 		testInstantiationService.stub(ICommandService, TestCommandService);
+		testInstantiationService.stub(IURLService, { registerHandler: () => { } });
+		if (editorGroupsService) {
+			testInstantiationService.stub(IEditorGroupsService, editorGroupsService);
+		}
 
 		// PreferencesService creates a PreferencesEditorInput which depends on IPreferencesService, add the real one, not a stub
 		const collection = new ServiceCollection();
 		collection.set(IPreferencesService, new SyncDescriptor(PreferencesService));
 		const instantiationService = disposables.add(testInstantiationService.createChild(collection));
-		testObject = disposables.add(instantiationService.createInstance(PreferencesService));
-	});
+		return disposables.add(instantiationService.createInstance(PreferencesService));
+	}
+
 	test('options are preserved when calling openEditor', async () => {
-		testObject.openSettings({ jsonEditor: false, query: 'test query' });
-		const options = editorService.lastOpenEditorOptions as ISettingsEditorOptions;
+		const testObject = createTestObject();
+		await testObject.openSettings({ jsonEditor: false, query: 'test query' });
+		const options = lastOpenEditorOptions as ISettingsEditorOptions;
 		assert.strictEqual(options.focusSearch, true);
 		assert.strictEqual(options.override, DEFAULT_EDITOR_ASSOCIATION.id);
 		assert.strictEqual(options.query, 'test query');
 	});
+
+	test('opens in the source group when it lives in the main editor part (even with modal editors enabled)', async () => {
+		const mainGroup = new TestEditorGroupView(1);
+		const testObject = createTestObject(new TestEditorGroupsService([mainGroup]));
+
+		await testObject.openUserSettings({ jsonEditor: false, groupId: mainGroup.id });
+
+		assert.strictEqual(lastOpenEditorGroup, mainGroup);
+	});
+
+	test('opens in the modal group when the source group lives in the modal editor part', async () => {
+		const modalGroup = new TestEditorGroupView(2);
+		const modalEditorPart = { groups: [modalGroup] } as Partial<IModalEditorPart> as IModalEditorPart;
+		const editorGroupsService = new class extends TestEditorGroupsService {
+			override readonly activeModalEditorPart = modalEditorPart;
+		}([modalGroup]);
+
+		// Modal editors are turned off in settings to prove the routing comes from the
+		// active modal editor part the action was invoked from and not from the modal default.
+		const configurationService = new TestConfigurationService({ workbench: { editor: { useModal: 'off' } } });
+		const testObject = createTestObject(editorGroupsService, configurationService);
+
+		await testObject.openUserSettings({ jsonEditor: false, groupId: modalGroup.id });
+
+		assert.strictEqual(lastOpenEditorGroup, MODAL_GROUP);
+	});
 });
-
-class TestEditorService2 extends TestEditorService {
-	lastOpenEditorOptions: any;
-
-	override async openEditor(editorInput: any, options?: any): Promise<any | undefined> {
-		this.lastOpenEditorOptions = options;
-		return super.openEditor(editorInput, options);
-	}
-}

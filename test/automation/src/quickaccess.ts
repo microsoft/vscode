@@ -14,6 +14,16 @@ enum QuickAccessKind {
 	Symbols
 }
 
+export type CommandMatchMode = 'exactCommandId' | 'exactLabel' | 'fuzzy';
+
+export interface IRunCommandOptions {
+	keepOpen?: boolean;
+	/**
+	 * How to match the focused command. Defaults to `exactCommandId`.
+	 */
+	match?: CommandMatchMode;
+}
+
 export class QuickAccess {
 
 	constructor(private code: Code, private editors: Editors, private quickInput: QuickInput) { }
@@ -22,7 +32,7 @@ export class QuickAccess {
 
 		// make sure the file quick access is not "polluted"
 		// with entries from the editor history when opening
-		await this.runCommand('workbench.action.clearEditorHistory');
+		await this.runCommand('workbench.action.clearEditorHistoryWithoutConfirm', { match: 'fuzzy' });
 
 		const PollingStrategy = {
 			Stop: true,
@@ -98,6 +108,13 @@ export class QuickAccess {
 			}
 
 			await this.quickInput.closeQuickInput();
+
+			// Back off between retries so that slow file search
+			// indexing (e.g. browser/remote on CI) has a chance to
+			// catch up before we hammer it again.
+			if (retries < 9) {
+				await this.code.wait(250 * retries);
+			}
 		}
 
 		if (!success) {
@@ -127,8 +144,7 @@ export class QuickAccess {
 		await this.quickInput.selectQuickInputElement(0);
 
 		// wait for editor being focused
-		await this.editors.waitForActiveTab(fileName);
-		await this.editors.selectTab(fileName);
+		await this.editors.waitForEditorFocus(fileName);
 	}
 
 	private async openQuickAccessWithRetry(kind: QuickAccessKind, value?: string): Promise<void> {
@@ -137,22 +153,25 @@ export class QuickAccess {
 		// Other parts of code might steal focus away from quickinput :(
 		while (retries < 5) {
 
-			// Open via keybinding
-			switch (kind) {
-				case QuickAccessKind.Files:
-					await this.code.dispatchKeybinding(process.platform === 'darwin' ? 'cmd+p' : 'ctrl+p');
-					break;
-				case QuickAccessKind.Symbols:
-					await this.code.dispatchKeybinding(process.platform === 'darwin' ? 'cmd+shift+o' : 'ctrl+shift+o');
-					break;
-				case QuickAccessKind.Commands:
-					await this.code.dispatchKeybinding(process.platform === 'darwin' ? 'cmd+shift+p' : 'ctrl+shift+p');
-					break;
-			}
-
-			// Await for quick input widget opened
 			try {
-				await this.quickInput.waitForQuickInputOpened(10);
+				// Await for quick input widget opened
+				const accept = () => this.quickInput.waitForQuickInputOpened(10);
+				// Open via keybinding
+				switch (kind) {
+					case QuickAccessKind.Files:
+						await this.code.dispatchKeybinding(process.platform === 'darwin' ? 'cmd+p' : 'ctrl+p', accept);
+						break;
+					case QuickAccessKind.Symbols:
+						await this.code.dispatchKeybinding(process.platform === 'darwin' ? 'cmd+shift+o' : 'ctrl+shift+o', accept);
+						break;
+					case QuickAccessKind.Commands:
+						await this.code.dispatchKeybinding(process.platform === 'darwin' ? 'cmd+shift+p' : 'ctrl+shift+p', async () => {
+
+							await this.code.wait(100);
+							await this.quickInput.waitForQuickInputOpened(10);
+						});
+						break;
+				}
 				break;
 			} catch (err) {
 				if (++retries > 5) {
@@ -160,7 +179,7 @@ export class QuickAccess {
 				}
 
 				// Retry
-				await this.code.dispatchKeybinding('escape');
+				await this.code.dispatchKeybinding('escape', async () => { });
 			}
 		}
 
@@ -170,32 +189,36 @@ export class QuickAccess {
 		}
 	}
 
-	async runCommand(commandId: string, options?: { keepOpen?: boolean; exactLabelMatch?: boolean }): Promise<void> {
+	async runCommand(commandId: string, options?: IRunCommandOptions): Promise<void> {
 		const keepOpen = options?.keepOpen;
-		const exactLabelMatch = options?.exactLabelMatch;
+		const match = options?.match ?? 'exactCommandId';
 
 		const openCommandPalletteAndTypeCommand = async (): Promise<boolean> => {
 			// open commands picker
 			await this.openQuickAccessWithRetry(QuickAccessKind.Commands, `>${commandId}`);
 
-			// wait for best choice to be focused
-			await this.quickInput.waitForQuickInputElementFocused();
+			const element = await this.quickInput.waitForQuickInputElement();
 
-			// Retry for as long as the command not found
-			const text = await this.quickInput.waitForQuickInputElementText();
-
-			if (text === 'No matching commands' || (exactLabelMatch && text !== commandId)) {
+			if (element.label === 'No matching commands') {
 				return false;
 			}
 
-			return true;
+			if (match === 'fuzzy') {
+				return true;
+			}
+
+			if (match === 'exactLabel') {
+				return element.label === commandId;
+			}
+
+			return element.id === commandId;
 		};
 
 		let hasCommandFound = await openCommandPalletteAndTypeCommand();
 
 		if (!hasCommandFound) {
 
-			this.code.logger.log(`QuickAccess: No matching commands, will retry...`);
+			this.code.logger.log(`QuickAccess: No ${match} match for '${commandId}', will retry...`);
 			await this.quickInput.closeQuickInput();
 
 			let retries = 0;
@@ -204,19 +227,43 @@ export class QuickAccess {
 				if (hasCommandFound) {
 					break;
 				} else {
-					this.code.logger.log(`QuickAccess: No matching commands, will retry...`);
+					this.code.logger.log(`QuickAccess: No ${match} match for '${commandId}', will retry...`);
 					await this.quickInput.closeQuickInput();
 					await this.code.wait(1000);
 				}
 			}
 
 			if (!hasCommandFound) {
-				throw new Error(`QuickAccess.runCommand(commandId: ${commandId}) failed to find command.`);
+				throw new Error(`QuickAccess.runCommand(commandId: ${commandId}, match: ${match}) failed to find command.`);
 			}
 		}
 
-		// wait and click on best choice
-		await this.quickInput.selectQuickInputElement(0, keepOpen);
+		// Wait and click on best choice. Focus can be stolen away from the
+		// quick input between opening the palette and now (e.g. by an async
+		// UI event from a previously opened editor), which causes the
+		// `waitForQuickInputOpened` inside `selectQuickInputElement` to time
+		// out. Retry the open+type+select sequence in that case.
+		let selectRetries = 0;
+		while (true) {
+			try {
+				await this.quickInput.selectQuickInputElement(0, keepOpen);
+				break;
+			} catch (err) {
+				if (++selectRetries > 3) {
+					throw err;
+				}
+				this.code.logger.log(`QuickAccess.runCommand(commandId: ${commandId}, match: ${match}): selectQuickInputElement failed (${err}), will retry...`);
+				try {
+					await this.quickInput.closeQuickInput();
+				} catch {
+					// ignore - the quick input may already be closed or in a weird state
+				}
+				const found = await openCommandPalletteAndTypeCommand();
+				if (!found) {
+					throw new Error(`QuickAccess.runCommand(commandId: ${commandId}, match: ${match}) failed to find command on retry.`);
+				}
+			}
+		}
 	}
 
 	async openQuickOutline(): Promise<void> {
@@ -227,10 +274,10 @@ export class QuickAccess {
 			// open quick outline via keybinding
 			await this.openQuickAccessWithRetry(QuickAccessKind.Symbols);
 
-			const text = await this.quickInput.waitForQuickInputElementText();
+			const label = await this.quickInput.waitForQuickInputElementText();
 
 			// Retry for as long as no symbols are found
-			if (text === 'No symbol information for the file') {
+			if (label === 'No symbol information for the file') {
 				this.code.logger.log(`QuickAccess: openQuickOutline indicated 'No symbol information for the file', will retry...`);
 
 				// close and retry
@@ -239,5 +286,23 @@ export class QuickAccess {
 				continue;
 			}
 		}
+	}
+
+	async getVisibleCommandNames(searchValue: string): Promise<string[]> {
+
+		// open commands picker
+		await this.openQuickAccessWithRetry(QuickAccessKind.Commands, `>${searchValue}`);
+
+		// wait for quick input elements to be available
+		let commandNames: string[] = [];
+		await this.quickInput.waitForQuickInputElements(elementNames => {
+			commandNames = elementNames;
+			return true;
+		});
+
+		// close the quick input
+		await this.quickInput.closeQuickInput();
+
+		return commandNames;
 	}
 }

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ToggleCellToolbarPositionAction } from 'vs/workbench/contrib/notebook/browser/contrib/layout/layoutActions';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ToggleCellToolbarPositionAction } from '../../../browser/contrib/layout/layoutActions.js';
 
 suite('Notebook Layout Actions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

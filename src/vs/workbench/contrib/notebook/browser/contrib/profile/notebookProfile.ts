@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { localize } from 'vs/nls';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
+import { localize } from '../../../../../../nls.js';
+import { Action2, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { NotebookSetting } from '../../../common/notebookCommon.js';
 
 export enum NotebookProfileType {
 	default = 'default',
@@ -85,41 +85,3 @@ function isSetProfileArgs(args: unknown): args is ISetProfileArgs {
 		setProfileArgs.profile === NotebookProfileType.default ||
 		setProfileArgs.profile === NotebookProfileType.jupyter;
 }
-
-// export class NotebookProfileContribution extends Disposable {
-
-// 	static readonly ID = 'workbench.contrib.notebookProfile';
-
-// 	constructor(@IConfigurationService configService: IConfigurationService, @IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService) {
-// 		super();
-
-// 		if (this.experimentService) {
-// 			this.experimentService.getTreatment<NotebookProfileType.default | NotebookProfileType.jupyter | NotebookProfileType.colab>('notebookprofile').then(treatment => {
-// 				if (treatment === undefined) {
-// 					return;
-// 				} else {
-// 					// check if settings are already modified
-// 					const focusIndicator = configService.getValue(NotebookSetting.focusIndicator);
-// 					const insertToolbarPosition = configService.getValue(NotebookSetting.insertToolbarLocation);
-// 					const globalToolbar = configService.getValue(NotebookSetting.globalToolbar);
-// 					// const cellToolbarLocation = configService.getValue(NotebookSetting.cellToolbarLocation);
-// 					const compactView = configService.getValue(NotebookSetting.compactView);
-// 					const showCellStatusBar = configService.getValue(NotebookSetting.showCellStatusBar);
-// 					const consolidatedRunButton = configService.getValue(NotebookSetting.consolidatedRunButton);
-// 					if (focusIndicator === 'border'
-// 						&& insertToolbarPosition === 'both'
-// 						&& globalToolbar === false
-// 						// && cellToolbarLocation === undefined
-// 						&& compactView === true
-// 						&& showCellStatusBar === 'visible'
-// 						&& consolidatedRunButton === true
-// 					) {
-// 						applyProfile(configService, profiles[treatment] ?? profiles[NotebookProfileType.default]);
-// 					}
-// 				}
-// 			});
-// 		}
-// 	}
-// }
-
-// registerWorkbenchContribution2(NotebookProfileContribution.ID, NotebookProfileContribution, WorkbenchPhase.BlockRestore);

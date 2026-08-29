@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalLaunchError, IProcessProperty, ProcessPropertyType, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalLaunchError, IProcessProperty, ProcessPropertyType, IProcessPropertyMap } from '../../../../platform/terminal/common/terminal.js';
+import { ITerminalService } from './terminal.js';
+import { ITerminalProcessExtHostProxy } from '../common/terminal.js';
 
 export class TerminalProcessExtHostProxy extends Disposable implements ITerminalChildProcess, ITerminalProcessExtHostProxy {
 	readonly id = 0;
@@ -34,7 +34,7 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	readonly onRequestInitialCwd: Event<void> = this._onRequestInitialCwd.event;
 	private readonly _onRequestCwd = this._register(new Emitter<void>());
 	readonly onRequestCwd: Event<void> = this._onRequestCwd.event;
-	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
+	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty>());
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
 	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
 	readonly onProcessExit: Event<number | undefined> = this._onProcessExit.event;
@@ -63,22 +63,22 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 		this._onProcessReady.fire({ pid, cwd, windowsPty: undefined });
 	}
 
-	emitProcessProperty({ type, value }: IProcessProperty<any>): void {
+	emitProcessProperty({ type, value }: IProcessProperty): void {
 		switch (type) {
 			case ProcessPropertyType.Cwd:
-				this.emitCwd(value);
+				this.emitCwd(value as IProcessPropertyMap[ProcessPropertyType.Cwd]);
 				break;
 			case ProcessPropertyType.InitialCwd:
-				this.emitInitialCwd(value);
+				this.emitInitialCwd(value as IProcessPropertyMap[ProcessPropertyType.InitialCwd]);
 				break;
 			case ProcessPropertyType.Title:
-				this.emitTitle(value);
+				this.emitTitle(value as IProcessPropertyMap[ProcessPropertyType.Title]);
 				break;
 			case ProcessPropertyType.OverrideDimensions:
-				this.emitOverrideDimensions(value);
+				this.emitOverrideDimensions(value as IProcessPropertyMap[ProcessPropertyType.OverrideDimensions]);
 				break;
 			case ProcessPropertyType.ResolvedShellLaunchConfig:
-				this.emitResolvedShellLaunchConfig(value);
+				this.emitResolvedShellLaunchConfig(value as IProcessPropertyMap[ProcessPropertyType.ResolvedShellLaunchConfig]);
 				break;
 		}
 	}
@@ -120,11 +120,15 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 		this._onInput.fire(data);
 	}
 
+	sendSignal(signal: string): void {
+		// No-op - Extension terminals don't have direct process access
+	}
+
 	resize(cols: number, rows: number): void {
 		this._onResize.fire({ cols, rows });
 	}
 
-	clearBuffer(): void | Promise<void> {
+	clearBuffer(): void {
 		// no-op
 	}
 
@@ -155,8 +159,9 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 		});
 	}
 
-	async refreshProperty<T extends ProcessPropertyType>(type: T): Promise<any> {
+	async refreshProperty<T extends ProcessPropertyType>(type: T): Promise<IProcessPropertyMap[T]> {
 		// throws if called in extHostTerminalService
+		throw new Error('refreshProperty not implemented on extension host');
 	}
 
 	async updateProperty<T extends ProcessPropertyType>(type: T, value: IProcessPropertyMap[T]): Promise<void> {

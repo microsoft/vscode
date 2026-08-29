@@ -2,15 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
-// @ts-check
-
-import * as path from 'path';
+import path from 'path';
 import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
 
-const yarn = process.platform === 'win32' ? 'yarn.cmd' : 'yarn';
-const rootDir = path.resolve(__dirname, '..', '..');
+const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+const rootDir = path.resolve(import.meta.dirname, '..', '..');
 
 function runProcess(command: string, args: ReadonlyArray<string> = []) {
 	return new Promise<void>((resolve, reject) => {
@@ -31,31 +28,55 @@ async function exists(subdir: string) {
 
 async function ensureNodeModules() {
 	if (!(await exists('node_modules'))) {
-		await runProcess(yarn);
+		await runProcess(npm, ['ci']);
 	}
 }
 
 async function getElectron() {
-	await runProcess(yarn, ['electron']);
+	// `npm run electron` deletes and re-downloads `.build/electron` on every
+	// invocation. When preLaunch runs repeatedly (e.g. once per integration test
+	// section) this is both wasteful and a source of flaky failures on Windows,
+	// where the just-exited Electron process can still hold file locks while the
+	// directory is being removed and re-extracted. Skip the refresh when the
+	// already-present Electron matches the expected version; any detection
+	// failure falls back to a (re)download to preserve the previous behavior.
+	if (await isExpectedElectronInstalled()) {
+		return;
+	}
+	await runProcess(npm, ['run', 'electron']);
+}
+
+async function isExpectedElectronInstalled(): Promise<boolean> {
+	try {
+		const { getElectronVersion } = await import('./electronVersion.ts');
+		const { electronVersion } = getElectronVersion();
+		const installedVersion = (await fs.readFile(path.join(rootDir, '.build', 'electron', 'version'), 'utf8')).trim().replace(/^v/, '');
+		return installedVersion === electronVersion;
+	} catch {
+		return false;
+	}
 }
 
 async function ensureCompiled() {
 	if (!(await exists('out'))) {
-		await runProcess(yarn, ['compile']);
+		await runProcess(npm, ['run', 'compile']);
 	}
 }
 
 async function main() {
 	await ensureNodeModules();
 	await getElectron();
+	if (process.argv.includes('--only-electron')) {
+		return;
+	}
 	await ensureCompiled();
 
 	// Can't require this until after dependencies are installed
-	const { getBuiltInExtensions } = require('./builtInExtensions');
+	const { getBuiltInExtensions } = await import('./builtInExtensions.ts');
 	await getBuiltInExtensions();
 }
 
-if (require.main === module) {
+if (import.meta.main) {
 	main().catch(err => {
 		console.error(err);
 		process.exit(1);

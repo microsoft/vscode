@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { DisposableMap, DisposableStore } from 'vs/base/common/lifecycle';
-import { isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService } from 'vs/platform/log/common/log';
-import { AnyInputDto, ExtHostContext, IEditorTabDto, IEditorTabGroupDto, IExtHostEditorTabsShape, MainContext, MainThreadEditorTabsShape, TabInputKind, TabModelOperationKind, TextDiffInputDto } from 'vs/workbench/api/common/extHost.protocol';
-import { EditorResourceAccessor, GroupModelChangeKind, SideBySideEditor } from 'vs/workbench/common/editor';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { isGroupEditorMoveEvent } from 'vs/workbench/common/editor/editorGroupModel';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
-import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
-import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
-import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
-import { MultiDiffEditorInput } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput';
-import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
-import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
-import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
-import { columnToEditorGroup, EditorGroupColumn, editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { GroupDirection, IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorsChangeEvent, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { Event } from '../../../base/common/event.js';
+import { DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
+import { isEqual } from '../../../base/common/resources.js';
+import { URI } from '../../../base/common/uri.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { AnyInputDto, ExtHostContext, IEditorTabDto, IEditorTabGroupDto, IExtHostEditorTabsShape, MainContext, MainThreadEditorTabsShape, TabInputKind, TabModelOperationKind, TextDiffInputDto } from '../common/extHost.protocol.js';
+import { EditorResourceAccessor, GroupModelChangeKind, SideBySideEditor } from '../../common/editor.js';
+import { DiffEditorInput } from '../../common/editor/diffEditorInput.js';
+import { isGroupEditorMoveEvent } from '../../common/editor/editorGroupModel.js';
+import { EditorInput } from '../../common/editor/editorInput.js';
+import { SideBySideEditorInput } from '../../common/editor/sideBySideEditorInput.js';
+import { AbstractTextResourceEditorInput } from '../../common/editor/textResourceEditorInput.js';
+import { ChatEditorInput } from '../../contrib/chat/browser/widgetHosts/editor/chatEditorInput.js';
+import { CustomEditorInput } from '../../contrib/customEditor/browser/customEditorInput.js';
+import { InteractiveEditorInput } from '../../contrib/interactive/browser/interactiveEditorInput.js';
+import { MergeEditorInput } from '../../contrib/mergeEditor/browser/mergeEditorInput.js';
+import { MultiDiffEditorInput } from '../../contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
+import { NotebookEditorInput } from '../../contrib/notebook/common/notebookEditorInput.js';
+import { TerminalEditorInput } from '../../contrib/terminal/browser/terminalEditorInput.js';
+import { WebviewInput } from '../../contrib/webviewPanel/browser/webviewEditorInput.js';
+import { columnToEditorGroup, EditorGroupColumn, editorGroupToColumn } from '../../services/editor/common/editorGroupColumn.js';
+import { GroupDirection, IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from '../../services/editor/common/editorGroupsService.js';
+import { IEditorsChangeEvent, IEditorService, SIDE_GROUP } from '../../services/editor/common/editorService.js';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 
 interface TabInfo {
 	tab: IEditorTabDto;
@@ -207,11 +207,11 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		if (editor instanceof MultiDiffEditorInput) {
 			const diffEditors: TextDiffInputDto[] = [];
 			for (const resource of (editor?.resources.get() ?? [])) {
-				if (resource.original && resource.modified) {
+				if (resource.originalUri && resource.modifiedUri) {
 					diffEditors.push({
 						kind: TabInputKind.TextDiffInput,
-						original: resource.original,
-						modified: resource.modified
+						original: resource.originalUri,
+						modified: resource.modifiedUri
 					});
 				}
 			}
@@ -274,6 +274,9 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 				kind: TabModelOperationKind.TAB_UPDATE
 			});
 		} else {
+			if (this._editorGroupsService.activeModalEditorPart?.groups.some(group => group.id === groupId)) {
+				return;
+			}
 			this._logService.error('Invalid model for label change, rebuilding');
 			this._createTabsModel();
 		}
@@ -311,7 +314,10 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 				if (!tabInfo) {
 					return;
 				}
-				tabInfo.tab = this._buildTabObject(group, editorInput, editorIndex);
+				// Refresh the DTO in place. The group's `tabs` array holds this very object,
+				// so swapping in a new one would leave that copy behind and let the two
+				// caches drift apart, e.g. a later update could re-send a stale `isActive`.
+				Object.assign(tabInfo.tab, this._buildTabObject(group, editorInput, editorIndex));
 				this._proxy.$acceptTabOperation({
 					groupId,
 					index: editorIndex,
@@ -377,8 +383,15 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 			return;
 		}
 		const activeTab = tabs[editorIndex];
-		// No need to loop over as the exthost uses the most recently marked active tab
 		activeTab.isActive = true;
+		// Clear the flag on the other tabs of the group. Otherwise a later `TAB_UPDATE`
+		// re-sending one of those still-cached DTOs (label, dirty, pin or preview change)
+		// would repoint the exthost at a tab that is no longer active.
+		for (const tab of tabs) {
+			if (tab !== activeTab) {
+				tab.isActive = false;
+			}
+		}
 		// Send DTO update to the exthost
 		this._proxy.$acceptTabOperation({
 			groupId,
@@ -531,26 +544,6 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		this._proxy.$acceptEditorTabModel(this._tabGroupModel);
 	}
 
-	// TODOD @lramos15 Remove this after done finishing the tab model code
-	// private _eventToString(event: IEditorsChangeEvent | IEditorsMoveEvent): string {
-	// 	let eventString = '';
-	// 	switch (event.kind) {
-	// 		case GroupModelChangeKind.GROUP_INDEX: eventString += 'GROUP_INDEX'; break;
-	// 		case GroupModelChangeKind.EDITOR_ACTIVE: eventString += 'EDITOR_ACTIVE'; break;
-	// 		case GroupModelChangeKind.EDITOR_PIN: eventString += 'EDITOR_PIN'; break;
-	// 		case GroupModelChangeKind.EDITOR_OPEN: eventString += 'EDITOR_OPEN'; break;
-	// 		case GroupModelChangeKind.EDITOR_CLOSE: eventString += 'EDITOR_CLOSE'; break;
-	// 		case GroupModelChangeKind.EDITOR_MOVE: eventString += 'EDITOR_MOVE'; break;
-	// 		case GroupModelChangeKind.EDITOR_LABEL: eventString += 'EDITOR_LABEL'; break;
-	// 		case GroupModelChangeKind.GROUP_ACTIVE: eventString += 'GROUP_ACTIVE'; break;
-	// 		case GroupModelChangeKind.GROUP_LOCKED: eventString += 'GROUP_LOCKED'; break;
-	// 		case GroupModelChangeKind.EDITOR_DIRTY: eventString += 'EDITOR_DIRTY'; break;
-	// 		case GroupModelChangeKind.EDITOR_STICKY: eventString += 'EDITOR_STICKY'; break;
-	// 		default: eventString += `UNKNOWN: ${event.kind}`; break;
-	// 	}
-	// 	return eventString;
-	// }
-
 	/**
 	 * The main handler for the tab events
 	 * @param events The list of events to process
@@ -603,6 +596,11 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 				}
 			case GroupModelChangeKind.EDITOR_TRANSIENT:
 				// Currently not exposed in the API
+				break;
+			case GroupModelChangeKind.EDITORS_SELECTION:
+				// Multi-select state of editors is workbench-internal and not exposed in the tabs API.
+				// Treat as no-op so we do not rebuild the entire model (which would invalidate
+				// any `vscode.Tab` references the extension is currently holding).
 				break;
 			case GroupModelChangeKind.EDITOR_MOVE:
 				if (isGroupEditorMoveEvent(event) && event.editor && event.editorIndex !== undefined && event.oldEditorIndex !== undefined) {

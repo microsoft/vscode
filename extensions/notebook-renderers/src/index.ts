@@ -16,7 +16,7 @@ function clearContainer(container: HTMLElement) {
 }
 
 function renderImage(outputInfo: OutputItem, element: HTMLElement): IDisposable {
-	const blob = new Blob([outputInfo.data()], { type: outputInfo.mime });
+	const blob = new Blob([outputInfo.data() as Uint8Array<ArrayBuffer>], { type: outputInfo.mime });
 	const src = URL.createObjectURL(blob);
 	const disposable = {
 		dispose: () => {
@@ -65,7 +65,7 @@ const domEval = (container: Element) => {
 		for (const key of preservedScriptAttributes) {
 			const val = node[key] || node.getAttribute && node.getAttribute(key);
 			if (val) {
-				scriptTag.setAttribute(key, val as any);
+				scriptTag.setAttribute(key, val as unknown as string);
 			}
 		}
 
@@ -75,8 +75,8 @@ const domEval = (container: Element) => {
 };
 
 function getAltText(outputInfo: OutputItem) {
-	const metadata = outputInfo.metadata;
-	if (typeof metadata === 'object' && metadata && 'vscode_altText' in metadata && typeof metadata.vscode_altText === 'string') {
+	const metadata = outputInfo.metadata as Record<string, unknown> | undefined;
+	if (typeof metadata === 'object' && metadata && typeof metadata.vscode_altText === 'string') {
 		return metadata.vscode_altText;
 	}
 	return undefined;
@@ -190,7 +190,7 @@ function renderError(
 		const minimalError = ctx.settings.minimalError && !!headerMessage?.length;
 		outputElement.classList.add('traceback');
 
-		const { formattedStack, errorLocation } = formatStackTrace(err.stack);
+		const { formattedStack, errorLocation } = formatStackTrace(err.stack, trustHtml);
 
 		const outputScrolling = !minimalError && scrollingEnabled(outputInfo, ctx.settings);
 		const lineLimit = minimalError ? 1000 : ctx.settings.lineLimit;
@@ -336,9 +336,9 @@ function findScrolledHeight(container: HTMLElement): number | undefined {
 }
 
 function scrollingEnabled(output: OutputItem, options: RenderOptions) {
-	const metadata = output.metadata;
+	const metadata = output.metadata as Record<string, unknown> | undefined;
 	return (typeof metadata === 'object' && metadata
-		&& 'scrollable' in metadata && typeof metadata.scrollable === 'boolean') ?
+		&& typeof metadata.scrollable === 'boolean') ?
 		metadata.scrollable : options.outputScrolling;
 }
 
@@ -404,9 +404,9 @@ function renderText(outputInfo: OutputItem, outputElement: HTMLElement, ctx: IRi
 	const outputOptions = { linesLimit: ctx.settings.lineLimit, scrollable: outputScrolling, trustHtml: false, linkifyFilePaths: ctx.settings.linkifyFilePaths };
 	const content = createOutputContent(outputInfo.id, text, outputOptions);
 	content.classList.add('output-plaintext');
-	outputElement.classList.toggle('word-wrap', ctx.settings.outputWordWrap);
+	content.classList.toggle('word-wrap', ctx.settings.outputWordWrap);
 	disposableStore.push(ctx.onDidChangeSettings(e => {
-		outputElement.classList.toggle('word-wrap', e.outputWordWrap);
+		content.classList.toggle('word-wrap', e.outputWordWrap);
 	}));
 
 	content.classList.toggle('scrollable', outputScrolling);

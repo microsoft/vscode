@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { rtrim } from 'vs/base/common/strings';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { ISpeechService, ISpeechToTextEvent, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService';
+import { localize } from '../../../../nls.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { rtrim } from '../../../../base/common/strings.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IChatAgentService } from './participants/chatAgents.js';
+import { IChatModel } from './model/chatModel.js';
+import { chatAgentLeader, chatSubcommandLeader } from './requestParser/chatParserTypes.js';
+import { ISpeechService, ISpeechToTextEvent, SpeechToTextStatus } from '../../speech/common/speechService.js';
 
 export const IVoiceChatService = createDecorator<IVoiceChatService>('voiceChatService');
 
@@ -70,26 +70,28 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 	private static readonly COMMAND_PREFIX = chatSubcommandLeader;
 
 	private static readonly PHRASES_LOWER = {
-		[VoiceChatService.AGENT_PREFIX]: 'at',
-		[VoiceChatService.COMMAND_PREFIX]: 'slash'
+		[this.AGENT_PREFIX]: 'at',
+		[this.COMMAND_PREFIX]: 'slash'
 	};
 
 	private static readonly PHRASES_UPPER = {
-		[VoiceChatService.AGENT_PREFIX]: 'At',
-		[VoiceChatService.COMMAND_PREFIX]: 'Slash'
+		[this.AGENT_PREFIX]: 'At',
+		[this.COMMAND_PREFIX]: 'Slash'
 	};
 
 	private static readonly CHAT_AGENT_ALIAS = new Map<string, string>([['vscode', 'code']]);
 
-	private readonly voiceChatInProgress = VoiceChatInProgress.bindTo(this.contextKeyService);
+	private readonly voiceChatInProgress: IContextKey<boolean>;
 	private activeVoiceChatSessions = 0;
 
 	constructor(
 		@ISpeechService private readonly speechService: ISpeechService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super();
+
+		this.voiceChatInProgress = VoiceChatInProgress.bindTo(contextKeyService);
 	}
 
 	private createPhrases(model?: IChatModel): Map<string, IPhraseValue> {

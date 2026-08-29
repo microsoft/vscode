@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ExtensionIdentifier, IExtensionDescription, TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { ExtensionDescriptionRegistry, IActivationEventsReader } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ExtensionIdentifier, IExtensionDescription, TargetPlatform } from '../../../../../platform/extensions/common/extensions.js';
+import { ExtensionDescriptionRegistry, IActivationEventsReader } from '../../common/extensionDescriptionRegistry.js';
 
 suite('ExtensionDescriptionRegistry', () => {
 
@@ -20,7 +20,7 @@ suite('ExtensionDescriptionRegistry', () => {
 
 		const basicActivationEventsReader: IActivationEventsReader = {
 			readActivationEvents: (extensionDescription: IExtensionDescription): string[] => {
-				return extensionDescription.activationEvents ?? [];
+				return extensionDescription.activationEvents?.slice() ?? [];
 			}
 		};
 
@@ -28,6 +28,8 @@ suite('ExtensionDescriptionRegistry', () => {
 		registry.deltaExtensions([extensionA2], [idA]);
 
 		assert.deepStrictEqual(registry.getAllExtensionDescriptions(), [extensionA2]);
+
+		registry.dispose();
 	});
 
 	function desc(id: ExtensionIdentifier, version: string, activationEvents: string[] = ['*']): IExtensionDescription {
@@ -46,6 +48,7 @@ suite('ExtensionDescriptionRegistry', () => {
 			targetPlatform: TargetPlatform.UNDEFINED,
 			extensionDependencies: [],
 			enabledApiProposals: undefined,
+			preRelease: false,
 		};
 	}
 });

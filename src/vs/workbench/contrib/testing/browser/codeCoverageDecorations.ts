@@ -3,61 +3,69 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
-import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { Action } from 'vs/base/common/actions';
-import { mapFindFirst } from 'vs/base/common/arraysFind';
-import { assert, assertNever } from 'vs/base/common/assert';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Codicon } from 'vs/base/common/codicons';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Lazy } from 'vs/base/common/lazy';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { autorun, derived, observableFromEvent } from 'vs/base/common/observable';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { isUriComponents, URI } from 'vs/base/common/uri';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, MouseTargetType, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IModelDecorationOptions, InjectedTextCursorStops, InjectedTextOptions, ITextModel } from 'vs/editor/common/model';
-import { localize, localize2 } from 'vs/nls';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ILogService } from 'vs/platform/log/common/log';
-import { observableConfigValue } from 'vs/platform/observable/common/platformObservableUtils';
-import { IQuickInputService, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import * as coverUtils from 'vs/workbench/contrib/testing/browser/codeCoverageDisplayUtils';
-import { testingCoverageMissingBranch, testingCoverageReport, testingFilterIcon, testingRerunIcon } from 'vs/workbench/contrib/testing/browser/icons';
-import { ManagedTestCoverageBars } from 'vs/workbench/contrib/testing/browser/testCoverageBars';
-import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
-import { TestCommandId } from 'vs/workbench/contrib/testing/common/constants';
-import { FileCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
-import { ITestCoverageService } from 'vs/workbench/contrib/testing/common/testCoverageService';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
-import { CoverageDetails, DetailType, IDeclarationCoverage, IStatementCoverage } from 'vs/workbench/contrib/testing/common/testTypes';
-import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
+import * as dom from '../../../../base/browser/dom.js';
+import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { ActionBar, ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Action } from '../../../../base/common/actions.js';
+import { mapFindFirst } from '../../../../base/common/arraysFind.js';
+import { assert, assertNever } from '../../../../base/common/assert.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { Lazy } from '../../../../base/common/lazy.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun, derived, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { isUriComponents, URI } from '../../../../base/common/uri.js';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, isCodeEditor, MouseTargetType, OverlayWidgetPositionPreference } from '../../../../editor/browser/editorBrowser.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
+import { Position } from '../../../../editor/common/core/position.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
+import { IModelDecorationOptions, InjectedTextCursorStops, InjectedTextOptions, ITextModel, MinimapPosition } from '../../../../editor/common/model.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { bindContextKey, observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { IQuickInputButton, IQuickInputService, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
+import { themeColorFromId } from '../../../../platform/theme/common/themeService.js';
+import { ActiveEditorContext } from '../../../common/contextkeys.js';
+import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
+import { getTestingConfiguration, TestingConfigKeys } from '../common/configuration.js';
+import { TestCommandId, Testing } from '../common/constants.js';
+import { FileCoverage } from '../common/testCoverage.js';
+import { ITestCoverageService } from '../common/testCoverageService.js';
+import { TestId } from '../common/testId.js';
+import { ITestService } from '../common/testService.js';
+import { CoverageDetails, DetailType, IDeclarationCoverage, IStatementCoverage } from '../common/testTypes.js';
+import { TestingContextKeys } from '../common/testingContextKeys.js';
+import * as coverUtils from './codeCoverageDisplayUtils.js';
+import { testingCoverageMissingBranch, testingCoverageReport, testingFilterIcon, testingRerunIcon } from './icons.js';
+import { ManagedTestCoverageBars } from './testCoverageBars.js';
+import { testingCoveredMinimapBackground, testingUncoveredMinimapBackground } from './theme.js';
 
 const CLASS_HIT = 'coverage-deco-hit';
 const CLASS_MISS = 'coverage-deco-miss';
 const TOGGLE_INLINE_COMMAND_TEXT = localize('testing.toggleInlineCoverage', 'Toggle Inline');
 const TOGGLE_INLINE_COMMAND_ID = 'testing.toggleInlineCoverage';
 const BRANCH_MISS_INDICATOR_CHARS = 4;
+const GO_TO_NEXT_MISSED_LINE_TITLE = localize2('testing.goToNextMissedLine', "Go to Next Uncovered Line");
+const GO_TO_PREVIOUS_MISSED_LINE_TITLE = localize2('testing.goToPreviousMissedLine', "Go to Previous Uncovered Line");
 
 export class CodeCoverageDecorations extends Disposable implements IEditorContribution {
+	public static readonly ID = Testing.CoverageDecorationsContributionId;
+
 	private loadingCancellation?: CancellationTokenSource;
 	private readonly displayedStore = this._register(new DisposableStore());
 	private readonly hoveredStore = this._register(new DisposableStore());
@@ -69,6 +77,7 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 	}>();
 	private hoveredSubject?: unknown;
 	private details?: CoverageDetailsModel;
+	private readonly hasInlineCoverageDetails = observableValue('hasInlineCoverageDetails', false);
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -76,6 +85,7 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 		@ITestCoverageService private readonly coverage: ITestCoverageService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ILogService private readonly log: ILogService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -104,10 +114,29 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 			return { file, testId: coverage.filterToTest.read(reader) };
 		});
 
+		this._register(bindContextKey(
+			TestingContextKeys.hasPerTestCoverage,
+			contextKeyService,
+			reader => !!fileCoverage.read(reader)?.file.perTestData?.size,
+		));
+
+		this._register(bindContextKey(
+			TestingContextKeys.hasCoverageInFile,
+			contextKeyService,
+			reader => !!fileCoverage.read(reader)?.file,
+		));
+
+		this._register(bindContextKey(
+			TestingContextKeys.hasInlineCoverageDetails,
+			contextKeyService,
+			reader => this.hasInlineCoverageDetails.read(reader),
+		));
+
+		const minimapEnabled = observableConfigValue(TestingConfigKeys.CoverageMinimapEnabled, true, configurationService);
 		this._register(autorun(reader => {
 			const c = fileCoverage.read(reader);
 			if (c) {
-				this.apply(editor.getModel()!, c.file, c.testId, coverage.showInline.read(reader));
+				this.apply(editor.getModel()!, c.file, c.testId, coverage.showInline.read(reader), minimapEnabled.read(reader));
 			} else {
 				this.clear();
 			}
@@ -136,7 +165,7 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 		this._register(editor.onMouseMove(e => {
 			const model = editor.getModel();
 			if (e.target.type === MouseTargetType.GUTTER_LINE_NUMBERS && model) {
-				this.hoverLineNumber(editor.getModel()!, e.target.position.lineNumber);
+				this.hoverLineNumber(editor.getModel()!);
 			} else if (coverage.showInline.get() && e.target.type === MouseTargetType.CONTENT_TEXT && model) {
 				this.hoverInlineDecoration(model, e.target.position);
 			} else {
@@ -195,50 +224,22 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 		}));
 	}
 
-	private hoverLineNumber(model: ITextModel, lineNumber: number) {
-		if (lineNumber === this.hoveredSubject || !this.details) {
+	private hoverLineNumber(model: ITextModel) {
+		if (this.hoveredSubject === 'lineNo' || !this.details || this.coverage.showInline.get()) {
 			return;
 		}
 
 		this.hoveredStore.clear();
-		this.hoveredSubject = lineNumber;
+		this.hoveredSubject = 'lineNo';
 
-		const todo = [{ line: lineNumber, dir: 0 }];
-		const toEnable = new Set<string>();
-		const ranges = this.editor.getVisibleRanges();
-		if (!this.coverage.showInline.get()) {
-			for (let i = 0; i < todo.length; i++) {
-				const { line, dir } = todo[i];
-				if (!ranges.some(r => r.startLineNumber <= line && r.endLineNumber >= line)) {
-					continue; // stop once outside the viewport
-				}
-
-				let found = false;
-				for (const decoration of model.getLineDecorations(line)) {
-					if (this.decorationIds.has(decoration.id)) {
-						toEnable.add(decoration.id);
-						found = true;
-					}
-				}
-				if (found) {
-					if (dir <= 0) {
-						todo.push({ line: line - 1, dir: -1 });
-					}
-					if (dir >= 0) {
-						todo.push({ line: line + 1, dir: 1 });
-					}
-				}
+		model.changeDecorations(e => {
+			for (const [id, decoration] of this.decorationIds) {
+				const { applyHoverOptions, options } = decoration;
+				const dup = { ...options };
+				applyHoverOptions(dup);
+				e.changeDecorationOptions(id, dup);
 			}
-
-			model.changeDecorations(e => {
-				for (const id of toEnable) {
-					const { applyHoverOptions, options } = this.decorationIds.get(id)!;
-					const dup = { ...options };
-					applyHoverOptions(dup);
-					e.changeDecorationOptions(id, dup);
-				}
-			});
-		}
+		});
 
 		this.hoveredStore.add(this.editor.onMouseLeave(() => {
 			this.hoveredStore.clear();
@@ -248,21 +249,98 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 			this.hoveredSubject = undefined;
 
 			model.changeDecorations(e => {
-				for (const id of toEnable) {
-					const deco = this.decorationIds.get(id);
-					if (deco) {
-						e.changeDecorationOptions(id, deco.options);
-					}
+				for (const [id, decoration] of this.decorationIds) {
+					e.changeDecorationOptions(id, decoration.options);
 				}
 			});
 		}));
 	}
 
-	private async apply(model: ITextModel, coverage: FileCoverage, testId: TestId | undefined, showInlineByDefault: boolean) {
+	/**
+	 * Navigate to the next missed (uncovered) line from the current cursor position.
+	 * @returns true if navigation occurred, false if no missed line was found
+	 */
+	public goToNextMissedLine(): boolean {
+		return this.navigateToMissedLine(true);
+	}
+
+	/**
+	 * Navigate to the previous missed (uncovered) line from the current cursor position.
+	 * @returns true if navigation occurred, false if no missed line was found
+	 */
+	public goToPreviousMissedLine(): boolean {
+		return this.navigateToMissedLine(false);
+	}
+
+	private navigateToMissedLine(next: boolean): boolean {
+		const model = this.editor.getModel();
+		const position = this.editor.getPosition();
+		if (!model || !position || !this.details) {
+			return false;
+		}
+
+		const currentLine = position.lineNumber;
+		let closestBefore: { lineNumber: number; range: Range } | undefined;
+		let closestAfter: { lineNumber: number; range: Range } | undefined;
+		let firstMissed: { lineNumber: number; range: Range } | undefined;
+		let lastMissed: { lineNumber: number; range: Range } | undefined;
+
+		// Find the closest missed line before and after the current position
+		for (const [, { detail, options }] of this.decorationIds) {
+			// Check if this is a missed line (CLASS_MISS in lineNumberClassName)
+			if (options.lineNumberClassName?.includes(CLASS_MISS)) {
+				const range = detail.range;
+				if (range.isEmpty()) {
+					continue;
+				}
+
+				const lineNumber = range.startLineNumber;
+				const missedLine = { lineNumber, range };
+
+				// Track first and last missed lines for wrap-around
+				if (!firstMissed || lineNumber < firstMissed.lineNumber) {
+					firstMissed = missedLine;
+				}
+				if (!lastMissed || lineNumber > lastMissed.lineNumber) {
+					lastMissed = missedLine;
+				}
+
+				// Track closest before and after current line
+				if (lineNumber < currentLine) {
+					if (!closestBefore || lineNumber > closestBefore.lineNumber) {
+						closestBefore = missedLine;
+					}
+				} else if (lineNumber > currentLine) {
+					if (!closestAfter || lineNumber < closestAfter.lineNumber) {
+						closestAfter = missedLine;
+					}
+				}
+			}
+		}
+
+		// Determine target line based on direction
+		const targetLine = next
+			? (closestAfter || firstMissed)  // Next: closest after, or wrap to first
+			: (closestBefore || lastMissed);  // Previous: closest before, or wrap to last
+
+		if (targetLine) {
+			this.editor.setPosition(new Position(targetLine.lineNumber, 1));
+			this.editor.revealLineInCenter(targetLine.lineNumber);
+			return true;
+		}
+
+		return false;
+	}
+
+	private async apply(model: ITextModel, coverage: FileCoverage, testId: TestId | undefined, showInlineByDefault: boolean, showMinimap: boolean) {
 		const details = this.details = await this.loadDetails(coverage, testId, model);
 		if (!details) {
+			this.hasInlineCoverageDetails.set(false, undefined);
 			return this.clear();
 		}
+
+		// Update context key to indicate inline coverage details are available
+		this.hasInlineCoverageDetails.set(details.ranges.length > 0, undefined);
 
 		this.displayedStore.clear();
 
@@ -278,6 +356,10 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 						showIfCollapsed: showMissIndicator, // only avoid collapsing if we want to show the miss indicator
 						description: 'coverage-gutter',
 						lineNumberClassName: `coverage-deco-gutter ${cls}`,
+						minimap: showMinimap ? {
+							color: themeColorFromId(hits ? testingCoveredMinimapBackground : testingUncoveredMinimapBackground),
+							position: MinimapPosition.Gutter,
+						} : undefined,
 					};
 
 					const applyHoverOptions = (target: IModelDecorationOptions) => {
@@ -308,6 +390,10 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 						showIfCollapsed: false,
 						description: 'coverage-inline',
 						lineNumberClassName: `coverage-deco-gutter ${cls}`,
+						minimap: showMinimap ? {
+							color: themeColorFromId(detail.count ? testingCoveredMinimapBackground : testingUncoveredMinimapBackground),
+							position: MinimapPosition.Gutter,
+						} : undefined,
 					};
 
 					const applyHoverOptions = (target: IModelDecorationOptions) => {
@@ -342,6 +428,7 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 		this.loadingCancellation = undefined;
 		this.displayedStore.clear();
 		this.hoveredStore.clear();
+		this.hasInlineCoverageDetails.set(false, undefined);
 	}
 
 	private async loadDetails(coverage: FileCoverage, testId: TestId | undefined, textModel: ITextModel) {
@@ -560,11 +647,18 @@ class CoverageToolbarWidget extends Disposable implements IOverlayWidget {
 		this.actionBar = this._register(instaService.createInstance(ActionBar, this._domNode.toolbar, {
 			orientation: ActionsOrientation.HORIZONTAL,
 			actionViewItemProvider: (action, options) => {
-				const vm = new CodiconActionViewItem(undefined, action, options);
 				if (action instanceof ActionWithIcon) {
+					if (action.iconOnly) {
+						action.class = ThemeIcon.asClassName(action.icon);
+						return new ActionViewItem(undefined, action, { ...options, label: false, icon: true });
+					}
+
+					const vm = new CodiconActionViewItem(undefined, action, options);
 					vm.themeIcon = action.icon;
+					return vm;
 				}
-				return vm;
+
+				return undefined;
 			}
 		}));
 
@@ -596,7 +690,7 @@ class CoverageToolbarWidget extends Disposable implements IOverlayWidget {
 	public getPosition(): IOverlayWidgetPosition | null {
 		return {
 			preference: OverlayWidgetPositionPreference.TOP_CENTER,
-			stackOridinal: 9,
+			stackOrdinal: 9,
 		};
 	}
 
@@ -628,17 +722,34 @@ class CoverageToolbarWidget extends Disposable implements IOverlayWidget {
 		const toggleAction = new ActionWithIcon(
 			'toggleInline',
 			this.coverage.showInline.get()
-				? localize('testing.hideInlineCoverage', 'Hide Inline Coverage')
-				: localize('testing.showInlineCoverage', 'Show Inline Coverage'),
+				? localize('testing.hideInlineCoverage', 'Hide Inline')
+				: localize('testing.showInlineCoverage', 'Show Inline'),
 			testingCoverageReport,
 			undefined,
 			() => this.coverage.showInline.set(!this.coverage.showInline.get(), undefined),
 		);
 
-		const kb = this.keybindingService.lookupKeybinding(TOGGLE_INLINE_COMMAND_ID);
-		if (kb) {
-			toggleAction.tooltip = `${TOGGLE_INLINE_COMMAND_TEXT} (${kb.getLabel()})`;
-		}
+		toggleAction.tooltip = this.keybindingService.appendKeybinding(TOGGLE_INLINE_COMMAND_TEXT, TOGGLE_INLINE_COMMAND_ID);
+
+		const hasUncoveredStmt = current.coverage.statement.covered < current.coverage.statement.total;
+		// Navigation buttons for missed coverage lines
+		this.actionBar.push(new ActionWithIcon(
+			'goToPreviousMissed',
+			GO_TO_PREVIOUS_MISSED_LINE_TITLE.value,
+			Codicon.arrowUp,
+			hasUncoveredStmt,
+			() => this.commandService.executeCommand(TestCommandId.CoverageGoToPreviousMissedLine),
+			true,
+		));
+
+		this.actionBar.push(new ActionWithIcon(
+			'goToNextMissed',
+			GO_TO_NEXT_MISSED_LINE_TITLE.value,
+			Codicon.arrowDown,
+			hasUncoveredStmt,
+			() => this.commandService.executeCommand(TestCommandId.CoverageGoToNextMissedLine),
+			true,
+		));
 
 		this.actionBar.push(toggleAction);
 
@@ -740,7 +851,7 @@ registerAction2(class ToggleInlineCoverage extends Action2 {
 			icon: testingCoverageReport,
 			menu: [
 				{ id: MenuId.CommandPalette, when: TestingContextKeys.isTestCoverageOpen },
-				{ id: MenuId.EditorTitle, when: ContextKeyExpr.and(TestingContextKeys.isTestCoverageOpen, TestingContextKeys.coverageToolbarEnabled.notEqualsTo(true)), group: 'navigation' },
+				{ id: MenuId.EditorTitle, when: ContextKeyExpr.and(TestingContextKeys.hasInlineCoverageDetails, TestingContextKeys.coverageToolbarEnabled.notEqualsTo(true)), group: 'navigation' },
 			]
 		});
 	}
@@ -755,7 +866,7 @@ registerAction2(class ToggleCoverageToolbar extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.CoverageToggleToolbar,
-			title: localize2('testing.toggleToolbarTitle', "Test Coverage Toolbar"),
+			title: localize2('testing.toggleToolbarTitle', "Show Test Coverage Toolbar"),
 			metadata: {
 				description: localize2('testing.toggleToolbarDesc', 'Toggle the sticky coverage bar in the editor.')
 			},
@@ -766,7 +877,7 @@ registerAction2(class ToggleCoverageToolbar extends Action2 {
 			menu: [
 				{ id: MenuId.CommandPalette, when: TestingContextKeys.isTestCoverageOpen },
 				{ id: MenuId.StickyScrollContext, when: TestingContextKeys.isTestCoverageOpen },
-				{ id: MenuId.EditorTitle, when: TestingContextKeys.isTestCoverageOpen, group: 'coverage@1' },
+				{ id: MenuId.EditorTitle, when: TestingContextKeys.hasCoverageInFile, group: 'coverage', order: 1 },
 			]
 		});
 	}
@@ -790,7 +901,16 @@ registerAction2(class FilterCoverageToTestInEditor extends Action2 {
 				condition: TestingContextKeys.isCoverageFilteredToTest,
 			},
 			menu: [
-				{ id: MenuId.EditorTitle, when: ContextKeyExpr.and(TestingContextKeys.isTestCoverageOpen, TestingContextKeys.coverageToolbarEnabled.notEqualsTo(true)), group: 'navigation' },
+				{
+					id: MenuId.EditorTitle,
+					when: ContextKeyExpr.and(
+						TestingContextKeys.hasCoverageInFile,
+						TestingContextKeys.coverageToolbarEnabled.notEqualsTo(true),
+						TestingContextKeys.hasPerTestCoverage,
+						ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID),
+					),
+					group: 'navigation',
+				},
 			]
 		});
 	}
@@ -798,7 +918,8 @@ registerAction2(class FilterCoverageToTestInEditor extends Action2 {
 	run(accessor: ServicesAccessor, coverageOrUri?: FileCoverage | URI, editor?: ICodeEditor): void {
 		const testCoverageService = accessor.get(ITestCoverageService);
 		const quickInputService = accessor.get(IQuickInputService);
-		const activeEditor = editor ?? accessor.get(ICodeEditorService).getActiveCodeEditor();
+		const commandService = accessor.get(ICommandService);
+		const activeEditor = isCodeEditor(editor) ? editor : accessor.get(ICodeEditorService).getActiveCodeEditor();
 		let coverage: FileCoverage | undefined;
 		if (coverageOrUri instanceof FileCoverage) {
 			coverage = coverageOrUri;
@@ -818,23 +939,30 @@ registerAction2(class FilterCoverageToTestInEditor extends Action2 {
 		const result = coverage.fromResult;
 		const previousSelection = testCoverageService.filterToTest.get();
 
-		type TItem = { label: string; testId: TestId | undefined };
+		type TItem = { label: string; description?: string; testId: TestId | undefined; buttons?: IQuickInputButton[] };
 
+		const buttons: IQuickInputButton[] = [{
+			iconClass: 'codicon-go-to-file',
+			tooltip: 'Go to Test',
+		}];
 		const items: QuickPickInput<TItem>[] = [
 			{ label: coverUtils.labels.allTests, testId: undefined },
 			{ type: 'separator' },
-			...tests.map(id => ({ label: coverUtils.getLabelForItem(result, id, commonPrefix), testId: id })),
+			...tests.map(id => ({ ...coverUtils.getLabelForItem(result, id, commonPrefix), testId: id, buttons })),
 		];
 
 		// These handle the behavior that reveals the start of coverage when the
 		// user picks from the quickpick. Scroll position is restored if the user
-		// exits without picking an item, or picks "all tets".
+		// exits without picking an item, or picks "all tests".
 		const scrollTop = activeEditor?.getScrollTop() || 0;
 		const revealScrollCts = new MutableDisposable<CancellationTokenSource>();
 
 		quickInputService.pick(items, {
-			activeItem: items.find((item): item is TItem => 'item' in item && item.item === coverage),
+			activeItem: items.find((item): item is TItem => 'testId' in item && item.testId?.toString() === previousSelection?.toString()),
 			placeHolder: coverUtils.labels.pickShowCoverage,
+			onDidTriggerItemButton: (context) => {
+				commandService.executeCommand('vscode.revealTest', context.item.testId?.toString());
+			},
 			onDidFocus: (entry) => {
 				if (!entry.testId) {
 					revealScrollCts.clear();
@@ -865,8 +993,104 @@ registerAction2(class FilterCoverageToTestInEditor extends Action2 {
 	}
 });
 
+registerAction2(class ToggleCoverageInExplorer extends Action2 {
+	constructor() {
+		super({
+			id: TestCommandId.CoverageToggleInExplorer,
+			title: localize2('testing.toggleCoverageInExplorerTitle', "Toggle Coverage in Explorer"),
+			metadata: {
+				description: localize2('testing.toggleCoverageInExplorerDesc', 'Toggle the display of test coverage in the File Explorer view.')
+			},
+			category: Categories.Test,
+			toggled: {
+				condition: ContextKeyExpr.equals('config.testing.showCoverageInExplorer', true),
+				title: localize('testing.hideCoverageInExplorer', "Hide Coverage in Explorer"),
+			},
+			menu: [
+				{ id: MenuId.CommandPalette, when: TestingContextKeys.isTestCoverageOpen },
+			]
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const config = accessor.get(IConfigurationService);
+		const value = getTestingConfiguration(config, TestingConfigKeys.ShowCoverageInExplorer);
+		config.updateValue(TestingConfigKeys.ShowCoverageInExplorer, !value);
+	}
+});
+
+registerAction2(class GoToNextMissedCoverageLine extends Action2 {
+	constructor() {
+		super({
+			id: TestCommandId.CoverageGoToNextMissedLine,
+			title: GO_TO_NEXT_MISSED_LINE_TITLE,
+			metadata: {
+				description: localize2('testing.goToNextMissedLineDesc', 'Navigate to the next line that is not covered by tests.')
+			},
+			category: Categories.Test,
+			icon: Codicon.arrowDown,
+			precondition: TestingContextKeys.hasCoverageInFile,
+			keybinding: {
+				when: ActiveEditorContext,
+				weight: KeybindingWeight.EditorContrib,
+				primary: KeyMod.Alt | KeyCode.F9,
+			},
+			menu: [
+				{ id: MenuId.CommandPalette, when: TestingContextKeys.isTestCoverageOpen },
+				{ id: MenuId.EditorTitle, when: TestingContextKeys.hasCoverageInFile, group: 'coverage', order: 2 },
+			]
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const codeEditorService = accessor.get(ICodeEditorService);
+		const activeEditor = codeEditorService.getActiveCodeEditor();
+		if (!activeEditor) {
+			return;
+		}
+
+		const contribution = activeEditor.getContribution<CodeCoverageDecorations>(CodeCoverageDecorations.ID);
+		contribution?.goToNextMissedLine();
+	}
+});
+
+registerAction2(class GoToPreviousMissedCoverageLine extends Action2 {
+	constructor() {
+		super({
+			id: TestCommandId.CoverageGoToPreviousMissedLine,
+			title: GO_TO_PREVIOUS_MISSED_LINE_TITLE,
+			metadata: {
+				description: localize2('testing.goToPreviousMissedLineDesc', 'Navigate to the previous line that is not covered by tests.')
+			},
+			category: Categories.Test,
+			icon: Codicon.arrowUp,
+			precondition: TestingContextKeys.hasCoverageInFile,
+			keybinding: {
+				when: ActiveEditorContext,
+				weight: KeybindingWeight.EditorContrib,
+				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F9,
+			},
+			menu: [
+				{ id: MenuId.CommandPalette, when: TestingContextKeys.isTestCoverageOpen },
+				{ id: MenuId.EditorTitle, when: TestingContextKeys.hasCoverageInFile, group: 'coverage', order: 3 },
+			]
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const codeEditorService = accessor.get(ICodeEditorService);
+		const activeEditor = codeEditorService.getActiveCodeEditor();
+		if (!activeEditor) {
+			return;
+		}
+
+		const contribution = activeEditor.getContribution<CodeCoverageDecorations>(CodeCoverageDecorations.ID);
+		contribution?.goToPreviousMissedLine();
+	}
+});
+
 class ActionWithIcon extends Action {
-	constructor(id: string, title: string, public readonly icon: ThemeIcon, enabled: boolean | undefined, run: () => void) {
+	constructor(id: string, title: string, public readonly icon: ThemeIcon, enabled: boolean | undefined, run: () => void, public iconOnly = false) {
 		super(id, title, undefined, enabled, run);
 	}
 }

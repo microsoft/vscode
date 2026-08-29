@@ -3,30 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { localize2 } from 'vs/nls';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { accessibleViewCurrentProviderId, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { IDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, IXtermTerminal, isDetachedTerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { registerActiveInstanceAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
-import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalProcessInfo, ITerminalProcessManager, isTerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
-import { ITerminalLinkProviderService } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
-import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkManager';
-import { TerminalLinkProviderService } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkProviderService';
-import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkQuickpick';
-import { TerminalLinkResolver } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkResolver';
-import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
-import { TerminalLinksCommandId } from 'vs/workbench/contrib/terminalContrib/links/common/terminal.links';
-import { AccessibleViewProviderId } from 'vs/platform/accessibility/browser/accessibleView';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { localize2 } from '../../../../../nls.js';
+import { AccessibleViewProviderId } from '../../../../../platform/accessibility/browser/accessibleView.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { accessibleViewCurrentProviderId, accessibleViewIsShown } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { registerActiveInstanceAction } from '../../../terminal/browser/terminalActions.js';
+import { registerTerminalContribution } from '../../../terminal/browser/terminalExtensions.js';
+import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
+import { terminalStrings } from '../../../terminal/common/terminalStrings.js';
+import { TerminalLinksCommandId } from '../common/terminal.links.js';
+import { ITerminalLinkProviderService } from './links.js';
+import { TerminalLinkContribution } from './terminalLinkContribution.js';
+import { TerminalLinkProviderService } from './terminalLinkProviderService.js';
 
 // #region Services
 
@@ -34,84 +25,7 @@ registerSingleton(ITerminalLinkProviderService, TerminalLinkProviderService, Ins
 
 // #endregion
 
-// #region Terminal Contributions
-
-class TerminalLinkContribution extends DisposableStore implements ITerminalContribution {
-	static readonly ID = 'terminal.link';
-
-	static get(instance: ITerminalInstance): TerminalLinkContribution | null {
-		return instance.getContribution<TerminalLinkContribution>(TerminalLinkContribution.ID);
-	}
-
-	private _linkManager: TerminalLinkManager | undefined;
-	private _terminalLinkQuickpick: TerminalLinkQuickpick | undefined;
-	private _linkResolver: TerminalLinkResolver;
-
-	constructor(
-		private readonly _instance: ITerminalInstance | IDetachedTerminalInstance,
-		private readonly _processManager: ITerminalProcessManager | ITerminalProcessInfo,
-		private readonly _widgetManager: TerminalWidgetManager,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ITerminalLinkProviderService private readonly _terminalLinkProviderService: ITerminalLinkProviderService
-	) {
-		super();
-		this._linkResolver = this._instantiationService.createInstance(TerminalLinkResolver);
-	}
-
-	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
-		const linkManager = this._linkManager = this.add(this._instantiationService.createInstance(TerminalLinkManager, xterm.raw, this._processManager, this._instance.capabilities, this._linkResolver));
-
-		// Set widget manager
-		if (isTerminalProcessManager(this._processManager)) {
-			const disposable = linkManager.add(Event.once(this._processManager.onProcessReady)(() => {
-				linkManager.setWidgetManager(this._widgetManager);
-				this.delete(disposable);
-			}));
-		} else {
-			linkManager.setWidgetManager(this._widgetManager);
-		}
-
-		// Attach the external link provider to the instance and listen for changes
-		if (!isDetachedTerminalInstance(this._instance)) {
-			for (const linkProvider of this._terminalLinkProviderService.linkProviders) {
-				linkManager.externalProvideLinksCb = linkProvider.provideLinks.bind(linkProvider, this._instance);
-			}
-			linkManager.add(this._terminalLinkProviderService.onDidAddLinkProvider(e => {
-				linkManager.externalProvideLinksCb = e.provideLinks.bind(e, this._instance as ITerminalInstance);
-			}));
-		}
-		linkManager.add(this._terminalLinkProviderService.onDidRemoveLinkProvider(() => linkManager.externalProvideLinksCb = undefined));
-	}
-
-	async showLinkQuickpick(extended?: boolean): Promise<void> {
-		if (!this._terminalLinkQuickpick) {
-			this._terminalLinkQuickpick = this.add(this._instantiationService.createInstance(TerminalLinkQuickpick));
-			this._terminalLinkQuickpick.onDidRequestMoreLinks(() => {
-				this.showLinkQuickpick(true);
-			});
-		}
-		const links = await this._getLinks();
-		return await this._terminalLinkQuickpick.show(this._instance, links);
-	}
-
-	private async _getLinks(): Promise<{ viewport: IDetectedLinks; all: Promise<IDetectedLinks> }> {
-		if (!this._linkManager) {
-			throw new Error('terminal links are not ready, cannot generate link quick pick');
-		}
-		return this._linkManager.getLinks();
-	}
-
-	async openRecentLink(type: 'localFile' | 'url'): Promise<void> {
-		if (!this._linkManager) {
-			throw new Error('terminal links are not ready, cannot open a link');
-		}
-		this._linkManager.openRecentLink(type);
-	}
-}
-
 registerTerminalContribution(TerminalLinkContribution.ID, TerminalLinkContribution, true);
-
-// #endregion
 
 // #region Actions
 

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { isWindows } from 'vs/base/common/platform';
-import { URI, UriComponents, isUriComponents } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { isWindows } from '../../common/platform.js';
+import { URI, UriComponents, isUriComponents } from '../../common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 
 suite('URI', () => {
@@ -470,6 +470,12 @@ suite('URI', () => {
 			with() { return this; },
 			toString() { return ''; }
 		}), true);
+
+		assert.strictEqual(URI.isUri(1), false);
+		assert.strictEqual(URI.isUri('1'), false);
+		assert.strictEqual(URI.isUri('http://sample.com'), false);
+		assert.strictEqual(URI.isUri(null), false);
+		assert.strictEqual(URI.isUri(undefined), false);
 	});
 
 	test('isUriComponents', function () {
@@ -481,7 +487,7 @@ suite('URI', () => {
 
 		assert.strictEqual(isUriComponents(1), false);
 		assert.strictEqual(isUriComponents(true), false);
-		assert.strictEqual(isUriComponents("true"), false);
+		assert.strictEqual(isUriComponents('true'), false);
 		assert.strictEqual(isUriComponents({}), false);
 		assert.strictEqual(isUriComponents({ scheme: '' }), true); // valid components but INVALID uri
 		assert.strictEqual(isUriComponents({ scheme: 'fo' }), true);
@@ -629,4 +635,15 @@ suite('URI', () => {
 		assert.strictEqual(URI.parse('http://user@[FEDC:BA98:7654:3210:FEDC:BA98:7654:3210]:80/index.html').toString(), 'http://user@[fedc:ba98:7654:3210:fedc:ba98:7654:3210]:80/index.html');
 		assert.strictEqual(URI.parse('http://us[er@[FEDC:BA98:7654:3210:FEDC:BA98:7654:3210]:80/index.html').toString(), 'http://us%5Ber@[fedc:ba98:7654:3210:fedc:ba98:7654:3210]:80/index.html');
 	});
+
+	test('File paths containing apostrophes break URI parsing and cannot be opened #276075', function () {
+		if (isWindows) {
+			const filePath = 'C:\\Users\\Abd-al-Haseeb\'s_Dell\\Studio\\w3mage\\wp-content\\database.ht.sqlite';
+			const uri = URI.file(filePath);
+			assert.strictEqual(uri.path, '/C:/Users/Abd-al-Haseeb\'s_Dell/Studio/w3mage/wp-content/database.ht.sqlite');
+			assert.strictEqual(uri.fsPath, 'c:\\Users\\Abd-al-Haseeb\'s_Dell\\Studio\\w3mage\\wp-content\\database.ht.sqlite');
+		}
+	});
+
+
 });

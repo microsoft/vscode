@@ -4,21 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IFoundBracket } from 'vs/editor/common/textModelBracketPairs';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { ITokenizationSupport, TokenizationRegistry, EncodedTokenizationResult } from 'vs/editor/common/languages';
-import { StandardTokenType, MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
-import { CharacterPair } from 'vs/editor/common/languages/languageConfiguration';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { NullState } from 'vs/editor/common/languages/nullTokenize';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { TestLineToken } from 'vs/editor/test/common/core/testLineToken';
-import { createModelServices, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { IFoundBracket } from '../../../common/textModelBracketPairs.js';
+import { TextModel } from '../../../common/model/textModel.js';
+import { ITokenizationSupport, TokenizationRegistry, EncodedTokenizationResult } from '../../../common/languages.js';
+import { StandardTokenType, MetadataConsts } from '../../../common/encodedTokenAttributes.js';
+import { CharacterPair } from '../../../common/languages/languageConfiguration.js';
+import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
+import { NullState } from '../../../common/languages/nullTokenize.js';
+import { ILanguageService } from '../../../common/languages/language.js';
+import { TestLineToken } from '../core/testLineToken.js';
+import { createModelServices, createTextModel, instantiateTextModel } from '../testTextModel.js';
+import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 function createTextModelWithBrackets(disposables: DisposableStore, text: string, brackets: CharacterPair[]): TextModel {
 	const languageId = 'bracketMode2';
@@ -269,6 +269,7 @@ suite('TextModelWithTokens - bracket matching', () => {
 		for (let i = 1, len = model.getLineCount(); i <= len; i++) {
 			const line = model.getLineContent(i);
 			for (let j = 1, lenJ = line.length + 1; j <= lenJ; j++) {
+				// eslint-disable-next-line local/code-no-any-casts
 				if (!isABracket[i].hasOwnProperty(<any>j)) {
 					assertIsNotBracket(model, i, j);
 				}
@@ -389,7 +390,7 @@ suite('TextModelWithTokens 2', () => {
 							12, otherMetadata1,
 							13, otherMetadata1,
 						]);
-						return new EncodedTokenizationResult(tokens, state);
+						return new EncodedTokenizationResult(tokens, [], state);
 					}
 					case '  return <p>{true}</p>;': {
 						const tokens = new Uint32Array([
@@ -407,13 +408,13 @@ suite('TextModelWithTokens 2', () => {
 							21, otherMetadata2,
 							22, otherMetadata2,
 						]);
-						return new EncodedTokenizationResult(tokens, state);
+						return new EncodedTokenizationResult(tokens, [], state);
 					}
 					case '}': {
 						const tokens = new Uint32Array([
 							0, otherMetadata1
 						]);
-						return new EncodedTokenizationResult(tokens, state);
+						return new EncodedTokenizationResult(tokens, [], state);
 					}
 				}
 				throw new Error(`Unexpected`);
@@ -486,7 +487,7 @@ suite('TextModelWithTokens 2', () => {
 						const tokens = new Uint32Array([
 							0, otherMetadata
 						]);
-						return new EncodedTokenizationResult(tokens, state);
+						return new EncodedTokenizationResult(tokens, [], state);
 					}
 					case '    console.log(`${100}`);': {
 						const tokens = new Uint32Array([
@@ -496,13 +497,13 @@ suite('TextModelWithTokens 2', () => {
 							22, stringMetadata,
 							24, otherMetadata,
 						]);
-						return new EncodedTokenizationResult(tokens, state);
+						return new EncodedTokenizationResult(tokens, [], state);
 					}
 					case '}': {
 						const tokens = new Uint32Array([
 							0, otherMetadata
 						]);
-						return new EncodedTokenizationResult(tokens, state);
+						return new EncodedTokenizationResult(tokens, [], state);
 					}
 				}
 				throw new Error(`Unexpected`);
@@ -584,7 +585,7 @@ suite('TextModelWithTokens regression tests', () => {
 				tokens[1] = (
 					myId << MetadataConsts.FOREGROUND_OFFSET
 				) >>> 0;
-				return new EncodedTokenizationResult(tokens, state);
+				return new EncodedTokenizationResult(tokens, [], state);
 			}
 		};
 
@@ -693,7 +694,7 @@ suite('TextModelWithTokens regression tests', () => {
 				tokens[1] = (
 					encodedInnerMode << MetadataConsts.LANGUAGEID_OFFSET
 				) >>> 0;
-				return new EncodedTokenizationResult(tokens, state);
+				return new EncodedTokenizationResult(tokens, [], state);
 			}
 		};
 

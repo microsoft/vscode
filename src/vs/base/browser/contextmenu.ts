@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { AnchorAlignment, AnchorAxisAlignment, IAnchor } from 'vs/base/browser/ui/contextview/contextview';
-import { IAction, IActionRunner } from 'vs/base/common/actions';
-import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { OmitOptional } from 'vs/base/common/types';
+import { StandardMouseEvent } from './mouseEvent.js';
+import { IActionViewItemOptions } from './ui/actionbar/actionViewItems.js';
+import { IActionViewItem } from './ui/actionbar/actionbar.js';
+import { AnchorAlignment, AnchorAxisAlignment, IAnchor, IContextViewCloseAnimation } from './ui/contextview/contextview.js';
+import { IAction, IActionRunner } from '../common/actions.js';
+import { ResolvedKeybinding } from '../common/keybindings.js';
+import { OmitOptional } from '../common/types.js';
 
 export interface IContextMenuEvent {
 	readonly shiftKey?: boolean;
@@ -40,12 +40,22 @@ export interface IContextMenuDelegate {
 	getKeyBinding?(action: IAction): ResolvedKeybinding | undefined;
 	getMenuClassName?(): string;
 	onHide?(didCancel: boolean): void;
+	closeAnimation?: IContextViewCloseAnimation;
 	actionRunner?: IActionRunner;
 	skipTelemetry?: boolean;
 	autoSelectFirstItem?: boolean;
 	anchorAlignment?: AnchorAlignment;
 	anchorAxisAlignment?: AnchorAxisAlignment;
 	domForShadowRoot?: HTMLElement;
+	/**
+	 * Mount the shadow root in the window container instead of `domForShadowRoot`.
+	 * Use this when the provided element is inside a stacking context that cannot contain the menu.
+	 */
+	useWindowContainerForShadowRoot?: boolean;
+	/**
+	 * custom context menus with higher layers are rendered higher in z-index order
+	 */
+	layer?: number;
 }
 
 export interface IContextMenuProvider {

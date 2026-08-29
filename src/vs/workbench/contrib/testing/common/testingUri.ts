@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assertNever } from 'vs/base/common/assert';
-import { URI } from 'vs/base/common/uri';
+import { assertNever } from '../../../../base/common/assert.js';
+import { URI } from '../../../../base/common/uri.js';
 
 export const TEST_DATA_SCHEME = 'vscode-test-data';
 

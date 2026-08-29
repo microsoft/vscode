@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ICommand } from 'vs/editor/common/editorCommon';
-import { ColorId, MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
-import { EncodedTokenizationResult, IState, TokenizationRegistry } from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { CommentRule } from 'vs/editor/common/languages/languageConfiguration';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { NullState } from 'vs/editor/common/languages/nullTokenize';
-import { ILinePreflightData, IPreflightData, ISimpleModel, LineCommentCommand, Type } from 'vs/editor/contrib/comment/browser/lineCommentCommand';
-import { testCommand } from 'vs/editor/test/browser/testCommand';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Selection } from '../../../../common/core/selection.js';
+import { ICommand } from '../../../../common/editorCommon.js';
+import { ColorId, MetadataConsts } from '../../../../common/encodedTokenAttributes.js';
+import { EncodedTokenizationResult, IState, TokenizationRegistry } from '../../../../common/languages.js';
+import { ILanguageService } from '../../../../common/languages/language.js';
+import { CommentRule } from '../../../../common/languages/languageConfiguration.js';
+import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
+import { NullState } from '../../../../common/languages/nullTokenize.js';
+import { ILinePreflightData, IPreflightData, ISimpleModel, LineCommentCommand, Type } from '../../browser/lineCommentCommand.js';
+import { testCommand } from '../../../../test/browser/testCommand.js';
+import { TestLanguageConfigurationService } from '../../../../test/common/modes/testLanguageConfigurationService.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 
 function createTestCommandHelper(commentsConfig: CommentRule, commandFactory: (accessor: ServicesAccessor, selection: Selection) => ICommand): (lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection) => void {
 	return (lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection) => {
@@ -46,6 +46,11 @@ suite('Editor Contrib - Line Comment Command', () => {
 	const testAddLineCommentCommand = createTestCommandHelper(
 		{ lineComment: '!@#', blockComment: ['<!@#', '#@!>'] },
 		(accessor, sel) => new LineCommentCommand(accessor.get(ILanguageConfigurationService), sel, 4, Type.ForceAdd, true, true)
+	);
+
+	const testLineCommentCommandTokenFirstColumn = createTestCommandHelper(
+		{ lineComment: { comment: '!@#', noIndent: true }, blockComment: ['<!@#', '#@!>'] },
+		(accessor, sel) => new LineCommentCommand(accessor.get(ILanguageConfigurationService), sel, 4, Type.Toggle, true, true)
 	);
 
 	test('comment single line', function () {
@@ -81,6 +86,21 @@ suite('Editor Contrib - Line Comment Command', () => {
 		);
 	});
 
+	test('comment with token column fixed', function () {
+		testLineCommentCommandTokenFirstColumn(
+			[
+				'some text',
+				'\tsome more text'
+			],
+			new Selection(2, 1, 2, 1),
+			[
+				'some text',
+				'!@# \tsome more text'
+			],
+			new Selection(2, 5, 2, 5)
+		);
+	});
+
 	function createSimpleModel(lines: string[]): ISimpleModel {
 		return {
 			getLineContent: (lineNumber: number) => {
@@ -110,7 +130,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 			'    ',
 			'    c',
 			'\t\td'
-		]), createBasicLinePreflightData(['//', 'rem', '!@#', '!@#']), 1, true, false, disposable.add(new TestLanguageConfigurationService()));
+		]), createBasicLinePreflightData(['//', 'rem', '!@#', '!@#']), 1, true, false, disposable.add(new TestLanguageConfigurationService()), 'plaintext');
 		if (!r.supported) {
 			throw new Error(`unexpected`);
 		}
@@ -141,7 +161,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 			'    rem ',
 			'    !@# c',
 			'\t\t!@#d'
-		]), createBasicLinePreflightData(['//', 'rem', '!@#', '!@#']), 1, true, false, disposable.add(new TestLanguageConfigurationService()));
+		]), createBasicLinePreflightData(['//', 'rem', '!@#', '!@#']), 1, true, false, disposable.add(new TestLanguageConfigurationService()), 'plaintext');
 		if (!r.supported) {
 			throw new Error(`unexpected`);
 		}
@@ -1125,7 +1145,7 @@ suite('Editor Contrib - Line Comment in mixed modes', () => {
 						(ColorId.DefaultForeground << MetadataConsts.FOREGROUND_OFFSET)
 						| (encodedLanguageId << MetadataConsts.LANGUAGEID_OFFSET)
 					);
-					return new EncodedTokenizationResult(tokens, state);
+					return new EncodedTokenizationResult(tokens, [], state);
 				}
 			}));
 		}

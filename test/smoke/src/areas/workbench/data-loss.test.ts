@@ -7,7 +7,7 @@ import { join } from 'path';
 import { Application, ApplicationOptions, Logger, Quality } from '../../../../automation';
 import { createApp, timeout, installDiagnosticsHandler, installAppAfterHandler, getRandomUserDataDir, suiteLogsPath, suiteCrashPath } from '../../utils';
 
-export function setup(ensureStableCode: () => string | undefined, logger: Logger) {
+export function setup(ensureStableCode: () => { stableCodePath: string | undefined; stableCodeVersion: { major: number; minor: number; patch: number } | undefined }, logger: Logger) {
 	describe('Data Loss (insiders -> insiders)', function () {
 
 		// Double the timeout since these tests involve 2 startups
@@ -27,11 +27,12 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 			});
 			await app.start();
 
+
 			// Open 3 editors
 			await app.workbench.quickaccess.openFile(join(app.workspacePathOrFolder, 'bin', 'www'));
-			await app.workbench.quickaccess.runCommand('View: Keep Editor');
+			await app.workbench.quickaccess.runCommand('View: Keep Editor', { match: 'exactLabel' });
 			await app.workbench.quickaccess.openFile(join(app.workspacePathOrFolder, 'app.js'));
-			await app.workbench.quickaccess.runCommand('View: Keep Editor');
+			await app.workbench.quickaccess.runCommand('View: Keep Editor', { match: 'exactLabel' });
 			await app.workbench.editors.newUntitledFile();
 
 			await app.restart();
@@ -146,7 +147,7 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 		installAppAfterHandler(() => insidersApp ?? stableApp, async () => stableApp?.stop());
 
 		it('verifies opened editors are restored', async function () {
-			const stableCodePath = ensureStableCode();
+			const { stableCodePath, stableCodeVersion } = ensureStableCode();
 			if (!stableCodePath) {
 				this.skip();
 			}
@@ -160,7 +161,7 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 				this.retries(2);
 			}
 
-			const userDataDir = getRandomUserDataDir(this.defaultOptions);
+			const userDataDir = getRandomUserDataDir(this.defaultOptions.userDataDir);
 			const logsPath = suiteLogsPath(this.defaultOptions, 'test_verifies_opened_editors_are_restored_from_stable');
 			const crashesPath = suiteCrashPath(this.defaultOptions, 'test_verifies_opened_editors_are_restored_from_stable');
 
@@ -170,15 +171,16 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 			stableOptions.quality = Quality.Stable;
 			stableOptions.logsPath = logsPath;
 			stableOptions.crashesPath = crashesPath;
+			stableOptions.version = stableCodeVersion ?? { major: 0, minor: 0, patch: 0 };
 
 			stableApp = new Application(stableOptions);
 			await stableApp.start();
 
 			// Open 3 editors
 			await stableApp.workbench.quickaccess.openFile(join(stableApp.workspacePathOrFolder, 'bin', 'www'));
-			await stableApp.workbench.quickaccess.runCommand('View: Keep Editor');
+			await stableApp.workbench.quickaccess.runCommand('View: Keep Editor', { match: 'exactLabel' });
 			await stableApp.workbench.quickaccess.openFile(join(stableApp.workspacePathOrFolder, 'app.js'));
-			await stableApp.workbench.quickaccess.runCommand('View: Keep Editor');
+			await stableApp.workbench.quickaccess.runCommand('View: Keep Editor', { match: 'exactLabel' });
 			await stableApp.workbench.editors.newUntitledFile();
 
 			await stableApp.stop();
@@ -210,12 +212,12 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 		});
 
 		async function testHotExit(this: import('mocha').Context, title: string, restartDelay: number | undefined) {
-			const stableCodePath = ensureStableCode();
+			const { stableCodePath, stableCodeVersion } = ensureStableCode();
 			if (!stableCodePath) {
 				this.skip();
 			}
 
-			const userDataDir = getRandomUserDataDir(this.defaultOptions);
+			const userDataDir = getRandomUserDataDir(this.defaultOptions.userDataDir);
 			const logsPath = suiteLogsPath(this.defaultOptions, title);
 			const crashesPath = suiteCrashPath(this.defaultOptions, title);
 
@@ -225,6 +227,7 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 			stableOptions.quality = Quality.Stable;
 			stableOptions.logsPath = logsPath;
 			stableOptions.crashesPath = crashesPath;
+			stableOptions.version = stableCodeVersion ?? { major: 0, minor: 0, patch: 0 };
 
 			stableApp = new Application(stableOptions);
 			await stableApp.start();

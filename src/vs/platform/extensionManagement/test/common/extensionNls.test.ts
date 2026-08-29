@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { deepClone } from 'vs/base/common/objects';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ILocalizedString } from 'vs/platform/action/common/action';
-import { IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
-import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
-import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { NullLogger } from 'vs/platform/log/common/log';
+import { deepClone } from '../../../../base/common/objects.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ILocalizedString } from '../../../action/common/action.js';
+import { IConfigurationNode } from '../../../configuration/common/configurationRegistry.js';
+import { localizeManifest } from '../../common/extensionNls.js';
+import { IExtensionManifest } from '../../../extensions/common/extensions.js';
+import { NullLogger } from '../../../log/common/log.js';
 
 const manifest: IExtensionManifest = {
 	name: 'test',

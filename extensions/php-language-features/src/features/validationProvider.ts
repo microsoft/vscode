@@ -5,7 +5,7 @@
 
 import * as cp from 'child_process';
 import { StringDecoder } from 'string_decoder';
-import * as which from 'which';
+import which from 'which';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { ThrottledDelayer } from './utils/async';
@@ -125,6 +125,12 @@ export default class PHPValidationProvider {
 			this.documentListener.dispose();
 			this.documentListener = null;
 		}
+		if (this.delayers) {
+			for (const key in this.delayers) {
+				this.delayers[key].cancel();
+			}
+			this.delayers = undefined;
+		}
 	}
 
 	private async loadConfiguration(): Promise<void> {
@@ -134,6 +140,11 @@ export default class PHPValidationProvider {
 
 		this.config = await getConfig();
 
+		if (this.delayers) {
+			for (const key in this.delayers) {
+				this.delayers[key].cancel();
+			}
+		}
 		this.delayers = Object.create(null);
 		if (this.pauseValidation) {
 			this.pauseValidation = oldExecutable === this.config.executable;

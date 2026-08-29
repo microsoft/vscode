@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { memoize } from 'vs/base/common/decorators';
-import { join } from 'vs/base/common/path';
-import { isLinux } from 'vs/base/common/platform';
-import { createStaticIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
-import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { memoize } from '../../../base/common/decorators.js';
+import { join } from '../../../base/common/path.js';
+import { isLinux } from '../../../base/common/platform.js';
+import { createStaticIPCHandle } from '../../../base/parts/ipc/node/ipc.net.js';
+import { IEnvironmentService, INativeEnvironmentService } from '../common/environment.js';
+import { NativeEnvironmentService } from '../node/environmentService.js';
+import { refineServiceDecorator } from '../../instantiation/common/instantiation.js';
 
 export const IEnvironmentMainService = refineServiceDecorator<IEnvironmentService, IEnvironmentMainService>(IEnvironmentService);
 
@@ -32,6 +32,10 @@ export interface IEnvironmentMainService extends INativeEnvironmentService {
 
 	// --- config
 	readonly disableUpdates: boolean;
+	readonly isPortable: boolean;
+
+	// TODO@deepak1556 temporary until a real fix lands upstream
+	readonly enableRDPDisplayTracking: boolean;
 
 	unsetSnapExportedVariables(): void;
 	restoreSnapExportedVariables(): void;
@@ -54,7 +58,13 @@ export class EnvironmentMainService extends NativeEnvironmentService implements 
 	get disableUpdates(): boolean { return !!this.args['disable-updates']; }
 
 	@memoize
+	get isPortable(): boolean { return !!process.env['VSCODE_PORTABLE']; }
+
+	@memoize
 	get crossOriginIsolated(): boolean { return !!this.args['enable-coi']; }
+
+	@memoize
+	get enableRDPDisplayTracking(): boolean { return !!this.args['enable-rdp-display-tracking']; }
 
 	@memoize
 	get codeCachePath(): string | undefined { return process.env['VSCODE_CODE_CACHE_PATH'] || undefined; }

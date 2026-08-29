@@ -6,14 +6,15 @@
 import assert from 'assert';
 import type { IBuffer, Terminal } from '@xterm/xterm';
 import { SinonStub, stub, useFakeTimers } from 'sinon';
-import { Emitter } from 'vs/base/common/event';
-import { CharPredictState, IPrediction, PredictionStats, TypeAheadAddon } from 'vs/workbench/contrib/terminalContrib/typeAhead/browser/terminalTypeAheadAddon';
-import { IBeforeProcessDataEvent, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { DEFAULT_LOCAL_ECHO_EXCLUDE, type ITerminalTypeAheadConfiguration } from 'vs/workbench/contrib/terminalContrib/typeAhead/common/terminalTypeAheadConfiguration';
+import { Emitter } from '../../../../../../base/common/event.js';
+import { CharPredictState, IPrediction, PredictionStats, TypeAheadAddon } from '../../browser/terminalTypeAheadAddon.js';
+import { IBeforeProcessDataEvent, ITerminalProcessManager } from '../../../../terminal/common/terminal.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { DEFAULT_LOCAL_ECHO_EXCLUDE, type ITerminalTypeAheadConfiguration } from '../../common/terminalTypeAheadConfiguration.js';
+import { isString } from '../../../../../../base/common/types.js';
 
 const CSI = `\x1b[`;
 
@@ -36,6 +37,7 @@ suite('Workbench - Terminal Typeahead', () => {
 			succeed = ds.add(new Emitter<IPrediction>());
 			fail = ds.add(new Emitter<IPrediction>());
 
+			// eslint-disable-next-line local/code-no-any-casts
 			stats = ds.add(new PredictionStats({
 				onPredictionAdded: add.event,
 				onPredictionSucceeded: succeed.event,
@@ -528,7 +530,7 @@ function createMockTerminal({ lines, cursorAttrs }: {
 function mockCell(char: string, attrs: { [key: string]: unknown } = {}) {
 	return new Proxy({}, {
 		get(_, prop) {
-			if (typeof prop === 'string' && attrs.hasOwnProperty(prop)) {
+			if (isString(prop) && attrs.hasOwnProperty(prop)) {
 				return () => attrs[prop];
 			}
 

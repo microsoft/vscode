@@ -2,17 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IndentationRule } from 'vs/editor/common/languages/languageConfiguration';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { LanguageService } from 'vs/editor/common/services/languageService';
-import { MoveLinesCommand } from 'vs/editor/contrib/linesOperations/browser/moveLinesCommand';
-import { testCommand } from 'vs/editor/test/browser/testCommand';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { EditorAutoIndentStrategy } from '../../../../common/config/editorOptions.js';
+import { Selection } from '../../../../common/core/selection.js';
+import { ILanguageService } from '../../../../common/languages/language.js';
+import { IndentationRule } from '../../../../common/languages/languageConfiguration.js';
+import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
+import { LanguageService } from '../../../../common/services/languageService.js';
+import { MoveLinesCommand } from '../../browser/moveLinesCommand.js';
+import { testCommand } from '../../../../test/browser/testCommand.js';
+import { TestLanguageConfigurationService } from '../../../../test/common/modes/testLanguageConfigurationService.js';
 
 const enum MoveLinesDirection {
 	Up,

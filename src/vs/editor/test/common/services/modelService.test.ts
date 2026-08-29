@@ -4,23 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CharCode } from 'vs/base/common/charCode';
-import * as platform from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { DefaultEndOfLine, ITextBuffer, ITextBufferFactory, ITextSnapshot } from 'vs/editor/common/model';
-import { createTextBuffer } from 'vs/editor/common/model/textModel';
-import { ModelService } from 'vs/editor/common/services/modelService';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { createModelServices, createTextModel } from 'vs/editor/test/common/testTextModel';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IModelService } from 'vs/editor/common/services/model';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { CharCode } from '../../../../base/common/charCode.js';
+import * as platform from '../../../../base/common/platform.js';
+import { URI } from '../../../../base/common/uri.js';
+import { EditOperation } from '../../../common/core/editOperation.js';
+import { Range } from '../../../common/core/range.js';
+import { Selection } from '../../../common/core/selection.js';
+import { StringBuilder } from '../../../common/core/stringBuilder.js';
+import { DefaultEndOfLine, ITextBuffer, ITextBufferFactory, ITextSnapshot } from '../../../common/model.js';
+import { createTextBuffer } from '../../../common/model/textModel.js';
+import { ModelService } from '../../../common/services/modelService.js';
+import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
+import { createModelServices, createTextModel } from '../testTextModel.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IModelService } from '../../../common/services/model.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 const GENERATE_TESTS = false;
 

@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { UTF8_BOM_CHARACTER } from 'vs/base/common/strings';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { EndOfLinePreference } from 'vs/editor/common/model';
-import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
-import { createModelServices, createTextModel } from 'vs/editor/test/common/testTextModel';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { UTF8_BOM_CHARACTER } from '../../../../base/common/strings.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../common/languages/modesRegistry.js';
+import { EndOfLinePreference } from '../../../common/model.js';
+import { TextModel, createTextBuffer } from '../../../common/model/textModel.js';
+import { createModelServices, createTextModel } from '../testTextModel.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 
 function testGuessIndentation(defaultInsertSpaces: boolean, defaultTabSize: number, expectedInsertSpaces: boolean, expectedTabSize: number, text: string[], msg?: string): void {
 	const m = createTextModel(
@@ -708,6 +708,74 @@ suite('Editor Model - TextModel', () => {
 		]);
 	});
 
+	test('issue #65668: YAML file indented with 2 spaces', () => {
+		// Full YAML file from the issue - should detect as 2 spaces
+		assertGuess(true, 2, [
+			'version: 2',
+			'',
+			'jobs:',
+			'  build:',
+			'    docker:',
+			'      - circleci/golang:1.11',
+			'',
+			'  environment:',
+			'    TEST_RESULTS: /tmp/test-results',
+			'',
+			'  steps:',
+			'    - checkout',
+			'    - run: mkdir -p $TEST_RESULTS',
+			'',
+			'    - restore_cache:',
+			'        keys:',
+			'          - v1-pkg-cache',
+			'',
+			'    - run:',
+			'        name: dep ensure',
+			'        command: dep ensure -v',
+			'',
+			'    - run:',
+			'        name: Run unit tests',
+			'        command: |',
+			'          trap "go-junit-report <${TEST_RESULTS}/go-test.out > ${TEST_RESULTS}/go-test-report.xml" EXIT',
+			'          go test -v ./... | tee ${TEST_RESULTS}/go-test.out',
+			'',
+			'    - run:',
+			'        name: Build',
+			'        command: go build -v',
+			'',
+			'    - save_cache:',
+			'        key: v1-pkg-cache',
+			'        paths:',
+			'          - "/go/pkg"',
+			'',
+			'    - store_artifacts:',
+			'        path: /tmp/test-results',
+			'        destination: raw-test-output',
+			'',
+			'    - store_test_results:',
+			'        path: /tmp/test-results',
+		]);
+	});
+
+	test('issue #249040: 4-space indent should win over 2-space when predominant', () => {
+		// File with mostly 4-space indents but some 2-space indents should detect as 4 spaces
+		assertGuess(true, 4, [
+			'function foo() {',
+			'    let a = 1;',
+			'    let b = 2;',
+			'    if (true) {',
+			'        console.log(a);',
+			'        console.log(b);',
+			'    }',
+			'    const obj = {',
+			'      x: 1,',  // 2-space indent here
+			'      y: 2',   // 2-space indent here
+			'    };',
+			'    return obj;',
+			'}',
+		]);
+	});
+
 	test('validatePosition', () => {
 
 		const m = createTextModel('line one\nline two');
@@ -1164,6 +1232,7 @@ suite('TextModel.createSnapshot', () => {
 
 	test('issue #119632: invalid range', () => {
 		const model = createTextModel('hello world!');
+		// eslint-disable-next-line local/code-no-any-casts
 		const actual = model._validateRangeRelaxedNoAllocations(new Range(<any>undefined, 0, <any>undefined, 1));
 		assert.deepStrictEqual(actual, new Range(1, 1, 1, 1));
 		model.dispose();

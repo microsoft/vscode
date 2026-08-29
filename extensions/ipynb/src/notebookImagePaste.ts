@@ -48,7 +48,7 @@ function getImageMimeType(uri: vscode.Uri): string | undefined {
 
 class DropOrPasteEditProvider implements vscode.DocumentPasteEditProvider, vscode.DocumentDropEditProvider {
 
-	public static readonly kind = vscode.DocumentDropOrPasteEditKind.Empty.append('markdown', 'image', 'attachment');
+	public static readonly kind = vscode.DocumentDropOrPasteEditKind.Empty.append('markdown', 'link', 'image', 'attachment');
 
 	async provideDocumentPasteEdits(
 		document: vscode.TextDocument,
@@ -68,7 +68,7 @@ class DropOrPasteEditProvider implements vscode.DocumentPasteEditProvider, vscod
 		}
 
 		const pasteEdit = new vscode.DocumentPasteEdit(insert.insertText, vscode.l10n.t('Insert Image as Attachment'), DropOrPasteEditProvider.kind);
-		pasteEdit.yieldTo = [vscode.DocumentDropOrPasteEditKind.Empty.append('text')];
+		pasteEdit.yieldTo = [vscode.DocumentDropOrPasteEditKind.Text];
 		pasteEdit.additionalEdit = insert.additionalEdit;
 		return [pasteEdit];
 	}
@@ -85,7 +85,7 @@ class DropOrPasteEditProvider implements vscode.DocumentPasteEditProvider, vscod
 		}
 
 		const dropEdit = new vscode.DocumentDropEdit(insert.insertText);
-		dropEdit.yieldTo = [vscode.DocumentDropOrPasteEditKind.Empty.append('text')];
+		dropEdit.yieldTo = [vscode.DocumentDropOrPasteEditKind.Text];
 		dropEdit.additionalEdit = insert.additionalEdit;
 		dropEdit.title = vscode.l10n.t('Insert Image as Attachment');
 		return dropEdit;
@@ -274,7 +274,7 @@ function buildAttachment(
 		const filenameWithoutExt = basename(attachment.fileName, fileExt);
 
 		let tempFilename = filenameWithoutExt + fileExt;
-		for (let appendValue = 2; tempFilename in cellMetadata.attachments; appendValue++) {
+		for (let appendValue = 2; cellMetadata.attachments[tempFilename]; appendValue++) {
 			const objEntries = Object.entries(cellMetadata.attachments[tempFilename]);
 			if (objEntries.length) { // check that mime:b64 are present
 				const [mime, attachmentb64] = objEntries[0];

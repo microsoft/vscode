@@ -8,8 +8,9 @@
  * into a typed and checked ILexer definition.
  */
 
-import * as monarchCommon from 'vs/editor/standalone/common/monarch/monarchCommon';
-import { IMonarchLanguage, IMonarchLanguageBracket } from 'vs/editor/standalone/common/monarch/monarchTypes';
+import { isString } from '../../../../base/common/types.js';
+import * as monarchCommon from './monarchCommon.js';
+import { IMonarchLanguage, IMonarchLanguageBracket } from './monarchTypes.js';
 
 /*
  * Type helpers
@@ -337,6 +338,7 @@ function compileAction(lexer: monarchCommon.ILexerMin, ruleName: string, action:
 		// build an array of test cases
 		const cases: monarchCommon.IBranch[] = [];
 
+		let hasEmbeddedEndInCases = false;
 		// for each case, push a test function and result value
 		for (const tkey in action.cases) {
 			if (action.cases.hasOwnProperty(tkey)) {
@@ -352,12 +354,17 @@ function compileAction(lexer: monarchCommon.ILexerMin, ruleName: string, action:
 				else {
 					cases.push(createGuard(lexer, ruleName, tkey, val));  // call separate function to avoid local variable capture
 				}
+
+				if (!hasEmbeddedEndInCases) {
+					hasEmbeddedEndInCases = !isString(val) && (val.hasEmbeddedEndInCases || ['@pop', '@popall'].includes(val.nextEmbedded || ''));
+				}
 			}
 		}
 
 		// create a matching function
 		const def = lexer.defaultToken;
 		return {
+			hasEmbeddedEndInCases,
 			test: function (id, matches, state, eos) {
 				for (const _case of cases) {
 					const didmatch = (!_case.test || _case.test(id, matches, state, eos));
@@ -395,7 +402,7 @@ class Rule implements monarchCommon.IRule {
 			sregex = re;
 		}
 		else if (re instanceof RegExp) {
-			sregex = (<RegExp>re).source;
+			sregex = re.source;
 		}
 		else {
 			throw monarchCommon.createError(lexer, 'rules must start with a match string or regular expression: ' + this.name);
@@ -451,6 +458,7 @@ export function compile(languageId: string, json: IMonarchLanguage): monarchComm
 	};
 
 	// For calling compileAction later on
+	// eslint-disable-next-line local/code-no-any-casts
 	const lexerMin: monarchCommon.ILexerMin = <any>json;
 	lexerMin.languageId = languageId;
 	lexerMin.includeLF = lexer.includeLF;
@@ -528,6 +536,7 @@ export function compile(languageId: string, json: IMonarchLanguage): monarchComm
 		throw monarchCommon.createError(lexer, 'a language definition must define the \'tokenizer\' attribute as an object');
 	}
 
+	// eslint-disable-next-line local/code-no-any-casts
 	lexer.tokenizer = <any>[];
 	for (const key in json.tokenizer) {
 		if (json.tokenizer.hasOwnProperty(key)) {
@@ -544,6 +553,7 @@ export function compile(languageId: string, json: IMonarchLanguage): monarchComm
 
 	// Set simple brackets
 	if (json.brackets) {
+		// eslint-disable-next-line local/code-no-any-casts
 		if (!(Array.isArray(<any>json.brackets))) {
 			throw monarchCommon.createError(lexer, 'the \'brackets\' attribute must be defined as an array');
 		}

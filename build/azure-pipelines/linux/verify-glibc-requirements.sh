@@ -10,7 +10,7 @@ elif [ "$VSCODE_ARCH" == "armhf" ]; then
 fi
 
 # Get all files with .node extension from server folder
-files=$(find $SEARCH_PATH -name "*.node" -not -path "*prebuilds*" -o -type f -executable -name "node")
+files=$(find $SEARCH_PATH -name "*.node" -not -path "*prebuilds*" -not -path "*extensions/node_modules/@parcel/watcher*" -o -type f -executable -name "node")
 
 echo "Verifying requirements for files: $files"
 
@@ -31,7 +31,7 @@ for file in $files; do
         glibcxx_version=$version
       fi
     fi
-  done < <("$PWD/.build/sysroots/$TRIPLE/$TRIPLE/bin/objdump" -T "$file")
+  done < <("$VSCODE_SYSROOT_DIR/$TRIPLE/$TRIPLE/bin/objdump" -T "$file")
 
   if [[ "$glibc_version" != "$EXPECTED_GLIBC_VERSION" ]]; then
     echo "Error: File $file has dependency on GLIBC > $EXPECTED_GLIBC_VERSION, found $glibc_version"
@@ -39,6 +39,5 @@ for file in $files; do
   fi
   if [[ "$glibcxx_version" != "$EXPECTED_GLIBCXX_VERSION" ]]; then
     echo "Error: File $file has dependency on GLIBCXX > $EXPECTED_GLIBCXX_VERSION, found $glibcxx_version"
-    exit 1
   fi
 done

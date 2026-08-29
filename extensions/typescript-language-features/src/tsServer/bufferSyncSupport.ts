@@ -10,6 +10,7 @@ import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import { inMemoryResourcePrefix } from '../typescriptServiceClient';
 import { coalesce } from '../utils/arrays';
+import { ResourceUnifiedConfigValue } from '../utils/configuration';
 import { Delayer, setImmediate } from '../utils/async';
 import { nulToken } from '../utils/cancellation';
 import { Disposable } from '../utils/dispose';
@@ -78,24 +79,14 @@ class BufferSynchronizer {
 	}
 
 	public open(resource: vscode.Uri, args: Proto.OpenRequestArgs) {
-		if (this.supportsBatching) {
-			this.updatePending(resource, new OpenOperation(args, args.scriptKindName));
-		} else {
-			this.client.executeWithoutWaitingForResponse('open', args);
-		}
+		this.updatePending(resource, new OpenOperation(args, args.scriptKindName));
 	}
 
 	/**
 	 * @return Was the buffer open?
 	 */
 	public close(resource: vscode.Uri, filepath: string, scriptKind: ScriptKind | undefined): boolean {
-		if (this.supportsBatching) {
-			return this.updatePending(resource, new CloseOperation(filepath, scriptKind));
-		} else {
-			const args: Proto.FileRequestArgs = { file: filepath };
-			this.client.executeWithoutWaitingForResponse('close', args);
-			return true;
-		}
+		return this.updatePending(resource, new CloseOperation(filepath, scriptKind));
 	}
 
 	public change(resource: vscode.Uri, filepath: string, events: readonly vscode.TextDocumentContentChangeEvent[]) {
@@ -103,24 +94,14 @@ class BufferSynchronizer {
 			return;
 		}
 
-		if (this.supportsBatching) {
-			this.updatePending(resource, new ChangeOperation({
-				fileName: filepath,
-				textChanges: events.map((change): Proto.CodeEdit => ({
-					newText: change.text,
-					start: typeConverters.Position.toLocation(change.range.start),
-					end: typeConverters.Position.toLocation(change.range.end),
-				})).reverse(), // Send the edits end-of-document to start-of-document order
-			}));
-		} else {
-			for (const { range, text } of events) {
-				const args: Proto.ChangeRequestArgs = {
-					insertString: text,
-					...typeConverters.Range.toFormattingRequestArgs(filepath, range)
-				};
-				this.client.executeWithoutWaitingForResponse('change', args);
-			}
-		}
+		this.updatePending(resource, new ChangeOperation({
+			fileName: filepath,
+			textChanges: events.map((change): Proto.CodeEdit => ({
+				newText: change.text,
+				start: typeConverters.Position.toLocation(change.range.start),
+				end: typeConverters.Position.toLocation(change.range.end),
+			})).reverse(), // Send the edits end-of-document to start-of-document order
+		}));
 	}
 
 	public reset(): void {
@@ -136,12 +117,6 @@ class BufferSynchronizer {
 	}
 
 	private flush() {
-		if (!this.supportsBatching) {
-			// We've already eagerly synchronized
-			this._pending.clear();
-			return;
-		}
-
 		if (this._pending.size > 0) {
 			const closedFiles: string[] = [];
 			const openFiles: Proto.OpenRequestArgs[] = [];
@@ -156,10 +131,6 @@ class BufferSynchronizer {
 			this.client.execute('updateOpen', { changedFiles, closedFiles, openFiles }, nulToken, { nonRecoverable: true });
 			this._pending.clear();
 		}
-	}
-
-	private get supportsBatching(): boolean {
-		return this.client.apiVersion.gte(API.v340);
 	}
 
 	private updatePending(resource: vscode.Uri, op: BufferOperation): boolean {
@@ -191,14 +162,14 @@ class SyncedBuffer {
 	private state = BufferState.Initial;
 
 	constructor(
-		private readonly document: vscode.TextDocument,
+		public readonly document: vscode.TextDocument,
 		public readonly filepath: string,
 		private readonly client: ITypeScriptServiceClient,
 		private readonly synchronizer: BufferSynchronizer,
 	) { }
 
 	public open(): void {
-		const args: Proto.OpenRequestArgs = {
+		const args: Proto.OpenRequestArgs & { plugins?: string[] } = {
 			file: this.filepath,
 			fileContent: this.document.getText(),
 			projectRootPath: this.getProjectRootPath(this.document.uri),
@@ -213,7 +184,7 @@ class SyncedBuffer {
 			.filter(x => x.languages.indexOf(this.document.languageId) >= 0);
 
 		if (tsPluginsForDocument.length) {
-			(args as any).plugins = tsPluginsForDocument.map(plugin => plugin.name);
+			args.plugins = tsPluginsForDocument.map(plugin => plugin.name);
 		}
 
 		this.synchronizer.open(this.resource, args);
@@ -221,13 +192,26 @@ class SyncedBuffer {
 	}
 
 	private getProjectRootPath(resource: vscode.Uri): string | undefined {
-		const workspaceRoot = this.client.getWorkspaceRootForResource(resource);
+		let workspaceRoot = this.client.getWorkspaceRootForResource(resource);
+
+		// If we didn't find a real workspace, we still want to try sending along a workspace folder
+		// to prevent TS from loading projects from outside of any workspace.
+		// Just pick the highest level one on the same FS even though the file is outside of it
+		if (!workspaceRoot && vscode.workspace.workspaceFolders) {
+			for (const root of Array.from(vscode.workspace.workspaceFolders).sort((a, b) => a.uri.path.length - b.uri.path.length)) {
+				if (root.uri.scheme === resource.scheme && root.uri.authority === resource.authority) {
+					workspaceRoot = root.uri;
+					break;
+				}
+			}
+		}
+
 		if (workspaceRoot) {
 			const tsRoot = this.client.toTsFilePath(workspaceRoot);
 			return tsRoot?.startsWith(inMemoryResourcePrefix) ? undefined : tsRoot;
 		}
 
-		return fileSchemes.isOfScheme(resource, fileSchemes.officeScript, fileSchemes.chatCodeBlock, fileSchemes.chatBackingCodeBlock) ? '/' : undefined;
+		return fileSchemes.isOfScheme(resource, fileSchemes.officeScript, fileSchemes.chatCodeBlock) ? '/' : undefined;
 	}
 
 	public get resource(): vscode.Uri {
@@ -366,15 +350,15 @@ class GetErrRequest {
 		}
 	}
 
-	private areProjectDiagnosticsEnabled() {
+	private areProjectDiagnosticsEnabled(): boolean {
 		return this.client.configuration.enableProjectDiagnostics && this.client.capabilities.has(ClientCapability.Semantic);
 	}
 
-	private areRegionDiagnosticsEnabled() {
-		return this.client.configuration.enableRegionDiagnostics && this.client.apiVersion.gte(API.v560);
+	private areRegionDiagnosticsEnabled(): boolean {
+		return this.client.apiVersion.gte(API.v560);
 	}
 
-	public cancel(): any {
+	public cancel(): void {
 		if (!this._done) {
 			this._token.cancel();
 		}
@@ -479,9 +463,6 @@ export default class BufferSyncSupport extends Disposable {
 
 	private readonly client: ITypeScriptServiceClient;
 
-	private _validateJavaScript = true;
-	private _validateTypeScript = true;
-
 	private readonly modeIds: Set<string>;
 	private readonly syncedBuffers: SyncedBufferMap;
 	private readonly pendingDiagnostics: PendingDiagnostics;
@@ -489,6 +470,8 @@ export default class BufferSyncSupport extends Disposable {
 	private pendingGetErr: GetErrRequest | undefined;
 	private listening: boolean = false;
 	private readonly synchronizer: BufferSynchronizer;
+
+	private readonly _validate: ResourceUnifiedConfigValue<boolean>;
 
 	private readonly _tabResources: TabResourceTracker;
 
@@ -500,6 +483,8 @@ export default class BufferSyncSupport extends Disposable {
 		super();
 		this.client = client;
 		this.modeIds = new Set<string>(modeIds);
+
+		this._validate = this._register(new ResourceUnifiedConfigValue<boolean>('validate.enabled', true, { fallbackSubSectionNameOverride: 'validate.enable' }));
 
 		this.diagnosticDelayer = new Delayer<any>(300);
 
@@ -530,8 +515,7 @@ export default class BufferSyncSupport extends Disposable {
 			}
 		}));
 
-		this.updateConfiguration();
-		vscode.workspace.onDidChangeConfiguration(this.updateConfiguration, this, this._disposables);
+		this._register(this._validate.onDidChange(() => this.requestAllDiagnostics()));
 	}
 
 	private readonly _onDelete = this._register(new vscode.EventEmitter<vscode.Uri>());
@@ -662,6 +646,10 @@ export default class BufferSyncSupport extends Disposable {
 		this.synchronizer.beforeCommand(command);
 	}
 
+	public lineCount(resource: vscode.Uri): number | undefined {
+		return this.syncedBuffers.get(resource)?.lineCount;
+	}
+
 	private onDidCloseTextDocument(document: vscode.TextDocument): void {
 		this.closeResource(document.uri);
 	}
@@ -769,16 +757,8 @@ export default class BufferSyncSupport extends Disposable {
 		this.pendingDiagnostics.clear();
 	}
 
-	private updateConfiguration() {
-		const jsConfig = vscode.workspace.getConfiguration('javascript', null);
-		const tsConfig = vscode.workspace.getConfiguration('typescript', null);
-
-		this._validateJavaScript = jsConfig.get<boolean>('validate.enable', true);
-		this._validateTypeScript = tsConfig.get<boolean>('validate.enable', true);
-	}
-
 	private shouldValidate(buffer: SyncedBuffer): boolean {
-		if (fileSchemes.isOfScheme(buffer.resource, fileSchemes.chatCodeBlock, fileSchemes.chatBackingCodeBlock)) {
+		if (fileSchemes.isOfScheme(buffer.resource, fileSchemes.chatCodeBlock)) {
 			return false;
 		}
 
@@ -786,15 +766,6 @@ export default class BufferSyncSupport extends Disposable {
 			return false;
 		}
 
-		switch (buffer.languageId) {
-			case languageModeIds.javascript:
-			case languageModeIds.javascriptreact:
-				return this._validateJavaScript;
-
-			case languageModeIds.typescript:
-			case languageModeIds.typescriptreact:
-			default:
-				return this._validateTypeScript;
-		}
+		return this._validate.getValue(buffer.document);
 	}
 }

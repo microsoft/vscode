@@ -3,8 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// VSCODE_GLOBALS: NLS
-const isPseudo = globalThis._VSCODE_NLS_LANGUAGE === 'pseudo' || (typeof document !== 'undefined' && document.location && document.location.hash.indexOf('pseudo=true') >= 0);
+export function getNLSMessages(): string[] {
+	return globalThis._VSCODE_NLS_MESSAGES;
+}
+
+export function getNLSLanguage(): string | undefined {
+	return globalThis._VSCODE_NLS_LANGUAGE;
+}
+
+declare const document: { location?: { hash?: string } } | undefined;
+const isPseudo = getNLSLanguage() === 'pseudo' || (typeof document !== 'undefined' && document.location && typeof document.location.hash === 'string' && document.location.hash.indexOf('pseudo=true') >= 0);
 
 export interface ILocalizeInfo {
 	key: string;
@@ -23,7 +31,7 @@ function _format(message: string, args: (string | number | boolean | undefined |
 		result = message;
 	} else {
 		result = message.replace(/\{(\d+)\}/g, (match, rest) => {
-			const index = rest[0];
+			const index = parseInt(rest, 10);
 			const arg = args[index];
 			let result = match;
 			if (typeof arg === 'string') {
@@ -87,8 +95,7 @@ export function localize(data: ILocalizeInfo | string /* | number when built */,
  * depending on the target context.
  */
 function lookupMessage(index: number, fallback: string | null): string {
-	// VSCODE_GLOBALS: NLS
-	const message = globalThis._VSCODE_NLS_MESSAGES?.[index];
+	const message = getNLSMessages()?.[index];
 	if (typeof message !== 'string') {
 		if (typeof fallback === 'string') {
 			return fallback;

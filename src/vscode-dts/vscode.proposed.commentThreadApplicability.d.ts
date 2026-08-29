@@ -32,11 +32,9 @@ declare module 'vscode' {
 		range: Range | undefined;
 		comments: readonly Comment[];
 		collapsibleState: CommentThreadCollapsibleState;
-		canReply: boolean;
+		canReply: boolean | CommentAuthorInformation;
 		contextValue?: string;
 		label?: string;
 		dispose(): void;
-		// Part of the comment reveal proposal
-		reveal(options?: CommentThreadRevealOptions): Thenable<void>;
 	}
 }

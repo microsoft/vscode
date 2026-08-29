@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { StandardAutoClosingPairConditional } from 'vs/editor/common/languages/languageConfiguration';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { StandardTokenType } from '../../../common/encodedTokenAttributes.js';
+import { StandardAutoClosingPairConditional } from '../../../common/languages/languageConfiguration.js';
+import { TestLanguageConfigurationService } from './testLanguageConfigurationService.js';
 
 suite('StandardAutoClosingPairConditional', () => {
 

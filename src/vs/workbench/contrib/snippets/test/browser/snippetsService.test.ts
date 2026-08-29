@@ -4,32 +4,37 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { SnippetCompletion, SnippetCompletionProvider } from 'vs/workbench/contrib/snippets/browser/snippetCompletionProvider';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { createModelServices, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
-import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets';
-import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
-import { CompletionContext, CompletionItemLabel, CompletionItemRanges, CompletionTriggerKind } from 'vs/editor/common/languages';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { generateUuid } from 'vs/base/common/uuid';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ITextModel } from 'vs/editor/common/model';
-import { CompletionModel } from 'vs/editor/contrib/suggest/browser/completionModel';
-import { CompletionItem } from 'vs/editor/contrib/suggest/browser/suggest';
-import { WordDistance } from 'vs/editor/contrib/suggest/browser/wordDistance';
-import { EditorOptions } from 'vs/editor/common/config/editorOptions';
+import { SnippetCompletion, SnippetCompletionProvider } from '../../browser/snippetCompletionProvider.js';
+import { IPosition, Position } from '../../../../../editor/common/core/position.js';
+import { createModelServices, instantiateTextModel } from '../../../../../editor/test/common/testTextModel.js';
+import { ISnippetsService } from '../../browser/snippets.js';
+import { Snippet, SnippetSource } from '../../browser/snippetsFile.js';
+import { CompletionContext, CompletionItemLabel, CompletionItemRanges, CompletionTriggerKind } from '../../../../../editor/common/languages.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { TestLanguageConfigurationService } from '../../../../../editor/test/common/modes/testLanguageConfigurationService.js';
+import { EditOperation } from '../../../../../editor/common/core/editOperation.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { CompletionModel } from '../../../../../editor/contrib/suggest/browser/completionModel.js';
+import { CompletionItem } from '../../../../../editor/contrib/suggest/browser/suggest.js';
+import { WordDistance } from '../../../../../editor/contrib/suggest/browser/wordDistance.js';
+import { EditorOptions } from '../../../../../editor/common/config/editorOptions.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 class SimpleSnippetService implements ISnippetsService {
 	declare readonly _serviceBrand: undefined;
 	constructor(readonly snippets: Snippet[]) { }
-	getSnippets() {
-		return Promise.resolve(this.getSnippetsSync());
+	getSnippets(languageId?: string, resourceUri?: URI) {
+		return Promise.resolve(this.getSnippetsSync(languageId!, resourceUri));
 	}
-	getSnippetsSync(): Snippet[] {
+	getSnippetsSync(languageId?: string, resourceUri?: URI): Snippet[] {
+		// Filter snippets based on resourceUri if provided
+		if (resourceUri) {
+			return this.snippets.filter(snippet => snippet.isFileIncluded(resourceUri));
+		}
 		return this.snippets;
 	}
 	getSnippetFiles(): any {
@@ -154,7 +159,7 @@ suite('SnippetsService', function () {
 				label: 'bar',
 				description: 'barTest'
 			});
-			assert.strictEqual((result.suggestions[0].range as any).insert.startColumn, 1);
+			assert.strictEqual((result.suggestions[0].range as CompletionItemRanges).insert.startColumn, 1);
 			assert.strictEqual(result.suggestions[0].insertText, 'barCodeSnippet');
 		});
 
@@ -164,7 +169,7 @@ suite('SnippetsService', function () {
 			label: 'bar',
 			description: 'barTest'
 		});
-		assert.strictEqual((completions.items[0].completion.range as any).insert.startColumn, 1);
+		assert.strictEqual((completions.items[0].completion.range as CompletionItemRanges).insert.startColumn, 1);
 		assert.strictEqual(completions.items[0].completion.insertText, 'barCodeSnippet');
 	});
 
@@ -279,13 +284,13 @@ suite('SnippetsService', function () {
 					description: 'barTest'
 				});
 				assert.strictEqual(result.suggestions[0].insertText, 's1');
-				assert.strictEqual((result.suggestions[0].range as any).insert.startColumn, 5);
+				assert.strictEqual((result.suggestions[0].range as CompletionItemRanges).insert.startColumn, 5);
 				assert.deepStrictEqual(result.suggestions[1].label, {
 					label: 'bar-bar',
 					description: 'name'
 				});
 				assert.strictEqual(result.suggestions[1].insertText, 's2');
-				assert.strictEqual((result.suggestions[1].range as any).insert.startColumn, 1);
+				assert.strictEqual((result.suggestions[1].range as CompletionItemRanges).insert.startColumn, 1);
 			});
 
 			const completions = await asCompletionModel(model, new Position(1, 6), provider);
@@ -295,13 +300,13 @@ suite('SnippetsService', function () {
 				description: 'name'
 			});
 			assert.strictEqual(completions.items[0].completion.insertText, 's2');
-			assert.strictEqual((completions.items[0].completion.range as any).insert.startColumn, 1);
+			assert.strictEqual((completions.items[0].completion.range as CompletionItemRanges).insert.startColumn, 1);
 			assert.deepStrictEqual(completions.items[1].completion.label, {
 				label: 'bar',
 				description: 'barTest'
 			});
 			assert.strictEqual(completions.items[1].completion.insertText, 's1');
-			assert.strictEqual((completions.items[1].completion.range as any).insert.startColumn, 5);
+			assert.strictEqual((completions.items[1].completion.range as CompletionItemRanges).insert.startColumn, 5);
 		}
 	});
 
@@ -331,21 +336,21 @@ suite('SnippetsService', function () {
 		model = instantiateTextModel(instantiationService, '\t<?', 'fooLang');
 		await provider.provideCompletionItems(model, new Position(1, 4), defaultCompletionContext).then(result => {
 			assert.strictEqual(result.suggestions.length, 1);
-			assert.strictEqual((result.suggestions[0].range as any).insert.startColumn, 2);
+			assert.strictEqual((result.suggestions[0].range as CompletionItemRanges).insert.startColumn, 2);
 		});
 		const completions2 = await asCompletionModel(model, new Position(1, 4), provider);
 		assert.strictEqual(completions2.items.length, 1);
-		assert.strictEqual((completions2.items[0].completion.range as any).insert.startColumn, 2);
+		assert.strictEqual((completions2.items[0].completion.range as CompletionItemRanges).insert.startColumn, 2);
 
 		model.dispose();
 		model = instantiateTextModel(instantiationService, 'a<?', 'fooLang');
 		await provider.provideCompletionItems(model, new Position(1, 4), defaultCompletionContext)!.then(result => {
 			assert.strictEqual(result.suggestions.length, 1);
-			assert.strictEqual((result.suggestions[0].range as any).insert.startColumn, 2);
+			assert.strictEqual((result.suggestions[0].range as CompletionItemRanges).insert.startColumn, 2);
 		});
 		const completions3 = await asCompletionModel(model, new Position(1, 4), provider);
 		assert.strictEqual(completions3.items.length, 1);
-		assert.strictEqual((completions3.items[0].completion.range as any).insert.startColumn, 2);
+		assert.strictEqual((completions3.items[0].completion.range as CompletionItemRanges).insert.startColumn, 2);
 		model.dispose();
 	});
 
@@ -646,7 +651,7 @@ suite('SnippetsService', function () {
 		let result = await provider.provideCompletionItems(model, new Position(1, 3), defaultCompletionContext)!;
 		assert.strictEqual(result.suggestions.length, 1);
 		let [first] = result.suggestions;
-		assert.strictEqual((first.range as any).insert.startColumn, 2);
+		assert.strictEqual((first.range as CompletionItemRanges).insert.startColumn, 2);
 
 		let completions = await asCompletionModel(model, new Position(1, 3), provider);
 		assert.strictEqual(completions.items.length, 1);
@@ -659,7 +664,7 @@ suite('SnippetsService', function () {
 
 		assert.strictEqual(result.suggestions.length, 1);
 		[first] = result.suggestions;
-		assert.strictEqual((first.range as any).insert.startColumn, 1);
+		assert.strictEqual((first.range as CompletionItemRanges).insert.startColumn, 1);
 		assert.strictEqual(completions.items.length, 1);
 		assert.strictEqual(completions.items[0].editStart.column, 1);
 
@@ -686,8 +691,8 @@ suite('SnippetsService', function () {
 		let result = await provider.provideCompletionItems(model, new Position(1, 3), defaultCompletionContext)!;
 		assert.strictEqual(result.suggestions.length, 1);
 		let [first] = result.suggestions;
-		assert.strictEqual((first.range as any).insert.endColumn, 3);
-		assert.strictEqual((first.range as any).replace.endColumn, 9);
+		assert.strictEqual((first.range as CompletionItemRanges).insert.endColumn, 3);
+		assert.strictEqual((first.range as CompletionItemRanges).replace.endColumn, 9);
 
 		let completions = await asCompletionModel(model, new Position(1, 3), provider);
 		assert.strictEqual(completions.items.length, 1);
@@ -700,8 +705,8 @@ suite('SnippetsService', function () {
 
 		assert.strictEqual(result.suggestions.length, 1);
 		[first] = result.suggestions;
-		assert.strictEqual((first.range as any).insert.endColumn, 3);
-		assert.strictEqual((first.range as any).replace.endColumn, 3);
+		assert.strictEqual((first.range as CompletionItemRanges).insert.endColumn, 3);
+		assert.strictEqual((first.range as CompletionItemRanges).replace.endColumn, 3);
 
 		completions = await asCompletionModel(model, new Position(1, 3), provider);
 		assert.strictEqual(completions.items.length, 1);
@@ -714,8 +719,8 @@ suite('SnippetsService', function () {
 
 		assert.strictEqual(result.suggestions.length, 1);
 		[first] = result.suggestions;
-		assert.strictEqual((first.range as any).insert.endColumn, 1);
-		assert.strictEqual((first.range as any).replace.endColumn, 9);
+		assert.strictEqual((first.range as CompletionItemRanges).insert.endColumn, 1);
+		assert.strictEqual((first.range as CompletionItemRanges).replace.endColumn, 9);
 
 		completions = await asCompletionModel(model, new Position(1, 1), provider);
 		assert.strictEqual(completions.items.length, 1);
@@ -747,8 +752,8 @@ suite('SnippetsService', function () {
 
 		assert.strictEqual(result.suggestions.length, 1);
 		const [first] = result.suggestions;
-		assert.strictEqual((first.range as any).insert.endColumn, 9);
-		assert.strictEqual((first.range as any).replace.endColumn, 9);
+		assert.strictEqual((first.range as CompletionItemRanges).insert.endColumn, 9);
+		assert.strictEqual((first.range as CompletionItemRanges).replace.endColumn, 9);
 
 		assert.strictEqual(completions.items.length, 1);
 		assert.strictEqual(completions.items[0].editInsertEnd.column, 9);
@@ -787,9 +792,9 @@ suite('SnippetsService', function () {
 
 		assert.strictEqual(result.suggestions.length, 1);
 		const [first] = result.suggestions;
-		assert.strictEqual((first.range as any).insert.endColumn, 5);
+		assert.strictEqual((first.range as CompletionItemRanges).insert.endColumn, 5);
 		// This is 6 because it should eat the `]` at the end of the text even if cursor is before it
-		assert.strictEqual((first.range as any).replace.endColumn, 6);
+		assert.strictEqual((first.range as CompletionItemRanges).replace.endColumn, 6);
 
 		assert.strictEqual(completions.items.length, 1);
 		assert.strictEqual(completions.items[0].editInsertEnd.column, 5);
@@ -1056,5 +1061,107 @@ suite('SnippetsService', function () {
 			assert.strictEqual(result2.suggestions[0].insertText, 'one'); // /whiletrue matches where (WHilEtRuE)
 			assert.strictEqual(result2.suggestions.length, 1);
 		}
+	});
+
+	test('getSnippetsSync - include pattern', function () {
+		snippetService = new SimpleSnippetService([
+			new Snippet(false, ['fooLang'], 'TestSnippet', 'test', '', 'snippet', 'test', SnippetSource.User, generateUuid(), ['**/*.test.ts']),
+			new Snippet(false, ['fooLang'], 'SpecSnippet', 'spec', '', 'snippet', 'test', SnippetSource.User, generateUuid(), ['**/*.spec.ts']),
+			new Snippet(false, ['fooLang'], 'AllSnippet', 'all', '', 'snippet', 'test', SnippetSource.User, generateUuid()),
+		]);
+
+		// Test file should only get TestSnippet and AllSnippet
+		let snippets = snippetService.getSnippetsSync('fooLang', URI.file('/project/src/foo.test.ts'));
+		assert.strictEqual(snippets.length, 2);
+		assert.ok(snippets.some(s => s.name === 'TestSnippet'));
+		assert.ok(snippets.some(s => s.name === 'AllSnippet'));
+
+		// Spec file should only get SpecSnippet and AllSnippet
+		snippets = snippetService.getSnippetsSync('fooLang', URI.file('/project/src/foo.spec.ts'));
+		assert.strictEqual(snippets.length, 2);
+		assert.ok(snippets.some(s => s.name === 'SpecSnippet'));
+		assert.ok(snippets.some(s => s.name === 'AllSnippet'));
+
+		// Regular file should only get AllSnippet
+		snippets = snippetService.getSnippetsSync('fooLang', URI.file('/project/src/foo.ts'));
+		assert.strictEqual(snippets.length, 1);
+		assert.strictEqual(snippets[0].name, 'AllSnippet');
+
+		// Without URI, all snippets should be returned (backward compatibility)
+		snippets = snippetService.getSnippetsSync('fooLang');
+		assert.strictEqual(snippets.length, 3);
+	});
+
+	test('getSnippetsSync - exclude pattern', function () {
+		snippetService = new SimpleSnippetService([
+			new Snippet(false, ['fooLang'], 'ProdSnippet', 'prod', '', 'snippet', 'test', SnippetSource.User, generateUuid(), undefined, ['**/*.min.js', '**/dist/**']),
+			new Snippet(false, ['fooLang'], 'AllSnippet', 'all', '', 'snippet', 'test', SnippetSource.User, generateUuid()),
+		]);
+
+		// Regular .js file should get both snippets
+		let snippets = snippetService.getSnippetsSync('fooLang', URI.file('/project/src/foo.js'));
+		assert.strictEqual(snippets.length, 2);
+
+		// Minified file should only get AllSnippet (ProdSnippet is excluded)
+		snippets = snippetService.getSnippetsSync('fooLang', URI.file('/project/src/foo.min.js'));
+		assert.strictEqual(snippets.length, 1);
+		assert.strictEqual(snippets[0].name, 'AllSnippet');
+
+		// File in dist folder should only get AllSnippet
+		snippets = snippetService.getSnippetsSync('fooLang', URI.file('/project/dist/bundle.js'));
+		assert.strictEqual(snippets.length, 1);
+		assert.strictEqual(snippets[0].name, 'AllSnippet');
+	});
+
+	test('getSnippetsSync - include and exclude patterns together', function () {
+		snippetService = new SimpleSnippetService([
+			new Snippet(false, ['fooLang'], 'TestSnippet', 'test', '', 'snippet', 'test', SnippetSource.User, generateUuid(), ['**/*.test.ts', '**/*.spec.ts'], ['**/*.perf.test.ts']),
+		]);
+
+		// Regular test file should get the snippet
+		let snippets = snippetService.getSnippetsSync('fooLang', URI.file('/project/src/foo.test.ts'));
+		assert.strictEqual(snippets.length, 1);
+
+		// Spec file should get the snippet
+		snippets = snippetService.getSnippetsSync('fooLang', URI.file('/project/src/foo.spec.ts'));
+		assert.strictEqual(snippets.length, 1);
+
+		// Performance test file should NOT get the snippet (excluded)
+		snippets = snippetService.getSnippetsSync('fooLang', URI.file('/project/src/foo.perf.test.ts'));
+		assert.strictEqual(snippets.length, 0);
+
+		// Regular file should NOT get the snippet (not included)
+		snippets = snippetService.getSnippetsSync('fooLang', URI.file('/project/src/foo.ts'));
+		assert.strictEqual(snippets.length, 0);
+	});
+
+	test('getSnippetsSync - filename-only patterns (no path separator)', function () {
+		// Patterns without '/' should match on filename only (like files.associations)
+		snippetService = new SimpleSnippetService([
+			new Snippet(false, ['fooLang'], 'TestSnippet', 'test', '', 'snippet', 'test', SnippetSource.User, generateUuid(), ['*.test.ts']),
+			new Snippet(false, ['fooLang'], 'ConfigSnippet', 'config', '', 'snippet', 'test', SnippetSource.User, generateUuid(), ['config.json']),
+		]);
+
+		// *.test.ts should match any file ending in .test.ts regardless of path
+		let snippets = snippetService.getSnippetsSync('fooLang', URI.file('/project/src/foo.test.ts'));
+		assert.strictEqual(snippets.length, 1);
+		assert.strictEqual(snippets[0].name, 'TestSnippet');
+
+		snippets = snippetService.getSnippetsSync('fooLang', URI.file('/other/deep/path/bar.test.ts'));
+		assert.strictEqual(snippets.length, 1);
+		assert.strictEqual(snippets[0].name, 'TestSnippet');
+
+		// config.json should match filename exactly
+		snippets = snippetService.getSnippetsSync('fooLang', URI.file('/project/config.json'));
+		assert.strictEqual(snippets.length, 1);
+		assert.strictEqual(snippets[0].name, 'ConfigSnippet');
+
+		snippets = snippetService.getSnippetsSync('fooLang', URI.file('/deep/nested/path/config.json'));
+		assert.strictEqual(snippets.length, 1);
+		assert.strictEqual(snippets[0].name, 'ConfigSnippet');
+
+		// myconfig.json should NOT match config.json pattern
+		snippets = snippetService.getSnippetsSync('fooLang', URI.file('/project/myconfig.json'));
+		assert.strictEqual(snippets.length, 0);
 	});
 });
