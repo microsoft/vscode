@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { ProxyChannel } from '../../../../../base/parts/ipc/common/ipc.js';
 import { localize } from '../../../../../nls.js';
@@ -23,6 +23,7 @@ import { IRemoteAgentHostLocationPreferenceService } from '../../../../../platfo
 import { PROTOCOL_VERSION } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import {
 	isTunnelGatewaySelectionRejectedError,
+	isTunnelNotFoundError,
 	ITunnelAgentHostService,
 	TUNNEL_ADDRESS_PREFIX,
 	TUNNEL_AGENT_HOST_CHANNEL,
@@ -38,6 +39,7 @@ import {
 	type TunnelAutoConnectMode,
 } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { AhpJsonlLogger } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
+import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { AgentHostAhpJsonlLoggingSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import {
 	resolveGatewaySelection,
@@ -46,7 +48,8 @@ import {
 } from '../../../../../platform/agentHost/common/tunnelGatewaySelection.js';
 import { AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { agentsWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
-import { TunnelRelayTransport } from '../../../../../platform/agentHost/electron-browser/tunnelRelayTransport.js';
+import { ReconnectingRelayTransport, type IRelayConnectionHandle } from '../../../../../platform/agentHost/common/relayTransport.js';
+import { NonReconnectableTransportError } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 
 export {
 	type IGatewaySelectionRequest,
@@ -206,13 +209,28 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 		let protocolClient: AgentHostProtocolClient;
 		try {
 			const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
-			const logger = ahpLoggingEnabled ? this._instantiationService.createInstance(
-				AhpJsonlLogger,
-				{ logsHome: this._environmentService.logsHome, connectionId: result.connectionId, transport: 'tunnel' },
-			) : undefined;
-			const transport = new TunnelRelayTransport(result.connectionId, this._mainService, logger);
+			let useSeedConnection = true;
+			const establish = async (): Promise<IRelayConnectionHandle> => {
+				if (useSeedConnection) {
+					useSeedConnection = false;
+					// The initial relay belongs to the managed connection's transport disposable.
+					return { connectionId: result.connectionId };
+				}
+				return this._establishBackgroundRelay(tunnel, auth.provider);
+			};
+			const transportFactory = () => new ReconnectingRelayTransport(
+				establish,
+				this._mainService,
+				() => ahpLoggingEnabled ? this._instantiationService.createInstance(
+					AhpJsonlLogger,
+					{ logsHome: this._environmentService.logsHome, connectionId: result.connectionId, transport: 'tunnel' },
+				) : undefined,
+				this._logService,
+				LOG_PREFIX,
+				AgentHostClientConnectionKind.DevTunnel,
+			);
 			protocolClient = this._instantiationService.createInstance(
-				AgentHostProtocolClient, result.address, transport, undefined, undefined, agentsWindowAgentHostClientInfo,
+				AgentHostProtocolClient, result.address, transportFactory, { clientInfo: agentsWindowAgentHostClientInfo },
 			);
 		} catch (err) {
 			this._logService.error(`${LOG_PREFIX} Connection setup failed`, err);
@@ -244,6 +262,9 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 
 		this.cacheTunnel(tunnel, auth.provider);
 
+		const transportDisposable = toDisposable(() => {
+			this._mainService.disconnect(result.connectionId).catch(() => { /* best effort */ });
+		});
 		try {
 			await this._remoteAgentHostService.addManagedConnection({
 				name: result.name,
@@ -255,11 +276,11 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 					label: tunnel.name,
 					authProvider: auth.provider,
 				},
-			}, protocolClient, undefined, status);
+			}, protocolClient, transportDisposable, status);
 		} catch (err) {
 			this._logService.error(`${LOG_PREFIX} addManagedConnection failed`, err);
 			protocolClient.dispose();
-			this._mainService.disconnect(result.connectionId).catch(() => { /* best effort */ });
+			transportDisposable.dispose();
 			throw err;
 		}
 
@@ -268,6 +289,46 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 		}
 
 		this._notifyIfTunnelFailover(result, options, editorFallback);
+	}
+
+	private async _establishBackgroundRelay(tunnel: ITunnelInfo, authProvider: 'github' | 'microsoft'): Promise<IRelayConnectionHandle> {
+		// Resolve a current cached token per attempt; reconnects must never prompt.
+		const auth = await this._getTokenForProvider(authProvider, true);
+		if (!auth) {
+			throw new NonReconnectableTransportError('No cached authentication available to reconnect the tunnel.');
+		}
+
+		try {
+			const session = await this._mainService.prepareSelection(auth.token, auth.provider, tunnel.tunnelId, tunnel.clusterId);
+			let result: ITunnelConnectResult;
+			if (session) {
+				const selection = await resolveGatewaySelection(this._locationPreferenceService, this._dialogService, {
+					hostKey: `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`,
+					hostLabel: tunnel.name,
+					productName: this._productService.nameShort,
+					inventory: session.inventory,
+					userInitiated: false,
+				});
+				if (!selection) {
+					await this._mainService.cancelSelection(session.selectionId);
+					throw new NonReconnectableTransportError('Tunnel agent host selection requires user interaction.');
+				}
+				result = (await this._completeSelectionWithFallback(auth, tunnel, session, selection)).result;
+			} else {
+				result = await this._mainService.connect(auth.token, auth.provider, tunnel.tunnelId, tunnel.clusterId);
+			}
+
+			const connectionId = result.connectionId;
+			return {
+				connectionId,
+				close: () => this._mainService.disconnect(connectionId),
+			};
+		} catch (err) {
+			if (isTunnelNotFoundError(err)) {
+				throw new NonReconnectableTransportError(err.message);
+			}
+			throw err;
+		}
 	}
 
 	/**

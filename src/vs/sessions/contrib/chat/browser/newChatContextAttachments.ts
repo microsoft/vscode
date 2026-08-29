@@ -54,6 +54,8 @@ export interface INewChatAttachments {
 	removeAttachment(id: string): void;
 }
 
+const GITHUB_CONTEXT_ID_PREFIX = 'github-context:';
+
 /**
  * Manages context attachments for the sessions new-chat widget.
  *
@@ -132,14 +134,29 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 		for (const entry of visibleAttachments) {
 			const pill = dom.append(this._container, dom.$('.sessions-chat-attachment-pill'));
 			const resource = URI.isUri(entry.value) ? entry.value : isLocation(entry.value) ? entry.value.uri : undefined;
+			const githubContextResource = entry.id.startsWith(GITHUB_CONTEXT_ID_PREFIX)
+				? URI.parse(entry.id.slice(GITHUB_CONTEXT_ID_PREFIX.length))
+				: undefined;
+			const openResource = resource ?? githubContextResource;
+			const imageData = entry.kind === 'image' ? coerceImageBuffer(entry.value) : undefined;
+			const canOpen = Boolean(imageData || openResource || isPastedTextArtifact(entry));
+			let content: HTMLElement;
+			if (canOpen) {
+				const openButton = dom.append(pill, dom.$<HTMLButtonElement>('button.sessions-chat-attachment-open'));
+				openButton.type = 'button';
+				openButton.setAttribute('aria-label', localize('openNamedAttachment', "Open {0}", entry.name));
+				content = openButton;
+				pill.classList.add('openable');
+			} else {
+				content = dom.append(pill, dom.$('span.sessions-chat-attachment-content'));
+			}
 			if (entry.kind === 'image') {
-				const icon = dom.append(pill, renderIcon(Codicon.fileMedia));
-				dom.append(pill, dom.$('span.sessions-chat-attachment-name', undefined, entry.name));
-				const buffer = coerceImageBuffer(entry.value);
-				if (buffer) {
+				const icon = dom.append(content, renderIcon(Codicon.fileMedia));
+				dom.append(content, dom.$('span.sessions-chat-attachment-name', undefined, entry.name));
+				if (imageData) {
 					// Swap the generic icon for a thumbnail once the shared helper
 					// has decoded one, matching the workbench attachment pill.
-					const preview = createImageHoverContent(resource, entry.name, buffer, entry.id, undefined, undefined, (url, isThumbnail) => {
+					const preview = createImageHoverContent(resource, entry.name, imageData, entry.id, undefined, undefined, (url, isThumbnail) => {
 						if (isThumbnail) {
 							icon.replaceWith(dom.$('img.sessions-chat-attachment-image', { src: url, alt: '' }));
 						}
@@ -147,11 +164,11 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 					this._renderDisposables.add(preview.disposable);
 				}
 			} else if (entry.id.startsWith(ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX)) {
-				const icon = dom.append(pill, renderIcon(Codicon.repo));
+				const icon = dom.append(content, renderIcon(Codicon.repo));
 				icon.setAttribute('aria-hidden', 'true');
-				dom.append(pill, dom.$('span.sessions-chat-attachment-name', undefined, entry.name));
+				dom.append(content, dom.$('span.sessions-chat-attachment-name', undefined, entry.name));
 			} else {
-				const label = this._resourceLabels.create(pill, { supportIcons: true });
+				const label = this._resourceLabels.create(content, { supportIcons: true });
 				this._renderDisposables.add(label);
 				if (resource) {
 					label.setFile(resource, {
@@ -162,17 +179,15 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 					// Matches the workbench paste pill: a file icon for the artifact's
 					// language, and how much text it stands in for.
 					label.setLabel(entry.fileName, undefined, { extraClasses: ['file-icon', `${entry.language}-lang-file-icon`] });
-					dom.append(pill, dom.$('span.sessions-chat-attachment-info', undefined, localize('pastedLines', "Pasted {0}", entry.pastedLines)));
+					dom.append(content, dom.$('span.sessions-chat-attachment-info', undefined, localize('pastedLines', "Pasted {0}", entry.pastedLines)));
 				} else {
 					label.setLabel(entry.name);
 				}
 			}
 
 			// Click to open the resource or image
-			const imageData = entry.kind === 'image' ? coerceImageBuffer(entry.value) : undefined;
 			if (imageData) {
-				pill.style.cursor = 'pointer';
-				this._renderDisposables.add(registerOpenEditorListeners(pill, async () => {
+				this._renderDisposables.add(registerOpenEditorListeners(content, async () => {
 					if (this.configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)) {
 						const imageResource = resource ?? URI.from({ scheme: 'data', path: entry.name });
 						await this.chatImageCarouselService.openCarouselAtResource(imageResource, imageData);
@@ -180,24 +195,14 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 						await this.openerService.open(resource, { fromUserGesture: true });
 					}
 				}));
-			} else if (resource) {
-				pill.style.cursor = 'pointer';
-				this._renderDisposables.add(registerOpenEditorListeners(pill, async () => {
-					await this.openerService.open(resource, { fromUserGesture: true });
+			} else if (openResource) {
+				this._renderDisposables.add(registerOpenEditorListeners(content, async () => {
+					await this.openerService.open(openResource, { fromUserGesture: true });
 				}));
 			} else if (isPastedTextArtifact(entry)) {
-				pill.style.cursor = 'pointer';
-				this._renderDisposables.add(registerOpenEditorListeners(pill, async () => {
+				this._renderDisposables.add(registerOpenEditorListeners(content, async () => {
 					await this.instantiationService.invokeFunction(openPastedTextArtifact, entry);
 				}));
-			}
-
-			// Only expose the pill itself as a focusable button when it has an open
-			// action; reference pills without a resource (e.g. `#session`) would
-			// otherwise be a focusable control that does nothing.
-			if (imageData || resource || isPastedTextArtifact(entry)) {
-				pill.tabIndex = 0;
-				pill.role = 'button';
 			}
 
 			const removeButton = dom.append(pill, dom.$<HTMLButtonElement>('button.sessions-chat-attachment-remove'));

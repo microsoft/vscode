@@ -181,7 +181,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			90_000,
 		);
 		const liveErrorPart = (getActionEnvelope(liveNotification).action as ChatErrorAction).part;
-		assert.strictEqual(liveErrorPart.resumable, undefined);
+		assert.strictEqual(liveErrorPart.resumable, true);
 
 		client = await lease.restart();
 		client.setWorkingDirectory(workingDirectory);
@@ -201,12 +201,11 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 		}, {
 			state: TurnState.Error,
 			error: liveErrorPart.error,
-			resumable: undefined,
+			resumable: true,
 		});
 	});
 
-	// Retryable errors are temporarily disabled.
-	test.skip('resumes a failed turn in place', async function () {
+	test('resumes a failed turn in place', async function () {
 		this.timeout(180_000);
 		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-failed-turn-resume-'));
 		tempDirs.push(workingDirectory);
@@ -345,7 +344,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 		}
 	});
 
-	test.skip('resumes the same turn after repeated failures', async function () {
+	test('resumes the same turn after repeated failures', async function () {
 		this.timeout(180_000);
 		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-repeated-failed-turn-resume-'));
 		tempDirs.push(workingDirectory);
@@ -426,8 +425,8 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 		});
 	});
 
-	// Retryable errors are temporarily disabled.
-	test.skip('restores and resumes a turn interrupted by host shutdown', async function () {
+	// Replay serves the full recorded response immediately, so it has no active streaming window to terminate.
+	(RECORD_ONLY ? test : test.skip)('restores and resumes a turn interrupted by host shutdown', async function () {
 		this.timeout(240_000);
 		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-host-shutdown-resume-'));
 		tempDirs.push(workingDirectory);

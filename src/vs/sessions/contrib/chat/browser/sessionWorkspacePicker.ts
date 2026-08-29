@@ -105,6 +105,7 @@ export interface IWorkspacePickerTrigger {
 	readonly ariaLabel: string;
 	readonly tooltip?: string;
 	readonly icon: ThemeIcon;
+	readonly hideIconWhenAttached?: boolean;
 	readonly reflectsWorkspace?: boolean;
 	readonly group?: string;
 	readonly attachesContext?: boolean;
@@ -259,10 +260,12 @@ export class WorkspacePicker extends Disposable {
 
 	syncAttachedContext(attachments: readonly IChatRequestVariableEntry[]): void {
 		this._attachedContext = attachments;
-		this._syncAttachedContext();
+		if (!this._syncAttachedContext()) {
+			this._updateTriggerLabel();
+		}
 	}
 
-	private _syncAttachedContext(): void {
+	private _syncAttachedContext(): boolean {
 		const attachmentIds = new Set(this._attachedContext.map(attachment => attachment.id));
 		let changed = false;
 		for (const [key, contexts] of this._contextSelections) {
@@ -312,6 +315,7 @@ export class WorkspacePicker extends Disposable {
 			this._updateTriggerLabel();
 			this._onDidChangeSelection.fire();
 		}
+		return changed;
 	}
 
 	get preselectionSource(): NewSessionWorkspacePreselectionSource {
@@ -1340,7 +1344,7 @@ export class WorkspacePicker extends Disposable {
 				extended.hoverContent = getStatusHover(status, provider.remoteAddress);
 				if (provider.remoteAddress) {
 					extended.onRemove = async () => {
-						await removeRemoteHost(provider, this.remoteAgentHostService);
+						await removeRemoteHost(provider, this.remoteAgentHostService, this.configurationService);
 					};
 				}
 				manageActions.push(action);
@@ -1440,11 +1444,16 @@ export class WorkspacePicker extends Disposable {
 			trigger.classList.toggle('selected', (reflectsWorkspace && workspace !== undefined) || isSelectedCategory || badgeCount > 0 || relatedGitHubInfo !== undefined);
 			const icon = (reflectsWorkspace ? workspace?.icon : undefined)
 				?? (relatedGitHubInfo ? Codicon.repo : (isSelectedCategory && workspace ? workspace.icon : options.icon));
-			if (!contents.icon) {
-				contents.icon = renderIcon(icon);
-				trigger.prepend(contents.icon);
+			if (options.hideIconWhenAttached === true && badgeCount > 0) {
+				contents.icon?.remove();
+				contents.icon = undefined;
+			} else {
+				if (!contents.icon) {
+					contents.icon = renderIcon(icon);
+					trigger.prepend(contents.icon);
+				}
+				contents.icon.className = ThemeIcon.asClassName(icon);
 			}
-			contents.icon.className = ThemeIcon.asClassName(icon);
 			const label = (reflectsWorkspace ? workspace?.label : undefined)
 				?? (relatedGitHubInfo ? `${relatedGitHubInfo.owner}/${relatedGitHubInfo.repo}` : (isSelectedCategory && workspace ? workspace.label : options.label));
 			trigger.setAttribute('aria-label', badgeCount > 0
@@ -1735,9 +1744,11 @@ export class WorkspacePicker extends Disposable {
 		let isFirstRun = true;
 		store.add(autorun(reader => {
 			const status = connStatus.read(reader);
+			const isBusy = RemoteAgentHostConnectionStatus.isConnecting(status)
+				|| RemoteAgentHostConnectionStatus.isReconnecting(status);
 			if (RemoteAgentHostConnectionStatus.isConnected(status)) {
 				this._connectionStatusWatch.clear();
-			} else if ((RemoteAgentHostConnectionStatus.isDisconnected(status) || RemoteAgentHostConnectionStatus.isIncompatible(status)) && !isFirstRun) {
+			} else if (!isBusy && !isFirstRun) {
 				fallback();
 			}
 			isFirstRun = false;

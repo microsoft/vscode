@@ -68,7 +68,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 	connect(workspaceUri: URI, token: CancellationToken): Promise<IDevContainerAgentHostTarget> {
 		const key = getComparisonKey(workspaceUri);
 		const active = this._activeConnections.get(key);
-		if (active && this._isConnected(active.address)) {
+		if (active && this._isConnectedOrReconnecting(active.address)) {
 			return Promise.resolve(this._acquireConnection(key, active));
 		}
 		const pending = this._pendingConnections.get(key);
@@ -232,9 +232,10 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		this._providerStores.deleteAndDispose(key);
 	}
 
-	private _isConnected(address: string): boolean {
+	private _isConnectedOrReconnecting(address: string): boolean {
 		return this._remoteAgentHostService.connections.some(connection =>
-			connection.address === address && RemoteAgentHostConnectionStatus.isConnected(connection.status)
+			connection.address === address
+			&& (RemoteAgentHostConnectionStatus.isConnected(connection.status) || RemoteAgentHostConnectionStatus.isReconnecting(connection.status))
 		);
 	}
 

@@ -4024,6 +4024,15 @@
             ],
             "description": "%github.copilot.config.gemini35FlashReducedToolUsePrompt.enabled%"
           },
+          "github.copilot.chat.geminiFlashPromptAdditions.enabled": {
+            "type": "boolean",
+            "default": false,
+            "tags": [
+              "experimental",
+              "onExp"
+            ],
+            "description": "%github.copilot.config.geminiFlashPromptAdditions.enabled%"
+          },
           "github.copilot.chat.anthropic.contextEditing.mode": {
             "type": "string",
             "default": "off",

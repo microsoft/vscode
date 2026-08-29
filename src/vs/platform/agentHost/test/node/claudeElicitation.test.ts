@@ -252,7 +252,7 @@ suite('claudeElicitation', () => {
 			{ getSession: () => undefined },
 			'missing-session',
 			{ serverName: 'srv', message: 'q', mode: 'form', requestedSchema: { type: 'object', properties: { side: { type: 'string' } } } },
-			{ signal: new AbortController().signal },
+			{ signal: new AbortController().signal, requestId: 'missing-elicitation' },
 		);
 		assert.deepStrictEqual(result, { action: 'cancel' });
 	});
