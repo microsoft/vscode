@@ -31,6 +31,8 @@ import type { InitializeResult } from '../../../../platform/agentHost/common/sta
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../../../../platform/agentHost/common/agentHostClientInfo.js';
+import { fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { EditorRemoteAgentHostTransport } from '../common/editorRemoteAgentHostTransport.js';
 
 const REMOTE_NOT_SUPPORTED = (op: string) => new Error(`${op} is not supported when the agent host runs on a remote.`);
 const LOG_PREFIX = '[AgentHost:remote]';
@@ -87,7 +89,10 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		// Create the protocol client eagerly so consumers can subscribe to
 		// rootState etc. before the AHP handshake completes. The transport's
 		// `connect()` will be awaited by `_connect()` below.
-		const createTransport = () => new AgentHostIpcChannelTransport(connection.getChannel(AgentHostIpcChannels.RemoteProxy), undefined, AgentHostClientConnectionKind.RemoteExtensionHost);
+		const createTransport = () => new EditorRemoteAgentHostTransport(
+			new AgentHostIpcChannelTransport(connection.getChannel(AgentHostIpcChannels.RemoteProxy), undefined, AgentHostClientConnectionKind.RemoteExtensionHost),
+			connection.remoteAuthority,
+		);
 		const address = `vscode-remote://${connection.remoteAuthority}`;
 		const clientInfo = environmentService.isSessionsWindow ? agentsWindowAgentHostClientInfo : editorWindowAgentHostClientInfo;
 		this._protocolClient = this._register(instantiationService.createInstance(RemoteAgentHostProtocolClient, address, createTransport, undefined, undefined, clientInfo));
@@ -218,8 +223,12 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._requireClient().diagnosticsFetch(url);
 	}
 
-	listSessions(): Promise<IAgentSessionMetadata[]> {
-		return this._requireClient().listSessions();
+	async listSessions(): Promise<IAgentSessionMetadata[]> {
+		const sessions = await this._requireClient().listSessions();
+		return sessions.map(session => ({
+			...session,
+			workingDirectories: session.workingDirectories?.map(fromAgentHostUri),
+		}));
 	}
 
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI> {

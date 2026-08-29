@@ -9,12 +9,16 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import type { IChannel, IServerChannel } from '../../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
 import { AgentHostClientState, RemoteAgentHostProtocolClient } from '../../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
 import { editorWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
+import { toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import type { IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
+import type { IClientTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -22,6 +26,7 @@ import { NullLogService, ILogService } from '../../../../../platform/log/common/
 import type { RemoteAgentConnectionContext, IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import type { PersistentConnectionEvent } from '../../../../../platform/remote/common/remoteAgentConnection.js';
 import { EditorRemoteAgentHostServiceClient } from '../../browser/editorRemoteAgentHostServiceClient.js';
+import { EditorRemoteAgentHostTransport } from '../../common/editorRemoteAgentHostTransport.js';
 import { IRemoteAgentService, type IRemoteAgentConnection } from '../../../remote/common/remoteAgentService.js';
 import { TestRemoteAgentService } from '../../../../test/browser/workbenchTestServices.js';
 
@@ -129,14 +134,52 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		await started;
 
 		const protocolClientCall = createInstanceSpy.getCalls().find(call => call.args[0] === RemoteAgentHostProtocolClient);
+		const createTransport = protocolClientCall?.args[2] as () => IClientTransport;
+		const transport = disposables.add(createTransport());
 		assert.deepStrictEqual({
 			beforeReady,
 			afterReady: connectCalls,
 			clientInfo: protocolClientCall?.args[5],
+			mapsRemoteDirectories: transport instanceof EditorRemoteAgentHostTransport,
 		}, {
 			beforeReady: 0,
 			afterReady: 1,
 			clientInfo: editorWindowAgentHostClientInfo,
+			mapsRemoteDirectories: true,
 		});
+	});
+
+	test('returns remote workspace identities from session listings', async () => {
+		const channel: IChannel = {
+			call: <T>() => Promise.resolve(undefined as T),
+			listen: () => Event.None,
+		};
+		const remoteAgentService = new DeferredRemoteAgentService(disposables.add(new TestRemoteAgentConnection(channel)));
+		const directory = URI.parse('vscode-remote://ssh-remote+test/workspace');
+		const session: IAgentSessionMetadata = {
+			session: URI.parse('copilot:/session'),
+			startTime: 0,
+			modifiedTime: 0,
+			workingDirectories: [toAgentHostUri(directory, 'test')],
+		};
+		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(
+			[IRemoteAgentService, remoteAgentService],
+			[IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(false) }],
+			[ILogService, new NullLogService()],
+			[IWorkbenchEnvironmentService, { isSessionsWindow: false }],
+		)));
+		instantiationService.stubInstance(RemoteAgentHostProtocolClient, {
+			onDidClose: Event.None,
+			onDidChangeConnectionState: Event.None,
+			listSessions: async () => [session],
+			dispose: () => { },
+		});
+		instantiationService.set(IInstantiationService, instantiationService);
+		const service = disposables.add(instantiationService.createInstance(EditorRemoteAgentHostServiceClient));
+
+		assert.deepStrictEqual(await service.listSessions(), [{
+			...session,
+			workingDirectories: [directory],
+		}]);
 	});
 });
