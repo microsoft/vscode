@@ -242,6 +242,15 @@ export interface InitializeResult {
 	 * software behind it.
 	 */
 	serverInfo?: Implementation;
+	/**
+	 * Optional implementation-specific extension metadata advertised by the host.
+	 *
+	 * Hosts and clients MAY agree on namespaced keys for capabilities that are not
+	 * part of the standardized protocol. Clients MUST ignore keys they do not
+	 * understand. Capabilities needed for interoperable behavior SHOULD use typed
+	 * fields on {@link InitializeResult} instead.
+	 */
+	_meta?: Record<string, unknown>;
 	/** Snapshots for each `initialSubscriptions` URI */
 	snapshots: Snapshot[];
 	/** Suggested default directory for remote filesystem browsing */
@@ -272,7 +281,7 @@ export interface InitializeResult {
 	telemetry?: TelemetryCapabilities;
 	/**
 	 * Host-owned automation support. Presence means clients may subscribe to
-	 * `ahp-automations://` for {@link AutomationCatalogState}; absence means the
+	 * `ahp-automations://catalog` for {@link AutomationCatalogState}; absence means the
 	 * host does not expose an automation catalogue or automation commands.
 	 *
 	 * @see {@link /guide/automations | Automations Guide}
@@ -283,7 +292,7 @@ export interface InitializeResult {
 /**
  * Automation features supported by this host authority.
  *
- * The presence of this object advertises the baseline `ahp-automations://`
+ * The presence of this object advertises the baseline `ahp-automations://catalog`
  * catalogue. Optional fields describe additional host features and
  * restrictions.
  *

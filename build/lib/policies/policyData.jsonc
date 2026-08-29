@@ -735,6 +735,50 @@
             "included": true
         },
         {
+            "key": "dictation.experimental.llmCleanup",
+            "name": "DictationLLMCleanup",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.136",
+            "localization": {
+                "description": {
+                    "key": "dictation.experimental.llmCleanup.policy",
+                    "value": "Controls whether final dictation transcripts are sent to a language model for cleanup."
+                }
+            },
+            "type": "boolean",
+            "default": true,
+            "included": true
+        },
+        {
+            "key": "dictation.model",
+            "name": "DictationModel",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.136",
+            "localization": {
+                "description": {
+                    "key": "dictation.model.policy",
+                    "value": "Controls the transcription model used for dictation."
+                },
+                "enumDescriptions": [
+                    {
+                        "key": "dictation.model.nemotronMultilingual.policy",
+                        "value": "Use the on-device transcription model. Audio does not leave the device."
+                    },
+                    {
+                        "key": "dictation.model.mai.policy",
+                        "value": "Use the cloud transcription service. Audio is streamed to the service."
+                    }
+                ]
+            },
+            "type": "string",
+            "default": "nemotron-3.5-asr-streaming-0.6b",
+            "enum": [
+                "nemotron-3.5-asr-streaming-0.6b",
+                "mai"
+            ],
+            "included": true
+        },
+        {
             "key": "extensions.allowed",
             "name": "AllowedExtensions",
             "category": "Extensions",

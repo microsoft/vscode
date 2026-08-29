@@ -22,7 +22,8 @@ import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportK
 import type { SessionMode } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType, type ChatAction, type ChatUsageAction } from '../../common/state/sessionActions.js';
-import { buildDefaultChatUri, buildSubagentChatUri, createErrorResponsePart, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus } from '../../common/state/sessionState.js';
+import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
+import { buildDefaultChatUri, buildSubagentChatUri, createErrorResponsePart, type Message, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus } from '../../common/state/sessionState.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
@@ -35,6 +36,7 @@ import { createTestAgentHostProviderService } from './testAgentHostProviderServi
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
+import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/agentHostToolCallTracker.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -66,7 +68,6 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	refreshSessionChangeset(): void { }
 	onWorkingDirectoryAvailable(): void { }
 	recomputeSubscribedChangesets(): void { }
-	onSessionDisposed(): void { }
 	async computeUncommittedChangeset(session: string): Promise<string> { return `${session}/changeset/uncommitted`; }
 	async computeTurnChangeset(session: string): Promise<string> { return `${session}/x`; }
 	async computeCompareTurnsChangeset(session: string): Promise<string> { return `${session}/y`; }
@@ -168,6 +169,16 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		sideEffects.handleAction(chatUri, action, 'test', clientContext);
 	}
 
+	/**
+	 * Starts a turn the way the host does for its own messages (Agent Merge
+	 * prompts): a server action, with no initiating client.
+	 */
+	function startHostTurn(turnId: string, message: Message, chatUri = defaultChatUri): void {
+		const action: ChatAction = { type: ActionType.ChatTurnStarted, turnId, startedAt: '2025-01-01T00:00:00.000Z', message };
+		stateManager.dispatchServerAction(chatUri, action);
+		sideEffects.handleAction(chatUri, action);
+	}
+
 	function fire(action: ChatAction, chatUri = defaultChatUri): void {
 		agent.fireProgress({ kind: 'action', resource: URI.parse(chatUri), action });
 	}
@@ -233,6 +244,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		services.set(IAgentHostTelemetryReporter, telemetryReporter);
 		const turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
 		services.set(IAgentHostTurnTracker, turnTracker);
+		services.set(IAgentHostToolCallTracker, disposables.add(instantiationService.createInstance(AgentHostToolCallTracker)));
 		const localTurns = new AgentHostLocalTurns(sessionDataService, logService);
 		services.set(IAgentHostLocalTurns, localTurns);
 		const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands));
@@ -325,6 +337,22 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			initiatorMachineId: 'client-machine-id',
 			initiatorDevDeviceId: 'client-dev-device-id',
 		}]);
+	});
+
+	test('reports the actor that started the turn, separating Agent Merge from user turns', () => {
+		setupSession();
+		startTurn('turn-user');
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-user', duration: 1000 });
+		startHostTurn('turn-agent-merge', { text: 'fix the failed required checks', origin: { kind: MessageKind.SystemNotification }, _meta: toAgentMergeMessageMeta() });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-agent-merge', duration: 1000 });
+
+		assert.deepStrictEqual(completedEvents().map(event => {
+			const data = event.data as Record<string, unknown>;
+			return { turnId: data.turnId, messageOriginKind: data.messageOriginKind };
+		}), [
+			{ turnId: 'turn-user', messageOriginKind: 'user' },
+			{ turnId: 'turn-agent-merge', messageOriginKind: 'agentMerge' },
+		]);
 	});
 
 	test('counts unique completed model responses on the turn', () => {

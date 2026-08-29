@@ -8,7 +8,7 @@ import type { ISettableObservable } from '../../../base/common/observable.js';
 import type { StopWatch } from '../../../base/common/stopwatch.js';
 import { createDecorator, type BrandedService } from '../../instantiation/common/instantiation.js';
 import type { IAgent } from './agent.js';
-import type { AgentHostLaunchKind, IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
+import type { AgentHostLaunchKind, AgentHostTurnFailureStage, IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
 import type { StateAction } from './state/sessionActions.js';
 import type { ErrorInfo, Message, Turn, URI as ProtocolURI } from './state/sessionState.js';
 
@@ -16,14 +16,16 @@ export const IAgentHostChatContributions = createDecorator<IAgentHostChatContrib
 
 /**
  * Why a turn ended. Contributions must discriminate on `kind`: successful,
- * cancelled, failed, and host-handled local-command turns deliberately run
- * different side effects. `success`, `cancelled`, and `localCommand` carry no
- * payload on purpose; add fields only when a contribution actually needs them.
+ * cancelled, failed, rejected, and host-handled local-command turns deliberately
+ * run different side effects. A rejected request was refused or could not be
+ * routed before its turn started, so contributions that finalize started turns
+ * must ignore it because there is no turn or checkpoint to finalize.
  */
 export type TurnEndReason =
 	| { readonly kind: 'success' }
 	| { readonly kind: 'cancelled' }
 	| { readonly kind: 'error'; readonly error: ErrorInfo; readonly resumable: boolean }
+	| { readonly kind: 'rejected'; readonly error: ErrorInfo }
 	| { readonly kind: 'localCommand' };
 
 /** A terminal turn outcome offered to contributions after a turn ended. */
@@ -70,19 +72,82 @@ export interface IOutgoingTurnContributionResult {
 	readonly message: Message;
 }
 
+/** A turn request that has entered host state and is asking to proceed to a provider. */
+export interface IIncomingRequest {
+	readonly session: ProtocolURI;
+	/** The chat the turn targets. */
+	readonly chat: ProtocolURI;
+	/** The channel the turn's actions are dispatched on. */
+	readonly turnChannel: ProtocolURI;
+	readonly message: Message;
+	readonly turnId: string;
+	/** Whether the request came straight from a client or was drained from the queue. */
+	readonly source: 'direct' | 'queued';
+	readonly clientId: string | undefined;
+	readonly clientContext: IAgentHostClientTelemetryContext;
+}
+
+/**
+ * What a contribution decided about an incoming request. `accept` is the
+ * default, so a contribution that does not care returns `undefined`.
+ *
+ * `handled` means the host satisfied the request itself and no provider should
+ * see it — a local command such as `/rename` or `!command`. The contribution
+ * has already performed the work; the caller only stops.
+ */
+export type IncomingRequestDisposition =
+	| { readonly kind: 'accept' }
+	| { readonly kind: 'handled' }
+	| {
+		readonly kind: 'reject';
+		readonly error: ErrorInfo;
+		readonly stage: AgentHostTurnFailureStage;
+	};
+
 /** The chat and owning session whose complete restored turn list is being hydrated. */
 export interface IHydrationContext {
 	readonly session: ProtocolURI;
 	readonly chat: ProtocolURI;
 }
 
+/**
+ * Host-owned chat state restored from persistence before a chat enters the
+ * session catalog. Distinct from turn hydration: this runs eagerly for every
+ * restored chat, including peer chats whose turns stay unloaded until their
+ * first content request.
+ *
+ * The object form lets this grow with further host-owned restorable fields
+ * without adding another hook.
+ */
+export interface IRestoredChat {
+	readonly title?: string;
+	readonly draft?: Message;
+}
+
 /** A client action after it has been reduced into host state. */
-export interface IObservedAction {
+export interface IAppliedClientAction {
 	readonly channel: ProtocolURI;
 	readonly session: ProtocolURI;
 	readonly action: StateAction;
 	readonly clientId: string | undefined;
 	readonly clientContext: IAgentHostClientTelemetryContext;
+}
+
+/**
+ * A dispatched action, from any origin, after its outcome is known.
+ *
+ * Unlike {@link IAppliedClientAction}, this covers server-dispatched actions — which is
+ * most agent-produced state — and rejected actions, which never reduced. A contribution
+ * that only cares about client dispatch should use `onDidApplyClientAction` instead;
+ * observing both would see the same client action twice.
+ */
+export interface IDispatchedAction {
+	readonly channel: ProtocolURI;
+	/** The owning session URI, or the channel itself when it is not a chat channel. */
+	readonly session: ProtocolURI;
+	readonly action: StateAction;
+	/** Set when the action was rejected and never reached state. */
+	readonly rejectionReason?: string;
 }
 
 export interface IQueuedMessageSender {
@@ -159,28 +224,74 @@ export interface IAgentHostChatContribution extends IDisposable {
 	 */
 	readonly order?: number;
 	/**
-	 * Fires when a turn ends through the agent signal path, or when a host handled
-	 * local command completes. It does NOT fire for a client dispatched
-	 * cancellation, nor for the failures that report `ChatError` directly, such as
-	 * a missing provider, a read-only or archived chat, or a send that throws.
-	 * Unifying those paths is tracked in `chatContributions/TODO.md`.
+	 * Fires on every terminal outcome a started turn can reach — the agent signal
+	 * path, a host-handled local command, a send that throws, and a cancellation
+	 * from either the client or the agent — and when admission refuses a request
+	 * before its turn starts. Discriminate `rejected` from `error`: the former has
+	 * no started turn to finalize and no checkpoint to capture.
+	 *
+	 * It does not fire for an agent-emitted terminal action that arrives when no
+	 * turn is active, because the reducer no-ops for those.
 	 *
 	 * Must not throw; the dispatcher isolates failures.
 	 */
 	onTurnEnd?(turn: ITurnEnd): void;
-	/** Observes actions submitted through the client dispatch path after state reduction. */
-	onAction?(action: IObservedAction): void;
+	/**
+	 * Observes a client-dispatched action after it was applied to host state.
+	 * Rejected client actions never reach this hook, so an action seen here always
+	 * reduced.
+	 */
+	onDidApplyClientAction?(action: IAppliedClientAction): void;
+	/**
+	 * Observes a dispatched action from any origin, after its outcome is known.
+	 * This covers server-dispatched actions — which is most agent-produced state — and
+	 * rejected actions, which never reduced. Check `rejectionReason` before acting on
+	 * one.
+	 *
+	 * Prefer `onDidApplyClientAction` when a behavior genuinely only concerns client
+	 * dispatch: a contribution implementing both sees every client action twice.
+	 *
+	 * Must not throw; the dispatcher isolates failures.
+	 */
+	onDidDispatchAction?(dispatched: IDispatchedAction): void;
 	/**
 	 * Awaited before the turn is sent. Instructions are concatenated in `order`;
 	 * text replacements are threaded in `order`, so each contribution observes
 	 * the prior contribution's text. Failures are isolated and do not block the send.
+	 *
+	 * Runs after admission and after the provider lookup, so a rejected turn and a turn
+	 * that fails with `noAgent` never reach it: only messages that are actually sent are
+	 * enriched.
 	 */
 	onOutgoingTurn?(turn: IOutgoingTurn): ISendContribution | undefined | Promise<ISendContribution | undefined>;
+	/**
+	 * Decides whether a turn request may proceed to its provider. Contributions run
+	 * in `order` and the first non-accept disposition wins; later contributions are
+	 * not consulted.
+	 *
+	 * Unlike every other hook, this one fails CLOSED: a contribution that throws
+	 * rejects the request rather than being skipped. It is an admission gate, so
+	 * treating a failure as an accept would let a request past a guard that exists
+	 * to stop it.
+	 *
+	 * Deliberately synchronous. A gate must decide before the send path performs any
+	 * await, so the state it reads cannot change under it between the decision and
+	 * its effect. Every admission check the host performs today — read-only and
+	 * archived chats, local commands, a missing provider — is synchronous.
+	 */
+	onIncomingRequest?(request: IIncomingRequest): IncomingRequestDisposition | undefined;
 	/**
 	 * Hydrates the complete restored turn list. Each ordered stage receives the previous stage's output;
 	 * failures preserve that previous list so a failed enrichment never loses chat history.
 	 */
 	onHydrateTurns?(context: IHydrationContext, turns: readonly Turn[]): readonly Turn[] | Promise<readonly Turn[]>;
+	/**
+	 * Hydrates host-owned chat state before the chat is registered in the
+	 * session catalog. Each ordered stage receives the previous stage's result;
+	 * failures preserve that previous value, so a failed enrichment never drops
+	 * an already-restored title or draft.
+	 */
+	onHydrateChat?(context: IHydrationContext, restored: IRestoredChat): IRestoredChat | Promise<IRestoredChat>;
 }
 
 export type IAgentHostChatContributionSignature<Services extends BrandedService[]> = new (context: IAgentHostChatContributionContext, ...services: Services) => IAgentHostChatContribution;
@@ -202,9 +313,12 @@ export interface IAgentHostChatContributions extends IDisposable {
 	/** Returns the currently registered host, if AgentSideEffects has been constructed. */
 	getHost(): IAgentHostChatContributionHost | undefined;
 	turnEnd(turn: ITurnEnd): void;
-	action(action: IObservedAction): void;
+	didApplyClientAction(action: IAppliedClientAction): void;
+	didDispatchAction(dispatched: IDispatchedAction): void;
 	outgoingTurn(turn: IOutgoingTurn): Promise<IOutgoingTurnContributionResult>;
+	incomingRequest(request: IIncomingRequest): IncomingRequestDisposition;
 	hydrateTurns(context: IHydrationContext, turns: readonly Turn[]): Promise<readonly Turn[]>;
+	hydrateChat(context: IHydrationContext, restored: IRestoredChat): Promise<IRestoredChat>;
 	disposeChatState(chat: ProtocolURI): void;
 	disposeSessionState(session: ProtocolURI): void;
 }

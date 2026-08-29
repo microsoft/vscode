@@ -3291,6 +3291,101 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	test('scopes a subagent Auto resolution to the subagent instead of the parent turn', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-1');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent',
+			agentName: 'explore',
+			agentDisplayName: 'Explore',
+			agentDescription: 'Explore tests',
+		} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+
+		// The subagent routes its own model call; the parent never picked this model.
+		mockSession.fire('session.auto_mode_resolved', { chosenModel: 'gpt-5.5' }, { agentId: 'agent-1' });
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.5',
+			inputTokens: 5,
+			outputTokens: 7,
+		} as unknown as SessionEventPayload<'assistant.usage'>['data'], { agentId: 'agent-1' });
+
+		const routed = signals.flatMap(signal =>
+			signal.kind === 'action' && signal.action.type === ActionType.ChatUsage
+				? [{
+					parentToolCallId: signal.parentToolCallId,
+					chosenModel: readUsageInfoMeta(signal.action.usage).autoModeResolved?.chosenModel,
+				}]
+				: []);
+
+		assert.deepStrictEqual(routed, [
+			// The parent aggregate keeps describing the parent's own model call...
+			{ parentToolCallId: undefined, chosenModel: undefined },
+			// ...while the subagent's own component carries the routing.
+			{ parentToolCallId: 'tc-subagent', chosenModel: 'gpt-5.5' },
+		]);
+	});
+
+	test('keeps a subagent Auto resolution when the root turn moves on beneath it', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-1');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent',
+			agentName: 'explore',
+			agentDisplayName: 'Explore',
+			agentDescription: 'Explore tests',
+		} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+
+		mockSession.fire('session.auto_mode_resolved', { chosenModel: 'gpt-5.5' }, { agentId: 'agent-1' });
+		// Steering mints a new root turn while the subagent is still running. Losing
+		// the routing here would show the routed model to the hidden cohort, which
+		// reads "no routing reported" as "not routed".
+		session.resetTurnState('turn-2');
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.5',
+			inputTokens: 5,
+			outputTokens: 7,
+		} as unknown as SessionEventPayload<'assistant.usage'>['data'], { agentId: 'agent-1' });
+
+		const subagentRouting = signals.flatMap(signal =>
+			signal.kind === 'action' && signal.action.type === ActionType.ChatUsage && signal.parentToolCallId === 'tc-subagent'
+				? [readUsageInfoMeta(signal.action.usage).autoModeResolved?.chosenModel]
+				: []);
+
+		assert.deepStrictEqual(subagentRouting, ['gpt-5.5']);
+	});
+
+	test('keeps a subagent Auto resolution when the root turn has already been cleared', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-1');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent',
+			agentName: 'explore',
+			agentDisplayName: 'Explore',
+			agentDescription: 'Explore tests',
+		} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+
+		// A root-scope error clears the active turn while the subagent runs on.
+		// Its routing must still be recorded, since the client reads "no routing
+		// reported" as "not routed" and would name the concrete model.
+		session.resetTurnState('');
+		mockSession.fire('session.auto_mode_resolved', { chosenModel: 'gpt-5.5' }, { agentId: 'agent-1' });
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.5',
+			inputTokens: 5,
+			outputTokens: 7,
+		} as unknown as SessionEventPayload<'assistant.usage'>['data'], { agentId: 'agent-1' });
+
+		const subagentRouting = signals.flatMap(signal =>
+			signal.kind === 'action' && signal.action.type === ActionType.ChatUsage && signal.parentToolCallId === 'tc-subagent'
+				? [readUsageInfoMeta(signal.action.usage).autoModeResolved?.chosenModel]
+				: []);
+
+		assert.deepStrictEqual(subagentRouting, ['gpt-5.5']);
+	});
+
 	test('accumulates whole-turn token totals per model across parent and subagent calls', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 
@@ -3763,7 +3858,7 @@ suite('CopilotAgentSession', () => {
 			outputTokens: 20,
 			// `quotaSnapshots` is marked `asInternal` in the SDK schema so it is not on the public type, but is present at runtime.
 			quotaSnapshots: {
-				premium_interactions: {
+				premium_models: {
 					isUnlimitedEntitlement: false,
 					entitlementRequests: 300,
 					usedRequests: 75,
@@ -3772,6 +3867,8 @@ suite('CopilotAgentSession', () => {
 					overage: 1.5,
 					overageAllowedWithExhaustedQuota: true,
 					resetDate: '2026-07-01T00:00:00.000Z',
+					tokenBasedBilling: true,
+					overageEntitlement: 5000,
 				},
 			},
 		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
@@ -3783,7 +3880,7 @@ suite('CopilotAgentSession', () => {
 
 		assert.deepStrictEqual(usageActions.map(a => a.usage._meta?.quotaSnapshots), [
 			{
-				premium_interactions: {
+				premium_models: {
 					isUnlimitedEntitlement: false,
 					entitlementRequests: 300,
 					usedRequests: 75,
@@ -3791,6 +3888,8 @@ suite('CopilotAgentSession', () => {
 					overage: 1.5,
 					overageAllowedWithExhaustedQuota: true,
 					resetDate: '2026-07-01T00:00:00.000Z',
+					tokenBasedBilling: true,
+					overageEntitlement: 5000,
 				},
 			},
 		]);
@@ -5269,6 +5368,61 @@ suite('CopilotAgentSession', () => {
 			assert.notStrictEqual(turnStarted.turnId, 'turn-original');
 			assert.deepStrictEqual(turnStarted.message, { text: 'focus on tests', origin: { kind: MessageKind.User } });
 			assert.strictEqual(turnStarted.queuedMessageId, 'steer-1');
+		});
+
+		test('promotes scaffolded steering with attachments to its own turn', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-original');
+			const imageUri = URI.file('/session/attachments/pasted-image.png');
+
+			await session.sendSteering({
+				id: 'steer-attachment',
+				message: {
+					text: 'Inspect the attached screenshot.',
+					origin: { kind: MessageKind.User },
+					attachments: [{
+						type: MessageAttachmentKind.Resource,
+						uri: imageUri.toString(),
+						label: 'Pasted Image',
+						displayKind: 'image',
+					}],
+				},
+			});
+			mockSession.fire('user.message', {
+				content: `Inspect the attached screenshot.
+<attachments>
+<attachment id="pasted-image.png">/session/attachments/pasted-image.png</attachment>
+</attachments>
+<userRequest>
+Inspect the attached screenshot.
+</userRequest>
+<reminder>
+Use the attached image as context.
+</reminder>`,
+				interactionId: 'interaction-steer',
+			} as SessionEventPayload<'user.message'>['data']);
+
+			assert.deepStrictEqual(getActions(signals)
+				.filter(action => action.type === ActionType.ChatTurnComplete || action.type === ActionType.ChatTurnStarted)
+				.map(action => action.type === ActionType.ChatTurnComplete
+					? { type: action.type, turnId: action.turnId }
+					: { type: action.type, message: action.message, queuedMessageId: action.queuedMessageId }), [
+				{ type: ActionType.ChatTurnComplete, turnId: 'turn-original' },
+				{
+					type: ActionType.ChatTurnStarted,
+					message: {
+						text: 'Inspect the attached screenshot.',
+						origin: { kind: MessageKind.User },
+						attachments: [{
+							type: MessageAttachmentKind.Resource,
+							uri: imageUri.toString(),
+							label: 'Pasted Image',
+							displayKind: 'image',
+						}],
+					},
+					queuedMessageId: 'steer-attachment',
+				},
+			]);
 		});
 
 		test('promotes steering when the SDK echoes before send resolves', async () => {
@@ -7841,24 +7995,30 @@ suite('CopilotAgentSession', () => {
 			assert.ok(isAction(signals[0], ActionType.ChatError));
 			if (isAction(signals[0], ActionType.ChatError)) {
 				const action = signals[0].action as ChatErrorAction;
-				assert.deepStrictEqual(action.part.error, {
-					errorType: 'TestError',
-					message: 'something went wrong',
-					stack: 'Error: something went wrong',
-					_meta: {
-						chatError: {
-							fetchError: {
-								type: 'failed',
-								reason: 'something went wrong',
-								requestId: 'provider-request-id',
-								serverRequestId: 'service-request-id',
-								capiError: {
-									code: 'test-code',
-									message: 'something went wrong',
+				assert.deepStrictEqual({
+					error: action.part.error,
+					resumable: action.part.resumable,
+				}, {
+					error: {
+						errorType: 'TestError',
+						message: 'something went wrong',
+						stack: 'Error: something went wrong',
+						_meta: {
+							chatError: {
+								fetchError: {
+									type: 'failed',
+									reason: 'something went wrong',
+									requestId: 'provider-request-id',
+									serverRequestId: 'service-request-id',
+									capiError: {
+										code: 'test-code',
+										message: 'something went wrong',
+									},
 								},
 							},
 						},
 					},
+					resumable: undefined,
 				});
 			}
 			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.copilotSdkSessionError'), [{

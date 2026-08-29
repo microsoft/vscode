@@ -196,9 +196,11 @@ export interface IAgentCreateSessionResult extends IAgentCreateChatResult {
 }
 
 /**
- * Payload of {@link IAgent.onDidMaterializeChat}. Fired once a previously
+ * Payload of {@link IAgent.onDidMaterializeChat}. Fired when a previously
  * {@link IAgentCreateSessionResult.provisional} chat has its SDK session,
- * worktree (if any), and on-disk metadata in place.
+ * worktree (if any), and on-disk metadata in place. A provider may fire the
+ * event again when it replaces or rematerializes an already-backed chat;
+ * consumers must treat each event as the chat's latest materialization receipt.
  */
 export interface IAgentMaterializeChatEvent {
 	readonly chat: URI;
@@ -623,6 +625,12 @@ export interface IAgentLegacyChat {
 	/** The opaque, agent-owned backing blob, encoded as {@link materializeChat} expects. */
 	readonly providerData?: string;
 }
+
+/** The native chat catalog requires an external readiness action before it can be enumerated. */
+export const AgentChatMigrationDeferred = Symbol('AgentChatMigrationDeferred');
+
+/** Provider-native chat catalog result used by registry migration. */
+export type AgentChatMigrationResult = readonly IAgentChatMetadata[] | undefined | typeof AgentChatMigrationDeferred;
 
 /**
  * Identifies the parent that spawned a chat. The orchestrator records
@@ -1206,8 +1214,8 @@ export interface IAgent {
 	/** Optional recovery hook for providers with historical backings but no persisted provider data. */
 	recoverLegacyChat?(chat: URI, context: URI | IAgentChatContext): Promise<IAgentCreateChatResult | void>;
 
-	/** Enumerate provider-native chats for registry migration; `undefined` means the catalog is unavailable. */
-	listChatsToMigrate(): Promise<readonly IAgentChatMetadata[] | undefined>;
+	/** Enumerate provider-native chats for registry migration. */
+	listChatsToMigrate(): Promise<AgentChatMigrationResult>;
 
 	/** Optional migration codec for providers that persisted peer backings before the host catalog. */
 	listLegacyChatBackings?(configurationResource: URI): Promise<readonly IAgentLegacyChat[]>;
@@ -1240,7 +1248,7 @@ export interface IAgent {
 	getManagedSettingsDiagnostics?(): Promise<IAgentHostManagedSettingsSnapshot>;
 
 	/** Return the provider-owned state file for a session, when one exists. */
-	getSessionStateFile?(session: URI): Promise<URI | undefined>;
+	getSessionStateFile?(session: URI, chat?: URI): Promise<URI | undefined>;
 
 	/** Add provider-owned diagnostics to an Agent Host debug-log staging directory. */
 	collectDebugLogs?(session: URI | undefined, outputDirectory: URI, chat?: URI): Promise<boolean>;

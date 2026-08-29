@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IInputOptions, IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { ARCHIVE_SESSION_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionView } from '../../../../browser/parts/sessionView.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -135,6 +135,37 @@ suite('Sessions rename', () => {
 			dispatchDoubleClick(title);
 
 			assert.strictEqual(harness.commandService.calls.filter(call => call.commandId === RENAME_SESSION_COMMAND_ID).length, 0);
+		});
+
+		test('reports the focused session only while the Sessions list owns focus', () => {
+			const { session } = createTestSession('Focused');
+			const harness = createListHarness(disposables, [session]);
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			list.reveal(session.resource);
+
+			const beforeFocus = list.getFocusedSessions();
+			list.focus();
+			const whileFocused = list.getFocusedSessions()?.map(session => session.sessionId);
+			const outside = mainWindow.document.createElement('button');
+			mainWindow.document.body.appendChild(outside);
+			harness.store.add({ dispose: () => outside.remove() });
+			outside.focus();
+
+			assert.deepStrictEqual({
+				beforeFocus,
+				whileFocused,
+				afterBlur: list.getFocusedSessions(),
+			}, {
+				beforeFocus: undefined,
+				whileFocused: [session.sessionId],
+				afterBlur: undefined,
+			});
 		});
 	});
 
@@ -290,7 +321,7 @@ suite('Sessions rename', () => {
 			return { provider, fallbackFocusCount: () => fallbackFocusCount };
 		}
 
-		test('documents pointer and keyboard rename paths and restores originating focus', () => {
+		test('documents session management shortcuts and restores originating focus', () => {
 			const origin = mainWindow.document.createElement('button');
 			const { provider, fallbackFocusCount } = createHelpProvider(origin);
 
@@ -300,12 +331,24 @@ suite('Sessions rename', () => {
 			assert.deepStrictEqual({
 				hasDoubleClick: content.includes('double-click its title'),
 				hasContextMenu: content.includes('open its context menu'),
+				hasChatFocus: content.includes('chat transcript or input'),
+				hasRenameKeybinding: content.includes(`<keybinding:${RENAME_SESSION_COMMAND_ID}>`),
+				hasArchiveKeybinding: content.includes(`<keybinding:${ARCHIVE_SESSION_COMMAND_ID}>`),
+				hasPermanentDelete: content.includes('open its context menu and choose Delete'),
+				hasDevContainerAvailability: content.includes('Docker is available') && content.includes('selected local folder contains a Dev Container configuration'),
+				hasDevContainerExecution: content.includes('run the session on an Agent Host inside that folder\'s Dev Container'),
 				hasPetAchievements: content.includes('View Achievements'),
 				activeElement: mainWindow.document.activeElement,
 				fallbackFocusCount: fallbackFocusCount(),
 			}, {
 				hasDoubleClick: true,
 				hasContextMenu: true,
+				hasChatFocus: true,
+				hasRenameKeybinding: true,
+				hasArchiveKeybinding: true,
+				hasPermanentDelete: true,
+				hasDevContainerAvailability: true,
+				hasDevContainerExecution: true,
 				hasPetAchievements: true,
 				activeElement: origin,
 				fallbackFocusCount: 0,

@@ -10,6 +10,7 @@ import { Disposable, DisposableResourceMap, IDisposable, toDisposable } from '..
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { AgentHostMcpServers, AgentHostMcpServersConfigKey } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { getEffectiveAgents } from '../../../../../../platform/agentHost/common/customAgents.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
@@ -135,6 +136,7 @@ export class NullAgentHostCustomizationService implements IAgentHostCustomizatio
 
 export interface IAgentHostCustomizationTarget {
 	readonly customizations: readonly Customization[];
+	readonly resourceUris: IAgentHostResourceUriMapper;
 	readonly folderPickerDecision?: ISessionFolderPickerDecision;
 	readonly workingDirectory?: string;
 	readonly workingDirectories?: readonly string[];
@@ -201,22 +203,27 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 			return [];
 		}
 		return getPresentableMcpServerCustomizations(target.customizations)
-			.map(({ server, plugin }): IAgentHostMcpServer => ({
-				id: this._scopedMcpServerId(sessionResource, server.id),
-				name: server.name,
-				enabled: isCustomizationEnabled(server) && (!plugin || isCustomizationEnabled(plugin)),
-				enablement: server.enablement,
-				isPluginProvided: plugin !== undefined,
-				isClientBundled: plugin !== undefined && target.isBundledMcpServer(plugin.uri, server.name),
-				owningPluginClientId: plugin?.clientId,
-				disabledReason: getCustomizationDisabledReason(server, plugin),
-				status: server.state.kind,
-				state: server.state,
-				logOutputChannelId: channelIdForMcpServer(sessionResource.toString(), server.id),
-				setEnabled: (enabled: boolean) => target.setCustomizationEnablement(server.id, withCustomizationEnablement(server.enablement, CustomizationEnablementKind.Session, { kind: CustomizationEnablementKind.Session, enabled })),
-				start: () => target.startMcpServer(server.id),
-				stop: () => target.stopMcpServer(server.id),
-			}));
+			.map(({ server, plugin }): IAgentHostMcpServer => {
+				const source = URI.parse(server.uri);
+				return {
+					id: this._scopedMcpServerId(sessionResource, server.id),
+					name: server.name,
+					enabled: isCustomizationEnabled(server) && (!plugin || isCustomizationEnabled(plugin)),
+					enablement: server.enablement,
+					isPluginProvided: plugin !== undefined,
+					isClientBundled: plugin !== undefined && target.isBundledMcpServer(plugin.uri, server.name),
+					owningPluginClientId: plugin?.clientId,
+					disabledReason: getCustomizationDisabledReason(server, plugin),
+					status: server.state.kind,
+					state: server.state,
+					sourceUri: source.scheme === 'mcp-top-level' ? undefined : target.resourceUris.fromAgentHost(source),
+					sourceRange: server.range,
+					logOutputChannelId: channelIdForMcpServer(sessionResource.toString(), server.id),
+					setEnabled: (enabled: boolean) => target.setCustomizationEnablement(server.id, withCustomizationEnablement(server.enablement, CustomizationEnablementKind.Session, { kind: CustomizationEnablementKind.Session, enabled })),
+					start: () => target.startMcpServer(server.id),
+					stop: () => target.stopMcpServer(server.id),
+				};
+			});
 	}
 
 	showMcpServerLog(sessionResource: URI, serverId: string, beforeShow?: () => Promise<void>): Promise<void> {
@@ -481,6 +488,7 @@ class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCustomizat
 		const channel = target.backendSession.toString();
 		return {
 			customizations: sessionState?.customizations ?? [],
+			resourceUris: target.connection.resourceUris,
 			folderPickerDecision: readSessionFolderPickerDecision(sessionState?._meta),
 			workingDirectory: sessionState?.workingDirectories?.[0],
 			workingDirectories: sessionState?.workingDirectories,

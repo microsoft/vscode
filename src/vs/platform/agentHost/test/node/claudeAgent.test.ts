@@ -45,7 +45,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
-import { IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agent.js';
+import { AgentChatMigrationDeferred, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agent.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostClaudeMultiRootEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
@@ -4962,7 +4962,7 @@ suite('ClaudeAgent', () => {
 			modifiedB: b?.modifiedTime,
 			sdkCalls: sdk.listSessionsCallCount,
 			availabilityRequests: sdk.ensureAvailableCalls,
-			migrationChats: chatsToMigrate?.map(r => sessionIdOfChat(r.chat)),
+			migrationChats: chatsToMigrate === AgentChatMigrationDeferred ? undefined : chatsToMigrate?.map(r => sessionIdOfChat(r.chat)),
 		}, {
 			count: 3,
 			ids: ['a', 'b', 'c'],
@@ -6234,7 +6234,6 @@ suite('ClaudeAgent — agent SDK setup channel', () => {
 		await settle();
 		const cold = {
 			discovered: [...discovered],
-			// `undefined` is "ask again later", as distinct from "nothing to migrate".
 			migratable: await ctx.agent.listChatsToMigrate(),
 			fetches: ctx.sdk.ensureAvailableCalls,
 		};
@@ -6251,7 +6250,7 @@ suite('ClaudeAgent — agent SDK setup channel', () => {
 		await settle();
 
 		assert.deepStrictEqual({ cold, inFlight, after: discovered, migratable: await ctx.agent.listChatsToMigrate() }, {
-			cold: { discovered: [], migratable: undefined, fetches: 0 },
+			cold: { discovered: [], migratable: AgentChatMigrationDeferred, fetches: 0 },
 			inFlight: [],
 			after: [1],
 			migratable: [],
@@ -7636,7 +7635,7 @@ suite('ClaudeAgent (Phase 10.6 — MCP elicitation translation)', () => {
 
 		const promise = onElicitation(
 			{ serverName: 'test-mcp', message: 'Pick a side', mode: 'form', requestedSchema: { type: 'object', properties: { side: { type: 'string' } } } },
-			{ signal: new AbortController().signal },
+			{ signal: new AbortController().signal, requestId: 'elicitation-accept' },
 		);
 		await tick();
 
@@ -7647,10 +7646,12 @@ suite('ClaudeAgent (Phase 10.6 — MCP elicitation translation)', () => {
 		});
 
 		assert.deepStrictEqual({
+			id: inputRequest.id,
 			message: inputRequest.message,
 			questions: inputRequest.questions?.map(q => ({ id: q.id, kind: q.kind } as const)),
 			result: await promise,
 		}, {
+			id: 'elicitation-accept',
 			message: 'Pick a side',
 			questions: [{ id: 'side', kind: 'text' }],
 			result: { action: 'accept', content: { side: 'left' } },
@@ -7662,7 +7663,7 @@ suite('ClaudeAgent (Phase 10.6 — MCP elicitation translation)', () => {
 
 		const promise = onElicitation(
 			{ serverName: 'm', message: 'q', mode: 'form', requestedSchema: { type: 'object', properties: { side: { type: 'string' } } } },
-			{ signal: new AbortController().signal },
+			{ signal: new AbortController().signal, requestId: 'elicitation-decline' },
 		);
 		await tick();
 		ctx.agent.respondToUserInputRequest(inputRequests.at(-1)!.id, ChatInputResponseKind.Decline);
@@ -7676,7 +7677,7 @@ suite('ClaudeAgent (Phase 10.6 — MCP elicitation translation)', () => {
 		const controller = new AbortController();
 		const promise = onElicitation(
 			{ serverName: 'm', message: 'q', mode: 'form', requestedSchema: { type: 'object', properties: { side: { type: 'string' } } } },
-			{ signal: controller.signal },
+			{ signal: controller.signal, requestId: 'elicitation-abort' },
 		);
 		await tick();
 		assert.ok(inputRequests.at(-1), 'the elicitation parked as a ChatInputRequested action');
@@ -7690,7 +7691,7 @@ suite('ClaudeAgent (Phase 10.6 — MCP elicitation translation)', () => {
 
 		const promise = onElicitation(
 			{ serverName: 'm', message: 'Authorize', mode: 'url', url: 'https://example.com/auth' },
-			{ signal: new AbortController().signal },
+			{ signal: new AbortController().signal, requestId: 'elicitation-url' },
 		);
 		await tick();
 
@@ -7717,7 +7718,7 @@ suite('ClaudeAgent (Phase 10.6 — MCP elicitation translation)', () => {
 		controller.abort();
 		const result = await onElicitation(
 			{ serverName: 'm', message: 'q', mode: 'form', requestedSchema: { type: 'object', properties: { side: { type: 'string' } } } },
-			{ signal: controller.signal },
+			{ signal: controller.signal, requestId: 'elicitation-pre-aborted' },
 		);
 
 		assert.deepStrictEqual({ result, parked: inputRequests.length }, { result: { action: 'cancel' }, parked: 0 });
@@ -7728,7 +7729,7 @@ suite('ClaudeAgent (Phase 10.6 — MCP elicitation translation)', () => {
 
 		const result = await onElicitation(
 			{ serverName: 'm', message: 'Authorize', mode: 'url' },
-			{ signal: new AbortController().signal },
+			{ signal: new AbortController().signal, requestId: 'elicitation-missing-url' },
 		);
 
 		assert.deepStrictEqual({ result, parked: inputRequests.length }, { result: { action: 'cancel' }, parked: 0 });
@@ -7739,7 +7740,7 @@ suite('ClaudeAgent (Phase 10.6 — MCP elicitation translation)', () => {
 
 		const result = await onElicitation(
 			{ serverName: 'm', message: 'q', mode: 'form', requestedSchema: { type: 'object', properties: {} } },
-			{ signal: new AbortController().signal },
+			{ signal: new AbortController().signal, requestId: 'elicitation-empty-form' },
 		);
 
 		assert.deepStrictEqual({ result, parked: inputRequests.length }, { result: { action: 'cancel' }, parked: 0 });

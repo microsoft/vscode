@@ -2,7 +2,7 @@ version: 1
 dialect: anthropic
 exchanges:
   - request:
-      model: claude-opus-4.8
+      model: claude-opus-5
       system: ${system}
       messages:
         - role: user
@@ -10,7 +10,7 @@ exchanges:
     response:
       content:
         - type: text
-          text: I'll read missing.txt.
+          text: I'll check for the file.
         - type: tool_use
           id: toolcall_0
           name: Read
@@ -18,7 +18,7 @@ exchanges:
             file_path: ${workdir}/missing.txt
       stopReason: tool_use
   - request:
-      model: claude-opus-4.8
+      model: claude-opus-5
       system: ${system}
       messages:
         - role: user
@@ -26,7 +26,7 @@ exchanges:
         - role: assistant
           content:
             - type: text
-              text: I'll read missing.txt.
+              text: I'll check for the file.
             - type: tool_use
               name: Read
               input:

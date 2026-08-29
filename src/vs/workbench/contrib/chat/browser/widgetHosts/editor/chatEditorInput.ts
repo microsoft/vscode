@@ -18,6 +18,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { IProgressService, ProgressLocation } from '../../../../../../platform/progress/common/progress.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { registerIcon } from '../../../../../../platform/theme/common/iconRegistry.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -32,6 +33,7 @@ import { IChatModel } from '../../../common/model/chatModel.js';
 import { LocalChatSessionUri, getChatSessionType, getNewChatSessionResource, isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { adoptLegacyCopilotCliResource, LEGACY_MIGRATION_RESTORE_TIMEOUT_MS } from '../../agentSessions/agentHost/agentHostLegacyMigration.js';
+import { migratedCopilotCliResource } from '../../copilotCliEventsUri.js';
 import { IClearEditingSessionConfirmationOptions } from '../../actions/chatActions.js';
 import type { IChatEditorOptions } from './chatEditor.js';
 
@@ -78,6 +80,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		@IAgentHostEnablementService private readonly agentHostEnablementService: IAgentHostEnablementService,
 		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IProgressService private readonly progressService: IProgressService,
 	) {
 		super();
 
@@ -246,18 +249,26 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		if (this._sessionResource) {
 			// Restore addresses a session by URI, which for a legacy Copilot CLI
 			// session names the extension-host provider. Redirect (and adopt) here,
-			// since `deserialize` is synchronous and cannot.
-			const migrated = await adoptLegacyCopilotCliResource(
-				this.agentHostConnectionsService.ambientConnection,
-				this._sessionResource,
-				this.logService,
-				this.configurationService,
-				this.telemetryService,
-				'restore',
-				LEGACY_MIGRATION_RESTORE_TIMEOUT_MS,
-			);
-			if (migrated) {
-				this._sessionResource = migrated;
+			// since `deserialize` is synchronous and cannot. Only a legacy resource can
+			// redirect, so the progress wrapper is skipped for every normal restore.
+			// Migration is invisible to the user, so the adopt runs under a subtle
+			// status-bar hint rather than a silent wait while the (cold) host settles.
+			if (migratedCopilotCliResource(this._sessionResource)) {
+				const migrated = await this.progressService.withProgress(
+					{ location: ProgressLocation.Window, title: nls.localize('chat.openingSession', "Opening chat…") },
+					() => adoptLegacyCopilotCliResource(
+						this.agentHostConnectionsService.ambientConnection,
+						this._sessionResource!,
+						this.logService,
+						this.configurationService,
+						this.telemetryService,
+						'restore',
+						LEGACY_MIGRATION_RESTORE_TIMEOUT_MS,
+					),
+				);
+				if (migrated) {
+					this._sessionResource = migrated;
+				}
 			}
 			try {
 				this.modelRef.value = await this.chatService.acquireOrLoadSession(this._sessionResource, ChatAgentLocation.Chat, CancellationToken.None, 'ChatEditorInput#resolve', this.options.sessionTypeSelectionReason);

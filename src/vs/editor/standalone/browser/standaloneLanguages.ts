@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Color } from '../../../base/common/color.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
 import { Position } from '../../common/core/position.js';
 import { Range } from '../../common/core/range.js';
 import { MetadataConsts } from '../../common/encodedTokenAttributes.js';
@@ -14,7 +15,7 @@ import { ILanguageExtensionPoint, ILanguageService } from '../../common/language
 import { LanguageConfiguration } from '../../common/languages/languageConfiguration.js';
 import { ILanguageConfigurationService } from '../../common/languages/languageConfigurationRegistry.js';
 import { ModesRegistry } from '../../common/languages/modesRegistry.js';
-import { LanguageSelector } from '../../common/languageSelector.js';
+import { LanguageSelector, score as scoreLanguageSelector } from '../../common/languageSelector.js';
 import * as model from '../../common/model.js';
 import { ILanguageFeaturesService } from '../../common/services/languageFeatures.js';
 import * as standaloneEnums from '../../common/standalone/standaloneEnums.js';
@@ -48,6 +49,13 @@ export function getLanguages(): ILanguageExtensionPoint[] {
 export function getEncodedLanguageId(languageId: string): number {
 	const languageService = StandaloneServices.get(ILanguageService);
 	return languageService.languageIdCodec.encodeLanguageId(languageId);
+}
+
+/**
+ * Compute the score of a language selector against a candidate URI and language.
+ */
+export function score(selector: LanguageSelector | undefined, candidateUri: URI, candidateLanguage: string): number {
+	return scoreLanguageSelector(selector, candidateUri, candidateLanguage, true, undefined, undefined);
 }
 
 /**
@@ -760,6 +768,8 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		onLanguageEncountered: <any>onLanguageEncountered,
 		// eslint-disable-next-line local/code-no-any-casts
 		getEncodedLanguageId: <any>getEncodedLanguageId,
+		// eslint-disable-next-line local/code-no-any-casts
+		score: <any>score,
 
 		// provider methods
 		// eslint-disable-next-line local/code-no-any-casts

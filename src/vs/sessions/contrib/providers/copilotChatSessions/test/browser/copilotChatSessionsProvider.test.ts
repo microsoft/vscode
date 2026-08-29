@@ -33,7 +33,7 @@ import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../
 import { ILanguageModelToolsService } from '../../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IChatResponseModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatAgentData } from '../../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
-import { IGitService } from '../../../../../../workbench/contrib/git/common/gitService.js';
+import { IGitRepository, IGitService } from '../../../../../../workbench/contrib/git/common/gitService.js';
 import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { CloudSandboxEnabledSettingId, type ICloudSandboxCreateSessionRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
@@ -153,6 +153,7 @@ interface ICreateProviderOptions {
 	readonly getOptionGroups?: () => IChatSessionProviderOptionGroup[] | undefined;
 	readonly languageModelsService?: Partial<ILanguageModelsService>;
 	readonly gitHubService?: IGitHubService;
+	readonly gitService?: IGitService;
 	readonly pullRequestIconCache?: IPullRequestIconCache;
 }
 
@@ -307,6 +308,7 @@ function createProviderWithConfig(
 		getUriLabel: (uri: URI) => uri.path,
 	});
 	instantiationService.stub(IUriIdentityService, { extUri });
+	instantiationService.stub(IGitService, opts?.gitService ?? { repositories: [], openRepository: async () => undefined });
 	instantiationService.stub(IGitHubService, opts?.gitHubService ?? new TestGitHubService());
 	instantiationService.stub(IPullRequestIconCache, opts?.pullRequestIconCache ?? new TestPullRequestIconCache());
 
@@ -1537,6 +1539,49 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.strictEqual(workspace.folders.length, 1);
 		assert.strictEqual(workspace.folders[0].root.toString(), uri.toString());
 		assert.strictEqual(workspace.requiresWorkspaceTrust, true);
+	});
+
+	test('resolveWorkspace resolves local GitHub metadata only when requested', async () => {
+		let openRepositoryCalls = 0;
+		const repositoryState = observableValue('repositoryState', {
+			HEAD: undefined,
+			remotes: [{ name: 'origin', fetchUrl: 'https://github.com/microsoft/vscode.git', pushUrl: undefined, isReadOnly: false }],
+			mergeChanges: [],
+			indexChanges: [],
+			workingTreeChanges: [],
+			untrackedChanges: [],
+		});
+		const gitService = upcastPartial<IGitService>({
+			repositories: [],
+			openRepository: async () => {
+				openRepositoryCalls++;
+				return upcastPartial<IGitRepository>({ state: repositoryState });
+			},
+		});
+		const provider = createProvider(disposables, model, { gitService });
+		const workspace = provider.resolveWorkspace(URI.file('/test/vscode'));
+		const gitRepository = workspace?.folders[0].gitRepository;
+
+		const beforeResolve = {
+			openRepositoryCalls,
+			gitHubInfo: gitRepository?.gitHubInfo.get(),
+		};
+		gitRepository?.resolveGitHubInfo?.();
+		await timeout(0);
+		gitRepository?.resolveGitHubInfo?.();
+
+		assert.deepStrictEqual({
+			beforeResolve,
+			openRepositoryCalls,
+			gitHubInfo: gitRepository?.gitHubInfo.get(),
+		}, {
+			beforeResolve: {
+				openRepositoryCalls: 0,
+				gitHubInfo: undefined,
+			},
+			openRepositoryCalls: 1,
+			gitHubInfo: { owner: 'microsoft', repo: 'vscode' },
+		});
 	});
 
 	test('builds an unknown workspace fallback when repository metadata is missing', () => {
