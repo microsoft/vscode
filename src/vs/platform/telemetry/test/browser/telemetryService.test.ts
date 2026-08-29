@@ -243,6 +243,19 @@ suite('TelemetryService', () => {
 		service.dispose();
 	});
 
+	test('msftInternal reflects common properties set after construction', function () {
+		const service = new TelemetryService({
+			appenders: [NullAppender],
+		}, new TestConfigurationService(), TestProductService);
+
+		const beforeSet = service.msftInternal;
+		service.setCommonProperty('common.msftInternal', true);
+
+		assert.deepStrictEqual({ beforeSet, afterSet: service.msftInternal }, { beforeSet: undefined, afterSet: true });
+
+		service.dispose();
+	});
+
 	test('telemetry on by default', function () {
 		const testAppender = new TestTelemetryAppender();
 		const service = new TelemetryService({ appenders: [testAppender] }, new TestConfigurationService(), TestProductService);

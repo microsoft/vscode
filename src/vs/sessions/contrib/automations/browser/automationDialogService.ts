@@ -82,8 +82,9 @@ export class AutomationDialogService implements IAutomationDialogService {
 	async showAutomationDialog(options: IShowAutomationDialogOptions): Promise<IAutomationDialogResult | undefined> {
 		const disposables = new DisposableStore();
 
-		const initial = options.existing;
-		const isEdit = !!initial;
+		const existing = options.existing;
+		const initial = existing ?? options.initialValues;
+		const isEdit = !!existing;
 		const initialTarget = initial?.target;
 		const initialWorkspaceTarget = initialTarget?.kind === 'workspace' ? initialTarget : undefined;
 
@@ -228,7 +229,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 				return undefined;
 			}
 
-			if (isEdit && initial) {
+			if (existing) {
 				const patch: IUpdateAutomationOptions = {
 					name: state.name,
 					prompt,
@@ -239,7 +240,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 					permissionLevel: permissionLevel ?? null,
 					enabled: state.enabled,
 				};
-				return { kind: 'update', id: initial.id, value: patch };
+				return { kind: 'update', id: existing.id, value: patch };
 			}
 
 			const create: ICreateAutomationOptions = {

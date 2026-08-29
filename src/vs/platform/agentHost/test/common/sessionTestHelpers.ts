@@ -350,6 +350,7 @@ export function createNoopGitService(): import('../../common/agentHostGitService
 		addExistingWorktree: async () => { },
 		removeWorktree: async () => { },
 		branchExists: async () => false,
+		createBranch: async () => { },
 		hasUncommittedChanges: async () => false,
 		commitAll: async () => { },
 		mergeBranch: async () => '',

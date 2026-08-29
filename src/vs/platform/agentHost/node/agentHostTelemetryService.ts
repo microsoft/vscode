@@ -54,6 +54,9 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 	private _restrictedTelemetryEnabled = false;
 	private _internalTelemetryEnabled = false;
 
+	/** Whether the machine itself is internal, captured before any account can override it. */
+	private readonly _internalMachine: boolean;
+
 	constructor(
 		private readonly _delegate: ITelemetryService,
 		private readonly _restricted?: IAgentHostRestrictedTelemetry,
@@ -63,6 +66,7 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 	) {
 		super();
 		this._telemetryLevel = initialTelemetryLevel;
+		this._internalMachine = _delegate.msftInternal === true;
 		if (isDisposable(_delegate)) {
 			this._register(_delegate);
 		}
@@ -188,6 +192,10 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 
 	setInternalTelemetryContext(context: IAgentHostInternalTelemetryContext | undefined): void {
 		this._internalTelemetryEnabled = context?.isInternal === true;
+		if (context) {
+			// Signing in to an external account has to clear the account half of the signal again.
+			this._delegate.setCommonProperty('common.msftInternal', this._internalMachine || this._internalTelemetryEnabled);
+		}
 		this._restricted?.setInternalTelemetryContext(context);
 	}
 

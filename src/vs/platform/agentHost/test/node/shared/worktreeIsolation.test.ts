@@ -121,6 +121,7 @@ suite('WorktreeIsolation', () => {
 
 	function createIsolation(disposableStore: Pick<DisposableStore, 'add'>, options?: { readonly branchNameGenerator?: IAgentBranchNameGenerator; readonly gitService?: IAgentHostGitService }): WorktreeIsolation {
 		const branchNameGenerator = options?.branchNameGenerator ?? {
+			_serviceBrand: undefined,
 			generateBranchName: async () => branchName,
 		};
 		return disposableStore.add(new WorktreeIsolation(
@@ -236,7 +237,7 @@ suite('WorktreeIsolation', () => {
 		gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'origin/main' });
 		const isolation = createIsolation(disposables, {
 			gitService,
-			branchNameGenerator: { generateBranchName: async () => { throw new Error('should not generate a branch'); } },
+			branchNameGenerator: { _serviceBrand: undefined, generateBranchName: async () => { throw new Error('should not generate a branch'); } },
 		});
 
 		const worktree = await isolation.resolveWorkingDirectory({

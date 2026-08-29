@@ -920,6 +920,53 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
+	suite('session row spacing', () => {
+		test('reserves spacing only in the main sessions list', () => {
+			const sessions = [
+				createTestSession('First').session,
+				createTestSession('Second').session,
+			];
+
+			const mainHarness = createListHarness(disposables, sessions);
+			const mainContainer = mainHarness.createContainer();
+			const mainList = mainHarness.store.add(mainHarness.instantiationService.createInstance(SessionsList, mainContainer, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			mainList.layout(300, 400);
+
+			const flatHarness = createListHarness(disposables, sessions);
+			const flatContainer = flatHarness.createContainer();
+			const flatList = flatHarness.store.add(flatHarness.instantiationService.createInstance(SessionsFlatList, flatContainer, {
+				showSessionHover: false,
+				onSessionOpen: () => { },
+			}));
+			flatList.setSessions(sessions);
+			flatList.layout(300, 400);
+
+			const mainRows = [...mainContainer.querySelectorAll<HTMLElement>('.session-item')]
+				.map(item => item.closest<HTMLElement>('.monaco-list-row')!);
+			const flatRows = [...flatContainer.querySelectorAll<HTMLElement>('.session-item')]
+				.map(item => item.closest<HTMLElement>('.monaco-list-row')!);
+			assert.deepStrictEqual({
+				mainHasSpacingClass: mainContainer.querySelector('.sessions-list-control')?.classList.contains('session-list-row-spacing'),
+				mainRowHeight: mainRows[0].style.height,
+				mainRowOffset: parseInt(mainRows[1].style.top) - parseInt(mainRows[0].style.top),
+				flatHasSpacingClass: flatContainer.querySelector('.sessions-list-control')?.classList.contains('session-list-row-spacing'),
+				flatRowHeight: flatRows[0].style.height,
+				flatRowOffset: parseInt(flatRows[1].style.top) - parseInt(flatRows[0].style.top),
+			}, {
+				mainHasSpacingClass: true,
+				mainRowHeight: '56px',
+				mainRowOffset: 56,
+				flatHasSpacingClass: false,
+				flatRowHeight: '54px',
+				flatRowOffset: 54,
+			});
+		});
+	});
+
 	suite('session chat rows', () => {
 
 		function createChat(title: string, origin?: ChatOriginKind, interactivity = ChatInteractivity.Full, status = SessionStatus.Completed): IChat {
@@ -1218,8 +1265,8 @@ suite('Sessions - SessionsList', () => {
 			assert.ok(phoneChatRow);
 
 			assert.deepStrictEqual({ desktopHeight, phoneHeight: phoneChatRow.style.height }, {
-				desktopHeight: '28px',
-				phoneHeight: '44px',
+				desktopHeight: '30px',
+				phoneHeight: '46px',
 			});
 		});
 
@@ -1991,8 +2038,8 @@ suite('Sessions - SessionsList', () => {
 
 			const row = targetRow();
 			assert.ok(row, 'target row should render after growing the viewport');
-			// Base chat rows are 28px; a reconciled approval must reserve more.
-			assert.ok(parseInt(row.style.height) > 28, `expected reconciled height to reserve the approval row, got ${row.style.height}`);
+			// Base chat rows reserve 30px including spacing; an approval must reserve more.
+			assert.ok(parseInt(row.style.height) > 30, `expected reconciled height to reserve the approval row, got ${row.style.height}`);
 			assert.ok(row.querySelector('.session-approval-row.visible'), 'approval row should be visible on the re-rendered target');
 		});
 	});

@@ -143,7 +143,7 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		assert.deepStrictEqual({
 			beforeReady,
 			afterReady: connectCalls,
-			clientInfo: protocolClientCall?.args[5],
+			clientInfo: protocolClientCall?.args[3]?.clientInfo,
 			registeredAuthorities,
 		}, {
 			beforeReady: 0,

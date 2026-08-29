@@ -134,8 +134,8 @@ export function getConfigIcon(property: string, value: unknown | undefined, hasU
 
 function formatUncommittedChanges(count: number): string {
 	return count === 1
-		? localize('agentHostSessionConfig.branchItemUncommittedSingular', "1 uncommitted change")
-		: localize('agentHostSessionConfig.branchItemUncommittedPlural', "{0} uncommitted changes", count);
+		? localize('agentHostSessionConfig.branchItemUncommittedSingular', "1 uncommitted file")
+		: localize('agentHostSessionConfig.branchItemUncommittedPlural', "{0} uncommitted files", count);
 }
 
 function getBranchUncommittedChanges(branchName: string, repositoryBranchName: string | undefined, repositoryUncommittedChanges: number | undefined): number | undefined {
@@ -248,8 +248,8 @@ async function confirmAutoApproveLevel(value: string, label: string, dialogServi
 function triggerAriaLabel(title: string, label: string, isReadOnly: boolean, hasUncommittedChanges: boolean): string {
 	if (hasUncommittedChanges) {
 		return isReadOnly
-			? localize('agentHostSessionConfig.triggerAriaReadOnlyUncommitted', "{0}: {1}, Uncommitted Changes, Read-Only", title, label)
-			: localize('agentHostSessionConfig.triggerAriaUncommitted', "{0}: {1}, Uncommitted Changes", title, label);
+			? localize('agentHostSessionConfig.triggerAriaReadOnlyUncommitted', "{0}: {1}, Uncommitted Files, Read-Only", title, label)
+			: localize('agentHostSessionConfig.triggerAriaUncommitted', "{0}: {1}, Uncommitted Files", title, label);
 	}
 
 	return isReadOnly
@@ -661,8 +661,8 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			const content = !hasUncommittedChanges
 				? branchName
 				: uncommittedChanges === 1
-					? localize('agentHostSessionConfig.branchHoverUncommittedChangeWithDescription', "{0}, {1} uncommitted change", branchName, uncommittedChanges)
-					: localize('agentHostSessionConfig.branchHoverUncommittedChangesWithDescription', "{0}, {1} uncommitted changes", branchName, uncommittedChanges);
+					? localize('agentHostSessionConfig.branchHoverUncommittedChangeWithDescription', "{0}, {1} uncommitted file", branchName, uncommittedChanges)
+					: localize('agentHostSessionConfig.branchHoverUncommittedChangesWithDescription', "{0}, {1} uncommitted files", branchName, uncommittedChanges);
 
 			// This autorun re-runs for any workspace change, not just an
 			// uncommitted-changes flip, so only touch the hover when the text

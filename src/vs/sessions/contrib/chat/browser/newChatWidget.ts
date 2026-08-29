@@ -708,6 +708,7 @@ export class NewChatWidget extends Disposable {
 			ariaLabel: localize('newSessionWorkspacePicker.githubContextAriaLabel', "Attach a GitHub issue or pull request to the new session"),
 			tooltip: localize('newSessionWorkspacePicker.githubContextTooltip', "Attach an issue or pull request as context"),
 			icon: Codicon.add,
+			hideIconWhenAttached: true,
 			group: SESSION_WORKSPACE_GROUP_GITHUB,
 			attachesContext: true,
 			hideWhenNoGitHubRepository: true,

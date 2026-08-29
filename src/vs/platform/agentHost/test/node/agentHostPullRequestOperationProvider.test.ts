@@ -11,9 +11,10 @@ import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostPullRequestOperationContribution } from '../../node/agentHostPullRequestOperationProvider.js';
 import type { IAgentHostPullRequestStatus, IAgentHostPullRequestStatusService } from '../../node/agentHostPullRequestStatusService.js';
-import type { ISessionGitHubState, ISessionGitState } from '../../common/state/sessionState.js';
+import { SessionStatus, type ISessionGitHubState, type ISessionGitState } from '../../common/state/sessionState.js';
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { ChangesetKind } from '../../common/changesetUri.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 
 const nullGitStateService = new class implements IAgentHostGitStateService {
 	declare readonly _serviceBrand: undefined;
@@ -68,9 +69,25 @@ const pullRequestForBranch: ISessionGitHubState = {
 suite('AgentHostPullRequestOperationContribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createContribution(status?: IAgentHostPullRequestStatus): AgentHostPullRequestOperationContribution {
+	function createContribution(status?: IAgentHostPullRequestStatus, isolation?: 'folder' | 'worktree'): AgentHostPullRequestOperationContribution {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		if (isolation) {
+			stateManager.createSession({
+				resource: 'agent:/session',
+				provider: 'copilot',
+				title: 'Session',
+				status: SessionStatus.Idle,
+				createdAt: new Date(1).toISOString(),
+				modifiedAt: new Date(1).toISOString(),
+				workingDirectories: ['file:///repo'],
+			});
+			stateManager.setSessionConfig('agent:/session', {
+				schema: { type: 'object', properties: {} },
+				values: { [SessionConfigKey.Isolation]: isolation },
+			});
+		}
 		return disposables.add(new AgentHostPullRequestOperationContribution(
-			disposables.add(new AgentHostStateManager(new NullLogService())),
+			stateManager,
 			disposables.add(new InstantiationService()),
 			nullGitStateService,
 			createStatusService(status),
@@ -84,6 +101,19 @@ suite('AgentHostPullRequestOperationContribution', () => {
 		const operations = provider.getOperations({ sessionKey: 'agent:/session', gitState: githubBranchWithUncommittedChanges, changesetKind: ChangesetKind.Session, changesetUri: '' });
 
 		assert.deepStrictEqual(operations?.map(op => op.id), ['create-pr', 'create-pr-auto-merge', 'create-pr-auto-squash', 'create-pr-auto-rebase', 'create-draft-pr']);
+	});
+
+	test('does not advertise PR operations for folder sessions with outgoing changes', () => {
+		const provider = createContribution(undefined, 'folder');
+
+		const operations = provider.getOperations({
+			sessionKey: 'agent:/session',
+			gitState: { ...githubBranchWithUncommittedChanges, uncommittedChanges: 0, outgoingChanges: 2 },
+			changesetKind: ChangesetKind.Branch,
+			changesetUri: '',
+		});
+
+		assert.deepStrictEqual(operations, undefined);
 	});
 
 	test('does not advertise PR operations without GitHub branch changes', () => {
