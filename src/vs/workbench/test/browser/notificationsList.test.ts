@@ -103,6 +103,23 @@ suite('NotificationsList row height', () => {
 			rowAfterDispose: null
 		});
 	});
+});
+
+suite('NotificationRenderer', () => {
+	suiteSetup(() => {
+		const warmupDisposables = new DisposableStore();
+		const container = document.createElement('div');
+		try {
+			const instantiationService = workbenchInstantiationService(undefined, warmupDisposables);
+			const renderer = instantiationService.createInstance(NotificationRenderer, warmupDisposables.add(new ActionRunner()));
+			const templateData = renderer.renderTemplate(container);
+			renderer.disposeTemplate(templateData);
+		} finally {
+			warmupDisposables.dispose();
+		}
+	});
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('releases replaced notification action view items', () => {
 		const container = document.createElement('div');
