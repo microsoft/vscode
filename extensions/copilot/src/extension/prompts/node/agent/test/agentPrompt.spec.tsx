@@ -417,7 +417,7 @@ suite('AgentPrompt - Gemini Flash prompt additions experiment', () => {
 		});
 		const availableTools = includeToolSpecificTools
 			? [...toolsService.tools, syntheticTool(ToolName.CoreRunInTerminal), syntheticTool(ToolName.FindTextInFiles)]
-			: toolsService.tools;
+			: toolsService.tools.filter(t => t.name !== ToolName.CoreRunInTerminal && t.name !== ToolName.FindTextInFiles);
 		const props: AgentPromptProps = {
 			priority: 1,
 			endpoint,
