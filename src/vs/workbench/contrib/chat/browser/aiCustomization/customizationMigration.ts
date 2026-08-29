@@ -8,7 +8,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { basename, dirname, getComparisonKey, isEqual } from '../../../../../base/common/resources.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
-import { FileOperationResult, IFileService, IFileStatWithMetadata, toFileOperationResult } from '../../../../../platform/files/common/files.js';
+import { FileOperationError, FileOperationResult, IFileService, IFileStatWithMetadata, toFileOperationResult } from '../../../../../platform/files/common/files.js';
 import { getCleanPromptName, getPromptFileExtension, SKILL_FILENAME, VALID_SKILL_NAME_REGEX } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { IHeaderAttribute, ParsedPromptFile, PromptFileParser, PromptHeaderAttributes } from '../../common/promptSyntax/promptFileParser.js';
 import { getCustomizationMigrationTargetType, IMcpServerCustomizationMigrationCandidate, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
@@ -382,7 +382,8 @@ async function migrateMcpServerGroup(
 			continue;
 		}
 
-		if (Object.hasOwn(targetServers, candidate.name) && !equals(targetServers[candidate.name], migrationConfiguration)) {
+		const targetConfiguration = canonicalizeMcpServerMigrationSourceConfiguration(targetServers[candidate.name]);
+		if (Object.hasOwn(targetServers, candidate.name) && (!targetConfiguration || !equals(targetConfiguration, migrationConfiguration))) {
 			failedServerNames.push(candidate.name);
 			onMigrationError?.(new Error(`MCP server '${candidate.name}' already exists with a different configuration in ${group.targetUri.toString()}.`));
 			continue;
@@ -422,6 +423,7 @@ async function migrateMcpServerGroup(
 		if (writtenTarget) {
 			try {
 				if (target.exists) {
+					await ensureFileExists(group.targetUri, fileService);
 					await fileService.writeFile(group.targetUri, VSBuffer.fromString(target.content), {
 						etag: writtenTarget.etag,
 						mtime: writtenTarget.mtime,
@@ -441,6 +443,7 @@ async function migrateMcpServerGroup(
 	} catch (verificationError) {
 		// Two files cannot be updated atomically; restore the guarded source if another writer changed the target.
 		try {
+			await ensureFileExists(group.sourceUri, fileService);
 			await fileService.writeFile(group.sourceUri, VSBuffer.fromString(source.content), {
 				etag: writtenSource.etag,
 				mtime: writtenSource.mtime,
@@ -462,7 +465,10 @@ async function verifyMigratedMcpServers(
 	const target = await readTargetJsonDocument(targetUri, fileService);
 	const targetServers = getObjectProperty(target.value, 'mcpServers')!;
 	for (const candidate of candidates) {
-		if (!equals(targetServers[candidate.name], canonicalizeMcpServerMigrationConfiguration(candidate.configuration))) {
+		if (!equals(
+			canonicalizeMcpServerMigrationSourceConfiguration(targetServers[candidate.name]),
+			canonicalizeMcpServerMigrationConfiguration(candidate.configuration),
+		)) {
 			throw new Error(`MCP server '${candidate.name}' changed in ${targetUri.toString()} during migration.`);
 		}
 	}
@@ -506,14 +512,21 @@ async function readTargetJsonDocument(resource: URI, fileService: IFileService):
 	}
 }
 
-function writeJsonDocument(resource: URI, content: string, document: IJsonDocument, fileService: IFileService): Promise<IFileStatWithMetadata> {
+async function writeJsonDocument(resource: URI, content: string, document: IJsonDocument, fileService: IFileService): Promise<IFileStatWithMetadata> {
 	if (document.exists) {
+		await ensureFileExists(resource, fileService);
 		return fileService.writeFile(resource, VSBuffer.fromString(content), {
 			etag: document.etag,
 			mtime: document.mtime,
 		});
 	}
 	return fileService.createFile(resource, VSBuffer.fromString(content), { overwrite: false });
+}
+
+async function ensureFileExists(resource: URI, fileService: IFileService): Promise<void> {
+	if (!await fileService.exists(resource)) {
+		throw new FileOperationError(`File was deleted during MCP migration: ${resource.toString()}`, FileOperationResult.FILE_NOT_FOUND);
+	}
 }
 
 function getObjectProperty(value: Record<string, unknown>, key: string): Record<string, unknown> | undefined {

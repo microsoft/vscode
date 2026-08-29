@@ -10,7 +10,7 @@ import { equals } from '../../../../../base/common/objects.js';
 import { dirname } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
 import { isAgentHostSessionResource } from '../../common/chatSessionsService.js';
 import { ICustomizationHarnessService, ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
@@ -193,7 +193,15 @@ export class CustomizationMigrationService implements ICustomizationMigrationSer
 	}
 
 	private async readMcpServers(resource: URI): Promise<Record<string, unknown> | undefined> {
-		const content = (await this.fileService.readFile(resource)).value.toString();
+		let content: string;
+		try {
+			content = (await this.fileService.readFile(resource)).value.toString();
+		} catch (error) {
+			if (toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
+				return undefined;
+			}
+			throw error;
+		}
 		const errors: ParseError[] = [];
 		const value = parse(content, errors, { allowTrailingComma: true, allowEmptyContent: false });
 		if (errors.length > 0 || !value || typeof value !== 'object' || Array.isArray(value)) {

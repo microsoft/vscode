@@ -50,6 +50,18 @@ class TargetChangingFileSystemProvider extends InMemoryFileSystemProvider {
 	}
 }
 
+class DeletingBeforeExistsFileService extends FileService {
+	deleteBeforeExists: URI | undefined;
+
+	override async exists(resource: URI): Promise<boolean> {
+		if (this.deleteBeforeExists && isEqual(resource, this.deleteBeforeExists)) {
+			this.deleteBeforeExists = undefined;
+			await this.del(resource);
+		}
+		return super.exists(resource);
+	}
+}
+
 suite('mcpServerMigration', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -202,7 +214,7 @@ suite('mcpServerMigration', () => {
 		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
 		const targetUri = URI.joinPath(root, '.mcp.json');
 		await fileService.writeFile(sourceUri, VSBuffer.fromString('{"servers":{"server":{"type":"stdio","command":"source"}}}'));
-		await fileService.writeFile(targetUri, VSBuffer.fromString('{"mcpServers":{"server":{"type":"stdio","command":"source"}}}'));
+		await fileService.writeFile(targetUri, VSBuffer.fromString('{"mcpServers":{"server":{"type":"stdio","command":"source","args":[]}}}'));
 
 		const result = await migrateMcpServers([
 			candidate(root, 'server-id', 'server', { type: McpServerType.LOCAL, command: 'source', args: undefined }),
@@ -215,6 +227,53 @@ suite('mcpServerMigration', () => {
 		}, {
 			result: { migratedCount: 1, failedServerNames: [] },
 			source: { servers: {} },
+			target: { mcpServers: { server: { type: 'stdio', command: 'source', args: [] } } },
+		});
+	});
+
+	test('does not recreate an existing target deleted during migration', async () => {
+		const fileService = store.add(new DeletingBeforeExistsFileService(new NullLogService()));
+		const provider = store.add(new InMemoryFileSystemProvider());
+		store.add(fileService.registerProvider(Schemas.file, provider));
+		const root = URI.file('/workspace-deleted-target');
+		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
+		const targetUri = URI.joinPath(root, '.mcp.json');
+		await fileService.writeFile(sourceUri, VSBuffer.fromString('{"servers":{"server":{"type":"stdio","command":"source"}}}'));
+		await fileService.writeFile(targetUri, VSBuffer.fromString('{"mcpServers":{}}'));
+		fileService.deleteBeforeExists = targetUri;
+
+		const result = await migrateMcpServers([candidate(root, 'server-id', 'server')], fileService);
+
+		assert.deepStrictEqual({
+			result,
+			source: parse((await fileService.readFile(sourceUri)).value.toString()),
+			targetExists: await fileService.exists(targetUri),
+		}, {
+			result: { migratedCount: 0, failedServerNames: ['server'] },
+			source: { servers: { server: { type: 'stdio', command: 'source' } } },
+			targetExists: false,
+		});
+	});
+
+	test('does not recreate an existing source deleted during migration', async () => {
+		const fileService = store.add(new DeletingBeforeExistsFileService(new NullLogService()));
+		const provider = store.add(new InMemoryFileSystemProvider());
+		store.add(fileService.registerProvider(Schemas.file, provider));
+		const root = URI.file('/workspace-deleted-source');
+		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
+		const targetUri = URI.joinPath(root, '.mcp.json');
+		await fileService.writeFile(sourceUri, VSBuffer.fromString('{"servers":{"server":{"type":"stdio","command":"source"}}}'));
+		fileService.deleteBeforeExists = sourceUri;
+
+		const result = await migrateMcpServers([candidate(root, 'server-id', 'server')], fileService);
+
+		assert.deepStrictEqual({
+			result,
+			sourceExists: await fileService.exists(sourceUri),
+			target: parse((await fileService.readFile(targetUri)).value.toString()),
+		}, {
+			result: { migratedCount: 0, failedServerNames: ['server'] },
+			sourceExists: false,
 			target: { mcpServers: { server: { type: 'stdio', command: 'source' } } },
 		});
 	});

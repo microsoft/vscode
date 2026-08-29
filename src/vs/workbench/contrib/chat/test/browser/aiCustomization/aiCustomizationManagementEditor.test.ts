@@ -365,16 +365,16 @@ suite('aiCustomizationManagementEditor', () => {
 		const serverA: IMcpServerCustomizationMigrationCandidate = {
 			type: CustomizationMigrationType.McpServers,
 			id: 'mcp.config.ws0.server-a',
-			name: 'server-a',
-			sourceUri: URI.file('/workspace/.vscode/mcp.json'),
-			targetUri: URI.file('/workspace/.mcp.json'),
-			configuration: { type: McpServerType.LOCAL, command: 'server-a' },
+			name: 'server',
+			sourceUri: URI.file('/workspace-a/.vscode/mcp.json'),
+			targetUri: URI.file('/workspace-a/.mcp.json'),
+			configuration: { type: McpServerType.LOCAL, command: 'server' },
 		};
 		const serverB: IMcpServerCustomizationMigrationCandidate = {
 			...serverA,
 			id: 'mcp.config.ws0.server-b',
-			name: 'server-b',
-			configuration: { type: McpServerType.LOCAL, command: 'server-b' },
+			sourceUri: URI.file('/workspace-b/.vscode/mcp.json'),
+			targetUri: URI.file('/workspace-b/.mcp.json'),
 		};
 		editor.customizationsByMigrationCategory = new Map([[CustomizationMigrationCategoryId.McpServers, [serverA, serverB]]]);
 		editor.activeMigrationCategoryId = CustomizationMigrationCategoryId.McpServers;
@@ -390,10 +390,13 @@ suite('aiCustomizationManagementEditor', () => {
 			button: editor.migrationMigrateButton,
 		}, {
 			rowText: [
-				'server-a/workspace/.vscode/mcp.json to /workspace/.mcp.json',
-				'server-b/workspace/.vscode/mcp.json to /workspace/.mcp.json',
+				'server/workspace-a/.vscode/mcp.json to /workspace-a/.mcp.json',
+				'server/workspace-b/.vscode/mcp.json to /workspace-b/.mcp.json',
 			],
-			selectAriaLabel: ['Select server-a', 'Select server-b'],
+			selectAriaLabel: [
+				'Select server from /workspace-a/.vscode/mcp.json',
+				'Select server from /workspace-b/.vscode/mcp.json',
+			],
 			button: { enabled: true, label: 'Migrate 1' },
 		});
 		editor.editorPreviewDisposables.dispose();

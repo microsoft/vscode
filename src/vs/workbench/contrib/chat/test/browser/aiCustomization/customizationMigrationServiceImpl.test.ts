@@ -11,7 +11,7 @@ import { constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { FileOperationError, FileOperationResult, IFileService } from '../../../../../../platform/files/common/files.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { CustomizationMigrationService } from '../../../browser/aiCustomization/customizationMigrationServiceImpl.js';
 import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
@@ -419,6 +419,67 @@ suite('CustomizationMigrationService', () => {
 			activeClientService,
 			agentHostCustomizationService,
 			createMcpFileService({ sse: { type: 'sse', url: 'https://example.com/sse' } }),
+		);
+
+		const migration = await service.computeMigration(
+			URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' }),
+			CustomizationMigrationType.McpServers,
+		);
+
+		assert.deepStrictEqual(migration.candidates, []);
+	});
+
+	test('treats a missing MCP source file as having no migration candidates', async () => {
+		const root = URI.file('/workspace');
+		const snapshot: IAgentHostMcpServerSupportSnapshot = {
+			servers: [{
+				id: 'mcp.config.ws0.server',
+				name: 'server',
+				collectionId: 'mcp.config.ws0',
+				source: {
+					group: 'local',
+					kind: AgentHostMcpServerSourceKind.VscodeWorkspaceFolder,
+					label: 'Workspace',
+					collectionUri: URI.joinPath(root, '.vscode', 'mcp.json'),
+					definitionLocation: undefined,
+					remoteAuthority: null,
+					extensionId: undefined,
+					pluginUri: undefined,
+				},
+				enablement: { enabled: true, state: AgentHostMcpServerEnablementState.EnabledWorkspace },
+				applicability: AgentHostMcpServerApplicability.Applicable,
+				delivery: AgentHostMcpServerDelivery.ClientForwarded,
+				compatibility: { kind: 'supported' },
+				migrationConfiguration: { type: McpServerType.LOCAL, command: 'server' },
+			}],
+			discoveryComplete: true,
+			coverage: {
+				restrictedByMcpAccess: false,
+				restrictedByCustomizationPolicy: false,
+			},
+		};
+		const activeClientService = {
+			acquireMcpServerSupportScope: () => ({
+				support: constObservable(snapshot),
+				isResolved: constObservable(true),
+				whenResolved: () => Promise.resolve(),
+				dispose: () => { },
+			}),
+		} as Partial<IAgentHostActiveClientService> as IAgentHostActiveClientService;
+		const agentHostCustomizationService = new class extends mock<IAgentHostCustomizationService>() {
+			override getWorkingDirectories() { return [root.toString()]; }
+		}();
+		const missingFileService = {
+			readFile: async () => {
+				throw new FileOperationError('missing', FileOperationResult.FILE_NOT_FOUND);
+			},
+		} as Partial<IFileService> as IFileService;
+		const service = new CustomizationMigrationService(
+			store.add(new TestPromptsService([])),
+			new TestCustomizationHarnessService(),
+			activeClientService,
+			agentHostCustomizationService,
+			missingFileService,
 		);
 
 		const migration = await service.computeMigration(

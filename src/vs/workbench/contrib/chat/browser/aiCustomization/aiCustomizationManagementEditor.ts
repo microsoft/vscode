@@ -1416,7 +1416,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const { migratedCount, failedServerNames } = await migrateMcpServers(
 			currentServers,
 			this.fileService,
-			error => this.logService.error('[MCP Migration] Failed to migrate a server', error),
+			error => {
+				this.logService.error('[MCP Migration] Failed to migrate a server', error);
+				onUnexpectedError(error);
+			},
 		);
 		const allFailedServerNames = [...noLongerEligibleServerNames, ...failedServerNames];
 		if (noLongerEligibleServerNames.length > 0) {
@@ -1494,7 +1497,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 			: customization.name ?? basename(customization.uri);
 		const renderSelectionCheckbox = (row: HTMLElement, customization: CustomizationMigrationCandidate, onSelectionChange?: () => void): Checkbox => {
 			const checkboxContainer = DOM.append(row, $('.item-sync-checkbox.prompt-migration-checkbox'));
-			const checkboxTitle = localize('customizationMigrationSelectAriaLabel', "Select {0}", getCandidateName(customization));
+			const checkboxTitle = isMcpServerCustomizationMigrationCandidate(customization)
+				? localize('mcpMigrationSelectAriaLabel', "Select {0} from {1}", customization.name, this.labelService.getUriLabel(customization.sourceUri, { relative: true }))
+				: localize('customizationMigrationSelectAriaLabel', "Select {0}", getCandidateName(customization));
 			const checkbox = this.migrationPageDisposables.add(new Checkbox(checkboxTitle, this.isCustomizationSelectedForMigration(customization), defaultCheckboxStyles));
 			checkboxContainer.replaceChildren(checkbox.domNode);
 			this.migrationFirstFocusableElement ??= checkbox.domNode;
