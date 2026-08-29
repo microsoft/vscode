@@ -178,6 +178,23 @@ declare var MOCK_POLICY_ENDPOINTS: EndpointDef[];
 					}
 				},
 				{
+					id: 'sandbox-no-internet',
+					label: 'Sandbox, no internet',
+					description: 'Enables the agent runtime sandbox with bypass allowed, but denies outbound network access so sandboxed tools run offline.',
+					status: 200,
+					body: {
+						sandbox: {
+							enabled: true,
+							allowBypass: true,
+							userPolicy: {
+								network: {
+									allowOutbound: false
+								}
+							}
+						}
+					}
+				},
+				{
 					id: 'model-auto',
 					label: 'Model: auto',
 					description: 'Sets the managed model to auto.',

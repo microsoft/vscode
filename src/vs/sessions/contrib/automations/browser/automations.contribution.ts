@@ -23,6 +23,7 @@ import { ProviderAutomationService } from './providerAutomationService.js';
 import { BrowserAutomationStorageService } from './automationStorageService.js';
 import { AutomationToolsContribution } from './automationTools.js';
 import { IAutomationStorageService } from '../common/automationStorageService.js';
+import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY } from '../../../../platform/agentHost/common/automationMigration.js';
 
 registerSingleton(IAutomationStorageService, BrowserAutomationStorageService, InstantiationType.Delayed);
 registerSingleton(IAutomationService, ProviderAutomationService, InstantiationType.Delayed);
@@ -43,6 +44,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('chat.automations.enabled', "Enables the Automations feature: scheduling agent sessions to run on a cadence. When disabled, the Automations entry in the Customizations sidebar, the Automations section in the Customizations editor, and the Automation option in the new-session composer are hidden, and scheduled automations are not dispatched."),
 			included: product.quality !== 'stable',
 			experiment: { mode: 'auto' },
+			agentHost: { key: AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY },
 		},
 		[CHAT_AUTOMATIONS_RUN_TIMEOUT_MINUTES_SETTING]: {
 			type: 'number',
@@ -50,8 +52,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			minimum: 1,
 			scope: ConfigurationScope.MACHINE,
 			tags: ['experimental', 'advanced'],
-			description: localize('chat.automations.runTimeoutMinutes', "Maximum number of minutes a scheduled automation run is allowed to take before the scheduler cancels it and marks it failed. Prevents a single hung run from permanently blocking subsequent scheduled runs."),
+			description: localize('chat.automations.runTimeoutMinutes', "Maximum number of minutes an automation run is allowed to take before it is ended. Prevents a single hung run from permanently blocking subsequent runs."),
 			included: product.quality !== 'stable',
+			agentHost: { key: AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY },
 		},
 	},
 });

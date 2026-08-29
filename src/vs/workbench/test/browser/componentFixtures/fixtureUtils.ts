@@ -110,6 +110,7 @@ import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../..
 // eslint-disable-next-line local/code-import-patterns
 import { ICodeReviewService, PRReviewStateKind } from '../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
 import { constObservable } from '../../../../base/common/observable.js';
+import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 
 // Editor
 import { ITextModel } from '../../../../editor/common/model.js';
@@ -698,6 +699,11 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		getPRReviewState: () => constObservable({ kind: PRReviewStateKind.None }),
 		resolvePRReviewThread: async () => { },
 		markPRReviewCommentConverted: () => { },
+	});
+
+	definePartialInstance(IPreferencesService, {
+		_serviceBrand: undefined,
+		openSettings: async () => undefined,
 	});
 
 	// Allow additional services to override defaults

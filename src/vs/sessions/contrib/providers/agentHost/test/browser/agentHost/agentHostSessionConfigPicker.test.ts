@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
-import { observableValue } from '../../../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
+import { URI } from '../../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../../platform/actions/common/actions.js';
-import { IActionListDelegate } from '../../../../../../../platform/actionWidget/browser/actionList.js';
+import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { SessionConfigKey } from '../../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ResolveSessionConfigResult, SessionConfigPropertySchema, SessionConfigValueItem } from '../../../../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -26,10 +28,36 @@ import { Menus } from '../../../../../../browser/menus.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IActiveSession } from '../../../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionWorkspace } from '../../../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../../../services/sessions/common/sessionsProvider.js';
 import { AgentHostSessionConfigPicker, IConfigPickerItem, PickerActionViewItem } from '../../../browser/agentHostSessionConfigPicker.js';
 
 const SESSION_ID = 'local-agent-host:s1';
+
+function makeWorkspace(uncommittedChanges: number | undefined, branchName = 'main'): ISessionWorkspace {
+	const root = URI.file('/repo');
+	return {
+		uri: root,
+		label: 'repo',
+		icon: Codicon.repo,
+		folders: [{
+			root,
+			workingDirectory: root,
+			name: 'repo',
+			description: undefined,
+			gitRepository: {
+				uri: root,
+				workTreeUri: undefined,
+				branchName,
+				baseBranchName: undefined,
+				uncommittedChanges,
+				gitHubInfo: constObservable(undefined),
+			},
+		}],
+		requiresWorkspaceTrust: false,
+		isVirtualWorkspace: false,
+	};
+}
 
 /** A config exposing the two shared repo-config chips (isolation + branch). */
 function makeRepoConfig(branchValue?: string, isolation: 'folder' | 'worktree' = 'worktree'): ResolveSessionConfigResult {
@@ -131,6 +159,10 @@ class AlwaysRenderConfigPicker extends AgentHostSessionConfigPicker {
 	protected override _shouldRenderProperty(_property: string, _schema: SessionConfigPropertySchema, _isNewSession: boolean): boolean {
 		return true;
 	}
+
+	renderTriggerForTest(trigger: HTMLElement, property: string, schema: SessionConfigPropertySchema, value: unknown, isReadOnly: boolean): void {
+		this._renderTrigger(trigger, SESSION_ID, property, schema, value, isReadOnly);
+	}
 }
 
 function isolationSlot(container: HTMLElement): HTMLElement | null {
@@ -150,9 +182,19 @@ function branchLabel(container: HTMLElement): string | undefined {
 	return branchSlot(container)?.querySelector<HTMLElement>('.sessions-chat-dropdown-label')?.textContent ?? undefined;
 }
 
+function branchState(container: HTMLElement): { icon: string | undefined; ariaLabel: string | null | undefined } {
+	const trigger = branchSlot(container)?.querySelector<HTMLElement>('.action-label');
+	const icon = trigger?.querySelector<HTMLElement>('.codicon');
+	return {
+		icon: Array.from(icon?.classList ?? []).find(name => name.startsWith('codicon-')),
+		ariaLabel: trigger?.getAttribute('aria-label'),
+	};
+}
+
 /** Captures the delegate passed to the last `IActionWidgetService.show` call, so tests can drive a selection. */
 class CapturingActionWidgetHolder {
 	delegate: IActionListDelegate<IConfigPickerItem> | undefined;
+	items: readonly IActionListItem<IConfigPickerItem>[] = [];
 }
 
 function setupServices(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, 'add'>) {
@@ -164,7 +206,10 @@ function setupServices(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeake
 	instantiationService.stub(IActionWidgetService, {
 		isVisible: false,
 		hide: () => { },
-		show: (_user, _supportsPreview, _items, delegate: IActionListDelegate<IConfigPickerItem>) => { actionWidget.delegate = delegate; },
+		show: (_user, _supportsPreview, items: readonly IActionListItem<IConfigPickerItem>[], delegate: IActionListDelegate<IConfigPickerItem>) => {
+			actionWidget.items = items;
+			actionWidget.delegate = delegate;
+		},
 	} as Partial<IActionWidgetService> as IActionWidgetService);
 	instantiationService.stub(IHoverService, { setupDelayedHover: () => ({ dispose: () => { } }) } as Partial<IHoverService> as IHoverService);
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
@@ -186,8 +231,14 @@ function setupServices(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeake
 		}
 	})());
 
-	const sessionObs = observableValue<IActiveSession | undefined>('activeSession', { providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionId: SESSION_ID } as IActiveSession);
-	return { instantiationService, provider, sessionObs, actionWidget };
+	const workspaceObs = observableValue<ISessionWorkspace | undefined>('workspace', makeWorkspace(undefined));
+	const workspace: IObservable<ISessionWorkspace | undefined> = workspaceObs;
+	const sessionObs = observableValue<IActiveSession | undefined>('activeSession', {
+		providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+		sessionId: SESSION_ID,
+		workspace,
+	} as IActiveSession);
+	return { instantiationService, provider, sessionObs, workspaceObs, actionWidget };
 }
 
 /** Create and render a fresh picker instance, as the toolbar does on a rebuild. */
@@ -270,6 +321,135 @@ suite('Agent Host Session Config Picker', () => {
 		assert.deepStrictEqual({ expanded, compact }, {
 			expanded: { compact: false, className: false },
 			compact: { compact: true, className: true, usesOverflowAnchor: true },
+		});
+	});
+
+	test('generic auto-approve chips retain their contextual accessible name', () => {
+		const services = setupServices(store);
+		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs));
+		const trigger = document.createElement('span');
+		picker.renderTriggerForTest(trigger, SessionConfigKey.AutoApprove, {
+			title: 'Approval Mode',
+			type: 'string',
+			enum: ['assisted'],
+			enumLabels: ['Assisted'],
+			readOnly: true,
+		}, 'assisted', true);
+
+		assert.deepStrictEqual({
+			ariaLabel: trigger.getAttribute('aria-label'),
+			warning: trigger.classList.contains('warning'),
+		}, {
+			ariaLabel: 'Approval Mode: Assisted, Read-Only',
+			warning: true,
+		});
+	});
+
+	test('branch chip tracks host-reported uncommitted changes', () => {
+		const services = setupServices(store);
+		services.provider.config = makeDynamicBranchConfig('main');
+		services.workspaceObs.set(makeWorkspace(3), undefined);
+		const { container } = renderPicker(store, services);
+
+		const initiallyDirty = branchState(container);
+		services.workspaceObs.set(makeWorkspace(0), undefined);
+		const clean = branchState(container);
+		services.workspaceObs.set(makeWorkspace(2), undefined);
+		const dirtyAfterUpdate = branchState(container);
+		services.workspaceObs.set(makeWorkspace(2, 'dev'), undefined);
+		const differentBranch = branchState(container);
+
+		assert.deepStrictEqual({ initiallyDirty, clean, dirtyAfterUpdate, differentBranch }, {
+			initiallyDirty: {
+				icon: 'codicon-git-branch-changes',
+				ariaLabel: 'Base Branch: main, Uncommitted Files',
+			},
+			clean: {
+				icon: 'codicon-git-branch',
+				ariaLabel: 'Base Branch: main',
+			},
+			dirtyAfterUpdate: {
+				icon: 'codicon-git-branch-changes',
+				ariaLabel: 'Base Branch: main, Uncommitted Files',
+			},
+			differentBranch: {
+				icon: 'codicon-git-branch',
+				ariaLabel: 'Base Branch: main',
+			},
+		});
+	});
+
+	test('expanded branch picker marks only the checked-out branch as having uncommitted files', async () => {
+		const services = setupServices(store);
+		services.provider.config = makeDynamicBranchConfig('main');
+		services.provider.completions = [
+			{ value: 'dev', label: 'dev' },
+			{ value: 'main', label: 'main' },
+		];
+		services.workspaceObs.set(makeWorkspace(2, 'dev'), undefined);
+		const { container } = renderPicker(store, services);
+
+		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!
+			.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		await new Promise(resolve => setTimeout(resolve));
+
+		const plural = services.actionWidget.items.map(item => ({
+			kind: item.kind,
+			label: item.label,
+			icon: item.group?.icon?.id,
+			checked: item.item?.checked,
+			detail: item.detail,
+			ariaDescription: item.ariaDescription,
+		}));
+
+		services.workspaceObs.set(makeWorkspace(1, 'dev'), undefined);
+		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!
+			.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		await new Promise(resolve => setTimeout(resolve));
+		const singularItem = services.actionWidget.items.find(item => item.label === 'dev');
+		const singular = {
+			detail: singularItem?.detail,
+			ariaDescription: singularItem?.ariaDescription,
+		};
+
+		services.provider.completions = [{ value: 'main', label: 'main' }];
+		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!
+			.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		await new Promise(resolve => setTimeout(resolve));
+		const singleResultKinds = services.actionWidget.items.map(item => item.kind);
+
+		assert.deepStrictEqual({ plural, singular, singleResultKinds }, {
+			plural: [
+				{
+					kind: ActionListItemKind.Action,
+					label: 'main',
+					icon: Codicon.gitBranch.id,
+					checked: true,
+					detail: undefined,
+					ariaDescription: undefined,
+				},
+				{
+					kind: ActionListItemKind.Separator,
+					label: '',
+					icon: undefined,
+					checked: undefined,
+					detail: undefined,
+					ariaDescription: undefined,
+				},
+				{
+					kind: ActionListItemKind.Action,
+					label: 'dev',
+					icon: Codicon.gitBranchChanges.id,
+					checked: false,
+					detail: '2 uncommitted files',
+					ariaDescription: '2 uncommitted files',
+				},
+			],
+			singular: {
+				detail: '1 uncommitted file',
+				ariaDescription: '1 uncommitted file',
+			},
+			singleResultKinds: [ActionListItemKind.Action],
 		});
 	});
 
@@ -474,7 +654,11 @@ suite('Agent Host Session Config Picker', () => {
 		// composer's active session changes without the picker being recreated.
 		const OTHER_SESSION_ID = 'local-agent-host:s2';
 		provider.config = makeDynamicBranchConfig('main');
-		sessionObs.set({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionId: OTHER_SESSION_ID } as IActiveSession, undefined);
+		sessionObs.set({
+			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			sessionId: OTHER_SESSION_ID,
+			workspace: constObservable(makeWorkspace(undefined)),
+		} as IActiveSession, undefined);
 
 		assert.strictEqual(Array.from(cache.keys()).some(key => key.startsWith(`${SESSION_ID}\0`)), false, 'stale entries for the previous session are evicted');
 		picker.dispose();

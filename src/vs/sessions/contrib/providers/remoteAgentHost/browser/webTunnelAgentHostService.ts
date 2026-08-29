@@ -8,10 +8,11 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { agentsWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
+import { ReconnectingTransport, type IEstablishedTransport } from '../../../../../platform/agentHost/common/reconnectingTransport.js';
+import { NonReconnectableTransportError, type IProtocolTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { deriveConnectionToken } from '../../../../../platform/agentHost/common/tunnelAgentHostConnector.js';
 import { RemoteAgentHostEntryType, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { PROTOCOL_VERSION } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
-import type { IProtocolTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 import type { ProtocolMessage, AhpServerNotification, JsonRpcResponse } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { MALFORMED_FRAMES_FORCE_CLOSE_THRESHOLD, MALFORMED_FRAMES_LOG_CAP } from '../../../../../platform/agentHost/common/transportConstants.js';
 import {
@@ -19,6 +20,7 @@ import {
 	TUNNEL_ADDRESS_PREFIX,
 	TUNNEL_MIN_PROTOCOL_VERSION,
 	TunnelTags,
+	isTunnelNotFoundError,
 	type ICachedTunnel,
 	type ITunnelInfo,
 	type TunnelAutoConnectMode,
@@ -157,10 +159,46 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 		// Derive connection token from tunnel ID (same convention as CLI and desktop)
 		const connectionToken = await deriveConnectionToken(tunnelId);
 
-		const transport = new TunnelConnectionTransport(connection, this._logService);
 		const address = `${TUNNEL_ADDRESS_PREFIX}${tunnelId}`;
+		let useSeedConnection = true;
+		const establish = async (): Promise<IEstablishedTransport> => {
+			if (useSeedConnection) {
+				useSeedConnection = false;
+				// The initial connection is already owned by the transport established for this managed connection.
+				return { transport: new TunnelConnectionTransport(connection, this._logService) };
+			}
+
+			const discoveryProvider = this._discoveryProvider;
+			if (!discoveryProvider) {
+				throw new NonReconnectableTransportError('No tunnel discovery provider is available to reconnect.');
+			}
+
+			try {
+				const reconnected = await discoveryProvider.connect(tunnelId, clusterId);
+				try {
+					return {
+						transport: new TunnelConnectionTransport(reconnected, this._logService),
+						close: async () => reconnected.close(),
+					};
+				} catch (error) {
+					reconnected.close();
+					throw error;
+				}
+			} catch (error) {
+				if (isTunnelNotFoundError(error)) {
+					throw new NonReconnectableTransportError(error.message);
+				}
+				throw error;
+			}
+		};
+		const transportFactory = () => new ReconnectingTransport(
+			establish,
+			this._logService,
+			LOG_PREFIX,
+			AgentHostClientConnectionKind.DevTunnel,
+		);
 		const protocolClient = this._instantiationService.createInstance(
-			AgentHostProtocolClient, address, transport, undefined, undefined, agentsWindowAgentHostClientInfo,
+			AgentHostProtocolClient, address, transportFactory, { clientInfo: agentsWindowAgentHostClientInfo },
 		);
 
 		// Keep an incompatible handshake from tearing down the relay: the

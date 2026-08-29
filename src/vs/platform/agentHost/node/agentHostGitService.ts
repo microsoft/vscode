@@ -356,6 +356,14 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return output !== undefined;
 	}
 
+	async createBranch(workingDirectory: URI, branchName: string, options?: { readonly checkout?: boolean }): Promise<void> {
+		const args = options?.checkout
+			? ['checkout', '-q', '-b', branchName, '--no-track']
+			: ['branch', '-q', branchName];
+
+		await this._runGit(workingDirectory, args, { throwOnError: true });
+	}
+
 	async hasUncommittedChanges(workingDirectory: URI): Promise<boolean> {
 		const output = await this._runGitStatus(workingDirectory, ['--porcelain']);
 		return !!output && output.trim().length > 0;

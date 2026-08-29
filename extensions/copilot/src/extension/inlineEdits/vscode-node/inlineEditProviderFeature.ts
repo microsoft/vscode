@@ -9,6 +9,7 @@ import { ConfigKey, IConfigurationService } from '../../../platform/configuratio
 import { IEnvService } from '../../../platform/env/common/envService';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { InlineEditRequestLogContext } from '../../../platform/inlineEdits/common/inlineEditLogContext';
+import { IInlineEditsModelService } from '../../../platform/inlineEdits/common/inlineEditsModelService';
 import { ObservableGit } from '../../../platform/inlineEdits/common/observableGit';
 import { NesHistoryContextProvider } from '../../../platform/inlineEdits/common/workspaceEditTracker/nesHistoryContextProvider';
 import { ILogService } from '../../../platform/log/common/logService';
@@ -63,6 +64,9 @@ export class InlineEditProviderFeature {
 	private readonly _yieldToCopilot = this._configurationService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.InlineEditsYieldToCopilot, this._expService);
 	private readonly _excludedProviders = this._configurationService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.InlineEditsExcludedProviders, this._expService).map(v => v ? v.split(',').map(v => v.trim()).filter(v => v !== '') : []);
 	private readonly _copilotToken = observableFromEvent(this, this._authenticationService.onDidCopilotTokenChange, () => this._authenticationService.copilotToken);
+	// Read reactively: on a fetched `/models` deployment this resolves async, so a brief cold-start
+	// window can emit completions until `onModelListUpdated` fires and re-registers with the excludes.
+	private readonly _supportsUnifiedCompletions = observableFromEvent(this, this._modelService.onModelListUpdated, () => this._modelService.selectedModelConfiguration().supportsUnifiedCompletions ?? false);
 
 	public readonly inlineEditsEnabled = derived(this, (reader) => {
 		const copilotToken = this._copilotToken.read(reader);
@@ -92,6 +96,7 @@ export class InlineEditProviderFeature {
 		@IExperimentationService private readonly _expService: IExperimentationService,
 		@IEnvService private readonly _envService: IEnvService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IInlineEditsModelService private readonly _modelService: IInlineEditsModelService,
 	) {
 	}
 
@@ -158,8 +163,11 @@ export class InlineEditProviderFeature {
 			const provider = this._instantiationService.createInstance(InlineCompletionProviderImpl, model, logger, logContextRecorder, inlineEditDebugComponent, telemetrySender, expectedEditCaptureController);
 
 			const unificationStateValue = unificationState.read(reader);
+			// Unify when the selected model's strategy bakes in `supportsUnifiedCompletions`, or when the
+			// core deployment/ExP `modelUnification` toggle is set.
+			const modelUnification = this._supportsUnifiedCompletions.read(reader) || (unificationStateValue?.modelUnification ?? false);
 			let excludes = this._excludedProviders.read(reader);
-			if (unificationStateValue?.modelUnification) {
+			if (modelUnification) {
 				excludes = excludes.slice(0);
 				if (!excludes.includes('completions')) {
 					excludes.push('completions');

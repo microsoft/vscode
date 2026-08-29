@@ -82,6 +82,14 @@ export interface ISessionSummaryHoverData {
 		readonly title: string;
 		readonly onOpen: () => void;
 	};
+	/**
+	 * Set when the session was created in another application. The row names
+	 * that origin and, when activated, leads to whatever controls whether such
+	 * sessions are shown here.
+	 */
+	readonly externalSession?: {
+		readonly onOpen: () => void;
+	};
 }
 
 /**
@@ -101,6 +109,7 @@ export class SessionSummaryHoverWidget {
 	private readonly _location: HTMLElement;
 	private readonly _pullRequests: HTMLElement;
 	private readonly _createdBy: HTMLElement;
+	private readonly _externalSession: HTMLElement;
 
 	constructor(data?: ISessionSummaryHoverData) {
 		this.domNode = dom.$('.session-summary-hover');
@@ -108,6 +117,7 @@ export class SessionSummaryHoverWidget {
 		this._location = dom.append(this.domNode, dom.$('.session-summary-hover-section.session-summary-hover-location'));
 		this._pullRequests = dom.append(this.domNode, dom.$('.session-summary-hover-section.session-summary-hover-pull-requests'));
 		this._createdBy = dom.append(this.domNode, dom.$('.session-summary-hover-section.session-summary-hover-created-by'));
+		this._externalSession = dom.append(this.domNode, dom.$('.session-summary-hover-section.session-summary-hover-external-session'));
 		if (data) {
 			this.update(data);
 		}
@@ -143,6 +153,14 @@ export class SessionSummaryHoverWidget {
 			this._appendButtonRow(this._createdBy, Codicon.reply, data.createdBy.onOpen, localize('sessionSummaryHover.createdBy', "Created by"), data.createdBy.title);
 		}
 		this._createdBy.classList.toggle('hidden', !this._createdBy.hasChildNodes());
+
+		// Where the session came from rather than what it is doing, so it closes
+		// the hover below everything the session itself has to say.
+		dom.clearNode(this._externalSession);
+		if (data.externalSession) {
+			this._appendButtonRow(this._externalSession, Codicon.multipleWindows, data.externalSession.onOpen, localize('sessionSummaryHover.externalSession', "External Session"));
+		}
+		this._externalSession.classList.toggle('hidden', !this._externalSession.hasChildNodes());
 	}
 
 	private _renderLocation(location: ISessionSummaryHoverLocation | undefined): void {
