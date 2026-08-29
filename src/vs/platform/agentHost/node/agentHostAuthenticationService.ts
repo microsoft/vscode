@@ -16,11 +16,18 @@ export interface IAgentHostAuthTokenChangeEvent {
 }
 
 export const IAgentHostAuthenticationService = createDecorator<IAgentHostAuthenticationService>('agentHostAuthenticationService');
+export const IAgentHostAuthenticationController = createDecorator<IAgentHostAuthenticationController>('agentHostAuthenticationController');
 
 export interface IAgentHostAuthenticationService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeAuthToken: Event<IAgentHostAuthTokenChangeEvent>;
 	getAuthToken(request: IAgentHostAuthTokenRequest): string | undefined;
+}
+
+export interface IAgentHostAuthenticationController {
+	readonly _serviceBrand: undefined;
+	authenticate(params: AuthenticateParams, providers: Iterable<IAgent>): Promise<AuthenticateResult>;
+	replay(provider: IAgent): Promise<void>;
 }
 
 interface IStoredAuthToken {
@@ -29,7 +36,7 @@ interface IStoredAuthToken {
 	readonly token: string;
 }
 
-export class AgentHostAuthenticationService extends Disposable implements IAgentHostAuthenticationService {
+export class AgentHostAuthenticationService extends Disposable implements IAgentHostAuthenticationService, IAgentHostAuthenticationController {
 
 	declare readonly _serviceBrand: undefined;
 	private readonly _tokens = new Map<string, IStoredAuthToken>();
@@ -46,7 +53,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 		this._logService.trace(`[AgentHostAuthenticationService] authenticate called: resource=${params.resource}`);
 		const providerList = [...providers];
 		// Multiple providers may share the same protected resource (e.g.
-		// both Copilot CLI and Claude consume the GitHub Copilot token).
+		// both Copilot CLI and Claude consume the Copilot-scoped OAuth credential).
 		// Fan out to every matching provider in parallel; the request is
 		// considered authenticated if at least one accepts. Provider
 		// failures are isolated -- one provider rejecting (e.g. proxy

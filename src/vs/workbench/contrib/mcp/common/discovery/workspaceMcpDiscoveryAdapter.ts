@@ -12,9 +12,9 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
-import { DiscoverySource } from '../mcpConfiguration.js';
+import { ExternalDiscoverySource } from '../mcpConfiguration.js';
 import { IMcpRegistry } from '../mcpRegistryTypes.js';
-import { McpCollectionSortOrder, McpServerTrust } from '../mcpTypes.js';
+import { CURSOR_WORKSPACE_MCP_COLLECTION_ID_PREFIX, McpCollectionProvenance, McpCollectionSortOrder, McpServerTrust } from '../mcpTypes.js';
 import { IMcpDiscovery } from './mcpDiscovery.js';
 import { FilesystemMcpDiscovery, WritableMcpCollectionDefinition } from './nativeMcpDiscoveryAbstract.js';
 import { claudeConfigToServerDefinition } from './nativeMcpDiscoveryAdapters.js';
@@ -50,7 +50,9 @@ export class CursorWorkspaceMcpDiscoveryAdapter extends FilesystemMcpDiscovery i
 	private watchFolder(folder: IWorkspaceFolder) {
 		const configFile = joinPath(folder.uri, '.cursor', 'mcp.json');
 		const collection: WritableMcpCollectionDefinition = {
-			id: `cursor-workspace.${folder.index}`,
+			id: `${CURSOR_WORKSPACE_MCP_COLLECTION_ID_PREFIX}${folder.index}`,
+			provenance: McpCollectionProvenance.ExternalConfiguration,
+			discoverySource: ExternalDiscoverySource.CursorWorkspace,
 			label: `${folder.name}/.cursor/mcp.json`,
 			remoteAuthority: this._remoteAgentService.getConnection()?.remoteAuthority || null,
 			scope: StorageScope.WORKSPACE,
@@ -66,7 +68,7 @@ export class CursorWorkspaceMcpDiscoveryAdapter extends FilesystemMcpDiscovery i
 		this._collections.set(folder.uri.toString(), this.watchFile(
 			URI.joinPath(folder.uri, '.cursor', 'mcp.json'),
 			collection,
-			DiscoverySource.CursorWorkspace,
+			ExternalDiscoverySource.CursorWorkspace,
 			async contents => {
 				const defs = await claudeConfigToServerDefinition(collection.id, contents, { defaultCwd: folder.uri });
 				defs?.forEach(d => d.roots = [folder.uri]);

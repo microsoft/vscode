@@ -39,6 +39,7 @@ export interface IServerToolDisplay {
 export interface IServerToolExecutionContext {
 	readonly sessionUri: URI;
 	readonly chatUri: URI;
+	readonly turnId?: string;
 }
 
 /**
@@ -58,6 +59,17 @@ export interface IServerToolExecutionContext {
 export interface IServerToolGroup {
 	/** Tool definitions this group advertises on the session's `serverTools`. */
 	readonly definitions: readonly IAgentServerToolDefinition[];
+	/**
+	 * Names this group's tools were previously advertised under, mapped to the
+	 * name that replaced them. A renamed tool has to keep answering to its old
+	 * name: restored history and prompts written against the old name would
+	 * otherwise fail to route and lose their dedicated display. Legacy names are
+	 * never advertised, and the host translates them before dispatching, so a
+	 * group only ever sees its current names.
+	 */
+	readonly legacyToolNames?: ReadonlyMap<string, string>;
+	/** Whether each session keeps the definitions first advertised to it instead of following later enablement changes. */
+	readonly materializeDefinitions?: boolean;
 	/** Whether a contributed tool is currently enabled for advertisement and execution. */
 	isEnabled(toolName: string): boolean;
 	/**
@@ -116,7 +128,10 @@ export interface IServerToolGroup {
  */
 export class AgentServerToolHost implements IAgentServerToolHost {
 
+	/** Every name the host answers to — current and legacy — and its owning group. */
 	private readonly _groupByToolName = new Map<string, IServerToolGroup>();
+	/** Legacy names mapped to the current name that replaced them. */
+	private readonly _currentToolNames = new Map<string, string>();
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
@@ -130,6 +145,22 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 				this._groupByToolName.set(def.name, group);
 			}
 		}
+		// Registered after every current name, so a legacy name can never shadow
+		// a tool that is actually advertised under it.
+		for (const group of this._groups) {
+			for (const [legacyName, currentName] of group.legacyToolNames ?? []) {
+				if (this._groupByToolName.has(legacyName)) {
+					continue;
+				}
+				this._groupByToolName.set(legacyName, group);
+				this._currentToolNames.set(legacyName, currentName);
+			}
+		}
+	}
+
+	/** The name a group knows a tool by, translating a legacy name if needed. */
+	private _currentToolName(toolName: string): string {
+		return this._currentToolNames.get(toolName) ?? toolName;
 	}
 
 	get definitions(): readonly IAgentServerToolDefinition[] {
@@ -137,13 +168,33 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 	}
 
 	getDefinitionsForSession(sessionUri: URI): readonly IAgentServerToolDefinition[] {
-		return this._stateManager.isEphemeralSession(sessionUri)
-			? this.definitions.filter(definition => definition.enabledForEphemeralSessions)
-			: this.definitions;
+		const materializedDefinitions = this._stateManager.getSessionState(sessionUri)?.serverTools;
+		const isEphemeral = this._stateManager.isEphemeralSession(sessionUri);
+		return this._groups.flatMap(group => {
+			if (materializedDefinitions && group.materializeDefinitions) {
+				// A session's tool membership is fixed at materialization time, but
+				// each still-current tool's metadata (description, schema) is refreshed
+				// from the group so restored sessions pick up wording changes instead
+				// of pinning the descriptions they were first advertised with. Tools
+				// with no current definition (e.g. the retired create_chat) keep their
+				// stored metadata.
+				const currentByName = new Map(group.definitions.map(definition => [definition.name, definition]));
+				return materializedDefinitions
+					.filter(definition => this._groupByToolName.get(definition.name) === group)
+					.map(definition => currentByName.get(definition.name) ?? definition);
+			}
+			const definitions = group.definitions.filter(definition => group.isEnabled(definition.name));
+			return isEphemeral ? definitions.filter(definition => definition.enabledForEphemeralSessions) : definitions;
+		});
 	}
 
 	get toolNames(): readonly string[] {
-		return this.definitions.map(definition => definition.name);
+		return [
+			...this.definitions.map(definition => definition.name),
+			...this._groups.flatMap(group => [...(group.legacyToolNames ?? [])]
+				.filter(([, currentName]) => group.isEnabled(currentName))
+				.map(([legacyName]) => legacyName)),
+		];
 	}
 
 	advertise(sessionUri: URI): void {
@@ -159,16 +210,18 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 
 	canRequireConfirmation(toolName: string): boolean {
 		const group = this._groupByToolName.get(toolName);
-		return group?.isEnabled(toolName) === true && (group.canRequireConfirmation?.(toolName) ?? false);
+		const name = this._currentToolName(toolName);
+		return group?.isEnabled(name) === true && (group.canRequireConfirmation?.(name) ?? false);
 	}
 
 	requiresConfirmation(chatUri: URI, toolName: string): boolean {
 		const group = this._groupByToolName.get(toolName);
-		if (group && !this._isEnabledForSession(group, chatUri, toolName)) {
+		const name = this._currentToolName(toolName);
+		if (group && !this._isEnabledForSession(group, chatUri, name, toolName)) {
 			return false;
 		}
-		return group?.requiresConfirmation?.(this._stateManager, this._executionContext(chatUri), toolName)
-			?? group?.canRequireConfirmation?.(toolName)
+		return group?.requiresConfirmation?.(this._stateManager, this._executionContext(chatUri), name)
+			?? group?.canRequireConfirmation?.(name)
 			?? false;
 	}
 
@@ -177,16 +230,18 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 		if (!group) {
 			throw new Error(`Unknown server tool: ${toolName}`);
 		}
-		if (!this._isEnabledForSession(group, chatUri, toolName)) {
+		const name = this._currentToolName(toolName);
+		if (!this._isEnabledForSession(group, chatUri, name, toolName)) {
 			throw new Error(`Server tool "${toolName}" is disabled.`);
 		}
-		return group.execute(this._stateManager, this._executionContext(chatUri), toolName, rawArgs);
+		return group.execute(this._stateManager, this._executionContext(chatUri), name, rawArgs);
 	}
 
 	private _executionContext(chatUri: URI): IServerToolExecutionContext {
 		return {
 			sessionUri: parseRequiredSessionUriFromChatUri(chatUri),
 			chatUri,
+			turnId: this._stateManager.getActiveTurnId(chatUri),
 		};
 	}
 
@@ -194,10 +249,10 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 		return definitions.map(({ enabledForEphemeralSessions: _enabledForEphemeralSessions, ...definition }) => definition);
 	}
 
-	private _isEnabledForSession(group: IServerToolGroup, chatUri: URI, toolName: string): boolean {
+	private _isEnabledForSession(group: IServerToolGroup, chatUri: URI, toolName: string, requestedToolName = toolName): boolean {
 		const advertisedTools = this._stateManager.getSessionState(chatUri)?.serverTools;
 		return advertisedTools
-			? advertisedTools.some(tool => tool.name === toolName)
+			? advertisedTools.some(tool => tool.name === toolName) || group.legacyToolNames?.has(requestedToolName) === true
 			: group.isEnabled(toolName);
 	}
 }

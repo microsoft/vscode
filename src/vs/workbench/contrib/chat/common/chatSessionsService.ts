@@ -345,6 +345,8 @@ export interface IChatSessionServerRequest {
 	readonly isHidden?: boolean;
 	readonly systemInitiatedLabel?: string;
 	readonly isTerminalRequest?: boolean;
+	/** Reopen the existing request with this id instead of adding another request. */
+	readonly resume?: boolean;
 	readonly origin?: IChatRequestOrigin;
 }
 
@@ -398,6 +400,10 @@ export function isRemoteAgentHostTarget(target: string): boolean {
  */
 export function isAgentHostTarget(target: string): boolean {
 	return isLocalAgentHostTarget(target) || isRemoteAgentHostTarget(target);
+}
+
+export function isAgentHostSessionResource(resource: URI): boolean {
+	return isAgentHostTarget(resource.scheme);
 }
 
 /**

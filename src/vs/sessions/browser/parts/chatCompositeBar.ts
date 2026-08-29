@@ -15,7 +15,6 @@ import { autorun, IObservable } from '../../../base/common/observable.js';
 import { isLinux } from '../../../base/common/platform.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { Action } from '../../../base/common/actions.js';
-import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { InputBox } from '../../../base/browser/ui/inputbox/inputBox.js';
 import { defaultInputBoxStyles } from '../../../platform/theme/browser/defaultStyles.js';
 import { Codicon } from '../../../base/common/codicons.js';
@@ -39,14 +38,7 @@ import { ISessionsProvidersService } from '../../services/sessions/browser/sessi
 import { isAgentHostProvider } from '../../common/agentHostSessionsProvider.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { CLOSE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
-import { MenuItemAction } from '../../../platform/actions/common/actions.js';
-import { ChatPillActionViewItem } from '../../../workbench/browser/chatPills.js';
-import { SessionActivatingActionRunner } from '../sessionActionRunner.js';
-import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
 import { getSessionConversationStatusAriaLabel } from '../sessionConversationGroups.js';
-import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
-import { observableConfigValue } from '../../../platform/observable/common/platformObservableUtils.js';
-import { SHOW_SESSION_METADATA_IN_CHAT_INPUT_SETTING } from '../../common/sessionConfig.js';
 
 interface IChatTab {
 	readonly chat: IChat;
@@ -87,9 +79,6 @@ export interface IChatCompositeBarDelegate {
 	/** Activate (show + focus) the given chat within this group. */
 	openChat(resource: URI): void;
 
-	/** Start a new chat within this group. */
-	newChat(): void;
-
 	/** A chat tab drag has started for the given chat. */
 	onTabDragStart?(resource: URI): void;
 
@@ -111,13 +100,8 @@ export class ChatCompositeBar extends Disposable {
 	private readonly _tabsRow: HTMLElement;
 	private readonly _tabsContainer: HTMLElement;
 	private readonly _tabsScrollbar: ScrollableElement;
-	private readonly _newChatAction: Action;
-	private readonly _newChatContainer: HTMLElement;
 	private readonly _sessionActionsContainer: HTMLElement;
 	private readonly _sessionToolbar: MenuWorkbenchToolBar;
-	private readonly _metaRow: HTMLElement;
-	private readonly _metaToolbar: MenuWorkbenchToolBar;
-	private readonly _showMetadataInChatInput: IObservable<boolean>;
 	private readonly _tabs: IChatTab[] = [];
 	private readonly _tabDisposables = this._register(new DisposableStore());
 
@@ -126,7 +110,6 @@ export class ChatCompositeBar extends Disposable {
 	private _editingTab: IChatTab | undefined;
 	private _delegate: IChatCompositeBarDelegate | undefined;
 	private _showSessionActions = false;
-	private _metadataInInput = false;
 
 	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
@@ -135,6 +118,7 @@ export class ChatCompositeBar extends Disposable {
 	readonly onDidChangeHeight: Event<void> = this._onDidChangeHeight.event;
 
 	private _visible = false;
+	private _height = 0;
 
 	get element(): HTMLElement {
 		return this._container;
@@ -145,10 +129,11 @@ export class ChatCompositeBar extends Disposable {
 	}
 
 	get height(): number {
-		return this._visible ? this._container.offsetHeight : 0;
+		return this._visible ? this._height : 0;
 	}
 
 	constructor(
+		resizeObserverCtor: typeof ResizeObserver | undefined,
 		@IThemeService private readonly _themeService: IThemeService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
@@ -157,12 +142,9 @@ export class ChatCompositeBar extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@ICommandService private readonly _commandService: ICommandService,
-		@ISessionsService sessionsService: ISessionsService,
-		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 
-		this._showMetadataInChatInput = observableConfigValue(SHOW_SESSION_METADATA_IN_CHAT_INPUT_SETTING, false, configurationService);
 		this._container = $('.chat-composite-bar.session-chat-tabs-bar');
 
 		// Tabs row — only shown when the group has multiple chats or is split out.
@@ -180,18 +162,6 @@ export class ChatCompositeBar extends Disposable {
 		}));
 		this._tabsRow.appendChild(this._tabsScrollbar.getDomNode());
 
-		this._newChatAction = this._register(new Action(
-			'sessions.chatCompositeBar.addChat',
-			localize('chatCompositeBar.addChat', "New Chat in This Session"),
-			ThemeIcon.asClassName(Codicon.add),
-			true,
-			async () => this._delegate?.newChat(),
-		));
-		const newChatActionBar = this._register(new ActionBar(this._tabsRow));
-		newChatActionBar.push(this._newChatAction, { icon: true, label: false });
-		this._newChatContainer = newChatActionBar.getContainer();
-		this._newChatContainer.classList.add('chat-composite-bar-new-chat');
-
 		this._sessionActionsContainer = $('.session-chat-tabs-actions');
 		this._tabsRow.appendChild(this._sessionActionsContainer);
 		const sessionToolbarContainer = $('.chat-composite-bar-toolbar');
@@ -201,21 +171,6 @@ export class ChatCompositeBar extends Disposable {
 			menuOptions: { shouldForwardArgs: true },
 			highlightToggledItems: true,
 		}));
-
-		this._metaRow = $('.chat-composite-bar-meta-row');
-		this._container.appendChild(this._metaRow);
-		const metaToolbarContainer = $('.chat-composite-bar-meta-toolbar');
-		this._metaRow.appendChild(metaToolbarContainer);
-		const metaActionRunner = this._register(new SessionActivatingActionRunner(() => this._delegate?.session, sessionsService));
-		this._metaToolbar = this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, metaToolbarContainer, Menus.SessionHeaderMeta, {
-			hiddenItemStrategy: HiddenItemStrategy.Ignore,
-			menuOptions: { shouldForwardArgs: true },
-			actionRunner: metaActionRunner,
-			actionViewItemProvider: (action, options) => action instanceof MenuItemAction
-				? this._instantiationService.createInstance(ChatPillActionViewItem, undefined, action, options)
-				: undefined,
-		}));
-		this._register(this._metaToolbar.onDidChangeMenuItems(() => this._updateMetaRowVisibility()));
 
 		const preventMiddleButtonDefault = (e: MouseEvent) => {
 			if (e.button === 1 && !this._isInTabInput(e)) {
@@ -247,11 +202,19 @@ export class ChatCompositeBar extends Disposable {
 		}));
 		this._register(resizeObserver.observe(this._tabsContainer));
 
-		// Report height changes so the host can re-layout
-		const heightObserver = this._register(new DisposableResizeObserver('ChatCompositeBar.height', () => {
-			this._onDidChangeHeight.fire();
-		}));
-		this._register(heightObserver.observe(this._container));
+		// Report actual height changes without forcing measurement on every layout.
+		const heightObserver = this._register(new DisposableResizeObserver('ChatCompositeBar.height', entries => {
+			const entry = entries.find(entry => entry.target === this._container);
+			if (!entry) {
+				return;
+			}
+			const height = entry.borderBoxSize[0]?.blockSize ?? entry.contentRect.height;
+			if (this._height !== height) {
+				this._height = height;
+				this._onDidChangeHeight.fire();
+			}
+		}, getWindow(this._container), { resizeObserverCtor }));
+		this._register(heightObserver.observe(this._container, { box: 'border-box' }));
 
 		this._setVisible(false);
 		this._updateStyles();
@@ -269,13 +232,12 @@ export class ChatCompositeBar extends Disposable {
 
 		this._delegate = delegate;
 		this._sessionToolbar.context = delegate?.session;
-		this._metaToolbar.context = delegate?.session;
 
 		const store = new DisposableStore();
 		this._groupDisposables.value = store;
 
 		if (!delegate) {
-			this._rebuildTabs([], '', '');
+			this._rebuildTabs([], '');
 			this._setVisible(false);
 			return;
 		}
@@ -284,44 +246,37 @@ export class ChatCompositeBar extends Disposable {
 		this._setVisible(false);
 		store.add(autorun(reader => {
 			const chats = delegate.chats.read(reader);
-			const activeChatUri = delegate.activeChatResource.read(reader);
 			const mainChatUri = delegate.mainChatResource.read(reader);
-			this._rebuildTabs(chats, activeChatUri, mainChatUri);
-			const supportsMultipleChats = delegate.session.capabilities.read(reader).supportsMultipleChats;
-			const isQuickChat = delegate.session.isQuickChat?.read(reader) ?? false;
-			this._newChatContainer.classList.toggle('hidden', !supportsMultipleChats || isQuickChat);
-			this._newChatAction.enabled = supportsMultipleChats && !isQuickChat && !delegate.session.isArchived.read(reader);
+			this._rebuildTabs(chats, mainChatUri);
+		}));
+		store.add(autorun(reader => {
+			this._updateActiveTab(delegate.activeChatResource.read(reader));
+		}));
+		store.add(autorun(reader => {
 			this._showSessionActions = delegate.showSessionActions.read(reader);
-			this._metadataInInput = this._showMetadataInChatInput.read(reader);
 			this._sessionActionsContainer.classList.toggle('hidden', !this._showSessionActions);
-			this._updateMetaRowVisibility();
-
+		}));
+		store.add(autorun(reader => {
 			this._setVisible(delegate.visible.read(reader));
 		}));
-	}
-
-	private _updateMetaRowVisibility(): void {
-		this._metaRow.style.display = this._showSessionActions && !this._metadataInInput && !this._metaToolbar.isEmpty() ? '' : 'none';
 	}
 
 	setAriaLabel(label: string): void {
 		this._tabsContainer.setAttribute('aria-label', label);
 	}
 
-	private _rebuildTabs(chats: readonly IChat[], activeChatId: string, mainChatId: string): void {
+	private _rebuildTabs(chats: readonly IChat[], mainChatId: string): void {
 		this._cancelTabEditing();
 		this._tabDisposables.clear();
 		this._tabs.length = 0;
 		reset(this._tabsContainer);
 
 		for (const chat of chats) {
-			this._createTab(chat, chat.resource.toString() === mainChatId, activeChatId);
+			this._createTab(chat, chat.resource.toString() === mainChatId);
 		}
 
-		this._updateActiveTab(activeChatId);
+		this._updateActiveTab(this._delegate?.activeChatResource.get() ?? '');
 		this._updateScrollDimensions();
-
-		this._onDidChangeHeight.fire();
 	}
 
 	private _updateScrollDimensions(): void {
@@ -331,7 +286,7 @@ export class ChatCompositeBar extends Disposable {
 		});
 	}
 
-	private _createTab(chat: IChat, isMainChat: boolean, _activeChatId: string): void {
+	private _createTab(chat: IChat, isMainChat: boolean): void {
 		const delegate = this._delegate;
 		const session = delegate?.session;
 		const tab = $('.chat-composite-bar-tab.modern-ui-editor-tab');
@@ -682,6 +637,7 @@ export class ChatCompositeBar extends Disposable {
 		const wasVisible = this._visible;
 		this._visible = visible;
 		this._container.style.display = this._visible ? '' : 'none';
+		this._height = this._visible ? this._container.offsetHeight : 0;
 		if (wasVisible !== this._visible) {
 			this._onDidChangeVisibility.fire(this._visible);
 		}

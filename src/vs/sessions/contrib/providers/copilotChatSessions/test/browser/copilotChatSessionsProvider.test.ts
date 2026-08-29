@@ -33,13 +33,13 @@ import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../
 import { ILanguageModelToolsService } from '../../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IChatResponseModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatAgentData } from '../../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
-import { IGitService } from '../../../../../../workbench/contrib/git/common/gitService.js';
+import { IGitRepository, IGitService } from '../../../../../../workbench/contrib/git/common/gitService.js';
 import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { CloudSandboxEnabledSettingId, type ICloudSandboxCreateSessionRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { CloudSandboxAgentHostContribution, type ICloudSandboxProvisionedSession } from '../../../remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
-import { RemoteAgentHostSessionsProvider } from '../../../remoteAgentHost/browser/remoteAgentHostSessionsProvider.js';
+import { CloudSandboxSessionsProvider } from '../../../remoteAgentHost/browser/cloudSandboxSessionsProvider.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { CopilotChatSessionsProvider, COPILOT_PROVIDER_ID, CopilotCloudSessionType, ICopilotChatSession } from '../../browser/copilotChatSessionsProvider.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -153,6 +153,7 @@ interface ICreateProviderOptions {
 	readonly getOptionGroups?: () => IChatSessionProviderOptionGroup[] | undefined;
 	readonly languageModelsService?: Partial<ILanguageModelsService>;
 	readonly gitHubService?: IGitHubService;
+	readonly gitService?: IGitService;
 	readonly pullRequestIconCache?: IPullRequestIconCache;
 }
 
@@ -307,6 +308,7 @@ function createProviderWithConfig(
 		getUriLabel: (uri: URI) => uri.path,
 	});
 	instantiationService.stub(IUriIdentityService, { extUri });
+	instantiationService.stub(IGitService, opts?.gitService ?? { repositories: [], openRepository: async () => undefined });
 	instantiationService.stub(IGitHubService, opts?.gitHubService ?? new TestGitHubService());
 	instantiationService.stub(IPullRequestIconCache, opts?.pullRequestIconCache ?? new TestPullRequestIconCache());
 
@@ -971,11 +973,13 @@ suite('CopilotChatSessionsProvider', () => {
 				number: beforeLiveUpdate.number,
 				uri: beforeLiveUpdate.uri.toString(),
 				icon: beforeLiveUpdate.icon,
+				title: beforeLiveUpdate.title,
 			},
 			afterLiveUpdate: afterLiveUpdate && {
 				number: afterLiveUpdate.number,
 				uri: afterLiveUpdate.uri.toString(),
 				icon: afterLiveUpdate.icon,
+				title: afterLiveUpdate.title,
 			},
 			lookupCalls: gitHubService.lookupCalls,
 			cachedIcon: iconCache.get('https://github.com/owner/repo/pull/42'),
@@ -986,11 +990,13 @@ suite('CopilotChatSessionsProvider', () => {
 				number: 42,
 				uri: 'https://github.com/owner/repo/pull/42',
 				icon: computePullRequestIcon(GitHubPullRequestState.Open),
+				title: undefined,
 			},
 			afterLiveUpdate: {
 				number: 42,
 				uri: 'https://github.com/owner/repo/pull/42',
 				icon: computePullRequestIcon(GitHubPullRequestState.Merged),
+				title: 'Cloud PR',
 			},
 			lookupCalls: 1,
 			cachedIcon: computePullRequestIcon(GitHubPullRequestState.Merged),
@@ -1539,6 +1545,49 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.strictEqual(workspace.requiresWorkspaceTrust, true);
 	});
 
+	test('resolveWorkspace resolves local GitHub metadata only when requested', async () => {
+		let openRepositoryCalls = 0;
+		const repositoryState = observableValue('repositoryState', {
+			HEAD: undefined,
+			remotes: [{ name: 'origin', fetchUrl: 'https://github.com/microsoft/vscode.git', pushUrl: undefined, isReadOnly: false }],
+			mergeChanges: [],
+			indexChanges: [],
+			workingTreeChanges: [],
+			untrackedChanges: [],
+		});
+		const gitService = upcastPartial<IGitService>({
+			repositories: [],
+			openRepository: async () => {
+				openRepositoryCalls++;
+				return upcastPartial<IGitRepository>({ state: repositoryState });
+			},
+		});
+		const provider = createProvider(disposables, model, { gitService });
+		const workspace = provider.resolveWorkspace(URI.file('/test/vscode'));
+		const gitRepository = workspace?.folders[0].gitRepository;
+
+		const beforeResolve = {
+			openRepositoryCalls,
+			gitHubInfo: gitRepository?.gitHubInfo.get(),
+		};
+		gitRepository?.resolveGitHubInfo?.();
+		await timeout(0);
+		gitRepository?.resolveGitHubInfo?.();
+
+		assert.deepStrictEqual({
+			beforeResolve,
+			openRepositoryCalls,
+			gitHubInfo: gitRepository?.gitHubInfo.get(),
+		}, {
+			beforeResolve: {
+				openRepositoryCalls: 0,
+				gitHubInfo: undefined,
+			},
+			openRepositoryCalls: 1,
+			gitHubInfo: { owner: 'microsoft', repo: 'vscode' },
+		});
+	});
+
 	test('builds an unknown workspace fallback when repository metadata is missing', () => {
 		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/unknown-workspace-session' });
 		model.addSession(createMockAgentSession(resource, { metadata: {} }));
@@ -1857,20 +1906,27 @@ suite('CopilotChatSessionsProvider', () => {
 		}
 
 		/** A provisioned session whose provider immediately commits the send. */
-		function provisionedSession(): ICloudSandboxProvisionedSession {
-			const committed = upcastPartial<ISession>({ sessionId: 'agenthost:sess-new' });
+		function provisionedSession(sendRequest?: () => Promise<ISession>): ICloudSandboxProvisionedSession & { published: string[] } {
+			const committed = upcastPartial<ISession>({
+				sessionId: 'agenthost:sess-new',
+				resource: URI.parse('agent-host-copilot:/sess-new'),
+			});
 			const sandboxSession = upcastPartial<ISession>({
 				sessionId: 'agenthost:sess-new',
+				resource: URI.parse('agent-host-copilot:/sess-new'),
 				mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/sess-new') })),
 			});
+			const published: string[] = [];
 			return {
 				taskId: 'task-new',
 				sessionId: 'sess-new',
 				environmentId: 'env-new',
 				session: sandboxSession,
-				provider: upcastPartial<RemoteAgentHostSessionsProvider>({
-					sendRequest: async () => committed,
-				}) as RemoteAgentHostSessionsProvider,
+				published,
+				provider: upcastPartial<CloudSandboxSessionsProvider>({
+					sendRequest: sendRequest ?? (async () => committed),
+					publishWithheldSession: (rawId: string) => { published.push(rawId); },
+				}) as CloudSandboxSessionsProvider,
 			};
 		}
 
@@ -1887,7 +1943,7 @@ suite('CopilotChatSessionsProvider', () => {
 
 			assert.deepStrictEqual({
 				committed: committed.sessionId,
-				// The repo comes from the workspace root; no baseRef, so MC picks the default branch.
+				// The repo comes from the workspace root; no baseRef, matching the Copilot app.
 				provisionRequests,
 				// The prompt must not also go through the server-run cloud agent.
 				cloudSends,
@@ -1911,6 +1967,35 @@ suite('CopilotChatSessionsProvider', () => {
 			await timeout(0);
 
 			assert.deepStrictEqual({ provisionRequests, cloudSends }, { provisionRequests: [], cloudSends: ['fix it'] });
+		});
+
+		test('reveals the withheld sandbox session as it retires the placeholder', async () => {
+			const provisioned = provisionedSession();
+			const { provider } = createSandboxProvider({ provision: async () => provisioned });
+			const sessionInfo = provider.createNewSession(repoWorkspace, CopilotCloudSessionType.id);
+			const session = provider.getSession(sessionInfo.sessionId)!;
+			session.setUseSandbox(true);
+
+			// The sandbox session is seeded before connecting so a discovery pass reconciles
+			// against it, but it must stay out of the list until the placeholder goes away —
+			// otherwise both rows show for as long as the sandbox takes to wake.
+			await provider.sendRequest(sessionInfo.sessionId, session.mainChat.get().resource, { query: 'fix it' });
+
+			assert.deepStrictEqual(provisioned.published, ['sess-new']);
+		});
+
+		test('a failed send still reveals the sandbox session it already provisioned', async () => {
+			const provisioned = provisionedSession(async () => { throw new Error('send failed'); });
+			const { provider } = createSandboxProvider({ provision: async () => provisioned });
+			const sessionInfo = provider.createNewSession(repoWorkspace, CopilotCloudSessionType.id);
+			const session = provider.getSession(sessionInfo.sessionId)!;
+			session.setUseSandbox(true);
+
+			await assert.rejects(() => provider.sendRequest(sessionInfo.sessionId, session.mainChat.get().resource, { query: 'fix it' }));
+
+			// The sandbox outlives the failed turn, so leaving it withheld would hide a session
+			// that really exists.
+			assert.deepStrictEqual(provisioned.published, ['sess-new']);
 		});
 
 		test('a failed provision removes the placeholder instead of stranding it in the list', async () => {

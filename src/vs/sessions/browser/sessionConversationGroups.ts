@@ -4,13 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { hash } from '../../base/common/hash.js';
-import { IExtUri } from '../../base/common/resources.js';
 import { URI } from '../../base/common/uri.js';
 import { localize } from '../../nls.js';
 import { ChatOriginKind, IChat, SessionStatus } from '../services/sessions/common/session.js';
 
-export const SESSION_CONVERSATION_CHATS_GROUP = '1_chats';
-export const SESSION_CONVERSATION_SUBAGENTS_GROUP = '2_subagents';
+export const SESSION_CONVERSATION_SIDE_CHATS_GROUP = '1_sidechats';
 
 export function getSessionConversationActionId(sessionId: string, chatResource: URI): string {
 	return `sessions.openChat.${sessionId}.${hash(chatResource.toString())}`;
@@ -35,15 +33,7 @@ export function getSessionConversationStatusAriaLabel(status: SessionStatus): st
 	return localize('sessionConversationStatus.ariaLabel', "State: {0}", getSessionConversationStatusLabel(status));
 }
 
-/** Returns the contributed menu group for a chat in the scoped session. */
-export function getSessionConversationGroupId(chat: IChat, activeChat: IChat, extUri: IExtUri): string | undefined {
-	if (chat.origin?.kind === ChatOriginKind.Tool) {
-		const activeChatScope = activeChat.origin?.kind === ChatOriginKind.Tool && activeChat.origin.parentChat
-			? activeChat.origin.parentChat
-			: activeChat.resource;
-		return chat.origin.parentChat && extUri.isEqual(chat.origin.parentChat, activeChatScope)
-			? SESSION_CONVERSATION_SUBAGENTS_GROUP
-			: undefined;
-	}
-	return SESSION_CONVERSATION_CHATS_GROUP;
+/** Whether a chat belongs in the Side Chats menu. */
+export function isSessionConversationSideChat(chat: IChat): boolean {
+	return chat.origin?.kind === ChatOriginKind.SideChat;
 }

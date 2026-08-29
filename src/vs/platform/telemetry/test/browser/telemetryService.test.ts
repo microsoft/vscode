@@ -137,6 +137,21 @@ suite('TelemetryService', () => {
 		service.dispose();
 	}));
 
+	test('Fixed telemetry level does not require a configuration service', sinonTestFn(function () {
+		const testAppender = new TestTelemetryAppender();
+		const service = TelemetryService.createWithLevel({
+			appenders: [testAppender],
+			sendErrorTelemetry: true,
+			telemetryLevel: TelemetryLevel.ERROR,
+		}, TestProductService);
+
+		service.publicLog('usageEvent');
+		service.publicLogError('errorEvent');
+
+		assert.deepStrictEqual(testAppender.events.map(event => event.eventName), ['errorEvent']);
+		service.dispose();
+	}));
+
 	test('Event with data', sinonTestFn(function () {
 		const testAppender = new TestTelemetryAppender();
 		const service = new TelemetryService({ appenders: [testAppender] }, new TestConfigurationService(), TestProductService);
@@ -224,6 +239,19 @@ suite('TelemetryService', () => {
 
 		assert.strictEqual(testAppender.events[0].data['common.copilotTrackingId'], undefined);
 		assert.strictEqual(testAppender.events[1].data['common.copilotTrackingId'], 'test-tracking-id');
+
+		service.dispose();
+	});
+
+	test('msftInternal reflects common properties set after construction', function () {
+		const service = new TelemetryService({
+			appenders: [NullAppender],
+		}, new TestConfigurationService(), TestProductService);
+
+		const beforeSet = service.msftInternal;
+		service.setCommonProperty('common.msftInternal', true);
+
+		assert.deepStrictEqual({ beforeSet, afterSet: service.msftInternal }, { beforeSet: undefined, afterSet: true });
 
 		service.dispose();
 	});

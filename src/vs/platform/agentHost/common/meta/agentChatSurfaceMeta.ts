@@ -21,6 +21,7 @@ export interface ITerminalChatSurfaceMeta {
 export interface IEditorInlineChatSurfaceMeta {
 	readonly surface: 'editorInline';
 	readonly languageId?: string;
+	readonly targetUri?: string;
 }
 
 /** VS Code-owned metadata describing the chat surface that created a session. */
@@ -55,6 +56,7 @@ export function readChatSurfaceMeta(source: IHasChatSurfaceMeta): IChatSurfaceMe
 			return {
 				surface: 'editorInline',
 				...(typeof raw['languageId'] === 'string' ? { languageId: raw['languageId'] } : {}),
+				...(typeof raw['targetUri'] === 'string' ? { targetUri: raw['targetUri'] } : {}),
 			};
 		default:
 			return undefined;
@@ -76,6 +78,7 @@ export function withChatSurfaceMeta(meta: Record<string, unknown> | undefined, s
 		: {
 			surface: 'editorInline',
 			...(surface.languageId !== undefined ? { languageId: surface.languageId } : {}),
+			...(surface.targetUri !== undefined ? { targetUri: surface.targetUri } : {}),
 		};
 
 	return {
@@ -106,6 +109,7 @@ export function createTerminalChatInstruction(surface: ITerminalChatSurfaceMeta)
 		`- You're targeting ${surface.osName}.`,
 		...(shellType ? [`- The active shell is ${shellType}.`] : []),
 		'- Prefer single-line commands. Omit explanations unless the command is complex; then be concise.',
+		'- Always put each command in its own fenced Markdown code block using triple backticks, never in plain text or inline code. Use the shell type as the code block language when known.',
 		'- Use `{placeholder_text}` for required replacement text that the user did not provide.',
 		...(shellType && isPowerShell(shellType)
 			? [

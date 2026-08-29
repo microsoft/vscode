@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Codicon } from '../../../../../../../../base/common/codicons.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
-import { getModelPickerIcon, getModelProviderIcon } from '../../../../../browser/widget/input/modelPicker/modelProviderIcons.js';
+import { getCompactModelPickerIcon, getModelPickerIcon, getModelProviderIcon } from '../../../../../browser/widget/input/modelPicker/modelProviderIcons.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../../common/languageModels.js';
 
 function createModel(id: string, name: string, vendor = 'copilot', metadata?: Partial<ILanguageModelChatMetadata>): ILanguageModelChatMetadataAndIdentifier {
@@ -80,6 +80,22 @@ suite('ModelProviderIcons', () => {
 			Codicon.info.id,
 			getModelProviderIcon(model).id,
 			getModelProviderIcon(model).id,
+		]);
+	});
+
+	test('uses compact variants in the picker trigger', () => {
+		const genericModel = createModel('custom', 'Custom Model', 'third-party');
+		const modelWithWarning = createModel('custom', 'Custom Model', 'third-party', { statusIcon: Codicon.warning });
+		const modelWithInfo = createModel('custom', 'Custom Model', 'third-party', { statusIcon: Codicon.info });
+
+		assert.deepStrictEqual([
+			getCompactModelPickerIcon(genericModel).id,
+			getCompactModelPickerIcon(modelWithWarning).id,
+			getCompactModelPickerIcon(modelWithInfo).id,
+		], [
+			'chat-model-provider-generic-compact',
+			Codicon.warningCompact.id,
+			Codicon.info.id,
 		]);
 	});
 });

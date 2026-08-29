@@ -11,13 +11,14 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agentService.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
-import { SessionStatus, withSessionWorkspaceless, type SessionSummary } from '../../common/state/sessionState.js';
+import { SessionStatus, withSessionWorkspaceless, type SessionSummary, type Turn } from '../../common/state/sessionState.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { CustomizationEnablementKind, CustomizationType } from '../../common/state/protocol/channels-session/state.js';
 import { AgentHostCustomizationEnablementService, getCustomizationEnablementKey, type ICustomizationEnablementTarget } from '../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostStorageService } from '../../node/agentHostStorageService.js';
+import { NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
 class EnablementSessionDatabase extends TestSessionDatabase {
@@ -109,14 +110,18 @@ function serializableResolution(resolution: ReturnType<AgentHostCustomizationEna
 	};
 }
 
-class TestWorktreeIsolation {
-	declare readonly _serviceBrand: undefined;
+class TestWorktreeIsolation extends NullAgentHostWorktreeIsolation {
+	override readonly supported = true;
 	readonly pending = new Set<string>();
 	private readonly _onDidChangeWorkingDirectoryPending = new Emitter<string>();
-	readonly onDidChangeWorkingDirectoryPending: Event<string> = this._onDidChangeWorkingDirectoryPending.event;
+	override readonly onDidChangeWorkingDirectoryPending: Event<string> = this._onDidChangeWorkingDirectoryPending.event;
 
-	isWorkingDirectoryPending(session: string): boolean {
+	override isWorkingDirectoryPending(session: string): boolean {
 		return this.pending.has(session);
+	}
+
+	override async applyRestoreAnnouncement(_sessionUri: URI, turns: readonly Turn[]): Promise<readonly Turn[]> {
+		return turns;
 	}
 
 	firePendingChange(sessionId: string): void {
@@ -148,8 +153,7 @@ suite('AgentHostCustomizationEnablementService', () => {
 		state = disposables.add(new AgentHostStateManager(new NullLogService()));
 		state.createSession(makeSummary(session, [workspace.toString()]));
 		worktree = new TestWorktreeIsolation();
-		service = disposables.add(new AgentHostCustomizationEnablementService(storage, sessionData, state, new NullLogService()));
-		service.setWorktreeIsolation(worktree);
+		service = disposables.add(new AgentHostCustomizationEnablementService(storage, sessionData, state, new NullLogService(), worktree));
 		await service.initializeSession(session);
 	});
 
@@ -504,8 +508,7 @@ suite('AgentHostCustomizationEnablementService', () => {
 				[opposingDirectory.toString()]: { 'file:///plugins/example': true },
 			},
 		});
-		const pruningService = disposables.add(new AgentHostCustomizationEnablementService(preloadedStorage, sessionData, state, new NullLogService()));
-		pruningService.setWorktreeIsolation(worktree);
+		const pruningService = disposables.add(new AgentHostCustomizationEnablementService(preloadedStorage, sessionData, state, new NullLogService(), worktree));
 		await pruningService.initializeSession(session);
 
 		pruningService.setEnablement(session, plugin, CustomizationEnablementKind.Global, false);
@@ -724,8 +727,7 @@ suite('AgentHostCustomizationEnablementService', () => {
 	test('queues a replacement before loading the session cache and applies it after loading', async () => {
 		let resolveLoad: (value: string | undefined) => void;
 		sessionData.metadataLoad = new Promise(resolve => { resolveLoad = resolve; });
-		const loading = disposables.add(new AgentHostCustomizationEnablementService(storage, sessionData, state, new NullLogService()));
-		loading.setWorktreeIsolation(worktree);
+		const loading = disposables.add(new AgentHostCustomizationEnablementService(storage, sessionData, state, new NullLogService(), worktree));
 		const load = loading.initializeSession(session);
 		const replacement = loading.replaceEnablement(session, plugin, [{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: false }]);
 		resolveLoad!(undefined);
@@ -758,8 +760,7 @@ suite('AgentHostCustomizationEnablementService', () => {
 	test('announces when a session enablement cache transitions from pending to resolved', async () => {
 		let resolveLoad: (value: string | undefined) => void;
 		sessionData.metadataLoad = new Promise(resolve => { resolveLoad = resolve; });
-		const loading = disposables.add(new AgentHostCustomizationEnablementService(storage, sessionData, state, new NullLogService()));
-		loading.setWorktreeIsolation(worktree);
+		const loading = disposables.add(new AgentHostCustomizationEnablementService(storage, sessionData, state, new NullLogService(), worktree));
 		const changes: string[][] = [];
 		disposables.add(loading.onDidChange(event => changes.push([...event.sessions])));
 
@@ -805,8 +806,7 @@ suite('AgentHostCustomizationEnablementService', () => {
 	test('rebuilds the authoritative synchronous session cache after reopening', async () => {
 		service.setEnablement(session, plugin, CustomizationEnablementKind.Session, false);
 		await service.whenIdle();
-		const reopened = disposables.add(new AgentHostCustomizationEnablementService(storage, sessionData, state, new NullLogService()));
-		reopened.setWorktreeIsolation(worktree);
+		const reopened = disposables.add(new AgentHostCustomizationEnablementService(storage, sessionData, state, new NullLogService(), worktree));
 		await reopened.initializeSession(session);
 
 		const resolved = reopened.resolve(session, plugin);
@@ -823,8 +823,7 @@ suite('AgentHostCustomizationEnablementService', () => {
 		service.setEnablement(session, plugin, CustomizationEnablementKind.Session, false);
 		await service.whenIdle();
 
-		const reopened = disposables.add(new AgentHostCustomizationEnablementService(storage, sessionData, state, new NullLogService()));
-		reopened.setWorktreeIsolation(worktree);
+		const reopened = disposables.add(new AgentHostCustomizationEnablementService(storage, sessionData, state, new NullLogService(), worktree));
 		await Promise.all([reopened.initializeSession(session), reopened.initializeSession(otherSession)]);
 
 		assert.deepStrictEqual({
