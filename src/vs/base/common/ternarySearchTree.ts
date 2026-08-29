@@ -781,7 +781,7 @@ export class TernarySearchTree<K, V> {
 
 	// for debug/testing
 	_isBalanced(): boolean {
-		const nodeIsBalanced = (node: TernarySearchTreeNode<any, any> | undefined): boolean => {
+		const nodeIsBalanced = (node: TernarySearchTreeNode<unknown, unknown> | undefined): boolean => {
 			if (!node) {
 				return true;
 			}

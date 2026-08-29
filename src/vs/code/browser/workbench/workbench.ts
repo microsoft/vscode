@@ -400,6 +400,12 @@ class LocalStorageURLCallbackProvider extends Disposable implements IURLCallback
 
 		this.lastTimeChecked = Date.now();
 	}
+
+	override dispose(): void {
+		clearTimeout(this.checkCallbacksTimeout);
+		this.stopListening();
+		super.dispose();
+	}
 }
 
 class WorkspaceProvider implements IWorkspaceProvider {

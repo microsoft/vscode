@@ -104,6 +104,8 @@ function createServerHost(
 
 			const scriptPath = combinePaths(packageRoot, browser);
 			try {
+				// This file isn't bundled so we really do want a dynamic import here
+				// eslint-disable-next-line no-restricted-syntax
 				const { default: module } = await import(/* webpackIgnore: true */ scriptPath);
 				return { module, error: undefined };
 			} catch (e) {

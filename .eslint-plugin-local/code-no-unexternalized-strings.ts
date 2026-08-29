@@ -5,7 +5,7 @@
 
 import { AST_NODE_TYPES, TSESTree } from '@typescript-eslint/utils';
 import * as eslint from 'eslint';
-import * as ESTree from 'estree';
+import type * as ESTree from 'estree';
 
 function isStringLiteral(node: TSESTree.Node | ESTree.Node | null | undefined): node is TSESTree.StringLiteral {
 	return !!node && node.type === AST_NODE_TYPES.Literal && typeof node.value === 'string';
@@ -24,7 +24,7 @@ function isDoubleQuoted(node: TSESTree.StringLiteral): boolean {
 const enableDoubleToSingleQuoteFixes = false;
 
 
-export = new class NoUnexternalizedStrings implements eslint.Rule.RuleModule {
+export default new class NoUnexternalizedStrings implements eslint.Rule.RuleModule {
 
 	private static _rNlsKeys = /^[_a-zA-Z0-9][ .\-_a-zA-Z0-9]*$/;
 
@@ -62,6 +62,9 @@ export = new class NoUnexternalizedStrings implements eslint.Rule.RuleModule {
 				doubleQuotedStringLiterals.delete(keyNode);
 				key = keyNode.value;
 
+			} else if (keyNode.type === AST_NODE_TYPES.TemplateLiteral && keyNode.expressions.length === 0 && keyNode.quasis.length === 1) {
+				key = keyNode.quasis[0].value.cooked ?? undefined;
+
 			} else if (keyNode.type === AST_NODE_TYPES.ObjectExpression) {
 				for (const property of keyNode.properties) {
 					if (property.type === AST_NODE_TYPES.Property && !property.computed) {
@@ -69,6 +72,9 @@ export = new class NoUnexternalizedStrings implements eslint.Rule.RuleModule {
 							if (isStringLiteral(property.value)) {
 								doubleQuotedStringLiterals.delete(property.value);
 								key = property.value.value;
+								break;
+							} else if (property.value.type === AST_NODE_TYPES.TemplateLiteral && property.value.expressions.length === 0 && property.value.quasis.length === 1) {
+								key = property.value.quasis[0].value.cooked ?? undefined;
 								break;
 							}
 						}
@@ -92,7 +98,7 @@ export = new class NoUnexternalizedStrings implements eslint.Rule.RuleModule {
 				context.report({
 					loc: messageNode.loc,
 					messageId: 'badMessage',
-					data: { message: context.getSourceCode().getText(node as ESTree.Node) }
+					data: { message: context.sourceCode.getText(node as ESTree.Node) }
 				});
 			}
 		}
@@ -100,9 +106,7 @@ export = new class NoUnexternalizedStrings implements eslint.Rule.RuleModule {
 		function visitL10NCall(node: TSESTree.CallExpression) {
 
 			// localize(key, message)
-			const [messageNode] = (<TSESTree.CallExpression>node).arguments;
-
-			// remove message-argument from doubleQuoted list and make
+			const [messageNode] = (node as TSESTree.CallExpression).arguments;			// remove message-argument from doubleQuoted list and make
 			// sure it is a string-literal
 			if (isStringLiteral(messageNode)) {
 				doubleQuotedStringLiterals.delete(messageNode);
@@ -162,7 +166,7 @@ export = new class NoUnexternalizedStrings implements eslint.Rule.RuleModule {
 				// report all invalid duplicates (same key, different message)
 				if (values.length > 1) {
 					for (let i = 1; i < values.length; i++) {
-						if (context.getSourceCode().getText(values[i - 1].message as ESTree.Node) !== context.getSourceCode().getText(values[i].message as ESTree.Node)) {
+						if (context.sourceCode.getText(values[i - 1].message as ESTree.Node) !== context.sourceCode.getText(values[i].message as ESTree.Node)) {
 							context.report({ loc: values[i].call.loc, messageId: 'duplicateKey', data: { key } });
 						}
 					}

@@ -7,7 +7,7 @@ import { asArray, isNonEmptyArray } from '../../../../base/common/arrays.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { onUnexpectedExternalError } from '../../../../base/common/errors.js';
 import { Iterable } from '../../../../base/common/iterator.js';
-import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { IDisposable, IReference } from '../../../../base/common/lifecycle.js';
 import { LinkedList } from '../../../../base/common/linkedList.js';
 import { assertType } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -21,7 +21,7 @@ import { ScrollType } from '../../../common/editorCommon.js';
 import { ITextModel } from '../../../common/model.js';
 import { DocumentFormattingEditProvider, DocumentRangeFormattingEditProvider, FormattingOptions, TextEdit } from '../../../common/languages.js';
 import { IEditorWorkerService } from '../../../common/services/editorWorker.js';
-import { ITextModelService } from '../../../common/services/resolverService.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../common/services/resolverService.js';
 import { FormattingEdit } from './formattingEdit.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { ExtensionIdentifierSet } from '../../../../platform/extensions/common/extensions.js';
@@ -470,14 +470,13 @@ CommandsRegistry.registerCommand('_executeFormatRangeProvider', async function (
 	const [resource, range, options] = args;
 	assertType(URI.isUri(resource));
 	assertType(Range.isIRange(range));
-	assertType(isFormattingOptions(options));
 
 	const resolverService = accessor.get(ITextModelService);
 	const workerService = accessor.get(IEditorWorkerService);
 	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
 	const reference = await resolverService.createModelReference(resource);
 	try {
-		return getDocumentRangeFormattingEditsUntilResult(workerService, languageFeaturesService, reference.object.textEditorModel, Range.lift(range), options, CancellationToken.None);
+		return getDocumentRangeFormattingEditsUntilResult(workerService, languageFeaturesService, reference.object.textEditorModel, Range.lift(range), ensureFormattingOptions(options, reference), CancellationToken.None);
 	} finally {
 		reference.dispose();
 	}
@@ -486,14 +485,13 @@ CommandsRegistry.registerCommand('_executeFormatRangeProvider', async function (
 CommandsRegistry.registerCommand('_executeFormatDocumentProvider', async function (accessor, ...args) {
 	const [resource, options] = args;
 	assertType(URI.isUri(resource));
-	assertType(isFormattingOptions(options));
 
 	const resolverService = accessor.get(ITextModelService);
 	const workerService = accessor.get(IEditorWorkerService);
 	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
 	const reference = await resolverService.createModelReference(resource);
 	try {
-		return getDocumentFormattingEditsUntilResult(workerService, languageFeaturesService, reference.object.textEditorModel, options, CancellationToken.None);
+		return getDocumentFormattingEditsUntilResult(workerService, languageFeaturesService, reference.object.textEditorModel, ensureFormattingOptions(options, reference), CancellationToken.None);
 	} finally {
 		reference.dispose();
 	}
@@ -504,15 +502,29 @@ CommandsRegistry.registerCommand('_executeFormatOnTypeProvider', async function 
 	assertType(URI.isUri(resource));
 	assertType(Position.isIPosition(position));
 	assertType(typeof ch === 'string');
-	assertType(isFormattingOptions(options));
 
 	const resolverService = accessor.get(ITextModelService);
 	const workerService = accessor.get(IEditorWorkerService);
 	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
 	const reference = await resolverService.createModelReference(resource);
 	try {
-		return getOnTypeFormattingEdits(workerService, languageFeaturesService, reference.object.textEditorModel, Position.lift(position), ch, options, CancellationToken.None);
+		return getOnTypeFormattingEdits(workerService, languageFeaturesService, reference.object.textEditorModel, Position.lift(position), ch, ensureFormattingOptions(options, reference), CancellationToken.None);
 	} finally {
 		reference.dispose();
 	}
 });
+function ensureFormattingOptions(options: unknown, reference: IReference<IResolvedTextEditorModel>): FormattingOptions {
+	let validatedOptions: FormattingOptions;
+	if (isFormattingOptions(options)) {
+		validatedOptions = options;
+	} else {
+		const modelOptions = reference.object.textEditorModel.getOptions();
+		validatedOptions = {
+			tabSize: modelOptions.tabSize,
+			insertSpaces: modelOptions.insertSpaces
+		};
+	}
+
+	return validatedOptions;
+}
+

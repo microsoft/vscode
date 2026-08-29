@@ -52,13 +52,13 @@ export class LocalPty extends BasePty implements ITerminalChildProcess {
 		this._proxy.sendSignal(this.id, signal);
 	}
 
-	resize(cols: number, rows: number): void {
+	resize(cols: number, rows: number, pixelWidth?: number, pixelHeight?: number): void {
 		if (this._inReplay || this._lastDimensions.cols === cols && this._lastDimensions.rows === rows) {
 			return;
 		}
 		this._lastDimensions.cols = cols;
 		this._lastDimensions.rows = rows;
-		this._proxy.resize(this.id, cols, rows);
+		this._proxy.resize(this.id, cols, rows, pixelWidth, pixelHeight);
 	}
 
 	async clearBuffer(): Promise<void> {
@@ -89,10 +89,6 @@ export class LocalPty extends BasePty implements ITerminalChildProcess {
 
 	setUnicodeVersion(version: '6' | '11'): Promise<void> {
 		return this._proxy.setUnicodeVersion(this.id, version);
-	}
-
-	setNextCommandId(commandLine: string, commandId: string): Promise<void> {
-		return this._proxy.setNextCommandId(this.id, commandLine, commandId);
 	}
 
 	handleOrphanQuestion() {

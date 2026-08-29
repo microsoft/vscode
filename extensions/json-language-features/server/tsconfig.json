@@ -1,6 +1,7 @@
 {
 	"extends": "../../tsconfig.base.json",
 	"compilerOptions": {
+		"rootDir": "./src",
 		"outDir": "./out",
 		"sourceMap": true,
 		"sourceRoot": "../src",
@@ -8,7 +9,10 @@
 			"ES2024",
 			"WebWorker"
 		],
-		"module": "Node16",
+		"module": "esnext",
+		"types": [
+			"node"
+		],
 		"typeRoots": [
 			"../node_modules/@types"
 		]

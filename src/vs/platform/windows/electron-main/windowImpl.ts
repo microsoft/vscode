@@ -11,7 +11,7 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { FileAccess, Schemas } from '../../../base/common/network.js';
 import { getMarks, mark } from '../../../base/common/performance.js';
-import { isBigSurOrNewer, isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { isTahoeOrNewer, isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { release } from 'os';
@@ -45,12 +45,14 @@ import { ILoggerMainService } from '../../log/electron-main/loggerService.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { errorHandler } from '../../../base/common/errors.js';
-import { FocusMode } from '../../native/common/native.js';
+import { FocusMode, IApplicationBadge } from '../../native/common/native.js';
+import { Color } from '../../../base/common/color.js';
 
 export interface IWindowCreationOptions {
 	readonly state: IWindowState;
 	readonly extensionDevelopmentPath?: string[];
 	readonly isExtensionTestHost?: boolean;
+	readonly isSessionsWindow?: boolean;
 }
 
 interface ITouchBarSegment extends electron.SegmentedControlSegment {
@@ -84,26 +86,57 @@ const enum ReadyState {
 	READY
 }
 
+/**
+ * Owns the single, application-wide badge (`app.setBadgeCount`) so that the
+ * transient attention dot from {@link FocusMode.Notify} and the counts pushed
+ * by individual windows via {@link IBaseWindow.setApplicationBadge} cannot
+ * overwrite each other. A count always wins over the dot because it carries
+ * more information, and counts from multiple windows add up.
+ */
 class DockBadgeManager {
 
 	static readonly INSTANCE = new DockBadgeManager();
 
-	private readonly windows = new Set<number>();
+	private readonly attention = new Set<number>();
+	private readonly counts = new Map<number, number>();
 
 	acquireBadge(window: IBaseWindow): IDisposable {
-		this.windows.add(window.id);
+		this.attention.add(window.id);
 
-		electron.app.setBadgeCount(isLinux ? 1 /* only numbers supported */ : undefined /* generic dot */);
+		this.update();
 
 		return {
 			dispose: () => {
-				this.windows.delete(window.id);
+				this.attention.delete(window.id);
 
-				if (this.windows.size === 0) {
-					electron.app.setBadgeCount(0);
-				}
+				this.update();
 			}
 		};
+	}
+
+	setCount(window: IBaseWindow, count: number): void {
+		if (count > 0) {
+			this.counts.set(window.id, count);
+		} else if (!this.counts.delete(window.id)) {
+			return; // window had no count to begin with
+		}
+
+		this.update();
+	}
+
+	private update(): void {
+		let total = 0;
+		for (const count of this.counts.values()) {
+			total += count;
+		}
+
+		if (total > 0) {
+			electron.app.setBadgeCount(total);
+		} else if (this.attention.size > 0) {
+			electron.app.setBadgeCount(isLinux ? 1 /* only numbers supported */ : undefined /* generic dot */);
+		} else {
+			electron.app.setBadgeCount(0);
+		}
 	}
 }
 
@@ -184,7 +217,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		// Sheet Offsets
 		const useCustomTitleStyle = !hasNativeTitlebar(this.configurationService, options?.titleBarStyle === 'hidden' ? TitlebarStyle.CUSTOM : undefined /* unknown */);
 		if (isMacintosh && useCustomTitleStyle) {
-			win.setSheetOffset(isBigSurOrNewer(release()) ? 28 : 22); // offset dialogs by the height of the custom title bar if we have any
+			win.setSheetOffset(isTahoeOrNewer(release()) ? 32 : 28); // offset dialogs by the height of the custom title bar if we have any
 		}
 
 		// Update the window controls immediately based on cached or default values
@@ -205,7 +238,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 				const cx = Math.floor(cursorPos.x) - x;
 				const cy = Math.floor(cursorPos.y) - y;
 
-				// TODO@bpasero TODO@deepak1556 workaround for https://github.com/microsoft/vscode/issues/250626
+				// TODO@deepak1556 workaround for https://github.com/microsoft/vscode/issues/250632
 				// where showing the custom menu seems broken on Windows
 				if (isLinux) {
 					if (cx > 35 /* Cursor is beyond app icon in title bar */) {
@@ -259,6 +292,10 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		protected readonly logService: ILogService
 	) {
 		super();
+
+		// Release this window's share of the application wide badge, so that a
+		// closed or crashed window cannot leave a phantom count behind.
+		this._register(toDisposable(() => DockBadgeManager.INSTANCE.setCount(this, 0)));
 	}
 
 	protected applyState(state: IWindowState, hasMultipleDisplays = electron.screen.getAllDisplays().length > 0): void {
@@ -340,6 +377,27 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		return !!this.documentEdited;
 	}
 
+	setApplicationBadge(badge: IApplicationBadge | undefined): void {
+		const count = badge && badge.count > 0 ? badge.count : 0;
+
+		// Windows has no application wide badge, instead an overlay is
+		// rendered over the taskbar icon of this window. The image is drawn
+		// by the renderer because the main process cannot draw.
+		if (isWindows) {
+			if (count === 0 || !badge?.iconDataURL) {
+				this.win?.setOverlayIcon(null, '');
+			} else {
+				this.win?.setOverlayIcon(electron.nativeImage.createFromDataURL(badge.iconDataURL), badge.description);
+			}
+		}
+
+		// macOS (dock) and Linux (Unity launcher) render the count themselves,
+		// on a badge shared by the whole application.
+		else {
+			DockBadgeManager.INSTANCE.setCount(this, count);
+		}
+	}
+
 	focus(options?: { mode: FocusMode }): void {
 		switch (options?.mode ?? FocusMode.Transfer) {
 			case FocusMode.Transfer:
@@ -392,13 +450,22 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		}
 
 		win.focus();
+
+		// When focusing the window, the workbench should always be the view that receives focus.
+		// However, in scenarios where the window has multiple child views (e.g. browser WebContentsViews),
+		// the last focused view in the window may not be the workbench.
+		// So we explicitly focus the workbench web contents here to ensure it gets focus.
+		win.webContents.focus();
 	}
 
 	//#region Window Control Overlays
 
 	private static readonly windowControlHeightStateStorageKey = 'windowControlHeight';
 
-	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): void {
+	private windowControlsDimmed = false;
+	private lastWindowControlColors: { backgroundColor?: string; foregroundColor?: string } | undefined;
+
+	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): void {
 		const win = this.win;
 		if (!win) {
 			return;
@@ -411,27 +478,60 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 		// Windows/Linux: update window controls via setTitleBarOverlay()
 		if (!isMacintosh && useWindowControlsOverlay(this.configurationService)) {
+
+			// Update dimmed state if explicitly provided
+			if (options.dimmed !== undefined) {
+				this.windowControlsDimmed = options.dimmed;
+			}
+
+			const backgroundColor = options.backgroundColor ?? this.lastWindowControlColors?.backgroundColor;
+			const foregroundColor = options.foregroundColor ?? this.lastWindowControlColors?.foregroundColor;
+
+			if (options.backgroundColor !== undefined || options.foregroundColor !== undefined) {
+				this.lastWindowControlColors = { backgroundColor, foregroundColor };
+			}
+
+			const effectiveBackgroundColor = this.windowControlsDimmed && backgroundColor ? this.dimColor(backgroundColor) : backgroundColor;
+			const effectiveForegroundColor = this.windowControlsDimmed && foregroundColor ? this.dimColor(foregroundColor) : foregroundColor;
+
 			win.setTitleBarOverlay({
-				color: options.backgroundColor?.trim() === '' ? undefined : options.backgroundColor,
-				symbolColor: options.foregroundColor?.trim() === '' ? undefined : options.foregroundColor,
+				color: effectiveBackgroundColor?.trim() === '' ? undefined : effectiveBackgroundColor,
+				symbolColor: effectiveForegroundColor?.trim() === '' ? undefined : effectiveForegroundColor,
 				height: options.height ? options.height - 1 : undefined // account for window border
 			});
 		}
 
 		// macOS: update window controls via setWindowButtonPosition()
 		else if (isMacintosh && options.height !== undefined) {
-			// The traffic lights have a height of 12px. There's an invisible margin
-			// of 2px at the top and bottom, and 1px on the left and right. Therefore,
-			// the height for centering is 12px + 2 * 2px = 16px. When the position
-			// is set, the horizontal margin is offset to ensure the distance between
-			// the traffic lights and the window frame is equal in both directions.
-			const offset = Math.floor((options.height - 16) / 2);
+			// When the position is set, the horizontal margin is offset to ensure
+			// the distance between the traffic lights and the window frame is equal
+			// in both directions.
+			const buttonHeight = isTahoeOrNewer(release()) ? 14 : 16;
+			const offset = Math.floor((options.height - buttonHeight) / 2);
 			if (!offset) {
 				win.setWindowButtonPosition(null);
 			} else {
 				win.setWindowButtonPosition({ x: offset + 1, y: offset });
 			}
 		}
+	}
+
+	private dimColor(color: string): string {
+
+		// Blend a CSS color with black at 50% opacity to match the
+		// dimming overlay of `rgba(0, 0, 0, 0.5)` used by modals.
+
+		const parsed = Color.Format.CSS.parse(color);
+		if (!parsed) {
+			return color;
+		}
+
+		const dimFactor = 0.5; // 1 - 0.5 opacity of black overlay
+		const r = Math.round(parsed.rgba.r * dimFactor);
+		const g = Math.round(parsed.rgba.g * dimFactor);
+		const b = Math.round(parsed.rgba.b * dimFactor);
+
+		return `rgb(${r}, ${g}, ${b})`;
 	}
 
 	//#endregion
@@ -659,11 +759,16 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			this.windowState = state;
 			this.logService.trace('window#ctor: using window state', state);
 
-			const options = instantiationService.invokeFunction(defaultBrowserWindowOptions, this.windowState, undefined, {
+			const webPreferences: electron.WebPreferences = {
 				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js').fsPath,
 				additionalArguments: [`--vscode-window-config=${this.configObjectUrl.resource.toString()}`],
-				v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
-			});
+				v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none'
+			};
+			if (config.isSessionsWindow) {
+				webPreferences.backgroundThrottling = false; // keep agents window responsive when in background
+			}
+
+			const options = instantiationService.invokeFunction(defaultBrowserWindowOptions, this.windowState, undefined, webPreferences);
 
 			// Create the browser window
 			mark('code/willCreateCodeBrowserWindow');
@@ -1042,6 +1147,16 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 	private onConfigurationUpdated(e?: IConfigurationChangeEvent): void {
 
+		// Swipe command support (macOS)
+		if (isMacintosh && (!e || e.affectsConfiguration('workbench.editor.swipeToNavigate'))) {
+			const swipeToNavigate = this.configurationService.getValue<boolean>('workbench.editor.swipeToNavigate');
+			if (swipeToNavigate) {
+				this.registerSwipeListener();
+			} else {
+				this.swipeListenerDisposable.clear();
+			}
+		}
+
 		// Menubar
 		if (!e || e.affectsConfiguration(MenuSettings.MenuBarVisibility)) {
 			const newMenuBarVisibility = this.getMenuBarVisibility();
@@ -1083,6 +1198,22 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				electron.app.setProxy({ proxyRules, proxyBypassRules, pacScript: '' });
 			}
 		}
+	}
+
+	private readonly swipeListenerDisposable = this._register(new MutableDisposable());
+
+	private registerSwipeListener(): void {
+		this.swipeListenerDisposable.value = Event.fromNodeEventEmitter<string>(this._win, 'swipe', (event: Electron.Event, cmd: string) => cmd)(cmd => {
+			if (!this.isReady) {
+				return; // window must be ready
+			}
+
+			if (cmd === 'left') {
+				this.send('vscode:runAction', { id: 'workbench.action.openPreviousRecentlyUsedEditor', from: 'mouse' });
+			} else if (cmd === 'right') {
+				this.send('vscode:runAction', { id: 'workbench.action.openNextRecentlyUsedEditor', from: 'mouse' });
+			}
+		});
 	}
 
 	addTabbedWindow(window: ICodeWindow): void {
@@ -1132,7 +1263,15 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		this.readyState = ReadyState.NAVIGATING;
 
 		// Load URL
-		this._win.loadURL(FileAccess.asBrowserUri(`vs/code/electron-browser/workbench/workbench${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true));
+		let windowUrl: string;
+		if (process.env.VSCODE_DEV && process.env.VSCODE_DEV_SERVER_URL) {
+			windowUrl = process.env.VSCODE_DEV_SERVER_URL; // support URL override for development
+		} else if (configuration.isSessionsWindow) {
+			windowUrl = FileAccess.asBrowserUri(`vs/sessions/electron-browser/sessions${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true);
+		} else {
+			windowUrl = FileAccess.asBrowserUri(`vs/code/electron-browser/workbench/workbench${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true);
+		}
+		this._win.loadURL(windowUrl);
 
 		// Remember that we did load
 		const wasLoaded = this.wasLoaded;

@@ -31,7 +31,7 @@ export class SharedWebContentExtractorService implements ISharedWebContentExtrac
 			const content = VSBuffer.wrap(await (response as unknown as { bytes: () => Promise<Uint8Array<ArrayBuffer>> } /* workaround https://github.com/microsoft/TypeScript/issues/61826 */).bytes());
 			return content;
 		} catch (err) {
-			console.log(err);
+			console.error(err);
 			return undefined;
 		}
 	}

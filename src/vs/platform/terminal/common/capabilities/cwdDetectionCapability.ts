@@ -10,6 +10,7 @@ import { ICwdDetectionCapability, TerminalCapability } from './capabilities.js';
 export class CwdDetectionCapability extends Disposable implements ICwdDetectionCapability {
 	readonly type = TerminalCapability.CwdDetection;
 	private _cwd = '';
+	private _isTrusted = true;
 	private _cwds = new Map</*cwd*/string, /*frequency*/number>();
 
 	/**
@@ -19,6 +20,10 @@ export class CwdDetectionCapability extends Disposable implements ICwdDetectionC
 		return Array.from(this._cwds.keys());
 	}
 
+	get isTrusted(): boolean {
+		return this._isTrusted;
+	}
+
 	private readonly _onDidChangeCwd = this._register(new Emitter<string>());
 	readonly onDidChangeCwd = this._onDidChangeCwd.event;
 
@@ -26,9 +31,10 @@ export class CwdDetectionCapability extends Disposable implements ICwdDetectionC
 		return this._cwd;
 	}
 
-	updateCwd(cwd: string): void {
-		const didChange = this._cwd !== cwd;
+	updateCwd(cwd: string, isTrusted: boolean = true): void {
+		const didChange = this._cwd !== cwd || this._isTrusted !== isTrusted;
 		this._cwd = cwd;
+		this._isTrusted = isTrusted;
 		const count = this._cwds.get(this._cwd) || 0;
 		this._cwds.delete(this._cwd); // Delete to put it at the bottom of the iterable
 		this._cwds.set(this._cwd, count + 1);

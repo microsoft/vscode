@@ -10,6 +10,26 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
+/**
+ * Compares two MCP server URLs for the purpose of access binding. They are compared by their canonical
+ * WHATWG URL form, so cosmetic differences in the origin (host case, default port, encoding) and a root
+ * trailing slash ("foo.com" vs "foo.com/") don't force a spurious re-consent — while a trailing slash on
+ * a path ("foo.com/a" vs "foo.com/a/") is preserved as a meaningful difference between endpoints.
+ */
+export function urlsEqual(a: string | undefined, b: string | undefined): boolean {
+	if (a === b) {
+		return true;
+	}
+	if (a === undefined || b === undefined) {
+		return false;
+	}
+	try {
+		return new URL(a).toString() === new URL(b).toString();
+	} catch {
+		return false;
+	}
+}
+
 export interface AllowedMcpServer {
 	id: string;
 	name: string;
@@ -22,6 +42,21 @@ export interface AllowedMcpServer {
 	lastUsed?: number;
 	// If true, this comes from the product.json
 	trusted?: boolean;
+	/**
+	 * The MCP server URL the grant was made for. A token is only released to a server whose current
+	 * URL matches this, so changing the URL while keeping the same id requires the user to re-consent.
+	 * Undefined for stdio servers, which have no URL.
+	 */
+	url?: string;
+	/**
+	 * Set when the grant is for an MCP server hosted by an agent host (which runs the server in the
+	 * CLI/agent-host process rather than registering it with the workbench `IMcpService`). Carries the
+	 * host `authority` and its display `label` so management surfaces can present agent-host servers in
+	 * their own section instead of filtering them out as "unknown". Agent hosts
+	 * may be ephemeral and not always connected, but we still want to be able to
+	 * display grants we know about and will respect.
+	 */
+	agentHost?: { authority: string; label: string };
 }
 
 export const IAuthenticationMcpAccessService = createDecorator<IAuthenticationMcpAccessService>('IAuthenticationMcpAccessService');
@@ -31,7 +66,9 @@ export interface IAuthenticationMcpAccessService {
 	readonly onDidChangeMcpSessionAccess: Event<{ providerId: string; accountName: string }>;
 
 	/**
-	 * Check MCP server access to an account
+	 * Inspect the stored access decision for an MCP server, keyed by id alone. Used by management and
+	 * inspection surfaces (e.g. the "Manage Trusted MCP Servers" UI) that operate on a server id without
+	 * a live URL. For the security-critical token-release gate use {@link isAccessAllowedForUrl} instead.
 	 * @param providerId The id of the authentication provider
 	 * @param accountName The account name that access is checked for
 	 * @param mcpServerId The id of the MCP server requesting access
@@ -39,6 +76,19 @@ export interface IAuthenticationMcpAccessService {
 	 * if they haven't made a choice yet
 	 */
 	isAccessAllowed(providerId: string, accountName: string, mcpServerId: string): boolean | undefined;
+	/**
+	 * Gate for releasing a token to an HTTP MCP server. Access is only allowed if {@link mcpServerUrl}
+	 * matches the URL stored when access was granted, so re-pointing a server at a new endpoint (while
+	 * keeping the same id) requires the user to re-consent. `product.json`-trusted servers bypass the
+	 * URL check. Only HTTP servers authenticate, so the URL is always known and therefore required.
+	 * @param providerId The id of the authentication provider
+	 * @param accountName The account name that access is checked for
+	 * @param mcpServerId The id of the MCP server requesting access
+	 * @param mcpServerUrl The MCP server's current URL
+	 * @returns Returns true or false if the user has opted to permanently grant or disallow access, and undefined
+	 * if they haven't made a choice yet (or the URL no longer matches the granted one)
+	 */
+	isAccessAllowedForUrl(providerId: string, accountName: string, mcpServerId: string, mcpServerUrl: string): boolean | undefined;
 	readAllowedMcpServers(providerId: string, accountName: string): AllowedMcpServer[];
 	updateAllowedMcpServers(providerId: string, accountName: string, mcpServers: AllowedMcpServer[]): void;
 	removeAllowedMcpServers(providerId: string, accountName: string): void;
@@ -59,6 +109,14 @@ export class AuthenticationMcpAccessService extends Disposable implements IAuthe
 	}
 
 	isAccessAllowed(providerId: string, accountName: string, mcpServerId: string): boolean | undefined {
+		return this._isAccessAllowed(providerId, accountName, mcpServerId, undefined);
+	}
+
+	isAccessAllowedForUrl(providerId: string, accountName: string, mcpServerId: string, mcpServerUrl: string): boolean | undefined {
+		return this._isAccessAllowed(providerId, accountName, mcpServerId, mcpServerUrl);
+	}
+
+	private _isAccessAllowed(providerId: string, accountName: string, mcpServerId: string, mcpServerUrl: string | undefined): boolean | undefined {
 		const trustedMCPServerAuthAccess = this._productService.trustedMcpAuthAccess;
 		if (Array.isArray(trustedMCPServerAuthAccess)) {
 			if (trustedMCPServerAuthAccess.includes(mcpServerId)) {
@@ -71,6 +129,11 @@ export class AuthenticationMcpAccessService extends Disposable implements IAuthe
 		const allowList = this.readAllowedMcpServers(providerId, accountName);
 		const mcpServerData = allowList.find(mcpServer => mcpServer.id === mcpServerId);
 		if (!mcpServerData) {
+			return undefined;
+		}
+		// A grant is bound to the URL it was made for: if the server now has a different URL, the user
+		// must re-consent before a token is released to it.
+		if (mcpServerUrl !== undefined && !urlsEqual(mcpServerData.url, mcpServerUrl)) {
 			return undefined;
 		}
 		// This property didn't exist on this data previously, inclusion in the list at all indicates allowance
@@ -130,6 +193,15 @@ export class AuthenticationMcpAccessService extends Disposable implements IAuthe
 				// Update name if provided and not already set to a proper name
 				if (mcpServer.name && mcpServer.name !== mcpServer.id && allowList[index].name !== mcpServer.name) {
 					allowList[index].name = mcpServer.name;
+				}
+				// Only overwrite the URL when one is provided, so management toggles (which omit it) keep the binding.
+				if (mcpServer.url !== undefined) {
+					allowList[index].url = mcpServer.url;
+				}
+				// Preserve agent-host metadata across re-grants; only set when provided so management
+				// toggles (which omit it) don't clear it.
+				if (mcpServer.agentHost !== undefined) {
+					allowList[index].agentHost = mcpServer.agentHost;
 				}
 			}
 		}

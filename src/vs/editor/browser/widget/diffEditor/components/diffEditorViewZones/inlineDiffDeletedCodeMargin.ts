@@ -19,6 +19,7 @@ import { localize } from '../../../../../../nls.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { enableCopySelection } from './copySelection.js';
+import { RenderLinesResult } from './renderLines.js';
 
 export class InlineDiffDeletedCodeMargin extends Disposable {
 	private readonly _diffActions: HTMLElement;
@@ -43,7 +44,7 @@ export class InlineDiffDeletedCodeMargin extends Disposable {
 		private readonly _modifiedEditor: CodeEditorWidget,
 		private readonly _diff: DetailedLineRangeMapping,
 		private readonly _editor: DiffEditorWidget,
-		private readonly _viewLineCounts: number[],
+		private readonly _renderLinesResult: RenderLinesResult,
 		private readonly _originalTextModel: ITextModel,
 		private readonly _contextMenuService: IContextMenuService,
 		private readonly _clipboardService: IClipboardService,
@@ -152,13 +153,9 @@ export class InlineDiffDeletedCodeMargin extends Disposable {
 
 		this._register(enableCopySelection({
 			domNode: this._deletedCodeDomNode,
-			getViewZoneId: () => this._getViewZoneId(),
 			diffEntry: _diff,
 			originalModel: this._originalTextModel,
-			editorLineHeight: lineHeight,
-			viewLineCounts: this._viewLineCounts,
-			editor: _modifiedEditor,
-			showContextMenu,
+			renderLinesResult: this._renderLinesResult,
 			clipboardService: _clipboardService,
 		}));
 	}
@@ -169,10 +166,10 @@ export class InlineDiffDeletedCodeMargin extends Disposable {
 		const lineNumberOffset = Math.floor(offset / lineHeight);
 		const newTop = lineNumberOffset * lineHeight;
 		this._diffActions.style.top = `${newTop}px`;
-		if (this._viewLineCounts) {
+		if (this._renderLinesResult.viewLineCounts) {
 			let acc = 0;
-			for (let i = 0; i < this._viewLineCounts.length; i++) {
-				acc += this._viewLineCounts[i];
+			for (let i = 0; i < this._renderLinesResult.viewLineCounts.length; i++) {
+				acc += this._renderLinesResult.viewLineCounts[i];
 				if (lineNumberOffset < acc) {
 					return i;
 				}

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equalsIgnoreCase } from '../../../../base/common/strings.js';
-import { IDebuggerContribution, IDebugSession, IConfigPresentation, State } from './debug.js';
+import { IDebuggerContribution, IDebugSession, IConfig, IConfigPresentation, State } from './debug.js';
 import { URI as uri } from '../../../../base/common/uri.js';
 import { isAbsolute } from '../../../../base/common/path.js';
 import { deepClone } from '../../../../base/common/objects.js';
@@ -17,6 +17,7 @@ import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
+import { OperatingSystem, OS } from '../../../../base/common/platform.js';
 
 const _formatPIIRegexp = /{([^}]+)}/g;
 
@@ -174,7 +175,7 @@ export async function getEvaluatableExpressionAtPosition(languageFeaturesService
 // RFC 2396, Appendix A: https://www.ietf.org/rfc/rfc2396.txt
 const _schemePattern = /^[a-zA-Z][a-zA-Z0-9\+\-\.]+:/;
 
-export function isUri(s: string | undefined): boolean {
+export function isUriString(s: string | undefined): boolean {
 	// heuristics: a valid uri starts with a scheme and
 	// the scheme has at least 2 characters so that it doesn't look like a drive letter.
 	return !!(s && s.match(_schemePattern));
@@ -185,7 +186,7 @@ function stringToUri(source: PathContainer): string | undefined {
 		if (typeof source.sourceReference === 'number' && source.sourceReference > 0) {
 			// if there is a source reference, don't touch path
 		} else {
-			if (isUri(source.path)) {
+			if (isUriString(source.path)) {
 				return <string><unknown>uri.parse(source.path);
 			} else {
 				// assume path
@@ -330,7 +331,6 @@ function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePath: (toDA: 
 		}
 	}
 }
-
 export function getVisibleAndSorted<T extends { presentation?: IConfigPresentation }>(array: T[]): T[] {
 	return array.filter(config => !config.presentation?.hidden).sort((first, second) => {
 		if (!first.presentation) {
@@ -412,4 +412,34 @@ export function resolveChildSession(session: IDebugSession, allSessions: readonl
 	}
 	// Return the original session if it has no children
 	return session;
+}
+
+type IPlatformSpecificConfig = NonNullable<IConfig['windows']>;
+
+function getPlatformSpecificConfig(config: IConfig, os: OperatingSystem): IPlatformSpecificConfig | undefined {
+	switch (os) {
+		case OperatingSystem.Windows:
+			return config.windows;
+		case OperatingSystem.Macintosh:
+			return config.osx;
+		case OperatingSystem.Linux:
+			return config.linux;
+	}
+}
+
+export function getEffectiveConfigForPlatform(config: IConfig, os: OperatingSystem = OS): IConfig {
+	const platformConfig = getPlatformSpecificConfig(config, os);
+	if (!platformConfig) {
+		return config;
+	}
+
+	return {
+		...config,
+		...platformConfig,
+		presentation: platformConfig.presentation ? { ...config.presentation, ...platformConfig.presentation } : config.presentation,
+	};
+}
+
+export function getEffectivePresentationForConfig(config: IConfig, os: OperatingSystem = OS): IConfigPresentation | undefined {
+	return getEffectiveConfigForPlatform(config, os).presentation;
 }

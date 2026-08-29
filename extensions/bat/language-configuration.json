@@ -22,8 +22,8 @@
 	],
 	"folding": {
 		"markers": {
-			"start": "^\\s*(::|REM|@REM)\\s*#region",
-			"end": "^\\s*(::|REM|@REM)\\s*#endregion"
+			"start": "^\\s*(::|@?[Rr][Ee][Mm])\\s*#region",
+			"end": "^\\s*(::|@?[Rr][Ee][Mm])\\s*#endregion"
 		}
 	}
 }

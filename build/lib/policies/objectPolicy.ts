@@ -3,17 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BasePolicy } from './basePolicy';
-import { CategoryDto, PolicyDto } from './policyDto';
-import { renderProfileString } from './render';
-import { Category, NlsString, PolicyType, LanguageTranslations } from './types';
+import { BasePolicy } from './basePolicy.ts';
+import type { CategoryDto, PolicyDto } from './policyDto.ts';
+import { renderProfileString } from './render.ts';
+import { type Category, type NlsString, PolicyType, type LanguageTranslations } from './types.ts';
 
 export class ObjectPolicy extends BasePolicy {
 
 	static from(category: CategoryDto, policy: PolicyDto): ObjectPolicy | undefined {
 		const { type, name, minimumVersion, localization } = policy;
 
-		if (type !== 'object' && type !== 'array') {
+		// `type` may be a single type or a union (e.g. `['array', 'null']`, where `null`
+		// models the unset default). Object- and array-typed settings are carried as JSON
+		// and render as a multiText element.
+		const types = Array.isArray(type) ? type : [type];
+		if (!types.includes('object') && !types.includes('array')) {
 			return undefined;
 		}
 

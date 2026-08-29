@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
+import type * as ESTree from 'estree';
 
-export = new class ApiVsCodeInComments implements eslint.Rule.RuleModule {
+export default new class ApiVsCodeInComments implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {
@@ -16,10 +17,10 @@ export = new class ApiVsCodeInComments implements eslint.Rule.RuleModule {
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 
-		const sourceCode = context.getSourceCode();
+		const sourceCode = context.sourceCode;
 
 		return {
-			['Program']: (_node: any) => {
+			['Program']: (_node: ESTree.Program) => {
 
 				for (const comment of sourceCode.getAllComments()) {
 					if (comment.type !== 'Block') {

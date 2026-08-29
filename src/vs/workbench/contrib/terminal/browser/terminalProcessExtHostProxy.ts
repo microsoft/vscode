@@ -34,7 +34,7 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	readonly onRequestInitialCwd: Event<void> = this._onRequestInitialCwd.event;
 	private readonly _onRequestCwd = this._register(new Emitter<void>());
 	readonly onRequestCwd: Event<void> = this._onRequestCwd.event;
-	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
+	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty>());
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
 	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
 	readonly onProcessExit: Event<number | undefined> = this._onProcessExit.event;
@@ -63,22 +63,22 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 		this._onProcessReady.fire({ pid, cwd, windowsPty: undefined });
 	}
 
-	emitProcessProperty({ type, value }: IProcessProperty<any>): void {
+	emitProcessProperty({ type, value }: IProcessProperty): void {
 		switch (type) {
 			case ProcessPropertyType.Cwd:
-				this.emitCwd(value);
+				this.emitCwd(value as IProcessPropertyMap[ProcessPropertyType.Cwd]);
 				break;
 			case ProcessPropertyType.InitialCwd:
-				this.emitInitialCwd(value);
+				this.emitInitialCwd(value as IProcessPropertyMap[ProcessPropertyType.InitialCwd]);
 				break;
 			case ProcessPropertyType.Title:
-				this.emitTitle(value);
+				this.emitTitle(value as IProcessPropertyMap[ProcessPropertyType.Title]);
 				break;
 			case ProcessPropertyType.OverrideDimensions:
-				this.emitOverrideDimensions(value);
+				this.emitOverrideDimensions(value as IProcessPropertyMap[ProcessPropertyType.OverrideDimensions]);
 				break;
 			case ProcessPropertyType.ResolvedShellLaunchConfig:
-				this.emitResolvedShellLaunchConfig(value);
+				this.emitResolvedShellLaunchConfig(value as IProcessPropertyMap[ProcessPropertyType.ResolvedShellLaunchConfig]);
 				break;
 		}
 	}
@@ -140,10 +140,6 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 		// No-op
 	}
 
-	async setNextCommandId(commandLine: string, commandId: string): Promise<void> {
-		// No-op
-	}
-
 	async processBinary(data: string): Promise<void> {
 		// Disabled for extension terminals
 		this._onBinary.fire(data);
@@ -163,8 +159,9 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 		});
 	}
 
-	async refreshProperty<T extends ProcessPropertyType>(type: T): Promise<any> {
+	async refreshProperty<T extends ProcessPropertyType>(type: T): Promise<IProcessPropertyMap[T]> {
 		// throws if called in extHostTerminalService
+		throw new Error('refreshProperty not implemented on extension host');
 	}
 
 	async updateProperty<T extends ProcessPropertyType>(type: T, value: IProcessPropertyMap[T]): Promise<void> {

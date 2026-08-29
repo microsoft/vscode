@@ -22,11 +22,12 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IStatusbarService, StatusbarAlignment } from '../../../../services/statusbar/browser/statusbar.js';
 import { EditSource } from '../helpers/documentWithAnnotatedEdits.js';
 import { EditSourceTrackingImpl } from './editSourceTrackingImpl.js';
-import { AnnotatedDocuments } from '../helpers/annotatedDocuments.js';
+import { IAnnotatedDocuments } from '../helpers/annotatedDocuments.js';
 import { DataChannelForwardingTelemetryService } from '../../../../../platform/dataChannel/browser/forwardingTelemetryService.js';
 import { EDIT_TELEMETRY_DETAILS_SETTING_ID, EDIT_TELEMETRY_SHOW_DECORATIONS, EDIT_TELEMETRY_SHOW_STATUS_BAR } from '../settings.js';
 import { VSCodeWorkspace } from '../helpers/vscodeObservableWorkspace.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
+import { AgentHostEditMarkerService } from './agentHostEditMarkerService.js';
 
 export class EditTrackingFeature extends Disposable {
 
@@ -37,7 +38,7 @@ export class EditTrackingFeature extends Disposable {
 
 	constructor(
 		private readonly _workspace: VSCodeWorkspace,
-		private readonly _annotatedDocuments: AnnotatedDocuments,
+		private readonly _annotatedDocuments: IAnnotatedDocuments,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IStatusbarService private readonly _statusbarService: IStatusbarService,
@@ -54,21 +55,22 @@ export class EditTrackingFeature extends Disposable {
 		const extensions = observableFromEvent(this._extensionService.onDidChangeExtensions, () => {
 			return this._extensionService.extensions;
 		});
-		const extensionIds = derived(reader => new Set(extensions.read(reader).map(e => e.id?.toLowerCase())));
-		function getExtensionInfoObs(extensionId: string, extensionService: IExtensionService) {
+		const extensionIds = derived(reader => new Set(extensions.read(reader).map(e => e.identifier.value.toLowerCase())));
+		function getExtensionInfoObs(extensionId: string) {
 			const extIdLowerCase = extensionId.toLowerCase();
 			return derived(reader => extensionIds.read(reader).has(extIdLowerCase));
 		}
 
-		const copilotInstalled = getExtensionInfoObs('GitHub.copilot', this._extensionService);
-		const copilotChatInstalled = getExtensionInfoObs('GitHub.copilot-chat', this._extensionService);
+		const copilotInstalled = getExtensionInfoObs('GitHub.copilot');
+		const copilotChatInstalled = getExtensionInfoObs('GitHub.copilot-chat');
 
 		const shouldSendDetails = derived(reader => editSourceDetailsEnabled.read(reader) || !!copilotInstalled.read(reader) || !!copilotChatInstalled.read(reader));
 
 		const instantiationServiceWithInterceptedTelemetry = this._instantiationService.createChild(new ServiceCollection(
 			[ITelemetryService, this._instantiationService.createInstance(DataChannelForwardingTelemetryService)]
 		));
-		const impl = this._register(instantiationServiceWithInterceptedTelemetry.createInstance(EditSourceTrackingImpl, shouldSendDetails, this._annotatedDocuments));
+		const markerService = this._register(instantiationServiceWithInterceptedTelemetry.createInstance(AgentHostEditMarkerService));
+		const impl = this._register(instantiationServiceWithInterceptedTelemetry.createInstance(EditSourceTrackingImpl, shouldSendDetails, this._annotatedDocuments, markerService));
 
 		this._register(autorun((reader) => {
 			if (!this._editSourceTrackingShowDecorations.read(reader)) {
@@ -227,7 +229,7 @@ export class EditTrackingFeature extends Disposable {
 	}
 }
 
-export function makeSettable<T>(obs: IObservable<T>): ISettableObservable<T> {
+function makeSettable<T>(obs: IObservable<T>): ISettableObservable<T> {
 	const overrideObs = observableValue<T | undefined>('overrideObs', undefined);
 	return derivedWithSetter(overrideObs, (reader) => {
 		return overrideObs.read(reader) ?? obs.read(reader);

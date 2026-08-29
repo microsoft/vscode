@@ -1,0 +1,268 @@
+parameters:
+  - name: name
+    type: string
+  - name: displayName
+    type: string
+  - name: poolName
+    type: string
+  - name: os
+    type: string
+    default: linux
+  - name: container
+    type: string
+    default: ""
+  - name: arch
+    type: string
+    default: amd64
+  - name: args
+    type: string
+    default: ""
+  # Build pipeline artifacts to download before running. When set, targets resolve from them
+  # instead of the update service, which only serves published builds.
+  - name: artifacts
+    type: object
+    default: []
+  - name: continueOnError
+    type: boolean
+    default: true
+
+jobs:
+  - job: ${{ parameters.name }}
+    displayName: ${{ parameters.displayName }}
+    continueOnError: ${{ parameters.continueOnError }}
+    pool:
+      name: ${{ parameters.poolName }}
+      os: ${{ parameters.os }}
+    timeoutInMinutes: 30
+    templateContext:
+      outputs:
+        - output: pipelineArtifact
+          targetPath: $(SCREENSHOTS_DIR)
+          artifactName: screenshots-${{ parameters.name }}-$(System.JobAttempt)
+          displayName: Publish Screenshots
+          condition: and(succeededOrFailed(), eq(variables.HAS_SCREENSHOTS, 'true'))
+          continueOnError: true
+          sbomEnabled: false
+        - output: pipelineArtifact
+          targetPath: $(CRASH_DUMPS_DIR)
+          artifactName: crash-dumps-${{ parameters.name }}-$(System.JobAttempt)
+          displayName: Publish Crash Dumps
+          condition: and(succeededOrFailed(), eq(variables.HAS_CRASH_DUMPS, 'true'))
+          continueOnError: true
+          sbomEnabled: false
+    variables:
+      - name: TEST_DIR
+        value: $(Build.SourcesDirectory)/test/sanity
+      - name: LOG_FILE
+        value: $(TEST_DIR)/results.xml
+      - name: SCREENSHOTS_DIR
+        value: $(TEST_DIR)/screenshots
+      - name: CRASH_DUMPS_DIR
+        value: $(TEST_DIR)/crash-dumps
+      # Kept under TEST_DIR so container runs see it through the volume run-docker.sh mounts at /root.
+      - name: ARTIFACTS_DIR
+        value: $(TEST_DIR)/artifacts
+      - name: ARTIFACTS_ARG
+        ${{ if eq(length(parameters.artifacts), 0) }}:
+          value: ""
+        ${{ elseif ne(parameters.container, '') }}:
+          value: --artifacts-dir /root/artifacts
+        ${{ else }}:
+          value: --artifacts-dir $(ARTIFACTS_DIR)
+    steps:
+      - checkout: self
+        fetchDepth: 1
+        fetchTags: false
+        sparseCheckoutDirectories: build/azure-pipelines/config test/sanity .nvmrc
+        retryCountOnTaskFailure: 3
+        displayName: Checkout test/sanity
+
+      - ${{ each artifact in parameters.artifacts }}:
+        - task: DownloadPipelineArtifact@2
+          inputs:
+            artifact: ${{ artifact }}
+            path: $(ARTIFACTS_DIR)/${{ artifact }}
+          retryCountOnTaskFailure: 3
+          displayName: Download ${{ artifact }}
+
+      - ${{ if eq(parameters.os, 'windows') }}:
+        - script: mkdir "$(SCREENSHOTS_DIR)"
+          displayName: Create Screenshots Directory
+
+      - ${{ else }}:
+        - bash: mkdir -p "$(SCREENSHOTS_DIR)"
+          displayName: Create Screenshots Directory
+
+      - ${{ if eq(parameters.os, 'windows') }}:
+        - script: mkdir "$(CRASH_DUMPS_DIR)"
+          displayName: Create Crash Dumps Directory
+
+      - ${{ else }}:
+        - bash: mkdir -p "$(CRASH_DUMPS_DIR)"
+          displayName: Create Crash Dumps Directory
+
+      - ${{ if and(eq(parameters.os, 'windows'), eq(parameters.arch, 'arm64')) }}:
+        - task: NuGetAuthenticate@1
+          displayName: Setup NuGet Authentication
+
+        - script: |
+            @echo off
+            setlocal enabledelayedexpansion
+
+            set "PACKAGE_VERSION=10.0.26100.1"
+            set "SDK_VERSION=10.0.26100.0"
+            set "EXPECTED_HASH=7e37f35384a7b146730fa67dde243d46b97ce5ca73aaeb1c3141cd812b286395"
+            set "SDK_ROOT=$(Agent.TempDirectory)\windows-sdk-build-tools"
+            set "SIGNTOOL_ROOT=!SDK_ROOT!\bin\!SDK_VERSION!\arm64"
+            set "SIGNTOOL_EXE=!SIGNTOOL_ROOT!\signtool.exe"
+
+            if not exist "!SIGNTOOL_EXE!" (
+              if exist "!SDK_ROOT!" rmdir /s /q "!SDK_ROOT!"
+
+              set "SDK_PACKAGE=$(Agent.TempDirectory)\windows-sdk-build-tools.nupkg"
+              curl.exe -fsSL --retry 5 --retry-delay 2 --retry-all-errors -u "vscode:%VSS_NUGET_ACCESSTOKEN%" "https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/nuget/v3/flat2/microsoft.windows.sdk.buildtools/!PACKAGE_VERSION!/microsoft.windows.sdk.buildtools.!PACKAGE_VERSION!.nupkg" -o "!SDK_PACKAGE!"
+
+              set "ACTUAL_HASH="
+              for /f "skip=1" %%A in ('certutil -hashfile "!SDK_PACKAGE!" SHA256') do if not defined ACTUAL_HASH set "ACTUAL_HASH=%%A"
+              if /I not "!ACTUAL_HASH!"=="!EXPECTED_HASH!" (
+                echo Hash mismatch for windows-sdk-build-tools.nupkg
+                echo   expected: !EXPECTED_HASH!
+                echo   actual:   !ACTUAL_HASH!
+                del "!SDK_PACKAGE!"
+                exit /b 1
+              )
+
+              mkdir "!SDK_ROOT!"
+              tar -xf "!SDK_PACKAGE!" -C "!SDK_ROOT!"
+              del "!SDK_PACKAGE!"
+            )
+
+            echo ##vso[task.prependpath]!SIGNTOOL_ROOT!
+          displayName: Install SignTool (Windows ARM64)
+
+      - task: UseNode@1
+        inputs:
+          version: '22.22.0'
+        displayName: Install Node.js
+
+      - task: Cache@2
+        inputs:
+          key: '"sanity-node_modules" | "$(Agent.OS)" | "${{ parameters.arch }}" | $(TEST_DIR)/package-lock.json'
+          path: $(TEST_DIR)/node_modules
+          cacheHitVar: SANITY_NODE_MODULES_RESTORED
+        displayName: Restore node_modules cache
+
+      - script: npm config set registry "$(NPM_REGISTRY)" --location=project
+        workingDirectory: $(TEST_DIR)
+        displayName: Configure NPM Registry
+        condition: and(succeeded(), ne(variables.SANITY_NODE_MODULES_RESTORED, 'true'))
+
+      - task: npmAuthenticate@0
+        inputs:
+          workingFile: $(TEST_DIR)/.npmrc
+        displayName: Authenticate with NPM Registry
+        condition: and(succeeded(), ne(variables.SANITY_NODE_MODULES_RESTORED, 'true'))
+
+      - script: npm ci
+        workingDirectory: $(TEST_DIR)
+        displayName: Install NPM Dependencies
+        condition: and(succeeded(), ne(variables.SANITY_NODE_MODULES_RESTORED, 'true'))
+
+      - script: npm run compile
+        workingDirectory: $(TEST_DIR)
+        displayName: Compile Sanity Tests
+
+      - task: AzureKeyVault@2
+        displayName: "Azure Key Vault: Get Secrets"
+        inputs:
+          azureSubscription: vscode
+          KeyVaultName: vscode-build-secrets
+          SecretsFilter: "sanity-tests-account,sanity-tests-password"
+
+      # Windows
+      - ${{ if eq(parameters.os, 'windows') }}:
+        - script: $(TEST_DIR)/scripts/run-win32.cmd -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -s $(SCREENSHOTS_DIR) -d $(CRASH_DUMPS_DIR) -v $(ARTIFACTS_ARG) ${{ parameters.args }}
+          workingDirectory: $(TEST_DIR)
+          displayName: Run Sanity Tests
+          env:
+            GITHUB_ACCOUNT: $(sanity-tests-account)
+            GITHUB_PASSWORD: $(sanity-tests-password)
+
+      # macOS
+      - ${{ if eq(parameters.os, 'macOS') }}:
+        - bash: $(TEST_DIR)/scripts/run-macOS.sh -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -s $(SCREENSHOTS_DIR) -d $(CRASH_DUMPS_DIR) -v $(ARTIFACTS_ARG) ${{ parameters.args }}
+          workingDirectory: $(TEST_DIR)
+          displayName: Run Sanity Tests
+          env:
+            GITHUB_ACCOUNT: $(sanity-tests-account)
+            GITHUB_PASSWORD: $(sanity-tests-password)
+
+      # Native Linux host
+      - ${{ if and(eq(parameters.container, ''), eq(parameters.os, 'linux')) }}:
+        - bash: $(TEST_DIR)/scripts/run-ubuntu.sh -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -s $(SCREENSHOTS_DIR) -d $(CRASH_DUMPS_DIR) -v $(ARTIFACTS_ARG) ${{ parameters.args }}
+          workingDirectory: $(TEST_DIR)
+          displayName: Run Sanity Tests
+          env:
+            GITHUB_ACCOUNT: $(sanity-tests-account)
+            GITHUB_PASSWORD: $(sanity-tests-password)
+
+      # Linux Docker container
+      - ${{ if ne(parameters.container, '') }}:
+        - task: Docker@1
+          displayName: Login to Container Registry
+          inputs:
+            azureSubscriptionEndpoint: vscode
+            azureContainerRegistry: vscodehub.azurecr.io
+            command: login
+
+        - bash: |
+            $(TEST_DIR)/scripts/run-docker.sh \
+              --container "${{ parameters.container }}" \
+              --arch "${{ parameters.arch }}" \
+              --quality "$(BUILD_QUALITY)" \
+              --commit "$(BUILD_COMMIT)" \
+              --test-results "/root/results.xml" \
+              --screenshots-dir "/root/screenshots" \
+              --crash-dumps-dir "/root/crash-dumps" \
+              --verbose \
+              $(ARTIFACTS_ARG) \
+              ${{ parameters.args }}
+          workingDirectory: $(TEST_DIR)
+          displayName: Run Sanity Tests
+          env:
+            GITHUB_ACCOUNT: $(sanity-tests-account)
+            GITHUB_PASSWORD: $(sanity-tests-password)
+
+      - ${{ if eq(parameters.os, 'windows') }}:
+        - script: |
+            @echo off
+            dir /b "$(SCREENSHOTS_DIR)" 2>nul | findstr . >nul
+            if %errorlevel%==0 (
+              echo ##vso[task.setvariable variable=HAS_SCREENSHOTS]true
+            )
+            dir /b "$(CRASH_DUMPS_DIR)" 2>nul | findstr . >nul
+            if %errorlevel%==0 (
+              echo ##vso[task.setvariable variable=HAS_CRASH_DUMPS]true
+            )
+            exit /b 0
+          displayName: Check Screenshots
+          condition: succeededOrFailed()
+
+      - ${{ else }}:
+        - bash: |
+            if [ -n "$(ls -A "$(SCREENSHOTS_DIR)" 2>/dev/null)" ]; then
+              echo "##vso[task.setvariable variable=HAS_SCREENSHOTS]true"
+            fi
+            if [ -n "$(ls -A "$(CRASH_DUMPS_DIR)" 2>/dev/null)" ]; then
+              echo "##vso[task.setvariable variable=HAS_CRASH_DUMPS]true"
+            fi
+          displayName: Check Screenshots
+          condition: succeededOrFailed()
+
+      - task: PublishTestResults@2
+        inputs:
+          testResultsFormat: JUnit
+          testResultsFiles: $(LOG_FILE)
+          testRunTitle: ${{ parameters.displayName }}
+        displayName: Publish Test Results
+        condition: succeededOrFailed()

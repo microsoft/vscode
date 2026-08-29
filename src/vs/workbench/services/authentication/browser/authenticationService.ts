@@ -239,9 +239,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		if (provider) {
 			this._authenticationProviders.delete(id);
 			// If this is a dynamic provider, remove it from the set of dynamic providers
-			if (this._dynamicAuthenticationProviderIds.has(id)) {
-				this._dynamicAuthenticationProviderIds.delete(id);
-			}
+			this._dynamicAuthenticationProviderIds.delete(id);
 			this._onDidUnregisterAuthenticationProvider.fire({ id, label: provider.label });
 		}
 		this._authenticationProviderDisposables.deleteAndDispose(id);
@@ -286,7 +284,8 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			// Check if the authorization server is in the list of supported authorization servers
 			const server = options?.authorizationServer;
 			if (server) {
-				// TODO: something is off here...
+				// Skip the resource server check since the auth provider id contains a specific resource server
+				// TODO@TylerLeonhardt: this can change when we have providers that support multiple resource servers
 				if (!this.matchesProvider(authProvider, server)) {
 					throw new Error(`The authentication provider '${id}' does not support the authorization server '${server.toString(true)}'.`);
 				}
@@ -341,9 +340,9 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}
 	}
 
-	async getOrActivateProviderIdForServer(authorizationServer: URI): Promise<string | undefined> {
+	async getOrActivateProviderIdForServer(authorizationServer: URI, resourceServer?: URI): Promise<string | undefined> {
 		for (const provider of this._authenticationProviders.values()) {
-			if (this.matchesProvider(provider, authorizationServer)) {
+			if (this.matchesProvider(provider, authorizationServer, resourceServer)) {
 				return provider.id;
 			}
 		}
@@ -358,20 +357,20 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		for (const provider of providers) {
 			const activeProvider = await this.tryActivateProvider(provider.id, true);
 			// Check the resolved authorization servers
-			if (this.matchesProvider(activeProvider, authorizationServer)) {
+			if (this.matchesProvider(activeProvider, authorizationServer, resourceServer)) {
 				return activeProvider.id;
 			}
 		}
 		return undefined;
 	}
 
-	async createDynamicAuthenticationProvider(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resource: IAuthorizationProtectedResourceMetadata | undefined): Promise<IAuthenticationProvider | undefined> {
+	async createDynamicAuthenticationProvider(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resource: IAuthorizationProtectedResourceMetadata | undefined, clientId?: string, clientSecret?: string): Promise<IAuthenticationProvider | undefined> {
 		const delegate = this._delegates[0];
 		if (!delegate) {
 			this._logService.error('No authentication provider host delegate found');
 			return undefined;
 		}
-		const providerId = await delegate.create(authorizationServer, serverMetadata, resource);
+		const providerId = await delegate.create(authorizationServer, serverMetadata, resource, clientId, clientSecret);
 		const provider = this._authenticationProviders.get(providerId);
 		if (provider) {
 			this._logService.debug(`Created dynamic authentication provider: ${providerId}`);
@@ -379,6 +378,25 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			return provider;
 		}
 		this._logService.error(`Failed to create dynamic authentication provider: ${providerId}`);
+		return undefined;
+	}
+
+	async createOrGetXaaProvider(issuer: URI): Promise<string | undefined> {
+		const providerId = `xaa:${issuer.toString(true)}`;
+		if (this._authenticationProviders.has(providerId)) {
+			return providerId;
+		}
+		const delegate = this._delegates.find(d => !!d.createXaa);
+		if (!delegate) {
+			this._logService.error('No authentication provider host delegate supports XAA');
+			return undefined;
+		}
+		const created = await delegate.createXaa!(issuer);
+		if (this._authenticationProviders.has(created)) {
+			this._logService.debug(`Created XAA authentication provider: ${created}`);
+			return created;
+		}
+		this._logService.error(`Failed to create XAA authentication provider for issuer: ${issuer.toString(true)}`);
 		return undefined;
 	}
 
@@ -396,7 +414,16 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		};
 	}
 
-	private matchesProvider(provider: IAuthenticationProvider, authorizationServer: URI): boolean {
+	private matchesProvider(provider: IAuthenticationProvider, authorizationServer: URI, resourceServer?: URI): boolean {
+		// If a resourceServer is provided and the provider has a resourceServer defined, they must match
+		if (resourceServer && provider.resourceServer) {
+			const resourceServerStr = resourceServer.toString(true);
+			const providerResourceServerStr = provider.resourceServer.toString(true);
+			if (!equalsIgnoreCase(providerResourceServerStr, resourceServerStr)) {
+				return false;
+			}
+		}
+
 		if (provider.authorizationServers) {
 			const authServerStr = authorizationServer.toString(true);
 			for (const server of provider.authorizationServers) {
@@ -410,37 +437,54 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	}
 
 	private async tryActivateProvider(providerId: string, activateImmediate: boolean): Promise<IAuthenticationProvider> {
-		await this._extensionService.activateByEvent(getAuthenticationProviderActivationEvent(providerId), activateImmediate ? ActivationKind.Immediate : ActivationKind.Normal);
-		let provider = this._authenticationProviders.get(providerId);
-		if (provider) {
-			return provider;
-		}
-		if (this._disposedSource.token.isCancellationRequested) {
-			throw new Error('Authentication service is disposed.');
-		}
-
 		const store = new DisposableStore();
 		try {
-			const result = await raceTimeout(
-				raceCancellation(
-					Event.toPromise(
-						Event.filter(
-							this.onDidRegisterAuthenticationProvider,
-							e => e.id === providerId,
-							store
-						),
-						store
-					),
-					this._disposedSource.token
-				),
-				5000
+			// Don't await activateByEvent exclusively — one or more extension
+			// hosts may be blocked (e.g. webworker waiting on remote authority),
+			// causing a deadlock. Instead, race with the provider being
+			// registered so we can proceed as soon as any host delivers it. (#315841)
+			const activationPromise = this._extensionService.activateByEvent(
+				getAuthenticationProviderActivationEvent(providerId),
+				activateImmediate ? ActivationKind.Immediate : ActivationKind.Normal
 			);
-			if (!result) {
-				throw new Error(`Timed out waiting for authentication provider '${providerId}' to register.`);
-			}
-			provider = this._authenticationProviders.get(result.id);
+
+			let provider = this._authenticationProviders.get(providerId);
 			if (provider) {
 				return provider;
+			}
+			if (this._disposedSource.token.isCancellationRequested) {
+				throw new Error('Authentication service is disposed.');
+			}
+
+			const providerRegistered = raceCancellation(
+				Event.toPromise(
+					Event.filter(
+						this.onDidRegisterAuthenticationProvider,
+						e => e.id === providerId,
+						store
+					),
+					store
+				),
+				this._disposedSource.token
+			);
+
+			// Wait for either activation to complete or the provider to register.
+			await Promise.race([activationPromise, providerRegistered]);
+
+			provider = this._authenticationProviders.get(providerId);
+			if (provider) {
+				return provider;
+			}
+
+			// TODO: Remove this timeout and figure out a better way to ensure auth providers
+			// are registered _during_ extension activation.
+			const result = await raceTimeout(providerRegistered, 5000);
+			provider = this._authenticationProviders.get(providerId);
+			if (provider) {
+				return provider;
+			}
+			if (!result) {
+				throw new Error(`Timed out waiting for authentication provider '${providerId}' to register.`);
 			}
 			throw new Error(`No authentication provider '${providerId}' is currently registered.`);
 		} finally {

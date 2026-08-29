@@ -301,6 +301,16 @@ export abstract class EditorInput extends AbstractEditorInput {
 	}
 
 	/**
+	 * Indicates if this editor can be reopened after being closed. By default
+	 * editors can be reopened. Subclasses can override to prevent this.
+	 *
+	 * @returns `true` if the editor can be reopened after being closed.
+	 */
+	canReopen(): boolean {
+		return true;
+	}
+
+	/**
 	 * Returns if the other object matches this input.
 	 */
 	matches(otherInput: EditorInput | IUntypedEditorInput): boolean {

@@ -46,7 +46,12 @@
 		if (error) {
 			document.querySelector('.error-message > .detail').textContent = error;
 			document.querySelector('body').classList.add('error');
-		} else if (redirectUri) {
+		} else if (!redirectUri) {
+			// Portable mode: authentication succeeded, no redirect needed
+			document.querySelector('.title').textContent =  appName;
+			document.querySelector('.success-message > .subtitle').textContent = 'You have successfully signed in.';
+			document.querySelector('.success-message > .detail').textContent = 'You can now close this window.';
+		} else {
 			// Wrap the redirect URI so that the browser remembers who triggered the redirect
 			const wrappedRedirectUri = `https://vscode.dev/redirect?url=${encodeURIComponent(redirectUri)}`;
 			// Set up the fallback link

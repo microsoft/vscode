@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Model } from '../model';
-import { GitExtension, Repository, API } from './git';
+import type { GitExtension, Repository, API } from './git';
 import { ApiRepository, ApiImpl } from './api1';
 import { Event, EventEmitter } from 'vscode';
 import { CloneManager } from '../cloneManager';
 
-function deprecated(original: any, context: ClassMemberDecoratorContext) {
-	if (context.kind !== 'method') {
+function deprecated(_target: unknown, key: string | symbol, descriptor: PropertyDescriptor): void {
+	if (typeof descriptor.value !== 'function') {
 		throw new Error('not supported');
 	}
 
-	const key = context.name.toString();
-	return function (this: any, ...args: any[]): any {
-		console.warn(`Git extension API method '${key}' is deprecated.`);
+	const original = descriptor.value;
+	descriptor.value = function (this: unknown, ...args: unknown[]) {
+		console.warn(`Git extension API method '${String(key)}' is deprecated.`);
 		return original.apply(this, args);
 	};
 }

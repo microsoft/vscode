@@ -1,12 +1,18 @@
 {
 	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
+		"rootDir": "./src",
 		"outDir": "./out",
 		"noFallthroughCasesInSwitch": true,
 		"noUnusedLocals": false,
 		"skipLibCheck": true,
-		"lib": [
-			"WebWorker"
+		"types": [
+			"node",
+			"mocha"
+		],
+		"typeRoots": [
+			"./node_modules/@types",
+			"../../node_modules/@types"
 		]
 	},
 	"include": [

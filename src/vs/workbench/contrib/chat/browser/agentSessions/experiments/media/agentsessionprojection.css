@@ -1,0 +1,20 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Style all tabs with the same background as the agent status */
+.monaco-workbench.agent-session-projection-active .part.editor > .content .editor-group-container > .title .tabs-container > .tab {
+	background-color: var(--vscode-quickInput-background) !important;
+}
+
+/* Active tab gets slightly stronger tint */
+.monaco-workbench.agent-session-projection-active .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active {
+	background-color: var(--vscode-chat-requestBubbleBackground) !important;
+}
+
+.hc-black .monaco-workbench.agent-session-projection-active .part.editor > .content .editor-group-container > .title .tabs-container > .tab,
+.hc-light .monaco-workbench.agent-session-projection-active .part.editor > .content .editor-group-container > .title .tabs-container > .tab {
+	background-color: transparent !important;
+	border: 1px solid var(--vscode-contrastBorder);
+}

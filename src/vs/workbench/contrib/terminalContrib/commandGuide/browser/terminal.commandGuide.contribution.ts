@@ -15,6 +15,7 @@ import { PANEL_BORDER } from '../../../../common/theme.js';
 import { IDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { registerTerminalContribution, type IDetachedCompatibleTerminalContributionContext, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
 import { terminalCommandGuideConfigSection, TerminalCommandGuideSettingId, type ITerminalCommandGuideConfiguration } from '../common/terminalCommandGuideConfiguration.js';
+import { isFullTerminalCommand } from '../../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
 
 // #region Terminal Contributions
 
@@ -80,7 +81,7 @@ class TerminalCommandGuideContribution extends Disposable implements ITerminalCo
 		}
 		const mouseCursorY = Math.floor((e.clientY - rect.top) / (rect.height / xterm.raw.rows));
 		const command = this._ctx.instance.capabilities.get(TerminalCapability.CommandDetection)?.getCommandForLine(xterm.raw.buffer.active.viewportY + mouseCursorY);
-		if (command && 'getOutput' in command) {
+		if (command && isFullTerminalCommand(command)) {
 			xterm.markTracker.showCommandGuide(command);
 		} else {
 			xterm.markTracker.showCommandGuide(undefined);

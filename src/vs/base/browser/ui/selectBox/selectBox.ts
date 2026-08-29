@@ -40,6 +40,10 @@ export interface ISelectBoxOptions {
 	ariaDescription?: string;
 	minBottomMargin?: number;
 	optionsAsChildren?: boolean;
+	/** Hide disabled options from the custom-drawn dropdown. */
+	hideDisabledOptions?: boolean;
+	/** Show option descriptions in right-side hovers instead of the details pane. */
+	showOptionDescriptionHovers?: boolean;
 }
 
 // Utilize optionItem interface to capture all option parameters
@@ -51,7 +55,14 @@ export interface ISelectOptionItem {
 	descriptionIsMarkdown?: boolean;
 	readonly descriptionMarkdownActionHandler?: MarkdownActionHandler;
 	isDisabled?: boolean;
+	isSeparator?: boolean;
 }
+
+export const SeparatorSelectOption: Readonly<ISelectOptionItem> = Object.freeze({
+	text: '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500',
+	isDisabled: true,
+	isSeparator: true,
+});
 
 export interface ISelectBoxStyles extends IListStyles {
 	readonly selectBackground: string | undefined;

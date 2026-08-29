@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { ApplicationService } from './application';
+import { ApplicationService, EvidenceService } from '../../scenario';
 import { applyAllTools } from './automationTools/index.js';
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { z } from 'zod';
+import { applyEvidenceStartTool, applyEvidenceTools } from './evidenceTools.js';
 
 export async function getServer(appService: ApplicationService): Promise<Server> {
 	const server = new McpServer({
@@ -15,24 +16,28 @@ export async function getServer(appService: ApplicationService): Promise<Server>
 		version: '1.0.0',
 		title: 'An MCP Server that can interact with a local build of VS Code. Used for verifying UI behavior.'
 	}, { capabilities: { logging: {} } });
+	const evidenceService = new EvidenceService(appService);
 
 	server.tool(
 		'vscode_automation_start',
-		'Start VS Code Build',
+		'Start VS Code Build. If workspacePath is not provided, VS Code will open with the last used workspace or an empty window.',
 		{
-			recordVideo: z.boolean().optional()
+			recordVideo: z.boolean().optional().describe('Whether to record a video of the session'),
+			workspacePath: z.string().optional().describe('Optional path to a workspace or folder to open. If not provided, opens the last used workspace.')
 		},
-		async ({ recordVideo }) => {
-			const app = await appService.getOrCreateApplication({ recordVideo });
+		async ({ recordVideo, workspacePath }) => {
+			const app = await appService.getOrCreateApplication({ recordVideo, workspacePath });
 			await app.startTracing();
 			return {
 				content: [{
 					type: 'text' as const,
-					text: app ? `VS Code started successfully` : `Failed to start VS Code`
+					text: app ? `VS Code started successfully${workspacePath ? ` with workspace: ${workspacePath}` : ''}` : `Failed to start VS Code`
 				}]
 			};
 		}
 	);
+	applyEvidenceStartTool(server, evidenceService);
+	applyEvidenceTools(server, evidenceService);
 
 	// Apply all VS Code automation tools using the modular structure
 	const registeredTools = applyAllTools(server, appService);

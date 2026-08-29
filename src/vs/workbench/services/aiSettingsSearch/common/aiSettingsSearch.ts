@@ -33,7 +33,7 @@ export interface IAiSettingsSearchService {
 
 	// Called from the Settings editor
 	isEnabled(): boolean;
-	startSearch(query: string, embeddingsOnly: boolean, token: CancellationToken): void;
+	startSearch(query: string, token: CancellationToken): void;
 	getEmbeddingsResults(query: string, token: CancellationToken): Promise<string[] | null>;
 	getLLMRankedResults(query: string, token: CancellationToken): Promise<string[] | null>;
 

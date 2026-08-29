@@ -10,7 +10,7 @@ import type { ILigatureOptions, LigaturesAddon as LigaturesAddonType } from '@xt
 import type { WebglAddon as WebglAddonType } from '@xterm/addon-webgl';
 import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serialize';
 import type { ImageAddon as ImageAddonType } from '@xterm/addon-image';
-import type { ClipboardAddon as ClipboardAddonType, ClipboardSelectionType } from '@xterm/addon-clipboard';
+import type { ClipboardAddon as ClipboardAddonType } from '@xterm/addon-clipboard';
 import * as dom from '../../../../../base/browser/dom.js';
 import { IXtermCore } from '../xterm-private.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -46,9 +46,24 @@ import { equals } from '../../../../../base/common/objects.js';
 import type { IProgressState } from '@xterm/addon-progress';
 import type { CommandDetectionCapability } from '../../../../../platform/terminal/common/capabilities/commandDetectionCapability.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { isNumber } from '../../../../../base/common/types.js';
+import { clamp } from '../../../../../base/common/numbers.js';
+import { LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
+import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 
 const enum RenderConstants {
 	SmoothScrollDuration = 125
+}
+
+const enum TerminalScrollbarWidth {
+	/** Default xterm.js vertical scrollbar width. */
+	Default = 14,
+	/** Narrower scrollbar used when the Modern UI Update experiment is enabled. */
+	ModernUI = 10
+}
+
+const enum TextBlinkConstants {
+	IntervalDuration = 600
 }
 
 
@@ -83,6 +98,16 @@ export interface IXtermTerminalOptions {
 	disableShellIntegrationReporting?: boolean;
 	/** The object that imports xterm addons, set this to inject an importer in tests. */
 	xtermAddonImporter?: XtermAddonImporter;
+	/** Whether to disable the overview ruler. */
+	disableOverviewRuler?: boolean;
+	/**
+	 * When true, skips registering listeners on global singleton services
+	 * (configuration, theme, log level) to avoid accumulating listeners when
+	 * many detached terminals are created concurrently. The caller should use
+	 * {@link XtermTerminal.updateConfig}, {@link XtermTerminal.updateTheme},
+	 * and {@link XtermTerminal.updateLogLevel} to apply those changes externally.
+	 */
+	detached?: boolean;
 }
 
 /**
@@ -96,6 +121,8 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	private readonly _xtermAddonLoader: XtermAddonImporter;
 	private readonly _xtermColorProvider: IXtermColorProvider;
 	private readonly _capabilities: ITerminalCapabilityStore;
+	private readonly _disableOverviewRuler: boolean;
+	private readonly _mainDocument: Document;
 
 	private static _suggestedRendererType: 'dom' | undefined = undefined;
 	private _attached?: { container: HTMLElement; options: IXtermAttachToElementOptions };
@@ -104,6 +131,8 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	get lastInputEvent(): string | undefined { return this._lastInputEvent; }
 	private _progressState: IProgressState = { state: 0, value: 0 };
 	get progressState(): IProgressState { return this._progressState; }
+	get buffer() { return this.raw.buffer; }
+	get cols() { return this.raw.cols; }
 
 	// Always on addons
 	private _markNavigationAddon: MarkNavigationAddon;
@@ -117,10 +146,14 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	private _searchAddon?: SearchAddonType;
 	private _unicode11Addon?: Unicode11AddonType;
 	private _webglAddon?: WebglAddonType;
+	private readonly _webglContextLossListener = this._register(new MutableDisposable());
+	private _webglAddonCustomGlyphs?: boolean;
+	private _webglAddonLoading = false;
+	private _webglAddonLoadId = 0;
 	private _serializeAddon?: SerializeAddonType;
 	private _imageAddon?: ImageAddonType;
 	private readonly _ligaturesAddon: MutableDisposable<LigaturesAddonType> = this._register(new MutableDisposable());
-	private readonly _ligaturesAddonConfig?: ILigatureOptions;
+	private _ligaturesAddonConfig?: ILigatureOptions;
 
 	private readonly _attachedDisposables = this._register(new DisposableStore());
 	private readonly _anyTerminalFocusContextKey: IContextKey<boolean>;
@@ -131,6 +164,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 	get isStdinDisabled(): boolean { return !!this.raw.options.disableStdin; }
 	get isGpuAccelerated(): boolean { return !!this._webglAddon; }
+	get isImageAddonLoaded(): boolean { return !!this._imageAddon; }
 
 	private readonly _onDidRequestRunCommand = this._register(new Emitter<{ command: ITerminalCommand; noNewLine?: boolean }>());
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
@@ -140,6 +174,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	readonly onDidRequestRefreshDimensions = this._onDidRequestRefreshDimensions.event;
 	private readonly _onDidChangeFindResults = this._register(new Emitter<{ resultIndex: number; resultCount: number }>());
 	readonly onDidChangeFindResults = this._onDidChangeFindResults.event;
+	private readonly _onBeforeSearch = this._register(new Emitter<void>());
+	readonly onBeforeSearch = this._onBeforeSearch.event;
+	private readonly _onAfterSearch = this._register(new Emitter<void>());
+	readonly onAfterSearch = this._onAfterSearch.event;
 	private readonly _onDidChangeSelection = this._register(new Emitter<void>());
 	readonly onDidChangeSelection = this._onDidChangeSelection.event;
 	private readonly _onDidChangeFocus = this._register(new Emitter<boolean>());
@@ -187,6 +225,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 		@ILayoutService layoutService: ILayoutService
 	) {
 		super();
@@ -194,6 +233,8 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this._xtermAddonLoader = options.xtermAddonImporter ?? new XtermAddonImporter();
 		this._xtermColorProvider = options.xtermColorProvider;
 		this._capabilities = options.capabilities;
+		this._disableOverviewRuler = options.disableOverviewRuler ?? false;
+		this._mainDocument = layoutService.mainContainer.ownerDocument;
 
 		const font = this._terminalConfigurationService.getFont(dom.getActiveWindow(), undefined, true);
 		const config = this._terminalConfigurationService.config;
@@ -203,7 +244,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			allowProposedApi: true,
 			cols: options.cols,
 			rows: options.rows,
-			documentOverride: layoutService.mainContainer.ownerDocument,
+			documentOverride: this._mainDocument,
 			altClickMovesCursor: config.altClickMovesCursor && editorOptions.multiCursorModifier === 'alt',
 			scrollback: config.scrollback,
 			theme: this.getXtermTheme(),
@@ -219,23 +260,25 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			minimumContrastRatio: config.minimumContrastRatio,
 			tabStopWidth: config.tabStopWidth,
 			cursorBlink: config.cursorBlinking,
+			blinkIntervalDuration: config.textBlinking ? TextBlinkConstants.IntervalDuration : 0,
 			cursorStyle: vscodeToXtermCursorStyle<'cursorStyle'>(config.cursorStyle),
 			cursorInactiveStyle: vscodeToXtermCursorStyle(config.cursorStyleInactive),
 			cursorWidth: config.cursorWidth,
 			macOptionIsMeta: config.macOptionIsMeta,
 			macOptionClickForcesSelection: config.macOptionClickForcesSelection,
 			rightClickSelectsWord: config.rightClickBehavior === 'selectWord',
-			fastScrollModifier: 'alt',
 			fastScrollSensitivity: config.fastScrollSensitivity,
 			scrollSensitivity: config.mouseWheelScrollSensitivity,
 			scrollOnEraseInDisplay: true,
 			wordSeparator: config.wordSeparators,
-			overviewRuler: {
-				width: 14,
-				showTopBorder: true,
-			},
+			scrollbar: this._getScrollbarOptions(),
 			ignoreBracketedPasteMode: config.ignoreBracketedPasteMode,
 			rescaleOverlappingGlyphs: config.rescaleOverlappingGlyphs,
+			vtExtensions: {
+				kittyKeyboard: config.enableKittyKeyboardProtocol,
+				win32InputMode: config.enableWin32InputMode,
+			},
+			allowTransparency: config.enableImages,
 			windowOptions: {
 				getWinSizePixels: true,
 				getCellSizePixels: true,
@@ -248,23 +291,27 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		}
 		this._core = (this.raw as ITerminalWithCore)._core as IXtermCore;
 
-		this._register(this._configurationService.onDidChangeConfiguration(async e => {
-			if (e.affectsConfiguration(TerminalSettingId.GpuAcceleration)) {
-				XtermTerminal._suggestedRendererType = undefined;
-			}
-			if (e.affectsConfiguration('terminal.integrated') || e.affectsConfiguration('editor.fastScrollSensitivity') || e.affectsConfiguration('editor.mouseWheelScrollSensitivity') || e.affectsConfiguration('editor.multiCursorModifier')) {
-				this.updateConfig();
-			}
-			if (e.affectsConfiguration(TerminalSettingId.UnicodeVersion)) {
-				this._updateUnicodeVersion();
-			}
-			if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled)) {
-				this._updateTheme();
-			}
-		}));
+		// Skip global service listeners for detached terminals to avoid
+		// accumulating listeners when many detached instances exist concurrently.
+		if (!options.detached) {
+			this._register(this._configurationService.onDidChangeConfiguration(async e => {
+				if (e.affectsConfiguration(TerminalSettingId.GpuAcceleration)) {
+					XtermTerminal._suggestedRendererType = undefined;
+				}
+				if (e.affectsConfiguration('terminal.integrated') || e.affectsConfiguration('editor.fastScrollSensitivity') || e.affectsConfiguration('editor.mouseWheelScrollSensitivity') || e.affectsConfiguration('editor.multiCursorModifier') || e.affectsConfiguration(LayoutSettings.MODERN_UI)) {
+					this.updateConfig();
+				}
+				if (e.affectsConfiguration(TerminalSettingId.UnicodeVersion)) {
+					this._updateUnicodeVersion();
+				}
+				if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled)) {
+					this._updateTheme();
+				}
+			}));
 
-		this._register(this._themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
-		this._register(this._logService.onDidChangeLogLevel(e => this.raw.options.logLevel = vscodeToXtermLogLevel(e)));
+			this._register(this._themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
+			this._register(this._logService.onDidChangeLogLevel(e => this.raw.options.logLevel = vscodeToXtermLogLevel(e)));
+		}
 
 		// Refire events
 		this._register(this.raw.onSelectionChange(() => {
@@ -283,6 +330,9 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this._register(this._decorationAddon.onDidRequestRunCommand(e => this._onDidRequestRunCommand.fire(e)));
 		this._register(this._decorationAddon.onDidRequestCopyAsHtml(e => this._onDidRequestCopyAsHtml.fire(e)));
 		this.raw.loadAddon(this._decorationAddon);
+		if (!options.detached) {
+			this._register(lifecycleService.onWillShutdown(() => this._decorationAddon.clearDecorations()));
+		}
 		this._shellIntegrationAddon = new ShellIntegrationAddon(options.shellIntegrationNonce ?? '', options.disableShellIntegrationReporting, this._onDidExecuteText, this._telemetryService, this._logService);
 		this.raw.loadAddon(this._shellIntegrationAddon);
 		this._xtermAddonLoader.importAddon('clipboard').then(ClipboardAddon => {
@@ -290,10 +340,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 				return;
 			}
 			this._clipboardAddon = this._instantiationService.createInstance(ClipboardAddon, undefined, {
-				async readText(type: ClipboardSelectionType): Promise<string> {
+				async readText(type: string): Promise<string> {
 					return _clipboardService.readText(type === 'p' ? 'selection' : 'clipboard');
 				},
-				async writeText(type: ClipboardSelectionType, text: string): Promise<void> {
+				async writeText(type: string, text: string): Promise<void> {
 					return _clipboardService.writeText(text, type === 'p' ? 'selection' : 'clipboard');
 				}
 			});
@@ -344,13 +394,13 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	getContentsAsText(startMarker?: IXtermMarker, endMarker?: IXtermMarker): string {
 		const lines: string[] = [];
 		const buffer = this.raw.buffer.active;
-		if (startMarker?.line === -1) {
-			throw new Error('Cannot get contents of a disposed startMarker');
-		}
 		if (endMarker?.line === -1) {
 			throw new Error('Cannot get contents of a disposed endMarker');
 		}
-		const startLine = startMarker?.line ?? 0;
+		// When the start marker is disposed (scrolled out of the buffer due to
+		// scrollback limits), fall back to line 0 to return whatever remains in
+		// the buffer rather than losing all output.
+		const startLine = (startMarker === undefined || startMarker.line === -1) ? 0 : startMarker.line;
 		const endLine = endMarker?.line ?? buffer.length - 1;
 		for (let y = startLine; y <= endLine; y++) {
 			lines.push(buffer.getLine(y)?.translateToString(true) ?? '');
@@ -404,7 +454,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		let emptyLinesFromStart = 0;
 		for (let i = startLine; i <= endLine; i++) {
 			const line = this.raw.buffer.active.getLine(i);
-			if (line && line.translateToString(true).trim() === '') {
+			if (line && line.translateToString(true, i === startLine ? startCol : undefined).trim() === '') {
+				if (i === startLine) {
+					startCol = 0;
+				}
 				emptyLinesFromStart++;
 			} else {
 				break;
@@ -506,10 +559,41 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this.raw.resize(columns, rows);
 	}
 
+	updateLogLevel(): void {
+		this.raw.options.logLevel = vscodeToXtermLogLevel(this._logService.getLevel());
+	}
+
+	/**
+	 * The width, in pixels, of the vertical scrollbar. Narrower under the Modern
+	 * UI Update experiment so it matches the modernized workbench scrollbars.
+	 */
+	get scrollbarWidth(): number {
+		return this._configurationService.getValue<boolean>(LayoutSettings.MODERN_UI) === true
+			? TerminalScrollbarWidth.ModernUI
+			: TerminalScrollbarWidth.Default;
+	}
+
+	/**
+	 * Builds the xterm.js `scrollbar` option using {@link scrollbarWidth}. Returns
+	 * `undefined` when the overview ruler is disabled (e.g. detached terminals).
+	 */
+	private _getScrollbarOptions(): { width: number; overviewRuler: { showTopBorder: boolean } } | undefined {
+		if (this._disableOverviewRuler) {
+			return undefined;
+		}
+		return {
+			width: this.scrollbarWidth,
+			overviewRuler: {
+				showTopBorder: true,
+			},
+		};
+	}
+
 	updateConfig(): void {
 		const config = this._terminalConfigurationService.config;
 		this.raw.options.altClickMovesCursor = config.altClickMovesCursor;
 		this._setCursorBlink(config.cursorBlinking);
+		this._setTextBlinking(config.textBlinking);
 		this._setCursorStyle(config.cursorStyle);
 		this._setCursorStyleInactive(config.cursorStyleInactive);
 		this._setCursorWidth(config.cursorWidth);
@@ -525,13 +609,15 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this.raw.options.macOptionClickForcesSelection = config.macOptionClickForcesSelection;
 		this.raw.options.rightClickSelectsWord = config.rightClickBehavior === 'selectWord';
 		this.raw.options.wordSeparator = config.wordSeparators;
-		this.raw.options.customGlyphs = config.customGlyphs;
+		this.raw.options.scrollbar = this._getScrollbarOptions();
 		this.raw.options.ignoreBracketedPasteMode = config.ignoreBracketedPasteMode;
 		this.raw.options.rescaleOverlappingGlyphs = config.rescaleOverlappingGlyphs;
-		this.raw.options.overviewRuler = {
-			width: 14,
-			showTopBorder: true,
+		this.raw.options.allowTransparency = config.enableImages;
+		this.raw.options.vtExtensions = {
+			kittyKeyboard: config.enableKittyKeyboardProtocol,
+			win32InputMode: config.enableWin32InputMode,
 		};
+
 		this._updateSmoothScrolling();
 		if (this._attached) {
 			if (this._attached.options.enableGpu) {
@@ -608,10 +694,16 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 				}
 				this._searchAddon = new AddonCtor({ highlightLimit: XtermTerminalConstants.SearchHighlightLimit });
 				this.raw.loadAddon(this._searchAddon);
-				this._searchAddon.onDidChangeResults((results: { resultIndex: number; resultCount: number }) => {
+				this._store.add(this._searchAddon.onDidChangeResults((results: { resultIndex: number; resultCount: number }) => {
 					this._lastFindResult = results;
 					this._onDidChangeFindResults.fire(results);
-				});
+				}));
+				this._store.add(this._searchAddon.onBeforeSearch(() => {
+					this._onBeforeSearch.fire();
+				}));
+				this._store.add(this._searchAddon.onAfterSearch(() => {
+					this._onAfterSearch.fire();
+				}));
 				return this._searchAddon;
 			});
 		}
@@ -699,6 +791,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.clear);
 	}
 
+	reset(): void {
+		this.raw.reset();
+	}
+
 	hasSelection(): boolean {
 		return this.raw.hasSelection();
 	}
@@ -738,11 +834,13 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		if (this.hasSelection() || (asHtml && command)) {
 			if (asHtml) {
 				const textAsHtml = await this.getSelectionAsHtml(command);
-				function listener(e: any) {
-					if (!e.clipboardData.types.includes('text/plain')) {
-						e.clipboardData.setData('text/plain', command?.getOutput() ?? '');
+				function listener(e: ClipboardEvent) {
+					if (e.clipboardData) {
+						if (!e.clipboardData.types.includes('text/plain')) {
+							e.clipboardData.setData('text/plain', command?.getOutput() ?? '');
+						}
+						e.clipboardData.setData('text/html', textAsHtml);
 					}
-					e.clipboardData.setData('text/html', textAsHtml);
 					e.preventDefault();
 				}
 				const doc = dom.getDocument(this.raw.element);
@@ -761,6 +859,14 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		if (this.raw.options.cursorBlink !== blink) {
 			this.raw.options.cursorBlink = blink;
 			this.raw.refresh(0, this.raw.rows - 1);
+		}
+	}
+
+	private _setTextBlinking(enabled: boolean): void {
+		const blinkIntervalDuration = enabled ? TextBlinkConstants.IntervalDuration : 0;
+		const options = this.raw.options;
+		if (options.blinkIntervalDuration !== blinkIntervalDuration) {
+			options.blinkIntervalDuration = blinkIntervalDuration;
 		}
 	}
 
@@ -785,16 +891,56 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	}
 
 	private async _enableWebglRenderer(): Promise<void> {
-		if (!this.raw.element || this._webglAddon) {
+		// Currently webgl options can only be specified on addon creation
+		if (!this.raw.element) {
+			return;
+		}
+		const customGlyphs = this._getWebglCustomGlyphs();
+		if ((this._webglAddon || this._webglAddonLoading) && this._webglAddonCustomGlyphs === customGlyphs) {
 			return;
 		}
 
-		const Addon = await this._xtermAddonLoader.importAddon('webgl');
-		this._webglAddon = new Addon();
+		// Dispose of existing addon before creating a new one to avoid leaking WebGL contexts
+		this._disposeOfWebglRenderer();
+
+		const loadId = this._webglAddonLoadId;
+		this._webglAddonLoading = true;
+		this._webglAddonCustomGlyphs = customGlyphs;
+
+		let Addon: typeof WebglAddonType;
+		try {
+			Addon = await this._xtermAddonLoader.importAddon('webgl');
+		} catch (error) {
+			if (loadId === this._webglAddonLoadId) {
+				this._webglAddonLoading = false;
+				this._webglAddonCustomGlyphs = undefined;
+			}
+			throw error;
+		}
+		if (loadId !== this._webglAddonLoadId) {
+			return;
+		}
+
+		this._webglAddonLoading = false;
+		if (!this.raw.element) {
+			this._webglAddonCustomGlyphs = undefined;
+			return;
+		}
+
+		const currentCustomGlyphs = this._getWebglCustomGlyphs();
+		if (customGlyphs !== currentCustomGlyphs) {
+			this._webglAddonCustomGlyphs = undefined;
+			await this._enableWebglRenderer();
+			return;
+		}
+
+		this._webglAddon = new Addon({
+			customGlyphs
+		});
 		try {
 			this.raw.loadAddon(this._webglAddon);
 			this._logService.trace('Webgl was loaded');
-			this._webglAddon.onContextLoss(() => {
+			this._webglContextLossListener.value = this._webglAddon.onContextLoss(() => {
 				this._logService.info(`Webgl lost context, disposing of webgl renderer`);
 				this._disposeOfWebglRenderer();
 			});
@@ -815,6 +961,11 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		}
 	}
 
+	private _getWebglCustomGlyphs(): boolean {
+		// The custom glyph rasterizer creates a canvas through the rendering document, which is blocked in auxiliary windows.
+		return this._terminalConfigurationService.config.customGlyphs && this.raw.element?.ownerDocument === this._mainDocument;
+	}
+
 	@debounce(100)
 	private async _refreshLigaturesAddon(): Promise<void> {
 		if (!this.raw.element) {
@@ -823,18 +974,21 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		const ligaturesConfig = this._terminalConfigurationService.config.fontLigatures;
 		let shouldRecreateWebglRenderer = false;
 		if (ligaturesConfig?.enabled) {
-			if (this._ligaturesAddon.value && !equals(ligaturesConfig, this._ligaturesAddonConfig)) {
+			const ligatureOptions: ILigatureOptions = {
+				fontFeatureSettings: ligaturesConfig.featureSettings,
+				fallbackLigatures: ligaturesConfig.fallbackLigatures,
+			};
+			if (this._ligaturesAddon.value && !equals(ligatureOptions, this._ligaturesAddonConfig)) {
 				this._ligaturesAddon.clear();
+				this._ligaturesAddonConfig = undefined;
 			}
 			if (!this._ligaturesAddon.value) {
 				const LigaturesAddon = await this._xtermAddonLoader.importAddon('ligatures');
 				if (this._store.isDisposed) {
 					return;
 				}
-				this._ligaturesAddon.value = this._instantiationService.createInstance(LigaturesAddon, {
-					fontFeatureSettings: ligaturesConfig.featureSettings,
-					fallbackLigatures: ligaturesConfig.fallbackLigatures,
-				});
+				this._ligaturesAddon.value = this._instantiationService.createInstance(LigaturesAddon, ligatureOptions);
+				this._ligaturesAddonConfig = ligatureOptions;
 				this.raw.loadAddon(this._ligaturesAddon.value);
 				shouldRecreateWebglRenderer = true;
 			}
@@ -843,6 +997,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 				return;
 			}
 			this._ligaturesAddon.clear();
+			this._ligaturesAddonConfig = undefined;
 			shouldRecreateWebglRenderer = true;
 		}
 
@@ -862,6 +1017,18 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 				const AddonCtor = await this._xtermAddonLoader.importAddon('image');
 				this._imageAddon = new AddonCtor();
 				this.raw.loadAddon(this._imageAddon);
+				type TerminalImageAddonActivatedClassification = {
+					owner: 'anthonykim1';
+					comment: 'Tracks when the xterm.js image addon is loaded, including dynamic enablement';
+				};
+				this._telemetryService.publicLog2<{}, TerminalImageAddonActivatedClassification>('terminal/imageAddonActivated');
+				this._register(this._imageAddon.onImageAdded(() => {
+					type TerminalImageAddedClassification = {
+						owner: 'anthonykim1';
+						comment: 'Tracks when an image is added to the terminal via the image addon';
+					};
+					this._telemetryService.publicLog2<{}, TerminalImageAddedClassification>('terminal/imageAdded');
+				}));
 			}
 		} else {
 			try {
@@ -874,6 +1041,13 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	}
 
 	private _disposeOfWebglRenderer(): void {
+		this._webglAddonLoadId++;
+		this._webglAddonLoading = false;
+		this._webglAddonCustomGlyphs = undefined;
+		this._webglContextLossListener.clear();
+		if (!this._webglAddon) {
+			return;
+		}
 		try {
 			this._webglAddon?.dispose();
 		} catch {
@@ -885,6 +1059,34 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		// gets resized after the webgl addon is disposed
 		this._onDidRequestRefreshDimensions.fire();
 	}
+
+	async getRangeAsVT(startMarker?: IXtermMarker, endMarker?: IXtermMarker, skipLastLine?: boolean): Promise<string> {
+		if (!this._serializeAddon) {
+			const Addon = await this._xtermAddonLoader.importAddon('serialize');
+			this._serializeAddon = new Addon();
+			this.raw.loadAddon(this._serializeAddon);
+		}
+
+		const lastLine = this.raw.buffer.active.length - 1;
+		if (lastLine < 0) {
+			return '';
+		}
+
+		const hasValidEndMarker = isNumber(endMarker?.line);
+		const start = clamp(isNumber(startMarker?.line) && startMarker.line > -1 ? startMarker.line : 0, 0, lastLine);
+		let end = hasValidEndMarker ? endMarker.line : this.raw.buffer.active.length - 1;
+		if (skipLastLine && hasValidEndMarker) {
+			end = end - 1;
+		}
+		end = clamp(Math.max(end, start), start, lastLine);
+		return this._serializeAddon.serialize({
+			range: {
+				start,
+				end
+			}
+		});
+	}
+
 
 	getXtermTheme(theme?: IColorTheme): ITheme {
 		if (!theme) {
@@ -937,9 +1139,20 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this.raw.options.theme = this.getXtermTheme(theme);
 	}
 
+	/**
+	 * Updates the terminal theme. Use this to externally trigger a theme
+	 * refresh for detached terminals that skip global service listeners.
+	 */
+	updateTheme(): void {
+		this._updateTheme();
+	}
+
 	refresh() {
 		this._updateTheme();
 		this._decorationAddon.refreshLayouts();
+		if (this._webglAddon || this._webglAddonLoading) {
+			this._enableWebglRenderer();
+		}
 	}
 
 	private async _updateUnicodeVersion(): Promise<void> {
@@ -961,6 +1174,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	override dispose(): void {
 		this._anyTerminalFocusContextKey.reset();
 		this._anyFocusedTerminalHasSelection.reset();
+		this._disposeOfWebglRenderer();
 		this._onDidDispose.fire();
 		super.dispose();
 	}
