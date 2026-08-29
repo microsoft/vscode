@@ -47,9 +47,13 @@ exchanges:
                       },
                       "text": "visible",
                       "kind": "codeReview",
+                      "author": "agent",
                       "resolved": false,
                       "replies": [
-                        "reply"
+                        {
+                          "author": "user",
+                          "text": "reply"
+                        }
                       ]
                     }
                   ],

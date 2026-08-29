@@ -16,6 +16,15 @@ export const UNARCHIVE_SESSION_COMMAND_ID = 'sessionsViewPane.unarchiveSession';
 /** Renames a session. Registered in `sessionsViewActions.ts`. */
 export const RENAME_SESSION_COMMAND_ID = 'sessionsViewPane.renameSession';
 
+/** Archives one or more sessions. Registered in `sessionsViewActions.ts`. */
+export const ARCHIVE_SESSION_COMMAND_ID = 'sessionsViewPane.archiveSession';
+
+/** Marks one or more sessions as read. Registered in `sessionsViewActions.ts`. */
+export const MARK_SESSION_READ_COMMAND_ID = 'sessionsViewPane.markRead';
+
+/** Marks one or more sessions as unread. Registered in `sessionsViewActions.ts`. */
+export const MARK_SESSION_UNREAD_COMMAND_ID = 'sessionsViewPane.markUnread';
+
 /** Closes a chat tab. Registered in `sessionsActions.ts`. */
 export const CLOSE_CHAT_COMMAND_ID = 'sessions.chatCompositeBar.closeChat';
 
