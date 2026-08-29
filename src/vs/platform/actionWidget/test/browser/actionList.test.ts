@@ -357,6 +357,72 @@ suite('ActionListWidget', () => {
 		});
 	});
 
+	test('keeps detail row geometry stable when its toolbar becomes visible', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [
+				action('plain'),
+				{ ...action('detail'), detail: 'Description', toolbarActions: [toAction({ id: 'toolbar', label: 'Toolbar', run: () => { } })] },
+				...Array.from({ length: 20 }, (_, index) => action(`filler-${index}`)),
+			],
+		});
+		const wrapper = document.createElement('div');
+		wrapper.classList.add('action-widget');
+		widget.domNode.parentElement?.insertBefore(wrapper, widget.domNode);
+		wrapper.appendChild(widget.domNode);
+		disposables.add({ dispose: () => wrapper.remove() });
+
+		const rows = Array.from(widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row'));
+		const detailRow = rows[1];
+		const detail = detailRow.querySelector<HTMLElement>('.detail')!;
+		const toolbar = detailRow.querySelector<HTMLElement>('.action-list-item-toolbar')!;
+		const verticalScrollbar = widget.domNode.querySelector<HTMLElement>('.scrollbar.vertical')!;
+		const initial = {
+			rowHeight: detailRow.getBoundingClientRect().height,
+			detailTop: detail.getBoundingClientRect().top,
+			toolbarDisplay: mainWindow.getComputedStyle(toolbar).display,
+			toolbarVisibility: mainWindow.getComputedStyle(toolbar).visibility,
+			toolbarMarginRight: mainWindow.getComputedStyle(toolbar).marginRight,
+		};
+		detailRow.classList.add('focused');
+		const focused = {
+			rowHeight: detailRow.getBoundingClientRect().height,
+			detailTop: detail.getBoundingClientRect().top,
+			toolbarDisplay: mainWindow.getComputedStyle(toolbar).display,
+			toolbarVisibility: mainWindow.getComputedStyle(toolbar).visibility,
+			toolbarMarginRight: mainWindow.getComputedStyle(toolbar).marginRight,
+			clearsScrollbar: detailRow.getBoundingClientRect().right - toolbar.getBoundingClientRect().right >= verticalScrollbar.getBoundingClientRect().width,
+		};
+
+		assert.deepStrictEqual({
+			rows: rows.slice(0, 2).map(row => ({
+				hasDetail: row.classList.contains('has-detail'),
+				hasToolbar: row.classList.contains('has-toolbar'),
+			})),
+			initial,
+			focused,
+		}, {
+			rows: [
+				{ hasDetail: false, hasToolbar: false },
+				{ hasDetail: true, hasToolbar: true },
+			],
+			initial: {
+				rowHeight: 48,
+				detailTop: initial.detailTop,
+				toolbarDisplay: 'flex',
+				toolbarVisibility: 'hidden',
+				toolbarMarginRight: '6px',
+			},
+			focused: {
+				rowHeight: 48,
+				detailTop: initial.detailTop,
+				toolbarDisplay: 'flex',
+				toolbarVisibility: 'visible',
+				toolbarMarginRight: '6px',
+				clearsScrollbar: true,
+			},
+		});
+	});
+
 	test('keeps titled separator above first filtered match', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [

@@ -392,6 +392,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			data.detail.textContent = '';
 			data.detail.style.display = 'none';
 		}
+		data.container.classList.toggle('has-detail', !!element.detail);
 
 		// Render optional inline toggle (shown as its own row below the detail)
 		dom.clearNode(data.inlineToggleContainer);
