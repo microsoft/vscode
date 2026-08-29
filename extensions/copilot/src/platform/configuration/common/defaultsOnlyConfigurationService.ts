@@ -11,17 +11,33 @@ import { AbstractConfigurationService, BaseConfig, Config, ConfigTarget, Experim
 
 export class DefaultsOnlyConfigurationService extends AbstractConfigurationService {
 
+	// Varsayılan değerleri saklamak için basit bir Map tabanlı önbellek ekledik
+	private readonly _defaultValueCache = new Map<string, any>();
+
+	 
+	private _getCachedDefaultValue<T>(key: BaseConfig<T>): T {
+		const id = key.fullyQualifiedId;
+		if (this._defaultValueCache.has(id)) {
+			return this._defaultValueCache.get(id);
+		}
+		const value = this.getDefaultValue(key);
+		this._defaultValueCache.set(id, value);
+		return value;
+	}
+
 	override getConfig<T>(key: Config<T>): T {
-		return this.getDefaultValue(key);
+		return this._getCachedDefaultValue(key);
 	}
 
 	override inspectConfig<T>(key: BaseConfig<T>, scope?: ConfigurationScope): InspectConfigResult<T> | undefined {
 		return {
-			defaultValue: this.getDefaultValue(key),
+			defaultValue: this._getCachedDefaultValue(key),
 		};
 	}
 
 	override setConfig<T>(key: BaseConfig<T>, value: T, _target?: ConfigTarget): Promise<void> {
+		 
+		this._defaultValueCache.set(key.fullyQualifiedId, value);
 		return Promise.resolve();
 	}
 
@@ -62,7 +78,7 @@ export class DefaultsOnlyConfigurationService extends AbstractConfigurationServi
 			}
 		}
 
-		return this.getDefaultValue(key);
+		return this._getCachedDefaultValue(key);
 	}
 
 	override updateExperimentBasedConfiguration(treatments: string[]): void {
