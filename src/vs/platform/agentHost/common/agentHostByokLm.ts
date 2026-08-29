@@ -168,7 +168,7 @@ export interface IByokLmModelInfo {
  * model against the session's model list case-insensitively on one side only:
  * it folds the candidate ids but not the requested id, so any selection id
  * carrying an upper-case character (typically a configured provider group such
- * as `Tokengate`) can never match itself and is reported as unavailable — even
+ * as `Acme`) can never match itself and is reported as unavailable — even
  * though the same error lists it as available. Emitting a folded id keeps both
  * sides of that comparison equal. Model ids are treated case-insensitively
  * throughout the BYOK bridge, so folding cannot merge two distinct models that

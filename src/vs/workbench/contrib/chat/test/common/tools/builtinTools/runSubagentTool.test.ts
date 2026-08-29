@@ -962,14 +962,14 @@ suite('RunSubagentTool', () => {
 			const customMeta = createMetadata('Claude Haiku 4.5', 1);
 			const models = new Map([
 				['main-model-id', mainMeta],
-				['customendpoint/Tokengate/claude-haiku-4-5', customMeta],
+				['customendpoint/Acme/claude-haiku-4-5', customMeta],
 			]);
 
 			// Custom endpoint models are not reachable by qualified name.
 			const tool = createTool({ models, qualifiedNameMap: new Map() });
 
 			const result = await tool.prepareToolInvocation({
-				parameters: { prompt: 'test', description: 'test task', model: 'customendpoint/Tokengate/claude-haiku-4-5' },
+				parameters: { prompt: 'test', description: 'test task', model: 'customendpoint/Acme/claude-haiku-4-5' },
 				toolCallId: 'model-call-byok-1',
 				modelId: 'main-model-id',
 				chatSessionResource: URI.parse('test://session'),
@@ -992,7 +992,7 @@ suite('RunSubagentTool', () => {
 			const second = createMetadata('Claude Haiku 4.5', 1);
 			const models = new Map([
 				['main-model-id', mainMeta],
-				['customendpoint/Tokengate/claude-haiku-4-5', first],
+				['customendpoint/Acme/claude-haiku-4-5', first],
 				['customendpoint/Other/claude-haiku-4-5', second],
 			]);
 
@@ -1014,7 +1014,7 @@ suite('RunSubagentTool', () => {
 					// The unique name stays a qualified name; the colliding pair is
 					// listed by identifier so the caller can address them unambiguously.
 					assert.ok(err.message.includes('GPT-4o (TestVendor)'), err.message);
-					assert.ok(err.message.includes('customendpoint/Tokengate/claude-haiku-4-5'), err.message);
+					assert.ok(err.message.includes('customendpoint/Acme/claude-haiku-4-5'), err.message);
 					assert.ok(err.message.includes('customendpoint/Other/claude-haiku-4-5'), err.message);
 					assert.ok(!err.message.includes('Claude Haiku 4.5 (TestVendor)'), err.message);
 					return true;
@@ -1027,10 +1027,10 @@ suite('RunSubagentTool', () => {
 			const customMeta = createMetadata('Claude Haiku 4.5', 1);
 			const models = new Map([
 				['main-model-id', mainMeta],
-				['customendpoint/Tokengate/claude-haiku-4-5', customMeta],
+				['customendpoint/Acme/claude-haiku-4-5', customMeta],
 			]);
 
-			const agent = createAgent('MyAgent', ['customendpoint/Tokengate/claude-haiku-4-5']);
+			const agent = createAgent('MyAgent', ['customendpoint/Acme/claude-haiku-4-5']);
 			const tool = createTool({ models, qualifiedNameMap: new Map(), customAgents: [agent] });
 
 			const result = await tool.prepareToolInvocation({

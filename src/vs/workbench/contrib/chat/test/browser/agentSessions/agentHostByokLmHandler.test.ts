@@ -199,12 +199,12 @@ suite('AgentHostByokLmHandler', () => {
 
 	test('advertises a case-folded selection id and routes it back to the source model', async () => {
 		// A configured provider group contributes its name verbatim to the selection
-		// id (`customendpoint/Tokengate/...`). The agent runtime folds the candidate
+		// id (`customendpoint/Acme/...`). The agent runtime folds the candidate
 		// ids it matches a requested subagent model against but not the request, so
 		// an id carrying upper case can never match itself — the model is reported
 		// unavailable by an error that lists it as available. Advertising the id
 		// folded keeps both sides equal; the bridge must still route it home.
-		const groupedId = 'customendpoint/Tokengate/anthropic/claude-sonnet-4.6-high';
+		const groupedId = 'customendpoint/Acme/anthropic/claude-sonnet-4.6-high';
 		const service = new TestLanguageModelsService(
 			new Map<string, ILanguageModelChatMetadata>([
 				[groupedId, byokModel('customendpoint', 'anthropic/claude-sonnet-4.6-high')],
@@ -223,8 +223,8 @@ suite('AgentHostByokLmHandler', () => {
 			routedTo: service.captured?.modelId,
 			error: result.error,
 		}, {
-			advertisedId: 'tokengate/anthropic/claude-sonnet-4.6-high',
-			agentModelId: 'customendpoint/tokengate/anthropic/claude-sonnet-4.6-high',
+			advertisedId: 'acme/anthropic/claude-sonnet-4.6-high',
+			agentModelId: 'customendpoint/acme/anthropic/claude-sonnet-4.6-high',
 			routedTo: groupedId,
 			error: undefined,
 		});
