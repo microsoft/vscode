@@ -16,7 +16,7 @@ import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTele
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
 import { ILogService } from '../../log/common/log.js';
-import { canRefineContributor, toolSourceKindFromContributor } from './agentHostToolCallTracker.js';
+import { canRefineContributor, toolSourceKindFromContributor } from './shared/toolCallContributor.js';
 import { SessionInputRequestKind } from '../common/state/protocol/state.js';
 import type { ITurnTokenTotal, ToolCallContributor } from '../common/state/sessionState.js';
 import { IAgentHostTelemetryReporter, type AgentHostInitiatorClientConnectionState, type AgentHostMessageOriginTelemetryKind, type AgentHostModelTelemetryKind, type AgentHostProviderDiagnosticState, type AgentHostTelemetryReporter, type AgentHostTurnFailureStage, type AgentHostTurnHangReason, type AgentHostTurnResult, type IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
@@ -374,11 +374,17 @@ export class AgentHostTurnTracker extends Disposable {
 		return this._turnTimings.get(this._key(session, turnId))?.initiatorClientId;
 	}
 
-	turnCompleted(session: string, turnId: string, result: AgentHostTurnResult, failure?: IAgentHostTurnFailure, workspace?: { readonly isMultiRoot: boolean; readonly folderCount: number }): void {
+	/**
+	 * Records a turn's completion. Returns whether a tracked turn actually ended:
+	 * `false` means no turn was in flight for `turnId`, which happens for a stale or
+	 * duplicate terminal action that the reducer also no-ops. Callers that run
+	 * end-of-turn side effects should skip them when this returns `false`.
+	 */
+	turnCompleted(session: string, turnId: string, result: AgentHostTurnResult, failure?: IAgentHostTurnFailure, workspace?: { readonly isMultiRoot: boolean; readonly folderCount: number }): boolean {
 		const key = this._key(session, turnId);
 		const timing = this._turnTimings.get(key);
 		if (!timing) {
-			return;
+			return false;
 		}
 		const usage = this._turnUsages.get(key);
 		this._disposeTurn(key, timing);
@@ -425,6 +431,7 @@ export class AgentHostTurnTracker extends Disposable {
 				timeAfterHangMs: timing.lastHangStopWatch?.elapsed() ?? 0,
 			});
 		}
+		return true;
 	}
 
 	/**

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { ExtUri, extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
@@ -13,10 +14,12 @@ import { resolveSymbolToolFileUri, findLineNumber, findSymbolColumn, errorResult
 import type { IChatService } from '../../../common/chatService/chatService.js';
 import { ChatPermissionLevel } from '../../../common/constants.js';
 import type { IChatWidgetService } from '../../../browser/chat.js';
+import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 
 suite('Tool Helpers', () => {
 
 	const disposables = new DisposableStore();
+	const uriIdentityService = { extUri: new ExtUri(() => false) } as Partial<IUriIdentityService> as IUriIdentityService;
 
 	teardown(() => {
 		disposables.clear();
@@ -24,21 +27,16 @@ suite('Tool Helpers', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createMockWorkspaceService(folderUri?: URI): IWorkspaceContextService {
-		const uri = folderUri ?? URI.parse('file:///workspace');
-		const folder = {
+	function createMockWorkspaceService(folderUris: URI | readonly URI[] = URI.parse('file:///workspace')): IWorkspaceContextService {
+		const uris = URI.isUri(folderUris) ? [folderUris] : folderUris;
+		const folders = uris.map(uri => ({
 			uri,
 			toResource: (relativePath: string) => URI.joinPath(uri, relativePath),
-		} as unknown as IWorkspaceFolder;
+		} as unknown as IWorkspaceFolder));
 		return {
 			_serviceBrand: undefined,
-			getWorkspace: () => ({ folders: [folder] }),
-			getWorkspaceFolder: (u: URI) => {
-				if (u.toString().startsWith(uri.toString())) {
-					return folder;
-				}
-				return null;
-			},
+			getWorkspace: () => ({ folders }),
+			getWorkspaceFolder: (uri: URI) => folders.find(folder => extUriBiasedIgnorePathCase.isEqualOrParent(uri, folder.uri)) ?? null,
 		} as unknown as IWorkspaceContextService;
 	}
 
@@ -60,73 +58,105 @@ suite('Tool Helpers', () => {
 
 		test('resolves full URI string', () => {
 			const ws = createMockWorkspaceService();
-			const result = resolveSymbolToolFileUri({ symbol: 'x', lineContent: 'x', uri: 'file:///test/file.ts' }, ws);
-			assert.strictEqual(result?.toString(), 'file:///test/file.ts');
+			const result = resolveSymbolToolFileUri({ symbol: 'x', lineContent: 'x', uri: 'file:///workspace/test/file.ts' }, ws, uriIdentityService);
+			assert.strictEqual(result?.toString(), 'file:///workspace/test/file.ts');
 		});
 
 		test('resolves workspace-relative filePath', () => {
 			const ws = createMockWorkspaceService(URI.parse('file:///project'));
-			const result = resolveSymbolToolFileUri({ symbol: 'x', lineContent: 'x', filePath: 'src/index.ts' }, ws);
+			const result = resolveSymbolToolFileUri({ symbol: 'x', lineContent: 'x', filePath: 'src/index.ts' }, ws, uriIdentityService);
 			assert.strictEqual(result?.toString(), 'file:///project/src/index.ts');
 		});
 
 		test('prefers uri over filePath', () => {
 			const ws = createMockWorkspaceService();
-			const result = resolveSymbolToolFileUri({ symbol: 'x', lineContent: 'x', uri: 'file:///explicit.ts', filePath: 'other.ts' }, ws);
-			assert.strictEqual(result?.toString(), 'file:///explicit.ts');
+			const result = resolveSymbolToolFileUri({ symbol: 'x', lineContent: 'x', uri: 'file:///workspace/explicit.ts', filePath: 'other.ts' }, ws, uriIdentityService);
+			assert.strictEqual(result?.toString(), 'file:///workspace/explicit.ts');
 		});
 
 		test('returns undefined when neither provided', () => {
 			const ws = createMockWorkspaceService();
-			const result = resolveSymbolToolFileUri({ symbol: 'x', lineContent: 'x' }, ws);
+			const result = resolveSymbolToolFileUri({ symbol: 'x', lineContent: 'x' }, ws, uriIdentityService);
 			assert.strictEqual(result, undefined);
 		});
 
 		test('resolves filePath against workingDirectory when provided', () => {
 			const ws = createMockWorkspaceService(URI.parse('file:///other-workspace'));
 			const workingDirectory = URI.parse('file:///session-dir');
-			const result = resolveSymbolToolFileUri({ symbol: 'x', lineContent: 'x', filePath: 'src/index.ts' }, ws, workingDirectory);
+			const result = resolveSymbolToolFileUri({ symbol: 'x', lineContent: 'x', filePath: 'src/index.ts' }, ws, uriIdentityService, workingDirectory);
 			assert.strictEqual(result?.toString(), 'file:///session-dir/src/index.ts');
 		});
 
 		test('workingDirectory takes precedence over workspace folders', () => {
 			const ws = createMockWorkspaceService(URI.parse('file:///workspace'));
 			const workingDirectory = URI.parse('file:///my-project');
-			const result = resolveSymbolToolFileUri({ symbol: 'x', lineContent: 'x', filePath: 'file.ts' }, ws, workingDirectory);
+			const result = resolveSymbolToolFileUri({ symbol: 'x', lineContent: 'x', filePath: 'file.ts' }, ws, uriIdentityService, workingDirectory);
 			assert.strictEqual(result?.toString(), 'file:///my-project/file.ts');
 		});
 
-		test('uri field ignores workingDirectory', () => {
+		test('resolves uri within workingDirectory', () => {
 			const ws = createMockWorkspaceService();
 			const workingDirectory = URI.parse('file:///session-dir');
-			const result = resolveSymbolToolFileUri({ symbol: 'x', lineContent: 'x', uri: 'file:///absolute/path.ts' }, ws, workingDirectory);
-			assert.strictEqual(result?.toString(), 'file:///absolute/path.ts');
+			const result = resolveSymbolToolFileUri({ symbol: 'x', lineContent: 'x', uri: 'file:///session-dir/path.ts' }, ws, uriIdentityService, workingDirectory);
+			assert.strictEqual(result?.toString(), 'file:///session-dir/path.ts');
+		});
+
+		test('rejects uri outside workingDirectory', () => {
+			const ws = createMockWorkspaceService();
+			const workingDirectory = URI.parse('file:///session-dir');
+			const result = resolveSymbolToolFileUri({ symbol: 'x', lineContent: 'x', uri: 'file:///workspace/path.ts' }, ws, uriIdentityService, workingDirectory);
+			assert.strictEqual(result, undefined);
+		});
+
+		test('rejects uri outside workspace folders', () => {
+			const ws = createMockWorkspaceService();
+			const result = resolveSymbolToolFileUri({ symbol: 'x', lineContent: 'x', uri: 'file:///outside/path.ts' }, ws, uriIdentityService);
+			assert.strictEqual(result, undefined);
+		});
+
+		test('resolves uri within any workspace folder', () => {
+			const ws = createMockWorkspaceService([URI.parse('file:///workspace-one'), URI.parse('file:///workspace-two')]);
+			const result = resolveSymbolToolFileUri({ symbol: 'x', lineContent: 'x', uri: 'file:///workspace-two/path.ts' }, ws, uriIdentityService);
+			assert.strictEqual(result?.toString(), 'file:///workspace-two/path.ts');
+		});
+
+		test('rejects uri with parent segments that escapes the workspace folder', () => {
+			const ws = createMockWorkspaceService();
+			const result = resolveSymbolToolFileUri({ symbol: 'x', lineContent: 'x', uri: 'file:///workspace/src/../../outside.ts' }, ws, uriIdentityService);
+			assert.strictEqual(result, undefined);
+		});
+
+		test('respects case-sensitive remote paths', () => {
+			const workspaceUri = URI.parse('vscode-remote://host/project');
+			const ws = createMockWorkspaceService(workspaceUri);
+			const result = resolveSymbolToolFileUri({ symbol: 'x', lineContent: 'x', uri: 'vscode-remote://host/PROJECT/path.ts' }, ws, uriIdentityService);
+			assert.strictEqual(result, undefined);
 		});
 
 		test('rejects filePath that escapes the workingDirectory via parent segments', () => {
 			const ws = createMockWorkspaceService(URI.parse('file:///workspace'));
 			const workingDirectory = URI.parse('file:///my-project');
-			const result = resolveSymbolToolFileUri({ symbol: 'x', lineContent: 'x', filePath: '../outside.ts' }, ws, workingDirectory);
+			const result = resolveSymbolToolFileUri({ symbol: 'x', lineContent: 'x', filePath: '../outside.ts' }, ws, uriIdentityService, workingDirectory);
 			assert.strictEqual(result, undefined);
 		});
 
 		test('rejects filePath that escapes the workingDirectory via nested parent segments', () => {
 			const ws = createMockWorkspaceService(URI.parse('file:///workspace'));
 			const workingDirectory = URI.parse('file:///my-project');
-			const result = resolveSymbolToolFileUri({ symbol: 'x', lineContent: 'x', filePath: 'src/../../outside.ts' }, ws, workingDirectory);
+			const result = resolveSymbolToolFileUri({ symbol: 'x', lineContent: 'x', filePath: 'src/../../outside.ts' }, ws, uriIdentityService, workingDirectory);
 			assert.strictEqual(result, undefined);
 		});
 
 		test('allows filePath with interior parent segments that stays within the workingDirectory', () => {
 			const ws = createMockWorkspaceService(URI.parse('file:///workspace'));
 			const workingDirectory = URI.parse('file:///my-project');
-			const result = resolveSymbolToolFileUri({ symbol: 'x', lineContent: 'x', filePath: 'src/../file.ts' }, ws, workingDirectory);
+			const result = resolveSymbolToolFileUri({ symbol: 'x', lineContent: 'x', filePath: 'src/../file.ts' }, ws, uriIdentityService, workingDirectory);
 			assert.strictEqual(result?.toString(), 'file:///my-project/file.ts');
 		});
 
 		test('rejects filePath that escapes the workspace folder via parent segments', () => {
 			const ws = createMockWorkspaceService(URI.parse('file:///project/sub'));
-			const result = resolveSymbolToolFileUri({ symbol: 'x', lineContent: 'x', filePath: '../../outside.ts' }, ws);
+			const result = resolveSymbolToolFileUri({ symbol: 'x', lineContent: 'x', filePath: '../../outside.ts' }, ws, uriIdentityService);
 			assert.strictEqual(result, undefined);
 		});
 	});

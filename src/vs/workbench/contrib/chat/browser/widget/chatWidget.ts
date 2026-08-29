@@ -296,6 +296,9 @@ const DISCLAIMER = localize('chatDisclaimer', "AI responses may be inaccurate");
 /** Set on the container when {@link IChatWidgetViewOptions.persistentContentHeight} is, floating the persistent content. */
 export const chatFloatingPersistentContentClass = 'chat-floating-persistent-content';
 
+/** Set on the persistent-content container while it has visible content. */
+export const chatPersistentContentVisibleClass = 'chat-persistent-content-visible';
+
 /** Carries {@link IChatWidgetViewOptions.persistentContentHeight} to `chat.css`. */
 export const chatPersistentContentHeightVariable = '--vscode-chat-persistent-content-height';
 
@@ -3404,7 +3407,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			sent.data.responseCompletePromise.then(() => {
 				const responses = this.viewModel?.getItems().filter(isResponseVM);
 				const lastResponse = responses?.[responses.length - 1];
-				this.chatAccessibilityService.acceptResponse(this, this.container, lastResponse, submittedSessionResource, options?.isVoiceInput);
+				this.chatAccessibilityService.acceptResponse(lastResponse, submittedSessionResource, options?.isVoiceInput);
 				if (lastResponse?.result?.nextQuestion) {
 					const { prompt, participant, command } = lastResponse.result.nextQuestion;
 					const question = formatChatQuestion(this.chatAgentService, this.location, prompt, participant, command);

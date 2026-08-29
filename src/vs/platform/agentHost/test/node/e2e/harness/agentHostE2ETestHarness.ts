@@ -336,8 +336,6 @@ export interface IAgentHostE2EProviderConfig {
 	readonly supportsPluginCustomizationDiscoveryE2E?: boolean;
 	/** Provider publishes live workspace-agent file changes through customization state. */
 	readonly supportsWorkspaceAgentWatchE2E?: boolean;
-	/** Provider's denied file-creation flow mutates the workspace during replay on Linux. */
-	readonly fileToolDenialReplayUnstableOnLinux?: boolean;
 	/**
 	 * Whether the suite should be enabled. Returning false skips the suite
 	 * entirely (mirrors `suite.skip(...)`).

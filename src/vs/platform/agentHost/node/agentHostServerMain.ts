@@ -17,7 +17,6 @@ import * as fs from 'fs';
 import * as os from 'os';
 import type { Event } from '../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { raceTimeout } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
@@ -30,6 +29,7 @@ import { LoggerService } from '../../log/node/loggerService.js';
 import { OtlpEmitterLogger, OtlpLogEmitter } from '../common/otlp/otlpLogEmitter.js';
 import product from '../../product/common/product.js';
 import { IProductService } from '../../product/common/productService.js';
+import { flushAgentHostPersistenceBeforeShutdown } from './agentHostShutdown.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { createAgentHostRuntime } from './agentHostBootstrap.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
@@ -388,9 +388,11 @@ async function main(): Promise<void> {
 		// SIGTERM arriving during a session or agent-host storage write can
 		// drop the latest decision.
 		// Capped so a stuck write cannot hang shutdown indefinitely.
-		await raceTimeout(Promise.all([sessionDataService.whenIdle(), customizationEnablementService.whenIdle()]), 3000, () => {
-			logService.warn('[AgentHostServer] Timed out waiting for persistence writes to flush; exiting anyway.');
-		});
+		await flushAgentHostPersistenceBeforeShutdown(
+			[sessionDataService.whenIdle(), customizationEnablementService.whenIdle()],
+			3000,
+			logService,
+		);
 		disposables.dispose();
 		loggerService?.dispose();
 		process.exit(0);

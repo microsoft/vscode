@@ -114,6 +114,21 @@ interface ISendHarness {
 	readonly logService: { error(message: string, ...args: unknown[]): void };
 }
 
+interface IRenderWorkspacePickerHarness {
+	readonly _workspacePickerVisibleKey: { set(value: boolean): void };
+	readonly _workspacePicker: {
+		renderCategoryTriggers(container: HTMLElement, triggers: readonly { readonly label?: string; readonly tooltip?: string; readonly attachesContext?: boolean }[]): HTMLElement;
+	};
+	readonly _newChatInput: {
+		readonly sessionTypePicker: {
+			render(container: HTMLElement, options?: { className?: string }): void;
+		};
+	};
+	_workspacePickerRow: HTMLElement | undefined;
+}
+
+const renderWorkspacePicker = Reflect.get(NewChatWidget.prototype, '_renderWorkspacePicker') as (this: IRenderWorkspacePickerHarness, container: HTMLElement) => IDisposable;
+
 function createHarness(
 	pendingPreferredUpgrade: MutableDisposable<IDisposable>,
 	newSessionCreation: MutableDisposable<IDisposable>,
@@ -142,6 +157,60 @@ function createHarness(
 
 suite('NewChatWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('workspace row hosts a multiple-harness picker first', () => {
+		const container = document.createElement('div');
+		const harnessLabels = ['Copilot', 'Claude'];
+		const workspaceTriggers: { readonly tooltip: string | undefined; readonly attachesContext: boolean | undefined }[] = [];
+		const harness: IRenderWorkspacePickerHarness = {
+			_workspacePickerVisibleKey: { set: () => { } },
+			_workspacePicker: {
+				renderCategoryTriggers: (target, triggers) => {
+					const row = document.createElement('div');
+					target.appendChild(row);
+					for (const trigger of triggers) {
+						const item = document.createElement('div');
+						item.textContent = trigger.label ?? 'More';
+						row.appendChild(item);
+						workspaceTriggers.push({ tooltip: trigger.tooltip, attachesContext: trigger.attachesContext });
+					}
+					return row;
+				},
+			},
+			_newChatInput: {
+				sessionTypePicker: {
+					render: (target, options) => {
+						if (harnessLabels.length <= 1) {
+							return;
+						}
+						const item = document.createElement('div');
+						item.className = options?.className ?? '';
+						item.textContent = harnessLabels[0];
+						target.appendChild(item);
+					},
+				},
+			},
+			_workspacePickerRow: undefined,
+		};
+
+		disposables.add(renderWorkspacePicker.call(harness, container));
+
+		assert.deepStrictEqual(
+			Array.from(harness._workspacePickerRow?.children ?? [], element => ({
+				label: element.textContent,
+				className: element.className,
+			})),
+			[
+				{ label: 'Copilot', className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot' },
+				{ label: 'Workspace', className: '' },
+				{ label: 'Issue/PR', className: '' },
+			],
+		);
+		assert.deepStrictEqual(workspaceTriggers, [
+			{ tooltip: 'Choose where the new session runs', attachesContext: false },
+			{ tooltip: 'Attach an issue or pull request as context', attachesContext: true },
+		]);
+	});
 
 	test('replays a provider change that arrives while creating the draft', async () => {
 		const sessionTypesChanged = disposables.add(new Emitter<void>());

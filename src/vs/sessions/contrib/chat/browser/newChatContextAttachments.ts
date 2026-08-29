@@ -39,7 +39,7 @@ import { resizeImage } from '../../../../workbench/contrib/chat/browser/chatImag
 import { createImageHoverContent, openPastedTextArtifact } from '../../../../workbench/contrib/chat/browser/attachments/chatAttachmentWidgets.js';
 import { imageToHash, isImage } from '../../../../workbench/contrib/chat/browser/widget/input/editor/chatPasteProviders.js';
 import { getExcludes, ISearchConfiguration, ISearchService, QueryType } from '../../../../workbench/services/search/common/search.js';
-import { isAdditionalWorkspaceContextId } from '../common/newChatContextIds.js';
+import { ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX } from '../common/newChatContextIds.js';
 
 /**
  * The attachment surface of the composer, as seen by its input plumbing
@@ -120,7 +120,7 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 		this._resourceLabels.clear();
 		dom.clearNode(this._container);
 
-		const visibleAttachments = this._attachedContext.filter(entry => !isAgentHostCompletionVariableEntry(entry) && !isAdditionalWorkspaceContextId(entry.id));
+		const visibleAttachments = this._attachedContext.filter(entry => !isAgentHostCompletionVariableEntry(entry));
 		if (visibleAttachments.length === 0) {
 			this._container.style.display = 'none';
 			return;
@@ -146,6 +146,10 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 					});
 					this._renderDisposables.add(preview.disposable);
 				}
+			} else if (entry.id.startsWith(ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX)) {
+				const icon = dom.append(pill, renderIcon(Codicon.repo));
+				icon.setAttribute('aria-hidden', 'true');
+				dom.append(pill, dom.$('span.sessions-chat-attachment-name', undefined, entry.name));
 			} else {
 				const label = this._resourceLabels.create(pill, { supportIcons: true });
 				this._renderDisposables.add(label);
