@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { arrayEquals } from '../../../../base/common/equals.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IObservable, IReader } from '../../../../base/common/observable.js';
@@ -156,6 +157,8 @@ export interface ISessionGitRepository {
 	readonly hasGitOperationInProgress?: boolean;
 	/** GitHub information associated with the repository. */
 	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
+	/** Starts resolving GitHub information when the repository exposes it lazily. */
+	readonly resolveGitHubInfo?: () => void;
 }
 
 /**
@@ -234,7 +237,7 @@ export function getSessionWorkspaceKind(workspace: ISessionWorkspace | undefined
 }
 
 /**
- * The kinds of artifact an agent can record on a session.
+ * The kinds of artifact or reference an agent can record on a session.
  */
 export const enum SessionArtifactKind {
 	PullRequest = 'pullRequest',
@@ -250,6 +253,11 @@ export interface ISessionArtifact {
 	readonly id: string;
 	readonly kind: SessionArtifactKind;
 	readonly label: string;
+	/**
+	 * `true` for an artifact — something the session produced — and `false` for
+	 * a reference, something it only points the user at.
+	 */
+	readonly isArtifact: boolean;
 	/** Link opened when activating a pull request, issue, commit or website. */
 	readonly link?: URI;
 	/** Resource opened when activating a file or resource artifact. */
@@ -298,6 +306,8 @@ export interface IGitHubInfo {
 		readonly uri: URI;
 		/** Icon reflecting the PR state. */
 		readonly icon?: ThemeIcon;
+		/** Pull request title, when known. */
+		readonly title?: string;
 		/** Object ID of the base ref (merge target) commit. */
 		readonly baseRefOid?: string;
 		/** Object ID of the head ref (PR branch) commit. */
@@ -332,6 +342,50 @@ export interface IGitHubPullRequestRef {
 	 * inherited from the checkout it started from or merely referenced by the agent.
 	 */
 	readonly createdByThisSession?: boolean;
+}
+
+/** Returns all pull requests associated with GitHub info, including its legacy single-PR shape. */
+export function getGitHubPullRequestRefs(gitHubInfo: IGitHubInfo | undefined): readonly IGitHubPullRequestRef[] {
+	if (gitHubInfo?.pullRequests?.length) {
+		return gitHubInfo.pullRequests;
+	}
+	if (!gitHubInfo?.pullRequest) {
+		return [];
+	}
+	return [{
+		owner: gitHubInfo.owner,
+		repo: gitHubInfo.repo,
+		number: gitHubInfo.pullRequest.number,
+		uri: gitHubInfo.pullRequest.uri,
+		icon: gitHubInfo.pullRequest.icon,
+		title: gitHubInfo.pullRequest.title,
+	}];
+}
+
+const pullRequestIconPriority = new Map<string, number>([
+	[Codicon.gitPullRequestError.id, 6],
+	[Codicon.gitPullRequestComment.id, 5],
+	[Codicon.gitPullRequest.id, 4],
+	[Codicon.gitPullRequestDraft.id, 3],
+	[Codicon.gitPullRequestDone.id, 2],
+	[Codicon.gitPullRequestClosed.id, 1],
+]);
+
+/** Returns the most important status icon across a session's pull requests. */
+export function getHighestPriorityPullRequestIcon(icons: readonly (ThemeIcon | undefined)[]): ThemeIcon | undefined {
+	let result: ThemeIcon | undefined;
+	let resultPriority = -1;
+	for (const icon of icons) {
+		if (!icon) {
+			continue;
+		}
+		const priority = pullRequestIconPriority.get(icon.id) ?? 0;
+		if (priority > resultPriority) {
+			result = icon;
+			resultPriority = priority;
+		}
+	}
+	return result;
 }
 
 /** A GitHub issue referenced by a session. */
@@ -701,13 +755,20 @@ export interface ISession {
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
 	/** Changesets produced by the session. */
 	readonly changesets: IObservable<readonly ISessionChangeset[] | undefined>;
-	/** Artifacts the agent recorded for this session (pull requests, issues, files, …). */
+	/**
+	 * The artifacts and references the agent recorded for this session (pull
+	 * requests, issues, files, …). Both categories share this observable and are
+	 * told apart by {@link ISessionArtifact.isArtifact}, so a consumer that
+	 * surfaces only one of them must filter on that field.
+	 */
 	readonly artifacts?: IObservable<readonly ISessionArtifact[]>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	/** Whether the session is still initializing (e.g., resolving git repository). */
 	readonly loading: IObservable<boolean>;
+	/** Whether the first request lifecycle is in progress. Used to present a still-untitled draft as active during preparation. Absent means `false`. */
+	readonly isNewSessionRequestInProgress?: IObservable<boolean>;
 	/** Whether the session is archived. */
 	readonly isArchived: IObservable<boolean>;
 	/** Whether the session has been read. */
@@ -848,8 +909,18 @@ export interface ISessionWorkspaceBrowseAction {
 	readonly icon: ThemeIcon;
 	/** The provider that owns this action. */
 	readonly providerId: string;
-	/** Execute the browse action and return the selected workspace, or undefined if cancelled. */
-	run(): Promise<ISessionWorkspace | undefined>;
+	/**
+	 * Whether the selected workspace should also be attached as prompt context.
+	 * Context selections remain attached when the user chooses a different
+	 * execution workspace.
+	 */
+	readonly attachesContext?: boolean;
+	/**
+	 * Execute the browse action and return the selected workspace, or undefined
+	 * if cancelled. The current execution workspace is provided so context
+	 * pickers can scope results to its repository.
+	 */
+	run(currentWorkspace?: ISessionWorkspace): Promise<ISessionWorkspace | undefined>;
 	/**
 	 * Optional method to enumerate folders inline (e.g. for a phone-friendly
 	 * picker that shows a folder list with search-as-you-type instead of
@@ -953,6 +1024,7 @@ export function gitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | und
 		a.pullRequest?.number === b.pullRequest?.number &&
 		isEqual(a.pullRequest?.uri, b.pullRequest?.uri) &&
 		(aIcon === bIcon || (!!aIcon && !!bIcon && ThemeIcon.isEqual(aIcon, bIcon))) &&
+		a.pullRequest?.title === b.pullRequest?.title &&
 		a.pullRequest?.baseRefOid === b.pullRequest?.baseRefOid &&
 		a.pullRequest?.headRefOid === b.pullRequest?.headRefOid;
 }

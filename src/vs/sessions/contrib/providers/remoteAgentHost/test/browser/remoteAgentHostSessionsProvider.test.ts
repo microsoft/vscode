@@ -14,11 +14,12 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
+import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { MessageKind, SessionLifecycle, type AgentInfo, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { MessageKind, SessionLifecycle, type AgentInfo, type AutomationCatalogState, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { buildDefaultChatUri, SessionStatus as ProtocolSessionStatus, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, buildDefaultChatUri, SessionStatus as ProtocolSessionStatus, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -57,6 +58,12 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 	private readonly _onDidRootStateChange = new Emitter<RootState>();
 	private _rootStateValue: RootState = { agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo] };
 	override readonly rootState: IAgentSubscription<RootState>;
+	override readonly initializeResult = constObservable({
+		protocolVersion: '1',
+		serverSeq: 0,
+		snapshots: [],
+		automations: { create: {}, schedules: {}, runCancellation: {} },
+	});
 
 	override readonly clientId = 'test-client-1';
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
@@ -123,27 +130,55 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 
 	// ---- Session-state subscriptions ---------------------------------------
 
-	private readonly _sessionStateEmitters = new Map<string, Emitter<SessionState>>();
-	private readonly _sessionStateValues = new Map<string, SessionState>();
+	private readonly _sessionStateEmitters = new Map<string, Emitter<SessionState | AutomationCatalogState>>();
+	private readonly _sessionStateErrorEmitters = new Map<string, Emitter<Error>>();
+	private readonly _sessionStateValues = new Map<string, SessionState | AutomationCatalogState>();
 	public sessionSubscribeCounts = new Map<string, number>();
 	public sessionUnsubscribeCounts = new Map<string, number>();
+	/**
+	 * Channel URIs whose next subscribe fails the way a session the host has not created yet
+	 * does: the reference resolves, then settles into an error state via `onDidError`.
+	 */
+	public readonly failNextSessionSubscribe = new Set<string>();
 
 	override getSubscription<T>(_kind: StateComponents, resource: URI): IReference<IAgentSubscription<T>> {
 		const key = resource.toString();
+		if (key === AUTOMATION_CATALOG_URI && !this._sessionStateValues.has(key)) {
+			this._sessionStateValues.set(key, { automations: [] });
+		}
+		return this._getSubscription<T>(key);
+	}
+
+	private _getSubscription<T>(key: string): IReference<IAgentSubscription<T>> {
 		this.sessionSubscribeCounts.set(key, (this.sessionSubscribeCounts.get(key) ?? 0) + 1);
 		let emitter = this._sessionStateEmitters.get(key);
 		if (!emitter) {
-			emitter = new Emitter<SessionState>();
+			emitter = new Emitter<SessionState | AutomationCatalogState>();
 			this._sessionStateEmitters.set(key, emitter);
 		}
+		let errorEmitter = this._sessionStateErrorEmitters.get(key);
+		if (!errorEmitter) {
+			errorEmitter = new Emitter<Error>();
+			this._sessionStateErrorEmitters.set(key, errorEmitter);
+		}
+		const failing = this.failNextSessionSubscribe.delete(key);
 		const self = this;
+		let error: Error | undefined;
 		const sub: IAgentSubscription<T> = {
-			get value() { return self._sessionStateValues.get(key) as unknown as T | undefined; },
+			get value() { return (error ?? self._sessionStateValues.get(key)) as unknown as T | Error | undefined; },
 			get verifiedValue() { return self._sessionStateValues.get(key) as unknown as T | undefined; },
 			onDidChange: emitter.event as unknown as Event<T>,
+			onDidError: errorEmitter.event,
 			onWillApplyAction: Event.None,
 			onDidApplyAction: Event.None,
 		};
+		if (failing) {
+			// Defer the error so the consumer can attach listeners after the reference resolves.
+			queueMicrotask(() => {
+				error = new Error(`not found: ${key}`);
+				errorEmitter.fire(error);
+			});
+		}
 		return {
 			object: sub,
 			dispose: () => {
@@ -179,6 +214,10 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 			emitter.dispose();
 		}
 		this._sessionStateEmitters.clear();
+		for (const emitter of this._sessionStateErrorEmitters.values()) {
+			emitter.dispose();
+		}
+		this._sessionStateErrorEmitters.clear();
 	}
 }
 
@@ -195,7 +234,7 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 	};
 }
 
-function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { address?: string; preferenceKey?: string; connectionName?: string | undefined; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; storageService?: IStorageService; noConnection?: boolean; isWebPlatform?: boolean; workspaceTrusted?: boolean; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon; ctor?: typeof RemoteAgentHostSessionsProvider }): RemoteAgentHostSessionsProvider {
+function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { address?: string; preferenceKey?: string; connectionName?: string | undefined; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; storageService?: IStorageService; noConnection?: boolean; isWebPlatform?: boolean; workspaceTrusted?: boolean; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon; defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']; ctor?: typeof RemoteAgentHostSessionsProvider }): RemoteAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IFileDialogService, {});
@@ -252,6 +291,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 		name: overrides !== undefined && Object.prototype.hasOwnProperty.call(overrides, 'connectionName') ? overrides.connectionName ?? '' : 'Test Host',
 		omitHostFromWorkspaceLabel: overrides?.omitHostFromWorkspaceLabel,
 		workspaceTypeIcon: overrides?.workspaceTypeIcon,
+		defaultChangesetKind: overrides?.defaultChangesetKind,
 	};
 
 	const baseCtor = overrides?.ctor ?? RemoteAgentHostSessionsProvider;
@@ -1311,6 +1351,76 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			restoredBeforeSeed: undefined,
 			afterBackfill: 'osortega/simple-server',
 			survivesReload: 'osortega/simple-server',
+		});
+	}));
+
+	test('re-subscribes to session state after a subscribe that failed because the host had no such session', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// A failed pre-creation subscribe must remain retryable so later session state, including changesets, can arrive.
+		connection.addSession(createSession('late-1', { summary: 'Created after we asked' }));
+		const provider = createProvider(disposables, connection, { isWebPlatform: false, omitHostFromWorkspaceLabel: true });
+		const backendUri = AgentSession.uri('copilotcli', 'late-1').toString();
+		provider.getSessions();
+		await timeout(0);
+		connection.failNextSessionSubscribe.add(backendUri);
+
+		const session = provider.getSessions()[0];
+		provider.getSessionByResource(session.resource);
+		await timeout(0);
+		const afterFailedSubscribe = connection.sessionSubscribeCounts.get(backendUri);
+
+		// The host has created the session by the time anything asks again.
+		connection.setSessionState('late-1', 'copilotcli', {
+			provider: 'copilotcli', title: 'Created after we asked', status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			changesets: [{ label: 'Branch Changes', uriTemplate: 'changeset/branch', changeKind: 'branch' }],
+		} as unknown as SessionState);
+		provider.getSessionByResource(session.resource);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			afterFailedSubscribe,
+			afterRetry: connection.sessionSubscribeCounts.get(backendUri),
+			changesets: provider.getSessions()[0].changesets.get()?.map(c => c.id),
+		}, {
+			afterFailedSubscribe: 1,
+			afterRetry: 2,
+			changesets: ['branch'],
+		});
+	}));
+
+	test('a configured defaultChangesetKind reaches the session adapter', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const gitBackedCatalogue = [
+			{ label: 'Session Changes', uriTemplate: 'changeset/session', changeKind: 'session' },
+			{ label: 'Branch Changes', uriTemplate: 'changeset/branch', changeKind: 'branch' },
+		];
+		const defaultChangesetIds = async (defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']) => {
+			const localConnection = disposables.add(new MockAgentConnection());
+			localConnection.addSession(createSession('changeset-default-1', { summary: 'Changeset default' }));
+			const provider = createProvider(disposables, localConnection, { defaultChangesetKind });
+			provider.getSessions();
+			await timeout(0);
+			localConnection.setSessionState('changeset-default-1', 'copilotcli', {
+				provider: 'copilotcli', title: 'Changeset default', status: ProtocolSessionStatus.Idle,
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+				chats: [],
+				changesets: gitBackedCatalogue,
+			} as unknown as SessionState);
+			const session = provider.getSessions()[0];
+			provider.getSessionByResource(session.resource);
+			await timeout(0);
+			return provider.getSessions()[0].changesets.get()
+				?.map(c => `${c.id}${c.isDefault.get() ? '*' : ''}`);
+		};
+
+		assert.deepStrictEqual({
+			configured: await defaultChangesetIds(ChangesetKind.Session),
+			unconfigured: await defaultChangesetIds(),
+		}, {
+			configured: ['session*', 'branch'],
+			unconfigured: ['session', 'branch*'],
 		});
 	}));
 

@@ -25,11 +25,27 @@ Choose the client setup in the GUI:
 - **Code OSS from sources:** apply `product.overrides.json`, reload, sign in, and
   run **Developer: Sync Account Policy**.
 - **Stable, Insiders, CLI, or other clients:** configure the displayed system
-  proxy mapping.
+  proxy mapping and enable Proxyman's platform proxy toggle (**Tools > macOS
+  Proxy** or **Tools > Override Windows Proxy**). VS Code clients must also add
+  the displayed `http.proxy` property to `settings.json`.
+- **File-based settings (no proxy):** expand **Deploy as a file** under the
+  Managed Settings response body and run the copied per-platform command to write
+  the current body to `managed-settings.json` on the device. Restart the client to
+  load it. Use it to skip proxying or to test precedence against a server-managed
+  response. See [Deploying file-based settings](https://docs.github.com/en/copilot/how-tos/administer-copilot/manage-for-enterprise/manage-agents/configure-enterprise-managed-settings#deploying-file-based-settings).
 
-Use **Clear Policy Cache** when the runtime's fresh managed-settings cache
-prevents a network request. The live request log confirms whether the client
-reached the server.
+Use **Clear SDK Policy Cache**, expand the macOS or Windows section, and run the
+copied command when the runtime's fresh managed-settings cache prevents a network
+request. Select a known policy endpoint in the live request log to open its
+response editor.
+
+To test `forceRemoteSettingsRefresh` fail-closed behavior, apply the
+`customization-lockdown` managed-settings preset and sync once successfully.
+Then select the `server-error` preset or choose the `malformed-json`,
+`disconnect`, or `timeout` response behavior and sync again. The successful
+first response seeds the cached refresh requirement; the second response
+exercises HTTP, parse, immediate-network, or client-timeout failure without
+manually editing payloads.
 
 Other Copilot clients share the default cache. For deterministic testing, start
 both Code OSS and the mock server with the same isolated `COPILOT_CACHE_HOME`.

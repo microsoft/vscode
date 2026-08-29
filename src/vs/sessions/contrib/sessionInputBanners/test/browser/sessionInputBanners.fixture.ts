@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { ISessionInputBanner, SessionInputBannerWidget } from '../../browser/sessionInputBannerWidget.js';
 
 export default defineThemedFixtureGroup({ path: 'sessions/inputBanners/' }, {
@@ -40,7 +40,21 @@ export default defineThemedFixtureGroup({ path: 'sessions/inputBanners/' }, {
 
 	Both: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: (context) => renderBanners(context, [ciBanner(1, 4, 0), commentsBanner(1, 'mixed')]),
+		render: (context) => renderBanners(context, [combinedPRBanner(42, 1, 3)]),
+	}),
+
+	MultiplePullRequests: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (context) => renderBanners(context, [
+			combinedPRBanner(42, 2, 3),
+			{ ...commentsBanner(4, 'pr'), id: 'pr-43', text: '4 PR Comments', ariaLabel: '#43, 4 PR Comments', reference: { label: '#43', hover: 'Pull Request #43: Improve session rendering' } },
+			{ ...ciBanner(1, 2, 0), id: 'pr-44', text: '1 Check Failing', ariaLabel: '#44, 1 Check Failing', reference: { label: '#44', hover: 'Pull Request #44: Fix accessibility labels' } },
+		]),
+	}),
+
+	CombinedNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderBanners(context, [combinedPRBanner(42, 2, 3)], 360),
 	}),
 
 	LongTextEllipsis: defineComponentFixture({
@@ -59,15 +73,15 @@ function ciBanner(failed: number, completed: number, pending: number): ISessionI
 		ariaLabel: text,
 		dismissTooltip: 'Hide for this session',
 		actions: [
-			{ label: 'Fix Checks', primary: true, run: () => console.log('Fix Checks') },
-			{ label: 'Reveal', run: () => console.log('Open Pull Request') },
+			{ label: 'Fix CI', primary: true, run: () => console.log('Fix CI') },
+			{ label: 'Reveal CI', run: () => console.log('Open Pull Request') },
 		],
 		dismiss: () => console.log('Dismiss CI banner'),
 	};
 }
 
 function commentsBanner(count: number, kind: 'pr' | 'agent' | 'mixed'): ISessionInputBanner {
-	const noun = kind === 'pr' ? 'PR comment' : kind === 'agent' ? 'agent comment' : 'comment';
+	const noun = kind === 'pr' ? 'PR Comment' : kind === 'agent' ? 'Agent Comment' : 'Comment';
 	const text = count === 1 ? `1 ${noun}` : `${count} ${noun}s`;
 	return {
 		icon: Codicon.commentDiscussion,
@@ -77,9 +91,34 @@ function commentsBanner(count: number, kind: 'pr' | 'agent' | 'mixed'): ISession
 		dismissTooltip: 'Hide for this session',
 		actions: [
 			{ label: 'Address Comments', primary: true, run: () => console.log('Address Comments') },
-			{ label: 'Reveal', run: () => console.log('Reveal Comments') },
+			{ label: 'Reveal Comments', run: () => console.log('Reveal Comments') },
 		],
 		dismiss: () => console.log('Dismiss comments banner'),
+	};
+}
+
+function combinedPRBanner(number: number, failed: number, comments: number): ISessionInputBanner {
+	const fixCI = { label: 'Fix CI', primary: true, run: () => console.log('Fix CI') };
+	const addressComments = { label: 'Address Comments', primary: true, run: () => console.log('Address Comments') };
+	return {
+		id: `pr-${number}`,
+		icon: Codicon.warning,
+		accent: true,
+		text: `${failed} Checks Failing | ${comments} PR Comments`,
+		ariaLabel: `#${number}, ${failed} Checks Failing, ${comments} PR Comments`,
+		reference: { label: `#${number}`, hover: `Pull Request #${number}: Add multi-PR banner support` },
+		dismissTooltip: 'Hide this item for this session',
+		actions: [{
+			label: 'Fix CI & Address Comments',
+			primary: true,
+			dropdownActions: [fixCI, addressComments],
+			run: () => console.log('Fix CI and Address Comments'),
+		}, {
+			label: 'Reveal CI',
+			dropdownActions: [{ label: 'Reveal Comments', run: () => console.log('Reveal Comments') }],
+			run: () => console.log('Reveal CI'),
+		}],
+		dismiss: () => console.log('Dismiss PR banner'),
 	};
 }
 
@@ -91,11 +130,12 @@ function renderBanners({ container, disposableStore, theme }: ComponentFixtureCo
 	container.style.padding = '8px';
 	container.style.backgroundColor = 'var(--vscode-editorWidget-background)';
 
-	const instantiationService = createEditorServices(disposableStore, { colorTheme: theme });
+	const instantiationService = createEditorServices(disposableStore, {
+		colorTheme: theme,
+		additionalServices: registerWorkbenchServices,
+	});
 
-	for (const banner of banners) {
-		const widget = disposableStore.add(instantiationService.createInstance(SessionInputBannerWidget, banner));
-		widget.setWorking(working);
-		container.appendChild(widget.domNode);
-	}
+	const widget = disposableStore.add(instantiationService.createInstance(SessionInputBannerWidget, banners));
+	widget.setWorking(working);
+	container.appendChild(widget.domNode);
 }

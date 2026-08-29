@@ -24,6 +24,7 @@ suite('AgentFeedbackPRReviewSeederContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const session = URI.parse('local-agent-host:/session-1');
 	const fileA = URI.file('/workspace/a.ts');
+	const pullRequest = { owner: 'owner', repo: 'repo', number: 42, uri: URI.parse('https://github.com/owner/repo/pull/42') };
 
 	let feedbackItems: IAgentFeedback[];
 	let loaded: boolean;
@@ -32,17 +33,17 @@ suite('AgentFeedbackPRReviewSeederContribution', () => {
 	let activeSession: ISettableObservable<IActiveSession | undefined>;
 
 	function prComment(id: string, line: number, body: string): IPRReviewComment {
-		return { id, uri: fileA, range: new Range(line, 1, line, 1), body, author: 'reviewer' };
+		return { id, pullRequest, uri: fileA, range: new Range(line, 1, line, 1), body, author: 'reviewer' };
 	}
 
 	function setComments(...comments: IPRReviewComment[]): void {
 		prReviewState.set({ kind: PRReviewStateKind.Loaded, comments }, undefined);
 	}
 
-	function mirrors(): { sourceId: string | undefined; state: AgentFeedbackState; text: string }[] {
+	function mirrors(): { sourceId: string | undefined; prNumber: number | undefined; state: AgentFeedbackState; text: string }[] {
 		return feedbackItems
 			.filter(i => i.kind === AgentFeedbackKind.PRReview)
-			.map(i => ({ sourceId: i.sourcePRReviewCommentId, state: i.state, text: i.text }));
+			.map(i => ({ sourceId: i.sourcePRReviewCommentId, prNumber: i.sourcePullRequest?.number, state: i.state, text: i.text }));
 	}
 
 	function makeActiveSession(providerId: string): IActiveSession {
@@ -63,8 +64,8 @@ suite('AgentFeedbackPRReviewSeederContribution', () => {
 			override onDidChangeFeedback = onDidChangeFeedback.event;
 			override hasLoadedFeedback(_sessionResource: URI): boolean { return loaded; }
 			override getFeedback(_sessionResource: URI): readonly IAgentFeedback[] { return feedbackItems; }
-			override addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, _suggestion?: ICodeReviewSuggestion, _context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, _kind?: AgentFeedbackKind, state: AgentFeedbackState = AgentFeedbackState.Accepted): IAgentFeedback {
-				const feedback: IAgentFeedback = { id: generateUuid(), text, resourceUri, range, sessionResource, kind: AgentFeedbackKind.PRReview, sourcePRReviewCommentId, state };
+			override addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, _suggestion?: ICodeReviewSuggestion, _context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, _kind?: AgentFeedbackKind, state: AgentFeedbackState = AgentFeedbackState.Accepted, sourcePullRequest?: IAgentFeedback['sourcePullRequest']): IAgentFeedback {
+				const feedback: IAgentFeedback = { id: generateUuid(), text, resourceUri, range, sessionResource, kind: AgentFeedbackKind.PRReview, sourcePRReviewCommentId, sourcePullRequest, state };
 				feedbackItems.push(feedback);
 				onDidChangeFeedback.fire({ sessionResource, feedbackItems });
 				return feedback;
@@ -98,8 +99,8 @@ suite('AgentFeedbackPRReviewSeederContribution', () => {
 		setComments(prComment('thread-1', 5, 'Fix this'), prComment('thread-2', 9, 'And this'));
 
 		assert.deepStrictEqual(mirrors(), [
-			{ sourceId: 'thread-1', state: AgentFeedbackState.Created, text: 'Fix this' },
-			{ sourceId: 'thread-2', state: AgentFeedbackState.Created, text: 'And this' },
+			{ sourceId: 'thread-1', prNumber: 42, state: AgentFeedbackState.Created, text: 'Fix this' },
+			{ sourceId: 'thread-2', prNumber: 42, state: AgentFeedbackState.Created, text: 'And this' },
 		]);
 	});
 
@@ -115,7 +116,7 @@ suite('AgentFeedbackPRReviewSeederContribution', () => {
 		setComments(prComment('thread-1', 5, 'Fix this differently'));
 
 		assert.deepStrictEqual(mirrors(), [
-			{ sourceId: 'thread-1', state: AgentFeedbackState.Created, text: 'Fix this differently' },
+			{ sourceId: 'thread-1', prNumber: 42, state: AgentFeedbackState.Created, text: 'Fix this differently' },
 		]);
 	});
 
@@ -125,7 +126,7 @@ suite('AgentFeedbackPRReviewSeederContribution', () => {
 		setComments(prComment('thread-1', 5, 'Fix this differently'));
 
 		assert.deepStrictEqual(mirrors(), [
-			{ sourceId: 'thread-1', state: AgentFeedbackState.Accepted, text: 'Fix this' },
+			{ sourceId: 'thread-1', prNumber: 42, state: AgentFeedbackState.Accepted, text: 'Fix this' },
 		]);
 	});
 
@@ -143,7 +144,7 @@ suite('AgentFeedbackPRReviewSeederContribution', () => {
 		setComments();
 
 		assert.deepStrictEqual(mirrors(), [
-			{ sourceId: 'thread-1', state: AgentFeedbackState.Accepted, text: 'Fix this' },
+			{ sourceId: 'thread-1', prNumber: 42, state: AgentFeedbackState.Accepted, text: 'Fix this' },
 		]);
 	});
 

@@ -8,7 +8,7 @@ import { addDisposableListener, EventType } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { Event } from '../../../base/common/event.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
-import { constObservable, IObservable } from '../../../base/common/observable.js';
+import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import { isLinux } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { mock } from '../../../base/test/common/mock.js';
@@ -24,6 +24,37 @@ import { ISessionsPartService } from '../../services/sessions/browser/sessionsPa
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
 import { ChatInteractivity, IChat, ISession, ISessionCapabilities, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
+
+class TestResizeObserver implements ResizeObserver {
+	static instance: TestResizeObserver | undefined;
+	private observedTarget: Element | undefined;
+	observedBox: ResizeObserverBoxOptions | undefined;
+
+	constructor(private readonly callback: ResizeObserverCallback) {
+		TestResizeObserver.instance = this;
+	}
+
+	observe(target: Element, options?: ResizeObserverOptions): void {
+		this.observedTarget = target;
+		this.observedBox = options?.box;
+	}
+
+	unobserve(): void { }
+	disconnect(): void { }
+	takeRecords(): ResizeObserverEntry[] { return []; }
+
+	fire(height: number): void {
+		assert.ok(this.observedTarget);
+		const size: ResizeObserverSize = { inlineSize: 0, blockSize: height };
+		this.callback([{
+			target: this.observedTarget,
+			contentRect: DOMRectReadOnly.fromRect({ height }),
+			borderBoxSize: [size],
+			contentBoxSize: [size],
+			devicePixelContentBoxSize: [size],
+		}], this);
+	}
+}
 
 class TestCommandService extends mock<ICommandService>() {
 	readonly calls: { readonly commandId: string; readonly args: readonly unknown[] }[] = [];
@@ -81,9 +112,13 @@ interface IChatCompositeBarHarness {
 	readonly bar: ChatCompositeBar;
 	readonly session: IActiveSession;
 	readonly tabs: readonly HTMLElement[];
+	readonly chats: ISettableObservable<readonly IChat[]>;
+	readonly activeChatResource: ISettableObservable<string>;
+	readonly visible: ISettableObservable<boolean>;
+	readonly showSessionActions: ISettableObservable<boolean>;
 }
 
-function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { readonly isQuickChat?: boolean }): IChatCompositeBarHarness {
+function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { readonly isQuickChat?: boolean; readonly resizeObserverCtor?: typeof ResizeObserver }): IChatCompositeBarHarness {
 	const store = disposables.add(new DisposableStore());
 	const instantiationService = workbenchInstantiationService(undefined, store);
 	const commandService = new TestCommandService();
@@ -91,6 +126,11 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 	const mainChat = createChat('main', 'Main Chat');
 	const secondaryChat = createChat('secondary', 'Secondary Chat');
 	const session = createSession([mainChat, secondaryChat], mainChat, options?.isQuickChat);
+	const chats = observableValue<readonly IChat[]>('test.chats', [mainChat, secondaryChat]);
+	const activeChatResource = observableValue('test.activeChatResource', mainChat.resource.toString());
+	const mainChatResource = observableValue('test.mainChatResource', mainChat.resource.toString());
+	const visible = observableValue('test.visible', true);
+	const showSessionActions = observableValue('test.showSessionActions', true);
 
 	instantiationService.stub(ICommandService, commandService);
 	instantiationService.stub(ISessionsService, sessionsService);
@@ -103,23 +143,22 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 		override getProvider() { return undefined; }
 	}());
 
-	const bar = store.add(instantiationService.createInstance(ChatCompositeBar));
+	const bar = store.add(instantiationService.createInstance(ChatCompositeBar, options?.resizeObserverCtor));
 	const delegate: IChatCompositeBarDelegate = {
 		session,
-		chats: session.visibleChatTabs,
-		activeChatResource: constObservable(session.activeChat.get().resource.toString()),
-		mainChatResource: constObservable(session.mainChat.get().resource.toString()),
-		visible: session.shouldShowChatTabs,
-		showSessionActions: session.shouldShowChatTabs,
+		chats,
+		activeChatResource,
+		mainChatResource,
+		visible,
+		showSessionActions,
 		openChat: resource => { sessionsService.openChat(session, resource); },
-		newChat: () => { },
 	};
 	bar.setGroup(delegate);
 	const container = mainWindow.document.createElement('div');
 	container.appendChild(bar.element);
 	const tabs = Array.from(bar.element.querySelectorAll<HTMLElement>('.chat-composite-bar-tab'));
 
-	return { store, instantiationService, commandService, sessionsService, bar, session, tabs };
+	return { store, instantiationService, commandService, sessionsService, bar, session, tabs, chats, activeChatResource, visible, showSessionActions };
 }
 
 suite('Sessions - ChatCompositeBar', () => {
@@ -146,10 +185,92 @@ suite('Sessions - ChatCompositeBar', () => {
 		});
 	});
 
-	test('hides New Chat for workspace-less sessions', () => {
-		const { bar } = createHarness(disposables, { isQuickChat: true });
+	test('does not render New Chat in the tab bar', () => {
+		const { bar } = createHarness(disposables);
 
-		assert.strictEqual(bar.element.querySelector('.chat-composite-bar-new-chat')?.classList.contains('hidden'), true);
+		assert.strictEqual(bar.element.querySelector('.chat-composite-bar-new-chat'), null);
+	});
+
+	test('updates active, visibility, and session action state without rebuilding tabs', () => {
+		const { activeChatResource, bar, showSessionActions, tabs, visible } = createHarness(disposables);
+		const secondaryResource = tabs[1].dataset.chatResource!;
+
+		activeChatResource.set(secondaryResource, undefined);
+		const tabsAfterActiveChange = Array.from(bar.element.querySelectorAll<HTMLElement>('.chat-composite-bar-tab'));
+		visible.set(false, undefined);
+		const tabsAfterHidden = Array.from(bar.element.querySelectorAll<HTMLElement>('.chat-composite-bar-tab'));
+		const displayWhileHidden = bar.element.style.display;
+		visible.set(true, undefined);
+		const tabsAfterVisible = Array.from(bar.element.querySelectorAll<HTMLElement>('.chat-composite-bar-tab'));
+		showSessionActions.set(false, undefined);
+		const tabsAfterActionsHidden = Array.from(bar.element.querySelectorAll<HTMLElement>('.chat-composite-bar-tab'));
+		const actionsHidden = bar.element.querySelector<HTMLElement>('.session-chat-tabs-actions')?.classList.contains('hidden');
+		showSessionActions.set(true, undefined);
+		const tabsAfterActionsVisible = Array.from(bar.element.querySelectorAll<HTMLElement>('.chat-composite-bar-tab'));
+
+		assert.deepStrictEqual({
+			activeTab: bar.element.querySelector<HTMLElement>('.chat-composite-bar-tab.active')?.dataset.chatResource,
+			ariaSelected: tabsAfterActiveChange.map(tab => tab.getAttribute('aria-selected')),
+			tabsPreserved: tabsAfterVisible.map((tab, index) => tab === tabs[index]),
+			tabsPreservedWhileHidden: tabsAfterHidden.map((tab, index) => tab === tabs[index]),
+			tabsPreservedWithActionsHidden: tabsAfterActionsHidden.map((tab, index) => tab === tabs[index]),
+			tabsPreservedWithActionsVisible: tabsAfterActionsVisible.map((tab, index) => tab === tabs[index]),
+			displayWhileHidden,
+			actionsHidden,
+		}, {
+			activeTab: secondaryResource,
+			ariaSelected: ['false', 'true'],
+			tabsPreserved: [true, true],
+			tabsPreservedWhileHidden: [true, true],
+			tabsPreservedWithActionsHidden: [true, true],
+			tabsPreservedWithActionsVisible: [true, true],
+			displayWhileHidden: 'none',
+			actionsHidden: true,
+		});
+	});
+
+	test('tracks height changes from ResizeObserver', () => {
+		const { bar } = createHarness(disposables, { resizeObserverCtor: TestResizeObserver });
+		const resizeObserver = TestResizeObserver.instance;
+		assert.ok(resizeObserver);
+		const observedHeights: number[] = [];
+		disposables.add(bar.onDidChangeHeight(() => observedHeights.push(bar.height)));
+
+		resizeObserver.fire(35);
+		resizeObserver.fire(35);
+		resizeObserver.fire(0);
+
+		assert.deepStrictEqual({
+			height: bar.height,
+			observedHeights,
+			observedBox: resizeObserver.observedBox,
+		}, {
+			height: 0,
+			observedHeights: [35, 0],
+			observedBox: 'border-box',
+		});
+	});
+
+	test('applies the active state when chat membership rebuilds tabs', () => {
+		const { activeChatResource, bar, chats } = createHarness(disposables);
+		const tertiaryChat = createChat('tertiary', 'Tertiary Chat');
+
+		chats.set([...chats.get(), tertiaryChat], undefined);
+		const tabs = Array.from(bar.element.querySelectorAll<HTMLElement>('.chat-composite-bar-tab'));
+
+		assert.deepStrictEqual({
+			chatResources: tabs.map(tab => tab.dataset.chatResource),
+			activeTab: bar.element.querySelector<HTMLElement>('.chat-composite-bar-tab.active')?.dataset.chatResource,
+			ariaSelected: tabs.map(tab => tab.getAttribute('aria-selected')),
+		}, {
+			chatResources: [
+				'test-chat://main',
+				'test-chat://secondary',
+				'test-chat://tertiary',
+			],
+			activeTab: activeChatResource.get(),
+			ariaSelected: ['true', 'false', 'false'],
+		});
 	});
 
 	test('middle-click closes the targeted inactive non-main chat', () => {

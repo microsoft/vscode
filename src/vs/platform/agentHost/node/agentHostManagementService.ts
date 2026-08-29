@@ -88,11 +88,11 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._agentService.diagnosticsFetch(url);
 	}
 
-	getSessionStateFile(session: URI): Promise<URI | undefined> {
+	getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined> {
 		if (!this._agentService.getSessionStateFile) {
 			throw new Error('Agent Host session state files are unavailable');
 		}
-		return this._agentService.getSessionStateFile(session);
+		return this._agentService.getSessionStateFile(session, chat);
 	}
 
 	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact> {

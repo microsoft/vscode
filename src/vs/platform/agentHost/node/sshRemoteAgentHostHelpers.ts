@@ -144,13 +144,14 @@ export function buildAgentHostBaseCommand(cliBin: string, cliDataDir: string, te
 	return `${cliBin} --cli-data-dir ${cliDataDir} --telemetry-level ${validateAgentHostTelemetryLevel(telemetryLevel)} agent host --port 0`;
 }
 
-export function resolveRemotePlatform(unameS: string, unameM: string): { os: string; arch: string } | undefined {
+export function resolveRemotePlatform(unameS: string, unameM: string, libc = ''): { os: string; arch: string } | undefined {
 	const os = unameS.trim().toLowerCase();
 	const machine = unameM.trim().toLowerCase();
+	const normalizedLibc = libc.trim().toLowerCase();
 
 	let platformOs: string;
 	if (os === 'linux') {
-		platformOs = 'linux';
+		platformOs = normalizedLibc === 'musl' ? 'alpine' : 'linux';
 	} else if (os === 'darwin') {
 		platformOs = 'darwin';
 	} else {
@@ -165,6 +166,10 @@ export function resolveRemotePlatform(unameS: string, unameM: string): { os: str
 	} else if (machine === 'armv7l') {
 		arch = 'armhf';
 	} else {
+		return undefined;
+	}
+
+	if (platformOs === 'alpine' && arch === 'armhf') {
 		return undefined;
 	}
 

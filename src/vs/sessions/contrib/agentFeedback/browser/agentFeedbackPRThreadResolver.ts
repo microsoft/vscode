@@ -5,6 +5,7 @@
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IFeedbackPullRequest } from '../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
@@ -13,6 +14,7 @@ import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedbackChangeEvent, IAgen
 interface ISeenPRComment {
 	readonly state: AgentFeedbackState;
 	readonly threadId: string;
+	readonly pullRequest: IFeedbackPullRequest | undefined;
 }
 
 /**
@@ -65,19 +67,19 @@ export class AgentFeedbackPRThreadResolverContribution extends Disposable implem
 		const key = e.sessionResource.toString();
 		const previous = this._seenBySession.get(key) ?? new Map<string, ISeenPRComment>();
 		const next = new Map<string, ISeenPRComment>();
-		const threadsToResolve = new Set<string>();
+		const threadsToResolve = new Map<string, IFeedbackPullRequest | undefined>();
 
 		for (const item of e.feedbackItems) {
 			if (item.kind !== AgentFeedbackKind.PRReview || !item.sourcePRReviewCommentId) {
 				continue;
 			}
 			const threadId = item.sourcePRReviewCommentId;
-			next.set(item.id, { state: item.state, threadId });
+			next.set(item.id, { state: item.state, threadId, pullRequest: item.sourcePullRequest });
 
 			const before = previous.get(item.id);
 			// Resolve transition (requires a prior non-resolved observation).
 			if (item.state === AgentFeedbackState.Resolved && before && before.state !== AgentFeedbackState.Resolved) {
-				threadsToResolve.add(threadId);
+				threadsToResolve.set(threadId, item.sourcePullRequest);
 			}
 		}
 
@@ -87,7 +89,7 @@ export class AgentFeedbackPRThreadResolverContribution extends Disposable implem
 				continue;
 			}
 			if (before.state === AgentFeedbackState.Submitted || before.state === AgentFeedbackState.Resolved) {
-				threadsToResolve.add(before.threadId);
+				threadsToResolve.set(before.threadId, before.pullRequest);
 			}
 		}
 
@@ -102,17 +104,17 @@ export class AgentFeedbackPRThreadResolverContribution extends Disposable implem
 			requested = new Set<string>();
 			this._requestedBySession.set(key, requested);
 		}
-		for (const threadId of threadsToResolve) {
+		for (const [threadId, pullRequest] of threadsToResolve) {
 			if (requested.has(threadId)) {
 				continue;
 			}
 			requested.add(threadId);
-			this._resolveThread(e.sessionResource, threadId);
+			this._resolveThread(e.sessionResource, threadId, pullRequest);
 		}
 	}
 
-	private _resolveThread(sessionResource: URI, threadId: string): void {
-		this._codeReviewService.resolvePRReviewThread(sessionResource, threadId)
+	private _resolveThread(sessionResource: URI, threadId: string, pullRequest: IFeedbackPullRequest | undefined): void {
+		this._codeReviewService.resolvePRReviewThread(sessionResource, threadId, pullRequest)
 			.catch(err => this._logService.warn('[AgentFeedback] Failed to resolve PR review thread on GitHub', threadId, err));
 	}
 }

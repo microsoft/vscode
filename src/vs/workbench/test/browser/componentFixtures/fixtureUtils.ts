@@ -73,7 +73,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IDataChannelService, NullDataChannelService } from '../../../../platform/dataChannel/common/dataChannel.js';
-import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDefaultAccountService, MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../../platform/dialogs/test/common/testDialogService.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -110,6 +110,7 @@ import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../..
 // eslint-disable-next-line local/code-import-patterns
 import { ICodeReviewService, PRReviewStateKind } from '../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
 import { constObservable } from '../../../../base/common/observable.js';
+import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 
 // Editor
 import { ITextModel } from '../../../../editor/common/model.js';
@@ -596,6 +597,8 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		managedSettingsRawResponse: null,
 		managedSettingsCompatibilityError: null,
 		onDidChangeManagedSettingsCompatibilityError: Event.None,
+		managedSettingsFreshness: MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED,
+		onDidChangeManagedSettingsFreshness: Event.None,
 		getDefaultAccount: async () => null,
 		getDefaultAccountAuthenticationProvider: () => ({ id: 'test', name: 'Test', scopes: [], enterprise: false }),
 		resolveGitHubUrl: (path: string) => `https://github.com/${path}`,
@@ -696,6 +699,11 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		getPRReviewState: () => constObservable({ kind: PRReviewStateKind.None }),
 		resolvePRReviewThread: async () => { },
 		markPRReviewCommentConverted: () => { },
+	});
+
+	definePartialInstance(IPreferencesService, {
+		_serviceBrand: undefined,
+		openSettings: async () => undefined,
 	});
 
 	// Allow additional services to override defaults

@@ -401,8 +401,12 @@ export class SessionTypePicker extends Disposable {
 	 * the override can decide where to anchor (or that it doesn't need
 	 * anchoring at all, e.g. for a bottom sheet).
 	 */
-	protected _showPicker(): void {
-		if (!this._triggerElement || this.actionWidgetService.isVisible) {
+	showPicker(anchor?: HTMLElement): void {
+		this._showPicker(anchor);
+	}
+
+	protected _showPicker(anchor = this._triggerElement): void {
+		if (!anchor || this.actionWidgetService.isVisible) {
 			return;
 		}
 
@@ -498,7 +502,11 @@ export class SessionTypePicker extends Disposable {
 				this.actionWidgetService.hide();
 				this._handleSelectedSessionType(item);
 			},
-			onHide: () => { triggerElement.focus(); },
+			onHide: () => {
+				if (triggerElement?.isConnected) {
+					triggerElement.focus();
+				}
+			},
 		};
 
 		this.actionWidgetService.show<ISessionTypePickerItem>(
@@ -506,7 +514,7 @@ export class SessionTypePicker extends Disposable {
 			false,
 			groupedItems,
 			delegate,
-			this._triggerElement,
+			anchor,
 			undefined,
 			[],
 			{
@@ -632,9 +640,6 @@ export class SessionTypePicker extends Disposable {
 		// In web (vscode.dev/agents) the host filter already scopes the
 		// workbench to a single agent host, so when that host advertises only
 		// one harness there is nothing to pick — hide the trigger entirely.
-		// Note: the existing CSS rule on `.session-workspace-picker-with-label`
-		// uses `:has(+ .sessions-chat-session-type-picker .action-label.hidden)`
-		// to also hide the "with" connector when the trigger is hidden.
 		const hideForSingleHarness = isWeb && this._folderSessionTypes.length <= 1 && this._pickServedByFolder(this._picked);
 		if (this._folderSessionTypes.length === 0 || hideForSingleHarness) {
 			this._triggerElement.classList.add('hidden');

@@ -4,11 +4,8 @@ parameters:
 
 steps:
   - script: git lfs install --local
-    displayName: Initialize Git LFS
-
-  - script: git lfs pull --include="extensions/copilot/test/simulation/cache/**"
-    condition: and(succeeded(), eq(variables['Build.Repository.Provider'], 'GitHub'))
-    displayName: Pull Copilot test cache from GitHub
+    condition: and(succeeded(), eq(variables['Build.Repository.Provider'], 'TfsGit'))
+    displayName: Initialize Git LFS for Azure Repos
 
   - script: git --config-env=http.extraheader=GIT_AUTH_HEADER lfs pull --include="extensions/copilot/test/simulation/cache/**"
     condition: and(succeeded(), eq(variables['Build.Repository.Provider'], 'TfsGit'))

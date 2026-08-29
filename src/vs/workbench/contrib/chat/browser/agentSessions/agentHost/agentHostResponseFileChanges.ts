@@ -12,7 +12,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { buildTurnChangesetUri, ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
-import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import {
 	buildDefaultChatUri,
 	ChangesetStatus,
@@ -294,9 +294,9 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		const modifiedURI = toAgentHostUri(afterUri, this._connectionAuthority);
 		const originalURI = normalized.kind === FileEditKind.Create || !normalized.beforeContentUri
 			? modifiedURI
-			: toAgentHostUri(normalized.beforeContentUri, this._connectionAuthority);
+			: toAgentHostContentUri(normalized.beforeContentUri, this._connectionAuthority);
 		const modifiedSnapshotURI = normalized.afterContentUri
-			? toAgentHostUri(normalized.afterContentUri, this._connectionAuthority)
+			? toAgentHostContentUri(normalized.afterContentUri, this._connectionAuthority)
 			: undefined;
 
 		return {
@@ -326,7 +326,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		// regardless; only an explicitly-opened diff of a created file shows no
 		// delta.
 		const originalURI = normalized.beforeContentUri
-			? toAgentHostUri(normalized.beforeContentUri, this._connectionAuthority)
+			? toAgentHostContentUri(normalized.beforeContentUri, this._connectionAuthority)
 			: modifiedURI;
 
 		// The frozen after-turn snapshot, when the changeset provides one. Lets
@@ -335,7 +335,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		// Distinct from the checkpoint-ref readability fix (#323932): that made
 		// these blobs readable; this line decides *which* snapshot to diff against.
 		const modifiedSnapshotURI = normalized.afterContentUri
-			? toAgentHostUri(normalized.afterContentUri, this._connectionAuthority)
+			? toAgentHostContentUri(normalized.afterContentUri, this._connectionAuthority)
 			: undefined;
 
 		return {

@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AgentMergeConfiguration, evaluateAgentMerge, readAgentMergeSessionState } from '../../common/agentMerge.js';
+import { AgentMergeConfiguration, AGENT_MERGE_UNKNOWN_COMMIT, evaluateAgentMerge, getNonMergeSessionConfigValues, readAgentMergeSessionState, shouldStopMergingAfterAgentChanges } from '../../common/agentMerge.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { PullRequestSnapshot } from '../../../github/common/githubPullRequestService.js';
 
@@ -16,7 +16,7 @@ suite('Agent Merge gate', () => {
 		addressReviews: true,
 		fixCI: true,
 		resolveConflicts: true,
-		mergePullRequest: true,
+		mergePullRequest: 'always',
 		mergeMethod: 'auto',
 		replyAttribution: true,
 	};
@@ -190,6 +190,106 @@ suite('Agent Merge gate', () => {
 			},
 			lastPromptFingerprint: 'fingerprint',
 		});
+	});
+
+	test('reads the merge choice as an enum, migrating the retired boolean form', () => {
+		const overridesFor = (mergePullRequest: unknown) => readAgentMergeSessionState({
+			[SessionConfigKey.AgentMerge]: { enabled: true, overrides: { mergePullRequest } },
+		})?.overrides;
+
+		assert.deepStrictEqual({
+			legacyTrue: overridesFor(true),
+			legacyFalse: overridesFor(false),
+			ifUnchanged: overridesFor('ifUnchanged'),
+			unknown: overridesFor('bogus'),
+		}, {
+			legacyTrue: { mergePullRequest: 'always' },
+			legacyFalse: { mergePullRequest: 'never' },
+			ifUnchanged: { mergePullRequest: 'ifUnchanged' },
+			unknown: undefined,
+		});
+	});
+
+	test('only merges automatically when the merge choice is not "never"', () => {
+		const gateFor = (mergePullRequest: AgentMergeConfiguration['mergePullRequest']) =>
+			evaluateAgentMerge(readySnapshot(), { ...configuration, mergePullRequest }, '2026-08-02T00:00:00.000Z').kind;
+
+		assert.deepStrictEqual({
+			always: gateFor('always'),
+			ifUnchanged: gateFor('ifUnchanged'),
+			never: gateFor('never'),
+		}, {
+			always: 'merge',
+			ifUnchanged: 'merge',
+			never: 'noWork',
+		});
+	});
+
+	test('stops merging automatically once a repair turn changes the worktree', () => {
+		const ifUnchanged: AgentMergeConfiguration = { ...configuration, mergePullRequest: 'ifUnchanged' };
+		const enabled = { enabled: true };
+
+		assert.deepStrictEqual({
+			noRepairYet: shouldStopMergingAfterAgentChanges(ifUnchanged, enabled, 'sha1'),
+			repairCommittedNothing: shouldStopMergingAfterAgentChanges(ifUnchanged, { ...enabled, repairBaseCommit: 'sha1' }, 'sha1'),
+			repairCommitted: shouldStopMergingAfterAgentChanges(ifUnchanged, { ...enabled, repairBaseCommit: 'sha1' }, 'sha2'),
+			// Fails closed: an unreadable worktree after a repair turn, and an
+			// unreadable one when the baseline was taken, both count as changed.
+			worktreeUnreadable: shouldStopMergingAfterAgentChanges(ifUnchanged, { ...enabled, repairBaseCommit: 'sha1' }, undefined),
+			baselineUnknown: shouldStopMergingAfterAgentChanges(ifUnchanged, { ...enabled, repairBaseCommit: AGENT_MERGE_UNKNOWN_COMMIT }, 'sha1'),
+			always: shouldStopMergingAfterAgentChanges({ ...configuration, mergePullRequest: 'always' }, { ...enabled, repairBaseCommit: 'sha1' }, 'sha2'),
+			never: shouldStopMergingAfterAgentChanges({ ...configuration, mergePullRequest: 'never' }, { ...enabled, repairBaseCommit: 'sha1' }, 'sha2'),
+		}, {
+			noRepairYet: false,
+			repairCommittedNothing: false,
+			repairCommitted: true,
+			worktreeUnreadable: true,
+			baselineUnknown: true,
+			always: false,
+			never: false,
+		});
+	});
+
+	test('returns pre-merge picker values when merge-injected values are active', () => {
+		const values = {
+			[SessionConfigKey.AgentMerge]: { enabled: true },
+			[SessionConfigKey.AgentMergeController]: {
+				injectedConfiguration: {
+					previous: {
+						autoApprove: 'default',
+						mode: 'interactive',
+						permissionMode: 'acceptEdits',
+					},
+					applied: {
+						autoApprove: 'assisted',
+						mode: 'autopilot',
+						permissionMode: 'auto',
+					},
+				},
+			},
+			autoApprove: 'assisted',
+			mode: 'autopilot',
+			permissionMode: 'auto',
+			permissions: { allow: ['shell'] },
+		};
+		assert.deepStrictEqual(getNonMergeSessionConfigValues(values), {
+			[SessionConfigKey.AgentMerge]: { enabled: true },
+			[SessionConfigKey.AgentMergeController]: values[SessionConfigKey.AgentMergeController],
+			autoApprove: 'default',
+			mode: 'interactive',
+			permissionMode: 'acceptEdits',
+			permissions: { allow: ['shell'] },
+		});
+	});
+
+	test('leaves session config unchanged when merge is disabled', () => {
+		const values = {
+			[SessionConfigKey.AgentMerge]: { enabled: false },
+			autoApprove: 'autoApprove',
+			mode: 'plan',
+			permissionMode: 'plan',
+		};
+		assert.deepStrictEqual(getNonMergeSessionConfigValues(values), values);
 	});
 });
 
