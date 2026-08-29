@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { EditOperation } from '../../../common/core/editOperation.js';
 import { Range } from '../../../common/core/range.js';
-import { InternalModelContentChangeEvent, LineInjectedText, ModelRawChange, RawContentChangedType } from '../../../common/textModelEvents.js';
+import { InternalModelContentChangeEvent, ModelInjectedTextChangedEvent, ModelRawChange, RawContentChangedType } from '../../../common/textModelEvents.js';
+import { IViewModel } from '../../../common/viewModel.js';
 import { createTextModel } from '../testTextModel.js';
 
 suite('Editor Model - Injected Text Events', () => {
@@ -18,12 +20,16 @@ suite('Editor Model - Injected Text Events', () => {
 
 		const recordedChanges = new Array<unknown>();
 
-		store.add(thisModel.onDidChangeContentOrInjectedText((e) => {
-			const changes = (e instanceof InternalModelContentChangeEvent ? e.rawContentChangedEvent.changes : e.changes);
-			for (const change of changes) {
-				recordedChanges.push(mapChange(change));
+		const spyViewModel = new class extends mock<IViewModel>() {
+			override onDidChangeContentOrInjectedText(e: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent) {
+				const changes = (e instanceof InternalModelContentChangeEvent ? e.rawContentChangedEvent.changes : e.changes);
+				for (const change of changes) {
+					recordedChanges.push(mapChange(change));
+				}
 			}
-		}));
+			override emitContentChangeEvent(_e: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent): void { }
+		};
+		thisModel.registerViewModel(spyViewModel);
 
 		// Initial decoration
 		let decorations = thisModel.deltaDecorations([], [{
@@ -37,8 +43,8 @@ suite('Editor Model - Injected Text Events', () => {
 		assert.deepStrictEqual(recordedChanges.splice(0), [
 			{
 				kind: 'lineChanged',
-				line: '[injected1]First Line',
 				lineNumber: 1,
+				lineNumberPostEdit: 1,
 			}
 		]);
 
@@ -61,13 +67,13 @@ suite('Editor Model - Injected Text Events', () => {
 		assert.deepStrictEqual(recordedChanges.splice(0), [
 			{
 				kind: 'lineChanged',
-				line: 'First Line',
 				lineNumber: 1,
+				lineNumberPostEdit: 1,
 			},
 			{
 				kind: 'lineChanged',
-				line: '[injected1]S[injected2]econd Line',
 				lineNumber: 2,
+				lineNumberPostEdit: 2,
 			}
 		]);
 
@@ -76,8 +82,8 @@ suite('Editor Model - Injected Text Events', () => {
 		assert.deepStrictEqual(recordedChanges.splice(0), [
 			{
 				kind: 'lineChanged',
-				line: '[injected1]SHello[injected2]econd Line',
 				lineNumber: 2,
+				lineNumberPostEdit: 2,
 			}
 		]);
 
@@ -94,17 +100,13 @@ suite('Editor Model - Injected Text Events', () => {
 		assert.deepStrictEqual(recordedChanges.splice(0), [
 			{
 				kind: 'lineChanged',
-				line: '[injected1]S',
 				lineNumber: 2,
+				lineNumberPostEdit: 2,
 			},
 			{
-				fromLineNumber: 3,
 				kind: 'linesInserted',
-				lines: [
-					'',
-					'',
-					'Hello[injected2]econd Line',
-				]
+				fromLineNumber: 3,
+				count: 3,
 			}
 		]);
 
@@ -113,36 +115,24 @@ suite('Editor Model - Injected Text Events', () => {
 		thisModel.pushEditOperations(null, [EditOperation.replace(new Range(3, 1, 5, 1), '\n\n\n\n\n\n\n\n\n\n\n\n\n')], null);
 		assert.deepStrictEqual(recordedChanges.splice(0), [
 			{
-				'kind': 'lineChanged',
-				'line': '',
-				'lineNumber': 5,
+				kind: 'lineChanged',
+				lineNumber: 5,
+				lineNumberPostEdit: 5,
 			},
 			{
-				'kind': 'lineChanged',
-				'line': '',
-				'lineNumber': 4,
+				kind: 'lineChanged',
+				lineNumber: 4,
+				lineNumberPostEdit: 4,
 			},
 			{
-				'kind': 'lineChanged',
-				'line': '',
-				'lineNumber': 3,
+				kind: 'lineChanged',
+				lineNumber: 3,
+				lineNumberPostEdit: 3,
 			},
 			{
-				'fromLineNumber': 6,
-				'kind': 'linesInserted',
-				'lines': [
-					'',
-					'',
-					'',
-					'',
-					'',
-					'',
-					'',
-					'',
-					'',
-					'',
-					'Hello[injected2]econd Line',
-				]
+				kind: 'linesInserted',
+				fromLineNumber: 6,
+				count: 11,
 			}
 		]);
 
@@ -151,32 +141,30 @@ suite('Editor Model - Injected Text Events', () => {
 		assert.deepStrictEqual(recordedChanges.splice(0), [
 			{
 				kind: 'lineChanged',
-				line: '[injected1]SHello[injected2]econd Line',
 				lineNumber: 2,
+				lineNumberPostEdit: 2,
 			},
 			{
 				kind: 'linesDeleted',
 			}
 		]);
+
+		thisModel.unregisterViewModel(spyViewModel);
 	});
 });
 
 function mapChange(change: ModelRawChange): unknown {
 	if (change.changeType === RawContentChangedType.LineChanged) {
-		(change.injectedText || []).every(e => {
-			assert.deepStrictEqual(e.lineNumber, change.lineNumber);
-		});
-
 		return {
 			kind: 'lineChanged',
-			line: getDetail(change.detail, change.injectedText),
 			lineNumber: change.lineNumber,
+			lineNumberPostEdit: change.lineNumberPostEdit,
 		};
 	} else if (change.changeType === RawContentChangedType.LinesInserted) {
 		return {
 			kind: 'linesInserted',
-			lines: change.detail.map((e, idx) => getDetail(e, change.injectedTexts[idx])),
-			fromLineNumber: change.fromLineNumber
+			fromLineNumber: change.fromLineNumber,
+			count: change.count,
 		};
 	} else if (change.changeType === RawContentChangedType.LinesDeleted) {
 		return {
@@ -192,8 +180,4 @@ function mapChange(change: ModelRawChange): unknown {
 		};
 	}
 	return { kind: 'unknown' };
-}
-
-function getDetail(line: string, injectedTexts: LineInjectedText[] | null): string {
-	return LineInjectedText.applyInjectedText(line, (injectedTexts || []).map(t => t.withText(`[${t.options.content}]`)));
 }

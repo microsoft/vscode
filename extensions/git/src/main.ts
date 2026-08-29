@@ -12,7 +12,7 @@ import { GitDecorations } from './decorationProvider';
 import { Askpass } from './askpass';
 import { toDisposable, filterEvent, eventToPromise } from './util';
 import TelemetryReporter from '@vscode/extension-telemetry';
-import { GitExtension } from './api/git';
+import type { GitExtension } from './api/git';
 import { GitProtocolHandler } from './protocolHandler';
 import { GitExtensionImpl } from './api/extension';
 import * as path from 'path';
@@ -28,10 +28,11 @@ import { GitEditSessionIdentityProvider } from './editSessionIdentityProvider';
 import { GitCommitInputBoxCodeActionsProvider, GitCommitInputBoxDiagnosticsManager } from './diagnostics';
 import { GitBlameController } from './blame';
 import { CloneManager } from './cloneManager';
+import { getAskpassPaths } from './askpassManager';
 
-const deactivateTasks: { (): Promise<any> }[] = [];
+const deactivateTasks: { (): Promise<void> }[] = [];
 
-export async function deactivate(): Promise<any> {
+export async function deactivate(): Promise<void> {
 	for (const task of deactivateTasks) {
 		await task();
 	}
@@ -71,7 +72,8 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 		logger.error(`[main] Failed to create git IPC: ${err}`);
 	}
 
-	const askpass = new Askpass(ipcServer, logger);
+	const askpassPaths = await getAskpassPaths(__dirname, context.globalStorageUri.fsPath, logger);
+	const askpass = new Askpass(ipcServer, logger, askpassPaths);
 	disposables.push(askpass);
 
 	const gitEditor = new GitEditor(ipcServer);

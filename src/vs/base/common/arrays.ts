@@ -109,7 +109,16 @@ export function binarySearch2(length: number, compareToKey: (index: number) => n
 
 type Compare<T> = (a: T, b: T) => number;
 
-
+/**
+ * Finds the nth smallest element in the array using quickselect algorithm.
+ * The data does not need to be sorted.
+ *
+ * @param nth The zero-based index of the element to find (0 = smallest, 1 = second smallest, etc.)
+ * @param data The unsorted array
+ * @param compare A comparator function that defines the sort order
+ * @returns The nth smallest element
+ * @throws TypeError if nth is >= data.length
+ */
 export function quickSelect<T>(nth: number, data: T[], compare: Compare<T>): T {
 
 	nth = nth | 0;
@@ -193,8 +202,8 @@ export function forEachWithNeighbors<T>(arr: T[], f: (before: T | undefined, ele
 	}
 }
 
-export function concatArrays<TArr extends any[]>(...arrays: TArr): TArr[number][number][] {
-	return ([] as any[]).concat(...arrays);
+export function concatArrays<T extends any[]>(...arrays: T): T[number][number][] {
+	return [].concat(...arrays);
 }
 
 interface IMutableSplice<T> extends ISplice<T> {
@@ -393,7 +402,7 @@ export function distinct<T>(array: ReadonlyArray<T>, keyFn: (value: T) => unknow
 	const seen = new Set<any>();
 
 	return array.filter(element => {
-		const key = keyFn!(element);
+		const key = keyFn(element);
 		if (seen.has(key)) {
 			return false;
 		}
@@ -748,7 +757,7 @@ export class ArrayQueue<T> {
 		// Find s := min { k | k >= this.firstIdx && !P(k) } and return this.data[this.firstIdx...s)
 
 		let startIdx = this.firstIdx;
-		while (startIdx < this.items.length && predicate(this.items[startIdx])) {
+		while (startIdx <= this.lastIdx && predicate(this.items[startIdx])) {
 			startIdx++;
 		}
 		const result = startIdx === this.firstIdx ? null : this.items.slice(this.firstIdx, startIdx);
@@ -766,7 +775,7 @@ export class ArrayQueue<T> {
 		// Find s := max { k | k <= this.lastIdx && !P(k) } and return this.data(s...this.lastIdx]
 
 		let endIdx = this.lastIdx;
-		while (endIdx >= 0 && predicate(this.items[endIdx])) {
+		while (endIdx >= this.firstIdx && predicate(this.items[endIdx])) {
 			endIdx--;
 		}
 		const result = endIdx === this.lastIdx ? null : this.items.slice(endIdx + 1, this.lastIdx + 1);

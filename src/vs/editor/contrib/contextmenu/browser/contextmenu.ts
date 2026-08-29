@@ -218,6 +218,7 @@ export class ContextMenuController implements IEditorContribution {
 		this._contextMenuIsBeingShownCount++;
 		this._contextMenuService.showContextMenu({
 			domForShadowRoot: useShadowDOM ? this._editor.getOverflowWidgetsDomNode() ?? this._editor.getDomNode() : undefined,
+			useWindowContainerForShadowRoot: useShadowDOM && this._editor.getOption(EditorOption.fixedOverflowWidgets),
 
 			getAnchor: () => anchor,
 
@@ -348,11 +349,25 @@ export class ContextMenuController implements IEditorContribution {
 				value: 'always'
 			}]
 		));
+		actions.push(createEnumAction<'right' | 'left'>(
+			nls.localize('context.minimap.side', "Side"),
+			minimapOptions.enabled,
+			'editor.minimap.side',
+			minimapOptions.side,
+			[{
+				label: nls.localize('context.minimap.side.right', "Right"),
+				value: 'right'
+			}, {
+				label: nls.localize('context.minimap.side.left', "Left"),
+				value: 'left'
+			}]
+		));
 
 		const useShadowDOM = this._editor.getOption(EditorOption.useShadowDOM) && !isIOS; // Do not use shadow dom on IOS #122035
 		this._contextMenuIsBeingShownCount++;
 		this._contextMenuService.showContextMenu({
 			domForShadowRoot: useShadowDOM ? this._editor.getDomNode() : undefined,
+			useWindowContainerForShadowRoot: useShadowDOM && this._editor.getOption(EditorOption.fixedOverflowWidgets),
 			getAnchor: () => anchor,
 			getActions: () => actions,
 			onHide: (wasCancelled: boolean) => {

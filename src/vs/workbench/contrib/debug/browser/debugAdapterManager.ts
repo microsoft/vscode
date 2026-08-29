@@ -49,8 +49,8 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 	private debugAdapterFactories = new Map<string, IDebugAdapterFactory>();
 	private debuggersAvailable!: IContextKey<boolean>;
 	private debugExtensionsAvailable!: IContextKey<boolean>;
-	private readonly _onDidRegisterDebugger = new Emitter<void>();
-	private readonly _onDidDebuggersExtPointRead = new Emitter<void>();
+	private readonly _onDidRegisterDebugger = this._register(new Emitter<void>());
+	private readonly _onDidDebuggersExtPointRead = this._register(new Emitter<void>());
 	private breakpointContributions: Breakpoints[] = [];
 	private debuggerWhenKeys = new Set<string>();
 	private taskLabels: string[] = [];

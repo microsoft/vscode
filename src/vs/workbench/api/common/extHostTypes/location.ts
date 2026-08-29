@@ -12,7 +12,7 @@ import { Range } from './range.js';
 @es5ClassCompat
 export class Location {
 
-	static isLocation(thing: any): thing is vscode.Location {
+	static isLocation(thing: unknown): thing is vscode.Location {
 		if (thing instanceof Location) {
 			return true;
 		}

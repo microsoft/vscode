@@ -34,7 +34,7 @@ steps:
   - bash: |
       # Install build dependencies
       (cd build && npm ci)
-      node build/azure-pipelines/publish-types/check-version.js
+      node build/azure-pipelines/publish-types/check-version.ts
     displayName: Check version
 
   - bash: |
@@ -42,7 +42,7 @@ steps:
       git config --global user.name "VSCode"
 
       git clone https://$(GITHUB_TOKEN)@github.com/DefinitelyTyped/DefinitelyTyped.git --depth=1
-      node build/azure-pipelines/publish-types/update-types.js
+      node build/azure-pipelines/publish-types/update-types.ts
 
       TAG_VERSION=$(git describe --tags `git rev-list --tags --max-count=1`)
 

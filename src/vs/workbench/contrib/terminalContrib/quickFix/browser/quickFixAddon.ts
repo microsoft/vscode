@@ -33,6 +33,7 @@ import { CodeActionKind } from '../../../../../editor/contrib/codeAction/common/
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { hasKey, type SingleOrMany } from '../../../../../base/common/types.js';
 
 const enum QuickFixDecorationSelector {
 	QuickFix = 'quick-fix'
@@ -75,9 +76,9 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 
 	private _didRun: boolean = false;
 
-	private readonly _onDidRequestRerunCommand = new Emitter<{ command: string; shouldExecute?: boolean }>();
+	private readonly _onDidRequestRerunCommand = this._register(new Emitter<{ command: string; shouldExecute?: boolean }>());
 	readonly onDidRequestRerunCommand = this._onDidRequestRerunCommand.event;
-	private readonly _onDidUpdateQuickFixes = new Emitter<{ command: ITerminalCommand; actions: ITerminalAction[] | undefined }>();
+	private readonly _onDidUpdateQuickFixes = this._register(new Emitter<{ command: ITerminalCommand; actions: ITerminalAction[] | undefined }>());
 	readonly onDidUpdateQuickFixes = this._onDidUpdateQuickFixes.event;
 
 	constructor(
@@ -338,7 +339,7 @@ export async function getQuickFixesForCommand(
 	openerService: IOpenerService,
 	labelService: ILabelService,
 	onDidRequestRerunCommand?: Emitter<{ command: string; shouldExecute?: boolean }>,
-	getResolvedFixes?: (selector: ITerminalQuickFixOptions, lines?: string[]) => Promise<ITerminalQuickFix | ITerminalQuickFix[] | undefined>
+	getResolvedFixes?: (selector: ITerminalQuickFixOptions, lines?: string[]) => Promise<SingleOrMany<ITerminalQuickFix> | undefined>
 ): Promise<ITerminalAction[] | undefined> {
 	// Prevent duplicates by tracking added entries
 	const commandQuickFixSet: Set<string> = new Set();
@@ -379,7 +380,7 @@ export async function getQuickFixesForCommand(
 			if (quickFixes) {
 				for (const quickFix of asArray(quickFixes)) {
 					let action: ITerminalAction | undefined;
-					if ('type' in quickFix) {
+					if (hasKey(quickFix, { type: true })) {
 						switch (quickFix.type) {
 							case TerminalQuickFixType.TerminalCommand: {
 								const fix = quickFix as ITerminalQuickFixTerminalCommandAction;
@@ -535,7 +536,7 @@ function getQuickFixIcon(quickFix: TerminalQuickFixItem): ThemeIcon {
 	}
 	switch (quickFix.type) {
 		case TerminalQuickFixType.Opener:
-			if ('uri' in quickFix.action && quickFix.action.uri) {
+			if (quickFix.action.uri) {
 				const isUrl = (quickFix.action.uri.scheme === Schemas.http || quickFix.action.uri.scheme === Schemas.https);
 				return isUrl ? Codicon.linkExternal : Codicon.goToFile;
 			}

@@ -127,15 +127,13 @@ suite('Notebook builtin output renderer', () => {
 				return text;
 			},
 			blob() {
-				// eslint-disable-next-line local/code-no-any-casts
-				return [] as any;
+				return new Blob([text], { type: mime });
 			},
 			json() {
 				return '{ }';
 			},
 			data() {
-				// eslint-disable-next-line local/code-no-any-casts
-				return [] as any;
+				return new Uint8Array();
 			},
 			metadata: {}
 		};

@@ -8,6 +8,7 @@ import { IRange, Range } from './core/range.js';
 import { Selection } from './core/selection.js';
 import { IModelDecoration, InjectedTextOptions } from './model.js';
 import { IModelContentChange } from './model/mirrorTextModel.js';
+import { AnnotationsUpdate } from './model/tokens/annotations.js';
 import { TextModelEditSource } from './textModelEditSource.js';
 
 /**
@@ -150,6 +151,63 @@ export interface IModelTokensChangedEvent {
 	}[];
 }
 
+/**
+ * @internal
+ */
+export interface IFontTokenOption {
+	/**
+	 * Font family of the token.
+	 */
+	readonly fontFamily?: string;
+	/**
+	 * Font size of the token.
+	 */
+	readonly fontSizeMultiplier?: number;
+	/**
+	 * Line height of the token.
+	 */
+	readonly lineHeightMultiplier?: number;
+}
+
+/**
+ * An event describing a token font change event
+ * @internal
+ */
+export interface IModelFontTokensChangedEvent {
+	changes: FontTokensUpdate;
+}
+
+/**
+ * @internal
+ */
+export type FontTokensUpdate = AnnotationsUpdate<IFontTokenOption | undefined>;
+
+/**
+ * @internal
+ */
+export function serializeFontTokenOptions(): (options: IFontTokenOption) => IFontTokenOption {
+	return (annotation: IFontTokenOption) => {
+		return {
+			fontFamily: annotation.fontFamily ?? '',
+			fontSizeMultiplier: annotation.fontSizeMultiplier ?? 0,
+			lineHeightMultiplier: annotation.lineHeightMultiplier ?? 0
+		};
+	};
+}
+
+/**
+ * @internal
+ */
+export function deserializeFontTokenOptions(): (options: IFontTokenOption) => IFontTokenOption {
+	return (annotation: IFontTokenOption) => {
+		return {
+			fontFamily: annotation.fontFamily ? String(annotation.fontFamily) : undefined,
+			fontSizeMultiplier: annotation.fontSizeMultiplier ? Number(annotation.fontSizeMultiplier) : undefined,
+			lineHeightMultiplier: annotation.lineHeightMultiplier ? Number(annotation.lineHeightMultiplier) : undefined
+		};
+	};
+}
+
 export interface IModelOptionsChangedEvent {
 	readonly tabSize: boolean;
 	readonly indentSize: boolean;
@@ -177,6 +235,24 @@ export class ModelRawFlush {
 }
 
 /**
+ * Represents a fixed-width injected text range within a line.
+ * @internal
+ */
+export interface FixedWidthInjectedTextRange {
+	readonly startOffset: number;
+	readonly endOffset: number;
+	readonly widthInEm: number;
+}
+
+/**
+ * Whether injected text takes up space on a line, either through its content or, when it is
+ * width-only (e.g. `{ content: '', widthInEm: 1 }`), through the horizontal space it reserves.
+ */
+function occupiesHorizontalSpace(options: InjectedTextOptions): boolean {
+	return options.content.length > 0 || (options.widthInEm !== undefined && options.widthInEm > 0);
+}
+
+/**
  * Represents text injected on a line
  * @internal
  */
@@ -199,7 +275,7 @@ export class LineInjectedText {
 	public static fromDecorations(decorations: IModelDecoration[]): LineInjectedText[] {
 		const result: LineInjectedText[] = [];
 		for (const decoration of decorations) {
-			if (decoration.options.before && decoration.options.before.content.length > 0) {
+			if (decoration.options.before && occupiesHorizontalSpace(decoration.options.before)) {
 				result.push(new LineInjectedText(
 					decoration.ownerId,
 					decoration.range.startLineNumber,
@@ -208,7 +284,7 @@ export class LineInjectedText {
 					0,
 				));
 			}
-			if (decoration.options.after && decoration.options.after.content.length > 0) {
+			if (decoration.options.after && occupiesHorizontalSpace(decoration.options.after)) {
 				result.push(new LineInjectedText(
 					decoration.ownerId,
 					decoration.range.endLineNumber,
@@ -227,6 +303,32 @@ export class LineInjectedText {
 			}
 			return a.lineNumber - b.lineNumber;
 		});
+		return result;
+	}
+
+	/**
+	 * The ranges of `applyInjectedText(...)` that are rendered at a fixed width. Width-only injected
+	 * text produces an empty range (`startOffset === endOffset`) which reserves horizontal space
+	 * without covering any character.
+	 *
+	 * `injectedTexts` must be sorted by column, which is what `fromDecorations` produces and what
+	 * `applyInjectedText` already requires. The result is then sorted by `startOffset` and never
+	 * overlaps: injections at the same column are laid out one after the other, so only an injection
+	 * with empty content leaves the next one starting at the same offset.
+	 */
+	public static getFixedWidthInjectedTextRanges(injectedTexts: readonly LineInjectedText[] | null): FixedWidthInjectedTextRange[] {
+		const result: FixedWidthInjectedTextRange[] = [];
+		let injectedTextLength = 0;
+		for (const injectedText of injectedTexts ?? []) {
+			const length = injectedText.options.content.length;
+			const startOffset = injectedText.column - 1 + injectedTextLength;
+			const endOffset = startOffset + length;
+			const widthInEm = injectedText.options.widthInEm;
+			if (widthInEm !== undefined) {
+				result.push({ startOffset, endOffset, widthInEm });
+			}
+			injectedTextLength += length;
+		}
 		return result;
 	}
 
@@ -250,22 +352,17 @@ export class LineInjectedText {
 export class ModelRawLineChanged {
 	public readonly changeType = RawContentChangedType.LineChanged;
 	/**
-	 * The line that has changed.
+	 * The line number that has changed (before the change was applied).
 	 */
 	public readonly lineNumber: number;
 	/**
-	 * The new value of the line.
+	 * The new line number the old one is mapped to (after the change was applied).
 	 */
-	public readonly detail: string;
-	/**
-	 * The injected text on the line.
-	 */
-	public readonly injectedText: LineInjectedText[] | null;
+	public readonly lineNumberPostEdit: number;
 
-	constructor(lineNumber: number, detail: string, injectedText: LineInjectedText[] | null) {
+	constructor(lineNumber: number, lineNumberPostEdit: number) {
 		this.lineNumber = lineNumber;
-		this.detail = detail;
-		this.injectedText = injectedText;
+		this.lineNumberPostEdit = lineNumberPostEdit;
 	}
 }
 
@@ -290,13 +387,13 @@ export class ModelLineHeightChanged {
 	/**
 	 * The line height on the line.
 	 */
-	public readonly lineHeight: number | null;
+	public readonly lineHeightMultiplier: number | null;
 
-	constructor(ownerId: number, decorationId: string, lineNumber: number, lineHeight: number | null) {
+	constructor(ownerId: number, decorationId: string, lineNumber: number, lineHeightMultiplier: number | null) {
 		this.ownerId = ownerId;
 		this.decorationId = decorationId;
 		this.lineNumber = lineNumber;
-		this.lineHeight = lineHeight;
+		this.lineHeightMultiplier = lineHeightMultiplier;
 	}
 }
 
@@ -334,10 +431,15 @@ export class ModelRawLinesDeleted {
 	 * At what line the deletion stopped (inclusive).
 	 */
 	public readonly toLineNumber: number;
+	/**
+	 * The last unmodified line in the updated buffer after the deletion is made.
+	 */
+	public readonly lastUntouchedLinePostEdit: number;
 
-	constructor(fromLineNumber: number, toLineNumber: number) {
+	constructor(fromLineNumber: number, toLineNumber: number, lastUntouchedLinePostEdit: number) {
 		this.fromLineNumber = fromLineNumber;
 		this.toLineNumber = toLineNumber;
+		this.lastUntouchedLinePostEdit = lastUntouchedLinePostEdit;
 	}
 }
 
@@ -352,23 +454,30 @@ export class ModelRawLinesInserted {
 	 */
 	public readonly fromLineNumber: number;
 	/**
+	 * The actual start line number in the updated buffer where the newly inserted content can be found.
+	 */
+	public readonly fromLineNumberPostEdit: number;
+	/**
+	 * The count of inserted lines.
+	*/
+	public readonly count: number;
+	/**
 	 * `toLineNumber` - `fromLineNumber` + 1 denotes the number of lines that were inserted
 	 */
-	public readonly toLineNumber: number;
+	public get toLineNumber(): number {
+		return this.fromLineNumber + this.count - 1;
+	}
 	/**
-	 * The text that was inserted
+	 * The actual end line number of the insertion in the updated buffer.
 	 */
-	public readonly detail: string[];
-	/**
-	 * The injected texts for every inserted line.
-	 */
-	public readonly injectedTexts: (LineInjectedText[] | null)[];
+	public get toLineNumberPostEdit(): number {
+		return this.fromLineNumberPostEdit + this.count - 1;
+	}
 
-	constructor(fromLineNumber: number, toLineNumber: number, detail: string[], injectedTexts: (LineInjectedText[] | null)[]) {
-		this.injectedTexts = injectedTexts;
+	constructor(fromLineNumber: number, fromLineNumberPostEdit: number, count: number) {
 		this.fromLineNumber = fromLineNumber;
-		this.toLineNumber = toLineNumber;
-		this.detail = detail;
+		this.fromLineNumberPostEdit = fromLineNumberPostEdit;
+		this.count = count;
 	}
 }
 

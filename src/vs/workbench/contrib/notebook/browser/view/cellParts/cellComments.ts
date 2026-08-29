@@ -147,10 +147,9 @@ export class CellComments extends CellContentPart {
 	}
 
 	private _applyTheme() {
-		const theme = this.themeService.getColorTheme();
 		const fontInfo = this.notebookEditor.getLayoutInfo().fontInfo;
 		for (const { widget } of this._commentThreadWidgets.values()) {
-			widget.applyTheme(theme, fontInfo);
+			widget.applyTheme(fontInfo);
 		}
 	}
 

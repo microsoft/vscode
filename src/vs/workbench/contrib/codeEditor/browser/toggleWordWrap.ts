@@ -259,7 +259,7 @@ class EditorWordWrapContextKeyTracker extends Disposable implements IWorkbenchCo
 		this._canToggleWordWrap = CAN_TOGGLE_WORD_WRAP.bindTo(this._contextService);
 		this._editorWordWrap = EDITOR_WORD_WRAP.bindTo(this._contextService);
 		this._activeEditor = null;
-		this._activeEditorListener = new DisposableStore();
+		this._activeEditorListener = this._register(new DisposableStore());
 		this._update();
 	}
 

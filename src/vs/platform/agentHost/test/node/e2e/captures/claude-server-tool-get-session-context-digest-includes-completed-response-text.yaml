@@ -1,0 +1,56 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "DIGEST_READY".
+    response:
+      content: DIGEST_READY
+      stopReason: end_turn
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "DIGEST_READY".
+        - role: assistant
+          content: DIGEST_READY
+        - role: user
+          content: Call get_session_context exactly once with session "claude:/${uuid_0}" and detail "digest", then reply exactly "read".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: mcp__host__get_session_context
+          input:
+            session: claude:/${uuid_0}
+            detail: digest
+      stopReason: tool_use
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "DIGEST_READY".
+        - role: assistant
+          content: DIGEST_READY
+        - role: user
+          content: Call get_session_context exactly once with session "claude:/${uuid_0}" and detail "digest", then reply exactly "read".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: mcp__host__get_session_context
+              input:
+                session: claude:/${uuid_0}
+                detail: digest
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '{"session":"claude:/${uuid_0}","openLink":"agent-host-session://claude/${uuid_0}","detail":"digest","transcript":[{"turn":1,"state":"complete","user":"Reply exactly \"DIGEST_READY\".","assistant":"DIGEST_READY"},{"turn":2,"state":"inProgress","user":"Call get_session_context exactly once with session \"claude:/${uuid_0}\" and detail \"digest\", then reply exactly \"read\".","toolCalls":["mcp__host__get_session_context"]}],"hasMoreHistory":false,"truncated":false}'
+    response:
+      content: read
+      stopReason: end_turn

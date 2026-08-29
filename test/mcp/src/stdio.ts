@@ -3,11 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { getServer } from './multiplex';
+import { getServer } from './automation';
+import { ApplicationService, opts } from '../../scenario';
 
 const transport: StdioServerTransport = new StdioServerTransport();
 (async () => {
-	const server = await getServer();
+	const appService = new ApplicationService();
+	const server = await getServer(appService);
+
+	if (opts.autostart) {
+		await appService.getOrCreateApplication();
+	}
+
 	await server.connect(transport);
 })().catch(err => {
 	transport.close();

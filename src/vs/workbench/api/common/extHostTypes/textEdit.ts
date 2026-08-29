@@ -16,11 +16,11 @@ export enum EndOfLine {
 @es5ClassCompat
 export class TextEdit {
 
-	static isTextEdit(thing: any): thing is TextEdit {
+	static isTextEdit(thing: unknown): thing is TextEdit {
 		if (thing instanceof TextEdit) {
 			return true;
 		}
-		if (!thing) {
+		if (!thing || typeof thing !== 'object') {
 			return false;
 		}
 		return Range.isRange((<TextEdit>thing))
@@ -87,7 +87,7 @@ export class TextEdit {
 		this._newText = newText;
 	}
 
-	toJSON(): any {
+	toJSON(): { range: Range; newText: string; newEol: EndOfLine | undefined } {
 		return {
 			range: this.range,
 			newText: this.newText,

@@ -48,6 +48,7 @@ export function observableFromEvent(...args:
 export function observableFromEventOpts<T, TArgs = unknown>(
 	options: IDebugNameData & {
 		equalsFn?: EqualityComparer<T>;
+		getTransaction?: () => ITransaction | undefined;
 	},
 	event: Event<TArgs>,
 	getValue: (args: TArgs | undefined) => T,
@@ -56,7 +57,10 @@ export function observableFromEventOpts<T, TArgs = unknown>(
 	return new FromEventObservable(
 		new DebugNameData(options.owner, options.debugName, options.debugReferenceFn ?? getValue),
 		event,
-		getValue, () => FromEventObservable.globalTransaction, options.equalsFn ?? strictEquals, debugLocation
+		getValue,
+		() => options.getTransaction?.() ?? FromEventObservable.globalTransaction,
+		options.equalsFn ?? strictEquals,
+		debugLocation
 	);
 }
 
@@ -94,19 +98,21 @@ export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 	private readonly handleEvent = (args: TArgs | undefined) => {
 		const newValue = this._getValue(args);
 		const oldValue = this._value;
+		const hadValue = this._hasValue;
 
-		const didChange = !this._hasValue || !(this._equalityComparator(oldValue!, newValue));
+		const didChange = !hadValue || !(this._equalityComparator(oldValue!, newValue));
 		let didRunTransaction = false;
 
 		if (didChange) {
 			this._value = newValue;
+			this._hasValue = true;
 
-			if (this._hasValue) {
+			if (hadValue) {
 				didRunTransaction = true;
 				subtransaction(
 					this._getTransaction(),
 					(tx) => {
-						getLogger()?.handleObservableUpdated(this, { oldValue, newValue, change: undefined, didChange, hadValue: this._hasValue });
+						getLogger()?.handleObservableUpdated(this, { oldValue, newValue, change: undefined, didChange, hadValue });
 
 						for (const o of this._observers) {
 							tx.updateObserver(o, this);
@@ -119,11 +125,10 @@ export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 					}
 				);
 			}
-			this._hasValue = true;
 		}
 
 		if (!didRunTransaction) {
-			getLogger()?.handleObservableUpdated(this, { oldValue, newValue, change: undefined, didChange, hadValue: this._hasValue });
+			getLogger()?.handleObservableUpdated(this, { oldValue, newValue, change: undefined, didChange, hadValue });
 		}
 	};
 

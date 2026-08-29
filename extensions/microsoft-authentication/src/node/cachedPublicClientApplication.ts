@@ -51,9 +51,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 
 		const loggerOptions = new MsalLoggerOptions(_logger, telemetryReporter);
 		let broker: BrokerOptions | undefined;
-		if (process.platform !== 'win32' && process.platform !== 'darwin') {
-			this._logger.info(`[${this._clientId}] Native Broker is only available on Windows and macOS`);
-		} else if (env.uiKind === UIKind.Web) {
+		if (env.uiKind === UIKind.Web) {
 			this._logger.info(`[${this._clientId}] Native Broker is not available in web UI`);
 		} else if (workspace.getConfiguration('microsoft-authentication').get<'msal' | 'msal-no-broker'>('implementation') === 'msal-no-broker') {
 			this._logger.info(`[${this._clientId}] Native Broker disabled via settings`);
@@ -323,7 +321,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 	private _verifyIfUsingBroker(result: AuthenticationResult): boolean {
 		// If we're not brokering, we don't need to verify the date
 		// the cache check will be sufficient
-		if (!result.fromNativeBroker) {
+		if (!result.fromPlatformBroker) {
 			return true;
 		}
 		// The nativeAccountId is what the broker uses to differenciate all

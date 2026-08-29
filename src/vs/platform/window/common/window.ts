@@ -69,6 +69,13 @@ export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
 	readonly gotoLineMode?: boolean;
 
 	readonly waitMarkerFileURI?: URI;
+
+	/**
+	 * When set, the opened window is asked to open the chat session identified
+	 * by this resource once it is ready. Used to hand off a session (e.g. from
+	 * the Agents window) so the new window restores both the folder and session.
+	 */
+	readonly chatSessionToOpen?: URI;
 }
 
 export interface IAddRemoveFoldersRequest {
@@ -96,6 +103,33 @@ export function isOpenedAuxiliaryWindow(candidate: IOpenedMainWindow | IOpenedAu
 }
 
 export interface IOpenEmptyWindowOptions extends IBaseOpenWindowsOptions { }
+
+export const enum AgentsWindowOpenSource {
+	CommandPalette = 'commandPalette',
+	KeyboardShortcut = 'keyboardShortcut',
+	TitleBar = 'titleBar',
+	ChatTitleBar = 'chatTitleBar',
+	ChatHandoff = 'chatHandoff',
+	Banner = 'banner',
+	CommandLine = 'commandLine',
+	Unknown = 'unknown',
+}
+
+export function isAgentsWindowOpenSource(value: unknown): value is AgentsWindowOpenSource {
+	switch (value) {
+		case AgentsWindowOpenSource.CommandPalette:
+		case AgentsWindowOpenSource.KeyboardShortcut:
+		case AgentsWindowOpenSource.TitleBar:
+		case AgentsWindowOpenSource.ChatTitleBar:
+		case AgentsWindowOpenSource.ChatHandoff:
+		case AgentsWindowOpenSource.Banner:
+		case AgentsWindowOpenSource.CommandLine:
+		case AgentsWindowOpenSource.Unknown:
+			return true;
+		default:
+			return false;
+	}
+}
 
 export type IWindowOpenable = IWorkspaceToOpen | IFolderToOpen | IFileToOpen;
 
@@ -215,6 +249,7 @@ export interface IWindowSettings {
 
 export interface IDensitySettings {
 	readonly editorTabHeight: 'default' | 'compact';
+	readonly layout: 'default' | 'compact';
 }
 
 export const enum TitleBarSetting {
@@ -262,7 +297,7 @@ export function getTitleBarStyle(configurationService: IConfigurationService): T
 	if (configuration) {
 		const useNativeTabs = isMacintosh && configuration.nativeTabs === true;
 		if (useNativeTabs) {
-			return TitlebarStyle.NATIVE; // native tabs on sierra do not work with custom title style
+			return TitlebarStyle.NATIVE; // native tabs on macOS do not work with custom title style
 		}
 
 		const useSimpleFullScreen = isMacintosh && configuration.nativeFullScreen === false;
@@ -394,7 +429,7 @@ export interface INativeOpenFileRequest extends IOpenFileRequest {
 
 export interface INativeRunActionInWindowRequest {
 	readonly id: string;
-	readonly from: 'menu' | 'touchbar' | 'mouse';
+	readonly from: 'menu' | 'touchbar' | 'mouse' | 'systemWideKeybinding';
 	readonly args?: unknown[];
 }
 
@@ -428,6 +463,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	machineId: string;
 	sqmId: string;
 	devDeviceId: string;
+	isPortable: boolean;
 
 	execPath: string;
 	backupPath?: string;
@@ -464,6 +500,8 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 
 	os: IOSConfiguration;
 	policiesData?: IStringDictionary<{ definition: PolicyDefinition; value: PolicyValue }>;
+
+	isSessionsWindow?: boolean;
 }
 
 /**

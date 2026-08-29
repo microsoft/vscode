@@ -7,7 +7,7 @@ import { stub } from 'sinon';
 import { timeout } from '../../common/async.js';
 import { CancellationToken } from '../../common/cancellation.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../common/errors.js';
-import { AsyncEmitter, DebounceEmitter, DynamicListEventMultiplexer, Emitter, Event, EventBufferer, EventMultiplexer, IWaitUntil, ListenerLeakError, ListenerRefusalError, MicrotaskEmitter, PauseableEmitter, Relay, createEventDeliveryQueue } from '../../common/event.js';
+import { AsyncEmitter, DebounceEmitter, DynamicListEventMultiplexer, Emitter, Event, EventBufferer, EventMultiplexer, IWaitUntil, ListenerLeakError, ListenerRefusalError, MicrotaskEmitter, PauseableEmitter, Relay, createEventDeliveryQueue, setGlobalLeakWarningThreshold } from '../../common/event.js';
 import { DisposableStore, IDisposable, isDisposable, setDisposableTracker, DisposableTracker } from '../../common/lifecycle.js';
 import { observableValue, transaction } from '../../common/observable.js';
 import { MicrotaskDelay } from '../../common/symbols.js';
@@ -415,6 +415,109 @@ suite('Event', function () {
 		store.dispose();
 	});
 
+	test('Emitter leak warnings track only active listener stacks', () => {
+		const consoleWarn = stub(console, 'warn');
+		const errors: Error[] = [];
+		class TestEmitter extends Emitter<void> {
+			setListenerCount(listenerCount: number): void {
+				this._size = listenerCount;
+			}
+		}
+		const emitter = ds.add(new TestEmitter({
+			leakWarningThreshold: 3,
+			leakWarningName: 'test',
+			onListenerError: error => errors.push(error),
+		}));
+
+		const addStackAListener = () => emitter.event(() => { });
+		const addStackBListener = () => emitter.event(() => { });
+		const addStackCListener = () => emitter.event(() => { });
+
+		try {
+			emitter.setListenerCount(2);
+			const stackAListeners = Array.from({ length: 3 }, () => addStackAListener());
+			stackAListeners[0].dispose();
+			const stackBListener = addStackBListener();
+			const stackCListener = addStackCListener();
+
+			stackAListeners.slice(1).forEach(listener => listener.dispose());
+			stackBListener.dispose();
+			stackCListener.dispose();
+			emitter.setListenerCount(10);
+			emitter.event(() => { });
+
+			assert.deepStrictEqual(errors.map(error => ({
+				name: error.name,
+				details: error instanceof ListenerLeakError ? error.details : undefined,
+				hasUnknownStack: error.stack === 'UNKNOWN stack',
+			})), [
+				{
+					name: 'ListenerLeakError',
+					details: '[test] potential listener LEAK detected, having 3 listeners already. MOST frequent listener (1):',
+					hasUnknownStack: false,
+				},
+				{
+					name: 'ListenerLeakError',
+					details: '[test] potential listener LEAK detected, having 5 listeners already. MOST frequent listener (3):',
+					hasUnknownStack: false,
+				},
+				{
+					name: 'ListenerLeakError',
+					details: '[test] potential listener LEAK detected, having 6 listeners already. MOST frequent listener (2):',
+					hasUnknownStack: false,
+				},
+				{
+					name: 'ListenerRefusalError',
+					details: '[test] REFUSES to accept new listeners because it exceeded its threshold by far (10 vs 3). HINT: Stack shows most frequent listener (-1-times)',
+					hasUnknownStack: true,
+				},
+			]);
+		} finally {
+			consoleWarn.restore();
+		}
+	});
+
+	test('Emitter captures global leak warning configuration at construction', () => {
+		const consoleWarn = stub(console, 'warn');
+		const errors: Error[] = [];
+		let restoreThreshold: IDisposable | undefined = setGlobalLeakWarningThreshold(3);
+		try {
+			const monitoredEmitter = ds.add(new Emitter<void>({
+				leakWarningName: 'captured',
+				onListenerError: error => errors.push(error),
+			}));
+			restoreThreshold.dispose();
+			restoreThreshold = undefined;
+
+			const unmonitoredEmitter = ds.add(new Emitter<void>({
+				onListenerError: error => errors.push(error),
+			}));
+			restoreThreshold = setGlobalLeakWarningThreshold(3);
+			const listeners = ds.add(new DisposableStore());
+			const monitorAllocation = [Object.hasOwn(monitoredEmitter, '_leakageMon')];
+			for (let i = 0; i < 3; i++) {
+				monitoredEmitter.event(() => { }, undefined, listeners);
+				unmonitoredEmitter.event(() => { }, undefined, listeners);
+				monitorAllocation.push(Object.hasOwn(monitoredEmitter, '_leakageMon'));
+			}
+			restoreThreshold.dispose();
+			restoreThreshold = undefined;
+
+			assert.deepStrictEqual({
+				errors: errors.map(error => error.message),
+				monitorAllocation,
+				unmonitoredEmitterHasMonitor: Object.hasOwn(unmonitoredEmitter, '_leakageMon'),
+			}, {
+				errors: ['[captured] potential listener LEAK detected, dominated'],
+				monitorAllocation: [false, false, true, true],
+				unmonitoredEmitterHasMonitor: false,
+			});
+		} finally {
+			restoreThreshold?.dispose();
+			consoleWarn.restore();
+		}
+	});
+
 	test('reusing event function and context', function () {
 		let counter = 0;
 		function listener() {
@@ -461,6 +564,111 @@ suite('Event', function () {
 
 			assert.strictEqual(callCount, 1);
 			assert.strictEqual(sum, 3);
+		});
+	});
+
+	suite('Event.toPromise', () => {
+		class DisposableStoreWithSize extends DisposableStore {
+			public size = 0;
+			public override add<T extends IDisposable>(o: T): T {
+				this.size++;
+				return super.add(o);
+			}
+
+			public override delete<T extends IDisposable>(o: T): void {
+				this.size--;
+				return super.delete(o);
+			}
+		}
+		test('resolves on first event', async () => {
+			const emitter = ds.add(new Emitter<number>());
+			const promise = Event.toPromise(emitter.event);
+
+			emitter.fire(42);
+			const result = await promise;
+
+			assert.strictEqual(result, 42);
+		});
+
+		test('disposes listener after resolution', async () => {
+			const emitter = ds.add(new Emitter<number>());
+			const promise = Event.toPromise(emitter.event);
+
+			emitter.fire(1);
+			await promise;
+
+			// Listener should be disposed, firing again should not affect anything
+			emitter.fire(2);
+			assert.ok(true); // No errors
+		});
+
+		test('adds to DisposableStore', async () => {
+			const emitter = ds.add(new Emitter<number>());
+			const store = ds.add(new DisposableStoreWithSize());
+			const promise = Event.toPromise(emitter.event, store);
+
+			assert.strictEqual(store.size, 1);
+
+			emitter.fire(42);
+			await promise;
+
+			// Should be removed from store after resolution
+			assert.strictEqual(store.size, 0);
+		});
+
+		test('adds to disposables array', async () => {
+			const emitter = ds.add(new Emitter<number>());
+			const disposables: IDisposable[] = [];
+			const promise = Event.toPromise(emitter.event, disposables);
+
+			assert.strictEqual(disposables.length, 1);
+
+			emitter.fire(42);
+			await promise;
+
+			// Should be removed from array after resolution
+			assert.strictEqual(disposables.length, 0);
+		});
+
+		test('cancel removes from DisposableStore', () => {
+			const emitter = ds.add(new Emitter<number>());
+			const store = ds.add(new DisposableStoreWithSize());
+			const promise = Event.toPromise(emitter.event, store);
+
+			assert.strictEqual(store.size, 1);
+
+			promise.cancel();
+
+			// Should be removed from store after cancellation
+			assert.strictEqual(store.size, 0);
+		});
+
+		test('cancel removes from disposables array', () => {
+			const emitter = ds.add(new Emitter<number>());
+			const disposables: IDisposable[] = [];
+			const promise = Event.toPromise(emitter.event, disposables);
+
+			assert.strictEqual(disposables.length, 1);
+
+			promise.cancel();
+
+			// Should be removed from array after cancellation
+			assert.strictEqual(disposables.length, 0);
+		});
+
+		test('cancel does not resolve promise', async () => {
+			const emitter = ds.add(new Emitter<number>());
+			const promise = Event.toPromise(emitter.event);
+
+			promise.cancel();
+			emitter.fire(42);
+
+			// Promise should not resolve after cancellation
+			let resolved = false;
+			promise.then(() => resolved = true);
+
+			await timeout(10);
+			assert.strictEqual(resolved, false);
 		});
 	});
 
@@ -901,7 +1109,7 @@ suite('Event utils', () => {
 			const result: number[] = [];
 			const emitter = ds.add(new Emitter<number>());
 			const event = emitter.event;
-			const bufferedEvent = Event.buffer(event);
+			const bufferedEvent = Event.buffer(event, 'test');
 
 			emitter.fire(1);
 			emitter.fire(2);
@@ -923,7 +1131,7 @@ suite('Event utils', () => {
 			const result: number[] = [];
 			const emitter = ds.add(new Emitter<number>());
 			const event = emitter.event;
-			const bufferedEvent = Event.buffer(event, true);
+			const bufferedEvent = Event.buffer(event, 'test', true);
 
 			emitter.fire(1);
 			emitter.fire(2);
@@ -945,7 +1153,7 @@ suite('Event utils', () => {
 			const result: number[] = [];
 			const emitter = ds.add(new Emitter<number>());
 			const event = emitter.event;
-			const bufferedEvent = Event.buffer(event, false, [-2, -1, 0]);
+			const bufferedEvent = Event.buffer(event, 'test', false, [-2, -1, 0]);
 
 			emitter.fire(1);
 			emitter.fire(2);
@@ -1490,6 +1698,273 @@ suite('Event utils', () => {
 
 			await timeout(1);
 			assert.deepStrictEqual(calls, [1]);
+		});
+	});
+
+	suite('throttle', () => {
+		test('leading only', async function () {
+			return runWithFakedTimers({}, async function () {
+				const emitter = ds.add(new Emitter<number>());
+				const throttled = Event.throttle(emitter.event, (l, e) => l ? l + 1 : 1, 10, /*leading=*/true, /*trailing=*/false);
+
+				const calls: number[] = [];
+				ds.add(throttled((e) => calls.push(e)));
+
+				// First event fires immediately
+				emitter.fire(1);
+				assert.deepStrictEqual(calls, [1]);
+
+				// Subsequent events during throttle period are ignored
+				emitter.fire(2);
+				emitter.fire(3);
+				assert.deepStrictEqual(calls, [1]);
+
+				// Wait for throttle period to end
+				await timeout(15);
+				assert.deepStrictEqual(calls, [1], 'no trailing edge fire with trailing=false');
+
+				// After throttle period, next event fires immediately
+				emitter.fire(4);
+				assert.deepStrictEqual(calls, [1, 1]);
+			});
+		});
+
+		test('trailing only', async function () {
+			return runWithFakedTimers({}, async function () {
+				const emitter = ds.add(new Emitter<number>());
+				const throttled = Event.throttle(emitter.event, (l, e) => l ? l + 1 : 1, 10, /*leading=*/false, /*trailing=*/true);
+
+				const calls: number[] = [];
+				ds.add(throttled((e) => calls.push(e)));
+
+				// First event does not fire immediately
+				emitter.fire(1);
+				assert.deepStrictEqual(calls, []);
+
+				// Multiple events during throttle period
+				emitter.fire(2);
+				emitter.fire(3);
+				assert.deepStrictEqual(calls, []);
+
+				// Wait for throttle period - should fire with accumulated value
+				await timeout(15);
+				assert.deepStrictEqual(calls, [3]);
+
+				// New events start a new throttle period
+				emitter.fire(4);
+				emitter.fire(5);
+				assert.deepStrictEqual(calls, [3]);
+
+				await timeout(15);
+				assert.deepStrictEqual(calls, [3, 2]);
+			});
+		});
+
+		test('both leading and trailing', async function () {
+			return runWithFakedTimers({}, async function () {
+				const emitter = ds.add(new Emitter<number>());
+				const throttled = Event.throttle(emitter.event, (l, e) => l ? l + 1 : 1, 10, /*leading=*/true, /*trailing=*/true);
+
+				const calls: number[] = [];
+				ds.add(throttled((e) => calls.push(e)));
+
+				// First event fires immediately (leading)
+				emitter.fire(1);
+				assert.deepStrictEqual(calls, [1]);
+
+				// Events during throttle period are accumulated
+				emitter.fire(2);
+				emitter.fire(3);
+				assert.deepStrictEqual(calls, [1]);
+
+				// Wait for throttle period - should fire trailing edge with accumulated value
+				await timeout(15);
+				assert.deepStrictEqual(calls, [1, 2]);
+			});
+		});
+
+		test('only leading edge if no subsequent events', async function () {
+			return runWithFakedTimers({}, async function () {
+				const emitter = ds.add(new Emitter<number>());
+				const throttled = Event.throttle(emitter.event, (l, e) => l ? l + 1 : 1, 10, /*leading=*/true, /*trailing=*/true);
+
+				const calls: number[] = [];
+				ds.add(throttled((e) => calls.push(e)));
+
+				// Single event fires immediately (leading)
+				emitter.fire(1);
+				assert.deepStrictEqual(calls, [1]);
+
+				// No more events during throttle period
+				await timeout(15);
+				// Should not fire trailing edge since there were no more events
+				assert.deepStrictEqual(calls, [1]);
+			});
+		});
+
+		test('microtask delay', function (done: () => void) {
+			const emitter = ds.add(new Emitter<number>());
+			const throttled = Event.throttle(emitter.event, (l, e) => l ? l + 1 : 1, MicrotaskDelay);
+
+			const calls: number[] = [];
+			ds.add(throttled((e) => calls.push(e)));
+
+			// First event fires immediately (leading by default)
+			emitter.fire(1);
+			assert.deepStrictEqual(calls, [1]);
+
+			// Events during microtask
+			emitter.fire(2);
+			emitter.fire(3);
+			assert.deepStrictEqual(calls, [1]);
+
+			// Check after microtask
+			queueMicrotask(() => {
+				// Should have fired trailing edge
+				assert.deepStrictEqual(calls, [1, 2]);
+				done();
+			});
+		});
+
+		test('merge function accumulates values', async function () {
+			return runWithFakedTimers({}, async function () {
+				const emitter = ds.add(new Emitter<number>());
+				const throttled = Event.throttle(
+					emitter.event,
+					(last, cur) => (last || 0) + cur,
+					10,
+					/*leading=*/true,
+					/*trailing=*/true
+				);
+
+				const calls: number[] = [];
+				ds.add(throttled((e) => calls.push(e)));
+
+				// First event fires immediately with value 1
+				emitter.fire(1);
+				assert.deepStrictEqual(calls, [1]);
+
+				// Accumulate more values: 2 + 3 = 5
+				emitter.fire(2);
+				emitter.fire(3);
+				assert.deepStrictEqual(calls, [1]);
+
+				await timeout(15);
+				// Trailing edge fires with accumulated sum
+				assert.deepStrictEqual(calls, [1, 5]);
+			});
+		});
+
+		test('rapid consecutive throttle periods', async function () {
+			return runWithFakedTimers({}, async function () {
+				const emitter = ds.add(new Emitter<number>());
+				const throttled = Event.throttle(emitter.event, (l, e) => e, 10, /*leading=*/true, /*trailing=*/true);
+
+				const calls: number[] = [];
+				ds.add(throttled((e) => calls.push(e)));
+
+				// Period 1
+				emitter.fire(1);
+				emitter.fire(2);
+				assert.deepStrictEqual(calls, [1]);
+
+				await timeout(15);
+				assert.deepStrictEqual(calls, [1, 2]);
+
+				// Period 2
+				emitter.fire(3);
+				emitter.fire(4);
+				assert.deepStrictEqual(calls, [1, 2, 3]);
+
+				await timeout(15);
+				assert.deepStrictEqual(calls, [1, 2, 3, 4]);
+
+				// Period 3
+				emitter.fire(5);
+				assert.deepStrictEqual(calls, [1, 2, 3, 4, 5]);
+
+				await timeout(15);
+				// No trailing fire since only one event
+				assert.deepStrictEqual(calls, [1, 2, 3, 4, 5]);
+			});
+		});
+
+		test('default parameters', async function () {
+			return runWithFakedTimers({}, async function () {
+				const emitter = ds.add(new Emitter<number>());
+				// Default: delay=100, leading=true, trailing=true
+				const throttled = Event.throttle(emitter.event, (l, e) => e);
+
+				const calls: number[] = [];
+				ds.add(throttled((e) => calls.push(e)));
+
+				emitter.fire(1);
+				assert.deepStrictEqual(calls, [1], 'should fire leading edge by default');
+
+				emitter.fire(2);
+				await timeout(110);
+				assert.deepStrictEqual(calls, [1, 2], 'should fire trailing edge by default');
+			});
+		});
+
+		test('disposal cleans up', async function () {
+			return runWithFakedTimers({}, async function () {
+				const emitter = ds.add(new Emitter<number>());
+				const throttled = Event.throttle(emitter.event, (l, e) => e, 10);
+
+				const calls: number[] = [];
+				const listener = throttled((e) => calls.push(e));
+
+				emitter.fire(1);
+				emitter.fire(2);
+				assert.deepStrictEqual(calls, [1]);
+
+				listener.dispose();
+
+				// Events after disposal should not fire
+				await timeout(15);
+				emitter.fire(3);
+				assert.deepStrictEqual(calls, [1]);
+			});
+		});
+
+		test('no events during throttle with trailing=false', async function () {
+			return runWithFakedTimers({}, async function () {
+				const emitter = ds.add(new Emitter<number>());
+				const throttled = Event.throttle(emitter.event, (l, e) => l ? l + 1 : 1, 10, /*leading=*/true, /*trailing=*/false);
+
+				const calls: number[] = [];
+				ds.add(throttled((e) => calls.push(e)));
+
+				emitter.fire(1);
+				assert.deepStrictEqual(calls, [1]);
+
+				// No more events
+				await timeout(15);
+				assert.deepStrictEqual(calls, [1]);
+
+				// Next event after throttle period
+				emitter.fire(2);
+				assert.deepStrictEqual(calls, [1, 1]);
+			});
+		});
+
+		test('neither leading nor trailing', async function () {
+			return runWithFakedTimers({}, async function () {
+				const emitter = ds.add(new Emitter<number>());
+				const throttled = Event.throttle(emitter.event, (l, e) => e, 10, /*leading=*/false, /*trailing=*/false);
+
+				const calls: number[] = [];
+				ds.add(throttled((e) => calls.push(e)));
+
+				emitter.fire(1);
+				emitter.fire(2);
+				emitter.fire(3);
+				assert.deepStrictEqual(calls, []);
+
+				await timeout(15);
+				assert.deepStrictEqual(calls, [], 'no events should fire with both leading and trailing false');
+			});
 		});
 	});
 

@@ -448,7 +448,7 @@ class HitTestRequest extends BareHitTestRequest {
 	}
 
 	public override toString(): string {
-		return `pos(${this.pos.x},${this.pos.y}), editorPos(${this.editorPos.x},${this.editorPos.y}), relativePos(${this.relativePos.x},${this.relativePos.y}), mouseVerticalOffset: ${this.mouseVerticalOffset}, mouseContentHorizontalOffset: ${this.mouseContentHorizontalOffset}\n\ttarget: ${this.target ? (<HTMLElement>this.target).outerHTML : null}`;
+		return `pos(${this.pos.x},${this.pos.y}), editorPos(${this.editorPos.x},${this.editorPos.y}), relativePos(${this.relativePos.x},${this.relativePos.y}), mouseVerticalOffset: ${this.mouseVerticalOffset}, mouseContentHorizontalOffset: ${this.mouseContentHorizontalOffset}\n\ttarget: ${this.target ? this.target.outerHTML : null}`;
 	}
 
 	public get wouldBenefitFromHitTestTargetSwitch(): boolean {
@@ -1028,7 +1028,7 @@ export class MouseTargetFactory {
 			const parent2ClassName = parent2 && parent2.nodeType === parent2.ELEMENT_NODE ? (<HTMLElement>parent2).className : null;
 
 			if (parent2ClassName === ViewLine.CLASS_NAME) {
-				return HitTestResult.createFromDOMInfo(ctx, <HTMLElement>startContainer, (<HTMLElement>startContainer).textContent!.length);
+				return HitTestResult.createFromDOMInfo(ctx, <HTMLElement>startContainer, (<HTMLElement>startContainer).textContent.length);
 			} else {
 				return new UnknownHitTestResult(<HTMLElement>startContainer);
 			}
@@ -1133,12 +1133,13 @@ function shadowCaretRangeFromPoint(shadowRoot: ShadowRoot, x: number, y: number)
 
 		// And its font (the computed shorthand font property might be empty, see #3217)
 		const elWindow = dom.getWindow(el);
-		const fontStyle = elWindow.getComputedStyle(el, null).getPropertyValue('font-style');
-		const fontVariant = elWindow.getComputedStyle(el, null).getPropertyValue('font-variant');
-		const fontWeight = elWindow.getComputedStyle(el, null).getPropertyValue('font-weight');
-		const fontSize = elWindow.getComputedStyle(el, null).getPropertyValue('font-size');
-		const lineHeight = elWindow.getComputedStyle(el, null).getPropertyValue('line-height');
-		const fontFamily = elWindow.getComputedStyle(el, null).getPropertyValue('font-family');
+		const computedStyle = elWindow.getComputedStyle(el, null);
+		const fontStyle = computedStyle.getPropertyValue('font-style');
+		const fontVariant = computedStyle.getPropertyValue('font-variant');
+		const fontWeight = computedStyle.getPropertyValue('font-weight');
+		const fontSize = computedStyle.getPropertyValue('font-size');
+		const lineHeight = computedStyle.getPropertyValue('line-height');
+		const fontFamily = computedStyle.getPropertyValue('font-family');
 		const font = `${fontStyle} ${fontVariant} ${fontWeight} ${fontSize}/${lineHeight} ${fontFamily}`;
 
 		// And also its txt content

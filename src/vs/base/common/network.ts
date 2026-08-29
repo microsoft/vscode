@@ -75,6 +75,9 @@ export namespace Schemas {
 
 	export const vscodeTerminal = 'vscode-terminal';
 
+	/** Scheme used for the image carousel editor. */
+	export const vscodeImageCarousel = 'vscode-image-carousel';
+
 	/** Scheme used for code blocks in chat. */
 	export const vscodeChatCodeBlock = 'vscode-chat-code-block';
 
@@ -87,8 +90,14 @@ export namespace Schemas {
 	/** Scheme used for the chat input part */
 	export const vscodeChatInput = 'chatSessionInput';
 
+	/** Scheme used for the Agents window new-session composer input */
+	export const sessionsChatInput = 'sessions-chat';
+
 	/** Scheme used for local chat session content */
 	export const vscodeLocalChatSession = 'vscode-chat-session';
+
+	/** Scheme used for read-only resources owned by a chat response or attachment */
+	export const vscodeChatResponseResource = 'vscode-chat-response-resource';
 
 	/**
 	 * Scheme used internally for webviews that aren't linked to a resource (i.e. not custom editors)
@@ -99,6 +108,11 @@ export namespace Schemas {
 	 * Scheme used for loading the wrapper html and script in webviews.
 	 */
 	export const vscodeWebview = 'vscode-webview';
+
+	/**
+	 * Scheme used for integrated browser tabs using WebContentsView.
+	 */
+	export const vscodeBrowser = 'vscode-browser';
 
 	/**
 	 * Scheme used for extension pages
@@ -151,6 +165,11 @@ export namespace Schemas {
 	 */
 	export const chatEditingSnapshotScheme = 'chat-editing-snapshot-text-model';
 	export const chatEditingModel = 'chat-editing-text-model';
+
+	/**
+	 * Used for rendering multidiffs in copilot agent sessions
+	 */
+	export const copilotPr = 'copilot-pr';
 }
 
 export function matchesScheme(target: URI | string, scheme: string): boolean {
@@ -214,7 +233,7 @@ class RemoteAuthoritiesImpl {
 			try {
 				return this._delegate(uri);
 			} catch (err) {
-				errors.onUnexpectedError(err);
+				errors.onUnexpectedExternalError(err);
 				return uri;
 			}
 		}
@@ -413,8 +432,7 @@ export namespace COI {
 	 * isn't enabled the current context
 	 */
 	export function addSearchParam(urlOrSearch: URLSearchParams | Record<string, string>, coop: boolean, coep: boolean): void {
-		// eslint-disable-next-line local/code-no-any-casts
-		if (!(<any>globalThis).crossOriginIsolated) {
+		if (!(globalThis as typeof globalThis & { crossOriginIsolated?: boolean }).crossOriginIsolated) {
 			// depends on the current context being COI
 			return;
 		}
@@ -422,7 +440,7 @@ export namespace COI {
 		if (urlOrSearch instanceof URLSearchParams) {
 			urlOrSearch.set(coiSearchParamName, value);
 		} else {
-			(<Record<string, string>>urlOrSearch)[coiSearchParamName] = value;
+			urlOrSearch[coiSearchParamName] = value;
 		}
 	}
 }

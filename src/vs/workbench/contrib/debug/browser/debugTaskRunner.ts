@@ -91,7 +91,7 @@ export class DebugTaskRunner implements IDisposable {
 				return Promise.resolve(TaskRunResult.Failure);
 			}
 
-			const taskLabel = typeof taskId === 'string' ? taskId : taskId ? taskId.name : '';
+			const taskLabel = typeof taskId === 'string' ? taskId : taskId ? taskId.name as string : '';
 			const message = errorCount > 1
 				? nls.localize('preLaunchTaskErrors', "Errors exist after running preLaunchTask '{0}'.", taskLabel)
 				: errorCount === 1

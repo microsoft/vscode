@@ -124,7 +124,7 @@ export class ViewOverlayWidgets extends ViewPart {
 	public setWidgetPosition(widget: IOverlayWidget, position: IOverlayWidgetPosition | null): boolean {
 		const widgetData = this._widgets[widget.getId()];
 		const preference = position ? position.preference : null;
-		const stack = position?.stackOridinal;
+		const stack = position?.stackOrdinal;
 		if (widgetData.preference === preference && widgetData.stack === stack) {
 			this._updateMaxMinWidth();
 			return false;

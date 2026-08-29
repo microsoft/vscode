@@ -26,7 +26,6 @@ export interface FoundInFrameResult {
 	readonly requestId: number;
 	readonly activeMatchOrdinal: number;
 	readonly matches: number;
-	readonly selectionArea: any;
 	readonly finalUpdate: boolean;
 }
 

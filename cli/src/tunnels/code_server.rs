@@ -8,6 +8,7 @@ use crate::constants::{
 	APPLICATION_NAME, EDITOR_WEB_URL, QUALITYLESS_PRODUCT_NAME, QUALITYLESS_SERVER_NAME,
 };
 use crate::download_cache::DownloadCache;
+use crate::log;
 use crate::options::{Quality, TelemetryLevel};
 use crate::state::LauncherPaths;
 use crate::tunnels::paths::{get_server_folder_name, SERVER_FOLDER_NAME};
@@ -23,9 +24,6 @@ use crate::util::http::{self, BoxedHttp};
 use crate::util::io::SilentCopyProgress;
 use crate::util::machine::process_exists;
 use crate::util::prereqs::skip_requirements_check;
-use crate::{debug, info, log, spanf, trace, warning};
-use lazy_static::lazy_static;
-use opentelemetry::KeyValue;
 use regex::Regex;
 use serde::Deserialize;
 use std::fs;
@@ -33,6 +31,7 @@ use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::sync::LazyLock;
 use std::time::Duration;
 use tokio::fs::remove_file;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -40,11 +39,11 @@ use tokio::process::{Child, Command};
 use tokio::sync::oneshot::Receiver;
 use tokio::time::{interval, timeout};
 
-lazy_static! {
-	static ref LISTENING_PORT_RE: Regex =
-		Regex::new(r"Extension host agent listening on (.+)").unwrap();
-	static ref WEB_UI_RE: Regex = Regex::new(r"Web UI available at (.+)").unwrap();
-}
+static LISTENING_PORT_RE: LazyLock<Regex> =
+	LazyLock::new(|| Regex::new(r"Extension host agent listening on (.+)").unwrap());
+static WEB_UI_RE: LazyLock<Regex> =
+	LazyLock::new(|| Regex::new(r"Web UI available at (.+)").unwrap());
+const AGENT_HOST_BRIDGE_CONNECTION_TOKEN_ENV: &str = "VSCODE_AGENT_HOST_BRIDGE_CONNECTION_TOKEN";
 
 #[derive(Clone, Debug, Default)]
 pub struct CodeServerArgs {
@@ -74,6 +73,16 @@ pub struct CodeServerArgs {
 	pub connection_token: Option<String>,
 	pub connection_token_file: Option<String>,
 	pub without_connection_token: bool,
+	// reconnection
+	pub reconnection_grace_time: Option<u32>,
+	// agent-host bridge: tells the spawned VS Code server where the
+	// canonical agent host is listening so it can register the
+	// `agentHostProxy` IPC channel and let renderers reach the agent
+	// host over the remote-agent connection. The server does NOT spawn
+	// an agent host of its own when these are set.
+	pub agent_host_bridge_host: Option<String>,
+	pub agent_host_bridge_port: Option<u16>,
+	pub agent_host_bridge_connection_token: Option<String>,
 }
 
 impl CodeServerArgs {
@@ -120,6 +129,9 @@ impl CodeServerArgs {
 		if let Some(i) = self.log {
 			args.push(format!("--log={i}"));
 		}
+		if let Some(t) = self.reconnection_grace_time {
+			args.push(format!("--reconnection-grace-time={t}"));
+		}
 
 		for extension in &self.install_extensions {
 			args.push(format!("--install-extension={extension}"));
@@ -156,7 +168,22 @@ impl CodeServerArgs {
 		if self.start_server {
 			args.push(String::from("--start-server"));
 		}
+		if let Some(port) = self.agent_host_bridge_port {
+			args.push(format!("--agent-host-bridge-port={port}"));
+			if let Some(host) = &self.agent_host_bridge_host {
+				args.push(format!("--agent-host-bridge-host={host}"));
+			}
+		}
 		args
+	}
+
+	fn apply_to_command(&self, command: &mut Command) {
+		command.args(self.command_arguments());
+		if self.agent_host_bridge_port.is_some() {
+			if let Some(token) = &self.agent_host_bridge_connection_token {
+				command.env(AGENT_HOST_BRIDGE_CONNECTION_TOKEN_ENV, token);
+			}
+		}
 	}
 }
 
@@ -328,6 +355,28 @@ pub struct ServerBuilder<'a> {
 	launcher_paths: &'a LauncherPaths,
 	server_paths: ServerPaths,
 	http: BoxedHttp,
+}
+
+/// Ensures the given path has execute permissions on Unix.
+/// This is a self-healing measure for cases where the binary was extracted
+/// without execute permissions or where permissions were lost (e.g. on
+/// network filesystems or after interrupted downloads).
+#[cfg(unix)]
+fn ensure_executable(path: &std::path::Path) -> Result<(), std::io::Error> {
+	use std::os::unix::fs::PermissionsExt;
+
+	let metadata = std::fs::metadata(path)?;
+	let mut permissions = metadata.permissions();
+	if permissions.mode() & 0o111 == 0 {
+		permissions.set_mode(permissions.mode() | 0o111);
+		std::fs::set_permissions(path, permissions)?;
+	}
+	Ok(())
+}
+
+#[cfg(not(unix))]
+fn ensure_executable(_path: &std::path::Path) -> Result<(), std::io::Error> {
+	Ok(())
 }
 
 impl<'a> ServerBuilder<'a> {
@@ -546,14 +595,7 @@ impl<'a> ServerBuilder<'a> {
 	}
 
 	pub async fn listen_on_socket(&self, socket: &Path) -> Result<SocketCodeServer, AnyError> {
-		Ok(spanf!(
-			self.logger,
-			self.logger.span("server.start").with_attributes(vec! {
-				KeyValue::new("commit_id", self.server_params.release.commit.to_string()),
-				KeyValue::new("quality", format!("{}", self.server_params.release.quality)),
-			}),
-			self._listen_on_socket(socket)
-		)?)
+		self._listen_on_socket(socket).await
 	}
 
 	async fn _listen_on_socket(&self, socket: &Path) -> Result<SocketCodeServer, AnyError> {
@@ -595,7 +637,11 @@ impl<'a> ServerBuilder<'a> {
 	async fn spawn_server_process(&self, mut cmd: Command) -> Result<Child, AnyError> {
 		info!(self.logger, "Starting server...");
 
-		debug!(self.logger, "Starting server with command... {:?}", cmd);
+		debug!(
+			self.logger,
+			"Starting server process: {:?}",
+			cmd.as_std().get_program()
+		);
 
 		// On Windows spawning a code-server binary will run cmd.exe /c C:\path\to\code-server.cmd...
 		// This spawns a cmd.exe window for the user, which if they close will kill the code-server process
@@ -607,11 +653,25 @@ impl<'a> ServerBuilder<'a> {
 		let cmd = cmd.creation_flags(
 			winapi::um::winbase::CREATE_NO_WINDOW
 				| winapi::um::winbase::CREATE_NEW_PROCESS_GROUP
-				| get_should_use_breakaway_from_job()
-					.await
-					.then_some(winapi::um::winbase::CREATE_BREAKAWAY_FROM_JOB)
-					.unwrap_or_default(),
+				| if get_should_use_breakaway_from_job().await {
+					winapi::um::winbase::CREATE_BREAKAWAY_FROM_JOB
+				} else {
+					Default::default()
+				},
 		);
+
+		// Self-heal: if the server binary lost execute permissions (e.g. on a
+		// network filesystem or after a partial extraction), try to restore them
+		// before attempting to spawn. If this fails, report it clearly so that
+		// the UI does not treat it as generic "corruption" and loop re-downloading.
+		if let Err(e) = ensure_executable(&self.server_paths.executable) {
+			return Err(CodeError::ServerNotExecutable(format!(
+				"{} is not executable and permissions could not be restored: {}",
+				self.server_paths.executable.display(),
+				e
+			))
+			.into());
+		}
 
 		let child = cmd
 			.stderr(std::process::Stdio::piped())
@@ -639,8 +699,10 @@ impl<'a> ServerBuilder<'a> {
 
 	fn get_base_command(&self) -> Command {
 		let mut cmd = new_script_command(&self.server_paths.executable);
-		cmd.stdin(std::process::Stdio::null())
-			.args(self.server_params.code_server_args.command_arguments());
+		cmd.stdin(std::process::Stdio::null());
+		self.server_params
+			.code_server_args
+			.apply_to_command(&mut cmd);
 		cmd
 	}
 }
@@ -797,12 +859,7 @@ fn parse_port_from(text: &str) -> Option<u16> {
 	})
 }
 
-pub fn print_listening(log: &log::Logger, tunnel_name: &str) {
-	debug!(
-		log,
-		"{} is listening for incoming connections", QUALITYLESS_SERVER_NAME
-	);
-
+pub fn get_tunnel_web_url(tunnel_name: &str) -> Option<url::Url> {
 	let home_dir = dirs::home_dir().unwrap_or_else(|| PathBuf::from(""));
 	let current_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from(""));
 
@@ -812,10 +869,7 @@ pub fn print_listening(log: &log::Logger, tunnel_name: &str) {
 		current_dir
 	};
 
-	let base_web_url = match EDITOR_WEB_URL {
-		Some(u) => u,
-		None => return,
-	};
+	let base_web_url = EDITOR_WEB_URL?;
 
 	let mut addr = url::Url::parse(base_web_url).unwrap();
 	{
@@ -830,8 +884,47 @@ pub fn print_listening(log: &log::Logger, tunnel_name: &str) {
 		}
 	}
 
-	let message = &format!("\nOpen this link in your browser {addr}\n");
-	log.result(message);
+	Some(addr)
+}
+
+/// Prints the tunnel's ready banner. `show_editor_link` must be `false` for a
+/// tunnel that does not serve the control port (`--agent-host-only`): the
+/// editor URL would 404, since nothing is listening behind it.
+pub fn print_listening(log: &log::Logger, tunnel_name: &str, show_editor_link: bool) {
+	use crate::commands::output;
+	use console::style;
+
+	debug!(
+		log,
+		"{} is listening for incoming connections", QUALITYLESS_SERVER_NAME
+	);
+
+	let addr = match get_tunnel_web_url(tunnel_name) {
+		Some(addr) => addr,
+		None => return,
+	};
+
+	let arrow = style("➜").green().bold();
+	let product = QUALITYLESS_PRODUCT_NAME;
+	let version = crate::constants::VSCODE_CLI_VERSION.unwrap_or("dev");
+
+	println!();
+	println!(
+		"  {} {}",
+		style(format!("{product} Tunnel")).cyan().bold(),
+		style(format!("v{version}")).dim(),
+	);
+	println!();
+	output::print_banner_line("Tunnel", tunnel_name);
+	if show_editor_link {
+		println!(
+			"  {}  {}  {}",
+			arrow,
+			style("Open:").bold(),
+			style(&addr).cyan(),
+		);
+	}
+	output::print_banner_footer();
 }
 
 pub async fn download_cli_into_cache(
@@ -878,4 +971,48 @@ async fn get_should_use_breakaway_from_job() -> bool {
 	);
 
 	cmd.args(["/C", "echo ok"]).output().await.is_ok()
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn agent_host_bridge_connection_token_is_only_in_command_environment() {
+		let args = CodeServerArgs {
+			agent_host_bridge_host: Some("127.0.0.1".to_string()),
+			agent_host_bridge_port: Some(9000),
+			agent_host_bridge_connection_token: Some("secret-token".to_string()),
+			..Default::default()
+		};
+		let mut command = Command::new("code-server");
+		args.apply_to_command(&mut command);
+		let command = command.as_std();
+
+		assert_eq!(
+			(
+				command
+					.get_args()
+					.map(|argument| argument.to_string_lossy().into_owned())
+					.collect::<Vec<_>>(),
+				command
+					.get_envs()
+					.map(|(name, value)| (
+						name.to_string_lossy().into_owned(),
+						value.map(|value| value.to_string_lossy().into_owned())
+					))
+					.collect::<Vec<_>>(),
+			),
+			(
+				vec![
+					"--agent-host-bridge-port=9000".to_string(),
+					"--agent-host-bridge-host=127.0.0.1".to_string(),
+				],
+				vec![(
+					AGENT_HOST_BRIDGE_CONNECTION_TOKEN_ENV.to_string(),
+					Some("secret-token".to_string()),
+				)],
+			)
+		);
+	}
 }

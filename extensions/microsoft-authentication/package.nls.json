@@ -3,16 +3,9 @@
 	"description": "Microsoft authentication provider",
 	"signIn": "Sign In",
 	"signOut": "Sign Out",
-	"microsoft-authentication.implementation.description": {
-		"message": "The authentication implementation to use for signing in with a Microsoft account.\n\n*NOTE: The `classic` implementation is deprecated and will be removed in a future release. If the `msal` implementation does not work for you, please [open an issue](command:workbench.action.openIssueReporter) and explain what you are trying to log in to.*",
-		"comment": [
-			"{Locked='[(command:workbench.action.openIssueReporter)]'}",
-			"The `command:` syntax will turn into a link. Do not translate it."
-		]
-	},
+	"microsoft-authentication.implementation.description": "The authentication implementation to use for signing in with a Microsoft account.",
 	"microsoft-authentication.implementation.enumDescriptions.msal": "Use the Microsoft Authentication Library (MSAL) to sign in with a Microsoft account.",
 	"microsoft-authentication.implementation.enumDescriptions.msal-no-broker": "Use the Microsoft Authentication Library (MSAL) to sign in with a Microsoft account using a browser. This is useful if you are having issues with the native broker.",
-	"microsoft-authentication.implementation.enumDescriptions.classic": "(deprecated) Use the classic authentication flow to sign in with a Microsoft account.",
 	"microsoft-sovereign-cloud.environment.description": {
 		"message": "The Sovereign Cloud to use for authentication. If you select `custom`, you must also set the `#microsoft-sovereign-cloud.customEnvironment#` setting.",
 		"comment": [

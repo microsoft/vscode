@@ -507,7 +507,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		// Prefer an existing model if it is already resolved for the given target resource
-		let targetExists: boolean = false;
+		let targetExists = false;
 		let targetModel = this.files.get(target);
 		if (targetModel?.isResolved()) {
 			targetExists = true;
@@ -588,6 +588,18 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			if (sourceLanguageId !== PLAINTEXT_LANGUAGE_ID && targetLanguageId === PLAINTEXT_LANGUAGE_ID) {
 				targetTextModel.setLanguage(sourceLanguageId); // only use if more specific than plain/text
 			}
+
+			// indentation options (preserve tabs vs spaces, tab size, indent size)
+			const sourceOptions = sourceTextModel.getOptions();
+			targetTextModel.updateOptions({
+				tabSize: sourceOptions.tabSize,
+				indentSize: sourceOptions.indentSize,
+				insertSpaces: sourceOptions.insertSpaces
+			});
+
+			// end of line sequence (preserve LF vs CRLF)
+			const sourceEOL = sourceTextModel.getEndOfLineSequence();
+			targetTextModel.setEOL(sourceEOL);
 
 			// transient properties
 			const sourceTransientProperties = this.codeEditorService.getTransientModelProperties(sourceTextModel);

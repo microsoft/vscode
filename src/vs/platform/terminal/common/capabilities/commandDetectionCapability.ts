@@ -8,9 +8,10 @@ import { debounce } from '../../../../base/common/decorators.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, MandatoryMutableDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../log/common/log.js';
+import { isString } from '../../../../base/common/types.js';
 import { CommandInvalidationReason, ICommandDetectionCapability, ICommandInvalidationRequest, IHandleCommandOptions, ISerializedCommandDetectionCapability, ISerializedTerminalCommand, ITerminalCommand, TerminalCapability } from './capabilities.js';
 import { ITerminalOutputMatcher } from '../terminal.js';
-import { ICurrentPartialCommand, PartialTerminalCommand, TerminalCommand } from './commandDetection/terminalCommand.js';
+import { ICurrentPartialCommand, isFullTerminalCommand, PartialTerminalCommand, TerminalCommand } from './commandDetection/terminalCommand.js';
 import { PromptInputModel, type IPromptInputModel } from './commandDetection/promptInputModel.js';
 import type { IBuffer, IDisposable, IMarker, Terminal } from '@xterm/headless';
 
@@ -35,6 +36,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	private _handleCommandStartOptions?: IHandleCommandOptions;
 	private _hasRichCommandDetection: boolean = false;
 	get hasRichCommandDetection() { return this._hasRichCommandDetection; }
+	private _nextCommandId: { command: string; commandId: string | undefined } | undefined;
+	private _isCurrentCommandInterrupted = false;
 
 	private _ptyHeuristicsHooks: ICommandDetectionHeuristicsHooks;
 	private readonly _ptyHeuristics: MandatoryMutableDisposable<IPtyHeuristics>;
@@ -51,7 +54,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	}
 	get executingCommandConfidence(): 'low' | 'medium' | 'high' | undefined {
 		const casted = this._currentCommand as PartialTerminalCommand | ITerminalCommand;
-		return 'commandLineConfidence' in casted ? casted.commandLineConfidence : undefined;
+		return isFullTerminalCommand(casted) ? casted.commandLineConfidence : undefined;
 	}
 	get currentCommand(): ICurrentPartialCommand {
 		return this._currentCommand;
@@ -82,7 +85,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	) {
 		super();
 		this._currentCommand = new PartialTerminalCommand(this._terminal);
-		this._promptInputModel = this._register(new PromptInputModel(this._terminal, this.onCommandStarted, this.onCommandStartChanged, this.onCommandExecuted, this._logService));
+		this._promptInputModel = this._register(new PromptInputModel(this._terminal, this.onCommandStarted, this.onCommandStartChanged, this.onCommandExecuted, this.onCommandFinished, this._logService));
+		this._register(this._promptInputModel.onDidInterrupt(() => this._isCurrentCommandInterrupted = true));
 
 		// Pull command line from the buffer if it was not set explicitly
 		this._register(this.onCommandExecuted(command => {
@@ -93,7 +97,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 				command.commandLineConfidence = 'low';
 
 				// ITerminalCommand
-				if ('getOutput' in typedCommand) {
+				if (isFullTerminalCommand(typedCommand)) {
 					if (
 						// Markers exist
 						typedCommand.promptStartMarker && typedCommand.marker && typedCommand.executedMarker &&
@@ -119,6 +123,17 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 					}
 				}
 			}
+		}));
+
+		this._register(this._terminal.parser.registerCsiHandler({ final: 'J' }, params => {
+			if (params.length >= 1 && params[0] === 2) {
+				if (!this._terminal.options.scrollOnEraseInDisplay) {
+					this._clearCommandsInViewport();
+				}
+				this._currentCommand.wasCleared = true;
+			}
+			// We don't want to override xterm.js' default behavior, just augment it
+			return false;
 		}));
 
 		// Set up platform-specific behaviors
@@ -271,7 +286,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		}
 
 		const command = this.getCommandForLine(line);
-		if (command && 'cwd' in command) {
+		if (command && isFullTerminalCommand(command)) {
 			return command.cwd;
 		}
 
@@ -279,6 +294,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	}
 
 	handlePromptStart(options?: IHandleCommandOptions): void {
+		this._isCurrentCommandInterrupted = false;
 		// Adjust the last command's finished marker when needed. The standard position for the
 		// finished marker `D` to appear is at the same position as the following prompt started
 		// `A`. Only do this when it would not extend past the current cursor position.
@@ -293,8 +309,17 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			lastCommand.endMarker = cloneMarker(this._terminal, lastCommand.executedMarker, 1);
 		}
 
-		this._currentCommand.promptStartMarker = options?.marker || (lastCommand?.endMarker ? cloneMarker(this._terminal, lastCommand.endMarker) : this._terminal.registerMarker(0));
-		this._logService.debug('CommandDetectionCapability#handlePromptStart', this._terminal.buffer.active.cursorX, this._currentCommand.promptStartMarker?.line);
+		this._currentCommand.promptStartMarker = (
+			options?.marker ||
+			// Generally the prompt start should happen at the exact place the endmarker happened.
+			// However, after ctrl+l is used to clear the display, we want to ensure the actual
+			// prompt start marker position is used. This is mostly a workaround for Windows but we
+			// apply it generally.
+			(!this._currentCommand.wasCleared && lastCommand?.endMarker
+				? cloneMarker(this._terminal, lastCommand.endMarker)
+				: this._terminal.registerMarker(0))
+		);
+		this._currentCommand.wasCleared = false;
 	}
 
 	handleContinuationStart(): void {
@@ -342,7 +367,16 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._ptyHeuristics.value.handleCommandStart(options);
 	}
 
+	/**
+	 * Sets the command ID to use for the next command that starts.
+	 * This is useful when you want to pre-assign an ID before the shell sends the command start sequence.
+	 */
+	setNextCommandId(command: string, commandId: string): void {
+		this._nextCommandId = { command, commandId };
+	}
+
 	handleCommandExecuted(options?: IHandleCommandOptions): void {
+		this._ensureCurrentCommandId(this._currentCommand.command ?? this._currentCommand.extractCommandLine());
 		this._ptyHeuristics.value.handleCommandExecuted(options);
 		this._currentCommand.markExecutedTime();
 	}
@@ -355,7 +389,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		if (!this._currentCommand.commandExecutedMarker) {
 			this.handleCommandExecuted();
 		}
-
 		this._currentCommand.markFinishedTime();
 		this._ptyHeuristics.value.preHandleCommandFinished?.();
 
@@ -366,7 +399,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		// command's exit code. This covered the majority of cases but will fail if the same command
 		// runs with a different exit code, that will need a more robust fix where we send the
 		// command ID and exit code over to the capability to adjust there.
-		if (exitCode === undefined) {
+		// A canceled command's exit code should remain undefined.
+		if (exitCode === undefined && !this._isCurrentCommandInterrupted) {
 			const lastCommand = this.commands.length > 0 ? this.commands[this.commands.length - 1] : undefined;
 			if (this._currentCommand.command && this._currentCommand.command.length > 0 && lastCommand?.command === this._currentCommand.command) {
 				exitCode = lastCommand.exitCode;
@@ -392,8 +426,21 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
 			this._onCommandFinished.fire(newCommand);
 		}
+		// Create new command for next execution
 		this._currentCommand = new PartialTerminalCommand(this._terminal);
 		this._handleCommandStartOptions = undefined;
+	}
+
+	private _ensureCurrentCommandId(_commandLine: string | undefined): void {
+		if (this._nextCommandId?.commandId) {
+			// Assign the pre-set command ID to the current command. The timing of setNextCommandId
+			// (called right before runCommand) and _ensureCurrentCommandId (called on command
+			// executed) ensures we're matching the right command without needing string comparison.
+			if (this._currentCommand.id !== this._nextCommandId.commandId) {
+				this._currentCommand.id = this._nextCommandId.commandId;
+			}
+			this._nextCommandId = undefined;
+		}
 	}
 
 	setCommandLine(commandLine: string, isTrusted: boolean) {
@@ -497,13 +544,6 @@ class UnixPtyHeuristics extends Disposable {
 		private readonly _logService: ILogService
 	) {
 		super();
-		this._register(_terminal.parser.registerCsiHandler({ final: 'J' }, params => {
-			if (params.length >= 1 && (params[0] === 2 || params[0] === 3)) {
-				_hooks.clearCommandsInViewport();
-			}
-			// We don't want to override xterm.js' default behavior, just augment it
-			return false;
-		}));
 	}
 
 	handleCommandStart(options?: IHandleCommandOptions) {
@@ -568,15 +608,6 @@ class WindowsPtyHeuristics extends Disposable {
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
-
-		this._register(_terminal.parser.registerCsiHandler({ final: 'J' }, params => {
-			// Clear commands when the viewport is cleared
-			if (params.length >= 1 && (params[0] === 2 || params[0] === 3)) {
-				this._hooks.clearCommandsInViewport();
-			}
-			// We don't want to override xterm.js' default behavior, just augment it
-			return false;
-		}));
 
 		this._register(this._capability.onBeforeCommandFinished(command => {
 			// For older Windows backends we cannot listen to CSI J, instead we assume running clear
@@ -713,9 +744,9 @@ class WindowsPtyHeuristics extends Disposable {
 			if (this._cursorOnNextLine()) {
 				const prompt = this._getWindowsPrompt(start.line + scannedLineCount);
 				if (prompt) {
-					const adjustedPrompt = typeof prompt === 'string' ? prompt : prompt.prompt;
+					const adjustedPrompt = isString(prompt) ? prompt : prompt.prompt;
 					this._capability.currentCommand.commandStartMarker = this._terminal.registerMarker(0)!;
-					if (typeof prompt === 'object' && prompt.likelySingleLine) {
+					if (!isString(prompt) && prompt.likelySingleLine) {
 						this._logService.debug('CommandDetectionCapability#_tryAdjustCommandStartMarker adjusted promptStart', `${this._capability.currentCommand.promptStartMarker?.line} -> ${this._capability.currentCommand.commandStartMarker.line}`);
 						this._capability.currentCommand.promptStartMarker?.dispose();
 						this._capability.currentCommand.promptStartMarker = cloneMarker(this._terminal, this._capability.currentCommand.commandStartMarker);

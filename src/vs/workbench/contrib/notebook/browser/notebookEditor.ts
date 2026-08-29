@@ -8,6 +8,7 @@ import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar
 import { IAction, toAction } from '../../../../base/common/actions.js';
 import { timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { isWeb } from '../../../../base/common/platform.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { extname, isEqual } from '../../../../base/common/resources.js';
@@ -16,10 +17,11 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { ByteSize, FileOperationError, FileOperationResult, IFileService, TooLargeFileOperationError } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
@@ -37,6 +39,7 @@ import { NotebookEditorInput } from '../common/notebookEditorInput.js';
 import { NotebookPerfMarks } from '../common/notebookPerformance.js';
 import { GroupsOrder, IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IEditorProgressService } from '../../../../platform/progress/common/progress.js';
 import { InstallRecommendedExtensionAction } from '../../extensions/browser/extensionsActions.js';
 import { INotebookService } from '../common/notebookService.js';
@@ -51,6 +54,15 @@ import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
+const NOTEBOOK_WEB_HOST_OPEN_CONFIRMED_KEY = 'notebook.webHost.openConfirmed';
+
+/**
+ * Notebook resources that have already been confirmed for opening in a serverless web
+ * session. This prevents re-prompting when the user switches back to an already-open
+ * notebook, while still gating the first open of each notebook.
+ */
+const confirmedWebHostNotebooks = new Set<string>();
+
 
 export class NotebookEditor extends EditorPane implements INotebookEditorPane, IEditorPaneWithScrolling {
 	static readonly ID: string = NOTEBOOK_EDITOR_ID;
@@ -84,7 +96,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane, I
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IStorageService storageService: IStorageService,
+		@IStorageService private readonly _storageService: IStorageService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@INotebookEditorService private readonly _notebookWidgetService: INotebookEditorService,
@@ -96,9 +108,11 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane, I
 		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWorkingCopyBackupService private readonly _workingCopyBackupService: IWorkingCopyBackupService,
 		@ILogService private readonly logService: ILogService,
-		@IPreferencesService private readonly _preferencesService: IPreferencesService
+		@IPreferencesService private readonly _preferencesService: IPreferencesService,
+		@IDialogService private readonly _dialogService: IDialogService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService
 	) {
-		super(NotebookEditor.ID, group, telemetryService, themeService, storageService);
+		super(NotebookEditor.ID, group, telemetryService, themeService, _storageService);
 		this._editorMemento = this.getEditorMemento<INotebookEditorViewState>(_editorGroupService, configurationService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 
 		this._register(this._fileService.onDidChangeFileSystemProviderCapabilities(e => this._onDidChangeFileSystemProvider(e.scheme)));
@@ -194,7 +208,56 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane, I
 		return !!value && (DOM.isAncestorOfActiveElement(value.getDomNode() || DOM.isAncestorOfActiveElement(value.getOverflowContainerDomNode())));
 	}
 
+	/**
+	 * When running serverless on the web (i.e. in the browser with no remote server
+	 * connected), prompt the user to confirm that they really want to open the notebook.
+	 * The confirmation is only shown the first time a given notebook is opened in the
+	 * session (so switching back to an already-open notebook does not re-prompt), and the
+	 * choice can be remembered for the whole workspace via a "Don't ask again" checkbox.
+	 */
+	private async _confirmOpenOnWebHost(input: NotebookEditorInput): Promise<void> {
+		const isServerlessWeb = isWeb && !this._environmentService.remoteAuthority;
+		if (!isServerlessWeb) {
+			return;
+		}
+
+		if (this._storageService.getBoolean(NOTEBOOK_WEB_HOST_OPEN_CONFIRMED_KEY, StorageScope.WORKSPACE, false)) {
+			return;
+		}
+
+		const resourceKey = input.resource.toString();
+		if (confirmedWebHostNotebooks.has(resourceKey)) {
+			return;
+		}
+
+		const { confirmed, checkboxChecked } = await this._dialogService.confirm({
+			type: 'warning',
+			message: localize('notebook.webHost.confirm', "Do you trust the authors of this notebook?"),
+			detail: localize('notebook.webHost.detail', "Notebooks can run code that has access to your browser session, including any signed-in accounts. Only open notebooks from authors you trust."),
+			primaryButton: localize('notebook.webHost.open', "Open Notebook"),
+			checkbox: { label: localize('notebook.webHost.remember', "Don't ask me again") }
+		});
+
+		if (!confirmed) {
+			throw createEditorOpenError(localize('notebook.webHost.declined', "The notebook was not opened because its authors are not trusted."), [
+				toAction({
+					id: 'workbench.notebook.action.openAsText', label: localize('notebookOpenAsText', "Open As Text"), run: async () => {
+						this._editorService.openEditor({ resource: input.resource, options: { override: DEFAULT_EDITOR_ASSOCIATION.id, pinned: true } });
+					}
+				})
+			], { forceMessage: true });
+		}
+
+		confirmedWebHostNotebooks.add(resourceKey);
+
+		if (checkboxChecked) {
+			this._storageService.store(NOTEBOOK_WEB_HOST_OPEN_CONFIRMED_KEY, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		}
+	}
+
 	override async setInput(input: NotebookEditorInput, options: INotebookEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken, noRetry?: boolean): Promise<void> {
+		await this._confirmOpenOnWebHost(input);
+
 		try {
 			let perfMarksCaptured = false;
 			const fileOpenMonitor = timeout(10000);

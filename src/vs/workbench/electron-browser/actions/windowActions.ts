@@ -17,7 +17,8 @@ import { getIconClasses } from '../../../editor/common/services/getIconClasses.j
 import { ICommandHandler } from '../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
-import { INativeHostService } from '../../../platform/native/common/native.js';
+import { INativeHostService, FocusMode } from '../../../platform/native/common/native.js';
+import { IHostService } from '../../services/host/browser/host.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from '../../../platform/workspace/common/workspace.js';
@@ -29,7 +30,7 @@ import { isMacintosh } from '../../../base/common/platform.js';
 import { getActiveWindow } from '../../../base/browser/dom.js';
 import { IOpenedAuxiliaryWindow, IOpenedMainWindow, isOpenedAuxiliaryWindow } from '../../../platform/window/common/window.js';
 import { IsAuxiliaryWindowContext, IsAuxiliaryWindowFocusedContext, IsWindowAlwaysOnTopContext } from '../../common/contextkeys.js';
-import { isAuxiliaryWindow } from '../../../base/browser/window.js';
+import { isAuxiliaryWindow, mainWindow } from '../../../base/browser/window.js';
 import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
 
 export class CloseWindowAction extends Action2 {
@@ -62,6 +63,32 @@ export class CloseWindowAction extends Action2 {
 		const nativeHostService = accessor.get(INativeHostService);
 
 		return nativeHostService.closeWindow({ targetWindowId: getActiveWindow().vscodeWindowId });
+	}
+}
+
+export class CloseOtherWindowsAction extends Action2 {
+
+	private static readonly ID = 'workbench.action.closeOtherWindows';
+
+	constructor() {
+		super({
+			id: CloseOtherWindowsAction.ID,
+			title: localize2('closeOtherWindows', "Close Other Windows"),
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const nativeHostService = accessor.get(INativeHostService);
+
+		const currentWindowId = getActiveWindow().vscodeWindowId;
+		const windows = await nativeHostService.getWindows({ includeAuxiliaryWindows: false });
+
+		for (const window of windows) {
+			if (window.id !== currentWindowId) {
+				nativeHostService.closeWindow({ targetWindowId: window.id });
+			}
+		}
 	}
 }
 
@@ -216,6 +243,12 @@ abstract class BaseSwitchWindow extends Action2 {
 		alwaysVisible: true
 	};
 
+	private readonly closeActiveWindowAction: IQuickInputButton = {
+		iconClass: 'active-window ' + ThemeIcon.asClassName(Codicon.windowActive),
+		tooltip: localize('closeActive', "Close Active Window"),
+		alwaysVisible: true
+	};
+
 	protected abstract isQuickNavigate(): boolean;
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
@@ -269,7 +302,7 @@ abstract class BaseSwitchWindow extends Action2 {
 				ariaLabel: window.dirty ? localize('windowDirtyAriaLabel', "{0}, window with unsaved changes", window.title) : window.title,
 				iconClasses: getIconClasses(modelService, languageService, resource, fileKind),
 				description: (currentWindowId === window.id) ? localize('current', "Current Window") : undefined,
-				buttons: currentWindowId !== window.id ? window.dirty ? [this.closeDirtyWindowAction] : [this.closeWindowAction] : undefined
+				buttons: window.dirty ? [this.closeDirtyWindowAction] : currentWindowId === window.id ? [this.closeActiveWindowAction] : [this.closeWindowAction]
 			};
 			picks.push(pick);
 
@@ -280,7 +313,7 @@ abstract class BaseSwitchWindow extends Action2 {
 						label: auxiliaryWindow.title,
 						iconClasses: getIconClasses(modelService, languageService, auxiliaryWindow.filename ? URI.file(auxiliaryWindow.filename) : undefined, FileKind.FILE),
 						description: (currentWindowId === auxiliaryWindow.id) ? localize('current', "Current Window") : undefined,
-						buttons: [this.closeWindowAction]
+						buttons: currentWindowId === auxiliaryWindow.id ? [this.closeActiveWindowAction] : [this.closeWindowAction]
 					};
 					picks.push(pick);
 				}
@@ -354,6 +387,47 @@ export class QuickSwitchWindowAction extends BaseSwitchWindow {
 
 	protected isQuickNavigate(): boolean {
 		return true;
+	}
+}
+
+export class SwitchToMainWindowAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.switchToMainWindow',
+			title: localize2('switchToMainWindow', "Switch to Main Window"),
+			f1: true,
+			precondition: IsAuxiliaryWindowContext
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const nativeHostService = accessor.get(INativeHostService);
+		return nativeHostService.focusWindow({ targetWindowId: mainWindow.vscodeWindowId });
+	}
+}
+
+export class FocusWindowAction extends Action2 {
+
+	static readonly ID = 'workbench.action.focusWindow';
+
+	constructor() {
+		super({
+			id: FocusWindowAction.ID,
+			title: localize2('focusWindow', "Focus Window"),
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const hostService = accessor.get(IHostService);
+
+		// Bring the current window to the foreground and focus it. `FocusMode.Force` is used because
+		// the application may not be active (for example when this runs from a system-wide keybinding
+		// while another app owns OS focus). This makes it usable as the first step of a `runCommands`
+		// chain that reveals the window before running a command which surfaces UI in it (e.g. Quick
+		// Open).
+		await hostService.focus(getActiveWindow(), { mode: FocusMode.Force });
 	}
 }
 
@@ -451,7 +525,8 @@ export class EnableWindowAlwaysOnTopAction extends Action2 {
 			menu: {
 				id: MenuId.LayoutControlMenu,
 				when: ContextKeyExpr.and(IsWindowAlwaysOnTopContext.toNegated(), IsAuxiliaryWindowContext),
-				order: 1
+				order: 1,
+				group: 'navigation'
 			}
 		});
 	}
@@ -480,7 +555,8 @@ export class DisableWindowAlwaysOnTopAction extends Action2 {
 			menu: {
 				id: MenuId.LayoutControlMenu,
 				when: ContextKeyExpr.and(IsWindowAlwaysOnTopContext, IsAuxiliaryWindowContext),
-				order: 1
+				order: 1,
+				group: 'navigation'
 			}
 		});
 	}

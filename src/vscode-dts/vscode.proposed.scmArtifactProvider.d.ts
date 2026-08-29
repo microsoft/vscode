@@ -21,11 +21,15 @@ declare module 'vscode' {
 		readonly id: string;
 		readonly name: string;
 		readonly icon?: IconPath;
+		readonly supportsFolders?: boolean;
 	}
 
 	export interface SourceControlArtifact {
 		readonly id: string;
 		readonly name: string;
 		readonly description?: string;
+		readonly icon?: IconPath;
+		readonly timestamp?: number;
+		readonly command?: Command;
 	}
 }

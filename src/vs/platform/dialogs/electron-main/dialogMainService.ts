@@ -12,7 +12,8 @@ import { normalizeNFC } from '../../../base/common/normalization.js';
 import { isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { Promises } from '../../../base/node/pfs.js';
 import { localize } from '../../../nls.js';
-import { INativeOpenDialogOptions, massageMessageBoxOptions } from '../common/dialogs.js';
+import { INativeOpenDialogOptions } from '../common/dialogs.js';
+import { massageMessageBoxOptions } from './dialogMainUtils.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -122,7 +123,7 @@ export class DialogMainService implements IDialogMainService {
 
 		// Show Dialog
 		const result = await this.showOpenDialog(dialogOptions, (window || electron.BrowserWindow.getFocusedWindow()) ?? undefined);
-		if (result && result.filePaths && result.filePaths.length > 0) {
+		if (result?.filePaths && result.filePaths.length > 0) {
 			return result.filePaths;
 		}
 

@@ -128,6 +128,7 @@ export abstract class PeekViewWidget extends ZoneWidget {
 			this.disposed = true; // prevent consumers who dispose on onDidClose from looping
 			super.dispose();
 			this._onDidClose.fire(this);
+			this._onDidClose.dispose();
 
 			const e = observableCodeEditor(this.editor);
 			e.openedPeekWidgets.set(e.openedPeekWidgets.get() - 1, undefined);

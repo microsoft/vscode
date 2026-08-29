@@ -53,7 +53,7 @@ export abstract class LocalFileSearchWorkerHost {
 	public static getChannel(workerServer: IWebWorkerServer): LocalFileSearchWorkerHost {
 		return workerServer.getChannel<LocalFileSearchWorkerHost>(LocalFileSearchWorkerHost.CHANNEL_NAME);
 	}
-	public static setChannel(workerClient: IWebWorkerClient<any>, obj: LocalFileSearchWorkerHost): void {
+	public static setChannel(workerClient: IWebWorkerClient<unknown>, obj: LocalFileSearchWorkerHost): void {
 		workerClient.setChannel<LocalFileSearchWorkerHost>(LocalFileSearchWorkerHost.CHANNEL_NAME, obj);
 	}
 

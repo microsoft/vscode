@@ -33,6 +33,7 @@ import { ITextResourceConfigurationService } from '../../../../editor/common/ser
 import { ICustomEditorLabelService } from '../../../services/editor/common/customEditorLabelService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
+import { isAbsolute } from '../../../../base/common/path.js';
 
 export interface NotebookEditorInputOptions {
 	startDirty?: boolean;
@@ -249,9 +250,18 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 	}
 
 	private async _suggestName(provider: NotebookProviderInfo) {
-		const resource = this.ensureProviderExtension(provider);
+		const resource = await this.ensureAbsolutePath(this.ensureProviderExtension(provider));
 		const remoteAuthority = this.environmentService.remoteAuthority;
 		return toLocalResource(resource, remoteAuthority, this.pathService.defaultUriScheme);
+	}
+
+	private async ensureAbsolutePath(resource: URI): Promise<URI> {
+		if (resource.scheme !== Schemas.untitled || isAbsolute(resource.path)) {
+			return resource;
+		}
+
+		const defaultFilePath = await this._fileDialogService.defaultFilePath();
+		return URI.joinPath(defaultFilePath, resource.path);
 	}
 
 	private ensureProviderExtension(provider: NotebookProviderInfo) {

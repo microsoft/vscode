@@ -156,8 +156,10 @@ export class SectionHeaderDetector extends Disposable implements IEditorContribu
 				const tokens = model.tokenization.getLineTokens(validRange.startLineNumber);
 				const idx = tokens.findTokenIndexAtOffset(validRange.startColumn - 1);
 				const tokenType = tokens.getStandardTokenType(idx);
-				const languageId = tokens.getLanguageId(idx);
-				return (languageId === model.getLanguageId() && tokenType === StandardTokenType.Comment);
+
+				const languageIdAtPosition = model.getLanguageIdAtPosition(validRange.startLineNumber, validRange.startColumn);
+				const tokenLanguageId = tokens.getLanguageId(idx);
+				return (tokenLanguageId === languageIdAtPosition && tokenType === StandardTokenType.Comment);
 			});
 		}
 

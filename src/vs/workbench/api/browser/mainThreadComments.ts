@@ -29,6 +29,7 @@ import { IViewsService } from '../../services/views/common/viewsService.js';
 import { MarshalledCommentThread } from '../../common/comments.js';
 import { revealCommentThread } from '../../contrib/comments/browser/commentsController.js';
 import { IEditorService } from '../../services/editor/common/editorService.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
 
 export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
@@ -216,10 +217,13 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 	dispose() {
 		this._isDisposed = true;
 		this._onDidChangeCollapsibleState.dispose();
+		this._onDidChangeInitialCollapsibleState.dispose();
 		this._onDidChangeComments.dispose();
 		this._onDidChangeInput.dispose();
 		this._onDidChangeLabel.dispose();
+		this._onDidChangeCanReply.dispose();
 		this._onDidChangeState.dispose();
+		this._onDidChangeApplicability.dispose();
 	}
 
 	toJSON(): MarshalledCommentThread {
@@ -287,12 +291,13 @@ export class MainThreadCommentController extends Disposable implements ICommentC
 
 	constructor(
 		private readonly _proxy: ExtHostCommentsShape,
-		private readonly _commentService: ICommentService,
 		private readonly _handle: number,
 		private readonly _uniqueId: string,
 		private readonly _id: string,
 		private readonly _label: string,
-		private _features: CommentProviderFeatures
+		private _features: CommentProviderFeatures,
+		@ICommentService private readonly _commentService: ICommentService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
 	}
@@ -453,7 +458,7 @@ export class MainThreadCommentController extends Disposable implements ICommentC
 		const ret: languages.CommentThread<IRange>[] = [];
 		for (const thread of [...this._threads.keys()]) {
 			const commentThread = this._threads.get(thread)!;
-			if (commentThread.thread.resource === resource.toString()) {
+			if (commentThread.thread.resource && this._uriIdentityService.extUri.isEqual(URI.parse(commentThread.thread.resource), resource)) {
 				if (commentThread.thread.isDocumentCommentThread()) {
 					ret.push(commentThread.thread);
 				}
@@ -552,7 +557,8 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		@IViewsService private readonly _viewsService: IViewsService,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
-		@IEditorService private readonly _editorService: IEditorService
+		@IEditorService private readonly _editorService: IEditorService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostComments);
@@ -570,23 +576,23 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 			this._activeEditingCommentThread = thread as MainThreadCommentThread<IRange | ICellRange>;
 			controller.activeEditingCommentThread = this._activeEditingCommentThread;
 		}));
+
+		this._register(this._commentService.onResourceHasCommentingRanges(() => {
+			this.registerView();
+		}));
+
+		this._register(this._commentService.onDidUpdateCommentThreads(() => {
+			this.registerView();
+		}));
 	}
 
 	$registerCommentController(handle: number, id: string, label: string, extensionId: string): void {
 		const providerId = `${id}-${extensionId}`;
 		this._handlers.set(handle, providerId);
 
-		const provider = new MainThreadCommentController(this._proxy, this._commentService, handle, providerId, id, label, {});
+		const provider = this._instantiationService.createInstance(MainThreadCommentController, this._proxy, handle, providerId, id, label, {});
 		this._commentService.registerCommentController(providerId, provider);
 		this._commentControllers.set(handle, provider);
-
-		this._register(this._commentService.onResourceHasCommentingRanges(e => {
-			this.registerView();
-		}));
-
-		this._register(this._commentService.onDidUpdateCommentThreads(e => {
-			this.registerView();
-		}));
 
 		this._commentService.setWorkspaceComments(String(handle), []);
 	}

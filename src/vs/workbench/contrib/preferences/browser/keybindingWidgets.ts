@@ -20,7 +20,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
-import { asCssVariable, editorWidgetBackground, editorWidgetForeground, widgetShadow } from '../../../../platform/theme/common/colorRegistry.js';
+import { asCssVariable, editorWidgetBackground, editorWidgetForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { ScrollType } from '../../../../editor/common/editorCommon.js';
 import { SearchWidget, SearchOptions } from './preferencesWidgets.js';
 import { Promises, timeout } from '../../../../base/common/async.js';
@@ -171,7 +171,6 @@ export class DefineKeybindingWidget extends Widget {
 
 		this._domNode.domNode.style.backgroundColor = asCssVariable(editorWidgetBackground);
 		this._domNode.domNode.style.color = asCssVariable(editorWidgetForeground);
-		this._domNode.domNode.style.boxShadow = `0 2px 8px ${asCssVariable(widgetShadow)}`;
 
 		this._keybindingInputWidget = this._register(this.instantiationService.createInstance(KeybindingsSearchWidget, this._domNode.domNode, { ariaLabel: message, history: new Set([]), inputBoxStyles: defaultInputBoxStyles }));
 		this._keybindingInputWidget.startRecordingKeys();

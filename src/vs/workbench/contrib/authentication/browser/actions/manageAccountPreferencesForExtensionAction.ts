@@ -6,7 +6,7 @@
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { Action2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -19,9 +19,13 @@ export class ManageAccountPreferencesForExtensionAction extends Action2 {
 	constructor() {
 		super({
 			id: '_manageAccountPreferencesForExtension',
-			title: localize2('manageAccountPreferenceForExtension', "Manage Extension Account Preferences"),
+			title: localize2('manageAccountPreferenceForExtension', "Manage Extension Account Preferences..."),
 			category: localize2('accounts', "Accounts"),
-			f1: true
+			f1: true,
+			menu: [{
+				id: MenuId.AccountsContext,
+				order: 100,
+			}],
 		});
 	}
 

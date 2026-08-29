@@ -25,7 +25,7 @@ export const searchShowAsList = registerIcon('search-list', Codicon.listFlat, lo
 export const searchClearIcon = registerIcon('search-clear-results', Codicon.clearAll, localize('searchClearIcon', 'Icon for clear results in the search view.'));
 export const searchStopIcon = registerIcon('search-stop', Codicon.searchStop, localize('searchStopIcon', 'Icon for stop in the search view.'));
 
-export const searchViewIcon = registerIcon('search-view-icon', Codicon.search, localize('searchViewIcon', 'View icon of the search view.'));
+export const searchViewIcon = registerIcon('search-view-icon', Codicon.searchLarge, localize('searchViewIcon', 'View icon of the search view.'));
 
 export const searchNewEditorIcon = registerIcon('search-new-editor', Codicon.newFile, localize('searchNewEditorIcon', 'Icon for the action to open a new search editor.'));
 export const searchOpenInFileIcon = registerIcon('search-open-in-file', Codicon.goToFile, localize('searchOpenInFile', 'Icon for the action to go to the file of the current search result.'));

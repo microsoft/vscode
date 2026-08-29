@@ -4,11 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as browser from './browser.js';
-import { EVENT_KEY_CODE_MAP, KeyCode, KeyCodeUtils, KeyMod } from '../common/keyCodes.js';
+import { EVENT_KEY_CODE_MAP, isModifierKey, KeyCode, KeyCodeUtils, KeyMod } from '../common/keyCodes.js';
 import { KeyCodeChord } from '../common/keybindings.js';
 import * as platform from '../common/platform.js';
-
-
 
 function extractKeyCode(e: KeyboardEvent): KeyCode {
 	if (e.charCode) {
@@ -152,8 +150,16 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 		this.altKey = e.altKey;
 		this.metaKey = e.metaKey;
 		this.altGraphKey = e.getModifierState?.('AltGraph');
-		this.keyCode = extractKeyCode(e);
 		this.code = e.code;
+
+		// Browsers are inconsistent while an IME composition is in flight: most keystrokes arrive as
+		// `keyCode: 229` (which maps to `KEY_IN_COMPOSITION`), but some platform/IME combinations
+		// report the real key code for keys the IME owns - notably the Enter that commits a
+		// composition, but also Space, Escape and the arrows used to pick candidates. Normalize to
+		// `KEY_IN_COMPOSITION` so that "the IME owns this keystroke" has a single representation
+		// that `equals()`, direct `keyCode` readers and keybinding resolution all understand,
+		// instead of acting on a key the user never directed at the application.
+		this.keyCode = e.isComposing ? KeyCode.KEY_IN_COMPOSITION : extractKeyCode(e);
 
 		// console.info(e.type + ": keyCode: " + e.keyCode + ", which: " + e.which + ", charCode: " + e.charCode + ", detail: " + e.detail + " ====> " + this.keyCode + ' -- ' + KeyCode[this.keyCode]);
 
@@ -190,7 +196,7 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 
 	private _computeKeybinding(): number {
 		let key = KeyCode.Unknown;
-		if (this.keyCode !== KeyCode.Ctrl && this.keyCode !== KeyCode.Shift && this.keyCode !== KeyCode.Alt && this.keyCode !== KeyCode.Meta) {
+		if (!isModifierKey(this.keyCode)) {
 			key = this.keyCode;
 		}
 
@@ -214,7 +220,7 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 
 	private _computeKeyCodeChord(): KeyCodeChord {
 		let key = KeyCode.Unknown;
-		if (this.keyCode !== KeyCode.Ctrl && this.keyCode !== KeyCode.Shift && this.keyCode !== KeyCode.Alt && this.keyCode !== KeyCode.Meta) {
+		if (!isModifierKey(this.keyCode)) {
 			key = this.keyCode;
 		}
 		return new KeyCodeChord(this.ctrlKey, this.shiftKey, this.altKey, this.metaKey, key);

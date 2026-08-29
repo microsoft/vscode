@@ -19,6 +19,7 @@ import { AccessibilityCommandId } from '../../accessibility/common/accessibility
 import { IEnvironmentVariableInfo } from './environmentVariable.js';
 import { IExtensionPointDescriptor } from '../../../services/extensions/common/extensionsRegistry.js';
 import { defaultTerminalContribCommandsToSkipShell } from '../terminalContribExports.js';
+import type { SingleOrMany } from '../../../../base/common/types.js';
 
 export const TERMINAL_VIEW_ID = 'terminal';
 
@@ -54,19 +55,13 @@ export interface ITerminalProfileResolverService {
 	resolveShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig, options: IShellLaunchConfigResolveOptions): Promise<void>;
 	getDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile>;
 	getDefaultShell(options: IShellLaunchConfigResolveOptions): Promise<string>;
-	getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<string | string[]>;
+	getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<SingleOrMany<string>>;
 	getDefaultIcon(): TerminalIcon & ThemeIcon;
 	getEnvironment(remoteAuthority: string | undefined): Promise<IProcessEnvironment>;
 }
 
-/*
- * When there were shell integration args injected
- * and createProcess returns an error, this exit code will be used.
- */
-export const ShellIntegrationExitCode = 633;
-
 export interface IRegisterContributedProfileArgs {
-	extensionIdentifier: string; id: string; title: string; options: ICreateContributedTerminalProfileOptions;
+	extensionIdentifier: string; id: string; title: string; options: ICreateContributedTerminalProfileOptions; titleTemplate?: string;
 }
 
 export const ITerminalProfileService = createDecorator<ITerminalProfileService>('terminalProfileService');
@@ -82,8 +77,16 @@ export interface ITerminalProfileService {
 	readonly onDidChangeAvailableProfiles: Event<ITerminalProfile[]>;
 	getContributedDefaultProfile(shellLaunchConfig: IShellLaunchConfig): Promise<IExtensionTerminalProfile | undefined>;
 	registerContributedProfile(args: IRegisterContributedProfileArgs): Promise<void>;
+	registerInternalContributedProfile(profile: IExtensionTerminalProfile): IDisposable;
 	getContributedProfileProvider(extensionIdentifier: string, id: string): ITerminalProfileProvider | undefined;
 	registerTerminalProfileProvider(extensionIdentifier: string, id: string, profileProvider: ITerminalProfileProvider): IDisposable;
+	/**
+	 * Overrides the default contributed terminal profile. When set,
+	 * {@link getContributedDefaultProfile} returns the matching profile
+	 * regardless of the user's configuration. Dispose the returned
+	 * disposable to remove the override.
+	 */
+	overrideDefaultProfile(extensionIdentifier: string, id: string): IDisposable;
 }
 
 export interface ITerminalProfileProvider {
@@ -94,6 +97,7 @@ export interface IShellLaunchConfigResolveOptions {
 	remoteAuthority: string | undefined;
 	os: OperatingSystem;
 	allowAutomationShell?: boolean;
+	allowAgentHostShell?: boolean;
 }
 
 export type FontWeight = 'normal' | 'bold' | number;
@@ -145,6 +149,7 @@ export interface ITerminalConfiguration {
 	rightClickBehavior: 'default' | 'copyPaste' | 'paste' | 'selectWord' | 'nothing';
 	middleClickBehavior: 'default' | 'paste';
 	cursorBlinking: boolean;
+	textBlinking: boolean;
 	cursorStyle: 'block' | 'underline' | 'line';
 	cursorStyleInactive: 'outline' | 'block' | 'underline' | 'line' | 'none';
 	cursorWidth: number;
@@ -177,7 +182,6 @@ export interface ITerminalConfiguration {
 	environmentChangesRelaunch: boolean;
 	showExitAlert: boolean;
 	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
-	windowsEnableConpty: boolean;
 	windowsUseConptyDll?: boolean;
 	wordSeparators: string;
 	enableFileLinks: 'off' | 'on' | 'notRemote';
@@ -193,6 +197,7 @@ export interface ITerminalConfiguration {
 		title: string;
 		description: string;
 		separator: string;
+		allowAgentCliTitle: boolean;
 	};
 	bellDuration: number;
 	defaultLocation: TerminalLocationConfigValue;
@@ -207,6 +212,8 @@ export interface ITerminalConfiguration {
 	smoothScrolling: boolean;
 	ignoreBracketedPasteMode: boolean;
 	rescaleOverlappingGlyphs: boolean;
+	enableKittyKeyboardProtocol: boolean;
+	enableWin32InputMode: boolean;
 	fontLigatures?: {
 		enabled: boolean;
 		featureSettings: string;
@@ -287,7 +294,7 @@ export interface ITerminalProcessManager extends IDisposable, ITerminalProcessIn
 	readonly onProcessData: Event<IProcessDataEvent>;
 	readonly onProcessReplayComplete: Event<void>;
 	readonly onEnvironmentVariableInfoChanged: Event<IEnvironmentVariableInfo>;
-	readonly onDidChangeProperty: Event<IProcessProperty<any>>;
+	readonly onDidChangeProperty: Event<IProcessProperty>;
 	readonly onProcessExit: Event<number | undefined>;
 	readonly onRestoreCommands: Event<ISerializedCommandDetectionCapability>;
 
@@ -297,11 +304,12 @@ export interface ITerminalProcessManager extends IDisposable, ITerminalProcessIn
 	relaunch(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, reset: boolean): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined>;
 	write(data: string): Promise<void>;
 	sendSignal(signal: string): Promise<void>;
-	setDimensions(cols: number, rows: number): Promise<void>;
-	setDimensions(cols: number, rows: number, sync: false): Promise<void>;
-	setDimensions(cols: number, rows: number, sync: true): void;
+	setDimensions(cols: number, rows: number, sync?: undefined, pixelWidth?: number, pixelHeight?: number): Promise<void>;
+	setDimensions(cols: number, rows: number, sync: false, pixelWidth?: number, pixelHeight?: number): Promise<void>;
+	setDimensions(cols: number, rows: number, sync: true, pixelWidth?: number, pixelHeight?: number): void;
 	clearBuffer(): Promise<void>;
 	setUnicodeVersion(version: '6' | '11'): Promise<void>;
+	setNextCommandId(commandLine: string, commandId: string): Promise<void>;
 	acknowledgeDataEvent(charCount: number): void;
 	processBinary(data: string): void;
 
@@ -334,7 +342,7 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 	readonly instanceId: number;
 
 	emitData(data: string): void;
-	emitProcessProperty(property: IProcessProperty<any>): void;
+	emitProcessProperty(property: IProcessProperty): void;
 	emitReady(pid: number, cwd: string, windowsPty: IProcessReadyWindowsPty | undefined): void;
 	emitExit(exitCode: number | undefined): void;
 
@@ -448,6 +456,7 @@ export const enum TerminalCommandId {
 	FocusNext = 'workbench.action.terminal.focusNext',
 	FocusPrevious = 'workbench.action.terminal.focusPrevious',
 	Paste = 'workbench.action.terminal.paste',
+	PastePwsh = 'workbench.action.terminal.pastePwsh',
 	PasteSelection = 'workbench.action.terminal.pasteSelection',
 	SelectDefaultProfile = 'workbench.action.terminal.selectDefaultShell',
 	RunSelectedText = 'workbench.action.terminal.runSelectedText',
@@ -518,6 +527,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.New,
 	TerminalCommandId.NewInNewWindow,
 	TerminalCommandId.Paste,
+	TerminalCommandId.PastePwsh,
 	TerminalCommandId.PasteSelection,
 	TerminalCommandId.ResizePaneDown,
 	TerminalCommandId.ResizePaneLeft,
@@ -545,6 +555,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.FocusHover,
 	AccessibilityCommandId.OpenAccessibilityHelp,
 	TerminalCommandId.StopVoice,
+	TerminalCommandId.SendSignal,
 	'workbench.action.tasks.rerunForActiveTerminal',
 	'editor.action.toggleTabFocusMode',
 	'notifications.hideList',
@@ -594,6 +605,20 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'workbench.action.debug.stepInto',
 	'workbench.action.debug.stepOut',
 	'workbench.action.debug.stepOver',
+	'sessions.goBack',
+	'sessions.goForward',
+	'sessions.focusActiveSession',
+	'sessions.focusSessionInGrid1',
+	'sessions.focusSessionInGrid2',
+	'sessions.focusSessionInGrid3',
+	'sessions.focusSessionInGrid4',
+	'sessions.focusSessionInGrid5',
+	'sessions.focusSessionInGrid6',
+	'sessions.focusSessionInGrid7',
+	'sessions.focusSessionInGrid8',
+	'sessions.focusSessionInGrid9',
+	'sessionsViewPane.navigatePreviousSession',
+	'sessionsViewPane.navigateNextSession',
 	'workbench.action.nextEditor',
 	'workbench.action.previousEditor',
 	'workbench.action.nextEditorInGroup',
@@ -618,6 +643,9 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'workbench.action.togglePanel',
 	'workbench.action.quickOpenView',
 	'workbench.action.toggleMaximizedPanel',
+	'workbench.action.zoomIn',
+	'workbench.action.zoomOut',
+	'workbench.action.zoomReset',
 	'notification.acceptPrimaryAction',
 	'runCommands',
 	'workbench.action.terminal.chat.start',
@@ -688,6 +716,10 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITermina
 								}
 							}]
 						},
+						titleTemplate: {
+							description: nls.localize('vscode.extension.contributes.terminal.profiles.titleTemplate', "A title template string for the terminal tab. Supports variables like $\{sequence}, $\{process}, $\{cwd}, etc. Overrides the default terminal.integrated.tabs.title setting for terminals created with this profile."),
+							type: 'string',
+						},
 					},
 				},
 			},
@@ -704,10 +736,6 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITermina
 						}
 					}],
 					properties: {
-						id: {
-							description: nls.localize('vscode.extension.contributes.terminal.completionProviders.id', "The ID of the terminal completion provider."),
-							type: 'string',
-						},
 						description: {
 							description: nls.localize('vscode.extension.contributes.terminal.completionProviders.description', "A description of what the completion provider does. This will be shown in the settings UI."),
 							type: 'string',

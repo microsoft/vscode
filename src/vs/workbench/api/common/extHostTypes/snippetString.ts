@@ -8,11 +8,11 @@ import { es5ClassCompat } from './es5ClassCompat.js';
 @es5ClassCompat
 export class SnippetString {
 
-	static isSnippetString(thing: any): thing is SnippetString {
+	static isSnippetString(thing: unknown): thing is SnippetString {
 		if (thing instanceof SnippetString) {
 			return true;
 		}
-		if (!thing) {
+		if (!thing || typeof thing !== 'object') {
 			return false;
 		}
 		return typeof (<SnippetString>thing).value === 'string';
@@ -41,7 +41,7 @@ export class SnippetString {
 		return this;
 	}
 
-	appendPlaceholder(value: string | ((snippet: SnippetString) => any), number: number = this._tabstop++): SnippetString {
+	appendPlaceholder(value: string | ((snippet: SnippetString) => unknown), number: number = this._tabstop++): SnippetString {
 
 		if (typeof value === 'function') {
 			const nested = new SnippetString();
@@ -74,7 +74,7 @@ export class SnippetString {
 		return this;
 	}
 
-	appendVariable(name: string, defaultValue?: string | ((snippet: SnippetString) => any)): SnippetString {
+	appendVariable(name: string, defaultValue?: string | ((snippet: SnippetString) => unknown)): SnippetString {
 
 		if (typeof defaultValue === 'function') {
 			const nested = new SnippetString();

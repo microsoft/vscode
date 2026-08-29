@@ -10,7 +10,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const IIgnoredExtensionsManagementService = createDecorator<IIgnoredExtensionsManagementService>('IIgnoredExtensionsManagementService');
 export interface IIgnoredExtensionsManagementService {
-	readonly _serviceBrand: any;
+	readonly _serviceBrand: undefined;
 
 	getIgnoredExtensions(installed: ILocalExtension[]): string[];
 

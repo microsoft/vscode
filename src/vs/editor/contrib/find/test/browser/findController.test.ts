@@ -292,6 +292,67 @@ suite('FindController', () => {
 		});
 	});
 
+	test('editor.find.closeOnResult: closes find widget when a match is found from explicit navigation', async () => {
+		await withAsyncTestCodeEditor([
+			'ABC',
+			'ABC',
+			'XYZ',
+		], { serviceCollection: serviceCollection, find: { closeOnResult: true } }, async (editor, _, instantiationService) => {
+			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
+			const findState = findController.getState();
+
+			await executeAction(instantiationService, editor, StartFindAction);
+			assert.strictEqual(findState.isRevealed, true);
+
+			findState.change({ searchString: 'ABC' }, true);
+			await editor.runAction(NextMatchFindAction);
+
+			assert.strictEqual(findState.isRevealed, false);
+			findController.dispose();
+		});
+	});
+
+	test('editor.find.closeOnResult: keeps find widget open when no match is found', async () => {
+		await withAsyncTestCodeEditor([
+			'ABC',
+			'DEF',
+			'XYZ',
+		], { serviceCollection: serviceCollection, find: { closeOnResult: true } }, async (editor, _, instantiationService) => {
+			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
+			const findState = findController.getState();
+
+			await executeAction(instantiationService, editor, StartFindAction);
+			assert.strictEqual(findState.isRevealed, true);
+
+			findState.change({ searchString: 'NO_MATCH' }, true);
+			await editor.runAction(NextMatchFindAction);
+
+			assert.strictEqual(findState.matchesCount, 0);
+			assert.strictEqual(findState.isRevealed, true);
+			findController.dispose();
+		});
+	});
+
+	test('editor.find.closeOnResult: disabled keeps find widget open after navigation', async () => {
+		await withAsyncTestCodeEditor([
+			'ABC',
+			'ABC',
+			'XYZ',
+		], { serviceCollection: serviceCollection, find: { closeOnResult: false } }, async (editor, _, instantiationService) => {
+			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
+			const findState = findController.getState();
+
+			await executeAction(instantiationService, editor, StartFindAction);
+			assert.strictEqual(findState.isRevealed, true);
+
+			findState.change({ searchString: 'ABC' }, true);
+			await editor.runAction(NextMatchFindAction);
+
+			assert.strictEqual(findState.isRevealed, true);
+			findController.dispose();
+		});
+	});
+
 	test('issue #9043: Clear search scope when find widget is hidden', async () => {
 		await withAsyncTestCodeEditor([
 			'var x = (3 * 5)',

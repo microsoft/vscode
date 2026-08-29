@@ -214,8 +214,6 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 					links.push(simpleLink);
 				}
 
-				// Only match a single fallback matcher
-				break;
 			}
 		}
 
