@@ -18,7 +18,7 @@ import { TSESTree } from '@typescript-eslint/utils';
  * Good: obj['property-with-dashes']
  * Good: obj[computedKey]
  */
-export = new class NoBracketNotationForIdentifiers implements eslint.Rule.RuleModule {
+export default new class NoBracketNotationForIdentifiers implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		type: 'problem',
@@ -69,12 +69,17 @@ export = new class NoBracketNotationForIdentifiers implements eslint.Rule.RuleMo
 							property: propertyName
 						},
 						fix(fixer) {
-							// Convert obj['property'] to obj.property
-							// We need to replace the ['property'] part with .property
-							const sourceCode = context.getSourceCode();
-							const objectText = sourceCode.getText(memberExpr.object as unknown as eslint.Rule.Node);
-							const dotNotation = `${objectText}.${propertyName}`;
-							return fixer.replaceText(node, dotNotation);
+							const property = memberExpr.property as unknown as eslint.Rule.Node;
+							const leftBracket = context.sourceCode.getTokenBefore(property);
+							const rightBracket = context.sourceCode.getTokenAfter(property);
+							if (leftBracket?.value !== '[' || rightBracket?.value !== ']') {
+								return null;
+							}
+
+							return fixer.replaceTextRange(
+								[leftBracket.range[0], rightBracket.range[1]],
+								`${memberExpr.optional ? '' : '.'}${propertyName}`
+							);
 						}
 					});
 				}

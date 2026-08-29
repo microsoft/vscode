@@ -88,7 +88,6 @@ export default defineConfig(
 			'no-var': 'warn',
 			'semi': 'warn',
 			'local/code-translation-remind': 'warn',
-			'local/code-no-bracket-notation-for-identifiers': 'warn',
 			'local/code-no-declare-const-enum': 'warn',
 			'local/code-parameter-properties-must-have-explicit-accessibility': 'warn',
 			'local/code-no-nls-in-standalone-editor': 'warn',
