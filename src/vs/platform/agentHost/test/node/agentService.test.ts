@@ -4122,38 +4122,33 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('a registry mutation during an in-flight list is not served from the shared computation', async () => {
+		test('a caller after a registry mutation does not join an in-flight computation', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MockAgent('copilot'));
 			registerTestAgentProvider(svc, agent);
-			await svc.listSessions();
-			const snapshotCaptured = new DeferredPromise<void>();
-			const releaseSnapshot = new DeferredPromise<void>();
-			const inner = svc as unknown as { _listRegisteredSessions(): Promise<IRegisteredSession[]> };
-			const original = inner._listRegisteredSessions;
-			let listCalls = 0;
-			inner._listRegisteredSessions = async () => {
-				const snapshot = await original.call(svc);
-				listCalls++;
-				if (listCalls === 1) {
-					snapshotCaptured.complete();
-					await releaseSnapshot.p;
-				}
-				return snapshot;
+			const gate = new DeferredPromise<void>();
+			const inner = svc as unknown as { _computeSessions(mode: AgentHostExternalSessionsMode): Promise<readonly IAgentSessionMetadata[]> };
+			const original = inner._computeSessions;
+			let computations = 0;
+			inner._computeSessions = async mode => {
+				computations++;
+				await gate.p;
+				return original.call(svc, mode);
 			};
 
-			const listing = svc.listSessions();
-			await snapshotCaptured.p;
+			const preInvalidation = svc.listSessions();
 			await svc.createSession({ provider: 'copilot' });
-			releaseSnapshot.complete();
-			const listed = await listing;
+			const postInvalidation = svc.listSessions();
+			gate.complete();
 
 			assert.deepStrictEqual({
-				listCalls,
-				listed: listed.length,
+				computations,
+				preInvalidation: (await preInvalidation).length,
+				postInvalidation: (await postInvalidation).length,
 			}, {
-				listCalls: 2,
-				listed: 1,
+				computations: 2,
+				preInvalidation: 1,
+				postInvalidation: 1,
 			});
 		});
 
