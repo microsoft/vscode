@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { AsyncIterableObject, AsyncIterableSource, DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { AsyncIterableProducer, AsyncIterableSource, DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -2061,7 +2061,7 @@ suite('LanguageModels - Provider Deprecation Notice', function () {
 				} satisfies ILanguageModelChatMetadata,
 				identifier: `${vendor}/deprecation-model`
 			}]),
-			sendChatRequest: async () => ({ stream: AsyncIterableObject.EMPTY, result: Promise.resolve(undefined) }),
+			sendChatRequest: async () => ({ stream: AsyncIterableProducer.EMPTY, result: Promise.resolve(undefined) }),
 			provideTokenCount: async () => { throw new Error(); }
 		}));
 
