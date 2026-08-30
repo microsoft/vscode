@@ -104,7 +104,7 @@ suite('SessionInputBanners', () => {
 		}();
 
 		let feedbackItems: IAgentFeedback[] = [
-			{ ...prFeedback('pr-42-a', sessionResource, 42), sourcePullRequest: undefined },
+			prFeedback('pr-42-a', sessionResource, 42),
 			prFeedback('pr-42-b', sessionResource, 42),
 			prFeedback('pr-41', sessionResource, 41),
 			agentFeedback('agent', sessionResource),
@@ -155,7 +155,8 @@ suite('SessionInputBanners', () => {
 			position: '1/3',
 			reference: '#42',
 			text: '2 Checks Failing | 2 PR Comments',
-			splitButtons: 2,
+			splitButtons: 1,
+			actions: ['Fix Checks & Address Comments'],
 		});
 
 		agentMergeEnabled = true;
@@ -165,6 +166,7 @@ suite('SessionInputBanners', () => {
 			reference: undefined,
 			text: '1 Agent Comment',
 			splitButtons: 0,
+			actions: ['Address Comments', 'Reveal'],
 		});
 		agentMergeEnabled = false;
 		onDidChangeSessionConfig.fire(session.sessionId);
@@ -174,7 +176,8 @@ suite('SessionInputBanners', () => {
 			position: '1/3',
 			reference: '#42',
 			text: '2 Checks Failing | 2 PR Comments',
-			splitButtons: 2,
+			splitButtons: 1,
+			actions: ['Fix Checks & Address Comments'],
 		});
 		banners.domNode.querySelector<HTMLElement>('.session-input-banner-navigation-button.next')?.click();
 		assert.deepStrictEqual(currentBanner(banners), {
@@ -182,6 +185,7 @@ suite('SessionInputBanners', () => {
 			reference: '#41',
 			text: '1 PR Comment',
 			splitButtons: 0,
+			actions: ['Address Comments', 'Reveal'],
 		});
 		banners.domNode.querySelector<HTMLElement>('.session-input-banner-navigation-button.next')?.click();
 		assert.deepStrictEqual(currentBanner(banners), {
@@ -189,6 +193,7 @@ suite('SessionInputBanners', () => {
 			reference: 'Agent Review',
 			text: '1 Agent Comment',
 			splitButtons: 0,
+			actions: ['Address Comments', 'Reveal'],
 		});
 		banners.domNode.querySelector<HTMLElement>('.session-input-banner-navigation-button.next')?.click();
 
@@ -209,6 +214,7 @@ suite('SessionInputBanners', () => {
 				reference: '#41',
 				text: '1 PR Comment',
 				splitButtons: 0,
+				actions: ['Address Comments', 'Reveal'],
 			},
 		});
 
@@ -222,6 +228,7 @@ suite('SessionInputBanners', () => {
 				reference: undefined,
 				text: '1 Agent Comment',
 				splitButtons: 0,
+				actions: ['Address Comments', 'Reveal'],
 			},
 			dismissed: ['session-1:pullRequest:owner/repo#41'],
 		});
@@ -301,11 +308,12 @@ function agentFeedback(id: string, sessionResource: URI): IAgentFeedback {
 	};
 }
 
-function currentBanner(banners: SessionInputBanners): { position: string | undefined; reference: string | undefined; text: string | undefined; splitButtons: number } {
+function currentBanner(banners: SessionInputBanners): { position: string | undefined; reference: string | undefined; text: string | undefined; splitButtons: number; actions: string[] } {
 	return {
 		position: banners.domNode.querySelector('.session-input-banner-position')?.textContent ?? undefined,
 		reference: banners.domNode.querySelector('.session-input-banner-reference')?.textContent ?? undefined,
 		text: banners.domNode.querySelector('.session-input-banner-text')?.textContent ?? undefined,
 		splitButtons: banners.domNode.querySelectorAll('.monaco-button-dropdown').length,
+		actions: [...banners.domNode.querySelectorAll<HTMLElement>('.session-input-banner-actions > .session-input-banner-action')].map(action => action.querySelector(':scope > .monaco-button:first-child')?.textContent ?? action.textContent ?? ''),
 	};
 }

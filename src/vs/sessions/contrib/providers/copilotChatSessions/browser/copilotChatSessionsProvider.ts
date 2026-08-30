@@ -1021,7 +1021,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 				uri: pullRequest.uri,
 				icon: pullRequest.icon,
 				title: pullRequest.title,
-			});
+			}, computePullRequestIcon(GitHubPullRequestState.Open));
 			return {
 				...info,
 				pullRequest: {

@@ -59,6 +59,7 @@ import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionM
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computePullRequestRefPresentation } from '../../../github/browser/pullRequestIconStatus.js';
 import { IPullRequestIconCache } from '../../../github/browser/pullRequestIconCache.js';
+import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
 import { parseGitHubPullRequestUrl } from '../../../github/common/utils.js';
 import { mapProtocolStatus } from './agentHostDiffs.js';
 import { createActiveSessionSubscriptionObs, createChangesets, IAgentHostChangeset, selectMostRecentChatUri } from './agentHostSessionChangesets.js';
@@ -978,9 +979,15 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				return baseGitHubInfo;
 			}
 
-			const pullRequests = getGitHubPullRequestRefs(baseGitHubInfo).map(pullRequest => ({
+			const pullRequests = getGitHubPullRequestRefs(baseGitHubInfo).map((pullRequest, index) => ({
 				...pullRequest,
-				...computePullRequestRefPresentation(reader, this._gitHubService, this._pullRequestIconCache, pullRequest)
+				...computePullRequestRefPresentation(
+					reader,
+					this._gitHubService,
+					this._pullRequestIconCache,
+					pullRequest,
+					index === 0 ? computePullRequestIcon(GitHubPullRequestState.Open) : undefined,
+				)
 			}));
 			const icon = pullRequests[0].icon;
 			const title = pullRequests[0].title;
