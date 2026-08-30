@@ -18,7 +18,7 @@ import { RestrictedRenderingContext, RenderingContext, HorizontalPosition } from
 import { ViewController } from '../../../view/viewController.js';
 import { CopyOptions, createClipboardCopyEvent, createClipboardPasteEvent } from '../clipboardUtils.js';
 import { AbstractEditContext } from '../editContext.js';
-import { editContextAddDisposableListener, FocusTracker, ITypeData } from './nativeEditContextUtils.js';
+import { editContextAddDisposableListener, FocusTracker, ITextUpdateEvent, ITypeData, NativeEditContextInputState } from './nativeEditContextUtils.js';
 import { ScreenReaderSupport } from './screenReaderSupport.js';
 import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
@@ -30,7 +30,6 @@ import { NativeEditContextRegistry } from './nativeEditContextRegistry.js';
 import { IEditorAriaOptions } from '../../../editorBrowser.js';
 import { isHighSurrogate, isLowSurrogate } from '../../../../../base/common/strings.js';
 import { IME } from '../../../../../base/common/ime.js';
-import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { inputLatency } from '../../../../../base/browser/performance.js';
 import { ViewportData } from '../../../../common/viewLayout/viewLinesViewportData.js';
@@ -42,14 +41,6 @@ enum CompositionClassName {
 	PRIMARY = 'edit-context-composition-primary',
 }
 
-interface ITextUpdateEvent {
-	text: string;
-	selectionStart: number;
-	selectionEnd: number;
-	updateRangeStart: number;
-	updateRangeEnd: number;
-}
-
 export class NativeEditContext extends AbstractEditContext {
 
 	// Text area used to handle paste events
@@ -57,9 +48,9 @@ export class NativeEditContext extends AbstractEditContext {
 	private readonly _imeTextArea: FastDomNode<HTMLTextAreaElement>;
 	private readonly _editContext: EditContext;
 	private readonly _screenReaderSupport: ScreenReaderSupport;
-	private _previousEditContextSelection: OffsetRange = new OffsetRange(0, 0);
-	private _previousEditContextText: string = '';
+	private readonly _inputState = new NativeEditContextInputState();
 	private _editContextPrimarySelection: Selection = new Selection(1, 1, 1, 1);
+	private _isComposing: boolean = false;
 
 	// Overflow guard container
 	private readonly _parent: HTMLElement;
@@ -220,6 +211,7 @@ export class NativeEditContext extends AbstractEditContext {
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionstart', (e) => {
 			this._updateEditContext();
+			this._isComposing = true;
 			// Utlimately fires onDidCompositionStart() on the editor to notify for example suggest model of composition state
 			// Updates the composition state of the cursor controller which determines behavior of typing with interceptors
 			this._viewController.compositionStart();
@@ -228,6 +220,7 @@ export class NativeEditContext extends AbstractEditContext {
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionend', (e) => {
 			this._updateEditContext();
+			this._isComposing = false;
 			// Utlimately fires compositionEnd() on the editor to notify for example suggest model of composition state
 			// Updates the composition state of the cursor controller which determines behavior of typing with interceptors
 			this._viewController.compositionEnd();
@@ -417,52 +410,22 @@ export class NativeEditContext extends AbstractEditContext {
 			return;
 		}
 		const newText = editContextState.text ?? ' ';
-		if (newText !== this._previousEditContextText) {
-			this._editContext.updateText(0, this._previousEditContextText.length, newText);
-			this._previousEditContextText = newText;
+		if (newText !== this._editContext.text) {
+			this._editContext.updateText(0, this._editContext.text.length, newText);
 		}
-		if (editContextState.selectionStartOffset !== this._previousEditContextSelection.start ||
-			editContextState.selectionEndOffset !== this._previousEditContextSelection.endExclusive) {
+		if (editContextState.selectionStartOffset !== this._editContext.selectionStart ||
+			editContextState.selectionEndOffset !== this._editContext.selectionEnd) {
 			this._editContext.updateSelection(editContextState.selectionStartOffset, editContextState.selectionEndOffset);
 		}
 		this._editContextPrimarySelection = editContextState.editContextPrimarySelection;
-		this._previousEditContextSelection = new OffsetRange(editContextState.selectionStartOffset, editContextState.selectionEndOffset);
+		this._inputState.set(newText, editContextState.selectionStartOffset, editContextState.selectionEndOffset);
 	}
 
 	private _emitTypeEvent(viewController: ViewController, e: ITextUpdateEvent): void {
-		if (!this._editContext) {
+		const typeInput = this._inputState.applyTextUpdate(e, this._isComposing);
+		if (!typeInput) {
 			return;
 		}
-		const selectionEndOffset = this._previousEditContextSelection.endExclusive;
-		const selectionStartOffset = this._previousEditContextSelection.start;
-		this._previousEditContextSelection = new OffsetRange(e.selectionStart, e.selectionEnd);
-
-		let replaceNextCharCnt = 0;
-		let replacePrevCharCnt = 0;
-		if (e.updateRangeEnd > selectionEndOffset) {
-			replaceNextCharCnt = e.updateRangeEnd - selectionEndOffset;
-		}
-		if (e.updateRangeStart < selectionStartOffset) {
-			replacePrevCharCnt = selectionStartOffset - e.updateRangeStart;
-		}
-		let text = '';
-		if (selectionStartOffset < e.updateRangeStart) {
-			text += this._editContext.text.substring(selectionStartOffset, e.updateRangeStart);
-		}
-		text += e.text;
-		if (selectionEndOffset > e.updateRangeEnd) {
-			text += this._editContext.text.substring(e.updateRangeEnd, selectionEndOffset);
-		}
-		let positionDelta = 0;
-		if (e.selectionStart === e.selectionEnd && selectionStartOffset === selectionEndOffset) {
-			positionDelta = e.selectionStart - (e.updateRangeStart + e.text.length);
-		}
-		const typeInput: ITypeData = {
-			text,
-			replacePrevCharCnt,
-			replaceNextCharCnt,
-			positionDelta
-		};
 		this._onType(viewController, typeInput);
 	}
 
