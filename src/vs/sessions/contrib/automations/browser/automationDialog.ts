@@ -585,6 +585,7 @@ export function renderForm(
 		historyKey: constObservable(undefined),
 		placeholder: localize('automation.form.prompt.placeholder', "Describe what you want to automate"),
 		renderSendButton: false,
+		renderVoiceMode: false,
 		hideAttachments: true,
 		suppressNotices: true,
 		disableDraftPersistence: true,

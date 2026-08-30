@@ -462,6 +462,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			minEditorHeight?: number;
 			placeholder?: string;
 			renderSendButton?: boolean;
+			renderVoiceMode?: boolean;
 			sessionTypePickerOptions?: ISessionTypePickerOptions;
 			supportsBackground?: boolean;
 			deferredNotificationsEnabled?: IObservable<boolean>;
@@ -1085,34 +1086,36 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			this.logService.error('Failed to create new-session dictation control:', error);
 		}
 
-		// Voice controls (mic/stop/settings/disconnect). The hand-built toolbar
-		// can't use the shared `MenuId.ChatExecute`, so a dedicated menu is used.
-		// Keep the session picker usable when optional voice initialization fails.
-		// The controller also handles voice target routing + input glow, which the
-		// segmented pill relies on, so it is created regardless of the pill; its
-		// toolbar items hide (via `when`) when the pill is active.
-		const voiceContainer = dom.append(toolbar, dom.$('.sessions-chat-voice-toolbar.empty'));
-		try {
-			this._register(this.instantiationService.createInstance(NewChatVoiceController, {
-				toolbarContainer: voiceContainer,
-				inputContainer: container,
-				composer: this,
-				onDidChangeActions: actionCount => {
-					voiceActionCount = actionCount;
-					voiceContainer.classList.toggle('empty', actionCount === 0);
-					updateVoiceInputActionBorder();
-				},
-			}));
-		} catch (error) {
-			this.logService.error('Failed to create new-session voice controls:', error);
-		}
+		if (this.options.renderVoiceMode !== false) {
+			// Voice controls (mic/stop/settings/disconnect). The hand-built toolbar
+			// can't use the shared `MenuId.ChatExecute`, so a dedicated menu is used.
+			// Keep the session picker usable when optional voice initialization fails.
+			// The controller also handles voice target routing + input glow, which the
+			// segmented pill relies on, so it is created regardless of the pill; its
+			// toolbar items hide (via `when`) when the pill is active.
+			const voiceContainer = dom.append(toolbar, dom.$('.sessions-chat-voice-toolbar.empty'));
+			try {
+				this._register(this.instantiationService.createInstance(NewChatVoiceController, {
+					toolbarContainer: voiceContainer,
+					inputContainer: container,
+					composer: this,
+					onDidChangeActions: actionCount => {
+						voiceActionCount = actionCount;
+						voiceContainer.classList.toggle('empty', actionCount === 0);
+						updateVoiceInputActionBorder();
+					},
+				}));
+			} catch (error) {
+				this.logService.error('Failed to create new-session voice controls:', error);
+			}
 
-		// Segmented voice/dictation pill (experimental). When enabled it replaces the
-		// standalone dictation button and voice controls above with a single control.
-		try {
-			this._createVoiceInputModePill(toolbar, container);
-		} catch (error) {
-			this.logService.error('Failed to create new-session voice input mode pill:', error);
+			// Segmented voice/dictation pill (experimental). When enabled it replaces the
+			// standalone dictation button and voice controls above with a single control.
+			try {
+				this._createVoiceInputModePill(toolbar, container);
+			} catch (error) {
+				this.logService.error('Failed to create new-session voice input mode pill:', error);
+			}
 		}
 
 		this._loadingSpinner = dom.append(toolbar, dom.$('.sessions-chat-loading-spinner'));
