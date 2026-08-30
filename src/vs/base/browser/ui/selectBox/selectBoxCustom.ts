@@ -10,6 +10,7 @@ import { KeyCode, KeyCodeUtils } from '../../../common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../common/lifecycle.js';
 import { isMacintosh } from '../../../common/platform.js';
 import { ScrollbarVisibility } from '../../../common/scrollable.js';
+import { ThemeIcon } from '../../../common/themables.js';
 import * as cssJs from '../../cssValue.js';
 import * as dom from '../../dom.js';
 import * as domStylesheetsJs from '../../domStylesheets.js';
@@ -34,6 +35,7 @@ const SELECT_OPTION_HEIGHT = 22;
 
 interface ISelectListTemplateData {
 	root: HTMLElement;
+	icon: HTMLElement;
 	text: HTMLElement;
 	detail: HTMLElement;
 	decoratorRight: HTMLElement;
@@ -49,6 +51,7 @@ class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectList
 	renderTemplate(container: HTMLElement): ISelectListTemplateData {
 		const data: ISelectListTemplateData = Object.create(null);
 		data.root = container;
+		data.icon = dom.append(container, $('.option-icon'));
 		data.text = dom.append(container, $('.option-text'));
 		data.detail = dom.append(container, $('.option-detail'));
 		data.decoratorRight = dom.append(container, $('.option-decorator-right'));
@@ -64,12 +67,18 @@ class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectList
 		data.element = element;
 		this.elements.set(element, data.root);
 
+		const icon = element.icon;
 		const text = element.text;
 		const detail = element.detail;
 		const decoratorRight = element.decoratorRight;
 
 		const isDisabled = element.isDisabled;
 
+		data.icon.className = 'option-icon';
+		data.icon.style.display = icon ? '' : 'none';
+		if (icon) {
+			data.icon.classList.add(...ThemeIcon.asClassNameArray(icon));
+		}
 		data.text.textContent = text;
 		data.detail.textContent = !!detail ? detail : '';
 		data.decoratorRight.textContent = !!decoratorRight ? decoratorRight : '';
@@ -770,9 +779,12 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 					longestLength = len;
 				}
 			});
-
-
-			container.textContent = this.options[longest].text + (!!this.options[longest].decoratorRight ? `${this.options[longest].decoratorRight} ` : '');
+			const option = this.options[longest];
+			dom.clearNode(container);
+			if (option.icon) {
+				dom.append(container, $('span.option-icon' + ThemeIcon.asCSSSelector(option.icon)));
+			}
+			dom.append(container, document.createTextNode(option.text + (!!option.decoratorRight ? `${option.decoratorRight} ` : '')));
 			elementWidth = dom.getTotalWidth(container);
 		}
 
