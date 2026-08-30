@@ -151,6 +151,20 @@ suite('Breadcrumb Model', function () {
 		registration.dispose();
 	});
 
+	test('stops at a resource label home when the resource has a query', function () {
+		const home = URI.from({ scheme: 'vscode-agent-host', authority: 'remote', path: '/home/.copilot/session-state/session' });
+		const resource = URI.from({ scheme: home.scheme, authority: home.authority, path: `${home.path}/file.md`, query: '_ah=metadata' });
+		const registration = labelService.registerFormatter({ scheme: home.scheme, authority: home.authority, home: home.path, formatting: { label: 'Copilot/Session', separator: '/' } });
+		model = createModel(resource);
+
+		assert.deepStrictEqual((model.getElements() as FileElement[]).map(element => element.label ?? element.uri.path.split('/').at(-1)), [
+			'Copilot',
+			'Session',
+			'file.md',
+		]);
+		registration.dispose();
+	});
+
 	test('keeps the full path without a contributed resource label home', function () {
 		const resource = URI.file('/Users/test/.copilot/session-state/5ec17bb7-5596-41c5-9d24-4787d8b0a698/file.md');
 		model = createModel(resource);

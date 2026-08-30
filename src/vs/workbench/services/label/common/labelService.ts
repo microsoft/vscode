@@ -233,7 +233,7 @@ export class LabelService extends Disposable implements ILabelService {
 	}
 
 	getUriLabel(resource: URI, options: { relative?: boolean; noPrefix?: boolean; separator?: '/' | '\\'; appendWorkspaceSuffix?: boolean } = {}): string {
-		const homeFormatter = this.findHomeFormatter(resource);
+		const homeFormatter = options.noPrefix ? undefined : this.findHomeFormatter(resource);
 		if (homeFormatter?.home) {
 			const home = resource.with({ path: homeFormatter.home, query: null, fragment: null });
 			const separator = options.separator ?? homeFormatter.formatting.separator;
