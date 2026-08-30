@@ -12,6 +12,9 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IContextMenuService } from '../../../contextview/browser/contextView.js';
+import { IContextKeyService } from '../../../contextkey/common/contextkey.js';
+import { ICommandService } from '../../../commands/common/commands.js';
+import { MenuItemAction } from '../../common/actions.js';
 import { IHoverService } from '../../../hover/browser/hover.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { IKeybindingService } from '../../../keybinding/common/keybinding.js';
@@ -49,6 +52,26 @@ suite('WorkbenchButtonBar', () => {
 	/** An action carrying an icon the way any non-menu action does: as a CSS class. */
 	function iconAction(id: string): IAction {
 		return toAction({ id, label: id, class: ThemeIcon.asClassName(Codicon.gitCommit), run: () => { } });
+	}
+
+	/**
+	 * A menu action carrying its icon the way the production title bar supplies
+	 * one: declared on the command rather than as a CSS class.
+	 */
+	function menuIconAction(id: string): MenuItemAction {
+		return new MenuItemAction(
+			{ id, title: id, icon: Codicon.gitCommit },
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			new class extends mock<IContextKeyService>() {
+				override contextMatchesRules(): boolean { return true; }
+			}(),
+			new class extends mock<ICommandService>() {
+				override async executeCommand(): Promise<undefined> { return undefined; }
+			}(),
+		);
 	}
 
 	/**
@@ -132,6 +155,53 @@ suite('WorkbenchButtonBar', () => {
 		assert.deepStrictEqual({
 			// An icon-only button wears its icon as a class on the button itself,
 			// so it has to come off while the spinner stands in for it.
+			busyWearsIcon: busy.classList.contains('codicon-git-commit'),
+			busyLeading: leadingSlot(busy),
+			idleWearsIcon: idle.classList.contains('codicon-git-commit'),
+			idleLeading: leadingSlot(idle),
+		}, {
+			busyWearsIcon: false,
+			busyLeading: 'monaco-pixel-spinner monaco-button-leading-icon monaco-button-leading-icon-only',
+			idleWearsIcon: true,
+			idleLeading: undefined,
+		});
+	});
+
+	test('a menu action gets its declared icon in the leading slot, replaced by the spinner', () => {
+		// The production title bar supplies `MenuItemAction`s, whose icon is
+		// declared on the command rather than carried as a CSS class.
+		const { bar } = createButtonBar((_action, index) => ({ showLabel: true, showIcon: true, showSpinner: index === 0 }));
+
+		bar.update([menuIconAction('busy'), menuIconAction('idle')], []);
+		const busy = bar.buttons[0].element;
+		const idle = bar.buttons[1].element;
+
+		assert.deepStrictEqual({
+			busyLeading: leadingSlot(busy),
+			busyIcons: busy.querySelectorAll('.codicon').length,
+			busyLabel: busy.textContent,
+			idleLeading: leadingSlot(idle),
+			idleSpinners: idle.querySelectorAll(SPINNER_SELECTOR).length,
+			// The icon renders in its own slot rather than inline in the label.
+			idleLabel: idle.textContent,
+		}, {
+			busyLeading: 'monaco-pixel-spinner monaco-button-leading-icon',
+			busyIcons: 0,
+			busyLabel: 'busy',
+			idleLeading: 'codicon codicon-git-commit monaco-button-leading-icon',
+			idleSpinners: 0,
+			idleLabel: 'idle',
+		});
+	});
+
+	test('an icon-only menu action wears its declared icon, and only the spinner while busy', () => {
+		const { bar } = createButtonBar((_action, index) => ({ showLabel: false, showIcon: true, showSpinner: index === 0 }));
+
+		bar.update([menuIconAction('busy'), menuIconAction('idle')], []);
+		const busy = bar.buttons[0].element;
+		const idle = bar.buttons[1].element;
+
+		assert.deepStrictEqual({
 			busyWearsIcon: busy.classList.contains('codicon-git-commit'),
 			busyLeading: leadingSlot(busy),
 			idleWearsIcon: idle.classList.contains('codicon-git-commit'),

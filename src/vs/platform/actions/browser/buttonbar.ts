@@ -8,7 +8,6 @@ import { ButtonBar, ButtonWithDropdown, IButton } from '../../../base/browser/ui
 import { createPixelSpinner } from '../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
 import './buttonbar.css';
 import { createInstantHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { renderIcon } from '../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ActionRunner, IAction, IActionRunner, IRunEvent, SubmenuAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../base/common/actions.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../base/common/event.js';
@@ -37,9 +36,13 @@ export interface IButtonConfig {
 	customClass?: string;
 	/**
 	 * Renders an animated spinner ahead of the label, for a button whose work
-	 * is currently in flight rather than waiting to be started. The spinner
-	 * takes the place of the button's icon rather than adding to it, so the
-	 * button keeps its width while its work runs.
+	 * is currently in flight rather than waiting to be started.
+	 *
+	 * The spinner occupies the button's leading slot. Where the button renders
+	 * an icon at rest — `showIcon` with an action that carries one — the spinner
+	 * takes that icon's place rather than adding to it, so the button keeps its
+	 * width while its work runs. A button with nothing in that slot at rest
+	 * grows by the width of the spinner instead.
 	 */
 	showSpinner?: boolean;
 }
@@ -163,19 +166,17 @@ export class WorkbenchButtonBar extends ButtonBar {
 				btn.element.classList.add(customClass);
 			}
 
-			// The icon a button shows always comes from the action: a menu item
-			// declares it directly, any other action expresses it as a CSS class
-			// (which is how `MenuItemAction` itself carries its icon).
+			// The icon a button shows always comes from the action, which carries
+			// it as a CSS class. `MenuItemAction` derives that class from the
+			// icon its command declares — including the toggled icon while it is
+			// checked, which reading `item.icon` directly would miss.
 			const renderActionIcon = (): HTMLElement | undefined => {
-				if (action instanceof MenuItemAction && ThemeIcon.isThemeIcon(action.item.icon)) {
-					return renderIcon(action.item.icon);
+				if (!action.class) {
+					return undefined;
 				}
-				if (action.class) {
-					const element = $('span');
-					element.classList.add(...action.class.split(' '));
-					return element;
-				}
-				return undefined;
+				const element = $('span');
+				element.classList.add(...action.class.split(' '));
+				return element;
 			};
 
 			// The button's leading slot holds either its icon or — while its work
