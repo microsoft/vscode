@@ -54,7 +54,9 @@ export class AttachmentCleaner implements vscode.CodeActionProvider {
 		this._disposables.push(vscode.workspace.onDidChangeNotebookDocument(e => {
 			for (const change of e.contentChanges) {
 				for (const cell of change.removedCells) {
-					this._imageDiagnosticCollection.delete(cell.document.uri);
+					if (cell.document.isClosed) {
+						this._imageDiagnosticCollection.delete(cell.document.uri);
+					}
 				}
 			}
 
@@ -397,4 +399,3 @@ export class AttachmentCleaner implements vscode.CodeActionProvider {
 		this._delayer.dispose();
 	}
 }
-
