@@ -17,6 +17,8 @@ export class ViewLineOptions {
 	public readonly wsmiddotWidth: number;
 	public readonly useMonospaceOptimizations: boolean;
 	public readonly canUseHalfwidthRightwardsArrow: boolean;
+	public readonly forceFullwidthCharacterWidth: boolean;
+	public readonly typicalFullwidthCharacterWidth: number;
 	public readonly lineHeight: number;
 	public readonly stopRenderingLineAfter: number;
 	public readonly fontLigatures: string;
@@ -38,6 +40,8 @@ export class ViewLineOptions {
 			&& !options.get(EditorOption.disableMonospaceOptimizations)
 		);
 		this.canUseHalfwidthRightwardsArrow = fontInfo.canUseHalfwidthRightwardsArrow;
+		this.forceFullwidthCharacterWidth = options.get(EditorOption.forceFullwidthCharacterWidth);
+		this.typicalFullwidthCharacterWidth = fontInfo.typicalFullwidthCharacterWidth;
 		this.lineHeight = options.get(EditorOption.lineHeight);
 		this.stopRenderingLineAfter = options.get(EditorOption.stopRenderingLineAfter);
 		this.fontLigatures = options.get(EditorOption.fontLigatures);
@@ -56,6 +60,8 @@ export class ViewLineOptions {
 			&& this.wsmiddotWidth === other.wsmiddotWidth
 			&& this.useMonospaceOptimizations === other.useMonospaceOptimizations
 			&& this.canUseHalfwidthRightwardsArrow === other.canUseHalfwidthRightwardsArrow
+			&& this.forceFullwidthCharacterWidth === other.forceFullwidthCharacterWidth
+			&& this.typicalFullwidthCharacterWidth === other.typicalFullwidthCharacterWidth
 			&& this.lineHeight === other.lineHeight
 			&& this.stopRenderingLineAfter === other.stopRenderingLineAfter
 			&& this.fontLigatures === other.fontLigatures

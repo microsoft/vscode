@@ -26,7 +26,7 @@ export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFa
 		this.classifier = new WrappingCharacterClassifier(breakBeforeChars, breakAfterChars);
 	}
 
-	public createLineBreaksComputer(context: ILineBreaksComputerContext, fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean): ILineBreaksComputer {
+	public createLineBreaksComputer(context: ILineBreaksComputerContext, fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean, forceFullwidthCharacterWidth: boolean): ILineBreaksComputer {
 		const lineNumbers: number[] = [];
 		const previousBreakingData: (ModelLineProjectionData | null)[] = [];
 		return {
@@ -35,7 +35,8 @@ export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFa
 				previousBreakingData.push(previousLineBreakData);
 			},
 			finalize: () => {
-				const columnsForFullWidthChar = fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth;
+				const columnsForFullWidthChar = forceFullwidthCharacterWidth ? 2 : fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth;
+				const fullwidthCharacterPixelWidth = forceFullwidthCharacterWidth ? fontInfo.spaceWidth * 2 : fontInfo.typicalFullwidthCharacterWidth;
 				const result: (ModelLineProjectionData | null)[] = [];
 				for (let i = 0, len = lineNumbers.length; i < len; i++) {
 					const lineNumber = lineNumbers[i];
@@ -46,7 +47,7 @@ export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFa
 					if (previousLineBreakData && !previousLineBreakData.injectionOptions && !injectedText && !isLineFeedWrappingEnabled) {
 						result[i] = createLineBreaksFromPreviousLineBreaks(this.classifier, previousLineBreakData, lineText, tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent, wordBreak);
 					} else {
-						result[i] = createLineBreaks(this.classifier, lineText, injectedText, tabSize, wrappingColumn, columnsForFullWidthChar, fontInfo, wrappingIndent, wordBreak, isLineFeedWrappingEnabled);
+						result[i] = createLineBreaks(this.classifier, lineText, injectedText, tabSize, wrappingColumn, columnsForFullWidthChar, fullwidthCharacterPixelWidth, fontInfo, wrappingIndent, wordBreak, isLineFeedWrappingEnabled);
 					}
 				}
 				arrPool1.length = 0;
@@ -356,7 +357,7 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 	return previousBreakingData;
 }
 
-function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: string, injectedTexts: LineInjectedText[] | null, tabSize: number, firstLineBreakColumn: number, columnsForFullWidthChar: number, fontInfo: FontInfo, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean): ModelLineProjectionData | null {
+function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: string, injectedTexts: LineInjectedText[] | null, tabSize: number, firstLineBreakColumn: number, columnsForFullWidthChar: number, fullwidthCharacterPixelWidth: number, fontInfo: FontInfo, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean): ModelLineProjectionData | null {
 	const lineText = LineInjectedText.applyInjectedText(_lineText, injectedTexts);
 	const fixedWidthRanges = LineInjectedText.getFixedWidthInjectedTextRanges(injectedTexts);
 
@@ -424,7 +425,7 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: st
 	} else {
 		prevCharCode = lineText.charCodeAt(0);
 		visibleColumn = computeCharWidth(prevCharCode, 0, tabSize, columnsForFullWidthChar);
-		currentLinePixelWidth = computeCharPixelWidth(prevCharCode, 0, tabSize, fontInfo);
+		currentLinePixelWidth = computeCharPixelWidth(prevCharCode, 0, tabSize, fullwidthCharacterPixelWidth, fontInfo);
 		startOffset = 1;
 		if (strings.isHighSurrogate(prevCharCode)) {
 			// A surrogate pair must always be considered as a single unit, so it is never to be broken
@@ -461,7 +462,7 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: st
 		} else {
 			charCodeClass = classifier.get(charCode);
 			charWidth = computeCharWidth(charCode, visibleColumn, tabSize, columnsForFullWidthChar);
-			charPixelWidth = computeCharPixelWidth(charCode, visibleColumn, tabSize, fontInfo);
+			charPixelWidth = computeCharPixelWidth(charCode, visibleColumn, tabSize, fullwidthCharacterPixelWidth, fontInfo);
 		}
 
 		// literal \n shall trigger a softwrap
@@ -540,12 +541,12 @@ function tabCharacterWidth(visibleColumn: number, tabSize: number): number {
  * The width in pixels a character occupies. Used for the wrapping decision, which must reason
  * in real widths because injected text can request an arbitrary width via `widthInEm`.
  */
-function computeCharPixelWidth(charCode: number, visibleColumn: number, tabSize: number, fontInfo: FontInfo): number {
+function computeCharPixelWidth(charCode: number, visibleColumn: number, tabSize: number, fullwidthCharacterPixelWidth: number, fontInfo: FontInfo): number {
 	if (charCode === CharCode.Tab) {
 		return tabCharacterWidth(visibleColumn, tabSize) * fontInfo.typicalHalfwidthCharacterWidth;
 	}
 	if (strings.isFullWidthCharacter(charCode)) {
-		return fontInfo.typicalFullwidthCharacterWidth;
+		return fullwidthCharacterPixelWidth;
 	}
 	if (charCode < 32) {
 		// when using `editor.renderControlCharacters`, the substitutions are often wide

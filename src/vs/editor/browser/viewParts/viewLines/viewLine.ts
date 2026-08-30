@@ -169,7 +169,10 @@ export class ViewLine implements IVisibleLine {
 			options.fontLigatures !== EditorFontLigatures.OFF,
 			selectionsOnLine,
 			lineData.textDirection,
-			options.verticalScrollbarSize
+			options.verticalScrollbarSize,
+			false,
+			options.forceFullwidthCharacterWidth,
+			options.typicalFullwidthCharacterWidth
 		);
 
 		if (this._renderedViewLine && this._renderedViewLine.input.equals(renderLineInput)) {

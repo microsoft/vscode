@@ -77,7 +77,9 @@ const defaultRenderLineInputOptions: IRenderLineInputOptions = {
 	selectionsOnLine: null,
 	textDirection: null,
 	verticalScrollbarSize: 14,
-	renderNewLineWhenEmpty: false
+	renderNewLineWhenEmpty: false,
+	forceFullwidthCharacterWidth: false,
+	typicalFullwidthCharacterWidth: 20
 };
 
 function createRenderLineInputOptions(opts: IRelaxedRenderLineInputOptions): IRenderLineInputOptions {
@@ -111,7 +113,9 @@ function createRenderLineInput(opts: IRelaxedRenderLineInputOptions): RenderLine
 		options.selectionsOnLine,
 		options.textDirection,
 		options.verticalScrollbarSize,
-		options.renderNewLineWhenEmpty
+		options.renderNewLineWhenEmpty,
+		options.forceFullwidthCharacterWidth,
+		options.typicalFullwidthCharacterWidth
 	);
 }
 
@@ -189,6 +193,49 @@ suite('renderViewLine', () => {
 		assertParts('xy', 4, [createPart(1, 1), createPart(2, 2)], '<span class="mtk1">x</span><span class="mtk2">y</span>', [[0, [0, 0]], [1, [1, 0]], [2, [1, 1]]]);
 		assertParts('xyz', 4, [createPart(1, 1), createPart(3, 2)], '<span class="mtk1">x</span><span class="mtk2">yz</span>', [[0, [0, 0]], [1, [1, 0]], [2, [1, 1]], [3, [1, 2]]]);
 		assertParts('xyz', 4, [createPart(2, 1), createPart(3, 2)], '<span class="mtk1">xy</span><span class="mtk2">z</span>', [[0, [0, 0]], [1, [0, 1]], [2, [1, 0]], [3, [1, 1]]]);
+	});
+
+	test('forces full-width characters to two cells', () => {
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent: 'a擦字b',
+			isBasicASCII: false,
+			lineTokens: createViewLineTokens([createPart(4, 1)]),
+			spaceWidth: 10,
+			typicalFullwidthCharacterWidth: 18,
+			forceFullwidthCharacterWidth: true
+		}));
+
+		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
+			html: [
+				'<span class="mtk1">a</span>',
+				'<span style="letter-spacing:2px" class="mtk1">擦字</span>',
+				'<span class="mtk1">b</span>'
+			],
+			mapping: [
+				[0, 0, 0],
+				[1, 0, 1],
+				[1, 1, 3],
+				[2, 0, 5],
+				[2, 1, 6]
+			]
+		});
+	});
+
+	test('forces full-width characters to two cells when rendering whitespace', () => {
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent: '擦 字',
+			isBasicASCII: false,
+			lineTokens: createViewLineTokens([createPart(3, 1)]),
+			spaceWidth: 10,
+			typicalFullwidthCharacterWidth: 18,
+			forceFullwidthCharacterWidth: true,
+			renderWhitespace: 'all'
+		}));
+
+		assert.strictEqual(
+			actual.html,
+			'<span><span style="letter-spacing:2px" class="mtk1">擦</span><span class="mtkz" style="width:10px">·‌</span><span style="letter-spacing:2px" class="mtk1">字</span></span>'
+		);
 	});
 
 	// overflow
