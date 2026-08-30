@@ -125,6 +125,8 @@ export class EditorRemoteAgentHostTransport extends Disposable implements IClien
 			case ActionType.ChatWorkingDirectorySet:
 			case ActionType.ChatWorkingDirectoryRemoved:
 				return { ...action, directory: map(action.directory) };
+			case ActionType.SessionWorkingDirectoryReplaced:
+				return { ...action, directory: map(action.directory), replacement: map(action.replacement) };
 			case ActionType.SessionChatAdded:
 				return { ...action, summary: this._mapDirectories(action.summary, map) };
 			case ActionType.SessionChatUpdated:

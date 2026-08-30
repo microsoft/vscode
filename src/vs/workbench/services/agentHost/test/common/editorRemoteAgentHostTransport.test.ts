@@ -18,6 +18,8 @@ import { EditorRemoteAgentHostTransport } from '../../common/editorRemoteAgentHo
 const authority = 'wsl+ubuntu';
 const remoteDirectory = 'vscode-remote://wsl%2Bubuntu/home/user/project?key%3Dvalue#folder';
 const fileDirectory = 'file:///home/user/project?key%3Dvalue#folder';
+const remoteReplacement = 'vscode-remote://wsl%2Bubuntu/home/user/replacement?key%3Dvalue#folder';
+const fileReplacement = 'file:///home/user/replacement?key%3Dvalue#folder';
 const otherRemoteDirectory = 'vscode-remote://ssh-remote%2Bother/home/user/project';
 const session = 'ahp-session:/session';
 const chat = 'ahp-chat:/chat';
@@ -90,10 +92,11 @@ function snapshots(workingDirectories: string[]): Snapshot[] {
 	];
 }
 
-function directoryActions(directory: string): StateAction[] {
+function directoryActions(directory: string, replacement: string): StateAction[] {
 	return [
 		{ type: ActionType.SessionWorkingDirectorySet, directory },
 		{ type: ActionType.SessionWorkingDirectoryRemoved, directory },
+		{ type: ActionType.SessionWorkingDirectoryReplaced, directory, replacement },
 		{ type: ActionType.ChatWorkingDirectorySet, directory },
 		{ type: ActionType.ChatWorkingDirectoryRemoved, directory },
 		{ type: ActionType.SessionChatAdded, summary: chatSummary([directory]) },
@@ -248,29 +251,29 @@ suite('EditorRemoteAgentHostTransport', () => {
 
 	test('maps dispatched session and chat directory actions without changing their envelopes', () => {
 		const { underlying, transport } = createTransport();
-		const notifications = (directory: string): ProtocolMessage[] => directoryActions(directory).map((action, index) => ({
+		const notifications = (directory: string, replacement: string): ProtocolMessage[] => directoryActions(directory, replacement).map((action, index) => ({
 			jsonrpc: '2.0', method: 'dispatchAction',
 			params: { channel: envelope(action, index).channel, clientSeq: index + 1, action },
 		}));
-		const input = notifications(remoteDirectory);
+		const input = notifications(remoteDirectory, remoteReplacement);
 		const original = structuredClone(input);
 
 		input.forEach(message => transport.send(message));
 
-		assert.deepStrictEqual({ sent: underlying.messages, original: input }, { sent: notifications(fileDirectory), original });
+		assert.deepStrictEqual({ sent: underlying.messages, original: input }, { sent: notifications(fileDirectory, fileReplacement), original });
 	});
 
 	test('maps live session and chat directory actions without mutating host messages', () => {
 		const { underlying, received } = createTransport();
-		const notifications = (directory: string): AhpServerNotification<'action'>[] => directoryActions(directory).map((action, index) => ({
+		const notifications = (directory: string, replacement: string): AhpServerNotification<'action'>[] => directoryActions(directory, replacement).map((action, index) => ({
 			jsonrpc: '2.0', method: 'action', params: envelope(action, index),
 		}));
-		const input = notifications(fileDirectory);
+		const input = notifications(fileDirectory, fileReplacement);
 		const original = structuredClone(input);
 
 		input.forEach(message => underlying.messageEmitter.fire(message));
 
-		assert.deepStrictEqual({ received, original: input }, { received: notifications(remoteDirectory), original });
+		assert.deepStrictEqual({ received, original: input }, { received: notifications(remoteDirectory, remoteReplacement), original });
 	});
 
 	test('maps subscribe snapshots for sessions and chats and preserves stateless subscriptions', () => {
@@ -331,7 +334,7 @@ suite('EditorRemoteAgentHostTransport', () => {
 		});
 		const response: AhpSuccessResponse<'reconnect'> = {
 			jsonrpc: '2.0', id: 1,
-			result: { type: ReconnectResultType.Replay, actions: directoryActions(fileDirectory).map(envelope), missing: ['ahp-session:/missing'] },
+			result: { type: ReconnectResultType.Replay, actions: directoryActions(fileDirectory, fileReplacement).map(envelope), missing: ['ahp-session:/missing'] },
 		};
 		const original = structuredClone(response);
 
@@ -340,7 +343,7 @@ suite('EditorRemoteAgentHostTransport', () => {
 		assert.deepStrictEqual({ received, original: response }, {
 			received: [{
 				...original,
-				result: { ...original.result, actions: directoryActions(remoteDirectory).map(envelope) },
+				result: { ...original.result, actions: directoryActions(remoteDirectory, remoteReplacement).map(envelope) },
 			}],
 			original,
 		});

@@ -17,6 +17,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentHostClientState, AgentHostProtocolClient } from '../../browser/agentHostProtocolClient.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../common/agentHostExtensionProtocol.js';
+import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { ConfigurationTarget, type IConfigurationValue } from '../../../configuration/common/configuration.js';
@@ -447,7 +448,7 @@ suite('AgentHostProtocolClient', () => {
 		assert.deepStrictEqual([...client['_authentication'].values()], []);
 	});
 
-	test('listSessions carries the workspace-less marker back on _meta', async () => {
+	test('listSessions carries the workspace-less marker and only plural working directories', async () => {
 		// Regression: the sessions provider resolves a session's kind (quick
 		// chat vs. workspace) from `_meta.workspaceless`, and after a window
 		// reload a listing is what materializes it.
@@ -475,7 +476,15 @@ suite('AgentHostProtocolClient', () => {
 		});
 
 		const sessions = await resultPromise;
-		assert.deepStrictEqual(sessions.map(s => readSessionWorkspaceless(s._meta)), [true]);
+		assert.deepStrictEqual(sessions.map(s => ({
+			workspaceless: readSessionWorkspaceless(s._meta),
+			workingDirectories: s.workingDirectories,
+			hasLegacyWorkingDirectory: Object.hasOwn(s, 'workingDirectory'),
+		})), [{
+			workspaceless: true,
+			workingDirectories: [toAgentHostUri(URI.file('/home/user/.copilot/chats/quick-1'), agentHostAuthority('test.example:1234'))],
+			hasLegacyWorkingDirectory: false,
+		}]);
 	});
 
 	test('listSessions carries external provenance back on _meta', async () => {
