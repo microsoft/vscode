@@ -29,6 +29,7 @@ import { createTextDocumentData } from '../../../../util/common/test/shims/textD
 import { DeferredPromise } from '../../../../util/vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { Emitter, Event } from '../../../../util/vs/base/common/event';
+import { constObservable } from '../../../../util/vs/base/common/observable';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { LineEdit, LineReplacement } from '../../../../util/vs/editor/common/core/edits/lineEdit';
@@ -103,6 +104,7 @@ class MockInlineEditsModelService implements IInlineEditsModelService {
 	declare readonly _serviceBrand: undefined;
 	readonly modelInfo = undefined;
 	readonly onModelListUpdated: Event<void> = new Emitter<void>().event;
+	readonly supportsUnifiedCompletions = constObservable<boolean | undefined>(undefined);
 
 	private _selectedConfig: ModelConfiguration = {
 		modelName: 'test-model',
@@ -167,7 +169,7 @@ describe('pickSystemPrompt', () => {
 		PromptingStrategy.PatchBased01,
 		PromptingStrategy.PatchBased02,
 		PromptingStrategy.PatchBased02WithRecentLineNumbers,
-		PromptingStrategy.PatchBased02Optimized,
+		PromptingStrategy.PatchBased02Unified,
 		PromptingStrategy.PatchBased02WithoutRecentLineNumbers,
 		PromptingStrategy.Xtab275,
 		PromptingStrategy.XtabAggressiveness,
