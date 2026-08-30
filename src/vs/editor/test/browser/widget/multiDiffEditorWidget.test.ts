@@ -90,6 +90,7 @@ suite('MultiDiffEditorWidget', () => {
 			const activeControl = widget.getActiveControl();
 			const renderSideBySideWhenNarrow = activeControl?.renderSideBySide;
 			widget.layout(new Dimension(1000, 600));
+			await activeControl?.waitForDiff();
 			assert.deepStrictEqual({
 				configuredAccessibilitySupport: updateOptionsSpy.firstCall.args[0].accessibilitySupport,
 				configuredRenderSideBySide: updateOptionsSpy.firstCall.args[0].renderSideBySide,
