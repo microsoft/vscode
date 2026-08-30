@@ -72,24 +72,82 @@ describe('ConfigurationServiceImpl - migrated chat.advanced setting fallback', (
 		const value = svc.getConfig(ConfigKey.Advanced.InlineEditsXtabProviderModelConfiguration);
 
 		expect(value).toEqual(userValue);
+test('prioritizes the new key when both old and new keys are configured', () => {
+		const oldKey = `github.copilot.${ConfigKey.Advanced.InlineEditsXtabProviderModelConfiguration.oldId}`;
+		const newKey = ConfigKey.Advanced.InlineEditsXtabProviderModelConfiguration.fullyQualifiedId;
+
+		const oldUserValue = {
+			modelName: 'old_model',
+			promptingStrategy: 'old_strategy',
+			includeTagsInCurrentFile: true,
+		};
+
+		const newUserValue = {
+			modelName: 'new_model',
+			promptingStrategy: 'new_strategy',
+			includeTagsInCurrentFile: false,
+		};
+
+		mockConfigStore.user = { 
+			[oldKey]: oldUserValue,
+			[newKey]: newUserValue 
+		};
+		mockConfigStore.defaults = {};
+
+		const svc = new ConfigurationServiceImpl(fakeTokenStore);
+		const value = svc.getConfig(ConfigKey.Advanced.InlineEditsXtabProviderModelConfiguration);
+
+		expect(value).toEqual(newUserValue);
+	});
+			describe('ConfigurationServiceImpl - migrated chat.advanced setting fallback', () => {
+	test('reads the user-set OLD key when only the OLD key is configured', () => {
+		const oldKey = `github.copilot.${ConfigKey.Advanced.InlineEditsXtabProviderModelConfiguration.oldId}`;
+		const newKey = ConfigKey.Advanced.InlineEditsXtabProviderModelConfiguration.fullyQualifiedId;
+
+		const userValue = {
+			modelName: 'dd_5minichat_edits_xtab_300_small',
+			promptingStrategy: 'xtab275',
+			includeTagsInCurrentFile: false,
+		};
+
+		mockConfigStore.user = { [oldKey]: userValue };
+		
+		mockConfigStore.defaults = { [newKey]: null };
+
+		const svc = new ConfigurationServiceImpl(fakeTokenStore);
+		const value = svc.getConfig(ConfigKey.Advanced.InlineEditsXtabProviderModelConfiguration);
+
+		expect(value).toEqual(userValue);
+	});
+
+	test('prioritizes the new key when both old and new keys are configured', () => {
+		const oldKey = `github.copilot.${ConfigKey.Advanced.InlineEditsXtabProviderModelConfiguration.oldId}`;
+		const newKey = ConfigKey.Advanced.InlineEditsXtabProviderModelConfiguration.fullyQualifiedId;
+
+		const oldUserValue = {
+			modelName: 'old_model',
+			promptingStrategy: 'old_strategy',
+			includeTagsInCurrentFile: true,
+		};
+
+		const newUserValue = {
+			modelName: 'new_model',
+			promptingStrategy: 'new_strategy',
+			includeTagsInCurrentFile: false,
+		};
+
+		mockConfigStore.user = { 
+			[oldKey]: oldUserValue,
+			[newKey]: newUserValue 
+		};
+		mockConfigStore.defaults = {};
+
+		const svc = new ConfigurationServiceImpl(fakeTokenStore);
+		const value = svc.getConfig(ConfigKey.Advanced.InlineEditsXtabProviderModelConfiguration);
+
+		expect(value).toEqual(newUserValue);
 	});
 });
-
-describe('ConfigurationServiceImpl - externally configurable advanced settings', () => {
-	test('reads advanced inline edit settings for external users', () => {
-		mockConfigStore.user = {
-			[ConfigKey.TeamInternal.InlineEditsUnification.fullyQualifiedId]: true,
-			[ConfigKey.TeamInternal.InlineEditsExcludedProviders.fullyQualifiedId]: 'completions,github.copilot',
-			[ConfigKey.TeamInternal.InlineEditsXtabProviderPatchModelPredictionKind.fullyQualifiedId]: 'currentLineCompleted',
-			[ConfigKey.TeamInternal.InlineEditsXtabSplitPatchOnDiff.fullyQualifiedId]: true,
-			[ConfigKey.TeamInternal.InlineEditsXtabProviderPatchFastYieldLineWithCursor.fullyQualifiedId]: false,
-			[ConfigKey.TeamInternal.InlineEditsNesMimicGhostTextBehavior.fullyQualifiedId]: true,
-			[ConfigKey.TeamInternal.InlineEditsRebasedCacheDelay.fullyQualifiedId]: 100,
-			[ConfigKey.TeamInternal.InlineEditsExtraDebounceEndOfLine.fullyQualifiedId]: 0,
-			[ConfigKey.TeamInternal.InlineEditsDebounce.fullyQualifiedId]: 0,
-			[ConfigKey.TeamInternal.InlineEditsCacheDelay.fullyQualifiedId]: 0,
-			[ConfigKey.TeamInternal.InlineEditsXtabProviderNLinesAbove.fullyQualifiedId]: 0,
-			[ConfigKey.TeamInternal.InlineEditsXtabProviderNLinesBelow.fullyQualifiedId]: 7,
 		};
 		mockConfigStore.defaults = {};
 
