@@ -52,12 +52,12 @@ import { getRegisteredLanguageModels, resolveConfiguredModel, resolveModelIdenti
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../../common/sessionConfig.js';
-import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, ISession, ISessionAgentRef, ISessionArtifact, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionChatCustomization, ISessionCreationReference, ISessionFileChange, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionStatus, SessionTypeAuthRequirement, toSessionId, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, ISession, ISessionAgentRef, ISessionArtifact, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionChatCustomization, ISessionCreationReference, ISessionFileChange, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionStatus, SessionTypeAuthRequirement, toSessionId, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { dedupeLinks, getPresentedArtifacts, linkKey, partitionSessionArtifacts } from './agentHostSessionArtifacts.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
-import { computeSessionPullRequestIcon } from '../../../github/browser/pullRequestIconStatus.js';
+import { computePullRequestRefPresentation } from '../../../github/browser/pullRequestIconStatus.js';
 import { IPullRequestIconCache } from '../../../github/browser/pullRequestIconCache.js';
 import { parseGitHubPullRequestUrl } from '../../../github/common/utils.js';
 import { mapProtocolStatus } from './agentHostDiffs.js';
@@ -310,9 +310,11 @@ function isGitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | undefine
 			x.repo === y.repo &&
 			x.number === y.number &&
 			isEqual(x.uri, y.uri) &&
-			x.icon?.id === y.icon?.id) &&
+			x.icon?.id === y.icon?.id &&
+			x.title === y.title) &&
 		a.pullRequest?.number === b.pullRequest?.number &&
 		a.pullRequest?.icon?.id === b.pullRequest?.icon?.id &&
+		a.pullRequest?.title === b.pullRequest?.title &&
 		a.pullRequest?.baseRefOid === b.pullRequest?.baseRefOid &&
 		a.pullRequest?.headRefOid === b.pullRequest?.headRefOid &&
 		arrayEquals(a.issues ?? [], b.issues ?? [], (x, y) => x.owner === y.owner && x.repo === y.repo && x.number === y.number);
@@ -976,21 +978,19 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				return baseGitHubInfo;
 			}
 
-			const icon = computeSessionPullRequestIcon(reader, this._gitHubService, this._pullRequestIconCache, baseGitHubInfo);
+			const pullRequests = getGitHubPullRequestRefs(baseGitHubInfo).map(pullRequest => ({
+				...pullRequest,
+				...computePullRequestRefPresentation(reader, this._gitHubService, this._pullRequestIconCache, pullRequest)
+			}));
+			const icon = pullRequests[0].icon;
+			const title = pullRequests[0].title;
 			return {
 				...baseGitHubInfo,
-				// Only the main pull request is polled live; the rest fall back to
-				// their last-known icon so the hover can still show their state.
-				pullRequests: baseGitHubInfo.pullRequests?.map((pullRequest, index) => index === 0 ? {
-					...pullRequest,
-					icon
-				} : {
-					...pullRequest,
-					icon: this._pullRequestIconCache.get(pullRequest.uri.toString()) ?? pullRequest.icon
-				}),
+				pullRequests: baseGitHubInfo.pullRequests ? pullRequests : undefined,
 				pullRequest: {
 					...baseGitHubInfo.pullRequest,
-					icon
+					icon,
+					title,
 				}
 			};
 		});
@@ -1000,7 +1000,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			if (sourceControlState?.latestOutcome === SessionSourceControlOutcome.Merge) {
 				return { ...Codicon.gitMerge, color: themeColorFromId('charts.purple') };
 			}
-			return this.gitHubInfo.read(reader)?.pullRequest?.icon;
+			const gitHubInfo = this.gitHubInfo.read(reader);
+			return getHighestPriorityPullRequestIcon(getGitHubPullRequestRefs(gitHubInfo).map(pullRequest => pullRequest.icon));
 		});
 
 		const initialWorkspace = this._computeWorkspace();
