@@ -300,9 +300,7 @@ export class SessionArtifacts extends Disposable {
 		super();
 
 		const imageCarouselEnabled = observableConfigValue<boolean>(ChatConfiguration.ImageCarouselEnabled, true, this._configurationService);
-		// How a location reads depends on the formatters and on the folder it is
-		// relative to, and the session's folder is mounted a moment after the
-		// session becomes active, so the sections are built again on either.
+		// Rebuild after formatter/folder changes because the session folder mounts after activation.
 		const locationFormatting = observableSignalFromEvent(this, Event.any<unknown>(this._labelService.onDidChangeFormatters, workspaceContextService.onDidChangeWorkspaceFolders));
 
 		const sectionsFor = (isArtifact: boolean) => derived(this, reader => {
