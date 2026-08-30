@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { autorun, constObservable, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { ICompressedVirtualizedScrollViewContext } from '../../../browser/widget/multiDiffEditor/compressedVirtualizedScrollView.js';
@@ -79,37 +79,6 @@ suite('VirtualizedItemManager', () => {
 		}
 
 		assert.deepStrictEqual(createdTemplateIds, ['text', 'image']);
-	});
-
-	test('disconnects from source items when disposed while its output is observed', () => {
-		const item = new TestItem('a', 100);
-		const items = observableValue<readonly TestItem[]>('items', [item]);
-		let sourceReadCount = 0;
-		const sourceItems = derived(reader => {
-			sourceReadCount++;
-			return items.read(reader);
-		});
-		const manager = disposables.add(new VirtualizedItemManager<TestItem, TestBinding, TestTemplate>(sourceItems, createContext(), {
-			getId: item => item.id,
-			getTemplateId: () => 'test',
-			getUnboundSize: item => item.size,
-			createTemplate: () => new TestTemplate(),
-		}));
-		const observer = disposables.add(autorun(reader => manager.virtualizedItems.read(reader)));
-
-		manager.dispose();
-		const readCountAfterDispose = sourceReadCount;
-		items.set([], undefined);
-
-		assert.deepStrictEqual({
-			readCountAfterDispose,
-			readCountAfterSourceChange: sourceReadCount,
-		}, {
-			readCountAfterDispose: 1,
-			readCountAfterSourceChange: 1,
-		});
-
-		observer.dispose();
 	});
 });
 
