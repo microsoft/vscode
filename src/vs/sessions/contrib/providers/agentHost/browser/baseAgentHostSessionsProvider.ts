@@ -2536,8 +2536,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	protected readonly _onDidChangeSessions = this._register(new Emitter<ISessionChangeEvent>());
 	private readonly _onDidChangeSessionsFromNotifications = this._register(new Emitter<ISessionChangeEvent>());
-	private readonly _onDidChangeSessionsImmediately = Event.any(this._onDidChangeSessions.event, this._onDidChangeSessionsFromNotifications.event);
+	protected readonly _onDidChangeSessionsImmediately = Event.any(this._onDidChangeSessions.event, this._onDidChangeSessionsFromNotifications.event);
 	readonly onDidChangeSessions = debounceSessionChangeEvents(this._onDidChangeSessionsFromNotifications.event, this._onDidChangeSessions.event, this._store);
+	protected readonly _onDidChangeDraftSessions = this._register(new Emitter<void>());
 
 	protected readonly _onDidReplaceSession = this._register(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }> = this._onDidReplaceSession.event;
@@ -2668,11 +2669,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 */
 	protected _disposeAllNewSessions(): void {
 		this._newSessions.clearAndDisposeAll();
+		this._onDidChangeDraftSessions.fire();
 	}
 
 	deleteNewSession(sessionId: string): void {
 		if (this._newSessions.has(sessionId)) {
 			this._newSessions.deleteAndDispose(sessionId);
+			this._onDidChangeDraftSessions.fire();
 		}
 	}
 
@@ -3135,6 +3138,37 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return sessions;
 	}
 
+	getResourceLabelHomes(): { readonly uri: URI; readonly label: string }[] {
+		const homes: { readonly uri: URI; readonly label: string }[] = [];
+		for (const session of this.getKnownSessions()) {
+			if (session.isQuickChat?.get()) {
+				const adapter = session instanceof AgentHostSessionAdapter ? session : undefined;
+				const label = this.getResourceLabelHomeLabel(session);
+				homes.push(...(adapter?.workingDirectories ?? []).map(uri => ({ uri, label })));
+			}
+		}
+		return homes;
+	}
+
+	protected getResourceLabelHomeLabel(session: ISession): string {
+		const providerLabel = this.sessionTypes.find(type => type.id === session.sessionType)?.label ?? session.sessionType;
+		return `${providerLabel}/${localize('sessionHome', "Session")}`;
+	}
+
+	protected getKnownSessions(): ISession[] {
+		const sessions = new Map<string, ISession>();
+		for (const session of this._sessionCache.values()) {
+			sessions.set(session.resource.toString(), session);
+		}
+		for (const newSession of this._newSessions.values()) {
+			sessions.set(newSession.session.resource.toString(), newSession.session);
+		}
+		if (this._pendingSession) {
+			sessions.set(this._pendingSession.resource.toString(), this._pendingSession);
+		}
+		return [...sessions.values()];
+	}
+
 	getSessionByResource(resource: URI): ISession | undefined {
 		for (const newSession of this._newSessions.values()) {
 			if (newSession.session.resource.toString() === resource.toString()) {
@@ -3258,6 +3292,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw err;
 		}
 		this._newSessions.set(newSession.sessionId, newSession);
+		this._onDidChangeDraftSessions.fire();
 		newSession.observeClientCustomAgents(activeClientScope.customAgents, () => {
 			this._onDidChangeCustomAgents.fire();
 			this._onDidChangeCustomizations.fire();
@@ -3787,6 +3822,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	clearSessionConfig(sessionId: string): void {
 		if (this._newSessions.has(sessionId)) {
 			this._newSessions.deleteAndDispose(sessionId);
+			this._onDidChangeDraftSessions.fire();
 		}
 	}
 
@@ -4723,6 +4759,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				newSession.graduate();
 				if (this._newSessions.get(newSession.sessionId) === newSession) {
 					this._newSessions.deleteAndDispose(newSession.sessionId);
+					this._onDidChangeDraftSessions.fire();
 				}
 				// Clear the pending session before firing the replace event so
 				// that any synchronous listener calling getSessions() sees only
@@ -4753,6 +4790,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		newSession.graduate();
 		if (this._newSessions.get(newSession.sessionId) === newSession) {
 			this._newSessions.deleteAndDispose(newSession.sessionId);
+			this._onDidChangeDraftSessions.fire();
 		}
 		this._onDidChangeSessions.fire({ added: [], removed: [skeleton], changed: [] });
 		throw new Error(localize('sessionNotCommitted', "Agent host session was not committed."));
