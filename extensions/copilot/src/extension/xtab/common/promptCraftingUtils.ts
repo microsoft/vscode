@@ -5,20 +5,24 @@
 
 import { DocumentId } from '../../../platform/inlineEdits/common/dataTypes/documentId';
 import { Schemas } from '../../../util/vs/base/common/network';
+import { isWindows } from '../../../util/vs/base/common/platform';
+import { startsWithIgnoreCase } from '../../../util/vs/base/common/strings';
 
 export function toUniquePath(documentId: DocumentId, workspaceRootPath: string | undefined): string {
 	const filePath = documentId.path;
-	// remove prefix from path if defined
 	const workspaceRootPathWithSlash = workspaceRootPath === undefined ? undefined : (workspaceRootPath.endsWith('/') ? workspaceRootPath : workspaceRootPath + '/');
+	const documentScheme = documentId.toUri().scheme;
+	const ignorePathCase = isWindows && (documentScheme === Schemas.file || documentScheme === Schemas.vscodeNotebookCell);
+	const isWorkspaceRelative = workspaceRootPathWithSlash !== undefined
+		&& (ignorePathCase ? startsWithIgnoreCase(filePath, workspaceRootPathWithSlash) : filePath.startsWith(workspaceRootPathWithSlash));
 
-	const updatedFilePath = workspaceRootPathWithSlash !== undefined && filePath.startsWith(workspaceRootPathWithSlash)
+	const updatedFilePath = isWorkspaceRelative
 		? filePath.substring(workspaceRootPathWithSlash.length)
 		: filePath;
 
-	return documentId.toUri().scheme === Schemas.vscodeNotebookCell ? `${updatedFilePath}#${documentId.fragment}` : updatedFilePath;
+	return documentScheme === Schemas.vscodeNotebookCell ? `${updatedFilePath}#${documentId.fragment}` : updatedFilePath;
 }
 
 export function countTokensForLines(page: string[], computeTokens: (s: string) => number): number {
 	return page.reduce((sum, line) => sum + computeTokens(line) + 1 /* \n */, 0);
 }
-
