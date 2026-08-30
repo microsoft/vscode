@@ -719,12 +719,12 @@ function serializeOffsetRange(range: OffsetRange): ISerializedOffsetRange {
 }
 
 class VirtualizedViewItem extends Disposable implements ILoggedDiffItem, ICompressedVirtualizedScrollItem {
-	public readonly size = this._managedItem.size;
-	public readonly contentHeight = this.size;
-	public readonly maxScroll = this._managedItem.maxScroll;
-	public readonly template = this._managedItem.template;
-	public readonly binding = this._managedItem.binding;
-	public readonly viewModel = this._managedItem.item;
+	public readonly size;
+	public readonly contentHeight;
+	public readonly maxScroll;
+	public readonly template;
+	public readonly binding;
+	public readonly viewModel;
 
 	public get collapsed(): IObservable<boolean> { return this.viewModel.collapsed; }
 
@@ -752,7 +752,7 @@ class VirtualizedViewItem extends Disposable implements ILoggedDiffItem, ICompre
 		};
 	}
 
-	private readonly _isFocused = derived(this, reader => this.template.read(reader)?.isFocused.read(reader) ?? false);
+	private readonly _isFocused;
 
 	constructor(
 		private readonly _managedItem: ManagedVirtualizedItem<DocumentDiffItemViewModel, DiffEditorItemBinding, DiffEditorItemTemplate>,
@@ -760,6 +760,13 @@ class VirtualizedViewItem extends Disposable implements ILoggedDiffItem, ICompre
 		private readonly _logger: MultiDiffEditorLogger,
 	) {
 		super();
+		this.size = _managedItem.size;
+		this.contentHeight = this.size;
+		this.maxScroll = _managedItem.maxScroll;
+		this.template = _managedItem.template;
+		this.binding = _managedItem.binding;
+		this.viewModel = _managedItem.item;
+		this._isFocused = derived(this, reader => this.template.read(reader)?.isFocused.read(reader) ?? false);
 
 		this.viewModel.setIsFocused(this._isFocused, undefined);
 

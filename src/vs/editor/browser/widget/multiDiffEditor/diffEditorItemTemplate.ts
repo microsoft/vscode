@@ -457,16 +457,20 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 }
 
 export class DiffEditorItemBinding extends VirtualizedItemBinding<DocumentDiffItemViewModel> {
-	readonly size = this._template.size;
-	readonly maxScroll = this._template.maxScroll;
-	readonly shouldKeepAlive = this._template.isFocused;
-	readonly editor = this._template.editor;
+	readonly size;
+	readonly maxScroll;
+	readonly shouldKeepAlive;
+	readonly editor;
 
 	constructor(
 		item: DocumentDiffItemViewModel,
 		private readonly _template: DiffEditorItemTemplate,
 	) {
 		super(item);
+		this.size = _template.size;
+		this.maxScroll = _template.maxScroll;
+		this.shouldKeepAlive = _template.isFocused;
+		this.editor = _template.editor;
 	}
 
 	render(renderedRange: OffsetRange, scrollOffset: number, width: number, renderedViewport: OffsetRange): void {

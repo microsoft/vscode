@@ -194,13 +194,14 @@ class FixtureBinding extends VirtualizedItemBinding<FixtureItem> {
 	readonly size = this.item.fullHeight;
 	readonly maxScroll = constObservable({ maxScroll: 0 });
 	readonly shouldKeepAlive = constObservable(false);
-	readonly templateId = this._template.id;
+	readonly templateId;
 
 	constructor(
 		item: FixtureItem,
 		private readonly _template: FixtureTemplate,
 	) {
 		super(item);
+		this.templateId = _template.id;
 	}
 
 	scheduleDelayedMeasurement(): void {
