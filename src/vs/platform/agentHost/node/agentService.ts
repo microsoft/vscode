@@ -2050,9 +2050,6 @@ export class AgentService extends Disposable implements IAgentService {
 		const startedAt = Date.now();
 		// The first list waits for registration-time legacy migration if it is still in flight.
 		await this._awaitInitialProviderMigration();
-		if (epoch !== this._registryEpoch) {
-			return this.listSessions(mode);
-		}
 		// The registry is the source of truth for top-level sessions. Internal
 		// chat backings and subagent sessions never enter it; ephemeral sessions
 		// are tombstoned at creation. A transiently missing provider snapshot no
@@ -2296,9 +2293,6 @@ export class AgentService extends Disposable implements IAgentService {
 			this._logService.info(message);
 		} else {
 			this._logService.trace(message);
-		}
-		if (epoch !== this._registryEpoch) {
-			return this.listSessions(mode);
 		}
 		return visible;
 	}
