@@ -435,6 +435,9 @@ export const TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID = 'chat.tools.terminal.ena
 /** The VS Code setting ID for global auto approve enablement. */
 export const GLOBAL_AUTO_APPROVE_SETTING_ID = 'chat.tools.global.autoApprove';
 
+/** The VS Code setting ID for per-tool auto-approval eligibility. */
+export const ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID = 'chat.tools.eligibleForAutoApproval';
+
 /**
  * Root config key forwarded from the renderer when VS Code's
  * `chat.tools.global.autoApprove` setting changes. When `true`, the global

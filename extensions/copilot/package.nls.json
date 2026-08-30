@@ -163,6 +163,7 @@
 	"github.copilot.config.alternateGptPrompt.enabled": "Enables an experimental alternate prompt for GPT models instead of the default prompt.",
 	"github.copilot.config.alternateGeminiModelFPrompt.enabled": "Enables an experimental alternate prompt for Gemini Model F instead of the default prompt.",
 	"github.copilot.config.gemini35FlashReducedToolUsePrompt.enabled": "Enables an experimental prompt for Gemini 3.5 Flash that instructs the model to minimize tool calls to reduce token usage.",
+	"github.copilot.config.geminiFlashPromptAdditions.enabled": "Enables experimental additional prompt guidance for Gemini Flash 3.6 and 3.7 models.",
 	"github.copilot.config.gpt5CodexAlternatePrompt": "Specifies an experimental alternate prompt to use for the GPT-5-Codex model.",
 	"github.copilot.command.fixTestFailure": "Fix Test Failure",
 	"copilot.description": "Ask or edit in context",

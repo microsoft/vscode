@@ -775,6 +775,7 @@ export function registerWorkbenchServices(registration: ServiceRegistration): vo
 		getSeparator: () => '/',
 		registerFormatter: () => ({ dispose: () => { } }),
 		onDidChangeFormatters: () => ({ dispose: () => { } }),
+		getUriHome: () => undefined,
 		registerCachedFormatter: () => ({ dispose: () => { } }),
 		_serviceBrand: undefined,
 		getHostTooltip: () => '',

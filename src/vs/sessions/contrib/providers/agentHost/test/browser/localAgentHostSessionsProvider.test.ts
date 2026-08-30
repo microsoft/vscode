@@ -60,6 +60,9 @@ import { IPullRequestIconCache, PullRequestIconCache } from '../../../../github/
 import { computePullRequestIcon, GitHubPullRequestState, type IGitHubPullRequest } from '../../../../github/common/types.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../workbench/services/environment/common/environmentService.js';
 import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
+import { IPathService } from '../../../../../../workbench/services/path/common/pathService.js';
+import { MockLabelService } from '../../../../../../workbench/services/label/test/common/mockLabelService.js';
+import { TestPathService } from '../../../../../../workbench/test/browser/workbenchTestServices.js';
 
 // ---- Mock IAgentHostService -------------------------------------------------
 
@@ -438,7 +441,7 @@ function createSchemaDefaultConfigurationService(): TestConfigurationService {
 
 function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
 	{ type: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
-], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; activeClientAgents?: IObservable<readonly AgentCustomization[]>; activeClientScope?: (sessionType: string, roots: readonly URI[]) => IAgentCustomizationScope; storageService?: IStorageService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; requestWorkspaceTrust?: (uri: URI) => Promise<boolean>; workspaceTrustBarrier?: DeferredPromise<void>; workspaceTrustError?: Error; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; gitHubService?: IGitHubService; devContainerAgentHostService?: IDevContainerAgentHostService; sessionsProvidersService?: ISessionsProvidersService }): LocalAgentHostSessionsProvider {
+], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; activeClientAgents?: IObservable<readonly AgentCustomization[]>; activeClientScope?: (sessionType: string, roots: readonly URI[]) => IAgentCustomizationScope; storageService?: IStorageService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; requestWorkspaceTrust?: (uri: URI) => Promise<boolean>; workspaceTrustBarrier?: DeferredPromise<void>; workspaceTrustError?: Error; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; gitHubService?: IGitHubService; devContainerAgentHostService?: IDevContainerAgentHostService; sessionsProvidersService?: ISessionsProvidersService; pathService?: IPathService; labelService?: ILabelService }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IAgentHostService, agentHostService);
@@ -485,9 +488,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 		onDidChangeLanguageModels: Event.None,
 		onDidChangeModelVisibility: options?.languageModelVisibilityChanges ?? Event.None,
 	});
-	instantiationService.stub(ILabelService, {
-		getUriLabel: (uri: URI) => uri.path,
-	});
+	instantiationService.stub(ILabelService, options?.labelService ?? new MockLabelService());
 	instantiationService.stub(ILogService, new NullLogService());
 	const storageService = options?.storageService ?? disposables.add(new InMemoryStorageService());
 	instantiationService.stub(IStorageService, storageService);
@@ -498,6 +499,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 		override findPullRequestNumberByHeadBranch = async () => undefined;
 	}());
 	instantiationService.stub(IPullRequestIconCache, instantiationService.createInstance(PullRequestIconCache));
+	instantiationService.stub(IPathService, options?.pathService ?? new TestPathService(URI.file('/home/test')));
 	const activeSessionObs = options?.activeSession ?? constObservable<IActiveSession | undefined>(undefined);
 	const visibleSessionsObs = options?.visibleSessions ?? constObservable<readonly (IActiveSession | undefined)[]>([]);
 	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
@@ -5722,6 +5724,84 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	test('registers provider-neutral resource label homes for quick chats and provider state', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const claudeHome = URI.file('/home/test/.agent/chats/claude-session');
+		agentHost.addSession(createSession('claude-session', { provider: 'claude', summary: 'Claude Quick Chat', quickChat: true, workingDirectory: claudeHome }));
+		agentHost.addSession(createSession('copilot-session', { summary: 'Copilot Session' }));
+		const pathService = new TestPathService(URI.file('/home/test'));
+		const labelService = new MockLabelService();
+
+		const provider = createProvider(disposables, agentHost, undefined, { pathService, labelService });
+		provider.getSessions();
+		await timeout(0);
+		const getHomeLabel = (resource: URI): string | undefined => {
+			const home = labelService.getUriHome(resource);
+			return home ? labelService.getUriLabel(home) : undefined;
+		};
+
+		assert.deepStrictEqual({
+			quickChat: getHomeLabel(URI.joinPath(claudeHome, 'artifact.md')),
+			copilotState: getHomeLabel(URI.file('/home/test/.copilot/session-state/copilot-session/artifact.md')),
+		}, {
+			quickChat: 'claude/Session',
+			copilotState: 'Copilot/Session',
+		});
+
+		provider.dispose();
+		assert.deepStrictEqual({
+			quickChat: labelService.getUriHome(URI.joinPath(claudeHome, 'artifact.md')),
+			copilotState: labelService.getUriHome(URI.file('/home/test/.copilot/session-state/copilot-session/artifact.md')),
+		}, {
+			quickChat: undefined,
+			copilotState: undefined,
+		});
+	}));
+
+	test('registers the session state home before a quick chat is materialized', () => {
+		const pathService = new TestPathService(URI.file('/home/test'));
+		const labelService = new MockLabelService();
+		const provider = createProvider(disposables, agentHost, undefined, { pathService, labelService });
+
+		const session = provider.createQuickChat(provider.sessionTypes[0].id);
+		const rawId = AgentSession.id(session.resource);
+		const resource = URI.file(`/home/test/.copilot/chats/${rawId}/files/plan.md`);
+
+		const home = labelService.getUriHome(resource);
+		assert.deepStrictEqual({
+			home: home?.toString(),
+			label: home ? labelService.getUriLabel(home) : undefined,
+		}, {
+			home: URI.file(`/home/test/.copilot/chats/${rawId}`).toString(),
+			label: 'Copilot/Session',
+		});
+	});
+
+	test('registers the SDK session state home from recorded artifacts', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const metadata = createSession('ahp-session', { summary: 'Artifact Session' });
+		agentHost.addSession({
+			...metadata,
+			_meta: withSessionArtifacts(metadata._meta, [{
+				id: 'artifact',
+				type: SessionArtifactType.File,
+				label: 'Plan',
+				isArtifact: true,
+				uri: 'file:///home/test/.copilot/session-state/sdk-session/files/plan.md',
+			}])
+		});
+		const labelService = new MockLabelService();
+		const provider = createProvider(disposables, agentHost, undefined, {
+			pathService: new TestPathService(URI.file('/home/test')),
+			labelService,
+		});
+		provider.getSessions();
+		await timeout(0);
+
+		assert.strictEqual(
+			labelService.getUriHome(URI.file('/home/test/.copilot/session-state/sdk-session/files/plan.md'))?.toString(),
+			URI.file('/home/test/.copilot/session-state/sdk-session').toString()
+		);
+	}));
+
 	test('session adapter uses raw ID as fallback title', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		agentHost.addSession(createSession('abcdef1234567890'));
 
@@ -6354,7 +6434,15 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		pullRequest.set(makePullRequest(), undefined);
 
-		assert.strictEqual(updateCount, 1);
+		assert.deepStrictEqual({
+			updateCount,
+			mainTitle: gitHubInfo.get()?.pullRequest?.title,
+			historyTitles: gitHubInfo.get()?.pullRequests?.map(ref => ref.title),
+		}, {
+			updateCount: 1,
+			mainTitle: 'PR',
+			historyTitles: ['PR'],
+		});
 	}));
 
 	test.skip('keeps a resolved PR number sticky across gitHubInfo recomputes (no re-lookup / icon flap)', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -6485,7 +6573,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				{
 					number: 41,
 					uri: 'https://github.com/owner/repo/pull/41',
-					icon: undefined,
+					icon: computePullRequestIcon(GitHubPullRequestState.Open),
 				},
 			]
 		});
@@ -6594,7 +6682,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
-	test('promotes GitHub pull request and issue artifacts into GitHub info', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('promotes PR artifacts and current-branch discovery but keeps PR references out of GitHub info', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const gitHubService = new class extends mock<IGitHubService>() {
 			private readonly _model = { pullRequest: constObservable(undefined) } as unknown as GitHubPullRequestModel;
 			override createPullRequestModelReference = () => new ImmortalReference(this._model);

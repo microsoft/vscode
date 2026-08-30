@@ -48,12 +48,15 @@ import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessi
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
-import { computeSessionPullRequestIcon } from '../../../github/browser/pullRequestIconStatus.js';
+import { computePullRequestRefPresentation } from '../../../github/browser/pullRequestIconStatus.js';
 import { IPullRequestIconCache } from '../../../github/browser/pullRequestIconCache.js';
 import { structuralEquals } from '../../../../../base/common/equals.js';
 import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { createChangesets } from './copilotChatSessionsChangesets.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
+import { ResourceLabelHomeStore } from '../../../../../workbench/services/label/common/resourceLabelHomeStore.js';
+import { buildLocalSessionStateUri } from '../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { isCloudSandboxEnabled } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { getWorkbenchContribution } from '../../../../../workbench/common/contributions.js';
@@ -1014,11 +1017,19 @@ class AgentSessionAdapter implements ICopilotChatSession {
 			if (pullRequest.uri.authority.toLowerCase() !== 'github.com') {
 				return info;
 			}
+			const presentation = computePullRequestRefPresentation(reader, this._gitHubService, this._pullRequestIconCache, {
+				owner: info.owner,
+				repo: info.repo,
+				number: pullRequest.number,
+				uri: pullRequest.uri,
+				icon: pullRequest.icon,
+				title: pullRequest.title,
+			});
 			return {
 				...info,
 				pullRequest: {
 					...pullRequest,
-					icon: computeSessionPullRequestIcon(reader, this._gitHubService, this._pullRequestIconCache, info)
+					...presentation,
 				}
 			};
 		});
@@ -1414,6 +1425,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	/** Cache of adapted sessions, keyed by resource URI string. */
 	private readonly _sessionCache = new Map<string, AgentSessionAdapter | CopilotCLISession | RemoteNewSession>();
+	private readonly _resourceLabelHomes: ResourceLabelHomeStore;
 
 	/**
 	 * Resources of committed sessions that are currently in-flight (i.e.
@@ -1492,11 +1504,14 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		@ILabelService private readonly labelService: ILabelService,
 		@IChatModeService private readonly chatModeService: IChatModeService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IPathService private readonly pathService: IPathService,
 		@IGitService private readonly gitService: IGitService,
 	) {
 		super();
+		this._resourceLabelHomes = this._register(this.instantiationService.createInstance(ResourceLabelHomeStore));
 
 		this._multiChatEnabled = this.configurationService.getValue<boolean>(COPILOT_MULTI_CHAT_SETTING) ?? true;
+		this._register(this._onDidChangeSessions.event(() => this._updateResourceLabelHomes()));
 
 		this._register(runOnChange(this.agentHostEnablementService.enabled, () => {
 			this._onDidChangeSessionTypes.fire();
@@ -2953,6 +2968,20 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		for (const session of sessionsToMarkUnread) {
 			session.setRead(false);
 		}
+	}
+
+	private _updateResourceLabelHomes(): void {
+		const sessionStateRoot = buildLocalSessionStateUri(this.pathService.userHome({ preferLocal: true }));
+		const homes: { readonly uri: URI; readonly label: string }[] = [];
+		for (const session of this._sessionCache.values()) {
+			if (session.sessionType === SessionType.CopilotCLI) {
+				const rawId = session.resource.path.replace(/^\//, '');
+				if (rawId) {
+					homes.push({ uri: URI.joinPath(sessionStateRoot, rawId), label: `${CopilotCLISessionType.label}/${localize('sessionHome', "Session")}` });
+				}
+			}
+		}
+		this._resourceLabelHomes.set(homes);
 	}
 
 	private _refreshSessionCacheMultiChat(

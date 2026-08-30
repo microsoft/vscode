@@ -125,6 +125,11 @@ export class AgentFeedbackPRReviewSeederContribution extends Disposable implemen
 					comment.id,
 					AgentFeedbackKind.PRReview,
 					AgentFeedbackState.Created,
+					{
+						owner: comment.pullRequest.owner,
+						repo: comment.pullRequest.repo,
+						number: comment.pullRequest.number,
+					},
 				);
 			}
 		}

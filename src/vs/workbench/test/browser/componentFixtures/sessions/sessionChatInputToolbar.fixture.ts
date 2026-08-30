@@ -29,6 +29,8 @@ import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../sessions/common/age
 import { ChatOriginKind, ISessionArtifact, ISessionChangeset, ISessionChatCustomization, ISessionTurnFileChange, ISessionWorkspace, IChat, ISessionCapabilities, ISessionFileChange, SessionArtifactKind, SessionCustomizationKind, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
+// eslint-disable-next-line local/code-import-patterns
+import { ISessionsProvidersService } from '../../../../../sessions/services/sessions/browser/sessionsProvidersService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import { registerChatFixtureServices } from '../chat/chatFixtureUtils.js';
 import { IFixtureMessage, renderChatWidget } from '../chat/chatWidget.fixture.js';
@@ -138,6 +140,9 @@ function renderPills(ctx: ComponentFixtureContext, sessionMock: IMockSessionAndC
 			// services) the artifact pill needs, on top of the base editor services
 			// (which register a partial ISessionsService).
 			registerChatFixtureServices(reg);
+			reg.defineInstance(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+				override getProvider() { return undefined; }
+			}());
 			reg.defineInstance(IBrowserViewWorkbenchService, createBrowserViewService(sessionMock.browsers));
 			if (options?.debugData) {
 				reg.defineInstance(IGitHubService, new class extends mock<IGitHubService>() {

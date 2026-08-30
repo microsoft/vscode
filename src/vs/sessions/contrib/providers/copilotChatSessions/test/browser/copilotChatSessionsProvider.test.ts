@@ -44,6 +44,9 @@ import { ChatConfiguration, ChatPermissionLevel } from '../../../../../../workbe
 import { CopilotChatSessionsProvider, COPILOT_PROVIDER_ID, CopilotCloudSessionType, ICopilotChatSession } from '../../browser/copilotChatSessionsProvider.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { IPathService } from '../../../../../../workbench/services/path/common/pathService.js';
+import { MockLabelService } from '../../../../../../workbench/services/label/test/common/mockLabelService.js';
+import { TestPathService } from '../../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { extUri } from '../../../../../../base/common/resources.js';
 import { CopilotCLISessionType } from '../../../agentHost/browser/baseAgentHostSessionsProvider.js';
@@ -240,7 +243,7 @@ function createProviderWithConfig(
 	disposables: DisposableStore,
 	model: MockAgentSessionsModel,
 	opts?: ICreateProviderOptions,
-): { provider: CopilotChatSessionsProvider; configService: TestConfigurationService; agentHostEnabled: ISettableObservable<boolean> } {
+): { provider: CopilotChatSessionsProvider; configService: TestConfigurationService; agentHostEnabled: ISettableObservable<boolean>; labelService: MockLabelService } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	const configService = new TestConfigurationService();
@@ -304,16 +307,16 @@ function createProviderWithConfig(
 	});
 	// Stub IInstantiationService so provider can use createInstance for CopilotCLISession
 	instantiationService.stub(IInstantiationService, instantiationService);
-	instantiationService.stub(ILabelService, {
-		getUriLabel: (uri: URI) => uri.path,
-	});
+	const labelService = new MockLabelService();
+	instantiationService.stub(ILabelService, labelService);
+	instantiationService.stub(IPathService, new TestPathService(URI.file('/home/test')));
 	instantiationService.stub(IUriIdentityService, { extUri });
 	instantiationService.stub(IGitService, opts?.gitService ?? { repositories: [], openRepository: async () => undefined });
 	instantiationService.stub(IGitHubService, opts?.gitHubService ?? new TestGitHubService());
 	instantiationService.stub(IPullRequestIconCache, opts?.pullRequestIconCache ?? new TestPullRequestIconCache());
 
 	const provider = disposables.add(instantiationService.createInstance(CopilotChatSessionsProvider));
-	return { provider, configService, agentHostEnabled };
+	return { provider, configService, agentHostEnabled, labelService };
 }
 
 // ---- Provider factory for send/cancel tests ---------------------------------
@@ -394,9 +397,8 @@ function createProviderForSendTests(
 	instantiationService.stub(ILanguageModelToolsService, { toToolReferences: () => [] });
 	instantiationService.stub(IGitService, { openRepository: async () => undefined });
 	instantiationService.stub(IInstantiationService, instantiationService);
-	instantiationService.stub(ILabelService, {
-		getUriLabel: (uri: URI) => uri.path,
-	});
+	instantiationService.stub(ILabelService, new MockLabelService());
+	instantiationService.stub(IPathService, new TestPathService(URI.file('/home/test')));
 	instantiationService.stub(IUriIdentityService, { extUri });
 	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(opts?.agentHostEnabled ?? true), managedSandboxEnforced: constObservable(false) });
 	instantiationService.stub(IContextKeyService, new MockContextKeyService());
@@ -492,6 +494,18 @@ suite('CopilotChatSessionsProvider', () => {
 		const sessions = provider.getSessions();
 
 		assert.strictEqual(sessions.length, 2);
+	});
+
+	test('registers Copilot CLI session state directories as resource label homes', () => {
+		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/session-1' });
+		model.addSession(createMockAgentSession(resource));
+
+		const { labelService } = createProviderWithConfig(disposables, model);
+
+		assert.strictEqual(
+			labelService.getUriHome(URI.file('/home/test/.copilot/session-state/session-1/artifact.md'))?.toString(),
+			URI.file('/home/test/.copilot/session-state/session-1').toString()
+		);
 	});
 
 	test('getSessions does not emit session changes while reading the initial cache', () => {
@@ -973,11 +987,13 @@ suite('CopilotChatSessionsProvider', () => {
 				number: beforeLiveUpdate.number,
 				uri: beforeLiveUpdate.uri.toString(),
 				icon: beforeLiveUpdate.icon,
+				title: beforeLiveUpdate.title,
 			},
 			afterLiveUpdate: afterLiveUpdate && {
 				number: afterLiveUpdate.number,
 				uri: afterLiveUpdate.uri.toString(),
 				icon: afterLiveUpdate.icon,
+				title: afterLiveUpdate.title,
 			},
 			lookupCalls: gitHubService.lookupCalls,
 			cachedIcon: iconCache.get('https://github.com/owner/repo/pull/42'),
@@ -988,11 +1004,13 @@ suite('CopilotChatSessionsProvider', () => {
 				number: 42,
 				uri: 'https://github.com/owner/repo/pull/42',
 				icon: computePullRequestIcon(GitHubPullRequestState.Open),
+				title: undefined,
 			},
 			afterLiveUpdate: {
 				number: 42,
 				uri: 'https://github.com/owner/repo/pull/42',
 				icon: computePullRequestIcon(GitHubPullRequestState.Merged),
+				title: 'Cloud PR',
 			},
 			lookupCalls: 1,
 			cachedIcon: computePullRequestIcon(GitHubPullRequestState.Merged),
