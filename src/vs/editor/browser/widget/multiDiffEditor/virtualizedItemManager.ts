@@ -6,7 +6,7 @@
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, ITransaction, mapObservableArrayCached, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, ITransaction, observableValue, transaction } from '../../../../base/common/observable.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { ICompressedVirtualizedScrollItem, ICompressedVirtualizedScrollItemContext, ICompressedVirtualizedScrollViewContext } from './compressedVirtualizedScrollView.js';
 
@@ -93,7 +93,9 @@ export interface IVirtualizedItemDelegate<TItem, TBinding extends IVirtualizedIt
 
 export class VirtualizedItemManager<TItem, TBinding extends IVirtualizedItemBinding<TItem>, TTemplate extends IVirtualizedItemTemplate<TItem, TBinding>> extends Disposable {
 	private readonly _pools = new Map<string, VirtualizedTemplatePool<TItem, TBinding, TTemplate>>();
-	readonly virtualizedItems: IObservable<readonly ManagedVirtualizedItem<TItem, TBinding, TTemplate>[]>;
+	private readonly _managedItems = new Map<unknown, ManagedVirtualizedItem<TItem, TBinding, TTemplate>>();
+	private readonly _virtualizedItems = observableValue<readonly ManagedVirtualizedItem<TItem, TBinding, TTemplate>[]>(this, []);
+	readonly virtualizedItems: IObservable<readonly ManagedVirtualizedItem<TItem, TBinding, TTemplate>[]> = this._virtualizedItems;
 
 	constructor(
 		items: IObservable<readonly TItem[]>,
@@ -101,13 +103,30 @@ export class VirtualizedItemManager<TItem, TBinding extends IVirtualizedItemBind
 		private readonly _delegate: IVirtualizedItemDelegate<TItem, TBinding, TTemplate>,
 	) {
 		super();
-		this.virtualizedItems = mapObservableArrayCached(
-			this,
-			items,
-			(item, store) => store.add(new ManagedVirtualizedItem(item, this, _delegate)),
-			item => _delegate.getId(item),
-		).recomputeInitiallyAndOnChange(this._store);
+		this._register(autorun(reader => {
+			const nextItems = items.read(reader);
+			const itemsToRemove = new Set(this._managedItems.keys());
+			const nextManagedItems = nextItems.map(item => {
+				const key = _delegate.getId(item);
+				itemsToRemove.delete(key);
+				let managedItem = this._managedItems.get(key);
+				if (!managedItem) {
+					managedItem = new ManagedVirtualizedItem(item, this, _delegate);
+					this._managedItems.set(key, managedItem);
+				}
+				return managedItem;
+			});
+			for (const key of itemsToRemove) {
+				this._managedItems.get(key)!.dispose();
+				this._managedItems.delete(key);
+			}
+			transaction(tx => this._virtualizedItems.set(nextManagedItems, tx));
+		}));
 		this._register(toDisposable(() => {
+			for (const item of this._managedItems.values()) {
+				item.dispose();
+			}
+			this._managedItems.clear();
 			for (const pool of this._pools.values()) {
 				pool.dispose();
 			}
