@@ -1145,8 +1145,6 @@ suite('Fuzzy Scorer', () => {
 		assert.strictEqual(prepareQuery('main#').original, 'main#');
 		assert.strictEqual(prepareQuery('foo*').normalized, 'foo');
 		assert.strictEqual(prepareQuery('foo*').original, 'foo*');
-		assert.strictEqual(prepareQuery('Foo::Bar').normalized, 'FooBar');
-		assert.strictEqual(prepareQuery('Foo::Bar').original, 'Foo::Bar');
 		assert.strictEqual(prepareQuery('model Tester.ts').original, 'model Tester.ts');
 		assert.strictEqual(prepareQuery('model Tester.ts').originalLowercase, 'model Tester.ts'.toLowerCase());
 		assert.strictEqual(prepareQuery('model Tester.ts').normalized, 'modelTester.ts');
@@ -1301,7 +1299,7 @@ suite('Fuzzy Scorer', () => {
 		assert.strictEqual(score[1][1], 8);
 	});
 
-	test('Workspace symbol search with special characters (#, *, ::)', function () {
+	test('Workspace symbol search with special characters (#, *)', function () {
 		// Simulates the scenario from the issue where rust-analyzer uses # and * as query modifiers
 		// The original query (with special chars) should reach the language server
 		// but normalized query (without special chars) should be used for fuzzy matching
@@ -1336,14 +1334,6 @@ suite('Fuzzy Scorer', () => {
 		assert.strictEqual(query.normalized, 'MC');
 		[score, matches] = _doScore2('MyClass', 'MC#');
 		assert.ok(typeof score === 'number' && score > 0, 'Should fuzzy match "MyClass" symbol when query is "MC#"');
-		assert.ok(matches.length > 0);
-
-		// Test :: namespace separator: User types "Foo::Bar", language server returns the fully qualified symbol
-		query = prepareQuery('Foo::Bar');
-		assert.strictEqual(query.original, 'Foo::Bar'); // Sent to language server
-		assert.strictEqual(query.normalized, 'FooBar'); // Used for fuzzy matching
-		[score, matches] = _doScore2('Foo::Bar', 'Foo::Bar');
-		assert.ok(typeof score === 'number' && score > 0, 'Should match "Foo::Bar" symbol when query is "Foo::Bar"');
 		assert.ok(matches.length > 0);
 
 		// Make sure leading # or # in the middle are not removed.

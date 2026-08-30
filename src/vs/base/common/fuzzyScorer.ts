@@ -811,7 +811,7 @@ export interface IPreparedQueryPiece {
 
 	/**
 	 * In addition to the normalized path, will have
-	 * whitespace, wildcards, quotes, ellipsis, namespace separators, and trailing hash characters removed.
+	 * whitespace, wildcards, quotes, ellipsis, and trailing hash characters removed.
 	 */
 	normalized: string;
 	normalizedLowercase: string;
@@ -905,9 +905,8 @@ function normalizeQuery(original: string): { pathNormalized: string; normalized:
 	// - wildcards: are used for fuzzy matching
 	// - whitespace: are used to separate queries
 	// - ellipsis: sometimes used to indicate any path segments
-	// - double colons: are used as namespace separators by some language servers
 	// - trailing hash: used by some language servers (e.g. rust-analyzer) as query modifiers
-	const normalized = pathNormalized.replace(/[\*\u2026\s"]/g, '').replaceAll('::', '').replace(/(?<=.)#$/, '');
+	const normalized = pathNormalized.replace(/[\*\u2026\s"]/g, '').replace(/(?<=.)#$/, '');
 
 	return {
 		pathNormalized,
