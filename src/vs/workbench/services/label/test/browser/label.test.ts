@@ -146,6 +146,16 @@ suite('URI Label', () => {
 		second.dispose();
 	});
 
+	test('noPrefix skips resource label homes', () => {
+		const resource = URI.file('/home/test/.agent/sessions/session-id/file.md');
+		const homes = new ResourceLabelHomeStore(labelService);
+		homes.set([{ uri: URI.file('/home/test/.agent/sessions/session-id'), label: 'Agent/Session' }]);
+
+		assert.strictEqual(labelService.getUriLabel(resource, { noPrefix: true }), resource.fsPath);
+
+		homes.dispose();
+	});
+
 	test('keeps equivalent resource label home registrations until all are disposed', () => {
 		const root = URI.file('/home/test/.agent/sessions/session-id');
 		const formatter = { scheme: root.scheme, home: root.path, formatting: { label: 'Session', separator: '/' as const } };
