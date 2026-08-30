@@ -82,6 +82,7 @@ import { ChecksViewModel } from './checksViewModel.js';
 import { REVEAL_CI_CHECKS_COMMAND_ID } from './checksActions.js';
 // eslint-disable-next-line local/code-import-patterns -- TODO: move skill button constants out of providers
 import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, isAgentHostSkillButtonId } from '../../providers/agentHost/browser/agentHostSkillButtons.js';
+import { AGENT_HOST_AUTO_MERGE_OPERATION_IDS } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { ActiveSessionContextKeys, CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, IsolationMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
 import { buildTreeChildren, ChangesTreeElement, ChangesTreeRenderer, IChangesFileItem, IChangesTreeRootInfo, isChangesFileItem, isChangesFileResource, toIChangesFileItem } from './changesViewRenderer.js';
 import { ResourceTree } from '../../../../base/common/resourceTree.js';
@@ -383,9 +384,15 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 				return { groups: [], hasRunning: false };
 			}
 
+			// Agent Merge replaces the auto-merge operations on this bar, so they
+			// are dropped from the button and its dropdown. They stay advertised
+			// by the host because the Agent Merge menu keys off them to know it
+			// should stand in (see `agentMergeOwnsPrimaryButton`); where Agent
+			// Merge is unavailable this state simply offers no button.
 			const operations = changesViewService.activeSessionChangesetOperationsObs.read(reader);
 			const changesetOperations = operations
-				.filter(op => op.scopes.includes(SessionChangesetOperationScope.Changeset));
+				.filter(op => op.scopes.includes(SessionChangesetOperationScope.Changeset))
+				.filter(op => !AGENT_HOST_AUTO_MERGE_OPERATION_IDS.has(op.id));
 
 			const toOperationAction = (op: ISessionChangesetOperation) => toAction({
 				id: op.id,
