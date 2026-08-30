@@ -318,6 +318,26 @@ suite('RipgrepTextSearchEngine', () => {
 	});
 
 	suite('getRgArgs', () => {
+		test('additional ignore files', () => {
+			const query: TextSearchQuery2 = { pattern: 'test' };
+			const options: RipgrepTextSearchOptions = {
+				folderOptions: {
+					includes: [],
+					excludes: [],
+					useIgnoreFiles: { local: true, global: false, parent: true },
+					ignoreFileNames: ['.customignore', '.ignore'],
+					followSymlinks: false,
+					folder: URI.file('/some/folder'),
+					encoding: 'utf8',
+				},
+				maxResults: 1000,
+			};
+			const args = getRgArgs(query, options, ['/some/folder/.customignore']);
+			const ignoreFileArg = args.indexOf('--no-ignore-vcs');
+
+			assert.deepStrictEqual(args.slice(ignoreFileArg, ignoreFileArg + 3), ['--no-ignore-vcs', '--ignore-file', '/some/folder/.customignore']);
+		});
+
 		test('simple includes', () => {
 			// Only testing the args that come from includes.
 			function testGetRgArgs(includes: string[], expectedFromIncludes: string[]): void {

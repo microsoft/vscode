@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as path from '../../../../base/common/path.js';
+import { isDefined } from '../../../../base/common/types.js';
+import { SymlinkSupport } from '../../../../base/node/pfs.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { SearchRange } from '../common/search.js';
 import * as searchExtTypes from '../common/searchExtTypes.js';
@@ -11,6 +14,19 @@ export type Maybe<T> = T | null | undefined;
 
 export function anchorGlob(glob: string): string {
 	return glob.startsWith('**') || glob.startsWith('/') ? glob : `/${glob}`;
+}
+
+const nativeRipgrepIgnoreFileNames = new Set(['.gitignore', '.ignore', '.rgignore']);
+
+export async function getAdditionalIgnoreFilePaths(folder: string, ignoreFileNames: readonly string[] | undefined): Promise<string[]> {
+	const paths = await Promise.all((ignoreFileNames ?? [])
+		.filter(fileName => !nativeRipgrepIgnoreFileNames.has(fileName) && path.basename(fileName) === fileName)
+		.map(async fileName => {
+			const ignoreFilePath = path.join(folder, fileName);
+			return await SymlinkSupport.existsFile(ignoreFilePath) ? ignoreFilePath : undefined;
+		}));
+
+	return paths.filter(isDefined);
 }
 
 export function rangeToSearchRange(range: searchExtTypes.Range): SearchRange {

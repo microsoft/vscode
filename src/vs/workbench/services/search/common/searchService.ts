@@ -22,8 +22,10 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
 import { IEditorService } from '../../editor/common/editorService.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
+import { ignoreFilesExtensionPoint } from '../../extensions/common/ignoreFiles.js';
 import { DEFAULT_MAX_SEARCH_RESULTS, deserializeSearchError, FileMatch, IAITextQuery, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, isAIKeyword, ISearchComplete, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, isFileMatch, isProgressMessage, ITextQuery, pathIncludedInQuery, QueryType, SEARCH_RESULT_LANGUAGE_ID, SearchError, SearchErrorCode, SearchProviderType } from './search.js';
 import { getTextSearchMatchWithModelContext, editorMatchesToTextSearchResults } from './searchHelpers.js';
+import { getSearchIgnoreFileNames } from './searchIgnoreFiles.js';
 
 export class SearchService extends Disposable implements ISearchService {
 
@@ -182,6 +184,8 @@ export class SearchService extends Disposable implements ISearchService {
 		const providerPromise = (async () => {
 			await Promise.all(providerActivations);
 			await this.extensionService.whenInstalledExtensionsRegistered();
+			const ignoreFileContributions = await this.extensionService.readExtensionPointContributions(ignoreFilesExtensionPoint);
+			query.ignoreFileNames = getSearchIgnoreFileNames(Array.isArray(ignoreFileContributions) ? ignoreFileContributions.map(contribution => contribution.value) : []);
 
 			// Cancel faster if search was canceled while waiting for extensions
 			if (token && token.isCancellationRequested) {

@@ -13,6 +13,7 @@ import { SearchService } from '../../node/rawSearchService.js';
 
 const TEST_FIXTURES = path.normalize(FileAccess.asFileUri('vs/workbench/services/search/test/node/fixtures').fsPath);
 const TEST_FIXTURES2 = path.normalize(FileAccess.asFileUri('vs/workbench/services/search/test/node/fixtures2').fsPath);
+const CUSTOM_IGNORE_FIXTURES = path.normalize(FileAccess.asFileUri('vs/workbench/services/search/test/node/fixtures-custom-ignore').fsPath);
 const EXAMPLES_FIXTURES = path.join(TEST_FIXTURES, 'examples');
 const MORE_FIXTURES = path.join(TEST_FIXTURES, 'more');
 const TEST_ROOT_FOLDER: IFolderQuery = { folder: URI.file(TEST_FIXTURES) };
@@ -106,6 +107,17 @@ flakySuite('FileSearch-integration', function () {
 			],
 			filePattern: 'folder1 site',
 			excludePattern: { '*.css': { when: '$(basename).less' } }
+		};
+
+		return doSearchTest(config, 1);
+	});
+
+	test('File - contributed ignore file', () => {
+		const config: IFileQuery = {
+			type: QueryType.File,
+			folderQueries: [{ folder: URI.file(CUSTOM_IGNORE_FIXTURES), disregardIgnoreFiles: false }],
+			filePattern: 'txt',
+			ignoreFileNames: ['.ignore', '.customignore']
 		};
 
 		return doSearchTest(config, 1);
