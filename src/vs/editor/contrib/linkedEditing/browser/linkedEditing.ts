@@ -194,7 +194,9 @@ export class LinkedEditingContribution extends Disposable implements IEditorCont
 		if (this._currentWordPattern) {
 			const match = referenceValue.match(this._currentWordPattern);
 			const matchLength = match ? match[0].length : 0;
-			if (matchLength !== referenceValue.length) {
+			// Allow empty string and partial matches (for cases where user clears tag and retypes)
+			// Only clear if there's text that doesn't match the pattern at all (matchLength is 0 but text exists)
+			if (referenceValue.length > 0 && matchLength === 0) {
 				return this.clearRanges();
 			}
 		}
