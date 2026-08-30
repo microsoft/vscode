@@ -13,18 +13,22 @@ test('reveals the nested chat twistie only while hovering the session row', asyn
 	const twistie = sessionRow.locator('.session-chat-twistie.collapsible');
 	const statusIcon = sessionRow.locator('.session-icon');
 
+	// Başlangıç durumu kontrolleri
 	await expect(twistie).toHaveCSS('opacity', '0');
 	await expect(twistie).toHaveCSS('pointer-events', 'none');
 	await expect(statusIcon).toHaveCSS('visibility', 'visible');
 
+	// Hover durumu
 	await sessionRow.hover();
 
 	await expect(twistie).toHaveCSS('opacity', '1');
 	await expect(twistie).toHaveCSS('pointer-events', 'auto');
 	await expect(statusIcon).toHaveCSS('visibility', 'hidden');
 
+	// Hover'ı kaldırma durumu
 	await page.mouse.move(0, 0);
 
 	await expect(twistie).toHaveCSS('opacity', '0');
+	await expect(twistie).toHaveCSS('pointer-events', 'none'); // Eksik olan güvenlik kontrolü eklendi
 	await expect(statusIcon).toHaveCSS('visibility', 'visible');
 });
