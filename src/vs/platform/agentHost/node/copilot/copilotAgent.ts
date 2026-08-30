@@ -31,7 +31,7 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { INativeEnvironmentService } from '../../../../platform/environment/common/environment.js';
-import { workspacelessScratchDir } from '../workspacelessScratchDir.js';
+import { workspacelessScratchDir } from '../../common/workspacelessScratchDir.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { IAgentHostReviewService } from '../../common/agentHostReviewService.js';

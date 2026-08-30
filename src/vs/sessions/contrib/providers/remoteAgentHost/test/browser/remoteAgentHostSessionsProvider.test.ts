@@ -46,6 +46,7 @@ import { CopilotCLISessionType } from '../../../agentHost/browser/baseAgentHostS
 import { IObservable, constObservable } from '../../../../../../base/common/observable.js';
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
+import { MockLabelService } from '../../../../../../workbench/services/label/test/common/mockLabelService.js';
 
 // ---- Mock connection --------------------------------------------------------
 
@@ -261,9 +262,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	});
 	instantiationService.stub(IStorageService, overrides?.storageService ?? disposables.add(new InMemoryStorageService()));
 	instantiationService.stub(IProgressService, {});
-	instantiationService.stub(ILabelService, {
-		getUriLabel: (uri: URI) => uri.path,
-	});
+	instantiationService.stub(ILabelService, new MockLabelService());
 	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(IGitHubService, new class extends mock<IGitHubService>() {
 		override findPullRequestNumberByHeadBranch = async () => undefined;
