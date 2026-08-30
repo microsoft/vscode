@@ -4127,24 +4127,25 @@ suite('AgentService (node dispatcher)', () => {
 			const agent = disposables.add(new MockAgent('copilot'));
 			registerTestAgentProvider(svc, agent);
 			const gate = new DeferredPromise<void>();
-			const inner = svc as unknown as { _computeSessions(mode: AgentHostExternalSessionsMode): Promise<readonly IAgentSessionMetadata[]> };
+			const inner = svc as unknown as { _computeSessions(mode: AgentHostExternalSessionsMode, epoch?: number): Promise<readonly IAgentSessionMetadata[]> };
 			const original = inner._computeSessions;
 			let computations = 0;
-			inner._computeSessions = async mode => {
+			inner._computeSessions = async (mode, epoch) => {
 				computations++;
 				await gate.p;
-				return original.call(svc, mode);
+				return original.call(svc, mode, epoch);
 			};
 
 			const preInvalidation = svc.listSessions();
 			await svc.createSession({ provider: 'copilot' });
-			const postInvalidation = svc.listSessions();
 			gate.complete();
+			const preInvalidationCount = (await preInvalidation).length;
+			const postInvalidationCount = (await svc.listSessions()).length;
 
 			assert.deepStrictEqual({
 				computations,
-				preInvalidation: (await preInvalidation).length,
-				postInvalidation: (await postInvalidation).length,
+				preInvalidation: preInvalidationCount,
+				postInvalidation: postInvalidationCount,
 			}, {
 				computations: 2,
 				preInvalidation: 1,
