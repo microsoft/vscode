@@ -22,6 +22,7 @@ function mapStatus(s: RemoteAgentHostConnectionStatus): AgentHostFilterConnectio
 	switch (s.kind) {
 		case 'connected': return AgentHostFilterConnectionStatus.Connected;
 		case 'connecting': return AgentHostFilterConnectionStatus.Connecting;
+		case 'reconnecting': return AgentHostFilterConnectionStatus.Connecting;
 		case 'disconnected':
 		case 'incompatible':
 		default: return AgentHostFilterConnectionStatus.Disconnected;

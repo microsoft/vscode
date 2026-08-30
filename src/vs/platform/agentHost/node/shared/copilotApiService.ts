@@ -7,7 +7,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import { CAPIClient, RequestType, type CCAModel, type IExtensionInformation } from '@vscode/copilot-api';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { getDevDeviceId, getMachineId } from '../../../../base/node/id.js';
-import { getInternalOrg } from '../../../assignment/common/assignment.js';
+import { getInternalOrg, isInternalAccount } from '../../../assignment/common/assignment.js';
 import { COPILOT_LICENSE_AGREEMENT } from '../../../endpoint/common/licenseAgreement.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
@@ -390,7 +390,7 @@ export interface IRestrictedTelemetryContext {
 	readonly trackingId: string | undefined;
 	/** The CAPI `endpoints.telemetry` base URL, resolved only when enabled; `undefined` otherwise. */
 	readonly telemetryEndpoint: string | undefined;
-	/** Whether the token belongs to a GitHub or Microsoft internal organization. */
+	/** Whether the account is staff or belongs to an internal organization. */
 	readonly isInternal?: boolean;
 	/** GitHub login returned by `/copilot_internal/user`. */
 	readonly userName?: string;
@@ -978,7 +978,7 @@ export class CopilotApiService implements ICopilotApiService {
 			copilotIgnoreEnabled: envelope.copilotignore_enabled,
 			restrictedTelemetryEnabled: envelope.restricted_telemetry === true,
 			trackingId: envelope.analytics_tracking_id,
-			isInternal: envelope.is_staff === true || internalOrganization !== undefined,
+			isInternal: isInternalAccount(envelope.is_staff, envelope.organization_login_list),
 			isVscodeTeamMember: internalOrganization === 'vscode',
 		};
 	}

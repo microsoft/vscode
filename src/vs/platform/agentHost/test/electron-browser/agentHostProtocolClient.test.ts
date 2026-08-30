@@ -33,7 +33,7 @@ import { NonReconnectableTransportError, type IClientTransport, type IProtocolTr
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
+import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
 import { AgentHostMapLegacySettingsToManagedSettingsSettingId } from '../../common/agentHostManagedSettings.js';
 import { AgentHostConfigurationSyncScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
@@ -81,6 +81,7 @@ const syncTestConfigurationNode = {
 import type { Implementation } from '../../common/state/protocol/common/commands.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.js';
+import type { IRemoteAgentHostReconnectPolicy } from '../../common/reconnectPolicy.js';
 
 type ProtocolTransportMessage = ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest;
 type RootConfigValue = boolean | string | AgentHostTerminalAutoApproveRules | undefined;
@@ -233,6 +234,7 @@ class TerminalAutoApproveConfigurationService extends TestConfigurationService {
 
 class ManagedPermissionsConfigurationService extends TestConfigurationService {
 	private globalAutoApprovePolicyValue: boolean | undefined = false;
+	private eligibleForAutoApprovalPolicyValue: Record<string, boolean> | undefined;
 
 	override inspect<T>(key: string): IConfigurationValue<T> {
 		if (key === GLOBAL_AUTO_APPROVE_SETTING_ID) {
@@ -241,11 +243,21 @@ class ManagedPermissionsConfigurationService extends TestConfigurationService {
 				policyValue: this.globalAutoApprovePolicyValue as T | undefined,
 			};
 		}
+		if (key === ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID) {
+			return {
+				...super.inspect<T>(key),
+				policyValue: this.eligibleForAutoApprovalPolicyValue as T | undefined,
+			};
+		}
 		return super.inspect<T>(key);
 	}
 
 	clearGlobalAutoApprovePolicy(): void {
 		this.globalAutoApprovePolicyValue = undefined;
+	}
+
+	setEligibleForAutoApprovalPolicy(value: Record<string, boolean> | undefined): void {
+		this.eligibleForAutoApprovalPolicyValue = value;
 	}
 }
 
@@ -316,8 +328,11 @@ suite('AgentHostProtocolClient', () => {
 		};
 	}
 
-	function createClientForIdentity(identity: AgentHostResourceIdentity, transport = disposables.add(new TestProtocolTransport()), permissionService = createPermissionService(), loadEstimator?: { hasHighLoad(): boolean }, logService: ILogService = new NullLogService(), configurationService = new TestConfigurationService(), clientId?: string, clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService): { client: AgentHostProtocolClient; transport: TestProtocolTransport; configurationService: TestConfigurationService } {
-		const client = disposables.add(new AgentHostProtocolClient(identity, transport, loadEstimator, clientId, clientInfo, logService, permissionService, configurationService, telemetryService));
+	function createClientForIdentity(identity: AgentHostResourceIdentity, transport = disposables.add(new TestProtocolTransport()), permissionService = createPermissionService(), loadEstimator?: { hasHighLoad(): boolean }, logService: ILogService = new NullLogService(), configurationService = new TestConfigurationService(), clientId?: string, clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService, reconnectPolicy?: IRemoteAgentHostReconnectPolicy): { client: AgentHostProtocolClient; transport: TestProtocolTransport; configurationService: TestConfigurationService } {
+		const options = loadEstimator !== undefined || clientId !== undefined || clientInfo !== undefined || reconnectPolicy !== undefined
+			? { loadEstimator, clientId, clientInfo, reconnectPolicy }
+			: undefined;
+		const client = disposables.add(new AgentHostProtocolClient(identity, transport, options, logService, permissionService, configurationService, telemetryService));
 		return { client, transport, configurationService };
 	}
 
@@ -945,7 +960,7 @@ suite('AgentHostProtocolClient', () => {
 			assert.ok(err instanceof ProtocolError);
 
 			// Late response for the same request id — the shared
-			// SSHRelayTransport feeds both old and new clients for the
+			// The SSH relay transport feeds both old and new clients for the
 			// same connectionId, so this can happen in production. The
 			// pending request was already rejected; if _handleMessage
 			// processed the response it would log a "unknown request id"
@@ -1070,9 +1085,7 @@ suite('AgentHostProtocolClient', () => {
 		const client = disposables.add(new AgentHostProtocolClient(
 			'test.example:1234',
 			transport,
-			undefined,
-			'telemetry-disabled-client',
-			editorWindowAgentHostClientInfo,
+			{ clientId: 'telemetry-disabled-client', clientInfo: editorWindowAgentHostClientInfo },
 			new NullLogService(),
 			createPermissionService(),
 			configurationService,
@@ -1242,6 +1255,41 @@ suite('AgentHostProtocolClient', () => {
 		fireConfigurationChange(configurationService, GLOBAL_AUTO_APPROVE_SETTING_ID);
 		await configurationService.setUserConfiguration(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, true);
 		fireConfigurationChange(configurationService, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID);
+
+		assert.deepStrictEqual(findLastManagedSettingsNotification(transport.sentMessages), {
+			jsonrpc: '2.0',
+			method: 'setClientManagedSettingsPermissions',
+			params: { permissions: {} },
+		});
+	});
+
+	test('forwards and clears the mapped per-tool auto-approval policy for the local host', async () => {
+		const configurationService = new ManagedPermissionsConfigurationService({
+			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: true,
+		});
+		// Isolate this setting's notification path from the global auto-approve mapping.
+		configurationService.clearGlobalAutoApprovePolicy();
+		configurationService.setEligibleForAutoApprovalPolicy({ runTask: false });
+		const { client, transport } = createClientForIdentity(
+			LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
+			disposables.add(new TestProtocolTransport()),
+			createPermissionService(),
+			undefined,
+			new NullLogService(),
+			configurationService,
+		);
+
+		await connectClient(client, transport);
+
+		assert.deepStrictEqual(findLastManagedSettingsNotification(transport.sentMessages), {
+			jsonrpc: '2.0',
+			method: 'setClientManagedSettingsPermissions',
+			params: { permissions: { disableBypassPermissionsMode: 'disable' } },
+		});
+
+		transport.sentMessages.length = 0;
+		configurationService.setEligibleForAutoApprovalPolicy(undefined);
+		fireConfigurationChange(configurationService, ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID);
 
 		assert.deepStrictEqual(findLastManagedSettingsNotification(transport.sentMessages), {
 			jsonrpc: '2.0',
@@ -2127,7 +2175,7 @@ suite('AgentHostProtocolClient', () => {
 		 * client plus a `transports` array recording each transport handed
 		 * out, so tests can drive handshake/reconnect interactions.
 		 */
-		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService): { client: AgentHostProtocolClient; transports: TestClientProtocolTransport[] } {
+		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService, reconnectPolicy?: IRemoteAgentHostReconnectPolicy): { client: AgentHostProtocolClient; transports: TestClientProtocolTransport[] } {
 			const transports: TestClientProtocolTransport[] = [];
 			const factory = () => {
 				const t = disposables.add(new TestClientProtocolTransport());
@@ -2135,7 +2183,7 @@ suite('AgentHostProtocolClient', () => {
 				return t;
 			};
 			const client = disposables.add(new AgentHostProtocolClient(
-				'test.example:1234', factory, undefined, undefined, clientInfo, new NullLogService(), permissionService, new TestConfigurationService(), telemetryService,
+				'test.example:1234', factory, clientInfo !== undefined || reconnectPolicy !== undefined ? { clientInfo, reconnectPolicy } : undefined, new NullLogService(), permissionService, new TestConfigurationService(), telemetryService,
 			));
 			return { client, transports };
 		}
@@ -2227,6 +2275,75 @@ suite('AgentHostProtocolClient', () => {
 				fatalError: 'terminal failure',
 				state: AgentHostClientState.Closed,
 				transportCount: 2,
+			});
+		});
+
+		test('stops after exhausting automatic reconnect attempts and permits an explicit reconnect', async function () {
+			this.timeout(10_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const reconnectPolicy: IRemoteAgentHostReconnectPolicy = {
+					autoRestore: true,
+					initialDelayMs: 1,
+					maxDelayMs: 1,
+					maxAttempts: 1,
+				};
+				const { client, transports } = createFactoryClient(createPermissionService(), undefined, NullTelemetryService, reconnectPolicy);
+				const connectPromise = client.connect();
+				await completeHandshake(transports[0], connectPromise);
+
+				const fatalError = Event.toPromise(client.onDidFatalClose);
+				transports[0].fireClose();
+				await waitForReconnecting(client);
+				const failedReconnect = await waitForTransport(transports, 1);
+				failedReconnect.connectDeferred.error(new Error('reconnect failed'));
+
+				assert.deepStrictEqual({
+					fatalError: (await fatalError).message,
+					state: client.connectionState,
+					transportCount: transports.length,
+				}, {
+					fatalError: 'Automatic reconnect gave up after 1 attempts.',
+					state: AgentHostClientState.Closed,
+					transportCount: 2,
+				});
+
+				assert.strictEqual(client.reconnectFromClosed(), true);
+				const explicitReconnect = await waitForTransport(transports, 2);
+				explicitReconnect.connectDeferred.complete();
+				const reconnect = await waitForRequest(explicitReconnect, 'reconnect');
+				explicitReconnect.fireMessage({
+					jsonrpc: '2.0',
+					id: reconnect.id,
+					result: { type: ReconnectResultType.Replay, actions: [], missing: [] },
+				});
+				await flushMicrotasks();
+
+				assert.strictEqual(client.connectionState, AgentHostClientState.Connected);
+			});
+		});
+
+		test('does not automatically reconnect when the policy disables automatic restore', async () => {
+			const reconnectPolicy: IRemoteAgentHostReconnectPolicy = {
+				autoRestore: false,
+				initialDelayMs: 1,
+				maxDelayMs: 1,
+				maxAttempts: 1,
+			};
+			const { client, transports } = createFactoryClient(createPermissionService(), undefined, NullTelemetryService, reconnectPolicy);
+			const connectPromise = client.connect();
+			await completeHandshake(transports[0], connectPromise);
+
+			const fatalError = Event.toPromise(client.onDidFatalClose);
+			transports[0].fireClose();
+
+			assert.deepStrictEqual({
+				fatalError: (await fatalError).message,
+				state: client.connectionState,
+				transportCount: transports.length,
+			}, {
+				fatalError: 'Connection closed: test.example:1234',
+				state: AgentHostClientState.Closed,
+				transportCount: 1,
 			});
 		});
 

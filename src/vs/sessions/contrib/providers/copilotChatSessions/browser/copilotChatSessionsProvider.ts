@@ -48,7 +48,7 @@ import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessi
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
-import { computeSessionPullRequestIcon } from '../../../github/browser/pullRequestIconStatus.js';
+import { computePullRequestRefPresentation } from '../../../github/browser/pullRequestIconStatus.js';
 import { IPullRequestIconCache } from '../../../github/browser/pullRequestIconCache.js';
 import { structuralEquals } from '../../../../../base/common/equals.js';
 import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
@@ -1014,11 +1014,19 @@ class AgentSessionAdapter implements ICopilotChatSession {
 			if (pullRequest.uri.authority.toLowerCase() !== 'github.com') {
 				return info;
 			}
+			const presentation = computePullRequestRefPresentation(reader, this._gitHubService, this._pullRequestIconCache, {
+				owner: info.owner,
+				repo: info.repo,
+				number: pullRequest.number,
+				uri: pullRequest.uri,
+				icon: pullRequest.icon,
+				title: pullRequest.title,
+			});
 			return {
 				...info,
 				pullRequest: {
 					...pullRequest,
-					icon: computeSessionPullRequestIcon(reader, this._gitHubService, this._pullRequestIconCache, info)
+					...presentation,
 				}
 			};
 		});

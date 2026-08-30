@@ -49,6 +49,10 @@ The service owns:
 
 Core workbench registrations may expose Local, Copilot CLI, and Claude harnesses when their backing agents are available. The Agents Window exposes harnesses backed by registered session content providers and does not assume a Local fallback.
 
+### `ICustomizationMigrationService`
+
+This shared workbench service computes customization migrations for an explicit chat session. File migrations include source URIs and migratable-configuration metadata for flows that need source type and storage; MCP migrations report known servers' binary harness compatibility together with discovery and policy-coverage state. The service also produces a localized, harness-specific hint summarizing available file migrations for UI consumers.
+
 ### `IHarnessDescriptor`
 
 Descriptors declare presentation and discovery policy. Widgets consume the descriptor rather than branching on a harness identifier.
