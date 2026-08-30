@@ -353,10 +353,8 @@ registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 			const matchedProviders = providers.filter(provider => provider.extensionId?.value === args.formatter);
 
 			if (matchedProviders.length === 0) {
-				// vscode.window.showErrorMessage(`No formatter exists with extension ID ${args.formatter}`);
 				return;
 			} else if (matchedProviders.length > 1) {
-				// vscode.window.showErrorMessage(`Multiple formatters exists with extension ID ${args.formatter}`);
 				return;
 			}
 			provider = matchedProviders[0];
