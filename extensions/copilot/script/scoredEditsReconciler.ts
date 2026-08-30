@@ -52,12 +52,18 @@ async function main() {
 				})
 			);
 
+			let hasError = false;
 			for (const result of results) {
 				if (result.status === 'fulfilled') {
 					console.log(`Successfully reconciled: ${result.value}`);
 				} else {
+					hasError = true;
 					console.error(`Failed to reconcile file:`, result.reason);
 				}
+			}
+
+			if (hasError) {
+				process.exitCode = 1;
 			}
 			return;
 		} catch (e: unknown) {
@@ -129,7 +135,7 @@ export function resolveMergeConflict(fileContents: string, filePath = 'unknown')
 		}
 	}
 
-    const resolvedFileContents = JSON.stringify({
+	const resolvedFileContents = JSON.stringify({
 		...headFileAsObject,
 		edits: mergedEdits
 	}, null, '\t');
