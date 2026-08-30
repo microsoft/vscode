@@ -11,4 +11,12 @@
 		transition: none !important;
 		animation: none !important;
 	}
+
+	/* The pixel spinner's dots rest at `opacity: 0` and are brought in entirely
+	 * by their keyframes, so without animations they would render as an empty
+	 * box. Show the same still grid the reduced-motion fallback shows. */
+	.monaco-pixel-spinner .monaco-pixel-spinner-dot {
+		opacity: 1 !important;
+		transform: none !important;
+	}
 }

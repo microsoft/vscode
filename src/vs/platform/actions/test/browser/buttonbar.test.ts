@@ -6,6 +6,8 @@
 import assert from 'assert';
 import { $ } from '../../../../base/browser/dom.js';
 import { Separator, SubmenuAction, toAction, type IAction } from '../../../../base/common/actions.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -44,6 +46,22 @@ suite('WorkbenchButtonBar', () => {
 		return toAction({ id, label: id, run: () => { } });
 	}
 
+	/** An action carrying an icon the way any non-menu action does: as a CSS class. */
+	function iconAction(id: string): IAction {
+		return toAction({ id, label: id, class: ThemeIcon.asClassName(Codicon.gitCommit), run: () => { } });
+	}
+
+	/**
+	 * Classes of the button's leading slot, minus the animation-state class an
+	 * observer toggles on the spinner.
+	 */
+	function leadingSlot(button: HTMLElement): string | undefined {
+		const leading = button.firstElementChild;
+		return leading
+			? Array.from(leading.classList).filter(name => name !== 'monaco-pixel-spinner-paused').join(' ')
+			: undefined;
+	}
+
 	test('renders the spinner only for buttons that ask for it', () => {
 		const { bar, container } = createButtonBar((_action, index) => ({ showLabel: true, showSpinner: index === 0 }));
 
@@ -77,6 +95,52 @@ suite('WorkbenchButtonBar', () => {
 		}, {
 			spinners: 1,
 			onDropdown: 0,
+		});
+	});
+
+	test('the spinner takes the place of the icon in the shared leading slot', () => {
+		const { bar } = createButtonBar((_action, index) => ({ showLabel: true, showIcon: true, showSpinner: index === 0 }));
+
+		bar.update([iconAction('busy'), iconAction('idle')], []);
+		const busy = bar.buttons[0].element;
+		const idle = bar.buttons[1].element;
+
+		assert.deepStrictEqual({
+			busyLeading: leadingSlot(busy),
+			busyIcons: busy.querySelectorAll('.codicon').length,
+			busyLabel: busy.textContent,
+			idleLeading: leadingSlot(idle),
+			idleSpinners: idle.querySelectorAll(SPINNER_SELECTOR).length,
+			idleLabel: idle.textContent,
+		}, {
+			busyLeading: 'monaco-pixel-spinner monaco-button-leading-icon',
+			busyIcons: 0,
+			busyLabel: 'busy',
+			idleLeading: 'codicon codicon-git-commit monaco-button-leading-icon',
+			idleSpinners: 0,
+			idleLabel: 'idle',
+		});
+	});
+
+	test('the spinner stands in for the icon of an icon-only button', () => {
+		const { bar } = createButtonBar((_action, index) => ({ showLabel: false, showIcon: true, showSpinner: index === 0 }));
+
+		bar.update([iconAction('busy'), iconAction('idle')], []);
+		const busy = bar.buttons[0].element;
+		const idle = bar.buttons[1].element;
+
+		assert.deepStrictEqual({
+			// An icon-only button wears its icon as a class on the button itself,
+			// so it has to come off while the spinner stands in for it.
+			busyWearsIcon: busy.classList.contains('codicon-git-commit'),
+			busyLeading: leadingSlot(busy),
+			idleWearsIcon: idle.classList.contains('codicon-git-commit'),
+			idleLeading: leadingSlot(idle),
+		}, {
+			busyWearsIcon: false,
+			busyLeading: 'monaco-pixel-spinner monaco-button-leading-icon monaco-button-leading-icon-only',
+			idleWearsIcon: true,
+			idleLeading: undefined,
 		});
 	});
 });
