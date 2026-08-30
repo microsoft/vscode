@@ -1,0 +1,1 @@
+{"nodes": [{"id": "test_node_diffing_fixtures_trivial_1_fixture", "label": "Trivial Fixture Input (empty file)", "file_type": "document", "source_file": "test/node/diffing/fixtures/trivial/1.txt", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null}], "edges": [], "hyperedges": []}

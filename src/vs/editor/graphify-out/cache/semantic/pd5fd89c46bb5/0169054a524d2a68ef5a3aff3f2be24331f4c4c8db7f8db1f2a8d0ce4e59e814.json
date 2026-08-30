@@ -1,0 +1,1 @@
+{"nodes": [{"id": "test_node_diffing_fixtures_trivial_2_fixture", "label": "Trivial Fixture Expected (single character x)", "file_type": "document", "source_file": "test/node/diffing/fixtures/trivial/2.txt", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null}], "edges": [], "hyperedges": []}

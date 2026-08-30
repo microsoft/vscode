@@ -1,0 +1,1 @@
+{"nodes": [{"id": "test_node_diffing_fixtures_fuzzy_matching_1_fixture", "label": "Fuzzy-Matching Fixture Input (console.log lines, no semicolons)", "file_type": "document", "source_file": "test/node/diffing/fixtures/fuzzy-matching/1.txt", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null}], "edges": [], "hyperedges": []}
