@@ -4439,30 +4439,42 @@ export class CommandCenter {
 
 	@command('git.revealInExplorer')
 	async revealInExplorer(resourceState: SourceControlResourceState): Promise<void> {
-		if (!resourceState) {
+		let uri: Uri | undefined;
+
+		if (resourceState && resourceState.resourceUri instanceof Uri) {
+			uri = resourceState.resourceUri;
+		} else {
+			// can happen when called from a keybinding
+			const resource = this.getSCMResource();
+			uri = resource?.resourceUri ?? window.activeTextEditor?.document.uri;
+		}
+
+		if (!uri) {
 			return;
 		}
 
-		if (!(resourceState.resourceUri instanceof Uri)) {
-			return;
-		}
-
-		await commands.executeCommand('revealInExplorer', resourceState.resourceUri);
+		await commands.executeCommand('revealInExplorer', uri);
 	}
 
 	@command('git.revealFileInOS.linux')
 	@command('git.revealFileInOS.mac')
 	@command('git.revealFileInOS.windows')
 	async revealFileInOS(resourceState: SourceControlResourceState): Promise<void> {
-		if (!resourceState) {
+		let uri: Uri | undefined;
+
+		if (resourceState && resourceState.resourceUri instanceof Uri) {
+			uri = resourceState.resourceUri;
+		} else {
+			// can happen when called from a keybinding
+			const resource = this.getSCMResource();
+			uri = resource?.resourceUri ?? window.activeTextEditor?.document.uri;
+		}
+
+		if (!uri) {
 			return;
 		}
 
-		if (!(resourceState.resourceUri instanceof Uri)) {
-			return;
-		}
-
-		await commands.executeCommand('revealFileInOS', resourceState.resourceUri);
+		await commands.executeCommand('revealFileInOS', uri);
 	}
 
 	private async _stash(repository: Repository, includeUntracked = false, staged = false): Promise<boolean> {
