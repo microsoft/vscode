@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { CopilotSession, CurrentToolMetadata, PermissionAllowAllMode, PermissionRequest, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type { CopilotSession, CurrentToolMetadata, PermissionMode, PermissionRequest, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'fs';
@@ -90,7 +90,7 @@ class MockCopilotSession {
 	sendMessagesGate: Promise<void> | undefined;
 	sendGate: Promise<void> | undefined;
 	readonly modeSetCalls: Array<{ mode: 'interactive' | 'plan' | 'autopilot' }> = [];
-	readonly permissionModeSetCalls: PermissionAllowAllMode[] = [];
+	readonly permissionModeSetCalls: PermissionMode[] = [];
 	permissionModeSetSuccess = true;
 	readonly gitHubCredentialUpdates: Array<{ credentials?: { type: 'token'; host: string; token: string } }> = [];
 	gitHubCredentialUpdateResult = { success: true, copilotUserResolved: true };
@@ -298,11 +298,11 @@ class MockCopilotSession {
 			},
 		},
 		permissions: {
-			setAllowAll: async (params: { mode?: PermissionAllowAllMode }) => {
-				const mode = params.mode ?? 'off';
-				this.operationLog.push('permissions.setAllowAll');
+			setMode: async (params: { mode?: PermissionMode }) => {
+				const mode = params.mode ?? 'manual';
+				this.operationLog.push('permissions.setMode');
 				this.permissionModeSetCalls.push(mode);
-				return { success: this.permissionModeSetSuccess, enabled: mode === 'on', mode };
+				return { success: this.permissionModeSetSuccess, enabled: mode === 'allow-all', mode };
 			},
 		},
 		gitHubAuth: {
@@ -2684,7 +2684,7 @@ suite('CopilotAgentSession', () => {
 
 			const log = mockSession.operationLog;
 			const modeIdx = log.indexOf('mode.set');
-			const permIdx = log.indexOf('permissions.setAllowAll');
+			const permIdx = log.indexOf('permissions.setMode');
 			const sandboxIdx = log.indexOf('options.update:sandbox');
 			const startIdx = log.indexOf('fleet.start');
 			assert.deepStrictEqual({
@@ -4484,7 +4484,7 @@ suite('CopilotAgentSession', () => {
 			await session.send('hello', undefined, 'turn-1');
 
 			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), buildSandboxConfigForSdk('linux', sandbox));
-			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['off']);
+			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['manual']);
 		});
 
 		test('per-request sandbox: applies the configured policy under session bypass approvals', async () => {
@@ -4497,7 +4497,7 @@ suite('CopilotAgentSession', () => {
 			await session.send('hello', undefined, 'turn-1');
 
 			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), buildSandboxConfigForSdk('linux', sandbox));
-			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['on']);
+			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['allow-all']);
 		});
 
 		test('per-request permissions: delegates approvals to the SDK under Approve When Safe', async () => {
@@ -4512,7 +4512,7 @@ suite('CopilotAgentSession', () => {
 				permissionModes: mockSession.permissionModeSetCalls,
 			}, {
 				experimentalModeUpdates: [true],
-				permissionModes: ['auto'],
+				permissionModes: ['assisted'],
 			});
 		});
 
@@ -4548,10 +4548,10 @@ suite('CopilotAgentSession', () => {
 					.map(entry => entry.message)
 					.filter(message => message.includes('Syncing permission mode')),
 			}, {
-				modes: ['on', 'off'],
+				modes: ['allow-all', 'manual'],
 				logs: [
-					'[Copilot:test-session-1] Syncing permission mode: source=turn-start, agentMode=interactive, configuredLevel=autoApprove, sdkMode=on, previousSdkMode=unknown, globalAutoApprove=false',
-					'[Copilot:test-session-1] Syncing permission mode: source=config-change, agentMode=interactive, configuredLevel=default, sdkMode=off, previousSdkMode=on, globalAutoApprove=false',
+					'[Copilot:test-session-1] Syncing permission mode: source=turn-start, agentMode=interactive, configuredLevel=autoApprove, sdkMode=allow-all, previousSdkMode=unknown, globalAutoApprove=false',
+					'[Copilot:test-session-1] Syncing permission mode: source=config-change, agentMode=interactive, configuredLevel=default, sdkMode=manual, previousSdkMode=allow-all, globalAutoApprove=false',
 				],
 			});
 		});
@@ -4569,7 +4569,7 @@ suite('CopilotAgentSession', () => {
 				permissionModes: mockSession.permissionModeSetCalls,
 			}, {
 				experimentalModeUpdates: [true, false],
-				permissionModes: ['auto', 'off'],
+				permissionModes: ['assisted', 'manual'],
 			});
 		});
 
@@ -4586,7 +4586,7 @@ suite('CopilotAgentSession', () => {
 					accessKind: 'read',
 					paths: ['/workspace/src/file.ts'],
 					toolCallId: 'tc-assisted',
-					autoApproval: { recommendation: 'approve', reason: 'Low risk' },
+					assistedApproval: { recommendation: 'approve', reason: 'Low risk' },
 				},
 			});
 
@@ -4621,7 +4621,7 @@ suite('CopilotAgentSession', () => {
 					accessKind: 'read',
 					paths: ['/workspace/src/file.ts'],
 					toolCallId: 'tc-managed',
-					autoApproval: { recommendation: 'approve', reason: 'Low risk' },
+					assistedApproval: { recommendation: 'approve', reason: 'Low risk' },
 				},
 			});
 
@@ -4751,7 +4751,7 @@ suite('CopilotAgentSession', () => {
 					diff: 'diff',
 					canOfferSessionApproval: true,
 					toolCallId: 'tc-assisted-late-event',
-					autoApproval: { recommendation: 'approve', reason: 'Matches the request' },
+					assistedApproval: { recommendation: 'approve', reason: 'Matches the request' },
 				},
 			});
 
@@ -4777,7 +4777,7 @@ suite('CopilotAgentSession', () => {
 					accessKind: 'read',
 					paths: ['/workspace/src/file.ts'],
 					toolCallId: 'tc-assisted-prompt',
-					autoApproval: { recommendation: 'requireApproval', reason: 'Needs confirmation' },
+					assistedApproval: { recommendation: 'requireApproval', reason: 'Needs confirmation' },
 				},
 			});
 
@@ -4824,7 +4824,7 @@ suite('CopilotAgentSession', () => {
 					fullCommandText: 'curl https://example.com',
 					intention: 'Access the network',
 					toolCallId: 'tc-assisted-bypass',
-					autoApproval: { recommendation: 'approve', reason: 'Incorrect recommendation' },
+					assistedApproval: { recommendation: 'approve', reason: 'Incorrect recommendation' },
 				},
 			});
 
@@ -4852,7 +4852,7 @@ suite('CopilotAgentSession', () => {
 			});
 			mockSession.permissionModeSetSuccess = false;
 
-			await assert.rejects(() => session.send('hello', undefined, 'turn-1'), /rejected permission mode 'auto'/);
+			await assert.rejects(() => session.send('hello', undefined, 'turn-1'), /rejected permission mode 'assisted'/);
 
 			assert.deepStrictEqual(mockSession.sendRequests, []);
 		});
@@ -4873,8 +4873,8 @@ suite('CopilotAgentSession', () => {
 				beforeTurn,
 				afterTurn: mockSession.permissionModeSetCalls,
 			}, {
-				beforeTurn: ['auto'],
-				afterTurn: ['auto', 'off'],
+				beforeTurn: ['assisted'],
+				afterTurn: ['assisted', 'manual'],
 			});
 		});
 
@@ -4898,7 +4898,7 @@ suite('CopilotAgentSession', () => {
 				permissionModes: mockSession.permissionModeSetCalls,
 				sandboxConfigs: mockSession.sandboxConfigUpdates,
 			}, {
-				permissionModes: ['off', 'on', 'off'],
+				permissionModes: ['manual', 'allow-all', 'manual'],
 				sandboxConfigs: [
 					buildSandboxConfigForSdk('linux', sandbox),
 					buildSandboxConfigForSdk('linux', sandbox),
@@ -4917,7 +4917,7 @@ suite('CopilotAgentSession', () => {
 			fireSessionConfigChange({ [SessionConfigKey.AutoApprove]: 'default' }, AgentSession.uri('copilot', 'other-session').toString());
 			await timeout(0);
 
-			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['auto']);
+			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['assisted']);
 		});
 
 		test('syncs permission mode when root approval configuration changes', async () => {
@@ -4929,7 +4929,7 @@ suite('CopilotAgentSession', () => {
 			fireRootConfigChange();
 			await timeout(0);
 
-			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['off', 'on']);
+			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['manual', 'allow-all']);
 		});
 
 		test('aborts when a live permission mode update fails', async () => {
@@ -4961,7 +4961,7 @@ suite('CopilotAgentSession', () => {
 				permissionModes: mockSession.permissionModeSetCalls,
 				abortCalls: mockSession.abortCalls,
 			}, {
-				permissionModes: ['off', 'on'],
+				permissionModes: ['manual', 'allow-all'],
 				abortCalls: 1,
 			});
 		});
@@ -4982,7 +4982,7 @@ suite('CopilotAgentSession', () => {
 				permissionModes: mockSession.permissionModeSetCalls,
 				sandbox: mockSession.sandboxConfigUpdates.at(-1),
 			}, {
-				permissionModes: ['off'],
+				permissionModes: ['manual'],
 				sandbox: buildSandboxConfigForSdk('linux', sandbox),
 			});
 		});
@@ -5226,7 +5226,7 @@ suite('CopilotAgentSession', () => {
 			});
 			assert.deepStrictEqual(summarize(peerMockSession), summarize(initialMockSession));
 			assert.deepStrictEqual(summarize(peerMockSession), {
-				permissionModes: ['off'],
+				permissionModes: ['manual'],
 				sandbox: buildSandboxConfigForSdk('linux', sandbox),
 			});
 		});
@@ -5256,7 +5256,7 @@ suite('CopilotAgentSession', () => {
 			await timeout(0);
 
 			assert.deepStrictEqual(peerMockSession.permissionModeSetCalls, initialMockSession.permissionModeSetCalls);
-			assert.deepStrictEqual(peerMockSession.permissionModeSetCalls, ['auto', 'off']);
+			assert.deepStrictEqual(peerMockSession.permissionModeSetCalls, ['assisted', 'manual']);
 		});
 
 		test('peer chat ignores session config changes scoped to its own chat resource', async () => {
@@ -5274,7 +5274,7 @@ suite('CopilotAgentSession', () => {
 			fireSessionConfigChange({ [SessionConfigKey.AutoApprove]: 'default' }, peerChatUri.toString());
 			await timeout(0);
 
-			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['auto']);
+			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['assisted']);
 		});
 	});
 
@@ -9343,7 +9343,7 @@ Use the attached image as context.
 				confirmed: readyAction.confirmed,
 				autoApproveBySetting: readToolCallMeta(readyAction).autoApproveBySetting,
 			}, {
-				permissionModeSetCalls: ['on'],
+				permissionModeSetCalls: ['allow-all'],
 				toolCallId: 'tc-allow-all',
 				toolInput: { file: 'test.ts' },
 				confirmed: ToolCallConfirmationReason.NotNeeded,
@@ -9384,7 +9384,7 @@ Use the attached image as context.
 					kind: 'custom-tool',
 					toolCallId: 'tc-assisted',
 					toolName: 'my_tool',
-					autoApproval: {
+					assistedApproval: {
 						recommendation: 'approve',
 						reason: 'The requested browser navigation is safe.',
 					},
@@ -9407,7 +9407,7 @@ Use the attached image as context.
 					toolInput: readyToolInput === undefined ? undefined : JSON.parse(readyToolInput),
 				} : undefined,
 			}, {
-				permissionModeSetCalls: ['auto'],
+				permissionModeSetCalls: ['assisted'],
 				permissionResult: { kind: 'approve-once' },
 				ready: {
 					status: ToolCallStatus.PendingConfirmation,
