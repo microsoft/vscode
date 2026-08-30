@@ -52,6 +52,8 @@ import { CSSStyle, ObservableElementSizeObserver, RefCounted, applyStyle, applyV
 export interface IDiffCodeEditorWidgetOptions {
 	originalEditor?: ICodeEditorWidgetOptions;
 	modifiedEditor?: ICodeEditorWidgetOptions;
+	runWithOriginalEditorScrollAnchor?: (anchorLineNumber: number, update: () => void) => void;
+	runWithModifiedEditorScrollAnchor?: (anchorLineNumber: number, update: () => void) => void;
 }
 
 export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
@@ -284,7 +286,9 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		const unchangedRangesFeature = derivedDisposable(this, reader => /** @description UnchangedRangesFeature */
 			this._instantiationService.createInstance(
 				readHotReloadableExport(HideUnchangedRegionsFeature, reader),
-				this._editors, this._diffModel, this._options
+				this._editors, this._diffModel, this._options,
+				codeEditorWidgetOptions.runWithOriginalEditorScrollAnchor,
+				codeEditorWidgetOptions.runWithModifiedEditorScrollAnchor
 			)
 		).recomputeInitiallyAndOnChange(this._store);
 
