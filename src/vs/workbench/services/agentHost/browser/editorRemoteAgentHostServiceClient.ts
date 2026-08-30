@@ -248,6 +248,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		const sessions = await this._requireClient().listSessions();
 		return sessions.map(session => ({
 			...session,
+			workingDirectory: session.workingDirectory ? fromAgentHostUri(session.workingDirectory) : undefined,
 			workingDirectories: session.workingDirectories?.map(fromAgentHostUri),
 		}));
 	}

@@ -161,19 +161,22 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		});
 	});
 
-	test('returns remote workspace identities from session listings', async () => {
+	test('returns remote workspace identities for both session-list directory fields', async () => {
 		const channel: IChannel = {
 			call: <T>() => Promise.resolve(undefined as T),
 			listen: () => Event.None,
 		};
 		const remoteAgentService = new DeferredRemoteAgentService(disposables.add(new TestRemoteAgentConnection(channel)));
 		const directory = URI.parse('vscode-remote://ssh-remote+test/workspace');
-		const session: IAgentSessionMetadata = {
-			session: URI.parse('copilot:/session'),
+		const secondDirectory = URI.parse('vscode-remote://ssh-remote+test/second');
+		const directorySets = [undefined, [], [directory], [directory, secondDirectory]];
+		const sessions: IAgentSessionMetadata[] = directorySets.map((directories, index) => ({
+			session: URI.parse(`copilot:/session-${index}`),
 			startTime: 0,
 			modifiedTime: 0,
-			workingDirectories: [toAgentHostUri(directory, 'test')],
-		};
+			workingDirectory: directories?.[0] ? toAgentHostUri(directories[0], 'test') : undefined,
+			workingDirectories: directories?.map(directory => toAgentHostUri(directory, 'test')),
+		}));
 		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(
 			[IRemoteAgentService, remoteAgentService],
 			[IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(false), managedSandboxEnforced: constObservable(false) }],
@@ -188,15 +191,16 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		instantiationService.stubInstance(AgentHostProtocolClient, {
 			onDidClose: Event.None,
 			onDidChangeConnectionState: Event.None,
-			listSessions: async () => [session],
+			listSessions: async () => sessions,
 			dispose: () => { },
 		});
 		instantiationService.set(IInstantiationService, instantiationService);
 		const service = disposables.add(instantiationService.createInstance(EditorRemoteAgentHostServiceClient));
 
-		assert.deepStrictEqual(await service.listSessions(), [{
+		assert.deepStrictEqual(await service.listSessions(), sessions.map((session, index) => ({
 			...session,
-			workingDirectories: [directory],
-		}]);
+			workingDirectory: directorySets[index]?.[0],
+			workingDirectories: directorySets[index],
+		})));
 	});
 });
