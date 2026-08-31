@@ -10,6 +10,7 @@ import type { API, GitExtension } from './typings/git.d.ts';
 import { registerCommands } from './commands.js';
 import { GithubCredentialProviderManager } from './credentialProvider.js';
 import { DisposableStore, repositoryHasGitHubRemote } from './util.js';
+import { sharedSshConfigHostResolver } from './sshConfig.js';
 import { GithubPushErrorHandler } from './pushErrorHandler.js';
 import { GitBaseExtension } from './typings/git-base.js';
 import { GithubRemoteSourcePublisher } from './remoteSourcePublisher.js';
@@ -38,6 +39,10 @@ export function activate(context: ExtensionContext): void {
 
 	const octokitService = new OctokitService();
 	disposables.push(octokitService);
+
+	// Pre-load `~/.ssh/config` so the synchronous remote URL parser can
+	// recognize remotes that use a custom SSH `Host` alias for github.com.
+	sharedSshConfigHostResolver.load().catch(() => { /* ignore - parser will fall back to legacy behavior */ });
 
 	disposables.push(initializeGitBaseExtension());
 	disposables.push(initializeGitExtension(context, octokitService, telemetryReporter, logger));
