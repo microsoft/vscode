@@ -448,7 +448,7 @@
 .ai-customization-list-widget .list-container {
 	flex: 1;
 	min-height: 0;
-	overflow: auto;
+	overflow: hidden;
 }
 
 .ai-customization-list-widget .list-empty-message {
@@ -2748,11 +2748,31 @@ per-word capitalization does not survive translation. */
 	overflow: hidden;
 }
 
+.plugin-list-widget .plugin-card-scrollable {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+	width: 100%;
+	max-width: calc(840px + var(--vscode-spacing-size160));
+	margin: 0 auto;
+}
+
+.plugin-list-widget .plugin-card-scrollable > .plugin-card-container {
+	position: absolute;
+	inset: 0;
+}
+
 .plugin-list-widget .plugin-card-scroll {
 	height: 100%;
 	overflow: auto;
 	padding: 0 max(var(--vscode-spacing-size20), calc((100% - 840px) / 2)) var(--vscode-spacing-size200);
 	box-sizing: border-box;
+}
+
+.plugin-list-widget .plugin-card-scroll-content {
+	height: auto;
+	overflow: visible;
+	padding: 0 var(--vscode-spacing-size160) var(--vscode-spacing-size200) 0;
 }
 
 .plugin-list-widget .plugin-marketplace-back-container {

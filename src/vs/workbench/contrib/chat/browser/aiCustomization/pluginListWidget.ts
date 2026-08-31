@@ -47,6 +47,8 @@ import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { getPluginInclusionLabel } from './aiCustomizationPresentation.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { createCustomizationCardPrimaryAction, CustomizationCardListController } from './customizationCardList.js';
+import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 
 const $ = DOM.$;
 
@@ -634,6 +636,8 @@ export class PluginListWidget extends Disposable {
 	private searchAndButtonContainer!: HTMLElement;
 	private searchInput!: InputBox;
 	private cardContainer!: HTMLElement;
+	private cardScrollable!: DomScrollableElement;
+	private cardScrollableNode!: HTMLElement;
 	private listContainer!: HTMLElement;
 	private list!: WorkbenchList<IPluginListEntry>;
 	private emptyContainer!: HTMLElement;
@@ -858,8 +862,21 @@ export class PluginListWidget extends Disposable {
 		disabledText.textContent = localize('pluginsDisabledTitle', "Plugins are disabled");
 		this.disabledMessage = DOM.append(this.disabledContainer, $('.empty-subtext'));
 
-		this.cardContainer = DOM.append(this.element, $('.plugin-card-container'));
-		this.cardContainer.style.display = 'none';
+		this.cardContainer = $('.plugin-card-container');
+		this.cardScrollable = this._register(new DomScrollableElement(this.cardContainer, {
+			horizontal: ScrollbarVisibility.Hidden,
+			vertical: ScrollbarVisibility.Auto,
+			useShadows: false,
+		}));
+		this.cardScrollableNode = this.cardScrollable.getDomNode();
+		this.cardScrollableNode.classList.add('plugin-card-scrollable');
+		this.cardScrollableNode.style.display = 'none';
+		this.element.appendChild(this.cardScrollableNode);
+		const cardResizeObserver = this._register(new DOM.DisposableResizeObserver(
+			'PluginListWidget.cardScrollable',
+			() => this.cardScrollable.scanDomNode(),
+		));
+		this._register(cardResizeObserver.observe(this.cardScrollableNode));
 
 		// List container
 		this.listContainer = DOM.append(this.element, $('.mcp-list-container'));
@@ -1180,13 +1197,24 @@ export class PluginListWidget extends Disposable {
 	private showCardSurface(): void {
 		this.emptyContainer.style.display = 'none';
 		this.listContainer.style.display = 'none';
-		this.cardContainer.style.display = '';
+		this.cardScrollableNode.style.display = '';
 	}
 
 	private showEmptySurface(): void {
-		this.cardContainer.style.display = 'none';
+		this.cardScrollableNode.style.display = 'none';
 		this.listContainer.style.display = 'none';
 		this.emptyContainer.style.display = 'flex';
+	}
+
+	private createCardScrollContent(...classNames: string[]): HTMLElement {
+		const content = DOM.append(this.cardContainer, $('.plugin-card-scroll.plugin-card-scroll-content'));
+		content.classList.add(...classNames);
+		const resizeObserver = this.cardDisposables.add(new DOM.DisposableResizeObserver(
+			'PluginListWidget.cardScrollContent',
+			() => this.cardScrollable.scanDomNode(),
+		));
+		this.cardDisposables.add(resizeObserver.observe(content));
+		return content;
 	}
 
 	private addSurfaceActivation(surface: HTMLElement, label: string, callback: () => void, ...classNames: string[]): HTMLButtonElement {
@@ -1231,7 +1259,7 @@ export class PluginListWidget extends Disposable {
 		DOM.clearNode(this.cardContainer);
 		this.showCardSurface();
 
-		const content = DOM.append(this.cardContainer, $('.plugin-card-scroll'));
+		const content = this.createCardScrollContent();
 		const installedPlugins = this.installedItems;
 
 		this.renderDiscoverySnapshot(content);
@@ -1587,7 +1615,7 @@ export class PluginListWidget extends Disposable {
 		}
 
 		this.showCardSurface();
-		const content = DOM.append(this.cardContainer, $('.plugin-card-scroll'));
+		const content = this.createCardScrollContent();
 		const recommendedKeys = this.pluginMarketplaceService.recommendedPlugins.get();
 		const recommended = marketplaceItems.filter(item => recommendedKeys.has(getMarketplaceRecommendationKey(item)));
 		const allPlugins = marketplaceItems.filter(item => !recommendedKeys.has(getMarketplaceRecommendationKey(item)));
@@ -1905,7 +1933,7 @@ export class PluginListWidget extends Disposable {
 		this.firstCardFocusElement = undefined;
 		DOM.clearNode(this.cardContainer);
 		this.showCardSurface();
-		const content = DOM.append(this.cardContainer, $('.plugin-card-scroll.plugin-search-results'));
+		const content = this.createCardScrollContent('plugin-search-results');
 		if (installedCount > 0) {
 			const installedList = this.renderCardSection(content, localize('installedSearchHeader', "Installed"), undefined, 'installed-plugins-section', installedCount);
 			installedList.classList.add('plugin-inventory-list');
@@ -2053,9 +2081,10 @@ export class PluginListWidget extends Disposable {
 		const backHeight = this.marketplaceBackContainer.offsetHeight;
 		const listHeight = Math.max(0, height - searchBarHeight - headerHeight - backHeight);
 
-		this.cardContainer.style.height = `${listHeight}px`;
+		this.cardScrollableNode.style.height = `${listHeight}px`;
 		this.listContainer.style.height = `${listHeight}px`;
 		this.list.layout(listHeight, width);
+		this.cardScrollable.scanDomNode();
 	}
 
 	focusSearch(): void {
@@ -2063,13 +2092,17 @@ export class PluginListWidget extends Disposable {
 	}
 
 	revealLastItem(): void {
+		if (this.cardScrollableNode.style.display !== 'none') {
+			this.cardScrollable.setScrollPosition({ scrollTop: this.cardContainer.scrollHeight });
+			return;
+		}
 		if (this.list.length > 0) {
 			this.list.reveal(this.list.length - 1);
 		}
 	}
 
 	focus(): void {
-		if (this.cardContainer.style.display !== 'none') {
+		if (this.cardScrollableNode.style.display !== 'none') {
 			this.firstCardFocusElement?.focus();
 		} else if (this.list.length > 0) {
 			this.list.domFocus();
