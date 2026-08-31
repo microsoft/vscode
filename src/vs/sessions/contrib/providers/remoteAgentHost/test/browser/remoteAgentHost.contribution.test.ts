@@ -11,7 +11,7 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { IRemoteAgentHostSSHConnection, RemoteAgentHostEntryType } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostEntry, IRemoteAgentHostSSHConnection, RemoteAgentHostEntryType, getEntryAddress } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { SSHHostKeyDeniedError } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { AuthRequiredReason, NotificationType, type INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -439,5 +439,48 @@ suite('sshConnectionKey', () => {
 			userHostPort: 'me@myserver.example.com:2222',
 			hostOnly: 'myserver.example.com@myserver.example.com:22',
 		});
+	});
+});
+
+interface IReconcileProvidersHarness {
+	_configurationService: { getValue(key: string): boolean };
+	_remoteAgentHostService: { readonly configuredEntries: readonly IRemoteAgentHostEntry[] };
+	_providerStores: Map<string, undefined> & { deleteAndDispose(address: string): void };
+	_providerInstances: Map<string, { readonly label: string }>;
+	_createProvider(entry: IRemoteAgentHostEntry): void;
+	_reconcileProviders(): void;
+}
+
+suite('RemoteAgentHostContribution provider ownership', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('only creates providers for the entry types it owns', () => {
+		const entries: IRemoteAgentHostEntry[] = [
+			{ name: 'Tunnel', connection: { type: RemoteAgentHostEntryType.Tunnel, tunnelId: 'my-tunnel', clusterId: 'usw2' } },
+			{ name: 'WSL', connection: { type: RemoteAgentHostEntryType.WSL, address: 'wsl:Ubuntu-24.04', distro: 'Ubuntu-24.04' } },
+			{ name: 'Sandbox', connection: { type: RemoteAgentHostEntryType.CloudSandbox, address: 'cloudsandbox:abc', environmentId: 'abc' } },
+			{ name: 'Dev Container', connection: { type: RemoteAgentHostEntryType.DevContainer, address: 'devcontainer:abc', hostPath: '/repo' } },
+			{ name: 'Socket', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host:8080' } },
+			{ name: 'Remote', connection: { type: RemoteAgentHostEntryType.SSH, address: 'localhost:4321', sshConfigHost: 'myserver', hostName: 'myserver' } },
+		];
+
+		const created: string[] = [];
+		const contribution = Object.create(RemoteAgentHostContribution.prototype) as IReconcileProvidersHarness;
+		contribution._configurationService = { getValue: () => true };
+		contribution._remoteAgentHostService = { configuredEntries: entries };
+		const providerStores = new Map<string, undefined>();
+		contribution._providerStores = Object.assign(providerStores, {
+			deleteAndDispose: (address: string) => { providerStores.delete(address); },
+		});
+		contribution._providerInstances = new Map();
+		// Tunnels, WSL, cloud sandbox and dev containers each register their own
+		// sessions provider. Creating a second one here throws out of the
+		// reconcile and skips the connection wiring that registers the
+		// filesystem authority and discovers models.
+		contribution._createProvider = entry => { created.push(getEntryAddress(entry)); };
+
+		contribution._reconcileProviders();
+
+		assert.deepStrictEqual(created, ['ws://host:8080', 'localhost:4321']);
 	});
 });

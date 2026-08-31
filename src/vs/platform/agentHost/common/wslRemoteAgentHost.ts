@@ -97,8 +97,8 @@ export interface IWSLRemoteAgentHostService {
 	listRunningDistros(): Promise<string[]>;
 	connect(config: IWSLAgentHostConfig): Promise<IWSLAgentHostConnection>;
 	disconnect(distro: string): Promise<void>;
-	/** Reconnect a user-selected cached distro. */
-	reconnect(distro: string, name: string): Promise<IWSLAgentHostConnection>;
+	/** Reconnect a cached distro, optionally as an automatic recovery attempt. */
+	reconnect(distro: string, name: string, userInitiated?: boolean): Promise<IWSLAgentHostConnection>;
 	/**
 	 * Distros the user has connected to, persisted across windows. Drives the
 	 * remote agent host service's startup auto-connect. WSL connections

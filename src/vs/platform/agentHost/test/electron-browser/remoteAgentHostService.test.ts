@@ -25,6 +25,14 @@ import type { StorageValue } from '../../../../base/parts/storage/common/storage
 import type { Implementation } from '../../common/state/protocol/common/commands.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../../common/agentHostClientInfo.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
+import { computeReconnectDelay } from '../../common/reconnectPolicy.js';
+
+interface IRemoteAgentHostServiceTestAccess {
+	readonly _reconnectAttempts: Map<string, number>;
+	readonly _reconnectTimeouts: ReadonlyMap<string, ReturnType<typeof setTimeout>>;
+	_scheduleReconnect(address: string, connectionToken?: string): void;
+	_cancelReconnect(address: string): void;
+}
 
 // ---- Mock transport ---------------------------------------------------------
 
@@ -722,6 +730,76 @@ suite('RemoteAgentHostService', () => {
 			client.connectDeferred.complete();
 			await wait;
 		}
+
+		test('preserves automatic reconnect attempts while resetting them for a user reconnect', async () => {
+			const factory = createFactory();
+			const entry = cloudSandboxEntry('Cloud Sandbox', 'cloud:reconnect-budget');
+			const automaticClient = new MockProtocolClient('cloud:reconnect-budget');
+			const address = getEntryAddress(entry);
+			const internals = service as unknown as IRemoteAgentHostServiceTestAccess;
+			const reconnectPolicy = getEntryTypeConfig(RemoteAgentHostEntryType.CloudSandbox).reconnect;
+			internals._reconnectAttempts.set(address, 3);
+
+			factory.stage(entry, automaticClient);
+			service.reconnect(address, false);
+			// An automatic retry never spends the budget it depends on, whether
+			// it starts the dial or joins one already in flight.
+			service.reconnect(address, false);
+			assert.deepStrictEqual({
+				automaticAttempts: internals._reconnectAttempts.get(address),
+				automaticCreates: factory.createdConnectionCount,
+			}, {
+				automaticAttempts: 3,
+				automaticCreates: 1,
+			});
+
+			service.reconnect(address, true);
+
+			// The user request joins the in-flight dial rather than starting a
+			// second one, but still restores the budget so a later failure is
+			// retried instead of being reported as exhausted.
+			assert.deepStrictEqual({
+				automaticAttempts: internals._reconnectAttempts.get(address),
+				pendingReconnectCreates: factory.createdConnectionCount,
+			}, {
+				automaticAttempts: undefined,
+				pendingReconnectCreates: 1,
+			});
+
+			const automaticWait = service.waitForConnection(address);
+			await waitForFactoryConnection(factory, 1);
+			automaticClient.connectDeferred.complete();
+			await automaticWait;
+
+			const automaticDelays: number[] = [];
+			for (let attempt = 1; attempt <= reconnectPolicy.maxAttempts; attempt++) {
+				internals._scheduleReconnect(address);
+				automaticDelays.push(computeReconnectDelay(reconnectPolicy, attempt));
+				internals._cancelReconnect(address);
+			}
+			internals._scheduleReconnect(address);
+			assert.deepStrictEqual({
+				delaysForSuccessiveAutomaticFailures: automaticDelays,
+				attemptsAtLimit: internals._reconnectAttempts.get(address),
+				hasRetryAtLimit: internals._reconnectTimeouts.has(address),
+			}, {
+				delaysForSuccessiveAutomaticFailures: [1000, 2000, 4000, 8000, 16000, 30000, 30000, 30000, 30000, 30000],
+				attemptsAtLimit: reconnectPolicy.maxAttempts,
+				hasRetryAtLimit: false,
+			});
+
+			const userClient = new MockProtocolClient('cloud:reconnect-budget');
+			internals._reconnectAttempts.set(address, 3);
+			factory.stage(entry, userClient);
+			service.reconnect(address, true);
+
+			assert.strictEqual(internals._reconnectAttempts.get(address), undefined);
+
+			const userWait = service.waitForConnection(address);
+			await waitForFactoryConnection(factory, 2);
+			userClient.connectDeferred.complete();
+			await userWait;
+		});
 
 		test('keeps an incompatible factory connection addressable for server upgrade', async () => {
 			const factory = createFactory();

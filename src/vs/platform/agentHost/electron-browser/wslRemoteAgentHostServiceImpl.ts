@@ -173,10 +173,10 @@ class WSLConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 		return entry;
 	}
 
-	stageEntry(distro: string, name: string): IRemoteAgentHostEntry {
+	stageEntry(distro: string, name: string, userInitiated = true): IRemoteAgentHostEntry {
 		const entry = this._createEntry(distro, name);
 		this._stagedConfigurations.set(getEntryAddress(entry), {
-			config: { distro, name, remoteAgentHostCommand: this._getRemoteAgentHostCommand(), userInitiated: true },
+			config: { distro, name, remoteAgentHostCommand: this._getRemoteAgentHostCommand(), userInitiated },
 			isInitialConnection: false,
 		});
 		this._storeEntry(entry);
@@ -448,15 +448,15 @@ export class WSLRemoteAgentHostService extends Disposable implements IWSLRemoteA
 		await this._mainService.disconnect(distro);
 	}
 
-	async reconnect(distro: string, name: string): Promise<IWSLAgentHostConnection> {
+	async reconnect(distro: string, name: string, userInitiated = true): Promise<IWSLAgentHostConnection> {
 		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
 			throw new Error('Remote agent host connections are not enabled.');
 		}
 
-		const entry = this._connectionFactory.stageEntry(distro, name);
+		const entry = this._connectionFactory.stageEntry(distro, name, userInitiated);
 		const address = getEntryAddress(entry);
 		this._logService.info(`[WSLRemoteAgentHost] Reconnecting to distro ${distro}`);
-		this._remoteAgentHostService.reconnect(address, true);
+		this._remoteAgentHostService.reconnect(address, userInitiated);
 		await this._remoteAgentHostService.waitForConnection(address);
 		return this._getConnectionHandle(address);
 	}

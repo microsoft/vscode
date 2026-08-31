@@ -297,6 +297,20 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			return;
 		}
 		const normalized = normalizeRemoteAgentHostAddress(address);
+		// A dial already in flight is itself a fresh attempt, so neither a
+		// retry nor a user request gains anything by tearing it down and
+		// starting a second one — that is what produced concurrent remote
+		// bootstraps. Join it instead. A user-initiated request still restores
+		// the retry budget, so pressing reconnect while a slow bootstrap runs
+		// is not silently useless if that bootstrap ultimately fails.
+		if (this._pendingConnects.has(normalized)) {
+			if (userInitiated) {
+				this._failedReconnects.delete(normalized);
+				this._cancelReconnect(normalized);
+				this._reconnectAttempts.delete(normalized);
+			}
+			return;
+		}
 		this._failedReconnects.delete(normalized);
 
 		const configuredEntry = this._configuredEntries.get().find(
@@ -318,7 +332,10 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 
 		// Cancel any pending reconnect
 		this._cancelReconnect(normalized);
-		this._reconnectAttempts.delete(normalized);
+		if (userInitiated) {
+			// An automatic retry must not resurrect its own exhausted attempt budget.
+			this._reconnectAttempts.delete(normalized);
+		}
 
 		// Tear down existing connection if present
 		const entry = this._entries.get(normalized);

@@ -6,7 +6,7 @@
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { disposableTimeout, IntervalTimer } from '../../../../../base/common/async.js';
-import { isCancellationError } from '../../../../../base/common/errors.js';
+import { isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
@@ -229,6 +229,20 @@ class ConnectionState extends Disposable {
 }
 
 /**
+ * Entry types whose sessions provider is created by
+ * {@link RemoteAgentHostContribution}. Every other kind has a dedicated
+ * contribution that owns its provider — tunnels, WSL, cloud sandbox and dev
+ * containers each register their own. Since connection factories publish all
+ * kinds into `configuredEntries`, this contribution would otherwise try to
+ * register a second provider for an address another contribution already
+ * owns, which throws and aborts the rest of the reconcile.
+ */
+const SHARED_SESSIONS_PROVIDER_ENTRY_TYPES: ReadonlySet<RemoteAgentHostEntryType> = new Set([
+	RemoteAgentHostEntryType.WebSocket,
+	RemoteAgentHostEntryType.SSH,
+]);
+
+/**
  * Discovers available agents from each connected remote agent host and
  * dynamically registers each one as a chat session type with its own
  * session handler and language model provider.
@@ -316,7 +330,18 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	}
 
 	private _reconcile(): void {
-		this._reconcileProviders();
+		// Provider registration and connection wiring are independent
+		// responsibilities. Keep them isolated: a provider that fails to
+		// register must not stop connections from being wired, because
+		// `_reconcileConnections` is what registers the filesystem authority
+		// and subscribes to root state (agent and model discovery). Losing
+		// that silently leaves a host that looks connected but can neither
+		// read files nor report any models.
+		try {
+			this._reconcileProviders();
+		} catch (err) {
+			onUnexpectedError(err);
+		}
 		this._reconcileConnections();
 
 		// Ensure every live connection is wired to its provider. This covers
@@ -352,7 +377,9 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 
 	private _reconcileProviders(): void {
 		const enabled = this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId);
-		const entries = enabled ? this._remoteAgentHostService.configuredEntries : [];
+		const entries = enabled
+			? this._remoteAgentHostService.configuredEntries.filter(entry => SHARED_SESSIONS_PROVIDER_ENTRY_TYPES.has(entry.connection.type))
+			: [];
 		const desiredAddresses = new Set(entries.map(e => getEntryAddress(e)));
 
 		// Remove providers no longer configured

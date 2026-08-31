@@ -129,18 +129,18 @@ export class WSLAgentHostContribution extends ManagedReconnectAgentHostContribut
 			}
 		}
 		this._reconnectStates.get(distro)?.resetForResume();
-		await this._attemptWSLReconnect(distro, name, address);
+		await this._attemptWSLReconnect(distro, name, address, true);
 	}
 
-	private async _attemptWSLReconnect(distro: string, name: string, address: string): Promise<void> {
+	private async _attemptWSLReconnect(distro: string, name: string, address: string, userInitiated: boolean): Promise<void> {
 		await this._attemptManagedReconnect({
 			kind: 'WSL',
 			key: distro,
 			address,
-			userInitiated: true,
+			userInitiated,
 			reconnectPolicy: getEntryTypeConfig(RemoteAgentHostEntryType.WSL).reconnect,
 			shouldPause: shouldPauseWSLReconnectAfterFailure,
-			doConnect: () => this._wslService.reconnect(distro, name).then(() => undefined),
+			doConnect: () => this._wslService.reconnect(distro, name, userInitiated).then(() => undefined),
 		});
 	}
 
