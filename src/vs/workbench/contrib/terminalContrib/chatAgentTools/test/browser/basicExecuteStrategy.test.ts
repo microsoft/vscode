@@ -130,4 +130,54 @@ suite('BasicExecuteStrategy', () => {
 			isCancellationError
 		);
 	});
+
+	test('rejects with a CancellationError when the terminal is disposed mid-command', async () => {
+		const onCommandFinishedEmitter = new Emitter<{ getOutput(): string; exitCode: number }>();
+		const onDisposedEmitter = new Emitter<ITerminalInstance>();
+
+		const marker = {
+			line: 0,
+			dispose: () => { },
+			onDispose: Event.None,
+		};
+		const xterm = {
+			raw: {
+				registerMarker: () => marker,
+				buffer: {
+					active: {},
+					alternate: {},
+					onBufferChange: () => toDisposable(() => { }),
+				},
+				getContentsAsText: () => '',
+			}
+		};
+		const instance = {
+			xtermReadyPromise: Promise.resolve(xterm),
+			onData: Event.None,
+			onDisposed: onDisposedEmitter.event,
+			onExit: Event.None,
+			isDisposed: false,
+			exitCode: undefined,
+			sendText: () => {
+				// Simulate the terminal being disposed after the command has been
+				// dispatched, so the disposal race resolves the post-execution branch.
+				queueMicrotask(() => onDisposedEmitter.fire(instance));
+			},
+		} as unknown as ITerminalInstance;
+		const commandDetection = {
+			onCommandFinished: onCommandFinishedEmitter.event,
+		} as unknown as ICommandDetectionCapability;
+		const strategy = store.add(new BasicExecuteStrategy(
+			instance,
+			() => false,
+			commandDetection,
+			new TestConfigurationService(),
+			createLogService(),
+		));
+
+		await rejects(
+			() => strategy.execute('echo hello', CancellationToken.None),
+			isCancellationError
+		);
+	});
 });
