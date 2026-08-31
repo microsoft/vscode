@@ -33,8 +33,10 @@ const holdInputModelReference = Reflect.get(NewChatInputWidget.prototype, '_hold
 const getDraftState = Reflect.get(NewChatInputWidget.prototype, '_getDraftState') as (this: IDraftStateHarness) => { inputText: string; attachments: readonly IChatRequestVariableEntry[] } | undefined;
 const restoreState = Reflect.get(NewChatInputWidget.prototype, '_restoreState') as (this: IRestoreStateHarness) => void;
 const saveState = Reflect.get(NewChatInputWidget.prototype, 'saveState') as (this: IDraftStateHarness) => void;
+const clearDraftState = Reflect.get(NewChatInputWidget.prototype, '_clearDraftState') as (this: IDraftStateHarness) => void;
 const updateDraftState = Reflect.get(NewChatInputWidget.prototype, '_updateDraftState') as (this: IUpdateDraftStateHarness) => void;
 const updateAndSaveDraftState = Reflect.get(NewChatInputWidget.prototype, '_updateAndSaveDraftState') as (this: IUpdateAndSaveDraftStateHarness) => void;
+const updateSendButtonState = Reflect.get(NewChatInputWidget.prototype, '_updateSendButtonState') as (this: IUpdateSendButtonStateHarness) => void;
 const updateAttachmentRendering = Reflect.get(NewChatContextAttachments.prototype, '_updateRendering') as (this: IAttachmentRenderingHarness) => void;
 
 interface IDraftStateHarness {
@@ -53,6 +55,7 @@ interface IRestoreStateHarness {
 	readonly _contextAttachments: {
 		setAttachments(entries: readonly IChatRequestVariableEntry[]): void;
 	};
+	_updateSendButtonState(): void;
 }
 
 interface IUpdateDraftStateHarness extends IDraftStateHarness {
@@ -65,8 +68,24 @@ interface IUpdateDraftStateHarness extends IDraftStateHarness {
 }
 
 interface IUpdateAndSaveDraftStateHarness extends IUpdateDraftStateHarness {
+	readonly _sending: boolean;
 	_updateDraftState(): void;
 	saveState(): void;
+}
+
+interface IUpdateSendButtonStateHarness {
+	readonly _sendButton: { enabled: boolean } | undefined;
+	readonly _sending: boolean;
+	readonly _editor: {
+		getModel(): { getValue(): string } | null;
+	};
+	readonly _contextAttachments: {
+		readonly attachments: readonly IChatRequestVariableEntry[];
+	};
+	readonly options: {
+		readonly hasAdditionalSendContent?: { get(): boolean };
+	};
+	readonly _canSendRequest: { get(): boolean };
 }
 
 interface IAttachmentRenderingHarness {
@@ -197,6 +216,7 @@ suite('NewChatInputWidget', () => {
 		];
 		const saveHarness: IUpdateAndSaveDraftStateHarness = {
 			storageService,
+			_sending: false,
 			_editor: { getModel: () => ({ getValue: () => '' }) },
 			_contextAttachments: { attachments },
 			_updateDraftState() {
@@ -214,6 +234,7 @@ suite('NewChatInputWidget', () => {
 			_getDraftState: () => draft,
 			_editor: { getModel: () => ({ setValue: value => restored.inputText = value }) },
 			_contextAttachments: { setAttachments: entries => restored.attachments = entries },
+			_updateSendButtonState: () => { },
 		});
 
 		assert.deepStrictEqual({
@@ -227,6 +248,65 @@ suite('NewChatInputWidget', () => {
 			folderValue: folder,
 			repositoryValue: repositoryRoot,
 		});
+	});
+
+	test('does not re-persist a sent prompt when attachments clear during send', () => {
+		let stored: string | undefined;
+		let editorValue = 'Fix this';
+		const storageService: IDraftStateHarness['storageService'] = {
+			get: () => stored,
+			store: (_key, value) => stored = value,
+		};
+		const harness: IUpdateAndSaveDraftStateHarness = {
+			storageService,
+			_sending: true,
+			_editor: { getModel: () => ({ getValue: () => editorValue }) },
+			_contextAttachments: { attachments: [] },
+			_updateDraftState() {
+				updateDraftState.call(this);
+			},
+			saveState() {
+				saveState.call(this);
+			},
+		};
+
+		clearDraftState.call(harness);
+		updateAndSaveDraftState.call(harness);
+		editorValue = '';
+		updateDraftState.call(harness);
+
+		assert.deepStrictEqual(getDraftState.call({ storageService }), {
+			inputText: '',
+			attachments: [],
+		});
+	});
+
+	test('enables send after restoring an unchanged retained input model', () => {
+		const sendButton = { enabled: false };
+		const harness: IRestoreStateHarness & IUpdateSendButtonStateHarness = {
+			_getDraftState: () => ({ inputText: 'Fix this', attachments: [] }),
+			_sendButton: sendButton,
+			_sending: false,
+			_editor: {
+				getModel: () => ({
+					getValue: () => 'Fix this',
+					setValue: () => { },
+				}),
+			},
+			_contextAttachments: {
+				attachments: [],
+				setAttachments: () => { },
+			},
+			options: {},
+			_canSendRequest: { get: () => true },
+			_updateSendButtonState() {
+				updateSendButtonState.call(this);
+			},
+		};
+
+		restoreState.call(harness);
+
+		assert.strictEqual(sendButton.enabled, true);
 	});
 
 	test('renders GitHub context pills as openable with a keyboard-reachable remove button', async () => {
@@ -298,7 +378,7 @@ suite('NewChatInputWidget', () => {
 		const entries = [
 			toPasteVariableEntry('microsoft/vscode#9014', 'Issue context', {
 				id: 'github-context:https://github.com/microsoft/vscode/issues/9014',
-				icon: Codicon.issues,
+				icon: { ...Codicon.issues, color: { id: 'charts.green' } },
 			}),
 			toPasteVariableEntry('microsoft/vscode#123', 'Pull request context', {
 				id: 'github-context:https://github.com/microsoft/vscode/pull/123',
@@ -334,14 +414,15 @@ suite('NewChatInputWidget', () => {
 				pills: pills.map(pill => ({
 					label: pill.querySelector('.sessions-chat-attachment-name')?.textContent,
 					icon: pill.querySelector('.codicon:not(.codicon-close-compact)')?.className,
+					color: pill.querySelector<HTMLElement>('.codicon:not(.codicon-close-compact)')?.style.color,
 					nestedLinks: pill.querySelectorAll('a').length,
 				})),
 				issueButtonFocused,
 				pullRequestButtonFocused,
 			}, {
 				pills: [
-					{ label: 'microsoft/vscode#9014', icon: 'codicon codicon-issues', nestedLinks: 0 },
-					{ label: 'microsoft/vscode#123', icon: 'codicon codicon-git-pull-request', nestedLinks: 0 },
+					{ label: 'microsoft/vscode#9014', icon: 'codicon codicon-issues', color: 'var(--vscode-charts-green)', nestedLinks: 0 },
+					{ label: 'microsoft/vscode#123', icon: 'codicon codicon-git-pull-request', color: '', nestedLinks: 0 },
 				],
 				issueButtonFocused: true,
 				pullRequestButtonFocused: true,

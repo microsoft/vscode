@@ -1377,7 +1377,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 	private _updateAndSaveDraftState(): void {
 		this._updateDraftState();
-		this.saveState();
+		if (!this._sending) {
+			this.saveState();
+		}
 	}
 
 	private _toHistoryEntry(draft: IDraftState): IChatModelInputState {
@@ -1518,6 +1520,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				this._contextAttachments.setAttachments(draft.attachments.map(IChatRequestVariableEntry.fromExport));
 			}
 		}
+		this._updateSendButtonState();
 	}
 
 	private _getDraftState(): IDraftState | undefined {

@@ -31,6 +31,7 @@ import { ILanguageService } from '../../../../editor/common/languages/language.j
 import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
 import { basename } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../workbench/browser/labels.js';
 
 import { IChatRequestVariableEntry, isAgentHostCompletionVariableEntry, isPastedTextArtifact, OmittedState } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -170,6 +171,9 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 			} else if (entry.icon) {
 				const icon = dom.append(content, renderIcon(entry.icon));
 				icon.setAttribute('aria-hidden', 'true');
+				if (entry.icon.color) {
+					icon.style.color = asCssVariable(entry.icon.color.id);
+				}
 				dom.append(content, dom.$('span.sessions-chat-attachment-name', undefined, entry.name));
 			} else {
 				const label = this._resourceLabels.create(content, { supportIcons: true });
