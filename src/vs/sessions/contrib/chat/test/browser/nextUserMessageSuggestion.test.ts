@@ -25,6 +25,7 @@ suite('Sessions - Next User Message Suggestion', () => {
 		const context = createNextUserMessageContext(`request-start-${'r'.repeat(2000)}-request-end`, `response-start-${'s'.repeat(10000)}-response-end`);
 		assert.deepStrictEqual({
 			hasPredictionContract: prompt.includes('Predict what they would actually type'),
+			prefersRequests: prompt.includes('Prefer a concise request or action over a question'),
 			requestLength: context.latestRequest.length,
 			requestStart: context.latestRequest.startsWith('request-start-'),
 			requestEnd: context.latestRequest.endsWith('-request-end'),
@@ -33,6 +34,7 @@ suite('Sessions - Next User Message Suggestion', () => {
 			responseEnd: context.finalResponse.endsWith('-response-end'),
 		}, {
 			hasPredictionContract: true,
+			prefersRequests: true,
 			requestLength: 2000,
 			requestStart: true,
 			requestEnd: true,
