@@ -205,6 +205,10 @@ export abstract class AbstractCommonMcpManagementService extends Disposable impl
 		return variables;
 	}
 
+	private replaceInputVariableReference(value: string, variableId: string): string {
+		return value.split(`{${variableId}}`).join(`\${input:${variableId}}`);
+	}
+
 	private processKeyValueInputs(keyValueInputs: ReadonlyArray<IMcpServerKeyValueInput>): { inputs: Record<string, string>; variables: IMcpServerVariable[]; notices: string[] } {
 		const notices: string[] = [];
 		const inputs: Record<string, string> = {};
@@ -217,7 +221,7 @@ export abstract class AbstractCommonMcpManagementService extends Disposable impl
 			// If explicit variables exist, use them regardless of value
 			if (inputVariables.length) {
 				for (const variable of inputVariables) {
-					value = value.replace(`{${variable.id}}`, `\${input:${variable.id}}`);
+					value = this.replaceInputVariableReference(value, variable.id);
 				}
 				variables.push(...inputVariables);
 			} else if (!value && (input.description || input.choices || input.default !== undefined)) {
@@ -250,7 +254,7 @@ export abstract class AbstractCommonMcpManagementService extends Disposable impl
 				let value = arg.value;
 				if (value) {
 					for (const variable of argVariables) {
-						value = value.replace(`{${variable.id}}`, `\${input:${variable.id}}`);
+						value = this.replaceInputVariableReference(value, variable.id);
 					}
 					args.push(value);
 					if (argVariables.length) {
@@ -279,7 +283,7 @@ export abstract class AbstractCommonMcpManagementService extends Disposable impl
 				if (arg.value) {
 					let value = arg.value;
 					for (const variable of argVariables) {
-						value = value.replace(`{${variable.id}}`, `\${input:${variable.id}}`);
+						value = this.replaceInputVariableReference(value, variable.id);
 					}
 					args.push(value);
 					if (argVariables.length) {
