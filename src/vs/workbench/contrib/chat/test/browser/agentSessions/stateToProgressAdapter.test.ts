@@ -429,7 +429,7 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
-		test('thread coordination tools do not restore duplicate target-session outcomes', () => {
+		test('thread coordination tools restore deterministic target-session chips', () => {
 			const createLink = 'agent-host-session://codex/created-thread';
 			const createChatLink = 'agent-host-session://codex/source-thread?chat=peer';
 			const sendLink = 'agent-host-session://codex/target-thread';
@@ -467,11 +467,23 @@ suite('stateToProgressAdapter', () => {
 			if (response.type !== 'response') {
 				return;
 			}
-			assert.deepStrictEqual(response.parts.map(part => part.kind === 'toolInvocationSerialized' ? part.toolSpecificData : undefined), [
-				undefined,
-				undefined,
-				undefined,
-			]);
+			assert.deepStrictEqual(response.parts.map(part => part.kind === 'toolInvocationSerialized' ? part.toolSpecificData : undefined), [{
+				kind: 'sessionCreated',
+				openLink: createLink,
+				label: 'Remember this word: capybara',
+				fullTitle: 'Remember this word: capybara',
+			}, {
+				kind: 'sessionCreated',
+				openLink: createChatLink,
+				label: 'Parallel task',
+				fullTitle: 'Parallel task',
+				isChat: true,
+			}, {
+				kind: 'sessionCreated',
+				openLink: sendLink,
+				label: 'foo',
+				fullTitle: 'foo',
+			}]);
 		});
 
 		test('system notification response part restores as system notification', () => {

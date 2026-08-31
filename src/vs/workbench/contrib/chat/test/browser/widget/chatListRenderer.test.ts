@@ -38,7 +38,7 @@ import { ChatAgentService, IChatAgentService } from '../../../common/participant
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { ChatEditorOptions } from '../../../browser/widget/chatOptions.js';
-import { shouldRenderGeneratedImageResult } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
+import { shouldRenderGeneratedImageResult, shouldRenderSessionCreatedResult } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { getGeneratedImageResultParts, getGeneratedImageResultPartsFromContent } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatGeneratedImageResultSubPart.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 import { IChatModelFeedbackSurveyService } from '../../../browser/feedbackSurvey/chatModelFeedbackSurveyService.js';
@@ -161,7 +161,7 @@ suite('ChatListRenderer', () => {
 				});
 			});
 
-			test('moves generated image outcomes after the final response and before trailing adjuncts', () => {
+			test('moves durable tool outcomes after the final response and before trailing adjuncts', () => {
 				const tool: IChatToolInvocationSerialized = {
 					kind: 'toolInvocationSerialized',
 					toolCallId: 'create-session',
@@ -173,6 +173,11 @@ suite('ChatListRenderer', () => {
 					isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
 					presentation: undefined,
 					source: ToolDataSource.Internal,
+					toolSpecificData: {
+						kind: 'sessionCreated',
+						openLink: 'agent-host-session://local/session',
+						label: 'Implement issue',
+					},
 				};
 				const generatedImage: IChatToolInvocationSerialized = {
 					kind: 'toolInvocationSerialized',
@@ -200,9 +205,31 @@ suite('ChatListRenderer', () => {
 					content: moveResponseOutcomeToolsAfterFinalResponse(content),
 					finalResponseStartIndex: getFinalResponseStartIndexAfterMovingResponseOutcomeTools(content),
 				}, {
-					content: [firstStep, tool, finalResponse, generatedImage, trailingAdjunct],
-					finalResponseStartIndex: 2,
+					content: [firstStep, finalResponse, tool, generatedImage, trailingAdjunct],
+					finalResponseStartIndex: 1,
 				});
+			});
+
+			test('leaves created-session tools in place when there is no final response', () => {
+				const tool: IChatToolInvocationSerialized = {
+					kind: 'toolInvocationSerialized',
+					toolCallId: 'create-session',
+					toolId: 'create_session',
+					invocationMessage: 'Creating session...',
+					originMessage: undefined,
+					pastTenseMessage: 'Created session',
+					isComplete: true,
+					isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+					presentation: undefined,
+					source: ToolDataSource.Internal,
+					toolSpecificData: {
+						kind: 'sessionCreated',
+						openLink: 'agent-host-session://local/session',
+						label: 'Implement issue',
+					},
+				};
+
+				assert.deepStrictEqual(moveResponseOutcomeToolsAfterFinalResponse([tool]), [tool]);
 			});
 
 			test('waits for the final response before creating the completed-work disclosure', () => {
@@ -213,6 +240,18 @@ suite('ChatListRenderer', () => {
 				], [
 					false,
 					true,
+				]);
+			});
+
+			test('renders the created-session result only after the response completes', () => {
+				assert.deepStrictEqual([
+					shouldRenderSessionCreatedResult('sessionCreated', false),
+					shouldRenderSessionCreatedResult('sessionCreated', true),
+					shouldRenderSessionCreatedResult('terminal', true),
+				], [
+					false,
+					true,
+					false,
 				]);
 			});
 
