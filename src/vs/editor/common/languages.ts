@@ -2411,10 +2411,16 @@ export interface CommentThreadChangedEvent<T> {
 	readonly changed: CommentThread<T>[];
 }
 
+/** @internal */
+export function isExecutableCodeLensCommand(command: CodeLens['command']): command is Command {
+	return typeof command?.id === 'string';
+}
+
 export interface CodeLens {
 	range: IRange;
 	id?: string;
-	command?: Command;
+	/** A command without an id is rendered as non-clickable text. */
+	command?: Pick<Command, 'title' | 'tooltip' | 'arguments'> & Partial<Pick<Command, 'id'>>;
 }
 
 export interface CodeLensList {

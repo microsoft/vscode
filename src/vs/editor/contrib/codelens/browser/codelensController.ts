@@ -15,7 +15,7 @@ import { EDITOR_FONT_DEFAULTS } from '../../../common/config/fontInfo.js';
 import { IEditorContribution } from '../../../common/editorCommon.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { IModelDecorationsChangeAccessor } from '../../../common/model.js';
-import { CodeLens, Command } from '../../../common/languages.js';
+import { CodeLens, Command, isExecutableCodeLensCommand } from '../../../common/languages.js';
 import { CodeLensItem, CodeLensModel, getCodeLensModel } from './codelens.js';
 import { ICodeLensCache } from './codeLensCache.js';
 import { CodeLensHelper, CodeLensWidget } from './codelensWidget.js';
@@ -496,7 +496,7 @@ registerEditorAction(class ShowLensesInCurrentLine extends EditorAction {
 
 		const items: { label: string; command: Command }[] = [];
 		for (const lens of model.lenses) {
-			if (lens.symbol.command && lens.symbol.range.startLineNumber === lineNumber) {
+			if (isExecutableCodeLensCommand(lens.symbol.command) && lens.symbol.range.startLineNumber === lineNumber) {
 				items.push({
 					label: lens.symbol.command.title,
 					command: lens.symbol.command
@@ -526,7 +526,7 @@ registerEditorAction(class ShowLensesInCurrentLine extends EditorAction {
 			// shouldn't happen due to focus in/out anymore
 			const newModel = await codelensController.getModel();
 			const newLens = newModel?.lenses.find(lens => lens.symbol.range.startLineNumber === lineNumber && lens.symbol.command?.title === command.title);
-			if (!newLens || !newLens.symbol.command) {
+			if (!isExecutableCodeLensCommand(newLens?.symbol.command)) {
 				return;
 			}
 			command = newLens.symbol.command;
