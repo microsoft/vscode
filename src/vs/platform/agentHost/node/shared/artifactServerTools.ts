@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { AGENT_HOST_SESSION_LINK_SCHEME } from '../../common/openSessionLink.js';
 import { ArtifactServerToolName, LEGACY_ARTIFACT_SERVER_TOOL_NAMES } from '../../common/serverToolNames.js';
 import { parseSessionArtifactInput, SessionArtifactCollection } from '../../common/sessionArtifactCollection.js';
 import { readSessionArtifacts, SESSION_ARTIFACT_TYPES, SessionArtifactType, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
@@ -164,6 +166,9 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 			switch (toolName) {
 				case ArtifactServerToolName.AddArtifactOrReference: {
 					const input = parseSessionArtifactInput(rawArgs, ArtifactServerToolName.AddArtifactOrReference);
+					if (input.uri && URI.parse(input.uri).scheme === AGENT_HOST_SESSION_LINK_SCHEME) {
+						throw new Error(`Invalid ${ArtifactServerToolName.AddArtifactOrReference} input: sessions and chats created with session-management tools must not be recorded as artifacts or references.`);
+					}
 					const result = artifacts.read().add(input, generateUuid);
 					if (!result.added) {
 						return `Already recorded: ${describeArtifact(result.artifact)}`;

@@ -4,13 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { getErrorMessage } from '../../../../base/common/errors.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../log/common/log.js';
 import { ArtifactServerToolName } from '../../common/serverToolNames.js';
+import { buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
+import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { ARTIFACT_TOOLS_INSTRUCTION, artifactServerToolDefinitions, createArtifactServerToolGroup } from '../../node/shared/artifactServerTools.js';
 import { getServerToolDisplay } from '../../node/shared/serverToolGroups.js';
 
 suite('Artifact Server Tools', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const group = createArtifactServerToolGroup();
 	const display = (toolName: string, args: unknown, result?: { text: string; success: boolean }) => group.getDisplay?.(toolName, args, result);
@@ -36,17 +40,52 @@ suite('Artifact Server Tools', () => {
 			type: 'string',
 			description: 'Absolute URI including its scheme. For a local file, pass a file URI such as `file:///C:/path/to/file`, not a plain file system path such as `C:\\path\\to\\file`. Required for the `file` and `resource` kinds.',
 		});
+	});
 
-		test('excludes session-management results from artifacts', () => {
-			const addDefinition = artifactServerToolDefinitions.find(definition => definition.name === ArtifactServerToolName.AddArtifactOrReference);
+	test('excludes session-management results from artifacts', () => {
+		const addDefinition = artifactServerToolDefinitions.find(definition => definition.name === ArtifactServerToolName.AddArtifactOrReference);
 
-			assert.deepStrictEqual({
-				definition: addDefinition?.description?.includes('sessions and chats created with session-management tools'),
-				instruction: ARTIFACT_TOOLS_INSTRUCTION.includes('sessions and chats created with session-management tools'),
-			}, {
-				definition: true,
-				instruction: true,
+		assert.deepStrictEqual({
+			definition: addDefinition?.description?.includes('sessions and chats created with session-management tools'),
+			instruction: ARTIFACT_TOOLS_INSTRUCTION.includes('sessions and chats created with session-management tools'),
+		}, {
+			definition: true,
+			instruction: true,
+		});
+	});
+
+	test('rejects session-management links during execution', async () => {
+		const sessionUri = 'copilot:/caller';
+		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+		stateManager.createSession({
+			resource: sessionUri,
+			provider: 'copilot',
+			title: 'Caller',
+			status: SessionStatus.Idle,
+			createdAt: new Date(0).toISOString(),
+			modifiedAt: new Date(0).toISOString(),
+		});
+		let persisted = false;
+		const group = createArtifactServerToolGroup({
+			isEnabled: () => true,
+			persist: () => persisted = true,
+		});
+
+		let errorMessage: string | undefined;
+		try {
+			await group.execute(stateManager, { sessionUri, chatUri: buildDefaultChatUri(sessionUri), turnId: 'turn-1' }, ArtifactServerToolName.AddArtifactOrReference, {
+				type: 'resource',
+				label: 'Spawned session',
+				isArtifact: true,
+				uri: 'agent-host-session://copilot/spawned',
 			});
+		} catch (error) {
+			errorMessage = getErrorMessage(error);
+		}
+
+		assert.deepStrictEqual({ errorMessage, persisted }, {
+			errorMessage: 'Invalid add_artifact_or_reference input: sessions and chats created with session-management tools must not be recorded as artifacts or references.',
+			persisted: false,
 		});
 	});
 
