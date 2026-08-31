@@ -135,6 +135,13 @@ class MockTASExperimentationService implements ITASExperimentationService {
 			return undefined;
 		}
 
+		// This suite models treatments served by the legacy endpoint (bare keys). The new
+		// assignments endpoint does not assign these, so scoped lookups resolve to undefined,
+		// exercising the service's bare-key fallback.
+		if (name.startsWith('/vscode/')) {
+			return undefined;
+		}
+
 		const org = this.userInfoStore.internalOrg;
 		const sku = this.userInfoStore.sku;
 
@@ -821,6 +828,41 @@ describe('ExP Service delegate recreation', () => {
 
 		expect(event.affectedTreatmentVariables).toContain('x');
 		expect(service.getTreatmentVariable<string>('x')).toBe('v1');
+
+		service.dispose();
+	});
+});
+
+describe('ExP Service scoped treatment resolution', () => {
+	let accessor: ITestingServicesAccessor;
+
+	beforeAll(() => {
+		const testingServiceCollection = createPlatformServices();
+		accessor = testingServiceCollection.createTestingAccessor();
+	});
+
+	const create = () => accessor.get(IInstantiationService).createInstance(RecreatableExperimentationService);
+
+	it('resolves a treatment served only under the /vscode/ assignments scope prefix', () => {
+		const service = create();
+		const delegate = service.delegates[0];
+
+		// The new assignments endpoint returns the key with a `/vscode/` scope prefix only.
+		delegate.setTreatment('/vscode/config.chat.copilot.subagentModelGuidance.enabled', true);
+
+		expect(service.getTreatmentVariable<boolean>('config.chat.copilot.subagentModelGuidance.enabled')).toBe(true);
+
+		service.dispose();
+	});
+
+	it('prefers the /vscode/ scoped key (new endpoint) over the bare key on collision', () => {
+		const service = create();
+		const delegate = service.delegates[0];
+
+		delegate.setTreatment('config.foo', 'bare');
+		delegate.setTreatment('/vscode/config.foo', 'scoped');
+
+		expect(service.getTreatmentVariable<string>('config.foo')).toBe('scoped');
 
 		service.dispose();
 	});

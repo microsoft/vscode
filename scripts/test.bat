@@ -14,8 +14,8 @@ set CODE=".build\electron\%NAMESHORT%"
 
 :: Download Electron if needed
 if "%VSCODE_SKIP_PRELAUNCH%"=="" (
-	call node build\lib\electron.ts
-	if %errorlevel% neq 0 node .\node_modules\gulp\bin\gulp.js electron
+	call node build\lib\preLaunch.ts --only-electron
+	if errorlevel 1 node .\node_modules\gulp\bin\gulp.js electron
 )
 
 :: Run tests

@@ -903,7 +903,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		}
 
 		try {
-			await this._gitService.removeWorktree(repositoryRoot, worktreePath);
+			await this._gitService.removeWorktree(repositoryRoot, worktreePath, { force: true });
 			this._logService.info(`[${this._logLabel}:${sessionId}] Removed worktree '${worktreePath.fsPath}' on archive`);
 			this._materializedWorktrees.delete(sessionId);
 		} catch (error) {

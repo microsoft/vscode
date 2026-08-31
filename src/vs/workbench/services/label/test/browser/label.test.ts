@@ -18,6 +18,7 @@ import { ResourceLabelFormatter } from '../../../../../platform/label/common/lab
 import { sep } from '../../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ResourceLabelHomeStore } from '../../common/resourceLabelHomeStore.js';
 
 suite('URI Label', () => {
 	let labelService: LabelService;
@@ -81,6 +82,91 @@ suite('URI Label', () => {
 		const uri1 = URI.parse('vscode://microsoft.com/1/2/3/4/5');
 		assert.strictEqual(labelService.getUriLabel(uri1, { relative: false }), 'LABEL\\\\1\\2\\3\\4\\5\\microsoft.com\\END');
 		assert.strictEqual(labelService.getUriBasenameLabel(uri1), 'END');
+	});
+
+	test('returns the most specific registered resource label home', () => {
+		const outer = URI.file('/home/test/.agent');
+		const inner = URI.file('/home/test/.agent/sessions/session-id');
+		const outerRegistration = labelService.registerFormatter({ scheme: outer.scheme, home: outer.path, formatting: { label: 'Agent', separator: '/' } });
+		const innerRegistration = labelService.registerFormatter({ scheme: inner.scheme, home: inner.path, formatting: { label: 'Session', separator: '/' } });
+
+		const resource = URI.file('/home/test/.agent/sessions/session-id/file.md');
+		assert.deepStrictEqual({
+			home: labelService.getUriHome(resource)?.toString(),
+			label: labelService.getUriLabel(resource),
+		}, {
+			home: inner.toString(),
+			label: 'Session/file.md',
+		});
+
+		innerRegistration.dispose();
+		assert.deepStrictEqual({
+			home: labelService.getUriHome(resource)?.toString(),
+			label: labelService.getUriLabel(resource),
+		}, {
+			home: outer.toString(),
+			label: 'Agent/sessions/session-id/file.md',
+		});
+		outerRegistration.dispose();
+	});
+
+	test('ignores resource label homes for a different authority', () => {
+		const mismatchedRegistration = labelService.registerFormatter({
+			scheme: 'test',
+			authority: 'other',
+			home: '/sessions/session-id',
+			formatting: { label: 'Session', separator: '/' },
+		});
+
+		assert.strictEqual(labelService.getUriHome(URI.parse('test://current/sessions/session-id/file.md')), undefined);
+
+		mismatchedRegistration.dispose();
+	});
+
+	test('resource label homes take precedence over ordinary formatter changes', () => {
+		const resource = URI.file('/home/test/.agent/sessions/session-id/file.md');
+		const root = URI.file('/home/test/.agent/sessions/session-id');
+		const first = labelService.registerFormatter({
+			scheme: 'file',
+			formatting: { label: 'FIRST${path}', separator: '/' },
+		});
+		const homes = new ResourceLabelHomeStore(labelService);
+		homes.set([{ uri: root, label: 'Session' }]);
+
+		assert.strictEqual(labelService.getUriLabel(resource), 'Session/file.md');
+
+		first.dispose();
+		const second = labelService.registerFormatter({
+			scheme: 'file',
+			formatting: { label: 'SECOND${path}', separator: '/' },
+		});
+		assert.strictEqual(labelService.getUriLabel(resource), 'Session/file.md');
+
+		homes.dispose();
+		second.dispose();
+	});
+
+	test('noPrefix skips resource label homes', () => {
+		const resource = URI.file('/home/test/.agent/sessions/session-id/file.md');
+		const homes = new ResourceLabelHomeStore(labelService);
+		homes.set([{ uri: URI.file('/home/test/.agent/sessions/session-id'), label: 'Agent/Session' }]);
+
+		assert.strictEqual(labelService.getUriLabel(resource, { noPrefix: true }), resource.fsPath);
+
+		homes.dispose();
+	});
+
+	test('keeps equivalent resource label home registrations until all are disposed', () => {
+		const root = URI.file('/home/test/.agent/sessions/session-id');
+		const formatter = { scheme: root.scheme, home: root.path, formatting: { label: 'Session', separator: '/' as const } };
+		const first = labelService.registerFormatter(formatter);
+		const second = labelService.registerFormatter({ ...formatter });
+
+		first.dispose();
+		assert.strictEqual(labelService.getUriLabel(labelService.getUriHome(URI.file('/home/test/.agent/sessions/session-id/file.md'))!), 'Session');
+
+		second.dispose();
+		assert.strictEqual(labelService.getUriHome(URI.file('/home/test/.agent/sessions/session-id/file.md')), undefined);
 	});
 
 	test('custom authority', function () {

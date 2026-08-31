@@ -11,7 +11,6 @@ import { ContextKeyValue } from '../../../../platform/contextkey/common/contextk
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
 import { Selection } from '../../../common/core/selection.js';
-import { IDiffEditorViewModel } from '../../../common/editorCommon.js';
 import { IModelService } from '../../../common/services/model.js';
 import { DiffEditorOptions } from '../diffEditor/diffEditorOptions.js';
 import { DiffEditorViewModel } from '../diffEditor/diffEditorViewModel.js';
@@ -122,16 +121,16 @@ export class DocumentDiffItemViewModel extends Disposable {
 	/**
 	 * The diff editor view model keeps its inner objects alive.
 	*/
-	public readonly diffEditorViewModelRef: RefCounted<IDiffEditorViewModel>;
-	public get diffEditorViewModel(): IDiffEditorViewModel {
+	public readonly diffEditorViewModelRef: RefCounted<DiffEditorViewModel>;
+	public get diffEditorViewModel(): DiffEditorViewModel {
 		return this.diffEditorViewModelRef.object;
 	}
 	public readonly waitForInitialDiffOr1s: ObservablePromise<void>;
 	public readonly collapsed = observableValue<boolean>(this, false);
 
-	public readonly lastTemplateData = observableValue<{ contentHeight: number; selections: Selection[] | undefined }>(
+	public readonly lastTemplateData = observableValue<{ expandedContentHeight: number; selections: Selection[] | undefined }>(
 		this,
-		{ contentHeight: 500, selections: undefined, }
+		{ expandedContentHeight: 500, selections: undefined, }
 	);
 
 	public get originalUri(): URI | undefined { return this.documentDiffItem.original?.uri; }

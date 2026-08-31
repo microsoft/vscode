@@ -53,16 +53,16 @@ describe('applyStrategyConfig', () => {
 			recentlyViewedDocuments: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace, maxTokens: 99 },
 			supportsNextCursorLinePrediction: false,
 		});
-		// The additional client/latency knobs are only baked into PatchBased02Optimized.
+		// The additional client/latency knobs are only baked into PatchBased02Unified.
 		expect(result.patchModelPredictionKind).toBeUndefined();
 		expect(result.cacheDelay).toBeUndefined();
 		expect(result.debounce).toBeUndefined();
 		expect(result.supportsUnifiedCompletions).toBeUndefined();
 	});
 
-	it('forces baked-in fields for PatchBased02Optimized', () => {
+	it('forces baked-in fields for PatchBased02Unified', () => {
 		const result = applyStrategyConfig(baseConfig({
-			promptingStrategy: PromptingStrategy.PatchBased02Optimized,
+			promptingStrategy: PromptingStrategy.PatchBased02Unified,
 			includeTagsInCurrentFile: true,
 			includePostScript: false,
 			currentFile: { includeLineNumbers: IncludeLineNumbersOption.None, maxTokens: 42 },

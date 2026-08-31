@@ -9,7 +9,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { constObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { constObservable, ISettableObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mockObject } from '../../../../../../base/test/common/mock.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
@@ -26,7 +26,7 @@ import { ServiceCollection } from '../../../../../../platform/instantiation/comm
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { IStorageService, StorageScope, WillSaveStateReason } from '../../../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from '../../../../../../platform/telemetry/common/gdprTypings.js';
@@ -45,13 +45,14 @@ import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { TestMcpService } from '../../../../mcp/test/common/testMcpService.js';
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { IChatVariablesService } from '../../../common/attachments/chatVariables.js';
+import { getCustomizationMigrationHintDismissedStorageKey } from '../../../common/aiCustomizationWorkspaceService.js';
 import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatProgress, IChatService, IChatUserActionEvent, ResponseModelState } from '../../../common/chatService/chatService.js';
 import { backfillTransferredModel, backfillRestoredPickerState, ChatService } from '../../../common/chatService/chatServiceImpl.js';
 import { ChatServiceTelemetry } from '../../../common/chatService/chatServiceTelemetry.js';
 import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
-import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CustomizationMigrationHintMode } from '../../../common/constants.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatModel, IChatModel, ISerializableChatData, ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
@@ -60,6 +61,7 @@ import { ChatViewModel, isPendingDividerVM } from '../../../common/model/chatVie
 import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
 import { IConfiguredHooksInfo, IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
+import { ICustomizationMigrationService } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { MockChatVariablesService } from '../mockChatVariables.js';
 import { MockPromptsService } from '../promptSyntax/service/mockPromptsService.js';
@@ -184,6 +186,7 @@ suite('ChatService', () => {
 			[IWorkbenchAssignmentService, new NullWorkbenchAssignmentService()],
 			[IMcpService, new TestMcpService()],
 			[IPromptsService, new MockPromptsService()],
+			[ICustomizationMigrationService, mockObject<ICustomizationMigrationService>()({ _serviceBrand: undefined })],
 			[ILanguageModelToolsService, testDisposables.add(new MockLanguageModelToolsService())]
 		)));
 		instantiationService.stub(IStorageService, testDisposables.add(new TestStorageService()));
@@ -1152,19 +1155,62 @@ suite('ChatService', () => {
 
 		const firstRequest = model.getRequests()[0];
 		assert.ok(firstRequest, 'Expected the initial request to exist before resend');
+		const structuralChanges: string[] = [];
+		testDisposables.add(model.onDidChange(event => {
+			if (event.kind === 'removeRequest' || event.kind === 'addRequest') {
+				structuralChanges.push(event.kind);
+			}
+		}));
 
 		// Resend the original request: now disabled hooks are present (simulates resend after setup)
-		await testService.resendRequest(firstRequest);
+		await testService.resendRequest(firstRequest, undefined, true);
 
 		// Now the flag should be set and the hint shown
 		assert.strictEqual(storageService.getBoolean(disabledHintsKey, StorageScope.WORKSPACE), true, 'Flag should be set after showing the hint');
 
 		const requests = model.getRequests();
 		assert.strictEqual(requests.length, 1, 'Resend should replace the original request');
+		assert.strictEqual(requests[0].id, firstRequest.id, 'Preserved resend should keep the original request id');
+		assert.strictEqual(requests[0], firstRequest, 'Preserved resend should reuse the original request model');
+		assert.deepStrictEqual(structuralChanges, [], 'Preserved resend should not remove and recreate the transcript row');
 		const responseParts2 = requests[0].response?.response.value ?? [];
 		const hasHookHint2 = responseParts2.some(part => part.kind === 'disabledClaudeHooks');
 		assert.ok(hasHookHint2, 'Response should contain the disabledClaudeHooks hint on second request');
 	});
+
+	test('resendRequest honors an agent selected outside the parsed request', async () => {
+		const retryAgentId = 'retryAgent';
+		const invokedRequestIds: string[] = [];
+		testDisposables.add(chatAgentService.registerAgent(retryAgentId, getAgentData(retryAgentId)));
+		testDisposables.add(chatAgentService.registerAgentImplementation(retryAgentId, {
+			async invoke(request) {
+				invokedRequestIds.push(request.requestId);
+				return {};
+			},
+		}));
+		testDisposables.add(chatAgentService.registerChatParticipantDetectionProvider(1, {
+			provideParticipantDetection: async () => ({ participant: 'testAgent' }),
+		}));
+
+		const testService = createChatService();
+		const modelRef = testDisposables.add(startSessionModel(testService));
+		const model = modelRef.object;
+		const response = await testService.sendRequest(model.sessionResource, 'retry me', { agentIdSilent: retryAgentId });
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+		const firstRequest = model.getRequests()[0];
+
+		await testService.resendRequest(firstRequest, { agentId: retryAgentId }, true);
+
+		assert.deepStrictEqual({
+			invokedRequestIds,
+			requestIds: model.getRequests().map(request => request.id),
+		}, {
+			invokedRequestIds: [firstRequest.id, firstRequest.id],
+			requestIds: [firstRequest.id],
+		});
+	});
+
 	test('cancelCurrentRequestForSession waits for response completion', async () => {
 		const requestStarted = new DeferredPromise<void>();
 		const completeRequest = new DeferredPromise<void>();
@@ -2072,6 +2118,225 @@ suite('ChatService', () => {
 		});
 	});
 
+	test('customization migration hint respects never, once, always, and workspace harness dismissal', async () => {
+		const sessionType = SessionType.AgentHostCopilot;
+		const sessionResource = URI.from({ scheme: sessionType, path: '/session' });
+		const migrationService = mockObject<ICustomizationMigrationService>()({ _serviceBrand: undefined });
+		migrationService.computeMigrationHint.resolves('Found 3 customization files that could be migrated.');
+
+		const mockSessionsService = new MockChatSessionsService();
+		mockSessionsService.setContributions([{
+			type: sessionType,
+			name: 'Agent Host',
+			displayName: 'Agent Host',
+			description: 'Agent Host',
+		}]);
+		testDisposables.add(mockSessionsService.registerChatSessionContentProvider(sessionType, {
+			provideChatSessionContent: resource => Promise.resolve({
+				sessionResource: resource,
+				history: [],
+				onWillDispose: Event.None,
+				dispose: () => { },
+			}),
+		}));
+		instantiationService.stub(IChatSessionsService, mockSessionsService);
+		testDisposables.add(chatAgentService.registerAgent(sessionType, { ...getAgentData(sessionType), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, { async invoke() { return {}; } }));
+
+		const testService = createChatService();
+		testDisposables.add(testService.registerCustomizationMigrationHintProvider(
+			sessionResource => migrationService.computeMigrationHint(sessionResource)
+		));
+		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+		assert.ok(ref);
+		testDisposables.add(ref);
+
+		const neverModeResponse = await testService.sendRequest(sessionResource, 'never', { agentId: sessionType });
+		ChatSendResult.assertSent(neverModeResponse);
+		await neverModeResponse.data.responseCompletePromise;
+
+		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		await configurationService.setUserConfiguration(ChatConfiguration.ChatCustomizationsMigrationHint, CustomizationMigrationHintMode.Once);
+		const first = await testService.sendRequest(sessionResource, 'first', { agentId: sessionType });
+		ChatSendResult.assertSent(first);
+		await first.data.responseCompletePromise;
+		const second = await testService.sendRequest(sessionResource, 'second', { agentId: sessionType });
+		ChatSendResult.assertSent(second);
+		await second.data.responseCompletePromise;
+
+		await configurationService.setUserConfiguration(ChatConfiguration.ChatCustomizationsMigrationHint, CustomizationMigrationHintMode.Always);
+		const otherSessionResource = URI.from({ scheme: sessionType, path: '/other-session' });
+		const otherRef = await testService.acquireOrLoadSession(otherSessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+		assert.ok(otherRef);
+		testDisposables.add(otherRef);
+		const third = await testService.sendRequest(otherSessionResource, 'third', { agentId: sessionType });
+		ChatSendResult.assertSent(third);
+		await third.data.responseCompletePromise;
+		const fourth = await testService.sendRequest(otherSessionResource, 'fourth', { agentId: sessionType });
+		ChatSendResult.assertSent(fourth);
+		await fourth.data.responseCompletePromise;
+
+		const storageService = instantiationService.get(IStorageService);
+		storageService.store(getCustomizationMigrationHintDismissedStorageKey(sessionType), true, StorageScope.WORKSPACE, StorageTarget.USER);
+		const dismissedSessionResource = URI.from({ scheme: sessionType, path: '/dismissed-session' });
+		const dismissedRef = await testService.acquireOrLoadSession(dismissedSessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+		assert.ok(dismissedRef);
+		testDisposables.add(dismissedRef);
+		const fifth = await testService.sendRequest(dismissedSessionResource, 'fifth', { agentId: sessionType });
+		ChatSendResult.assertSent(fifth);
+		await fifth.data.responseCompletePromise;
+
+		const requests = (testService.getSession(sessionResource) as ChatModel).getRequests();
+		const getHintContent = (requestIndex: number) => (requests[requestIndex].response?.response.value ?? [])
+			.filter(part => part.kind === 'systemNotification')
+			.map(part => part.content.value);
+		const otherSessionHints = (testService.getSession(otherSessionResource) as ChatModel).getRequests()
+			.map(request => (request.response?.response.value ?? [])
+				.filter(part => part.kind === 'systemNotification')
+				.map(part => part.content.value));
+		const dismissedSessionHint = ((testService.getSession(dismissedSessionResource) as ChatModel).getRequests()[0].response?.response.value ?? [])
+			.filter(part => part.kind === 'systemNotification')
+			.map(part => part.content.value);
+		const expectedHint = `*Found 3 customization files that could be migrated. [Review customizations](command:aiCustomization.openManagementEditor "Open Chat Customizations") | [Hide for this workspace](command:aiCustomization.dismissMigrationHint "Stop Showing Migration Hints for This Harness")*`;
+		assert.deepStrictEqual({
+			computeCalls: migrationService.computeMigrationHint.callCount,
+			computedFor: migrationService.computeMigrationHint.firstCall.args[0].toString(),
+			neverHint: getHintContent(0),
+			firstHint: getHintContent(1),
+			secondHint: getHintContent(2),
+			otherSessionHints,
+			dismissedSessionHint,
+			dismissedForSessionType: storageService.getBoolean(getCustomizationMigrationHintDismissedStorageKey(sessionType), StorageScope.WORKSPACE),
+			dismissedForOtherSessionType: storageService.getBoolean(getCustomizationMigrationHintDismissedStorageKey(SessionType.AgentHostClaude), StorageScope.WORKSPACE),
+		}, {
+			computeCalls: 3,
+			computedFor: sessionResource.toString(),
+			neverHint: [],
+			firstHint: [expectedHint],
+			secondHint: [],
+			otherSessionHints: [[expectedHint], [expectedHint]],
+			dismissedSessionHint: [],
+			dismissedForSessionType: true,
+			dismissedForOtherSessionType: undefined,
+		});
+	});
+
+	test('once customization migration hint remains shown after the session is reloaded', async () => {
+		const sessionType = SessionType.AgentHostCopilot;
+		const sessionResource = URI.from({ scheme: sessionType, path: '/restored-session' });
+		const migrationService = mockObject<ICustomizationMigrationService>()({ _serviceBrand: undefined });
+		migrationService.computeMigrationHint.resolves('Found customization files that could be migrated.');
+
+		const mockSessionsService = new MockChatSessionsService();
+		mockSessionsService.setContributions([{
+			type: sessionType,
+			name: 'Agent Host',
+			displayName: 'Agent Host',
+			description: 'Agent Host',
+		}]);
+		testDisposables.add(mockSessionsService.registerChatSessionContentProvider(sessionType, {
+			provideChatSessionContent: resource => Promise.resolve({
+				sessionResource: resource,
+				history: [],
+				onWillDispose: Event.None,
+				dispose: () => { },
+			}),
+		}));
+		instantiationService.stub(IChatSessionsService, mockSessionsService);
+		testDisposables.add(chatAgentService.registerAgent(sessionType, { ...getAgentData(sessionType), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, { async invoke() { return {}; } }));
+
+		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		await configurationService.setUserConfiguration(ChatConfiguration.ChatCustomizationsMigrationHint, CustomizationMigrationHintMode.Once);
+		const testService = createChatService();
+		testDisposables.add(testService.registerCustomizationMigrationHintProvider(
+			sessionResource => migrationService.computeMigrationHint(sessionResource)
+		));
+		const firstRef = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+		assert.ok(firstRef);
+		const firstResponse = await testService.sendRequest(sessionResource, 'first', { agentId: sessionType });
+		ChatSendResult.assertSent(firstResponse);
+		await firstResponse.data.responseCompletePromise;
+		const firstHintCount = firstRef.object.getRequests()[0].response?.response.value.filter(part => part.kind === 'systemNotification').length;
+
+		firstRef.dispose();
+		await testService.waitForModelDisposals();
+
+		const restoredRef = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+		assert.ok(restoredRef);
+		testDisposables.add(restoredRef);
+		const secondResponse = await testService.sendRequest(sessionResource, 'second', { agentId: sessionType });
+		ChatSendResult.assertSent(secondResponse);
+		await secondResponse.data.responseCompletePromise;
+		const restoredHintCount = restoredRef.object.getRequests()[0].response?.response.value.filter(part => part.kind === 'systemNotification').length;
+
+		assert.deepStrictEqual({ computeCalls: migrationService.computeMigrationHint.callCount, firstHintCount, restoredHintCount }, {
+			computeCalls: 1,
+			firstHintCount: 1,
+			restoredHintCount: 0,
+		});
+	});
+
+	test('customization migration hint is not computed for local sessions', async () => {
+		const migrationService = mockObject<ICustomizationMigrationService>()({ _serviceBrand: undefined });
+		const testService = createChatService();
+		testDisposables.add(testService.registerCustomizationMigrationHintProvider(
+			sessionResource => migrationService.computeMigrationHint(sessionResource)
+		));
+		const model = startSessionModel(testService).object;
+		const response = await testService.sendRequest(model.sessionResource, 'test');
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+
+		assert.deepStrictEqual({
+			computeCalls: migrationService.computeMigrationHint.callCount,
+			hints: (model.getRequests()[0].response?.response.value ?? [])
+				.filter(part => part.kind === 'systemNotification').length,
+		}, { computeCalls: 0, hints: 0 });
+	});
+
+	test('customization migration hint is not computed for extension host harnesses', async () => {
+		const sessionType = 'extension-host-harness';
+		const sessionResource = URI.from({ scheme: sessionType, path: '/session' });
+		const migrationService = mockObject<ICustomizationMigrationService>()({ _serviceBrand: undefined });
+
+		const mockSessionsService = new MockChatSessionsService();
+		mockSessionsService.setContributions([{
+			type: sessionType,
+			name: 'Extension Host',
+			displayName: 'Extension Host',
+			description: 'Extension Host',
+		}]);
+		testDisposables.add(mockSessionsService.registerChatSessionContentProvider(sessionType, {
+			provideChatSessionContent: resource => Promise.resolve({
+				sessionResource: resource,
+				history: [],
+				onWillDispose: Event.None,
+				dispose: () => { },
+			}),
+		}));
+		instantiationService.stub(IChatSessionsService, mockSessionsService);
+		testDisposables.add(chatAgentService.registerAgent(sessionType, { ...getAgentData(sessionType), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, { async invoke() { return {}; } }));
+
+		const testService = createChatService();
+		testDisposables.add(testService.registerCustomizationMigrationHintProvider(
+			sessionResource => migrationService.computeMigrationHint(sessionResource)
+		));
+		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+		assert.ok(ref);
+		testDisposables.add(ref);
+		const response = await testService.sendRequest(sessionResource, 'test', { agentId: sessionType });
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+
+		assert.deepStrictEqual({
+			computeCalls: migrationService.computeMigrationHint.callCount,
+			hints: ((testService.getSession(sessionResource) as ChatModel).getRequests()[0].response?.response.value ?? [])
+				.filter(part => part.kind === 'systemNotification').length,
+		}, { computeCalls: 0, hints: 0 });
+	});
+
 	test('sendRequest passes agent host session capabilities to the request parser', async () => {
 		const sessionType = 'agent-host-copilot';
 		const sessionResource = URI.from({ scheme: sessionType, path: '/session' });
@@ -2795,6 +3060,52 @@ suite('ChatService', () => {
 				{ id: 'turn-1', message: 'hello' },
 				{ id: 'turn-2', message: 'server request' },
 			]);
+		});
+
+		test('remote resume reopens the existing request without duplicating it', async () => {
+			const onDidStartServerRequest = testDisposables.add(new Emitter<IChatSessionServerRequest>());
+			const progressObs = observableValue<IChatProgress[]>('progress', []);
+			const isCompleteObs = observableValue<boolean>('complete', true);
+			const { resource } = setupRemoteProvider({
+				history: [
+					{ id: 'turn-1', type: 'request', prompt: 'hello', participant: remoteScheme },
+					{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('partial') }], participant: remoteScheme, errorDetails: { message: 'failed' } },
+				],
+				progressObs,
+				isCompleteObs,
+				interruptActiveResponseCallback: async () => true,
+				onDidStartServerRequest: onDidStartServerRequest.event,
+			});
+
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			transaction(tx => {
+				isCompleteObs.set(false, tx);
+				onDidStartServerRequest.fire({ id: 'turn-1', prompt: 'hello', resume: true });
+			});
+
+			const request = ref.object.getRequests()[0];
+			assert.deepStrictEqual({
+				requestCount: ref.object.getRequests().length,
+				id: request.id,
+				state: request.response?.state,
+				errorDetails: request.response?.result?.errorDetails,
+				content: request.response?.response.value,
+			}, {
+				requestCount: 1,
+				id: 'turn-1',
+				state: ResponseModelState.Pending,
+				errorDetails: undefined,
+				content: [],
+			});
+
+			progressObs.set([{ kind: 'markdownContent', content: new MarkdownString('continued') }], undefined);
+			isCompleteObs.set(true, undefined);
+
+			assert.deepStrictEqual(request.response?.response.value.map(part => part.kind === 'markdownContent' ? part.content.value : part.kind), ['continued']);
 		});
 
 		test('already-complete session at load time: no initial pending request, response is completed via autorun', async () => {
