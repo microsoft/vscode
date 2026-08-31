@@ -377,8 +377,7 @@ configurationRegistry.registerConfiguration({
 			default: 'auto',
 			tags: ['experimental'],
 			experiment: {
-				mode: 'auto',
-				name: 'dictationLlmCleanupModel'
+				mode: 'auto'
 			}
 		},
 		'chat.editor.fontSize': {
