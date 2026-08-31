@@ -56,8 +56,9 @@
 }
 
 .agent-global-configuration-settings-card {
-	border: 1px solid var(--vscode-widget-border, var(--vscode-contrastBorder, transparent));
+	border: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
 	border-radius: var(--vscode-cornerRadius-small);
+	background: color-mix(in srgb, var(--vscode-foreground) 8%, var(--vscode-agentsPanel-background));
 	overflow: hidden;
 }
 
@@ -74,7 +75,7 @@
 .agent-global-configuration-settings-row + .agent-global-configuration-settings-text-row,
 .agent-global-configuration-settings-text-row + .agent-global-configuration-settings-row,
 .agent-global-configuration-settings-text-row + .agent-global-configuration-settings-text-row {
-	border-top: 1px solid var(--vscode-widget-border, var(--vscode-contrastBorder, transparent));
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-agentsPanel-border));
 }
 
 .agent-global-configuration-settings-labels {
