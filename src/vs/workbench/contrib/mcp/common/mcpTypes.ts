@@ -561,9 +561,9 @@ export const enum McpToolVisibility {
  * - `local`: resolves the MCP server via {@link IMcpService} from
  *   `serverDefinitionId` + `collectionId`. Used for locally-configured
  *   MCP servers.
- * - `agentHost`: routes through {@link IAgentHostService.handleMcpRequest}
- *   on the AHP `mcp://` side `channel`. Used for MCP servers owned by
- *   an agent host.
+ * - `agentHost`: resolves `connectionAuthority` to the owning Agent Host
+ *   connection and routes on the AHP `mcp://` side `channel`. Used for MCP
+ *   servers owned by an agent host.
  */
 export type IMcpToolCallUIData =
 	| {
@@ -579,6 +579,8 @@ export type IMcpToolCallUIData =
 		readonly kind: 'agentHost';
 		/** URI of the UI resource for rendering (e.g., "ui://weather-server/dashboard") */
 		readonly resourceUri: string;
+		/** Sanitized connection identifier used to route App sub-RPCs. */
+		readonly connectionAuthority: string;
 		/** AHP `mcp://` channel URI for the originating server. */
 		readonly channel: string;
 		/** Stable identifier for the originating server (used as webview origin key). */
