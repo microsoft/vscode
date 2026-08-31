@@ -7,6 +7,7 @@ import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { bufferToStream, VSBuffer } from '../../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { IRequestContext, IRequestOptions } from '../../../../../base/parts/request/common/request.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -914,8 +915,8 @@ suite('DefaultAccountProvider', () => {
 		instantiationService.stub(IRequestService, requestService);
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IWorkbenchEnvironmentService, {
-			remoteAuthority: undefined,
-			isSessionsWindow: true,
+			remoteAuthority: isWeb ? 'test-remote' : undefined,
+			isSessionsWindow: false,
 		});
 		instantiationService.stub(IProductService, {
 			...TestProductService,
