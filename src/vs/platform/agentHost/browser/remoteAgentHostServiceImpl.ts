@@ -7,6 +7,7 @@
 // entries supplied by registered connection factories.
 
 import { Emitter } from '../../../base/common/event.js';
+import { isCancellationError } from '../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { DeferredPromise, raceTimeout } from '../../../base/common/async.js';
 import { autorun, derived, IObservable, observableValue } from '../../../base/common/observable.js';
@@ -69,6 +70,18 @@ interface IConnectionEntry {
 function disposeEntry(entry: IConnectionEntry): void {
 	entry.store.dispose();
 	entry.transportDisposable?.dispose();
+}
+
+/**
+ * Whether a failed connection attempt must not be retried automatically.
+ *
+ * A transport that declared itself non-reconnectable, and anything the user
+ * cancelled or refused, are decisions rather than transient faults. Retrying
+ * them re-prompts the person who just declined — the SSH host-key flow surfaces
+ * both, as a cancellation and as a denial converted by its factory.
+ */
+function isTerminalConnectError(err: unknown): boolean {
+	return err instanceof NonReconnectableTransportError || isCancellationError(err);
 }
 
 /** Builds WebSocket-backed protocol clients without performing their handshake. */
@@ -563,7 +576,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		} catch (err) {
 			this._logService.error(`[RemoteAgentHost] Failed to create a connection to ${address}. Verify address and connectionToken`, err);
 			this._rejectPendingConnectionWait(address, err);
-			if (!(err instanceof NonReconnectableTransportError) && !this._store.isDisposed && this._remoteAgentHostsEnabled.get()) {
+			if (!isTerminalConnectError(err) && !this._store.isDisposed && this._remoteAgentHostsEnabled.get()) {
 				this._scheduleReconnect(address, entryToCreate.connectionToken);
 			}
 			return;

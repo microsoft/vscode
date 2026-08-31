@@ -67,7 +67,6 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 		private readonly _configurationService: IConfigurationService,
 		private readonly _environmentService: IEnvironmentService,
 		private readonly _remoteAgentHostService: IRemoteAgentHostService,
-		private readonly _logService: ILogService,
 	) {
 		super();
 		this.entries = this._entries;
@@ -165,14 +164,16 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 	}
 
 	private async _resolveInitialAuthentication(address: string): Promise<{ readonly resource: string; readonly token: string } | undefined> {
+		// Throw rather than returning `undefined`: an unusable token must fail
+		// the connection, not produce one that reports connected and then fails
+		// every authenticated request. The protocol client classifies this as an
+		// initial-authentication failure and surfaces it as incompatible.
 		const sealedToken = this._stagedConnections.get(address)?.creds.token.encrypted_github_token;
 		if (!sealedToken) {
-			this._logService.error(`${LOG_PREFIX} Mission Control returned no sealed token for ${address}; this session will not be able to make authenticated requests.`);
-			return undefined;
+			throw new Error(`Mission Control returned no sealed token for ${address}; the session cannot make authenticated requests.`);
 		}
 		if (!isCloudSandboxSealedToken(sealedToken)) {
-			this._logService.error(`${LOG_PREFIX} Refusing to forward a non-sealed token to ${address}; Mission Control did not return a copilot-sealed envelope.`);
-			return undefined;
+			throw new Error(`Refusing to forward a non-sealed token to ${address}; Mission Control did not return a copilot-sealed envelope.`);
 		}
 		return { resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: sealedToken };
 	}
@@ -205,7 +206,6 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 			this._configurationService,
 			this._environmentService,
 			this._remoteAgentHostService,
-			this._logService,
 		));
 		this._register(this._remoteAgentHostService.registerConnectionFactory(this._connectionFactory));
 	}

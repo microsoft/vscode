@@ -95,6 +95,15 @@ function transportLostError(address: string): ProtocolError {
 	return new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, `Transport lost (reconnecting): ${address}`);
 }
 
+/**
+ * Whether an error means the transport went away rather than the request
+ * being rejected on its merits. Such a failure is transient and must stay
+ * recoverable, so it is never reclassified as a terminal condition.
+ */
+function isConnectionClosedError(error: unknown): boolean {
+	return error instanceof ProtocolError && error.code === AHP_CLIENT_CONNECTION_CLOSED;
+}
+
 interface IRemoteAgentHostExtensionNotificationMap {
 	'setClientManagedSettingsPermissions': { params: { permissions: IAgentHostManagedSettingsPermissions } };
 }
@@ -865,7 +874,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				? { bypassInitializeQueue: true, bypassReconnectGate: true }
 				: { bypassReconnectGate: true })));
 		} catch (error) {
-			if (resolvedInitialAuthentication) {
+			// A dropped transport is not an authentication failure. Wrapping it
+			// would classify a momentary blip as terminally incompatible and
+			// permanently stop recovery, so let it stay a reconnectable error.
+			if (resolvedInitialAuthentication && !isConnectionClosedError(error)) {
 				throw new InitialAuthenticationError(error);
 			}
 			throw error;

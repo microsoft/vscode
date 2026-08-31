@@ -46,10 +46,9 @@ Grouping changes these behaviors:
 
 ## Connection ownership
 
-The remote Agent Host service owns:
+The remote Agent Host service owns protocol connection construction, handshake classification, status, retry, and disposal.
 
-- protocol connection construction, handshake classification, status, retry, and disposal;
-- remote filesystem browsing, transport diagnostics, and connection-scoped listener disposal.
+`RemoteAgentHostContribution` owns the workbench integration for a live connection: remote filesystem browsing, agent and model discovery, terminals, authentication, and connection-scoped listener disposal.
 
 Transport-specific callers own discovery, on-demand staging, credentials, and connection leases. They stage
 their context by address, request an explicit reconnect, and wait for the service to report the connection.

@@ -78,6 +78,15 @@ class TunnelConnectionFactory extends Disposable implements IRemoteAgentHostConn
 
 	private readonly _onDidStageTunnel = this._register(new Emitter<void>());
 	private readonly _stagedAuthProviders = new Map<string, 'github' | 'microsoft' | undefined>();
+	/**
+	 * Initiation mode for a staged tunnel, consumed by the first
+	 * {@link createConnection} for that address. Staging publishes the entry
+	 * synchronously, so the service's reconciliation can begin dialing before
+	 * the caller's explicit `reconnect` runs — and that dial would otherwise be
+	 * treated as background, suppressing interactive auth and gateway
+	 * selection for the user's own first connect.
+	 */
+	private readonly _stagedUserInitiated = new Map<string, boolean>();
 	private readonly _onDidStageTunnelSignal = observableSignalFromEvent(this, this._onDidStageTunnel.event);
 	private readonly _autoConnectEnabled: IObservable<boolean>;
 
@@ -98,15 +107,17 @@ class TunnelConnectionFactory extends Disposable implements IRemoteAgentHostConn
 		});
 	}
 
-	stageTunnel(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft'): IRemoteAgentHostEntry {
+	stageTunnel(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft', userInitiated = true): IRemoteAgentHostEntry {
 		const address = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
 		this._stagedAuthProviders.set(address, authProvider);
+		this._stagedUserInitiated.set(address, userInitiated);
 		this._storage.cacheTunnel({ tunnelId: tunnel.tunnelId, clusterId: tunnel.clusterId, name: tunnel.name, protocolVersion: tunnel.protocolVersion, authProvider });
 		this._onDidStageTunnel.fire();
 		return this._entryForTunnel(tunnel, authProvider);
 	}
 
 	unstageTunnel(address: string): void {
+		this._stagedUserInitiated.delete(address);
 		if (this._stagedAuthProviders.delete(address)) {
 			this._onDidStageTunnel.fire();
 		}
@@ -117,7 +128,14 @@ class TunnelConnectionFactory extends Disposable implements IRemoteAgentHostConn
 			throw new Error(`Tunnel factory cannot create a ${entry.connection.type} connection.`);
 		}
 		const address = getEntryAddress(entry);
-		return this._createConnection(entry, this._stagedAuthProviders.has(address) ? this._stagedAuthProviders.get(address) : entry.connection.authProvider, options);
+		const stagedUserInitiated = this._stagedUserInitiated.get(address);
+		// Consume it: only the connect this staging was for is user-initiated,
+		// and a later automatic reconnect must not prompt.
+		this._stagedUserInitiated.delete(address);
+		const connectOptions = stagedUserInitiated === undefined
+			? options
+			: { ...options, userInitiated: stagedUserInitiated };
+		return this._createConnection(entry, this._stagedAuthProviders.has(address) ? this._stagedAuthProviders.get(address) : entry.connection.authProvider, connectOptions);
 	}
 
 	private _entryForTunnel(tunnel: Pick<ITunnelInfo, 'tunnelId' | 'clusterId' | 'name'>, authProvider?: 'github' | 'microsoft'): IRemoteAgentHostEntry {
@@ -215,7 +233,7 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 			throw new Error('Remote agent host connections are not enabled.');
 		}
 
-		const entry = this._connectionFactory.stageTunnel(tunnel, authProvider);
+		const entry = this._connectionFactory.stageTunnel(tunnel, authProvider, options?.userInitiated ?? true);
 		const address = getEntryAddress(entry);
 		this._remoteAgentHostService.reconnect(address, options?.userInitiated ?? true);
 		await this._remoteAgentHostService.waitForConnection(address);

@@ -551,7 +551,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		[RemoteAgentHostAutoConnectSettingId]: {
 			type: 'boolean',
-			description: nls.localize('chat.remoteAgentHosts.autoConnect', "Automatically connect to online dev tunnel and WSL remote agent hosts on startup. When disabled, cached sessions are still shown but connections are established only on demand."),
+			description: nls.localize('chat.remoteAgentHosts.autoConnect', "Automatically connect to online dev tunnel, SSH, and WSL remote agent hosts on startup. When disabled, cached sessions are still shown but connections are established only on demand."),
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],

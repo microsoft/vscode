@@ -193,25 +193,36 @@ class SSHConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 
 		const stagedConfig = this._stagedConfigurations.get(entry.connection.address);
 		this._stagedConfigurations.delete(entry.connection.address);
-		const result = stagedConfig
-			? await this._mainService.connect(this._augmentConfig({ ...stagedConfig, userInitiated: stagedConfig.userInitiated ?? options.userInitiated }))
-			: entry.connection.sshConfigHost
-				? await this._mainService.reconnect(
-					entry.connection.sshConfigHost,
-					entry.name,
-					this._getRemoteAgentHostCommand(),
-					this._isSSHAgentForwardingEnabled(),
-					options.userInitiated,
-					this._locationPreferenceService.getPreference(computeSSHConnectionKey({ sshConfigHost: entry.connection.sshConfigHost })),
-				)
-				: await this._mainService.connect(this._augmentConfig({
-					host: entry.connection.hostName,
-					port: entry.connection.port,
-					username: entry.connection.user ?? entry.connection.hostName,
-					authMethod: SSHAuthMethod.Agent,
-					name: entry.name,
-					userInitiated: options.userInitiated,
-				}));
+		let result;
+		try {
+			result = stagedConfig
+				? await this._mainService.connect(this._augmentConfig({ ...stagedConfig, userInitiated: stagedConfig.userInitiated ?? options.userInitiated }))
+				: entry.connection.sshConfigHost
+					? await this._mainService.reconnect(
+						entry.connection.sshConfigHost,
+						entry.name,
+						this._getRemoteAgentHostCommand(),
+						this._isSSHAgentForwardingEnabled(),
+						options.userInitiated,
+						this._locationPreferenceService.getPreference(computeSSHConnectionKey({ sshConfigHost: entry.connection.sshConfigHost })),
+					)
+					: await this._mainService.connect(this._augmentConfig({
+						host: entry.connection.hostName,
+						port: entry.connection.port,
+						username: entry.connection.user ?? entry.connection.hostName,
+						authMethod: SSHAuthMethod.Agent,
+						name: entry.name,
+						userInitiated: options.userInitiated,
+					}));
+		} catch (error) {
+			// A refused host key is the user's decision, not a transient fault.
+			// Report it in the shared vocabulary for "do not retry", so the
+			// service does not redial and re-prompt the person who just declined.
+			if (isSSHHostKeyDeniedError(error)) {
+				throw new NonReconnectableTransportError(error.message);
+			}
+			throw error;
+		}
 		this._logService.trace(`[SSHRemoteAgentHost] SSH tunnel established, connectionId=${result.connectionId}`);
 
 		const existing = this._connections.get(result.connectionId);
