@@ -6,12 +6,12 @@ import type tt from 'typescript/lib/tsserverlibrary';
 import TS from './typescript';
 const ts = TS();
 
-import type { Range, Region } from './protocol';
+import type { LineRange, Range, Region } from './protocol';
 import tss from './typescripts';
 
-type StructuralEntity = { kind: string; name?: string; rangeNode: tt.Node; includeJsDoc?: boolean; continueWith?: tt.Node };
+type StructuralEntity = { kind: string; name?: string; rangeNode: tt.Node | [tt.Node, tt.Node]; includeJsDoc?: boolean; continueWith?: tt.Node };
 
-export function getRegionContext(sourceFile: tt.SourceFile, ranges: readonly Range[]): Region[] | undefined {
+export function getRegionContext(sourceFile: tt.SourceFile, ranges: readonly Range[], requested?: LineRange | undefined): Region[] | undefined {
 	if (ranges.length === 0) {
 		return undefined;
 	}
@@ -22,7 +22,7 @@ export function getRegionContext(sourceFile: tt.SourceFile, ranges: readonly Ran
 
 	const containersList: Region[][] = [];
 	for (const range of ranges) {
-		const containers = findEnclosingScopes(sourceFile, range.start.line, range.start.character);
+		const containers = findEnclosingScopes(sourceFile, range.start.line, range.start.character, requested);
 		if (containers !== undefined && containers.length > 0) {
 			containersList.push(containers.reverse());
 		}
@@ -70,7 +70,7 @@ export function getRegionContext(sourceFile: tt.SourceFile, ranges: readonly Ran
 	return commonContainers.reverse();
 }
 
-function findEnclosingScopes(sourceFile: tt.SourceFile, line: number, column: number): Region[] | undefined {
+function findEnclosingScopes(sourceFile: tt.SourceFile, line: number, column: number, requested?: LineRange | undefined): Region[] | undefined {
 	const position = sourceFile.getPositionOfLineAndCharacter(line, column);
 	const tokenInfo = tss.getRelevantTokens(sourceFile, position);
 	const node = tokenInfo.touching ?? tokenInfo.token;
@@ -90,15 +90,17 @@ function findEnclosingScopes(sourceFile: tt.SourceFile, line: number, column: nu
 			break;
 		}
 
-		const structuralEntity = getStructuralEntity(current);
+		const structuralEntity = getStructuralEntity(current, requested);
 		if (structuralEntity !== undefined) {
 			const { kind, name, rangeNode, includeJsDoc, continueWith } = structuralEntity;
+			const rangeStartNode = Array.isArray(rangeNode) ? rangeNode[0] : rangeNode;
+			const rangeEndNode = Array.isArray(rangeNode) ? rangeNode[1] : rangeNode;
 			result.push({
 				kind,
 				name,
 				range: {
-					start: sourceFile.getLineAndCharacterOfPosition(rangeNode.getStart(sourceFile, includeJsDoc)).line,
-					end: sourceFile.getLineAndCharacterOfPosition(rangeNode.getEnd()).line
+					start: sourceFile.getLineAndCharacterOfPosition(rangeStartNode.getStart(sourceFile, includeJsDoc)).line,
+					end: sourceFile.getLineAndCharacterOfPosition(rangeEndNode.getEnd()).line
 				}
 			});
 			current = continueWith ?? current;
@@ -107,15 +109,15 @@ function findEnclosingScopes(sourceFile: tt.SourceFile, line: number, column: nu
 	return result.length > 0 ? result : undefined;
 }
 
-function getStructuralEntity(node: tt.Node): StructuralEntity | undefined {
+function getStructuralEntity(node: tt.Node, requested?: LineRange | undefined): StructuralEntity | undefined {
 	const parent = node.parent;
 	let name: string | undefined;
 	switch (node.kind) {
 		case ts.SyntaxKind.JSDoc: {
-			const parentEntity = getStructuralEntity(parent);
+			const parentEntity = getStructuralEntity(parent, requested);
 			if (parentEntity !== undefined) {
 				parentEntity.includeJsDoc = true;
-				parentEntity.continueWith = parent;
+				parentEntity.continueWith ??= parent;
 			}
 			return parentEntity;
 		}
@@ -155,7 +157,9 @@ function getStructuralEntity(node: tt.Node): StructuralEntity | undefined {
 			}
 			return { kind: 'arrow-function', rangeNode: node };
 		case ts.SyntaxKind.PropertyDeclaration:
-			return getPropertyDeclarationEntity(node as tt.PropertyDeclaration);
+			return handlePropertyDeclaration(node.getSourceFile(), node as tt.PropertyDeclaration, requested);
+		case ts.SyntaxKind.PropertyAssignment:
+			return handlePropertyAssignment(node as tt.PropertyAssignment);
 		case ts.SyntaxKind.PropertySignature:
 			name = (node as tt.PropertySignature).name.getText();
 			return { kind: 'property', name, rangeNode: node };
@@ -182,9 +186,99 @@ function getStructuralEntity(node: tt.Node): StructuralEntity | undefined {
 	}
 }
 
-function getPropertyDeclarationEntity(node: tt.PropertyDeclaration): StructuralEntity | undefined {
+function handlePropertyDeclaration(sourceFile: tt.SourceFile, node: tt.PropertyDeclaration | tt.PropertyAssignment | tt.PropertySignature, requested?: LineRange | undefined): StructuralEntity | undefined {
 	const name = node.name.getText();
-	const kind = node.type?.kind;
+	if (ts.isPropertyDeclaration(node) || ts.isPropertyAssignment(node)) {
+		const initializeKind = node.initializer?.kind;
+		if (initializeKind === ts.SyntaxKind.FunctionType || initializeKind === ts.SyntaxKind.FunctionDeclaration || initializeKind === ts.SyntaxKind.FunctionExpression || initializeKind === ts.SyntaxKind.ArrowFunction) {
+			return { kind: 'function', name, rangeNode: node };
+		}
+	}
+	const parent = node.parent;
+	if (requested !== undefined) {
+		const info = getMemberInfo(parent);
+		if (info === undefined) {
+			return undefined;
+		}
+		const { items, kind, memberKind, name } = info;
+		const range = calculateRange(sourceFile, parent, node, items, requested);
+		if (range === undefined) {
+			return undefined;
+		}
+		if (Array.isArray(range)) {
+			const [startIndex, endIndex] = range;
+			return {
+				kind: memberKind,
+				name,
+				rangeNode: [items[startIndex], items[endIndex]],
+				continueWith: parent
+			};
+		} else {
+			return {
+				kind,
+				name,
+				rangeNode: parent,
+				continueWith: parent.parent
+			};
+		}
+	}
+	return undefined;
+}
+
+function getMemberInfo(parent: tt.ClassLikeDeclaration | tt.ObjectLiteralExpression| tt.InterfaceDeclaration | tt.TypeLiteralNode): { items: tt.NodeArray<tt.Node>; kind: string; memberKind: string; name?: string | undefined } | undefined {
+	if (ts.isClassDeclaration(parent)) {
+		return { items: parent.members, kind: 'class', memberKind: 'class-members', name: parent.name?.text };
+	} else if (ts.isInterfaceDeclaration(parent)) {
+		return { items: parent.members, kind: 'interface', memberKind: 'interface-members', name: parent.name?.text };
+	} else if (ts.isObjectLiteralExpression(parent)) {
+		return { items: parent.properties, kind: 'object-literal', memberKind: 'object-literal-members' };
+	} else if (ts.isTypeLiteralNode(parent)) {
+		return { items: parent.members, kind: 'type-literal', memberKind: 'type-literal-members' };
+	}
+	return undefined;
+}
+
+function calculateRange(sourceFile: tt.SourceFile, parent: tt.Node, node: tt.Node, items: tt.NodeArray<tt.Node>, requested: LineRange): [number, number] | tt.Node | undefined {
+	const startLine = sourceFile.getLineAndCharacterOfPosition(parent.getStart(sourceFile)).line;
+	const endLine = sourceFile.getLineAndCharacterOfPosition(parent.getEnd()).line;
+	if (requested.start <= startLine && requested.end >= endLine) {
+		return parent;
+	}
+
+	const index = items.indexOf(node);
+	if (index === -1) {
+		return undefined;
+	}
+
+	let startIndex = Math.max(0, index - 1);
+	while (index - startIndex < 3 && startIndex > 0) {
+		const member = items[startIndex - 1];
+		if (!isInsideRequestedRange(sourceFile, member, requested)) {
+			break;
+		}
+		startIndex--;
+	}
+
+	let endIndex = Math.min(items.length - 1, index + 1);
+	while (endIndex - index < 3 && endIndex < items.length - 1) {
+		const member = items[endIndex + 1];
+		if (!isInsideRequestedRange(sourceFile, member, requested)) {
+			break;
+		}
+		endIndex++;
+	}
+	return [startIndex, endIndex];
+}
+
+function isInsideRequestedRange(sourceFile: tt.SourceFile, member: tt.Node, requested: LineRange): boolean {
+	const memberStartLine = sourceFile.getLineAndCharacterOfPosition(member.getStart(sourceFile)).line;
+	const memberEndLine = sourceFile.getLineAndCharacterOfPosition(member.getEnd()).line;
+	return requested.start <= memberStartLine && requested.end >= memberEndLine;
+}
+
+function handlePropertyAssignment(node: tt.PropertyAssignment): StructuralEntity | undefined {
+	const name = node.name.getText();
+	const kind = node.initializer.kind;
 	if (kind === ts.SyntaxKind.FunctionType || kind === ts.SyntaxKind.FunctionDeclaration || kind === ts.SyntaxKind.FunctionExpression || kind === ts.SyntaxKind.ArrowFunction) {
 		return { kind: 'function', name, rangeNode: node };
 	}

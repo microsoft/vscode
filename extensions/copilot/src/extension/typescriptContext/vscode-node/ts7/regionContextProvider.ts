@@ -201,9 +201,9 @@ export class TS7RegionContextProvider implements Omit<IRegionContextProviderServ
 				return { kind: 'arrow-function', rangeNode: node };
 			case ts.SyntaxKind.PropertyDeclaration:
 				return this.handlePropertyDeclaration(node as ts.PropertyDeclaration);
-			case ts.SyntaxKind.PropertySignature:
-				name = (node as ts.PropertySignatureDeclaration).name.getText();
-				return { kind: 'property', name, rangeNode: node };
+			// case ts.SyntaxKind.PropertySignature:
+			// 	name = (node as ts.PropertySignatureDeclaration).name.getText();
+			// 	return { kind: 'property', name, rangeNode: node };
 			case ts.SyntaxKind.GetAccessor:
 				name = (node as ts.GetAccessorDeclaration).name.getText();
 				return { kind: 'getter', name, rangeNode: node };
@@ -228,6 +228,15 @@ export class TS7RegionContextProvider implements Omit<IRegionContextProviderServ
 	}
 
 	private handlePropertyDeclaration(node: ts.PropertyDeclaration) {
+		const name = node.name.getText();
+		const kind = node.type?.kind;
+		if (kind === ts.SyntaxKind.FunctionType || kind === ts.SyntaxKind.FunctionDeclaration || kind === ts.SyntaxKind.FunctionExpression || kind === ts.SyntaxKind.ArrowFunction) {
+			return { kind: 'function', name, rangeNode: node };
+		}
+		return undefined;
+	}
+
+	private handlePropertyAssignment(node: ts.PropertyAssignment) {
 		const name = node.name.getText();
 		const kind = node.type?.kind;
 		if (kind === ts.SyntaxKind.FunctionType || kind === ts.SyntaxKind.FunctionDeclaration || kind === ts.SyntaxKind.FunctionExpression || kind === ts.SyntaxKind.ArrowFunction) {

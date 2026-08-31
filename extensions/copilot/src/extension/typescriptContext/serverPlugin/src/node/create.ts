@@ -215,7 +215,7 @@ const regionContextHandler = (request: RegionContextRequest): RegionContextHandl
 
 	try {
 		const sourceFile = input.program.getSourceFile(input.file);
-		const regions = sourceFile === undefined ? [] : getRegionContext(sourceFile, request.arguments!.ranges) ?? [];
+		const regions = sourceFile === undefined ? [] : getRegionContext(sourceFile, request.arguments!.ranges, request.arguments!.requested) ?? [];
 		return { response: { regions }, responseRequired: true };
 	} catch (error) {
 		if (error instanceof Error) {
