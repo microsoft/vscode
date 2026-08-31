@@ -143,6 +143,7 @@ suite('CodeReviewService', () => {
 
 	class MockReviewThreadsFetcher {
 		nextThreads: IGitHubPullRequestReviewThread[] = [];
+		nextError: Error | undefined;
 		getReviewThreadsGate: DeferredPromise<void> | undefined;
 		getReviewThreadsCalls = 0;
 		resolveThreadCalls: { threadId: string }[] = [];
@@ -151,6 +152,9 @@ suite('CodeReviewService', () => {
 			this.getReviewThreadsCalls++;
 			const result = this.nextThreads;
 			await this.getReviewThreadsGate?.p;
+			if (this.nextError) {
+				throw this.nextError;
+			}
 			return result;
 		}
 
@@ -336,6 +340,35 @@ suite('CodeReviewService', () => {
 				{ id: 'thread-100', prNumber: 1 },
 				{ id: 'thread-200', prNumber: 2 },
 			],
+		});
+	});
+
+	test('PR review state exposes healthy comments when another pull request fails to load', async () => {
+		sessionsManagement.addSession(session);
+		sessionsManagement.setGitHubInfo(session, {
+			...makeGitHubInfo(),
+			pullRequests: [1, 2].map(number => ({
+				owner: 'owner',
+				repo: 'repo',
+				number,
+				uri: URI.parse(`https://github.com/owner/repo/pull/${number}`),
+			})),
+		});
+		gitHubService.getReviewThreadsFetcher('owner', 'repo', 1).nextThreads = [makePRThread('thread-100', 'src/a.ts')];
+		gitHubService.getReviewThreadsFetcher('owner', 'repo', 2).nextError = new Error('not found');
+
+		sessionsManagement.setActiveSession(sessionsManagement.getSession(session));
+		await tick();
+
+		const state = service.getPRReviewState(session).get();
+		assert.deepStrictEqual(state.kind === PRReviewStateKind.Loaded
+			? {
+				comments: state.comments.map(comment => ({ id: comment.id, prNumber: comment.pullRequest.number })),
+				incompletePullRequests: state.incompletePullRequests.map(pullRequest => pullRequest.number),
+			}
+			: state.kind, {
+			comments: [{ id: 'thread-100', prNumber: 1 }],
+			incompletePullRequests: [2],
 		});
 	});
 

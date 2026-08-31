@@ -64,6 +64,10 @@
 }
 
 .session-input-banner .session-input-banner-navigation-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
 	width: 16px;
 	height: 20px;
 	min-width: 0;
@@ -100,8 +104,7 @@
 	display: flex;
 	align-items: center;
 	gap: 4px;
-	flex: 0 1 auto;
-	min-width: 0;
+	flex: 0 0 auto;
 	margin-left: auto;
 }
 
@@ -116,8 +119,7 @@
 }
 
 .session-input-banner .session-input-banner-action {
-	flex: 0 1 auto;
-	min-width: 0;
+	flex: 0 0 auto;
 }
 
 .session-input-banner .session-input-banner-action.monaco-button-dropdown {
@@ -134,12 +136,6 @@
 
 .session-input-banner .session-input-banner-action.monaco-button-dropdown > .monaco-button-dropdown-separator {
 	padding-block: 0;
-}
-
-.session-input-banner .session-input-banner-action.monaco-button-dropdown > .monaco-button:first-child {
-	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
 }
 
 /* Outlined ghost style for secondary action buttons (e.g. "Reveal"). */

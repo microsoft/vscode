@@ -39,7 +39,7 @@ export const enum PRReviewStateKind {
 export type IPRReviewState =
 	| { readonly kind: PRReviewStateKind.None }
 	| { readonly kind: PRReviewStateKind.Loading }
-	| { readonly kind: PRReviewStateKind.Loaded; readonly comments: readonly IPRReviewComment[] }
+	| { readonly kind: PRReviewStateKind.Loaded; readonly comments: readonly IPRReviewComment[]; readonly incompletePullRequests: readonly Pick<IGitHubPullRequestRef, 'owner' | 'repo' | 'number'>[] }
 	| { readonly kind: PRReviewStateKind.Error; readonly reason: string };
 
 export interface IPRReviewComment {
@@ -163,11 +163,15 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 
 			const converted = this._convertedPRCommentsBySession.get(context.sessionResource.toString());
 			const comments: IPRReviewComment[] = [];
-			let hasLoadedAll = true;
+			const incompletePullRequests: Pick<IGitHubPullRequestRef, 'owner' | 'repo' | 'number'>[] = [];
+			let initialRefreshCompleted = true;
 			for (const pullRequest of context.pullRequests) {
 				const reviewThreadsRef = reader.store.add(this._gitHubService.createPullRequestReviewThreadsModelReference(pullRequest.owner, pullRequest.repo, pullRequest.number));
 				const reviewThreadsModel = reviewThreadsRef.object;
-				hasLoadedAll = reviewThreadsModel.hasLoaded.read(reader) && hasLoadedAll;
+				initialRefreshCompleted = reviewThreadsModel.initialRefreshCompleted.read(reader) && initialRefreshCompleted;
+				if (!reviewThreadsModel.hasLoaded.read(reader)) {
+					incompletePullRequests.push(pullRequest);
+				}
 				const threads = reviewThreadsModel.reviewThreads.read(reader);
 				for (const thread of threads) {
 					if (thread.isResolved) {
@@ -194,11 +198,11 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 					});
 				}
 			}
-			if (!hasLoadedAll) {
+			if (!initialRefreshCompleted) {
 				data.state.set({ kind: PRReviewStateKind.Loading }, undefined);
 				return;
 			}
-			data.state.set({ kind: PRReviewStateKind.Loaded, comments }, undefined);
+			data.state.set({ kind: PRReviewStateKind.Loaded, comments, incompletePullRequests }, undefined);
 		}));
 	}
 
@@ -239,7 +243,7 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 			const currentState = data.state.get();
 			if (currentState.kind === PRReviewStateKind.Loaded) {
 				const filtered = currentState.comments.filter(c => c.id !== threadId);
-				data.state.set({ kind: PRReviewStateKind.Loaded, comments: filtered }, undefined);
+				data.state.set({ ...currentState, comments: filtered }, undefined);
 			}
 		}
 	}
@@ -272,7 +276,7 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 			const currentState = data.state.get();
 			if (currentState.kind === PRReviewStateKind.Loaded) {
 				const filtered = currentState.comments.filter(c => c.id !== commentId);
-				data.state.set({ kind: PRReviewStateKind.Loaded, comments: filtered }, undefined);
+				data.state.set({ ...currentState, comments: filtered }, undefined);
 			}
 		}
 	}

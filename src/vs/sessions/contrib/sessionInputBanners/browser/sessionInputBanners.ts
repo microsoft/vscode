@@ -131,7 +131,7 @@ export class SessionInputBanners extends Disposable {
 			.filter(item => item.state === AgentFeedbackState.Created);
 		const gitHubInfo = session.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 		const pullRequests = getGitHubPullRequestRefs(gitHubInfo);
-		const firstPullRequest = pullRequests[0];
+		const onlyPullRequest = pullRequests.length === 1 ? pullRequests[0] : undefined;
 		const dismissed = this._dismissed.read(reader);
 		const legacyCIDismissed = this._legacyCIDismissed.read(reader).has(session.sessionId);
 		const legacyCommentsDismissed = this._legacyCommentsDismissed.read(reader).has(session.sessionId);
@@ -146,7 +146,7 @@ export class SessionInputBanners extends Disposable {
 
 				const comments = legacyCommentsDismissed
 					? []
-					: createdFeedback.filter(item => feedbackForPullRequest(item, pullRequest, firstPullRequest));
+					: createdFeedback.filter(item => feedbackForPullRequest(item, pullRequest, onlyPullRequest));
 				const prModelRef = reader.store.add(this.gitHubService.createPullRequestModelReference(pullRequest.owner, pullRequest.repo, pullRequest.number));
 				const livePullRequest = prModelRef.object.pullRequest.read(reader);
 				let failed = 0;
@@ -316,11 +316,18 @@ export class SessionInputBanners extends Disposable {
 				label: localize('inputBanner.agentReview', "Agent Review"),
 				hover: localize('inputBanner.agentReviewHover', "In-product agent review comments"),
 			} : undefined;
-		const showReference = compact || state.kind === 'pullRequest' && state.multiplePullRequests;
+		const showReference = state.kind === 'pullRequest' ? state.multiplePullRequests : compact;
 		const position = compact
 			? localize('inputBanner.positionAria', "Item {0} of {1}", index + 1, total)
 			: undefined;
-		const ariaLabel = [position, showReference ? reference?.label : undefined, text].filter(Boolean).join(', ');
+		const referenceLabel = showReference ? reference?.label : undefined;
+		const ariaLabel = position && referenceLabel
+			? localize('inputBanner.ariaLabelWithPositionAndReference', "{0}, {1}, {2}", position, referenceLabel, text)
+			: position
+				? localize('inputBanner.ariaLabelWithPosition', "{0}, {1}", position, text)
+				: referenceLabel
+					? localize('inputBanner.ariaLabelWithReference', "{0}, {1}", referenceLabel, text)
+					: text;
 
 		return {
 			id: state.id,
@@ -374,7 +381,7 @@ export class SessionInputBanners extends Disposable {
 		const hasComments = state.commentIds.length > 0;
 		const fixCI: ISessionInputBannerAction = {
 			id: 'fixCI',
-			label: localize('inputBanner.fixCI', "Fix CI"),
+			label: localize('inputBanner.fixChecks', "Fix Checks"),
 			primary: true,
 			waitUntilReady: () => state.debug ? Promise.resolve(true) : this._waitForChatModel(state.sessionResource),
 			run: () => state.debug ? undefined : this._fixChecks(state),
@@ -388,7 +395,7 @@ export class SessionInputBanners extends Disposable {
 		};
 		const primary = hasCI && hasComments ? {
 			id: 'fixCIAndAddressComments',
-			label: localize('inputBanner.fixCIAndAddressComments', "Fix CI & Address Comments"),
+			label: localize('inputBanner.fixChecksAndAddressComments', "Fix Checks & Address Comments"),
 			primary: true,
 			dropdownActions: [fixCI, addressComments],
 			waitUntilReady: () => state.debug ? Promise.resolve(true) : this._waitForChatModel(state.sessionResource),
@@ -397,20 +404,15 @@ export class SessionInputBanners extends Disposable {
 
 		const revealCI: ISessionInputBannerAction = {
 			id: 'revealCI',
-			label: localize('inputBanner.revealCI', "Reveal CI"),
+			label: localize('inputBanner.revealChecks', "Reveal"),
 			run: () => { if (!state.debug) { void this._revealPullRequest(state.pullRequest); } },
 		};
 		const revealComments: ISessionInputBannerAction = {
 			id: 'revealComments',
-			label: localize('inputBanner.revealComments', "Reveal Comments"),
+			label: localize('inputBanner.revealPRComments', "Reveal"),
 			run: () => { if (!state.debug && state.firstCommentId) { this._revealComment(state.sessionResource, state.firstCommentId); } },
 		};
-		const reveal = hasCI && hasComments ? {
-			...revealCI,
-			dropdownActions: [revealComments],
-		} : hasCI ? revealCI : revealComments;
-
-		return [primary, reveal];
+		return hasCI && hasComments ? [primary] : [primary, hasCI ? revealCI : revealComments];
 	}
 
 	private _agentCommentActions(state: IAgentCommentsBannerState): readonly ISessionInputBannerAction[] {
@@ -422,7 +424,7 @@ export class SessionInputBanners extends Disposable {
 			run: () => state.debug ? undefined : this._addressComments(state, '/act-on-feedback'),
 		}, {
 			id: 'revealComments',
-			label: localize('inputBanner.revealComments', "Reveal Comments"),
+			label: localize('inputBanner.revealAgentComments', "Reveal"),
 			run: () => { if (!state.debug && state.firstCommentId) { this._revealComment(state.sessionResource, state.firstCommentId); } },
 		}];
 	}

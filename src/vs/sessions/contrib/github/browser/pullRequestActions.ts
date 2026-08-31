@@ -45,7 +45,7 @@ import { computePullRequestIconStatus } from './pullRequestIconStatus.js';
 interface IResolvedSessionPullRequest {
 	readonly ref: IGitHubPullRequestRef;
 	readonly pullRequest: IGitHubPullRequest | undefined;
-	readonly icon: ThemeIcon;
+	readonly icon: ThemeIcon | undefined;
 	readonly status: IPullRequestIconStatus;
 }
 
@@ -222,14 +222,14 @@ export class OpenPullRequestActionViewItem extends ChatPillActionViewItem {
 			equalsFn: (a, b) => arrayEquals(a, b, (x, y) => x.owner === y.owner && x.repo === y.repo && x.number === y.number)
 		}, reader => this._pullRequestRefsObs.read(reader).map(({ owner, repo, number }) => ({ owner, repo, number })));
 
-		this._pullRequestsObs = derived(reader => this._pullRequestRefsObs.read(reader).map(ref => {
+		this._pullRequestsObs = derived(reader => this._pullRequestRefsObs.read(reader).map((ref, index) => {
 			const reference = reader.store.add(this._gitHubService.createPullRequestModelReference(ref.owner, ref.repo, ref.number));
 			const pullRequest = reference.object.pullRequest.read(reader);
 			const status = pullRequest ? computePullRequestIconStatus(reader, this._gitHubService, ref.owner, ref.repo, pullRequest) : {};
 			const icon = pullRequest
 				? computePullRequestIcon(pullRequest.isDraft ? 'draft' : pullRequest.state, status)
-				: this._pullRequestIconCache.get(ref.uri.toString()) ?? ref.icon ?? computePullRequestIcon(GitHubPullRequestState.Open);
-			if (pullRequest) {
+				: this._pullRequestIconCache.get(ref.uri.toString()) ?? ref.icon ?? (index === 0 ? computePullRequestIcon(GitHubPullRequestState.Open) : undefined);
+			if (pullRequest && icon) {
 				this._pullRequestIconCache.set(ref.uri.toString(), icon);
 			}
 			return {
@@ -418,7 +418,7 @@ export class OpenPullRequestActionViewItem extends ChatPillActionViewItem {
 			repo: ref.repo,
 			number: ref.number,
 			title: pullRequest?.title,
-			icon,
+			icon: icon ?? Codicon.gitPullRequest,
 			uri: ref.uri,
 			ariaLabel: getPullRequestAriaLabel(ref, pullRequest, status),
 			toolbarActions: [toAction({

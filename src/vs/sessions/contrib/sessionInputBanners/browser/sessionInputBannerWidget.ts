@@ -147,7 +147,9 @@ export class SessionInputBannerWidget extends Disposable {
 		store.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), textEl, banner.text));
 
 		const actions = dom.append(this.domNode, dom.$('.session-input-banner-actions'));
+		const bannerIdentity = banner.id ?? banner;
 		for (const [actionIndex, action] of banner.actions.entries()) {
+			const actionIdentity = action.id ?? action.label;
 			const options = this._buttonOptions(action, banner);
 			const button = action.dropdownActions?.length
 				? store.add(new ButtonWithDropdown(actions, {
@@ -155,7 +157,7 @@ export class SessionInputBannerWidget extends Disposable {
 					actions: action.dropdownActions.map((dropdownAction, dropdownIndex) => toAction({
 						id: dropdownAction.id ?? `session.inputBanner.${actionIndex}.${dropdownIndex}`,
 						label: dropdownAction.label,
-						run: () => this._runAction(dropdownAction),
+						run: () => this._runAction(bannerIdentity, dropdownAction.id ?? dropdownAction.label),
 					})),
 					addPrimaryActionToDropdown: false,
 					contextMenuProvider: this.contextMenuService,
@@ -169,7 +171,7 @@ export class SessionInputBannerWidget extends Disposable {
 				button.dropdownButton.setAriaLabel(localize('sessionInputBanner.moreActionsFor', "More Actions for {0}", action.label));
 			}
 			this._buttons.push({ button, primary: !!action.primary });
-			store.add(button.onDidClick(() => { void this._runAction(action).catch(onUnexpectedError); }));
+			store.add(button.onDidClick(() => { void this._runAction(bannerIdentity, actionIdentity).catch(onUnexpectedError); }));
 		}
 
 		if (banner.dismiss && banner.dismissTooltip) {
@@ -318,7 +320,11 @@ export class SessionInputBannerWidget extends Disposable {
 		};
 	}
 
-	private async _runAction(action: ISessionInputBannerAction): Promise<void> {
+	private async _runAction(bannerIdentity: string | ISessionInputBanner, actionIdentity: string): Promise<void> {
+		let action = this._findAction(bannerIdentity, actionIdentity);
+		if (!action) {
+			return;
+		}
 		if (!action.primary) {
 			await action.run();
 			return;
@@ -329,9 +335,6 @@ export class SessionInputBannerWidget extends Disposable {
 
 		this._runningPrimaryAction = true;
 		this._setPrimaryButtonsEnabled(false);
-		const banner = this._banners[this._activeIndex];
-		const bannerIdentity = banner?.id ?? banner;
-		const actionIdentity = action.id ?? action.label;
 		try {
 			if (action.waitUntilReady && !await this._waitUntilReady(action.waitUntilReady)) {
 				return;
@@ -339,8 +342,8 @@ export class SessionInputBannerWidget extends Disposable {
 			// Readiness can resolve after the banner was replaced or torn down
 			// (e.g. the comments it acted on disappeared), and running then would
 			// act on state this banner no longer represents.
-			const currentBanner = this._banners[this._activeIndex];
-			if (this._disposed || (currentBanner?.id ?? currentBanner) !== bannerIdentity || !this._hasAction(currentBanner, actionIdentity)) {
+			action = this._findAction(bannerIdentity, actionIdentity);
+			if (this._disposed || !action) {
 				return;
 			}
 			await action.run();
@@ -350,10 +353,21 @@ export class SessionInputBannerWidget extends Disposable {
 		}
 	}
 
-	private _hasAction(banner: ISessionInputBanner | undefined, actionIdentity: string): boolean {
-		return banner?.actions.some(action =>
-			(action.id ?? action.label) === actionIdentity ||
-			action.dropdownActions?.some(dropdownAction => (dropdownAction.id ?? dropdownAction.label) === actionIdentity)) === true;
+	private _findAction(bannerIdentity: string | ISessionInputBanner, actionIdentity: string): ISessionInputBannerAction | undefined {
+		const banner = this._banners[this._activeIndex];
+		if ((banner?.id ?? banner) !== bannerIdentity) {
+			return undefined;
+		}
+		for (const action of banner.actions) {
+			if ((action.id ?? action.label) === actionIdentity) {
+				return action;
+			}
+			const dropdownAction = action.dropdownActions?.find(candidate => (candidate.id ?? candidate.label) === actionIdentity);
+			if (dropdownAction) {
+				return dropdownAction;
+			}
+		}
+		return undefined;
 	}
 
 	private async _waitUntilReady(waitUntilReady: () => Promise<boolean>): Promise<boolean> {

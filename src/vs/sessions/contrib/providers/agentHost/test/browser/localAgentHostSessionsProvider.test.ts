@@ -6573,7 +6573,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				{
 					number: 41,
 					uri: 'https://github.com/owner/repo/pull/41',
-					icon: computePullRequestIcon(GitHubPullRequestState.Open),
+					icon: undefined,
 				},
 			]
 		});
