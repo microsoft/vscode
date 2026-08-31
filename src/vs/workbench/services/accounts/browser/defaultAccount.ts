@@ -573,8 +573,13 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 	}
 
 	private async doUpdateDefaultAccount(options?: IDefaultAccountRefreshOptions): Promise<void> {
+		const currentSessionId = this.defaultAccount?.sessionId;
 		try {
 			const defaultAccount = await this.fetchDefaultAccount(options);
+			if (currentSessionId && this.defaultAccount?.sessionId !== currentSessionId) {
+				this.logService.info('[DefaultAccount] Discarding default account update because the current session changed while the update was in progress');
+				return;
+			}
 			this.setDefaultAccount(defaultAccount);
 			this.scheduleAccountDataPoll();
 		} catch (error) {
