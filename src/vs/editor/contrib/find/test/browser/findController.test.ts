@@ -492,6 +492,32 @@ suite('FindController', () => {
 		});
 	});
 
+	test('issue #300085: Find Next Selection respects seedSearchStringFromSelection: selection', async () => {
+		await withAsyncTestCodeEditor([
+			'foo bar',
+			'bar foo'
+		], { serviceCollection: serviceCollection, find: { seedSearchStringFromSelection: 'selection' } }, async (editor) => {
+			clipboardState = '';
+			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
+			const nextSelectionMatchFindAction = new NextSelectionMatchFindAction();
+
+			// select "foo" on line 1
+			editor.setSelection(new Selection(1, 1, 1, 4));
+			await editor.runAction(nextSelectionMatchFindAction);
+			assert.strictEqual(findController.getState().searchString, 'foo');
+
+			// move the cursor onto "bar" on line 2 without selecting anything
+			editor.setSelection(new Selection(2, 1, 2, 1));
+			await editor.runAction(nextSelectionMatchFindAction);
+
+			// with seedSearchStringFromSelection: 'selection', an empty selection must not
+			// seed the word at the cursor position, so the search string must stay 'foo'
+			assert.strictEqual(findController.getState().searchString, 'foo');
+
+			findController.dispose();
+		});
+	});
+
 	test('issue #47400, CMD+E supports feeding multiple line of text into the find widget', async () => {
 		await withAsyncTestCodeEditor([
 			'ABC',

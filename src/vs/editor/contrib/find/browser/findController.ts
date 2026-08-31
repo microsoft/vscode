@@ -939,9 +939,12 @@ export abstract class SelectionMatchFindAction extends EditorAction {
 			return;
 		}
 
-		const selectionSearchString = getSelectionSearchString(editor, 'single', false);
-		if (selectionSearchString) {
-			controller.setSearchString(selectionSearchString);
+		const seedSearchStringFromSelection = editor.getOption(EditorOption.find).seedSearchStringFromSelection;
+		if (seedSearchStringFromSelection !== 'never') {
+			const selectionSearchString = getSelectionSearchString(editor, 'single', seedSearchStringFromSelection === 'selection');
+			if (selectionSearchString) {
+				controller.setSearchString(selectionSearchString);
+			}
 		}
 		if (!this._run(controller)) {
 			await controller.start({
