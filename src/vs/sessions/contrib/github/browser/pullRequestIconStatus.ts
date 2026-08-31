@@ -41,13 +41,13 @@ export function computeLivePullRequestIcon(reader: IReaderWithStore, gitHubServi
 }
 
 /** Computes the live title and icon used to present a pull request reference. */
-export function computePullRequestRefPresentation(reader: IReaderWithStore, gitHubService: IGitHubService, iconCache: IPullRequestIconCache, pullRequest: IGitHubPullRequestRef): Pick<IGitHubPullRequestRef, 'icon' | 'title'> & { readonly icon: ThemeIcon } {
+export function computePullRequestRefPresentation(reader: IReaderWithStore, gitHubService: IGitHubService, iconCache: IPullRequestIconCache, pullRequest: IGitHubPullRequestRef, fallbackIcon?: ThemeIcon): Pick<IGitHubPullRequestRef, 'icon' | 'title'> {
 	const prLink = pullRequest.uri.toString();
 	const prModelRef = reader.store.add(gitHubService.createPullRequestModelReference(pullRequest.owner, pullRequest.repo, pullRequest.number));
 	const livePullRequest = prModelRef.object.pullRequest.read(reader);
 	if (!livePullRequest) {
 		return {
-			icon: iconCache.get(prLink) ?? pullRequest.icon ?? computePullRequestIcon(GitHubPullRequestState.Open),
+			icon: iconCache.get(prLink) ?? pullRequest.icon ?? fallbackIcon,
 			title: pullRequest.title,
 		};
 	}
