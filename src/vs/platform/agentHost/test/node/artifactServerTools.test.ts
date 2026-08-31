@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ArtifactServerToolName } from '../../common/serverToolNames.js';
-import { artifactServerToolDefinitions, createArtifactServerToolGroup } from '../../node/shared/artifactServerTools.js';
+import { ARTIFACT_TOOLS_INSTRUCTION, artifactServerToolDefinitions, createArtifactServerToolGroup } from '../../node/shared/artifactServerTools.js';
 import { getServerToolDisplay } from '../../node/shared/serverToolGroups.js';
 
 suite('Artifact Server Tools', () => {
@@ -35,6 +35,18 @@ suite('Artifact Server Tools', () => {
 		assert.deepStrictEqual(addDefinition?.inputSchema?.properties?.uri, {
 			type: 'string',
 			description: 'Absolute URI including its scheme. For a local file, pass a file URI such as `file:///C:/path/to/file`, not a plain file system path such as `C:\\path\\to\\file`. Required for the `file` and `resource` kinds.',
+		});
+
+		test('excludes session-management results from artifacts', () => {
+			const addDefinition = artifactServerToolDefinitions.find(definition => definition.name === ArtifactServerToolName.AddArtifactOrReference);
+
+			assert.deepStrictEqual({
+				definition: addDefinition?.description?.includes('sessions and chats created with session-management tools'),
+				instruction: ARTIFACT_TOOLS_INSTRUCTION.includes('sessions and chats created with session-management tools'),
+			}, {
+				definition: true,
+				instruction: true,
+			});
 		});
 	});
 
