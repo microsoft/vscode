@@ -212,11 +212,9 @@ export class CopilotGitHubTelemetryForwarder {
 		}
 
 		const event = notification.event;
-		const properties = { ...event.properties };
-		delete properties.secondary_assignment_context;
 		const data: ITelemetryData = {
 			...event.client,
-			...properties,
+			...event.properties,
 			...event.metrics,
 			created_at: event.created_at,
 			model_call_id: event.model_call_id,
@@ -227,6 +225,7 @@ export class CopilotGitHubTelemetryForwarder {
 			kind: event.kind,
 			restricted: notification.restricted,
 		};
+		delete data.secondary_assignment_context;
 		if (event.kind === 'response.success' || event.kind === 'response.error') {
 			if (agentHostTurnId) {
 				data.turnId = agentHostTurnId;
