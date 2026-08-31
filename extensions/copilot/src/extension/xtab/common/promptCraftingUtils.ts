@@ -6,21 +6,23 @@
 import { DocumentId } from '../../../platform/inlineEdits/common/dataTypes/documentId';
 import { Schemas } from '../../../util/vs/base/common/network';
 import { isWindows } from '../../../util/vs/base/common/platform';
-import { startsWithIgnoreCase } from '../../../util/vs/base/common/strings';
 
 export function toUniquePath(documentId: DocumentId, workspaceRootPath: string | undefined): string {
 	const filePath = documentId.path;
 	const workspaceRootPathWithSlash = workspaceRootPath === undefined ? undefined : (workspaceRootPath.endsWith('/') ? workspaceRootPath : workspaceRootPath + '/');
 	const documentScheme = documentId.toUri().scheme;
-	const ignorePathCase = isWindows && (documentScheme === Schemas.file || documentScheme === Schemas.vscodeNotebookCell);
 	const isWorkspaceRelative = workspaceRootPathWithSlash !== undefined
-		&& (ignorePathCase ? startsWithIgnoreCase(filePath, workspaceRootPathWithSlash) : filePath.startsWith(workspaceRootPathWithSlash));
+		&& normalizeWindowsDriveLetter(filePath).startsWith(normalizeWindowsDriveLetter(workspaceRootPathWithSlash));
 
 	const updatedFilePath = isWorkspaceRelative
 		? filePath.substring(workspaceRootPathWithSlash.length)
 		: filePath;
 
 	return documentScheme === Schemas.vscodeNotebookCell ? `${updatedFilePath}#${documentId.fragment}` : updatedFilePath;
+}
+
+function normalizeWindowsDriveLetter(path: string): string {
+	return isWindows && /^\/[a-zA-Z]:/.test(path) ? `/${path[1].toLowerCase()}${path.substring(2)}` : path;
 }
 
 export function countTokensForLines(page: string[], computeTokens: (s: string) => number): number {

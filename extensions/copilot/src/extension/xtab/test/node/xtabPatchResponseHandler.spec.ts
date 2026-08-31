@@ -117,6 +117,8 @@ relative/path/to/another_file.js:42
 			workspaceRoot,
 			undefined,
 			new TestLogService(),
+			DuplicateAdditionsMode.Off,
+			true,
 		);
 
 		expect(edits.map(edit => ({
@@ -126,7 +128,11 @@ relative/path/to/another_file.js:42
 		}))).toEqual([{
 			targetDocument: 'file:///c%3A/workspace/space%20folder/test.py',
 			lineRange: '[1,2)',
-			newLines: ['def my_function():', '    pass'],
+			newLines: ['def my_function():'],
+		}, {
+			targetDocument: 'file:///c%3A/workspace/space%20folder/test.py',
+			lineRange: '[2,2)',
+			newLines: ['    pass'],
 		}]);
 	});
 
