@@ -151,7 +151,7 @@ export class NextUserMessageSuggestionController extends Disposable {
 				if (event.reason === 'completedRequest') {
 					this._completedResponseId = response.id;
 					this._scheduleSuggestion(model, request, response);
-				} else {
+				} else if (event.reason === 'undoStop' || response.state !== ResponseModelState.Complete || response.followups?.length) {
 					this._clearSuggestion();
 				}
 			}));
