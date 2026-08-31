@@ -443,10 +443,15 @@ export function appendNeighborFileSnippets(
 	// Reverse so the highest-scoring snippet is appended last (closest to the current file).
 	for (let i = selected.length - 1; i >= 0; i--) {
 		const neighborSnippet = selected[i].snippet;
+		// Related (language-service) files omit line numbers, matching the language-context path;
+		// open-tab neighbors keep the configured line-number formatting.
+		const snippetIncludeLineNumbers = neighborSnippet.isFromRelatedFile
+			? xtabPromptOptions.IncludeLineNumbersOption.None
+			: includeLineNumbers;
 		snippets.push(formatCodeSnippet(
 			DocumentId.create(neighborSnippet.uri),
 			neighborSnippet.snippet.split(/\r?\n/),
-			{ truncated: false, includeLineNumbers, startLineOffset: neighborSnippet.lineRange.startLine },
+			{ truncated: false, includeLineNumbers: snippetIncludeLineNumbers, startLineOffset: neighborSnippet.lineRange.startLine },
 		));
 	}
 	const includedIndices = selected.map(s => s.originalIndex).sort((a, b) => a - b);

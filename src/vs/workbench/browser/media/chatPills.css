@@ -1,0 +1,166 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Shared workbench chat-pill presentation. */
+.chat-pills,
+.chat-pills .monaco-toolbar,
+.chat-pills .monaco-action-bar,
+.chat-pills .monaco-action-bar .actions-container {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+}
+
+.chat-pills.hidden {
+	display: none;
+}
+
+/* Take hit-testing back from the click-through row the pills may float in. */
+.chat-pills .monaco-action-bar .action-item {
+	pointer-events: auto;
+}
+
+.chat-pills .monaco-action-bar .actions-container {
+	gap: var(--vscode-spacing-size60);
+}
+
+.chat-pill-item {
+	display: inline-flex;
+	align-items: center;
+	flex-shrink: 0;
+}
+
+.chat-pill-item .monaco-button.chat-pill-button {
+	display: inline-flex;
+	align-items: center;
+	width: auto;
+	gap: var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-medium);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+	touch-action: manipulation;
+}
+
+/* Tint the opaque base `chatPills.ts` sets, so a translucent pill color never
+	shows the content behind the pill. */
+.chat-pill-item .monaco-button.chat-pill-button.secondary {
+	background-image: linear-gradient(var(--vscode-button-secondaryBackground), var(--vscode-button-secondaryBackground));
+}
+
+.chat-pill-item .monaco-button.chat-pill-button.secondary:hover,
+.chat-pill-item .monaco-button.chat-pill-button.secondary:focus {
+	background-image: linear-gradient(var(--vscode-button-secondaryHoverBackground), var(--vscode-button-secondaryHoverBackground));
+}
+
+/* Inset the focus ring so it sits on the pill's own border rather than the
+	bloated ring the base `outline-offset: 2px` would draw. */
+.chat-pill-item .monaco-button.chat-pill-button:focus {
+	outline-offset: -1px !important;
+}
+
+/* Inset the focus ring so it sits on the pill's own border rather than the
+	bloated ring the base `outline-offset: 2px` would draw. Applies to every pill
+	in the row, including hosted ones. */
+.chat-pills .monaco-button:focus {
+	outline-offset: -1px !important;
+}
+
+.chat-pills .monaco-action-bar .chat-hosted-pill {
+	display: inline-flex;
+	align-items: center;
+	min-width: 0;
+}
+
+.monaco-workbench .chat-pill-icon.codicon[class*=codicon-] {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
+	margin: 0;
+	font-size: var(--vscode-codiconFontSize-compact);
+	flex-shrink: 0;
+}
+
+.chat-pill-added {
+	color: var(--vscode-chat-linesAddedForeground);
+}
+
+.chat-pill-removed {
+	color: var(--vscode-chat-linesRemovedForeground);
+}
+
+/* Section-backed pills (artifacts, customizations, browsers, subagents) can
+	carry a long entry label, so they cap their width and ellipsize rather than
+	pushing their neighbours out of the row. */
+.chat-pills .monaco-action-bar .chat-dropdown-pill,
+.chat-pills .monaco-action-bar .chat-resource-pill {
+	max-width: 280px;
+}
+
+.chat-pill-item .monaco-button.chat-dropdown-pill-button,
+.chat-pill-item .monaco-button.chat-resource-pill-button {
+	min-width: 0;
+	max-width: 280px;
+	overflow: hidden;
+}
+
+.chat-dropdown-pill-button .chat-pill-label {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* The chevron shares the leading glyph's compact box. `chevron-down-compact` is
+	drawn on that box's centre, so it needs no nudge to sit on the label. */
+.monaco-workbench .chat-pill-chevron.codicon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
+	margin: 0;
+	font-size: var(--vscode-codiconFontSize-compact);
+	flex-shrink: 0;
+}
+
+/* The themed file icon carries its own leading gap, so the pill adds barely any. */
+.chat-pill-item .monaco-button.chat-resource-pill-button {
+	padding-left: var(--vscode-spacing-size20);
+}
+
+.chat-resource-pill-button .monaco-icon-label {
+	align-items: center;
+	min-width: 0;
+	overflow: hidden;
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.chat-resource-pill-button .monaco-icon-label::before {
+	background-size: var(--vscode-codiconFontSize-compact);
+	width: var(--vscode-codiconFontSize-compact);
+	height: 14px;
+}
+
+/* File rows render a themed file icon in the same slot codicon rows use, so
+	every label in the dropdown starts on the same vertical line. The icon paints
+	through `::before`, which would otherwise sit on the row's text baseline and
+	ride high, so the slot takes the row's height and centres the icon in it. */
+.action-widget .monaco-list-row.action .icon.file-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	width: var(--vscode-codiconFontSize);
+	height: var(--vscode-spacing-size240);
+}
+
+.action-widget .monaco-list-row.action .icon.file-icon::before {
+	width: var(--vscode-codiconFontSize);
+	background-size: var(--vscode-codiconFontSize);
+	background-repeat: no-repeat;
+	background-position: center center;
+}

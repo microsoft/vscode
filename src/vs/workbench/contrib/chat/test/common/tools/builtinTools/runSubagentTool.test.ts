@@ -915,6 +915,154 @@ suite('RunSubagentTool', () => {
 		});
 	});
 
+	suite('subagent allowlist', () => {
+		let callIdCounter = 0;
+
+		function createAgent(name: string, agents?: readonly string[]): ICustomAgent {
+			const id = `file:///test/${name}.md`;
+			return {
+				id,
+				uri: URI.parse(id),
+				name,
+				description: `Agent ${name}`,
+				agents,
+				agentInstructions: { content: `${name} instructions`, toolReferences: [] },
+				source: { storage: PromptsStorage.local },
+				target: Target.Undefined,
+				visibility: { userInvocable: true, agentInvocable: true },
+				enabled: true
+			};
+		}
+
+		function createAllowlistTool(opts: {
+			customAgents: ICustomAgent[];
+			currentModeInstructions: IChatRequestModeInstructions;
+			capturedRequests?: IChatAgentRequest[];
+		}) {
+			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
+			const promptsService = new MockPromptsService();
+			promptsService.setCustomModes(opts.customAgents);
+
+			const mockChatAgentService: Pick<IChatAgentService, 'getDefaultAgent' | 'invokeAgent'> = {
+				getDefaultAgent() {
+					return { id: 'default-agent' } as IChatAgentService extends { getDefaultAgent(...args: infer _A): infer R } ? NonNullable<R> : never;
+				},
+				async invokeAgent(_id: string, request: IChatAgentRequest, _progress: (parts: IChatProgress[]) => void, _history: IChatAgentHistoryEntry[], _token: CancellationToken): Promise<IChatAgentResult> {
+					opts.capturedRequests?.push(request);
+					return {};
+				},
+			};
+
+			const mockChatService: Pick<IChatService, 'getSession'> = {
+				getSession() {
+					return {
+						getRequests: () => [{
+							id: 'req-1',
+							modeInfo: {
+								kind: undefined,
+								isBuiltin: false,
+								modeInstructions: opts.currentModeInstructions,
+								telemetryModeId: 'custom',
+								applyCodeBlockSuggestionId: undefined,
+							},
+						}],
+						acceptResponseProgress: () => { },
+					} as unknown as IChatModel;
+				},
+			};
+
+			const mockInstantiationService: Pick<IInstantiationService, 'createInstance'> = {
+				createInstance(..._args: never[]): { collect: () => Promise<void> } {
+					return { collect: async () => { } };
+				},
+			};
+
+			return testDisposables.add(new RunSubagentTool(
+				mockChatAgentService as IChatAgentService,
+				mockChatService as IChatService,
+				mockToolsService,
+				{} as ILanguageModelsService,
+				new NullLogService(),
+				new TestConfigurationService(),
+				promptsService,
+				mockInstantiationService as IInstantiationService,
+				{} as IProductService,
+			));
+		}
+
+		function createInvocation(agentName: string): IToolInvocation {
+			return {
+				callId: `allowlist-call-${++callIdCounter}`,
+				toolId: 'runSubagent',
+				parameters: { prompt: 'do something', description: 'test', agentName },
+				context: { sessionResource: URI.parse('test://session/allowlist') },
+				userSelectedTools: { runSubagent: true },
+			} as IToolInvocation;
+		}
+
+		const countTokens = async () => 0;
+		const noProgress: ToolProgress = { report() { } };
+
+		test('prepareToolInvocation rejects a requested agent outside the current allowlist', async () => {
+			const tool = createAllowlistTool({
+				customAgents: [createAgent('Allowed'), createAgent('Forbidden')],
+				currentModeInstructions: { name: 'Coordinator', content: 'Coordinate', toolReferences: [], allowedSubagents: ['Allowed'] },
+			});
+
+			await assert.rejects(
+				() => tool.prepareToolInvocation({
+					parameters: { prompt: 'test', description: 'test task', agentName: 'Forbidden' },
+					toolCallId: 'allowlist-prepare',
+					chatSessionResource: URI.parse('test://session/allowlist'),
+				}, CancellationToken.None),
+				(err: Error) => {
+					assert.ok(err.message.includes('Requested agent \'Forbidden\' is not allowed'));
+					return true;
+				}
+			);
+		});
+
+		test('invoke rejects a requested agent outside the current allowlist', async () => {
+			const capturedRequests: IChatAgentRequest[] = [];
+			const tool = createAllowlistTool({
+				customAgents: [createAgent('Allowed'), createAgent('Forbidden')],
+				currentModeInstructions: { name: 'Coordinator', content: 'Coordinate', toolReferences: [], allowedSubagents: ['Allowed'] },
+				capturedRequests,
+			});
+
+			const result = await tool.invoke(createInvocation('Forbidden'), countTokens, noProgress, CancellationToken.None);
+
+			assert.deepStrictEqual({
+				requestCount: capturedRequests.length,
+				result: result.content[0].kind === 'text' ? result.content[0].value : undefined,
+			}, {
+				requestCount: 0,
+				result: 'Error invoking subagent: Requested agent \'Forbidden\' is not allowed by the current agent.',
+			});
+		});
+
+		test('invoke forwards the selected subagent allowlist to nested requests', async () => {
+			const capturedRequests: IChatAgentRequest[] = [];
+			const tool = createAllowlistTool({
+				customAgents: [createAgent('Allowed', ['Nested']), createAgent('Nested')],
+				currentModeInstructions: { name: 'Coordinator', content: 'Coordinate', toolReferences: [], allowedSubagents: ['Allowed'] },
+				capturedRequests,
+			});
+
+			await tool.invoke(createInvocation('Allowed'), countTokens, noProgress, CancellationToken.None);
+
+			assert.deepStrictEqual({
+				requestCount: capturedRequests.length,
+				subAgentName: capturedRequests[0]?.subAgentName,
+				allowedSubagents: capturedRequests[0]?.modeInstructions?.allowedSubagents,
+			}, {
+				requestCount: 1,
+				subAgentName: 'Allowed',
+				allowedSubagents: ['Nested'],
+			});
+		});
+	});
+
 	suite('nested subagent depth tracking', () => {
 		/**
 		 * Creates a RunSubagentTool with mocked services suitable for invoke() testing.
@@ -1085,10 +1233,11 @@ suite('RunSubagentTool', () => {
 		 * usage progress parts, so tests can assert how the subagent's credit
 		 * (AIC) cost is surfaced on its tool's `toolSpecificData`.
 		 */
-		function createCreditTool(usageParts: IChatProgress[]) {
+		function createCreditTool(usageParts: IChatProgress[], result: IChatAgentResult = {}) {
 			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
 			const configService = new TestConfigurationService();
 			const promptsService = new MockPromptsService();
+			const parentCredits: { subagentCallId: string; copilotCredits: number }[] = [];
 
 			const mockChatAgentService: Pick<IChatAgentService, 'getDefaultAgent' | 'invokeAgent'> = {
 				getDefaultAgent() {
@@ -1096,14 +1245,19 @@ suite('RunSubagentTool', () => {
 				},
 				async invokeAgent(_id: string, _request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void): Promise<IChatAgentResult> {
 					progress(usageParts);
-					return {};
+					return result;
 				},
 			};
 
 			const mockChatService: Pick<IChatService, 'getSession'> = {
 				getSession() {
 					return {
-						getRequests: () => [{ id: 'req-1' }],
+						getRequests: () => [{
+							id: 'req-1',
+							response: {
+								setSubagentCopilotCredits: (subagentCallId: string, copilotCredits: number) => parentCredits.push({ subagentCallId, copilotCredits }),
+							},
+						}],
 						acceptResponseProgress: () => { },
 					} as unknown as IChatModel;
 				},
@@ -1115,7 +1269,7 @@ suite('RunSubagentTool', () => {
 				},
 			};
 
-			return testDisposables.add(new RunSubagentTool(
+			const tool = testDisposables.add(new RunSubagentTool(
 				mockChatAgentService as IChatAgentService,
 				mockChatService as IChatService,
 				mockToolsService,
@@ -1126,11 +1280,13 @@ suite('RunSubagentTool', () => {
 				mockInstantiationService as IInstantiationService,
 				{} as IProductService,
 			));
+			return { tool, parentCredits };
 		}
 
-		function createSubagentInvocation(): IToolInvocation {
+		function createSubagentInvocation(chatStreamToolCallId?: string): IToolInvocation {
 			return {
 				callId: `credits-call-${++creditsCallIdCounter}`,
+				chatStreamToolCallId,
 				toolId: 'runSubagent',
 				parameters: { prompt: 'do something', description: 'test' },
 				context: { sessionResource: URI.parse('test://session/credits') },
@@ -1144,19 +1300,44 @@ suite('RunSubagentTool', () => {
 
 		test('writes the running credit total onto the subagent toolSpecificData', async () => {
 			// Credits are cumulative per usage event; the latest value is the total.
-			const tool = createCreditTool([
+			const { tool, parentCredits } = createCreditTool([
 				{ kind: 'usage', promptTokens: 10, completionTokens: 5, copilotCredits: 2 },
 				{ kind: 'usage', promptTokens: 20, completionTokens: 8, copilotCredits: 5 },
+				{ kind: 'usage', promptTokens: 20, completionTokens: 8, copilotCredits: 3 },
 			]);
+			const invocation = createSubagentInvocation('stream-tool-call');
+
+			await tool.invoke(invocation, countTokens, noProgress, CancellationToken.None);
+
+			assert.deepStrictEqual({
+				toolCredits: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.credits : undefined,
+				parentCredits,
+			}, {
+				toolCredits: 5,
+				parentCredits: [{ subagentCallId: invocation.callId, copilotCredits: 5 }],
+			});
+		});
+
+		test('records credits when the subagent fails after reporting usage', async () => {
+			const { tool, parentCredits } = createCreditTool(
+				[{ kind: 'usage', promptTokens: 10, completionTokens: 5, copilotCredits: 3 }],
+				{ errorDetails: { message: 'failed' } },
+			);
 			const invocation = createSubagentInvocation();
 
 			await tool.invoke(invocation, countTokens, noProgress, CancellationToken.None);
 
-			assert.strictEqual(invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.credits : undefined, 5);
+			assert.deepStrictEqual({
+				toolCredits: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.credits : undefined,
+				parentCredits,
+			}, {
+				toolCredits: 3,
+				parentCredits: [{ subagentCallId: invocation.callId, copilotCredits: 3 }],
+			});
 		});
 
 		test('leaves credits unset when no usage is reported', async () => {
-			const tool = createCreditTool([]);
+			const { tool } = createCreditTool([]);
 			const invocation = createSubagentInvocation();
 
 			await tool.invoke(invocation, countTokens, noProgress, CancellationToken.None);

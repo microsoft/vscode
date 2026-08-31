@@ -8,11 +8,46 @@ import { ConfigKey, IConfigurationService } from '../../../configuration/common/
 import { DefaultsOnlyConfigurationService } from '../../../configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
 import type { IChatEndpoint } from '../../../networking/common/networking';
-import { getModelCapabilityOverride, isKimiFamily, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelSupportsApplyPatch, modelSupportsContextEditing, modelSupportsMultiReplaceString, modelSupportsPDFDocuments, modelSupportsReplaceString, modelSupportsToolSearch } from '../../common/chatModelCapabilities';
+import { getModelCapabilityOverride, isGpt51Family, isGpt53Codex, isGpt54, isGpt55, isGpt56, isKimiFamily, isOpenAIModel, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelSupportsApplyPatch, modelSupportsContextEditing, modelSupportsMultiReplaceString, modelSupportsPDFDocuments, modelSupportsReplaceString, modelSupportsToolSearch } from '../../common/chatModelCapabilities';
 
 function fakeModel(family: string, model: string = family) {
 	return { family, model } as unknown as IChatEndpoint;
 }
+
+describe('OpenAI prompt model classification', () => {
+	test.each([
+		['gpt-5.7', 'copilot', true],
+		['gpt-6', 'Azure', true],
+		['GPT-6', 'copilot', true],
+		['OpenAI', 'copilot', true],
+		['preview-model', 'OpenAI', true],
+		['preview-model', 'openai', true],
+		['preview-model', 'OpenAI Compatible', false],
+		['OpenAI Compatible', 'custom', false],
+		['unknown', 'custom', false],
+		['claude-sonnet-4.6', 'Anthropic', false],
+		['gemini-3-pro', 'Google', false],
+	])('classifies %s from %s as OpenAI: %s', (family, modelProvider, expected) => {
+		expect(isOpenAIModel({ family, modelProvider })).toBe(expected);
+	});
+
+	test.each([
+		['gpt-5.1', isGpt51Family],
+		['gpt-5.3-codex', isGpt53Codex],
+		['gpt-5.4', isGpt54],
+		['gpt-5.5', isGpt55],
+		['gpt-5.6', isGpt56],
+	] as const)('%s matcher respects version boundaries', (family, matches) => {
+		expect([
+			matches(family),
+			matches(`${family}-mini`),
+			matches(`${family}-20260828`),
+			matches(`${family}0`),
+			matches(`${family}0-codex`),
+			matches(`${family}.1`),
+		]).toEqual([true, true, true, false, false, false]);
+	});
+});
 
 describe('modelSupportsPDFDocuments', () => {
 	test('returns true for claude family', () => {
@@ -46,6 +81,7 @@ describe('Kimi edit tool capabilities', () => {
 		const models = {
 			'kimi-k2.6': fakeModel('kimi-k2.6'),
 			'kimi-k2.7-code': fakeModel('kimi-k2.7-code'),
+			'kimi-k3': fakeModel('kimi-k3'),
 			'moonshot/kimi-k2.7-code': fakeModel('moonshot/kimi-k2.7-code'),
 			'moonshot/kimi-k2.6': fakeModel('moonshot/kimi-k2.6'),
 			'unknown-family + kimi model id': fakeModel('unknown-family', 'kimi-k2.7-code-preview'),
@@ -69,6 +105,14 @@ describe('Kimi edit tool capabilities', () => {
 				canUseApplyPatchExclusively: false,
 			},
 			'kimi-k2.7-code': {
+				isKimiFamily: true,
+				supportsReplaceString: true,
+				supportsMultiReplaceString: true,
+				canUseReplaceStringExclusively: true,
+				supportsApplyPatch: false,
+				canUseApplyPatchExclusively: false,
+			},
+			'kimi-k3': {
 				isKimiFamily: true,
 				supportsReplaceString: true,
 				supportsMultiReplaceString: true,
@@ -135,10 +179,13 @@ describe('modelSupportsToolSearch', () => {
 		expect(modelSupportsToolSearch('claude-opus-4-1-20250805')).toBe(false);
 	});
 
-	test('rejects Haiku and legacy Claude families', () => {
-		// Haiku is current-gen but has no tool search support — denied explicitly.
-		expect(modelSupportsToolSearch('claude-haiku-4-5')).toBe(false);
-		expect(modelSupportsToolSearch('claude-haiku-4.5')).toBe(false);
+	test('supports Haiku 4.5, the only shipping Haiku', () => {
+		expect(modelSupportsToolSearch('claude-haiku-4-5')).toBe(true);
+		expect(modelSupportsToolSearch('claude-haiku-4.5')).toBe(true);
+		expect(modelSupportsToolSearch('claude-haiku-4-5-20251001')).toBe(true);
+	});
+
+	test('rejects legacy Claude families', () => {
 		expect(modelSupportsToolSearch('claude-3-5-sonnet-20241022')).toBe(false);
 		expect(modelSupportsToolSearch('claude-3-opus')).toBe(false);
 	});

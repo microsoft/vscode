@@ -5,8 +5,10 @@
 
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
 import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
+import { isValidAssignmentContext } from '../../../platform/telemetry/common/assignmentContext.js';
 import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from '../../../platform/telemetry/common/gdprTypings.js';
 import { ITelemetryService, TelemetryLevel, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID, ITelemetryData } from '../../../platform/telemetry/common/telemetry.js';
 import { supportsTelemetry } from '../../../platform/telemetry/common/telemetryUtils.js';
@@ -57,13 +59,36 @@ export class MainThreadTelemetry extends Disposable implements MainThreadTelemet
 	$publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): void {
 		this.$publicLog(eventName, data);
 	}
-
-	// __GDPR__COMMON__ "capi.assignmentcontext" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-	$setExperimentProperty(name: string, value: string): void {
-		// Properties forwarded from an extension are additive and must not release the startup
-		// event buffer, which waits for this window's own experiment context (TAS assignment context).
-		this._telemetryService.setExperimentProperty(name, value, false);
-	}
 }
 
+/**
+ * The core telemetry property under which the Copilot CAPI flight assignment
+ * context is surfaced. It mirrors the scope of `abexp.assignmentcontext`.
+ */
+export const CAPI_ASSIGNMENT_CONTEXT_PROPERTY = 'capi.assignmentcontext';
 
+/**
+ * The private command Copilot invokes to forward its CAPI flight assignments
+ * into core telemetry. Not part of the public API.
+ */
+export const SET_CAPI_ASSIGNMENT_CONTEXT_COMMAND = '_telemetry.setCapiAssignmentContext';
+
+/**
+ * Validates a CAPI assignment-context string before it is trusted onto every
+ * core telemetry event. Because {@link ITelemetryService.setExperimentProperty}
+ * wraps the value in a `TelemetryTrustedValue` (bypassing PII cleaning), the
+ * value must be strictly shaped: a non-empty, size-capped list of `key:value`
+ * entries separated by `;`, with no whitespace or control characters. Any
+ * malformed input is rejected outright.
+ */
+export function isValidCapiAssignmentContext(value: string): boolean {
+	return isValidAssignmentContext(value);
+}
+
+CommandsRegistry.registerCommand(SET_CAPI_ASSIGNMENT_CONTEXT_COMMAND, function (accessor, value: string) {
+	if (typeof value !== 'string' || !isValidCapiAssignmentContext(value)) {
+		return;
+	}
+
+	accessor.get(ITelemetryService).setExperimentProperty(CAPI_ASSIGNMENT_CONTEXT_PROPERTY, value);
+});

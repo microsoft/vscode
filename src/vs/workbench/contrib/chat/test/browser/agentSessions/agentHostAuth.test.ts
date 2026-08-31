@@ -21,16 +21,17 @@ import { IAuthenticationMcpUsageService } from '../../../../../services/authenti
 import { IAuthenticationService, type IAuthenticationProvider } from '../../../../../services/authentication/common/authentication.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../browser/actions/chatActions.js';
-import { authenticateProtectedResources, resolveAuthenticationInteractively, resolveTokenForResource, AgentHostAuthTokenCache, agentHostMcpServerId, resolveMcpServerAuthentication, type IAgentHostAuthenticationOptions } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
+import { AgentHostAuthenticationRecovery, authenticateProtectedResources, resolveAuthenticationInteractively, resolveTokenForResource, AgentHostAuthTokenCache, agentHostMcpServerId, resolveMcpServerAuthentication, modelRequiresAgentAuthentication, type IAgentHostAuthenticationOptions } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
+import { createAgentModelByokMeta } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 
 class TestCommandService extends mock<ICommandService>() {
 	readonly calls: { commandId: string; args: unknown[] }[] = [];
 	result: unknown = { success: true, dialogSkipped: false };
-	onExecute: (() => void) | undefined;
+	onExecute: (() => void | Promise<void>) | undefined;
 
 	override async executeCommand<R = unknown>(commandId: string, ...args: unknown[]): Promise<R | undefined> {
 		this.calls.push({ commandId, args });
-		this.onExecute?.();
+		await this.onExecute?.();
 		return this.result as R;
 	}
 }
@@ -369,6 +370,125 @@ suite('AgentHostAuthTokenCache', () => {
 	});
 });
 
+suite('AgentHostAuthenticationRecovery', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('cancels recovery when its enablement generation becomes stale', async () => {
+		const sessions = new DeferredPromise<readonly { scopes: string[]; accessToken: string }[]>();
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
+			getSessions: () => sessions.p,
+		});
+		const commandService = new TestCommandService();
+		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
+		const recovery = new AgentHostAuthenticationRecovery();
+		const authenticateCalls: string[] = [];
+		let current = true;
+		const recoveryPromise = instantiationService.invokeFunction(accessor => recovery.recover(accessor, {
+			resource: 'https://api.example.com',
+			authorization_servers: ['https://auth.example.com'],
+			scopes_supported: ['read'],
+		}, {
+			logPrefix: '[AgentHost]',
+			isCurrent: () => current,
+			authenticate: async request => { authenticateCalls.push(request.token); },
+		}));
+
+		current = false;
+		recovery.clear();
+		sessions.complete([{ scopes: ['read'], accessToken: 'tok-1' }]);
+
+		await assert.rejects(recoveryPromise, /Canceled/);
+		assert.deepStrictEqual({
+			commandCalls: commandService.calls.length,
+			authenticateCalls,
+		}, {
+			commandCalls: 0,
+			authenticateCalls: [],
+		});
+	});
+
+	test('force-forwards the post-sign-in token when session-change handling repopulates the cache', async () => {
+		const token = { value: 'tok-1' };
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
+			getSessions: (_providerId, scopes) => Promise.resolve(scopes ? [{ scopes, accessToken: token.value }] : []),
+		});
+		const commandService = new TestCommandService();
+		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
+		const cache = new AgentHostAuthTokenCache();
+		const recovery = new AgentHostAuthenticationRecovery();
+		const resource: ProtectedResourceMetadata = {
+			resource: 'https://api.example.com',
+			authorization_servers: ['https://auth.example.com'],
+			scopes_supported: ['read'],
+		};
+		const authenticateCalls: string[] = [];
+		const options: IAgentHostAuthenticationOptions = {
+			authTokenCache: cache,
+			logPrefix: '[AgentHost]',
+			authenticate: async request => { authenticateCalls.push(request.token); },
+		};
+
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		commandService.onExecute = async () => {
+			token.value = 'tok-2';
+			await cache.authenticate(resource.resource, resource.scopes_supported, token.value, async () => {
+				authenticateCalls.push(token.value);
+			});
+		};
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+
+		assert.deepStrictEqual({
+			commandCalls: commandService.calls.length,
+			authenticateCalls,
+		}, {
+			commandCalls: 1,
+			authenticateCalls: ['tok-1', 'tok-2', 'tok-2'],
+		});
+
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		assert.strictEqual(commandService.calls.length, 2);
+	});
+
+	test('forwards credential removal and resets escalation when the current token disappears', async () => {
+		const token = { value: 'tok-1' as string | undefined };
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
+			getSessions: (_providerId, scopes) => Promise.resolve(token.value && scopes ? [{ scopes, accessToken: token.value }] : []),
+		});
+		const commandService = new TestCommandService();
+		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
+		const recovery = new AgentHostAuthenticationRecovery();
+		const resource: ProtectedResourceMetadata = {
+			resource: 'https://api.example.com',
+			authorization_servers: ['https://auth.example.com'],
+			scopes_supported: ['read'],
+		};
+		const authenticateCalls: string[] = [];
+		const options: IAgentHostAuthenticationOptions = {
+			authTokenCache: new AgentHostAuthTokenCache(),
+			logPrefix: '[AgentHost]',
+			authenticate: async request => { authenticateCalls.push(request.token); },
+		};
+
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		token.value = undefined;
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		token.value = 'tok-1';
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+
+		assert.deepStrictEqual({
+			commandCalls: commandService.calls.length,
+			authenticateCalls,
+		}, {
+			commandCalls: 0,
+			authenticateCalls: ['tok-1', '', 'tok-1'],
+		});
+	});
+});
+
 suite('resolveMcpServerAuthentication', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -389,6 +509,7 @@ suite('resolveMcpServerAuthentication', () => {
 			getAccountPreference: () => undefined,
 		});
 		instantiationService.stub(IAuthenticationMcpUsageService, {});
+		instantiationService.stub(IDynamicAuthenticationProviderStorageService, {});
 		instantiationService.stub(ILogService, new NullLogService());
 
 		const result = await instantiationService.invokeFunction(resolveMcpServerAuthentication, {
@@ -427,6 +548,7 @@ suite('resolveMcpServerAuthentication', () => {
 			getAccountPreference: () => undefined,
 		});
 		instantiationService.stub(IAuthenticationMcpUsageService, {});
+		instantiationService.stub(IDynamicAuthenticationProviderStorageService, {});
 		instantiationService.stub(ILogService, new NullLogService());
 
 		const result = await instantiationService.invokeFunction(resolveMcpServerAuthentication, {
@@ -466,6 +588,7 @@ suite('resolveMcpServerAuthentication', () => {
 			getAccountPreference: () => undefined,
 		});
 		instantiationService.stub(IAuthenticationMcpUsageService, {});
+		instantiationService.stub(IDynamicAuthenticationProviderStorageService, {});
 		instantiationService.stub(ILogService, new NullLogService());
 
 		const result = await instantiationService.invokeFunction(resolveMcpServerAuthentication, {
@@ -489,25 +612,35 @@ suite('resolveMcpServerAuthentication', () => {
 		});
 	});
 
-	test('does not attempt dynamic provider creation without user interaction', async () => {
+	test('does not create a dynamic provider silently without a persisted registration', async () => {
 		const warnings: string[] = [];
+		const providerCreations: string[] = [];
+		const metadataRequests: string[] = [];
 		const logService = new class extends NullLogService {
 			override warn(message: string): void {
 				warnings.push(message);
 			}
 		}();
 		const instantiationService = disposables.add(new TestInstantiationService());
-		instantiationService.stub(IAuthenticationService, createMockAuthService({}));
+		instantiationService.stub(IAuthenticationService, createMockAuthService({
+			createDynamicAuthenticationProvider: async authorizationServer => {
+				providerCreations.push(authorizationServer.toString(true));
+				return undefined;
+			},
+		}));
 		instantiationService.stub(IAuthenticationMcpAccessService, {});
 		instantiationService.stub(IAuthenticationMcpService, {
 			getAccountPreference: () => undefined,
 		});
 		instantiationService.stub(IAuthenticationMcpUsageService, {});
+		instantiationService.stub(IDynamicAuthenticationProviderStorageService, {
+			getClientRegistration: () => Promise.resolve(undefined),
+		});
 		instantiationService.stub(ILogService, logService);
 
 		const result = await instantiationService.invokeFunction(resolveMcpServerAuthentication, {
 			resource: 'https://mcp.example.com',
-			authorization_servers: ['not-a-valid-authorization-server'],
+			authorization_servers: ['https://auth.example.com'],
 		}, {
 			allowInteraction: false,
 			logPrefix: '[AgentHost]',
@@ -515,12 +648,266 @@ suite('resolveMcpServerAuthentication', () => {
 			mcpServerName: 'Example',
 			mcpServerUrl: 'https://mcp.example.com',
 			scopes: [],
+			authorizationServerMetadataFetcher: async authorizationServer => {
+				metadataRequests.push(authorizationServer);
+				throw new Error('Unexpected metadata request');
+			},
 			authenticate: async () => { },
 		});
 
-		assert.deepStrictEqual({ result, warnings }, {
+		assert.deepStrictEqual({ result, warnings, metadataRequests, providerCreations }, {
 			result: false,
 			warnings: [],
+			metadataRequests: [],
+			providerCreations: [],
+		});
+	});
+
+	test('restores a persisted dynamically registered provider without user interaction', async () => {
+		const dynamicProviderId = 'https://mcp.notion.com/ https://mcp.notion.com/mcp';
+		const providerCreations: { clientId: string | undefined; clientSecret: string | undefined }[] = [];
+		const sessionRequests: { silent: boolean | undefined }[] = [];
+		const authenticateRequests: { resource: string; scopes?: readonly string[]; token: string }[] = [];
+		const authService = createMockAuthService({
+			createDynamicAuthenticationProvider: async (_authorizationServer, _metadata, _resource, clientId, clientSecret) => {
+				providerCreations.push({ clientId, clientSecret });
+				return { id: dynamicProviderId };
+			},
+			getSessions: (_providerId, _scopes, options) => {
+				sessionRequests.push({ silent: options.silent });
+				return Promise.resolve([{
+					id: 'notion-session',
+					scopes: [],
+					accessToken: 'notion-token',
+					account: { id: 'account-id', label: 'Notion Account' },
+				}]);
+			},
+		});
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IAuthenticationService, authService);
+		instantiationService.stub(IAuthenticationMcpAccessService, {
+			isAccessAllowedForUrl: () => true,
+		});
+		instantiationService.stub(IAuthenticationMcpService, {
+			getAccountPreference: () => 'Notion Account',
+		});
+		instantiationService.stub(IAuthenticationMcpUsageService, {
+			addAccountUsage: () => { },
+		});
+		instantiationService.stub(IDynamicAuthenticationProviderStorageService, {
+			getClientRegistration: () => Promise.resolve({ clientId: 'notion-client-id', clientSecret: 'notion-client-secret' }),
+		});
+		instantiationService.stub(ILogService, new NullLogService());
+
+		const result = await instantiationService.invokeFunction(resolveMcpServerAuthentication, {
+			resource: 'https://mcp.notion.com/mcp',
+			authorization_servers: ['https://mcp.notion.com'],
+		}, {
+			allowInteraction: false,
+			logPrefix: '[AgentHost]',
+			mcpServerId: 'notion',
+			mcpServerName: 'notion',
+			mcpServerUrl: 'https://mcp.notion.com/mcp',
+			scopes: [],
+			authorizationServerMetadataFetcher: async authorizationServer => ({
+				metadata: {
+					issuer: authorizationServer,
+					response_types_supported: ['code'],
+				},
+				discoveryUrl: `${authorizationServer}/.well-known/oauth-authorization-server`,
+				errors: [],
+			}),
+			authenticate: async request => {
+				authenticateRequests.push(request);
+			},
+		});
+
+		assert.deepStrictEqual({ result, providerCreations, sessionRequests, authenticateRequests }, {
+			result: true,
+			providerCreations: [{ clientId: 'notion-client-id', clientSecret: 'notion-client-secret' }],
+			sessionRequests: [{ silent: true }],
+			authenticateRequests: [{
+				resource: 'https://mcp.notion.com/mcp',
+				scopes: [],
+				token: 'notion-token',
+			}],
+		});
+	});
+
+	test('serializes authentication transactions for different configured clients', async () => {
+		const dynamicProviderId = 'https://mcp.example.com/ https://mcp.example.com/resource';
+		const firstSessionStarted = new DeferredPromise<void>();
+		const firstSessionGate = new DeferredPromise<void>();
+		const providerCreations: string[] = [];
+		const sessionRequests: string[] = [];
+		const authenticateRequests: string[] = [];
+		let activeClient: string | undefined;
+		let providerActive = false;
+		const authService = createMockAuthService({
+			isDynamicAuthenticationProvider: providerId => providerId === dynamicProviderId && providerActive,
+			createDynamicAuthenticationProvider: async (_authorizationServer, _metadata, _resource, clientId) => {
+				activeClient = clientId;
+				providerActive = true;
+				providerCreations.push(clientId ?? '');
+				return { id: dynamicProviderId };
+			},
+			unregisterAuthenticationProvider: () => {
+				providerActive = false;
+			},
+			getSessions: async () => {
+				const clientId = activeClient ?? '';
+				sessionRequests.push(clientId);
+				if (clientId === 'first-client') {
+					firstSessionStarted.complete();
+					await firstSessionGate.p;
+				}
+				return [{
+					id: `${clientId}-session`,
+					scopes: [],
+					accessToken: `${clientId}-token`,
+					account: { id: 'account-id', label: 'MCP Account' },
+				}];
+			},
+		});
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IAuthenticationService, authService);
+		instantiationService.stub(IAuthenticationMcpAccessService, {
+			isAccessAllowedForUrl: () => true,
+		});
+		instantiationService.stub(IAuthenticationMcpService, {
+			getAccountPreference: () => 'MCP Account',
+		});
+		instantiationService.stub(IAuthenticationMcpUsageService, {
+			addAccountUsage: () => { },
+		});
+		instantiationService.stub(IDynamicAuthenticationProviderStorageService, {
+			getClientRegistration: () => Promise.resolve(activeClient ? { clientId: activeClient } : undefined),
+			removeDynamicProvider: async () => {
+				activeClient = undefined;
+			},
+		});
+		instantiationService.stub(ILogService, new NullLogService());
+		const protectedResource = {
+			resource: 'https://mcp.example.com/resource',
+			authorization_servers: ['https://mcp.example.com'],
+		};
+		const options = (clientId: string) => ({
+			allowInteraction: true,
+			logPrefix: '[AgentHost]',
+			mcpServerId: 'example',
+			mcpServerName: 'Example',
+			mcpServerUrl: 'https://mcp.example.com/resource',
+			oauthClient: { clientId },
+			scopes: [],
+			authorizationServerMetadataFetcher: async (authorizationServer: string) => ({
+				metadata: {
+					issuer: authorizationServer,
+					response_types_supported: ['code'],
+				},
+				discoveryUrl: `${authorizationServer}/.well-known/oauth-authorization-server`,
+				errors: [],
+			}),
+			authenticate: async (request: { token: string }) => {
+				authenticateRequests.push(request.token);
+			},
+		});
+
+		const first = instantiationService.invokeFunction(resolveMcpServerAuthentication, protectedResource, options('first-client'));
+		const second = instantiationService.invokeFunction(resolveMcpServerAuthentication, protectedResource, options('second-client'));
+		await firstSessionStarted.p;
+		const beforeResolution = {
+			providerCreations: [...providerCreations],
+			sessionRequests: [...sessionRequests],
+		};
+		firstSessionGate.complete();
+		const results = await Promise.all([first, second]);
+
+		assert.deepStrictEqual({
+			beforeResolution,
+			results,
+			providerCreations,
+			sessionRequests,
+			authenticateRequests,
+		}, {
+			beforeResolution: {
+				providerCreations: ['first-client'],
+				sessionRequests: ['first-client'],
+			},
+			results: [true, true],
+			providerCreations: ['first-client', 'second-client'],
+			sessionRequests: ['first-client', 'second-client'],
+			authenticateRequests: ['first-client-token', 'second-client-token'],
+		});
+	});
+
+	test('restores a persisted configured provider without user interaction', async () => {
+		const dynamicProviderId = 'https://mcp.slack.com/ https://mcp.slack.com';
+		const providerCreations: string[] = [];
+		const authenticateRequests: { resource: string; scopes?: readonly string[]; token: string }[] = [];
+		let isProviderActive = false;
+		const authService = createMockAuthService({
+			isDynamicAuthenticationProvider: providerId => providerId === dynamicProviderId && isProviderActive,
+			createDynamicAuthenticationProvider: async (_authorizationServer, _metadata, _resource, clientId) => {
+				providerCreations.push(clientId ?? '');
+				isProviderActive = true;
+				return { id: dynamicProviderId };
+			},
+			getSessions: () => Promise.resolve([{
+				id: 'slack-session',
+				scopes: ['search:read.public'],
+				accessToken: 'slack-token',
+				account: { id: 'account-id', label: 'Slack Account' },
+			}]),
+		});
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IAuthenticationService, authService);
+		instantiationService.stub(IAuthenticationMcpAccessService, {
+			isAccessAllowedForUrl: () => true,
+		});
+		instantiationService.stub(IAuthenticationMcpService, {
+			getAccountPreference: () => 'Slack Account',
+		});
+		instantiationService.stub(IAuthenticationMcpUsageService, {
+			addAccountUsage: () => { },
+		});
+		instantiationService.stub(IDynamicAuthenticationProviderStorageService, {
+			getClientRegistration: () => Promise.resolve({ clientId: 'slack-client-id' }),
+		});
+		instantiationService.stub(ILogService, new NullLogService());
+
+		const result = await instantiationService.invokeFunction(resolveMcpServerAuthentication, {
+			resource: 'https://mcp.slack.com',
+			authorization_servers: ['https://mcp.slack.com'],
+			scopes_supported: ['search:read.public'],
+		}, {
+			allowInteraction: false,
+			logPrefix: '[AgentHost]',
+			mcpServerId: 'slack',
+			mcpServerName: 'Slack',
+			mcpServerUrl: 'https://mcp.slack.com',
+			oauthClient: { clientId: 'slack-client-id' },
+			scopes: [],
+			authorizationServerMetadataFetcher: async authorizationServer => ({
+				metadata: {
+					issuer: authorizationServer,
+					response_types_supported: ['code'],
+				},
+				discoveryUrl: `${authorizationServer}/.well-known/oauth-authorization-server`,
+				errors: [],
+			}),
+			authenticate: async request => {
+				authenticateRequests.push(request);
+			},
+		});
+
+		assert.deepStrictEqual({ result, providerCreations, authenticateRequests }, {
+			result: true,
+			providerCreations: ['slack-client-id'],
+			authenticateRequests: [{
+				resource: 'https://mcp.slack.com',
+				scopes: ['search:read.public'],
+				token: 'slack-token',
+			}],
 		});
 	});
 
@@ -678,6 +1065,52 @@ suite('resolveMcpServerAuthentication', () => {
 	});
 });
 
+suite('modelRequiresAgentAuthentication', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const requiredResource: ProtectedResourceMetadata = { resource: 'https://api.github.com', required: true };
+	const byokModel = {
+		id: 'gemini/gemini-2.5-pro',
+		_meta: createAgentModelByokMeta('gemini/Gemini/gemini-2.5-pro'),
+	};
+	const copilotModel = { id: 'gpt-5' };
+	const agent = {
+		models: [byokModel, copilotModel],
+		protectedResources: [requiredResource],
+	} as AgentInfo;
+
+	test('bypasses required agent auth only for an advertised BYOK model', () => {
+		const optionalResourceAgent = { ...agent, protectedResources: [{ ...requiredResource, required: false }] };
+		const optionalResourceAgentWithoutByok = { ...optionalResourceAgent, models: [copilotModel] } as AgentInfo;
+		assert.deepStrictEqual({
+			byokEnabled: modelRequiresAgentAuthentication(agent, { id: byokModel.id }, true),
+			byokDisabled: modelRequiresAgentAuthentication(agent, { id: byokModel.id }, false),
+			copilot: modelRequiresAgentAuthentication(agent, { id: copilotModel.id }, true),
+			unknown: modelRequiresAgentAuthentication(agent, { id: 'unknown' }, true),
+			noSelection: modelRequiresAgentAuthentication(agent, undefined, true),
+			optionalResourceByok: modelRequiresAgentAuthentication(optionalResourceAgent, { id: byokModel.id }, true),
+			optionalResourceCopilot: modelRequiresAgentAuthentication(optionalResourceAgent, { id: copilotModel.id }, true),
+			optionalResourceUnknown: modelRequiresAgentAuthentication(optionalResourceAgent, { id: 'unknown' }, true),
+			optionalResourceSignedOutDisabled: modelRequiresAgentAuthentication(optionalResourceAgent, { id: copilotModel.id }, false),
+			optionalResourceWithoutByok: modelRequiresAgentAuthentication(optionalResourceAgentWithoutByok, { id: copilotModel.id }, true),
+			noProtectedResource: modelRequiresAgentAuthentication({ ...agent, protectedResources: [] }, { id: copilotModel.id }, true),
+		}, {
+			byokEnabled: false,
+			byokDisabled: true,
+			copilot: true,
+			unknown: true,
+			noSelection: true,
+			optionalResourceByok: false,
+			optionalResourceCopilot: true,
+			optionalResourceUnknown: true,
+			optionalResourceSignedOutDisabled: false,
+			optionalResourceWithoutByok: false,
+			noProtectedResource: false,
+		});
+	});
+});
+
 suite('authenticateProtectedResources', () => {
 
 	const protectedResource: ProtectedResourceMetadata = {
@@ -720,6 +1153,41 @@ suite('authenticateProtectedResources', () => {
 		});
 
 		assert.deepStrictEqual(requests, [{ resource: protectedResource.resource, scopes: ['read'], token: 'cached-token' }]);
+	});
+
+	test('forwards credential removal when a previously available token disappears', async () => {
+		let token: string | undefined = 'cached-token';
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
+			getSessions: (_providerId, scopes) => {
+				if (scopes && token) {
+					return Promise.resolve([{ scopes: ['read'], accessToken: token }]);
+				}
+
+				return Promise.resolve([]);
+			},
+		});
+		const cache = new AgentHostAuthTokenCache();
+		const requests: { resource: string; scopes?: readonly string[]; token: string }[] = [];
+		const agents = [{ protectedResources: [protectedResource] }] as unknown as readonly AgentInfo[];
+		const instantiationService = createAuthInstantiationService(disposables, authService);
+		const options: IAgentHostAuthenticationOptions = {
+			authTokenCache: cache,
+			logPrefix: '[AgentHost]',
+			authenticate: async request => {
+				requests.push(request);
+			},
+		};
+
+		await instantiationService.invokeFunction(authenticateProtectedResources, agents, options);
+		token = undefined;
+		await instantiationService.invokeFunction(authenticateProtectedResources, agents, options);
+		await instantiationService.invokeFunction(authenticateProtectedResources, agents, options);
+
+		assert.deepStrictEqual(requests, [
+			{ resource: protectedResource.resource, scopes: ['read'], token: 'cached-token' },
+			{ resource: protectedResource.resource, scopes: ['read'], token: '' },
+		]);
 	});
 });
 
@@ -775,7 +1243,7 @@ suite('resolveAuthenticationInteractively', () => {
 	test('uses the product sign-in flow and forwards its token', async () => {
 		let signedIn = false;
 		const commandService = new TestCommandService();
-		commandService.onExecute = () => signedIn = true;
+		commandService.onExecute = () => { signedIn = true; };
 		const authService = createMockAuthService({
 			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
 			getSessions: () => Promise.resolve(signedIn ? [{ scopes: ['read'], accessToken: 'signed-in-token' }] : []),

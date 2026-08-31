@@ -4,16 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import type { AgentSignal } from '../../common/agentService.js';
+import type { AgentSignal } from '../../common/agent.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { ResponsePartKind, ToolResultContentType } from '../../common/state/sessionState.js';
+import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCallDisplay.js';
 import { ToolCallConfirmationReason, ToolCallContributorKind } from '../../common/state/protocol/state.js';
 import { ClaudeMapperState, mapSDKMessageToAgentSignals } from '../../node/claude/claudeMapSessionEvents.js';
 import { CLAUDE_USER_DECLINED_MESSAGE } from '../../node/claude/claudeToolDenial.js';
-import { encodeForwardedChatError, PROXY_ERROR_PREFIX } from '../../node/shared/forwardedChatError.js';
+import { encodeForwardedChatError, PROXY_ERROR_PREFIX } from '../../node/shared/proxyChatError.js';
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
 import {
 	makeAssistantMessage,
@@ -48,6 +50,12 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 	const SESSION_STR = SESSION.toString();
 	const SESSION_ID = 'sid-1';
 	const TURN_ID = 'turn-1';
+	let clock: sinon.SinonFakeTimers | undefined;
+
+	teardown(() => {
+		clock?.restore();
+		clock = undefined;
+	});
 
 	/**
 	 * Captures `warn` calls so defense-in-depth tests can assert the
@@ -84,6 +92,37 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		assert.deepStrictEqual(signals, []);
 	});
 
+	test('canonical assistant message reports one completed model call', () => {
+		const signals = mapSDKMessageToAgentSignals(
+			makeAssistantMessage(SESSION_ID, []),
+			SESSION,
+			TURN_ID,
+			new ClaudeMapperState(),
+			new NullLogService(),
+			r(),
+		);
+
+		assert.deepStrictEqual(signals, [{
+			kind: 'model_call_completed',
+			resource: SESSION,
+			turnId: TURN_ID,
+			modelCallId: 'msg_test',
+		}]);
+	});
+
+	test('aborted canonical assistant message does not report a completed model call', () => {
+		const signals = mapSDKMessageToAgentSignals(
+			{ ...makeAssistantMessage(SESSION_ID, []), aborted: true as const },
+			SESSION,
+			TURN_ID,
+			new ClaudeMapperState(),
+			new NullLogService(),
+			r(),
+		);
+
+		assert.deepStrictEqual(signals, []);
+	});
+
 	test('error_during_execution result emits a ChatError carrying duration and _meta', () => {
 		const marker = encodeForwardedChatError({ fetchError: { type: 'quotaExceeded', capiError: { code: 'quota_exceeded', message: 'You have exceeded your monthly quota' } } });
 		const signals = mapSDKMessageToAgentSignals(
@@ -100,7 +139,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		const errorSignal = signals.find(s => s.kind === 'action' && s.action.type === ActionType.ChatError);
 		assert.ok(errorSignal && errorSignal.kind === 'action' && errorSignal.action.type === ActionType.ChatError);
 		assert.strictEqual(errorSignal.action.duration, 123);
-		const error = errorSignal.action.error;
+		const error = errorSignal.action.part.error;
 		const meta = error._meta as { chatError?: { fetchError?: { type?: string } } } | undefined;
 		assert.strictEqual(meta?.chatError?.fetchError?.type, 'quotaExceeded');
 		assert.ok(!error.message.includes(PROXY_ERROR_PREFIX), 'proxy marker should be stripped from the human-readable message');
@@ -120,7 +159,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 
 		const errorSignal = signals.find(s => s.kind === 'action' && s.action.type === ActionType.ChatError);
 		assert.ok(errorSignal && errorSignal.kind === 'action' && errorSignal.action.type === ActionType.ChatError);
-		const meta = errorSignal.action.error._meta as { chatError?: { fetchError?: { type?: string } } } | undefined;
+		const meta = errorSignal.action.part.error._meta as { chatError?: { fetchError?: { type?: string } } } | undefined;
 		assert.strictEqual(meta?.chatError?.fetchError?.type, 'quotaExceeded');
 	});
 
@@ -234,6 +273,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 				toolCallId: 'tu_1',
 				toolName: 'Read',
 				displayName: 'Read file',
+				_meta: { toolKind: 'read' },
 			},
 		}]);
 		assert.deepStrictEqual(log.warns, []);
@@ -327,6 +367,209 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 				content: '{"file_pa',
 			},
 		}]);
+	});
+
+	test('file-edit input deltas emit compact rich invocation messages', () => {
+		clock = sinon.useFakeTimers({ toFake: ['performance'] });
+		const log = new NullLogService();
+		const state = new ClaudeMapperState();
+		const resolver = r();
+		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, 'tu_write', 'Write')), SESSION, TURN_ID, state, log, resolver);
+
+		const first = mapSDKMessageToAgentSignals(
+			makeStreamEvent(SESSION_ID, makeInputJsonDelta(0, '{"file_path":"/src/new.ts","content":"one\\ntwo')),
+			SESSION,
+			TURN_ID,
+			state,
+			log,
+			resolver,
+		);
+		clock.tick(STREAMING_TOOL_DISPLAY_INTERVAL_MS);
+		const second = mapSDKMessageToAgentSignals(
+			makeStreamEvent(SESSION_ID, makeInputJsonDelta(0, '\\nthree\\nfour\\nfive"')),
+			SESSION,
+			TURN_ID,
+			state,
+			log,
+			resolver,
+		);
+
+		assert.deepStrictEqual([...first, ...second], [
+			{
+				kind: 'action',
+				resource: SESSION,
+				action: {
+					type: ActionType.ChatToolCallDelta,
+					turnId: TURN_ID,
+					toolCallId: 'tu_write',
+					content: '',
+					invocationMessage: { markdown: 'Creating [new.ts](file:///src/new.ts) (2 lines)' },
+				},
+			},
+			{
+				kind: 'action',
+				resource: SESSION,
+				action: {
+					type: ActionType.ChatToolCallDelta,
+					turnId: TURN_ID,
+					toolCallId: 'tu_write',
+					content: '',
+					invocationMessage: { markdown: 'Creating [new.ts](file:///src/new.ts) (5 lines)' },
+				},
+			},
+		]);
+	});
+
+	test('content_block_stop flushes the final rich file-edit message held back by the throttle', () => {
+		clock = sinon.useFakeTimers({ toFake: ['performance'] });
+		const log = new NullLogService();
+		const state = new ClaudeMapperState();
+		const resolver = r();
+		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, 'tu_write', 'Write')), SESSION, TURN_ID, state, log, resolver);
+
+		const first = mapSDKMessageToAgentSignals(
+			makeStreamEvent(SESSION_ID, makeInputJsonDelta(0, '{"file_path":"/src/new.ts","content":"one')),
+			SESSION,
+			TURN_ID,
+			state,
+			log,
+			resolver,
+		);
+		const withinInterval = mapSDKMessageToAgentSignals(
+			makeStreamEvent(SESSION_ID, makeInputJsonDelta(0, '\\ntwo"}')),
+			SESSION,
+			TURN_ID,
+			state,
+			log,
+			resolver,
+		);
+		const stopped = mapSDKMessageToAgentSignals(
+			makeStreamEvent(SESSION_ID, makeContentBlockStop(0)),
+			SESSION,
+			TURN_ID,
+			state,
+			log,
+			resolver,
+		);
+
+		assert.deepStrictEqual({
+			first: first.map(signal => signal.kind === 'action' ? signal.action : undefined),
+			withinInterval,
+			stopped: stopped.map(signal => signal.kind === 'action' ? signal.action : undefined),
+		}, {
+			first: [{
+				type: ActionType.ChatToolCallDelta,
+				turnId: TURN_ID,
+				toolCallId: 'tu_write',
+				content: '',
+				invocationMessage: { markdown: 'Creating [new.ts](file:///src/new.ts) (1 line)' },
+			}],
+			withinInterval: [],
+			stopped: [{
+				type: ActionType.ChatToolCallDelta,
+				turnId: TURN_ID,
+				toolCallId: 'tu_write',
+				content: '',
+				invocationMessage: { markdown: 'Creating [new.ts](file:///src/new.ts) (2 lines)' },
+			}, {
+				type: ActionType.ChatToolCallReady,
+				turnId: TURN_ID,
+				toolCallId: 'tu_write',
+				invocationMessage: { markdown: 'Edit [new.ts](file:///src/new.ts)' },
+				toolInput: '{\n  "file_path": "/src/new.ts",\n  "content": "one\\ntwo"\n}',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			}],
+		});
+	});
+
+	test('client tools with Claude built-in names preserve client semantics throughout the lifecycle', () => {
+		const state = new ClaudeMapperState();
+		const resolver = r();
+		const start = mapSDKMessageToAgentSignals(
+			makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, 'tu_client_write', 'mcp__client__Write')),
+			SESSION,
+			TURN_ID,
+			state,
+			new NullLogService(),
+			resolver,
+			() => 'client-1',
+		);
+
+		const delta = mapSDKMessageToAgentSignals(
+			makeStreamEvent(SESSION_ID, makeInputJsonDelta(0, '{"value":"client input"}')),
+			SESSION,
+			TURN_ID,
+			state,
+			new NullLogService(),
+			resolver,
+		);
+		const ready = mapSDKMessageToAgentSignals(
+			makeStreamEvent(SESSION_ID, makeContentBlockStop(0)),
+			SESSION,
+			TURN_ID,
+			state,
+			new NullLogService(),
+			resolver,
+		);
+		const complete = mapSDKMessageToAgentSignals(
+			makeUserToolResultMessage(SESSION_ID, 'tu_client_write', 'done'),
+			SESSION,
+			'turn-2-irrelevant',
+			state,
+			new NullLogService(),
+			resolver,
+		);
+
+		assert.deepStrictEqual([...start, ...delta, ...ready, ...complete], [
+			{
+				kind: 'action',
+				resource: SESSION,
+				action: {
+					type: ActionType.ChatToolCallStart,
+					turnId: TURN_ID,
+					toolCallId: 'tu_client_write',
+					toolName: 'Write',
+					displayName: 'Write',
+					contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-1' },
+				},
+			},
+			{
+				kind: 'action',
+				resource: SESSION,
+				action: {
+					type: ActionType.ChatToolCallDelta,
+					turnId: TURN_ID,
+					toolCallId: 'tu_client_write',
+					content: '{"value":"client input"}',
+				},
+			},
+			{
+				kind: 'action',
+				resource: SESSION,
+				action: {
+					type: ActionType.ChatToolCallReady,
+					turnId: TURN_ID,
+					toolCallId: 'tu_client_write',
+					invocationMessage: 'Write',
+					toolInput: '{\n  "value": "client input"\n}',
+					confirmed: ToolCallConfirmationReason.NotNeeded,
+				},
+			},
+			{
+				kind: 'action',
+				resource: SESSION,
+				action: {
+					type: ActionType.ChatToolCallComplete,
+					turnId: TURN_ID,
+					toolCallId: 'tu_client_write',
+					result: {
+						success: true,
+						pastTenseMessage: 'Write',
+						content: [{ type: ToolResultContentType.Text, text: 'done' }],
+					},
+				},
+			},
+		]);
 	});
 
 	test('Test 9.5 — content_block_stop emits ChatToolCallReady so auto-allowed tools leave Streaming', () => {
@@ -566,7 +809,12 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			r(),
 		);
 
-		assert.deepStrictEqual(signals, []);
+		assert.deepStrictEqual(signals, [{
+			kind: 'model_call_completed',
+			resource: SESSION,
+			turnId: TURN_ID,
+			modelCallId: 'msg_test',
+		}]);
 		assert.deepStrictEqual(log.warns, []);
 	});
 
@@ -584,7 +832,12 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			r(),
 		);
 
-		assert.deepStrictEqual(signals, []);
+		assert.deepStrictEqual(signals, [{
+			kind: 'model_call_completed',
+			resource: SESSION,
+			turnId: TURN_ID,
+			modelCallId: 'msg_test',
+		}]);
 		assert.deepStrictEqual(log.warns, []);
 	});
 

@@ -1,0 +1,89 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: First use the shell tool exactly once to run `node -e "setTimeout(() => console.log('READ_SHELL_E2E_VALUE'), 3000)"` in async mode with shellId "read-shell-e2e" and initial_wait 1. After that tool returns, use its matching read tool exactly once with shellId "read-shell-e2e" and delay 5 so the command finishes before the read returns. Then reply with exactly "READ_SHELL_E2E_DONE".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: ${shell}
+          input:
+            command: node -e "setTimeout(() => console.log('READ_SHELL_E2E_VALUE'), 3000)"
+            description: Run delayed node script
+            mode: async
+            shellId: read-shell-e2e
+            initial_wait: 1
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: First use the shell tool exactly once to run `node -e "setTimeout(() => console.log('READ_SHELL_E2E_VALUE'), 3000)"` in async mode with shellId "read-shell-e2e" and initial_wait 1. After that tool returns, use its matching read tool exactly once with shellId "read-shell-e2e" and delay 5 so the command finishes before the read returns. Then reply with exactly "READ_SHELL_E2E_DONE".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: bash
+              input:
+                command: node -e "setTimeout(() => console.log('READ_SHELL_E2E_VALUE'), 3000)"
+                description: Run delayed node script
+                mode: async
+                shellId: read-shell-e2e
+                initial_wait: 1
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '<command started in background with shellId: read-shell-e2e>'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: ${read_shell}
+          input:
+            shellId: read-shell-e2e
+            delay: 5
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: First use the shell tool exactly once to run `node -e "setTimeout(() => console.log('READ_SHELL_E2E_VALUE'), 3000)"` in async mode with shellId "read-shell-e2e" and initial_wait 1. After that tool returns, use its matching read tool exactly once with shellId "read-shell-e2e" and delay 5 so the command finishes before the read returns. Then reply with exactly "READ_SHELL_E2E_DONE".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: bash
+              input:
+                command: node -e "setTimeout(() => console.log('READ_SHELL_E2E_VALUE'), 3000)"
+                description: Run delayed node script
+                mode: async
+                shellId: read-shell-e2e
+                initial_wait: 1
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '<command started in background with shellId: read-shell-e2e>'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: read_bash
+              input:
+                shellId: read-shell-e2e
+                delay: 5
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: |-
+                READ_SHELL_E2E_VALUE
+                <shellId: read-shell-e2e completed with exit code 0>
+    response:
+      content: READ_SHELL_E2E_DONE
+      stopReason: end_turn

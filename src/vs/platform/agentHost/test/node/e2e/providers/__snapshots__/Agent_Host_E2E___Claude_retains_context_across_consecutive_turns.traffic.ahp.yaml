@@ -1,0 +1,67 @@
+version: 1
+rounds:
+  - clientToServer:
+      - channel: ${chat_0}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_0}
+          message:
+            text: Remember the code word ORCHID. Reply exactly "ready".
+            origin:
+              kind: user
+    serverToClient:
+      - channel: ${chat_0}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_0}
+          message:
+            text: Remember the code word ORCHID. Reply exactly "ready".
+            origin:
+              kind: user
+      - channel: ${session_0}
+        action:
+          type: session/titleChanged
+      - method: root/sessionAdded
+      - channel: ${session_0}
+        action:
+          type: session/ready
+      - channel: ${chat_0}
+        action:
+          type: chat/responsePart
+          turnId: ${turn_0}
+          part:
+            kind: markdown
+            content: ready
+      - channel: ${chat_0}
+        action:
+          type: chat/turnComplete
+          turnId: ${turn_0}
+  - clientToServer:
+      - channel: ${chat_0}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_1}
+          message:
+            text: What code word did I ask you to remember? Reply with only the code word.
+            origin:
+              kind: user
+    serverToClient:
+      - channel: ${chat_0}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_1}
+          message:
+            text: What code word did I ask you to remember? Reply with only the code word.
+            origin:
+              kind: user
+      - channel: ${chat_0}
+        action:
+          type: chat/responsePart
+          turnId: ${turn_1}
+          part:
+            kind: markdown
+            content: ORCHID
+      - channel: ${chat_0}
+        action:
+          type: chat/turnComplete
+          turnId: ${turn_1}

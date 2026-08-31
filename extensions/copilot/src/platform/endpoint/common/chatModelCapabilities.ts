@@ -142,32 +142,36 @@ export function isHiddenModelK(model: LanguageModelChat | IChatEndpoint) {
 }
 
 
+function matchesGptModelFamily(family: string, prefix: string): boolean {
+	return family === prefix || family.startsWith(`${prefix}-`);
+}
+
 export function isGpt54(model: LanguageModelChat | IChatEndpoint | string) {
 	const h = getCachedSha256Hash(typeof model === 'string' ? model : model.family);
 	const family = typeof model === 'string' ? model : model.family;
-	return family.startsWith('gpt-5.4') || HIDDEN_MODEL_J_HASHES.includes(h);
+	return matchesGptModelFamily(family, 'gpt-5.4') || HIDDEN_MODEL_J_HASHES.includes(h);
 }
 
 export function isGpt55(model: LanguageModelChat | IChatEndpoint | string) {
 	const h = getCachedSha256Hash(typeof model === 'string' ? model : model.family);
 	const family = typeof model === 'string' ? model : model.family;
-	return family.startsWith('gpt-5.5') || HIDDEN_MODEL_B_HASHES.includes(h);
+	return matchesGptModelFamily(family, 'gpt-5.5') || HIDDEN_MODEL_B_HASHES.includes(h);
 }
 
 export function isGpt56(model: LanguageModelChat | IChatEndpoint | string) {
 	const family = typeof model === 'string' ? model : model.family;
-	return family === 'gpt-5.6-sol' || family === 'gpt-5.6-terra' || family === 'gpt-5.6-luna';
+	return matchesGptModelFamily(family, 'gpt-5.6');
 }
 
 export function isGpt53Codex(model: LanguageModelChat | IChatEndpoint | string) {
 	const family = typeof model === 'string' ? model : model.family;
-	return family.startsWith('gpt-5.3-codex');
+	return matchesGptModelFamily(family, 'gpt-5.3-codex');
 }
 
 export function isKimiFamily(model: LanguageModelChat | IChatEndpoint | string): boolean {
 	const matches = (value: string): boolean => {
 		const normalized = value.toLowerCase();
-		return normalized.includes('kimi-k2.6') || normalized.includes('kimi-k2.7-code');
+		return normalized.includes('kimi-k2.6') || normalized.includes('kimi-k2.7-code') || normalized.includes('kimi-k3');
 	};
 
 	if (typeof model === 'string') {
@@ -423,7 +427,7 @@ export function isGptFamily(model: LanguageModelChat | IChatEndpoint | string | 
 }
 
 /**
- * Any GPT-5.1+ model
+ * GPT-5.1 and its suffixed variants, not later minor versions.
  */
 export function isGpt51Family(model: LanguageModelChat | IChatEndpoint | string | undefined): boolean {
 	if (!model) {
@@ -431,25 +435,33 @@ export function isGpt51Family(model: LanguageModelChat | IChatEndpoint | string 
 	}
 
 	const family = typeof model === 'string' ? model : model.family;
-	return !!family.startsWith('gpt-5.1');
+	return matchesGptModelFamily(family, 'gpt-5.1');
+}
+
+/**
+ * Identifies OpenAI models for prompt routing, not API or tool capabilities.
+ * OpenAI-compatible transports alone do not identify the model's provider.
+ */
+export function isOpenAIModel(model: Pick<IChatEndpoint, 'family' | 'modelProvider'>): boolean {
+	const family = model.family.toLowerCase();
+	return isGptFamily(family) || family === 'openai' || model.modelProvider.toLowerCase() === 'openai';
 }
 
 /**
  * This takes a sync shortcut and should only be called when a model hash would have already been computed while rendering the prompt.
  */
-export function getVerbosityForModelSync(model: IChatEndpoint): 'low' | 'medium' | 'high' | undefined {
-	if (model.family === 'gpt-5.1' || model.family === 'gpt-5-mini') {
+export function getVerbosityForModelSync(model: IChatEndpoint, responsesApiVerbosityEnabled?: boolean): 'low' | 'medium' | 'high' | undefined {
+	if (model.family === 'gpt-5.1' || model.family === 'gpt-5-mini' || (isGpt56(model) && responsesApiVerbosityEnabled)) {
 		return 'low';
 	}
-
 	return undefined;
 }
 
 /**
  * Tool search is supported by:
- * - Current-generation Claude models (4.5 and newer), so new and future Claude
- *   models are picked up automatically. Haiku (no tool search support) and the
- *   pre-4.5 generations are denied explicitly.
+ * - Current-generation Claude models (4.5 and newer, including Haiku 4.5), so
+ *   new and future Claude models are picked up automatically. The pre-4.5
+ *   generations are denied explicitly.
  * - OpenAI gpt-5.4 and gpt-5.5 (via Responses API client-side tool search)
  *
  * Accepts either an id string, a {@link LanguageModelChat}, or an
@@ -470,10 +482,6 @@ export function modelSupportsToolSearch(model: LanguageModelChat | IChatEndpoint
 		if (!n.startsWith('claude')) {
 			return false;
 		}
-		// Haiku has no tool search support — deny it explicitly.
-		if (n.startsWith('claude-haiku')) {
-			return false;
-		}
 		// Pre-4.5 Claude generations are unsupported; everything newer
 		// (including future families) is allowed automatically. The `-4-2`
 		// prefixes also catch the datestamped 4.0 bases (e.g.
@@ -482,7 +490,6 @@ export function modelSupportsToolSearch(model: LanguageModelChat | IChatEndpoint
 			n.startsWith('claude-1') ||
 			n.startsWith('claude-2') ||
 			n.startsWith('claude-3') ||
-			n.startsWith('claude-instant') ||
 			n === 'claude-sonnet-4' || n.startsWith('claude-sonnet-4-2') ||
 			n === 'claude-opus-4' || n.startsWith('claude-opus-4-1') || n.startsWith('claude-opus-4-2');
 		return !isPre45;

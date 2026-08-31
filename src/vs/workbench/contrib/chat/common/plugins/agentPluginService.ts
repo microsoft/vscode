@@ -9,7 +9,7 @@ import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { SyncDescriptor0 } from '../../../../../platform/instantiation/common/descriptors.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
-import { type INamedPluginResource, type IMcpServerDefinition, type IParsedHookCommand } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
+import { type INamedPluginResource, type IMcpServerDefinition, type IParsedHookCommand, type PluginFormat } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { ContributionEnablementState, IEnablementModel } from '../enablement.js';
 import { HookType } from '../promptSyntax/hookTypes.js';
 import { IMarketplacePlugin } from './pluginMarketplaceService.js';
@@ -32,8 +32,11 @@ export type IAgentPluginMcpServerDefinition = IMcpServerDefinition;
 
 export interface IAgentPlugin {
 	readonly uri: URI;
+	readonly format: PluginFormat;
 	/** Human-readable display name for the plugin. */
 	readonly label: string;
+	/** Version declared by the plugin manifest, falling back to marketplace metadata. */
+	readonly version?: IObservable<string | undefined>;
 	readonly enablement: IObservable<ContributionEnablementState>;
 	/**
 	 * When `true`, the plugin is blocked by enterprise policy. It remains
@@ -43,7 +46,7 @@ export interface IAgentPlugin {
 	 */
 	readonly policyBlocked?: IObservable<boolean>;
 	/** Removes this plugin from its discovery source (config or installed storage). Undefined for policy-managed plugins that cannot be removed by the user. */
-	remove?(): void;
+	remove?(): Promise<boolean>;
 	readonly hooks: IObservable<readonly IAgentPluginHook[]>;
 	readonly commands: IObservable<readonly IAgentPluginCommand[]>;
 	readonly skills: IObservable<readonly IAgentPluginSkill[]>;

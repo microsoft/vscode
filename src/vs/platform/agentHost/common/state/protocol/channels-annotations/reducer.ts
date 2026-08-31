@@ -45,8 +45,8 @@ export function annotationsReducer(state: AnnotationsState, action: AnnotationsA
 			}
 			const annotation = state.annotations[idx];
 			const updated: Annotation = { ...annotation };
-			if (action.turnId !== undefined) {
-				updated.turnId = action.turnId;
+			if (action.origin !== undefined) {
+				updated.origin = action.origin;
 			}
 			if (action.resource !== undefined) {
 				updated.resource = action.resource;

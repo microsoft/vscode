@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { fetchAuthorizationServerMetadata } from '../../../../../../base/common/oauth.js';
+import { SequencerByKey } from '../../../../../../base/common/async.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { type McpOAuthClient, type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
+import { type McpOAuthClient, type ModelSelection, type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -33,6 +35,24 @@ import { IChatSetupResult } from '../../chatSetup/chatSetup.js';
  */
 export function agentHostMcpServerId(authority: string, serverName: string, resourceUrl: string): string {
 	return `agent-host-mcp:${authority}/${encodeURIComponent(serverName)}/${encodeURIComponent(resourceUrl)}`;
+}
+
+/**
+ * Whether creating a session with the selected model requires the agent's protected-resource authentication.
+ */
+export function modelRequiresAgentAuthentication(agent: AgentInfo | undefined, model: ModelSelection | undefined, allowSignedOutWhenUsable = false): boolean {
+	if (!agent?.protectedResources?.length) {
+		return false;
+	}
+	const requiresAuthentication = agent.protectedResources.some(resource => resource.required !== false);
+	if (!allowSignedOutWhenUsable || !agent.models.some(candidate => readAgentModelByokIdentifier(candidate) !== undefined)) {
+		return requiresAuthentication;
+	}
+	if (!model) {
+		return true;
+	}
+	const selectedModel = agent.models.find(candidate => candidate.id === model.id);
+	return !selectedModel || readAgentModelByokIdentifier(selectedModel) === undefined;
 }
 
 /**
@@ -146,6 +166,94 @@ export class AgentHostAuthTokenCache {
 }
 
 /**
+ * Returns a stable identity for an authentication challenge.
+ */
+function protectedResourceAuthenticationKey(resource: ProtectedResourceMetadata): string {
+	return JSON.stringify([
+		resource.resource,
+		[...new Set(resource.scopes_supported ?? [])].sort(),
+		resource.authorization_servers ?? [],
+	]);
+}
+
+/**
+ * Coordinates recovery from authentication challenges for one agent-host connection.
+ */
+export class AgentHostAuthenticationRecovery {
+	private readonly _resentTokens = new Map<string, string>();
+	private readonly _pendingRecoveries = new Map<string, Promise<void>>();
+
+	clear(): void {
+		this._resentTokens.clear();
+		this._pendingRecoveries.clear();
+	}
+
+	recover(accessor: ServicesAccessor, resource: ProtectedResourceMetadata, options: IAgentHostAuthenticationOptions): Promise<void> {
+		const key = protectedResourceAuthenticationKey(resource);
+		const pendingRecovery = this._pendingRecoveries.get(key);
+		if (pendingRecovery) {
+			return pendingRecovery;
+		}
+
+		const recovery = this._recover(accessor, key, resource, options)
+			.finally(() => {
+				if (this._pendingRecoveries.get(key) === recovery) {
+					this._pendingRecoveries.delete(key);
+				}
+			});
+		this._pendingRecoveries.set(key, recovery);
+		return recovery;
+	}
+
+	private async _recover(accessor: ServicesAccessor, key: string, resource: ProtectedResourceMetadata, options: IAgentHostAuthenticationOptions): Promise<void> {
+		throwIfAuthenticationStale(options);
+		const authenticationService = accessor.get(IAuthenticationService);
+		const commandService = accessor.get(ICommandService);
+		const logService = accessor.get(ILogService);
+		const scopes = resource.scopes_supported ?? [];
+		const token = await resolveTokenForResource(
+			URI.parse(resource.resource),
+			resource.authorization_servers ?? [],
+			scopes,
+			authenticationService,
+			logService,
+			options.logPrefix,
+		);
+		throwIfAuthenticationStale(options);
+		if (!token) {
+			logService.info(`${options.logPrefix} No token resolved for resource: ${resource.resource}`);
+			options.authTokenCache?.clear(resource.resource, resource.scopes_supported);
+			if (await forwardAuthenticationToken(options, resource.resource, scopes, '')) {
+				this._resentTokens.delete(key);
+				logService.info(`${options.logPrefix} Clearing authentication for resource: ${resource.resource}`);
+			}
+			return;
+		}
+
+		const previousToken = this._resentTokens.get(key);
+		if (previousToken !== undefined && previousToken === token) {
+			options.authTokenCache?.clear(resource.resource, resource.scopes_supported);
+			throwIfAuthenticationStale(options);
+			const interactiveToken = await forceAuthenticationInteractively(authenticationService, commandService, logService, resource, options);
+			throwIfAuthenticationStale(options);
+			if (interactiveToken) {
+				this._resentTokens.set(key, interactiveToken);
+				if (interactiveToken === token) {
+					logService.info(`${options.logPrefix} Interactive authentication completed without a new token for ${resource.resource}`);
+				}
+			}
+			return;
+		}
+
+		options.authTokenCache?.clear(resource.resource, resource.scopes_supported);
+		if (await forwardAuthenticationToken(options, resource.resource, resource.scopes_supported ?? [], token)) {
+			this._resentTokens.set(key, token);
+			logService.info(`${options.logPrefix} Authenticating for resource: ${resource.resource}`);
+		}
+	}
+}
+
+/**
  * Resolves a bearer token for a protected resource by trying each
  * authorization server in order. First attempts an exact scope match,
  * then falls back to finding the session whose scopes are the narrowest
@@ -170,8 +278,9 @@ export async function resolveTokenForResource(
 
 		// Try exact scope match first
 		const sessions = await authenticationService.getSessions(providerId, [...scopes], { authorizationServer: serverUri }, true);
-		if (sessions.length > 0) {
-			return sessions[0].accessToken;
+		const exactSession = sessions[0];
+		if (exactSession) {
+			return exactSession.accessToken;
 		}
 
 		// Fall back: get all sessions and find the narrowest superset of requested scopes
@@ -206,12 +315,14 @@ export async function resolveTokenForResource(
 export interface IAgentHostAuthenticateRequest {
 	readonly resource: string;
 	readonly scopes?: readonly string[];
+	/** An empty token revokes the credential previously forwarded for this resource and scope set. */
 	readonly token: string;
 }
 
 export interface IAgentHostAuthenticationOptions {
 	readonly authTokenCache?: AgentHostAuthTokenCache;
 	readonly logPrefix: string;
+	readonly isCurrent?: () => boolean;
 	readonly authenticate: (request: IAgentHostAuthenticateRequest) => Promise<unknown>;
 }
 
@@ -237,17 +348,24 @@ export interface IAgentHostMcpAuthenticationOptionsBase {
 }
 
 async function forwardAuthenticationToken(
-	options: Pick<IAgentHostAuthenticationOptions, 'authTokenCache' | 'authenticate'>,
+	options: Pick<IAgentHostAuthenticationOptions, 'authTokenCache' | 'authenticate' | 'isCurrent'>,
 	resource: string,
 	scopes: readonly string[],
 	token: string,
 ): Promise<boolean> {
+	throwIfAuthenticationStale(options);
 	const request = { resource, scopes, token };
 	if (options.authTokenCache) {
 		return options.authTokenCache.authenticate(resource, scopes, token, () => options.authenticate(request));
 	}
 	await options.authenticate(request);
 	return true;
+}
+
+function throwIfAuthenticationStale(options: Pick<IAgentHostAuthenticationOptions, 'isCurrent'>): void {
+	if (options.isCurrent?.() === false) {
+		throw new CancellationError();
+	}
 }
 
 /**
@@ -263,29 +381,61 @@ export async function authenticateProtectedResources(
 	const logService = accessor.get(ILogService);
 	for (const agent of agents) {
 		for (const resource of agent.protectedResources ?? []) {
-			const resourceUri = URI.parse(resource.resource);
-			const scopes = resource.scopes_supported ?? [];
-			const token = await resolveTokenForResource(
-				resourceUri,
-				resource.authorization_servers ?? [],
-				scopes,
-				authenticationService,
-				logService,
-				options.logPrefix,
-			);
-			if (!token) {
-				logService.info(`${options.logPrefix} No token resolved for resource: ${resource.resource}`);
-				continue;
-			}
-
-			const authenticated = await forwardAuthenticationToken(options, resource.resource, scopes, token);
-			if (!authenticated) {
-				logService.trace(`${options.logPrefix} Auth token for ${resource.resource} unchanged; skipping authenticate RPC`);
-				continue;
-			}
-			logService.info(`${options.logPrefix} Authenticating for resource: ${resource.resource}`);
+			await authenticateProtectedResourceWithServices(authenticationService, logService, resource, options);
 		}
 	}
+}
+
+/**
+ * Resolves and forwards a bearer token for a single protected resource.
+ */
+export async function authenticateProtectedResource(
+	accessor: ServicesAccessor,
+	resource: ProtectedResourceMetadata,
+	options: IAgentHostAuthenticationOptions,
+): Promise<boolean> {
+	return authenticateProtectedResourceWithServices(accessor.get(IAuthenticationService), accessor.get(ILogService), resource, options);
+}
+
+async function authenticateProtectedResourceWithServices(
+	authenticationService: IAuthenticationService,
+	logService: ILogService,
+	resource: ProtectedResourceMetadata,
+	options: IAgentHostAuthenticationOptions,
+): Promise<boolean> {
+	throwIfAuthenticationStale(options);
+	const token = await resolveTokenForProtectedResource(authenticationService, logService, resource, options);
+	throwIfAuthenticationStale(options);
+
+	const authenticated = await forwardAuthenticationToken(options, resource.resource, resource.scopes_supported ?? [], token ?? '');
+	if (!authenticated) {
+		logService.trace(`${options.logPrefix} Authentication state for ${resource.resource} unchanged; skipping authenticate RPC`);
+		return false;
+	}
+	logService.info(token
+		? `${options.logPrefix} Authenticating for resource: ${resource.resource}`
+		: `${options.logPrefix} Clearing authentication for resource: ${resource.resource}`);
+	return true;
+}
+
+async function resolveTokenForProtectedResource(
+	authenticationService: IAuthenticationService,
+	logService: ILogService,
+	resource: ProtectedResourceMetadata,
+	options: Pick<IAgentHostAuthenticationOptions, 'logPrefix'>,
+): Promise<string | undefined> {
+	const token = await resolveTokenForResource(
+		URI.parse(resource.resource),
+		resource.authorization_servers ?? [],
+		resource.scopes_supported ?? [],
+		authenticationService,
+		logService,
+		options.logPrefix,
+	);
+	if (!token) {
+		logService.info(`${options.logPrefix} No token resolved for resource: ${resource.resource}`);
+	}
+	return token;
 }
 
 /**
@@ -301,9 +451,10 @@ export async function resolveAuthenticationInteractively(
 	const commandService = accessor.get(ICommandService);
 	const logService = accessor.get(ILogService);
 	for (const resource of protectedResources) {
+		throwIfAuthenticationStale(options);
 		const resourceUri = URI.parse(resource.resource);
 		const scopes = resource.scopes_supported ?? [];
-		let token = await resolveTokenForResource(
+		const existingToken = await resolveTokenForResource(
 			resourceUri,
 			resource.authorization_servers ?? [],
 			scopes,
@@ -311,42 +462,61 @@ export async function resolveAuthenticationInteractively(
 			logService,
 			options.logPrefix,
 		);
-		if (token) {
-			await forwardAuthenticationToken(options, resource.resource, scopes, token);
+		throwIfAuthenticationStale(options);
+		if (existingToken) {
+			await forwardAuthenticationToken(options, resource.resource, scopes, existingToken);
 			logService.info(`${options.logPrefix} Interactive authentication succeeded for ${resource.resource}`);
 			return true;
 		}
 
-		const setupResult = await commandService.executeCommand<IChatSetupResult>(CHAT_SETUP_ACTION_ID, undefined, {
-			forceSignInDialog: true,
-			additionalScopes: scopes,
-			dialogTitle: localize('agentHost.signInDialogTitle', "Sign in to use GitHub Copilot"),
-			disableChatViewReveal: true,
-			returnResult: true,
-		});
-		if (setupResult?.success === undefined) {
-			return false;
-		}
-		if (!setupResult.success) {
-			throw setupResult.error ?? new Error(localize('agentHost.signInFailed', "Failed to sign in to use GitHub Copilot."));
-		}
-		token = await resolveTokenForResource(
-			resourceUri,
-			resource.authorization_servers ?? [],
-			scopes,
-			authenticationService,
-			logService,
-			options.logPrefix,
-		);
-		if (!token) {
-			return false;
-		}
-		await forwardAuthenticationToken(options, resource.resource, scopes, token);
-		logService.info(`${options.logPrefix} Interactive authentication succeeded for ${resource.resource}`);
-		return true;
+		return (await forceAuthenticationInteractively(authenticationService, commandService, logService, resource, options)) !== undefined;
 	}
 
 	return false;
+}
+
+async function forceAuthenticationInteractively(
+	authenticationService: IAuthenticationService,
+	commandService: ICommandService,
+	logService: ILogService,
+	resource: ProtectedResourceMetadata,
+	options: IAgentHostAuthenticationOptions,
+): Promise<string | undefined> {
+	throwIfAuthenticationStale(options);
+	const scopes = resource.scopes_supported ?? [];
+	const setupResult = await commandService.executeCommand<IChatSetupResult>(CHAT_SETUP_ACTION_ID, undefined, {
+		forceSignInDialog: true,
+		additionalScopes: scopes,
+		dialogTitle: localize('agentHost.signInDialogTitle', "Sign in to use GitHub Copilot"),
+		disableChatViewReveal: true,
+		returnResult: true,
+	});
+	throwIfAuthenticationStale(options);
+	if (setupResult?.success === undefined) {
+		return undefined;
+	}
+	if (!setupResult.success) {
+		throw setupResult.error ?? new Error(localize('agentHost.signInFailed', "Failed to sign in to use GitHub Copilot."));
+	}
+	const token = await resolveTokenForResource(
+		URI.parse(resource.resource),
+		resource.authorization_servers ?? [],
+		scopes,
+		authenticationService,
+		logService,
+		options.logPrefix,
+	);
+	throwIfAuthenticationStale(options);
+	if (!token) {
+		logService.info(`${options.logPrefix} Interactive authentication did not provide a token for ${resource.resource}`);
+		return undefined;
+	}
+	options.authTokenCache?.clear(resource.resource, scopes);
+	if (!await forwardAuthenticationToken(options, resource.resource, scopes, token)) {
+		return undefined;
+	}
+	logService.info(`${options.logPrefix} Interactive authentication completed for ${resource.resource}`);
+	return token;
 }
 
 export async function resolveMcpServerAuthentication(
@@ -358,10 +528,8 @@ export async function resolveMcpServerAuthentication(
 	const authenticationMcpAccessService = accessor.get(IAuthenticationMcpAccessService);
 	const authenticationMcpService = accessor.get(IAuthenticationMcpService);
 	const authenticationMcpUsageService = accessor.get(IAuthenticationMcpUsageService);
+	const dynamicAuthenticationProviderStorageService = accessor.get(IDynamicAuthenticationProviderStorageService);
 	const logService = accessor.get(ILogService);
-	const dynamicAuthenticationProviderStorageService = options.oauthClient
-		? accessor.get(IDynamicAuthenticationProviderStorageService)
-		: undefined;
 	const agentHostMeta = options.agentHost
 		? { authority: options.agentHost.authority, label: accessor.get(ILabelService).getHostLabel(options.agentHost.scheme, options.agentHost.authority) }
 		: undefined;
@@ -369,56 +537,75 @@ export async function resolveMcpServerAuthentication(
 	const scopes = options.scopes.length > 0 || isGitHubMcpResource(protectedResource)
 		? options.scopes
 		: protectedResource.scopes_supported ?? [];
+	const authenticationOperations = getMcpAuthenticationOperations(authenticationService);
 	for (const authorizationServer of protectedResource.authorization_servers ?? []) {
 		const authorizationServerUri = URI.parse(authorizationServer);
-		const providerId = await getOrCreateProviderForMcpResource(
-			authorizationServerUri,
-			protectedResource,
-			options.oauthClient,
-			authenticationService,
-			dynamicAuthenticationProviderStorageService,
-			logService,
-			options.logPrefix,
-			options.allowInteraction,
-			options.authorizationServerMetadataFetcher ?? fetchAuthorizationServerMetadata,
-		);
-		if (!providerId) {
-			continue;
-		}
+		const providerOperationId = getDynamicAuthenticationProviderId(authorizationServerUri, protectedResource);
+		const authenticated = await authenticationOperations.queue(providerOperationId, async () => {
+			const providerId = await getOrCreateProviderForMcpResource(
+				authorizationServerUri,
+				protectedResource,
+				options.oauthClient,
+				authenticationService,
+				dynamicAuthenticationProviderStorageService,
+				logService,
+				options.logPrefix,
+				options.allowInteraction,
+				options.authorizationServerMetadataFetcher ?? fetchAuthorizationServerMetadata,
+			);
+			if (!providerId) {
+				return false;
+			}
 
-		const oauthClientOptions = options.oauthClient
-			? { clientId: options.oauthClient.clientId, clientSecret: options.oauthClient.clientSecret }
-			: {};
-		const sessions = await authenticationService.getSessions(providerId, [...scopes], {
-			authorizationServer: authorizationServerUri,
-			resource: protectedResource.resource,
-			...oauthClientOptions,
-		}, true);
-		const allowedSession = getAllowedMcpSession(providerId, sessions, authenticationMcpAccessService, authenticationMcpService, options);
-		if (allowedSession) {
-			await authenticateMcpSession(providerId, allowedSession, scopes, authenticationMcpAccessService, authenticationMcpService, authenticationMcpUsageService, logService, options, false, agentHostMeta);
-			return true;
-		}
-
-		if (!options.allowInteraction) {
-			continue;
-		}
-
-		const provider = authenticationService.getProvider(providerId);
-		const session = sessions.length
-			? provider.supportsMultipleAccounts
-				? await authenticationMcpService.selectSession(providerId, options.mcpServerId, options.mcpServerName, [...scopes], sessions)
-				: sessions[0]
-			: await authenticationService.createSession(providerId, [...scopes], {
-				activateImmediate: true,
+			const oauthClientOptions = options.oauthClient
+				? { clientId: options.oauthClient.clientId, clientSecret: options.oauthClient.clientSecret }
+				: {};
+			const sessions = await authenticationService.getSessions(providerId, [...scopes], {
 				authorizationServer: authorizationServerUri,
 				resource: protectedResource.resource,
 				...oauthClientOptions,
-			});
-		await authenticateMcpSession(providerId, session, scopes, authenticationMcpAccessService, authenticationMcpService, authenticationMcpUsageService, logService, options, true, agentHostMeta);
-		return true;
+				silent: !options.allowInteraction,
+			}, true);
+			const allowedSession = getAllowedMcpSession(providerId, sessions, authenticationMcpAccessService, authenticationMcpService, options);
+			if (allowedSession) {
+				await authenticateMcpSession(providerId, allowedSession, scopes, authenticationMcpAccessService, authenticationMcpService, authenticationMcpUsageService, logService, options, false, agentHostMeta);
+				return true;
+			}
+
+			if (!options.allowInteraction) {
+				return false;
+			}
+
+			const provider = authenticationService.getProvider(providerId);
+			const session = sessions.length
+				? provider.supportsMultipleAccounts
+					? await authenticationMcpService.selectSession(providerId, options.mcpServerId, options.mcpServerName, [...scopes], sessions)
+					: sessions[0]
+				: await authenticationService.createSession(providerId, [...scopes], {
+					activateImmediate: true,
+					authorizationServer: authorizationServerUri,
+					resource: protectedResource.resource,
+					...oauthClientOptions,
+				});
+			await authenticateMcpSession(providerId, session, scopes, authenticationMcpAccessService, authenticationMcpService, authenticationMcpUsageService, logService, options, true, agentHostMeta);
+			return true;
+		});
+		if (authenticated) {
+			return true;
+		}
 	}
 	return false;
+}
+
+const mcpAuthenticationOperations = new WeakMap<IAuthenticationService, SequencerByKey<string>>();
+
+function getMcpAuthenticationOperations(authenticationService: IAuthenticationService): SequencerByKey<string> {
+	let operations = mcpAuthenticationOperations.get(authenticationService);
+	if (!operations) {
+		operations = new SequencerByKey();
+		mcpAuthenticationOperations.set(authenticationService, operations);
+	}
+	return operations;
 }
 
 function isGitHubMcpResource(resource: ProtectedResourceMetadata): boolean {
@@ -430,41 +617,49 @@ async function getOrCreateProviderForMcpResource(
 	protectedResource: ProtectedResourceMetadata,
 	oauthClient: McpOAuthClient | undefined,
 	authenticationService: IAuthenticationService,
-	dynamicAuthenticationProviderStorageService: IDynamicAuthenticationProviderStorageService | undefined,
+	dynamicAuthenticationProviderStorageService: IDynamicAuthenticationProviderStorageService,
 	logService: ILogService,
 	logPrefix: string,
 	allowCreation: boolean,
 	authorizationServerMetadataFetcher: typeof fetchAuthorizationServerMetadata,
 ): Promise<string | undefined> {
 	const resourceUri = URI.parse(protectedResource.resource);
+	const dynamicProviderId = getDynamicAuthenticationProviderId(authorizationServer, protectedResource);
+	let clientId = oauthClient?.clientId;
+	let clientSecret = oauthClient?.clientSecret;
 	if (oauthClient) {
-		if (!dynamicAuthenticationProviderStorageService) {
-			throw new Error('Dynamic authentication provider storage is required for a configured OAuth client.');
-		}
-		const dynamicProviderId = getDynamicAuthenticationProviderId(authorizationServer, protectedResource);
-		if (authenticationService.isDynamicAuthenticationProvider(dynamicProviderId)) {
-			const registered = await dynamicAuthenticationProviderStorageService.getClientRegistration(dynamicProviderId);
-			if (registered?.clientId === oauthClient.clientId && registered.clientSecret === oauthClient.clientSecret) {
+		const isProviderActive = authenticationService.isDynamicAuthenticationProvider(dynamicProviderId);
+		const registeredClient = await dynamicAuthenticationProviderStorageService.getClientRegistration(dynamicProviderId);
+		const clientMatches = registeredClient?.clientId === oauthClient.clientId && registeredClient.clientSecret === oauthClient.clientSecret;
+		if (clientMatches) {
+			if (isProviderActive) {
 				return dynamicProviderId;
 			}
+		} else {
 			if (!allowCreation) {
 				return undefined;
 			}
-			authenticationService.unregisterAuthenticationProvider(dynamicProviderId);
-			await dynamicAuthenticationProviderStorageService.removeDynamicProvider(dynamicProviderId);
-		} else if (!allowCreation) {
-			return undefined;
+			if (isProviderActive) {
+				authenticationService.unregisterAuthenticationProvider(dynamicProviderId);
+				await dynamicAuthenticationProviderStorageService.removeDynamicProvider(dynamicProviderId);
+			}
 		}
 	} else {
 		const existing = await authenticationService.getOrActivateProviderIdForServer(authorizationServer, resourceUri);
-		if (existing || !allowCreation) {
+		if (existing) {
 			return existing;
 		}
+		const registeredClient = await dynamicAuthenticationProviderStorageService.getClientRegistration(dynamicProviderId);
+		if (!registeredClient?.clientId && !allowCreation) {
+			return undefined;
+		}
+		clientId = registeredClient?.clientId;
+		clientSecret = registeredClient?.clientSecret;
 	}
 
 	try {
 		const { metadata } = await authorizationServerMetadataFetcher(authorizationServer.toString(true));
-		const provider = await authenticationService.createDynamicAuthenticationProvider(authorizationServer, metadata, protectedResource, oauthClient?.clientId, oauthClient?.clientSecret);
+		const provider = await authenticationService.createDynamicAuthenticationProvider(authorizationServer, metadata, protectedResource, clientId, clientSecret);
 		return provider?.id;
 	} catch (err) {
 		logService.warn(`${logPrefix} Failed to create MCP auth provider for ${authorizationServer.toString(true)}`, err);

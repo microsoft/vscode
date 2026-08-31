@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable } from '../../../../base/common/observable.js';
 import { localize2 } from '../../../../nls.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -14,14 +14,17 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatInputPickerOptions } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { IModelPickerDelegate, ModelPickerActionItem } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerActionItem.js';
+import { ChatPetAchievementIds, didExplicitlySwitchChatPetModel } from '../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
+import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { Menus } from '../../../browser/menus.js';
 import { IsPhoneLayoutContext, SessionUsesCombinedConfigPickerContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
-import { ISessionModelSelectionModel } from './sessionModelSelectionModel.js';
+import { ISessionModelSelection } from './sessionModelSelection.js';
 import { INewChatModelPickerService } from './newChatModelPicker.js';
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
+import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 
 /**
  * The sessions-core model picker. Unlike the previous per-provider pickers,
@@ -36,6 +39,7 @@ export class ModelPicker extends Disposable {
 
 	private readonly _delegate: IModelPickerDelegate;
 	private readonly _modelPicker: ModelPickerActionItem;
+	private readonly _renderDisposables = this._register(new DisposableStore());
 	private _container: HTMLElement | undefined;
 
 	constructor(
@@ -46,7 +50,8 @@ export class ModelPicker extends Disposable {
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 		@ISessionContext private readonly _sessionContext: ISessionContext,
-		@ISessionModelSelectionModel private readonly _selectionModel: ISessionModelSelectionModel,
+		@ISessionModelSelection private readonly _selectionModel: ISessionModelSelection,
+		@IChatPetService private readonly _chatPetService: IChatPetService,
 	) {
 		super();
 		const currentModel = derived(this, reader => this._selectionModel.state.read(reader).currentModel);
@@ -56,6 +61,9 @@ export class ModelPicker extends Disposable {
 			setModel: model => {
 				const previousModel = this._selectionModel.state.get().currentModel;
 				if (this._selectionModel.selectModel(model.identifier)) {
+					if (didExplicitlySwitchChatPetModel(previousModel?.identifier, model.identifier)) {
+						this._chatPetService.unlockAchievement(ChatPetAchievementIds.ModelSwitch);
+					}
 					reportNewChatPickerClosed(this._telemetryService, {
 						id: 'NewChatModelPicker',
 						optionIdBefore: previousModel?.identifier,
@@ -67,11 +75,10 @@ export class ModelPicker extends Disposable {
 				}
 			},
 			getModels: () => [...this._selectionModel.state.get().models],
-			useGroupedModelPicker: () => this._selectionModel.state.get().options.useGroupedModelPicker,
-			showManageModelsAction: () => this._selectionModel.state.get().options.showManageModelsAction,
-			showUnavailableFeatured: () => this._selectionModel.state.get().options.showUnavailableFeatured,
-			showFeatured: () => this._selectionModel.state.get().options.showFeatured,
-			showAutoModel: () => this._selectionModel.state.get().options.showAutoModel,
+			getPresentationOptions: () => ({
+				...this._selectionModel.state.get().options,
+				showModelIcon: true,
+			}),
 			isCacheWarm: () => {
 				const session = this._sessionContext.session.get();
 				// The session's prompt cache is warm once its first request has
@@ -117,8 +124,12 @@ export class ModelPicker extends Disposable {
 	}
 
 	render(container: HTMLElement): void {
+		this._renderDisposables.clear();
 		this._container = container;
 		this._modelPicker.render(container);
+		this._renderDisposables.add(markOnboardingTarget(container, 'sessions.newSession.modelPicker', {
+			open: () => this._modelPicker.openModelPicker(),
+		}));
 		this._updatePickerState();
 	}
 

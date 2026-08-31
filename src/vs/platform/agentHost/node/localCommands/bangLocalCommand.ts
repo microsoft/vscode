@@ -57,7 +57,7 @@ export class BangLocalCommand extends Disposable implements ILocalChatCommand {
 		const displayName = localize('agentHostBang.terminal', "Terminal");
 		let terminalCreated = false;
 		try {
-			const workingDirStr = ctx.getState(sessionChannel)?.workingDirectory;
+			const workingDirStr = ctx.getState(sessionChannel)?.workingDirectories?.[0];
 			const cwd = workingDirStr ? URI.parse(workingDirStr).fsPath : undefined;
 			const shellPath = await ctx.terminalManager.getDefaultShell();
 			const shellType = shellTypeForExecutable(shellPath);
@@ -84,6 +84,7 @@ export class BangLocalCommand extends Disposable implements ILocalChatCommand {
 			const claim: TerminalSessionClaim = {
 				kind: TerminalClaimKind.Session,
 				session: sessionChannel,
+				chat: turnChannel,
 				turnId,
 				toolCallId,
 			};

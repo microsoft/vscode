@@ -16,10 +16,10 @@ import { AICustomizationManagementSection } from './aiCustomizationManagement.js
 import { agentIcon, instructionsIcon, pluginIcon, skillIcon, hookIcon, toolsIcon } from './aiCustomizationIcons.js';
 import { IAICustomizationWorkspaceService, IWelcomePageFeatures } from '../../common/aiCustomizationWorkspaceService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import type { IAICustomizationWelcomePageImplementation, IWelcomePageCallbacks } from './aiCustomizationWelcomePage.js';
+import type { IAICustomizationWelcomePageImplementation, ICustomizationMigrationCategorySummary, IWelcomePageCallbacks } from './aiCustomizationWelcomePage.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { IPromptMigrationInfo } from './promptMigration.js';
+import { CONFIGURE_DICTATION_INSTRUCTIONS_ACTION_ID, CONFIGURE_VOICE_INSTRUCTIONS_ACTION_ID } from '../actions/configureVoiceInstructionsAction.js';
 
 const $ = DOM.$;
 
@@ -29,6 +29,13 @@ interface IPromptLaunchersCategoryDescription {
 	readonly icon: ThemeIcon;
 	readonly description: string;
 	readonly promptType?: PromptsType;
+}
+
+interface IStandaloneCustomizationDescription {
+	readonly label: string;
+	readonly icon: ThemeIcon;
+	readonly description: string;
+	readonly commandId: string;
 }
 
 export class PromptLaunchersAICustomizationWelcomePage extends Disposable implements IAICustomizationWelcomePageImplementation {
@@ -46,54 +53,69 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 	private sentLabel: HTMLElement | undefined;
 	private submitBtn: HTMLElement | undefined;
 	private inputRow: HTMLElement | undefined;
-	private promptMigrationInfo: IPromptMigrationInfo | undefined;
+	private migrationCategories: readonly ICustomizationMigrationCategorySummary[] = [];
 
 	private readonly categoryDescriptions: IPromptLaunchersCategoryDescription[] = [
 		{
 			id: AICustomizationManagementSection.Agents,
 			label: localize('agents', "Agents"),
 			icon: agentIcon,
-			description: localize('agentsDesc', "Define custom agents with specialized personas, tool access, and instructions for specific tasks."),
+			description: localize('agentsDesc', "Create specialized agents for focused development tasks. Control their instructions, tools, and behavior."),
 			promptType: PromptsType.agent,
 		},
 		{
 			id: AICustomizationManagementSection.Skills,
 			label: localize('skills', "Skills"),
 			icon: skillIcon,
-			description: localize('skillsDesc', "Create reusable skill files that provide domain-specific knowledge and workflows."),
+			description: localize('skillsDesc', "Add reusable knowledge and workflows for specialized tasks. Agents load relevant skills when needed."),
 			promptType: PromptsType.skill,
 		},
 		{
 			id: AICustomizationManagementSection.Instructions,
 			label: localize('instructions', "Instructions"),
 			icon: instructionsIcon,
-			description: localize('instructionsDesc', "Set always-on instructions that guide AI behavior across your workspace or user profile."),
+			description: localize('instructionsDesc', "Define guidance that shapes how agents work. Apply it across a workspace or keep it in your user profile."),
 			promptType: PromptsType.instructions,
 		},
 		{
 			id: AICustomizationManagementSection.Hooks,
 			label: localize('hooks', "Hooks"),
 			icon: hookIcon,
-			description: localize('hooksDesc', "Configure automated actions triggered by events like saving files or running tasks."),
+			description: localize('hooksDesc', "Run automated commands at key points in the agent lifecycle. Use hooks to validate, format, or coordinate work."),
 			promptType: PromptsType.hook,
 		},
 		{
 			id: AICustomizationManagementSection.McpServers,
 			label: localize('mcpServers', "MCP Servers"),
 			icon: Codicon.server,
-			description: localize('mcpServersDesc', "Connect external tool servers that extend AI capabilities with custom tools and data sources."),
+			description: localize('mcpServersDesc', "Connect agents to external tools and data through MCP servers. Manage the servers available to your agent."),
 		},
 		{
 			id: AICustomizationManagementSection.Plugins,
 			label: localize('plugins', "Plugins"),
 			icon: pluginIcon,
-			description: localize('pluginsDesc', "Install and manage agent plugins that add additional tools, skills, and integrations."),
+			description: localize('pluginsDesc', "Install reusable packages that extend the agent. Plugins can add tools, skills, agents, hooks, and MCP servers."),
 		},
 		{
 			id: AICustomizationManagementSection.Tools,
 			label: localize('tools', "Tools"),
 			icon: toolsIcon,
-			description: localize('toolsDesc', "Enable or disable the tools available to chat."),
+			description: localize('toolsDesc', "Review the tools available to the active agent. Enable or disable configurable tool groups."),
+		},
+	];
+
+	private readonly standaloneCustomizations: IStandaloneCustomizationDescription[] = [
+		{
+			label: localize('voiceModeInstructions', "Voice Mode Instructions"),
+			icon: Codicon.voiceMode,
+			description: localize('voiceModeInstructionsDesc', "Customize Voice Mode behavior and terminology with voice.md."),
+			commandId: CONFIGURE_VOICE_INSTRUCTIONS_ACTION_ID,
+		},
+		{
+			label: localize('dictationInstructions', "Dictation Instructions"),
+			icon: Codicon.mic,
+			description: localize('dictationInstructionsDesc', "Customize Dictation terminology and transcript formatting with dictation.md."),
+			commandId: CONFIGURE_DICTATION_INSTRUCTIONS_ACTION_ID,
 		},
 	];
 
@@ -101,7 +123,7 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 		parent: HTMLElement,
 		private readonly welcomePageFeatures: IWelcomePageFeatures | undefined,
 		private readonly callbacks: IWelcomePageCallbacks,
-		_commandService: ICommandService,
+		private readonly commandService: ICommandService,
 		private readonly workspaceService: IAICustomizationWorkspaceService,
 		private readonly hoverService: IHoverService,
 		private harnessLabel: string,
@@ -186,6 +208,8 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 					this.sentLabel.remove();
 				}
 				this.sentLabel = DOM.append(inputRow, $('span.welcome-prompts-sent-label'));
+				this.sentLabel.setAttribute('role', 'status');
+				this.sentLabel.setAttribute('aria-live', 'polite');
 				this.sentLabel.textContent = localize('sentToChat', "Sent to chat \u2713");
 
 				this.callbacks.prefillChat(query, { isPartialQuery: false, newChat: true });
@@ -236,14 +260,31 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 		DOM.clearNode(this.cardsContainer);
 		this.firstCard = undefined;
 
-		for (const category of this.categoryDescriptions) {
-			if (!visibleSectionIds.has(category.id)) {
+		if (this.migrationCategories.length > 0) {
+			const migrationGrid = this.renderOverviewSection(
+				localize('overviewNeedsAttention', "Needs Attention"),
+				localize('overviewNeedsAttentionDescription', "Review customizations that need an update for the active agent."),
+				'welcome-prompts-attention-section',
+			);
+			for (const category of this.migrationCategories) {
+				this.renderCustomizationMigrationCard(migrationGrid, category);
+			}
+		}
+
+		const exploreGrid = this.renderOverviewSection(
+			localize('overviewExploreCustomizations', "Explore Customizations"),
+			localize('overviewExploreCustomizationsDescription', "Manage what the active agent knows and can do."),
+			'welcome-prompts-explore-section',
+		);
+		for (const section of this.workspaceService.managementSections) {
+			const category = this.categoryDescriptions.find(candidate => candidate.id === section);
+			if (!category || !visibleSectionIds.has(category.id)) {
 				continue;
 			}
 
-			const card = DOM.append(this.cardsContainer, $('.welcome-prompts-card'));
-			card.setAttribute('tabindex', '0');
-			card.setAttribute('role', 'button');
+			const card = DOM.append(exploreGrid, $('button.welcome-prompts-card.welcome-prompts-navigation-card')) as HTMLButtonElement;
+			card.type = 'button';
+			card.setAttribute('aria-label', localize('openCustomizationCategory', "Open {0}", category.label));
 			if (!this.firstCard) {
 				this.firstCard = card;
 			}
@@ -257,55 +298,68 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 			const descEl = DOM.append(card, $('p.welcome-prompts-card-description'));
 			descEl.textContent = category.description;
 
-			const footer = DOM.append(card, $('.welcome-prompts-card-footer'));
-			if (category.promptType) {
-				const generateBtn = DOM.append(footer, $('button.welcome-prompts-card-action'));
-				generateBtn.textContent = localize('new', "New...");
-				generateBtn.setAttribute('aria-label', localize('newCategoryAriaLabel', "New {0}...", category.label));
-				this.cardDisposables.add(DOM.addDisposableListener(generateBtn, 'click', e => {
-					e.stopPropagation();
-					this.callbacks.closeEditor();
-					if (this.workspaceService.isSessionsWindow) {
-						const typeLabel = category.label.toLowerCase().replace(/s$/, '');
-						this.callbacks.prefillChat(`Create me a custom ${typeLabel} that `, { isPartialQuery: true, newChat: true });
-					} else {
-						this.workspaceService.generateCustomization(category.promptType!);
-					}
-				}));
-			} else {
-				const browseBtn = DOM.append(footer, $('button.welcome-prompts-card-action'));
-				browseBtn.textContent = localize('browse', "Browse...");
-				browseBtn.setAttribute('aria-label', localize('browseCategoryAriaLabel', "Browse {0}...", category.label));
-				this.cardDisposables.add(DOM.addDisposableListener(browseBtn, 'click', e => {
-					e.stopPropagation();
-					this.callbacks.selectSectionWithMarketplace(category.id);
-				}));
-			}
-
 			this.cardDisposables.add(DOM.addDisposableListener(card, 'click', () => {
 				this.callbacks.selectSection(category.id);
 			}));
-			this.cardDisposables.add(DOM.addDisposableListener(card, 'keydown', e => {
-				if (e.key === 'Enter' || e.key === ' ') {
-					e.preventDefault();
-					this.callbacks.selectSection(category.id);
-				}
-			}));
 		}
 
-		if (this.promptMigrationInfo) {
-			this.renderPromptMigrationCard();
+		if (!this.workspaceService.isSessionsWindow) {
+			const otherGrid = this.renderOverviewSection(
+				localize('overviewOtherCustomizations', "Other Customizations"),
+				localize('overviewOtherCustomizationsDescription', "Configure specialized voice and dictation behavior."),
+				'welcome-prompts-other-section',
+			);
+			for (const customization of this.standaloneCustomizations) {
+				this.renderStandaloneCustomization(otherGrid, customization);
+			}
 		}
 
 		// Content changed — recompute scroll dimensions.
 		this.scrollable.scanDomNode();
 	}
 
-	setPromptMigrationInfo(info: IPromptMigrationInfo | undefined): void {
-		const didChange = this.promptMigrationInfo?.totalPromptCount !== info?.totalPromptCount
-			|| this.promptMigrationInfo?.workspacePromptCount !== info?.workspacePromptCount
-			|| this.promptMigrationInfo?.userPromptCount !== info?.userPromptCount;
-		this.promptMigrationInfo = info;
+	private renderOverviewSection(title: string, description: string, className: string): HTMLElement {
+		const section = DOM.append(this.cardsContainer!, $('.welcome-prompts-overview-section'));
+		section.classList.add(className);
+		const heading = DOM.append(section, $('h3.welcome-prompts-overview-section-title'));
+		heading.textContent = title;
+		const descriptionElement = DOM.append(section, $('p.welcome-prompts-overview-section-description'));
+		descriptionElement.textContent = description;
+		return DOM.append(section, $('.welcome-prompts-overview-grid'));
+	}
+
+	private renderStandaloneCustomization(parent: HTMLElement, customization: IStandaloneCustomizationDescription): void {
+		const card = DOM.append(parent, $('button.welcome-prompts-card.welcome-prompts-navigation-card')) as HTMLButtonElement;
+		card.type = 'button';
+		card.setAttribute('aria-label', localize('configureCategoryAriaLabel', "Configure {0}", customization.label));
+		if (!this.firstCard) {
+			this.firstCard = card;
+		}
+
+		const cardHeader = DOM.append(card, $('.welcome-prompts-card-header'));
+		const iconEl = DOM.append(cardHeader, $('.welcome-prompts-card-icon'));
+		iconEl.classList.add(...ThemeIcon.asClassNameArray(customization.icon));
+		const labelEl = DOM.append(cardHeader, $('span.welcome-prompts-card-label'));
+		labelEl.textContent = customization.label;
+
+		const descEl = DOM.append(card, $('p.welcome-prompts-card-description'));
+		descEl.textContent = customization.description;
+
+		const configure = () => {
+			void this.commandService.executeCommand(customization.commandId);
+		};
+		this.cardDisposables.add(DOM.addDisposableListener(card, 'click', configure));
+	}
+
+	setMigrationCategories(categories: readonly ICustomizationMigrationCategorySummary[]): void {
+		const didChange = categories.length !== this.migrationCategories.length
+			|| categories.some((category, index) => {
+				const previous = this.migrationCategories[index];
+				return previous.id !== category.id
+					|| previous.count !== category.count
+					|| previous.description !== category.description;
+			});
+		this.migrationCategories = categories;
 		if (didChange) {
 			this.rebuildCards(this.visibleSectionIds);
 		}
@@ -321,83 +375,30 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 
 	private updateHeading(): void {
 		if (this.heading) {
-			this.heading.textContent = localize('welcomeHeadingWithHarness', "Agent Customizations for {0}", this.harnessLabel);
+			this.heading.textContent = localize('welcomeHeading', "Agent Customizations");
 		}
 	}
 
-	private renderPromptMigrationCard(): void {
-		if (!this.cardsContainer || !this.promptMigrationInfo) {
-			return;
-		}
-
-		const migrationCard = DOM.append(this.cardsContainer, $('.welcome-prompts-card.welcome-prompts-migration-card'));
-		migrationCard.setAttribute('tabindex', '0');
-		migrationCard.setAttribute('role', 'button');
-		if (!this.firstCard) {
-			this.firstCard = migrationCard;
-		}
+	private renderCustomizationMigrationCard(parent: HTMLElement, category: ICustomizationMigrationCategorySummary): void {
+		const migrationCard = DOM.append(parent, $('button.welcome-prompts-card.welcome-prompts-migration-card')) as HTMLButtonElement;
+		migrationCard.type = 'button';
+		migrationCard.setAttribute('aria-label', category.actionAriaLabel);
 
 		const cardHeader = DOM.append(migrationCard, $('.welcome-prompts-card-header'));
 		const iconEl = DOM.append(cardHeader, $('.welcome-prompts-card-icon'));
 		iconEl.classList.add(...ThemeIcon.asClassNameArray(Codicon.sync));
 		const labelEl = DOM.append(cardHeader, $('span.welcome-prompts-card-label'));
-		labelEl.textContent = localize('migratePromptFiles', "Migrate");
+		labelEl.textContent = category.label;
 
 		const descEl = DOM.append(migrationCard, $('p.welcome-prompts-card-description'));
-		descEl.textContent = this.getPromptMigrationDescription();
+		descEl.textContent = category.description;
 
-		const footer = DOM.append(migrationCard, $('.welcome-prompts-card-footer'));
-		const migrateBtn = DOM.append(footer, $('button.welcome-prompts-card-action'));
-		migrateBtn.textContent = localize('convertToSkills', "Convert to Skills...");
-		migrateBtn.setAttribute('aria-label', localize('convertPromptFilesAriaLabel', "Convert prompt files to skills"));
-		this.cardDisposables.add(DOM.addDisposableListener(migrateBtn, 'click', e => {
-			e.stopPropagation();
-			this.callbacks.migratePromptFiles();
-		}));
-
-		this.cardDisposables.add(DOM.addDisposableListener(migrationCard, 'click', () => {
-			this.callbacks.migratePromptFiles();
-		}));
-		this.cardDisposables.add(DOM.addDisposableListener(migrationCard, 'keydown', e => {
-			if (e.key === 'Enter' || e.key === ' ') {
-				e.preventDefault();
-				this.callbacks.migratePromptFiles();
-			}
-		}));
-	}
-
-	private getPromptMigrationDescription(): string {
-		if (!this.promptMigrationInfo) {
-			return '';
+		if (!this.firstCard) {
+			this.firstCard = migrationCard;
 		}
-
-		const { workspacePromptCount, userPromptCount, totalPromptCount } = this.promptMigrationInfo;
-		if (workspacePromptCount > 0 && userPromptCount > 0) {
-			return localize(
-				'promptMigrationCardDescriptionWorkspaceAndUser',
-				"Prompt files are deprecated for this harness. Found {0} prompt files ({1} workspace, {2} global) that local VS Code can still run, but {3} ignores. Convert them to skills to keep them available.",
-				totalPromptCount,
-				workspacePromptCount,
-				userPromptCount,
-				this.harnessLabel,
-			);
-		}
-
-		if (workspacePromptCount > 0) {
-			return localize(
-				'promptMigrationCardDescriptionWorkspace',
-				"Prompt files are deprecated for this harness. Found {0} workspace prompt files that local VS Code can still run, but {1} ignores. Convert them to skills to keep them available.",
-				workspacePromptCount,
-				this.harnessLabel,
-			);
-		}
-
-		return localize(
-			'promptMigrationCardDescriptionUser',
-			"Prompt files are deprecated for this harness. Found {0} global prompt files that local VS Code can still run, but {1} ignores. Convert them to skills to keep them available.",
-			userPromptCount,
-			this.harnessLabel,
-		);
+		const actionLabel = DOM.append(migrationCard, $('span.welcome-prompts-card-action-label'));
+		actionLabel.textContent = category.actionLabel;
+		this.cardDisposables.add(DOM.addDisposableListener(migrationCard, 'click', () => this.callbacks.migrateCustomizations(category.id)));
 	}
 
 	focus(): void {

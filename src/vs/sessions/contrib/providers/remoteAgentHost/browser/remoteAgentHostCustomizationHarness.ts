@@ -110,7 +110,6 @@ export class RemoteAgentPluginController extends Disposable {
 			id: customizationId(uriString),
 			uri: uriString,
 			name: basename(original) || original.path,
-			enabled: true,
 		};
 
 		const current = this.getConfiguredCustomizations();

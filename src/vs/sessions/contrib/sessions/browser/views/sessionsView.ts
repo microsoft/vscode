@@ -7,6 +7,7 @@ import '../media/sessionsViewPane.css';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
@@ -23,10 +24,11 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { IViewPaneOptions, IViewPaneLocationColors, ViewPane } from '../../../../../workbench/browser/parts/views/viewPane.js';
 import { IViewDescriptorService } from '../../../../../workbench/common/views.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { localize } from '../../../../../nls.js';
 import { SessionsList, SessionsGrouping, SessionsSorting } from './sessionsList.js';
-import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { AICustomizationShortcutsWidget } from '../aiCustomizationShortcutsWidget.js';
 import { AgentHostShortcutsWidget } from '../agentHostShortcutsWidget.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -50,21 +52,7 @@ const GROUPING_STORAGE_KEY = 'sessionsViewPane.grouping';
 const SORTING_STORAGE_KEY = 'sessionsViewPane.sorting';
 const CUSTOMIZATIONS_MIN_HEIGHT = 129;
 const SESSIONS_SECTION_MIN_HEIGHT = 120;
-
-/**
- * Place the given session in the sessions grid to the right of the last
- * currently-visible session (as a non-sticky entry) and make it active. If
- * the session is already the last visible one, this is a no-op aside from
- * activation.
- */
-export async function openSessionToTheSide(sessionsService: ISessionsService, session: ISession, options?: { preserveFocus?: boolean }): Promise<void> {
-	const visible = sessionsService.visibleSessions.get();
-	const lastVisible = visible[visible.length - 1];
-	if (lastVisible && lastVisible.sessionId !== session.sessionId) {
-		sessionsService.insertAt(session, lastVisible.sessionId, 'right');
-	}
-	await sessionsService.openSession(session.resource, options);
-}
+const SESSIONS_HEADER_ELLIPSIS_MIN_WIDTH = 8;
 
 export const SessionsViewFilterSubMenu = new MenuId('SessionsViewPaneFilterSubMenu');
 export const SessionsViewFilterOptionsSubMenu = new MenuId('SessionsViewPaneFilterOptionsSubMenu');
@@ -218,15 +206,31 @@ export class SessionsView extends ViewPane {
 						this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
 					}
 				};
+				const session = this.sessionsManagementService.getSession(resource);
+				if (!session) {
+					onUnexpectedError(new Error(`Unable to open session because '${resource.toString()}' is not available`));
+					return;
+				}
+				const mainChat = session.mainChat.get();
 				if (sideBySide) {
 					// Alt-click: open the session to the right of the last visible session in the grid.
-					const session = this.sessionsManagementService.getSession(resource);
-					if (session) {
-						openSessionToTheSide(this.sessionsService, session, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
-						return;
-					}
+					this.sessionsService.openSessionToSide(session, { preserveFocus, chatResource: mainChat.resource, source: 'sessionsList' }).then(onOpened).catch(onUnexpectedError);
+					return;
 				}
-				this.sessionsService.openSession(resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
+				this.sessionsService.openChat(session, mainChat.resource, { preserveFocus, source: 'sessionsList' }).then(onOpened).catch(onUnexpectedError);
+			},
+			canOpenSession: session => this.sessionsService.canOpenSession(session),
+			onChatOpen: (session, chat, preserveFocus, sideBySide) => {
+				const onOpened = () => {
+					if (isWeb && isPhoneLayout(this.layoutService)) {
+						this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
+					}
+				};
+				if (sideBySide) {
+					this.sessionsService.openChatToSide(session, chat.resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
+					return;
+				}
+				this.sessionsService.openChat(session, chat.resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
 			},
 		}));
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
@@ -394,6 +398,8 @@ export class SessionsView extends ViewPane {
 
 	private readonly registeredFilterTypeIds = new Set<string>();
 
+	private readonly archivedFilterRegistration = this._register(new DisposableStore());
+
 	private registerSessionTypeFilters(sessionsControl: SessionsList): void {
 		const sessionTypes = this.sessionsManagementService.getAllSessionTypes();
 		for (let i = 0; i < sessionTypes.length; i++) {
@@ -470,23 +476,35 @@ export class SessionsView extends ViewPane {
 		const archivedContextKeyInstance = archivedContextKey.bindTo(this.scopedContextKeyService);
 		this.filterContextKeys.set(archivedContextKey.key, { key: archivedContextKeyInstance, getDefault: () => false });
 
-		this._register(registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: 'sessionsViewPane.filterArchived',
-					title: localize('filterArchived', "Done"),
-					toggled: ContextKeyExpr.equals(archivedContextKey.key, true),
-					menu: [{
-						id: SessionsViewFilterOptionsSubMenu,
-						group: '3_props',
-						order: 0,
-					}]
-				});
-			}
-			override run() {
-				const excluding = sessionsControl.isExcludeArchived();
-				sessionsControl.setExcludeArchived(!excluding);
-				archivedContextKeyInstance.set(excluding); // was excluding → now showing
+		// The archived filter label follows the configured archive action wording,
+		// so the action is re-registered whenever that setting changes.
+		const registerArchivedFilter = () => {
+			this.archivedFilterRegistration.clear();
+			const title = getChatSessionArchivedSectionLabel(getChatSessionArchiveActionWording(this.configurationService));
+			this.archivedFilterRegistration.add(registerAction2(class extends Action2 {
+				constructor() {
+					super({
+						id: 'sessionsViewPane.filterArchived',
+						title,
+						toggled: ContextKeyExpr.equals(archivedContextKey.key, true),
+						menu: [{
+							id: SessionsViewFilterOptionsSubMenu,
+							group: '3_props',
+							order: 0,
+						}]
+					});
+				}
+				override run() {
+					const excluding = sessionsControl.isExcludeArchived();
+					sessionsControl.setExcludeArchived(!excluding);
+					archivedContextKeyInstance.set(excluding); // was excluding → now showing
+				}
+			}));
+		};
+		registerArchivedFilter();
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatSessionArchiveActionWordingSettingId)) {
+				registerArchivedFilter();
 			}
 		}));
 
@@ -623,6 +641,9 @@ export class SessionsView extends ViewPane {
 
 		this.headerLabel.style.display = '';
 		this.headerActions.style.display = '';
+		if (this.headerLabel.clientWidth < SESSIONS_HEADER_ELLIPSIS_MIN_WIDTH) {
+			this.headerLabel.style.display = 'none';
+		}
 	}
 
 	/**

@@ -21,6 +21,8 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { type ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
+import { ChatPetAchievementIds, didExplicitlyEnableChatPetAutopilot } from '../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
+import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { getAgentHostModeIcon } from './agentHostModeIcon.js';
 import { isWellKnownModeSchema } from './agentHostPermissionPickerDelegate.js';
 
@@ -120,6 +122,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 	protected abstract _getWidgetAriaLabel(): string;
 	protected _getFooterActionItems(): readonly IActionListItem<IAgentHostSessionEnumPickerItem>[] { return []; }
 	protected _handleFooterActionItem(_item: IAgentHostSessionEnumPickerItem): boolean { return false; }
+	protected _onDidSelectValue(_previousValue: string, _selectedValue: string): void { }
 
 	/**
 	 * Optional list-widget options for the picker popup. Subclasses whose
@@ -212,11 +215,9 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 
 		this._triggerElement.ariaLabel = this._getTriggerAriaLabel(label);
 
-		// Reflect the resolving state. Schema is preserved across the
-		// round-trip so the chip keeps its label; toggling `.disabled`
-		// on the slot blocks pointer events (see chatWidget.css).
+		// Reflect the resolving state without changing the chip's visual weight.
 		const isResolving = ctx.provider.isSessionConfigResolving(ctx.sessionId).get();
-		this._slotElement.classList.toggle('disabled', isResolving);
+		this._slotElement.classList.toggle('resolving', isResolving);
 		this._triggerElement.setAttribute('aria-disabled', isResolving ? 'true' : 'false');
 	}
 
@@ -261,6 +262,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 					isPII: false,
 				});
 				ctx.provider.setSessionConfigValue(ctx.sessionId, this._property, item.value)
+					.then(() => this._onDidSelectValue(ctx.currentValue, item.value))
 					.catch(() => { /* best-effort */ });
 			},
 			onHide: () => {
@@ -296,6 +298,23 @@ export class AgentHostModePicker extends AgentHostSessionEnumPicker {
 	protected readonly _property = SessionConfigKey.Mode;
 	protected readonly _pickerId = 'agentHostModePicker';
 	protected readonly _telemetryId = 'NewChatAgentHostModePicker';
+
+	constructor(
+		session: IObservable<IActiveSession | undefined>,
+		@IActionWidgetService actionWidgetService: IActionWidgetService,
+		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
+		@IChatPetService protected readonly _chatPetService: IChatPetService,
+	) {
+		super(session, actionWidgetService, sessionsProvidersService, telemetryService, hoverService);
+	}
+
+	protected override _onDidSelectValue(previousValue: string, selectedValue: string): void {
+		if (didExplicitlyEnableChatPetAutopilot(previousValue, selectedValue)) {
+			this._chatPetService.unlockAchievement(ChatPetAchievementIds.AutopilotEnabled);
+		}
+	}
 
 	protected override _getListOptions(): IActionListOptions {
 		return { minWidth: 260 };

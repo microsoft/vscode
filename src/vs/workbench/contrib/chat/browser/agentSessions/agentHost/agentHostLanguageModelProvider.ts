@@ -10,8 +10,9 @@ import { localize } from '../../../../../../nls.js';
 import { ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { readAgentModelPricingMeta } from '../../../../../../platform/agentHost/common/agentModelPricing.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
+import { readAgentModelGroupId, readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelConfigurationSchema } from '../../../common/languageModels.js';
+import { AUTO_RAW_MODEL_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelConfigurationSchema } from '../../../common/languageModels.js';
 
 /**
  * Returns whether an agent host provider exposes a synthetic "Auto" model to
@@ -66,7 +67,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				const pricing = readAgentModelPricingMeta(m);
 				const multiplierNumeric = pricing.multiplierNumeric;
 				// "Auto" advertises the auto-mode discount (detail) + description (tooltip). microsoft/vscode#321778, #321659.
-				const isAuto = m.id === 'auto';
+				const isAuto = m.id === AUTO_RAW_MODEL_ID;
 				const discountPercent = pricing.discountPercent;
 				// Guard against a non-finite or out-of-range value from the open `_meta` bag so we never render
 				// nonsense like "Infinity% discount"; the documented range is a whole number in (0, 100].
@@ -77,7 +78,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				const tooltip = isAuto
 					? ILanguageModelChatMetadata.getAutoModelDescription(hasDiscount ? discountPercent : undefined)
 					: undefined;
-				const modelGroup = AgentHostLanguageModelProvider._modelGroupFor(m);
+				const modelGroup = this._modelGroupFor(m);
 				const byokModelIdentifier = readAgentModelByokIdentifier(m);
 				return {
 					identifier: `${this._vendor}:${m.id}`,
@@ -105,6 +106,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 						longContextCacheWriteCost: pricing.longContextCacheWriteCost,
 						longContextOutputCost: pricing.longContextOutputCost,
 						priceCategory: pricing.priceCategory,
+						category: pricing.category,
 						promo: pricing.promo,
 						targetChatSessionType: this._sessionType,
 						// Group agent-host models in the picker by their upstream provider
@@ -148,6 +150,9 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 
 	private static _groupForConfigKey(key: string): string | undefined {
 		switch (key) {
+			// The Auto model has no thinking level, so its routing-profile picker takes that slot,
+			// matching how the Copilot Chat extension groups it.
+			case 'tier':
 			case 'thinkingLevel': return 'navigation';
 			case 'contextSize': return 'tokens';
 			default: return undefined;
@@ -156,16 +161,24 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 
 	/**
 	 * Derives the picker group id for a model — the vendor its models are bucketed
-	 * under. BYOK models are surfaced by the agent host under the `vendor/id` selection
-	 * id (see `resolveByokSessionConfig`), so their upstream vendor is the id prefix;
-	 * native harness models have no prefix and group under their `provider` (the harness,
-	 * e.g. `copilotcli`). The picker resolves the display name from the vendor registry —
-	 * no name mapping lives here.
+	 * under. A producer may pin the group id explicitly in `_meta` (e.g. Claude
+	 * stamps its transport vendor — `copilot`/`anthropic` — there while keeping
+	 * `provider` as the `claude` routing owner); that wins. Otherwise BYOK models
+	 * are surfaced by the agent host under the `vendor/[group/]id` selection id (see
+	 * `resolveByokSessionConfig`), so their upstream vendor is the id prefix; native
+	 * harness models have no prefix and group under their `provider` (the harness,
+	 * e.g. `copilotcli`). The picker resolves the display name from the vendor
+	 * registry — no name mapping lives here.
 	 */
-	private static _modelGroupFor(model: SessionModelInfo): { id: string } | undefined {
+	private _modelGroupFor(model: SessionModelInfo): ILanguageModelChatMetadata['modelGroup'] {
+		const explicitGroupId = readAgentModelGroupId(model);
 		const slash = model.id.indexOf('/');
-		const groupVendorId = slash > 0 ? model.id.slice(0, slash) : model.provider;
-		return groupVendorId ? { id: groupVendorId } : undefined;
+		const groupVendorId = explicitGroupId ?? (slash > 0 ? model.id.slice(0, slash) : model.provider);
+		if (!groupVendorId) {
+			return undefined;
+		}
+		const sourceId = readAgentModelSourceId(model);
+		return { id: groupVendorId, ...(sourceId !== undefined && { sourceId }) };
 	}
 
 	async sendChatRequest(): Promise<never> {

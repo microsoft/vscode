@@ -5,8 +5,10 @@
 
 import { IReaderWithStore } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IGitHubPullRequestRef } from '../../../services/sessions/common/session.js';
 import { computePullRequestIcon, GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequest, IPullRequestIconStatus } from '../common/types.js';
 import { IGitHubService } from './githubService.js';
+import { IPullRequestIconCache } from './pullRequestIconCache.js';
 
 /**
  * Reads the live {@link IPullRequestIconStatus} for a pull request from the shared
@@ -36,4 +38,21 @@ export function computePullRequestIconStatus(reader: IReaderWithStore, gitHubSer
 export function computeLivePullRequestIcon(reader: IReaderWithStore, gitHubService: IGitHubService, owner: string, repo: string, livePR: IGitHubPullRequest): ThemeIcon {
 	const status = computePullRequestIconStatus(reader, gitHubService, owner, repo, livePR);
 	return computePullRequestIcon(livePR.isDraft ? 'draft' : livePR.state, status);
+}
+
+/** Computes the live title and icon used to present a pull request reference. */
+export function computePullRequestRefPresentation(reader: IReaderWithStore, gitHubService: IGitHubService, iconCache: IPullRequestIconCache, pullRequest: IGitHubPullRequestRef, fallbackIcon?: ThemeIcon): Pick<IGitHubPullRequestRef, 'icon' | 'title'> {
+	const prLink = pullRequest.uri.toString();
+	const prModelRef = reader.store.add(gitHubService.createPullRequestModelReference(pullRequest.owner, pullRequest.repo, pullRequest.number));
+	const livePullRequest = prModelRef.object.pullRequest.read(reader);
+	if (!livePullRequest) {
+		return {
+			icon: iconCache.get(prLink) ?? pullRequest.icon ?? fallbackIcon,
+			title: pullRequest.title,
+		};
+	}
+
+	const icon = computeLivePullRequestIcon(reader, gitHubService, pullRequest.owner, pullRequest.repo, livePullRequest);
+	iconCache.set(prLink, icon);
+	return { icon, title: livePullRequest.title };
 }

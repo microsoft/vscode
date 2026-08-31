@@ -24,6 +24,11 @@ declare module 'vscode' {
 		readonly modelConfiguration?: {
 			readonly [key: string]: any;
 		};
+
+		/**
+		 * Whether encrypted thinking state should be included in the response.
+		 */
+		readonly includeEncryptedThinking?: boolean;
 	}
 
 	/**
@@ -92,6 +97,13 @@ declare module 'vscode' {
 		readonly warningText?: Record<string, string>;
 
 		/**
+		 * Optional informational text to display in the model picker hover as an info banner.
+		 * The keys are info categories (e.g. "model_relocated") and the values are markdown strings.
+		 * Unlike {@link warningText}, this renders with an info icon and never signals a problem with the model.
+		 */
+		readonly infoText?: Record<string, string>;
+
+		/**
 		 * Optional promotional information for this model. When present, indicates the model
 		 * is currently experiencing a promotional discount.
 		 */
@@ -100,10 +112,15 @@ declare module 'vscode' {
 			readonly id: string;
 			/** The discount percentage (e.g. 20 for 20% off). */
 			readonly discountPercent: number;
-			/** ISO 8601 date string indicating when the promotion ends. */
-			readonly endsAt: string;
+			/** ISO 8601 date string indicating when the promotion ends. Omit for open-ended promotions. */
+			readonly endsAt?: string;
 			/** A human-readable message about the promotion. */
 			readonly message: string;
+			/**
+			 * Whether the promotion may also be surfaced as a banner above the chat input.
+			 * Omit to allow the banner; set to `false` to keep the promotion in the model picker only.
+			 */
+			readonly showBanner?: boolean;
 		};
 	}
 
