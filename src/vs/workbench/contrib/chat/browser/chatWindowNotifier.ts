@@ -46,6 +46,20 @@ function observeIsIdle(model: IChatModel): IObservable<boolean> {
 }
 
 /**
+ * Whether the session's last response finished while this window was watching it.
+ *
+ * Loading a session replays its history through the same add-request-then-complete
+ * path that live work uses, so the busy -> idle transition alone cannot tell a
+ * session that was restored from one that just finished. A replayed response keeps
+ * the completion time it originally had, or has none at all when that time was
+ * never recorded, while a response completing here is stamped as it finishes.
+ */
+function hasCompletedSince(model: IChatModel, watchingSince: number): boolean {
+	const completedAt = model.lastRequest?.response?.completionTimestamp;
+	return completedAt !== undefined && completedAt >= watchingSince;
+}
+
+/**
  * Observes all live chat models and triggers OS notifications when any model
  * transitions to needing input or becomes idle.
  */
@@ -81,7 +95,8 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 	private _trackModel(model: IChatModel) {
 		const store = new DisposableStore();
 		const isIdle = observeIsIdle(model);
-		const idleScheduler = store.add(new RunOnceScheduler(() => void this._notifyIdleIfNeeded(model, isIdle), 500));
+		const watchingSince = Date.now();
+		const idleScheduler = store.add(new RunOnceScheduler(() => void this._notifyIdleIfNeeded(model, isIdle, watchingSince), 500));
 		store.add(autorunDelta(model.requestNeedsInput, ({ lastValue, newValue }) => {
 			const currentNeedsInput = !!newValue;
 			const previousNeedsInput = !!lastValue;
@@ -95,7 +110,9 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 			}
 		}));
 		store.add(autorunDelta(isIdle, ({ lastValue, newValue }) => {
-			if (lastValue === false && newValue === true && model.lastRequest) {
+			// Only notify on a genuine busy -> idle transition of a response that finished
+			// here, never for a model that was created idle or one replaying its history.
+			if (lastValue === false && newValue === true && hasCompletedSince(model, watchingSince)) {
 				idleScheduler.schedule();
 			} else if (!newValue) {
 				idleScheduler.cancel();
@@ -168,8 +185,8 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 		}
 	}
 
-	private async _notifyIdleIfNeeded(model: IChatModel, isIdle: IObservable<boolean>): Promise<void> {
-		if (!model.lastRequest || !isIdle.get() || model.requestNeedsInput.get()) {
+	private async _notifyIdleIfNeeded(model: IChatModel, isIdle: IObservable<boolean>, watchingSince: number): Promise<void> {
+		if (!hasCompletedSince(model, watchingSince) || !isIdle.get() || model.requestNeedsInput.get()) {
 			return;
 		}
 		const mode = this._configurationService.getValue<ChatNotificationMode>(ChatConfiguration.NotifyWindowOnResponseReceived);
