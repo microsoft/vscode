@@ -14,6 +14,7 @@ import { Workspace } from '../../../../../platform/workspace/test/common/testWor
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IOutlineService } from '../../../../services/outline/browser/outline.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { MockLabelService } from '../../../../services/label/test/common/mockLabelService.js';
 import { IWorkspaceFolderLabelService } from '../../../../services/workspaces/common/workspaceFolderLabelService.js';
 import { Emitter } from '../../../../../base/common/event.js';
 
@@ -26,6 +27,8 @@ suite('Breadcrumb Model', function () {
 			return folder.uri.path.slice(folder.uri.path.lastIndexOf('/') + 1);
 		}
 	};
+	const outlineService = new class extends mock<IOutlineService>() { };
+	const labelService = new MockLabelService();
 	const configService = new class extends TestConfigurationService {
 		override getValue<T>(...args: Parameters<TestConfigurationService['getValue']>): T | undefined {
 			if (args[0] === 'breadcrumbs.filePath') {
@@ -41,6 +44,10 @@ suite('Breadcrumb Model', function () {
 		}
 	};
 
+	function createModel(resource: URI, workspace: TestContextService = workspaceService): BreadcrumbsModel {
+		return new BreadcrumbsModel(resource, undefined, configService, workspace, workspaceFolderLabelService, outlineService, labelService);
+	}
+
 	teardown(function () {
 		model.dispose();
 	});
@@ -48,7 +55,7 @@ suite('Breadcrumb Model', function () {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('file element equality includes the rendered label', function () {
-		model = new BreadcrumbsModel(URI.parse('foo:/bar/baz/ws/file.ts'), undefined, configService, workspaceService, workspaceFolderLabelService, new class extends mock<IOutlineService>() { });
+		model = createModel(URI.parse('foo:/bar/baz/ws/file.ts'));
 		const uri = URI.parse('foo:/worktrees/project-feature');
 
 		assert.deepStrictEqual({
@@ -62,7 +69,7 @@ suite('Breadcrumb Model', function () {
 
 	test('only uri, inside workspace', function () {
 
-		model = new BreadcrumbsModel(URI.parse('foo:/bar/baz/ws/some/path/file.ts'), undefined, configService, workspaceService, workspaceFolderLabelService, new class extends mock<IOutlineService>() { });
+		model = createModel(URI.parse('foo:/bar/baz/ws/some/path/file.ts'));
 		const elements = model.getElements();
 
 		assert.strictEqual(elements.length, 3);
@@ -77,7 +84,7 @@ suite('Breadcrumb Model', function () {
 
 	test('display uri matters for FileElement', function () {
 
-		model = new BreadcrumbsModel(URI.parse('foo:/bar/baz/ws/some/PATH/file.ts'), undefined, configService, workspaceService, workspaceFolderLabelService, new class extends mock<IOutlineService>() { });
+		model = createModel(URI.parse('foo:/bar/baz/ws/some/PATH/file.ts'));
 		const elements = model.getElements();
 
 		assert.strictEqual(elements.length, 3);
@@ -92,7 +99,7 @@ suite('Breadcrumb Model', function () {
 
 	test('only uri, outside workspace', function () {
 
-		model = new BreadcrumbsModel(URI.parse('foo:/outside/file.ts'), undefined, configService, workspaceService, workspaceFolderLabelService, new class extends mock<IOutlineService>() { });
+		model = createModel(URI.parse('foo:/outside/file.ts'));
 		const elements = model.getElements();
 
 		assert.strictEqual(elements.length, 2);
@@ -103,13 +110,81 @@ suite('Breadcrumb Model', function () {
 		assert.strictEqual(two.uri.toString(), 'foo:/outside/file.ts');
 	});
 
+	test('shows only the path relative to a contributed resource label home', function () {
+		const root = URI.file('/Users/test/.copilot/session-state/5ec17bb7-5596-41c5-9d24-4787d8b0a698');
+		const registration = labelService.registerFormatter({ scheme: root.scheme, home: root.path, formatting: { label: 'Copilot/Session', separator: '/' } });
+		const resource = URI.file('/Users/test/.copilot/session-state/5ec17bb7-5596-41c5-9d24-4787d8b0a698/folder/file.md');
+		model = createModel(resource);
+
+		assert.deepStrictEqual({
+			isRelative: model.isRelative(),
+			elements: (model.getElements() as FileElement[]).map(element => ({
+				name: element.label ?? element.uri.path.slice(element.uri.path.lastIndexOf('/') + 1),
+				kind: element.kind,
+			}))
+		}, {
+			isRelative: true,
+			elements: [
+				{ name: 'Copilot', kind: FileKind.ROOT_FOLDER },
+				{ name: 'Session', kind: FileKind.FOLDER },
+				{ name: 'folder', kind: FileKind.FOLDER },
+				{ name: 'file.md', kind: FileKind.FILE },
+			]
+		});
+		registration.dispose();
+	});
+
+	test('updates when a resource label home is contributed after model creation', function () {
+		const resource = URI.file('/Users/test/.copilot/session-state/5ec17bb7-5596-41c5-9d24-4787d8b0a698/file.md');
+		model = createModel(resource);
+		const root = URI.file('/Users/test/.copilot/session-state/5ec17bb7-5596-41c5-9d24-4787d8b0a698');
+		const registration = labelService.registerFormatter({ scheme: root.scheme, home: root.path, formatting: { label: 'Copilot/Session', separator: '/' } });
+
+		assert.deepStrictEqual((model.getElements() as FileElement[]).map(element => ({
+			name: element.label ?? element.uri.path.slice(element.uri.path.lastIndexOf('/') + 1),
+			kind: element.kind,
+		})), [
+			{ name: 'Copilot', kind: FileKind.ROOT_FOLDER },
+			{ name: 'Session', kind: FileKind.FOLDER },
+			{ name: 'file.md', kind: FileKind.FILE },
+		]);
+		registration.dispose();
+	});
+
+	test('stops at a resource label home when the resource has a query', function () {
+		const home = URI.from({ scheme: 'vscode-agent-host', authority: 'remote', path: '/home/.copilot/session-state/session' });
+		const resource = URI.from({ scheme: home.scheme, authority: home.authority, path: `${home.path}/file.md`, query: '_ah=metadata' });
+		const registration = labelService.registerFormatter({ scheme: home.scheme, authority: home.authority, home: home.path, formatting: { label: 'Copilot/Session', separator: '/' } });
+		model = createModel(resource);
+
+		assert.deepStrictEqual((model.getElements() as FileElement[]).map(element => element.label ?? element.uri.path.split('/').at(-1)), [
+			'Copilot',
+			'Session',
+			'file.md',
+		]);
+		registration.dispose();
+	});
+
+	test('keeps the full path without a contributed resource label home', function () {
+		const resource = URI.file('/Users/test/.copilot/session-state/5ec17bb7-5596-41c5-9d24-4787d8b0a698/file.md');
+		model = createModel(resource);
+
+		assert.deepStrictEqual({
+			isRelative: model.isRelative(),
+			names: (model.getElements() as FileElement[]).map(element => element.uri.path.slice(element.uri.path.lastIndexOf('/') + 1))
+		}, {
+			isRelative: false,
+			names: ['Users', 'test', '.copilot', 'session-state', '5ec17bb7-5596-41c5-9d24-4787d8b0a698', 'file.md']
+		});
+	});
+
 	test('omits workspace root in single-root VS Code workspace', function () {
 		const workspace = new TestContextService(new Workspace(
 			'ffff',
 			[new WorkspaceFolder({ uri: URI.parse('foo:/bar/baz/ws'), name: 'ws', index: 0 })],
 			URI.parse('foo:/workspace.code-workspace')
 		));
-		model = new BreadcrumbsModel(URI.parse('foo:/bar/baz/ws/file.ts'), undefined, configService, workspace, workspaceFolderLabelService, new class extends mock<IOutlineService>() { });
+		model = createModel(URI.parse('foo:/bar/baz/ws/file.ts'), workspace);
 
 		assert.deepStrictEqual((model.getElements() as FileElement[]).map(element => ({
 			uri: element.uri.toString(),
@@ -125,7 +200,7 @@ suite('Breadcrumb Model', function () {
 			[new WorkspaceFolder({ uri: URI.parse('foo:/bar/baz/ws'), name: 'ws (branch)', index: 0 })],
 			URI.parse('foo:/workspace.code-workspace')
 		));
-		model = new BreadcrumbsModel(URI.parse('foo:/bar/baz/ws/some/file.ts'), undefined, configService, workspace, workspaceFolderLabelService, new class extends mock<IOutlineService>() { });
+		model = createModel(URI.parse('foo:/bar/baz/ws/some/file.ts'), workspace);
 
 		assert.deepStrictEqual((model.getElements() as FileElement[]).map(element => ({
 			uri: element.uri.toString(),
@@ -142,7 +217,7 @@ suite('Breadcrumb Model', function () {
 			[new WorkspaceFolder({ uri: URI.parse('foo:/bar/baz/ws'), name: 'ws (branch)', index: 0 })],
 			URI.parse('foo:/workspace.code-workspace')
 		));
-		model = new BreadcrumbsModel(URI.parse('foo:/bar/baz/ws'), undefined, configService, workspace, workspaceFolderLabelService, new class extends mock<IOutlineService>() { });
+		model = createModel(URI.parse('foo:/bar/baz/ws'), workspace);
 
 		assert.deepStrictEqual((model.getElements() as FileElement[]).map(element => ({
 			uri: element.uri.toString(),
@@ -162,7 +237,7 @@ suite('Breadcrumb Model', function () {
 			],
 			URI.parse('foo:/workspace.code-workspace')
 		));
-		model = new BreadcrumbsModel(URI.parse('foo:/worktrees/docs-feature/guide.md'), undefined, configService, workspace, workspaceFolderLabelService, new class extends mock<IOutlineService>() { });
+		model = createModel(URI.parse('foo:/worktrees/docs-feature/guide.md'), workspace);
 
 		assert.deepStrictEqual((model.getElements() as FileElement[]).map(element => ({
 			uri: element.uri.toString(),
@@ -177,7 +252,7 @@ suite('Breadcrumb Model', function () {
 	test('updates workspace root and label when folders change', function () {
 		const firstFolder = new WorkspaceFolder({ uri: URI.parse('foo:/worktrees/project-feature'), name: 'project (feature)', index: 0 });
 		const workspace = new TestContextService(new Workspace('ffff', [firstFolder], URI.parse('foo:/workspace.code-workspace')));
-		model = new BreadcrumbsModel(URI.parse('foo:/worktrees/project-feature/file.ts'), undefined, configService, workspace, workspaceFolderLabelService, new class extends mock<IOutlineService>() { });
+		model = createModel(URI.parse('foo:/worktrees/project-feature/file.ts'), workspace);
 
 		const secondFolder = new WorkspaceFolder({ uri: URI.parse('foo:/worktrees/docs-feature'), name: 'docs (feature)', index: 1 });
 		workspace.setWorkspace(new Workspace('ffff', [firstFolder, secondFolder], URI.parse('foo:/workspace.code-workspace')));

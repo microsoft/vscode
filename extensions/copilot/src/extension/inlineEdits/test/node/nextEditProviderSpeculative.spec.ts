@@ -31,6 +31,7 @@ import { DeferredPromise } from '../../../../util/vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { Event } from '../../../../util/vs/base/common/event';
+import { constObservable } from '../../../../util/vs/base/common/observable';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { generateUuid } from '../../../../util/vs/base/common/uuid';
 import { LineReplacement } from '../../../../util/vs/editor/common/core/edits/lineEdit';
@@ -56,6 +57,7 @@ const testModelService: IInlineEditsModelService = {
 	_serviceBrand: undefined,
 	modelInfo: undefined,
 	onModelListUpdated: Event.None,
+	supportsUnifiedCompletions: constObservable(undefined),
 	setCurrentModelId: async _modelId => { },
 	selectedModelConfiguration: () => testModelConfiguration,
 	defaultModelConfiguration: () => testModelConfiguration,

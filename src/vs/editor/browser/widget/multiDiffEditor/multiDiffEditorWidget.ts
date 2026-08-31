@@ -7,7 +7,7 @@ import { Dimension } from '../../../../base/browser/dom.js';
 import { Event } from '../../../../base/common/event.js';
 import { readHotReloadableExport } from '../../../../base/common/hotReloadHelpers.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { derived, observableValue, recomputeInitiallyAndOnChange, transaction } from '../../../../base/common/observable.js';
+import { derived, IObservable, observableValue, recomputeInitiallyAndOnChange, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -20,7 +20,7 @@ import './colors.js';
 import { DiffEditorItemTemplate } from './diffEditorItemTemplate.js';
 import { IDocumentDiffItem, IMultiDiffEditorModel } from './model.js';
 import { MultiDiffEditorViewModel } from './multiDiffEditorViewModel.js';
-import { IMultiDiffEditorViewState, IMultiDiffResourceId, MultiDiffEditorWidgetImpl } from './multiDiffEditorWidgetImpl.js';
+import { IMultiDiffEditorLayoutDebugState, IMultiDiffEditorViewState, IMultiDiffResourceId, MultiDiffEditorWidgetImpl } from './multiDiffEditorWidgetImpl.js';
 import { IWorkbenchUIElementFactory } from './workbenchUIElementFactory.js';
 
 export class MultiDiffEditorWidget extends Disposable {
@@ -122,6 +122,10 @@ export class MultiDiffEditorWidget extends Disposable {
 
 	public getViewState(): IMultiDiffEditorViewState {
 		return this._widgetImpl.get().getViewState();
+	}
+
+	public getLayoutDebugState(): IObservable<IMultiDiffEditorLayoutDebugState> {
+		return this._widgetImpl.get().layoutDebugState;
 	}
 
 	public setViewState(viewState: IMultiDiffEditorViewState): void {

@@ -12,6 +12,7 @@ import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IObjectTreeElement, ITreeSorter } from '../../../../base/browser/ui/tree/tree.js';
 import { ActionRunner, IAction, Separator, SubmenuAction, toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -21,7 +22,7 @@ import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { MenuWorkbenchButtonBar, WorkbenchButtonBar } from '../../../../platform/actions/browser/buttonbar.js';
+import { IButtonConfig, MenuWorkbenchButtonBar, WorkbenchButtonBar } from '../../../../platform/actions/browser/buttonbar.js';
 import { getActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
@@ -81,6 +82,7 @@ import { ChecksViewModel } from './checksViewModel.js';
 import { REVEAL_CI_CHECKS_COMMAND_ID } from './checksActions.js';
 // eslint-disable-next-line local/code-import-patterns -- TODO: move skill button constants out of providers
 import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, isAgentHostSkillButtonId } from '../../providers/agentHost/browser/agentHostSkillButtons.js';
+import { AGENT_HOST_AUTO_MERGE_OPERATION_IDS } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { ActiveSessionContextKeys, CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, IsolationMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
 import { buildTreeChildren, ChangesTreeElement, ChangesTreeRenderer, IChangesFileItem, IChangesTreeRootInfo, isChangesFileItem, isChangesFileResource, toIChangesFileItem } from './changesViewRenderer.js';
 import { ResourceTree } from '../../../../base/common/resourceTree.js';
@@ -198,7 +200,7 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 					buttonConfigProvider: (action, index) => {
 						const configuration = this._getButtonConfiguration(action, outgoingChanges, hasGitOperationInProgress, runningLabelObs);
 						return index === 0
-							? { ...configuration, showIcon: false, showLabel: true }
+							? { ...configuration, showIcon: true, showLabel: true }
 							: configuration;
 					}
 				},
@@ -219,7 +221,7 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 		}));
 	}
 
-	private _getButtonConfiguration(action: IAction, outgoingChanges: number, hasGitOperationInProgress: boolean, runningLabelObs: IObservable<string | IMarkdownString | undefined>): { showIcon: boolean; showLabel: boolean; isSecondary?: boolean; customLabel?: string | IMarkdownString; customLabelObs?: IObservable<string | IMarkdownString | undefined>; customClass?: string } | undefined {
+	private _getButtonConfiguration(action: IAction, outgoingChanges: number, hasGitOperationInProgress: boolean, runningLabelObs: IObservable<string | IMarkdownString | undefined>): IButtonConfig | undefined {
 		if (
 			action.id === 'github.copilot.sessions.commit' ||
 			action.id === 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR'
@@ -227,11 +229,10 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 			if (!hasGitOperationInProgress) {
 				return { showIcon: true, showLabel: true, isSecondary: false };
 			}
-			const customLabelObs = derived(reader => {
-				const running = runningLabelObs.read(reader);
-				return `$(loading) ${running ?? action.label}`;
-			});
-			return { showIcon: false, showLabel: true, isSecondary: false, customLabelObs };
+			// The spinner takes the place of the icon while the operation runs,
+			// so the label carries no icon of its own.
+			const customLabelObs = derived(reader => runningLabelObs.read(reader) ?? action.label);
+			return { showIcon: true, showLabel: true, isSecondary: false, showSpinner: true, customLabelObs };
 		}
 		if (
 			action.id === 'github.copilot.sessions.sync' ||
@@ -240,10 +241,7 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 			const labelWithCount = outgoingChanges > 0
 				? `${action.label} ${outgoingChanges}↑`
 				: `${action.label}`;
-			if (!hasGitOperationInProgress) {
-				return { showIcon: true, showLabel: true, isSecondary: false, customLabel: labelWithCount };
-			}
-			return { showIcon: false, showLabel: true, isSecondary: false, customLabel: `$(loading) ${labelWithCount}` };
+			return { showIcon: true, showLabel: true, isSecondary: false, customLabel: labelWithCount, showSpinner: hasGitOperationInProgress };
 		}
 		if (action.id === AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID) {
 			const customLabel = outgoingChanges > 0
@@ -334,7 +332,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 				renderSecondaryActions: false,
 				buttonConfigProvider: (action, index) => {
 					return index === 0
-						? { showIcon: false, showLabel: true, customLabel: stripIcons(action.label), showSpinner: primaryIsBusy }
+						? { showIcon: true, showLabel: true, customLabel: stripIcons(action.label), showSpinner: primaryIsBusy }
 						: { showIcon: true, showLabel: false };
 				}
 			}
@@ -367,6 +365,10 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 				? toAction({
 					id: contributed.item.submenu.id,
 					label: contributed.label,
+					// Wrapping the submenu in a plain action would drop the icon
+					// its menu item declared, so it is carried over the way any
+					// action carries one.
+					class: ThemeIcon.isThemeIcon(contributed.item.icon) ? ThemeIcon.asClassName(contributed.item.icon) : undefined,
 					run: () => contextMenuService.showContextMenu({
 						getAnchor: () => buttonBar.buttons[0]?.element ?? container,
 						getActions: () => contributed.actions,
@@ -382,17 +384,22 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 				return { groups: [], hasRunning: false };
 			}
 
+			// Agent Merge replaces the auto-merge operations on this bar, so they
+			// are dropped from the button and its dropdown. They stay advertised
+			// by the host because the Agent Merge menu keys off them to know it
+			// should stand in (see `agentMergeOwnsPrimaryButton`); where Agent
+			// Merge is unavailable this state simply offers no button.
 			const operations = changesViewService.activeSessionChangesetOperationsObs.read(reader);
 			const changesetOperations = operations
-				.filter(op => op.scopes.includes(SessionChangesetOperationScope.Changeset));
+				.filter(op => op.scopes.includes(SessionChangesetOperationScope.Changeset))
+				.filter(op => !AGENT_HOST_AUTO_MERGE_OPERATION_IDS.has(op.id));
 
 			const toOperationAction = (op: ISessionChangesetOperation) => toAction({
 				id: op.id,
-				// A running operation shows the animated spinner on the primary
-				// button instead of an icon, so no `$(loading)` prefix here.
-				label: op.icon && op.status !== SessionChangesetOperationStatus.Running
-					? `$(${op.icon.id}) ${op.label}`
-					: op.label,
+				label: op.label,
+				// The button renders the icon the action carries; a running
+				// operation shows the animated spinner in its place.
+				class: op.icon ? ThemeIcon.asClassName(op.icon) : undefined,
 				tooltip: op.description ?? op.label,
 				enabled: op.status !== SessionChangesetOperationStatus.Disabled && op.status !== SessionChangesetOperationStatus.Running,
 				run: () => {

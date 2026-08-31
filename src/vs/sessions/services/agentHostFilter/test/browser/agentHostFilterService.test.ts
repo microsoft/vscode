@@ -154,6 +154,14 @@ suite('AgentHostFilterService', () => {
 		assert.strictEqual(events, 1);
 	});
 
+	test('maps reconnecting providers to connecting', () => {
+		const providers = new StubSessionsProvidersService();
+		store.add(providers.registerProvider(new StubRemoteProvider('localhost:4321', 'Host A', RemoteAgentHostConnectionStatus.reconnecting) as unknown as ISessionsProvider));
+		const service = createService(providers);
+
+		assert.strictEqual(service.hosts[0].status, AgentHostFilterConnectionStatus.Connecting);
+	});
+
 	test('setSelectedHostId fires change and restores based on platform', () => {
 		const providers = new StubSessionsProvidersService();
 		store.add(providers.registerProvider(new StubRemoteProvider('localhost:4321', 'Host A') as unknown as ISessionsProvider));
