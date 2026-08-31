@@ -546,7 +546,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	public setEOL(eol: model.EndOfLineSequence): void {
 		this._assertNotDisposed();
-		const newEOL = (eol === model.EndOfLineSequence.CRLF ? '\r\n' : '\n');
+		const newEOL = (eol === model.EndOfLineSequence.CRLF ? '\r\n' : eol === model.EndOfLineSequence.CR ? '\r' : '\n');
 		if (this._buffer.getEOL() === newEOL) {
 			// Nothing to do
 			return;
@@ -882,11 +882,14 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	public getEndOfLineSequence(): model.EndOfLineSequence {
 		this._assertNotDisposed();
-		return (
-			this._buffer.getEOL() === '\n'
-				? model.EndOfLineSequence.LF
-				: model.EndOfLineSequence.CRLF
-		);
+		const eol = this._buffer.getEOL();
+		if (eol === '\n') {
+			return model.EndOfLineSequence.LF;
+		}
+		if (eol === '\r') {
+			return model.EndOfLineSequence.CR;
+		}
+		return model.EndOfLineSequence.CRLF;
 	}
 
 	public getLineMinColumn(lineNumber: number): number {
@@ -1275,7 +1278,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	}
 
 	public pushEOL(eol: model.EndOfLineSequence): void {
-		const currentEOL = (this.getEOL() === '\n' ? model.EndOfLineSequence.LF : model.EndOfLineSequence.CRLF);
+		const currentEOL = this.getEndOfLineSequence();
 		if (currentEOL === eol) {
 			return;
 		}
