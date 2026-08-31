@@ -894,13 +894,8 @@ function getSessionMetadataSync(session: ChatModel): IChatSessionEntryMetadata {
 }
 
 /**
- * `isEmpty` exists to keep never-used sessions out of the history list, which
- * filters on it. Removing every request from a session that *did* have them —
- * restoring the checkpoint on the first request, for example — must therefore
- * not re-classify it as never-used: doing so drops it from the list permanently
- * even though its title and full transcript are still on disk, and makes it
- * flicker in and out beforehand, since the live-model path applies no such
- * filter.
+ * Once a session's `isEmpty` flag has been cleared, keep it cleared even if a later
+ * metadata update would otherwise mark it empty again.
  */
 function preserveNonEmpty(previous: IChatSessionEntryMetadata | undefined, next: IChatSessionEntryMetadata): IChatSessionEntryMetadata {
 	if (next.isEmpty && previous && !previous.isEmpty) {

@@ -208,13 +208,27 @@ suite('ChatSessionStore', () => {
 		await store.storeSessions([model]);
 		assert.strictEqual((await store.getIndex())['session-1'].isEmpty, false);
 
-		// Restoring the checkpoint on the first request removes every request.
-		// The session still has its title and transcript on disk, so it must not
-		// be reclassified as never-used and filtered out of the history list.
+		// Simulate restoring the checkpoint on the first request, which removes every request.
 		setRequestCount(model as unknown as MockChatModel, 0);
 		await store.storeSessions([model]);
 
 		assert.strictEqual((await store.getIndex())['session-1'].isEmpty, false);
+	});
+
+	test('updateAndFlushIndexSync persists preserved non-empty state to storage', async () => {
+		const store = createChatSessionStore();
+		const model = testDisposables.add(createMockChatModel(LocalChatSessionUri.forSession('session-1'), { requestCount: 2 }));
+
+		await store.storeSessions([model]);
+		assert.strictEqual((await store.getIndex())['session-1'].isEmpty, false);
+
+		setRequestCount(model as unknown as MockChatModel, 0);
+		store.updateAndFlushIndexSync([model], []);
+
+		// Recreate the store so the index is read back from storage rather than the in-memory cache.
+		const reloadedStore = createChatSessionStore();
+		const index = await reloadedStore.getIndex();
+		assert.strictEqual(index['session-1'].isEmpty, false);
 	});
 
 	test('readSession returns stored session data', async () => {
