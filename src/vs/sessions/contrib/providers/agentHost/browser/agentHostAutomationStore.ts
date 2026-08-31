@@ -23,7 +23,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import type { AutomationRunTrigger, AutomationTarget, IAutomationDescriptor, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { type AutomationMutationGuard, type IAutomationRunClaim, type ICreateAutomationOptions, type IGuardedAutomationUpdateResult, serializeAutomationEditableState, type IUpdateAutomationOptions, type IUpdateAutomationRunOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationActiveRunError, type AutomationMutationGuard, type IAutomationRunClaim, type ICreateAutomationOptions, type IGuardedAutomationUpdateResult, isAutomationActiveRunError, serializeAutomationEditableState, type IUpdateAutomationOptions, type IUpdateAutomationRunOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { publishAutomationMigration } from '../../../../../workbench/contrib/chat/common/automations/automationTelemetry.js';
 import type { IAutomation, IAutomationSnapshotImportResult, IGuardedAutomationSnapshotRemovalResult, ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IAutomationStorageService } from '../../../automations/common/automationStorageService.js';
@@ -56,6 +56,11 @@ interface ILegacyRunArchive {
 	readonly runs: readonly ISerializedArchivedRun[];
 }
 
+interface ILoadedLegacyRunArchive {
+	readonly runs: readonly IAutomationRun[];
+	readonly repairedRuns: number;
+}
+
 export interface IAgentHostAutomationBoundaryMapper {
 	toHost(resource: URI): URI;
 	fromHost(resource: URI): URI;
@@ -78,6 +83,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	private readonly _archiveKey: string;
 	private readonly _archivedRuns;
 	private _migrationPromise: Promise<void> | undefined;
+	private _lastPreflightDeferralKey: string | undefined;
 
 	readonly automations: IObservable<readonly IAutomationDescriptor[]>;
 	readonly runs: IObservable<readonly IAutomationRun[]>;
@@ -94,9 +100,13 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	) {
 		super();
 		this._archiveKey = `agentHostAutomation.legacyRunArchive.${_providerId}`;
-		this._archivedRuns = observableValue<readonly IAutomationRun[]>(this, this._loadArchivedRuns());
+		const archive = this._loadArchivedRuns();
+		this._archivedRuns = observableValue<readonly IAutomationRun[]>(this, archive.runs);
+		this._persistRepairedArchivedRuns(archive);
 		this._register(this._storageService.onDidChangeValue(StorageScope.APPLICATION, this._archiveKey, this._store)(() => {
-			this._archivedRuns.set(this._loadArchivedRuns(), undefined);
+			const archive = this._loadArchivedRuns();
+			this._archivedRuns.set(archive.runs, undefined);
+			this._persistRepairedArchivedRuns(archive);
 		}));
 		this._catalogReference = this._register(_connection.getSubscription(
 			StateComponents.AutomationCatalog,
@@ -253,6 +263,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	}
 
 	private async _importAutomationSnapshot(snapshot: IAutomation, importPending: boolean): Promise<IAutomationSnapshotImportResult> {
+		assertTerminalRunHistory(snapshot.runs);
 		const existing = this._findAutomationState(snapshot.automation.id);
 		if (existing) {
 			const current = this._requireProjectedAutomation(existing);
@@ -282,6 +293,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	}
 
 	async upsertAutomationSnapshot(snapshot: IAutomation): Promise<void> {
+		assertTerminalRunHistory(snapshot.runs);
 		if (this._findAutomationState(snapshot.automation.id)) {
 			await this._replaceDescriptor(snapshot.automation, true, true);
 		} else {
@@ -409,6 +421,25 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		const startedAt = Date.now();
 		const source = this._legacySource;
 		const discovered = source ? [...source.automations.get()] : [];
+		const activeRuns = source
+			? discovered.flatMap(automation => source.runsFor(automation.id).get().filter(isNonTerminalRun))
+			: [];
+		if (activeRuns.length > 0) {
+			const deferralKey = activeRuns.map(run => run.id).sort().join(',');
+			if (this._lastPreflightDeferralKey !== deferralKey) {
+				this._lastPreflightDeferralKey = deferralKey;
+				publishAutomationMigration(this._telemetryService, {
+					outcome: 'deferred',
+					discoveredCount: discovered.length,
+					migratedCount: 0,
+					failedCount: 0,
+					durationMs: Date.now() - startedAt,
+				});
+			}
+			this._logService.info(`[AgentHostAutomationStore] Automation migration deferred: activeRuns=${activeRuns.length}.`);
+			throw new AutomationActiveRunError(activeRuns[0].automationId, activeRuns[0].id);
+		}
+		this._lastPreflightDeferralKey = undefined;
 		this._logService.info(`[AgentHostAutomationStore] Automation migration started: discovered=${discovered.length}.`);
 		publishAutomationMigration(this._telemetryService, {
 			outcome: 'started',
@@ -435,7 +466,11 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 					const failure = error instanceof Error ? error : new Error(String(error));
 					failures.push(failure);
 					failedCount++;
-					this._logService.error(`[AgentHostAutomationStore] Automation migration item failed: resource=${automationResource(automation.id)}, error=${failure.message}`);
+					if (isAutomationActiveRunError(error)) {
+						this._logService.info(`[AgentHostAutomationStore] Automation migration item deferred while a run is active: resource=${automationResource(automation.id)}.`);
+					} else {
+						this._logService.error(`[AgentHostAutomationStore] Automation migration item failed: resource=${automationResource(automation.id)}, error=${failure.message}`);
+					}
 				}
 			}
 			if (failures.length > 0) {
@@ -475,10 +510,21 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			if (isCancellationError(error)) {
 				throw error;
 			}
+			const durationMs = Date.now() - startedAt;
+			if (isAutomationActiveRunError(error)) {
+				this._logService.info(`[AgentHostAutomationStore] Automation migration deferred after ${migratedCount} item(s) while a run became active.`);
+				publishAutomationMigration(this._telemetryService, {
+					outcome: 'deferred',
+					discoveredCount: discovered.length,
+					migratedCount,
+					failedCount: 0,
+					durationMs,
+				});
+				throw error;
+			}
 			if (error instanceof AggregateError) {
 				failedCount = Math.max(failedCount, error.errors.length);
 			}
-			const durationMs = Date.now() - startedAt;
 			this._logService.error(`[AgentHostAutomationStore] Automation migration failed: discovered=${discovered.length}, migrated=${migratedCount}, failed=${failedCount}, durationMs=${durationMs}, error=${error instanceof Error ? error.message : String(error)}.`);
 			publishAutomationMigration(this._telemetryService, {
 				outcome: 'failed',
@@ -980,24 +1026,77 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		throw lastError ?? new Error('Timed out waiting for Agent Host Automation migration completion.');
 	}
 
-	private _loadArchivedRuns(): readonly IAutomationRun[] {
+	private _loadArchivedRuns(): ILoadedLegacyRunArchive {
 		const raw = this._storageService.get(this._archiveKey, StorageScope.APPLICATION);
 		if (!raw) {
-			return [];
+			return { runs: [], repairedRuns: 0 };
 		}
 		const parsed = parseArchivedRuns(raw);
 		if (parsed.kind === 'unsupported') {
 			this._logService.error(`[AgentHostAutomationStore] Ignoring legacy run archive with unsupported version: key=${this._archiveKey}, version=${parsed.version}.`);
-			return [];
+			return { runs: [], repairedRuns: 0 };
 		}
 		if (parsed.kind === 'invalid') {
 			this._logService.error(`[AgentHostAutomationStore] Ignoring invalid legacy run archive: key=${this._archiveKey}, error=${parsed.error}.`);
-			return [];
+			return { runs: [], repairedRuns: 0 };
 		}
 		if (parsed.droppedRuns > 0) {
 			this._logService.warn(`[AgentHostAutomationStore] Dropped ${parsed.droppedRuns} malformed run(s) from legacy run archive: key=${this._archiveKey}.`);
 		}
-		return parsed.runs;
+		let repairedRuns = 0;
+		const runs = parsed.runs.map(run => {
+			const terminalRun = terminalizeArchivedRun(run);
+			if (terminalRun !== run) {
+				repairedRuns++;
+			}
+			return terminalRun;
+		});
+		return { runs, repairedRuns };
+	}
+
+	private _persistRepairedArchivedRuns(archive: ILoadedLegacyRunArchive): void {
+		if (archive.repairedRuns === 0) {
+			return;
+		}
+		this._logService.warn(`[AgentHostAutomationStore] Repairing ${archive.repairedRuns} non-terminal legacy Automation run(s): key=${this._archiveKey}.`);
+		void this._repairArchivedRuns().catch(error => {
+			this._logService.error(`[AgentHostAutomationStore] Failed to persist repaired legacy Automation runs: key=${this._archiveKey}, error=${error instanceof Error ? error.message : String(error)}.`);
+		});
+	}
+
+	private async _repairArchivedRuns(): Promise<void> {
+		let raw = await this._automationStorageService.read(this._archiveKey);
+		for (let attempt = 0; attempt < LEGACY_RUN_ARCHIVE_WRITE_ATTEMPTS; attempt++) {
+			if (raw === undefined) {
+				return;
+			}
+			const parsed = parseArchivedRuns(raw);
+			if (parsed.kind === 'unsupported') {
+				throw new Error(`Cannot repair legacy Automation run archive with unsupported version: key=${this._archiveKey}, version=${parsed.version}.`);
+			}
+			if (parsed.kind === 'invalid') {
+				throw new Error(`Cannot repair invalid legacy Automation run archive: key=${this._archiveKey}, error=${parsed.error}.`);
+			}
+			const runs = parsed.runs.map(terminalizeArchivedRun);
+			if (runs.every((run, index) => run === parsed.runs[index])) {
+				this._archivedRuns.set(runs, undefined);
+				return;
+			}
+			const archive: ILegacyRunArchive = {
+				version: LEGACY_RUN_ARCHIVE_VERSION,
+				runs: runs.map(run => ({
+					...run,
+					sessionResource: run.sessionResource?.toString(),
+				})),
+			};
+			const result = await this._automationStorageService.compareAndSwap(this._archiveKey, raw, JSON.stringify(archive));
+			if (result.swapped) {
+				this._archivedRuns.set(runs, undefined);
+				return;
+			}
+			raw = result.currentValue;
+		}
+		throw new Error(`Legacy Automation run archive kept changing while it was being repaired: ${this._archiveKey}`);
 	}
 
 	private async _archiveRuns(runs: readonly IAutomationRun[]): Promise<void> {
@@ -1021,7 +1120,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 					}
 				}
 			}
-			const merged = distinctById([...runs, ...current]);
+			const merged = distinctById([...runs, ...current]).map(terminalizeArchivedRun);
 			const archive: ILegacyRunArchive = {
 				version: LEGACY_RUN_ARCHIVE_VERSION,
 				runs: merged.map(run => ({
@@ -1144,6 +1243,32 @@ function distinctById<T extends { readonly id: string }>(items: readonly T[]): T
 		}
 	}
 	return result;
+}
+
+function assertTerminalRunHistory(runs: readonly IAutomationRun[]): void {
+	const activeRun = runs.find(isNonTerminalRun);
+	if (activeRun) {
+		throw new AutomationActiveRunError(activeRun.automationId, activeRun.id);
+	}
+}
+
+function isNonTerminalRun(run: IAutomationRun): boolean {
+	return run.status === 'pending' || run.status === 'running';
+}
+
+/**
+ * Reuses the run's own timestamp because the interruption instant is unknowable and deterministic repair must be idempotent.
+ */
+function terminalizeArchivedRun(run: IAutomationRun): IAutomationRun {
+	if (!isNonTerminalRun(run)) {
+		return run;
+	}
+	return Object.freeze({
+		...run,
+		status: 'failed',
+		completedAt: run.completedAt ?? run.startedAt,
+		errorMessage: run.errorMessage ?? localize('agentHostAutomation.interruptedLegacyRun', "Interrupted while migrating Automation history"),
+	});
 }
 
 function isSerializedArchivedRun(value: unknown): value is ISerializedArchivedRun {

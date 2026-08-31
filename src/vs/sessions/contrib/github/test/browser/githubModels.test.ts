@@ -127,7 +127,8 @@ suite('Pull Request Icons', () => {
 			getHighestPriorityPullRequestIcon([open, draft]),
 			getHighestPriorityPullRequestIcon([comments, open]),
 			getHighestPriorityPullRequestIcon([comments, failing, open]),
-		], [merged, draft, open, comments, failing]);
+			getHighestPriorityPullRequestIcon([merged, undefined]),
+		], [merged, draft, open, comments, failing, merged]);
 	});
 });
 

@@ -8,8 +8,8 @@ import * as sinon from 'sinon';
 import { URI } from '../../../../../base/common/uri.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, keyFromOverrideIdentifiers } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import { WorkspaceService } from '../../browser/configurationService.js';
+import { IConfigurationDefaults, IConfigurationNode, IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, keyFromOverrideIdentifiers } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { ConfigurationDefaultOverridesContribution, WorkspaceService } from '../../browser/configurationService.js';
 import { ConfigurationEditingErrorCode } from '../../common/configurationEditing.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFoldersChangeEvent, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from '../../../../../platform/workspace/common/workspace.js';
@@ -53,6 +53,110 @@ import { TasksSchemaProperties } from '../../../../contrib/tasks/common/tasks.js
 import { RemoteSocketFactoryService } from '../../../../../platform/remote/common/remoteSocketFactoryService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
+
+suite('ConfigurationDefaultOverridesContribution', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+	const firstSetting = 'test.firstAutoExperimentalSetting';
+	const secondSetting = 'test.secondAutoExperimentalSetting';
+	const configuration: IConfigurationNode = {
+		id: 'test.autoExperimentalSettings',
+		type: 'object',
+		properties: {
+			[firstSetting]: {
+				type: 'string',
+				default: 'control',
+				experiment: {
+					mode: 'auto',
+					name: 'testFirstAutoExperimentalSetting'
+				}
+			},
+			[secondSetting]: {
+				type: 'string',
+				default: 'control',
+				experiment: {
+					mode: 'auto',
+					name: 'testSecondAutoExperimentalSetting'
+				}
+			}
+		}
+	};
+
+	test('replaces and removes auto-refetched overrides without changing other experiment defaults', async () => {
+		const treatments: Record<string, string | undefined> = {
+			testFirstAutoExperimentalSetting: 'firstTreatment',
+			testSecondAutoExperimentalSetting: 'secondTreatment',
+		};
+		type TestContribution = {
+			processedExperimentalSettings: Set<string>;
+			autoExperimentalSettings: Set<string>;
+			registeredExperimentalDefaults: Map<string, IConfigurationDefaults>;
+			configurationRegistry: IConfigurationRegistry;
+			workbenchAssignmentService: {
+				getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined>;
+			};
+			environmentService: { isSessionsWindow: boolean };
+			processExperimentalSettings(properties: Iterable<string>, autoRefetch: boolean): Promise<void>;
+		};
+		const contribution = Object.create(ConfigurationDefaultOverridesContribution.prototype) as TestContribution;
+		contribution.processedExperimentalSettings = new Set();
+		contribution.autoExperimentalSettings = new Set();
+		contribution.registeredExperimentalDefaults = new Map();
+		contribution.configurationRegistry = configurationRegistry;
+		contribution.workbenchAssignmentService = {
+			getTreatment: async <T extends string | number | boolean>(name: string) => treatments[name] as T | undefined,
+		};
+		contribution.environmentService = { isSessionsWindow: false };
+		configurationRegistry.registerConfiguration(configuration);
+
+		try {
+			await contribution.processExperimentalSettings([firstSetting, secondSetting], false);
+			const initialDefaults = {
+				first: configurationRegistry.getConfigurationProperties()[firstSetting].default,
+				second: configurationRegistry.getConfigurationProperties()[secondSetting].default,
+			};
+
+			treatments.testFirstAutoExperimentalSetting = 'replacementTreatment';
+			await contribution.processExperimentalSettings([firstSetting], true);
+			const replacementDefaults = {
+				first: configurationRegistry.getConfigurationProperties()[firstSetting].default,
+				second: configurationRegistry.getConfigurationProperties()[secondSetting].default,
+			};
+
+			treatments.testFirstAutoExperimentalSetting = 'control';
+			await contribution.processExperimentalSettings([firstSetting], true);
+
+			assert.deepStrictEqual({
+				initialDefaults,
+				replacementDefaults,
+				controlDefaults: {
+					first: configurationRegistry.getConfigurationProperties()[firstSetting].default,
+					second: configurationRegistry.getConfigurationProperties()[secondSetting].default,
+				},
+			}, {
+				initialDefaults: {
+					first: 'firstTreatment',
+					second: 'secondTreatment',
+				},
+				replacementDefaults: {
+					first: 'replacementTreatment',
+					second: 'secondTreatment',
+				},
+				controlDefaults: {
+					first: 'control',
+					second: 'secondTreatment',
+				},
+			});
+		} finally {
+			if (contribution.registeredExperimentalDefaults.size) {
+				configurationRegistry.deregisterDefaultConfigurations([...contribution.registeredExperimentalDefaults.values()]);
+			}
+			configurationRegistry.deregisterConfigurations([configuration]);
+		}
+	});
+});
 
 function convertToWorkspacePayload(folder: URI): ISingleFolderWorkspaceIdentifier {
 	return {

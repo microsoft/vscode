@@ -8,11 +8,46 @@ import { ConfigKey, IConfigurationService } from '../../../configuration/common/
 import { DefaultsOnlyConfigurationService } from '../../../configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
 import type { IChatEndpoint } from '../../../networking/common/networking';
-import { getModelCapabilityOverride, isKimiFamily, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelSupportsApplyPatch, modelSupportsContextEditing, modelSupportsMultiReplaceString, modelSupportsPDFDocuments, modelSupportsReplaceString, modelSupportsToolSearch } from '../../common/chatModelCapabilities';
+import { getModelCapabilityOverride, isGpt51Family, isGpt53Codex, isGpt54, isGpt55, isGpt56, isKimiFamily, isOpenAIModel, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelSupportsApplyPatch, modelSupportsContextEditing, modelSupportsMultiReplaceString, modelSupportsPDFDocuments, modelSupportsReplaceString, modelSupportsToolSearch } from '../../common/chatModelCapabilities';
 
 function fakeModel(family: string, model: string = family) {
 	return { family, model } as unknown as IChatEndpoint;
 }
+
+describe('OpenAI prompt model classification', () => {
+	test.each([
+		['gpt-5.7', 'copilot', true],
+		['gpt-6', 'Azure', true],
+		['GPT-6', 'copilot', true],
+		['OpenAI', 'copilot', true],
+		['preview-model', 'OpenAI', true],
+		['preview-model', 'openai', true],
+		['preview-model', 'OpenAI Compatible', false],
+		['OpenAI Compatible', 'custom', false],
+		['unknown', 'custom', false],
+		['claude-sonnet-4.6', 'Anthropic', false],
+		['gemini-3-pro', 'Google', false],
+	])('classifies %s from %s as OpenAI: %s', (family, modelProvider, expected) => {
+		expect(isOpenAIModel({ family, modelProvider })).toBe(expected);
+	});
+
+	test.each([
+		['gpt-5.1', isGpt51Family],
+		['gpt-5.3-codex', isGpt53Codex],
+		['gpt-5.4', isGpt54],
+		['gpt-5.5', isGpt55],
+		['gpt-5.6', isGpt56],
+	] as const)('%s matcher respects version boundaries', (family, matches) => {
+		expect([
+			matches(family),
+			matches(`${family}-mini`),
+			matches(`${family}-20260828`),
+			matches(`${family}0`),
+			matches(`${family}0-codex`),
+			matches(`${family}.1`),
+		]).toEqual([true, true, true, false, false, false]);
+	});
+});
 
 describe('modelSupportsPDFDocuments', () => {
 	test('returns true for claude family', () => {

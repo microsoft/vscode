@@ -29,6 +29,19 @@ export const AgentHostPullRequestOperationId = {
 export const AGENT_HOST_PULL_REQUEST_OPERATION_IDS: ReadonlySet<string> = new Set(Object.values(AgentHostPullRequestOperationId));
 
 /**
+ * The subset that hands the merge off to GitHub's own auto-merge. Agent Merge
+ * covers the same intent and replaces them on the changes button bar, which
+ * drops them from the button and its dropdown.
+ *
+ * They stay advertised rather than being withdrawn, because the Agent Merge
+ * menu keys off them to know it should stand in.
+ */
+export const AGENT_HOST_AUTO_MERGE_OPERATION_IDS: ReadonlySet<string> = new Set([
+	AgentHostPullRequestOperationId.EnableAutoMerge,
+	AgentHostPullRequestOperationId.DisableAutoMerge,
+]);
+
+/**
  * Server-side handler for a changeset operation advertised via
  * `changeset/operationsChanged`.
  *

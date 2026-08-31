@@ -373,9 +373,12 @@ configurationRegistry.registerConfiguration({
 		'dictation.experimental.llmCleanupModel': {
 			type: 'string',
 			enum: ['auto', 'copilot-utility-small', 'gpt-5.4-nano', 'gpt-5.6-luna'],
-			markdownDescription: nls.localize('dictation.experimental.llmCleanupModel', "Controls the language model used for experimental dictation cleanup. `auto` follows the active experiment treatment."),
+			markdownDescription: nls.localize('dictation.experimental.llmCleanupModel', "Controls the language model used for experimental dictation cleanup. `auto` follows the experiment-provided default."),
 			default: 'auto',
-			tags: ['experimental']
+			tags: ['experimental'],
+			experiment: {
+				mode: 'auto'
+			}
 		},
 		'chat.editor.fontSize': {
 			type: 'number',
