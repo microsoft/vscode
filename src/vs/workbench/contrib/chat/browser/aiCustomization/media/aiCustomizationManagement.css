@@ -1691,10 +1691,27 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-management-editor .embedded-mcp-detail .mcp-detail-definition-empty {
-	margin: var(--vscode-spacing-size80) var(--vscode-spacing-size160) var(--vscode-spacing-size160);
-	margin-inline-start: var(--vscode-spacing-size360);
+	margin: var(--vscode-spacing-size80) calc(var(--vscode-spacing-size160) - var(--vscode-spacing-size40)) var(--vscode-spacing-size160);
 	padding-inline: var(--vscode-spacing-size40);
 	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.ai-customization-management-editor .embedded-mcp-detail .embedded-detail-leading-slot:empty {
+	display: none;
+}
+
+.ai-customization-management-editor .mcp-detail-container .mcp-detail-header {
+	gap: var(--vscode-spacing-size80);
+	padding-inline: var(--vscode-spacing-size160);
+}
+
+.ai-customization-management-editor .mcp-detail-container .editor-back-button {
+	width: var(--vscode-spacing-size280);
+	height: var(--vscode-spacing-size280);
+}
+
+.ai-customization-management-editor .mcp-detail-container .mcp-detail-definition-empty {
+	margin-inline-start: calc(var(--vscode-spacing-size160) + var(--vscode-spacing-size280) + var(--vscode-spacing-size80) - var(--vscode-spacing-size40));
 }
 
 /* The tools detail lists many short tool descriptions, so let it use the full editor width. */

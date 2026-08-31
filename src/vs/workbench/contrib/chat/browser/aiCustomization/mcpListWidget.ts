@@ -1133,8 +1133,13 @@ export class McpListWidget extends Disposable {
 			this.galleryServers = [];
 			this.gallerySnapshotFailed = false;
 			this.gallerySnapshotLoading = false;
-			void this.refresh();
+			if (this.searchQuery.trim()) {
+				void this.queryMcpSearch();
+			} else {
+				void this.refresh();
+			}
 		}));
+		void mcpGalleryManifestService.getMcpGalleryManifest();
 		void this.refresh();
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(mcpAccessConfig)) {
