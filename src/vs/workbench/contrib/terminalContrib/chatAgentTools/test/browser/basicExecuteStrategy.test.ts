@@ -7,6 +7,7 @@ import { strictEqual, rejects } from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -102,7 +103,7 @@ suite('BasicExecuteStrategy', () => {
 		strictEqual(result.additionalInformation, 'Command exited with code 1');
 	});
 
-	test('throws "The terminal was closed" when instance is already disposed before execute()', async () => {
+	test('rejects with a CancellationError when instance is already disposed before execute()', async () => {
 		const onCommandFinishedEmitter = new Emitter<{ getOutput(): string; exitCode: number }>();
 		const instance = {
 			xtermReadyPromise: Promise.resolve({}),
@@ -126,7 +127,7 @@ suite('BasicExecuteStrategy', () => {
 
 		await rejects(
 			() => strategy.execute('echo hello', CancellationToken.None),
-			/The terminal was closed/
+			isCancellationError
 		);
 	});
 });
