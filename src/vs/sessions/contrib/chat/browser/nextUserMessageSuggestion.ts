@@ -187,7 +187,7 @@ export class NextUserMessageSuggestionController extends Disposable {
 			}
 
 			const models = await raceCancellation(
-				this._languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-utility-small' }),
+				this._languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-utility' }),
 				token,
 			);
 			if (!models?.length || token.isCancellationRequested) {
@@ -325,7 +325,7 @@ export class NextUserMessageSuggestionController extends Disposable {
 			|| baseline.model !== viewModel
 			|| baseline.value !== viewModel.inputPlaceholder
 			|| baseline.editorValue !== inputEditor.getOption(EditorOption.placeholder)
-			|| !!baseline.editorValue) {
+			|| (baseline.editorValue !== undefined && baseline.editorValue !== baseline.value)) {
 			return false;
 		}
 		this._ownedPlaceholder = { model: viewModel, value, editorValue: value, previous: baseline.value };
