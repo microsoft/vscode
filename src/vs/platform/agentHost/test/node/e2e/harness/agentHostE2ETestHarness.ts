@@ -20,8 +20,11 @@ import {
 	ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind,
 	ChatInputResponseKind, ToolResultContentType, ToolCallConfirmationReason, ToolCallCancellationReason, buildDefaultChatUri,
 	getInlineToolInput, MessageKind, ROOT_STATE_URI, type MessageAttachment, type ChatInputAnswer, type ChatInputRequest, type RootState, type TerminalState,
-	type ToolResultContent,
+	type ToolDefinition, type ToolResultContent,
 } from '../../../../common/state/sessionState.js';
+import { SEMANTIC_SEARCH_TOOL_NAME } from '../../../../common/semanticSearchConstants.js';
+import { CLIENT_TOOL_SEARCH_REFERENCE_NAME } from '../../../../common/toolSearchConstants.js';
+import { NON_DEFERRED_CLIENT_TOOL_NAMES } from '../../../../node/copilot/toolSearchDeferral.js';
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { TerminalClaimKind } from '../../../../common/state/protocol/channels-terminal/state.js';
 import {
@@ -433,6 +436,72 @@ export async function createRealSession(
 	c.clearAhpSnapshot();
 
 	return sessionUri;
+}
+
+/**
+ * Pushes root config as the product client does on connect; the host applies
+ * no schema defaults to unpushed keys. Call only after a session exists: the
+ * reducer drops the action while the server's root config is uninitialized.
+ */
+export async function setRootConfigValues(c: TestProtocolClient, config: Record<string, unknown>, clientSeq: number): Promise<void> {
+	const satisfied = (bag: Readonly<Record<string, unknown>> | undefined) =>
+		Object.entries(config).every(([key, value]) => JSON.stringify(bag?.[key]) === JSON.stringify(value));
+	const subscribed = await c.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
+	if (satisfied((subscribed.snapshot?.state as RootState | undefined)?.config?.values)) {
+		return;
+	}
+	c.clearReceived();
+	c.dispatch({ channel: ROOT_STATE_URI, clientSeq, action: { type: ActionType.RootConfigChanged, config } });
+	await c.waitForNotification(n => {
+		if (!isActionNotification(n, ActionType.RootConfigChanged)) {
+			return false;
+		}
+		const action = getActionEnvelope(n).action as { readonly config?: Readonly<Record<string, unknown>> };
+		return satisfied(action.config);
+	}, 30_000);
+}
+
+/**
+ * The client tools the host's launch gates branch on, built from the
+ * production constants. `semanticSearch` is omitted: its client-side setting
+ * defaults to off, so the default session never publishes it.
+ */
+export function canonicalClientTools(): ToolDefinition[] {
+	return [
+		{
+			name: CLIENT_TOOL_SEARCH_REFERENCE_NAME,
+			description: 'Searches deferred tools by a short description of the needed capability.',
+			inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
+		},
+		...[...NON_DEFERRED_CLIENT_TOOL_NAMES].filter(name => name !== SEMANTIC_SEARCH_TOOL_NAME).map(name => ({
+			name,
+			description: `Client-provided ${name} tool.`,
+			inputSchema: { type: 'object' as const, properties: {} },
+		})),
+		{
+			name: 'e2e_deferred_probe',
+			description: 'Deferrable client tool used to pin tool-search deferral behavior.',
+			inputSchema: { type: 'object', properties: {} },
+		},
+	];
+}
+
+/**
+ * Publishes the canonical active client onto `sessionUri`. Must complete
+ * before the first turn: the chat freezes its client snapshot at
+ * materialization, and a session with no client tools silently disables
+ * client-tool-gated launch features.
+ */
+export async function registerCanonicalActiveClient(c: TestProtocolClient, sessionUri: string, clientId: string, extraTools: readonly ToolDefinition[] = []): Promise<void> {
+	c.dispatch({
+		channel: sessionUri,
+		clientSeq: 1,
+		action: {
+			type: ActionType.SessionActiveClientSet,
+			activeClient: { clientId, tools: [...canonicalClientTools(), ...extraTools] },
+		},
+	});
+	await c.waitForNotification(n => isActionNotification(n, ActionType.SessionActiveClientSet), 30_000);
 }
 
 export async function runAhpSnapshotTest(

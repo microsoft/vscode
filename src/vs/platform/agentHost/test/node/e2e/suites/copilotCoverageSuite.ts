@@ -21,7 +21,7 @@ import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/regi
 import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallContentChangedAction, type ChatToolCallReadyAction, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
 import { buildDefaultChatUri, MessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallStatus, ToolResultContentType, type ChangesetState, type SessionState } from '../../../../common/state/sessionState.js';
 import type { TerminalCommandPart, TerminalState } from '../../../../common/state/protocol/channels-terminal/state.js';
-import { assertToolCallCompleteText, createRealSession, dispatchTurn, driveTurnToCompletion, getMarkdownResponseText, initTestGitRepo, resolveGitHubToken, terminalResourceFromContent } from '../harness/agentHostE2ETestHarness.js';
+import { assertToolCallCompleteText, createRealSession, dispatchTurn, driveTurnToCompletion, getMarkdownResponseText, initTestGitRepo, registerCanonicalActiveClient, resolveGitHubToken, setRootConfigValues, terminalResourceFromContent } from '../harness/agentHostE2ETestHarness.js';
 import { expandShellToolName } from '../harness/shellToolNames.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
@@ -80,20 +80,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 	}
 
 	async function setRootConfig(config: Record<string, unknown>, clientSeq: number): Promise<void> {
-		await context.client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
-		context.client.clearReceived();
-		context.client.dispatch({
-			channel: ROOT_STATE_URI,
-			clientSeq,
-			action: { type: ActionType.RootConfigChanged, config },
-		});
-		await context.client.waitForNotification(n => {
-			if (!isActionNotification(n, ActionType.RootConfigChanged)) {
-				return false;
-			}
-			const action = getActionEnvelope(n).action as { readonly config?: Readonly<Record<string, unknown>> };
-			return Object.entries(config).every(([key, value]) => JSON.stringify(action.config?.[key]) === JSON.stringify(value));
-		}, 30_000);
+		await setRootConfigValues(context.client, config, clientSeq);
 	}
 
 	async function driveToolSearchTurn(sessionUri: string, turnId: string, toolSearchResult: string): Promise<{ toolNames: string[]; responseText: string }> {
@@ -326,26 +313,11 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		const { sessionUri } = await createWorkspaceSession('tool-search-success');
 		try {
 			await setRootConfig({ [CopilotCliConfigKey.ToolSearchEnabled]: true }, 100);
-			context.client.dispatch({
-				channel: sessionUri,
-				clientSeq: 1,
-				action: {
-					type: ActionType.SessionActiveClientSet,
-					activeClient: {
-						clientId: 'tool-search-success-client',
-						tools: [{
-							name: 'toolSearch',
-							description: 'Searches deferred tools by name.',
-							inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
-						}, {
-							name: 'get_magic_word',
-							description: 'Returns the magic word.',
-							inputSchema: { type: 'object', properties: {} },
-						}],
-					},
-				},
-			});
-			await context.client.waitForNotification(n => isActionNotification(n, ActionType.SessionActiveClientSet), 30_000);
+			await registerCanonicalActiveClient(context.client, sessionUri, 'tool-search-success-client', [{
+				name: 'get_magic_word',
+				description: 'Returns the magic word.',
+				inputSchema: { type: 'object', properties: {} },
+			}]);
 
 			const result = await driveToolSearchTurn(sessionUri, 'turn-tool-search-success', '["get_magic_word"]');
 			assert.deepStrictEqual({
@@ -367,26 +339,11 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		const { sessionUri } = await createWorkspaceSession('tool-search-malformed');
 		try {
 			await setRootConfig({ [CopilotCliConfigKey.ToolSearchEnabled]: true }, 100);
-			context.client.dispatch({
-				channel: sessionUri,
-				clientSeq: 1,
-				action: {
-					type: ActionType.SessionActiveClientSet,
-					activeClient: {
-						clientId: 'tool-search-malformed-client',
-						tools: [{
-							name: 'toolSearch',
-							description: 'Searches deferred tools by name.',
-							inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
-						}, {
-							name: 'get_magic_word',
-							description: 'Returns the magic word.',
-							inputSchema: { type: 'object', properties: {} },
-						}],
-					},
-				},
-			});
-			await context.client.waitForNotification(n => isActionNotification(n, ActionType.SessionActiveClientSet), 30_000);
+			await registerCanonicalActiveClient(context.client, sessionUri, 'tool-search-malformed-client', [{
+				name: 'get_magic_word',
+				description: 'Returns the magic word.',
+				inputSchema: { type: 'object', properties: {} },
+			}]);
 
 			const result = await driveToolSearchTurn(sessionUri, 'turn-tool-search-malformed', 'not-json');
 			assert.deepStrictEqual({
