@@ -396,7 +396,7 @@ export class ChatSessionStore extends Disposable {
 
 			// Write succeeded, update index
 			const newMetadata = await getSessionMetadata(session);
-			index.entries[session.sessionId] = newMetadata;
+			index.entries[session.sessionId] = preserveNonEmpty(index.entries[session.sessionId], newMetadata);
 		} catch (e) {
 			this.reportError('sessionWrite', 'Error writing chat session', e);
 		}
@@ -413,7 +413,7 @@ export class ChatSessionStore extends Disposable {
 
 			// TODO get this class on sessionResource
 			const externalSessionId = session.sessionResource.toString();
-			index.entries[externalSessionId] = await getSessionMetadata(session);
+			index.entries[externalSessionId] = preserveNonEmpty(index.entries[externalSessionId], await getSessionMetadata(session));
 		} catch (e) {
 			this.reportError('sessionMetadataWrite', 'Error writing chat session metadata', e);
 		}
@@ -759,11 +759,11 @@ export class ChatSessionStore extends Disposable {
 	updateAndFlushIndexSync(localSessions: ChatModel[], externalSessions: ChatModel[]): void {
 		const index = this.internalGetIndex();
 		for (const session of localSessions) {
-			index.entries[session.sessionId] = getSessionMetadataSync(session);
+			index.entries[session.sessionId] = preserveNonEmpty(index.entries[session.sessionId], getSessionMetadataSync(session));
 		}
 		for (const session of externalSessions) {
 			const externalSessionId = session.sessionResource.toString();
-			index.entries[externalSessionId] = getSessionMetadataSync(session);
+			index.entries[externalSessionId] = preserveNonEmpty(index.entries[externalSessionId], getSessionMetadataSync(session));
 		}
 		try {
 			this.storageService.store(ChatIndexStorageKey, index, this.getIndexStorageScope(), StorageTarget.MACHINE);
@@ -891,6 +891,23 @@ function getSessionMetadataSync(session: ChatModel): IChatSessionEntryMetadata {
 		inputState,
 		workingDirectory: session.workingDirectory?.toString(),
 	};
+}
+
+/**
+ * `isEmpty` exists to keep never-used sessions out of the history list, which
+ * filters on it. Removing every request from a session that *did* have them —
+ * restoring the checkpoint on the first request, for example — must therefore
+ * not re-classify it as never-used: doing so drops it from the list permanently
+ * even though its title and full transcript are still on disk, and makes it
+ * flicker in and out beforehand, since the live-model path applies no such
+ * filter.
+ */
+function preserveNonEmpty(previous: IChatSessionEntryMetadata | undefined, next: IChatSessionEntryMetadata): IChatSessionEntryMetadata {
+	if (next.isEmpty && previous && !previous.isEmpty) {
+		next.isEmpty = false;
+	}
+
+	return next;
 }
 
 async function getSessionMetadata(session: ChatModel | ISerializableChatData): Promise<IChatSessionEntryMetadata> {

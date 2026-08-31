@@ -29,7 +29,7 @@ import { MockChatModel } from './mockChatModel.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 
-function createMockChatModel(sessionResource: URI, options?: { customTitle?: string }): ChatModel {
+function createMockChatModel(sessionResource: URI, options?: { customTitle?: string; requestCount?: number }): ChatModel {
 	const sessionId = LocalChatSessionUri.parseLocalSessionId(sessionResource);
 	if (!sessionId) {
 		throw new Error('createMockChatModel requires a local session URI');
@@ -39,8 +39,16 @@ function createMockChatModel(sessionResource: URI, options?: { customTitle?: str
 	if (options?.customTitle) {
 		model.customTitle = options.customTitle;
 	}
+	if (options?.requestCount) {
+		setRequestCount(model, options.requestCount);
+	}
 	// Cast to ChatModel - the mock implements enough of the interface for testing
 	return model as unknown as ChatModel;
+}
+
+/** Only the request count matters for the index metadata under test. */
+function setRequestCount(model: MockChatModel, count: number): void {
+	model.requests = Array.from({ length: count }, () => ({} as MockChatModel['requests'][number]));
 }
 
 class MockWorkspaceEditingService extends Disposable implements Partial<IWorkspaceEditingService> {
@@ -181,6 +189,32 @@ suite('ChatSessionStore', () => {
 
 		const index = await store.getIndex();
 		assert.strictEqual(index['session-1'].title, 'My Custom Title');
+	});
+
+	test('storeSessions marks a session with no requests as empty', async () => {
+		const store = createChatSessionStore();
+		const model = testDisposables.add(createMockChatModel(LocalChatSessionUri.forSession('session-1')));
+
+		await store.storeSessions([model]);
+
+		const index = await store.getIndex();
+		assert.strictEqual(index['session-1'].isEmpty, true);
+	});
+
+	test('storeSessions keeps a session non-empty after all of its requests are removed', async () => {
+		const store = createChatSessionStore();
+		const model = testDisposables.add(createMockChatModel(LocalChatSessionUri.forSession('session-1'), { requestCount: 2 }));
+
+		await store.storeSessions([model]);
+		assert.strictEqual((await store.getIndex())['session-1'].isEmpty, false);
+
+		// Restoring the checkpoint on the first request removes every request.
+		// The session still has its title and transcript on disk, so it must not
+		// be reclassified as never-used and filtered out of the history list.
+		setRequestCount(model as unknown as MockChatModel, 0);
+		await store.storeSessions([model]);
+
+		assert.strictEqual((await store.getIndex())['session-1'].isEmpty, false);
 	});
 
 	test('readSession returns stored session data', async () => {
