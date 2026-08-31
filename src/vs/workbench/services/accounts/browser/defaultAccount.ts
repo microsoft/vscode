@@ -443,10 +443,22 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 			if (e.providerId !== defaultAccountProvider.id) {
 				return;
 			}
-			if (this.defaultAccount && e.event.removed?.some(session => session.id === this.defaultAccount?.sessionId)) {
+			// Providers can atomically replace a session, so only removal-only events represent an immediate sign-out.
+			const added = e.event.added?.length ?? 0;
+			const removed = e.event.removed?.length ?? 0;
+			const changed = e.event.changed?.length ?? 0;
+			const currentSessionRemoved = this.defaultAccount !== null && (e.event.removed?.some(session => session.id === this.defaultAccount?.sessionId) ?? false);
+			const hasReplacementCandidates = added > 0 || changed > 0;
+			const clearDefaultAccount = currentSessionRemoved && !hasReplacementCandidates;
+			const message = `[DefaultAccount] Authentication sessions changed: added=${added}, removed=${removed}, changed=${changed}, currentSessionRemoved=${currentSessionRemoved}, hasReplacementCandidates=${hasReplacementCandidates}, decision=${clearDefaultAccount ? 'clear' : 'reconcile'}`;
+			if (currentSessionRemoved || (added > 0 && removed > 0)) {
+				this.logService.info(message);
+			} else {
+				this.logService.trace(message);
+			}
+			if (clearDefaultAccount) {
 				this.setDefaultAccount(null);
 			} else {
-				this.logService.debug('[DefaultAccount] Sessions changed for default account provider, updating default account');
 				this.updateDefaultAccount();
 			}
 		}));
@@ -561,8 +573,13 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 	}
 
 	private async doUpdateDefaultAccount(options?: IDefaultAccountRefreshOptions): Promise<void> {
+		const currentSessionId = this.defaultAccount?.sessionId;
 		try {
 			const defaultAccount = await this.fetchDefaultAccount(options);
+			if (currentSessionId && this.defaultAccount?.sessionId !== currentSessionId) {
+				this.logService.info('[DefaultAccount] Discarding default account update because the current session changed while the update was in progress');
+				return;
+			}
 			this.setDefaultAccount(defaultAccount);
 			this.scheduleAccountDataPoll();
 		} catch (error) {
