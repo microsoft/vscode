@@ -674,6 +674,8 @@ export function mcpOAuthClientSecretStorageKey(mcpServerUrl: string, clientId: s
 export interface McpServerTransportHTTP {
 	readonly type: McpServerTransportType.HTTP;
 	readonly uri: URI;
+	// The exact configured URL string, used verbatim for network requests. `uri` is the parsed form (for origin/auth/display) and loses pre-encoded reserved chars like `%2F`/`%3A`; when `url` is absent, callers fall back to `uri.toString(true)`.
+	readonly url?: string;
 	readonly headers: [string, string][];
 	readonly oauth?: McpServerTransportHTTPOAuth;
 	/**
@@ -689,7 +691,7 @@ export type McpServerLaunch =
 
 export namespace McpServerLaunch {
 	export type Serialized =
-		| { type: McpServerTransportType.HTTP; uri: UriComponents; headers: [string, string][]; oauth?: McpServerTransportHTTPOAuth; authentication?: McpServerTransportHTTPAuthentication }
+		| { type: McpServerTransportType.HTTP; uri: UriComponents; url?: string; headers: [string, string][]; oauth?: McpServerTransportHTTPOAuth; authentication?: McpServerTransportHTTPAuthentication }
 		| { type: McpServerTransportType.Stdio; cwd: string | undefined; command: string; args: readonly string[]; env: Record<string, string | number | null>; envFile: string | undefined; sandbox: IMcpSandboxConfiguration | undefined };
 
 	export function toSerialized(launch: McpServerLaunch): McpServerLaunch.Serialized {
@@ -699,7 +701,7 @@ export namespace McpServerLaunch {
 	export function fromSerialized(launch: McpServerLaunch.Serialized): McpServerLaunch {
 		switch (launch.type) {
 			case McpServerTransportType.HTTP:
-				return { type: launch.type, uri: URI.revive(launch.uri), headers: launch.headers, oauth: launch.oauth, authentication: launch.authentication };
+				return { type: launch.type, uri: URI.revive(launch.uri), url: launch.url, headers: launch.headers, oauth: launch.oauth, authentication: launch.authentication };
 			case McpServerTransportType.Stdio:
 				return {
 					type: launch.type,
@@ -731,6 +733,7 @@ export namespace McpServerLaunch {
 			return {
 				type: McpServerTransportType.HTTP,
 				uri: URI.parse(configuration.url),
+				url: configuration.url,
 				headers: Object.entries(configuration.headers ?? {}),
 				oauth: configuration.oauth,
 			};

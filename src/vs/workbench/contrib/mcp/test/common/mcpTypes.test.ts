@@ -175,10 +175,33 @@ suite('MCP Types', () => {
 			remote: {
 				type: McpServerTransportType.HTTP,
 				uri: URI.parse('https://example.com/mcp'),
+				url: 'https://example.com/mcp',
 				headers: [['Authorization', 'Bearer token']],
 				oauth: { clientId: 'client' },
 			},
 		});
+	});
+
+	test('McpServerLaunch preserves pre-encoded URL characters for HTTP', () => {
+		// AWS Bedrock AgentCore runtime ARNs use pre-encoded reserved characters (%2F, %3A) in
+		// the path. URI.parse percent-decodes those, so the raw string must be carried verbatim
+		// for network requests. See microsoft/vscode#289129.
+		const url = 'https://bedrock-agentcore.us-east-1.amazonaws.com/runtimes/arn%3Aaws%3Abedrock-agentcore%3Aus-east-1%3A123456789012%3Aruntime%2Fmy-runtime-id/invocations?qualifier=DEFAULT';
+		const launch = McpServerLaunch.fromServerConfiguration({
+			type: McpServerType.REMOTE,
+			url,
+			headers: {},
+		});
+
+		assert.ok(launch && launch.type === McpServerTransportType.HTTP);
+		// the raw string is kept exactly, including %2F / %3A that URI.parse would decode
+		assert.strictEqual(launch.url, url);
+		assert.strictEqual(launch.uri.toString(true).includes('%2F'), false, 'uri drops pre-encoding');
+
+		// and it survives the serialize -> revive round trip across the RPC boundary
+		const revived = McpServerLaunch.fromSerialized(McpServerLaunch.toSerialized(launch));
+		assert.ok(revived.type === McpServerTransportType.HTTP);
+		assert.strictEqual(revived.url, url);
 	});
 
 	test('maps configuration targets to collection provenance', () => {
