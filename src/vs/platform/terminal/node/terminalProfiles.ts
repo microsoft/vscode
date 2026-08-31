@@ -140,6 +140,10 @@ async function detectAvailableWindowsProfiles(
 			requiresPath: process.env['CMDER_ROOT'] ? cmderPath : { path: cmderPath, isUnsafe: true },
 			isAutoDetected: true
 		});
+		detectedProfiles.set('Xonsh', {
+			source: ProfileSource.Xonsh,
+			isAutoDetected: true
+		}); //+		
 	}
 
 	applyConfigProfilesToMap(configProfiles, detectedProfiles);
@@ -294,6 +298,11 @@ async function initializeWindowsProfiles(testPwshSourcePaths?: string[]): Promis
 		paths: pwshPaths,
 		icon: Codicon.terminalPowershell
 	});
+	profileSources.set(ProfileSource.Xonsh, {
+		profileName: 'Xonsh',
+		paths: ['xonsh'],
+		args: ['--login', '-i']
+	}); 
 }
 
 async function getGitBashPaths(): Promise<string[]> {
