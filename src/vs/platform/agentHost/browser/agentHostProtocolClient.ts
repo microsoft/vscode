@@ -170,6 +170,16 @@ export interface IAgentHostProtocolClientOptions {
 	readonly clientInfo?: Implementation;
 	/** How a dropped transport is restored. Defaults to {@link DEFAULT_RECONNECT_POLICY}. */
 	readonly reconnectPolicy?: IRemoteAgentHostReconnectPolicy;
+	/** Resolves authentication to restore immediately after every fresh initialize. */
+	readonly resolveInitialAuthentication?: () => Promise<AuthenticateParams | undefined>;
+}
+
+/** An initial authentication resolver failed after a successful initialize. */
+export class InitialAuthenticationError extends Error {
+	constructor(error: unknown) {
+		super(`Initial authentication failed: ${error instanceof Error ? error.message : String(error)}`);
+		this.name = 'InitialAuthenticationError';
+	}
 }
 
 /**
@@ -283,6 +293,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private readonly _loadEstimator: ILoadEstimator;
 	private readonly _clientInfo: Implementation | undefined;
 	private readonly _reconnectPolicy: IRemoteAgentHostReconnectPolicy;
+	private readonly _resolveInitialAuthentication: (() => Promise<AuthenticateParams | undefined>) | undefined;
 
 	/**
 	 * URIs we have already granted implicit read access for on this connection.
@@ -337,6 +348,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._loadEstimator = options?.loadEstimator ?? LoadEstimator.getInstance();
 		this._clientInfo = options?.clientInfo;
 		this._reconnectPolicy = options?.reconnectPolicy ?? DEFAULT_RECONNECT_POLICY;
+		this._resolveInitialAuthentication = options?.resolveInitialAuthentication;
 
 		if (typeof transportOrFactory === 'function') {
 			this._transportFactory = transportOrFactory;
@@ -479,6 +491,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				initialSubscriptions: [ROOT_STATE_URI],
 			}, { bypassInitializeQueue: true });
 			this._applyInitializeResult(result);
+			if (this._resolveInitialAuthentication || this._authentication.size > 0) {
+				await this._restoreAuthenticationAfterFreshInitialize(AgentHostClientState.Connecting);
+				if (this._state.kind !== AgentHostClientState.Connecting) {
+					throw transportLostError(this._address);
+				}
+			}
 
 			// Hydrate root state from the initial snapshot
 			for (const snapshot of result.snapshots ?? []) {
@@ -499,7 +517,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			const protocolError = error instanceof ProtocolError
 				? error
 				: new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, error instanceof Error ? error.message : String(error));
-			if (protocolError.code === AhpErrorCodes.UnsupportedProtocolVersion) {
+			if (protocolError.code === AhpErrorCodes.UnsupportedProtocolVersion || error instanceof InitialAuthenticationError) {
 				this._cancelLivenessTimers();
 				if (this._state.kind === AgentHostClientState.Connecting) {
 					this._state.outbox.length = 0;
@@ -697,7 +715,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			this._applyReconnectResult(result, freshInitialize);
 			this._updateManagedSettingsPermissions(true);
 			if (freshInitialize && result.type === ReconnectResultType.Snapshot) {
-				await this._restoreAuthenticationAfterFreshInitialize();
+				await this._restoreAuthenticationAfterFreshInitialize(AgentHostClientState.Reconnecting);
+				if (this._state.kind !== AgentHostClientState.Reconnecting) {
+					return;
+				}
 				await this._restoreSubscriptionsAfterFreshInitialize(result.snapshots);
 			}
 			if (this._state.kind !== AgentHostClientState.Reconnecting) {
@@ -731,6 +752,14 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			if (err instanceof NonReconnectableTransportError) {
 				const protocolError = new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, err.message);
 				this._handleFatalClose(protocolError);
+				return;
+			}
+			if (err instanceof InitialAuthenticationError) {
+				const protocolError = new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, err.message);
+				this._cancelLivenessTimers();
+				this._rejectPendingRequests(protocolError);
+				reconnect.gate.error(err);
+				this._transitionTo({ kind: AgentHostClientState.Incompatible, error: protocolError });
 				return;
 			}
 			// Replace the gate so awaiting callers see the failure but new
@@ -810,12 +839,37 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		]);
 	}
 
-	private async _restoreAuthenticationAfterFreshInitialize(): Promise<void> {
-		await Promise.all([...this._authentication.values()].map(params => this._dispatchRequest<CommandMap['authenticate']['result']>('authenticate', {
-			channel: ROOT_STATE_URI,
-			...params,
-			scopes: params.scopes ? [...params.scopes] : undefined,
-		}, { bypassReconnectGate: true })));
+	private async _restoreAuthenticationAfterFreshInitialize(expectedState: AgentHostClientState.Connecting | AgentHostClientState.Reconnecting): Promise<void> {
+		let resolvedInitialAuthentication = false;
+		if (this._resolveInitialAuthentication) {
+			try {
+				const initialAuthentication = await this._resolveInitialAuthentication();
+				if (initialAuthentication) {
+					const normalizedParams = this._normalizeAuthenticationParams(initialAuthentication);
+					this._authentication.set(this._authenticationKey(normalizedParams), normalizedParams);
+					resolvedInitialAuthentication = true;
+				}
+			} catch (error) {
+				throw new InitialAuthenticationError(error);
+			}
+			if (this._state.kind !== expectedState) {
+				return;
+			}
+		}
+		try {
+			await Promise.all([...this._authentication.values()].map(params => this._dispatchRequest<CommandMap['authenticate']['result']>('authenticate', {
+				channel: ROOT_STATE_URI,
+				...params,
+				scopes: params.scopes ? [...params.scopes] : undefined,
+			}, this._state.kind === AgentHostClientState.Connecting
+				? { bypassInitializeQueue: true, bypassReconnectGate: true }
+				: { bypassReconnectGate: true })));
+		} catch (error) {
+			if (resolvedInitialAuthentication) {
+				throw new InitialAuthenticationError(error);
+			}
+			throw error;
+		}
 	}
 
 	private _clientMeta(): Record<string, unknown> {
@@ -1141,22 +1195,30 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * Authenticate with the remote agent host using a specific scheme.
 	 */
 	async authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
-		const normalizedParams: AuthenticateParams = {
-			...params,
-			scopes: params.scopes ? [...new Set(params.scopes)].sort() : undefined,
-		};
+		const normalizedParams = this._normalizeAuthenticationParams(params);
 		await this._sendRequest('authenticate', {
 			channel: ROOT_STATE_URI,
 			...normalizedParams,
 			scopes: normalizedParams.scopes ? [...normalizedParams.scopes] : undefined,
 		});
-		const key = `${normalizedParams.resource}\0${JSON.stringify(normalizedParams.scopes ?? [])}`;
+		const key = this._authenticationKey(normalizedParams);
 		if (params.token) {
 			this._authentication.set(key, normalizedParams);
 		} else {
 			this._authentication.delete(key);
 		}
 		return { authenticated: true };
+	}
+
+	private _normalizeAuthenticationParams(params: AuthenticateParams): AuthenticateParams {
+		return {
+			...params,
+			scopes: params.scopes ? [...new Set(params.scopes)].sort() : undefined,
+		};
+	}
+
+	private _authenticationKey(params: AuthenticateParams): string {
+		return `${params.resource}\0${JSON.stringify(params.scopes ?? [])}`;
 	}
 
 	/**

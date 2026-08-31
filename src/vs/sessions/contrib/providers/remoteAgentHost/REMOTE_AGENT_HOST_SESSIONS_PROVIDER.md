@@ -46,13 +46,13 @@ Grouping changes these behaviors:
 
 ## Connection ownership
 
-The remote contribution owns:
+The remote Agent Host service owns:
 
-- connect, disconnect, and reconnect policy;
-- authentication and interactive connection prompts;
-- remote filesystem browsing;
-- transport diagnostics and connection status;
-- connection-scoped listener disposal.
+- protocol connection construction, handshake classification, status, retry, and disposal;
+- remote filesystem browsing, transport diagnostics, and connection-scoped listener disposal.
+
+Transport-specific callers own discovery, on-demand staging, credentials, and connection leases. They stage
+their context by address, request an explicit reconnect, and wait for the service to report the connection.
 
 The provider exposes connection state through `IAgentHostSessionsProvider` and delegates protocol operations to the live connection. Disconnecting clears live state without manufacturing successful operation results.
 
@@ -82,7 +82,7 @@ Focused tests live beside the remote provider and remote-host services. Tests ow
 
 `DevContainerAgentHostService` provides the desktop-only connection boundary for an Agent Host running inside a Dev Container. VS Code bundles `@devcontainers/cli` and runs that pinned version through its Electron-as-Node runtime; Docker and related tools are still resolved from the user's shell environment. The desktop connector runs `devcontainer up` for the selected local workspace, installs the matching VS Code remote CLI inside the container, and reuses or launches a dedicated standalone Agent Host. A shared-process relay carries the Agent Host WebSocket protocol over `devcontainer exec` standard input/output.
 
-The service registers the connected client as a runtime-only `DevContainer` managed remote connection and creates a `RemoteAgentHostSessionsProvider` around it. The shared remote Agent Host contribution observes the managed connection and supplies connection-level filesystem, model, terminal, and log integration. Dev Container CLI output is streamed into one stable `Dev Container (<workspace>)` Output channel per source workspace, which is reused across connection attempts.
+The service stages a runtime-only `DevContainer` entry and asks the remote Agent Host service to connect its factory-built client, then creates a `RemoteAgentHostSessionsProvider` around it. The shared remote Agent Host contribution observes the connection and supplies connection-level filesystem, model, terminal, and log integration. Dev Container CLI output is streamed into one stable `Dev Container (<workspace>)` Output channel per source workspace, which is reused across connection attempts.
 
 ## Change policy
 

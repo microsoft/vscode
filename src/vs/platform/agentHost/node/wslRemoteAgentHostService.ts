@@ -349,12 +349,12 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 		}
 	}
 
-	async reconnect(distro: string, name: string, remoteAgentHostCommand?: string): Promise<IWSLConnectResult> {
+	async reconnect(distro: string, name: string, remoteAgentHostCommand?: string, userInitiated?: boolean): Promise<IWSLConnectResult> {
 		const existingId = this._distroToConnectionId.get(distro);
 		if (existingId) {
 			this._closeConnection(existingId);
 		}
-		return this.connect({ distro, name, remoteAgentHostCommand });
+		return this.connect({ distro, name, remoteAgentHostCommand, userInitiated });
 	}
 
 	async relaySend(connectionId: string, message: string): Promise<void> {

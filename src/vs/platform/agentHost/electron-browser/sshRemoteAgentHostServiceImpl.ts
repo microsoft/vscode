@@ -238,6 +238,7 @@ class SSHConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 				return {
 					connection: this._createRelayClient(result),
 					transportDisposable: this._createTransportDisposable(result.connectionId, existing, this._observeSuccessfulConnection(result, options.userInitiated)),
+					reconnectTransfersTransportOwnership: true,
 				};
 			}
 			this._logService.info(`[SSHRemoteAgentHost] Replacing stale connection handle for ${result.address}`);
@@ -267,6 +268,7 @@ class SSHConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 			return {
 				connection: this._createRelayClient(result),
 				transportDisposable: this._createTransportDisposable(result.connectionId, handle, endpointSelectionObserver),
+				reconnectTransfersTransportOwnership: true,
 			};
 		} catch (err) {
 			this._logService.error('[SSHRemoteAgentHost] Connection setup failed', err);

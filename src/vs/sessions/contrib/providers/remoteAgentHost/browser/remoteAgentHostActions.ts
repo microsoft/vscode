@@ -613,8 +613,7 @@ async function promptForRemoteFolder(
 	const sessionsService = accessor.get(ISessionsService);
 	const sessionsPartService = accessor.get(ISessionsPartService);
 
-	// The provider is created synchronously during addManagedConnection's
-	// onDidChangeConnections event, so it should exist by now.
+	// The factory-backed entry fires onDidChangeConnections before its handshake completes, so the provider should exist by now.
 	const provider = sessionsProvidersService.getProviders().find((p): p is IAgentHostSessionsProvider => isAgentHostProvider(p) && p.remoteAddress === connection.localAddress);
 	if (!provider) {
 		return;

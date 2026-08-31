@@ -81,8 +81,8 @@ export interface IManagedReconnectAttemptOptions {
 	readonly preCheck?: (userInitiated: boolean) => Promise<{ readonly skip: boolean; readonly reason?: string } | undefined>;
 	/** Perform the actual (re)connect. */
 	readonly doConnect: () => Promise<void>;
-	/** Schedule the next retry after a non-terminal failure. */
-	readonly schedule: (state: ManagedReconnectState) => void;
+	/** Schedule the next retry after a non-terminal failure. Omit for on-demand-only reconnects. */
+	readonly schedule?: (state: ManagedReconnectState) => void;
 }
 
 /**
@@ -265,7 +265,7 @@ export abstract class ManagedReconnectAgentHostContribution extends Disposable {
 				if (opts.userInitiated) {
 					return;
 				}
-				opts.schedule(liveState);
+				opts.schedule?.(liveState);
 			}
 		})();
 		this._pendingReconnects.set(opts.key, runPromise);

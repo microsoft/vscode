@@ -81,6 +81,8 @@ export interface ICachedTunnel {
 	readonly tunnelId: string;
 	readonly clusterId: string;
 	readonly name: string;
+	/** Protocol version at cache time. Optional because entries from older builds do not contain it. */
+	readonly protocolVersion?: number;
 	readonly authProvider?: 'github' | 'microsoft';
 }
 
