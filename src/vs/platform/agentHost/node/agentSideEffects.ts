@@ -5,7 +5,7 @@
 
 import { getErrorCode } from '../../../base/common/errors.js';
 import type { Event } from '../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, IReference } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { NKeyMap } from '../../../base/common/map.js';
 import { equals } from '../../../base/common/objects.js';
 import { autorun, IObservable, IReader } from '../../../base/common/observable.js';
@@ -24,16 +24,15 @@ import { AgentSession, AgentSignal, IAgent, IAgentChatContext, IAgentToolPending
 import { readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
+import { ISessionDataService } from '../common/sessionDataService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { resolveChatAttachment } from '../common/state/chatAttachmentContext.js';
 import { buildOpenSessionLinkForChatResource } from '../common/openSessionLink.js';
-import { SessionInputRequestKind, ToolCallContributorKind, type AgentInfo, type SessionActiveClient, type SessionInputRequest } from '../common/state/protocol/state.js';
+import { ToolCallContributorKind, type AgentInfo, type SessionActiveClient } from '../common/state/protocol/state.js';
 import type { CustomizationEnablement } from '../common/state/protocol/channels-session/state.js';
-import { ActionType, isChatAction, StateAction, type ChatAction, type ChatToolCallCompleteAction } from '../common/state/sessionActions.js';
+import { ActionType, isChatAction, StateAction, type ChatToolCallCompleteAction } from '../common/state/sessionActions.js';
 import {
 	buildSubagentChatUri,
-	chatStorageUri,
 	createErrorResponsePart,
 	getErrorResponsePart,
 	getToolFileEdits,
@@ -42,8 +41,6 @@ import {
 	buildDefaultChatUri,
 	isSubagentChatUri,
 	mergeLogicalTurnUsage,
-	AH_META_IS_ARCHIVED_DB_KEY,
-	AH_META_IS_READ_DB_KEY,
 	MessageAttachmentKind,
 	MessageKind,
 	parseRequiredSessionUriFromChatUri,
@@ -60,7 +57,6 @@ import {
 	type Message,
 	type MessageAttachment,
 	type URI as ProtocolURI,
-	type ToolCallState,
 	type ToolCallResult,
 	type ToolResultContent,
 	type Turn,
@@ -76,7 +72,7 @@ import { AgentHostStateManager, resolveChatStateForUri } from './agentHostStateM
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { createAgentChatContext, getSessionChatsForFanOut } from './agentChatContext.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter, type AgentHostTurnFailureStage, type AgentHostTurnResult, type IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
-import { AgentHostToolCallTracker } from './agentHostToolCallTracker.js';
+import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from './agentHostToolCallTracker.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import { getConfiguredSessionMode, getModelTelemetryContext, getTurnTelemetryContext } from './agentHostTurnTelemetryContext.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from './agentHostTurnTracker.js';
@@ -85,7 +81,7 @@ import { startTurn } from './agentHostTurnStarter.js';
 import './localCommands/localChatCommands.contribution.js';
 import { SessionPermissionManager } from './sessionPermissions.js';
 import { stripProxyErrorMarker, toChatErrorMeta, tryParseForwardedChatError } from './shared/proxyChatError.js';
-import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadata, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
+import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 import { targetForMcpServer, targetForPlugin } from './shared/customizationEnablementGate.js';
 import { IAgentHostWorktreeIsolation } from './shared/worktreeIsolation.js';
 
@@ -217,7 +213,6 @@ export class AgentSideEffects extends Disposable {
 	 *
 	 */
 	private readonly _pendingSubagentSignals = new NKeyMap<IPendingSubagentSignal[], [ProtocolURI, string]>();
-	private readonly _toolCallTracker: AgentHostToolCallTracker;
 	private readonly _inputRequestTracker: AgentHostInputRequestTracker;
 	/**
 	 * Fires with the provider id whenever a turn starts. Surfaced so
@@ -239,11 +234,11 @@ export class AgentSideEffects extends Disposable {
 		@IAgentHostSessionTitleController private readonly _titleController: IAgentHostSessionTitleController,
 		@IAgentHostTelemetryReporter private readonly _telemetryReporter: AgentHostTelemetryReporter,
 		@IAgentHostTurnTracker private readonly _turnTracker: AgentHostTurnTracker,
+		@IAgentHostToolCallTracker private readonly _toolCallTracker: AgentHostToolCallTracker,
 		@IAgentHostWorktreeIsolation private readonly _worktree: IAgentHostWorktreeIsolation,
 	) {
 		super();
 		this.onDidStartTurn = this._turnTracker.onDidStartTurn;
-		this._toolCallTracker = this._register(new AgentHostToolCallTracker(this._telemetryReporter, (session, turnId) => this._turnTracker.getClientTelemetryContext(session, turnId)));
 		this._inputRequestTracker = new AgentHostInputRequestTracker(this._telemetryReporter, undefined, (session, turnId) => this._turnTracker.getClientTelemetryContext(session, turnId));
 		this._permissionManager = this._register(this._instantiationService.createInstance(SessionPermissionManager, this._stateManager, {}));
 		this._register(this._stateManager.onDidSnapshotDefaultChatTitle(event => this._persistDefaultChatTitleSnapshot(event.session, event.chat, event.title)));
@@ -352,8 +347,6 @@ export class AgentSideEffects extends Disposable {
 					const sessionChannel = parseRequiredSessionUriFromChatUri(envelope.channel);
 					void this._checkpointService.discardTurnStartCheckpoint(URI.parse(sessionChannel), URI.parse(envelope.channel), envelope.action.turnId).catch(() => undefined);
 				}
-				this._syncSessionInputNeededForChatAction(envelope.channel, envelope.action);
-				this._trackTurnUsage(envelope.channel, envelope.action);
 			}
 			if (!envelope.origin && envelope.action.type === ActionType.ChatToolCallComplete) {
 				const action = envelope.action;
@@ -361,11 +354,10 @@ export class AgentSideEffects extends Disposable {
 				// agents are keyed by session URI, so resolve back to the
 				// owning session before notifying the agent. Pass the chat URI
 				// alongside so agents that track peer chats can route correctly.
-				if (!isAhpChatChannel(envelope.channel)) {
-					return; // Not a chat channel; ignore (already logged elsewhere).
+				if (isAhpChatChannel(envelope.channel)) {
+					const sessionChannel = parseRequiredSessionUriFromChatUri(envelope.channel);
+					this._notifyClientToolCallComplete(sessionChannel, envelope.channel, action.toolCallId, action.result, 'server-envelope');
 				}
-				const sessionChannel = parseRequiredSessionUriFromChatUri(envelope.channel);
-				this._notifyClientToolCallComplete(sessionChannel, envelope.channel, action.toolCallId, action.result, 'server-envelope');
 			}
 			// A chat joining the catalog changes the session's authoritative
 			// membership, so every already-contributing client is re-fanned-out
@@ -377,22 +369,12 @@ export class AgentSideEffects extends Disposable {
 					this._fanOutActiveClient(envelope.channel, activeClient);
 				}
 			}
-			if (envelope.action.type === ActionType.SessionConfigChanged) {
-				const values = this._stateManager.getSessionState(envelope.channel)?.config?.values;
-				if (values) {
-					this._persistSessionFlag(envelope.channel, 'configValues', JSON.stringify(values));
-				}
-			}
-			// Persisting here rather than in `handleAction` covers client- and
-			// server-dispatched changes alike, so no dispatch path can skip it.
-			// Rejected actions never reached state and must not be written.
-			if (!envelope.rejectionReason) {
-				if (envelope.action.type === ActionType.SessionIsReadChanged) {
-					this._persistSessionFlag(envelope.channel, AH_META_IS_READ_DB_KEY, envelope.action.isRead ? 'true' : '');
-				} else if (envelope.action.type === ActionType.SessionIsArchivedChanged) {
-					this._persistSessionFlag(envelope.channel, AH_META_IS_ARCHIVED_DB_KEY, envelope.action.isArchived ? 'true' : '');
-				}
-			}
+			this._chatContributions.didDispatchAction({
+				channel: envelope.channel,
+				session: isAhpChatChannel(envelope.channel) ? parseRequiredSessionUriFromChatUri(envelope.channel) : envelope.channel,
+				action: envelope.action,
+				...(envelope.rejectionReason !== undefined ? { rejectionReason: envelope.rejectionReason } : {}),
+			});
 		}));
 	}
 
@@ -542,184 +524,6 @@ export class AgentSideEffects extends Disposable {
 				this._publishSessionCustomizationsSoon(agent, session);
 			}
 		}
-	}
-
-	// ---- Session input-needed aggregation ----------------------------------
-	//
-	// Mirrors per-chat blockers (user-input elicitations, tool confirmations,
-	// client-tool executions, and MCP authentication) into the owning session's
-	// `inputNeeded` list so clients subscribed only to the session channel can
-	// discover and answer them without subscribing to each chat. This handler
-	// only produces the state; it does not consume it.
-
-	private _syncSessionInputNeededForChatAction(chatUri: ProtocolURI, action: ChatAction): void {
-		switch (action.type) {
-			case ActionType.ChatInputRequested:
-				this._syncChatInputNeeded(chatUri, action.request.id);
-				break;
-			case ActionType.ChatInputAnswerChanged:
-				this._syncChatInputNeeded(chatUri, action.requestId);
-				break;
-			case ActionType.ChatInputCompleted:
-				this._removeSessionInputNeeded(chatUri, this._chatInputNeededId(chatUri, action.requestId));
-				break;
-			case ActionType.ChatToolCallStart:
-			case ActionType.ChatToolCallReady:
-			case ActionType.ChatToolCallConfirmed:
-			case ActionType.ChatToolCallComplete:
-			case ActionType.ChatToolCallResultConfirmed:
-			case ActionType.ChatToolCallAuthRequired:
-			case ActionType.ChatToolCallAuthResolved:
-				this._syncToolInputNeeded(chatUri, action.turnId, action.toolCallId);
-				break;
-			case ActionType.ChatTurnComplete:
-			case ActionType.ChatTurnCancelled:
-			case ActionType.ChatError:
-			case ActionType.ChatTruncated:
-				this._removeSessionInputNeededForChat(chatUri);
-				break;
-		}
-	}
-
-	private _syncChatInputNeeded(chatUri: ProtocolURI, requestId: string): void {
-		const state = this._stateManager.getSessionState(chatUri);
-		const part = state?.activeTurn?.responseParts.find(part =>
-			part.kind === ResponsePartKind.InputRequest
-			&& part.response === undefined
-			&& part.request.id === requestId
-		);
-		const id = this._chatInputNeededId(chatUri, requestId);
-		if (!part || part.kind !== ResponsePartKind.InputRequest) {
-			this._removeSessionInputNeeded(chatUri, id);
-			return;
-		}
-		this._setSessionInputNeeded(chatUri, {
-			id,
-			kind: SessionInputRequestKind.ChatInput,
-			chat: chatUri,
-			request: part.request,
-		});
-	}
-
-	private _syncToolInputNeeded(chatUri: ProtocolURI, turnId: string, toolCallId: string): void {
-		const confirmationId = this._toolConfirmationNeededId(chatUri, turnId, toolCallId);
-		const clientExecutionId = this._toolClientExecutionNeededId(chatUri, turnId, toolCallId);
-		const authenticationId = this._toolAuthenticationNeededId(chatUri, turnId, toolCallId);
-		const toolCall = this._findToolCall(chatUri, turnId, toolCallId);
-
-		// A parameter gate auto-approved by the session's bypass setting never
-		// blocks on the user, so keep it out of the session `inputNeeded` queue
-		// (which would flash "input needed" in the sessions list).
-		// `autoApproveBySetting` covers only the parameter gate; a
-		// `PendingResultConfirmation` is a genuine prompt and is still surfaced.
-		const autoApproved = !!toolCall && readToolCallMeta(toolCall).autoApproveBySetting === true;
-
-		const suppressAutoApprovedConfirmation = autoApproved && toolCall?.status === ToolCallStatus.PendingConfirmation;
-		const needsConfirmation = !suppressAutoApprovedConfirmation && (toolCall?.status === ToolCallStatus.PendingConfirmation || toolCall?.status === ToolCallStatus.PendingResultConfirmation);
-		if (needsConfirmation && toolCall) {
-			this._setSessionInputNeeded(chatUri, {
-				id: confirmationId,
-				kind: SessionInputRequestKind.ToolConfirmation,
-				chat: chatUri,
-				turnId,
-				toolCall,
-			});
-		} else {
-			this._removeSessionInputNeeded(chatUri, confirmationId);
-		}
-
-		const contributor = toolCall?.contributor;
-		if (toolCall?.status === ToolCallStatus.Running && contributor?.kind === ToolCallContributorKind.Client) {
-			this._setSessionInputNeeded(chatUri, {
-				id: clientExecutionId,
-				kind: SessionInputRequestKind.ToolClientExecution,
-				chat: chatUri,
-				turnId,
-				clientId: contributor.clientId,
-				toolCall,
-			});
-		} else {
-			this._removeSessionInputNeeded(chatUri, clientExecutionId);
-		}
-
-		if (toolCall?.status === ToolCallStatus.AuthRequired) {
-			this._setSessionInputNeeded(chatUri, {
-				id: authenticationId,
-				kind: SessionInputRequestKind.ToolAuthentication,
-				chat: chatUri,
-				turnId,
-				toolCall,
-			});
-		} else {
-			this._removeSessionInputNeeded(chatUri, authenticationId);
-		}
-	}
-
-	private _findToolCall(chatUri: ProtocolURI, turnId: string, toolCallId: string): ToolCallState | undefined {
-		const state = this._stateManager.getSessionState(chatUri);
-		const turn = state?.activeTurn?.id === turnId ? state.activeTurn : state?.turns.find(t => t.id === turnId);
-		const part = turn?.responseParts.find(p => p.kind === ResponsePartKind.ToolCall && p.toolCall.toolCallId === toolCallId);
-		return part?.kind === ResponsePartKind.ToolCall ? part.toolCall : undefined;
-	}
-
-	private _setSessionInputNeeded(chatUri: ProtocolURI, request: SessionInputRequest): void {
-		const sessionUri = parseRequiredSessionUriFromChatUri(chatUri);
-		const existing = this._stateManager.getSessionState(sessionUri)?.inputNeeded?.find(r => r.id === request.id);
-		if (existing && equals(existing, request)) {
-			return;
-		}
-		this._stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionInputNeededSet, request });
-		// Record the blocker on the turn so a hang reported while the request is
-		// outstanding is tagged as an expected wait on the user rather than as
-		// an unexplained stall, and so the report can name the tool it gates. A
-		// `ChatInput` elicitation carries neither `turnId` nor a tool call, so
-		// fall back to the chat's active turn.
-		const blockedTurnId = hasKey(request, { turnId: true }) ? request.turnId : this._stateManager.getActiveTurnId(chatUri);
-		if (blockedTurnId) {
-			const blockedToolCallId = hasKey(request, { toolCall: true }) ? request.toolCall.toolCallId : undefined;
-			this._turnTracker.turnBlocked(chatUri, blockedTurnId, request.id, request.kind, blockedToolCallId);
-		}
-		if (request.kind !== SessionInputRequestKind.ChatInput) {
-			const agent = this._options.getAgent(sessionUri);
-			if (agent) {
-				this._toolCallTracker.toolCallBlocked(agent.id, chatUri, request);
-			}
-		}
-	}
-
-	private _removeSessionInputNeeded(chatUri: ProtocolURI, id: string): void {
-		const sessionUri = parseRequiredSessionUriFromChatUri(chatUri);
-		this._toolCallTracker.toolCallUnblocked(chatUri, id);
-		this._turnTracker.turnUnblocked(chatUri, id);
-		if (!this._stateManager.getSessionState(sessionUri)?.inputNeeded?.some(r => r.id === id)) {
-			return;
-		}
-		this._stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionInputNeededRemoved, id });
-	}
-
-	private _removeSessionInputNeededForChat(chatUri: ProtocolURI): void {
-		const sessionUri = parseRequiredSessionUriFromChatUri(chatUri);
-		for (const request of this._stateManager.getSessionState(sessionUri)?.inputNeeded ?? []) {
-			if (request.chat === chatUri) {
-				this._removeSessionInputNeeded(chatUri, request.id);
-			}
-		}
-	}
-
-	private _chatInputNeededId(chatUri: ProtocolURI, requestId: string): string {
-		return `chatInput:${chatUri}:${requestId}`;
-	}
-
-	private _toolConfirmationNeededId(chatUri: ProtocolURI, turnId: string, toolCallId: string): string {
-		return `toolConfirmation:${chatUri}:${turnId}:${toolCallId}`;
-	}
-
-	private _toolClientExecutionNeededId(chatUri: ProtocolURI, turnId: string, toolCallId: string): string {
-		return `toolClientExecution:${chatUri}:${turnId}:${toolCallId}`;
-	}
-
-	private _toolAuthenticationNeededId(chatUri: ProtocolURI, turnId: string, toolCallId: string): string {
-		return `toolAuthentication:${chatUri}:${turnId}:${toolCallId}`;
 	}
 
 	// ---- Initialization ----------------------------------------------------
@@ -1097,10 +901,15 @@ export class AgentSideEffects extends Disposable {
 		this._turnTracker.modelCallCompleted(sessionKey, turnId, signal.modelCallId);
 	}
 
-	private _completeTurn(channel: string, turnId: string, result: AgentHostTurnResult, failure?: IAgentHostTurnFailure): void {
+	/**
+	 * Records the turn's completion with the tracker. Returns whether a tracked turn
+	 * actually ended, so callers can skip end-of-turn side effects for a stale or
+	 * duplicate terminal action that ended nothing.
+	 */
+	private _completeTurn(channel: string, turnId: string, result: AgentHostTurnResult, failure?: IAgentHostTurnFailure): boolean {
 		const sessionUri = isAhpChatChannel(channel) ? parseRequiredSessionUriFromChatUri(channel) : channel;
 		const folderCount = this._agentConfigService.getEffectiveWorkingDirectories(sessionUri)?.length ?? 0;
-		this._turnTracker.turnCompleted(channel, turnId, result, failure, { isMultiRoot: folderCount > 1, folderCount });
+		return this._turnTracker.turnCompleted(channel, turnId, result, failure, { isMultiRoot: folderCount > 1, folderCount });
 	}
 
 	private _runTurnCompleteSideEffects(sessionKey: ProtocolURI, turnId: string | undefined, clientContext?: IAgentHostClientTelemetryContext): void {
@@ -1593,10 +1402,21 @@ export class AgentSideEffects extends Disposable {
 						type: ActionType.ChatError,
 						turnId: action.turnId,
 						duration: execution.duration + execution.stopWatch.elapsed(),
-						part: createErrorResponsePart(failure.error),
+						part: createErrorResponsePart(failure.error, true),
 					});
-					this._completeTurn(channel, action.turnId, 'error', failure);
+					const endedTurn = this._completeTurn(channel, action.turnId, 'error', failure);
 					this._toolCallTracker.clearSession(channel);
+					// A rejected resume is a terminal outcome like any other failed send, so it
+					// reports through the same contract rather than staying invisible.
+					if (endedTurn) {
+						this._chatContributions.turnEnd({
+							session: sessionChannel,
+							channel,
+							turnId: action.turnId,
+							reason: { kind: 'error', error: failure.error, resumable: false },
+							clientContext,
+						});
+					}
 					this._resumedTurnExecutions.delete(key);
 				});
 				break;
@@ -1645,9 +1465,22 @@ export class AgentSideEffects extends Disposable {
 				if (!chatChannel) {
 					throw new Error(`ChatTurnCancelled must be handled on an AHP chat channel: ${channel}`);
 				}
-				this._completeTurn(channel, action.turnId, 'cancelled');
+				const endedTurn = this._completeTurn(channel, action.turnId, 'cancelled');
 				this._resumedTurnExecutions.delete(this._resumedTurnExecutionKey(channel, action.turnId));
 				this._toolCallTracker.clearSession(channel);
+				// Keep client cancellations aligned with the agent-signal cancellation path,
+				// but only when a turn actually ended: the reducer no-ops a stale or duplicate
+				// cancellation, and reporting one would mark a read session unread for a turn
+				// that never stopped.
+				if (endedTurn) {
+					this._chatContributions.turnEnd({
+						session: sessionChannel,
+						channel,
+						turnId: action.turnId,
+						reason: { kind: 'cancelled' },
+						clientContext,
+					});
+				}
 				void this._checkpointService.discardTurnStartCheckpoint(URI.parse(sessionChannel), URI.parse(channel), action.turnId).catch(() => undefined);
 				// Cancel all subagent sessions for this parent
 				this.cancelSubagentSessions(channel);
@@ -1667,7 +1500,7 @@ export class AgentSideEffects extends Disposable {
 				break;
 			}
 			case ActionType.SessionTitleChanged: {
-				break; // Session title updates live in SessionTitleContribution via onAction.
+				break; // Session title updates live in SessionTitleContribution via onDidApplyClientAction.
 			}
 			case ActionType.ChatPendingMessageSet:
 			case ActionType.ChatPendingMessageRemoved:
@@ -1675,7 +1508,7 @@ export class AgentSideEffects extends Disposable {
 				if (!chatChannel) {
 					throw new Error(`${action.type} must be handled on an AHP chat channel: ${channel}`);
 				}
-				break; // Queue policy lives in QueueDrainContribution via onAction.
+				break; // Queue policy lives in QueueDrainContribution via onDidApplyClientAction.
 			}
 			case ActionType.ChatTruncated: {
 				if (!chatChannel) {
@@ -1788,7 +1621,7 @@ export class AgentSideEffects extends Disposable {
 				break;
 			}
 		}
-		this._chatContributions.action({ channel, session: sessionChannel, action, clientId, clientContext });
+		this._chatContributions.didApplyClientAction({ channel, session: sessionChannel, action, clientId, clientContext });
 	}
 
 	private _recordCustomizationEnablement(session: ProtocolURI, candidate: ICustomizationEnablementCandidate, enablement: readonly CustomizationEnablement[]): void {
@@ -1828,15 +1661,6 @@ export class AgentSideEffects extends Disposable {
 		this._titleController.markTitleRenamed(channel, chatChannel);
 	}
 
-	/**
-	 * Persists a session metadata key/value pair to the session database.
-	 * Used for fields the host needs to remember across restarts (custom
-	 * title, isRead/isArchived flags, merged config values).
-	 */
-	private _persistSessionFlag(session: ProtocolURI, key: string, value: string): void {
-		persistSessionMetadata(this._options.sessionDataService, this._logService, session, key, value);
-	}
-
 	private _persistDefaultChatTitleSnapshot(session: ProtocolURI, chat: ProtocolURI, title: string): void {
 		const ref = (() => {
 			try {
@@ -1862,53 +1686,6 @@ export class AgentSideEffects extends Disposable {
 		};
 		void persist().catch(error => {
 			this._logService.warn('[AgentSideEffects] Failed to persist default chat title snapshot', error);
-		}).finally(() => ref.dispose());
-	}
-
-	/**
-	 * Persists the usage reported for a chat's turn.
-	 *
-	 * Agent backends do not durably record token/credit usage themselves (the
-	 * Copilot SDK's `assistant.usage` event is explicitly ephemeral, and the
-	 * Claude transcript replay produces none), so a restored session would
-	 * otherwise come back with no context-usage gauge and a session cost of 0.
-	 * See `AgentService._applyPersistedTurnUsage` for which providers can
-	 * currently match these rows back on restore.
-	 *
-	 * Written on every report rather than buffered until the turn ends: the row
-	 * is keyed by turn id and written with `INSERT OR REPLACE` through a
-	 * sequencer, so "last report wins" is already a property of the storage
-	 * layer, and persisting eagerly means a turn cut short by a crash or
-	 * disconnect keeps the usage it had already accrued.
-	 *
-	 * Subagent chats are skipped: their cost is already folded into the parent
-	 * turn's aggregate, so recording it again would double-count.
-	 */
-	private _trackTurnUsage(channel: ProtocolURI, action: ChatAction): void {
-		if (action.type !== ActionType.ChatUsage || isSubagentChatUri(channel)) {
-			return;
-		}
-		// Usage reported with no active turn carries an empty turn id (see
-		// `CopilotAgentSession._turnId`). No turn can ever match it, and no
-		// prune path can remove it, so it would be a permanent orphan row.
-		if (!action.turnId) {
-			return;
-		}
-		// Agents key their storage by the chat's own URI, which is where the
-		// `turns` rows that `getTurnUsages` joins against live.
-		const storage = chatStorageUri(channel);
-		if (!storage) {
-			return;
-		}
-		let ref: IReference<ISessionDatabase>;
-		try {
-			ref = this._options.sessionDataService.openDatabase(storage);
-		} catch (err) {
-			this._logService.warn(`[AgentSideEffects] Failed to open database to persist turn usage for ${channel}`, err);
-			return;
-		}
-		ref.object.setTurnUsage(action.turnId, JSON.stringify(action.usage)).catch(err => {
-			this._logService.warn(`[AgentSideEffects] Failed to persist turn usage for ${channel}/${action.turnId}`, err);
 		}).finally(() => ref.dispose());
 	}
 
@@ -1973,8 +1750,20 @@ export class AgentSideEffects extends Disposable {
 				duration: this._turnDuration(turnStopWatch),
 				part: createErrorResponsePart(error),
 			});
-			this._completeTurn(turnChannel, turnId, 'error', failure);
+			const endedTurn = this._completeTurn(turnChannel, turnId, 'error', failure);
 			this._toolCallTracker.clearSession(turnChannel);
+			// Notify contributions so failed sends recompute changesets and mark the session
+			// unread. Skipped when the turn already ended — a send can reject after the turn
+			// was cancelled, and reporting again would double-report the same turn.
+			if (endedTurn) {
+				this._chatContributions.turnEnd({
+					session: sessionChannel,
+					channel: turnChannel,
+					turnId,
+					reason: { kind: 'error', error, resumable: false },
+					clientContext,
+				});
+			}
 			this._failSessionCreationIfStillCreating(sessionChannel, error);
 		}
 	}

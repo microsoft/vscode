@@ -15,12 +15,13 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { URI } from '../../../../../../base/common/uri.js';
 import { AICustomizationManagementEditor, isCurrentPluginContributionNavigation } from '../../../browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { IPromptPath, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { MigratableConfiguration } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { IHeaderAttribute } from '../../../common/promptSyntax/promptFileParser.js';
 import { PromptFileSource, PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
 import { AICustomizationManagementSection, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
-import type { ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
 import { CustomizationMigrationCategoryId } from '../../../browser/aiCustomization/customizationMigrationCategories.js';
+import type { ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
 import type { ICustomizationMigrationCategorySummary } from '../../../browser/aiCustomization/aiCustomizationWelcomePage.js';
 import { AICustomizationManagementEditorInput } from '../../../browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 
@@ -54,7 +55,7 @@ suite('aiCustomizationManagementEditor', () => {
 		currentEditingPromptType: PromptsType | undefined;
 		currentEditingSource: string | undefined;
 		currentEditingReadOnly: boolean;
-		customizationsByMigrationCategory: Map<CustomizationMigrationCategoryId, readonly IPromptPath[]>;
+		customizationsByMigrationCategory: Map<CustomizationMigrationCategoryId, readonly MigratableConfiguration[]>;
 		customizationMigrationTargetFoldersByType: Map<PromptsType, readonly ICustomizationSourceFolder[]>;
 		activeMigrationCategoryId: CustomizationMigrationCategoryId | undefined;
 		editorDisplayMode: 'preview' | 'raw';
@@ -89,10 +90,9 @@ suite('aiCustomizationManagementEditor', () => {
 		refreshCustomizationMigrationInfo(): Promise<void>;
 		registerCustomizationMigrationSessionRefresh(): void;
 		renderCustomizationMigrationPage(): void;
-		setCustomizationsToMigrate(candidates: Map<CustomizationMigrationCategoryId, readonly IPromptPath[]>, targetFoldersByType: Map<PromptsType, readonly ICustomizationSourceFolder[]>): void;
-		filterCustomizationMigrationCandidatesByTargetFolders(customizations: readonly IPromptPath[], targetFoldersByType: ReadonlyMap<PromptsType, readonly ICustomizationSourceFolder[]>): readonly IPromptPath[];
-		isCustomizationSelectedForMigration(customization: IPromptPath): boolean;
-		setCustomizationSelectedForMigration(customization: IPromptPath, selected: boolean): void;
+		setCustomizationsToMigrate(candidates: Map<CustomizationMigrationCategoryId, readonly MigratableConfiguration[]>, targetFoldersByType: Map<PromptsType, readonly ICustomizationSourceFolder[]>): void;
+		isCustomizationSelectedForMigration(customization: MigratableConfiguration): boolean;
+		setCustomizationSelectedForMigration(customization: MigratableConfiguration, selected: boolean): void;
 		updateContentVisibility(): void;
 		setVisible(visible: boolean): void;
 	};
@@ -277,13 +277,13 @@ suite('aiCustomizationManagementEditor', () => {
 				storage: PromptsStorage.local,
 				type: PromptsType.prompt,
 				source: PromptFileSource.GitHubWorkspace,
-			} as IPromptPath]],
+			} as MigratableConfiguration]],
 			[CustomizationMigrationCategoryId.UserData, [{
 				uri: URI.file('/user-data/prompts/legacy.agent.md'),
 				storage: PromptsStorage.user,
 				type: PromptsType.agent,
 				source: PromptFileSource.UserData,
-			} as IPromptPath]],
+			} as MigratableConfiguration]],
 		]);
 		editor.welcomePage = {
 			setMigrationCategories: categories => welcomePageCalls.push([...categories as readonly ICustomizationMigrationCategorySummary[]]),
@@ -308,19 +308,19 @@ suite('aiCustomizationManagementEditor', () => {
 			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
 		}));
 		const sharedUri = URI.file('/home/user/shared.prompt.md');
-		const workspacePrompt: IPromptPath = {
+		const workspacePrompt: MigratableConfiguration = {
 			uri: sharedUri,
 			storage: PromptsStorage.local,
 			type: PromptsType.prompt,
 			source: PromptFileSource.ConfigWorkspace,
 		};
-		const userPrompt: IPromptPath = {
+		const userPrompt: MigratableConfiguration = {
 			uri: sharedUri,
 			storage: PromptsStorage.user,
 			type: PromptsType.prompt,
 			source: PromptFileSource.ConfigPersonal,
 		};
-		const candidates = new Map<CustomizationMigrationCategoryId, readonly IPromptPath[]>([
+		const candidates = new Map<CustomizationMigrationCategoryId, readonly MigratableConfiguration[]>([
 			[CustomizationMigrationCategoryId.PromptFiles, [workspacePrompt, userPrompt]],
 		]);
 
@@ -356,12 +356,12 @@ suite('aiCustomizationManagementEditor', () => {
 					storage: PromptsStorage.user,
 					type: PromptsType.instructions,
 					source: PromptFileSource.UserData,
-				} as IPromptPath],
+				} as MigratableConfiguration],
 			]]);
 			editor.customizationMigrationTargetFoldersByType = new Map([[
 				PromptsType.instructions,
 				[{
-					uri: URI.file(`/home/test/.test-harness${sessionResource.path}/instructions`),
+					uri: URI.file('/home/test/.test-harness' + sessionResource.path + '/instructions'),
 					label: sessionResource.path,
 					source: AICustomizationSources.user,
 				}],
@@ -383,37 +383,6 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.editorPreviewDisposables.dispose();
 	});
 
-	test('only offers migration candidates with a supported destination folder', () => {
-		const editor = createTestEditor();
-		const promptFile: IPromptPath = {
-			uri: URI.file('/user-data/prompts/review.prompt.md'),
-			storage: PromptsStorage.user,
-			type: PromptsType.prompt,
-			source: PromptFileSource.UserData,
-		};
-		const agent: IPromptPath = {
-			uri: URI.file('/user-data/prompts/reviewer.agent.md'),
-			storage: PromptsStorage.user,
-			type: PromptsType.agent,
-			source: PromptFileSource.UserData,
-		};
-		const instruction: IPromptPath = {
-			uri: URI.file('/user-data/prompts/style.instructions.md'),
-			storage: PromptsStorage.user,
-			type: PromptsType.instructions,
-			source: PromptFileSource.UserData,
-		};
-		const targetFolders = new Map([
-			[PromptsType.skill, [{ uri: URI.file('/home/test/.copilot/skills'), label: 'Skills', source: AICustomizationSources.user }]],
-		]);
-
-		assert.deepStrictEqual(
-			editor.filterCustomizationMigrationCandidatesByTargetFolders([promptFile, agent, instruction], targetFolders).map(customization => customization.uri.path),
-			['/user-data/prompts/review.prompt.md'],
-		);
-		editor.editorPreviewDisposables.dispose();
-	});
-
 	test('migration banners include destination consequences when applicable', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
 			[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: true,
@@ -426,14 +395,14 @@ suite('aiCustomizationManagementEditor', () => {
 				storage: PromptsStorage.user,
 				type: PromptsType.agent,
 				source: PromptFileSource.UserData,
-			} as IPromptPath,
+			} as MigratableConfiguration,
 			{
 				uri: URI.file('/user-data/prompts/style.instructions.md'),
 				name: 'style.instructions.md',
 				storage: PromptsStorage.user,
 				type: PromptsType.instructions,
 				source: PromptFileSource.UserData,
-			} as IPromptPath,
+			} as MigratableConfiguration,
 		];
 		const promptFiles = [
 			{
@@ -442,7 +411,7 @@ suite('aiCustomizationManagementEditor', () => {
 				storage: PromptsStorage.local,
 				type: PromptsType.prompt,
 				source: PromptFileSource.GitHubWorkspace,
-			} as IPromptPath,
+			} as MigratableConfiguration,
 		];
 		editor.customizationsByMigrationCategory = new Map([
 			[CustomizationMigrationCategoryId.UserData, userDataCustomizations],
@@ -505,7 +474,7 @@ suite('aiCustomizationManagementEditor', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
 			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
 		}));
-		const promptFile: IPromptPath = {
+		const promptFile: MigratableConfiguration = {
 			uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
 			name: 'Review',
 			storage: PromptsStorage.local,
@@ -563,14 +532,14 @@ suite('aiCustomizationManagementEditor', () => {
 				storage: PromptsStorage.local,
 				type: PromptsType.prompt,
 				source: PromptFileSource.GitHubWorkspace,
-			} as IPromptPath,
+			} as MigratableConfiguration,
 			{
 				uri: URI.file('/workspace/.github/prompts/workspace-b.prompt.md'),
 				name: 'workspace-b.prompt.md',
 				storage: PromptsStorage.local,
 				type: PromptsType.prompt,
 				source: PromptFileSource.GitHubWorkspace,
-			} as IPromptPath,
+			} as MigratableConfiguration,
 		];
 		editor.customizationsByMigrationCategory = new Map([[CustomizationMigrationCategoryId.PromptFiles, promptFiles]]);
 		editor.activeMigrationCategoryId = CustomizationMigrationCategoryId.PromptFiles;
@@ -648,28 +617,28 @@ suite('aiCustomizationManagementEditor', () => {
 				storage: PromptsStorage.local,
 				type: PromptsType.prompt,
 				source: PromptFileSource.GitHubWorkspace,
-			} as IPromptPath,
+			} as MigratableConfiguration,
 			{
 				uri: URI.file('/workspace/.github/prompts/workspace-b.prompt.md'),
 				name: 'workspace-b.prompt.md',
 				storage: PromptsStorage.local,
 				type: PromptsType.prompt,
 				source: PromptFileSource.GitHubWorkspace,
-			} as IPromptPath,
+			} as MigratableConfiguration,
 			{
 				uri: URI.file('/user-data/prompts/user-a.prompt.md'),
 				name: 'user-a.prompt.md',
 				storage: PromptsStorage.user,
 				type: PromptsType.prompt,
 				source: PromptFileSource.UserData,
-			} as IPromptPath,
+			} as MigratableConfiguration,
 			{
 				uri: URI.file('/user-data/prompts/user-b.prompt.md'),
 				name: 'user-b.prompt.md',
 				storage: PromptsStorage.user,
 				type: PromptsType.prompt,
 				source: PromptFileSource.UserData,
-			} as IPromptPath,
+			} as MigratableConfiguration,
 		];
 		editor.customizationsByMigrationCategory = new Map([[CustomizationMigrationCategoryId.PromptFiles, promptFiles]]);
 		editor.activeMigrationCategoryId = CustomizationMigrationCategoryId.PromptFiles;
@@ -714,14 +683,14 @@ suite('aiCustomizationManagementEditor', () => {
 				storage: PromptsStorage.local,
 				type: PromptsType.prompt,
 				source: PromptFileSource.GitHubWorkspace,
-			} as IPromptPath,
+			} as MigratableConfiguration,
 			{
 				uri: URI.file('/workspace/.github/prompts/workspace-b.prompt.md'),
 				name: 'workspace-b.prompt.md',
 				storage: PromptsStorage.local,
 				type: PromptsType.prompt,
 				source: PromptFileSource.GitHubWorkspace,
-			} as IPromptPath,
+			} as MigratableConfiguration,
 		];
 		editor.customizationsByMigrationCategory = new Map([[CustomizationMigrationCategoryId.PromptFiles, promptFiles]]);
 		editor.activeMigrationCategoryId = CustomizationMigrationCategoryId.PromptFiles;

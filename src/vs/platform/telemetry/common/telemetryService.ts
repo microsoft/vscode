@@ -61,7 +61,6 @@ export class TelemetryService implements ITelemetryService {
 	readonly sqmId: string;
 	readonly devDeviceId: string;
 	readonly firstSessionDate: string;
-	readonly msftInternal: boolean | undefined;
 
 	private _appenders: ITelemetryAppender[];
 	private _commonProperties: ICommonProperties;
@@ -98,7 +97,6 @@ export class TelemetryService implements ITelemetryService {
 		this.sqmId = this._commonProperties['common.sqmId'] as string;
 		this.devDeviceId = this._commonProperties['common.devDeviceId'] as string;
 		this.firstSessionDate = this._commonProperties['common.firstSessionDate'] as string;
-		this.msftInternal = this._commonProperties['common.msftInternal'] as boolean | undefined;
 
 		this._piiPaths = config.piiPaths || [];
 		this._telemetryLevel = TelemetryLevel.USAGE;
@@ -187,6 +185,11 @@ export class TelemetryService implements ITelemetryService {
 		}
 
 		this._telemetryLevel = level;
+	}
+
+	// Read live: an internal account can sign in after this service was created.
+	get msftInternal(): boolean | undefined {
+		return this._commonProperties['common.msftInternal'] as boolean | undefined;
 	}
 
 	get sendErrorTelemetry(): boolean {

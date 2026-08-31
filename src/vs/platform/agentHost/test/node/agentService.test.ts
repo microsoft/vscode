@@ -791,7 +791,7 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 
-			test('finalizes the same turn with a non-resumable error when continuation fails immediately', async () => {
+			test('finalizes the same turn with another resumable error when continuation fails immediately', async () => {
 				const { chat } = await createErroredTurn();
 				copilotAgent.chats.resumeTurn = async () => {
 					throw new Error('continuation failed');
@@ -814,7 +814,7 @@ suite('AgentService (node dispatcher)', () => {
 					state: TurnState.Error,
 					errors: [
 						createErrorResponsePart({ errorType: 'requestFailed', message: 'failed' }, true),
-						createErrorResponsePart({ errorType: 'sendFailed', message: 'Error: continuation failed' }),
+						createErrorResponsePart({ errorType: 'sendFailed', message: 'Error: continuation failed' }, true),
 					],
 					durationAtLeastInitial: true,
 				});
@@ -982,7 +982,7 @@ suite('AgentService (node dispatcher)', () => {
 		gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'main' });
 		const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 		setTestAgentHostWorktreeIsolation(localService, disposables.add(new WorktreeIsolation(
-			{ generateBranchName: async () => 'agents/test' },
+			{ _serviceBrand: undefined, generateBranchName: async () => 'agents/test' },
 			gitService,
 			nullSessionDataService,
 			new NullLogService(),
@@ -1027,7 +1027,7 @@ suite('AgentService (node dispatcher)', () => {
 		gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'origin/main' });
 		const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 		setTestAgentHostWorktreeIsolation(localService, disposables.add(new WorktreeIsolation(
-			{ generateBranchName: async () => 'agents/test' },
+			{ _serviceBrand: undefined, generateBranchName: async () => 'agents/test' },
 			gitService,
 			nullSessionDataService,
 			new NullLogService(),
@@ -1158,7 +1158,7 @@ suite('AgentService (node dispatcher)', () => {
 		gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'main' });
 		const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 		const isolation = disposables.add(new WorktreeIsolation(
-			{ generateBranchName: async () => 'agents/test' },
+			{ _serviceBrand: undefined, generateBranchName: async () => 'agents/test' },
 			gitService,
 			nullSessionDataService,
 			new NullLogService(),
@@ -1489,7 +1489,7 @@ suite('AgentService (node dispatcher)', () => {
 		const sessionDataService = createSessionDataService(new TestSessionDatabase());
 		const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 		const isolation = disposables.add(new WorktreeIsolation(
-			{ generateBranchName: async () => 'agents/test' },
+			{ _serviceBrand: undefined, generateBranchName: async () => 'agents/test' },
 			gitService,
 			sessionDataService,
 			new NullLogService(),
@@ -4122,38 +4122,34 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('a registry mutation during an in-flight list is not served from the shared computation', async () => {
+		test('a caller after a registry mutation does not join an in-flight computation', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MockAgent('copilot'));
 			registerTestAgentProvider(svc, agent);
-			await svc.listSessions();
-			const snapshotCaptured = new DeferredPromise<void>();
-			const releaseSnapshot = new DeferredPromise<void>();
-			const inner = svc as unknown as { _listRegisteredSessions(): Promise<IRegisteredSession[]> };
-			const original = inner._listRegisteredSessions;
-			let listCalls = 0;
-			inner._listRegisteredSessions = async () => {
-				const snapshot = await original.call(svc);
-				listCalls++;
-				if (listCalls === 1) {
-					snapshotCaptured.complete();
-					await releaseSnapshot.p;
-				}
-				return snapshot;
+			const gate = new DeferredPromise<void>();
+			const inner = svc as unknown as { _computeSessions(mode: AgentHostExternalSessionsMode, epoch?: number): Promise<readonly IAgentSessionMetadata[]> };
+			const original = inner._computeSessions;
+			let computations = 0;
+			inner._computeSessions = async (mode, epoch) => {
+				computations++;
+				await gate.p;
+				return original.call(svc, mode, epoch);
 			};
 
-			const listing = svc.listSessions();
-			await snapshotCaptured.p;
+			const preInvalidation = svc.listSessions();
 			await svc.createSession({ provider: 'copilot' });
-			releaseSnapshot.complete();
-			const listed = await listing;
+			gate.complete();
+			const preInvalidationCount = (await preInvalidation).length;
+			const postInvalidationCount = (await svc.listSessions()).length;
 
 			assert.deepStrictEqual({
-				listCalls,
-				listed: listed.length,
+				computations,
+				preInvalidation: preInvalidationCount,
+				postInvalidation: postInvalidationCount,
 			}, {
-				listCalls: 2,
-				listed: 1,
+				computations: 2,
+				preInvalidation: 1,
+				postInvalidation: 1,
 			});
 		});
 
@@ -5760,7 +5756,7 @@ suite('AgentService (node dispatcher)', () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
 			setTestAgentHostWorktreeIsolation(svc, disposables.add(new WorktreeIsolation(
-				{ generateBranchName: async () => 'agents/test' },
+				{ _serviceBrand: undefined, generateBranchName: async () => 'agents/test' },
 				gitService,
 				sessionDataService,
 				new NullLogService(),
@@ -5806,7 +5802,7 @@ suite('AgentService (node dispatcher)', () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
 			setTestAgentHostWorktreeIsolation(svc, disposables.add(new WorktreeIsolation(
-				{ generateBranchName: async () => 'agents/test' },
+				{ _serviceBrand: undefined, generateBranchName: async () => 'agents/test' },
 				gitService,
 				sessionDataService,
 				new NullLogService(),
@@ -6347,6 +6343,7 @@ suite('AgentService (node dispatcher)', () => {
 				addExistingWorktree: async () => { },
 				removeWorktree: async () => { },
 				branchExists: async () => false,
+				createBranch: async () => { },
 				hasUncommittedChanges: async () => false,
 				commitAll: async () => { },
 				mergeBranch: async () => '',
@@ -6454,6 +6451,7 @@ suite('AgentService (node dispatcher)', () => {
 				addExistingWorktree: async () => { },
 				removeWorktree: async () => { },
 				branchExists: async () => false,
+				createBranch: async () => { },
 				hasUncommittedChanges: async () => false,
 				commitAll: async () => { },
 				mergeBranch: async () => '',
@@ -7112,7 +7110,7 @@ suite('AgentService (node dispatcher)', () => {
 			let removeWorktreeCalls = 0;
 			gitService.removeWorktree = async () => { removeWorktreeCalls++; };
 			const isolation = disposables.add(new WorktreeIsolation(
-				{ generateBranchName: async () => 'agents/test' },
+				{ _serviceBrand: undefined, generateBranchName: async () => 'agents/test' },
 				gitService,
 				nullSessionDataService,
 				new NullLogService(),
@@ -7265,12 +7263,10 @@ suite('AgentService (node dispatcher)', () => {
 			class LazyMetadataAgent extends MockAgent {
 				ambientReads = 0;
 				restoreReads = 0;
-				restoreRegistryFallback = false;
 
 				override async getChatMetadata(chat: URI, context: URI | IAgentChatContext, _providerData?: string, options?: IAgentChatMetadataOptions): Promise<IAgentChatMetadata | undefined> {
 					if (options?.activation === 'restore') {
 						this.restoreReads++;
-						this.restoreRegistryFallback = options.registryFallback !== undefined;
 					} else {
 						this.ambientReads++;
 					}
@@ -7294,11 +7290,9 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({
 				readsAfterAmbientListing,
 				readsAfterRestore: { ambient: agent.ambientReads, restore: agent.restoreReads },
-				restoreRegistryFallback: agent.restoreRegistryFallback,
 			}, {
 				readsAfterAmbientListing: { ambient: 1, restore: 0 },
 				readsAfterRestore: { ambient: 1, restore: 1 },
-				restoreRegistryFallback: true,
 			});
 		});
 
@@ -11491,7 +11485,7 @@ suite('AgentService (node dispatcher)', () => {
 			const sessionDataService = createSessionDataService(new TestSessionDatabase());
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 			setTestAgentHostWorktreeIsolation(localService, disposables.add(new WorktreeIsolation(
-				{ generateBranchName: async () => 'agents/test' },
+				{ _serviceBrand: undefined, generateBranchName: async () => 'agents/test' },
 				gitService,
 				sessionDataService,
 				new NullLogService(),
@@ -13788,7 +13782,7 @@ suite('AgentService (node dispatcher)', () => {
 			disposables.add(toDisposable(() => localAgent.dispose()));
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 			setTestAgentHostWorktreeIsolation(localService, disposables.add(new WorktreeIsolation(
-				{ generateBranchName: async () => 'agents/test' },
+				{ _serviceBrand: undefined, generateBranchName: async () => 'agents/test' },
 				gitService,
 				sessionDataService,
 				new NullLogService(),
@@ -14148,7 +14142,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 			const isolation = disposables.add(new WorktreeIsolation(
-				{ generateBranchName: async () => { throw new Error('should not generate a branch'); } },
+				{ _serviceBrand: undefined, generateBranchName: async () => { throw new Error('should not generate a branch'); } },
 				gitService,
 				nullSessionDataService,
 				new NullLogService(),
@@ -14275,7 +14269,7 @@ suite('AgentService (node dispatcher)', () => {
 			};
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 			const isolation = disposables.add(new WorktreeIsolation(
-				{ generateBranchName: async () => 'agents/failure' },
+				{ _serviceBrand: undefined, generateBranchName: async () => 'agents/failure' },
 				gitService,
 				sessionDataService,
 				new NullLogService(),
@@ -14341,7 +14335,7 @@ suite('AgentService (node dispatcher)', () => {
 			gitService.getRepositoryRoot = async () => undefined;
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 			const isolation = disposables.add(new WorktreeIsolation(
-				{ generateBranchName: async () => 'agents/fallback' },
+				{ _serviceBrand: undefined, generateBranchName: async () => 'agents/fallback' },
 				gitService,
 				sessionDataService,
 				new NullLogService(),

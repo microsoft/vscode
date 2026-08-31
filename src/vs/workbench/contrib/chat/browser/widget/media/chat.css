@@ -2270,14 +2270,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .interactive-input-part {
 	margin: 0px 12px;
 	padding: 4px 0 4px 0px;
-	display: flex;
-	flex-direction: column;
-	gap: 4px;
 	position: relative;
 }
 
-/* The stack lays out as a column here. Set by the host, since the stack itself
-	stays layout-agnostic. */
+/* The docked stack joins surfaces without gaps inside the regularly spaced
+	input-area surface stack. */
 .interactive-session .chat-input-stack {
 	display: flex;
 	flex-direction: column;
@@ -2288,24 +2285,49 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 /* Opted in via `IChatWidgetViewOptions.persistentContentHeight`: the content
-	floats above the input so the transcript scrolls underneath it, landing where
-	it sat in flow - `bottom: 100%` leaves the flex `gap` it used to have below it,
-	since the gap and the input part's `padding-top` are both 4px. */
+	floats above the input so the transcript scrolls underneath it. Its bottom
+	padding occupies the input part's top inset, leaving one shared spacing tier
+	before the first visible surface. */
 .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content {
 	position: absolute;
 	inset-inline: 0;
-	bottom: 100%;
+	bottom: calc(100% - var(--vscode-spacing-size40));
 	/* Match the input part's own horizontal padding. */
 	padding-inline: inherit;
 	box-sizing: border-box;
 	/* Clicks fall through to the transcript; the pills opt back in. */
 	pointer-events: none;
+	isolation: isolate;
+	z-index: 0;
 }
 
-/* The composer is hidden, so there is no in-flow sibling left to gap against
-	and the row would sit one gap too high. */
-.interactive-session.chat-floating-persistent-content .interactive-input-part.chat-input-hidden > .chat-input-persistent-content {
-	bottom: calc(100% - var(--vscode-spacing-size40));
+/* Separate floating controls from transcript content without masking the list,
+	so the treatment remains stable while content streams or scrolls. */
+.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before {
+	content: '';
+	position: absolute;
+	inset-inline: 0;
+	top: calc(-1 * var(--vscode-spacing-size160));
+	bottom: 0;
+	z-index: 0;
+	pointer-events: none;
+	background: linear-gradient(
+		to bottom,
+		transparent 0,
+		var(--vscode-chat-list-background, var(--vscode-editor-background)) var(--vscode-spacing-size160)
+	);
+}
+
+.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content > * {
+	position: relative;
+	z-index: 1;
+}
+
+.hc-black .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before,
+.hc-light .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before {
+	background: var(--vscode-chat-list-background, var(--vscode-editor-background));
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
+	box-sizing: border-box;
 }
 
 .interactive-session .interactive-input-part.chat-input-hidden > :not(.chat-input-persistent-content, .chat-tool-confirmation-carousel-container) {

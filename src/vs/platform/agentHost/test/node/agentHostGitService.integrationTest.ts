@@ -581,6 +581,25 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		assert.strictEqual(await svc!.branchExists(URI.file(dir), 'does-not-exist'), false);
 	});
 
+	(hasGit ? test : test.skip)('createBranch preserves dirty changes and leaves the base branch unchanged', async () => {
+		const dir = initRepo();
+		const fs = await import('fs/promises');
+		await fs.writeFile(join(dir, 'dirty.txt'), 'session changes');
+		const baseHead = cp.execFileSync('git', ['rev-parse', 'main'], { cwd: dir, env, encoding: 'utf8' }).trim();
+
+		await svc!.createBranch(URI.file(dir), 'agents/session', { checkout: true });
+
+		const branchName = cp.execFileSync('git', ['branch', '--show-current'], { cwd: dir, env, encoding: 'utf8' }).trim();
+		const currentHead = cp.execFileSync('git', ['rev-parse', 'HEAD'], { cwd: dir, env, encoding: 'utf8' }).trim();
+		const status = cp.execFileSync('git', ['status', '--porcelain'], { cwd: dir, env, encoding: 'utf8' }).trim();
+		assert.deepStrictEqual({ branchName, currentHead, baseHead, status }, {
+			branchName: 'agents/session',
+			currentHead: baseHead,
+			baseHead,
+			status: '?? dirty.txt',
+		});
+	});
+
 	(hasGit ? test : test.skip)('hasUncommittedChanges flips with untracked and committed work', async () => {
 		const dir = initRepo();
 		assert.strictEqual(await svc!.hasUncommittedChanges(URI.file(dir)), false);
