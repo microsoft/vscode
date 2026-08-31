@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { IConfigurationService, IConfigurationValue } from '../../../configuration/common/configuration.js';
-import { AgentHostMapLegacySettingsToManagedSettingsSettingId, resolveManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
+import { resolveManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
 import { AgentNetworkDomainSettingId } from '../../../networkFilter/common/settings.js';
 import { ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID } from '../../common/agentHostSchema.js';
 
@@ -66,7 +66,10 @@ suite('AgentHostManagedSettings', () => {
 		});
 	});
 
-	test('ignores the deprecated opt-in, so it cannot switch off a mapped restriction', () => {
+	test('ignores a stale entry for the removed opt-in, whatever its value', () => {
+		// The gating setting was removed; a leftover settings.json entry must not
+		// switch off a restriction an administrator configured.
+		const removedOptIn = 'chat.agentHost.copilot.mapLegacySettingsToManagedSettings';
 		const restricted = {
 			[AgentNetworkDomainSettingId.NetworkFilter]: { defaultValue: false, policyValue: true },
 			[AgentNetworkDomainSettingId.AllowedNetworkDomains]: { defaultValue: [] },
@@ -76,11 +79,11 @@ suite('AgentHostManagedSettings', () => {
 		assert.deepStrictEqual([
 			resolveManagedSettingsPermissions(createConfigurationService({
 				...restricted,
-				[AgentHostMapLegacySettingsToManagedSettingsSettingId]: { defaultValue: true, userValue: false },
+				[removedOptIn]: { userValue: false },
 			})),
 			resolveManagedSettingsPermissions(createConfigurationService({
 				...restricted,
-				[AgentHostMapLegacySettingsToManagedSettingsSettingId]: { defaultValue: true, userValue: true },
+				[removedOptIn]: { userValue: true },
 			})),
 		], [
 			{ deny: ['Domain(evil.example)'] },

@@ -59,7 +59,7 @@ public SDK contract, without introducing or translating a VS Code setting.
 
 Bridge invariants:
 
-- the bridge is unconditional; it is not guarded by an opt-in setting. `chat.agentHost.copilot.mapLegacySettingsToManagedSettings` is retained only so existing entries do not read as unknown, and its value is ignored;
+- the bridge is unconditional; it is not guarded by an opt-in setting, and the former `chat.agentHost.copilot.mapLegacySettingsToManagedSettings` gate has been removed from the settings registry;
 - add mappings only for legacy settings that already exist; never create a new setting
   for this bridge;
 - mappings select one VS Code setting and use a callback typed against the host-owned managed

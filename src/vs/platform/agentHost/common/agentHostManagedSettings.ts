@@ -65,9 +65,6 @@ export interface IAgentHostManagedSettingsPermissions {
 	ask?: string[];
 }
 
-/** Deprecated and ignored; honoring `false` would let a user lift an admin restriction. */
-export const AgentHostMapLegacySettingsToManagedSettingsSettingId = 'chat.agentHost.copilot.mapLegacySettingsToManagedSettings';
-
 /**
  * Which configuration layers may drive a mapping.
  *
