@@ -13,6 +13,7 @@ import { LinePart, LinePartMetadata } from './linePart.js';
 import { OffsetRange } from '../core/ranges/offsetRange.js';
 import { InlineDecorationType } from '../viewModel/inlineDecorations.js';
 import { TextDirection } from '../model.js';
+import { BugIndicatingError } from '../../../base/common/errors.js';
 
 export const enum RenderWhitespace {
 	None = 0,
@@ -20,6 +21,17 @@ export const enum RenderWhitespace {
 	Selection = 2,
 	Trailing = 3,
 	All = 4
+}
+
+export interface IFullwidthLetterSpacingRequest {
+	readonly grapheme: string;
+	readonly className: string;
+}
+
+export interface IFullwidthLetterSpacingProvider {
+	readonly generation: number;
+	prepare(requests: readonly IFullwidthLetterSpacingRequest[]): void;
+	getLetterSpacing(grapheme: string, className: string): number;
 }
 
 export interface IRenderLineInputOptions {
@@ -45,7 +57,7 @@ export interface IRenderLineInputOptions {
 	textDirection: TextDirection | null;
 	verticalScrollbarSize: number;
 	renderNewLineWhenEmpty: boolean;
-	fullwidthLetterSpacing: number | null;
+	fullwidthLetterSpacingProvider: IFullwidthLetterSpacingProvider | null;
 }
 
 export class RenderLineInput {
@@ -70,12 +82,8 @@ export class RenderLineInput {
 	public readonly fontLigatures: boolean;
 	public readonly textDirection: TextDirection | null;
 	public readonly verticalScrollbarSize: number;
-	/**
-	 * The `letter-spacing` to render full-width characters with so that they occupy exactly two
-	 * half-width cells, or `null` to render them at their natural width. See
-	 * `getFullwidthLetterSpacing`.
-	 */
-	public readonly fullwidthLetterSpacing: number | null;
+	public readonly fullwidthLetterSpacingProvider: IFullwidthLetterSpacingProvider | null;
+	private readonly _fullwidthLetterSpacingProviderGeneration: number;
 
 	/**
 	 * Defined only when renderWhitespace is 'selection'. Selections are non-overlapping,
@@ -113,8 +121,8 @@ export class RenderLineInput {
 		selectionsOnLine: OffsetRange[] | null,
 		textDirection: TextDirection | null,
 		verticalScrollbarSize: number,
-		renderNewLineWhenEmpty: boolean = false,
-		fullwidthLetterSpacing: number | null = null,
+		renderNewLineWhenEmpty: boolean,
+		fullwidthLetterSpacingProvider: IFullwidthLetterSpacingProvider | null,
 	) {
 		this.useMonospaceOptimizations = useMonospaceOptimizations;
 		this.canUseHalfwidthRightwardsArrow = canUseHalfwidthRightwardsArrow;
@@ -146,7 +154,8 @@ export class RenderLineInput {
 		this.renderNewLineWhenEmpty = renderNewLineWhenEmpty;
 		this.textDirection = textDirection;
 		this.verticalScrollbarSize = verticalScrollbarSize;
-		this.fullwidthLetterSpacing = fullwidthLetterSpacing;
+		this.fullwidthLetterSpacingProvider = fullwidthLetterSpacingProvider;
+		this._fullwidthLetterSpacingProviderGeneration = fullwidthLetterSpacingProvider?.generation ?? 0;
 
 		const wsmiddotDiff = Math.abs(wsmiddotWidth - spaceWidth);
 		const middotDiff = Math.abs(middotWidth - spaceWidth);
@@ -205,7 +214,8 @@ export class RenderLineInput {
 			&& this.textDirection === other.textDirection
 			&& this.verticalScrollbarSize === other.verticalScrollbarSize
 			&& this.renderNewLineWhenEmpty === other.renderNewLineWhenEmpty
-			&& this.fullwidthLetterSpacing === other.fullwidthLetterSpacing
+			&& this.fullwidthLetterSpacingProvider === other.fullwidthLetterSpacingProvider
+			&& this._fullwidthLetterSpacingProviderGeneration === other._fullwidthLetterSpacingProviderGeneration
 		);
 	}
 }
@@ -467,7 +477,6 @@ class ResolvedRenderLineInput {
 		public readonly renderSpaceCharCode: number,
 		public readonly renderWhitespace: RenderWhitespace,
 		public readonly renderControlCharacters: boolean,
-		public readonly fullwidthLetterSpacing: number | null,
 	) {
 		//
 	}
@@ -521,15 +530,13 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		}
 		tokens = _applyInlineDecorations(lineContent, len, tokens, input.lineDecorations);
 	}
-	// RTL runs already carry a `style` of their own and are reordered by the browser, so leave them
-	// at their natural width rather than trying to lay them out on the grid.
-	const fullwidthLetterSpacing = (
+	const fullwidthLetterSpacingProvider = (
 		!input.isBasicASCII && !input.containsRTL
-			? input.fullwidthLetterSpacing
+			? input.fullwidthLetterSpacingProvider
 			: null
 	);
-	if (fullwidthLetterSpacing !== null) {
-		tokens = splitFullWidthCharacters(lineContent, tokens);
+	if (fullwidthLetterSpacingProvider !== null) {
+		tokens = splitFullWidthCharacters(lineContent, tokens, fullwidthLetterSpacingProvider);
 	}
 	if (!input.containsRTL) {
 		// We can never split RTL text, as it ruins the rendering
@@ -555,7 +562,6 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		input.renderSpaceCharCode,
 		input.renderWhitespace,
 		input.renderControlCharacters,
-		fullwidthLetterSpacing
 	);
 }
 
@@ -627,13 +633,13 @@ function splitLargeTokens(lineContent: string, tokens: LinePart[], onlyAtSpaces:
 					}
 					if (lastSpaceOffset !== -1 && j - currTokenStart >= Constants.LongToken) {
 						// Split at `lastSpaceOffset` + 1
-						result[resultLen++] = new LinePart(lastSpaceOffset + 1, tokenType, tokenMetadata, tokenContainsRTL);
+						result[resultLen++] = new LinePart(lastSpaceOffset + 1, tokenType, tokenMetadata, tokenContainsRTL, token.fullwidthLetterSpacing);
 						currTokenStart = lastSpaceOffset + 1;
 						lastSpaceOffset = -1;
 					}
 				}
 				if (currTokenStart !== tokenEndIndex) {
-					result[resultLen++] = new LinePart(tokenEndIndex, tokenType, tokenMetadata, tokenContainsRTL);
+					result[resultLen++] = new LinePart(tokenEndIndex, tokenType, tokenMetadata, tokenContainsRTL, token.fullwidthLetterSpacing);
 				}
 			} else {
 				result[resultLen++] = token;
@@ -654,9 +660,9 @@ function splitLargeTokens(lineContent: string, tokens: LinePart[], onlyAtSpaces:
 				const piecesCount = Math.ceil(diff / Constants.LongToken);
 				for (let j = 1; j < piecesCount; j++) {
 					const pieceEndIndex = lastTokenEndIndex + (j * Constants.LongToken);
-					result[resultLen++] = new LinePart(pieceEndIndex, tokenType, tokenMetadata, tokenContainsRTL);
+					result[resultLen++] = new LinePart(pieceEndIndex, tokenType, tokenMetadata, tokenContainsRTL, token.fullwidthLetterSpacing);
 				}
-				result[resultLen++] = new LinePart(tokenEndIndex, tokenType, tokenMetadata, tokenContainsRTL);
+				result[resultLen++] = new LinePart(tokenEndIndex, tokenType, tokenMetadata, tokenContainsRTL, token.fullwidthLetterSpacing);
 			} else {
 				result[resultLen++] = token;
 			}
@@ -774,9 +780,30 @@ function extractControlCharacters(lineContent: string, tokens: LinePart[]): Line
  * Splits every token into runs of full-width and runs of half-width characters, so that the
  * rendering phase can give the full-width ones a `letter-spacing` of their own.
  */
-function splitFullWidthCharacters(lineContent: string, tokens: LinePart[]): LinePart[] {
-	const result: LinePart[] = [];
+function splitFullWidthCharacters(lineContent: string, tokens: LinePart[], provider: IFullwidthLetterSpacingProvider): LinePart[] {
+	const requests: IFullwidthLetterSpacingRequest[] = [];
 	let tokenStartIndex = 0;
+	for (const token of tokens) {
+		const graphemeIterator = new strings.GraphemeIterator(lineContent, tokenStartIndex);
+		while (!graphemeIterator.eol()) {
+			const graphemeStartIndex = graphemeIterator.offset;
+			if (graphemeStartIndex >= token.endIndex) {
+				break;
+			}
+			graphemeIterator.nextGraphemeLength();
+			if (strings.isFullWidthCharacterAt(lineContent, graphemeStartIndex)) {
+				requests.push({
+					grapheme: lineContent.substring(graphemeStartIndex, graphemeIterator.offset),
+					className: token.type,
+				});
+			}
+		}
+		tokenStartIndex = token.endIndex;
+	}
+	provider.prepare(requests);
+
+	const result: LinePart[] = [];
+	tokenStartIndex = 0;
 	for (const token of tokens) {
 		if (tokenStartIndex === token.endIndex) {
 			result.push(token);
@@ -784,17 +811,34 @@ function splitFullWidthCharacters(lineContent: string, tokens: LinePart[]): Line
 		}
 		let partStartIndex = tokenStartIndex;
 		let partIsFullWidth = strings.isFullWidthCharacterAt(lineContent, partStartIndex);
-		for (let charIndex = tokenStartIndex + 1; charIndex < token.endIndex; charIndex++) {
-			const isFullWidth = strings.isFullWidthCharacterAt(lineContent, charIndex);
-			if (isFullWidth !== partIsFullWidth) {
+		let partLetterSpacing = partIsFullWidth
+			? provider.getLetterSpacing(getGraphemeAt(lineContent, partStartIndex), token.type)
+			: null;
+		const graphemeIterator = new strings.GraphemeIterator(lineContent, tokenStartIndex);
+		while (!graphemeIterator.eol()) {
+			const graphemeStartIndex = graphemeIterator.offset;
+			if (graphemeStartIndex >= token.endIndex) {
+				break;
+			}
+			graphemeIterator.nextGraphemeLength();
+			if (graphemeStartIndex === tokenStartIndex) {
+				continue;
+			}
+			const isFullWidth = strings.isFullWidthCharacterAt(lineContent, graphemeStartIndex);
+			const letterSpacing = isFullWidth
+				? provider.getLetterSpacing(lineContent.substring(graphemeStartIndex, graphemeIterator.offset), token.type)
+				: null;
+			if (isFullWidth !== partIsFullWidth || letterSpacing !== partLetterSpacing) {
 				result.push(new LinePart(
-					charIndex,
+					graphemeStartIndex,
 					token.type,
 					token.metadata | (partIsFullWidth ? LinePartMetadata.IS_FULL_WIDTH : 0),
-					token.containsRTL
+					token.containsRTL,
+					partLetterSpacing,
 				));
-				partStartIndex = charIndex;
+				partStartIndex = graphemeStartIndex;
 				partIsFullWidth = isFullWidth;
+				partLetterSpacing = letterSpacing;
 			}
 		}
 		if (partStartIndex < token.endIndex) {
@@ -802,12 +846,19 @@ function splitFullWidthCharacters(lineContent: string, tokens: LinePart[]): Line
 				token.endIndex,
 				token.type,
 				token.metadata | (partIsFullWidth ? LinePartMetadata.IS_FULL_WIDTH : 0),
-				token.containsRTL
+				token.containsRTL,
+				partLetterSpacing,
 			));
 		}
 		tokenStartIndex = token.endIndex;
 	}
 	return result;
+}
+
+function getGraphemeAt(lineContent: string, index: number): string {
+	const graphemeIterator = new strings.GraphemeIterator(lineContent, index);
+	graphemeIterator.nextGraphemeLength();
+	return lineContent.substring(index, graphemeIterator.offset);
 }
 
 /**
@@ -1058,7 +1109,8 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 	const renderSpaceCharCode = input.renderSpaceCharCode;
 	const renderWhitespace = input.renderWhitespace;
 	const renderControlCharacters = input.renderControlCharacters;
-	const fullwidthLetterSpacing = input.fullwidthLetterSpacing;
+	const containsFullWidthPart = parts.some(part => part.isFullWidth());
+	const fullwidthCharacterWidths = containsFullWidthPart ? strings.getFullwidthCharacterColumnWidths(lineContent) : null;
 
 	const characterMapping = new CharacterMapping(len + 1, parts.length);
 	let lastCharacterMappingDefined = false;
@@ -1082,18 +1134,22 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 		const partRendersWhitespaceWithWidth = partRendersWhitespace && !fontIsMonospace && (partType === 'mtkw'/*only whitespace*/ || !containsForeignElements);
 		const partIsEmptyAndHasPseudoAfter = (charIndex === partEndIndex && part.isPseudoAfter());
 		const partIsFullWidth = part.isFullWidth();
+		const partFullwidthLetterSpacing = part.fullwidthLetterSpacing;
 		charOffsetInPart = 0;
 
 		sb.appendString('<span ');
-		if (partContainsRTL || partIsFullWidth) {
+		if (partContainsRTL || partFullwidthLetterSpacing !== null) {
 			sb.appendString('style="');
 			if (partContainsRTL) {
-				sb.appendString('unicode-bidi:isolate;');
+				sb.appendString('unicode-bidi:isolate');
+				if (partFullwidthLetterSpacing !== null) {
+					sb.appendASCIICharCode(CharCode.Semicolon);
+				}
 			}
-			if (partIsFullWidth) {
+			if (partFullwidthLetterSpacing !== null) {
 				sb.appendString('letter-spacing:');
-				sb.appendString(String(fullwidthLetterSpacing));
-				sb.appendString('px;');
+				sb.appendString(String(partFullwidthLetterSpacing));
+				sb.appendString('px');
 			}
 			sb.appendString('" ');
 		}
@@ -1215,7 +1271,12 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 						break;
 
 					default:
-						if (strings.isFullWidthCharacter(charCode)) {
+						if (partIsFullWidth) {
+							if (fullwidthCharacterWidths === null) {
+								throw new BugIndicatingError('Missing full-width character mapping');
+							}
+							charWidth = fullwidthCharacterWidths[charIndex];
+						} else if (strings.isFullWidthCharacter(charCode)) {
 							charWidth++;
 						}
 						// See https://unicode-table.com/en/blocks/control-pictures/

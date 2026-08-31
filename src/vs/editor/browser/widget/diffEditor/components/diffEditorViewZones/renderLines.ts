@@ -4,16 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createTrustedTypesPolicy } from '../../../../../../base/browser/trustedTypes.js';
+import { getWindow } from '../../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../../base/browser/window.js';
 import { applyFontInfo } from '../../../../config/domFontInfo.js';
+import { getFullwidthLetterSpacingProvider } from '../../../../config/fullwidthLetterSpacing.js';
 import { ICodeEditor } from '../../../../editorBrowser.js';
 import { EditorFontLigatures, EditorOption, FindComputedEditorOptionValueById } from '../../../../../common/config/editorOptions.js';
-import { FontInfo, getFullwidthLetterSpacing } from '../../../../../common/config/fontInfo.js';
+import { FontInfo } from '../../../../../common/config/fontInfo.js';
 import { Position } from '../../../../../common/core/position.js';
 import { StringBuilder } from '../../../../../common/core/stringBuilder.js';
 import { ModelLineProjectionData } from '../../../../../common/modelLineProjectionData.js';
 import { IViewLineTokens, LineTokens } from '../../../../../common/tokens/lineTokens.js';
 import { LineDecoration } from '../../../../../common/viewLayout/lineDecorations.js';
-import { CharacterMapping, ForeignElementType, RenderLineInput, RenderLineOutput, renderViewLine } from '../../../../../common/viewLayout/viewLineRenderer.js';
+import { CharacterMapping, ForeignElementType, type IFullwidthLetterSpacingProvider, RenderLineInput, RenderLineOutput, renderViewLine } from '../../../../../common/viewLayout/viewLineRenderer.js';
 import { ViewLineRenderingData } from '../../../../../common/viewModel.js';
 import { InlineDecoration } from '../../../../../common/viewModel/inlineDecorations.js';
 import { getColumnOfNodeOffset } from '../../../../viewParts/viewLines/viewLine.js';
@@ -123,7 +126,7 @@ export class RenderOptions {
 			modifiedEditorOptions.get(EditorOption.fontLigatures),
 			modifiedEditorOptions.get(EditorOption.scrollbar).verticalScrollbarSize,
 			true,
-			getFullwidthLetterSpacing(fontInfo, modifiedEditorOptions.get(EditorOption.forceFullwidthCharacterWidth)),
+			getFullwidthLetterSpacingProvider(getWindow(editor.getDomNode() ?? mainWindow.document.body), fontInfo, modifiedEditorOptions.get(EditorOption.forceFullwidthCharacterWidth)),
 		);
 	}
 
@@ -141,7 +144,7 @@ export class RenderOptions {
 		public readonly fontLigatures: FindComputedEditorOptionValueById<EditorOption.fontLigatures>,
 		public readonly verticalScrollbarSize: number,
 		public readonly setWidth = true,
-		public readonly fullwidthLetterSpacing: number | null = null,
+		public readonly fullwidthLetterSpacingProvider: IFullwidthLetterSpacingProvider | null = null,
 	) { }
 
 	public withSetWidth(setWidth: boolean): RenderOptions {
@@ -159,7 +162,7 @@ export class RenderOptions {
 			this.fontLigatures,
 			this.verticalScrollbarSize,
 			setWidth,
-			this.fullwidthLetterSpacing,
+			this.fullwidthLetterSpacingProvider,
 		);
 	}
 
@@ -178,7 +181,7 @@ export class RenderOptions {
 			this.fontLigatures,
 			this.verticalScrollbarSize,
 			this.setWidth,
-			this.fullwidthLetterSpacing,
+			this.fullwidthLetterSpacingProvider,
 		);
 	}
 }
@@ -313,7 +316,7 @@ function renderOriginalLine(
 		null,
 		options.verticalScrollbarSize,
 		false,
-		options.fullwidthLetterSpacing
+		options.fullwidthLetterSpacingProvider
 	), sb);
 
 	sb.appendString('</div>');

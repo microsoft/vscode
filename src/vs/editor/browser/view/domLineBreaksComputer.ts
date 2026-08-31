@@ -13,7 +13,9 @@ import { StringBuilder } from '../../common/core/stringBuilder.js';
 import { InjectedTextOptions } from '../../common/model.js';
 import { ILineBreaksComputer, ILineBreaksComputerContext, ILineBreaksComputerFactory, ModelLineProjectionData } from '../../common/modelLineProjectionData.js';
 import { FixedWidthInjectedTextRange, LineInjectedText } from '../../common/textModelEvents.js';
-import { FontInfo, getFullwidthCharacterWidth, getFullwidthLetterSpacing } from '../../common/config/fontInfo.js';
+import { FontInfo, getFullwidthCharacterWidth } from '../../common/config/fontInfo.js';
+import type { IFullwidthLetterSpacingProvider, IFullwidthLetterSpacingRequest } from '../../common/viewLayout/viewLineRenderer.js';
+import { getFullwidthLetterSpacingProvider } from '../config/fullwidthLetterSpacing.js';
 
 const ttPolicy = createTrustedTypesPolicy('domLineBreaksComputer', { createHTML: value => value });
 
@@ -66,8 +68,7 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 	}
 
 	const overallWidth = Math.round(firstLineBreakColumn * fontInfo.typicalHalfwidthCharacterWidth);
-	const fullwidthCharacterWidth = getFullwidthCharacterWidth(fontInfo, forceFullwidthCharacterWidth);
-	const fullwidthLetterSpacing = getFullwidthLetterSpacing(fontInfo, forceFullwidthCharacterWidth);
+	const fullwidthLetterSpacingProvider = getFullwidthLetterSpacingProvider(targetWindow, fontInfo, forceFullwidthCharacterWidth);
 	const additionalIndent = (wrappingIndent === WrappingIndent.DeepIndent ? 2 : wrappingIndent === WrappingIndent.Indent ? 1 : 0);
 	const additionalIndentSize = Math.round(tabSize * additionalIndent);
 	const additionalIndentLength = Math.ceil(fontInfo.spaceWidth * additionalIndentSize);
@@ -82,11 +83,41 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 	const allCharOffsets: number[][] = [];
 	const allSpanStartOffsets: number[][] = [];
 	const allVisibleColumns: number[][] = [];
+	const lineContents: string[] = [];
+	const lineFixedWidthRanges: FixedWidthInjectedTextRange[][] = [];
+	const lineFullwidthLetterSpacingProviders: (IFullwidthLetterSpacingProvider | null)[] = [];
+	const fullwidthLetterSpacingRequests: IFullwidthLetterSpacingRequest[] = [];
 	for (let i = 0; i < lineNumbers.length; i++) {
 		const lineNumber = lineNumbers[i];
 		const injectedTexts = context.getLineInjectedText(lineNumber);
 		const lineContent = LineInjectedText.applyInjectedText(context.getLineContent(lineNumber), injectedTexts);
-		const fixedWidthRanges = LineInjectedText.getFixedWidthInjectedTextRanges(injectedTexts);
+		const provider = strings.containsRTL(lineContent) ? null : fullwidthLetterSpacingProvider;
+		lineContents[i] = lineContent;
+		lineFixedWidthRanges[i] = LineInjectedText.getFixedWidthInjectedTextRanges(injectedTexts);
+		lineFullwidthLetterSpacingProviders[i] = provider;
+
+		if (provider) {
+			const graphemeIterator = new strings.GraphemeIterator(lineContent);
+			while (!graphemeIterator.eol()) {
+				const graphemeStartIndex = graphemeIterator.offset;
+				graphemeIterator.nextGraphemeLength();
+				if (strings.isFullWidthCharacterAt(lineContent, graphemeStartIndex)) {
+					fullwidthLetterSpacingRequests.push({
+						grapheme: lineContent.substring(graphemeStartIndex, graphemeIterator.offset),
+						className: '',
+					});
+				}
+			}
+		}
+	}
+	fullwidthLetterSpacingProvider?.prepare(fullwidthLetterSpacingRequests);
+
+	for (let i = 0; i < lineNumbers.length; i++) {
+		const lineContent = lineContents[i];
+		const fixedWidthRanges = lineFixedWidthRanges[i];
+		const fullwidthLetterSpacingProviderForLine = lineFullwidthLetterSpacingProviders[i];
+		const forceFullwidthCharacterWidthForLine = fullwidthLetterSpacingProviderForLine !== null;
+		const fullwidthCharacterWidth = getFullwidthCharacterWidth(fontInfo, forceFullwidthCharacterWidthForLine);
 
 		let firstNonWhitespaceIndex = 0;
 		let wrappedTextIndentLength = 0;
@@ -136,7 +167,7 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 				endOffset: range.endOffset - firstNonWhitespaceIndex,
 				widthInEm: range.widthInEm
 			}));
-		const tmp = renderLine(renderLineContent, wrappedTextIndentLength, tabSize, width, sb, additionalIndentLength, shiftedFixedWidthRanges, fullwidthLetterSpacing);
+		const tmp = renderLine(renderLineContent, wrappedTextIndentLength, tabSize, width, sb, additionalIndentLength, shiftedFixedWidthRanges, fullwidthLetterSpacingProviderForLine);
 		firstNonWhitespaceIndices[i] = firstNonWhitespaceIndex;
 		wrappedTextIndentLengths[i] = wrappedTextIndentLength;
 		renderLineContents[i] = renderLineContent;
@@ -212,7 +243,7 @@ const enum Constants {
 	SPAN_MODULO_LIMIT = 16384
 }
 
-function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: number, width: number, sb: StringBuilder, wrappingIndentLength: number, fixedWidthRanges: readonly FixedWidthInjectedTextRange[], fullwidthLetterSpacing: number | null): [number[], number[], number[]] {
+function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: number, width: number, sb: StringBuilder, wrappingIndentLength: number, fixedWidthRanges: readonly FixedWidthInjectedTextRange[], fullwidthLetterSpacingProvider: IFullwidthLetterSpacingProvider | null): [number[], number[], number[]] {
 
 	if (wrappingIndentLength !== 0) {
 		const hangingOffset = String(wrappingIndentLength);
@@ -239,22 +270,24 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 	const visibleColumns: number[] = [];
 	let nextCharCode = (0 < len ? lineContent.charCodeAt(0) : CharCode.Null);
 	let spanOpen = true;
-	let spanIsFullWidth = fullwidthLetterSpacing !== null && strings.isFullWidthCharacterAt(lineContent, 0);
+	const fullwidthCharacterWidths = fullwidthLetterSpacingProvider === null ? null : strings.getFullwidthCharacterColumnWidths(lineContent);
+	const fullwidthLetterSpacings = getFullwidthLetterSpacings(lineContent, fullwidthCharacterWidths, fullwidthLetterSpacingProvider);
+	let spanLetterSpacing = fullwidthLetterSpacings?.[0];
 
-	const appendNormalSpanStart = (isFullWidth: boolean): void => {
-		if (isFullWidth && fullwidthLetterSpacing !== null) {
+	const appendNormalSpanStart = (letterSpacing: number | undefined): void => {
+		if (letterSpacing !== undefined) {
 			sb.appendString('<span style="letter-spacing:');
-			sb.appendString(String(fullwidthLetterSpacing));
+			sb.appendString(String(letterSpacing));
 			sb.appendString('px;">');
 		} else {
 			sb.appendString('<span>');
 		}
 	};
-	appendNormalSpanStart(spanIsFullWidth);
+	appendNormalSpanStart(spanLetterSpacing);
 	for (let charIndex = 0; charIndex < len; charIndex++) {
 		let fixedWidthRange = fixedWidthRanges[fixedWidthRangeIndex];
 		const startsFixedWidth = fixedWidthRange && fixedWidthRange.startOffset === charIndex;
-		const charIsFullWidth = fullwidthLetterSpacing !== null && strings.isFullWidthCharacterAt(lineContent, charIndex);
+		const charLetterSpacing = fullwidthLetterSpacings?.[charIndex];
 		if (startsFixedWidth) {
 			if (spanOpen) {
 				sb.appendString('</span>');
@@ -278,26 +311,26 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 				sb.appendString(String(fixedWidthRange.widthInEm));
 				sb.appendString('em;">');
 				// The span carries a width of its own, so the character in it needs no correction.
-				spanIsFullWidth = false;
+				spanLetterSpacing = undefined;
 			} else {
-				appendNormalSpanStart(charIsFullWidth);
-				spanIsFullWidth = charIsFullWidth;
+				appendNormalSpanStart(charLetterSpacing);
+				spanLetterSpacing = charLetterSpacing;
 			}
 			spanStartOffsets.push(charOffset);
 			spanOpen = true;
 		} else if (!spanOpen) {
-			appendNormalSpanStart(charIsFullWidth);
+			appendNormalSpanStart(charLetterSpacing);
 			spanStartOffsets.push(charOffset);
 			spanOpen = true;
-			spanIsFullWidth = charIsFullWidth;
-		} else if ((!fixedWidthRange || charIndex < fixedWidthRange.startOffset) && charIsFullWidth !== spanIsFullWidth) {
+			spanLetterSpacing = charLetterSpacing;
+		} else if ((!fixedWidthRange || charIndex < fixedWidthRange.startOffset) && charLetterSpacing !== spanLetterSpacing) {
 			sb.appendString('</span>');
-			appendNormalSpanStart(charIsFullWidth);
+			appendNormalSpanStart(charLetterSpacing);
 			spanStartOffsets.push(charOffset);
-			spanIsFullWidth = charIsFullWidth;
+			spanLetterSpacing = charLetterSpacing;
 		} else if ((!fixedWidthRange || charIndex < fixedWidthRange.startOffset) && charIndex !== 0 && charIndex % Constants.SPAN_MODULO_LIMIT === 0) {
 			sb.appendString('</span>');
-			appendNormalSpanStart(spanIsFullWidth);
+			appendNormalSpanStart(spanLetterSpacing);
 			spanStartOffsets.push(charOffset);
 		}
 		charOffsets[charIndex] = charOffset;
@@ -351,7 +384,9 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 				break;
 
 			default:
-				if (strings.isFullWidthCharacter(charCode)) {
+				if (spanLetterSpacing !== undefined) {
+					charWidth = fullwidthCharacterWidths![charIndex];
+				} else if (strings.isFullWidthCharacter(charCode)) {
 					charWidth++;
 				}
 				if (charCode < 32) {
@@ -384,6 +419,33 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 	sb.appendString('</div>');
 
 	return [charOffsets, visibleColumns, spanStartOffsets];
+}
+
+function getFullwidthLetterSpacings(lineContent: string, fullwidthCharacterWidths: Int8Array | null, provider: IFullwidthLetterSpacingProvider | null): (number | undefined)[] | null {
+	if (fullwidthCharacterWidths === null || provider === null) {
+		return null;
+	}
+
+	const requests: IFullwidthLetterSpacingRequest[] = [];
+	const graphemes: { startOffset: number; endOffset: number; text: string }[] = [];
+	const graphemeIterator = new strings.GraphemeIterator(lineContent);
+	while (!graphemeIterator.eol()) {
+		const startOffset = graphemeIterator.offset;
+		graphemeIterator.nextGraphemeLength();
+		if (fullwidthCharacterWidths[startOffset] !== 2) {
+			continue;
+		}
+		const text = lineContent.substring(startOffset, graphemeIterator.offset);
+		graphemes.push({ startOffset, endOffset: graphemeIterator.offset, text });
+		requests.push({ grapheme: text, className: '' });
+	}
+	provider.prepare(requests);
+
+	const result: (number | undefined)[] = new Array(lineContent.length);
+	for (const grapheme of graphemes) {
+		result.fill(provider.getLetterSpacing(grapheme.text, ''), grapheme.startOffset, grapheme.endOffset);
+	}
+	return result;
 }
 
 function readLineBreaks(range: Range, lineDomNode: HTMLDivElement, lineContent: string, charOffsets: number[], spanStartOffsets: number[]): number[] | null {

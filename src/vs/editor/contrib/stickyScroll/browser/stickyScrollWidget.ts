@@ -10,10 +10,10 @@ import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.j
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import './stickyScroll.css';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from '../../../browser/editorBrowser.js';
+import { getFullwidthLetterSpacingProvider } from '../../../browser/config/fullwidthLetterSpacing.js';
 import { getColumnOfNodeOffset } from '../../../browser/viewParts/viewLines/viewLine.js';
 import { EmbeddedCodeEditorWidget } from '../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { EditorLayoutInfo, EditorOption, RenderLineNumbersType } from '../../../common/config/editorOptions.js';
-import { getFullwidthLetterSpacing } from '../../../common/config/fontInfo.js';
 import { Position } from '../../../common/core/position.js';
 import { StringBuilder } from '../../../common/core/stringBuilder.js';
 import { LineDecoration } from '../../../common/viewLayout/lineDecorations.js';
@@ -463,6 +463,12 @@ class RenderedStickyLine {
 
 		const lineHeight = editor.getLineHeightForPosition(new Position(lineNumber, 1));
 		const textDirection = viewModel.getTextDirection(lineNumber);
+		const fontInfo = editor.getOption(EditorOption.fontInfo);
+		const fullwidthLetterSpacingProvider = getFullwidthLetterSpacingProvider(
+			dom.getWindow(editor.getDomNode() ?? dom.getActiveWindow().document.body),
+			fontInfo,
+			editor.getOption(EditorOption.forceFullwidthCharacterWidth)
+		);
 		const renderLineInput: RenderLineInput = new RenderLineInput(true, true, lineRenderingData.content,
 			lineRenderingData.continuesWithWrappedLine,
 			lineRenderingData.isBasicASCII, lineRenderingData.containsRTL, 0,
@@ -470,7 +476,7 @@ class RenderedStickyLine {
 			lineRenderingData.tabSize, lineRenderingData.startVisibleColumn,
 			1, 1, 1, 500, 'none', true, true, null,
 			textDirection, verticalScrollbarSize, false,
-			getFullwidthLetterSpacing(editor.getOption(EditorOption.fontInfo), editor.getOption(EditorOption.forceFullwidthCharacterWidth))
+			fullwidthLetterSpacingProvider
 		);
 
 		const sb = new StringBuilder(2000);

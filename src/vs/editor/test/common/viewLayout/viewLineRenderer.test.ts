@@ -12,7 +12,7 @@ import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { MetadataConsts } from '../../../common/encodedTokenAttributes.js';
 import { IViewLineTokens } from '../../../common/tokens/lineTokens.js';
 import { LineDecoration } from '../../../common/viewLayout/lineDecorations.js';
-import { CharacterMapping, DomPosition, IRenderLineInputOptions, RenderLineInput, RenderLineOutput2, renderViewLine2 as renderViewLine } from '../../../common/viewLayout/viewLineRenderer.js';
+import { CharacterMapping, DomPosition, type IFullwidthLetterSpacingProvider, type IRenderLineInputOptions, RenderLineInput, RenderLineOutput2, renderViewLine2 as renderViewLine } from '../../../common/viewLayout/viewLineRenderer.js';
 import { InlineDecorationType } from '../../../common/viewModel/inlineDecorations.js';
 import { TestLineToken, TestLineTokens } from '../core/testLineToken.js';
 
@@ -78,8 +78,27 @@ const defaultRenderLineInputOptions: IRenderLineInputOptions = {
 	textDirection: null,
 	verticalScrollbarSize: 14,
 	renderNewLineWhenEmpty: false,
-	fullwidthLetterSpacing: null
+	fullwidthLetterSpacingProvider: null
 };
+
+function createFullwidthLetterSpacingProvider(letterSpacings: ReadonlyMap<string, number>): IFullwidthLetterSpacingProvider {
+	return {
+		generation: 0,
+		prepare: () => { },
+		getLetterSpacing: grapheme => {
+			const letterSpacing = letterSpacings.get(grapheme);
+			assert.notStrictEqual(letterSpacing, undefined);
+			return letterSpacing!;
+		},
+	};
+}
+
+const twoPixelFullwidthLetterSpacingProvider = createFullwidthLetterSpacingProvider(new Map([
+	['擦', 2],
+	['字', 2],
+	['𠀋', 2],
+	['🙂', 2],
+]));
 
 function createRenderLineInputOptions(opts: IRelaxedRenderLineInputOptions): IRenderLineInputOptions {
 	return {
@@ -113,7 +132,7 @@ function createRenderLineInput(opts: IRelaxedRenderLineInputOptions): RenderLine
 		options.textDirection,
 		options.verticalScrollbarSize,
 		options.renderNewLineWhenEmpty,
-		options.fullwidthLetterSpacing
+		options.fullwidthLetterSpacingProvider
 	);
 }
 
@@ -198,7 +217,7 @@ suite('renderViewLine', () => {
 			lineContent: 'a擦字b',
 			isBasicASCII: false,
 			lineTokens: createViewLineTokens([createPart(4, 1)]),
-			fullwidthLetterSpacing: 2
+			fullwidthLetterSpacingProvider: twoPixelFullwidthLetterSpacingProvider
 		}));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -217,19 +236,53 @@ suite('renderViewLine', () => {
 		});
 	});
 
+	test('uses grapheme-specific letter spacing runs', () => {
+		const lineContent = 'a擦字あ𠀋b';
+		const provider = createFullwidthLetterSpacingProvider(new Map([
+			['擦', 2],
+			['字', 2],
+			['あ', 0],
+			['𠀋', 1],
+		]));
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent,
+			isBasicASCII: false,
+			lineTokens: createViewLineTokens([createPart(lineContent.length, 1)]),
+			fullwidthLetterSpacingProvider: provider,
+		}));
+
+		assert.strictEqual(
+			actual.html,
+			'<span><span class="mtk1">a</span><span style="letter-spacing:2px" class="mtk1">擦字</span><span style="letter-spacing:0px" class="mtk1">あ</span><span style="letter-spacing:1px" class="mtk1">𠀋</span><span class="mtk1">b</span></span>'
+		);
+	});
+
+	test('provider generation participates in input equality', () => {
+		let generation = 1;
+		const provider: IFullwidthLetterSpacingProvider = {
+			get generation() { return generation; },
+			prepare: () => { },
+			getLetterSpacing: () => 0,
+		};
+		const first = createRenderLineInput({ fullwidthLetterSpacingProvider: provider });
+		generation++;
+		const second = createRenderLineInput({ fullwidthLetterSpacingProvider: provider });
+
+		assert.strictEqual(first.equals(second), false);
+	});
+
 	test('forces full-width characters to two cells beyond the basic multilingual plane', () => {
 		const actual = renderViewLine(createRenderLineInput({
 			lineContent: 'a𠀋🙂b',
 			isBasicASCII: false,
 			lineTokens: createViewLineTokens([createPart(6, 1)]),
-			fullwidthLetterSpacing: 2
+			fullwidthLetterSpacingProvider: twoPixelFullwidthLetterSpacingProvider
 		}));
 
-		// 𠀋 U+2000B is a CJK ideograph and gets the correction, 🙂 U+1F642 is an emoji and does not.
-		// Both are surrogate pairs, so neither may be cut in half by the run boundary.
+		// Both code points have East Asian Width W and are surrogate pairs, so they share one corrected run.
 		assert.strictEqual(
 			actual.html,
-			'<span><span class="mtk1">a</span><span style="letter-spacing:2px" class="mtk1">𠀋</span><span class="mtk1">🙂b</span></span>'
+			'<span><span class="mtk1">a</span><span style="letter-spacing:2px" class="mtk1">𠀋🙂</span><span class="mtk1">b</span></span>'
 		);
 	});
 
@@ -239,7 +292,7 @@ suite('renderViewLine', () => {
 			isBasicASCII: false,
 			lineTokens: createViewLineTokens([createPart(3, 1)]),
 			spaceWidth: 10,
-			fullwidthLetterSpacing: 2,
+			fullwidthLetterSpacingProvider: twoPixelFullwidthLetterSpacingProvider,
 			renderWhitespace: 'all'
 		}));
 
@@ -498,7 +551,9 @@ suite('renderViewLine', () => {
 			false,
 			null,
 			null,
-			14
+			14,
+			false,
+			null
 		));
 
 		const inflated = inflateRenderLineOutput(_actual);

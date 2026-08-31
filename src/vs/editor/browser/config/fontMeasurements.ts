@@ -10,6 +10,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { CharWidthRequest, CharWidthRequestType, readCharWidths } from './charWidthReader.js';
 import { EditorFontLigatures } from '../../common/config/editorOptions.js';
 import { BareFontInfo, FontInfo, SERIALIZED_FONT_INFO_VERSION } from '../../common/config/fontInfo.js';
+import { clearFullwidthLetterSpacingProviders } from './fullwidthLetterSpacing.js';
 
 /**
  * Serializable font information.
@@ -56,6 +57,7 @@ export class FontMeasurementsImpl extends Disposable {
 	 */
 	public clearAllFontInfos(): void {
 		this._cache.clear();
+		clearFullwidthLetterSpacingProviders();
 		this._onDidChange.fire();
 	}
 
@@ -93,6 +95,7 @@ export class FontMeasurementsImpl extends Disposable {
 			}
 		}
 		if (somethingRemoved) {
+			clearFullwidthLetterSpacingProviders(targetWindow);
 			this._onDidChange.fire();
 		}
 	}

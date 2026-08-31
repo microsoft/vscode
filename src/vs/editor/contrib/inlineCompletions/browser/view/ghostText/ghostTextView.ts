@@ -11,10 +11,10 @@ import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '..
 import { IObservable, autorun, autorunWithStore, constObservable, derived, derivedOpts, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import * as strings from '../../../../../../base/common/strings.js';
 import { applyFontInfo } from '../../../../../browser/config/domFontInfo.js';
+import { getFullwidthLetterSpacingProvider } from '../../../../../browser/config/fullwidthLetterSpacing.js';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidgetPosition, IViewZoneChangeAccessor, MouseTargetType } from '../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from '../../../../../common/config/editorOptions.js';
-import { getFullwidthLetterSpacing } from '../../../../../common/config/fontInfo.js';
 import { StringEdit, StringReplacement } from '../../../../../common/core/edits/stringEdit.js';
 import { Position } from '../../../../../common/core/position.js';
 import { Range } from '../../../../../common/core/range.js';
@@ -493,6 +493,7 @@ export class AdditionalLinesWidget extends Disposable {
 				|| e.hasChanged(EditorOption.renderControlCharacters)
 				|| e.hasChanged(EditorOption.fontLigatures)
 				|| e.hasChanged(EditorOption.fontInfo)
+				|| e.hasChanged(EditorOption.forceFullwidthCharacterWidth)
 				|| e.hasChanged(EditorOption.lineHeight)
 		));
 		this._onDidClick = this._register(new Emitter<IMouseEvent>());
@@ -641,6 +642,7 @@ function renderLines(domNode: HTMLElement, tabSize: number, lines: readonly Line
 	const fontLigatures = opts.get(EditorOption.fontLigatures);
 	const fontInfo = opts.get(EditorOption.fontInfo);
 	const lineHeight = opts.get(EditorOption.lineHeight);
+	const fullwidthLetterSpacingProvider = getFullwidthLetterSpacingProvider(getWindow(domNode), fontInfo, opts.get(EditorOption.forceFullwidthCharacterWidth));
 
 	let classNames = 'suggest-preview-text';
 	if (isClickable) {
@@ -685,7 +687,7 @@ function renderLines(domNode: HTMLElement, tabSize: number, lines: readonly Line
 			null,
 			0,
 			false,
-			getFullwidthLetterSpacing(fontInfo, opts.get(EditorOption.forceFullwidthCharacterWidth))
+			fullwidthLetterSpacingProvider
 		), sb);
 
 		sb.appendString('</div>');

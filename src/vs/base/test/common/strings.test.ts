@@ -337,9 +337,57 @@ suite('Strings', () => {
 		assert.strictEqual(strings.isFullWidthCharacter('?'.charCodeAt(0)), false, '? regular ASCII');
 	});
 
+	test('isFullWidthCodePoint', () => {
+		assert.deepStrictEqual([
+			0x1100,		// Hangul choseong kiyeok
+			0x231A,		// Watch
+			0x2E80,		// CJK radical repeat
+			0xFF21,		// Fullwidth Latin capital letter A
+			0x17000,	// Tangut ideograph
+			0x1F642,	// Slightly smiling face
+			0x20000,	// CJK unified ideograph extension B
+			0x3FFFD,	// Last wide code point in the tertiary ideographic plane
+		].map(strings.isFullWidthCodePoint), [
+			true,
+			true,
+			true,
+			true,
+			true,
+			true,
+			true,
+			true,
+		]);
+
+		assert.deepStrictEqual([
+			-1,
+			0x41,		// Latin capital letter A
+			0xA1,		// Ambiguous-width inverted exclamation mark
+			0x2E9A,		// Unassigned gap in the CJK radicals supplement block
+			0xFE0F,		// Variation selector-16
+			0xFF66,		// Halfwidth katakana letter wo
+			0x1D11E,	// Musical symbol G clef
+			0x3FFFE,	// Noncharacter
+			0x110000,	// Outside the Unicode range
+			1.5,
+			NaN,
+		].map(strings.isFullWidthCodePoint), [
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+		]);
+	});
+
 	test('isFullWidthCharacterAt', () => {
 		// One entry per UTF-16 code unit, so that both halves of every surrogate pair are covered.
-		const text = 'a擦𠀋🙂Ａ';
+		const text = 'a擦𠀋🙂𝄞Ａ';
 		const actual = Array.from({ length: text.length }, (_unused, index) => strings.isFullWidthCharacterAt(text, index));
 
 		assert.deepStrictEqual(actual, [
@@ -347,7 +395,9 @@ suite('Strings', () => {
 			true,	// 擦 U+64E6 CJK unified ideograph
 			true,	// 𠀋 U+2000B CJK extension B, high surrogate
 			true,	//        ... low surrogate
-			false,	// 🙂 U+1F642 emoji, high surrogate
+			true,	// 🙂 U+1F642 emoji, high surrogate
+			true,	//        ... low surrogate
+			false,	// 𝄞 U+1D11E musical symbol G clef, high surrogate
 			false,	//        ... low surrogate
 			true	// Ａ U+FF21 fullwidth A
 		]);

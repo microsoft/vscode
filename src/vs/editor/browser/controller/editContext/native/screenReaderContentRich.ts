@@ -3,17 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, getActiveWindow, isHTMLElement } from '../../../../../base/browser/dom.js';
+import { addDisposableListener, getActiveWindow, getWindow, isHTMLElement } from '../../../../../base/browser/dom.js';
 import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
 import { createTrustedTypesPolicy } from '../../../../../base/browser/trustedTypes.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { EditorFontLigatures, EditorOption, FindComputedEditorOptionValueById, IComputedEditorOptions } from '../../../../common/config/editorOptions.js';
-import { getFullwidthLetterSpacing } from '../../../../common/config/fontInfo.js';
 import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { StringBuilder } from '../../../../common/core/stringBuilder.js';
 import { LineDecoration } from '../../../../common/viewLayout/lineDecorations.js';
-import { CharacterMapping, RenderLineInput, renderViewLine } from '../../../../common/viewLayout/viewLineRenderer.js';
+import { CharacterMapping, type IFullwidthLetterSpacingProvider, RenderLineInput, renderViewLine } from '../../../../common/viewLayout/viewLineRenderer.js';
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
 import { IPagedScreenReaderStrategy } from '../screenReaderUtils.js';
 import { ISimpleModel } from '../../../../common/viewModel/screenReaderSimpleModel.js';
@@ -22,6 +21,7 @@ import { IME } from '../../../../../base/common/ime.js';
 import { ViewController } from '../../../view/viewController.js';
 import { IScreenReaderContent } from './screenReaderUtils.js';
 import { getColumnOfNodeOffset } from '../../../viewParts/viewLines/viewLine.js';
+import { getFullwidthLetterSpacingProvider } from '../../../config/fullwidthLetterSpacing.js';
 
 const ttPolicy = createTrustedTypesPolicy('richScreenReaderContent', { createHTML: value => value });
 
@@ -33,6 +33,7 @@ export class RichScreenReaderContent extends Disposable implements IScreenReader
 
 	private _accessibilityPageSize: number = 1;
 	private _ignoreSelectionChangeTime: number = 0;
+	private _fullwidthLetterSpacingProvider: IFullwidthLetterSpacingProvider | null = null;
 
 	private _state: RichScreenReaderState = RichScreenReaderState.NULL;
 	private _strategy: RichPagedScreenReaderStrategy = new RichPagedScreenReaderStrategy();
@@ -95,6 +96,12 @@ export class RichScreenReaderContent extends Disposable implements IScreenReader
 
 	public onConfigurationChanged(options: IComputedEditorOptions): void {
 		this._accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
+		const fontInfo = options.get(EditorOption.fontInfo);
+		const fullwidthLetterSpacingProvider = getFullwidthLetterSpacingProvider(getWindow(this._domNode.domNode), fontInfo, options.get(EditorOption.forceFullwidthCharacterWidth));
+		if (this._fullwidthLetterSpacingProvider !== fullwidthLetterSpacingProvider) {
+			this._fullwidthLetterSpacingProvider = fullwidthLetterSpacingProvider;
+			this._state = RichScreenReaderState.NULL; // Why?
+		}
 	}
 
 	public onWillCut(): void {
@@ -209,7 +216,7 @@ export class RichScreenReaderContent extends Disposable implements IScreenReader
 			null,
 			0,
 			true,
-			getFullwidthLetterSpacing(fontInfo, options.get(EditorOption.forceFullwidthCharacterWidth))
+			this._fullwidthLetterSpacingProvider
 		);
 		const htmlBuilder = new StringBuilder(10000);
 		const renderOutput = renderViewLine(renderLineInput, htmlBuilder);

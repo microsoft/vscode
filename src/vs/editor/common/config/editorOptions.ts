@@ -289,7 +289,7 @@ export interface IEditorOptions {
 	 */
 	fontVariations?: boolean | string;
 	/**
-	 * Force full-width characters to occupy exactly two monospace character cells.
+	 * When using a monospace font, force full-width characters to occupy exactly two character cells.
 	 * Defaults to false.
 	 */
 	forceFullwidthCharacterWidth?: boolean;
@@ -6380,7 +6380,7 @@ export const EditorOptions = {
 	fontVariations: register(new EditorFontVariations()),
 	forceFullwidthCharacterWidth: register(new EditorBooleanOption(
 		EditorOption.forceFullwidthCharacterWidth, 'forceFullwidthCharacterWidth', false,
-		{ description: nls.localize('forceFullwidthCharacterWidth', "Controls whether full-width characters, such as Chinese, Japanese and Korean ones, are stretched to occupy exactly two character cells, so that they line up with the character grid. Fonts whose full-width characters are already wider than two cells are left at their natural width.") }
+		{ description: nls.localize('forceFullwidthCharacterWidth', "Controls whether full-width characters, such as Chinese, Japanese and Korean ones, are adjusted to occupy exactly two character cells when using a monospace font, so that they line up with the character grid.") }
 	)),
 	formatOnPaste: register(new EditorBooleanOption(
 		EditorOption.formatOnPaste, 'formatOnPaste', false,

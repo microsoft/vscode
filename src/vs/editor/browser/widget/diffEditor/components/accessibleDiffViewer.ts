@@ -3,20 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, addStandardDisposableListener, reset } from '../../../../../base/browser/dom.js';
+import { addDisposableListener, addStandardDisposableListener, getWindow, reset } from '../../../../../base/browser/dom.js';
 import { createTrustedTypesPolicy } from '../../../../../base/browser/trustedTypes.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { forEachAdjacent, groupAdjacentBy } from '../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, ITransaction, autorun, autorunWithStore, derived, observableValue, subtransaction, transaction } from '../../../../../base/common/observable.js';
+import { IObservable, ITransaction, autorun, autorunWithStore, derived, observableSignalFromEvent, observableValue, subtransaction, transaction } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { applyFontInfo } from '../../../config/domFontInfo.js';
+import { getFullwidthLetterSpacingProvider } from '../../../config/fullwidthLetterSpacing.js';
 import { applyStyle } from '../utils.js';
-import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from '../../../../common/config/editorOptions.js';
-import { getFullwidthLetterSpacing } from '../../../../common/config/fontInfo.js';
+import { ConfigurationChangedEvent, EditorFontLigatures, EditorOption, IComputedEditorOptions } from '../../../../common/config/editorOptions.js';
 import { LineRange } from '../../../../common/core/ranges/lineRange.js';
 import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { Position } from '../../../../common/core/position.js';
@@ -41,6 +42,7 @@ const accessibleDiffViewerRemoveIcon = registerIcon('diff-review-remove', Codico
 const accessibleDiffViewerCloseIcon = registerIcon('diff-review-close', Codicon.close, localize('accessibleDiffViewerCloseIcon', 'Icon for \'Close\' in accessible diff viewer.'));
 
 export interface IAccessibleDiffViewerModel {
+	readonly onDidChangeOptions: Event<ConfigurationChangedEvent>;
 	getOriginalModel(): ITextModel;
 	getOriginalOptions(): IComputedEditorOptions;
 
@@ -393,9 +395,11 @@ class View extends Disposable {
 		this._register(applyStyle(this.domNode, { width: this._width, height: this._height }));
 		this._register(applyStyle(this._content, { width: this._width, height: this._height }));
 
+		const optionsChanged = observableSignalFromEvent(this, this._models.onDidChangeOptions);
 		this._register(autorunWithStore((reader, store) => {
 			/** @description render */
 			this._model.currentGroup.read(reader);
+			optionsChanged.read(reader);
 			this._render(store);
 		}));
 
@@ -686,7 +690,7 @@ class View extends Disposable {
 			null,
 			verticalScrollbarSize,
 			false,
-			getFullwidthLetterSpacing(fontInfo, options.get(EditorOption.forceFullwidthCharacterWidth))
+			getFullwidthLetterSpacingProvider(getWindow(this._element), fontInfo, options.get(EditorOption.forceFullwidthCharacterWidth))
 		));
 
 		return r.html;
@@ -694,6 +698,8 @@ class View extends Disposable {
 }
 
 export class AccessibleDiffViewerModelFromEditors implements IAccessibleDiffViewerModel {
+	readonly onDidChangeOptions = Event.any(this.editors.original.onDidChangeConfiguration, this.editors.modified.onDidChangeConfiguration);
+
 	constructor(private readonly editors: DiffEditorEditors) { }
 
 	getOriginalModel(): ITextModel {

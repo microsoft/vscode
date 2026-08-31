@@ -96,7 +96,9 @@ export class Colorizer {
 			false,
 			null,
 			null,
-			0
+			0,
+			false,
+			null
 		));
 		return renderResult.html;
 	}
@@ -169,7 +171,9 @@ function _fakeColorize(lines: string[], tabSize: number, languageIdCodec: ILangu
 			false,
 			null,
 			null,
-			0
+			0,
+			false,
+			null
 		));
 
 		html = html.concat(renderResult.html);
@@ -211,7 +215,9 @@ function _actualColorize(lines: string[], tabSize: number, tokenizationSupport: 
 			false,
 			null,
 			null,
-			0
+			0,
+			false,
+			null
 		));
 
 		html = html.concat(renderResult.html);

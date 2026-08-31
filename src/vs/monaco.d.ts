@@ -3444,7 +3444,7 @@ declare namespace monaco.editor {
 		 */
 		fontVariations?: boolean | string;
 		/**
-		 * Force full-width characters to occupy exactly two monospace character cells.
+		 * When using a monospace font, force full-width characters to occupy exactly two character cells.
 		 * Defaults to false.
 		 */
 		forceFullwidthCharacterWidth?: boolean;

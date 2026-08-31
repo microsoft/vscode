@@ -28,7 +28,7 @@ export class CursorColumns {
 		if (codePoint === CharCode.Tab) {
 			return CursorColumns.nextRenderTabStop(visibleColumn, tabSize);
 		}
-		if (strings.isFullWidthCharacter(codePoint) || strings.isEmojiImprecise(codePoint)) {
+		if (strings.isFullWidthCodePoint(codePoint) || strings.isEmojiImprecise(codePoint)) {
 			return visibleColumn + 2;
 		}
 		return visibleColumn + 1;

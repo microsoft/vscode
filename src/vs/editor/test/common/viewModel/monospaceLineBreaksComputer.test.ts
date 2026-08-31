@@ -159,6 +159,14 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 		assert.strictEqual(toAnnotatedText(text, lineBreakData), '擦擦|a');
 	});
 
+	test('does not wrap within a full-width grapheme', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('', '');
+		const text = 'か\u3099a';
+		const lineBreakData = getLineBreakData(factory, 4, 1, 1.5, WrappingIndent.None, 'normal', false, text, null, null, true);
+
+		assert.strictEqual(toAnnotatedText(text, lineBreakData), 'か\u3099|a');
+	});
+
 	test('treats multi-character fixed-width injected text as an atomic span', () => {
 		const factory = new MonospaceLineBreaksComputerFactory('', '');
 		const lineBreakData = getLineBreakData(factory, 4, 5, 2, WrappingIndent.None, 'normal', false, 'abcdef', null, [
