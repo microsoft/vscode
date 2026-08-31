@@ -493,8 +493,7 @@ suite('ListView', function () {
 				templateData.dataset.testHeight = String(element.height);
 				if (shrinkOnRender === element) {
 					shrinkOnRender = undefined;
-					// Drop the trailing items so the render range's end now extends past the
-					// shrunk model while a later index is still pending in the probe loop.
+					// Shrink mid-loop so the render range's end extends past the model while a later index is still pending.
 					listViewRef.value!.splice(1, listViewRef.value!.length - 1);
 				}
 			},
