@@ -2147,6 +2147,9 @@ export function rewriteAgentHostLinkTarget(href: string, connectionAuthority: st
 	let agentHostUri: URI;
 	try {
 		agentHostUri = resourceUris.fromAgentHost(parsed);
+		if (parsed.scheme !== Schemas.file && isEqual(agentHostUri, parsed)) {
+			agentHostUri = toAgentHostUri(parsed, connectionAuthority);
+		}
 	} catch {
 		return href;
 	}
