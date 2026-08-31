@@ -813,6 +813,10 @@ export interface IQuotaSnapshot {
 	readonly usageBasedBilling?: boolean;
 	readonly entitlement?: number;
 	readonly quotaRemaining?: number;
+	/**
+	 * Aggregate credits consumed, only for users whose org sets no user-level budget. Drawn from
+	 * an unmeterable pool, so it has no denominator. See microsoft/vscode#319589.
+	 */
 	readonly creditsUsed?: number;
 }
 
@@ -865,7 +869,9 @@ export function getQuotaUsage(quota: IQuotaSnapshot | undefined): IQuotaUsage | 
 	const total = quota.entitlement || undefined;
 	let used: number | undefined;
 	if (total !== undefined) {
-		used = quota.creditsUsed ?? (quota.quotaRemaining !== undefined
+		// `creditsUsed` has no denominator, so dividing it by `entitlement` disagrees with
+		// `percentRemaining`. `quotaRemaining` shares the entitlement's basis.
+		used = Math.max(0, quota.quotaRemaining !== undefined
 			? total - quota.quotaRemaining
 			: total * (100 - quota.percentRemaining) / 100);
 	}
