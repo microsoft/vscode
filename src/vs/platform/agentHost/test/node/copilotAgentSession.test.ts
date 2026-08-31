@@ -88,6 +88,9 @@ class MockCopilotSession {
 	readonly sendMessagesRequests: unknown[] = [];
 	sendMessagesError: Error | undefined;
 	sendMessagesGate: Promise<void> | undefined;
+	enqueueResumePendingCalls = 0;
+	enqueueResumePendingError: Error | undefined;
+	enqueueResumePendingGate: Promise<void> | undefined;
 	sendGate: Promise<void> | undefined;
 	readonly modeSetCalls: Array<{ mode: 'interactive' | 'plan' | 'autopilot' }> = [];
 	readonly permissionModeSetCalls: PermissionMode[] = [];
@@ -275,6 +278,16 @@ class MockCopilotSession {
 				throw this.sendMessagesError;
 			}
 			await this.sendMessagesGate;
+		},
+		queue: {
+			enqueueResumePending: async () => {
+				this.enqueueResumePendingCalls++;
+				if (this.enqueueResumePendingError) {
+					throw this.enqueueResumePendingError;
+				}
+				await this.enqueueResumePendingGate;
+				return { queued: true };
+			},
 		},
 		debug: {
 			collectLogs: async (params: Parameters<CopilotSession['rpc']['debug']['collectLogs']>[0]) => {
@@ -5818,26 +5831,28 @@ Use the attached image as context.
 			assert.deepStrictEqual({
 				sendRequests: mockSession.sendRequests,
 				sendMessagesRequests: mockSession.sendMessagesRequests,
+				enqueueResumePendingCalls: mockSession.enqueueResumePendingCalls,
 				modeSetCalls: mockSession.modeSetCalls,
 			}, {
 				sendRequests: [],
-				sendMessagesRequests: [{ messages: [] }],
+				sendMessagesRequests: [],
+				enqueueResumePendingCalls: 1,
 				modeSetCalls: [{ mode: 'plan' }],
 			});
 		});
 
 		test('clears the active turn when the continuation connection closes', async () => {
 			const { session, mockSession } = await createAgentSession(disposables);
-			mockSession.sendMessagesError = new Error('Connection closed during continuation');
+			mockSession.enqueueResumePendingError = new Error('Connection closed during continuation');
 
 			await assert.rejects(() => session.resume('turn-1'), /Connection closed/);
 
 			assert.deepStrictEqual({
 				active: session.hasActiveTurn,
-				sendMessagesRequests: mockSession.sendMessagesRequests,
+				enqueueResumePendingCalls: mockSession.enqueueResumePendingCalls,
 			}, {
 				active: false,
-				sendMessagesRequests: [{ messages: [] }],
+				enqueueResumePendingCalls: 1,
 			});
 		});
 
@@ -5846,7 +5861,7 @@ Use the attached image as context.
 				const gate = new DeferredPromise<void>();
 				const { session, mockSession, signals } = await createAgentSession(disposables);
 				if (timing === 'before') {
-					mockSession.sendMessagesGate = gate.p;
+					mockSession.enqueueResumePendingGate = gate.p;
 				}
 
 				const resumePromise = session.resume('turn-1');
