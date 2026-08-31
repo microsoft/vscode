@@ -16,7 +16,7 @@
 	"command.openWorktreeInNewWindow2": "Open in New Window",
 	"command.refresh": "Refresh",
 	"command.compareWithWorkspace": "Compare with Workspace",
-	"command.openChange": "Open Changes",
+	"command.openChange": "Open Change",
 	"command.openAllChanges": "Open All Changes",
 	"command.openFile": "Open File",
 	"command.openHEADFile": "Open File (HEAD)",
