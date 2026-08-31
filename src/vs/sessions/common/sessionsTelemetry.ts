@@ -4,10 +4,33 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isCancellationError } from '../../base/common/errors.js';
+import { StringSHA1 } from '../../base/common/hash.js';
 import { RemoteAgentHostConnectionStatus } from '../../platform/agentHost/common/remoteAgentHostService.js';
 import { isSSHHostKeyDeniedError } from '../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { PROTOCOL_VERSION } from '../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from './agentHostSessionsProvider.js';
+
+/** Bounded provider categories emitted by Agents window telemetry. */
+export type SessionsTelemetryProviderId = 'default-copilot' | 'local-agent-host' | 'remote-agent-host' | 'other';
+
+/** Removes connection-specific details from a sessions provider identifier. */
+export function getSessionsTelemetryProviderId(providerId: string): SessionsTelemetryProviderId {
+	if (providerId === 'default-copilot' || providerId === LOCAL_AGENT_HOST_PROVIDER_ID) {
+		return providerId;
+	}
+	if (providerId === 'remote-agent-host' || providerId.startsWith(REMOTE_AGENT_HOST_PROVIDER_PREFIX)) {
+		return 'remote-agent-host';
+	}
+	return 'other';
+}
+
+/** Hashes a session identifier while preserving deterministic event correlation. */
+export function hashSessionIdForTelemetry(sessionId: string): string {
+	const sha1 = new StringSHA1();
+	sha1.update(sessionId);
+	return sha1.digest();
+}
 
 // --- Titlebar button interactions ---
 
@@ -62,7 +85,7 @@ type ChangesViewVersionModeChangeEvent = {
 
 type ChangesViewVersionModeChangeClassification = {
 	owner: 'osortega';
-	comment: 'Tracks when the user switches the version mode in the Changes panel (Branch Changes, All Changes, Last Turn).';
+	comment: 'Tracks when the user switches the version mode in the Changes panel (Branch Changes, Session Changes, Last Turn).';
 	mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version mode selected by the user.' };
 };
 
@@ -96,6 +119,35 @@ type ChangesViewViewModeChangeClassification = {
 
 export function logChangesViewViewModeChange(telemetryService: ITelemetryService, mode: string): void {
 	telemetryService.publicLog2<ChangesViewViewModeChangeEvent, ChangesViewViewModeChangeClassification>('vscodeAgents.changesView/viewModeChange', { mode });
+}
+
+// --- Shared multi-root topology helpers ---
+
+/**
+ * The browser-projected git/non-git shape of a session's workspace folders,
+ * used for telemetry. These counts come from workspace *metadata*
+ * (`folder.gitRepository`), distinct from the agent host's Node-side git probe;
+ * `folderCount === gitFolderCount + nonGitFolderCount`.
+ */
+export interface ISessionWorkspaceTopology {
+	readonly folderCount: number;
+	readonly gitFolderCount: number;
+	readonly nonGitFolderCount: number;
+	readonly isMultiRoot: boolean;
+}
+
+/**
+ * Derives the reconcilable {@link ISessionWorkspaceTopology} from a session's
+ * total and git-backed folder counts (`isMultiRoot` uses the folder-count
+ * convention shared across sessions telemetry).
+ */
+export function classifySessionWorkspaceTopology(folderCount: number, gitFolderCount: number): ISessionWorkspaceTopology {
+	return {
+		folderCount: folderCount,
+		gitFolderCount,
+		nonGitFolderCount: folderCount - gitFolderCount,
+		isMultiRoot: folderCount > 1,
+	};
 }
 
 // --- Tunnel agent host discovery ---

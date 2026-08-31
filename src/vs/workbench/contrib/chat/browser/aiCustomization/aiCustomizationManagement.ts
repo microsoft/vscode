@@ -4,15 +4,45 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IChatViewTitleActionContext, isChatViewTitleActionContext } from '../../common/actions/chatActions.js';
 import { AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 
 // Re-export for convenience — consumers import from this file
-export { AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
+export { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
 export type { AICustomizationSource } from '../../common/aiCustomizationWorkspaceService.js';
 export { BUILTIN_STORAGE } from '../../common/aiCustomizationWorkspaceService.js';
+
+export type AICustomizationManagementOpenEditorTarget =
+	| AICustomizationManagementSection
+	| {
+		readonly section?: AICustomizationManagementSection;
+		readonly sessionType?: string;
+		readonly revealUri?: URI;
+	}
+	| IChatViewTitleActionContext;
+
+export function resolveAICustomizationManagementOpenEditorTarget(
+	target: AICustomizationManagementOpenEditorTarget | undefined,
+	pendingSessionType: string | undefined,
+	chatSessionResource: URI | undefined,
+	getSessionResourceForHarness: (sessionType: string) => URI,
+): { readonly section?: AICustomizationManagementSection; readonly revealUri?: URI; readonly sessionResource?: URI } {
+	if (isChatViewTitleActionContext(target)) {
+		return { sessionResource: target.sessionResource };
+	}
+
+	const options = typeof target === 'string' ? { section: target } : target;
+	const sessionType = options?.sessionType ?? pendingSessionType;
+	return {
+		section: options?.section,
+		revealUri: options?.revealUri,
+		sessionResource: sessionType ? getSessionResourceForHarness(sessionType) : chatSessionResource,
+	};
+}
 
 export function sectionToPromptType(section: AICustomizationManagementSection): PromptsType {
 	switch (section) {
@@ -39,19 +69,6 @@ export const AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID = 'workbench.editor.aiCustomi
  * Editor input type ID for serialization.
  */
 export const AI_CUSTOMIZATION_MANAGEMENT_EDITOR_INPUT_ID = 'workbench.input.aiCustomizationManagement';
-
-/**
- * Command IDs for the AI Customizations Management Editor.
- */
-export const AICustomizationManagementCommands = {
-	OpenEditor: 'aiCustomization.openManagementEditor',
-	OpenMarketplace: 'aiCustomization.openMarketplace',
-	CreateNewAgent: 'aiCustomization.createNewAgent',
-	CreateNewSkill: 'aiCustomization.createNewSkill',
-	CreateNewInstructions: 'aiCustomization.createNewInstructions',
-	CreateNewPrompt: 'aiCustomization.createNewPrompt',
-	GenerateDebugReport: 'aiCustomization.generateDebugReport',
-} as const;
 
 /**
  * Context key indicating the AI Customization Management Editor is focused.

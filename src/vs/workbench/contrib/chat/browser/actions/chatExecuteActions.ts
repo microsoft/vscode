@@ -22,6 +22,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { AgentHostAllowSignedOutWhenUsableSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { buildCustomAgentHandoffsInfo, getHandoffId, IChatMode, IChatModeService, IChatModes } from '../../common/chatModes.js';
@@ -193,9 +194,6 @@ export class ChatSubmitAction extends SubmitAction {
 			ChatContextKeys.inputHasSendableContent,
 			ContextKeyExpr.or(whenNotInProgress, ChatContextKeys.editingRequestType.isEqualTo(ChatContextKeys.EditingRequestType.Sent)),
 			ChatContextKeys.chatSessionOptionsValid,
-			// A submission that is being routed/dispatched off-model (omni-chat)
-			// disables sending until it resolves or the draft changes.
-			ChatContextKeys.inputSubmitPending.negate(),
 		);
 
 		super({
@@ -226,7 +224,6 @@ export class ChatSubmitAction extends SubmitAction {
 						whenNoActiveRequest,
 						menuCondition,
 						ChatContextKeys.withinEditSessionDiff.negate(),
-						ChatContextKeys.inputSubmitPending.negate(),
 					),
 					group: 'navigation',
 					alt: {
@@ -246,34 +243,6 @@ export class ChatSubmitAction extends SubmitAction {
 				}]
 		});
 	}
-}
-
-class ChatSubmitPendingAction extends Action2 {
-	static readonly ID = 'workbench.action.chat.submitPending';
-
-	constructor() {
-		super({
-			id: ChatSubmitPendingAction.ID,
-			title: localize2('interactive.submitPending.label', "Routing Request…"),
-			f1: false,
-			category: CHAT_CATEGORY,
-			icon: Codicon.loading,
-			precondition: ChatContextKeys.inputRouting,
-			menu: {
-				id: MenuId.ChatExecute,
-				order: 4,
-				when: ContextKeyExpr.and(
-					whenNoActiveRequest,
-					ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask),
-					ChatContextKeys.withinEditSessionDiff.negate(),
-					ChatContextKeys.inputRouting,
-				),
-				group: 'navigation',
-			},
-		});
-	}
-
-	run(): void { }
 }
 
 
@@ -431,7 +400,11 @@ export class OpenModelPickerAction extends Action2 {
 						ContextKeyExpr.or(
 							ChatContextKeys.inAgentSessionsWelcome.negate(),
 							ChatContextKeys.chatSessionHasTargetedModels,
-							ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local))
+							ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local),
+							ContextKeyExpr.and(
+								IsSessionsWindowContext,
+								ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.AgentHostCopilot),
+								ContextKeyExpr.equals(`config.${AgentHostAllowSignedOutWhenUsableSettingId}`, true)))
 					)
 			}
 		});
@@ -1030,7 +1003,7 @@ export class CancelEdit extends Action2 {
 		if (!widget) {
 			return;
 		}
-		widget.finishedEditing();
+		return widget.cancelEditing();
 	}
 }
 
@@ -1195,7 +1168,6 @@ class ExecuteHandoffAction extends Action2 {
 export function registerChatExecuteActions(): DisposableStore {
 	const store = new DisposableStore();
 	store.add(registerAction2(ChatSubmitAction));
-	store.add(registerAction2(ChatSubmitPendingAction));
 	store.add(registerAction2(ChatEditingSessionSubmitAction));
 	store.add(registerAction2(SubmitWithoutDispatchingAction));
 	store.add(registerAction2(CancelAction));

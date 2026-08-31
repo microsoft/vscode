@@ -24,6 +24,7 @@ suite('reasoningEffort', () => {
 				['high', 'High', 'Greater reasoning depth but slower'],
 				['xhigh', 'Extra High', 'Highest reasoning depth but slowest'],
 				['max', 'Max', 'Absolute maximum capability with no constraints'],
+				['ultra', 'Ultra', 'Maximum reasoning with automatic task delegation'],
 			],
 		);
 	});

@@ -26,10 +26,27 @@ export type NewSessionPromptOptionsState =
 	| { readonly kind: 'loading' }
 	| { readonly kind: 'resolved'; readonly options: readonly INewSessionPromptOption[] };
 
+export const enum NewSessionWorkspacePreselectionSource {
+	None = 'none',
+	CheckedWorkspace = 'checkedWorkspace',
+	RecentWorkspace = 'recentWorkspace',
+	ExistingSessions = 'existingSessions',
+	ProvidedWorkspace = 'providedWorkspace',
+	User = 'user',
+	Unknown = 'unknown',
+}
+
+export interface INewSessionPromptOptionsController {
+	resolve(token: CancellationToken): Promise<NewSessionPromptOptionsState>;
+	onDidSelectOption(option: INewSessionPromptOption): void;
+	onDidClose(): void;
+}
+
 export interface INewSessionComposer {
+	readonly workspacePreselectionSource?: NewSessionWorkspacePreselectionSource;
 	animatePrompt(text: string, durationMs: number, placeholder: string, token: CancellationToken): Promise<boolean>;
 	showPromptOptions(state: NewSessionPromptOptionsState | undefined): boolean;
-	setPromptOptionsResolver?(resolver: (token: CancellationToken) => Promise<NewSessionPromptOptionsState>): void;
+	setPromptOptionsController?(controller: INewSessionPromptOptionsController): void;
 	refreshPromptOptions?(token?: CancellationToken): Promise<boolean>;
 }
 

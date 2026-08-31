@@ -13,6 +13,14 @@ import type { IAgentHostGitHubEndpointService } from '../../../node/agentHostGit
 
 type Captured = { url: string; init: RequestInit | undefined };
 
+class RecordingLogService extends NullLogService {
+	readonly errors: string[] = [];
+
+	override error(message: string | Error, ...args: unknown[]): void {
+		this.errors.push([message, ...args].map(value => value instanceof Error ? value.message : String(value)).join(' '));
+	}
+}
+
 function getUrl(input: string | URL | Request): string {
 	if (typeof input === 'string') {
 		return input;
@@ -20,8 +28,8 @@ function getUrl(input: string | URL | Request): string {
 	return input instanceof URL ? input.href : input.url;
 }
 
-function makeService(fetchImpl: FetchFunction, enterpriseUri?: string): AgentHostOctoKitService {
-	return new AgentHostOctoKitService(fetchImpl, new NullLogService(), createTestGitHubEndpointService(enterpriseUri));
+function makeService(fetchImpl: FetchFunction, enterpriseUri?: string, logService = new NullLogService()): AgentHostOctoKitService {
+	return new AgentHostOctoKitService(fetchImpl, logService, createTestGitHubEndpointService(enterpriseUri));
 }
 
 function signal(): AbortSignal {
@@ -93,7 +101,7 @@ suite('AgentHostOctoKitService', () => {
 	});
 
 	test('findPullRequestByHeadBranch fetches the latest matching pull request', async () => {
-		const { fetch, captured } = capturingFetch(jsonResponse([{ html_url: 'https://github.com/o/r/pull/9', number: 9, node_id: 'PR_node_9' }]));
+		const { fetch, captured } = capturingFetch(jsonResponse([{ html_url: 'https://github.com/o/r/pull/9', number: 9, node_id: 'PR_node_9', created_at: '2026-08-09T12:00:00.000Z' }]));
 		const service = makeService(fetch);
 
 		const result = await service.findPullRequestByHeadBranch('o', 'r', 'feature/test', 'tok', signal());
@@ -103,7 +111,7 @@ suite('AgentHostOctoKitService', () => {
 			url: captured().url,
 			method: captured().init?.method,
 		}, {
-			result: { url: 'https://github.com/o/r/pull/9', number: 9, nodeId: 'PR_node_9' },
+			result: { url: 'https://github.com/o/r/pull/9', number: 9, nodeId: 'PR_node_9', createdAt: Date.parse('2026-08-09T12:00:00.000Z') },
 			url: 'https://api.github.com/repos/o/r/pulls?head=o%3Afeature%2Ftest&state=all&sort=updated&direction=desc&per_page=1',
 			method: 'GET',
 		});
@@ -137,6 +145,53 @@ suite('AgentHostOctoKitService', () => {
 			url: 'https://api.github.com/repos/o/r/commits/bbb/pulls?per_page=100',
 			method: 'GET',
 		});
+	});
+
+	test('findPullRequestByHeadSha treats an unpushed commit as no pull request', async () => {
+		const logService = new RecordingLogService();
+		const service = makeService(
+			capturingFetch(jsonResponse({ message: 'No commit found for SHA: bbb' }, 422)).fetch,
+			undefined,
+			logService,
+		);
+
+		const result = await service.findPullRequestByHeadSha('o', 'r', 'bbb', 'tok', signal());
+
+		assert.deepStrictEqual({ result, errors: logService.errors }, { result: undefined, errors: [] });
+	});
+
+	test('findPullRequestByHeadSha throws and logs other unprocessable responses', async () => {
+		const logService = new RecordingLogService();
+		const service = makeService(
+			capturingFetch(new Response('{"message":"Validation Failed"}', { status: 422, statusText: 'Unprocessable Entity' })).fetch,
+			undefined,
+			logService,
+		);
+
+		await assert.rejects(
+			() => service.findPullRequestByHeadSha('o', 'r', 'bbb', 'tok', signal()),
+			/GitHub API request failed: GET repos\/o\/r\/commits\/bbb\/pulls\?per_page=100 - 422 Unprocessable Entity - {"message":"Validation Failed"}/,
+		);
+		assert.deepStrictEqual(logService.errors, [
+			'[AgentHostOctoKit] GET https://api.github.com/repos/o/r/commits/bbb/pulls?per_page=100 - Status: 422 - {"message":"Validation Failed"}',
+		]);
+	});
+
+	test('findPullRequestByHeadSha throws and logs server errors', async () => {
+		const logService = new RecordingLogService();
+		const service = makeService(
+			capturingFetch(new Response('{"message":"Server Error"}', { status: 500, statusText: 'Server Error' })).fetch,
+			undefined,
+			logService,
+		);
+
+		await assert.rejects(
+			() => service.findPullRequestByHeadSha('o', 'r', 'bbb', 'tok', signal()),
+			/GitHub API request failed: GET repos\/o\/r\/commits\/bbb\/pulls\?per_page=100 - 500 Server Error - {"message":"Server Error"}/,
+		);
+		assert.deepStrictEqual(logService.errors, [
+			'[AgentHostOctoKit] GET https://api.github.com/repos/o/r/commits/bbb/pulls?per_page=100 - Status: 500 - {"message":"Server Error"}',
+		]);
 	});
 
 	test('findPullRequestByHeadSha ignores pull requests that only contain the commit', async () => {

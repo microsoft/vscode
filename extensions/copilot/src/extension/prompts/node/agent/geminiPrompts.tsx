@@ -44,6 +44,14 @@ export class DefaultGeminiAgentPrompt extends PromptElement<DefaultAgentPromptPr
 			&& !isExcludedGeminiFamily
 			&& this.configurationService.getExperimentBasedConfig(ConfigKey.EnableGemini3ReducedToolUsePrompt, this.experimentationService);
 
+		// Experiment to study additional Gemini Flash 3.6/3.7 prompt guidance on the metrics.
+		const isGeminiFlash36Or37 = !!modelFamily && (
+			modelFamily.includes('gemini-3.6-flash')
+			|| modelFamily.includes('gemini-3.7-flash')
+		);
+		const enableFlashPromptAdditions = isGeminiFlash36Or37
+			&& this.configurationService.getExperimentBasedConfig(ConfigKey.EnableGeminiFlashPromptAdditions, this.experimentationService);
+
 		return <InstructionMessage>
 			<Tag name='instructions'>
 				You are a highly sophisticated automated coding agent with expert-level knowledge across many different programming languages and frameworks.<br />
@@ -55,6 +63,7 @@ export class DefaultGeminiAgentPrompt extends PromptElement<DefaultAgentPromptPr
 					? <>Tool calls to read files or search are expensive. Minimize their use by solving tasks in the fewest steps and tool calls possible.<br /></>
 					: <>If you aren't sure which tool is relevant, you can call multiple tools. You can call tools repeatedly to take actions or gather as much context as needed until you have completed the task fully. Don't give up unless you are sure the request cannot be fulfilled with the tools you have. It's YOUR RESPONSIBILITY to make sure that you have done all you can to collect necessary context.<br /></>}
 				When reading files, prefer reading large meaningful chunks rather than consecutive small sections to minimize tool calls and gain better context.<br />
+				{enableFlashPromptAdditions && <>**Read ast/definitions first**: When inspecting a new codebase, prioritize reading configuration files (e.g. package.json, tsconfig.json) or directory listings before searching for source files blindly.<br /></>}
 				Don't make assumptions about the situation- gather context first, then perform the task or answer the question.<br />
 				{!this.props.codesearchMode && <>Think creatively and explore the workspace in order to make a complete fix.<br /></>}
 				Don't repeat yourself after a tool call, pick up where you left off.<br />
@@ -75,6 +84,8 @@ export class DefaultGeminiAgentPrompt extends PromptElement<DefaultAgentPromptPr
 				{tools[ToolName.FindTextInFiles] && <>You can use the {ToolName.FindTextInFiles} to get an overview of a file by searching for a string within that one file, instead of using {ToolName.ReadFile} many times.<br /></>}
 				{tools[ToolName.Codebase] && <>If you don't know exactly the string or filename pattern you're looking for, use {ToolName.Codebase} to do a semantic search across the workspace.<br /></>}
 				{tools[ToolName.CoreRunInTerminal] && <>Don't call the {ToolName.CoreRunInTerminal} tool multiple times in parallel. Instead, run one command and wait for the output before running the next command.<br /></>}
+				{enableFlashPromptAdditions && tools[ToolName.CoreRunInTerminal] && <>**Tool Batching**: Combine terminal execution steps. If you need to verify multiple files or run multiple tests, chain them into a single terminal command (e.g., pytest tests/a.py tests/b.py).<br /></>}
+				{enableFlashPromptAdditions && tools[ToolName.FindTextInFiles] && <>**Search Precision**: Refine {ToolName.FindTextInFiles} patterns to target exact definitions rather than running broad, high-volume keyword searches that clutter the context window.<br /></>}
 				When invoking a tool that takes a file path, always use the absolute file path. If the file has a scheme like untitled: or vscode-userdata:, then use a URI with the scheme.<br />
 				{tools[ToolName.CoreRunInTerminal] && <>NEVER try to edit a file by running terminal commands unless the user specifically asks for it.<br /></>}
 				{!tools.hasSomeEditTool && <>You don't currently have any tools available for editing files. If the user asks you to edit a file, you can ask the user to enable editing tools or print a codeblock with the suggested changes.<br /></>}

@@ -3,39 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IReader } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
-import { localize, localize2 } from '../../../../nls.js';
+import { localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, getWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IAgentHostTerminalService } from '../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
 import { ITerminalInstance, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
 import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
-import { Menus } from '../../../browser/menus.js';
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
-import { SessionsWelcomeVisibleContext, IsPhoneLayoutContext, CustomViewVisibleContext } from '../../../common/contextkeys.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { logSessionsInteraction } from '../../../common/sessionsTelemetry.js';
-import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
-import { ITerminalProfileService, TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
-import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { ITerminalProfileService } from '../../../../workbench/contrib/terminal/common/terminal.js';
 import { ISessionTaskRunnerRegistry } from '../../chat/browser/sessionTaskRunner.js';
 import { AgentHostSessionTaskRunner } from './agentHostSessionTaskRunner.js';
-
-const SessionsTerminalViewVisibleContext = new RawContextKey<boolean>('sessionsTerminalViewVisible', false);
 
 interface ISessionTerminalInfo {
 	/** The cwd to use for terminal matching/creation. For agent host sessions this is the unwrapped file URI. */
@@ -73,14 +64,19 @@ function getSessionTerminalInfo(session: ISession | undefined, reader?: IReader)
 	return { cwd };
 }
 
+function getSessionWorktreeCwd(session: ISession): URI | undefined {
+	const worktree = session.workspace.get()?.folders[0]?.gitRepository?.workTreeUri;
+	return worktree?.scheme === AGENT_HOST_SCHEME ? undefined : worktree;
+}
+
 /**
  * Manages terminal instances in the sessions window, ensuring:
  * - A terminal exists for the active session's worktree (or repository if no worktree).
  * - Terminals are tracked per session id and shown/hidden based on that association.
  * - Terminals created before session-id tracking fall back to initial cwd matching
  *   until they are associated with a session in this window.
- * - Terminals for archived/removed sessions are hidden/closed using their tracked
- *   session id association while keeping the active terminal protected.
+ * - Terminals for archived/removed sessions are closed using their tracked
+ *   session id association.
  */
 export class SessionsTerminalContribution extends Disposable implements IWorkbenchContribution {
 
@@ -92,6 +88,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	private readonly _standaloneTerminalIds = new Set<number>();
 	/** In-flight terminal work for drafts, retained only until each operation settles. */
 	private readonly _pendingTerminalOperations = new Map<string, IPendingTerminalOperation>();
+	private readonly _sessionTerminalGenerations = new Map<string, number>();
 
 	/**
 	 * Session ids already processed as archived. The archive cleanup runs only
@@ -110,9 +107,8 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		@IAgentHostTerminalService private readonly _agentHostTerminalService: IAgentHostTerminalService,
 		@ILogService private readonly _logService: ILogService,
 		@IPathService private readonly _pathService: IPathService,
+		@IFileService private readonly _fileService: IFileService,
 		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
-		@IViewsService viewsService: IViewsService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -154,7 +150,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		// This is a little hacky but I don't see any better approach.
 		this._register(autorun(reader => {
 			const session = this._sessionsService.activeSession.read(reader);
-			if (session?.loading.read(reader)) {
+			if (session?.loading.read(reader) || session?.isArchived.read(reader) || session?.worktreePending?.read(reader)) {
 				this._agentHostTerminalService.setDefaultCwd(undefined);
 				return;
 			}
@@ -162,20 +158,18 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			this._agentHostTerminalService.setDefaultCwd(info?.cwd);
 		}));
 
-		// Track whether the terminal view is visible so the titlebar toggle
-		// button shows the correct checked state.
-		const terminalViewVisible = SessionsTerminalViewVisibleContext.bindTo(contextKeyService);
-		terminalViewVisible.set(viewsService.isViewVisible(TERMINAL_VIEW_ID));
-		this._register(viewsService.onDidChangeViewVisibility(e => {
-			if (e.id === TERMINAL_VIEW_ID) {
-				terminalViewVisible.set(e.visible);
-			}
-		}));
-
 		// React to active session changes — use worktree/repo for background sessions, home dir otherwise
 		this._register(autorun(reader => {
 			const session = this._sessionsService.activeSession.read(reader);
-			if (session?.loading.read(reader)) {
+			const isArchived = session?.isArchived.read(reader);
+			const worktreePending = session?.worktreePending?.read(reader);
+			if (session && !isArchived && this._archivedSessionIds.delete(session.sessionId)) {
+				this._invalidateTerminalOperations(session.sessionId);
+			}
+			if (session?.loading.read(reader) || isArchived || worktreePending) {
+				if (session && (isArchived || worktreePending)) {
+					this._invalidateTerminalOperations(session.sessionId);
+				}
 				this._activeKey = undefined;
 				this._activeSessionId = undefined;
 				return;
@@ -228,12 +222,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		// Clean up terminals for archived/removed sessions using their tracked
 		// session-to-terminal associations.
 		//
-		// Archive vs remove differ in how aggressive the cleanup is:
-		// - Archiving is reversible and terminals can be reused by
-		//   the same session, so we only HIDE the terminal (the pty survives and can
-		//   be shown again on unarchive or reuse). See `_hideTerminalsForSession`.
-		// - Removal is an explicit, destructive user action, so we KILL the
-		//   terminal. See `_closeTerminalsForSession`.
+		// Archive disposes session-owned terminals; restore creates a fresh terminal after worktree readiness.
 		//
 		// The archive cleanup runs only on the not-archived → archived transition.
 		// The provider keeps archived sessions cached and re-emits them in
@@ -241,11 +230,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		// re-run the cwd cleanup each time and sweep terminals the user opened
 		// after archiving.
 		//
-		// Both paths are asynchronous and can land while the user is working in a
-		// just-opened terminal at this cwd (e.g. removal also covers untitled →
-		// committed graduation via `onDidReplaceSession`, which surfaces the
-		// skeleton in `removed`). The focused (active) terminal is therefore never
-		// touched on either path. See #313510, #318645.
+		// Removal protects the active terminal because `removed` also represents untitled → committed graduation.
 
 		this._register(this._sessionsManagementService.onDidChangeSessions(e => {
 			// Only act on the not-archived → archived transition; ignore re-emits
@@ -263,10 +248,13 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 				if (session.isArchived.get()) {
 					if (!this._archivedSessionIds.has(session.sessionId)) {
 						this._archivedSessionIds.add(session.sessionId);
+						this._invalidateTerminalOperations(session.sessionId);
 						justArchived.push(session);
 					}
 				} else {
-					this._archivedSessionIds.delete(session.sessionId);
+					if (this._archivedSessionIds.delete(session.sessionId)) {
+						this._invalidateTerminalOperations(session.sessionId);
+					}
 				}
 			}
 			for (const session of e.removed) {
@@ -280,7 +268,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 				void this._closeTerminalsForSession(session.sessionId, `session removed (${session.sessionId})`).finally(() => this._sessionTerminals.delete(session.sessionId));
 			}
 			for (const session of justArchived) {
-				void this._hideTerminalsForSession(session.sessionId, `session archived (${session.sessionId})`);
+				void this._closeArchivedSessionTerminals(session);
 			}
 		}));
 	}
@@ -300,16 +288,17 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			return this._ensureTerminal(cwd, focus, session);
 		}
 
+		const generation = this._getTerminalOperationGeneration(session.sessionId);
 		this._beginTerminalOperation(session.sessionId);
 		try {
-			return await this._ensureTerminal(cwd, focus, session);
+			return await this._ensureTerminal(cwd, focus, session, generation);
 		} finally {
 			this._endTerminalOperation(session.sessionId);
 		}
 	}
 
-	private async _ensureTerminal(cwd: URI, focus: boolean, session?: ISession): Promise<ITerminalInstance[]> {
-		if (session && this._pendingTerminalOperations.get(session.sessionId)?.replaced) {
+	private async _ensureTerminal(cwd: URI, focus: boolean, session?: ISession, generation?: number): Promise<ITerminalInstance[]> {
+		if (session && this._isTerminalOperationCancelled(session, generation)) {
 			return [];
 		}
 
@@ -317,7 +306,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		let existing = session ? this._getTrackedTerminalsForSession(session.sessionId) : [];
 		if (existing.length === 0) {
 			existing = await this._findTerminalsForKey(key, { excludeTracked: !!session });
-			if (session && this._pendingTerminalOperations.get(session.sessionId)?.replaced) {
+			if (session && this._isTerminalOperationCancelled(session, generation)) {
 				return [];
 			}
 		}
@@ -329,8 +318,11 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 				if (!createdInstance) {
 					return [];
 				}
-				if (session && this._pendingTerminalOperations.get(session.sessionId)?.replaced) {
+				if (session && this._isTerminalOperationCancelled(session, generation)) {
 					await this._terminalService.safeDisposeTerminal(createdInstance);
+					if (!createdInstance.isDisposed) {
+						this._trackTerminalsForSession(session.sessionId, [createdInstance]);
+					}
 					return [];
 				}
 				existing = [createdInstance];
@@ -351,6 +343,22 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		}
 
 		return existing;
+	}
+
+	private _isTerminalOperationCancelled(session: ISession, generation = this._getTerminalOperationGeneration(session.sessionId)): boolean {
+		return this._pendingTerminalOperations.get(session.sessionId)?.replaced === true
+			|| this._getTerminalOperationGeneration(session.sessionId) !== generation
+			|| this._archivedSessionIds.has(session.sessionId)
+			|| session.isArchived.get()
+			|| session.worktreePending?.get() === true;
+	}
+
+	private _getTerminalOperationGeneration(sessionId: string): number {
+		return this._sessionTerminalGenerations.get(sessionId) ?? 0;
+	}
+
+	private _invalidateTerminalOperations(sessionId: string): void {
+		this._sessionTerminalGenerations.set(sessionId, this._getTerminalOperationGeneration(sessionId) + 1);
 	}
 
 	/**
@@ -390,7 +398,15 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 
 		this._beginTerminalOperation(session.sessionId);
 		try {
+			const generation = this._getTerminalOperationGeneration(session.sessionId);
 			const info = getSessionTerminalInfo(session);
+			// A legacy session's worktree checkout may not be materialized yet (it is
+			// recreated lazily on the first send). Launching a local terminal into a
+			// missing cwd fails with "starting directory does not exist", so defer
+			// until the directory exists; a later session refresh retries.
+			if (info?.cwd && !info.agentHostCwd && info.cwd.scheme === Schemas.file && !(await this._fileService.exists(info.cwd))) {
+				return;
+			}
 			const targetPath = info?.cwd ?? await this._pathService.userHome();
 			const targetKey = targetPath.fsPath.toLowerCase();
 			if (this._activeKey === targetKey && this._activeSessionId === session.sessionId) {
@@ -399,7 +415,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			this._activeKey = targetKey;
 			this._activeSessionId = session.sessionId;
 
-			const instances = await this._ensureTerminal(targetPath, false, session);
+			const instances = await this._ensureTerminal(targetPath, false, session, generation);
 
 			// If the active session or key changed while we were awaiting, a newer
 			// call has taken over — skip the visibility update to avoid flicker.
@@ -682,33 +698,94 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		}
 	}
 
-	/**
-	 * Hides (moves to background) terminals associated with the given session id
-	 * without disposing them. Used when a session is archived ("Mark as Done"):
-	 * archiving is reversible and the pty must survive so it can be shown again.
-	 *
-	 * Archiving is asynchronous and can land while the user is working in a
-	 * just-opened terminal at this cwd, so the focused (active) instance is
-	 * never hidden out from under the user.
-	 *
-	 * {@link reason} is logged for each hidden terminal so unexpected visibility
-	 * changes in the agents window can be diagnosed from the logs. See #313510,
-	 * #318645.
-	 */
-	private async _hideTerminalsForSession(sessionId: string, reason: string): Promise<void> {
-		const protectedInstanceId = this._terminalService.activeInstance?.instanceId;
-		for (const instance of this._getTrackedTerminalsForSession(sessionId)) {
-			if (protectedInstanceId !== undefined && instance.instanceId === protectedInstanceId) {
-				this._logService.info(`[SessionsTerminal] Skipping active terminal ${instance.instanceId} for session ${sessionId} (user is working in it)`);
+	private async _closeArchivedSessionTerminals(session: ISession): Promise<void> {
+		const cleanupGeneration = this._getTerminalOperationGeneration(session.sessionId);
+		const terminals = new Map(this._getTrackedTerminalsForSession(session.sessionId).map(instance => [instance.instanceId, instance]));
+		const untrackedWorktreeTerminalIds = new Set<number>();
+		const worktreeCwd = getSessionWorktreeCwd(session);
+		const anotherLiveSessionSharesWorktree = worktreeCwd && this._sessionsManagementService.getSessions().some(candidate =>
+			candidate.sessionId !== session.sessionId
+			&& !candidate.isArchived.get()
+			&& isEqual(getSessionWorktreeCwd(candidate), worktreeCwd)
+		);
+		if (worktreeCwd && !anotherLiveSessionSharesWorktree) {
+			for (const instance of await this._findUntrackedTerminalsForResource(worktreeCwd)) {
+				if (instance.instanceId === this._terminalService.activeInstance?.instanceId) {
+					continue;
+				}
+				terminals.set(instance.instanceId, instance);
+				untrackedWorktreeTerminalIds.add(instance.instanceId);
+			}
+		}
+		if (!this._isArchiveCleanupCurrent(session.sessionId, cleanupGeneration)) {
+			return;
+		}
+
+		for (const instance of terminals.values()) {
+			if (!this._isArchiveCleanupCurrent(session.sessionId, cleanupGeneration)) {
+				return;
+			}
+			if (untrackedWorktreeTerminalIds.has(instance.instanceId)
+				&& (this._isTerminalTracked(instance.instanceId)
+					|| this._standaloneTerminalIds.has(instance.instanceId)
+					|| this._terminalService.activeInstance?.instanceId === instance.instanceId)) {
 				continue;
 			}
-			const availableInstance = this._getAvailableTerminal(instance, `hide archived terminal for session ${sessionId}`);
+			const availableInstance = this._getAvailableTerminal(instance, `close archived session terminal for session ${session.sessionId}`);
 			if (!availableInstance) {
 				continue;
 			}
-			this._logService.info(`[SessionsTerminal] Hiding terminal ${availableInstance.instanceId} (session: ${sessionId}, reason: ${reason})`);
-			this._terminalService.moveToBackground(availableInstance);
+			this._logService.info(`[SessionsTerminal] Killing terminal ${availableInstance.instanceId} (session archived: ${session.sessionId})`);
+			await this._terminalService.safeDisposeTerminal(availableInstance);
+			if (availableInstance.isDisposed) {
+				this._removeTerminalFromTrackedSessions(availableInstance.instanceId);
+			}
+			if (!this._isArchiveCleanupCurrent(session.sessionId, cleanupGeneration)) {
+				await this._ensureActiveSessionTerminalAfterLateArchiveCleanup(session.sessionId);
+				return;
+			}
 		}
+	}
+
+	private _isArchiveCleanupCurrent(sessionId: string, generation: number): boolean {
+		return this._archivedSessionIds.has(sessionId)
+			&& this._getTerminalOperationGeneration(sessionId) === generation;
+	}
+
+	private async _ensureActiveSessionTerminalAfterLateArchiveCleanup(sessionId: string): Promise<void> {
+		const activeSession = this._sessionsService.activeSession.get();
+		if (!activeSession
+			|| activeSession.sessionId !== sessionId
+			|| activeSession.isArchived.get()
+			|| activeSession.loading.get()
+			|| activeSession.worktreePending?.get()) {
+			return;
+		}
+		this._activeKey = undefined;
+		this._activeSessionId = undefined;
+		await this._onActiveSessionChanged(activeSession);
+	}
+
+	private async _findUntrackedTerminalsForResource(resource: URI): Promise<ITerminalInstance[]> {
+		const result: ITerminalInstance[] = [];
+		for (const instance of this._terminalService.instances) {
+			if (!instance.shellLaunchConfig.attachPersistentProcess
+				|| instance.shellLaunchConfig.hideFromUser
+				|| this._isTerminalTracked(instance.instanceId)
+				|| this._standaloneTerminalIds.has(instance.instanceId)) {
+				continue;
+			}
+			try {
+				if (isEqual(URI.file(await instance.getInitialCwd()), resource)
+					&& !this._isTerminalTracked(instance.instanceId)
+					&& !this._standaloneTerminalIds.has(instance.instanceId)) {
+					result.push(instance);
+				}
+			} catch {
+				// Ignore terminals whose cwd cannot be resolved.
+			}
+		}
+		return result;
 	}
 
 	async dumpTracking(): Promise<void> {
@@ -757,58 +834,6 @@ class RegisterAgentHostSessionTaskRunnerContribution extends Disposable implemen
 }
 
 registerWorkbenchContribution2(RegisterAgentHostSessionTaskRunnerContribution.ID, RegisterAgentHostSessionTaskRunnerContribution, WorkbenchPhase.BlockStartup);
-
-class OpenSessionInTerminalAction extends Action2 {
-
-	constructor() {
-		super({
-			id: 'agentSession.openInTerminal',
-			title: localize2('openInTerminal', "Open Terminal"),
-			icon: Codicon.terminal,
-			// The panel is hidden while a custom view replaces the sessions grid.
-			precondition: CustomViewVisibleContext.negate(),
-			toggled: {
-				condition: SessionsTerminalViewVisibleContext,
-				title: localize('hideTerminal', "Hide Terminal"),
-			},
-			menu: [{
-				id: Menus.TitleBarSessionMenu,
-				group: 'navigation',
-				order: 10,
-				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsPhoneLayoutContext.negate()),
-			}]
-		});
-	}
-
-	override async run(_accessor: ServicesAccessor): Promise<void> {
-		const telemetryService = _accessor.get(ITelemetryService);
-		logSessionsInteraction(telemetryService, 'openTerminal');
-
-		const layoutService = _accessor.get(IWorkbenchLayoutService);
-		const viewsService = _accessor.get(IViewsService);
-
-		// Toggle: if panel is visible and the terminal view is active, hide it.
-		// If the panel is visible but showing another view, open the terminal instead.
-		if (layoutService.isVisible(Parts.PANEL_PART)) {
-			if (viewsService.isViewVisible(TERMINAL_VIEW_ID)) {
-				layoutService.setPartHidden(true, Parts.PANEL_PART);
-				return;
-			}
-		}
-
-		const contribution = getWorkbenchContribution<SessionsTerminalContribution>(SessionsTerminalContribution.ID);
-		const sessionsService = _accessor.get(ISessionsService);
-		const pathService = _accessor.get(IPathService);
-
-		const activeSession = sessionsService.activeSession.get();
-		const info = getSessionTerminalInfo(activeSession);
-		const cwd = info?.cwd ?? await pathService.userHome();
-		await contribution.ensureTerminal(cwd, true, activeSession);
-		viewsService.openView(TERMINAL_VIEW_ID);
-	}
-}
-
-registerAction2(OpenSessionInTerminalAction);
 
 class DumpTerminalTrackingAction extends Action2 {
 

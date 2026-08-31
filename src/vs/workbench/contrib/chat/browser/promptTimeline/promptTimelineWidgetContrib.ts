@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, EventType, getWindow } from '../../../../../base/browser/dom.js';
+import { addDisposableListener, EventType } from '../../../../../base/browser/dom.js';
 import { IMouseWheelEvent, StandardWheelEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
@@ -12,8 +12,8 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IChatWidget } from '../chat.js';
 import { IChatWidgetContrib, ChatWidget } from '../widget/chatWidget.js';
-import { ChatAgentLocation } from '../../common/constants.js';
-import { MIN_PROMPTS, PromptTimelineRailStyle, PROMPT_TIMELINE_CONTRIB_ID, PROMPT_TIMELINE_DISPLAY_SETTING, PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../common/promptTimeline.js';
+import { ChatAgentLocation, ChatConfiguration } from '../../common/constants.js';
+import { MIN_RAIL_PROMPTS, PromptTimelineRailStyle, PROMPT_TIMELINE_CONTRIB_ID, PROMPT_TIMELINE_DISPLAY_SETTING, PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../common/promptTimeline.js';
 import { PromptTimelineModel } from './promptTimelineModel.js';
 import { PromptTimelineGutterRail } from './promptTimelineGutterRail.js';
 import { IPromptTimelineRail } from './promptTimelineRail.js';
@@ -34,27 +34,35 @@ function supportsPromptTimeline(widget: IChatWidget): boolean {
 	return widget.location === ChatAgentLocation.Chat && !widget.rendersInputOnTop;
 }
 
+export function observePromptTimelineHostWidth(
+	widget: Pick<ChatWidget, 'onDidLayout'>,
+	host: HTMLElement,
+	rail: Pick<IPromptTimelineRail, 'setHostWidth'>,
+): IDisposable {
+	rail.setHostWidth(host.clientWidth);
+	return widget.onDidLayout(({ width }) => rail.setHostWidth(width));
+}
+
 /**
  * Whether the sticky prompt header is mounted for a widget. Shared with the accessibility help so it
- * only describes the header (and its navigation buttons) on widgets that actually get one.
+ * only describes the header on widgets that actually get one.
  */
 export function isStickyPromptHeaderShown(widget: IChatWidget, configurationService: IConfigurationService): boolean {
 	return supportsPromptTimeline(widget)
-		&& configurationService.getValue<boolean>(PROMPT_TIMELINE_STICKY_SCROLL_SETTING) === true;
+		&& configurationService.getValue<boolean>(PROMPT_TIMELINE_STICKY_SCROLL_SETTING) === true
+		&& configurationService.getValue<boolean>(ChatConfiguration.ExperimentalStickyScrollEnabled) === false;
 }
 
 /**
  * Per-widget contribution that overlays the prompt timeline on the chat transcript. It shows the sticky
  * header (`chat.stickyScroll.enabled`, both windows) and/or the rail
- * (`sessions.chatTimeline.display`, Agents window only), and is torn down and re-created when either
+ * (`sessions.chatTimeline.display`, Agents window only), and is torn down and re-created when a relevant
  * setting changes.
  */
 export class PromptTimelineWidgetContrib extends Disposable implements IChatWidgetContrib {
 
 	static readonly ID = PROMPT_TIMELINE_CONTRIB_ID;
 	readonly id = PromptTimelineWidgetContrib.ID;
-
-	private _rail: IPromptTimelineRail | undefined;
 
 	/** Holds the model and every surface's wiring while at least one surface is enabled. */
 	private readonly _enablement = this._register(new DisposableStore());
@@ -73,7 +81,8 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(PROMPT_TIMELINE_DISPLAY_SETTING)
-				|| e.affectsConfiguration(PROMPT_TIMELINE_STICKY_SCROLL_SETTING)) {
+				|| e.affectsConfiguration(PROMPT_TIMELINE_STICKY_SCROLL_SETTING)
+				|| e.affectsConfiguration(ChatConfiguration.ExperimentalStickyScrollEnabled)) {
 				this._update();
 			}
 		}));
@@ -83,13 +92,12 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 	/** (Re)builds the timeline to match the current settings, or tears it down if no surface is enabled. */
 	private _update(): void {
 		this._enablement.clear();
-		this._rail = undefined;
 		// The rail's layout (and the content reservation it needs) is built for the Agents window's
 		// centered session view, so it stays there; the sticky header works in either window.
 		const railStyle = this.environmentService.isSessionsWindow
 			? this.configurationService.getValue<PromptTimelineRailStyle>(PROMPT_TIMELINE_DISPLAY_SETTING)
 			: 'off';
-		const stickyEnabled = this.configurationService.getValue<boolean>(PROMPT_TIMELINE_STICKY_SCROLL_SETTING) === true;
+		const stickyEnabled = isStickyPromptHeaderShown(this.widget, this.configurationService);
 		if (railStyle !== 'off' || stickyEnabled) {
 			this._createFeature(railStyle, stickyEnabled);
 		}
@@ -102,23 +110,13 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 	 */
 	private _createFeature(railStyle: PromptTimelineRailStyle, stickyEnabled: boolean): void {
 		// CONTRIBS always constructs contribs with the concrete widget.
-		const model = this._enablement.add(this.instantiationService.createInstance(PromptTimelineModel, this.widget as ChatWidget));
+		const concreteWidget = this.widget as ChatWidget;
+		const model = this._enablement.add(this.instantiationService.createInstance(PromptTimelineModel, concreteWidget));
 
 		// The host class provides the positioning context and layout variables both surfaces anchor to.
 		const host = this.widget.domNode;
 		host.classList.add('prompt-timeline-host');
 		this._enablement.add(toDisposable(() => host.classList.remove('prompt-timeline-host', 'prompt-timeline-with-rail')));
-
-		// Keep the rail informed of the host width so it can hide its marks when the transcript is too
-		// narrow to fit them beside the native scrollbar.
-		const ResizeObserverCtor = getWindow(host).ResizeObserver;
-		if (ResizeObserverCtor) {
-			const observer = new ResizeObserverCtor(() => {
-				this._rail?.setHostWidth(host.clientWidth);
-			});
-			observer.observe(host);
-			this._enablement.add(toDisposable(() => observer.disconnect()));
-		}
 
 		if (railStyle !== 'off') {
 			this._createRail(model, host, railStyle);
@@ -132,7 +130,7 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 		const rail: IPromptTimelineRail = this._enablement.add(
 			railStyle === 'gutter' ? new PromptTimelineGutterRail() : new PromptTimelineRulerRail()
 		);
-		this._rail = rail;
+		this._enablement.add(observePromptTimelineHostWidth(this.widget as ChatWidget, host, rail));
 		// The ruler reserves room beside the transcript's right scrollbar; the gutter rail lives in the
 		// existing left gutter and needs no reservation, so only the ruler marks the host.
 		if (railStyle === 'ruler') {
@@ -169,7 +167,7 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 			const ticks = ticksObs.read(reader);
 			// Toggle visibility before rendering so the rail's fit measurement in
 			// setTicks runs against the displayed (non-zero height) element.
-			rail.domNode.classList.toggle('hidden', ticks.length < MIN_PROMPTS);
+			rail.domNode.classList.toggle('hidden', ticks.length < MIN_RAIL_PROMPTS);
 			rail.setTicks(ticks);
 		}));
 
@@ -189,24 +187,20 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 	/**
 	 * Mounts the flat sticky header that pins the current prompt to the top of the transcript. It shows
 	 * only once that prompt's row has scrolled above the viewport (via {@link PromptTimelineModel.activePinned}).
-	 * Its previous/next toolbar actions step through prompts; activating the label jumps straight to the
-	 * prompt it names (scrolling it to the top of the transcript).
+	 * Activating the label jumps straight to the prompt it names (scrolling it to the top of the transcript).
 	 */
 	private _createStickyHeader(model: PromptTimelineModel): void {
 		const sticky = this._enablement.add(this.instantiationService.createInstance(PromptTimelineStickyHeader, this.widget.domNode));
 		this._enablement.add(sticky.onDidActivate(() => model.revealActivePrompt()));
-		this._enablement.add(sticky.onDidNavigate(delta => model.navigate(delta)));
 		this._enablement.add(autorun(reader => {
 			// Drive the header from the unbucketed active prompt so the label and N/M position match
 			// the real prompt list (the rail's ticks are bucketed/capped and would misreport long chats).
 			const active = model.activePrompt.read(reader);
 			const pinned = model.activePinned.read(reader);
-			if (active) {
+			if (active && pinned) {
 				sticky.update(active.text, active.index, active.total);
 			}
-			// The header reveals once its prompt is pinned above the viewport; it is independent of the
-			// rail, so a narrow transcript (where the rail hides) still gets the header.
-			sticky.setVisible(pinned && !!active && active.total >= MIN_PROMPTS);
+			sticky.setVisible(!!active && pinned);
 		}));
 	}
 

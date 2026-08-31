@@ -55,7 +55,6 @@ export function registerInstallDictationModelAction(): void {
 				canSelectFiles: true,
 				canSelectFolders: true,
 				canSelectMany: false,
-				filters: [{ name: localize('chat.installDictationModel.filter', "Foundry Local Model Package"), extensions: ['zip'] }],
 			});
 			const source = sources?.[0];
 			if (!source) {

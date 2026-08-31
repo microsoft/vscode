@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, IReference } from '../../../base/common/lifecycle.js';
+import { extUriBiasedIgnorePathCase, normalizePath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { Event } from '../../../base/common/event.js';
@@ -16,12 +17,18 @@ export const SESSION_DB_FILENAME = 'session.db';
 
 /**
  * Subdirectory under a session's data directory that holds snapshotted
- * user-message attachments (e.g. pasted images, fetched file references).
+ * user-message attachments (e.g. pasted content, fetched file references).
  * The agent host writes these on dispatch so large blobs stay out of the
  * in-memory state tree, and reads of files under this directory are
  * auto-approved by the agent's permission flow.
  */
 export const SESSION_ATTACHMENTS_DIRNAME = 'attachments';
+
+export function isSessionAttachmentPath(sessionDataService: ISessionDataService, session: URI, filePath: string): boolean {
+	const attachmentsDir = normalizePath(URI.joinPath(sessionDataService.getSessionDataDir(session), SESSION_ATTACHMENTS_DIRNAME));
+	const fileUri = normalizePath(URI.file(filePath));
+	return extUriBiasedIgnorePathCase.isEqualOrParent(fileUri, attachmentsDir);
+}
 
 // ---- File-edit types ----------------------------------------------------
 
@@ -162,6 +169,18 @@ export interface ISessionDatabase extends IDisposable {
 	getTurnUsages(): Promise<Map<string, string>>;
 
 	/**
+	 * Persists the JSON-serialized delegation metadata for an agent-authored turn.
+	 * Idempotent — last writer wins per turn.
+	 */
+	setTurnDelegation(turnId: string, delegation: string): Promise<void>;
+
+	/**
+	 * Returns every persisted turn delegation, keyed by both the turn's own id
+	 * and its provider event id when one has been recorded.
+	 */
+	getTurnDelegations(): Promise<Map<string, string>>;
+
+	/**
 	 * Associates a git checkpoint ref (e.g. `refs/agents/<sid>/checkpoints/turn/N`)
 	 * with a turn. Idempotent — last writer wins per turn.
 	 */
@@ -277,6 +296,17 @@ export interface ISessionDatabase extends IDisposable {
 	 * Store a metadata key-value pair. Overwrites any existing value for the key.
 	 */
 	setMetadata(key: string, value: string): Promise<void>;
+
+	/**
+	 * Atomically store multiple metadata key-value pairs.
+	 */
+	setMetadataValues(values: Readonly<Record<string, string>>): Promise<void>;
+
+	/**
+	 * Atomically stores metadata values only when `key` is absent. Values named
+	 * by `copies` are read from their source keys and copied when present.
+	 */
+	setMetadataValuesIfAbsent(key: string, values: Readonly<Record<string, string>>, copies?: Readonly<Record<string, string>>): Promise<boolean>;
 
 	/**
 	 * Store or clear the draft for a chat in this session.

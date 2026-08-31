@@ -16,8 +16,9 @@ import { IVSCodeExtensionContext } from '../../extContext/common/extensionContex
 import { ILogService } from '../../log/common/logService';
 import { IFetcherService } from '../../networking/common/fetcherService';
 import { FetcherService } from '../../networking/vscode-node/fetcherServiceImpl';
-import { ITelemetryService } from '../common/telemetry';
-import { BaseExperimentationService, UserInfoStore } from '../node/baseExperimentationService';
+import { IExperimentationTelemetry, ITelemetryService } from '../common/telemetry';
+import { BaseExperimentationService, RevocationGate, UserInfoStore } from '../node/baseExperimentationService';
+import { createTasFetch } from './tasFetch';
 
 function getTargetPopulation(isPreRelease: boolean): TargetPopulation {
 	if (isPreRelease) {
@@ -277,24 +278,20 @@ export class MicrosoftExperimentationService extends BaseExperimentationService 
 		const version = context.extension.packageJSON['version'];
 		const targetPopulation = getTargetPopulation(envService.isPreRelease());
 		let self: MicrosoftExperimentationService | undefined = undefined;
-		const delegateFn = (globalState: vscode.Memento, userInfoStore: UserInfoStore) => {
-			const wrappedMemento = new ExpMementoWrapper(globalState, envService);
+		const delegateFn = (memento: vscode.Memento, userInfoStore: UserInfoStore, gate: RevocationGate) => {
+			const wrappedMemento = new ExpMementoWrapper(memento, envService);
 			const exp = copilotTokenStore.copilotToken?.endpoints?.exp;
 			const assignmentsEndpoint = exp ? `${exp.replace(/\/+$/, '')}/api/v1/assignments` : undefined;
-			// Route the assignments request through the extension's fetcher service so it gets
-			// proxy handling, retries/fallback, and the standard user-agent for free.
-			const assignmentsFetch = (url: string, init: { method: 'POST'; headers: Record<string, string>; body: string }) =>
-				fetcherService.fetch(url, {
-					method: init.method,
-					headers: init.headers,
-					body: init.body,
-					callSite: 'exp.assignments',
-				});
+			// Route both the legacy (GET) and assignments (POST) requests through the extension's
+			// fetcher service so they get proxy handling, retries/fallback, and the standard user-agent.
+			const tasFetch = createTasFetch(fetcherService);
 			return getExperimentationServiceFromConfig({
 				extensionName: id,
 				extensionVersion: version,
 				targetPopulation,
-				telemetry: telemetryService,
+				// Wrapped per generation so a superseded delegate's in-flight fetch cannot write
+				// telemetry (e.g. overwrite `abexp.assignmentcontext`) after being replaced.
+				telemetry: new RevocableExpTelemetry(telemetryService, gate),
 				memento: wrappedMemento,
 				filterProviders: [
 					new GithubAccountFilterProvider(userInfoStore, logService),
@@ -306,9 +303,9 @@ export class MicrosoftExperimentationService extends BaseExperimentationService 
 					new PlatformAndReleaseDateFilterProvider(logService),
 					new WindowKindFilterProvider(logService),
 				],
+				fetch: tasFetch,
 				assignmentsEndpoint,
 				assignmentsFilterProviders: assignmentsEndpoint ? [new CopilotAssignmentsFilterProvider(copilotTokenStore, logService)] : undefined,
-				assignmentsFetch: assignmentsEndpoint ? assignmentsFetch : undefined,
 			});
 		};
 
@@ -331,6 +328,32 @@ export class MicrosoftExperimentationService extends BaseExperimentationService 
 		if (fetcherService instanceof FetcherService) {
 			fetcherService.setExperimentationService(this);
 		}
+	}
+}
+
+/**
+ * Wraps the telemetry service so a superseded delegate's writes are dropped once its generation
+ * gate is revoked, preventing a stale in-flight fetch from overwriting shared telemetry
+ * properties (notably `abexp.assignmentcontext`) after a newer delegate has replaced it.
+ */
+class RevocableExpTelemetry implements IExperimentationTelemetry {
+	constructor(
+		private readonly _actual: IExperimentationTelemetry,
+		private readonly _gate: RevocationGate,
+	) { }
+
+	setSharedProperty(name: string, value: string): void {
+		if (this._gate.isRevoked) {
+			return;
+		}
+		this._actual.setSharedProperty(name, value);
+	}
+
+	postEvent(eventName: string, props: Map<string, string>): void {
+		if (this._gate.isRevoked) {
+			return;
+		}
+		this._actual.postEvent(eventName, props);
 	}
 }
 

@@ -290,7 +290,7 @@ extends:
       ubuntu-2004-arm64:
         image: onebranch.azurecr.io/linux/ubuntu-2004-arm64:latest
     settings:
-      networkIsolationPolicy: Permissive,CFSClean2,CFSClean3
+      networkIsolationPolicy: Permissive,CFSClean,CFSClean2,CFSClean3
     stages:
 
       - stage: Quality
@@ -574,6 +574,7 @@ extends:
                   displayName: Windows arm64
                   poolName: 1es-windows-2022-arm64
                   os: windows
+                  arch: arm64
 
             # Alpine 3.22
             - ${{ if eq(parameters.VSCODE_BUILD_ALPINE, true) }}:
@@ -906,6 +907,7 @@ extends:
                   displayName: Windows arm64
                   poolName: 1es-windows-2022-arm64
                   os: windows
+                  arch: arm64
                   # Non-blocking: arm64 binaries are missing VersionInfo ProductName, which fails
                   # the published SanityTests run on main too.
                   continueOnError: true

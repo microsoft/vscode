@@ -28,15 +28,16 @@ import { ILifecycleService, LifecyclePhase, StartupKind } from '../../../../serv
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { INotebookDocumentService } from '../../../../services/notebook/common/notebookDocumentService.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
+import { IWorkspaceFolderLabelService } from '../../../../services/workspaces/common/workspaceFolderLabelService.js';
 import { FixtureMenuService } from '../chat/chatFixtureUtils.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
 // eslint-disable-next-line local/code-import-patterns
-import { ActiveSessionState, ChangesViewSection, IChangesViewSectionCollapseState, IChangesViewService } from '../../../../../sessions/contrib/changes/common/changesViewService.js';
+import { ActiveSessionState, ChangesViewSection, IChangesDetailsViewState, IChangesViewSectionCollapseState, IChangesViewService } from '../../../../../sessions/contrib/changes/common/changesViewService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesViewMode, IsolationMode } from '../../../../../sessions/contrib/changes/common/changes.js';
 // eslint-disable-next-line local/code-import-patterns
-import { ChangesViewPane } from '../../../../../sessions/contrib/changes/browser/changesView.js';
+import { SinglePaneChangesViewPane } from '../../../../../sessions/contrib/changes/browser/changesView.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionChangesService, SessionChangesService } from '../../../../../sessions/contrib/changes/browser/sessionChangesService.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -50,12 +51,11 @@ import { ISessionsService } from '../../../../../sessions/services/sessions/brow
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
-import { BRANCH_CHANGES_CHANGESET_ID, IChat, IGitHubInfo, ISessionCapabilities, ISessionChangeset, ISessionChangesetOperation, ISessionFile, ISessionFileChange, ISessionGitRepository, ISessionWorkspace, SessionFileOperation, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, IChat, IGitHubInfo, ISessionCapabilities, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, ISessionGitRepository, ISessionWorkspace, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
 
 interface IChangesViewFixtureOptions {
 	readonly viewMode: ChangesViewMode;
 	readonly changes: readonly ISessionFileChange[];
-	readonly otherFiles?: readonly ISessionFile[];
 	readonly checks?: readonly IGitHubCICheck[];
 	readonly reviewCommentCounts?: ReadonlyMap<string, number>;
 	readonly agentFeedbackCounts?: ReadonlyMap<string, number>;
@@ -85,6 +85,7 @@ class FixtureChangesViewService extends Disposable implements IChangesViewServic
 	readonly activeSessionStateObs: IObservable<ActiveSessionState | undefined>;
 	readonly activeSessionLoadingObs: IObservable<boolean>;
 	readonly activeSessionSectionCollapseStateObs: IObservable<IChangesViewSectionCollapseState>;
+	readonly detailsViewStateTransferObs = constObservable(undefined);
 	readonly viewModeObs = observableValue<ChangesViewMode>(this, ChangesViewMode.List);
 
 	constructor(session: IActiveSession, options: IChangesViewFixtureOptions) {
@@ -104,7 +105,7 @@ class FixtureChangesViewService extends Disposable implements IChangesViewServic
 		this.activeSessionHasGitRepositoryObs = constObservable(true);
 		this.activeSessionReviewCommentCountByFileObs = constObservable(new Map(options.reviewCommentCounts));
 		this.activeSessionAgentFeedbackCountByFileObs = constObservable(new Map(options.agentFeedbackCounts));
-		this.activeSessionSectionCollapseStateObs = constObservable(options.sectionCollapseState ?? { otherFiles: false, checks: false });
+		this.activeSessionSectionCollapseStateObs = constObservable(options.sectionCollapseState ?? { checks: false });
 		this.activeSessionStateObs = constObservable({
 			isolationMode: IsolationMode.Worktree,
 			hasGitRepository: true,
@@ -126,7 +127,12 @@ class FixtureChangesViewService extends Disposable implements IChangesViewServic
 
 	setSectionCollapsed(_sessionResource: URI, _section: ChangesViewSection, _collapsed: boolean): void { }
 
+	getDetailsViewState(_sessionResource: URI, _viewMode: ChangesViewMode): IChangesDetailsViewState | undefined { return undefined; }
+
+	setDetailsViewState(_sessionResource: URI, _viewMode: ChangesViewMode, _state: IChangesDetailsViewState): void { }
+
 	setChangesetId(_changesetId: string | undefined): void { }
+	showChangeset(_changeset: ISessionChangeset): void { }
 
 	setChangesetFilesReviewState(_resources: readonly URI[], _reviewed: boolean): void { }
 
@@ -146,7 +152,7 @@ const changesViewContainer: ViewContainer = {
 const changesViewDescriptor: IViewDescriptor = {
 	id: CHANGES_VIEW_ID,
 	name: localize2('fixtureChangesView', 'Changes'),
-	ctorDescriptor: new SyncDescriptor(ChangesViewPane),
+	ctorDescriptor: new SyncDescriptor(SinglePaneChangesViewPane),
 	containerIcon: Codicon.gitCompare,
 };
 
@@ -277,7 +283,6 @@ function createSession(options: IChangesViewFixtureOptions): IActiveSession {
 		override readonly status = constObservable(SessionStatus.Completed);
 		override readonly changes = constObservable(options.changes);
 		override readonly changesets = constObservable(changesets);
-		override readonly externalChanges = constObservable(options.otherFiles ?? []);
 		override readonly modelId = constObservable(undefined);
 		override readonly mode = constObservable(undefined);
 		override readonly loading = constObservable(false);
@@ -307,14 +312,6 @@ function createFileChange(path: string, kind: 'added' | 'modified' | 'deleted', 
 		modifiedUri: kind === 'deleted' ? undefined : uri,
 		insertions,
 		deletions,
-	};
-}
-
-function createOtherFile(path: string, operation: SessionFileOperation): ISessionFile {
-	return {
-		uri: URI.file(path),
-		operation,
-		originalUri: operation === SessionFileOperation.Modified ? URI.file(`${path}.before`) : undefined,
 	};
 }
 
@@ -379,6 +376,7 @@ function renderChangesView(ctx: ComponentFixtureContext, options: IChangesViewFi
 	container.style.width = `${VIEW_WIDTH}px`;
 	container.style.height = `${height}px`;
 	container.style.backgroundColor = 'var(--vscode-sideBar-background)';
+	container.classList.add('agent-sessions-workbench', 'dock-detail-panel');
 
 	const host = dom.append(container, dom.$('.part.auxiliarybar'));
 	host.style.width = '100%';
@@ -406,6 +404,11 @@ function renderChangesView(ctx: ComponentFixtureContext, options: IChangesViewFi
 			reg.defineInstance(IDecorationsService, new class extends mock<IDecorationsService>() { override onDidChangeDecorations = Event.None; }());
 			reg.defineInstance(ITextFileService, new class extends mock<ITextFileService>() { override readonly untitled = new class extends mock<ITextFileService['untitled']>() { override readonly onDidChangeLabel = Event.None; }(); }());
 			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return { id: 'fixture', folders: [], configuration: undefined }; } }());
+			reg.defineInstance(IWorkspaceFolderLabelService, new class extends mock<IWorkspaceFolderLabelService>() {
+				override getWorkspaceFolderLabel(): string {
+					return 'vscode (feature/changes-view-fixtures)';
+				}
+			}());
 			reg.defineInstance(INotebookDocumentService, new class extends mock<INotebookDocumentService>() { override getNotebook() { return undefined; } }());
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() {
 				override async readFile(resource: URI): Promise<IFileContent> {
@@ -438,7 +441,7 @@ function renderChangesView(ctx: ComponentFixtureContext, options: IChangesViewFi
 		},
 	});
 
-	const view = disposableStore.add(instantiationService.createInstance(ChangesViewPane, {
+	const view = disposableStore.add(instantiationService.createInstance(SinglePaneChangesViewPane, {
 		id: CHANGES_VIEW_ID,
 		title: 'Changes',
 		minimumBodySize: 0,
@@ -454,8 +457,8 @@ function renderChangesView(ctx: ComponentFixtureContext, options: IChangesViewFi
 
 const SAMPLE_CHANGES = [
 	createFileChange('src/vs/sessions/contrib/changes/browser/changesView.ts', 'modified', 42, 18),
-	createFileChange('src/vs/sessions/contrib/changes/browser/sessionFilesWidget.ts', 'modified', 24, 9),
-	createFileChange('src/vs/sessions/contrib/changes/browser/media/sessionFilesWidget.css', 'modified', 6, 2),
+	createFileChange('src/vs/sessions/contrib/changes/browser/checksWidget.ts', 'modified', 24, 9),
+	createFileChange('src/vs/sessions/contrib/changes/browser/media/checksWidget.css', 'modified', 6, 2),
 	createFileChange('src/vs/sessions/contrib/changes/test/browser/changesView.fixture.ts', 'added', 132, 0),
 	createFileChange('src/vs/sessions/contrib/changes/browser/oldChangesLayout.ts', 'deleted', 0, 47),
 ];
@@ -463,17 +466,6 @@ const SAMPLE_CHANGES = [
 const MANY_CHANGES = Array.from({ length: 40 }, (_, index) =>
 	createFileChange(`src/feature/changed-file-${String(index + 1).padStart(2, '0')}.ts`, 'modified', index + 1, index % 4)
 );
-
-const SAMPLE_OTHER_FILES = [
-	createOtherFile('/home/user/.config/code/settings.json', SessionFileOperation.Modified),
-	createOtherFile('/home/user/.config/copilot/agents/inbox.agent.md', SessionFileOperation.Created),
-	createOtherFile('/home/user/.cache/copilot/session.log', SessionFileOperation.Deleted),
-	createOtherFile('/tmp/session-notes.md', SessionFileOperation.Created),
-	createOtherFile('/home/user/.gitconfig', SessionFileOperation.Modified),
-	createOtherFile('/home/user/.ssh/config', SessionFileOperation.Modified),
-	createOtherFile('/home/user/.local/share/copilot/state.json', SessionFileOperation.Created),
-	createOtherFile('/home/user/.vscode-insiders/argv.json', SessionFileOperation.Modified),
-];
 
 const SAMPLE_CHECKS = [
 	createCheck(1001, 'Linux / Unit Tests', GitHubCheckStatus.Completed, GitHubCheckConclusion.Success),
@@ -489,7 +481,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/changes/' }, {
 		render: ctx => renderChangesView(ctx, {
 			viewMode: ChangesViewMode.List,
 			changes: SAMPLE_CHANGES,
-			otherFiles: SAMPLE_OTHER_FILES,
 			checks: SAMPLE_CHECKS,
 			reviewCommentCounts: new Map([[getChangeUri(SAMPLE_CHANGES[0]).fsPath, 2]]),
 			agentFeedbackCounts: new Map([[getChangeUri(SAMPLE_CHANGES[1]).fsPath, 1]]),
@@ -501,7 +492,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/changes/' }, {
 		render: ctx => renderChangesView(ctx, {
 			viewMode: ChangesViewMode.Tree,
 			changes: SAMPLE_CHANGES,
-			otherFiles: SAMPLE_OTHER_FILES.slice(0, 3),
 			checks: SAMPLE_CHECKS.slice(0, 3),
 		}),
 	}),
@@ -521,7 +511,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/changes/' }, {
 		render: ctx => renderChangesView(ctx, {
 			viewMode: ChangesViewMode.List,
 			changes: MANY_CHANGES,
-			otherFiles: SAMPLE_OTHER_FILES,
 			checks: SAMPLE_CHECKS,
 			height: 1252,
 		}),
@@ -532,19 +521,17 @@ export default defineThemedFixtureGroup({ path: 'sessions/changes/' }, {
 		render: ctx => renderChangesView(ctx, {
 			viewMode: ChangesViewMode.List,
 			changes: SAMPLE_CHANGES,
-			otherFiles: SAMPLE_OTHER_FILES,
 			checks: SAMPLE_CHECKS,
-			sectionCollapseState: { otherFiles: true, checks: true },
+			sectionCollapseState: { checks: true },
 			height: 440,
 		}),
 	}),
 
-	NoFileChangesWithOtherFiles: defineComponentFixture({
+	NoFileChanges: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderChangesView(ctx, {
 			viewMode: ChangesViewMode.List,
 			changes: [],
-			otherFiles: SAMPLE_OTHER_FILES,
 			checks: SAMPLE_CHECKS.slice(0, 2),
 			height: 440,
 		}),
@@ -555,7 +542,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/changes/' }, {
 		render: ctx => renderChangesView(ctx, {
 			viewMode: ChangesViewMode.List,
 			changes: [],
-			otherFiles: [],
 			checks: [],
 			height: 280,
 		}),

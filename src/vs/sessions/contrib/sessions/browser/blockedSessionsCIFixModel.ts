@@ -58,13 +58,16 @@ export class BlockedSessionsCIFixModel extends Disposable implements ISessionCIF
 					return undefined;
 				}
 
-				const prRef = reader.store.add(this._gitHubService.createPullRequestModelReference(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number));
+				// `delayedStore` (released *after* the recompute) keeps these ref-counted,
+				// shared models alive across a recompute; `store` would release the last
+				// reference first and force an empty model plus a refetch every time.
+				const prRef = reader.delayedStore.add(this._gitHubService.createPullRequestModelReference(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number));
 				const livePR = prRef.object.pullRequest.read(reader);
 				if (!livePR) {
 					return undefined;
 				}
 
-				const ciRef = reader.store.add(this._gitHubService.createPullRequestCIModelReference(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number, livePR.headSha));
+				const ciRef = reader.delayedStore.add(this._gitHubService.createPullRequestCIModelReference(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number, livePR.headSha));
 				const ciModel = ciRef.object;
 
 				// Once a fix has been requested for the current head commit, hide the

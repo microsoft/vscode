@@ -14,6 +14,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import {
 	IVoiceClientService,
 	IVoicePriorTimelineEntry,
+	IVoicePttStartOptions,
 	IVoiceSessionContext,
 	IVoiceTranscription,
 	IVoiceAudioResponse,
@@ -24,6 +25,7 @@ import {
 	IVoiceTurnConfig,
 	IVoiceTurnAutoEnded,
 	IVoiceTurnAutoEndReason,
+	IVoiceConnectionIssue,
 	IVoiceFatalDisconnect,
 	IVoiceBargeIn,
 	IVoiceNarrationAck,
@@ -35,14 +37,17 @@ import {
 	isVoiceCheckpointId,
 	normalizeAgentsVoiceId,
 } from '../../common/voiceClient/voiceClientService.js';
+import { isTerminalCloseCode, voiceCloseCodeInfo } from '../../common/voiceClient/voiceCloseCodes.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 
 const PING_INTERVAL_MS = 25_000;
 const PONG_TIMEOUT_MS = 10_000;
 const FAST_RETRY_COUNT = 3;
 const FAST_RETRY_DELAY_MS = 2_000;
-const SLOW_RETRY_DELAY_MS = 30_000;
-const MAX_RECONNECT_DURATION_MS = 30 * 60 * 1_000;
+const SLOW_RETRY_DELAY_MS = 10_000;
+// Kept short on purpose: a user staring at a reconnecting UI would rather be told
+// it failed than wait. Gives 3 fast attempts plus ~5 slow ones before giving up.
+const MAX_RECONNECT_DURATION_MS = 60_000;
 const TTS_SUPPORTED_LANGUAGE_BASES = new Set([
 	'en', 'de', 'es', 'fr', 'it', 'pt', 'ja', 'ko', 'zh',
 ]);
@@ -155,6 +160,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 
 	private readonly _onFatalDisconnect = this._register(new Emitter<IVoiceFatalDisconnect>());
 	readonly onFatalDisconnect: Event<IVoiceFatalDisconnect> = this._onFatalDisconnect.event;
+
+	private readonly _onConnectionIssue = this._register(new Emitter<IVoiceConnectionIssue>());
+	readonly onConnectionIssue: Event<IVoiceConnectionIssue> = this._onConnectionIssue.event;
 
 	private readonly _onTurnAutoEnded = this._register(new Emitter<IVoiceTurnAutoEnded>());
 	readonly onTurnAutoEnded: Event<IVoiceTurnAutoEnded> = this._onTurnAutoEnded.event;
@@ -306,7 +314,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	async connect(window: Window & typeof globalThis, authToken?: string): Promise<void> {
 		this._window = window;
 		this._authToken = authToken;
-		this._reconnectAttempts = 0;
+		this._resetReconnectBudget();
 		this._connectWebSocket();
 	}
 
@@ -319,6 +327,8 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		const baseUrl = this._getWsUrl();
 		if (!baseUrl) {
 			this._logService.error('[voice] No voice WebSocket URL configured (set voiceWsUrl in product.json or agents.voice.backendUrl in settings)');
+			this._onFatalDisconnect.fire({ code: 0, reason: '', kind: 'fatal', clientSide: true });
+			this._cleanup();
 			return;
 		}
 		const url = this._authToken
@@ -329,8 +339,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		this._sessionStartedOnSocket = false;
 
 		ws.onopen = () => {
-			this._reconnectAttempts = 0;
-			this._reconnectStartedAt = undefined;
+			// Does not reset the retry budget: refused connections also fire onopen,
+			// so resetting here would refill the budget on every failing cycle. The
+			// reset happens on session_init/session_resumed instead.
 			this._isResuming = !!this._lastSessionId;
 			this._sessionStartedOnSocket = false;
 			this._setConnected(true);
@@ -381,6 +392,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					this._clearPongTimeout();
 					break;
 				case 'session_init':
+					this._resetReconnectBudget();
 					// Adopt the server's session id even when a resume failed and it
 					// started a fresh session; keeping the old id stalled reconnect (`_isResuming`).
 					this._lastSessionId = msg.session_id;
@@ -388,6 +400,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					this._onSessionInit.fire({ sessionId: msg.session_id ?? '' });
 					break;
 				case 'session_resumed':
+					this._resetReconnectBudget();
 					this._lastSessionId = msg.session_id;
 					this._isResuming = false;
 					this._onSessionInit.fire({ sessionId: msg.session_id ?? '' });
@@ -503,20 +516,12 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		ws.onclose = (evt: CloseEvent) => {
 			this._logService.trace(`[voice] ws.onclose code=${evt.code} reason=${evt.reason ?? ''} wasClean=${evt.wasClean}`);
 			if (this._ws === ws) {
-				if (evt.code === 1000 || evt.code === 1001) {
-					this._cleanup();
-					return;
-				}
-
-				// Fatal errors that should NOT trigger reconnection. These are
-				// terminal: emit a dedicated fatal-disconnect signal (distinct
-				// from a transient drop) so the controller tears down to a clean,
-				// recoverable state instead of showing "Reconnecting..." forever.
-				// The common cause is another window taking over the single voice
-				// session (backend evicts this one with 4008).
-				if (evt.code === 4001 || evt.code === 4008 || evt.code === 4029) {
-					this._logService.warn(`[voice] fatal close code ${evt.code}: ${evt.reason}, not reconnecting`);
-					this._onFatalDisconnect.fire({ code: evt.code, reason: evt.reason ?? '' });
+				// Every terminal outcome must report itself, so consumers can leave
+				// the reconnecting state.
+				if (isTerminalCloseCode(evt.code)) {
+					const kind = voiceCloseCodeInfo(evt.code)?.kind ?? 'fatal';
+					this._logService.warn(`[voice] terminal close ${evt.code} (${kind}): ${evt.reason}, not reconnecting`);
+					this._onFatalDisconnect.fire({ code: evt.code, reason: evt.reason ?? '', kind });
 					this._cleanup();
 					return;
 				}
@@ -527,7 +532,8 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 
 				const elapsed = Date.now() - this._reconnectStartedAt;
 				if (elapsed >= MAX_RECONNECT_DURATION_MS) {
-					this._logService.warn('[voice] reconnect timeout after 30 minutes, giving up');
+					this._logService.warn(`[voice] reconnect budget of ${MAX_RECONNECT_DURATION_MS}ms exhausted, giving up`);
+					this._onFatalDisconnect.fire({ code: evt.code, reason: evt.reason ?? '', kind: 'fatal' });
 					this._cleanup();
 					return;
 				}
@@ -545,6 +551,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					this._connectWebSocket();
 				}, delay);
 				this._setConnected(false);
+				// Must follow _setConnected: consumers enter the reconnecting state on
+				// that event and only then render this reason.
+				this._onConnectionIssue.fire({ code: evt.code, reason: evt.reason ?? '' });
 			}
 		};
 	}
@@ -558,6 +567,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	}
 
 	private _cleanup(): void {
+		this._resetReconnectBudget();
 		this._stopPing();
 		if (this._reconnectTimer) {
 			clearTimeout(this._reconnectTimer);
@@ -576,6 +586,11 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		this._lastSentById.clear();
 		this._invalidatedSessionIds.clear();
 		this._setConnected(false);
+	}
+
+	private _resetReconnectBudget(): void {
+		this._reconnectAttempts = 0;
+		this._reconnectStartedAt = undefined;
 	}
 
 	private _startPing(): void {
@@ -614,9 +629,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		}
 	}
 
-	sendPttStart(turnId: string, passive: boolean = false): void {
+	sendPttStart(turnId: string, options: IVoicePttStartOptions): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
-			this._ws.send(JSON.stringify({ type: 'ptt_start', turn_id: turnId, ...(passive ? { passive: true } : {}) }));
+			this._ws.send(JSON.stringify({ type: 'ptt_start', turn_id: turnId, has_active_session: options.hasActiveSession, ...(options.passive ? { passive: true } : {}) }));
 		}
 	}
 

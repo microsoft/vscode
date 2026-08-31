@@ -22,7 +22,7 @@ import { IWorkbenchAssignmentService } from '../../../../workbench/services/assi
 import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { INewSessionComposer, INewSessionComposerService, INewSessionPromptOption, NEW_SESSION_PROMPT_TYPING_DURATION_MS, NewSessionPromptOptionsState } from '../../chat/browser/newSessionComposerService.js';
+import { INewSessionComposer, INewSessionComposerService, INewSessionPromptOption, INewSessionPromptOptionsController, NEW_SESSION_PROMPT_TYPING_DURATION_MS, NewSessionPromptOptionsState } from '../../chat/browser/newSessionComposerService.js';
 import { getGitHubRepositoryFromUri } from '../../github/common/utils.js';
 import { GitHubAuthenticationError } from '../../github/browser/githubApiClient.js';
 import { IGitHubRecentIssue, IGitHubRecentPullRequest, IGitHubRecentUserWork } from '../../github/browser/fetchers/githubRecentUserWorkFetcher.js';
@@ -32,10 +32,10 @@ import { resolveGitHubRepositoryFromGitConfig } from './gitHubRepositoryResolver
 import { NEW_SESSION_VIEW_V3_GITHUB_PROMPT_VARIATION, NEW_SESSION_VIEW_V3_OPTIONS_VARIATION, NEW_SESSION_VIEW_V3_PROMPT_VARIATION, NEW_SESSION_VIEW_V3_TOUR_ID, NEW_SESSION_VIEW_V3_VARIATION_TREATMENT } from './tours/newSessionViewV3Tour.js';
 
 const DEFAULT_GITHUB_LOOKUP_TIMEOUTS = {
-	totalMs: 6_000,
-	summaryMs: 2_500,
-	linkageMs: 1_500,
-	reviewMs: 2_500,
+	totalMs: 10_000,
+	summaryMs: 5_000,
+	linkageMs: 2_500,
+	reviewMs: 4_000,
 };
 const LOG_PREFIX = '[NewSessionViewV3Prompt]';
 const PROMPT_TEMPLATE_TREATMENT = 'onb.newSessionViewV3.promptTemplate';
@@ -45,7 +45,7 @@ const DEFAULT_PROMPT_TEMPLATE = localize('sessions.onboarding.newSessionViewV3.p
 const PROMPT_OPTION_COUNT = 3;
 
 export type NewSessionViewV3ConfiguredVariation = 'prompt' | 'githubPrompt' | 'options' | 'unknown';
-export type NewSessionViewV3EffectiveStrategy = 'prompt' | 'options' | 'githubCiFailure' | 'githubReviewComments' | 'githubIssue';
+export type NewSessionViewV3EffectiveStrategy = 'prompt' | 'options' | 'githubMergeConflict' | 'githubCiFailure' | 'githubReviewComments' | 'githubIssue';
 export type NewSessionViewV3FallbackReason = 'none' | 'unsupportedVariation' | 'noRepository' | 'noAuthentication' | 'timeout' | 'requestFailed' | 'noCandidate';
 
 interface INewSessionViewV3PromptPlan {
@@ -216,8 +216,13 @@ export class NewSessionViewV3PromptRunner {
 			latestPlan = await this._resolveGitHubPromptOptionsWithFallback(refreshToken);
 			return { kind: 'resolved', options: latestPlan.options };
 		};
-		if (composer.setPromptOptionsResolver && composer.refreshPromptOptions) {
-			composer.setPromptOptionsResolver(resolveOptions);
+		if (composer.setPromptOptionsController && composer.refreshPromptOptions) {
+			const controller: INewSessionPromptOptionsController = {
+				resolve: resolveOptions,
+				onDidSelectOption: option => this._reportPromptOptionInteraction('selected', option),
+				onDidClose: () => this._reportPromptOptionInteraction('closed'),
+			};
+			composer.setPromptOptionsController(controller);
 			this._logService.info(`${LOG_PREFIX} Showing prompt option loading skeletons.`);
 			const shown = await composer.refreshPromptOptions(token);
 			const fallbackReason = configuredFallbackReason ?? latestPlan?.fallbackReason ?? (token.isCancellationRequested ? 'requestFailed' : 'noCandidate');
@@ -393,34 +398,29 @@ export class NewSessionViewV3PromptRunner {
 		}
 
 		const pullRequests = [...summary.value].sort(compareUpdatedAtDescending);
-		const failingPullRequests = pullRequests.filter(isFailingPullRequest);
-		const candidates = failingPullRequests.slice(0, 2).map(pullRequest => toCandidate(pullRequest, 'githubCiFailure'));
-		reportCandidates(candidates);
-		if (candidates.length === 2) {
-			return { candidates, failures: [] };
+		const directCandidates = pullRequests
+			.map((pullRequest, index) => ({ index, candidate: toDirectPullRequestCandidate(pullRequest) }))
+			.filter((entry): entry is { readonly index: number; readonly candidate: INewSessionViewV3GitHubCandidate } => entry.candidate !== undefined);
+		const secondDirectCandidateIndex = directCandidates[1]?.index ?? pullRequests.length;
+		const reviewPullRequests = pullRequests
+			.slice(0, secondDirectCandidateIndex)
+			.filter(pullRequest => !toDirectPullRequestCandidate(pullRequest));
+		const stableCandidates = getCandidatesInPullRequestOrder(
+			pullRequests.slice(0, reviewPullRequests[0] ? pullRequests.indexOf(reviewPullRequests[0]) : secondDirectCandidateIndex),
+			directCandidates.map(entry => entry.candidate),
+		).slice(0, 2);
+		if (stableCandidates.length > 0) {
+			reportCandidates(stableCandidates);
 		}
 
-		const failingPullRequestNumbers = new Set(failingPullRequests.map(pullRequest => pullRequest.number));
-		const reviewPullRequests = pullRequests.filter(pullRequest => !failingPullRequestNumbers.has(pullRequest.number));
-		const completedReviewCandidates = new Map<number, INewSessionViewV3GitHubCandidate>();
-		const publishCandidates = () => {
-			const orderedReviewCandidates = reviewPullRequests
-				.map(pullRequest => completedReviewCandidates.get(pullRequest.number))
-				.filter(candidate => candidate !== undefined);
-			reportCandidates([...candidates, ...orderedReviewCandidates].slice(0, 2));
-		};
-		const reviewLookup = await this._resolveReviewCandidates(
-			owner,
-			repo,
-			reviewPullRequests,
-			token,
-			candidate => {
-				completedReviewCandidates.set(candidate.number, candidate);
-				publishCandidates();
-			},
-		);
+		const reviewLookup = await this._resolveReviewCandidates(owner, repo, reviewPullRequests, token);
+		const candidates = getCandidatesInPullRequestOrder(
+			pullRequests,
+			[...directCandidates.map(entry => entry.candidate), ...reviewLookup.candidates],
+		).slice(0, 2);
+		reportCandidates(candidates);
 		return {
-			candidates: [...candidates, ...reviewLookup.candidates].slice(0, 2),
+			candidates,
 			failures: reviewLookup.failures,
 		};
 	}
@@ -497,20 +497,30 @@ export class NewSessionViewV3PromptRunner {
 				const failures: GitHubLookupFailureReason[] = [];
 				if (pullRequestsLookup.kind === 'success') {
 					const pullRequests = [...pullRequestsLookup.value].sort(compareUpdatedAtDescending);
-					const failingPullRequest = pullRequests.find(isFailingPullRequest);
-					this._logService.info(`${LOG_PREFIX} Pull request summary lookup returned ${pullRequests.length} open authored pull request(s), including ${pullRequests.filter(isFailingPullRequest).length} with failing CI.`);
-					if (failingPullRequest) {
-						return { kind: 'candidate', candidate: toCandidate(failingPullRequest, 'githubCiFailure') };
+					const directCandidates = pullRequests
+						.map((pullRequest, index) => ({ index, candidate: toDirectPullRequestCandidate(pullRequest) }))
+						.filter((entry): entry is { readonly index: number; readonly candidate: INewSessionViewV3GitHubCandidate } => entry.candidate !== undefined);
+					this._logService.info(`${LOG_PREFIX} Pull request summary lookup returned ${pullRequests.length} open authored pull request(s), including ${pullRequests.filter(pullRequest => pullRequest.hasMergeConflicts).length} with merge conflicts and ${pullRequests.filter(isFailingPullRequest).length} with failing CI.`);
+					if (directCandidates[0]?.index === 0) {
+						return { kind: 'candidate', candidate: directCandidates[0].candidate };
 					}
 
-					const reviewLookup = await this._resolveReviewCandidates(owner, repo, pullRequests, lookupCts.token);
+					const firstDirectCandidateIndex = directCandidates[0]?.index ?? pullRequests.length;
+					const reviewPullRequests = pullRequests
+						.slice(0, firstDirectCandidateIndex)
+						.filter(pullRequest => !toDirectPullRequestCandidate(pullRequest));
+					const reviewLookup = await this._resolveReviewCandidates(owner, repo, reviewPullRequests, lookupCts.token);
 					failures.push(...reviewLookup.failures);
 					if (!this._isCurrentRepositoryContext(context)) {
 						this._logService.info(`${LOG_PREFIX} The selected workspace changed during review lookup; retrying for the current workspace.`);
 						continue;
 					}
-					if (reviewLookup.candidates[0]) {
-						return { kind: 'candidate', candidate: reviewLookup.candidates[0] };
+					const candidate = getCandidatesInPullRequestOrder(
+						pullRequests,
+						[...directCandidates.map(entry => entry.candidate), ...reviewLookup.candidates],
+					)[0];
+					if (candidate) {
+						return { kind: 'candidate', candidate };
 					}
 				} else {
 					failures.push(pullRequestsLookup.reason);
@@ -576,7 +586,6 @@ export class NewSessionViewV3PromptRunner {
 		repo: string,
 		pullRequests: readonly IGitHubRecentPullRequest[],
 		token: CancellationToken,
-		reportCandidate: (candidate: INewSessionViewV3GitHubCandidate) => void = () => undefined,
 	): Promise<IGitHubReviewLookupResult> {
 		const eligiblePullRequests = pullRequests.filter(pullRequest => !!pullRequest.latestCommitAt);
 		if (eligiblePullRequests.length === 0) {
@@ -594,9 +603,7 @@ export class NewSessionViewV3PromptRunner {
 			);
 			if (outcome.kind === 'success') {
 				const completedPullRequest = { ...pullRequest, reviewThreads: outcome.value };
-				if (hasUnaddressedReviewComments(completedPullRequest)) {
-					reportCandidate(toCandidate(completedPullRequest, 'githubReviewComments'));
-				}
+				return { pullRequest: completedPullRequest, outcome };
 			}
 			return { pullRequest, outcome };
 		}));
@@ -604,7 +611,7 @@ export class NewSessionViewV3PromptRunner {
 		const failures: GitHubLookupFailureReason[] = [];
 		for (const result of results) {
 			if (result.outcome.kind === 'success') {
-				completedPullRequests.push({ ...result.pullRequest, reviewThreads: result.outcome.value });
+				completedPullRequests.push(result.pullRequest);
 			} else {
 				failures.push(result.outcome.reason);
 			}
@@ -675,17 +682,19 @@ export class NewSessionViewV3PromptRunner {
 			}
 			const workspace = activeSession.workspace.get();
 			const folder = workspace?.folders[0];
+			const enterpriseHost = this._gitHubService.enterpriseHost;
+			const supportedHosts = enterpriseHost ? [enterpriseHost] : undefined;
 			this._logWorkspaceSnapshot(activeSession);
 			if (!workspace || !folder) {
 				this._logService.trace(`${LOG_PREFIX} The active draft has no primary workspace folder.`);
 				return undefined;
 			}
 			const gitHubInfo = folder.gitRepository?.gitHubInfo.get();
-			if (gitHubInfo) {
+			if (!enterpriseHost && gitHubInfo) {
 				this._logService.info(`${LOG_PREFIX} Resolved GitHub repository '${gitHubInfo.owner}/${gitHubInfo.repo}' from session metadata.`);
 				return this._createRepositoryContext(activeSession, workspace.uri.toString(), folder.workingDirectory.toString(), { owner: gitHubInfo.owner, repo: gitHubInfo.repo });
 			}
-			const repositoryFromUri = getGitHubRepositoryFromUri(folder.root)
+			const repositoryFromUri = enterpriseHost ? undefined : getGitHubRepositoryFromUri(folder.root)
 				?? getGitHubRepositoryFromUri(folder.workingDirectory)
 				?? (folder.gitRepository ? getGitHubRepositoryFromUri(folder.gitRepository.uri) : undefined);
 			if (repositoryFromUri) {
@@ -694,17 +703,17 @@ export class NewSessionViewV3PromptRunner {
 			}
 
 			try {
-				const repositoryFromConfig = await resolveGitHubRepositoryFromGitConfig(this._fileService, folder.workingDirectory);
+				const repositoryFromConfig = await resolveGitHubRepositoryFromGitConfig(this._fileService, folder.workingDirectory, supportedHosts);
 				if (repositoryFromConfig) {
 					this._logService.info(`${LOG_PREFIX} Resolved GitHub repository '${repositoryFromConfig.owner}/${repositoryFromConfig.repo}' directly from .git/config.`);
 					return this._createRepositoryContext(activeSession, workspace.uri.toString(), folder.workingDirectory.toString(), repositoryFromConfig);
 				}
-				this._logService.trace(`${LOG_PREFIX} No supported github.com remote was found directly in .git/config.`);
+				this._logService.trace(`${LOG_PREFIX} No supported GitHub remote was found directly in .git/config.`);
 			} catch (error) {
 				this._logService.warn(`${LOG_PREFIX} Reading Git repository metadata directly from the selected workspace failed.`, error);
 			}
 
-			if (isAgentHostProviderId(activeSession.providerId)) {
+			if (!enterpriseHost && isAgentHostProviderId(activeSession.providerId)) {
 				this._logService.info(`${LOG_PREFIX} Waiting for Agent Host git metadata for the active draft.`);
 				const result = await this._waitForAgentHostRepository(activeSession, token);
 				if (result.kind === 'sessionChanged') {
@@ -712,7 +721,7 @@ export class NewSessionViewV3PromptRunner {
 					continue;
 				}
 				if (result.kind === 'noGitHubRemote') {
-					this._logService.info(`${LOG_PREFIX} Agent Host git metadata reports that the selected workspace has no github.com remote.`);
+					this._logService.info(`${LOG_PREFIX} Agent Host git metadata reports that the selected workspace has no GitHub remote.`);
 					return undefined;
 				}
 				if (result.kind === 'resolved') {
@@ -727,9 +736,9 @@ export class NewSessionViewV3PromptRunner {
 				this._logService.trace(`${LOG_PREFIX} The selected workspace folder could not be opened through the Git extension.`);
 				return undefined;
 			}
-			const repositoryFromRemote = getGitHubRemoteInfo(repository.state.get());
+			const repositoryFromRemote = getGitHubRemoteInfo(repository.state.get(), supportedHosts);
 			if (!repositoryFromRemote) {
-				this._logService.trace(`${LOG_PREFIX} The selected Git repository has no supported github.com remote.`);
+				this._logService.trace(`${LOG_PREFIX} The selected Git repository has no supported GitHub remote.`);
 				return undefined;
 			}
 			this._logService.info(`${LOG_PREFIX} Resolved GitHub repository '${repositoryFromRemote.owner}/${repositoryFromRemote.repo}' from Git extension remotes.`);
@@ -838,12 +847,15 @@ export class NewSessionViewV3PromptRunner {
 		const plan = this._createGitHubPrompt(candidate);
 		const title = candidate.strategy === 'githubIssue'
 			? localize('sessions.onboarding.newSessionViewV3.options.githubIssue.title', "Tackle issue")
-			: candidate.strategy === 'githubCiFailure'
-				? localize('sessions.onboarding.newSessionViewV3.options.githubCi.title', "Fix CI")
-				: localize('sessions.onboarding.newSessionViewV3.options.githubReview.title', "Address PR comments");
+			: candidate.strategy === 'githubMergeConflict'
+				? localize('sessions.onboarding.newSessionViewV3.options.githubConflicts.title', "Resolve conflicts")
+				: candidate.strategy === 'githubCiFailure'
+					? localize('sessions.onboarding.newSessionViewV3.options.githubCi.title', "Fix CI")
+					: localize('sessions.onboarding.newSessionViewV3.options.githubReview.title', "Address PR comments");
 		const icon = candidate.strategy === 'githubIssue'
 			? computeIssueIcon(GitHubIssueState.Open, undefined)
 			: computePullRequestIcon(GitHubPullRequestState.Open, {
+				hasMergeConflicts: candidate.strategy === 'githubMergeConflict',
 				hasFailingChecks: candidate.strategy === 'githubCiFailure',
 				hasUnresolvedComments: candidate.strategy === 'githubReviewComments',
 			});
@@ -867,7 +879,7 @@ export class NewSessionViewV3PromptRunner {
 				id: 'standard:implementFeature',
 				title: localize('sessions.onboarding.newSessionViewV3.options.implementFeature.title', "Implement a feature"),
 				description: localize('sessions.onboarding.newSessionViewV3.options.implementFeature.description', "Describe what you want to build"),
-				prompt: localize('sessions.onboarding.newSessionViewV3.options.implementFeature.prompt', "Help me implement {0} in this project. First, inspect the relevant files and explain your approach briefly. Then implement the solution using existing project conventions, avoid unrelated changes, and run the most relevant tests or checks. If anything is unclear, make a reasonable assumption and state it. When finished, summarize what changed and mention any remaining issues.", implementFeaturePlaceholder),
+				prompt: localize('sessions.onboarding.newSessionViewV3.options.implementFeature.prompt', "Help me implement {0} in this project. Ask me questions if anything is unclear regarding the intended behaviour.", implementFeaturePlaceholder),
 				placeholder: implementFeaturePlaceholder,
 				icon: Codicon.lightbulbSparkleAutofix,
 			},
@@ -875,7 +887,7 @@ export class NewSessionViewV3PromptRunner {
 				id: 'standard:fixBug',
 				title: localize('sessions.onboarding.newSessionViewV3.options.fixBug.title', "Fix a bug"),
 				description: localize('sessions.onboarding.newSessionViewV3.options.fixBug.description', "Describe the unexpected behavior"),
-				prompt: localize('sessions.onboarding.newSessionViewV3.options.fixBug.prompt', "Help me fix {0} in this project. First, inspect the relevant files and explain your approach briefly. Then implement the solution using existing project conventions, avoid unrelated changes, and run the most relevant tests or checks. If anything is unclear, make a reasonable assumption and state it. When finished, summarize what changed and mention any remaining issues.", fixBugPlaceholder),
+				prompt: localize('sessions.onboarding.newSessionViewV3.options.fixBug.prompt', "Help me fix {0} in this project. Ask me questions if anything is unclear regarding the bug or the intended behaviour.", fixBugPlaceholder),
 				placeholder: fixBugPlaceholder,
 				icon: Codicon.bug,
 			},
@@ -883,7 +895,7 @@ export class NewSessionViewV3PromptRunner {
 				id: 'standard:fixCi',
 				title: localize('sessions.onboarding.newSessionViewV3.options.fixCi.title', "Fix CI"),
 				description: localize('sessions.onboarding.newSessionViewV3.options.fixCi.description', "Describe a failing check or paste a link"),
-				prompt: localize('sessions.onboarding.newSessionViewV3.options.fixCi.prompt', "Help me fix the failing CI for {0} in this project. First, inspect the relevant files and explain your approach briefly. Then implement the solution using existing project conventions, avoid unrelated changes, and run the most relevant tests or checks. If anything is unclear, make a reasonable assumption and state it. When finished, summarize what changed and mention any remaining issues.", fixCiPlaceholder),
+				prompt: localize('sessions.onboarding.newSessionViewV3.options.fixCi.prompt', "Help me fix the failing CI for {0} in this project. Ask me questions if anything is unclear regarding the CI failure or how it should be fixed.", fixCiPlaceholder),
 				placeholder: fixCiPlaceholder,
 				icon: Codicon.runErrors,
 			},
@@ -891,11 +903,13 @@ export class NewSessionViewV3PromptRunner {
 	}
 
 	private _createGitHubPrompt(candidate: INewSessionViewV3GitHubCandidate): INewSessionViewV3PromptPlan {
-		const prompt = candidate.strategy === 'githubCiFailure'
-			? localize('sessions.onboarding.newSessionViewV3.githubPrompt.ciFailure', "The following pull request has failing CI checks: \"{0}\" ({1}). Investigate the failures and resolve them.", candidate.title, candidate.url)
-			: candidate.strategy === 'githubReviewComments'
-				? localize('sessions.onboarding.newSessionViewV3.githubPrompt.reviewComments', "The following pull request has unresolved review comments that have not been addressed by a newer commit: \"{0}\" ({1}). Address the review comments and update the pull request.", candidate.title, candidate.url)
-				: localize('sessions.onboarding.newSessionViewV3.githubPrompt.issue', "Tackle the following issue and create a pull request for it: \"{0}\" ({1}).", candidate.title, candidate.url);
+		const prompt = candidate.strategy === 'githubMergeConflict'
+			? localize('sessions.onboarding.newSessionViewV3.githubPrompt.mergeConflict', "The following pull request has merge conflicts: \"{0}\" ({1}). Resolve the conflicts and update the pull request.", candidate.title, candidate.url)
+			: candidate.strategy === 'githubCiFailure'
+				? localize('sessions.onboarding.newSessionViewV3.githubPrompt.ciFailure', "The following pull request has failing CI checks: \"{0}\" ({1}). Investigate the failures and resolve them.", candidate.title, candidate.url)
+				: candidate.strategy === 'githubReviewComments'
+					? localize('sessions.onboarding.newSessionViewV3.githubPrompt.reviewComments', "The following pull request has unresolved review comments that have not been addressed by a newer commit: \"{0}\" ({1}). Address the review comments and update the pull request.", candidate.title, candidate.url)
+					: localize('sessions.onboarding.newSessionViewV3.githubPrompt.issue', "Tackle the following issue and create a pull request for it: \"{0}\" ({1}).", candidate.title, candidate.url);
 		return {
 			prompt,
 			taskPlaceholder: '',
@@ -944,18 +958,33 @@ export class NewSessionViewV3PromptRunner {
 			shown,
 		});
 	}
+
+	private _reportPromptOptionInteraction(interaction: 'selected' | 'closed', option?: INewSessionPromptOption): void {
+		type OnboardingPromptOptionInteractionEvent = {
+			scenarioId: string;
+			interaction: string;
+			option: string;
+		};
+		type OnboardingPromptOptionInteractionClassification = {
+			owner: 'benibenj';
+			comment: 'Reports privacy-safe interactions with V3 onboarding prompt options without collecting prompt or repository content.';
+			scenarioId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the onboarding scenario that showed the prompt options.' };
+			interaction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether an option was selected or the prompt-option widget was closed.' };
+			option: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The categorical prompt option selected, or none when the widget was closed.' };
+		};
+		this._telemetryService.publicLog2<OnboardingPromptOptionInteractionEvent, OnboardingPromptOptionInteractionClassification>('onboarding.promptOptionInteraction', {
+			scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+			interaction,
+			option: option ? getPromptOptionTelemetryKind(option) : 'none',
+		});
+	}
 }
 
 export function selectNewSessionViewV3GitHubCandidate(recentWork: IGitHubRecentUserWork): INewSessionViewV3GitHubCandidate | undefined {
 	const pullRequests = [...recentWork.pullRequests].sort(compareUpdatedAtDescending);
-	const failingPullRequest = pullRequests.find(isFailingPullRequest);
-	if (failingPullRequest) {
-		return toCandidate(failingPullRequest, 'githubCiFailure');
-	}
-
-	const reviewPullRequest = pullRequests.find(hasUnaddressedReviewComments);
-	if (reviewPullRequest) {
-		return toCandidate(reviewPullRequest, 'githubReviewComments');
+	const pullRequestCandidate = pullRequests.map(toPullRequestCandidate).find(candidate => candidate !== undefined);
+	if (pullRequestCandidate) {
+		return pullRequestCandidate;
 	}
 
 	const issue = [...recentWork.issues].sort(compareUpdatedAtDescending)[0];
@@ -964,6 +993,21 @@ export function selectNewSessionViewV3GitHubCandidate(recentWork: IGitHubRecentU
 
 function isFailingPullRequest(pullRequest: IGitHubRecentPullRequest): boolean {
 	return pullRequest.statusCheckRollupState === 'FAILURE' || pullRequest.statusCheckRollupState === 'ERROR';
+}
+
+function toDirectPullRequestCandidate(pullRequest: IGitHubRecentPullRequest): INewSessionViewV3GitHubCandidate | undefined {
+	if (pullRequest.hasMergeConflicts) {
+		return toCandidate(pullRequest, 'githubMergeConflict');
+	}
+	if (isFailingPullRequest(pullRequest)) {
+		return toCandidate(pullRequest, 'githubCiFailure');
+	}
+	return undefined;
+}
+
+function toPullRequestCandidate(pullRequest: IGitHubRecentPullRequest): INewSessionViewV3GitHubCandidate | undefined {
+	return toDirectPullRequestCandidate(pullRequest)
+		?? (hasUnaddressedReviewComments(pullRequest) ? toCandidate(pullRequest, 'githubReviewComments') : undefined);
 }
 
 function hasUnaddressedReviewComments(pullRequest: IGitHubRecentPullRequest): boolean {
@@ -994,8 +1038,42 @@ function compareUpdatedAtDescending(a: { readonly updatedAt: string }, b: { read
 	return Date.parse(b.updatedAt) - Date.parse(a.updatedAt);
 }
 
-function toCandidate(pullRequest: IGitHubRecentPullRequest, strategy: 'githubCiFailure' | 'githubReviewComments'): INewSessionViewV3GitHubCandidate {
+function getCandidatesInPullRequestOrder(
+	pullRequests: readonly IGitHubRecentPullRequest[],
+	candidates: readonly INewSessionViewV3GitHubCandidate[],
+): INewSessionViewV3GitHubCandidate[] {
+	const candidatesByNumber = new Map(candidates.map(candidate => [candidate.number, candidate]));
+	return pullRequests.map(pullRequest => candidatesByNumber.get(pullRequest.number)).filter(candidate => candidate !== undefined);
+}
+
+function toCandidate(pullRequest: IGitHubRecentPullRequest, strategy: 'githubMergeConflict' | 'githubCiFailure' | 'githubReviewComments'): INewSessionViewV3GitHubCandidate {
 	return { number: pullRequest.number, title: pullRequest.title, url: pullRequest.url, strategy };
+}
+
+function getPromptOptionTelemetryKind(option: INewSessionPromptOption): 'implementFeature' | 'fixBug' | 'fixCI' | 'githubIssue' | 'githubPRConflicts' | 'githubPRCI' | 'githubPRComments' | 'unknown' {
+	switch (option.id.split(':', 1)[0]) {
+		case 'standard':
+			switch (option.id) {
+				case 'standard:implementFeature':
+					return 'implementFeature';
+				case 'standard:fixBug':
+					return 'fixBug';
+				case 'standard:fixCi':
+					return 'fixCI';
+				default:
+					return 'unknown';
+			}
+		case 'githubIssue':
+			return 'githubIssue';
+		case 'githubMergeConflict':
+			return 'githubPRConflicts';
+		case 'githubCiFailure':
+			return 'githubPRCI';
+		case 'githubReviewComments':
+			return 'githubPRComments';
+		default:
+			return 'unknown';
+	}
 }
 
 function capitalize(value: string): string {
