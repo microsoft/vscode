@@ -1221,7 +1221,7 @@ suite('CopilotAgent', () => {
 					currentTurnId: 'turn-1',
 					modelCallTurnCorrelation: {
 						take: () => undefined,
-						wait: () => subagentCorrelation.p,
+						wait: modelCallId => modelCallId === 'unresolved-model-call' ? Promise.resolve(undefined) : subagentCorrelation.p,
 						markResponseForwarded: modelCallId => forwardedModelCallIds.push(modelCallId),
 					},
 				} as CopilotAgentSession,
@@ -1249,6 +1249,8 @@ suite('CopilotAgent', () => {
 			await forward(notification('active-session', 'runtime-subagent', 'subagent-model-call', 'agent'));
 			subagentCorrelation.complete('subagent-turn');
 			await timeout(0);
+			await forward(notification('active-session', 'runtime-unresolved', 'unresolved-model-call', 'agent'));
+			await timeout(0);
 			await forward(notification('second-active-session', 'runtime-second-active'));
 			await forward(notification('active-session', 'runtime-active-again'));
 			await forward(notification('idle-session', 'runtime-idle'));
@@ -1267,6 +1269,7 @@ suite('CopilotAgent', () => {
 					{ eventName: 'agentHost.copilotClientStartup', outcome: 'success', durationMs: 'number', attemptNumber: 1 },
 					{ eventName: 'copilotSdk/response.success', sessionId: 'active-session', turnId: 'turn-1' },
 					{ eventName: 'copilotSdk/response.success', sessionId: 'active-session', turnId: 'subagent-turn' },
+					{ eventName: 'copilotSdk/response.success', sessionId: 'active-session', turnId: undefined },
 					{ eventName: 'copilotSdk/response.success', sessionId: 'second-active-session', turnId: 'turn-2' },
 					{ eventName: 'copilotSdk/response.success', sessionId: 'active-session', turnId: 'turn-1' },
 					{ eventName: 'copilotSdk/response.success', sessionId: 'idle-session', turnId: undefined },

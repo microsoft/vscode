@@ -1699,7 +1699,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				}
 				if (event.properties.initiatorType === 'agent') {
 					const delayedTurnId = await session.modelCallTurnCorrelation.wait(modelCallId);
-					this._gitHubTelemetryForwarder.forward(notification, delayedTurnId ?? fallbackTurnId);
+					this._gitHubTelemetryForwarder.forward(notification, delayedTurnId);
 					return;
 				}
 				session.modelCallTurnCorrelation.markResponseForwarded(modelCallId);
