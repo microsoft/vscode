@@ -6073,6 +6073,48 @@ suite('AgentService (node dispatcher)', () => {
 			);
 		});
 
+		test('idle provisional create and dispose do not invalidate the session list', async () => {
+			class ConfigurableProvisionalAgent extends MockAgent {
+				provisional = true;
+				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
+					createChat: async (chat, context, options) => {
+						const created = await base.createChat(chat, context, options);
+						return created && this.provisional ? { ...created, provisional: true } : created;
+					},
+				}));
+			}
+
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new ConfigurableProvisionalAgent('copilot'));
+			registerTestAgentProvider(localService, agent);
+			const registryEpoch = () => (localService as unknown as { _registryEpoch: number })._registryEpoch;
+			const initialEpoch = registryEpoch();
+
+			const provisional = await localService.createSession({ provider: agent.id });
+			const afterProvisionalCreate = registryEpoch();
+			await localService.disposeSession(provisional);
+			const afterProvisionalDispose = registryEpoch();
+
+			agent.provisional = false;
+			const materialized = await localService.createSession({ provider: agent.id });
+			const afterMaterializedCreate = registryEpoch();
+			await localService.disposeSession(materialized);
+
+			assert.deepStrictEqual({
+				initialEpoch,
+				afterProvisionalCreate,
+				afterProvisionalDispose,
+				afterMaterializedCreate,
+				afterMaterializedDispose: registryEpoch(),
+			}, {
+				initialEpoch,
+				afterProvisionalCreate: initialEpoch,
+				afterProvisionalDispose: initialEpoch,
+				afterMaterializedCreate: initialEpoch + 1,
+				afterMaterializedDispose: initialEpoch + 2,
+			});
+		});
+
 		test('listSessions overlays live workspace metadata over a stale provider snapshot', async () => {
 			class DelayedListAgent extends MockAgent {
 				readonly listStarted = new DeferredPromise<void>();
@@ -6769,6 +6811,7 @@ suite('AgentService (node dispatcher)', () => {
 					{ git: gitState },
 				);
 			});
+
 		});
 
 		test('subscribe to a registered session changeset URI returns a changeset snapshot', async () => {

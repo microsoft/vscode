@@ -2765,6 +2765,7 @@ export class AgentService extends Disposable implements IAgentService {
 			this._createProviderSession(provider, config, deferWorktreeCreation),
 		]);
 		const session = created.session;
+		const isIdleProvisional = created.provisional === true && !config?.importConversation;
 		this._logService.trace(`[AgentService] createSession: initialization complete`);
 		const creationReference = readSessionCreationReference(config?._meta);
 		if (creationReference && !isEphemeral) {
@@ -2783,7 +2784,9 @@ export class AgentService extends Disposable implements IAgentService {
 					() => this._sessionRegistry.tombstone(session),
 					`tombstoning ephemeral session ${session.toString()}`,
 				);
-				this._invalidateSessionList();
+				if (!isIdleProvisional) {
+					this._invalidateSessionList();
+				}
 			} catch (err) {
 				await this._rollbackProviderSession(provider, session);
 				throw err;
@@ -2795,7 +2798,9 @@ export class AgentService extends Disposable implements IAgentService {
 					() => this._sessionRegistry.register(session, { provider: provider.id, startTime: registeredAt, modifiedTime: registeredAt, source: 'explicit' }, { checkTombstone: false }),
 					`registration for ${session.toString()}`,
 				);
-				this._invalidateSessionList();
+				if (!isIdleProvisional) {
+					this._invalidateSessionList();
+				}
 			} catch (err) {
 				await this._rollbackProviderSession(provider, session);
 				throw err;
@@ -2835,7 +2840,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// updates while resolving that snapshot; without a state entry those
 		// actions are rejected as targeting an unknown session and custom agents
 		// can disappear from the picker permanently.
-		const provisionalState = created.provisional && !config?.importConversation
+		const provisionalState = isIdleProvisional
 			? (() => {
 				const summary = this._buildInitialSummary(provider, session, config, created, '');
 				const state = this._stateManager.createSession(summary, { emitNotification: false });
@@ -3931,6 +3936,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const sessionKey = session.toString();
 		this._cancelPendingSessionGc(session);
 		const isEphemeral = this._stateManager.isEphemeralSession(sessionKey);
+		const isIdleProvisional = this._stateManager.isIdleProvisionalSession(sessionKey);
 		this._stateManager.invalidateSessionChatResolutions(session.toString());
 		const sessionChats = this._stateManager.getSessionState(session.toString())?.chats ?? [];
 		for (const chat of sessionChats) {
@@ -3955,7 +3961,9 @@ export class AgentService extends Disposable implements IAgentService {
 				`unregistration for ${session.toString()}`,
 			);
 		}
-		this._invalidateSessionList();
+		if (!isIdleProvisional) {
+			this._invalidateSessionList();
+		}
 		if (provider) {
 			this._providerService.releaseSession(session.toString());
 			this._clearDownloadProgressInterest(session.toString());
