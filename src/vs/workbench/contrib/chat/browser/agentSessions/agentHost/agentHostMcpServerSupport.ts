@@ -9,7 +9,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { Location } from '../../../../../../editor/common/languages.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
-import { mcpServerIdentityFromConfiguration } from '../../../../../../platform/mcp/common/allowedMcpServers.js';
+import { IMcpServerIdentity, mcpServerIdentityFromConfiguration } from '../../../../../../platform/mcp/common/allowedMcpServers.js';
 import { IAllowedMcpServersService } from '../../../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpSandboxConfiguration, IMcpServerConfiguration, McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IWorkspaceFolderData } from '../../../../../../platform/workspace/common/workspace.js';
@@ -236,6 +236,11 @@ async function resolveMcpServerForAgentHostDelivery(
 	const source = getMcpServerSource(server, collection, definition);
 	const applicability = getMcpServerApplicability(collection, source.kind, workingDirectories);
 
+	// Gate every handoff path, not just client forwarding, so a server blocked for the local agent is blocked identically once delegated.
+	if (isBlockedByMcpPolicy(allowedMcpServersService, identityFromLaunch(server.definition.label, definition?.launch))) {
+		return createResolution(server, definition, source, applicability, AgentHostMcpServerDelivery.NotDelivered, unsupported([AgentHostMcpSupportReason.BlockedByPolicy]));
+	}
+
 	if (isPluginCollection(server, collection)) {
 		return createResolution(server, definition, source, applicability, AgentHostMcpServerDelivery.AgentPlugin, supported());
 	}
@@ -303,11 +308,8 @@ async function resolveMcpServerForAgentHostDelivery(
 		? AgentHostMcpServerDelivery.ClientForwarded
 		: deliveryForInapplicable(applicability);
 
-	// Enterprise allow/deny policy is enforced here, on the *resolved* configuration that would be
-	// forwarded, so that a server blocked for the local agent (in `McpServer`) is blocked identically
-	// for a delegated agent-host session. Forwarding hands the server to a separate process that
-	// launches it itself, so it is the only point at which the client can still refuse.
-	if (isBlockedByMcpPolicy(allowedMcpServersService, server.definition.label, projectedConfiguration)) {
+	// Re-checked against the resolved configuration: variable resolution can reveal a URL or command the raw definition hid.
+	if (isBlockedByMcpPolicy(allowedMcpServersService, mcpServerIdentityFromConfiguration(server.definition.label, projectedConfiguration))) {
 		return {
 			server,
 			definition,
@@ -333,14 +335,50 @@ async function resolveMcpServerForAgentHostDelivery(
 }
 
 /**
- * Whether the enterprise `chat.mcp.allowedServers` / `chat.mcp.deniedServers` policy blocks
- * forwarding this server. The check runs against the configuration as it would be forwarded, so a
- * configuration whose URL or command still carries unresolved `${...}` variables cannot match an
- * allow entry and is therefore blocked whenever an allowlist is configured — failing closed rather
- * than handing an unverifiable server to the agent host.
+ * The identity the policy matches on, derived from a launch the same way `McpServer` derives it so
+ * the local and delegated paths cannot disagree. A launch that is absent or carries no usable
+ * command yields a name-only identity, which still matches `serverName` rules.
  */
-function isBlockedByMcpPolicy(allowedMcpServersService: IAllowedMcpServersService, name: string, configuration: IMcpServerConfiguration): boolean {
-	return allowedMcpServersService.isServerAllowed(mcpServerIdentityFromConfiguration(name, configuration)) !== true;
+function identityFromLaunch(name: string, launch: McpServerLaunch | undefined): IMcpServerIdentity {
+	if (launch?.type === McpServerTransportType.HTTP) {
+		return { name, url: launch.uri.toString(true) };
+	}
+	if (launch?.type === McpServerTransportType.Stdio && typeof launch.command === 'string') {
+		return { name, command: [launch.command, ...(launch.args ?? []).filter(arg => typeof arg === 'string')] };
+	}
+	return { name };
+}
+
+/** Whether a URL or command the policy matches on still carries an unresolved `${...}` variable. */
+function hasUnresolvedPolicyFields(identity: IMcpServerIdentity): boolean {
+	const marker = ConfigurationResolverExpression.VARIABLE_LHS;
+	return !!identity.url?.includes(marker) || !!identity.command?.some(arg => arg.includes(marker));
+}
+
+/**
+ * Whether the enterprise `chat.mcp.allowedServers` / `chat.mcp.deniedServers` policy blocks handing
+ * this server to the agent host.
+ *
+ * Handing the server over is the last point at which the client can refuse — unlike `McpServer`,
+ * which defers an unverifiable verdict and re-evaluates once the launch resolves. So when a URL or
+ * command still carries `${...}`, an allow verdict that relied on that text is not trustworthy: the
+ * server is re-checked with the unresolved field dropped and blocked unless it is still allowed on
+ * its name alone. An allowlist entry matching by `serverName` is therefore honoured (the URL never
+ * mattered), while a `serverUrl` wildcard that merely matched the literal `${...}` text is not.
+ */
+export function isBlockedByMcpPolicy(allowedMcpServersService: IAllowedMcpServersService, identity: IMcpServerIdentity): boolean {
+	if (allowedMcpServersService.isServerAllowed(identity) !== true) {
+		return true;
+	}
+	if (!hasUnresolvedPolicyFields(identity)) {
+		return false;
+	}
+	return allowedMcpServersService.isServerAllowed({ name: identity.name }) !== true;
+}
+
+/** Whether the policy blocks a declaratively-configured server, e.g. one contributed by a plugin. */
+export function isMcpServerConfigurationBlockedByPolicy(allowedMcpServersService: IAllowedMcpServersService, name: string, configuration: IMcpServerConfiguration): boolean {
+	return isBlockedByMcpPolicy(allowedMcpServersService, mcpServerIdentityFromConfiguration(name, configuration));
 }
 
 function createResolution(

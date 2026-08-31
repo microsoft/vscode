@@ -201,8 +201,7 @@ class AgentCustomizationScope extends Disposable {
 			}
 			scheduleUpdate();
 		}));
-		// Republish when the enterprise MCP allow/deny policy changes so a newly blocked server is
-		// withdrawn from the forwarded bundle rather than lingering for the life of the session.
+		// Republish so a newly blocked server is withdrawn rather than lingering for the session.
 		this._register(this._allowedMcpServersService.onDidChangeAllowedMcpServers(() => scheduleUpdate()));
 	}
 

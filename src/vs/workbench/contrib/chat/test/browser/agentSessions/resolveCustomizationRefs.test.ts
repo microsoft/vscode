@@ -11,7 +11,7 @@ import { observableValue } from '../../../../../../base/common/observable.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { PluginFormat } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
+import { PluginFormat, type IMcpServerDefinition } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { CustomizationEnablementKind, CustomizationType, type CustomizationEnablement } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
@@ -38,11 +38,6 @@ function makePromptPath(uri: URI, type: PromptsType, storage: PromptsStorage): I
 	return { uri, type, storage } as IPromptPath;
 }
 
-/**
- * A fake {@link IConfigurationResolverService} whose `resolveAsync` mirrors the
- * real service: it resolves the given `${...}` variables from `resolutions` and
- * leaves any others (e.g. `${input:…}`) untouched so they remain unresolved.
- */
 function makeAllowedMcpServersService(isServerAllowed: IAllowedMcpServersService['isServerAllowed'] = () => true): IAllowedMcpServersService {
 	return {
 		onDidChangeAllowedMcpServers: Event.None,
@@ -50,6 +45,11 @@ function makeAllowedMcpServersService(isServerAllowed: IAllowedMcpServersService
 	} as unknown as IAllowedMcpServersService;
 }
 
+/**
+ * A fake {@link IConfigurationResolverService} whose `resolveAsync` mirrors the
+ * real service: it resolves the given `${...}` variables from `resolutions` and
+ * leaves any others (e.g. `${input:…}`) untouched so they remain unresolved.
+ */
 function makeConfigurationResolverService(resolutions: Record<string, string> = {}): IConfigurationResolverService {
 	return {
 		async resolveAsync(_folder: unknown, config: unknown) {
@@ -103,8 +103,8 @@ function makeAgentPluginService(plugins: readonly IAgentPlugin[] = [], profileEn
 	} as unknown as IAgentPluginService;
 }
 
-function makePlugin(uri: URI, options: { label?: string; enabled?: boolean; enablement?: ContributionEnablementState; agents?: number; mcpServers?: number } = {}): IAgentPlugin {
-	const { label = 'Plugin', enabled = true, enablement = enabled ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile, agents = 0, mcpServers = 0 } = options;
+function makePlugin(uri: URI, options: { label?: string; enabled?: boolean; enablement?: ContributionEnablementState; agents?: number; mcpServers?: number; mcpServerDefinitions?: readonly IMcpServerDefinition[] } = {}): IAgentPlugin {
+	const { label = 'Plugin', enabled = true, enablement = enabled ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile, agents = 0, mcpServers = 0, mcpServerDefinitions } = options;
 	return {
 		uri,
 		format: PluginFormat.Copilot,
@@ -115,7 +115,11 @@ function makePlugin(uri: URI, options: { label?: string; enabled?: boolean; enab
 		skills: observableValue('skills', []),
 		agents: observableValue('agents', Array.from({ length: agents }, (_, index) => ({ uri: URI.joinPath(uri, 'agents', `agent-${index}.agent.md`), name: `agent-${index}` }))),
 		instructions: observableValue('instructions', []),
-		mcpServerDefinitions: observableValue('mcpServers', new Array(mcpServers).fill({})),
+		mcpServerDefinitions: observableValue('mcpServers', mcpServerDefinitions ?? Array.from({ length: mcpServers }, (_, index): IMcpServerDefinition => ({
+			name: `plugin-server-${index}`,
+			configuration: { type: McpServerType.LOCAL, command: 'plugin-server', args: [], env: {} },
+			uri: URI.joinPath(uri, '.mcp.json'),
+		} as unknown as IMcpServerDefinition))),
 	} as unknown as IAgentPlugin;
 }
 
@@ -1042,6 +1046,91 @@ suite('resolveCustomizationRefs - enterprise MCP policy', () => {
 		await bundleWith(mcpService, makePolicyAllowedMcpServersService(undefined, denied), bundler);
 
 		assert.strictEqual(bundler.received.length, 0);
+	});
+
+	test('disables a plugin-contributed server that the policy denies', async () => {
+		const bundler = new FakeBundler();
+		const pluginUri = URI.file('/plugins/tools');
+		const plugin = makePlugin(pluginUri, {
+			mcpServerDefinitions: [
+				{ name: 'denied', configuration: { type: McpServerType.REMOTE, url: 'https://mcp.deepwiki.com/mcp' } },
+				{ name: 'kept', configuration: { type: McpServerType.LOCAL, command: 'npx', args: ['--yes', '--registry', 'https://registry.example.com', 'my-server'] } },
+			] as unknown as readonly IMcpServerDefinition[],
+		});
+
+		const refs = await resolveCustomizationRefs(
+			makeFileService(),
+			makePromptsService(new Map()),
+			new FakeSyncProvider(),
+			makeAgentPluginService([plugin]),
+			makeMcpService(),
+			makeConfigurationResolverService(),
+			makePolicyAllowedMcpServersService(allowNpxOnly),
+			bundler as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
+			undefined,
+		);
+
+		// A plugin syncs as a directory, so the denied child must be disabled explicitly.
+		assert.deepStrictEqual(refs[0].childEnablement, { denied: globalEnablement(false) });
+	});
+
+	test('does not disable plugin-contributed servers the policy allows', async () => {
+		const bundler = new FakeBundler();
+		const plugin = makePlugin(URI.file('/plugins/tools'), {
+			mcpServerDefinitions: [
+				{ name: 'kept', configuration: { type: McpServerType.LOCAL, command: 'npx', args: ['--yes', '--registry', 'https://registry.example.com', 'my-server'] } },
+			] as unknown as readonly IMcpServerDefinition[],
+		});
+
+		const refs = await resolveCustomizationRefs(
+			makeFileService(),
+			makePromptsService(new Map()),
+			new FakeSyncProvider(),
+			makeAgentPluginService([plugin]),
+			makeMcpService(),
+			makeConfigurationResolverService(),
+			makePolicyAllowedMcpServersService(allowNpxOnly),
+			bundler as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
+			undefined,
+		);
+
+		assert.strictEqual(refs[0].childEnablement, undefined);
+	});
+
+	test('fails closed when a URL allow match relied on an unresolved variable', async () => {
+		const bundler = new FakeBundler();
+		const mcpService = makeMcpService([
+			makeMcpServer({
+				id: 'mcp.config.usrlocal.tenant',
+				collectionId: 'mcp.config.usrlocal',
+				label: 'tenant-server',
+				launch: { type: McpServerTransportType.HTTP, uri: URI.parse('https://mcp.example.com/${input:tenant}/mcp'), headers: [] },
+			}),
+		]);
+
+		// The wildcard matches the literal `${...}` text, so the verdict is not trustworthy.
+		await bundleWith(mcpService, makePolicyAllowedMcpServersService([{ serverUrl: 'https://mcp.example.com/*' }]), bundler);
+
+		assert.strictEqual(bundler.received.length, 0);
+	});
+
+	test('still honours a name allowlist when the URL carries an unresolved variable', async () => {
+		const bundler = new FakeBundler();
+		const mcpService = makeMcpService([
+			makeMcpServer({
+				id: 'mcp.config.usrlocal.tenant',
+				collectionId: 'mcp.config.usrlocal',
+				label: 'tenant-server',
+				launch: { type: McpServerTransportType.HTTP, uri: URI.parse('https://mcp.example.com/${input:tenant}/mcp'), headers: [] },
+			}),
+		]);
+
+		// Matching by name never depended on the URL, so the block does not apply.
+		await bundleWith(mcpService, makePolicyAllowedMcpServersService([{ serverName: 'tenant-server' }]), bundler);
+
+		assert.deepStrictEqual(bundler.receivedMcp[0].map(entry => entry.name), ['tenant-server']);
 	});
 
 	test('forwards every server when no allow or deny list is configured', async () => {
