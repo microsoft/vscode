@@ -7,7 +7,7 @@ const LATEST_REQUEST_LIMIT = 2000;
 const FINAL_RESPONSE_LIMIT = 10000;
 const MAX_SUGGESTION_CHARS = 160;
 
-const REFUSAL_PREFIX = /^(?:sorry\b|unfortunately\b|my apologies\b|as an ai\b|i\s+apologi[sz]e\b|i\s*(?:am|'m|’m)\s+(?:sorry|unable)\b|i\s*(?:cannot|can't|can’t|won't|won’t)\b)/i;
+const REFUSAL_PREFIX = /^(?:sorry\b|unfortunately\b|my apologies\b|as an ai\b|i\s+apologi[sz]e\b|i\s*(?:am|'m|\u2019m)\s+(?:sorry|unable)\b|i\s*(?:cannot|can't|can\u2019t|won't|won\u2019t)\b)/i;
 const GRATITUDE_PREFIX = /^(?:thanks|thank you|thx)\b/i;
 const LABEL_PREFIX = /^(?:suggestion|next (?:message|step)|user)\s*[:\-—]\s*/i;
 const MARKDOWN_PREFIX = /^(?:[-*+]\s|#{1,6}\s|>\s|```|\d+[.)]\s)/;
@@ -59,8 +59,8 @@ export function cleanNextUserMessageSuggestion(raw: string): string | undefined 
 	const first = suggestion.at(0);
 	const last = suggestion.at(-1);
 	if ((first === last && !!first && /["'`]/.test(first))
-		|| (first === '“' && last === '”')
-		|| (first === '‘' && last === '’')) {
+		|| (first === '\u201C' && last === '\u201D')
+		|| (first === '\u2018' && last === '\u2019')) {
 		suggestion = suggestion.slice(1, -1).trim();
 	}
 	if (!suggestion || LABEL_PREFIX.test(suggestion) || MARKDOWN_PREFIX.test(suggestion) || MARKDOWN_WRAPPER.test(suggestion) || ABSTENTION.test(suggestion) || REFUSAL_PREFIX.test(suggestion) || GRATITUDE_PREFIX.test(suggestion)) {

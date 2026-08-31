@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { shouldDismissNextUserMessageSuggestion } from '../../browser/nextUserMessageSuggestion.js';
 import { cleanNextUserMessageSuggestion, createNextUserMessageContext, createNextUserMessagePrompt, truncateSuggestionContext } from '../../common/nextUserMessageSuggestion.js';
 
 suite('Sessions - Next User Message Suggestion', () => {
@@ -18,6 +19,14 @@ suite('Sessions - Next User Message Suggestion', () => {
 			'abc\n...[truncated]...\nyz',
 			'abcde',
 		]);
+	});
+
+	test('dismisses through the remappable inline suggestion command', () => {
+		assert.deepStrictEqual([
+			shouldDismissNextUserMessageSuggestion('editor.action.inlineSuggest.hide', true),
+			shouldDismissNextUserMessageSuggestion('editor.action.inlineSuggest.hide', false),
+			shouldDismissNextUserMessageSuggestion('other.command', true),
+		], [true, false, false]);
 	});
 
 	test('builds a prompt from bounded untrusted fields', () => {
