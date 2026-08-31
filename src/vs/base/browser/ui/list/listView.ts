@@ -1789,6 +1789,13 @@ export class ListView<T> implements IListView<T> {
 			measurements.push(measurement);
 
 			row.domNode.style.height = '';
+			// This row is only appended for offscreen height measurement and is never
+			// passed through `updateItemInDOM`. When the cache reuses a released node it
+			// may still carry a stale `data-index` from a previous render; leaving it in
+			// place lets `getItemIndexFromEventTarget` resolve pointer events on this
+			// transient row to an out-of-range index. Clear it so measurement rows are
+			// never mistaken for real, indexable list rows.
+			row.domNode.removeAttribute('data-index');
 			this.rowsContainer.appendChild(row.domNode);
 
 			const renderer = this.renderers.get(item.templateId);
