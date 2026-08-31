@@ -9,6 +9,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IBuiltinTextToSpeechEngine, ITextToSpeechEvent, ITextToSpeechSession, ITextToSpeechSessionOptions, TextToSpeechStatus } from '../common/speechService.js';
+import { splitForSynthesis } from '../common/speechText.js';
 
 /**
  * Picks the voice to read with, preferring an exact match on `language` (a
@@ -70,7 +71,15 @@ class BuiltinTextToSpeechSession extends Disposable implements ITextToSpeechSess
 		}
 
 		try {
-			await this.speak(text);
+			// Long utterances are truncated or stall outright in some browsers, so
+			// the text is spoken in pieces, one after the other.
+			for (const piece of splitForSynthesis(text)) {
+				await this.speak(piece);
+
+				if (this.token.isCancellationRequested) {
+					return;
+				}
+			}
 		} catch (error) {
 			this.logService.error(`[speech] built-in text to speech failed: ${error}`);
 			this._onDidChange.fire({ status: TextToSpeechStatus.Error, text: String(error) });

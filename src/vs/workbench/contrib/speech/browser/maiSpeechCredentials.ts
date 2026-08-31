@@ -58,6 +58,7 @@ export class MaiSpeechCredentialsService extends Disposable implements IMaiSpeec
 	readonly onDidChangeConfigured = this._onDidChangeConfigured.event;
 
 	private hasKey = false;
+	private pendingRefresh = Promise.resolve();
 
 	get isConfigured(): boolean {
 		return !!this.endpoint && this.hasKey;
@@ -90,7 +91,11 @@ export class MaiSpeechCredentialsService extends Disposable implements IMaiSpeec
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(MAI_SPEECH_ENDPOINT_SETTING)) {
-				this._onDidChangeConfigured.fire();
+				// The stored key belongs to one endpoint, so pointing the setting at
+				// another one leaves it unusable. Recompute rather than only firing:
+				// reporting this engine as configured when the key no longer matches
+				// would make it outrank the platform synthesizer and then fail.
+				this.refreshHasKey();
 			}
 		}));
 
@@ -105,13 +110,23 @@ export class MaiSpeechCredentialsService extends Disposable implements IMaiSpeec
 		this.refreshHasKey();
 	}
 
-	private async refreshHasKey(): Promise<void> {
-		const wasConfigured = this.isConfigured;
-		this.hasKey = !!await this.resolve();
+	/**
+	 * Recomputes whether a usable key is available, and reports a change when
+	 * that alters availability.
+	 *
+	 * Refreshes are chained rather than run concurrently: reading the secret is
+	 * asynchronous, so two overlapping refreshes could otherwise finish out of
+	 * order and leave the older answer behind.
+	 */
+	private refreshHasKey(): Promise<void> {
+		return this.pendingRefresh = this.pendingRefresh.then(async () => {
+			const wasConfigured = this.isConfigured;
+			this.hasKey = !!await this.resolve();
 
-		if (this.isConfigured !== wasConfigured) {
-			this._onDidChangeConfigured.fire();
-		}
+			if (this.isConfigured !== wasConfigured) {
+				this._onDidChangeConfigured.fire();
+			}
+		});
 	}
 
 	/**
