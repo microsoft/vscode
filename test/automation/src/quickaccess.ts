@@ -14,6 +14,16 @@ enum QuickAccessKind {
 	Symbols
 }
 
+export type CommandMatchMode = 'exactCommandId' | 'exactLabel' | 'fuzzy';
+
+export interface IRunCommandOptions {
+	keepOpen?: boolean;
+	/**
+	 * How to match the focused command. Defaults to `exactCommandId`.
+	 */
+	match?: CommandMatchMode;
+}
+
 export class QuickAccess {
 
 	constructor(private code: Code, private editors: Editors, private quickInput: QuickInput) { }
@@ -22,7 +32,7 @@ export class QuickAccess {
 
 		// make sure the file quick access is not "polluted"
 		// with entries from the editor history when opening
-		await this.runCommand('workbench.action.clearEditorHistoryWithoutConfirm');
+		await this.runCommand('workbench.action.clearEditorHistoryWithoutConfirm', { match: 'fuzzy' });
 
 		const PollingStrategy = {
 			Stop: true,
@@ -179,32 +189,36 @@ export class QuickAccess {
 		}
 	}
 
-	async runCommand(commandId: string, options?: { keepOpen?: boolean; exactLabelMatch?: boolean }): Promise<void> {
+	async runCommand(commandId: string, options?: IRunCommandOptions): Promise<void> {
 		const keepOpen = options?.keepOpen;
-		const exactLabelMatch = options?.exactLabelMatch;
+		const match = options?.match ?? 'exactCommandId';
 
 		const openCommandPalletteAndTypeCommand = async (): Promise<boolean> => {
 			// open commands picker
 			await this.openQuickAccessWithRetry(QuickAccessKind.Commands, `>${commandId}`);
 
-			// wait for best choice to be focused
-			await this.quickInput.waitForQuickInputElementFocused();
+			const element = await this.quickInput.waitForQuickInputElement();
 
-			// Retry for as long as the command not found
-			const text = await this.quickInput.waitForQuickInputElementText();
-
-			if (text === 'No matching commands' || (exactLabelMatch && text !== commandId)) {
+			if (element.label === 'No matching commands') {
 				return false;
 			}
 
-			return true;
+			if (match === 'fuzzy') {
+				return true;
+			}
+
+			if (match === 'exactLabel') {
+				return element.label === commandId;
+			}
+
+			return element.id === commandId;
 		};
 
 		let hasCommandFound = await openCommandPalletteAndTypeCommand();
 
 		if (!hasCommandFound) {
 
-			this.code.logger.log(`QuickAccess: No matching commands, will retry...`);
+			this.code.logger.log(`QuickAccess: No ${match} match for '${commandId}', will retry...`);
 			await this.quickInput.closeQuickInput();
 
 			let retries = 0;
@@ -213,14 +227,14 @@ export class QuickAccess {
 				if (hasCommandFound) {
 					break;
 				} else {
-					this.code.logger.log(`QuickAccess: No matching commands, will retry...`);
+					this.code.logger.log(`QuickAccess: No ${match} match for '${commandId}', will retry...`);
 					await this.quickInput.closeQuickInput();
 					await this.code.wait(1000);
 				}
 			}
 
 			if (!hasCommandFound) {
-				throw new Error(`QuickAccess.runCommand(commandId: ${commandId}) failed to find command.`);
+				throw new Error(`QuickAccess.runCommand(commandId: ${commandId}, match: ${match}) failed to find command.`);
 			}
 		}
 
@@ -238,7 +252,7 @@ export class QuickAccess {
 				if (++selectRetries > 3) {
 					throw err;
 				}
-				this.code.logger.log(`QuickAccess.runCommand(commandId: ${commandId}): selectQuickInputElement failed (${err}), will retry...`);
+				this.code.logger.log(`QuickAccess.runCommand(commandId: ${commandId}, match: ${match}): selectQuickInputElement failed (${err}), will retry...`);
 				try {
 					await this.quickInput.closeQuickInput();
 				} catch {
@@ -246,7 +260,7 @@ export class QuickAccess {
 				}
 				const found = await openCommandPalletteAndTypeCommand();
 				if (!found) {
-					throw new Error(`QuickAccess.runCommand(commandId: ${commandId}) failed to find command on retry.`);
+					throw new Error(`QuickAccess.runCommand(commandId: ${commandId}, match: ${match}) failed to find command on retry.`);
 				}
 			}
 		}
@@ -260,10 +274,10 @@ export class QuickAccess {
 			// open quick outline via keybinding
 			await this.openQuickAccessWithRetry(QuickAccessKind.Symbols);
 
-			const text = await this.quickInput.waitForQuickInputElementText();
+			const label = await this.quickInput.waitForQuickInputElementText();
 
 			// Retry for as long as no symbols are found
-			if (text === 'No symbol information for the file') {
+			if (label === 'No symbol information for the file') {
 				this.code.logger.log(`QuickAccess: openQuickOutline indicated 'No symbol information for the file', will retry...`);
 
 				// close and retry

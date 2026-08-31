@@ -142,26 +142,30 @@ export function isHiddenModelK(model: LanguageModelChat | IChatEndpoint) {
 }
 
 
+function matchesGptModelFamily(family: string, prefix: string): boolean {
+	return family === prefix || family.startsWith(`${prefix}-`);
+}
+
 export function isGpt54(model: LanguageModelChat | IChatEndpoint | string) {
 	const h = getCachedSha256Hash(typeof model === 'string' ? model : model.family);
 	const family = typeof model === 'string' ? model : model.family;
-	return family.startsWith('gpt-5.4') || HIDDEN_MODEL_J_HASHES.includes(h);
+	return matchesGptModelFamily(family, 'gpt-5.4') || HIDDEN_MODEL_J_HASHES.includes(h);
 }
 
 export function isGpt55(model: LanguageModelChat | IChatEndpoint | string) {
 	const h = getCachedSha256Hash(typeof model === 'string' ? model : model.family);
 	const family = typeof model === 'string' ? model : model.family;
-	return family.startsWith('gpt-5.5') || HIDDEN_MODEL_B_HASHES.includes(h);
+	return matchesGptModelFamily(family, 'gpt-5.5') || HIDDEN_MODEL_B_HASHES.includes(h);
 }
 
 export function isGpt56(model: LanguageModelChat | IChatEndpoint | string) {
 	const family = typeof model === 'string' ? model : model.family;
-	return family === 'gpt-5.6-sol' || family === 'gpt-5.6-terra' || family === 'gpt-5.6-luna';
+	return matchesGptModelFamily(family, 'gpt-5.6');
 }
 
 export function isGpt53Codex(model: LanguageModelChat | IChatEndpoint | string) {
 	const family = typeof model === 'string' ? model : model.family;
-	return family.startsWith('gpt-5.3-codex');
+	return matchesGptModelFamily(family, 'gpt-5.3-codex');
 }
 
 export function isKimiFamily(model: LanguageModelChat | IChatEndpoint | string): boolean {
@@ -423,7 +427,7 @@ export function isGptFamily(model: LanguageModelChat | IChatEndpoint | string | 
 }
 
 /**
- * Any GPT-5.1+ model
+ * GPT-5.1 and its suffixed variants, not later minor versions.
  */
 export function isGpt51Family(model: LanguageModelChat | IChatEndpoint | string | undefined): boolean {
 	if (!model) {
@@ -431,7 +435,16 @@ export function isGpt51Family(model: LanguageModelChat | IChatEndpoint | string 
 	}
 
 	const family = typeof model === 'string' ? model : model.family;
-	return !!family.startsWith('gpt-5.1');
+	return matchesGptModelFamily(family, 'gpt-5.1');
+}
+
+/**
+ * Identifies OpenAI models for prompt routing, not API or tool capabilities.
+ * OpenAI-compatible transports alone do not identify the model's provider.
+ */
+export function isOpenAIModel(model: Pick<IChatEndpoint, 'family' | 'modelProvider'>): boolean {
+	const family = model.family.toLowerCase();
+	return isGptFamily(family) || family === 'openai' || model.modelProvider.toLowerCase() === 'openai';
 }
 
 /**

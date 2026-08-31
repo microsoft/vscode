@@ -2,7 +2,7 @@ version: 1
 dialect: anthropic
 exchanges:
   - request:
-      model: claude-opus-4.8
+      model: claude-opus-5
       system: ${system}
       messages:
         - role: user
@@ -14,8 +14,6 @@ exchanges:
             Use your file creation tool; do not run a shell command. Then reply exactly "done".
     response:
       content:
-        - type: text
-          text: I'll create the file.
         - type: tool_use
           id: toolcall_0
           name: Write
@@ -27,7 +25,7 @@ exchanges:
               STREAM_GAMMA
       stopReason: tool_use
   - request:
-      model: claude-opus-4.8
+      model: claude-opus-5
       system: ${system}
       messages:
         - role: user
@@ -39,8 +37,6 @@ exchanges:
             Use your file creation tool; do not run a shell command. Then reply exactly "done".
         - role: assistant
           content:
-            - type: text
-              text: I'll create the file.
             - type: tool_use
               name: Write
               input:

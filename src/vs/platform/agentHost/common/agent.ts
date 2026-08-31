@@ -196,9 +196,11 @@ export interface IAgentCreateSessionResult extends IAgentCreateChatResult {
 }
 
 /**
- * Payload of {@link IAgent.onDidMaterializeChat}. Fired once a previously
+ * Payload of {@link IAgent.onDidMaterializeChat}. Fired when a previously
  * {@link IAgentCreateSessionResult.provisional} chat has its SDK session,
- * worktree (if any), and on-disk metadata in place.
+ * worktree (if any), and on-disk metadata in place. A provider may fire the
+ * event again when it replaces or rematerializes an already-backed chat;
+ * consumers must treat each event as the chat's latest materialization receipt.
  */
 export interface IAgentMaterializeChatEvent {
 	readonly chat: URI;
@@ -875,7 +877,7 @@ export interface IAgentToolPendingConfirmationSignal {
 	/** Protocol-shaped pending-confirmation state, dispatched verbatim into `ChatToolCallReady`. */
 	readonly state: ToolCallPendingConfirmationState;
 	/** Host-only auto-approval kind (not part of the dispatched action). */
-	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'skill' | 'custom-tool' | 'hook' | 'memory' | 'factory' | 'extension-management' | 'extension-permission-access' | 'extension-env-access';
+	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'skill' | 'custom-tool' | 'hook' | 'memory' | 'factory' | 'extension-management' | 'extension-permission-access';
 	/** Host-only auto-approval path target (not part of the dispatched action). */
 	readonly permissionPath?: string;
 	/**

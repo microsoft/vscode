@@ -3049,6 +3049,34 @@ suite('ChatSubagentContentPart', () => {
 			assert.ok(creditHover, 'Should set up hover with credits after completion');
 		});
 
+		test('should forward late credits to the open-chat pill context', () => {
+			const toolSpecificData: IChatSubagentToolInvocationData = {
+				kind: 'subagent',
+				description: 'Working on task',
+				chatResource: 'ahp-chat://subagent/test/tool-call',
+				isActive: true,
+				startedAt: 1000,
+			};
+			const toolInvocation = createMockToolInvocation({
+				toolSpecificData,
+				stateType: IChatToolInvocation.StateKind.Executing,
+			});
+			const state = observableValue('state', toolInvocation.state.get());
+			(toolInvocation as unknown as { state: typeof state }).state = state;
+			const part = createPart(toolInvocation, createMockRenderContext(false));
+
+			const before = getOpenChatContext(part)?.credits;
+
+			// Credits accumulate while the subagent is still running.
+			toolSpecificData.credits = 2.5;
+			state.set({ ...state.get() }, undefined);
+
+			assert.deepStrictEqual(
+				{ before, after: getOpenChatContext(part)?.credits },
+				{ before: undefined, after: 2.5 },
+			);
+		});
+
 		test('should update hover with model name when it arrives after initial render', () => {
 			const setupDelayedHoverCalls: { element: HTMLElement; content: string }[] = [];
 			mockHoverService.setupDelayedHover = (element: HTMLElement, options: { content: string }) => {

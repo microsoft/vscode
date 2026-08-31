@@ -118,6 +118,7 @@ export class ChatCompositeBar extends Disposable {
 	readonly onDidChangeHeight: Event<void> = this._onDidChangeHeight.event;
 
 	private _visible = false;
+	private _height = 0;
 
 	get element(): HTMLElement {
 		return this._container;
@@ -128,10 +129,11 @@ export class ChatCompositeBar extends Disposable {
 	}
 
 	get height(): number {
-		return this._visible ? this._container.offsetHeight : 0;
+		return this._visible ? this._height : 0;
 	}
 
 	constructor(
+		resizeObserverCtor: typeof ResizeObserver | undefined,
 		@IThemeService private readonly _themeService: IThemeService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
@@ -200,11 +202,19 @@ export class ChatCompositeBar extends Disposable {
 		}));
 		this._register(resizeObserver.observe(this._tabsContainer));
 
-		// Report height changes so the host can re-layout
-		const heightObserver = this._register(new DisposableResizeObserver('ChatCompositeBar.height', () => {
-			this._onDidChangeHeight.fire();
-		}));
-		this._register(heightObserver.observe(this._container));
+		// Report actual height changes without forcing measurement on every layout.
+		const heightObserver = this._register(new DisposableResizeObserver('ChatCompositeBar.height', entries => {
+			const entry = entries.find(entry => entry.target === this._container);
+			if (!entry) {
+				return;
+			}
+			const height = entry.borderBoxSize[0]?.blockSize ?? entry.contentRect.height;
+			if (this._height !== height) {
+				this._height = height;
+				this._onDidChangeHeight.fire();
+			}
+		}, getWindow(this._container), { resizeObserverCtor }));
+		this._register(heightObserver.observe(this._container, { box: 'border-box' }));
 
 		this._setVisible(false);
 		this._updateStyles();
@@ -227,7 +237,7 @@ export class ChatCompositeBar extends Disposable {
 		this._groupDisposables.value = store;
 
 		if (!delegate) {
-			this._rebuildTabs([], '', '');
+			this._rebuildTabs([], '');
 			this._setVisible(false);
 			return;
 		}
@@ -236,12 +246,17 @@ export class ChatCompositeBar extends Disposable {
 		this._setVisible(false);
 		store.add(autorun(reader => {
 			const chats = delegate.chats.read(reader);
-			const activeChatUri = delegate.activeChatResource.read(reader);
 			const mainChatUri = delegate.mainChatResource.read(reader);
-			this._rebuildTabs(chats, activeChatUri, mainChatUri);
+			this._rebuildTabs(chats, mainChatUri);
+		}));
+		store.add(autorun(reader => {
+			this._updateActiveTab(delegate.activeChatResource.read(reader));
+		}));
+		store.add(autorun(reader => {
 			this._showSessionActions = delegate.showSessionActions.read(reader);
 			this._sessionActionsContainer.classList.toggle('hidden', !this._showSessionActions);
-
+		}));
+		store.add(autorun(reader => {
 			this._setVisible(delegate.visible.read(reader));
 		}));
 	}
@@ -250,20 +265,18 @@ export class ChatCompositeBar extends Disposable {
 		this._tabsContainer.setAttribute('aria-label', label);
 	}
 
-	private _rebuildTabs(chats: readonly IChat[], activeChatId: string, mainChatId: string): void {
+	private _rebuildTabs(chats: readonly IChat[], mainChatId: string): void {
 		this._cancelTabEditing();
 		this._tabDisposables.clear();
 		this._tabs.length = 0;
 		reset(this._tabsContainer);
 
 		for (const chat of chats) {
-			this._createTab(chat, chat.resource.toString() === mainChatId, activeChatId);
+			this._createTab(chat, chat.resource.toString() === mainChatId);
 		}
 
-		this._updateActiveTab(activeChatId);
+		this._updateActiveTab(this._delegate?.activeChatResource.get() ?? '');
 		this._updateScrollDimensions();
-
-		this._onDidChangeHeight.fire();
 	}
 
 	private _updateScrollDimensions(): void {
@@ -273,7 +286,7 @@ export class ChatCompositeBar extends Disposable {
 		});
 	}
 
-	private _createTab(chat: IChat, isMainChat: boolean, _activeChatId: string): void {
+	private _createTab(chat: IChat, isMainChat: boolean): void {
 		const delegate = this._delegate;
 		const session = delegate?.session;
 		const tab = $('.chat-composite-bar-tab.modern-ui-editor-tab');
@@ -624,6 +637,7 @@ export class ChatCompositeBar extends Disposable {
 		const wasVisible = this._visible;
 		this._visible = visible;
 		this._container.style.display = this._visible ? '' : 'none';
+		this._height = this._visible ? this._container.offsetHeight : 0;
 		if (wasVisible !== this._visible) {
 			this._onDidChangeVisibility.fire(this._visible);
 		}

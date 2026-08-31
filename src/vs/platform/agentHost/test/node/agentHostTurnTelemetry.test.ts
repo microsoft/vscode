@@ -36,6 +36,7 @@ import { createTestAgentHostProviderService } from './testAgentHostProviderServi
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
+import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/agentHostToolCallTracker.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -67,7 +68,6 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	refreshSessionChangeset(): void { }
 	onWorkingDirectoryAvailable(): void { }
 	recomputeSubscribedChangesets(): void { }
-	onSessionDisposed(): void { }
 	async computeUncommittedChangeset(session: string): Promise<string> { return `${session}/changeset/uncommitted`; }
 	async computeTurnChangeset(session: string): Promise<string> { return `${session}/x`; }
 	async computeCompareTurnsChangeset(session: string): Promise<string> { return `${session}/y`; }
@@ -244,6 +244,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		services.set(IAgentHostTelemetryReporter, telemetryReporter);
 		const turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
 		services.set(IAgentHostTurnTracker, turnTracker);
+		services.set(IAgentHostToolCallTracker, disposables.add(instantiationService.createInstance(AgentHostToolCallTracker)));
 		const localTurns = new AgentHostLocalTurns(sessionDataService, logService);
 		services.set(IAgentHostLocalTurns, localTurns);
 		const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands));

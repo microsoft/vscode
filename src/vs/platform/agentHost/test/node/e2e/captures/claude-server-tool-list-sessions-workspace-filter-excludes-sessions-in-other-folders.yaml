@@ -18,8 +18,6 @@ exchanges:
           content: Call list_sessions exactly once with workspace "${workdir}/other", then reply exactly "filtered".
     response:
       content:
-        - type: text
-          text: I'll call it once with that workspace filter.
         - type: tool_use
           id: toolcall_0
           name: mcp__host__list_sessions
@@ -34,8 +32,6 @@ exchanges:
           content: Call list_sessions exactly once with workspace "${workdir}/other", then reply exactly "filtered".
         - role: assistant
           content:
-            - type: text
-              text: I'll call it once with that workspace filter.
             - type: tool_use
               name: mcp__host__list_sessions
               input:
@@ -44,7 +40,7 @@ exchanges:
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: '{"sessions":[{"session":"claude:/${uuid_0}","title":"Reply exactly \"WORKSPACE_TARGET_READY\".","status":"idle","workingDirectory":"file://${workdir}/other","unread":true,"createdAt":"2026-08-02T02:19:48.953Z","modifiedAt":"2026-08-02T02:19:51.211Z","changesets":[{"label":"All Changes","changeKind":"session","uriTemplate":"claude:/${uuid_0}/changeset/session","description":"Show all changes made in this session"},{"label":"This Turn","changeKind":"turn","uriTemplate":"claude:/${uuid_0}/changeset/turn/{turnId}","description":"Show changes made in this turn"}]}]}'
+              content: '{"sessions":[{"session":"claude:/${uuid_0}","openLink":"agent-host-session://claude/${uuid_0}","title":"Reply exactly \"WORKSPACE_TARGET_READY\".","status":"idle","workingDirectory":"file://${workdir}/other","unread":true,"createdAt":"2026-08-28T16:28:31.637Z","modifiedAt":"2026-08-28T16:28:30.279Z","changesets":[{"label":"All Changes","changeKind":"session","uriTemplate":"claude:/${uuid_0}/changeset/session","description":"Show all changes made in this session"},{"label":"This Turn","changeKind":"turn","uriTemplate":"claude:/${uuid_0}/changeset/turn/{turnId}","description":"Show changes made in this turn"}]}]}'
     response:
       content: filtered
       stopReason: end_turn

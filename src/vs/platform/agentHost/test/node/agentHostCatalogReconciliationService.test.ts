@@ -56,6 +56,7 @@ function registered(name: string): IRegisteredSession {
 class TestStorageService implements IAgentHostStorageService {
 	declare readonly _serviceBrand: undefined;
 	readonly onDidChange = Event.None;
+	readonly loadError = undefined;
 	private readonly _values = new Map<string, unknown>();
 
 	get<T>(key: string): T | undefined {
@@ -64,6 +65,10 @@ class TestStorageService implements IAgentHostStorageService {
 
 	set<T>(key: string, value: T): void {
 		this._values.set(key, value);
+	}
+
+	async setAndFlush<T>(key: string, value: T): Promise<void> {
+		this.set(key, value);
 	}
 
 	delete(key: string): void {

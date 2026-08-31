@@ -357,6 +357,92 @@ suite('ActionListWidget', () => {
 		});
 	});
 
+	test('does not double count a detail row toolbar when computing max width', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [
+				{ ...action('detail'), detail: 'Description', toolbarActions: [toAction({ id: 'toolbar', label: 'Toolbar', run: () => { } })] },
+			],
+		});
+		const row = widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!;
+		row.getBoundingClientRect = () => new mainWindow.DOMRect(0, 0, 240, 48);
+
+		const width = widget.computeMaxWidth(0);
+
+		assert.deepStrictEqual({
+			width,
+			restoredWidth: row.style.width,
+		}, {
+			width: 240,
+			restoredWidth: '',
+		});
+	});
+
+	test('keeps detail row geometry stable when its toolbar becomes visible', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [
+				action('plain'),
+				{ ...action('detail'), detail: 'Description', toolbarActions: [toAction({ id: 'toolbar', label: 'Toolbar', run: () => { } })] },
+				...Array.from({ length: 20 }, (_, index) => action(`filler-${index}`)),
+			],
+		});
+		const wrapper = document.createElement('div');
+		wrapper.classList.add('action-widget');
+		widget.domNode.parentElement?.insertBefore(wrapper, widget.domNode);
+		wrapper.appendChild(widget.domNode);
+		disposables.add({ dispose: () => wrapper.remove() });
+
+		const rows = Array.from(widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row'));
+		const detailRow = rows[1];
+		const detail = detailRow.querySelector<HTMLElement>('.detail')!;
+		const toolbar = detailRow.querySelector<HTMLElement>('.action-list-item-toolbar')!;
+		const verticalScrollbar = widget.domNode.querySelector<HTMLElement>('.scrollbar.vertical')!;
+		const initial = {
+			rowHeight: detailRow.getBoundingClientRect().height,
+			detailTop: detail.getBoundingClientRect().top,
+			toolbarDisplay: mainWindow.getComputedStyle(toolbar).display,
+			toolbarVisibility: mainWindow.getComputedStyle(toolbar).visibility,
+			toolbarMarginRight: mainWindow.getComputedStyle(toolbar).marginRight,
+		};
+		detailRow.classList.add('focused');
+		const focused = {
+			rowHeight: detailRow.getBoundingClientRect().height,
+			detailTop: detail.getBoundingClientRect().top,
+			toolbarDisplay: mainWindow.getComputedStyle(toolbar).display,
+			toolbarVisibility: mainWindow.getComputedStyle(toolbar).visibility,
+			toolbarMarginRight: mainWindow.getComputedStyle(toolbar).marginRight,
+			clearsScrollbar: detailRow.getBoundingClientRect().right - toolbar.getBoundingClientRect().right >= verticalScrollbar.getBoundingClientRect().width,
+		};
+
+		assert.deepStrictEqual({
+			rows: rows.slice(0, 2).map(row => ({
+				hasDetail: row.classList.contains('has-detail'),
+				hasToolbar: row.classList.contains('has-toolbar'),
+			})),
+			initial,
+			focused,
+		}, {
+			rows: [
+				{ hasDetail: false, hasToolbar: false },
+				{ hasDetail: true, hasToolbar: true },
+			],
+			initial: {
+				rowHeight: 48,
+				detailTop: initial.detailTop,
+				toolbarDisplay: 'flex',
+				toolbarVisibility: 'hidden',
+				toolbarMarginRight: '10px',
+			},
+			focused: {
+				rowHeight: 48,
+				detailTop: initial.detailTop,
+				toolbarDisplay: 'flex',
+				toolbarVisibility: 'visible',
+				toolbarMarginRight: '10px',
+				clearsScrollbar: true,
+			},
+		});
+	});
+
 	test('keeps titled separator above first filtered match', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [
@@ -387,6 +473,38 @@ suite('ActionListWidget', () => {
 		typeFilter(widget, 'beta');
 
 		assert.deepStrictEqual(getVisibleRowText(widget), ['Provider B', 'beta']);
+	});
+
+	test('excludes separators from accessible list positions after filtering', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [
+				action('selected'),
+				separator(),
+				action('alpha'),
+				action('beta'),
+			],
+		});
+		const getAriaPositions = () => Array.from(widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row[role="option"]')).map(row => ({
+			label: row.getAttribute('aria-label'),
+			setSize: row.getAttribute('aria-setsize'),
+			posInSet: row.getAttribute('aria-posinset'),
+		}));
+
+		const initial = getAriaPositions();
+		typeFilter(widget, 'a');
+		const filtered = getAriaPositions();
+
+		assert.deepStrictEqual({ initial, filtered }, {
+			initial: [
+				{ label: 'selected', setSize: '3', posInSet: '1' },
+				{ label: 'alpha', setSize: '3', posInSet: '2' },
+				{ label: 'beta', setSize: '3', posInSet: '3' },
+			],
+			filtered: [
+				{ label: 'alpha', setSize: '2', posInSet: '1' },
+				{ label: 'beta', setSize: '2', posInSet: '2' },
+			],
+		});
 	});
 
 	test('leaves room for action widget chrome when clamping dynamic height', () => withWindowInnerHeight(300, () => {

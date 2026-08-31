@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient, CopilotClientOptions, CopilotSession, GitHubTelemetryNotification, PermissionMode, PermissionRequest, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotClientOptions, CopilotSession, GitHubTelemetryNotification, PermissionAllowAllMode, PermissionRequest, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, TypedSessionEventHandler } from '@github/copilot-sdk';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
@@ -34,7 +34,7 @@ import type { IByokLmBridgeConnection, IByokLmModelInfo } from '../../common/age
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
-import { AgentHostSessionOpenTelemetry, IAgentHostSessionOpenTelemetry } from '../../node/agentHostSessionOpenTelemetry.js';
+import { IAgentHostSessionOpenTelemetry } from '../../node/agentHostSessionOpenTelemetry.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
@@ -286,6 +286,9 @@ class TestAgentHostGitService implements IAgentHostGitService {
 	async branchExists(_repositoryRoot: URI, branchName: string): Promise<boolean> {
 		return this.existingBranches.has(branchName);
 	}
+	async createBranch(_workingDirectory: URI, branchName: string): Promise<void> {
+		this.existingBranches.add(branchName);
+	}
 	async hasUncommittedChanges(workingDirectory: URI): Promise<boolean> {
 		return this.dirtyWorkingDirectories.has(workingDirectory.fsPath);
 	}
@@ -438,7 +441,7 @@ interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'lis
 	};
 }
 
-type TestCopilotSessionMetadata = Awaited<ReturnType<ITestCopilotClient['listSessions']>>[number] & { readonly clientName?: string };
+type TestCopilotSessionMetadata = Awaited<ReturnType<ITestCopilotClient['listSessions']>>[number] & { readonly clientName?: string; readonly name?: string };
 
 interface ITestCopilotSessionOptions {
 	readonly clientName?: string;
@@ -593,10 +596,6 @@ interface ICredentialUpdateSession {
 class MockCopilotSession {
 	readonly sessionId = 'test-session-1';
 	readonly rpc = {
-		eventLog: {
-			registerInterest: async () => ({ handle: 'sampling-interest' }),
-			releaseInterest: async () => ({ success: true }),
-		},
 		options: {
 			update: async () => ({ success: true }),
 		},
@@ -604,7 +603,7 @@ class MockCopilotSession {
 			setCredentials: async () => ({ success: true, copilotUserResolved: true }),
 		},
 		permissions: {
-			setMode: async ({ mode }: { mode: PermissionMode }) => ({ success: true, mode }),
+			setAllowAll: async ({ mode }: { mode: PermissionAllowAllMode }) => ({ success: true, mode }),
 		},
 	};
 	private readonly _handlers = new Set<SessionEventHandler>();
@@ -918,7 +917,17 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	const copilotApiService = options?.copilotApiService ?? new TestCopilotApiService();
 	services.set(ICopilotApiService, copilotApiService);
 	services.set(ITelemetryService, telemetryService);
-	services.set(IAgentHostSessionOpenTelemetry, disposables.add(new AgentHostSessionOpenTelemetry(telemetryService)));
+	services.set(IAgentHostSessionOpenTelemetry, {
+		_serviceBrand: undefined,
+		withSubscription: async (_resource, operation) => operation({
+			servedFromMemory: undefined,
+			setServedFromMemory: () => { },
+			restoreStarted: () => { },
+			restoreCompleted: () => { },
+		}),
+		withSdkResume: async (_session, operation) => operation(),
+		sdkResumeFallbackCreated: () => { },
+	});
 	if (options?.environmentServiceRegistration !== 'none') {
 		const environmentService = {
 			_serviceBrand: undefined,
@@ -1389,6 +1398,39 @@ suite('CopilotAgent', () => {
 					isVscodeTeamMember: true,
 				}],
 			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('pushes the account internal signal to telemetry on authentication', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		copilotApiService.restrictedTelemetryContexts.set('internal-token', {
+			restrictedTelemetryEnabled: false, // internal is independent of the restricted opt-in
+			trackingId: 'internal-tid',
+			telemetryEndpoint: undefined,
+			isInternal: true,
+			userName: 'octocat',
+			isVscodeTeamMember: true,
+		});
+		const telemetryService = disposables.add(new class extends AgentHostTelemetryService {
+			readonly internalContexts: (IAgentHostInternalTelemetryContext | undefined)[] = [];
+			override setInternalTelemetryContext(context: IAgentHostInternalTelemetryContext | undefined): void {
+				this.internalContexts.push(context);
+				super.setInternalTelemetryContext(context);
+			}
+		}(NullTelemetryService));
+		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), copilotApiService, telemetryService }) as TestableCopilotAgent;
+		try {
+			await agent.authenticate('https://api.github.com', 'internal-token');
+			for (let i = 0; i < 100 && telemetryService.internalContexts.length < 2; i++) {
+				await Promise.resolve();
+			}
+
+			assert.deepStrictEqual(telemetryService.internalContexts, [
+				undefined, // cleared until `/copilot_internal/user` resolves
+				{ isInternal: true, trackingId: 'internal-tid', userName: 'octocat', isVscodeTeamMember: true },
+			]);
 		} finally {
 			await disposeAgent(agent);
 		}
@@ -5510,7 +5552,7 @@ suite('CopilotAgent', () => {
 
 	suite('listSessions legacy-CLI surfacing (migration)', () => {
 
-		test('signals extension-host chats only after internal migration is enabled', async () => {
+		test('ignores a runtime enable of the migration setting (frozen until reload)', async () => {
 			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/migration-event-home-`));
 			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/migration-event-cwd-`);
 			const sessionId = 'migration-event';
@@ -5525,16 +5567,13 @@ suite('CopilotAgent', () => {
 				}
 				assert.deepStrictEqual([...discoveredChats], []);
 
+				// The gate is snapshotted at startup, so enabling it at runtime has no
+				// effect until a window reload restarts the process.
 				configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
-				for (let i = 0; i < 50 && discoveredChats.length === 0; i++) {
+				for (let i = 0; i < 50; i++) {
 					await timeout(0);
 				}
-				configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: false });
-				configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
-				for (let i = 0; i < 50 && discoveredChats.length < 2; i++) {
-					await timeout(0);
-				}
-				assert.deepStrictEqual(discoveredChats.map(chats => chats.map(chat => sessionIdOfChat(chat.chat))), [[sessionId], [sessionId]]);
+				assert.deepStrictEqual([...discoveredChats], []);
 			} finally {
 				listener.dispose();
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
@@ -5569,7 +5608,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('does not signal extension-host chats when migration is disabled during discovery', async () => {
+		test('ignores a runtime disable of the migration setting during discovery (frozen until reload)', async () => {
 			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/disabled-during-migration-event-home-`));
 			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/disabled-during-migration-event-cwd-`);
 			const sessionId = 'disabled-during-migration-event';
@@ -5588,12 +5627,14 @@ suite('CopilotAgent', () => {
 			const listener = agent.onDidDiscoverChats(chats => discoveredChats.push(chats));
 			try {
 				await listStarted.p;
+				// The gate was snapshotted as enabled at startup, so disabling it mid
+				// discovery is ignored: the adoptable chat still surfaces.
 				configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: false });
 				releaseList.complete();
-				for (let i = 0; i < 20; i++) {
+				for (let i = 0; i < 50 && discoveredChats.length === 0; i++) {
 					await timeout(0);
 				}
-				assert.deepStrictEqual(discoveredChats, []);
+				assert.deepStrictEqual(discoveredChats.flatMap(chats => chats.map(chat => sessionIdOfChat(chat.chat))), [sessionId]);
 			} finally {
 				listener.dispose();
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
@@ -11851,7 +11892,7 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual(
 					{ first, second, configValues },
-					{ first: { adopted: true, eligible: true, reason: 'adopted', listVisible: { isRead: true } }, second: { adopted: false, eligible: false, native: true, reason: 'alreadyNative' }, configValues: JSON.stringify({ [SessionConfigKey.Isolation]: 'folder' }) },
+					{ first: { adopted: true, eligible: true, reason: 'adopted', listVisible: { title: 'SDK legacy-adopt', titleSource: 'auto', isRead: true } }, second: { adopted: false, eligible: false, native: true, reason: 'alreadyNative' }, configValues: JSON.stringify({ [SessionConfigKey.Isolation]: 'folder' }) },
 				);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
@@ -11914,7 +11955,7 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual(
 					{ adopted, archived },
-					{ adopted: { adopted: true, eligible: true, reason: 'adopted', listVisible: { isRead: true } }, archived: 'true' },
+					{ adopted: { adopted: true, eligible: true, reason: 'adopted', listVisible: { title: 'SDK legacy-archived', titleSource: 'auto', isRead: true } }, archived: 'true' },
 				);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
@@ -11952,7 +11993,7 @@ suite('CopilotAgent', () => {
 				assert.deepStrictEqual(
 					{ adopted, usages },
 					{
-						adopted: { adopted: true, eligible: true, reason: 'adopted', listVisible: { isRead: true } },
+						adopted: { adopted: true, eligible: true, reason: 'adopted', listVisible: { title: 'SDK legacy-credits', titleSource: 'auto', isRead: true } },
 						usages: [
 							['evt-1', JSON.stringify({ model: 'gpt-5.4', _meta: { copilotUsage: { totalNanoAiu: 1_500_000_000 } } })],
 							['evt-2', JSON.stringify({ model: 'gpt-5.4-mini', _meta: { copilotUsage: { totalNanoAiu: 0 } } })],
@@ -11972,6 +12013,7 @@ suite('CopilotAgent', () => {
 			const sessionId = 'legacy-titled';
 			const session = AgentSession.uri('copilotcli', sessionId);
 			const sessionDataService = disposables.add(new TestSessionDataService());
+			// No SDK `name`: the staged custom title is the adopted title (it beats the summary).
 			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
 			try {
@@ -12007,6 +12049,66 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('prefers the legacy session name over the staged custom title on adoption', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/adopt-cwd-`);
+			const sessionId = 'legacy-named';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			// name must win over both the staged custom title and the summary.
+			const client = new TestCopilotClient([{ ...sdkSession(sessionId, workingDirectory), name: 'Telemetry analysis for Agents window' }]);
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await writeExtensionHostMarker(userHome, sessionId, { origin: 'vscode', customTitle: 'Staged VS Code Title' });
+
+				const adopted = await ensureDefaultChatAdopted(agent, session);
+
+				const db = await sessionDataService.tryOpenDatabase(session);
+				const title = await db?.object.getMetadata('customTitle');
+				db?.dispose();
+
+				assert.deepStrictEqual(
+					{ adopted, title },
+					{ adopted: { adopted: true, eligible: true, reason: 'adopted', listVisible: { title: 'Telemetry analysis for Agents window', titleSource: 'auto', isRead: true } }, title: 'Telemetry analysis for Agents window' },
+				);
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		test('falls back to the SDK summary as the adopted title when there is no custom title or name', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/adopt-cwd-`);
+			const sessionId = 'legacy-summary-only';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			// summary is the last title source when there is no custom title or name.
+			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await writeExtensionHostMarker(userHome, sessionId);
+
+				const adopted = await ensureDefaultChatAdopted(agent, session);
+
+				const db = await sessionDataService.tryOpenDatabase(session);
+				const title = await db?.object.getMetadata('customTitle');
+				db?.dispose();
+
+				assert.deepStrictEqual(
+					{ adopted, title },
+					{ adopted: { adopted: true, eligible: true, reason: 'adopted', listVisible: { title: `SDK ${sessionId}`, titleSource: 'auto', isRead: true } }, title: `SDK ${sessionId}` },
+				);
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
 		test('marks the adopted session read so it is not surfaced as unread on open', async () => {
 			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
 			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/adopt-cwd-`);
@@ -12027,7 +12129,7 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual(
 					{ adopted, isRead },
-					{ adopted: { adopted: true, eligible: true, reason: 'adopted', listVisible: { isRead: true } }, isRead: 'true' },
+					{ adopted: { adopted: true, eligible: true, reason: 'adopted', listVisible: { title: 'SDK legacy-read', titleSource: 'auto', isRead: true } }, isRead: 'true' },
 				);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
@@ -12106,7 +12208,7 @@ suite('CopilotAgent', () => {
 
 				const adopted = await ensureDefaultChatAdopted(agent, session);
 
-				assert.deepStrictEqual(adopted, { adopted: true, eligible: true, reason: 'adopted', listVisible: { isRead: true } });
+				assert.deepStrictEqual(adopted, { adopted: true, eligible: true, reason: 'adopted', listVisible: { title: 'SDK legacy-originless', titleSource: 'auto', isRead: true } });
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await fs.rm(workingDirectory, { recursive: true, force: true });

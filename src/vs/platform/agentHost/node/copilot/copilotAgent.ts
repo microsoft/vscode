@@ -31,7 +31,7 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { INativeEnvironmentService } from '../../../../platform/environment/common/environment.js';
-import { workspacelessScratchDir } from '../workspacelessScratchDir.js';
+import { workspacelessScratchDir } from '../../common/workspacelessScratchDir.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { IAgentHostReviewService } from '../../common/agentHostReviewService.js';
@@ -64,7 +64,7 @@ import { ActiveClientToolSet, structuralToolsEqual } from '../activeClientState.
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostManagedSettingsService } from '../agentHostManagedSettingsService.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
-import { SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../shared/persistSessionMetadata.js';
+import { AGENT_HOST_TITLE_SOURCE_AUTO, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../shared/persistSessionMetadata.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { applyMcpServerEnablement, buildMcpTopLevelCustomizationId, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
@@ -967,21 +967,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			);
 		}));
 		this._register(this._configurationService.onDidRootConfigChange(() => {
-			const enabled = this._isMigrateLegacyCopilotCliEnabled();
-			if (enabled !== this._lastMigrateLegacyEnabled) {
-				this._lastMigrateLegacyEnabled = enabled;
-				if (enabled) {
-					// Only the adoptable legacy extension-host half of discovery is
-					// gated on this setting, so a fresh pass is needed to surface it.
-					void this._runCopilotChatDiscovery();
-				} else {
-					for (const [chat, discovered] of this._discoveredChats) {
-						if (!discovered.external) {
-							this._discoveredChats.delete(chat);
-						}
-					}
-				}
-			}
+			// The migrate-legacy gate is snapshotted at startup (a change requires a
+			// window reload), so nothing reacts to it here; only BYOK models refresh.
 			this._refreshByokModels();
 		}));
 
@@ -1022,7 +1009,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _lastStartupConfig: CopilotAgentStartupConfig;
-	private _lastMigrateLegacyEnabled: boolean = this._isMigrateLegacyCopilotCliEnabled();
+	private _migrateLegacyEnabledSnapshot: boolean | undefined;
 
 	private _isSessionSyncEnabled(): boolean {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostSessionSyncEnabledConfigKey) === true;
@@ -1057,7 +1044,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _isMigrateLegacyCopilotCliEnabled(): boolean {
-		return this._configurationService.getRootValue(platformRootSchema, AgentHostMigrateLegacyCopilotCliEnabledConfigKey) === true;
+		// Frozen at startup: changing the setting requires a window reload, so a
+		// single discovery pass sees one stable gate value for the process lifetime.
+		return this._migrateLegacyEnabledSnapshot ??= this._configurationService.getRootValue(platformRootSchema, AgentHostMigrateLegacyCopilotCliEnabledConfigKey) === true;
 	}
 
 	private _readClientStartupConfig(): CopilotAgentStartupConfig {
@@ -1639,6 +1628,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._telemetryService.setRestrictedTelemetryEnabled(rtEnabled);
 			this._telemetryService.setCopilotTrackingId(context?.trackingId);
 			this._telemetryService.setRestrictedTelemetryEndpoint(context?.telemetryEndpoint);
+			// Marks the account as internal, which is separate from the `rt` opt-in above.
+			this._telemetryService.setInternalTelemetryContext(context && {
+				isInternal: context.isInternal === true,
+				trackingId: context.trackingId,
+				userName: context.userName,
+				isVscodeTeamMember: context.isVscodeTeamMember === true,
+			});
 		}
 	}
 
@@ -3354,7 +3350,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	async ensureChatAdopted(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatAdoptionResult> {
 		const session = resolveAgentChatContext(context, chat).configurationResource;
 		const sessionId = AgentSession.id(session);
-		return this._queueSession(sessionId, async () => {
+		return this._queueSession(sessionId, async (): Promise<IAgentChatAdoptionResult> => {
 			// A genuine native / already-adopted session always has a persisted
 			// working directory. The session DB FILE can also exist without any
 			// real metadata (checkpoint / changeset / git services create it via
@@ -3400,9 +3396,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 				await projectFromCopilotContext({ cwd: (adoptedWorktree?.repositoryRoot ?? workingDirectory).fsPath }, this._gitService),
 				sessionId,
 			);
-			// Carry over the user-chosen session name (EH `customTitle`) so the
-			// adopted session keeps its title instead of regenerating one.
+			// Title precedence mirrors the extension's getSessionTitleImpl: the CLI `name`, then the VS Code staged title, then the summary.
 			const customTitle = await this._readExtensionHostCliCustomTitle(sessionId);
+			// The SDK's typed metadata omits `name`; it is present at runtime as the `workspace.yaml` title.
+			const sdkName = (sdkMetadata as { readonly name?: string } | undefined)?.name;
+			const cliName = typeof sdkName === 'string' && sdkName.trim() ? sdkName.trim() : undefined;
+			const cliSummary = typeof sdkMetadata?.summary === 'string' && sdkMetadata.summary.trim() ? sdkMetadata.summary.trim() : undefined;
+			const adoptedTitle = cliName ?? customTitle ?? cliSummary;
 			const archived = await this._isExtensionHostCliSessionArchived(sessionId);
 			if (archived === undefined) {
 				// Adoption commits the archived state, and the extension host stops listing
@@ -3419,23 +3419,24 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// a git repo would otherwise default to worktree and show a spurious
 			// "Creating worktree…".
 			await this._storeSessionMetadata(session, undefined, workingDirectory, [workingDirectory], workingDirectory, project, project !== undefined, { [SessionConfigKey.Isolation]: 'folder' }, archived, /* ehcliAdopted */ true);
-			const listVisible = customTitle !== undefined
-				? { title: customTitle, titleSource: 'user' as const, isRead: true }
+			const titleSource: 'user' | 'auto' = adoptedTitle === customTitle ? 'user' : AGENT_HOST_TITLE_SOURCE_AUTO;
+			const listVisible: IAgentChatAdoptionResult['listVisible'] = adoptedTitle !== undefined
+				? { title: adoptedTitle, titleSource, isRead: true }
 				: { isRead: true };
 			const metadataRef = this._sessionDataService.openDatabase(session);
 			try {
 				await metadataRef.object.setMetadataValues({
 					[AH_META_IS_READ_DB_KEY]: 'true',
-					...(customTitle !== undefined ? {
-						[SESSION_CUSTOM_TITLE_KEY]: customTitle,
-						[SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user',
+					...(adoptedTitle !== undefined ? {
+						[SESSION_CUSTOM_TITLE_KEY]: adoptedTitle,
+						[SESSION_CUSTOM_TITLE_SOURCE_KEY]: titleSource,
 					} : {}),
 				});
 			} finally {
 				metadataRef.dispose();
 			}
 			await this._adoptLegacyTurnUsage(session, sessionId);
-			this._logService.info(`[Copilot] Adopted legacy session ${sessionId}: project=${project ? project.uri.fsPath : '(unresolved)'} archived=${archived} customTitle=${customTitle !== undefined} worktreeBridged=${!!adoptedWorktree}`);
+			this._logService.info(`[Copilot] Adopted legacy session ${sessionId}: project=${project ? project.uri.fsPath : '(unresolved)'} archived=${archived} title=${adoptedTitle !== undefined ? (cliName ? 'name' : customTitle ? 'custom' : 'summary') : 'none'} worktreeBridged=${!!adoptedWorktree}`);
 			return { adopted: true, eligible: true, reason: 'adopted', listVisible, ...(adoptedWorktree ? { worktree: adoptedWorktree } : {}) };
 		});
 	}
