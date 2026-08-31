@@ -94,7 +94,8 @@ import { UndoRedoService } from '../../../../platform/undoRedo/common/undoRedoSe
 import { IUserDataProfile } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IUserInteractionService, MockUserInteractionService } from '../../../../platform/userInteraction/browser/userInteractionService.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
-import { IAnyWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
+import { IAnyWorkspaceIdentifier, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { TestContextService } from '../../common/workbenchTestServices.js';
 import { TestMenuService } from '../workbenchTestServices.js';
 import { IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
@@ -110,6 +111,7 @@ import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../..
 // eslint-disable-next-line local/code-import-patterns
 import { ICodeReviewService, PRReviewStateKind } from '../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
 import { constObservable } from '../../../../base/common/observable.js';
+import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 
 // Editor
 import { ITextModel } from '../../../../editor/common/model.js';
@@ -700,6 +702,11 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		markPRReviewCommentConverted: () => { },
 	});
 
+	definePartialInstance(IPreferencesService, {
+		_serviceBrand: undefined,
+		openSettings: async () => undefined,
+	});
+
 	// Allow additional services to override defaults
 	options?.additionalServices?.({
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -769,11 +776,15 @@ export function registerWorkbenchServices(registration: ServiceRegistration): vo
 		getSeparator: () => '/',
 		registerFormatter: () => ({ dispose: () => { } }),
 		onDidChangeFormatters: () => ({ dispose: () => { } }),
+		getUriHome: () => undefined,
 		registerCachedFormatter: () => ({ dispose: () => { } }),
 		_serviceBrand: undefined,
 		getHostTooltip: () => '',
 	});
 
+	// A single-folder workspace, so components that render paths relative to a
+	// workspace folder have one to resolve against.
+	registration.define(IWorkspaceContextService, TestContextService);
 	registration.define(IMenuService, TestMenuService);
 	registration.define(IActionViewItemService, NullActionViewItemService);
 

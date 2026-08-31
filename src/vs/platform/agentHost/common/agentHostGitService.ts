@@ -254,6 +254,8 @@ export interface IAgentHostGitService {
 	 * recreating the worktree.
 	 */
 	branchExists(repositoryRoot: URI, branchName: string): Promise<boolean>;
+	/** Creates a new branch and optionally checks it out while preserving the working tree. */
+	createBranch(workingDirectory: URI, branchName: string, options?: { readonly checkout?: boolean }): Promise<void>;
 	/**
 	 * Returns true when the working tree has any tracked, staged, or
 	 * untracked changes. Used by archive cleanup to skip removing a

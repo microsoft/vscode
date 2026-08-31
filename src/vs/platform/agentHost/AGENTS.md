@@ -17,10 +17,8 @@
 > All waves A–D and gates G-B1, G-C1, G-C2, G-D1 are done. Codex, Claude, and
 > Copilot all use the unified orchestrator path.
 >
-> Codex advertises `multipleChats: { fork: true }`. Host-only capability checks
-> and provider-independent conformance scenarios run in replay; model-backed
-> Codex peer/fork parity remains gated by `supportsMultipleChatsE2E` /
-> `supportsChatForkE2E` until the documented live-recording defect is fixed.
+> Codex advertises `multipleChats: { fork: true, sideChat: true }`. Model-backed
+> peer, fork, and side-chat parity scenarios run in deterministic replay.
 >
 > The *operational* chat surface (send/abort/model/agent/history) is fully
 > chat-addressed and uniform across harnesses. Session ownership lives in the
@@ -230,7 +228,7 @@ Claude and Codex each use one memoized initial path: resolve/download the SDK, e
 
 If a provider cannot enumerate yet, its initial discovery attempt emits nothing; once ready, it emits the resulting chats through `onDidDiscoverChats`. Registry provenance is projected into `IAgentSessionMetadata._meta` with `readSessionExternal` / `withSessionExternal`, and the normal AHP listSessions round trip carries it to the Sessions provider. There is no external-specific UI behavior.
 
-`listSessions()` coalesces concurrent computations per external-sessions mode, so the burst of calls a multi-window restore produces shares one registry traversal instead of one per window. The shared entry records the registry epoch it started at and is invalidated by every registry mutation. A computation whose epoch changes restarts against the new registry, so both existing and later callers receive a complete post-mutation snapshot; each caller receives its own array.
+`listSessions()` coalesces concurrent computations per external-sessions mode, so the burst of calls a multi-window restore produces shares one registry traversal instead of one per window. The shared entry records the registry epoch it started at and is invalidated by every registry mutation, so a caller arriving after a mutation starts a fresh pass rather than joining a possibly pre-mutation one; each caller receives its own array.
 
 Legacy registry migration uses the `listChatsToMigrate()` contract. An array is authoritative even when empty. `undefined` means the catalog is unavailable and must not advance migration markers; Agent Service retries an unavailable registration-time catalog once before listing, and persistent unavailability rejects aggregate `listSessions()` with a typed provider-catalog error so clients preserve their last successful snapshots. `AgentChatMigrationDeferred` means the catalog cannot be enumerated until an external readiness action, such as downloading an optional SDK: it does not advance the provider marker and does not block healthy providers' aggregate listing. A provider's later discovery signal force-retries its migration partition before additively registering the signal's unknown/external entries, and a subsequent list refresh can retry a still-deferred provider. `BaseAgentHostSessionsProvider` retries failures with exponential backoff; `AgentHostSessionListStore` leaves its cache invalid and retries on the next controller, lifecycle, or workspace refresh trigger. Replacement retry ownership is compare-and-swap single-flight: overlapping list computations that observed the same failed attempt await the first caller's installed retry rather than queueing another provider enumeration. Successful providers retain their completed migration state when a sibling provider is unavailable.
 
@@ -262,6 +260,11 @@ directly and can resolve a unique project display name, preferring the
 configured project root over a transient worktree. Ambiguous names require an
 explicit project URI.
 
+An independent session inherits the creating session's host-owned isolation
+selection independently of provider-owned configuration. The target workspace
+still constrains the effective selection, so a folder that cannot support Git
+worktrees resolves to folder isolation.
+
 ---
 
 ## 4. Capabilities Gating
@@ -285,10 +288,11 @@ The agent declares these in `getDescriptor().capabilities` (`common/agent.ts:IAg
 
 UI code gates "Add Chat" and "Fork" actions on those context keys. No code inside `AgentService` or `AgentHostStateManager` switches on provider id to gate features. `AgentService.createChat` throws synchronously when `!provider.chats` (the structural guard that replaces a capability check in the orchestrator).
 
-Claude, Copilot, and Codex advertise `multipleChats: { fork: true }`. Codex does
-not advertise `sideChat`; side-chat context/restore, subagent E2E, and native
-streaming file-creation coverage remain independently disabled and must not be
-inferred from its peer-chat/fork support.
+Claude, Copilot, and Codex advertise
+`multipleChats: { fork: true, sideChat: true }`. Codex side-chat context and
+restore run in deterministic replay. Subagent E2E and native streaming
+file-creation coverage remain independently disabled and must not be inferred
+from its peer-chat/fork/side-chat support.
 
 ---
 

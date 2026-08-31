@@ -6,13 +6,17 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { Button, IButtonStyles } from '../../../../base/browser/ui/button/button.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
-import { Disposable, DisposableStore, IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, IReader, ITransaction, autorun, autorunWithStore, derived, disposableObservableValue, observableValue, transaction } from '../../../../base/common/observable.js';
-import { CompressedVirtualizedScrollView, ICompressedVirtualizedScrollItem, ICompressedVirtualizedScrollViewContext } from '../../../../editor/browser/widget/multiDiffEditor/compressedVirtualizedScrollView.js';
+import { ValueWithChangeEvent } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable, ITransaction, autorun, autorunWithStore, constObservable, derived, observableValue, transaction } from '../../../../base/common/observable.js';
+import { CompressedVirtualizedScrollView, ICompressedVirtualizedScrollViewContext } from '../../../../editor/browser/widget/multiDiffEditor/compressedVirtualizedScrollView.js';
 import { computeCompressedVirtualizedScrollLayout, ICompressedVirtualizedScrollLayout } from '../../../../editor/browser/widget/multiDiffEditor/compressedVirtualizedScrollLayout.js';
-import { IObjectData, IPooledObject, ObjectPool } from '../../../../editor/browser/widget/multiDiffEditor/objectPool.js';
+import { IMultiDiffEditorModel } from '../../../../editor/browser/widget/multiDiffEditor/model.js';
+import { IVirtualizedItemBindingContext, ManagedVirtualizedItem, VirtualizedItemBinding, VirtualizedItemManager, VirtualizedItemTemplate } from '../../../../editor/browser/widget/multiDiffEditor/virtualizedItemManager.js';
 import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
+import { TestDiffProviderFactoryService } from '../../../../editor/test/browser/diff/testDiffProviderFactoryService.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from './fixtureUtils.js';
+import { createMultiDiffEditorFixtureDocuments, createMultiDiffEditorFixtureServices, createMultiDiffEditorFixtureWidget } from './editor/multiDiffEditorFixtureUtils.js';
 import './multiDiffEditorScroll.fixture.css';
 
 type BindingPhase = 'unbound' | 'binding' | 'projecting' | 'active';
@@ -93,19 +97,15 @@ function createDefaultUnmountLineCountReset(lineCount: number): ISerializedUnmou
 	};
 }
 
-class FixtureItem extends Disposable implements ICompressedVirtualizedScrollItem {
+class FixtureItem extends Disposable {
 	readonly lineCount;
 	readonly topLineCount;
 	readonly bottomLineCount;
 	readonly totalLineCount;
 	readonly fullHeight;
-	readonly maxScroll = observableValue(this, { maxScroll: 0 });
 	readonly actualScrollOffset;
-	private readonly _reportedItemViewportOffset;
-	readonly verticalState;
 	readonly bindingPhase;
-	private readonly _templateRef = this._register(disposableObservableValue<IReference<FixtureTemplate> | undefined>(this, undefined));
-	readonly templateId = derived(this, reader => this._templateRef.read(reader)?.object.id);
+	readonly templateId = observableValue<number | undefined>(this, undefined);
 	readonly geometryOscillationEnabled;
 	readonly geometryOscillationTopLineCountA;
 	readonly geometryOscillationTopLineCountB;
@@ -118,16 +118,13 @@ class FixtureItem extends Disposable implements ICompressedVirtualizedScrollItem
 	readonly resetLineCountOnUnmount;
 	readonly unmountedLineCount;
 	private readonly _pendingGeometryUpdate = this._register(new MutableDisposable());
-	private readonly _pendingMountLineCountUpdate = this._register(new MutableDisposable());
-	private _lastRender: { renderedRange: OffsetRange; scrollOffset: number; width: number; renderedViewport: OffsetRange } | undefined;
-	private _isMounting = false;
 
 	constructor(
 		public readonly label: string,
 		lineCount: number,
-		private readonly _getObjectPool: () => ObjectPool<FixtureTemplateData, FixtureTemplate>,
 		private readonly _getScrollContext: () => ICompressedVirtualizedScrollViewContext,
 		private readonly _onWillChangeLineCount: (action: string) => void,
+		private readonly _onReplayMount: (item: FixtureItem) => void,
 		actualScrollOffset = 0,
 		bindingPhase: BindingPhase = 'active',
 		geometryOscillation = createDefaultGeometryOscillation(),
@@ -143,11 +140,6 @@ class FixtureItem extends Disposable implements ICompressedVirtualizedScrollItem
 		this.totalLineCount = derived(this, reader => this.topLineCount.read(reader) + this.lineCount.read(reader) + this.bottomLineCount.read(reader));
 		this.fullHeight = derived(this, reader => lineCountToHeight(this.totalLineCount.read(reader)));
 		this.actualScrollOffset = observableValue(this, actualScrollOffset);
-		this._reportedItemViewportOffset = observableValue(this, actualScrollOffset);
-		this.verticalState = derived(this, reader => ({
-			contentHeight: this.fullHeight.read(reader),
-			itemViewportOffset: this._reportedItemViewportOffset.read(reader),
-		}));
 		this.bindingPhase = observableValue<BindingPhase>(this, bindingPhase);
 		this.geometryOscillationEnabled = observableValue(this, geometryOscillation.enabled);
 		this.geometryOscillationTopLineCountA = observableValue(this, geometryOscillation.topLineCountA);
@@ -162,40 +154,8 @@ class FixtureItem extends Disposable implements ICompressedVirtualizedScrollItem
 		this.unmountedLineCount = observableValue(this, unmountLineCountReset.lineCount);
 	}
 
-	render(renderedRange: OffsetRange, scrollOffset: number, width: number, renderedViewport: OffsetRange): void {
-		this._lastRender = { renderedRange, scrollOffset, width, renderedViewport };
-		let ref = this._templateRef.get();
-		if (!ref) {
-			if (this._isMounting) {
-				return;
-			}
-			this._isMounting = true;
-			try {
-				this._pendingMountLineCountUpdate.clear();
-				this._setMountLineCount(this.mountInitialLineCount.get(), `Item ${this.label} mounts with initial line count`);
-				ref = this._getObjectPool().getUnusedObj(new FixtureTemplateData(this));
-				this._templateRef.set(ref, undefined);
-				this._setMountLineCount(this.mountImmediateLineCount.get(), `Item ${this.label} reports synchronous mount line count`);
-				const targetWindow = this.getWindow();
-				const handle = targetWindow.setTimeout(() => {
-					this._setMountLineCount(this.mountDelayedLineCount.get(), `Item ${this.label} reports 200ms mount line count`);
-				}, 200);
-				this._pendingMountLineCountUpdate.value = toDisposable(() => targetWindow.clearTimeout(handle));
-			} finally {
-				this._isMounting = false;
-			}
-		}
-		if (this.bindingPhase.get() === 'active') {
-			transaction(tx => this.setActualScrollOffset(scrollOffset, tx));
-		}
-		ref.object.render(renderedRange, scrollOffset, width, renderedViewport);
-	}
-
 	setActualScrollOffset(value: number, tx: ITransaction): void {
 		this.actualScrollOffset.set(value, tx);
-		if (this.bindingPhase.get() === 'active') {
-			this._reportedItemViewportOffset.set(value, tx);
-		}
 	}
 
 	setLineCount(value: number, tx: ITransaction): void {
@@ -203,13 +163,7 @@ class FixtureItem extends Disposable implements ICompressedVirtualizedScrollItem
 	}
 
 	replayMount(): void {
-		const lastRender = this._lastRender;
-		if (!this._templateRef.get() || !lastRender) {
-			return;
-		}
-		this._clearTemplate();
-		this._resetLineCountAfterUnmount();
-		this.render(lastRender.renderedRange, lastRender.scrollOffset, lastRender.width, lastRender.renderedViewport);
+		this._onReplayMount(this);
 	}
 
 	scheduleGeometryUpdate(update: () => void): void {
@@ -220,48 +174,65 @@ class FixtureItem extends Disposable implements ICompressedVirtualizedScrollItem
 		return dom.getWindow(this._getScrollContext().contentDomNode);
 	}
 
-	hide(): void {
-		const wasMounted = this._templateRef.get() !== undefined;
-		this._clearTemplate();
-		this._lastRender = undefined;
-		if (wasMounted) {
-			this._resetLineCountAfterUnmount();
+	setMountLineCount(lineCount: number, action: string, tx?: ITransaction): void {
+		this._onWillChangeLineCount(action);
+		if (tx) {
+			this.setLineCount(lineCount, tx);
+		} else {
+			transaction(tx => this.setLineCount(lineCount, tx));
 		}
+	}
+
+	resetLineCountAfterUnmount(tx: ITransaction): void {
+		if (this.resetLineCountOnUnmount.get()) {
+			this.setMountLineCount(this.unmountedLineCount.get(), `Item ${this.label} resets line count after unmount`, tx);
+		}
+	}
+}
+
+class FixtureBinding extends VirtualizedItemBinding<FixtureItem> {
+	readonly size = this.item.fullHeight;
+	readonly maxScroll = constObservable({ maxScroll: 0 });
+	readonly shouldKeepAlive = constObservable(false);
+	readonly templateId;
+
+	constructor(
+		item: FixtureItem,
+		private readonly _template: FixtureTemplate,
+	) {
+		super(item);
+		this.templateId = _template.id;
+	}
+
+	scheduleDelayedMeasurement(): void {
+		const targetWindow = this.item.getWindow();
+		const handle = targetWindow.setTimeout(() => {
+			this.item.setMountLineCount(this.item.mountDelayedLineCount.get(), `Item ${this.item.label} reports 200ms mount line count`);
+		}, 200);
+		this._register(toDisposable(() => targetWindow.clearTimeout(handle)));
+	}
+
+	render(renderedRange: OffsetRange, scrollOffset: number, width: number, renderedViewport: OffsetRange): void {
+		if (this.item.bindingPhase.get() === 'active') {
+			transaction(tx => this.item.setActualScrollOffset(scrollOffset, tx));
+		}
+		this._template.renderItem(this.item, renderedRange, scrollOffset, width, renderedViewport);
+	}
+
+	hide(): void {
+		this._template.hide();
 	}
 
 	override dispose(): void {
-		this._clearTemplate();
+		if (this._store.isDisposed) {
+			return;
+		}
+		this._template.unbind(this.item);
 		super.dispose();
 	}
-
-	private _clearTemplate(): void {
-		this._pendingMountLineCountUpdate.clear();
-		this._templateRef.get()?.object.hide();
-		this._templateRef.set(undefined, undefined);
-	}
-
-	private _setMountLineCount(lineCount: number, action: string): void {
-		this._onWillChangeLineCount(action);
-		transaction(tx => this.setLineCount(lineCount, tx));
-	}
-
-	private _resetLineCountAfterUnmount(): void {
-		if (this.resetLineCountOnUnmount.get()) {
-			this._setMountLineCount(this.unmountedLineCount.get(), `Item ${this.label} resets line count after unmount`);
-		}
-	}
 }
 
-class FixtureTemplateData implements IObjectData {
-	constructor(readonly item: FixtureItem) { }
-
-	getId(): unknown {
-		return this.item;
-	}
-}
-
-class FixtureTemplate extends Disposable implements IPooledObject<FixtureTemplateData> {
-	private _data: FixtureTemplateData;
+class FixtureTemplate extends VirtualizedItemTemplate<FixtureItem, FixtureBinding> {
 	private readonly _root;
 	private readonly _header;
 	private readonly _title;
@@ -271,15 +242,14 @@ class FixtureTemplate extends Disposable implements IPooledObject<FixtureTemplat
 	private _lineCount = -1;
 	private _topLineCount = -1;
 	private _bottomLineCount = -1;
+	private _previousItem: FixtureItem | undefined;
 
 	constructor(
 		readonly id: number,
-		data: FixtureTemplateData,
 		context: ICompressedVirtualizedScrollViewContext,
-		private readonly _onDidRebind: (templateId: number, previousItem: FixtureItem, item: FixtureItem) => void,
+		private readonly _onDidRebind: (templateId: number, previousItem: FixtureItem | undefined, item: FixtureItem) => void,
 	) {
 		super();
-		this._data = data;
 		this._root = dom.append(context.contentDomNode, dom.$('.multi-diff-scroll-fixture-row'));
 		this._header = dom.append(this._root, dom.$('.multi-diff-scroll-fixture-row-header'));
 		this._title = dom.append(this._header, dom.$('span.title'));
@@ -290,17 +260,19 @@ class FixtureTemplate extends Disposable implements IPooledObject<FixtureTemplat
 		this._editorContent = dom.append(editorViewport, dom.$('.multi-diff-scroll-fixture-editor-content'));
 	}
 
-	setData(data: FixtureTemplateData): void {
-		const previousItem = this._data.item;
-		this._data = data;
+	protected createBinding(item: FixtureItem, _context: IVirtualizedItemBindingContext): FixtureBinding {
 		this._lineCount = -1;
 		this._topLineCount = -1;
 		this._bottomLineCount = -1;
-		this._onDidRebind(this.id, previousItem, data.item);
+		this._onDidRebind(this.id, this._previousItem, item);
+		item.setMountLineCount(item.mountInitialLineCount.get(), `Item ${item.label} mounts with initial line count`);
+		const binding = new FixtureBinding(item, this);
+		item.setMountLineCount(item.mountImmediateLineCount.get(), `Item ${item.label} reports synchronous mount line count`);
+		binding.scheduleDelayedMeasurement();
+		return binding;
 	}
 
-	render(renderedRange: OffsetRange, scrollOffset: number, width: number, renderedViewport: OffsetRange): void {
-		const item = this._data.item;
+	renderItem(item: FixtureItem, renderedRange: OffsetRange, scrollOffset: number, width: number, renderedViewport: OffsetRange): void {
 		const fullHeight = item.fullHeight.get();
 		const actualOffset = item.actualScrollOffset.get();
 		const lineCount = item.lineCount.get();
@@ -334,6 +306,11 @@ class FixtureTemplate extends Disposable implements IPooledObject<FixtureTemplat
 		this._root.style.visibility = 'hidden';
 	}
 
+	unbind(item: FixtureItem): void {
+		this.hide();
+		this._previousItem = item;
+	}
+
 	override dispose(): void {
 		this._root.remove();
 		super.dispose();
@@ -350,9 +327,9 @@ class MultiDiffScrollFixtureModel extends Disposable {
 	readonly templateBindings = observableValue<readonly string[]>(this, []);
 	readonly layout: IObservable<ICompressedVirtualizedScrollLayout>;
 	readonly serializedState: IObservable<string>;
-	private readonly _scrollView = observableValue<CompressedVirtualizedScrollView<FixtureItem> | undefined>(this, undefined);
+	private readonly _scrollView = observableValue<CompressedVirtualizedScrollView<FixtureVirtualizedItem> | undefined>(this, undefined);
 	private readonly _itemStore = this._register(new DisposableStore());
-	private readonly _objectPool = this._register(new MutableDisposable<ObjectPool<FixtureTemplateData, FixtureTemplate>>());
+	private readonly _itemManager = this._register(new MutableDisposable<VirtualizedItemManager<FixtureItem, FixtureBinding, FixtureTemplate>>());
 	private _scrollContext: ICompressedVirtualizedScrollViewContext | undefined;
 	private _nextTemplateId = 1;
 	private _lastLayout: ICompressedVirtualizedScrollLayout | undefined;
@@ -415,18 +392,28 @@ class MultiDiffScrollFixtureModel extends Disposable {
 		}));
 	}
 
-	attachScrollContext(context: ICompressedVirtualizedScrollViewContext): void {
+	createVirtualizedItems(context: ICompressedVirtualizedScrollViewContext): IObservable<readonly FixtureVirtualizedItem[]> {
 		this._scrollContext = context;
-		this._objectPool.value = new ObjectPool(data => {
-			const templateId = this._nextTemplateId++;
-			this._recordTemplateBinding(`Template #${templateId} created for Item ${data.item.label}`);
-			return new FixtureTemplate(templateId, data, context, (id, previousItem, item) => {
-				this._recordTemplateBinding(`Template #${id} rebound from Item ${previousItem.label} to Item ${item.label}`);
-			});
+		const manager = new VirtualizedItemManager<FixtureItem, FixtureBinding, FixtureTemplate>(this.items, context, {
+			getId: item => item,
+			getTemplateId: () => 'fakeEditor',
+			getUnboundSize: item => item.fullHeight,
+			createTemplate: () => new FixtureTemplate(this._nextTemplateId++, context, (id, previousItem, item) => {
+				this._recordTemplateBinding(previousItem
+					? `Template #${id} rebound from Item ${previousItem.label} to Item ${item.label}`
+					: `Template #${id} created for Item ${item.label}`);
+			}),
+			onDidBind: (binding, tx) => binding.item.templateId.set(binding.templateId, tx),
+			onWillUnbind: (binding, tx) => {
+				binding.item.templateId.set(undefined, tx);
+				binding.item.resetLineCountAfterUnmount(tx);
+			},
 		});
+		this._itemManager.value = manager;
+		return manager.virtualizedItems;
 	}
 
-	attachScrollView(scrollView: CompressedVirtualizedScrollView<FixtureItem>): void {
+	attachScrollView(scrollView: CompressedVirtualizedScrollView<FixtureVirtualizedItem>): void {
 		scrollView.setScrollPosition({ scrollTop: this.scrollTop.get() });
 		this._scrollView.set(scrollView, undefined);
 		this._register(autorun(reader => {
@@ -497,6 +484,10 @@ class MultiDiffScrollFixtureModel extends Disposable {
 
 	replayItemMount(index: number): void {
 		this.items.get()[index]?.replayMount();
+	}
+
+	private _rebind(item: FixtureItem): void {
+		this._itemManager.value?.virtualizedItems.get().find(candidate => candidate.item === item)?.rebind();
 	}
 
 	setBindingPhase(index: number, phase: BindingPhase): void {
@@ -662,19 +653,13 @@ class MultiDiffScrollFixtureModel extends Disposable {
 			item.label,
 			item.lineCount,
 			() => {
-				const objectPool = this._objectPool.value;
-				if (!objectPool) {
-					throw new Error('Template pool is not attached.');
-				}
-				return objectPool;
-			},
-			() => {
 				if (!this._scrollContext) {
 					throw new Error('Scroll context is not attached.');
 				}
 				return this._scrollContext;
 			},
 			action => this._transitionAction = action,
+			item => this._rebind(item),
 			item.actualScrollOffset,
 			item.bindingPhase,
 			item.geometryOscillation ?? createDefaultGeometryOscillation(),
@@ -686,10 +671,13 @@ class MultiDiffScrollFixtureModel extends Disposable {
 	}
 
 	override dispose(): void {
+		this._scrollView.get()?.dispose();
 		this._scrollView.set(undefined, undefined);
 		super.dispose();
 	}
 }
+
+type FixtureVirtualizedItem = ManagedVirtualizedItem<FixtureItem, FixtureBinding, FixtureTemplate>;
 
 function createSerializedFixtureItem(
 	label: string,
@@ -913,10 +901,18 @@ export default defineThemedFixtureGroup({ path: 'editor/multiDiff/' }, {
 	TemplatePool: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: [
-			'A 20-item mixed-line-count scenario rendered through the production ObjectPool with only the visible fake editor bound.',
+			'A 20-item mixed-line-count scenario rendered through the production VirtualizedItemManager with only the visible fake editor bound.',
 			'The template pool log shows a template moving from an earlier item to the currently visible item without stale line content.',
 		],
 		render: context => renderMultiDiffScrollFixture(context, 'pooling', 1600),
+	}),
+	RealWidget: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: [
+			'The real MultiDiffEditorWidget next to the same complete-content and compressed-rendering coordinate visualization used by the fake stress fixture.',
+			'The diagnostics show the current layout revision and global leading and trailing scroll slack.',
+		],
+		render: renderRealMultiDiffScrollFixture,
 	}),
 });
 
@@ -934,7 +930,7 @@ function renderMultiDiffScrollFixture(
 	const heading = dom.append(container, dom.$('h1.multi-diff-scroll-fixture-title'));
 	heading.textContent = 'Multi-diff scroll model';
 	const description = dom.append(container, dom.$('p.multi-diff-scroll-fixture-description'));
-	description.textContent = 'The production compressed virtualized scroll view and ObjectPool render controllable fake templates, including mount-time line-count changes, the real scrollbar, smooth scrolling, layout projection, template rebinding, and inner-to-outer scroll feedback.';
+	description.textContent = 'The production compacted virtualized scroll view and item manager render controllable fake templates, including mount-time line-count changes, the real scrollbar, smooth scrolling, layout projection, strict template rebinding, and delayed measurements.';
 
 	const columns = dom.append(container, dom.$('.multi-diff-scroll-fixture-columns'));
 	const controls = dom.append(columns, dom.$('section.multi-diff-scroll-fixture-panel.controls'));
@@ -947,6 +943,79 @@ function renderMultiDiffScrollFixture(
 	if (finalScrollTop !== undefined) {
 		model.setScrollTop(finalScrollTop, 'Initialize scrolled template-pool fixture', false);
 	}
+}
+
+function renderRealMultiDiffScrollFixture({ container, disposableStore, disposableStackStore, theme }: ComponentFixtureContext): void {
+	const viewportHeight = 480;
+	const viewportWidth = 540;
+	container.classList.add('multi-diff-scroll-fixture', 'real-widget');
+
+	const heading = dom.append(container, dom.$('h1.multi-diff-scroll-fixture-title'));
+	heading.textContent = 'Real multi-diff virtualized layout';
+	const description = dom.append(container, dom.$('p.multi-diff-scroll-fixture-description'));
+	description.textContent = 'The production MultiDiffEditorWidget renders through the same compacted layout and strict item-binding infrastructure shown by the coordinate visualization.';
+
+	const columns = dom.append(container, dom.$('.multi-diff-scroll-fixture-columns'));
+	const visualization = dom.append(columns, dom.$('main.multi-diff-scroll-fixture-visualization'));
+	const editorPane = dom.append(visualization, dom.$('.multi-diff-scroll-fixture-editor-pane'));
+	appendSectionHeading(editorPane, 'Real MultiDiffEditorWidget');
+	const viewport = dom.append(editorPane, dom.$('.multi-diff-scroll-fixture-viewport'));
+	viewport.style.width = `${viewportWidth}px`;
+	viewport.style.height = `${viewportHeight}px`;
+	viewport.setAttribute('aria-label', 'Real multi-diff editor');
+
+	const instantiationService = createMultiDiffEditorFixtureServices(disposableStore, theme, new TestDiffProviderFactoryService());
+	const textModels = disposableStackStore.add(new DisposableStore());
+	const { doc1, doc2, doc3 } = createMultiDiffEditorFixtureDocuments(instantiationService, textModels);
+	const widget = disposableStackStore.add(createMultiDiffEditorFixtureWidget(instantiationService, viewport));
+	const model: IMultiDiffEditorModel = {
+		documents: ValueWithChangeEvent.const([doc1, doc2, doc3]),
+	};
+	const viewModel = disposableStackStore.add(widget.createViewModel(model));
+	widget.setViewModel(viewModel);
+	widget.layout(new dom.Dimension(viewportWidth, viewportHeight));
+	disposableStackStore.add(toDisposable(() => widget.setViewModel(undefined)));
+
+	const coordinateState = derived(widget, reader => {
+		const debugState = widget.getLayoutDebugState().read(reader);
+		return {
+			layout: {
+				scrollHeight: debugState.layout.scrollHeight,
+				renderedHeight: debugState.layout.renderedHeight,
+				contentViewport: toCoordinateRange(debugState.layout.contentViewport),
+				renderedViewport: toCoordinateRange(debugState.layout.renderedViewport),
+				items: debugState.items.map(item => ({
+					contentRange: toCoordinateRange(item.layout.contentRange),
+					renderedRange: toCoordinateRange(item.layout.renderedRange),
+					scrollOffset: item.layout.scrollOffset,
+				})),
+			},
+			items: debugState.items.map(item => ({
+				label: item.label,
+				templateId: item.hasTemplate ? 'bound' : undefined,
+			})),
+		};
+	});
+	renderCoordinateVisualization(visualization, constObservable(viewportHeight), coordinateState, disposableStore);
+
+	const diagnostics = dom.append(visualization, dom.$('pre.multi-diff-scroll-fixture-real-diagnostics'));
+	diagnostics.tabIndex = 0;
+	diagnostics.setAttribute('aria-label', 'Current multi-diff layout revision and scroll slack');
+	disposableStore.add(autorun(reader => {
+		const state = widget.getLayoutDebugState().read(reader);
+		diagnostics.textContent = JSON.stringify({
+			revision: state.layout.revision,
+			logicalScrollHeight: state.layout.logicalScrollHeight,
+			scrollHeight: state.layout.scrollHeight,
+			leadingScrollSlack: state.layout.leadingScrollSlack,
+			trailingScrollSlack: state.layout.trailingScrollSlack,
+			geometryEdit: state.geometryEdit,
+		}, undefined, '\t');
+	}));
+}
+
+function toCoordinateRange(range: { readonly start: number; readonly endExclusive: number }): { readonly start: number; readonly endExclusive: number; readonly length: number } {
+	return { ...range, length: range.endExclusive - range.start };
 }
 
 function renderControls(container: HTMLElement, model: MultiDiffScrollFixtureModel, store: DisposableStore): void {
@@ -1141,14 +1210,14 @@ function renderVisualization(container: HTMLElement, model: MultiDiffScrollFixtu
 		viewport,
 		dimension,
 		model.itemGap,
-		context => {
-			model.attachScrollContext(context);
-			return model.items;
-		},
+		context => model.createVirtualizedItems(context),
 	));
 	scrollView.domNode.classList.add('multi-diff-scroll-fixture-scroll-view');
 	viewport.appendChild(scrollView.domNode);
 	model.attachScrollView(scrollView);
+	store.add(autorun(reader => {
+		viewport.style.height = `${model.viewportHeight.read(reader)}px`;
+	}));
 	store.add(dom.addDisposableListener(viewport, dom.EventType.KEY_DOWN, event => {
 		const delta = event.key === 'ArrowDown' ? 40
 			: event.key === 'ArrowUp' ? -40
@@ -1160,21 +1229,53 @@ function renderVisualization(container: HTMLElement, model: MultiDiffScrollFixtu
 			model.setScrollTop(model.scrollTop.get() + delta, `Scroll fixture with ${event.key}`);
 		}
 	}));
+	const coordinateState = derived(model, reader => ({
+		layout: model.layout.read(reader),
+		items: model.items.read(reader).map(item => ({
+			label: item.label,
+			templateId: item.templateId.read(reader),
+		})),
+	}));
+	renderCoordinateVisualization(container, model.viewportHeight, coordinateState, store);
+}
+
+interface ICoordinateVisualizationState {
+	readonly layout: {
+		readonly scrollHeight: number;
+		readonly renderedHeight: number;
+		readonly contentViewport: { readonly start: number; readonly endExclusive: number; readonly length: number };
+		readonly renderedViewport: { readonly start: number; readonly endExclusive: number; readonly length: number };
+		readonly items: readonly {
+			readonly contentRange: { readonly start: number; readonly endExclusive: number; readonly length: number };
+			readonly renderedRange: { readonly start: number; readonly endExclusive: number; readonly length: number };
+			readonly scrollOffset: number;
+		}[];
+	};
+	readonly items: readonly {
+		readonly label: string;
+		readonly templateId: number | string | undefined;
+	}[];
+}
+
+function renderCoordinateVisualization(
+	container: HTMLElement,
+	viewportHeight: IObservable<number>,
+	state: IObservable<ICoordinateVisualizationState>,
+	store: DisposableStore,
+): void {
 	const coordinatePane = dom.append(container, dom.$('.multi-diff-scroll-fixture-coordinate-pane'));
 	appendSectionHeading(coordinatePane, 'Coordinate systems');
 	const coordinateGrid = dom.append(coordinatePane, dom.$('.multi-diff-scroll-fixture-coordinate-grid'));
 	const contentScale = createCoordinateScale(coordinateGrid, 'Complete content');
 	const renderedScale = createCoordinateScale(coordinateGrid, 'Compressed rendering with item-local viewports');
 	store.add(autorun(reader => {
-		const viewportHeight = model.viewportHeight.read(reader);
-		viewport.style.height = `${viewportHeight}px`;
-		const layout = model.layout.read(reader);
-		const items = model.items.read(reader);
-		const coordinateHeight = Math.max(viewportHeight, Math.min(1200, items.length * 60));
+		const height = viewportHeight.read(reader);
+		const value = state.read(reader);
+		const coordinateHeight = Math.max(height, Math.min(1200, value.items.length * 60));
 		contentScale.track.style.height = `${coordinateHeight}px`;
 		renderedScale.track.style.height = `${coordinateHeight}px`;
-		updateCoordinateScale(contentScale, layout, items, 'content', reader);
-		updateCoordinateScale(renderedScale, layout, items, 'rendered', reader);
+		updateCoordinateScale(contentScale, value.layout, value.items, 'content');
+		updateCoordinateScale(renderedScale, value.layout, value.items, 'rendered');
 	}));
 }
 
@@ -1202,10 +1303,9 @@ function createCoordinateScale(container: HTMLElement, title: string): ICoordina
 
 function updateCoordinateScale(
 	scale: ICoordinateScale,
-	layout: ICompressedVirtualizedScrollLayout,
-	items: readonly FixtureItem[],
+	layout: ICoordinateVisualizationState['layout'],
+	items: ICoordinateVisualizationState['items'],
 	kind: 'content' | 'rendered',
-	reader: IReader,
 ): void {
 	while (scale.segments.length > items.length) {
 		scale.segments.pop()!.root.remove();
@@ -1224,7 +1324,7 @@ function updateCoordinateScale(
 		const itemLayout = layout.items[index];
 		const range = kind === 'content' ? itemLayout.contentRange : itemLayout.renderedRange;
 		const segment = scale.segments[index];
-		const templateId = items[index].templateId.read(reader);
+		const templateId = items[index].templateId;
 		segment.label.textContent = kind === 'content'
 			? items[index].label
 			: `${items[index].label} · ${templateId === undefined ? 'unbound' : `T${templateId}`} · viewport ${formatRange(itemLayout.scrollOffset, itemLayout.scrollOffset + itemLayout.renderedRange.length)}`;

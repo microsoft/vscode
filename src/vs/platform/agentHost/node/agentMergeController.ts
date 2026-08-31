@@ -15,9 +15,10 @@ import { IGitHubService } from '../../github/common/githubService.js';
 import { PullRequestRef, PullRequestSnapshot, PullRequestSubscription } from '../../github/common/githubPullRequestService.js';
 import { GitHubRequestError } from '../../github/common/githubTransport.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentMergeConfigKey, AgentMergeConfiguration, AgentMergeDisableReason, AgentMergeSessionState, AgentMergeTarget, agentMergeDisableReasons, agentMergeDisabledNotice, agentMergeEnabledNotice, agentMergeGateFragments, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, evaluateAgentMerge, readAgentMergeSessionState, resolveAgentMergeConfiguration } from '../common/agentMerge.js';
+import { AgentMergeConfigKey, AgentMergeConfiguration, AgentMergeDisableReason, AgentMergeSessionState, AgentMergeTarget, AGENT_MERGE_UNKNOWN_COMMIT, agentMergeDisableReasons, agentMergeDisabledNotice, agentMergeEnabledNotice, agentMergeGateFragments, agentMergeMergePullRequestDemotedNotice, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, evaluateAgentMerge, readAgentMergeSessionState, resolveAgentMergeConfiguration, resolveMergeMethod, shouldStopMergingAfterAgentChanges } from '../common/agentMerge.js';
 import { buildAgentMergePrompt } from '../common/agentMergePrompt.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
+import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { AgentSystemNotificationKind } from '../common/meta/agentSystemNotificationMeta.js';
 import { deriveGitHubEndpoints } from '../common/githubEndpoints.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
@@ -86,6 +87,7 @@ export class AgentMergeController extends Disposable {
 
 	private readonly _runtimes = this._register(new DisposableMap<string, AgentMergeRuntime>());
 	private readonly _evaluations = new SequencerByKey<string>();
+	private readonly _evaluatingSessions = new Set<string>();
 	private readonly _activeTurns = new Map<string, IAgentMergeTurnContext>();
 
 	private readonly _onDidReleaseHold = this._register(new Emitter<string>());
@@ -107,6 +109,7 @@ export class AgentMergeController extends Disposable {
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
+		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IGitHubService private readonly _gitHubService: IGitHubService,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
 		@ILogService private readonly _logService: ILogService,
@@ -116,9 +119,15 @@ export class AgentMergeController extends Disposable {
 		this._register(this._stateManager.onDidChangeSessionConfig(event => {
 			const previous = readAgentMergeSessionState(event.previous?.values);
 			const current = readAgentMergeSessionState(event.current?.values);
-			if (!structuralEquals(previous, current)) {
-				this._syncSession(event.session.toString());
+			if (structuralEquals(previous, current)) {
+				return;
 			}
+			const session = event.session.toString();
+			if (this._resetRepairBaselineOnReselection(session, previous, current)) {
+				// The reset re-enters this listener, which then syncs.
+				return;
+			}
+			this._syncSession(session);
 		}));
 		this._register(this._stateManager.onDidChangeSessionActiveTurn(event => {
 			if (event.active) {
@@ -130,7 +139,11 @@ export class AgentMergeController extends Disposable {
 			this._monitoredSessions.delete(session);
 			this._stopRuntime(session);
 		}));
-		this._register(this._gitStateService.onDidRefreshSessionGitState(session => this._schedule(session, 0)));
+		this._register(this._gitStateService.onDidRefreshSessionGitState(session => {
+			if (!this._evaluatingSessions.has(session)) {
+				this._schedule(session, 0);
+			}
+		}));
 		this._register(this._gitStateService.onDidChangeSessionGitHubState(session => this._schedule(session, 0)));
 		this._register(this._configurationService.onDidRootConfigChange(() => {
 			for (const session of this._stateManager.getSessionUris()) {
@@ -350,6 +363,7 @@ export class AgentMergeController extends Disposable {
 
 	private _queueEvaluation(session: string): void {
 		void this._evaluations.queue(session, async () => {
+			this._evaluatingSessions.add(session);
 			try {
 				this._logService.trace(`[AgentMergeController] Evaluation started: session=${session}`);
 				await this._evaluate(session);
@@ -363,6 +377,8 @@ export class AgentMergeController extends Disposable {
 				}
 				this._logService.error(error, `[AgentMergeController] Evaluation failed: session=${session}, kind=${githubErrorKind(error)}`);
 				this._runtimes.get(session)?.backstopScheduler.schedule();
+			} finally {
+				this._evaluatingSessions.delete(session);
 			}
 		});
 	}
@@ -445,6 +461,17 @@ export class AgentMergeController extends Disposable {
 		}
 		const snapshot = subscription.resource.snapshot.get();
 		const configuration = this._getConfiguration(agentMerge);
+		// Backstop only: `_completeTurn` normally decides this the moment a
+		// repair turn ends. This catches a host restart that lost the in-flight
+		// turn, since the baseline commit is persisted with the session.
+		if (await this._demoteMergePullRequestIfChanged(session, agentMerge, configuration)) {
+			// The config write re-enters evaluation with the demoted value, so
+			// this pass must not go on to merge under the old one.
+			return;
+		}
+		if (!this._isCurrentRuntime(session, runtime)) {
+			return;
+		}
 		const gate = evaluateAgentMerge(snapshot, configuration, target.commentWatermark);
 		this._logGateResult(session, gate);
 		if (gate.kind !== 'indeterminate') {
@@ -485,6 +512,11 @@ export class AgentMergeController extends Disposable {
 					return;
 				}
 				const turnId = generateUuid();
+				// Captured before the turn is claimed so the baseline reflects
+				// the worktree the agent is about to act on. An unreadable
+				// worktree records a sentinel that no commit can match, so the
+				// session fails closed rather than authorizing a later merge.
+				const repairBaseCommit = await this._resolveLocalCommit(session) ?? AGENT_MERGE_UNKNOWN_COMMIT;
 				const context: IAgentMergeTurnContext = {
 					session,
 					turnId,
@@ -511,6 +543,7 @@ export class AgentMergeController extends Disposable {
 					lastPromptAt: new Date().toISOString(),
 					repeatedPromptCount,
 					totalPromptCount,
+					repairBaseCommit,
 				});
 				return;
 			}
@@ -750,12 +783,106 @@ export class AgentMergeController extends Disposable {
 				target: { ...agentMerge.target, commentWatermark: context.commentWatermark },
 			});
 		}
+
+		// Decided here rather than on the next evaluation because the local
+		// commit is authoritative the instant the agent makes it, while the
+		// pull request's published head lags behind the push. Re-read the state
+		// so an advanced watermark is not written back stale.
+		const current = readAgentMergeSessionState(this._stateManager.getSessionState(session)?.config?.values) ?? agentMerge;
+		if (await this._demoteMergePullRequestIfChanged(session, current, this._getConfiguration(current))) {
+			// The config write re-enters evaluation with the demoted value.
+			return;
+		}
+
 		try {
 			await runtime.subscription.value.refresh(undefined, runtime.cancellation.token, { authoritative: true });
 		} catch (error) {
 			this._logService.warn(`[AgentMergeController] Failed to refresh pull request after turn for ${session}`, error);
 		}
 		this._schedule(session, 0);
+	}
+
+	/**
+	 * Resolves the session worktree's current commit, or `undefined` when the
+	 * worktree cannot be read. Callers treat `undefined` as "changed" so an
+	 * unreadable worktree can never authorize an automatic merge.
+	 */
+	private async _resolveLocalCommit(session: string): Promise<string | undefined> {
+		try {
+			const workingDirectory = this._stateManager.getSessionState(session)?.workingDirectories?.[0];
+			if (!workingDirectory) {
+				return undefined;
+			}
+			const repositoryRoot = await this._gitService.getRepositoryRoot(URI.parse(workingDirectory));
+			return repositoryRoot ? await this._gitService.revParse(repositoryRoot, 'HEAD') : undefined;
+		} catch (error) {
+			this._logService.warn(`[AgentMergeController] Failed to resolve the local commit: session=${session}`, error);
+			return undefined;
+		}
+	}
+
+	/**
+	 * Turns automatic merging off once a repair turn has produced work, for
+	 * sessions that only authorized merging while the pull request is unchanged.
+	 *
+	 * The chosen value is rewritten rather than merely gated so the dropdown
+	 * always shows what will actually happen, and so re-selecting the option
+	 * establishes a fresh baseline. Returns whether the value was demoted.
+	 */
+	private async _demoteMergePullRequestIfChanged(
+		session: string,
+		agentMerge: AgentMergeSessionState,
+		configuration: AgentMergeConfiguration,
+	): Promise<boolean> {
+		if (configuration.mergePullRequest !== 'ifUnchanged' || agentMerge.repairBaseCommit === undefined) {
+			return false;
+		}
+		const currentCommit = await this._resolveLocalCommit(session);
+		if (!shouldStopMergingAfterAgentChanges(configuration, agentMerge, currentCommit)) {
+			return false;
+		}
+		this._logService.info(`[AgentMergeController] Turning automatic merge off because a repair turn changed the worktree: session=${session}, repairBaseCommit=${agentMerge.repairBaseCommit}, currentCommit=${currentCommit ?? 'unresolved'}`);
+		this._postNotice(session, AgentSystemNotificationKind.AgentMergeDisabled, agentMergeMergePullRequestDemotedNotice());
+		this._configurationService.updateSessionConfig(session, {
+			[SessionConfigKey.AgentMerge]: {
+				enabled: agentMerge.enabled,
+				overrides: { ...agentMerge.overrides, mergePullRequest: 'never' },
+			},
+			// Dropping the baseline is what makes re-selecting the option start
+			// fresh: without it the next evaluation would demote again against
+			// this very same commit.
+			[SessionConfigKey.AgentMergeController]: toControllerState(agentMerge, { repairBaseCommit: undefined }),
+		});
+		return true;
+	}
+
+	/**
+	 * Drops the repair baseline when the user selects "merge only while
+	 * unchanged" afresh.
+	 *
+	 * The client writes only its own Agent Merge state, so a baseline recorded
+	 * by an earlier repair turn survives the selection. Without this reset the
+	 * next evaluation would immediately demote the choice back to `never`
+	 * against work the user has already seen, and the option could never be
+	 * turned back on. Returns whether a reset was written.
+	 */
+	private _resetRepairBaselineOnReselection(
+		session: string,
+		previous: AgentMergeSessionState | undefined,
+		current: AgentMergeSessionState | undefined,
+	): boolean {
+		if (!current || current.repairBaseCommit === undefined) {
+			return false;
+		}
+		if (this._getConfiguration(current).mergePullRequest !== 'ifUnchanged') {
+			return false;
+		}
+		if (previous && this._getConfiguration(previous).mergePullRequest === 'ifUnchanged') {
+			return false;
+		}
+		this._logService.info(`[AgentMergeController] Starting a fresh unchanged-merge baseline after the choice was reselected: session=${session}`);
+		this._updateAgentMergeState(session, current, { repairBaseCommit: undefined });
+		return true;
 	}
 
 	private _updateAgentMergeState(session: string, current: AgentMergeSessionState, patch: Partial<AgentMergeSessionState>): void {
@@ -960,14 +1087,6 @@ function shouldRunFingerprint(state: AgentMergeSessionState, fingerprint: string
 	return !Number.isFinite(lastPromptAt) || Date.now() - lastPromptAt >= backstopInterval;
 }
 
-function resolveMergeMethod(configured: AgentMergeConfiguration['mergeMethod'], allowed: readonly ('MERGE' | 'SQUASH' | 'REBASE')[]): 'MERGE' | 'SQUASH' | 'REBASE' | undefined {
-	if (configured !== 'auto') {
-		const method = configured.toUpperCase() as 'MERGE' | 'SQUASH' | 'REBASE';
-		return allowed.includes(method) ? method : undefined;
-	}
-	return (['SQUASH', 'MERGE', 'REBASE'] as const).find(method => allowed.includes(method));
-}
-
 function toControllerState(current: AgentMergeSessionState, patch: Partial<AgentMergeSessionState>): Omit<AgentMergeSessionState, 'enabled' | 'overrides'> {
 	const next = { ...current, ...patch };
 	return {
@@ -977,6 +1096,7 @@ function toControllerState(current: AgentMergeSessionState, patch: Partial<Agent
 		...(next.lastPromptAt ? { lastPromptAt: next.lastPromptAt } : {}),
 		...(next.repeatedPromptCount !== undefined ? { repeatedPromptCount: next.repeatedPromptCount } : {}),
 		...(next.totalPromptCount !== undefined ? { totalPromptCount: next.totalPromptCount } : {}),
+		...(next.repairBaseCommit ? { repairBaseCommit: next.repairBaseCommit } : {}),
 	};
 }
 

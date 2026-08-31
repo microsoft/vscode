@@ -15,7 +15,7 @@ switch beside each endpoint tab to choose mock or passthrough. Presets apply
 immediately; response behavior, status, and JSON edits auto-save.
 
 The GUI opens on the **Policies** workspace. Select **Setup** in the header to
-open a modal that guides you through either connection method:
+open a modal that guides you through any of these connection methods:
 
 - **System proxy (recommended):** works with Code OSS, Stable, Insiders, Copilot
   CLI, and SDK/runtime clients. The page recommends Proxyman on macOS and Windows
@@ -27,10 +27,30 @@ open a modal that guides you through either connection method:
 - **Code OSS overrides:** the quicker option for Code OSS from this checkout.
   Select **Apply Overrides**, reload, and sign in. This option does not redirect
   SDK/runtime requests.
+- **File-based settings:** skip proxying altogether by writing the enterprise
+  `managed-settings.json` to the client device. The client reads it from disk at
+  startup — before sign-in and with no server round trip — so these requests never
+  reach this server. Use it to avoid proxy setup, or to test precedence against a
+  server-managed response. Local clients only. See
+  [Deploying file-based settings](https://docs.github.com/en/copilot/how-tos/administer-copilot/manage-for-enterprise/manage-agents/configure-enterprise-managed-settings#deploying-file-based-settings).
 
 After connecting, open the VS Code Command Palette and run **> Developer: Sync
 Account Policy**. To refresh the policy used by Local Agent Host, also run
 **> Developer: Restart Local Agent Host**.
+
+For file-based settings there is nothing to connect: expand **Deploy as a file**
+under the Managed Settings response body on the Policies page. It builds a
+per-platform one-liner (macOS, Windows PowerShell, Linux) that writes the current
+response body to `managed-settings.json` at its documented location. Copy it, run
+it on the client device, and restart the client. On macOS and Linux the command
+uses `sudo` so the file is the root-owned, non-writable regular file Copilot CLI
+requires.
+
+| Operating system | `managed-settings.json` location |
+| --- | --- |
+| macOS | `/Library/Application Support/GitHubCopilot/managed-settings.json` |
+| Windows | `%ProgramFiles%\GitHubCopilot\managed-settings.json` |
+| Linux | `/etc/github-copilot/managed-settings.json` |
 
 The Setup dialog checks Code OSS overrides directly. It tests the system proxy by
 sending a request without credentials to the managed settings URL and confirming

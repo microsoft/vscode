@@ -13,7 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { AICustomizationListWidget } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
+import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getTargetedCreateActionLabel, usesCustomizationCardLayout } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
 import { IAICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { extractExtensionIdFromPath, getCustomizationSecondaryText, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
 import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
@@ -21,13 +21,132 @@ import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../commo
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
-import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
+import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
+import { createCustomizationCardPrimaryAction, CustomizationCardListController } from '../../../browser/aiCustomization/customizationCardList.js';
 
 suite('aiCustomizationListWidget', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses the inventory card layout for all file customization sections', () => {
+		assert.deepStrictEqual({
+			agents: usesCustomizationCardLayout(AICustomizationManagementSection.Agents),
+			skills: usesCustomizationCardLayout(AICustomizationManagementSection.Skills),
+			instructions: usesCustomizationCardLayout(AICustomizationManagementSection.Instructions),
+			hooks: usesCustomizationCardLayout(AICustomizationManagementSection.Hooks),
+			prompts: usesCustomizationCardLayout(AICustomizationManagementSection.Prompts),
+		}, {
+			agents: true,
+			skills: true,
+			instructions: true,
+			hooks: true,
+			prompts: true,
+		});
+	});
+
+	test('keeps editable source sections visible until search filtering starts', () => {
+		assert.deepStrictEqual({
+			agents: getAlwaysVisibleCustomizationGroupKeys(AICustomizationManagementSection.Agents, false),
+			skills: getAlwaysVisibleCustomizationGroupKeys(AICustomizationManagementSection.Skills, false),
+			instructions: getAlwaysVisibleCustomizationGroupKeys(AICustomizationManagementSection.Instructions, false),
+			hooks: getAlwaysVisibleCustomizationGroupKeys(AICustomizationManagementSection.Hooks, false),
+			filtered: getAlwaysVisibleCustomizationGroupKeys(AICustomizationManagementSection.Agents, true),
+			prompts: getAlwaysVisibleCustomizationGroupKeys(AICustomizationManagementSection.Prompts, false),
+		}, {
+			agents: [PromptsStorage.local, PromptsStorage.user],
+			skills: [PromptsStorage.local, PromptsStorage.user],
+			instructions: [PromptsStorage.local, PromptsStorage.user],
+			hooks: [PromptsStorage.local, PromptsStorage.user],
+			filtered: [],
+			prompts: [PromptsStorage.local, PromptsStorage.user],
+		});
+	});
+
+	test('uses localized compact labels instead of parsing display labels', () => {
+		assert.deepStrictEqual([
+			getTargetedCreateActionLabel('$(add) Nuevo agente (Espacio de trabajo)', 'Nuevo agente'),
+			getTargetedCreateActionLabel('$(add) Create from provider'),
+		], [
+			'Nuevo agente',
+			'Create from provider',
+		]);
+	});
+
+	test('card lists use roving focus and expose focused-row actions', async () => {
+		const disposables = new DisposableStore();
+		const list = document.createElement('div');
+		document.body.appendChild(list);
+		const controller = disposables.add(new CustomizationCardListController(list, 'Customizations'));
+		const createItem = (label: string) => {
+			const row = document.createElement('div');
+			const primaryAction = createCustomizationCardPrimaryAction(row, label);
+			const action = document.createElement('button');
+			row.appendChild(action);
+			list.appendChild(row);
+			controller.addItem({ row, primaryAction, label, actions: [action], contextMenuAction: action });
+			return { row, primaryAction, action };
+		};
+		const alpha = createItem('Alpha');
+		const beta = createItem('Beta');
+		const disabledActionRow = document.createElement('div');
+		const disabledActionPrimary = createCustomizationCardPrimaryAction(disabledActionRow, 'Disabled Action');
+		const disabledAction = document.createElement('button');
+		disabledAction.disabled = true;
+		const enabledAction = document.createElement('button');
+		disabledActionRow.append(disabledAction, enabledAction);
+		list.appendChild(disabledActionRow);
+		controller.addItem({ row: disabledActionRow, primaryAction: disabledActionPrimary, label: 'Disabled Action', actions: [disabledAction, enabledAction], contextMenuAction: enabledAction });
+		const remoteRow = document.createElement('div');
+		const remoteAction = document.createElement('button');
+		remoteRow.appendChild(remoteAction);
+		list.appendChild(remoteRow);
+		controller.addItem({ row: remoteRow, primaryAction: remoteRow, label: 'Remote', actions: [remoteAction], contextMenuAction: remoteAction });
+		controller.finalize();
+
+		try {
+			alpha.primaryAction.focus();
+			alpha.primaryAction.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+			beta.primaryAction.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+			beta.action.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }));
+			const spaceKeyEvent = new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true });
+			beta.primaryAction.dispatchEvent(spaceKeyEvent);
+			disabledActionPrimary.focus();
+			disabledActionPrimary.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+			const disabledActionTabTarget = document.activeElement;
+			beta.primaryAction.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }));
+			enabledAction.tabIndex = 0;
+			await new Promise(resolve => setTimeout(resolve, 0));
+
+			assert.deepStrictEqual({
+				listRole: list.getAttribute('role'),
+				rowRoles: [alpha.row.getAttribute('role'), beta.row.getAttribute('role'), disabledActionRow.getAttribute('role'), remoteRow.getAttribute('role')],
+				positions: [alpha.row.getAttribute('aria-posinset'), beta.row.getAttribute('aria-posinset')],
+				remotePosition: remoteRow.getAttribute('aria-posinset'),
+				setSizes: [alpha.row.getAttribute('aria-setsize'), beta.row.getAttribute('aria-setsize'), disabledActionRow.getAttribute('aria-setsize'), remoteRow.getAttribute('aria-setsize')],
+				tabIndexes: [alpha.primaryAction.tabIndex, beta.primaryAction.tabIndex, remoteRow.tabIndex, alpha.action.tabIndex, beta.action.tabIndex, remoteAction.tabIndex],
+				spaceDefaultPrevented: spaceKeyEvent.defaultPrevented,
+				disabledActionTabIndexes: [disabledAction.tabIndex, enabledAction.tabIndex],
+				disabledActionTabTarget,
+				activeElement: document.activeElement,
+			}, {
+				listRole: 'list',
+				rowRoles: ['listitem', 'listitem', 'listitem', 'listitem'],
+				positions: ['1', '2'],
+				remotePosition: '4',
+				setSizes: ['4', '4', '4', '4'],
+				tabIndexes: [0, -1, -1, -1, -1, -1],
+				spaceDefaultPrevented: false,
+				disabledActionTabIndexes: [-1, -1],
+				disabledActionTabTarget: enabledAction,
+				activeElement: alpha.primaryAction,
+			});
+		} finally {
+			disposables.dispose();
+			list.remove();
+		}
+	});
 
 	suite('truncateToFirstLine', () => {
 		test('keeps first line when text has multiple lines', () => {

@@ -193,6 +193,9 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 		));
 		agentService = agentServiceComposition.agentService;
 		services.set(IAgentService, agentService);
+		// Freeze the migrate-legacy gate at host startup, before a setting toggled
+		// without a full restart can be live-propagated into the shared host.
+		agentService.primeMigrateLegacyGate();
 		agentServiceComposition.setContributions(instantiationService.invokeFunction(accessor => activateAgentHostContributions(accessor, instantiationService!)));
 
 		const agentSdkDownloader = instantiationService.invokeFunction(accessor => accessor.get(IAgentSdkDownloader));
