@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ITextSearchPreviewOptions, OneLineRange, TextSearchMatch, SearchRange, isFilePatternMatch } from '../../common/search.js';
+import * as glob from '../../../../../base/common/glob.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { hasSiblingPromiseFn, IFileQuery, IFolderQuery, ITextSearchPreviewOptions, OneLineRange, QueryGlobTester, QueryType, SearchRange, TextSearchMatch, isFilePatternMatch } from '../../common/search.js';
 
 suite('TextSearchResult', () => {
 
@@ -161,5 +163,74 @@ suite('isFilePatternMatch', () => {
 		const candidate = { relativePath: 'src/MyComponent.TSX', searchPath: undefined };
 		assert.strictEqual(isFilePatternMatch(candidate, '**/*.tsx', false), false);
 		assert.strictEqual(isFilePatternMatch(candidate, '**/*.tsx', false, true), true);
+	});
+});
+
+suite('QueryGlobTester', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createTester(excludePatterns: glob.IExpression[]): QueryGlobTester {
+		const folderQuery: IFolderQuery = {
+			folder: URI.file('/root'),
+			excludePattern: excludePatterns.map(pattern => ({ pattern }))
+		};
+
+		const query: IFileQuery = {
+			type: QueryType.File,
+			folderQueries: [folderQuery]
+		};
+
+		return new QueryGlobTester(query, folderQuery);
+	}
+
+	test('single exclude expression that matches', () => {
+		const tester = createTester([{ 'node_modules/**': true }]);
+		assert.strictEqual(tester.includedInQuerySync('node_modules/pkg/index.js', 'index.js'), false);
+		assert.strictEqual(tester.includedInQuery('node_modules/pkg/index.js', 'index.js'), false);
+	});
+
+	test('single exclude expression that does not match', () => {
+		const tester = createTester([{ 'node_modules/**': true }]);
+		assert.strictEqual(tester.includedInQuerySync('src/index.js', 'index.js'), true);
+		assert.strictEqual(tester.includedInQuery('src/index.js', 'index.js'), true);
+	});
+
+	test('path matched by one of several exclude expressions is excluded', () => {
+		const tester = createTester([
+			{ 'node_modules/**': true },
+			{ 'vendor/**': true }
+		]);
+		assert.strictEqual(tester.includedInQuerySync('vendor/pkg/index.js', 'index.js'), false);
+		assert.strictEqual(tester.includedInQuery('vendor/pkg/index.js', 'index.js'), false);
+	});
+
+	test('path matched by none of several exclude expressions is included', () => {
+		const tester = createTester([
+			{ 'node_modules/**': true },
+			{ 'vendor/**': true }
+		]);
+		assert.strictEqual(tester.includedInQuerySync('src/index.js', 'index.js'), true);
+		assert.strictEqual(tester.includedInQuery('src/index.js', 'index.js'), true);
+	});
+
+	test('async sibling clause excluding one expression wins over non-matching expressions', async () => {
+		const tester = createTester([
+			{ 'node_modules/**': { when: '$(basename).map' } },
+			{ 'vendor/**': { when: '$(basename).bak' } }
+		]);
+		const hasSibling = hasSiblingPromiseFn(() => Promise.resolve(['index.bak']));
+
+		assert.strictEqual(await tester.includedInQuery('vendor/pkg/index.js', 'index.js', hasSibling), false);
+	});
+
+	test('async sibling clauses matching nothing includes the path', async () => {
+		const tester = createTester([
+			{ 'node_modules/**': { when: '$(basename).map' } },
+			{ 'vendor/**': { when: '$(basename).bak' } }
+		]);
+		const hasSibling = hasSiblingPromiseFn(() => Promise.resolve(['readme.md']));
+
+		assert.strictEqual(await tester.includedInQuery('node_modules/pkg/index.js', 'index.js', hasSibling), true);
 	});
 });
