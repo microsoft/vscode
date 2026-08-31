@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -282,13 +283,19 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 			inputPart.inputEditor.updateOptions({ placeholder: '', inlineSuggest: { showToolbar: 'never' } });
 			inputPart.inputEditor.focus();
 			const inlineCompletionsController = InlineCompletionsController.get(inputPart.inputEditor);
-			inlineCompletionsController?.model.get()?.triggerExplicitly();
-			await new Promise(r => setTimeout(r, 100));
+			const inlineCompletionsModel = inlineCompletionsController?.model.get();
+			if (!inlineCompletionsModel) {
+				throw new Error('Inline completions model was not initialized');
+			}
+			await inlineCompletionsModel.triggerExplicitly();
+			await timeout(100);
 			inputPart.layout(width);
 
 			if (showAcceptedNextStepSuggestion) {
-				inlineCompletionsController?.model.get()?.accept(inputPart.inputEditor);
-				await new Promise(r => setTimeout(r, 50));
+				await inlineCompletionsModel.accept(inputPart.inputEditor);
+				if (inputPart.inputEditor.getValue() !== nextStepSuggestion) {
+					throw new Error('Next-step suggestion was not accepted');
+				}
 				inputPart.layout(width);
 			}
 		}
