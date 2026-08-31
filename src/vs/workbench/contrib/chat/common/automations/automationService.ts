@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IObservable } from '../../../../../base/common/observable.js';
+import { stableStringify } from '../../../../../base/common/objects.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ChatPermissionLevel } from '../constants.js';
@@ -27,6 +28,8 @@ export interface ICreateAutomationOptions {
 	readonly modelId?: string;
 	readonly mode?: string;
 	readonly permissionLevel?: string;
+	readonly agentId?: string;
+	readonly configuration?: Record<string, unknown>;
 	readonly enabled?: boolean;
 }
 
@@ -42,6 +45,8 @@ export interface IUpdateAutomationOptions {
 	readonly modelId?: string | null;
 	readonly mode?: string | null;
 	readonly permissionLevel?: string | null;
+	readonly agentId?: string | null;
+	readonly configuration?: Record<string, unknown> | null;
 	readonly enabled?: boolean;
 }
 
@@ -74,7 +79,7 @@ export function serializeAutomationEditableState(automation: IAutomationDescript
 				? { kind: automation.target.isolation.kind, branch: automation.target.isolation.branch }
 				: { kind: automation.target.isolation.kind },
 		};
-	return JSON.stringify({
+	return stableStringify({
 		name: automation.name,
 		prompt: automation.prompt,
 		schedule: {
@@ -87,6 +92,8 @@ export function serializeAutomationEditableState(automation: IAutomationDescript
 		modelId: automation.modelId,
 		mode: automation.mode,
 		permissionLevel: automation.permissionLevel ?? ChatPermissionLevel.Default,
+		agentId: automation.agentId,
+		configuration: automation.configuration,
 		enabled: automation.enabled,
 	});
 }

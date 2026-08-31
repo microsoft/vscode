@@ -42,7 +42,7 @@
  * Lock the dialog box to a stable width. Without this rule the dialog
  * inherits `width: min-content` from `dialog.css` and re-flows as the
  * embedded chat input's chips change size (e.g. when the model picker
- * resolves a shorter label). Use min(640px, 92vw) so the dialog still
+ * resolves a shorter label). Use min(720px, 92vw) so the dialog still
  * shrinks gracefully on narrow viewports.
  *
  * Padding is stripped (vs. the base 8px) so our `.automation-titlebar`
@@ -53,7 +53,7 @@
  * itself (not an ancestor), so we attach the rule directly here.
  */
 .monaco-dialog-box.automation-dialog {
-	width: min(640px, 92vw);
+	width: min(720px, 92vw);
 	min-width: min(520px, 92vw);
 	max-width: 92vw;
 	padding: 0;
@@ -439,7 +439,7 @@
 	flex-direction: row;
 	align-items: center;
 	gap: 8px;
-	margin-top: 2px;
+	margin-top: calc(-1 * var(--vscode-spacing-size40));
 	padding-top: 10px;
 	border-top: 1px solid var(--vscode-widget-border, transparent);
 }
@@ -591,132 +591,187 @@
 	padding: 6px 0;
 }
 
-/*
- * Folder picker. This uses the shared `WorkspacePicker` from the sessions
- * layer (see `sessionWorkspacePicker.ts`). The picker renders an
- * `<a.action-label>` chip trigger inside
- * `.sessions-chat-picker-slot.sessions-chat-workspace-picker`. We restyle
- * it to fit the dialog's compact, 13px form scale. The upstream styling
- * lives in `sessions/contrib/chat/browser/media/chatWidget.css` and is
- * sized for the new-session "hero" UI (18px font, larger chip) which is
- * too large for our modal.
+/* -------------------------------------------------------------------------
+ * Embedded NewChatInputWidget layout.
  *
- * The dropdown content itself renders through `IActionWidgetService`,
- * which has its own global CSS. No overrides needed here.
- */
-/*
- * Isolation + branch group: parented into the chat input's
- * `.chat-secondary-toolbar` so it sits at the bottom-right of the chat
- * input, sharing a row with `Copilot CLI | Default Permissions`.
- * `margin-left: auto` pushes the group to the right edge within that
- * flex row.
- *
- * Visual styling mirrors the new-session view's
- * `.new-chat-bottom-container` chip vocabulary (see
- * `sessions/contrib/chat/browser/media/chatWidget.css` lines 178-209):
- * compact label text and codicons, icon-foreground color, no border.
- */
-.automation-form-prompt-host .chat-secondary-toolbar .automation-form-isolation-group {
-	display: inline-flex;
-	align-items: center;
-	margin-left: auto;
-	min-width: 0;
-	gap: var(--vscode-spacing-size60);
+ * The widget's own styles live under `.new-chat-widget-container`, which the
+ * dialog does not have. Re-assert the layout the widget needs inside the
+ * dialog's prompt host: un-hide the input container, lay out the bottom
+ * controls row, and size the provider chips + the dialog's own workspace /
+ * session-type pickers to the compact scale used elsewhere.
+ * ------------------------------------------------------------------------- */
+
+/* The base rule hides `.new-chat-input-container` until `.revealed` is set on
+ * the (absent) `.new-chat-widget-container`; show it here. */
+.automation-form-prompt-host .new-chat-input-container {
+	display: block;
+	margin-top: 0;
+	max-width: 100%;
 }
 
-.automation-form-prompt-host .automation-form-branch-picker-slot {
-	display: inline-flex;
-	min-width: 0;
+.automation-form-prompt-host .new-chat-input-area {
+	max-width: 100%;
 }
 
-.automation-form-prompt-host .automation-form-branch-slot {
-	display: inline-flex;
+.automation-form-prompt-host .action-label > .codicon + .sessions-chat-dropdown-label {
+	margin-left: var(--vscode-spacing-size40);
+}
+
+/* Collapse the empty voice toolbar so it does not contribute to the toolbar gap. */
+.automation-form-prompt-host .sessions-chat-voice-toolbar.empty {
+	display: none;
+}
+
+/* Bottom controls row: leading pickers on the left, repo config on the right. */
+.automation-form-prompt-host .new-chat-bottom-container {
+	display: flex;
+	flex-direction: row;
 	align-items: center;
-	gap: var(--vscode-spacing-size40);
+	justify-content: space-between;
+	gap: var(--vscode-spacing-size20);
+	margin-top: var(--vscode-spacing-size40);
+	min-height: 28px;
+	max-width: 100%;
+	/* Establish a size container so the queries below can collapse the picker
+	 * labels to icon-only as the dialog (and this row) narrows — matching the
+	 * new-session composer, whose container lives on `.new-chat-widget-container`. */
+	container-type: inline-size;
+}
+
+/* Below this width the row can't fit every picker label, so drop them to
+ * icon-only (thresholds mirror the new-session composer). */
+@container (max-width: 330px) {
+	.automation-form-prompt-host .new-chat-bottom-container .sessions-chat-dropdown-label {
+		display: none;
+	}
+	/* The permission picker's label carries state, so keep it a little longer. */
+	.automation-form-prompt-host .new-chat-bottom-container .sessions-chat-permission-picker .sessions-chat-dropdown-label {
+		display: revert;
+	}
+	/* Center the now icon-only chips instead of leaving left-aligned padding. */
+	.automation-form-prompt-host .new-chat-bottom-container .monaco-action-bar .action-item:not(.sessions-chat-permission-picker) .action-label,
+	.automation-form-prompt-host .new-chat-bottom-container .sessions-chat-picker-slot:not(.sessions-chat-permission-picker) .action-label {
+		justify-content: center;
+		padding: var(--vscode-spacing-size20);
+	}
+}
+
+@container (max-width: 240px) {
+	.automation-form-prompt-host .new-chat-bottom-container .sessions-chat-permission-picker .sessions-chat-dropdown-label {
+		display: none;
+	}
+}
+
+.automation-form-prompt-host .new-chat-controls-container,
+.automation-form-prompt-host .new-chat-repo-config-container {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size20);
+	min-width: 0;
+	overflow: hidden;
+}
+
+.automation-form-prompt-host .new-chat-extra-controls {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size20);
+	min-width: 0;
+	overflow: hidden;
+}
+
+/* Give the provider toolbars the same small inter-chip gap as the extra
+ * controls, so the whole row reads with one consistent rhythm (the widget's
+ * own 2px gap rule is scoped to `.new-chat-widget-container`, absent here). */
+.automation-form-prompt-host .new-chat-bottom-container .monaco-action-bar .actions-container {
+	gap: var(--vscode-spacing-size20);
+}
+
+/* The dialog stamps `padding-inline-start: 20px` on every <ul> inside its
+ * message container (dialog.css, specificity 0,3,1 via the `ul` element). The
+ * widget's toolbars render their action lists as <ul>s, so that indent pushes
+ * the model picker off the input's left edge and leaves a gap where the hidden
+ * attach/send buttons were. Reset it with enough specificity to win. */
+.automation-form-prompt-host.interactive-session .monaco-action-bar .actions-container {
+	padding-inline-start: 0;
+	margin-left: 0;
+}
+
+/* Let every bottom-row control shrink so its label ellipsizes (the "dots") as
+ * the row narrows, mirroring the new-session composer. The container query
+ * above then hides the labels entirely once there's no room. */
+.automation-form-prompt-host .new-chat-bottom-container .new-chat-controls-container > *,
+.automation-form-prompt-host .new-chat-bottom-container .new-chat-repo-config-container > *,
+.automation-form-prompt-host .new-chat-bottom-container .new-chat-extra-controls > *,
+.automation-form-prompt-host .new-chat-bottom-container .sessions-chat-picker-slot .action-label {
+	min-width: 0;
+	overflow: hidden;
+}
+
+/* Floor each picker at icon + padding width so it never shrinks past its
+ * codicon before the container query collapses the label. */
+.automation-form-prompt-host .new-chat-bottom-container .monaco-action-bar .action-item,
+.automation-form-prompt-host .new-chat-bottom-container .sessions-chat-picker-slot .action-label,
+.automation-form-prompt-host .new-chat-bottom-container .monaco-action-bar .action-item .action-label {
+	min-width: 30px;
+	overflow: hidden;
+}
+
+/* Match the secondary-toolbar chip metrics used by the new-session controls. */
+.automation-form-prompt-host .new-chat-bottom-container .action-label {
 	height: 16px;
 	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
-	font-size: var(--vscode-fontSize-label2);
+	font-size: var(--vscode-fontSize-label2, 11px);
 	color: var(--vscode-icon-foreground);
-	background: transparent;
+}
+
+.automation-form-prompt-host .new-chat-bottom-container .action-label > .codicon {
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
+	width: auto;
+	height: auto;
+}
+
+/* The neighboring chips render no dropdown chevron; hide it for consistency. */
+.automation-form-prompt-host .new-chat-bottom-container .action-label > .codicon-chevron-down,
+.automation-form-prompt-host .new-chat-bottom-container .sessions-chat-dropdown-chevron {
+	display: none;
+}
+
+/* Workspace + session-type pickers in the leading controls slot. These carry
+ * the `sessions-chat-workspace-picker` / `sessions-chat-session-type-picker`
+ * classes whose global rules (chatWidget.css) size them for the new-session
+ * "hero" UI (18px label + 16px icon). Bring them down to the compact chip
+ * scale used by the neighboring provider controls. */
+.automation-form-prompt-host .new-chat-extra-controls .sessions-chat-picker-slot .action-label {
+	height: 16px;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
+	font-size: var(--vscode-fontSize-label2, 11px);
+	line-height: normal;
+	color: var(--vscode-icon-foreground);
 	border: none;
-	min-width: 0;
+	background-color: transparent;
 	border-radius: var(--vscode-cornerRadius-small);
-	touch-action: manipulation;
 }
 
-.automation-form-prompt-host .automation-form-branch-slot > .codicon {
-	font-size: var(--vscode-codiconFontSize-compact);
-	color: var(--vscode-icon-foreground);
-	flex-shrink: 0;
+.automation-form-prompt-host .new-chat-extra-controls .sessions-chat-picker-slot .action-label .sessions-chat-dropdown-label {
+	font-size: inherit;
+	line-height: inherit;
 }
 
-.automation-form-prompt-host .automation-form-branch-slot:not(.branch-picker-disabled) {
-	cursor: pointer;
+.automation-form-prompt-host .new-chat-extra-controls .sessions-chat-picker-slot .action-label > .codicon:not(.sessions-chat-dropdown-chevron) {
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
 }
 
-.automation-form-prompt-host .automation-form-branch-slot:not(.branch-picker-disabled):hover {
+/* Restore the hover highlight the neighboring provider chips have. The compact
+ * override above sets a transparent background at the same specificity as the
+ * shared hero `:hover` rule, cancelling it; reassert it with higher specificity. */
+.automation-form-prompt-host .new-chat-extra-controls .sessions-chat-picker-slot .action-label:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 	color: var(--vscode-foreground);
 }
 
-.automation-form-prompt-host .automation-form-branch-slot:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: calc(-1 * var(--vscode-strokeThickness));
-}
-
-.automation-form-prompt-host .automation-form-branch-slot.branch-picker-disabled,
-.automation-form-prompt-host .automation-form-branch-slot.branch-picker-disabled > .codicon {
-	cursor: default;
-	color: var(--vscode-descriptionForeground);
-}
-
-.automation-form-prompt-host .automation-form-branch-name {
-	font-size: var(--vscode-fontSize-label2);
-}
-
-.automation-form-prompt-host .automation-form-branch-name {
-	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.automation-form-prompt-host .chat-secondary-toolbar .automation-form-harness-chip {
-	display: inline-flex;
-	align-items: center;
-	gap: 4px;
-	height: 16px;
-	padding: 3px 6px;
-	font-size: 11px;
-	color: var(--vscode-icon-foreground);
-	background: transparent;
-	border: none;
-	opacity: 0.6;
-	cursor: default;
-}
-
-.automation-form-prompt-host .automation-form-harness-chip > .codicon {
-	font-size: 12px;
-	flex-shrink: 0;
-}
-
-.automation-form-prompt-host .automation-form-harness-label {
-	font-size: 11px;
-}
-
-/* Missing-branch state (no folder / no git repo / detached / empty): use
- * description-foreground + italic so it visually reads as "informational
- * placeholder, not a real ref name". */
-.automation-form-prompt-host .automation-form-branch-slot.branch-picker-missing,
-.automation-form-prompt-host .automation-form-branch-slot.branch-picker-missing > .codicon {
-	color: var(--vscode-descriptionForeground);
-}
-
-.automation-form-prompt-host .automation-form-branch-slot.branch-picker-missing .automation-form-branch-name {
-	font-style: italic;
-}
-
-.hc-black .automation-form-prompt-host .automation-form-branch-slot:focus-visible,
-.hc-light .automation-form-prompt-host .automation-form-branch-slot:focus-visible {
-	outline-color: var(--vscode-contrastActiveBorder);
+/* Hide the workspace picker's dropdown chevron so it reads like the other
+ * chips. The shared hero rule forces it visible at (0,4,0); this 5-class
+ * selector wins. */
+.automation-form-prompt-host .new-chat-extra-controls .sessions-chat-picker-slot .action-label .sessions-chat-dropdown-chevron {
+	display: none;
 }

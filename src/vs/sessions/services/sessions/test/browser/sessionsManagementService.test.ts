@@ -33,7 +33,7 @@ import { IChatEditorOptions } from '../../../../../workbench/contrib/chat/browse
 import { IChatWidgetHistoryService } from '../../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { PreferredGroup } from '../../../../../workbench/services/editor/common/editorService.js';
 import { nullExtensionDescription } from '../../../../../workbench/services/extensions/common/extensions.js';
-import { SessionTypeAuthRequirement, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection, SessionStatus } from '../../common/session.js';
+import { ChatModelSource, SessionTypeAuthRequirement, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection, SessionStatus } from '../../common/session.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISessionChangeEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../common/sessionsProvider.js';
 import { SessionsManagementService } from '../../browser/sessionsManagementService.js';
@@ -208,7 +208,7 @@ class TestSessionsProvider extends mock<ISessionsProvider>() {
 	override getModelsSnapshot(): ISessionModelsSnapshot { return { models: [], desiredModelResolution: { kind: 'notRequested' }, modelTarget: undefined }; }
 	override getModelPickerOptions(): ISessionModelPickerOptions { return { useGroupedModelPicker: true, showFeatured: true, showUnavailableFeatured: false, showManageModelsAction: false }; }
 	override readonly onDidChangeModels = Event.None;
-	override setModel(_sessionId: string, _chatResource: URI, _modelId: string): void { }
+	override setModel(_sessionId: string, _chatResource: URI, _modelId: string, _source: ChatModelSource): void { }
 	override async archiveSession(): Promise<void> { }
 	override async unarchiveSession(): Promise<void> { }
 	override async deleteSession(): Promise<void> { }
@@ -1967,10 +1967,12 @@ suite('SessionsManagementService', () => {
 			mainChat: constObservable(chat),
 		});
 		const calls: string[] = [];
+		let createMetadata: Record<string, unknown> | undefined;
 		const provider = new class extends TestSessionsProvider {
 			override readonly supportsQuickChats = true;
 			override getSessions(): ISession[] { return [activeSession]; }
-			override createQuickChat(sessionTypeId: string): ISession {
+			override createQuickChat(sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession {
+				createMetadata = options?.metadata;
 				calls.push(`createQuickChat:${sessionTypeId}`);
 				return quickChat;
 			}
@@ -1988,6 +1990,7 @@ suite('SessionsManagementService', () => {
 		const result = await service.createAndSendQuickChatRequest({ query: 'hi' }, {
 			providerId: 'test',
 			sessionTypeId: 'test',
+			metadata: { automationId: 'automation-1' },
 			modelId: 'gpt-4o',
 			isolationMode: 'worktree',
 			branch: 'stale',
@@ -1997,11 +2000,13 @@ suite('SessionsManagementService', () => {
 			sessionId: result?.sessionId,
 			activeSession: view.activeSession.get()?.sessionId,
 			newSession: service.newSession.get(),
+			createMetadata,
 			calls,
 		}, {
 			sessionId: 'quick-1',
 			activeSession: 'active',
 			newSession: undefined,
+			createMetadata: { automationId: 'automation-1' },
 			calls: ['createQuickChat:test', 'setModel:gpt-4o', 'send'],
 		});
 	});
@@ -2668,6 +2673,7 @@ suite('SessionsManagementService', () => {
 			stubSession({ sessionId: 'automation-replacement', providerId: 'test' }),
 		];
 		const deleted: string[] = [];
+		let quickChatOptions: ISessionsProviderCreateSessionOptions | undefined;
 		let createIndex = 0;
 		const provider = new class extends TestSessionsProvider {
 			override readonly supportsQuickChats = true;
@@ -2682,7 +2688,10 @@ suite('SessionsManagementService', () => {
 				};
 			}
 			override createNewSession(): ISession { return drafts[createIndex++]; }
-			override createQuickChat(): ISession { return drafts[createIndex++]; }
+			override createQuickChat(_sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession {
+				quickChatOptions = options;
+				return drafts[createIndex++];
+			}
 			override deleteNewSession(sessionId: string): void { deleted.push(sessionId); }
 		}(drafts[0]);
 		const { service } = createSessionsManagementService(drafts[0], disposables, provider);
@@ -2690,7 +2699,12 @@ suite('SessionsManagementService', () => {
 
 		const firstAutomationSession = service.createAutomationSession(folderUri);
 		service.createNewSession(folderUri);
-		service.createAutomationQuickChat();
+		service.createAutomationQuickChat({
+			modelId: 'test-model',
+			agentId: 'file:///agents/test.agent.md',
+			configuration: { customSetting: true },
+		});
+
 		service.discardAutomationSession(firstAutomationSession);
 		service.createAutomationSession(folderUri);
 		service.discardAutomationSession();
@@ -2698,11 +2712,108 @@ suite('SessionsManagementService', () => {
 		assert.deepStrictEqual({
 			newSession: service.newSession.get()?.sessionId,
 			automationSession: service.automationSession.get()?.sessionId,
+			quickChatOptions,
 			deleted,
 		}, {
 			newSession: 'new-session',
 			automationSession: undefined,
+			quickChatOptions: {
+				metadata: undefined,
+				modelId: 'test-model',
+				agentId: 'file:///agents/test.agent.md',
+				configuration: { customSetting: true },
+			},
 			deleted: ['automation-workspace', 'automation-quick-chat', 'automation-replacement'],
+		});
+	});
+
+	test('quick-chat and automation drafts forward creation metadata and apply generic session configuration', () => {
+		const drafts = [
+			stubSession({ sessionId: 'automation-workspace', providerId: 'test' }),
+			stubSession({ sessionId: 'automation-quick-chat', providerId: 'test' }),
+			stubSession({ sessionId: 'quick-chat', providerId: 'test' }),
+		];
+		const creationOptions: ISessionsProviderCreateSessionOptions[] = [];
+		const appliedConfiguration: Array<{ kind: 'model' | 'mode' | 'permission'; sessionId: string; value: string }> = [];
+		let createIndex = 0;
+		const provider = new class extends TestSessionsProvider {
+			override readonly supportsQuickChats = true;
+			override resolveWorkspace(folderUri: URI): ISessionWorkspace {
+				return {
+					uri: folderUri,
+					label: 'Workspace',
+					icon: Codicon.folder,
+					folders: [],
+					requiresWorkspaceTrust: false,
+					isVirtualWorkspace: false,
+				};
+			}
+			override createNewSession(_folderUri: URI, _sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession {
+				creationOptions.push(options ?? {});
+				return drafts[createIndex++];
+			}
+			override createQuickChat(_sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession {
+				creationOptions.push(options ?? {});
+				return drafts[createIndex++];
+			}
+			override setModel(sessionId: string, _chatResource: URI, modelId: string, _source: ChatModelSource): void {
+				appliedConfiguration.push({ kind: 'model', sessionId, value: modelId });
+			}
+			override setMode(sessionId: string, modeId: string): void {
+				appliedConfiguration.push({ kind: 'mode', sessionId, value: modeId });
+			}
+			override setPermissionLevel(sessionId: string, permissionLevel: string): void {
+				appliedConfiguration.push({ kind: 'permission', sessionId, value: permissionLevel });
+			}
+		}(drafts[0]);
+		const { service } = createSessionsManagementService(drafts[0], disposables, provider);
+		const options: ICreateNewSessionOptions = {
+			providerId: 'test',
+			sessionTypeId: 'test',
+			metadata: { automationId: 'automation-1' },
+			modelId: 'model-a',
+			modeId: 'ask',
+			permissionLevel: 'assisted',
+			agentId: 'file:///agent.md',
+			configuration: { customSetting: true },
+		};
+
+		service.createAutomationSession(URI.parse('test:///folder'), options);
+		service.createAutomationQuickChat(options);
+		service.createQuickChat(options);
+
+		assert.deepStrictEqual({
+			creationOptions,
+			appliedConfiguration,
+		}, {
+			creationOptions: [
+				{
+					metadata: { automationId: 'automation-1' },
+					modelId: 'model-a',
+					agentId: 'file:///agent.md',
+					configuration: { customSetting: true },
+				},
+				{
+					metadata: { automationId: 'automation-1' },
+					modelId: 'model-a',
+					agentId: 'file:///agent.md',
+					configuration: { customSetting: true },
+				},
+				{
+					metadata: { automationId: 'automation-1' },
+					modelId: 'model-a',
+					agentId: 'file:///agent.md',
+					configuration: { customSetting: true },
+				},
+			],
+			appliedConfiguration: [
+				{ kind: 'model', sessionId: 'automation-workspace', value: 'model-a' },
+				{ kind: 'mode', sessionId: 'automation-workspace', value: 'ask' },
+				{ kind: 'permission', sessionId: 'automation-workspace', value: 'assisted' },
+				{ kind: 'model', sessionId: 'automation-quick-chat', value: 'model-a' },
+				{ kind: 'mode', sessionId: 'automation-quick-chat', value: 'ask' },
+				{ kind: 'permission', sessionId: 'automation-quick-chat', value: 'assisted' },
+			],
 		});
 	});
 

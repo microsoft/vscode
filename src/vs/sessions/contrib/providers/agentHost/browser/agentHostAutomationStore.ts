@@ -197,6 +197,8 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			modelId: options.modelId,
 			mode: options.mode,
 			permissionLevel: options.permissionLevel,
+			agentId: options.agentId,
+			configuration: options.configuration,
 			enabled: options.enabled ?? true,
 			createdAt: now.toISOString(),
 			updatedAt: now.toISOString(),
@@ -213,7 +215,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		this._requireOperation(id, AutomationOperation.Update);
 		const current = this._requireAutomation(id);
 		const updated = this._applyPatch(current, patch);
-		const state = await this._replaceDescriptor(updated);
+		const state = await this._replaceDescriptor(updated, false, undefined, patch.configuration !== null);
 		return this._requireProjectedAutomation(state);
 	}
 
@@ -628,6 +630,8 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			modelId: this._projectModelId(state.definition.session.model?.id, state.definition.session.provider),
 			mode: readString(config?.[SessionConfigKey.Mode]),
 			permissionLevel: readString(config?.[SessionConfigKey.AutoApprove]),
+			agentId: state.definition.session.agent?.uri,
+			configuration: config,
 			enabled: state.definition.enabled,
 			createdAt: state.createdAt,
 			updatedAt: state.modifiedAt,
@@ -736,13 +740,13 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		return state;
 	}
 
-	private async _replaceDescriptor(descriptor: IAutomationDescriptor, imported = false, importPending?: boolean): Promise<AutomationState> {
+	private async _replaceDescriptor(descriptor: IAutomationDescriptor, imported = false, importPending?: boolean, preserveExistingConfiguration = true): Promise<AutomationState> {
 		const resource = automationResource(descriptor.id);
 		const current = this._findAutomationState(descriptor.id);
 		if (!current) {
 			throw new Error(`Automation does not exist: ${descriptor.id}`);
 		}
-		const definition = this._definitionFromDescriptor(descriptor, current.definition, imported, importPending);
+		const definition = this._definitionFromDescriptor(descriptor, current.definition, imported, importPending, preserveExistingConfiguration);
 		const expected = this._requireProjectedAutomation({ ...current, definition });
 		const state = await this._dispatchAndWait(
 			{
@@ -783,9 +787,11 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		return state;
 	}
 
-	private _definitionFromDescriptor(descriptor: IAutomationDescriptor, existing?: AutomationDefinition, imported = false, importPending?: boolean): AutomationDefinition {
-		const config = { ...existing?.session.config };
+	private _definitionFromDescriptor(descriptor: IAutomationDescriptor, existing?: AutomationDefinition, imported = false, importPending?: boolean, preserveExistingConfiguration = true): AutomationDefinition {
 		const provider = descriptor.target.sessionTypeId ?? this._providerFromModelId(descriptor.modelId);
+		const config = {
+			...(descriptor.configuration ?? (preserveExistingConfiguration && existing?.session.provider === provider ? existing?.session.config : undefined)),
+		};
 		setOptional(config, SessionConfigKey.Mode, descriptor.mode);
 		setOptional(config, SessionConfigKey.AutoApprove, descriptor.permissionLevel);
 		if (descriptor.target.kind === 'workspace') {
@@ -810,6 +816,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			session: {
 				provider,
 				model: descriptor.modelId ? { id: this._toHostModelId(descriptor.modelId, provider) } : undefined,
+				agent: descriptor.agentId ? { uri: descriptor.agentId } : undefined,
 				workingDirectories: descriptor.target.kind === 'workspace'
 					? [(this._boundaryMapper?.toHost(descriptor.target.folderUri) ?? descriptor.target.folderUri).toString()]
 					: undefined,
@@ -869,8 +876,18 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			modelId: patch.modelId === null
 				? undefined
 				: patch.modelId ?? (targetAuthorityChanged ? undefined : current.modelId),
-			mode: patch.mode === null ? undefined : patch.mode ?? current.mode,
-			permissionLevel: patch.permissionLevel === null ? undefined : patch.permissionLevel ?? current.permissionLevel,
+			mode: patch.mode === null
+				? undefined
+				: patch.mode ?? (targetAuthorityChanged ? undefined : current.mode),
+			permissionLevel: patch.permissionLevel === null
+				? undefined
+				: patch.permissionLevel ?? (targetAuthorityChanged ? undefined : current.permissionLevel),
+			agentId: patch.agentId === null
+				? undefined
+				: patch.agentId ?? (targetAuthorityChanged ? undefined : current.agentId),
+			configuration: patch.configuration === null
+				? undefined
+				: patch.configuration ?? (targetAuthorityChanged ? undefined : current.configuration),
 			enabled,
 			updatedAt: now.toISOString(),
 		};

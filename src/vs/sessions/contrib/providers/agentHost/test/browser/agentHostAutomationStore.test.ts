@@ -550,6 +550,54 @@ suite('AgentHostAutomationStore', () => {
 		});
 	});
 
+	test('round-trips custom agents and provider configuration', async () => {
+		const connection = new TestAutomationConnection(true);
+		disposables.add(connection);
+		const storage = disposables.add(new InMemoryStorageService());
+		const automationStorage = new TestAutomationStorageService(storage);
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, undefined, new NullLogService(), storage, NullTelemetryService, automationStorage));
+
+		const automation = await store.createAutomation({
+			name: 'Configured',
+			prompt: 'Review.',
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
+			agentId: 'file:///agents/reviewer.agent.md',
+			configuration: { customSetting: 'thorough' },
+		});
+		const create = connection.dispatched[0].action;
+		const updated = await store.updateAutomation(automation.id, { name: 'Configured review' });
+		const update = connection.dispatched.at(-1)?.action;
+
+		assert.deepStrictEqual({
+			createSession: create.type === ActionType.AutomationCreateRequested ? create.definition.session : undefined,
+			projectedAgentId: automation.agentId,
+			projectedConfiguration: automation.configuration,
+			updateSession: update?.type === ActionType.AutomationUpdateRequested ? update.changes.session : undefined,
+			updatedAgentId: updated.agentId,
+			updatedConfiguration: updated.configuration,
+		}, {
+			createSession: {
+				provider: 'mock',
+				model: undefined,
+				agent: { uri: 'file:///agents/reviewer.agent.md' },
+				workingDirectories: undefined,
+				config: { customSetting: 'thorough' },
+			},
+			projectedAgentId: 'file:///agents/reviewer.agent.md',
+			projectedConfiguration: { customSetting: 'thorough' },
+			updateSession: {
+				provider: 'mock',
+				model: undefined,
+				agent: { uri: 'file:///agents/reviewer.agent.md' },
+				workingDirectories: undefined,
+				config: { customSetting: 'thorough' },
+			},
+			updatedAgentId: 'file:///agents/reviewer.agent.md',
+			updatedConfiguration: { customSetting: 'thorough' },
+		});
+	});
+
 	test('clears an inherited model when the target authority changes', async () => {
 		const connection = new TestAutomationConnection(true);
 		disposables.add(connection);
@@ -566,6 +614,10 @@ suite('AgentHostAutomationStore', () => {
 			prompt: 'Say hi.',
 			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
 			modelId: 'agent-host-copilotcli:auto',
+			mode: 'plan',
+			permissionLevel: 'autoApprove',
+			agentId: 'file:///agents/reviewer.agent.md',
+			configuration: { retainedOnlyForCopilotCli: true },
 			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
 		});
 
@@ -577,9 +629,47 @@ suite('AgentHostAutomationStore', () => {
 		assert.deepStrictEqual({
 			hostModel: update?.type === ActionType.AutomationUpdateRequested ? update.changes.session?.model : undefined,
 			clientModel: updated.modelId,
+			hostAgent: update?.type === ActionType.AutomationUpdateRequested ? update.changes.session?.agent : undefined,
+			hostConfig: update?.type === ActionType.AutomationUpdateRequested ? update.changes.session?.config : undefined,
+			clientMode: updated.mode,
+			clientPermissionLevel: updated.permissionLevel,
+			clientAgentId: updated.agentId,
+			clientConfiguration: updated.configuration,
 		}, {
 			hostModel: undefined,
 			clientModel: undefined,
+			hostAgent: undefined,
+			hostConfig: undefined,
+			clientMode: undefined,
+			clientPermissionLevel: undefined,
+			clientAgentId: undefined,
+			clientConfiguration: undefined,
+		});
+	});
+
+	test('clears provider configuration when explicitly requested', async () => {
+		const connection = new TestAutomationConnection(true);
+		disposables.add(connection);
+		const storage = disposables.add(new InMemoryStorageService());
+		const automationStorage = new TestAutomationStorageService(storage);
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, undefined, new NullLogService(), storage, NullTelemetryService, automationStorage));
+		const automation = await store.createAutomation({
+			name: 'Configured',
+			prompt: 'Review.',
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
+			configuration: { customSetting: 'thorough' },
+		});
+
+		const updated = await store.updateAutomation(automation.id, { configuration: null });
+		const update = connection.dispatched.at(-1)?.action;
+
+		assert.deepStrictEqual({
+			hostConfig: update?.type === ActionType.AutomationUpdateRequested ? update.changes.session?.config : undefined,
+			clientConfiguration: updated.configuration,
+		}, {
+			hostConfig: undefined,
+			clientConfiguration: undefined,
 		});
 	});
 

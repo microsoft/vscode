@@ -38,7 +38,7 @@ import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, Resour
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService, type ChatSendResult, type IChatModelReference, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService, isIChatSessionFileChange2 } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ChatModeKind } from '../../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatModeKind, ChatPermissionLevel } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import type { IChatModel, IChatModelInputState, IInputModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ISessionChangeEvent, ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
@@ -4064,6 +4064,26 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}, {
 			policyRestricted: 'default',
 			configuredDefault: 'autoApprove',
+		});
+
+		test('createNewSession clamps restored autoApprove when policy disables global auto-approve', () => {
+			const provider = createProvider(disposables, agentHost, undefined, {
+				configurationService: createPolicyRestrictedConfigurationService(),
+			});
+
+			const session = provider.createNewSession(
+				URI.parse('file:///home/user/project'),
+				provider.sessionTypes[0].id,
+				{ configuration: { [SessionConfigKey.AutoApprove]: ChatPermissionLevel.AutoApprove } },
+			);
+
+			assert.deepStrictEqual({
+				seededImmediately: provider.getSessionConfig(session.sessionId)?.values,
+				forwardedToAgentHost: agentHost.resolveSessionConfigRequests.at(-1)?.config,
+			}, {
+				seededImmediately: { autoApprove: ChatPermissionLevel.Default },
+				forwardedToAgentHost: { autoApprove: ChatPermissionLevel.Default },
+			});
 		});
 	});
 

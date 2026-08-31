@@ -35,6 +35,9 @@ const saveState = Reflect.get(NewChatInputWidget.prototype, 'saveState') as (thi
 const updateAttachmentRendering = Reflect.get(NewChatContextAttachments.prototype, '_updateRendering') as (this: IAttachmentRenderingHarness) => void;
 
 interface IDraftStateHarness {
+	readonly options: {
+		readonly disableDraftPersistence?: boolean;
+	};
 	readonly storageService: {
 		get(key: string, scope: unknown): string | undefined;
 		store(key: string, value: string, scope: unknown, target: unknown): void;
@@ -179,12 +182,13 @@ suite('NewChatInputWidget', () => {
 			},
 		];
 		const saveHarness: IDraftStateHarness = {
+			options: {},
 			storageService,
 			_draftState: { inputText: 'Fix this', attachments },
 		};
 		saveState.call(saveHarness);
 		const restored: { inputText?: string; attachments?: readonly IChatRequestVariableEntry[] } = {};
-		const draft = getDraftState.call({ storageService });
+		const draft = getDraftState.call({ options: {}, storageService });
 
 		restoreState.call({
 			_getDraftState: () => draft,
@@ -203,6 +207,29 @@ suite('NewChatInputWidget', () => {
 			folderValue: folder,
 			repositoryValue: repositoryRoot,
 		});
+	});
+
+	test('does not read or write draft storage when persistence is disabled', () => {
+		let reads = 0;
+		let writes = 0;
+		const harness: IDraftStateHarness = {
+			options: { disableDraftPersistence: true },
+			storageService: {
+				get: () => {
+					reads++;
+					return undefined;
+				},
+				store: () => {
+					writes++;
+				},
+			},
+			_draftState: { inputText: 'Do not persist', attachments: [] },
+		};
+
+		const draft = getDraftState.call(harness);
+		saveState.call(harness);
+
+		assert.deepStrictEqual({ draft, reads, writes }, { draft: undefined, reads: 0, writes: 0 });
 	});
 
 	test('renders GitHub context pills as openable with a keyboard-reachable remove button', async () => {

@@ -6,33 +6,23 @@
 import assert from 'assert';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
-import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
-import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Action, IAction } from '../../../../../base/common/actions.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { IButton } from '../../../../../base/browser/ui/button/button.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
-import { IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../../platform/actionWidget/browser/actionList.js';
-import { IAnchor } from '../../../../../base/browser/ui/contextview/contextview.js';
-import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
-import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
-import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { createWorkbenchDialogOptions } from '../../../../../workbench/browser/parts/dialogs/dialog.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
-import { GitRefType, IGitRepository, IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
-import { ISession, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
+import { ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { AutomationIsolationGroupActionViewItem, AutomationSessionDraftSynchronizer, canSelectAutomationWorkspace, IFormState, IValidationState, isAutomationDialogEditCommand, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, resolveAutomationModelIdentifier, updateSaveButtonState } from '../../browser/automationDialog.js';
-import { AutomationIsolationModel } from '../../common/isolationGroupModel.js';
+import { AutomationSessionDraftSynchronizer, canSelectAutomationWorkspace, IFormState, IValidationState, isAutomationDialogEditCommand, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, resolveAutomationModelIdentifier, updateSaveButtonState } from '../../browser/automationDialog.js';
 
 const FOLDER = URI.file('/workspace');
 
@@ -55,61 +45,6 @@ function dispatchAutomationDialogCommand(target: HTMLElement, commandId: string)
 	);
 	target.addEventListener('keydown', event => options.keyEventProcessor?.(new StandardKeyboardEvent(event)), { once: true });
 	return dispatchKey(target, 'keydown', 'z');
-}
-
-class RecordingActionWidgetService extends mock<IActionWidgetService>() {
-	override isVisible = false;
-	labels: readonly string[] = [];
-	details: ReadonlyArray<IActionListItem<unknown>['detail']> = [];
-	ariaLabels: readonly string[] = [];
-	private selectItem: ((label: string) => void) | undefined;
-	private hideWidget: ((didCancel?: boolean) => void) | undefined;
-
-	override show<T>(
-		_user: string,
-		_supportsPreview: boolean,
-		items: readonly IActionListItem<T>[],
-		delegate: IActionListDelegate<T>,
-		_anchor: HTMLElement | StandardMouseEvent | IAnchor,
-		_container: HTMLElement | undefined,
-		_actionBarActions: readonly IAction[],
-		accessibilityProvider?: Partial<IListAccessibilityProvider<IActionListItem<T>>>,
-		_listOptions?: IActionListOptions,
-	): void {
-		this.isVisible = true;
-		this.labels = items.map(item => item.label ?? '');
-		this.details = items.map(item => item.detail);
-		this.ariaLabels = items.map(item => {
-			const label = accessibilityProvider?.getAriaLabel?.(item);
-			return typeof label === 'string' ? label : label?.get() ?? '';
-		});
-		this.selectItem = label => {
-			const item = items.find(candidate => candidate.label === label)?.item;
-			if (item) {
-				delegate.onSelect(item);
-			}
-		};
-		this.hideWidget = delegate.onHide;
-	}
-
-	override updateItems<T>(items: readonly IActionListItem<T>[], _focusItemId?: string): void {
-		this.labels = items.map(item => item.label ?? '');
-	}
-	override focusItemById(_itemId: string): void { }
-
-	override hide(didCancel?: boolean): void {
-		if (!this.isVisible) {
-			return;
-		}
-		this.isVisible = false;
-		const onHide = this.hideWidget;
-		this.hideWidget = undefined;
-		onHide?.(didCancel);
-	}
-
-	select(label: string): void {
-		this.selectItem?.(label);
-	}
 }
 
 function createFormState(overrides?: Partial<IFormState>): IFormState {
@@ -144,6 +79,7 @@ function createWorkspace(requiresWorkspaceTrust: boolean): ISessionWorkspace {
 function createAutomationDraftService() {
 	const automationSession = observableValue<ISession | undefined>('automationSession', undefined);
 	const created: Array<{ kind: 'workspace' | 'quickChat'; providerId: string | undefined; sessionTypeId: string; folderUri?: string }> = [];
+	const creationOptions: Array<{ readonly modelId?: string; readonly modeId?: string; readonly permissionLevel?: string; readonly agentId?: string; readonly configuration?: Record<string, unknown> }> = [];
 	const discarded: string[] = [];
 	let nextId = 1;
 	const createDraft = (kind: 'workspace' | 'quickChat', providerId: string | undefined, sessionTypeId: string, folderUri?: URI): ISession => {
@@ -162,8 +98,14 @@ function createAutomationDraftService() {
 	};
 	const service = upcastPartial<ISessionsManagementService>({
 		automationSession,
-		createAutomationSession: (folderUri, options) => createDraft('workspace', options?.providerId, options?.sessionTypeId ?? 'default', folderUri),
-		createAutomationQuickChat: options => createDraft('quickChat', options?.providerId, options?.sessionTypeId ?? 'default'),
+		createAutomationSession: (folderUri, options) => {
+			creationOptions.push({ modelId: options?.modelId, modeId: options?.modeId, permissionLevel: options?.permissionLevel, agentId: options?.agentId, configuration: options?.configuration });
+			return createDraft('workspace', options?.providerId, options?.sessionTypeId ?? 'default', folderUri);
+		},
+		createAutomationQuickChat: options => {
+			creationOptions.push({ modelId: options?.modelId, modeId: options?.modeId, permissionLevel: options?.permissionLevel, agentId: options?.agentId, configuration: options?.configuration });
+			return createDraft('quickChat', options?.providerId, options?.sessionTypeId ?? 'default');
+		},
 		discardAutomationSession: session => {
 			const current = automationSession.get();
 			if (!current || (session && session.sessionId !== current.sessionId)) {
@@ -173,7 +115,7 @@ function createAutomationDraftService() {
 			automationSession.set(undefined, undefined);
 		},
 	});
-	return { service, created, discarded };
+	return { service, created, creationOptions, discarded };
 }
 
 suite('Automation session draft synchronization', () => {
@@ -213,6 +155,31 @@ suite('Automation session draft synchronization', () => {
 			discarded: ['automation-1', 'automation-2', 'automation-3', 'automation-4'],
 			currentSession: undefined,
 			errorCount: 0,
+		});
+
+		test('seeds automation drafts with saved provider selections', async () => {
+			const { service, creationOptions } = createAutomationDraftService();
+			const synchronizer = disposables.add(new AutomationSessionDraftSynchronizer(service, async () => true, () => { }));
+
+			synchronizer.update({
+				kind: 'quickChat',
+				providerId: 'provider-a',
+				sessionTypeId: 'type-a',
+				modelId: 'model-a',
+				modeId: 'ask',
+				permissionLevel: 'assisted',
+				agentId: 'file:///agent.md',
+				configuration: { permission: 'autoApprove' },
+			});
+			await synchronizer.waitForSync();
+
+			assert.deepStrictEqual(creationOptions, [{
+				modelId: 'model-a',
+				modeId: 'ask',
+				permissionLevel: 'assisted',
+				agentId: 'file:///agent.md',
+				configuration: { permission: 'autoApprove' },
+			}]);
 		});
 	});
 
@@ -393,368 +360,8 @@ suite('Automation workspace trust', () => {
 	}
 });
 
-suite('Automation branch picker', () => {
-	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-
-	function createItem(options?: {
-		readonly state?: IFormState;
-		readonly getRefs?: IGitRepository['getRefs'];
-		readonly failOpenRepositoryOnce?: boolean;
-		readonly providerInitiallyUnavailable?: boolean;
-		readonly revalidate?: () => void;
-		readonly visible?: boolean;
-	}): {
-		readonly container: HTMLElement;
-		readonly state: IFormState;
-		readonly model: AutomationIsolationModel;
-		readonly actionWidgetService: RecordingActionWidgetService;
-		readonly getOpenRepositoryAttempts: () => number;
-		readonly setProviderAvailable: () => void;
-	} {
-		const state = options?.state ?? createFormState();
-		const model = new AutomationIsolationModel(state);
-		const repositoryState = observableValue('repositoryState', {
-			HEAD: { type: GitRefType.Head, name: 'main', commit: 'abc123' },
-			remotes: [],
-			mergeChanges: [],
-			indexChanges: [],
-			workingTreeChanges: [],
-			untrackedChanges: [],
-		});
-		const repository = upcastPartial<IGitRepository>({
-			rootUri: FOLDER,
-			state: repositoryState,
-			getRefs: options?.getRefs ?? (async () => [
-				{ type: GitRefType.Head, name: 'feature/z' },
-				{ type: GitRefType.Head, name: 'main' },
-				{ type: GitRefType.Head, name: 'feature/a' },
-				{ type: GitRefType.Head, name: 'copilot-worktree-generated' },
-			]),
-		});
-		const actionWidgetService = new RecordingActionWidgetService();
-		const visible = observableValue('repositoryControlsVisible', options?.visible ?? true);
-		let openRepositoryAttempts = 0;
-		let providerAvailable = !options?.providerInitiallyUnavailable;
-		const sessionTypesChanged = disposables.add(new Emitter<void>());
-		const instantiationService = disposables.add(new TestInstantiationService());
-		instantiationService.stub(IActionWidgetService, actionWidgetService);
-		instantiationService.stub(IGitService, upcastPartial<IGitService>({
-			openRepository: async () => {
-				openRepositoryAttempts++;
-				if (options?.failOpenRepositoryOnce && openRepositoryAttempts === 1) {
-					throw new Error('failed to open repository');
-				}
-				return repository;
-			},
-		}));
-		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
-			onDidChangeSessionTypes: sessionTypesChanged.event,
-			getSessionTypesForFolder: () => providerAvailable ? [{
-				providerId: state.providerId ?? 'default-copilot',
-				sessionType: {
-					id: state.sessionTypeId ?? 'copilotcli',
-					label: 'Copilot',
-					icon: Codicon.copilot,
-					supportsWorktreeConfiguration: state.sessionTypeId === 'copilotcli',
-					authRequirement: SessionTypeAuthRequirement.GitHub,
-				},
-			}] : [],
-		}));
-		instantiationService.stub(ILogService, new NullLogService());
-
-		const action = disposables.add(new Action('test.automationIsolation', 'Automation Isolation'));
-		const item = disposables.add(instantiationService.createInstance(
-			AutomationIsolationGroupActionViewItem,
-			action,
-			state,
-			model,
-			model.folderUriObs,
-			Event.None,
-			options?.revalidate ?? (() => { }),
-			undefined,
-			visible,
-		));
-		const container = document.createElement('div');
-		item.render(container);
-		return {
-			container,
-			state,
-			model,
-			actionWidgetService,
-			getOpenRepositoryAttempts: () => openRepositoryAttempts,
-			setProviderAvailable: () => {
-				providerAvailable = true;
-				sessionTypesChanged.fire();
-			},
-		};
-	}
-
-	test('opens sorted local branches and persists the selected Worktree branch', async () => {
-		const { container, model, actionWidgetService } = createItem();
-		await timeout(0);
-		const trigger = container.querySelector<HTMLElement>('.automation-form-branch-slot');
-		assert.ok(trigger);
-
-		trigger.click();
-		assert.deepStrictEqual(actionWidgetService.labels, ['feature/a', 'feature/z', 'main']);
-		actionWidgetService.select('feature/z');
-
-		assert.deepStrictEqual({
-			branch: model.persistedBranch,
-			expanded: trigger.getAttribute('aria-expanded'),
-			disabled: trigger.getAttribute('aria-disabled'),
-			role: trigger.getAttribute('role'),
-			hasPopup: trigger.getAttribute('aria-haspopup'),
-		}, {
-			branch: 'feature/z',
-			expanded: 'false',
-			disabled: 'false',
-			role: 'button',
-			hasPopup: 'listbox',
-		});
-	});
-
-	test('keeps an edited branch that is no longer available locally', async () => {
-		const { container, model, actionWidgetService } = createItem({
-			state: createFormState({ branch: 'feature/deleted' }),
-		});
-		await timeout(0);
-		const trigger = container.querySelector<HTMLElement>('.automation-form-branch-slot');
-		assert.ok(trigger);
-
-		trigger.click();
-
-		assert.deepStrictEqual({
-			label: trigger.querySelector('.automation-form-branch-name')?.textContent,
-			persistedBranch: model.persistedBranch,
-			pickerItems: actionWidgetService.labels,
-			ariaLabels: actionWidgetService.ariaLabels,
-		}, {
-			label: 'feature/deleted',
-			persistedBranch: 'feature/deleted',
-			pickerItems: ['feature/deleted', 'feature/a', 'feature/z', 'main'],
-			ariaLabels: ['feature/deleted, unavailable locally', 'feature/a', 'feature/z', 'main'],
-		});
-	});
-
-	test('keeps Folder branch status read-only', async () => {
-		const { container, actionWidgetService } = createItem({
-			state: createFormState({ isolationMode: 'workspace', branch: 'stale-head' }),
-		});
-		await timeout(0);
-		const trigger = container.querySelector<HTMLElement>('.automation-form-branch-slot');
-		assert.ok(trigger);
-
-		trigger.click();
-
-		assert.deepStrictEqual({
-			label: trigger.querySelector('.automation-form-branch-name')?.textContent,
-			disabled: trigger.getAttribute('aria-disabled'),
-			hasChevron: !!trigger.querySelector('.codicon-chevron-down'),
-			pickerVisible: actionWidgetService.isVisible,
-			role: trigger.getAttribute('role'),
-			hasPopup: trigger.getAttribute('aria-haspopup'),
-			tabIndex: trigger.tabIndex,
-		}, {
-			label: 'main',
-			disabled: 'true',
-			hasChevron: false,
-			pickerVisible: false,
-			role: null,
-			hasPopup: null,
-			tabIndex: -1,
-		});
-	});
-
-	test('offers retry after a branch load failure', async () => {
-		let attempts = 0;
-		const { container, actionWidgetService } = createItem({
-			getRefs: async () => {
-				attempts++;
-				if (attempts === 1) {
-					throw new Error('failed');
-				}
-				return [{ type: GitRefType.Head, name: 'main' }];
-			},
-		});
-		await timeout(0);
-		const trigger = container.querySelector<HTMLElement>('.automation-form-branch-slot');
-		assert.ok(trigger);
-
-		trigger.click();
-		assert.deepStrictEqual(actionWidgetService.labels, ['Retry Loading Branches']);
-		actionWidgetService.select('Retry Loading Branches');
-		await timeout(0);
-		trigger.click();
-
-		assert.deepStrictEqual({
-			attempts,
-			labels: actionWidgetService.labels,
-		}, {
-			attempts: 2,
-			labels: ['main'],
-		});
-	});
-
-	test('keeps the picker disabled while branches load and enables it when ready', async () => {
-		const refs = new DeferredPromise<Awaited<ReturnType<IGitRepository['getRefs']>>>();
-		const { container, actionWidgetService } = createItem({
-			getRefs: async () => refs.p,
-		});
-		await timeout(0);
-		const trigger = container.querySelector<HTMLElement>('.automation-form-branch-slot');
-		assert.ok(trigger);
-		trigger.click();
-		assert.deepStrictEqual({
-			disabled: trigger.getAttribute('aria-disabled'),
-			pickerVisible: actionWidgetService.isVisible,
-		}, {
-			disabled: 'true',
-			pickerVisible: false,
-		});
-
-		await refs.complete([{ type: GitRefType.Head, name: 'main' }]);
-		await timeout(0);
-		trigger.click();
-
-		assert.deepStrictEqual({
-			disabled: trigger.getAttribute('aria-disabled'),
-			labels: actionWidgetService.labels,
-		}, {
-			disabled: 'false',
-			labels: ['main'],
-		});
-	});
-
-	test('explains that Worktree is unavailable while branches load', async () => {
-		const refs = new DeferredPromise<Awaited<ReturnType<IGitRepository['getRefs']>>>();
-		const { container } = createItem({
-			state: createFormState({ isolationMode: 'workspace' }),
-			getRefs: async () => refs.p,
-		});
-		await timeout(0);
-		const checkbox = container.querySelector<HTMLElement>('.sessions-chat-isolation-checkbox .monaco-checkbox');
-		assert.ok(checkbox);
-
-		assert.deepStrictEqual({
-			checked: checkbox.getAttribute('aria-checked'),
-			disabled: checkbox.getAttribute('aria-disabled'),
-		}, {
-			checked: 'false',
-			disabled: 'true',
-		});
-
-		await refs.complete([{ type: GitRefType.Head, name: 'main' }]);
-	});
-
-	test('offers retry when opening the repository fails in Folder mode', async () => {
-		const { container, actionWidgetService, getOpenRepositoryAttempts } = createItem({
-			state: createFormState({ isolationMode: 'workspace' }),
-			failOpenRepositoryOnce: true,
-		});
-		await timeout(0);
-		const trigger = container.querySelector<HTMLElement>('.automation-form-branch-slot');
-		assert.ok(trigger);
-
-		trigger.click();
-		assert.deepStrictEqual(actionWidgetService.labels, ['Retry Loading Branches']);
-		actionWidgetService.select('Retry Loading Branches');
-		await timeout(0);
-
-		assert.deepStrictEqual({
-			attempts: getOpenRepositoryAttempts(),
-			label: trigger.querySelector('.automation-form-branch-name')?.textContent,
-		}, {
-			attempts: 2,
-			label: 'main',
-		});
-	});
-
-	test('resolves providerless session-type picks before gating Worktree configuration', async () => {
-		const { container } = createItem({
-			state: createFormState({ providerId: undefined }),
-		});
-		await timeout(0);
-		const trigger = container.querySelector<HTMLElement>('.automation-form-branch-slot');
-		assert.ok(trigger);
-
-		assert.deepStrictEqual({
-			disabled: trigger.getAttribute('aria-disabled'),
-			label: trigger.querySelector('.automation-form-branch-name')?.textContent,
-		}, {
-			disabled: 'false',
-			label: 'main',
-		});
-	});
-
-	test('normalizes unsupported Worktree targets back to Folder mode', async () => {
-		const { container, model } = createItem({
-			state: createFormState({ sessionTypeId: 'claude', branch: 'feature/saved' }),
-		});
-		await timeout(0);
-
-		const checkbox = container.querySelector<HTMLElement>('.sessions-chat-isolation-checkbox .monaco-checkbox');
-		assert.ok(checkbox);
-		assert.deepStrictEqual({
-			mode: model.isolationMode,
-			branch: model.persistedBranch,
-			checked: checkbox.getAttribute('aria-checked'),
-		}, {
-			mode: 'workspace',
-			branch: undefined,
-			checked: 'false',
-		});
-	});
-
-	test('enables Worktree branches for agent-host Copilot CLI', async () => {
-		const { container } = createItem({
-			state: createFormState({ providerId: 'local-agent-host', sessionTypeId: 'copilotcli' }),
-		});
-		await timeout(0);
-		const trigger = container.querySelector<HTMLElement>('.automation-form-branch-slot');
-		assert.ok(trigger);
-
-		assert.deepStrictEqual({
-			disabled: trigger.getAttribute('aria-disabled'),
-			label: trigger.querySelector('.automation-form-branch-name')?.textContent,
-		}, {
-			disabled: 'false',
-			label: 'main',
-		});
-	});
-
-	test('preserves Worktree intent while the provider is discovered late', async () => {
-		const { container, model, setProviderAvailable } = createItem({
-			state: createFormState({ branch: 'feature/saved' }),
-			providerInitiallyUnavailable: true,
-		});
-		await timeout(0);
-		const trigger = container.querySelector<HTMLElement>('.automation-form-branch-slot');
-		assert.ok(trigger);
-		assert.deepStrictEqual({
-			mode: model.isolationMode,
-			selectedBranch: model.selectedBranch,
-			persistedBranch: model.persistedBranch,
-			reason: trigger.getAttribute('aria-label'),
-		}, {
-			mode: 'worktree',
-			selectedBranch: 'feature/saved',
-			persistedBranch: undefined,
-			reason: 'feature/saved. Session capabilities are loading.',
-		});
-
-		setProviderAvailable();
-
-		assert.deepStrictEqual({
-			mode: model.isolationMode,
-			persistedBranch: model.persistedBranch,
-			disabled: trigger.getAttribute('aria-disabled'),
-		}, {
-			mode: 'worktree',
-			persistedBranch: 'feature/saved',
-			disabled: 'false',
-		});
-	});
+suite('Automation dialog validation and configuration', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('requires a branch before saving Worktree isolation', () => {
 		const state = createFormState({ branch: undefined });
@@ -833,56 +440,27 @@ suite('Automation branch picker', () => {
 		});
 	});
 
-	test('hides repository controls for workspace-less targets', async () => {
-		const state = createFormState({
-			isQuickChat: true,
-			folderUri: undefined,
-			isolationMode: 'worktree',
-			branch: 'feature/stale',
-		});
-		const { container, model } = createItem({ state, visible: false });
-		await timeout(0);
+	test('disables Save while the composer draft is loading', () => {
+		const state = createFormState({ isolationMode: 'workspace', branch: undefined });
+		const validation: IValidationState = {
+			nameError: undefined,
+			promptError: undefined,
+			folderError: undefined,
+			sessionTypeError: undefined,
+			branchError: undefined,
+		};
+		const form = document.createElement('form');
+		const button = upcastPartial<IButton>({ enabled: true });
 
-		assert.deepStrictEqual({
-			display: container.style.display,
-			ariaHidden: container.getAttribute('aria-hidden'),
-			folderUri: model.folderUri,
-			isolationMode: state.isolationMode,
-			branch: model.persistedBranch,
-		}, {
-			display: 'none',
-			ariaHidden: 'true',
-			folderUri: undefined,
-			isolationMode: undefined,
-			branch: undefined,
-		});
-	});
+		updateSaveButtonState(button, state, validation, form, () => 'prompt', () => undefined, /* isLoading */ true);
+		const whileLoading = button.enabled;
+		updateSaveButtonState(button, state, validation, form, () => 'prompt', () => undefined, /* isLoading */ false);
+		const whenReady = button.enabled;
+		// A ready draft with an invalid form still keeps Save disabled.
+		updateSaveButtonState(button, state, validation, form, () => '', () => undefined, /* isLoading */ false);
+		const whenInvalid = button.enabled;
 
-	test('reloads repository state when returning to workspace mode', async () => {
-		const state = createFormState({
-			isQuickChat: true,
-			folderUri: undefined,
-			isolationMode: undefined,
-			branch: undefined,
-		});
-		const { container, model, getOpenRepositoryAttempts } = createItem({ state, visible: true });
-		await timeout(0);
-
-		assert.strictEqual(getOpenRepositoryAttempts(), 0);
-		model.setQuickChat(false, FOLDER);
-		await timeout(0);
-
-		assert.deepStrictEqual({
-			attempts: getOpenRepositoryAttempts(),
-			folderUri: model.folderUri?.toString(),
-			branch: container.querySelector('.automation-form-branch-name')?.textContent,
-			supportsWorktreeConfiguration: model.supportsWorktreeConfiguration,
-		}, {
-			attempts: 1,
-			folderUri: FOLDER.toString(),
-			branch: 'main',
-			supportsWorktreeConfiguration: true,
-		});
+		assert.deepStrictEqual({ whileLoading, whenReady, whenInvalid }, { whileLoading: false, whenReady: true, whenInvalid: false });
 	});
 
 	test('allows focus in mobile picker sheets', () => {

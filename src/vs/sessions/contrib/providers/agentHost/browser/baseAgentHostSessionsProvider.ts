@@ -3223,7 +3223,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw new Error(`Cannot resolve workspace for URI: ${workspaceUri.toString()}`);
 		}
 
-		return this._createDraftSession(sessionType, workspace, false, options?.metadata);
+		return this._createDraftSession(sessionType, workspace, false, options);
 	}
 
 	startNewSessionRequest(sessionId: string, activity?: string): IDisposable {
@@ -3234,7 +3234,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return newSession.startRequest(activity);
 	}
 
-	createQuickChat(sessionTypeId: string): ISession {
+	createQuickChat(sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession {
 		const sessionType = this.sessionTypes.find(t => t.id === sessionTypeId);
 		if (!sessionType) {
 			throw new Error(this._noAgentsErrorMessage());
@@ -3246,7 +3246,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// workspace-less: no `resolveWorkspace`, no `workingDirectory`. The
 		// agent host runs it in a throwaway scratch cwd and tags it via the
 		// `quickChat` create flag.
-		return this._createDraftSession(sessionType, undefined, true);
+		return this._createDraftSession(sessionType, undefined, true, options);
 	}
 
 	/**
@@ -3254,7 +3254,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * given session type. Shared by {@link createNewSession} (workspace-bound)
 	 * and {@link createQuickChat} (workspace-less, `quickChat === true`).
 	 */
-	private _createDraftSession(sessionType: ISessionType, workspace: ISessionWorkspace | undefined, quickChat: boolean, initialMetadata?: Record<string, unknown>): ISession {
+	private _createDraftSession(sessionType: ISessionType, workspace: ISessionWorkspace | undefined, quickChat: boolean, options?: ISessionsProviderCreateSessionOptions): ISession {
 		// Tear-down of superseded drafts is handled by the management layer
 		// (it calls `deleteNewSession` on the previous pending session). Each
 		// new session is tracked independently in `_newSessions` so several can
@@ -3263,6 +3263,22 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const connection = this.connection;
 		const resourceScheme = this.resourceSchemeForProvider(sessionType.id);
 		const activeClientScope = this._activeClientService.acquireScope(resourceScheme, workspace?.folders.map(folder => folder.root) ?? []);
+		const initialConfigValues = {
+			...this._initialNewSessionConfig(workspace),
+			...options?.configuration,
+		};
+		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService);
+		const policyDefaults = this._baseConfigurationService.inspect<IChatDefaultConfiguration>(ChatConfiguration.DefaultConfiguration).policyValue;
+		const normalizedAutoApprove = normalizeAutoApproveValue(policyDefaults?.approvals, policyRestricted)
+			?? normalizeAutoApproveValue(initialConfigValues[SessionConfigKey.AutoApprove], policyRestricted);
+		if (normalizedAutoApprove) {
+			initialConfigValues[SessionConfigKey.AutoApprove] = normalizedAutoApprove;
+		} else {
+			delete initialConfigValues[SessionConfigKey.AutoApprove];
+		}
+		if (typeof policyDefaults?.mode === 'string' && KNOWN_MODE_VALUES.has(policyDefaults.mode)) {
+			initialConfigValues[SessionConfigKey.Mode] = policyDefaults.mode;
+		}
 		let newSession: NewSession;
 		try {
 			newSession = this._instantiationService.createInstance(NewSession, {
@@ -3275,9 +3291,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				backendSessionScheme: this._backendSessionScheme(sessionType.id),
 				authenticationPending: this.authenticationPending,
 				logService: this._logService,
-				initialConfigValues: this._initialNewSessionConfig(workspace),
+				initialConfigValues,
 				initialConfigSchema: this._seededConfigSchema(),
-				initialMetadata,
+				initialMetadata: options?.metadata,
 				instantiationService: this._instantiationService,
 				onSessionState: (id, state) => state === undefined
 					? this._handleNewSessionStateGone(id)
@@ -3297,6 +3313,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		} catch (err) {
 			activeClientScope.dispose();
 			throw err;
+		}
+		if (options?.modelId) {
+			newSession.setSelectedModelId(options.modelId, ChatModelSource.Chosen);
+		}
+		if (options?.agentId) {
+			newSession.setSelectedAgent({ uri: options.agentId, name: '' });
 		}
 		this._newSessions.set(newSession.sessionId, newSession);
 		this._onDidChangeDraftSessions.fire();

@@ -514,7 +514,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	createAutomationSession(folderUri: URI, options?: ICreateNewSessionOptions): ISession {
 		const { provider, sessionTypeId } = this._resolveProviderForNewSession(folderUri, options);
 		const previousAutomationSession = this._automationSession.get();
-		const session = provider.createNewSession(folderUri, sessionTypeId);
+		const session = this._createAutomationSession(provider, () => provider.createNewSession(folderUri, sessionTypeId, {
+			metadata: options?.metadata,
+			modelId: options?.modelId,
+			agentId: options?.agentId,
+			configuration: options?.configuration,
+		}), options);
 		if (previousAutomationSession && previousAutomationSession.sessionId !== session.sessionId) {
 			this._getProvider(previousAutomationSession)?.deleteNewSession(previousAutomationSession.sessionId);
 		}
@@ -582,7 +587,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const { provider, sessionTypeId } = this._resolveProviderForQuickChat(options);
 
 		const previousNewSession = this._newSession.get();
-		const session = provider.createQuickChat(sessionTypeId);
+		const session = provider.createQuickChat(sessionTypeId, {
+			metadata: options?.metadata,
+			modelId: options?.modelId,
+			agentId: options?.agentId,
+			configuration: options?.configuration,
+		});
 		this._newSession.set(session, undefined);
 		this.storageService.store(LAST_USED_QUICK_CHAT_SESSION_TYPE_STORAGE_KEY, sessionTypeId, StorageScope.PROFILE, StorageTarget.USER);
 
@@ -598,12 +608,36 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	createAutomationQuickChat(options?: ICreateNewSessionOptions): ISession {
 		const { provider, sessionTypeId } = this._resolveProviderForQuickChat(options);
 		const previousAutomationSession = this._automationSession.get();
-		const session = provider.createQuickChat(sessionTypeId);
+		const session = this._createAutomationSession(provider, () => provider.createQuickChat(sessionTypeId, {
+			metadata: options?.metadata,
+			modelId: options?.modelId,
+			agentId: options?.agentId,
+			configuration: options?.configuration,
+		}), options);
 		if (previousAutomationSession && previousAutomationSession.sessionId !== session.sessionId) {
 			this._getProvider(previousAutomationSession)?.deleteNewSession(previousAutomationSession.sessionId);
 		}
 		this._automationSession.set(session, undefined);
 		return session;
+	}
+
+	private _createAutomationSession(provider: ISessionsProvider, createSession: () => ISession, options: ICreateNewSessionOptions | undefined): ISession {
+		const session = createSession();
+		try {
+			if (options?.modelId) {
+				provider.setModel(session.sessionId, session.mainChat.get().resource, options.modelId, ChatModelSource.Chosen);
+			}
+			if (options?.modeId) {
+				provider.setMode?.(session.sessionId, options.modeId);
+			}
+			if (options?.permissionLevel) {
+				provider.setPermissionLevel?.(session.sessionId, options.permissionLevel);
+			}
+			return session;
+		} catch (error) {
+			provider.deleteNewSession(session.sessionId);
+			throw error;
+		}
 	}
 
 	async createNewChatInSession(session: ISession, options?: ICreateNewChatInSessionOptions): Promise<IChat | undefined> {
@@ -873,7 +907,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	async createAndSendQuickChatRequest(options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions, token: CancellationToken = CancellationToken.None): Promise<ISession | undefined> {
 		const { provider, sessionTypeId } = this._resolveProviderForQuickChat(createOptions);
-		const session = provider.createQuickChat(sessionTypeId);
+		const session = provider.createQuickChat(sessionTypeId, { metadata: createOptions?.metadata });
 		return this._configureAndSendNewSession(provider, session, options, createOptions, false, token);
 	}
 
