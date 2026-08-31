@@ -392,6 +392,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			data.detail.textContent = '';
 			data.detail.style.display = 'none';
 		}
+		data.container.classList.toggle('has-detail', !!element.detail);
 
 		// Render optional inline toggle (shown as its own row below the detail)
 		dom.clearNode(data.inlineToggleContainer);
@@ -1730,7 +1731,7 @@ export class ActionListWidget<T> extends Disposable {
 		}
 
 		try {
-			return rows.map(({ element, item }) => element.getBoundingClientRect().width + this._computeToolbarWidth(item));
+			return rows.map(({ element, item }) => element.getBoundingClientRect().width + (item.detail ? 0 : this._computeToolbarWidth(item)));
 		} finally {
 			for (const { element } of rows) {
 				element.style.width = '';

@@ -11,6 +11,7 @@ import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
+import { toAction } from '../../../../../base/common/actions.js';
 import { Delayer } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
@@ -35,10 +36,14 @@ import { markOnboardingTarget } from '../../../../../workbench/contrib/onboardin
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { type IChatInputPickerOptions } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { IChatInputPickerResponsiveState } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
+import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
+import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { Menus } from '../../../../browser/menus.js';
 import { SessionProviderIdContext, IsPhoneLayoutContext, IsQuickChatSessionContext } from '../../../../common/contextkeys.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
+import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
+import { CHANGES_VIEW_ID } from '../../../changes/common/changes.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionContext } from '../../../../services/sessions/browser/sessionContext.js';
@@ -144,7 +149,7 @@ function getBranchUncommittedChanges(branchName: string, repositoryBranchName: s
 		: undefined;
 }
 
-function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: unknown | undefined, policyRestricted?: boolean, repositoryBranchName?: string, repositoryUncommittedChanges?: number): IActionListItem<IConfigPickerItem>[] {
+function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: unknown | undefined, policyRestricted?: boolean, repositoryBranchName?: string, repositoryUncommittedChanges?: number, onShowChanges?: () => Promise<void>): IActionListItem<IConfigPickerItem>[] {
 	const actionItems: IActionListItem<IConfigPickerItem>[] = items.map(item => {
 		const disabled = property === SessionConfigKey.AutoApprove && isAutoApproveValuePolicyRestricted(item.value, policyRestricted === true);
 		const checked = isSelectedValue(currentValue, item.value);
@@ -162,6 +167,14 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 			ariaDescription: uncommittedChangesDescription,
 			disabled,
 			item: { ...item, checked },
+			toolbarActions: uncommittedChanges !== undefined && onShowChanges
+				? [toAction({
+					id: 'sessions.agentHost.showBranchChanges',
+					label: localize('agentHostSessionConfig.branchItemShowChanges', "Show Changes"),
+					class: ThemeIcon.asClassName(Codicon.diffMultiple),
+					run: onShowChanges,
+				})]
+				: undefined,
 		};
 	});
 
@@ -364,8 +377,10 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		@IHoverService protected readonly _hoverService: IHoverService,
 		@ISessionsProvidersService protected readonly _sessionsProvidersService: ISessionsProvidersService,
 		@ITelemetryService protected readonly _telemetryService: ITelemetryService,
-		@IWorkbenchLayoutService protected readonly _layoutService: IWorkbenchLayoutService,
+		@IAgentWorkbenchLayoutService protected readonly _layoutService: IAgentWorkbenchLayoutService,
 		@IStorageService protected readonly _storageService: IStorageService,
+		@ISessionChangesService private readonly _sessionChangesService: ISessionChangesService,
+		@IViewsService protected readonly _viewsService: IViewsService,
 	) {
 		super();
 
@@ -785,7 +800,10 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		const repositoryState = property === SessionConfigKey.Branch
 			? this._getRepositoryBranchState(sessionId)
 			: undefined;
-		const actionItems = toActionItems(property, items, currentValue, policyRestricted, repositoryState?.branchName, repositoryState?.uncommittedChanges);
+		const onShowChanges = property === SessionConfigKey.Branch
+			? () => this._showChanges()
+			: undefined;
+		const actionItems = toActionItems(property, items, currentValue, policyRestricted, repositoryState?.branchName, repositoryState?.uncommittedChanges, onShowChanges);
 
 		const delegate: IActionListDelegate<IConfigPickerItem> = {
 			onSelect: async item => {
@@ -816,7 +834,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 					const filteredRawItems = await this._getItems(provider, sessionId, property, schema, query);
 					const { items: filteredItems, policyRestricted: filteredPolicyRestricted } = applyAutoApproveFiltering(filteredRawItems, property, this._configurationService);
 					const filteredRepositoryState = this._getRepositoryBranchState(sessionId);
-					return toActionItems(property, filteredItems, provider.getSessionConfig(sessionId)?.values[property] ?? schema.default, filteredPolicyRestricted, filteredRepositoryState.branchName, filteredRepositoryState.uncommittedChanges);
+					return toActionItems(property, filteredItems, provider.getSessionConfig(sessionId)?.values[property] ?? schema.default, filteredPolicyRestricted, filteredRepositoryState.branchName, filteredRepositoryState.uncommittedChanges, onShowChanges);
 				})
 				: undefined,
 			onHide: () => trigger.focus(),
@@ -840,6 +858,20 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				? { showFilter: true, filterPlaceholder: localize('agentHostSessionConfig.filter', "Filter options..."), minWidth: 255 }
 				: { minWidth: 255 },
 		);
+	}
+
+	private async _showChanges(): Promise<void> {
+		this._actionWidgetService.hide();
+		const session = this._session.get();
+		if (this._layoutService.isSinglePaneLayoutEnabled && session) {
+			const suppression = this._layoutService.suppressEditorPartAutoVisibility();
+			try {
+				await this._sessionChangesService.openChangesEditor(session.resource);
+			} finally {
+				suppression.dispose();
+			}
+		}
+		await this._viewsService.openView(CHANGES_VIEW_ID, true);
 	}
 
 	protected _getRepositoryBranchState(sessionId: string): { branchName: string | undefined; uncommittedChanges: number | undefined } {

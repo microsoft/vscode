@@ -146,6 +146,29 @@ suite('MCP Types', () => {
 		});
 	});
 
+	test('McpServerDefinition preserves SSE transport when serialized', () => {
+		const definition: McpServerDefinition = {
+			id: 'test-server',
+			label: 'Test Server',
+			cacheNonce: 'nonce',
+			launch: {
+				type: McpServerTransportType.HTTP,
+				transport: 'sse',
+				uri: URI.parse('https://example.com/sse'),
+				headers: [],
+			},
+		};
+
+		const launch = McpServerDefinition.fromSerialized(McpServerDefinition.toSerialized(definition)).launch;
+		assert.deepStrictEqual(launch.type === McpServerTransportType.HTTP ? {
+			type: launch.type,
+			transport: launch.transport,
+		} : undefined, {
+			type: McpServerTransportType.HTTP,
+			transport: 'sse',
+		});
+	});
+
 	test('McpServerLaunch converts persisted configurations', () => {
 		assert.deepStrictEqual({
 			local: McpServerLaunch.fromServerConfiguration({
@@ -158,6 +181,7 @@ suite('MCP Types', () => {
 			}, { network: { allowedDomains: ['example.com'] } }),
 			remote: McpServerLaunch.fromServerConfiguration({
 				type: McpServerType.REMOTE,
+				transport: 'sse',
 				url: 'https://example.com/mcp',
 				headers: { Authorization: 'Bearer token' },
 				oauth: { clientId: 'client' },
@@ -174,6 +198,7 @@ suite('MCP Types', () => {
 			},
 			remote: {
 				type: McpServerTransportType.HTTP,
+				transport: 'sse',
 				uri: URI.parse('https://example.com/mcp'),
 				headers: [['Authorization', 'Bearer token']],
 				oauth: { clientId: 'client' },

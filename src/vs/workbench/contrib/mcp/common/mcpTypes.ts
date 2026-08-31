@@ -673,6 +673,7 @@ export function mcpOAuthClientSecretStorageKey(mcpServerUrl: string, clientId: s
  */
 export interface McpServerTransportHTTP {
 	readonly type: McpServerTransportType.HTTP;
+	readonly transport?: 'sse' | 'streamable-http';
 	readonly uri: URI;
 	readonly headers: [string, string][];
 	readonly oauth?: McpServerTransportHTTPOAuth;
@@ -689,7 +690,7 @@ export type McpServerLaunch =
 
 export namespace McpServerLaunch {
 	export type Serialized =
-		| { type: McpServerTransportType.HTTP; uri: UriComponents; headers: [string, string][]; oauth?: McpServerTransportHTTPOAuth; authentication?: McpServerTransportHTTPAuthentication }
+		| { type: McpServerTransportType.HTTP; transport?: 'sse' | 'streamable-http'; uri: UriComponents; headers: [string, string][]; oauth?: McpServerTransportHTTPOAuth; authentication?: McpServerTransportHTTPAuthentication }
 		| { type: McpServerTransportType.Stdio; cwd: string | undefined; command: string; args: readonly string[]; env: Record<string, string | number | null>; envFile: string | undefined; sandbox: IMcpSandboxConfiguration | undefined };
 
 	export function toSerialized(launch: McpServerLaunch): McpServerLaunch.Serialized {
@@ -699,7 +700,7 @@ export namespace McpServerLaunch {
 	export function fromSerialized(launch: McpServerLaunch.Serialized): McpServerLaunch {
 		switch (launch.type) {
 			case McpServerTransportType.HTTP:
-				return { type: launch.type, uri: URI.revive(launch.uri), headers: launch.headers, oauth: launch.oauth, authentication: launch.authentication };
+				return { type: launch.type, transport: launch.transport, uri: URI.revive(launch.uri), headers: launch.headers, oauth: launch.oauth, authentication: launch.authentication };
 			case McpServerTransportType.Stdio:
 				return {
 					type: launch.type,
@@ -730,6 +731,7 @@ export namespace McpServerLaunch {
 		try {
 			return {
 				type: McpServerTransportType.HTTP,
+				...(configuration.transport === 'sse' ? { transport: 'sse' as const } : {}),
 				uri: URI.parse(configuration.url),
 				headers: Object.entries(configuration.headers ?? {}),
 				oauth: configuration.oauth,
