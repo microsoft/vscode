@@ -1594,7 +1594,7 @@ export class CopilotAgentSession extends Disposable {
 			type: ActionType.ChatError,
 			turnId: turn.id,
 			duration: turn.duration,
-			part: createErrorResponsePart(error, true),
+			part: createErrorResponsePart(error),
 		});
 		this._clearActiveTurn();
 		return turn.id;
@@ -2655,7 +2655,7 @@ export class CopilotAgentSession extends Disposable {
 			part: createErrorResponsePart({
 				errorType: 'developmentRecoverableError',
 				message: localize('copilotAgent.developmentRecoverableError', "Injected recoverable development error ({0}/{1}).", attempt, totalFailures),
-			}, true),
+			}),
 		});
 		this._clearActiveTurn();
 	}
@@ -5029,7 +5029,7 @@ export class CopilotAgentSession extends Disposable {
 				type: ActionType.ChatError,
 				turnId: this._turnId,
 				duration: turn?.duration ?? 0,
-				part: createErrorResponsePart(buildChatErrorInfoFromCopilotSdkFields(e.data), !e.agentId && turn !== undefined),
+				part: createErrorResponsePart(buildChatErrorInfoFromCopilotSdkFields(e.data)),
 			}, parentToolCallId);
 			if (!parentToolCallId) {
 				this._clearActiveTurn();
