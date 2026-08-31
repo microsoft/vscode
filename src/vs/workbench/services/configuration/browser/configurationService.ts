@@ -1429,13 +1429,9 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 			}
 			try {
 				const value = await this.workbenchAssignmentService.getTreatment(schema.experiment.name ?? `config.${property}`);
-				// A `startup` experiment resolves to a single, stable value for the session. But the
-				// treatment can be unavailable during the initial resolution - notably when it is
-				// served by the sign-in gated assignments endpoint, whose value only arrives after
-				// the account loads. Keep such settings pending and re-resolve them on subsequent
-				// assignment refetches until a value first becomes available, then latch (stop
-				// re-resolving) so the value stays stable for the rest of the session - unlike
-				// `auto`, which keeps tracking changes.
+				// A `startup` treatment resolves once but may be unavailable initially (e.g. served by
+				// the sign-in gated assignments endpoint). Keep it pending and retry on refetches
+				// until a value first arrives, then latch it so it stays stable for the session.
 				if (!isAutoExperiment) {
 					if (isUndefined(value)) {
 						this.pendingStartupExperimentalSettings.add(property);
