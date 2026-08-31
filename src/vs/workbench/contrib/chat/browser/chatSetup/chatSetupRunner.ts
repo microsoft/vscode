@@ -5,7 +5,7 @@
 
 import './media/chatSetup.css';
 import { $, getWindow, releaseReservedWindowForExternalOpen, reserveWindowForExternalOpen } from '../../../../../base/browser/dom.js';
-import { isSafari, isStandalone } from '../../../../../base/browser/browser.js';
+import { isSafari, isMobileStandalone } from '../../../../../base/browser/browser.js';
 import { IButton } from '../../../../../base/browser/ui/button/button.js';
 import { Dialog, DialogContentsAlignment } from '../../../../../base/browser/ui/dialog/dialog.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
@@ -156,9 +156,9 @@ export class ChatSetupDialog extends Disposable {
 				buttonOptions: options.buttons.map(button => {
 					const classes = button.classes;
 					// Claim the sign-in window while the click's activation is still live;
-					// see `reserveWindowForExternalOpen`. Only installed apps (fatal, no
-					// tab to fall back to) and Safari (recoverable via "Retry") need this.
-					const opensBrowser = (isStandalone() || isSafari) && entersProviderAuthentication(button.strategy);
+					// see `reserveWindowForExternalOpen`. Only installed mobile apps (fatal,
+					// no tab to fall back to) and Safari (recoverable via "Retry") need this.
+					const opensBrowser = (isMobileStandalone() || isSafari) && entersProviderAuthentication(button.strategy);
 					if (!classes && !opensBrowser) {
 						return undefined;
 					}

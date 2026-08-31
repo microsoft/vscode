@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isSafari, isStandalone, setFullscreen } from '../../base/browser/browser.js';
+import { isSafari, isMobileStandalone, setFullscreen } from '../../base/browser/browser.js';
 import { addDisposableListener, EventHelper, EventType, getWindow, getWindowById, getWindows, getWindowsCount, hasAppFocus, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from '../../base/browser/dom.js';
 import { DomEmitter } from '../../base/browser/event.js';
 import { HidDeviceData, requestHidDevice, requestSerialPort, requestUsbDevice, SerialPortData, UsbDeviceData } from '../../base/browser/deviceAccess.js';
@@ -357,7 +357,7 @@ export class BrowserWindow extends BaseWindow {
 				if (matchesScheme(href, Schemas.http) || matchesScheme(href, Schemas.https)) {
 					// Both block popups opened outside a user gesture, so use the
 					// open-then-navigate path, which can pick up a reserved window.
-					if (isSafari || isStandalone()) {
+					if (isSafari || isMobileStandalone()) {
 						const opened = windowOpenWithSuccess(href, !isAllowedOpener);
 						if (!opened) {
 							await this.dialogService.prompt({
