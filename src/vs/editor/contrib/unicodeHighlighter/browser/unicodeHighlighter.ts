@@ -359,9 +359,9 @@ class ViewportUnicodeHighlighter extends Disposable {
 			for (const r of result.ranges) {
 				totalResult.ranges.push(r);
 			}
-			totalResult.ambiguousCharacterCount += totalResult.ambiguousCharacterCount;
-			totalResult.invisibleCharacterCount += totalResult.invisibleCharacterCount;
-			totalResult.nonBasicAsciiCharacterCount += totalResult.nonBasicAsciiCharacterCount;
+			totalResult.ambiguousCharacterCount += result.ambiguousCharacterCount;
+			totalResult.invisibleCharacterCount += result.invisibleCharacterCount;
+			totalResult.nonBasicAsciiCharacterCount += result.nonBasicAsciiCharacterCount;
 			totalResult.hasMore = totalResult.hasMore || result.hasMore;
 		}
 
