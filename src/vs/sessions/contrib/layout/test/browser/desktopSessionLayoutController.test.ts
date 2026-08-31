@@ -2981,6 +2981,38 @@ suite('LayoutController (desktop)', () => {
 		assert.deepStrictEqual(publishedWorkspaces, ['c']);
 	});
 
+	test('[managed tabs / dispose] a reconcile stalled mid-open opens no editors once the controller is disposed', async () => {
+		const controller = createSinglePaneController({ activateAux: true });
+		await settle();
+
+		// Pause the reconcile at the first Changes open so it stalls before the Files tab opens.
+		let releaseChangesOpen!: () => void;
+		const changesOpenGate = new Promise<void>(resolve => { releaseChangesOpen = resolve; });
+		let gateArmed = true;
+		harness.onOpenChangesEditor = () => {
+			if (gateArmed) {
+				gateArmed = false;
+				return changesOpenGate;
+			}
+			return undefined;
+		};
+
+		// A created session with changes wants both a Changes and a Files tab; its reconcile
+		// stalls awaiting the gated Changes open.
+		harness.activeSessionObs.set(makeSession(URI.parse('session:1'), { isCreated: true, changes: [makeChange('/file.ts')] }), undefined);
+		await settle();
+		assert.strictEqual(hasFilesTab(), false, 'reconcile should be stalled before opening the Files tab');
+
+		// Dispose the controller (session-switch teardown / window close) while the reconcile is
+		// stalled, then let it resume. Bumping the generation on dispose makes it bail, so it must
+		// never reach a later editor open — which would instantiate a pane on the disposed DI.
+		controller.dispose();
+		releaseChangesOpen();
+		await settle();
+
+		assert.strictEqual(hasFilesTab(), false, 'a reconcile resumed after dispose must not open further editors');
+	});
+
 	test('[managed tabs / details-only] always restores both docked inputs while only details are visible', async () => {
 		createSinglePaneController({
 			activateAux: true,
