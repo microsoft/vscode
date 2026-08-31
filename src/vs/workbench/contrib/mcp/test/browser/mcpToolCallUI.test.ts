@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
@@ -21,25 +21,32 @@ suite('McpToolCallUI', () => {
 
 	test('routes Agent Host requests through the connection authority', async () => {
 		const calls: Array<{ connection: string; channel: string; method: string; params: Record<string, unknown> | undefined }> = [];
-		const connection = (name: string): IAgentConnection => upcastPartial<IAgentConnection>({
-			onMcpNotification: Event.None,
-			handleMcpRequest: async (channel, method, params) => {
-				calls.push({ connection: name, channel, method, params });
-				return {
-					contents: [{
-						uri: 'ui://github-mcp-server/get-me',
-						mimeType: 'text/html',
-						text: `<html>${name}</html>`,
-					}],
-				};
-			},
-		});
+		const connection = (name: string) => {
+			const onMcpNotification = store.add(new Emitter<{ channel: string; method: string; params?: Record<string, unknown> }>());
+			return {
+				value: upcastPartial<IAgentConnection>({
+					onMcpNotification: onMcpNotification.event,
+					handleMcpRequest: async (channel, method, params) => {
+						calls.push({ connection: name, channel, method, params });
+						return {
+							contents: [{
+								uri: 'ui://github-mcp-server/get-me',
+								mimeType: 'text/html',
+								text: `<html>${name}</html>`,
+							}],
+						};
+					},
+				}),
+				notify: (channel: string, method: string) => onMcpNotification.fire({ channel, method }),
+			};
+		};
 		const ambient = connection('ambient');
-		let remote = connection('remote-1');
+		const originalRemote = connection('remote-1');
+		let remote = originalRemote;
 		const onDidChangeConnections = store.add(new Emitter<void>());
 		const connectionsService = upcastPartial<IAgentHostConnectionsService>({
 			onDidChangeConnections: onDidChangeConnections.event,
-			getConnectionByAuthority: authority => authority === 'remote-host' ? remote : authority === 'local' ? ambient : undefined,
+			getConnectionByAuthority: authority => authority === 'remote-host' ? remote.value : authority === 'local' ? ambient.value : undefined,
 		});
 		const instantiationService = store.add(new TestInstantiationService(new ServiceCollection(
 			[IAgentHostConnectionsService, connectionsService],
@@ -53,16 +60,23 @@ suite('McpToolCallUI', () => {
 			channel,
 			serverId: 'github',
 		}));
+		const notifications: Array<{ method: string; params?: unknown }> = [];
+		store.add(ui.onNotification(notification => notifications.push(notification)));
 
 		const first = await ui.loadResource(CancellationToken.None);
+		originalRemote.notify(channel, 'notifications/first');
 		remote = connection('remote-2');
 		onDidChangeConnections.fire();
+		originalRemote.notify(channel, 'notifications/stale');
+		remote.notify('mcp://other', 'notifications/wrong-channel');
+		remote.notify(channel, 'notifications/second');
 		const second = await ui.readResource('ui://github-mcp-server/details', CancellationToken.None);
 
 		assert.deepStrictEqual({
 			first: first.html,
 			second: second.contents[0],
 			calls,
+			notifications,
 		}, {
 			first: '<html>remote-1</html>',
 			second: {
@@ -83,6 +97,10 @@ suite('McpToolCallUI', () => {
 					method: 'resources/read',
 					params: { uri: 'ui://github-mcp-server/details' },
 				},
+			],
+			notifications: [
+				{ method: 'notifications/first', params: undefined },
+				{ method: 'notifications/second', params: undefined },
 			],
 		});
 	});
