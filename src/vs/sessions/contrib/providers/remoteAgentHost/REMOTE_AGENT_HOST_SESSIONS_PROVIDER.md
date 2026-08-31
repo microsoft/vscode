@@ -10,7 +10,7 @@ Shared Agent Host adaptation is specified in [AGENT_HOST_SESSIONS_PROVIDER.md](.
 
 ## Registration
 
-`RemoteAgentHostContribution` observes `IRemoteAgentHostService` connections. It creates and registers one provider per connection and disposes the provider when that connection is removed.
+Kind-specific contributions create and register one provider for each remote host they own, disposing it when that host is removed. `RemoteAgentHostContribution` observes connections for shared filesystem, agent-discovery, model, terminal, and authentication wiring.
 
 Agent discovery is dynamic. Changes to a host's advertised agents update the provider's session types without recreating the provider.
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isCancellationError } from '../../../../../base/common/errors.js';
-import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, getEntryTypeConfig } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { type IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, getEntryTypeConfig } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IWSLRemoteAgentHostService, WSL_ADDRESS_PREFIX } from '../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -25,6 +25,8 @@ export function shouldPauseWSLReconnectAfterFailure(err: unknown): boolean {
 export class WSLAgentHostContribution extends ManagedReconnectAgentHostContribution implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.contrib.wslAgentHostContribution';
+
+	protected readonly _entryType = RemoteAgentHostEntryType.WSL;
 
 	constructor(
 		@IRemoteAgentHostService remoteAgentHostService: IRemoteAgentHostService,
@@ -52,68 +54,30 @@ export class WSLAgentHostContribution extends ManagedReconnectAgentHostContribut
 		this._reconcile();
 	}
 
-	private _reconcile(): void {
-		this._reconcileProviders();
-		this._wireConnections();
-		this._updateConnectionStatuses();
-	}
-
-	private _reconcileProviders(): void {
-		const entries = this._enabled ? this._getCachedWSLEntries() : [];
-		const desiredAddresses = new Set(entries.map(entry => entry.address));
-
-		for (const [address] of this._providerStores) {
-			if (!desiredAddresses.has(address)) {
-				this._providerStores.deleteAndDispose(address);
-			}
+	protected override _getProviderEntries(): readonly IRemoteAgentHostEntry[] {
+		if (!this._enabled) {
+			return [];
 		}
-
-		for (const entry of entries) {
-			const existing = this._providerInstances.get(entry.address);
-			if (existing && existing.label !== (entry.name || entry.address)) {
-				this._providerStores.deleteAndDispose(entry.address);
-			}
-			if (!this._providerStores.has(entry.address)) {
-				this._createProvider(entry.address, entry.name, {
-					connectOnDemand: () => this._connectWSLOnDemand(entry.distro, entry.name, entry.address),
-					disconnectOnDemand: () => this._disconnectWSLOnDemand(entry.distro, entry.address),
-					onDidReportConnectProgress: this._wslService.onDidReportConnectProgress,
-				});
-			}
-		}
-	}
-
-	private _wireConnections(): void {
-		for (const [address, provider] of this._providerInstances) {
-			const connectionInfo = this._remoteAgentHostService.connections.find(
-				connection => connection.address === address && RemoteAgentHostConnectionStatus.isConnected(connection.status)
-			);
-			if (connectionInfo) {
-				const connection = this._remoteAgentHostService.getConnection(address);
-				if (connection) {
-					provider.setConnection(connection, connectionInfo.defaultDirectory);
-				}
-			}
-		}
-	}
-
-	private _updateConnectionStatuses(): void {
-		for (const [address, provider] of this._providerInstances) {
-			const connectionInfo = this._remoteAgentHostService.connections.find(connection => connection.address === address);
-			if (connectionInfo) {
-				provider.setConnectionStatus(connectionInfo.status);
-			} else if (!RemoteAgentHostConnectionStatus.isIncompatible(provider.connectionStatus.get())) {
-				provider.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
-			}
-		}
-	}
-
-	private _getCachedWSLEntries(): readonly { distro: string; name: string; address: string }[] {
-		return this._wslService.getCachedDistros().map(({ distro, name }) => ({
-			distro,
+		return this._wslService.getCachedDistros().map<IRemoteAgentHostEntry>(({ distro, name }) => ({
 			name,
-			address: `${WSL_ADDRESS_PREFIX}${distro}`,
+			connection: {
+				type: RemoteAgentHostEntryType.WSL,
+				address: `${WSL_ADDRESS_PREFIX}${distro}`,
+				distro,
+			},
 		}));
+	}
+
+	protected override _getProviderOptions(entry: IRemoteAgentHostEntry) {
+		if (entry.connection.type !== RemoteAgentHostEntryType.WSL) {
+			return {};
+		}
+		const { distro, address } = entry.connection;
+		return {
+			connectOnDemand: () => this._connectWSLOnDemand(distro, entry.name, address),
+			disconnectOnDemand: () => this._disconnectWSLOnDemand(distro, address),
+			onDidReportConnectProgress: this._wslService.onDidReportConnectProgress,
+		};
 	}
 
 	private async _connectWSLOnDemand(distro: string, name: string, address: string): Promise<void> {
