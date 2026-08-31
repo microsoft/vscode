@@ -155,6 +155,10 @@ jobs:
         displayName: Download NodeJS MUSL
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
+      - script: node build/npm/preinstall.ts
+        displayName: Install Electron headers
+        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
       - script: |
           set -e
 
