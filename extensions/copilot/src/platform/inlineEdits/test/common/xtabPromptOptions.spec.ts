@@ -98,14 +98,19 @@ describe('applyStrategyConfig', () => {
 		expect(result.currentFile?.includeLineNumbers).toBe(IncludeLineNumbersOption.WithoutSpace);
 	});
 
-	it('sets the eagerness prompt for PatchBased02OptimizedEagerness', () => {
-		const result = applyStrategyConfig(baseConfig({
-			promptingStrategy: PromptingStrategy.PatchBased02OptimizedEagerness,
-		}));
-		expect(result.eagernessPrompt).toBe('aggressionHighLow');
-		expect(applyStrategyConfig(baseConfig({
+	it('matches PatchBased02Unified config except for the eagerness prompt', () => {
+		const unified = applyStrategyConfig(baseConfig({
 			promptingStrategy: PromptingStrategy.PatchBased02Unified,
-		})).eagernessPrompt).toBeUndefined();
+		}));
+		const eagerness = applyStrategyConfig(baseConfig({
+			promptingStrategy: PromptingStrategy.PatchBased02UnifiedEagerness,
+		}));
+
+		expect(eagerness).toEqual({
+			...unified,
+			promptingStrategy: PromptingStrategy.PatchBased02UnifiedEagerness,
+			eagernessPrompt: 'aggressionHighLow',
+		});
 	});
 
 	it('preserves undefined for option bags neither side specifies', () => {
@@ -181,7 +186,7 @@ describe('isEagernessPrompt', () => {
 
 	it('recognizes the standalone eagerness strategy after strategy config is applied', () => {
 		const config = applyStrategyConfig(baseConfig({
-			promptingStrategy: PromptingStrategy.PatchBased02OptimizedEagerness,
+			promptingStrategy: PromptingStrategy.PatchBased02UnifiedEagerness,
 		}));
 		const options = {
 			...DEFAULT_OPTIONS,

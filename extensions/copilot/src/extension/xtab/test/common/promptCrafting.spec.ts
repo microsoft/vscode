@@ -848,11 +848,11 @@ describe('getUserPrompt', () => {
 		[AggressivenessLevel.Medium, ''],
 		[AggressivenessLevel.High, '<|aggression|>high<|/aggression|>'],
 		[AggressivenessLevel.Low, '<|aggression|>low<|/aggression|>'],
-	])('PatchBased02OptimizedEagerness places the %s eagerness tag before the postscript', (aggressivenessLevel, eagernessTag) => {
+	])('PatchBased02UnifiedEagerness places the %s eagerness tag before the postscript', (aggressivenessLevel, eagernessTag) => {
 		const pieces = createTestPromptPieces({
 			cursorLine: 2,
 			cursorColumn: 9,
-			strategy: PromptingStrategy.PatchBased02OptimizedEagerness,
+			strategy: PromptingStrategy.PatchBased02UnifiedEagerness,
 			eagernessPrompt: 'aggressionHighLow',
 			aggressivenessLevel,
 		});
