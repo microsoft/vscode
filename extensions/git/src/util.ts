@@ -312,9 +312,9 @@ function normalizePath(path: string): string {
 		path = path.toLowerCase();
 	}
 
-	// Trailing separator
-	if (/[/\\]$/.test(path)) {
-		// Remove trailing separator
+	// Trailing separator — only strip when the path is not
+	// a filesystem root (e.g., "/" on POSIX, "C:\" or UNC roots on Windows).
+	if (/[/\\]$/.test(path) && path !== dirname(path)) {
 		path = path.substring(0, path.length - 1);
 	}
 
