@@ -1,0 +1,17 @@
+{
+	"extends": "./tsconfig.node.json",
+	"include": [
+		"../../src/**/common/**/*.ts",
+		"../../src/**/node/**/*.ts",
+		"../../src/**/electron-main/**/*.ts",
+		"../../src/typings/*.d.ts",
+		"../../src/vs/monaco.d.ts",
+		"../../src/vscode-dts/vscode.proposed.*.d.ts",
+		"../../src/vscode-dts/vscode.d.ts",
+		"../../node_modules/@types/trusted-types/index.d.ts",
+	],
+	"exclude": [
+		"../../src/**/test/**",
+		"../../src/**/fixtures/**",
+	]
+}

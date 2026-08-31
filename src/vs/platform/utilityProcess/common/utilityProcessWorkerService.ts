@@ -15,6 +15,20 @@ export interface IUtilityProcessWorkerProcess {
 	 * forked process to identify it easier.
 	 */
 	readonly type: string;
+
+	/**
+	 * A human-readable name for the utility process.
+	 */
+	readonly name: string;
+
+	/**
+	 * On macOS, allows the utility process to load native libraries that are
+	 * not signed by the same Team ID as the app (or are unsigned) by routing
+	 * it through the plugin helper, which has library validation disabled.
+	 * Required when the process `dlopen`s a runtime-downloaded native addon
+	 * signed by a third party (e.g. the on-device dictation runtime).
+	 */
+	readonly allowLoadingUnsignedLibraries?: boolean;
 }
 
 export interface IOnDidTerminateUtilityrocessWorkerProcess {

@@ -28,9 +28,11 @@ export interface ILabelService {
 	getHostLabel(scheme: string, authority?: string): string;
 	getHostTooltip(scheme: string, authority?: string): string | undefined;
 	getSeparator(scheme: string, authority?: string): '/' | '\\';
+	/** Returns the display home containing `resource`. */
+	getUriHome(resource: URI): URI | undefined;
 
 	registerFormatter(formatter: ResourceLabelFormatter): IDisposable;
-	onDidChangeFormatters: Event<IFormatterChangeEvent>;
+	readonly onDidChangeFormatters: Event<IFormatterChangeEvent>;
 
 	/**
 	 * Registers a formatter that's cached for the machine beyond the lifecycle
@@ -53,6 +55,8 @@ export interface IFormatterChangeEvent {
 export interface ResourceLabelFormatter {
 	scheme: string;
 	authority?: string;
+	/** URI path used as a display home. Runtime registrations only. */
+	home?: string;
 	priority?: boolean;
 	formatting: ResourceLabelFormatting;
 }
@@ -66,4 +70,10 @@ export interface ResourceLabelFormatting {
 	workspaceTooltip?: string;
 	authorityPrefix?: string;
 	stripPathStartingSeparator?: boolean;
+	/**
+	 * Number of leading path segments to strip from `${path}` before
+	 * substitution. For example, a value of `2` turns
+	 * `/scheme/authority/rest/of/path` into `/rest/of/path`.
+	 */
+	stripPathSegments?: number;
 }

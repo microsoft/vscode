@@ -1,0 +1,489 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { IMarkdownString, isMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { stripIcons } from '../../../../../base/common/iconLabels.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { basename } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { localize } from '../../../../../nls.js';
+import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from '../../../../../platform/accessibility/browser/accessibleView.js';
+import { IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
+import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { migrateLegacyTerminalToolSpecificData } from '../../common/chat.js';
+import { autoModeRoutingTitle } from '../../common/chatAutoModeExplainability.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { IChatAgentFeedbackReviewConfirmationData, IChatAutomationConfigurationData, IChatAutomationConfiguredData, IChatExtensionsContent, IChatGeneratedImageData, IChatModifiedFilesConfirmationData, IChatPullRequestContent, IChatSearchToolInvocationData, IChatSessionCreatedData, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolResourcesInvocationData, ILegacyChatTerminalToolInvocationData, IToolResultOutputDetailsSerialized, isLegacyChatTerminalToolInvocationData } from '../../common/chatService/chatService.js';
+import { IChatResponseViewModel, isResponseVM } from '../../common/model/chatViewModel.js';
+import { IToolResultInputOutputDetails, IToolResultOutputDetails, isToolResultInputOutputDetails, isToolResultOutputDetails, toolContentToA11yString } from '../../common/tools/languageModelToolsService.js';
+import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
+import { isLocation, Location } from '../../../../../editor/common/languages.js';
+
+export class ChatResponseAccessibleView implements IAccessibleViewImplementation {
+	readonly priority = 100;
+	readonly name = 'panelChat';
+	readonly type = AccessibleViewType.View;
+	readonly when = ChatContextKeys.inChatSession;
+	getProvider(accessor: ServicesAccessor) {
+		const widgetService = accessor.get(IChatWidgetService);
+		const storageService = accessor.get(IStorageService);
+		const widget = widgetService.lastFocusedWidget;
+		if (!widget) {
+			return;
+		}
+		const chatInputFocused = widget.hasInputFocus();
+		if (chatInputFocused) {
+			widget.focusResponseItem();
+		}
+
+		const verifiedWidget: IChatWidget = widget;
+		let focusedItem = verifiedWidget.getFocus();
+		if (!focusedItem || !isResponseVM(focusedItem)) {
+			const responseItems = verifiedWidget.viewModel?.getItems().filter(isResponseVM);
+			const lastResponse = responseItems?.at(-1);
+			if (lastResponse) {
+				focusedItem = lastResponse;
+				verifiedWidget.focus(lastResponse);
+			}
+		}
+
+		if (!focusedItem || !isResponseVM(focusedItem)) {
+			return;
+		}
+
+		return new ChatResponseAccessibleProvider(verifiedWidget, focusedItem, chatInputFocused, storageService);
+	}
+}
+
+type ToolSpecificData = IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionCreatedData | IChatGeneratedImageData | IChatAutomationConfigurationData | IChatAutomationConfiguredData;
+type ResultDetails = Array<URI | Location> | IToolResultInputOutputDetails | IToolResultOutputDetails | IToolResultOutputDetailsSerialized;
+
+export const CHAT_ACCESSIBLE_VIEW_INCLUDE_THINKING_STORAGE_KEY = 'chat.accessibleView.includeThinking';
+const CHAT_ACCESSIBLE_VIEW_INCLUDE_THINKING_DEFAULT = true;
+
+export function isThinkingContentIncludedInAccessibleView(storageService: IStorageService): boolean {
+	return storageService.getBoolean(CHAT_ACCESSIBLE_VIEW_INCLUDE_THINKING_STORAGE_KEY, StorageScope.PROFILE, CHAT_ACCESSIBLE_VIEW_INCLUDE_THINKING_DEFAULT);
+}
+
+function isOutputDetailsSerialized(obj: unknown): obj is IToolResultOutputDetailsSerialized {
+	return typeof obj === 'object' && obj !== null && 'output' in obj &&
+		typeof (obj as IToolResultOutputDetailsSerialized).output === 'object' &&
+		(obj as IToolResultOutputDetailsSerialized).output?.type === 'data' &&
+		typeof (obj as IToolResultOutputDetailsSerialized).output?.base64Data === 'string';
+}
+
+export function getToolSpecificDataDescription(toolSpecificData: ToolSpecificData | undefined): string {
+	if (!toolSpecificData) {
+		return '';
+	}
+
+	if (isLegacyChatTerminalToolInvocationData(toolSpecificData) || toolSpecificData.kind === 'terminal') {
+		const terminalData = migrateLegacyTerminalToolSpecificData(toolSpecificData);
+		return terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
+	}
+
+	switch (toolSpecificData.kind) {
+		case 'subagent': {
+			const parts: string[] = [];
+			const agentName = toolSpecificData.agentDisplayName ?? toolSpecificData.agentName;
+			if (agentName) {
+				parts.push(localize('subagentName', "Agent: {0}", agentName));
+			}
+			if (toolSpecificData.description) {
+				parts.push(toolSpecificData.description);
+			}
+			if (toolSpecificData.prompt) {
+				parts.push(localize('subagentPrompt', "Task: {0}", toolSpecificData.prompt));
+			}
+			return parts.join('. ') || '';
+		}
+		case 'extensions':
+			return toolSpecificData.extensions.length > 0
+				? localize('extensionsList', "Extensions: {0}", toolSpecificData.extensions.join(', '))
+				: '';
+		case 'todoList': {
+			const todos = toolSpecificData.todoList;
+			if (todos.length === 0) {
+				return '';
+			}
+			const todoDescriptions = todos.map(t =>
+				localize('todoItem', "{0} ({1})", t.title, t.status)
+			);
+			return localize('todoListCount', "{0} items: {1}", todos.length, todoDescriptions.join('; '));
+		}
+		case 'pullRequest':
+			return localize('pullRequestInfo', "PR: {0} by {1}", toolSpecificData.title, toolSpecificData.author);
+		case 'input':
+			return typeof toolSpecificData.rawInput === 'string'
+				? toolSpecificData.rawInput
+				: JSON.stringify(toolSpecificData.rawInput);
+		case 'resources': {
+			const values = toolSpecificData.values;
+			if (values.length === 0) {
+				return '';
+			}
+			const paths = values.map(v => {
+				if ('uri' in v && 'range' in v) {
+					// Location
+					return `${v.uri.fsPath || v.uri.path}:${v.range.startLineNumber}`;
+				} else {
+					// URI
+					return v.fsPath || v.path;
+				}
+			}).join(', ');
+			return localize('resourcesList', "Resources: {0}", paths);
+		}
+		case 'simpleToolInvocation': {
+			const inputText = toolSpecificData.input;
+			const outputText = toolSpecificData.output;
+			return localize('simpleToolInvocation', "Input: {0}, Output: {1}", inputText, outputText);
+		}
+		case 'modifiedFilesConfirmation': {
+			if (toolSpecificData.modifiedFiles.length === 0) {
+				return '';
+			}
+
+			return localize('modifiedFilesConfirmation', "Modified files: {0}", toolSpecificData.modifiedFiles.map(file => {
+				const revivedUri = URI.revive(file.uri);
+				return revivedUri.fsPath || revivedUri.path;
+			}).join(', '));
+		}
+		case 'automationConfigured':
+			return toolSpecificData.operation === 'created'
+				? localize('automationConfigured.created', "Created an automation: {0}", toolSpecificData.automationName)
+				: localize('automationConfigured.updated', "Edited an automation: {0}", toolSpecificData.automationName);
+		default:
+			return '';
+	}
+}
+
+export function getResultDetailsDescription(resultDetails: ResultDetails | undefined): { input?: string; files?: string[]; isError?: boolean } {
+	if (!resultDetails) {
+		return {};
+	}
+
+	if (Array.isArray(resultDetails)) {
+		const files = resultDetails.map(ref => {
+			if (URI.isUri(ref)) {
+				return ref.fsPath || ref.path;
+			}
+			return ref.uri.fsPath || ref.uri.path;
+		});
+		return { files };
+	}
+
+	if (isToolResultInputOutputDetails(resultDetails)) {
+		return {
+			input: resultDetails.input,
+			isError: resultDetails.isError
+		};
+	}
+
+	if (isOutputDetailsSerialized(resultDetails)) {
+		return {
+			input: localize('binaryOutput', "{0} data", resultDetails.output.mimeType)
+		};
+	}
+
+	if (isToolResultOutputDetails(resultDetails)) {
+		return {
+			input: localize('binaryOutput', "{0} data", resultDetails.output.mimeType)
+		};
+	}
+
+	return {};
+}
+
+export function getToolInvocationA11yDescription(
+	invocationMessage: string | undefined,
+	pastTenseMessage: string | undefined,
+	toolSpecificData: ToolSpecificData | undefined,
+	resultDetails: ResultDetails | undefined,
+	isComplete: boolean
+): string {
+	const parts: string[] = [];
+
+	const message = isComplete && pastTenseMessage ? pastTenseMessage : invocationMessage;
+	if (message) {
+		parts.push(message);
+	}
+
+	const toolDataDesc = getToolSpecificDataDescription(toolSpecificData);
+	if (toolDataDesc) {
+		parts.push(toolDataDesc);
+	}
+
+	if (isComplete && resultDetails) {
+		const details = getResultDetailsDescription(resultDetails);
+		if (details.isError) {
+			parts.unshift(localize('errored', "Errored"));
+		}
+		if (details.input && !toolDataDesc) {
+			parts.push(localize('input', "Input: {0}", details.input));
+		}
+		if (details.files && details.files.length > 0) {
+			parts.push(localize('files', "Files: {0}", details.files.join(', ')));
+		}
+	}
+
+	return parts.join('. ');
+}
+
+class ChatResponseAccessibleProvider extends Disposable implements IAccessibleViewContentProvider {
+	private _focusedItem!: ChatTreeItem;
+	private readonly _focusedItemDisposables = this._register(new DisposableStore());
+	private readonly _storageDisposables = this._register(new DisposableStore());
+	private readonly _onDidChangeContent = this._register(new Emitter<void>());
+	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
+	constructor(
+		private readonly _widget: IChatWidget,
+		item: ChatTreeItem,
+		private readonly _wasOpenedFromInput: boolean,
+		private readonly _storageService: IStorageService
+	) {
+		super();
+		this._storageDisposables.add(this._storageService.onDidChangeValue(StorageScope.PROFILE, CHAT_ACCESSIBLE_VIEW_INCLUDE_THINKING_STORAGE_KEY, this._storageDisposables)(() => {
+			this._onDidChangeContent.fire();
+		}));
+		this._setFocusedItem(item);
+	}
+
+	readonly id = AccessibleViewProviderId.PanelChat;
+	readonly verbositySettingKey = AccessibilityVerbositySettingId.Chat;
+	readonly options = { type: AccessibleViewType.View };
+
+	provideContent(): string {
+		return this._getContent(this._focusedItem);
+	}
+
+	private _setFocusedItem(item: ChatTreeItem): void {
+		this._focusedItem = item;
+		this._focusedItemDisposables.clear();
+		if (isResponseVM(item)) {
+			this._focusedItemDisposables.add(item.model.onDidChange(() => this._onDidChangeContent.fire()));
+		}
+	}
+
+	private _getContent(item: ChatTreeItem): string {
+		if (!isResponseVM(item)) {
+			return '';
+		}
+
+		const parts = getChatResponsePlaintextParts(item, this._shouldIncludeThinkingContent());
+		return this._normalizeWhitespace(parts.map(part => part.text).join('\n'));
+	}
+
+	private _normalizeWhitespace(content: string): string {
+		const lines = content.split(/\r?\n/);
+		const normalized: string[] = [];
+		for (const line of lines) {
+			if (line.trim().length === 0) {
+				continue;
+			}
+			normalized.push(line);
+		}
+		return normalized.join('\n');
+	}
+
+	private _shouldIncludeThinkingContent(): boolean {
+		return isThinkingContentIncludedInAccessibleView(this._storageService);
+	}
+
+	onClose(): void {
+		this._widget.reveal(this._focusedItem);
+		if (this._wasOpenedFromInput) {
+			this._widget.focusInput();
+		} else {
+			this._widget.focus(this._focusedItem);
+		}
+	}
+
+	provideNextContent(): string | undefined {
+		const next = this._widget.getSibling(this._focusedItem, 'next');
+		if (next) {
+			this._setFocusedItem(next);
+			return this._getContent(next);
+		}
+		return;
+	}
+
+	providePreviousContent(): string | undefined {
+		const previous = this._widget.getSibling(this._focusedItem, 'previous');
+		if (previous) {
+			this._setFocusedItem(previous);
+			return this._getContent(previous);
+		}
+		return;
+	}
+}
+
+/**
+ * A single unit of plaintext extracted from a chat response, keyed to its
+ * originating content part so callers (accessible view, transcript Find) can
+ * both render and locate it. `partIndex` is the index into
+ * {@link IChatResponseViewModel.response.value}, or `-1` for the synthetic
+ * error-details part that has no corresponding content part.
+ */
+export interface IChatResponsePlaintextPart {
+	readonly partIndex: number;
+	readonly text: string;
+}
+
+/**
+ * Renders a chat message (markdown or plain string) as plaintext, stripping
+ * icons. Shared by the accessible view and chat transcript Find so both
+ * present the exact same text for a given message.
+ */
+export function renderChatMessageAsPlaintext(message: string | IMarkdownString): string {
+	return typeof message === 'string' ? message : stripIcons(renderAsPlaintext(message, { useLinkFormatter: true }));
+}
+
+/**
+ * Extracts the ordered, human-readable plaintext content of a chat response
+ * item as a list of parts (markdown, reasoning/thinking, tool invocations,
+ * confirmations, references, etc.), one entry per rendered content part.
+ *
+ * This is the single source of truth for "what text does this response
+ * contain" outside of the DOM: it backs both the Chat accessible view and
+ * the transcript Find feature, so collapsed/virtualized content remains
+ * fully searchable and both features stay in sync.
+ */
+export function getChatResponsePlaintextParts(item: IChatResponseViewModel, includeThinking: boolean): IChatResponsePlaintextPart[] {
+	const contentParts: IChatResponsePlaintextPart[] = [];
+
+	if ('errorDetails' in item && item.errorDetails) {
+		contentParts.push({ partIndex: -1, text: item.errorDetails.message });
+	}
+
+	// Process all parts in order to maintain the natural flow
+	item.response.value.forEach((part, partIndex) => {
+		switch (part.kind) {
+			case 'thinking': {
+				if (!includeThinking) {
+					break;
+				}
+				const thinkingValue = Array.isArray(part.value) ? part.value.join('') : (part.value || '');
+				const trimmed = thinkingValue.trim();
+				if (trimmed) {
+					contentParts.push({ partIndex, text: localize('thinkingContent', "Thinking: {0}", trimmed) });
+				}
+				break;
+			}
+			case 'markdownContent': {
+				const text = renderAsPlaintext(part.content, { includeCodeBlocksFences: true, useLinkFormatter: true });
+				if (text.trim()) {
+					contentParts.push({ partIndex, text });
+				}
+				break;
+			}
+			case 'inlineReference': {
+				const ref = part.inlineReference;
+				let text: string;
+				if (URI.isUri(ref)) {
+					const name = part.name || basename(ref);
+					const path = ref.scheme === 'file' ? ref.path : ref.toString(true);
+					text = name !== path ? `${name} (${path})` : path;
+				} else if (isLocation(ref)) {
+					const name = part.name || basename(ref.uri);
+					const path = ref.uri.scheme === 'file' ? ref.uri.path : ref.uri.toString(true);
+					text = `${name} (${path}:${ref.range.startLineNumber})`;
+				} else {
+					// IWorkspaceSymbol
+					const path = ref.location.uri.scheme === 'file' ? (ref.location.uri.fsPath || ref.location.uri.path) : ref.location.uri.toString(true);
+					text = `${ref.name} (${path}:${ref.location.range.startLineNumber})`;
+				}
+				contentParts.push({ partIndex, text });
+				break;
+			}
+			case 'elicitation2':
+			case 'elicitationSerialized': {
+				const title = part.title;
+				let elicitationContent = '';
+				if (typeof title === 'string') {
+					elicitationContent += `${title}\n`;
+				} else if (isMarkdownString(title)) {
+					elicitationContent += renderAsPlaintext(title, { includeCodeBlocksFences: true }) + '\n';
+				}
+				const message = part.message;
+				if (isMarkdownString(message)) {
+					elicitationContent += renderAsPlaintext(message, { includeCodeBlocksFences: true });
+				} else {
+					elicitationContent += message;
+				}
+				if (elicitationContent.trim()) {
+					contentParts.push({ partIndex, text: elicitationContent });
+				}
+				break;
+			}
+			case 'toolInvocation': {
+				const state = part.state.get();
+				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation && state.confirmationMessages?.title) {
+					const title = renderChatMessageAsPlaintext(state.confirmationMessages.title);
+					const message = state.confirmationMessages.message ? renderChatMessageAsPlaintext(state.confirmationMessages.message) : '';
+					const toolDataDesc = getToolSpecificDataDescription(part.toolSpecificData);
+					let toolContent = title;
+					if (toolDataDesc) {
+						toolContent += `: ${toolDataDesc}`;
+					}
+					if (message) {
+						toolContent += `\n${message}`;
+					}
+					contentParts.push({ partIndex, text: toolContent });
+				} else if (state.type === IChatToolInvocation.StateKind.WaitingForAuthentication) {
+					contentParts.push({ partIndex, text: localize('toolAuthenticationA11yView', "MCP authentication required for {0} to continue {1}.", state.server.name, part.toolId) });
+				} else if (state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
+					const postApprovalDetails = isToolResultInputOutputDetails(state.resultDetails)
+						? state.resultDetails.input
+						: isToolResultOutputDetails(state.resultDetails)
+							? undefined
+							: toolContentToA11yString(state.contentForModel);
+					contentParts.push({ partIndex, text: localize('toolPostApprovalA11yView', "Approve results of {0}? Result: ", part.toolId) + (postApprovalDetails ?? '') });
+				} else {
+					const resultDetails = IChatToolInvocation.resultDetails(part);
+					const isComplete = IChatToolInvocation.isComplete(part);
+					const description = getToolInvocationA11yDescription(
+						renderChatMessageAsPlaintext(part.invocationMessage),
+						part.pastTenseMessage ? renderChatMessageAsPlaintext(part.pastTenseMessage) : undefined,
+						part.toolSpecificData,
+						resultDetails,
+						isComplete
+					);
+					if (description) {
+						contentParts.push({ partIndex, text: description });
+					}
+				}
+				break;
+			}
+			case 'toolInvocationSerialized': {
+				const description = getToolInvocationA11yDescription(
+					renderChatMessageAsPlaintext(part.invocationMessage),
+					part.pastTenseMessage ? renderChatMessageAsPlaintext(part.pastTenseMessage) : undefined,
+					part.toolSpecificData,
+					part.resultDetails,
+					part.isComplete
+				);
+				if (description) {
+					contentParts.push({ partIndex, text: description });
+				}
+				break;
+			}
+			case 'autoModeResolution': {
+				// Matches the renderer: a row that never resolved is dropped once
+				// the response ends, so it must not linger in the text either.
+				if (!part.resolved && item.isComplete) {
+					break;
+				}
+				contentParts.push({ partIndex, text: autoModeRoutingTitle(part) });
+				break;
+			}
+		}
+	});
+
+	return contentParts;
+}

@@ -64,6 +64,8 @@ export class DefaultFormatter extends Disposable implements IWorkbenchContributi
 		this._store.add(_editorService.onDidActiveEditorChange(this._updateStatus, this));
 		this._store.add(_languageFeaturesService.documentFormattingEditProvider.onDidChange(this._updateStatus, this));
 		this._store.add(_languageFeaturesService.documentRangeFormattingEditProvider.onDidChange(this._updateStatus, this));
+		this._store.add(_languageFeaturesService.documentFormattingEditProvider.onDidChange(this._updateConfigValues, this));
+		this._store.add(_languageFeaturesService.documentRangeFormattingEditProvider.onDidChange(this._updateConfigValues, this));
 		this._store.add(_configService.onDidChangeConfiguration(e => e.affectsConfiguration(DefaultFormatter.configName) && this._updateStatus()));
 		this._updateConfigValues();
 	}
@@ -72,7 +74,34 @@ export class DefaultFormatter extends Disposable implements IWorkbenchContributi
 		await this._extensionService.whenInstalledExtensionsRegistered();
 		let extensions = [...this._extensionService.extensions];
 
+		// Get all formatter providers to identify which extensions actually contribute formatters
+		const documentFormatters = this._languageFeaturesService.documentFormattingEditProvider.allNoModel();
+		const rangeFormatters = this._languageFeaturesService.documentRangeFormattingEditProvider.allNoModel();
+		const formatterExtensionIds = new Set<string>();
+
+		for (const formatter of documentFormatters) {
+			if (formatter.extensionId) {
+				formatterExtensionIds.add(ExtensionIdentifier.toKey(formatter.extensionId));
+			}
+		}
+		for (const formatter of rangeFormatters) {
+			if (formatter.extensionId) {
+				formatterExtensionIds.add(ExtensionIdentifier.toKey(formatter.extensionId));
+			}
+		}
+
 		extensions = extensions.sort((a, b) => {
+			// Ultimate boost: extensions that actually contribute formatters
+			const contributesFormatterA = formatterExtensionIds.has(ExtensionIdentifier.toKey(a.identifier));
+			const contributesFormatterB = formatterExtensionIds.has(ExtensionIdentifier.toKey(b.identifier));
+
+			if (contributesFormatterA && !contributesFormatterB) {
+				return -1;
+			} else if (!contributesFormatterA && contributesFormatterB) {
+				return 1;
+			}
+
+			// Secondary boost: category-based sorting
 			const boostA = a.categories?.find(cat => cat === 'Formatters' || cat === 'Programming Languages');
 			const boostB = b.categories?.find(cat => cat === 'Formatters' || cat === 'Programming Languages');
 
@@ -324,6 +353,10 @@ interface FormatDocumentMultipleArgs {
 	formatter: string;
 }
 
+function isFormatDocumentMultipleArgs(args: unknown): args is FormatDocumentMultipleArgs {
+	return typeof args === 'object' && args !== null && 'formatter' in args && typeof args.formatter === 'string';
+}
+
 registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 
 	constructor() {
@@ -339,7 +372,7 @@ registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, editor: ICodeEditor, args?: FormatDocumentMultipleArgs): Promise<void> {
+	async run(accessor: ServicesAccessor, editor: ICodeEditor, args: unknown): Promise<void> {
 		if (!editor.hasModel()) {
 			return;
 		}
@@ -349,12 +382,11 @@ registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 		const providers = getRealAndSyntheticDocumentFormattersOrdered(languageFeaturesService.documentFormattingEditProvider, languageFeaturesService.documentRangeFormattingEditProvider, model);
 
 		let provider;
-		if (args?.formatter !== undefined) {
+		if (isFormatDocumentMultipleArgs(args)) {
 			provider = providers.find(provider => ExtensionIdentifier.equals(provider.extensionId, args.formatter));
 			if (!provider) {
 				return;
 			}
-		}
 		} else {
 			const pick = await instaService.invokeFunction(showFormatterPick, model, providers);
 			if (typeof pick !== 'number') {

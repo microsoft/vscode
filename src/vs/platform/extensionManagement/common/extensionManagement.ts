@@ -9,6 +9,7 @@ import { Event } from '../../../base/common/event.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { IPager } from '../../../base/common/paging.js';
 import { Platform } from '../../../base/common/platform.js';
+import { PolicyCategory } from '../../../base/common/policy.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize, localize2 } from '../../../nls.js';
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
@@ -16,10 +17,12 @@ import { ExtensionType, IExtension, IExtensionManifest, TargetPlatform } from '.
 import { FileOperationError, FileOperationResult, IFileService, IFileStat } from '../../files/common/files.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { Registry } from '../../registry/common/platform.js';
+import { IExtensionGalleryManifest } from './extensionGalleryManifest.js';
 
 export const EXTENSION_IDENTIFIER_PATTERN = '^([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$';
 export const EXTENSION_IDENTIFIER_REGEX = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
 export const WEB_EXTENSION_TAG = '__web_extension';
+export const LANGUAGE_MODEL_CHAT_PROVIDER_EXTENSION_TAG = 'language-models';
 export const EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT = 'skipWalkthrough';
 export const EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT = 'skipPublisherTrust';
 export const EXTENSION_INSTALL_SOURCE_CONTEXT = 'extensionInstallSource';
@@ -188,8 +191,9 @@ export interface IGalleryExtensionAssets {
 	coreTranslations: [string, IGalleryExtensionAsset][];
 }
 
-export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
-	return thing
+export function isIExtensionIdentifier(obj: unknown): obj is IExtensionIdentifier {
+	const thing = obj as IExtensionIdentifier | undefined;
+	return !!thing
 		&& typeof thing === 'object'
 		&& typeof thing.id === 'string'
 		&& (!thing.uuid || typeof thing.uuid === 'string');
@@ -208,6 +212,7 @@ export interface IGalleryExtensionVersion {
 	version: string;
 	date: string;
 	isPreReleaseVersion: boolean;
+	targetPlatforms: TargetPlatform[];
 }
 
 export interface IGalleryExtension {
@@ -241,8 +246,8 @@ export interface IGalleryExtension {
 	detailsLink?: string;
 	ratingLink?: string;
 	supportLink?: string;
-	telemetryData?: any;
-	queryContext?: IStringDictionary<any>;
+	telemetryData?: IStringDictionary<unknown>;
+	queryContext?: IStringDictionary<unknown>;
 }
 
 export type InstallSource = 'gallery' | 'vsix' | 'resource';
@@ -282,6 +287,7 @@ export interface ILocalExtension extends IExtension {
 	preRelease: boolean;
 	updated: boolean;
 	pinned: boolean;
+	forceAutoUpdate: boolean;
 	source: InstallSource;
 	size: number;
 }
@@ -335,7 +341,10 @@ export interface IDeprecationInfo {
 	readonly extension?: {
 		readonly id: string;
 		readonly displayName: string;
-		readonly autoMigrate?: { readonly storage: boolean };
+		readonly autoMigrate?: {
+			readonly storage: boolean;
+			readonly donotDisable?: boolean;
+		};
 		readonly preRelease?: boolean;
 	};
 	readonly settings?: readonly string[];
@@ -347,10 +356,16 @@ export interface ISearchPrefferedResults {
 	readonly preferredResults?: string[];
 }
 
+export type MaliciousExtensionInfo = {
+	readonly extensionOrPublisher: IExtensionIdentifier | string;
+	readonly learnMoreLink?: string;
+};
+
 export interface IExtensionsControlManifest {
-	readonly malicious: ReadonlyArray<IExtensionIdentifier | string>;
+	readonly malicious: ReadonlyArray<MaliciousExtensionInfo>;
 	readonly deprecated: IStringDictionary<IDeprecationInfo>;
 	readonly search: ISearchPrefferedResults[];
+	readonly autoUpdate?: IStringDictionary<string>;
 }
 
 export const enum InstallOperation {
@@ -368,6 +383,7 @@ export interface IExtensionInfo extends IExtensionIdentifier {
 	version?: string;
 	preRelease?: boolean;
 	hasPreRelease?: boolean;
+	currentVersion?: string;
 }
 
 export interface IExtensionQueryOptions {
@@ -376,7 +392,6 @@ export interface IExtensionQueryOptions {
 	compatible?: boolean;
 	queryAllVersions?: boolean;
 	source?: string;
-	preferResourceApi?: boolean;
 }
 
 export interface IExtensionGalleryCapabilities {
@@ -402,6 +417,7 @@ export interface IExtensionGalleryService {
 	isExtensionCompatible(extension: IGalleryExtension, includePreRelease: boolean, targetPlatform: TargetPlatform, productVersion?: IProductVersion): Promise<boolean>;
 	getCompatibleExtension(extension: IGalleryExtension, includePreRelease: boolean, targetPlatform: TargetPlatform, productVersion?: IProductVersion): Promise<IGalleryExtension | null>;
 	getAllCompatibleVersions(extensionIdentifier: IExtensionIdentifier, includePreRelease: boolean, targetPlatform: TargetPlatform): Promise<IGalleryExtensionVersion[]>;
+	getAllVersions(extensionIdentifier: IExtensionIdentifier): Promise<IGalleryExtensionVersion[]>;
 	download(extension: IGalleryExtension, location: URI, operation: InstallOperation): Promise<void>;
 	downloadSignatureArchive(extension: IGalleryExtension, location: URI): Promise<void>;
 	reportStatistic(publisher: string, name: string, version: string, type: StatisticType): Promise<void>;
@@ -426,7 +442,7 @@ export interface InstallExtensionResult {
 	readonly source?: URI | IGalleryExtension;
 	readonly local?: ILocalExtension;
 	readonly error?: Error;
-	readonly context?: IStringDictionary<any>;
+	readonly context?: IStringDictionary<unknown>;
 	readonly profileLocation: URI;
 	readonly applicationScoped?: boolean;
 	readonly workspaceScoped?: boolean;
@@ -455,6 +471,8 @@ export interface DidUpdateExtensionMetadata {
 export const enum ExtensionGalleryErrorCode {
 	Timeout = 'Timeout',
 	Cancelled = 'Cancelled',
+	ClientError = 'ClientError',
+	ServerError = 'ServerError',
 	Failed = 'Failed',
 	DownloadFailedWriting = 'DownloadFailedWriting',
 	Offline = 'Offline',
@@ -567,7 +585,7 @@ export type InstallOptions = {
 	/**
 	 * Context passed through to InstallExtensionResult
 	 */
-	context?: IStringDictionary<any>;
+	context?: IStringDictionary<unknown>;
 };
 
 export type UninstallOptions = {
@@ -590,6 +608,8 @@ export const IExtensionManagementService = createDecorator<IExtensionManagementS
 export interface IExtensionManagementService {
 	readonly _serviceBrand: undefined;
 
+	readonly preferPreReleases: boolean;
+
 	onInstallExtension: Event<InstallExtensionEvent>;
 	onDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
 	onUninstallExtension: Event<UninstallExtensionEvent>;
@@ -606,8 +626,8 @@ export interface IExtensionManagementService {
 	installExtensionsFromProfile(extensions: IExtensionIdentifier[], fromProfileLocation: URI, toProfileLocation: URI): Promise<ILocalExtension[]>;
 	uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void>;
 	uninstallExtensions(extensions: UninstallExtensionInfo[]): Promise<void>;
-	toggleAppliationScope(extension: ILocalExtension, fromProfileLocation: URI): Promise<ILocalExtension>;
-	getInstalled(type?: ExtensionType, profileLocation?: URI, productVersion?: IProductVersion): Promise<ILocalExtension[]>;
+	toggleApplicationScope(extension: ILocalExtension, fromProfileLocation: URI): Promise<ILocalExtension>;
+	getInstalled(type?: ExtensionType, profileLocation?: URI, productVersion?: IProductVersion, language?: string): Promise<ILocalExtension[]>;
 	getExtensionsControlManifest(): Promise<IExtensionsControlManifest>;
 	copyExtensions(fromProfileLocation: URI, toProfileLocation: URI): Promise<void>;
 	updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation: URI): Promise<ILocalExtension>;
@@ -695,8 +715,9 @@ export async function computeSize(location: URI, fileService: IFileService): Pro
 
 export const ExtensionsLocalizedLabel = localize2('extensions', "Extensions");
 export const PreferencesLocalizedLabel = localize2('preferences', 'Preferences');
-export const UseUnpkgResourceApiConfigKey = 'extensions.gallery.useUnpkgResourceApi';
 export const AllowedExtensionsConfigKey = 'extensions.allowed';
+export const VerifyExtensionSignatureConfigKey = 'extensions.verifySignature';
+export const ExtensionRequestsTimeoutConfigKey = 'extensions.requestTimeout';
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 	.registerConfiguration({
@@ -708,7 +729,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 			[AllowedExtensionsConfigKey]: {
 				// Note: Type is set only to object because to support policies generation during build time, where single type is expected.
 				type: 'object',
-				markdownDescription: localize('extensions.allowed', "Specify a list of extensions that are allowed to use. This helps maintain a secure and consistent development environment by restricting the use of unauthorized extensions. For more information on how to configure this setting, please visit the [Configure Allowed Extensions](https://code.visualstudio.com/docs/setup/enterprise#_configure-allowed-extensions) section."),
+				markdownDescription: localize('extensions.allowed', "Specify a list of extensions that are allowed to use. This helps maintain a secure and consistent development environment by restricting the use of unauthorized extensions. For more information on how to configure this setting, please visit the [Configure Allowed Extensions](https://aka.ms/vscode/enterprise/extensions/allowed) section."),
 				default: '*',
 				defaultSnippets: [{
 					body: {},
@@ -722,8 +743,14 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 				scope: ConfigurationScope.APPLICATION,
 				policy: {
 					name: 'AllowedExtensions',
+					category: PolicyCategory.Extensions,
 					minimumVersion: '1.96',
-					description: localize('extensions.allowed.policy', "Specify a list of extensions that are allowed to use. This helps maintain a secure and consistent development environment by restricting the use of unauthorized extensions. More information: https://code.visualstudio.com/docs/setup/enterprise#_configure-allowed-extensions"),
+					localization: {
+						description: {
+							key: 'extensions.allowed.policy',
+							value: localize('extensions.allowed.policy', "Specify a list of extensions that are allowed to use. This helps maintain a secure and consistent development environment by restricting the use of unauthorized extensions. More information: https://aka.ms/vscode/enterprise/extensions/allowed"),
+						}
+					}
 				},
 				additionalProperties: false,
 				patternProperties: {
@@ -771,3 +798,11 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 			}
 		}
 	});
+
+export function shouldRequireRepositorySignatureFor(isPrivate: boolean, galleryManifest: IExtensionGalleryManifest | null): boolean {
+	if (isPrivate) {
+		return galleryManifest?.capabilities.signing?.allPrivateRepositorySigned === true;
+	}
+	return galleryManifest?.capabilities.signing?.allPublicRepositorySigned === true;
+}
+

@@ -19,13 +19,27 @@ export type INumberDictionary<V> = Record<number, V>;
  * Groups the collection into a dictionary based on the provided
  * group function.
  */
-export function groupBy<K extends string | number | symbol, V>(data: V[], groupFn: (element: V) => K): Record<K, V[]> {
-	const result: Record<K, V[]> = Object.create(null);
+export function groupBy<K extends string | number | symbol, V>(data: readonly V[], groupFn: (element: V) => K): Partial<Record<K, V[]>> {
+	const result: Partial<Record<K, V[]>> = Object.create(null);
 	for (const element of data) {
 		const key = groupFn(element);
 		let target = result[key];
 		if (!target) {
 			target = result[key] = [];
+		}
+		target.push(element);
+	}
+	return result;
+}
+
+export function groupByMap<K, V>(data: V[], groupFn: (element: V) => K): Map<K, V[]> {
+	const result = new Map<K, V[]>();
+	for (const element of data) {
+		const key = groupFn(element);
+		let target = result.get(key);
+		if (!target) {
+			target = [];
+			result.set(key, target);
 		}
 		target.push(element);
 	}
@@ -46,6 +60,28 @@ export function diffSets<T>(before: ReadonlySet<T>, after: ReadonlySet<T>): { re
 		}
 	}
 	return { removed, added };
+}
+
+/**
+ * Checks whether two sets contain exactly the same elements.
+ *
+ * @param a - The first set.
+ * @param b - The second set.
+ * @returns `true` if both sets have the same size and every element of `a` is also in `b`.
+ */
+export function equalSets<T>(a: ReadonlySet<T>, b: ReadonlySet<T>): boolean {
+	if (a === b) {
+		return true;
+	}
+	if (a.size !== b.size) {
+		return false;
+	}
+	for (const element of a) {
+		if (!b.has(element)) {
+			return false;
+		}
+	}
+	return true;
 }
 
 export function diffMaps<K, V>(before: Map<K, V>, after: Map<K, V>): { removed: V[]; added: V[] } {
@@ -82,7 +118,7 @@ export function intersection<T>(setA: Set<T>, setB: Iterable<T>): Set<T> {
 }
 
 export class SetWithKey<T> implements Set<T> {
-	private _map = new Map<any, T>();
+	private _map = new Map<unknown, T>();
 
 	constructor(values: T[], private toKey: (t: T) => unknown) {
 		for (const value of values) {
@@ -108,17 +144,17 @@ export class SetWithKey<T> implements Set<T> {
 		return this._map.has(this.toKey(value));
 	}
 
-	*entries(): IterableIterator<[T, T]> {
+	*entries(): SetIterator<[T, T]> {
 		for (const entry of this._map.values()) {
 			yield [entry, entry];
 		}
 	}
 
-	keys(): IterableIterator<T> {
+	keys(): SetIterator<T> {
 		return this.values();
 	}
 
-	*values(): IterableIterator<T> {
+	*values(): SetIterator<T> {
 		for (const entry of this._map.values()) {
 			yield entry;
 		}
@@ -128,11 +164,11 @@ export class SetWithKey<T> implements Set<T> {
 		this._map.clear();
 	}
 
-	forEach(callbackfn: (value: T, value2: T, set: Set<T>) => void, thisArg?: any): void {
+	forEach(callbackfn: (value: T, value2: T, set: Set<T>) => void, thisArg?: unknown): void {
 		this._map.forEach(entry => callbackfn.call(thisArg, entry, entry, this));
 	}
 
-	[Symbol.iterator](): IterableIterator<T> {
+	[Symbol.iterator](): SetIterator<T> {
 		return this.values();
 	}
 

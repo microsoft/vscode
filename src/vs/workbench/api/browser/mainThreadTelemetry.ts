@@ -5,10 +5,12 @@
 
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
 import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
+import { isValidAssignmentContext } from '../../../platform/telemetry/common/assignmentContext.js';
 import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from '../../../platform/telemetry/common/gdprTypings.js';
-import { ITelemetryService, TelemetryLevel, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../../platform/telemetry/common/telemetry.js';
+import { ITelemetryService, TelemetryLevel, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID, ITelemetryData } from '../../../platform/telemetry/common/telemetry.js';
 import { supportsTelemetry } from '../../../platform/telemetry/common/telemetryUtils.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { ExtHostContext, ExtHostTelemetryShape, MainContext, MainThreadTelemetryShape } from '../common/extHost.protocol.js';
@@ -48,15 +50,45 @@ export class MainThreadTelemetry extends Disposable implements MainThreadTelemet
 		return this._telemetryService.telemetryLevel;
 	}
 
-	$publicLog(eventName: string, data: any = Object.create(null)): void {
+	$publicLog(eventName: string, data: ITelemetryData = Object.create(null)): void {
 		// __GDPR__COMMON__ "pluginHostTelemetry" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 		data[MainThreadTelemetry._name] = true;
 		this._telemetryService.publicLog(eventName, data);
 	}
 
 	$publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): void {
-		this.$publicLog(eventName, data as any);
+		this.$publicLog(eventName, data);
 	}
 }
 
+/**
+ * The core telemetry property under which the Copilot CAPI flight assignment
+ * context is surfaced. It mirrors the scope of `abexp.assignmentcontext`.
+ */
+export const CAPI_ASSIGNMENT_CONTEXT_PROPERTY = 'capi.assignmentcontext';
 
+/**
+ * The private command Copilot invokes to forward its CAPI flight assignments
+ * into core telemetry. Not part of the public API.
+ */
+export const SET_CAPI_ASSIGNMENT_CONTEXT_COMMAND = '_telemetry.setCapiAssignmentContext';
+
+/**
+ * Validates a CAPI assignment-context string before it is trusted onto every
+ * core telemetry event. Because {@link ITelemetryService.setExperimentProperty}
+ * wraps the value in a `TelemetryTrustedValue` (bypassing PII cleaning), the
+ * value must be strictly shaped: a non-empty, size-capped list of `key:value`
+ * entries separated by `;`, with no whitespace or control characters. Any
+ * malformed input is rejected outright.
+ */
+export function isValidCapiAssignmentContext(value: string): boolean {
+	return isValidAssignmentContext(value);
+}
+
+CommandsRegistry.registerCommand(SET_CAPI_ASSIGNMENT_CONTEXT_COMMAND, function (accessor, value: string) {
+	if (typeof value !== 'string' || !isValidCapiAssignmentContext(value)) {
+		return;
+	}
+
+	accessor.get(ITelemetryService).setExperimentProperty(CAPI_ASSIGNMENT_CONTEXT_PROPERTY, value);
+});

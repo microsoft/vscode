@@ -27,6 +27,7 @@ import { LanguageBracketsConfiguration } from './supports/languageBracketsConfig
  */
 export interface ICommentsConfiguration {
 	lineCommentToken?: string;
+	lineCommentNoIndent?: boolean;
 	blockCommentStartToken?: string;
 	blockCommentEndToken?: string;
 }
@@ -34,7 +35,7 @@ export interface ICommentsConfiguration {
 export interface ILanguageConfigurationService {
 	readonly _serviceBrand: undefined;
 
-	onDidChange: Event<LanguageConfigurationServiceChangeEvent>;
+	readonly onDidChange: Event<LanguageConfigurationServiceChangeEvent>;
 
 	/**
 	 * @param priority Use a higher number for higher priority
@@ -60,7 +61,10 @@ export class LanguageConfigurationService extends Disposable implements ILanguag
 
 	private readonly _registry = this._register(new LanguageConfigurationRegistry());
 
-	private readonly onDidChangeEmitter = this._register(new Emitter<LanguageConfigurationServiceChangeEvent>());
+	private readonly onDidChangeEmitter = this._register(new Emitter<LanguageConfigurationServiceChangeEvent>({
+		leakWarningThreshold: 500,
+		leakWarningName: 'LanguageConfigurationService.onDidChange' /* increased for multi-diff editors with hundreds of text models */
+	}));
 	public readonly onDidChange = this.onDidChangeEmitter.event;
 
 	private readonly configurations = new Map<string, ResolvedLanguageConfiguration>();
@@ -456,7 +460,12 @@ export class ResolvedLanguageConfiguration {
 		const comments: ICommentsConfiguration = {};
 
 		if (commentRule.lineComment) {
-			comments.lineCommentToken = commentRule.lineComment;
+			if (typeof commentRule.lineComment === 'string') {
+				comments.lineCommentToken = commentRule.lineComment;
+			} else {
+				comments.lineCommentToken = commentRule.lineComment.comment;
+				comments.lineCommentNoIndent = commentRule.lineComment.noIndent;
+			}
 		}
 		if (commentRule.blockComment) {
 			const [blockStart, blockEnd] = commentRule.blockComment;

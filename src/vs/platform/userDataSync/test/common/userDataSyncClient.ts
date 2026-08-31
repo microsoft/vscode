@@ -6,7 +6,7 @@
 import { bufferToStream, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { FormattingOptions } from '../../../../base/common/jsonFormatter.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -26,7 +26,7 @@ import { TestInstantiationService } from '../../../instantiation/test/common/ins
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import product from '../../../product/common/product.js';
 import { IProductService } from '../../../product/common/productService.js';
-import { AuthInfo, Credentials, IRequestService } from '../../../request/common/request.js';
+import { AuthInfo, Credentials, IRequestCompleteEvent, IRequestService } from '../../../request/common/request.js';
 import { InMemoryStorageService, IStorageService } from '../../../storage/common/storage.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
@@ -34,7 +34,7 @@ import { IUriIdentityService } from '../../../uriIdentity/common/uriIdentity.js'
 import { UriIdentityService } from '../../../uriIdentity/common/uriIdentityService.js';
 import { ExtensionStorageService, IExtensionStorageService } from '../../../extensionManagement/common/extensionStorage.js';
 import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService } from '../../common/ignoredExtensions.js';
-import { ALL_SYNC_RESOURCES, getDefaultIgnoredSettings, IUserData, IUserDataSyncLocalStoreService, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, IUserDataSyncUtilService, registerConfiguration, ServerResource, SyncResource, IUserDataSynchroniser, IUserDataResourceManifest, IUserDataCollectionManifest, USER_DATA_SYNC_SCHEME } from '../../common/userDataSync.js';
+import { ALL_SYNC_RESOURCES, getDefaultIgnoredSettings, IUserData, IUserDataSyncLocalStoreService, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, IUserDataSyncUtilService, registerConfiguration, ServerResource, SyncResource, IUserDataSynchroniser, IUserDataResourceManifest, IUserDataCollectionManifest, USER_DATA_SYNC_SCHEME, IUserDataManifest } from '../../common/userDataSync.js';
 import { IUserDataSyncAccountService, UserDataSyncAccountService } from '../../common/userDataSyncAccount.js';
 import { UserDataSyncLocalStoreService } from '../../common/userDataSyncLocalStoreService.js';
 import { IUserDataSyncMachinesService, UserDataSyncMachinesService } from '../../common/userDataSyncMachines.js';
@@ -45,6 +45,7 @@ import { InMemoryUserDataProfilesService, IUserDataProfile, IUserDataProfilesSer
 import { NullPolicyService } from '../../../policy/common/policy.js';
 import { IUserDataProfileStorageService } from '../../../userDataProfile/common/userDataProfileStorageService.js';
 import { TestUserDataProfileStorageService } from '../../../userDataProfile/test/common/userDataProfileStorageService.test.js';
+import { IMeteredConnectionService } from '../../../meteredConnection/common/meteredConnection.js';
 
 export class UserDataSyncClient extends Disposable {
 
@@ -67,7 +68,7 @@ export class UserDataSyncClient extends Disposable {
 			userRoamingDataHome,
 			cacheHome: joinPath(userRoamingDataHome, 'cache'),
 			argvResource: joinPath(userRoamingDataHome, 'argv.json'),
-			sync: 'on',
+			sync: 'on'
 		});
 
 		this.instantiationService.stub(IProductService, {
@@ -100,6 +101,8 @@ export class UserDataSyncClient extends Disposable {
 		const configurationService = this._register(new ConfigurationService(userDataProfilesService.defaultProfile.settingsResource, fileService, new NullPolicyService(), logService));
 		await configurationService.initialize();
 		this.instantiationService.stub(IConfigurationService, configurationService);
+
+		this.instantiationService.stub(IMeteredConnectionService, { isConnectionMetered: false, onDidChangeIsConnectionMetered: new Emitter<boolean>().event });
 
 		this.instantiationService.stub(IRequestService, this.testServer);
 
@@ -156,7 +159,12 @@ export class UserDataSyncClient extends Disposable {
 		return this.instantiationService.get(IUserDataSyncStoreService).readResource(resource, null, collection);
 	}
 
-	async getResourceManifest(): Promise<IUserDataResourceManifest | null> {
+	async getLatestRef(resource: SyncResource): Promise<string | null> {
+		const manifest = await this._getResourceManifest();
+		return manifest?.[resource] ?? null;
+	}
+
+	async _getResourceManifest(): Promise<IUserDataResourceManifest | null> {
 		const manifest = await this.instantiationService.get(IUserDataSyncStoreService).manifest(null);
 		return manifest?.latest ?? null;
 	}
@@ -171,7 +179,9 @@ const ALL_SERVER_RESOURCES: ServerResource[] = [...ALL_SYNC_RESOURCES, 'machines
 
 export class UserDataSyncTestServer implements IRequestService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
+
+	readonly onDidCompleteRequest = Event.None as Event<IRequestCompleteEvent>;
 
 	readonly url: string = 'http://host:3000';
 	private session: string | null = null;
@@ -257,19 +267,19 @@ export class UserDataSyncTestServer implements IRequestService {
 		if (this.session) {
 			const latest: Record<ServerResource, string> = Object.create({});
 			this.data.forEach((value, key) => latest[key] = value.ref);
-			let collection: IUserDataCollectionManifest | undefined = undefined;
+			let collections: IUserDataCollectionManifest | undefined = undefined;
 			if (this.collectionCounter) {
-				collection = {};
+				collections = {};
 				for (let collectionId = 1; collectionId <= this.collectionCounter; collectionId++) {
 					const collectionData = this.collections.get(`${collectionId}`);
 					if (collectionData) {
 						const latest: Record<ServerResource, string> = Object.create({});
 						collectionData.forEach((value, key) => latest[key] = value.ref);
-						collection[`${collectionId}`] = { latest };
+						collections[`${collectionId}`] = { latest };
 					}
 				}
 			}
-			const manifest = { session: this.session, latest, collection };
+			const manifest: IUserDataManifest = { session: this.session, latest, collections, ref: '1' };
 			return this.toResponse(200, { 'Content-Type': 'application/json', etag: `${this.manifestRef++}` }, JSON.stringify(manifest));
 		}
 		return this.toResponse(204, { etag: `${this.manifestRef++}` });
@@ -361,7 +371,7 @@ export class UserDataSyncTestServer implements IRequestService {
 
 export class TestUserDataSyncUtilService implements IUserDataSyncUtilService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	async resolveDefaultCoreIgnoredSettings(): Promise<string[]> {
 		return getDefaultIgnoredSettings();

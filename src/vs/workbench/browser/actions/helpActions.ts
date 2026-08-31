@@ -16,8 +16,8 @@ import { ServicesAccessor } from '../../../platform/instantiation/common/instant
 import { KeybindingWeight } from '../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Categories } from '../../../platform/action/common/actionCommonCategories.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
-import { IQuickInputService } from '../../../platform/quickinput/common/quickInput.js';
 import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
+import { IsSessionsWindowContext } from '../../common/contextkeys.js';
 
 class KeybindingsReferenceAction extends Action2 {
 
@@ -281,7 +281,7 @@ class OpenLicenseUrlAction extends Action2 {
 class OpenPrivacyStatementUrlAction extends Action2 {
 
 	static readonly ID = 'workbench.action.openPrivacyStatementUrl';
-	static readonly AVAILABE = !!product.privacyStatementUrl;
+	static readonly AVAILABLE = !!product.privacyStatementUrl;
 
 	constructor() {
 		super({
@@ -320,10 +320,12 @@ class GetStartedWithAccessibilityFeatures extends Action2 {
 			title: localize2('getStartedWithAccessibilityFeatures', 'Get Started with Accessibility Features'),
 			category: Categories.Help,
 			f1: true,
+			precondition: IsSessionsWindowContext.negate(),
 			menu: {
 				id: MenuId.MenubarHelpMenu,
 				group: '1_welcome',
-				order: 6
+				order: 6,
+				when: IsSessionsWindowContext.negate()
 			}
 		});
 	}
@@ -333,55 +335,23 @@ class GetStartedWithAccessibilityFeatures extends Action2 {
 	}
 }
 
-class GetStartedWithCopilot extends Action2 {
-
-	static readonly ID = 'workbench.action.getStartedWithCopilot';
-	static readonly AVAILABE = !!product.defaultChatAgent?.documentationUrl;
-
-	constructor() {
-		super({
-			id: GetStartedWithCopilot.ID,
-			title: localize2('getStartedWithCopilot', 'Get Started with Copilot'),
-			category: Categories.Help,
-			f1: true,
-			menu: {
-				id: MenuId.MenubarHelpMenu,
-				group: '1_welcome',
-				order: 7
-			}
-		});
-	}
-	run(accessor: ServicesAccessor): void {
-		const openerService = accessor.get(IOpenerService);
-		openerService.open(URI.parse(product.defaultChatAgent!.documentationUrl));
-	}
-}
-
 class AskVSCodeCopilot extends Action2 {
 	static readonly ID = 'workbench.action.askVScode';
-	static readonly AVAILABE = !!product.defaultChatAgent?.chatExtensionId;
 
-	//  add check for enablement
 	constructor() {
 		super({
 			id: AskVSCodeCopilot.ID,
 			title: localize2('askVScode', 'Ask @vscode'),
 			category: Categories.Help,
 			f1: true,
-			precondition: ContextKeyExpr.and(ContextKeyExpr.equals(`chatIsEnabled`, true)),
+			precondition: ContextKeyExpr.and(ContextKeyExpr.equals('chatSetupHidden', false), ContextKeyExpr.equals('chatSetupDisabledInWorkspace', false), IsSessionsWindowContext.negate())
 		});
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const quickInputService = accessor.get(IQuickInputService);
 		const commandService = accessor.get(ICommandService);
-		const input = await quickInputService.input({
-			title: localize('askVscodeTitle', "Ask @vscode"),
-			placeHolder: localize('askVscodePlaceholder', "@vscode can help you with settings, commands, or how to do something in VS Code.")
-		});
-		if (input) {
-			commandService.executeCommand('workbench.action.chat.open', { query: `@vscode ${input}` });
-		}
+		commandService.executeCommand('workbench.action.chat.open', { mode: 'agent', query: '@vscode ', isPartialQuery: true });
+
 	}
 }
 
@@ -390,9 +360,9 @@ MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 		id: AskVSCodeCopilot.ID,
 		title: localize2('askVScode', 'Ask @vscode'),
 	},
-	order: 8,
+	order: 7,
 	group: '1_welcome',
-	when: ContextKeyExpr.equals(`chatIsEnabled`, true),
+	when: ContextKeyExpr.and(ContextKeyExpr.equals('chatSetupHidden', false), ContextKeyExpr.equals('chatSetupDisabledInWorkspace', false), IsSessionsWindowContext.negate())
 });
 
 // --- Actions Registration
@@ -429,14 +399,10 @@ if (OpenLicenseUrlAction.AVAILABLE) {
 	registerAction2(OpenLicenseUrlAction);
 }
 
-if (OpenPrivacyStatementUrlAction.AVAILABE) {
+if (OpenPrivacyStatementUrlAction.AVAILABLE) {
 	registerAction2(OpenPrivacyStatementUrlAction);
 }
 
 registerAction2(GetStartedWithAccessibilityFeatures);
-
-if (GetStartedWithCopilot.AVAILABE) {
-	registerAction2(GetStartedWithCopilot);
-}
 
 registerAction2(AskVSCodeCopilot);

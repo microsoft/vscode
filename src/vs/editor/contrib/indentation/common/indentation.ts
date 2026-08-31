@@ -6,7 +6,7 @@
 import * as strings from '../../../../base/common/strings.js';
 import { ShiftCommand } from '../../../common/commands/shiftCommand.js';
 import { EditOperation, ISingleEditOperation } from '../../../common/core/editOperation.js';
-import { normalizeIndentation } from '../../../common/core/indentation.js';
+import { normalizeIndentation } from '../../../common/core/misc/indentation.js';
 import { Selection } from '../../../common/core/selection.js';
 import { StandardTokenType } from '../../../common/encodedTokenAttributes.js';
 import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';

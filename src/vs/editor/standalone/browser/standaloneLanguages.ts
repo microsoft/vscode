@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Color } from '../../../base/common/color.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
 import { Position } from '../../common/core/position.js';
 import { Range } from '../../common/core/range.js';
 import { MetadataConsts } from '../../common/encodedTokenAttributes.js';
@@ -14,7 +15,7 @@ import { ILanguageExtensionPoint, ILanguageService } from '../../common/language
 import { LanguageConfiguration } from '../../common/languages/languageConfiguration.js';
 import { ILanguageConfigurationService } from '../../common/languages/languageConfigurationRegistry.js';
 import { ModesRegistry } from '../../common/languages/modesRegistry.js';
-import { LanguageSelector } from '../../common/languageSelector.js';
+import { LanguageSelector, score as scoreLanguageSelector } from '../../common/languageSelector.js';
 import * as model from '../../common/model.js';
 import { ILanguageFeaturesService } from '../../common/services/languageFeatures.js';
 import * as standaloneEnums from '../../common/standalone/standaloneEnums.js';
@@ -25,6 +26,7 @@ import { IMonarchLanguage } from '../common/monarch/monarchTypes.js';
 import { IStandaloneThemeService } from '../common/standaloneTheme.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IMarkerData, IMarkerService } from '../../../platform/markers/common/markers.js';
+import { EditDeltaInfo } from '../../common/textModelEditSource.js';
 
 /**
  * Register information about a new language.
@@ -47,6 +49,13 @@ export function getLanguages(): ILanguageExtensionPoint[] {
 export function getEncodedLanguageId(languageId: string): number {
 	const languageService = StandaloneServices.get(ILanguageService);
 	return languageService.languageIdCodec.encodeLanguageId(languageId);
+}
+
+/**
+ * Compute the score of a language selector against a candidate URI and language.
+ */
+export function score(selector: LanguageSelector | undefined, candidateUri: URI, candidateLanguage: string): number {
+	return scoreLanguageSelector(selector, candidateUri, candidateLanguage, true, undefined, undefined);
 }
 
 /**
@@ -130,7 +139,7 @@ export class EncodedTokenizationSupportAdapter implements languages.ITokenizatio
 
 	public tokenizeEncoded(line: string, hasEOL: boolean, state: languages.IState): languages.EncodedTokenizationResult {
 		const result = this._actual.tokenizeEncoded(line, state);
-		return new languages.EncodedTokenizationResult(result.tokens, result.endState);
+		return new languages.EncodedTokenizationResult(result.tokens, [], result.endState);
 	}
 }
 
@@ -248,7 +257,7 @@ export class TokenizationSupportAdapter implements languages.ITokenizationSuppor
 			endState = actualResult.endState;
 		}
 
-		return new languages.EncodedTokenizationResult(tokens, endState);
+		return new languages.EncodedTokenizationResult(tokens, [], endState);
 	}
 }
 
@@ -679,11 +688,6 @@ export function registerInlineCompletionsProvider(languageSelector: LanguageSele
 	return languageFeaturesService.inlineCompletionsProvider.register(languageSelector, provider);
 }
 
-export function registerInlineEditProvider(languageSelector: LanguageSelector, provider: languages.InlineEditProvider): IDisposable {
-	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
-	return languageFeaturesService.inlineEditProvider.register(languageSelector, provider);
-}
-
 /**
  * Register an inlay hints provider.
  */
@@ -754,44 +758,80 @@ export interface CodeActionProviderMetadata {
  */
 export function createMonacoLanguagesAPI(): typeof monaco.languages {
 	return {
+		// eslint-disable-next-line local/code-no-any-casts
 		register: <any>register,
+		// eslint-disable-next-line local/code-no-any-casts
 		getLanguages: <any>getLanguages,
+		// eslint-disable-next-line local/code-no-any-casts
 		onLanguage: <any>onLanguage,
+		// eslint-disable-next-line local/code-no-any-casts
 		onLanguageEncountered: <any>onLanguageEncountered,
+		// eslint-disable-next-line local/code-no-any-casts
 		getEncodedLanguageId: <any>getEncodedLanguageId,
+		// eslint-disable-next-line local/code-no-any-casts
+		score: <any>score,
 
 		// provider methods
+		// eslint-disable-next-line local/code-no-any-casts
 		setLanguageConfiguration: <any>setLanguageConfiguration,
 		setColorMap: setColorMap,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerTokensProviderFactory: <any>registerTokensProviderFactory,
+		// eslint-disable-next-line local/code-no-any-casts
 		setTokensProvider: <any>setTokensProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		setMonarchTokensProvider: <any>setMonarchTokensProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerReferenceProvider: <any>registerReferenceProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerRenameProvider: <any>registerRenameProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerNewSymbolNameProvider: <any>registerNewSymbolNameProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerCompletionItemProvider: <any>registerCompletionItemProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerSignatureHelpProvider: <any>registerSignatureHelpProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerHoverProvider: <any>registerHoverProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerDocumentSymbolProvider: <any>registerDocumentSymbolProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerDocumentHighlightProvider: <any>registerDocumentHighlightProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerLinkedEditingRangeProvider: <any>registerLinkedEditingRangeProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerDefinitionProvider: <any>registerDefinitionProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerImplementationProvider: <any>registerImplementationProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerTypeDefinitionProvider: <any>registerTypeDefinitionProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerCodeLensProvider: <any>registerCodeLensProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerCodeActionProvider: <any>registerCodeActionProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerDocumentFormattingEditProvider: <any>registerDocumentFormattingEditProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerDocumentRangeFormattingEditProvider: <any>registerDocumentRangeFormattingEditProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerOnTypeFormattingEditProvider: <any>registerOnTypeFormattingEditProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerLinkProvider: <any>registerLinkProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerColorProvider: <any>registerColorProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerFoldingRangeProvider: <any>registerFoldingRangeProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerDeclarationProvider: <any>registerDeclarationProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerSelectionRangeProvider: <any>registerSelectionRangeProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerDocumentSemanticTokensProvider: <any>registerDocumentSemanticTokensProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerDocumentRangeSemanticTokensProvider: <any>registerDocumentRangeSemanticTokensProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerInlineCompletionsProvider: <any>registerInlineCompletionsProvider,
-		registerInlineEditProvider: <any>registerInlineEditProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerInlayHintsProvider: <any>registerInlayHintsProvider,
 
 		// enums
@@ -806,15 +846,19 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		SignatureHelpTriggerKind: standaloneEnums.SignatureHelpTriggerKind,
 		InlayHintKind: standaloneEnums.InlayHintKind,
 		InlineCompletionTriggerKind: standaloneEnums.InlineCompletionTriggerKind,
-		InlineEditTriggerKind: standaloneEnums.InlineEditTriggerKind,
 		CodeActionTriggerType: standaloneEnums.CodeActionTriggerType,
 		NewSymbolNameTag: standaloneEnums.NewSymbolNameTag,
 		NewSymbolNameTriggerKind: standaloneEnums.NewSymbolNameTriggerKind,
 		PartialAcceptTriggerKind: standaloneEnums.PartialAcceptTriggerKind,
 		HoverVerbosityAction: standaloneEnums.HoverVerbosityAction,
+		InlineCompletionEndOfLifeReasonKind: standaloneEnums.InlineCompletionEndOfLifeReasonKind,
+		InlineCompletionHintStyle: standaloneEnums.InlineCompletionHintStyle,
 
 		// classes
 		FoldingRangeKind: languages.FoldingRangeKind,
+		// eslint-disable-next-line local/code-no-any-casts
 		SelectedSuggestionInfo: <any>languages.SelectedSuggestionInfo,
+		// eslint-disable-next-line local/code-no-any-casts
+		EditDeltaInfo: <any>EditDeltaInfo,
 	};
 }

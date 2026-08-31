@@ -13,13 +13,14 @@ suite('lm', function () {
 
 	let disposables: vscode.Disposable[] = [];
 
-	const testProviderOptions: vscode.ChatResponseProviderMetadata = {
+	const testProviderOptions: vscode.LanguageModelChatInformation = {
+		id: 'test-lm',
 		name: 'test-lm',
 		version: '1.0.0',
 		family: 'test',
-		vendor: 'test-lm-vendor',
 		maxInputTokens: 100,
 		maxOutputTokens: 100,
+		capabilities: {}
 	};
 
 	setup(function () {
@@ -35,18 +36,26 @@ suite('lm', function () {
 
 	test('lm request and stream', async function () {
 
-		let p: vscode.Progress<vscode.ChatResponseFragment2> | undefined;
+		let p: vscode.Progress<vscode.LanguageModelResponsePart> | undefined;
 		const defer = new DeferredPromise<void>();
 
-		disposables.push(vscode.lm.registerChatModelProvider('test-lm', {
-			async provideLanguageModelResponse(_messages, _options, _extensionId, progress, _token) {
-				p = progress;
-				return defer.p;
-			},
-			async provideTokenCount(_text, _token) {
-				return 1;
-			},
-		}, testProviderOptions));
+		try {
+			disposables.push(vscode.lm.registerLanguageModelChatProvider('test-lm-vendor', {
+				async provideLanguageModelChatInformation(_options, _token) {
+					return [testProviderOptions];
+				},
+				async provideLanguageModelChatResponse(_model, _messages, _options, progress, _token) {
+					p = progress;
+					return defer.p;
+				},
+				async provideTokenCount(_model, _text, _token) {
+					return 1;
+				},
+			}));
+		} catch (e) {
+			assert.fail(`Failed to register chat model provider: ${e}`);
+		}
+
 
 		const models = await vscode.lm.selectChatModels({ id: 'test-lm' });
 		assert.strictEqual(models.length, 1);
@@ -71,7 +80,7 @@ suite('lm', function () {
 		assert.strictEqual(responseText, '');
 		assert.strictEqual(streamDone, false);
 
-		p.report({ index: 0, part: new vscode.LanguageModelTextPart('Hello') });
+		p.report(new vscode.LanguageModelTextPart('Hello'));
 		defer.complete();
 
 		await pp;
@@ -83,14 +92,17 @@ suite('lm', function () {
 
 	test('lm request fail', async function () {
 
-		disposables.push(vscode.lm.registerChatModelProvider('test-lm', {
-			async provideLanguageModelResponse(_messages, _options, _extensionId, _progress, _token) {
+		disposables.push(vscode.lm.registerLanguageModelChatProvider('test-lm-vendor', {
+			async provideLanguageModelChatInformation(_options, _token) {
+				return [testProviderOptions];
+			},
+			async provideLanguageModelChatResponse(_model, _messages, _options, _progress, _token) {
 				throw new Error('BAD');
 			},
-			async provideTokenCount(_text, _token) {
+			async provideTokenCount(_model, _text, _token) {
 				return 1;
 			},
-		}, testProviderOptions));
+		}));
 
 		const models = await vscode.lm.selectChatModels({ id: 'test-lm' });
 		assert.strictEqual(models.length, 1);
@@ -107,14 +119,17 @@ suite('lm', function () {
 
 		const defer = new DeferredPromise<void>();
 
-		disposables.push(vscode.lm.registerChatModelProvider('test-lm', {
-			async provideLanguageModelResponse(_messages, _options, _extensionId, _progress, _token) {
+		disposables.push(vscode.lm.registerLanguageModelChatProvider('test-lm-vendor', {
+			async provideLanguageModelChatInformation(_options, _token) {
+				return [testProviderOptions];
+			},
+			async provideLanguageModelChatResponse(_model, _messages, _options, _progress, _token) {
 				return defer.p;
 			},
-			async provideTokenCount(_text, _token) {
+			async provideTokenCount(_model, _text, _token) {
 				return 1;
 			}
-		}, testProviderOptions));
+		}));
 
 		const models = await vscode.lm.selectChatModels({ id: 'test-lm' });
 		assert.strictEqual(models.length, 1);
@@ -142,14 +157,17 @@ suite('lm', function () {
 
 	test('LanguageModelError instance is not thrown to extensions#235322 (SYNC)', async function () {
 
-		disposables.push(vscode.lm.registerChatModelProvider('test-lm', {
-			provideLanguageModelResponse(_messages, _options, _extensionId, _progress, _token) {
+		disposables.push(vscode.lm.registerLanguageModelChatProvider('test-lm-vendor', {
+			async provideLanguageModelChatInformation(_options, _token) {
+				return [testProviderOptions];
+			},
+			provideLanguageModelChatResponse(_model, _messages, _options, _progress, _token) {
 				throw vscode.LanguageModelError.Blocked('You have been blocked SYNC');
 			},
-			async provideTokenCount(_text, _token) {
+			async provideTokenCount(_model, _text, _token) {
 				return 1;
 			}
-		}, testProviderOptions));
+		}));
 
 		const models = await vscode.lm.selectChatModels({ id: 'test-lm' });
 		assert.strictEqual(models.length, 1);
@@ -165,14 +183,17 @@ suite('lm', function () {
 
 	test('LanguageModelError instance is not thrown to extensions#235322 (ASYNC)', async function () {
 
-		disposables.push(vscode.lm.registerChatModelProvider('test-lm', {
-			async provideLanguageModelResponse(_messages, _options, _extensionId, _progress, _token) {
+		disposables.push(vscode.lm.registerLanguageModelChatProvider('test-lm-vendor', {
+			async provideLanguageModelChatInformation(_options, _token) {
+				return [testProviderOptions];
+			},
+			async provideLanguageModelChatResponse(_model, _messages, _options, _progress, _token) {
 				throw vscode.LanguageModelError.Blocked('You have been blocked ASYNC');
 			},
-			async provideTokenCount(_text, _token) {
+			async provideTokenCount(_model, _text, _token) {
 				return 1;
 			}
-		}, testProviderOptions));
+		}));
 
 		const models = await vscode.lm.selectChatModels({ id: 'test-lm' });
 		assert.strictEqual(models.length, 1);

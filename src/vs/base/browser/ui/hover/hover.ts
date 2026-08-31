@@ -7,6 +7,7 @@ import type { IHoverDelegate } from './hoverDelegate.js';
 import type { HoverPosition } from './hoverWidget.js';
 import type { CancellationToken } from '../../../common/cancellation.js';
 import type { IMarkdownString } from '../../../common/htmlContent.js';
+import type { AnchorAlignment } from '../../../common/layout.js';
 import type { IDisposable } from '../../../common/lifecycle.js';
 
 /**
@@ -148,6 +149,17 @@ export interface IHoverWidget extends IDisposable {
 	readonly isDisposed: boolean;
 }
 
+export const enum HoverStyle {
+	/**
+	 * The hover is anchored below the element with a pointer above it pointing at the target.
+	 */
+	Pointer = 1,
+	/**
+	 * The hover is anchored to the bottom right of the cursor's location.
+	 */
+	Mouse = 2,
+}
+
 export interface IHoverOptions {
 	/**
 	 * The content to display in the primary section of the hover. The type of text determines the
@@ -206,6 +218,11 @@ export interface IHoverOptions {
 	trapFocus?: boolean;
 
 	/**
+	 * The style of the hover, this sets default values of {@link position} and {@link appearance}:
+	 */
+	style?: HoverStyle;
+
+	/**
 	 * Options that defines where the hover is positioned.
 	 */
 	position?: IHoverPositionOptions;
@@ -219,6 +236,18 @@ export interface IHoverOptions {
 	 * Options that define how the hover looks.
 	 */
 	appearance?: IHoverAppearanceOptions;
+
+	/**
+	 * An optional callback that is called when the hover is shown. This is called
+	 * later for delayed hovers.
+	 */
+	onDidShow?(): void;
+
+	/**
+	 * An optional callback that is called when the hover is hidden (i.e. its underlying widget is disposed). This fires
+	 * once per shown hover and is only invoked if the hover was actually shown.
+	 */
+	onDidHide?(): void;
 }
 
 // `target` is ignored for delayed hover methods as it's included in the method and added
@@ -252,6 +281,12 @@ export interface IHoverLifecycleOptions {
 	groupId?: string;
 
 	/**
+	 * Whether to use a reduced delay before showing the hover. If true, the
+	 * `workbench.hover.reducedDelay` setting is used instead of `workbench.hover.delay`.
+	 */
+	reducedDelay?: boolean;
+
+	/**
 	 * Whether to set up space and enter keyboard events for the hover, when these are pressed when
 	 * the hover's target is focused it will show and focus the hover.
 	 *
@@ -268,6 +303,11 @@ export interface IHoverPositionOptions {
 	 * forcePosition option is set.
 	 */
 	hoverPosition?: HoverPosition | MouseEvent;
+
+	/**
+	 * Horizontal alignment of the hover relative to the target when positioned above or below it.
+	 */
+	anchorAlignment?: AnchorAlignment;
 
 	/**
 	 * Force the hover position, reducing the size of the hover instead of adjusting the hover
@@ -325,6 +365,13 @@ export interface IHoverAppearanceOptions {
 	 * another in the same group so it looks like the hover is moving from one element to the other.
 	 */
 	skipFadeInAnimation?: boolean;
+
+	/**
+	 * The max height of the hover relative to the window height.
+	 * Accepted values: (0,1]
+	 * Default: 0.5
+	 */
+	maxHeightRatio?: number;
 }
 
 export interface IHoverAction {
@@ -401,6 +448,7 @@ export type IManagedHoverContentOrFactory = IManagedHoverContent | (() => IManag
 
 export interface IManagedHoverOptions extends Pick<IHoverOptions, 'actions' | 'linkHandler' | 'trapFocus'> {
 	appearance?: Pick<IHoverAppearanceOptions, 'showHoverHint'>;
+	position?: Pick<IHoverPositionOptions, 'anchorAlignment'>;
 }
 
 export interface IManagedHover extends IDisposable {

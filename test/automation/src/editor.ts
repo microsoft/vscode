@@ -6,7 +6,6 @@
 import { References } from './peek';
 import { Commands } from './workbench';
 import { Code } from './code';
-import { Quality } from './application';
 
 const RENAME_BOX = '.monaco-editor .monaco-editor.rename-box';
 const RENAME_INPUT = `${RENAME_BOX} .rename-input`;
@@ -23,7 +22,7 @@ export class Editor {
 
 	async findReferences(filename: string, term: string, line: number): Promise<References> {
 		await this.clickOnTerm(filename, term, line);
-		await this.commands.runCommand('Peek References');
+		await this.commands.runCommand('Peek References', { match: 'exactLabel' });
 		const references = new References(this.code);
 		await references.waitUntilOpen();
 		return references;
@@ -31,22 +30,24 @@ export class Editor {
 
 	async rename(filename: string, line: number, from: string, to: string): Promise<void> {
 		await this.clickOnTerm(filename, from, line);
-		await this.commands.runCommand('Rename Symbol');
+		await this.commands.runCommand('Rename Symbol', { match: 'exactLabel' });
 
 		await this.code.waitForActiveElement(RENAME_INPUT);
 		await this.code.waitForSetValue(RENAME_INPUT, to);
 
-		await this.code.sendKeybinding('enter');
+		await this.code.dispatchKeybinding('enter', async () => {
+			// TODO: Add an accept callback to verify the keybinding was successful
+		});
 	}
 
 	async gotoDefinition(filename: string, term: string, line: number): Promise<void> {
 		await this.clickOnTerm(filename, term, line);
-		await this.commands.runCommand('Go to Implementations');
+		await this.commands.runCommand('Go to Implementations', { match: 'exactLabel' });
 	}
 
 	async peekDefinition(filename: string, term: string, line: number): Promise<References> {
 		await this.clickOnTerm(filename, term, line);
-		await this.commands.runCommand('Peek Definition');
+		await this.commands.runCommand('Peek Definition', { match: 'exactLabel' });
 		const peek = new References(this.code);
 		await peek.waitUntilOpen();
 		return peek;
@@ -107,7 +108,7 @@ export class Editor {
 	}
 
 	private _editContextSelector() {
-		return this.code.quality === Quality.Stable ? 'textarea' : '.native-edit-context';
+		return !this.code.editContextEnabled ? 'textarea' : '.native-edit-context';
 	}
 
 	async waitForEditorContents(filename: string, accept: (contents: string) => boolean, selectorPrefix = ''): Promise<any> {

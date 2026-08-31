@@ -7,7 +7,7 @@ import * as nls from '../../../nls.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { ILanguageExtensionPoint } from './language.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
-import { IDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import { Mimes } from '../../../base/common/mime.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../platform/configuration/common/configurationRegistry.js';
 
@@ -16,14 +16,15 @@ export const Extensions = {
 	ModesRegistry: 'editor.modesRegistry'
 };
 
-export class EditorModesRegistry {
+export class EditorModesRegistry extends Disposable {
 
 	private readonly _languages: ILanguageExtensionPoint[];
 
-	private readonly _onDidChangeLanguages = new Emitter<void>();
+	private readonly _onDidChangeLanguages = this._register(new Emitter<void>());
 	public readonly onDidChangeLanguages: Event<void> = this._onDidChangeLanguages.event;
 
 	constructor() {
+		super();
 		this._languages = [];
 	}
 

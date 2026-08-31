@@ -5,10 +5,10 @@
 
 import './dialog.css';
 import { localize } from '../../../../nls.js';
-import { $, addDisposableListener, clearNode, EventHelper, EventType, getWindow, hide, isActiveElement, isAncestor, show } from '../../dom.js';
+import { $, addDisposableListener, addStandardDisposableListener, clearNode, EventHelper, EventType, getWindow, hide, isActiveElement, isAncestor, isEditableElement, isHTMLElement, show } from '../../dom.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { ActionBar } from '../actionbar/actionbar.js';
-import { ButtonBar, ButtonWithDescription, ButtonWithDropdown, IButton, IButtonStyles, IButtonWithDropdownOptions } from '../button/button.js';
+import { ButtonBar, ButtonBarAlignment, ButtonWithDescription, ButtonWithDropdown, IButton, IButtonStyles, IButtonWithDropdownOptions } from '../button/button.js';
 import { ICheckboxStyles, Checkbox } from '../toggle/toggle.js';
 import { IInputBoxStyles, InputBox } from '../inputbox/inputBox.js';
 import { Action, toAction } from '../../../common/actions.js';
@@ -26,20 +26,57 @@ export interface IDialogInputOptions {
 	readonly value?: string;
 }
 
+export enum DialogContentsAlignment {
+	/**
+	 * Dialog contents align from left to right (icon, message, buttons on a separate row).
+	 *
+	 * Note: this is the default alignment for dialogs.
+	 */
+	Horizontal = 0,
+
+	/**
+	 * Dialog contents align from top to bottom (icon, message, buttons stack on top of each other)
+	 */
+	Vertical
+}
+
 export interface IDialogOptions {
 	readonly cancelId?: number;
 	readonly detail?: string;
+	/**
+	 * A pre-rendered element to show in place of the plain-text {@link detail}.
+	 * Used to present rich detail content (e.g. rendered Markdown) since this
+	 * base widget has no Markdown rendering capability of its own. Takes
+	 * precedence over {@link detail} when both are provided. Any `<a>` element
+	 * within is made keyboard-focusable and participates in tab order like
+	 * links rendered via {@link renderBody}.
+	 */
+	readonly detailElement?: HTMLElement;
+	readonly alignment?: DialogContentsAlignment;
 	readonly checkboxLabel?: string;
 	readonly checkboxChecked?: boolean;
 	readonly type?: 'none' | 'info' | 'error' | 'question' | 'warning' | 'pending';
+	readonly extraClasses?: string[];
+	/** Classes to add to the full-window modal blocker. */
+	readonly modalBlockExtraClasses?: string[];
 	readonly inputs?: IDialogInputOptions[];
 	readonly keyEventProcessor?: (event: StandardKeyboardEvent) => void;
 	readonly renderBody?: (container: HTMLElement) => void;
+	readonly renderFooter?: (container: HTMLElement) => void;
 	readonly icon?: ThemeIcon;
-	readonly buttonDetails?: string[];
+	readonly buttonOptions?: Array<undefined | { sublabel?: string; styleButton?: (button: IButton) => void }>;
 	readonly primaryButtonDropdown?: IButtonWithDropdownOptions;
 	readonly disableCloseAction?: boolean;
+	readonly disableCloseButton?: boolean;
 	readonly disableDefaultAction?: boolean;
+	/**
+	 * Temporary escape hatch for dialogs that embed widgets whose popups mount
+	 * at window root (outside the dialog DOM). Needed because the focus trap
+	 * would otherwise immediately reclaim focus from context views and pickers.
+	 * See https://github.com/microsoft/vscode/issues/323920 for removal plan.
+	 */
+	readonly isExternalFocusAllowed?: (relatedTarget: HTMLElement) => boolean;
+	readonly onVisibilityChange?: (window: Window, visible: boolean) => void;
 	readonly buttonStyles: IButtonStyles;
 	readonly checkboxStyles: ICheckboxStyles;
 	readonly inputBoxStyles: IInputBoxStyles;
@@ -77,6 +114,8 @@ export class Dialog extends Disposable {
 	private readonly buttonsContainer: HTMLElement;
 	private readonly messageDetailElement: HTMLElement;
 	private readonly messageContainer: HTMLElement;
+	private readonly footerContainer: HTMLElement | undefined;
+	private footerActionToFocus: HTMLAnchorElement | undefined;
 	private readonly iconElement: HTMLElement;
 	private readonly checkbox: Checkbox | undefined;
 	private readonly toolbarContainer: HTMLElement;
@@ -89,13 +128,45 @@ export class Dialog extends Disposable {
 	constructor(private container: HTMLElement, private message: string, buttons: string[] | undefined, private readonly options: IDialogOptions) {
 		super();
 
+		// Modal background blocker
 		this.modalElement = this.container.appendChild($(`.monaco-dialog-modal-block.dimmed`));
+		if (options.modalBlockExtraClasses) {
+			this.modalElement.classList.add(...options.modalBlockExtraClasses);
+		}
+		this._register(addStandardDisposableListener(this.modalElement, EventType.CLICK, e => {
+			if (e.target === this.modalElement) {
+				this.element.focus(); // guide users back into the dialog if clicked elsewhere
+			}
+		}));
+
+		// Dialog Box
 		this.shadowElement = this.modalElement.appendChild($('.dialog-shadow'));
 		this.element = this.shadowElement.appendChild($('.monaco-dialog-box'));
+		if (options.alignment === DialogContentsAlignment.Vertical) {
+			this.element.classList.add('align-vertical');
+		}
+		if (options.extraClasses) {
+			this.element.classList.add(...options.extraClasses);
+		}
 		this.element.setAttribute('role', 'dialog');
 		this.element.tabIndex = -1;
 		hide(this.element);
 
+		// Footer
+		if (this.options.renderFooter) {
+			this.footerContainer = this.element.appendChild($('.dialog-footer-row'));
+
+			const customFooter = this.footerContainer.appendChild($('#monaco-dialog-footer.dialog-footer'));
+			this.options.renderFooter(customFooter);
+
+			// eslint-disable-next-line no-restricted-syntax
+			for (const el of this.footerContainer.querySelectorAll('a')) {
+				el.tabIndex = 0;
+				this.footerActionToFocus ??= el;
+			}
+		}
+
+		// Buttons
 		this.buttonStyles = options.buttonStyles;
 
 		if (Array.isArray(buttons) && buttons.length > 0) {
@@ -108,19 +179,23 @@ export class Dialog extends Disposable {
 		const buttonsRowElement = this.element.appendChild($('.dialog-buttons-row'));
 		this.buttonsContainer = buttonsRowElement.appendChild($('.dialog-buttons'));
 
+		// Message
 		const messageRowElement = this.element.appendChild($('.dialog-message-row'));
 		this.iconElement = messageRowElement.appendChild($('#monaco-dialog-icon.dialog-icon'));
 		this.iconElement.setAttribute('aria-label', this.getIconAriaLabel());
 		this.messageContainer = messageRowElement.appendChild($('.dialog-message-container'));
 
-		if (this.options.detail || this.options.renderBody) {
+		const hasDetail = !!this.options.detail || !!this.options.detailElement;
+		if (hasDetail || this.options.renderBody) {
 			const messageElement = this.messageContainer.appendChild($('.dialog-message'));
 			const messageTextElement = messageElement.appendChild($('#monaco-dialog-message-text.dialog-message-text'));
 			messageTextElement.innerText = this.message;
 		}
 
 		this.messageDetailElement = this.messageContainer.appendChild($('#monaco-dialog-message-detail.dialog-message-detail'));
-		if (this.options.detail || !this.options.renderBody) {
+		if (this.options.detailElement) {
+			this.messageDetailElement.appendChild(this.options.detailElement);
+		} else if (hasDetail || !this.options.renderBody) {
 			this.messageDetailElement.innerText = this.options.detail ? this.options.detail : message;
 		} else {
 			this.messageDetailElement.style.display = 'none';
@@ -129,12 +204,16 @@ export class Dialog extends Disposable {
 		if (this.options.renderBody) {
 			const customBody = this.messageContainer.appendChild($('#monaco-dialog-message-body.dialog-message-body'));
 			this.options.renderBody(customBody);
+		}
 
+		if (this.options.renderBody || this.options.detailElement) {
+			// eslint-disable-next-line no-restricted-syntax
 			for (const el of this.messageContainer.querySelectorAll('a')) {
 				el.tabIndex = 0;
 			}
 		}
 
+		// Inputs
 		if (this.options.inputs) {
 			this.inputs = this.options.inputs.map(input => {
 				const inputRowElement = this.messageContainer.appendChild($('.dialog-message-input'));
@@ -155,6 +234,7 @@ export class Dialog extends Disposable {
 			this.inputs = [];
 		}
 
+		// Checkbox
 		if (this.options.checkboxLabel) {
 			const checkboxRowElement = this.messageContainer.appendChild($('.dialog-checkbox-row'));
 
@@ -169,6 +249,7 @@ export class Dialog extends Disposable {
 			this._register(addDisposableListener(checkboxMessageElement, EventType.CLICK, () => checkbox.checked = !checkbox.checked));
 		}
 
+		// Toolbar
 		const toolbarRowElement = this.element.appendChild($('.dialog-toolbar-row'));
 		this.toolbarContainer = toolbarRowElement.appendChild($('.dialog-toolbar'));
 
@@ -216,7 +297,7 @@ export class Dialog extends Disposable {
 			};
 			this._register(toDisposable(close));
 
-			const buttonBar = this.buttonBar = this._register(new ButtonBar(this.buttonsContainer));
+			const buttonBar = this.buttonBar = this._register(new ButtonBar(this.buttonsContainer, { alignment: this.options?.alignment === DialogContentsAlignment.Vertical ? ButtonBarAlignment.Vertical : ButtonBarAlignment.Horizontal }));
 			const buttonMap = this.rearrangeButtons(this.buttons, this.options.cancelId);
 
 			const onButtonClick = (index: number) => {
@@ -227,11 +308,12 @@ export class Dialog extends Disposable {
 				});
 			};
 
-			// Handle button clicks
+			// Buttons
 			buttonMap.forEach((_, index) => {
 				const primary = buttonMap[index].index === 0;
 
 				let button: IButton;
+				const buttonOptions = this.options.buttonOptions?.[buttonMap[index]?.index];
 				if (primary && this.options?.primaryButtonDropdown) {
 					const actions = isActionProvider(this.options.primaryButtonDropdown.actions) ? this.options.primaryButtonDropdown.actions.getActions() : this.options.primaryButtonDropdown.actions;
 					button = this._register(buttonBar.addButtonWithDropdown({
@@ -247,15 +329,21 @@ export class Dialog extends Disposable {
 							}
 						}))
 					}));
-				} else if (this.options.buttonDetails) {
+				} else if (buttonOptions?.sublabel) {
 					button = this._register(buttonBar.addButtonWithDescription({ secondary: !primary, ...this.buttonStyles }));
 				} else {
 					button = this._register(buttonBar.addButton({ secondary: !primary, ...this.buttonStyles }));
 				}
 
+				if (buttonOptions?.styleButton) {
+					buttonOptions.styleButton(button);
+				}
+
 				button.label = mnemonicButtonLabel(buttonMap[index].label, true);
 				if (button instanceof ButtonWithDescription) {
-					button.description = this.options.buttonDetails![buttonMap[index].index];
+					if (buttonOptions?.sublabel) {
+						button.description = buttonOptions?.sublabel;
+					}
 				}
 				this._register(button.onDidClick(e => {
 					if (e) {
@@ -268,8 +356,13 @@ export class Dialog extends Disposable {
 
 			// Handle keyboard events globally: Tab, Arrow-Left/Right
 			const window = getWindow(this.container);
+			let sawEscapeKeyDown = false;
 			this._register(addDisposableListener(window, 'keydown', e => {
 				const evt = new StandardKeyboardEvent(e);
+
+				if (evt.equals(KeyCode.Escape)) {
+					sawEscapeKeyDown = true;
+				}
 
 				if (evt.equals(KeyMod.Alt)) {
 					evt.preventDefault();
@@ -314,13 +407,16 @@ export class Dialog extends Disposable {
 				let eventHandled = false;
 
 				// Focus: Next / Previous
-				if (evt.equals(KeyCode.Tab) || evt.equals(KeyCode.RightArrow) || evt.equals(KeyMod.Shift | KeyCode.Tab) || evt.equals(KeyCode.LeftArrow)) {
+				const isArrowNavigation = evt.equals(KeyCode.RightArrow) || evt.equals(KeyCode.LeftArrow);
+				const isEditableTarget = isHTMLElement(e.target) && (isEditableElement(e.target) || e.target.isContentEditable);
+				if (evt.equals(KeyCode.Tab) || evt.equals(KeyMod.Shift | KeyCode.Tab) || isArrowNavigation && !isEditableTarget) {
 
 					// Build a list of focusable elements in their visual order
 					const focusableElements: { focus: () => void }[] = [];
 					let focusedIndex = -1;
 
 					if (this.messageContainer) {
+						// eslint-disable-next-line no-restricted-syntax
 						const links = this.messageContainer.querySelectorAll('a');
 						for (const link of links) {
 							focusableElements.push(link);
@@ -364,6 +460,17 @@ export class Dialog extends Disposable {
 						}
 					}
 
+					if (this.footerContainer) {
+						// eslint-disable-next-line no-restricted-syntax
+						const links = this.footerContainer.querySelectorAll('a');
+						for (const link of links) {
+							focusableElements.push(link);
+							if (isActiveElement(link)) {
+								focusedIndex = focusableElements.length - 1;
+							}
+						}
+					}
+
 					// Focus next element (with wrapping)
 					if (evt.equals(KeyCode.Tab) || evt.equals(KeyCode.RightArrow)) {
 						const newFocusedIndex = (focusedIndex + 1) % focusableElements.length;
@@ -398,7 +505,7 @@ export class Dialog extends Disposable {
 				EventHelper.stop(e, true);
 				const evt = new StandardKeyboardEvent(e);
 
-				if (!this.options.disableCloseAction && evt.equals(KeyCode.Escape)) {
+				if (!this.options.disableCloseAction && evt.equals(KeyCode.Escape) && sawEscapeKeyDown) {
 					close();
 				}
 			}, true));
@@ -407,6 +514,11 @@ export class Dialog extends Disposable {
 			this._register(addDisposableListener(this.element, 'focusout', e => {
 				if (!!e.relatedTarget && !!this.element) {
 					if (!isAncestor(e.relatedTarget as HTMLElement, this.element)) {
+						// Temporary: let focus escape for body-level popups.
+						// See https://github.com/microsoft/vscode/issues/323920
+						if (this.options.isExternalFocusAllowed?.(e.relatedTarget as HTMLElement)) {
+							return;
+						}
 						this.focusToReturn = e.relatedTarget as HTMLElement;
 
 						if (e.target) {
@@ -445,8 +557,7 @@ export class Dialog extends Disposable {
 				}
 			}
 
-
-			if (!this.options.disableCloseAction) {
+			if (!this.options.disableCloseAction && !this.options.disableCloseButton) {
 				const actionBar = this._register(new ActionBar(this.toolbarContainer, {}));
 
 				const action = this._register(new Action('dialog.close', localize('dialogClose', "Close Dialog"), ThemeIcon.asClassName(Codicon.dialogClose), true, async () => {
@@ -463,19 +574,28 @@ export class Dialog extends Disposable {
 
 			this.element.setAttribute('aria-modal', 'true');
 			this.element.setAttribute('aria-labelledby', 'monaco-dialog-icon monaco-dialog-message-text');
-			this.element.setAttribute('aria-describedby', 'monaco-dialog-icon monaco-dialog-message-text monaco-dialog-message-detail monaco-dialog-message-body');
+			this.element.setAttribute('aria-describedby', 'monaco-dialog-icon monaco-dialog-message-text monaco-dialog-message-detail monaco-dialog-message-body monaco-dialog-footer');
 			show(this.element);
+
+			// Notify visibility change
+			this.options.onVisibilityChange?.(window, true);
+			this._register(toDisposable(() => this.options.onVisibilityChange?.(window, false)));
 
 			// Focus first element (input or button)
 			if (this.inputs.length > 0) {
 				this.inputs[0].focus();
 				this.inputs[0].select();
 			} else {
+				let focusedButton = false;
 				buttonMap.forEach((value, index) => {
 					if (value.index === 0) {
 						buttonBar.buttons[index].focus();
+						focusedButton = true;
 					}
 				});
+				if (!focusedButton) {
+					(this.footerActionToFocus ?? this.element).focus();
+				}
 			}
 		});
 	}
@@ -495,15 +615,15 @@ export class Dialog extends Disposable {
 		this.element.style.backgroundColor = bgColor ?? '';
 		this.element.style.border = border;
 
-		// TODO fix
-		// if (fgColor && bgColor) {
-		// 	const messageDetailColor = fgColor.transparent(.9);
-		// 	this.messageDetailElement.style.mixBlendMode = messageDetailColor.makeOpaque(bgColor).toString();
-		// }
-
 		if (linkFgColor) {
-			for (const el of this.messageContainer.getElementsByTagName('a')) {
+			// eslint-disable-next-line no-restricted-syntax
+			for (const el of [...this.messageContainer.getElementsByTagName('a'), ...this.footerContainer?.getElementsByTagName('a') ?? []]) {
+				if (el.classList.contains('monaco-button')) {
+					continue;
+				}
 				el.style.color = linkFgColor;
+				// Ensure links are distinguishable by more than just color (WCAG 1.4.1)
+				el.style.textDecoration = 'underline';
 			}
 		}
 
@@ -546,8 +666,8 @@ export class Dialog extends Disposable {
 		// so that when we move them around it's not a problem
 		const buttonMap: ButtonMapEntry[] = buttons.map((label, index) => ({ label, index }));
 
-		if (buttons.length < 2) {
-			return buttonMap; // only need to rearrange if there are 2+ buttons
+		if (buttons.length < 2 || this.options.alignment === DialogContentsAlignment.Vertical) {
+			return buttonMap; // only need to rearrange if there are 2+ buttons and the alignment is left-to-right
 		}
 
 		if (isMacintosh || isLinux) {

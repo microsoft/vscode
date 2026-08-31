@@ -53,7 +53,7 @@ interface IWebkitDataTransfer {
 }
 
 interface IWebkitDataTransferItem {
-	webkitGetAsEntry(): IWebkitDataTransferItemEntry;
+	webkitGetAsEntry(): IWebkitDataTransferItemEntry | null;
 }
 
 interface IWebkitDataTransferItemEntry {
@@ -139,7 +139,13 @@ export class BrowserFileUpload {
 		// an array we own as early as possible before using it.
 		const entries: IWebkitDataTransferItemEntry[] = [];
 		for (const item of items) {
-			entries.push(item.webkitGetAsEntry());
+			// `webkitGetAsEntry()` returns `null` for data transfer items that
+			// do not represent a file system entry (e.g. dragged text/URLs).
+			// Skip those so we never operate on a `null` entry later on.
+			const entry = item.webkitGetAsEntry();
+			if (entry) {
+				entries.push(entry);
+			}
 		}
 
 		const results: { isFile: boolean; resource: URI }[] = [];
@@ -280,7 +286,7 @@ export class BrowserFileUpload {
 			operation.filesTotal += childEntries.length;
 
 			// Split up files from folders to upload
-			const folderTarget = target && target.getChild(entry.name) || undefined;
+			const folderTarget = target?.getChild(entry.name) || undefined;
 			const fileChildEntries: IWebkitDataTransferItemEntry[] = [];
 			const folderChildEntries: IWebkitDataTransferItemEntry[] = [];
 			for (const childEntry of childEntries) {
@@ -718,7 +724,7 @@ export class FileDownload {
 
 			listenStream(sourceStream, {
 				onData: data => {
-					target.write(data.buffer);
+					target.write(data.buffer as Uint8Array<ArrayBuffer>);
 					this.reportProgress(contents.name, contents.size, data.byteLength, operation);
 				},
 				onError: error => {
@@ -736,7 +742,7 @@ export class FileDownload {
 	private async downloadFileUnbufferedBrowser(resource: URI, target: FileSystemWritableFileStream, operation: IDownloadOperation, token: CancellationToken): Promise<void> {
 		const contents = await this.fileService.readFile(resource, undefined, token);
 		if (!token.isCancellationRequested) {
-			target.write(contents.value.buffer);
+			target.write(contents.value.buffer as Uint8Array<ArrayBuffer>);
 			this.reportProgress(contents.name, contents.size, contents.value.byteLength, operation);
 		}
 

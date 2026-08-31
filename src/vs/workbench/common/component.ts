@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Memento, MementoObject } from './memento.js';
+import { Memento } from './memento.js';
 import { IThemeService, Themable } from '../../platform/theme/common/themeService.js';
 import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from '../../platform/storage/common/storage.js';
 import { DisposableStore } from '../../base/common/lifecycle.js';
 import { Event } from '../../base/common/event.js';
 
-export class Component extends Themable {
+export class Component<MementoType extends object = object> extends Themable {
 
-	private readonly memento: Memento;
+	private readonly memento: Memento<MementoType>;
 
 	constructor(
 		private readonly id: string,
@@ -36,12 +36,12 @@ export class Component extends Themable {
 		return this.id;
 	}
 
-	protected getMemento(scope: StorageScope, target: StorageTarget): MementoObject {
+	protected getMemento(scope: StorageScope, target: StorageTarget): Partial<MementoType> {
 		return this.memento.getMemento(scope, target);
 	}
 
 	protected reloadMemento(scope: StorageScope): void {
-		return this.memento.reloadMemento(scope);
+		this.memento.reloadMemento(scope);
 	}
 
 	protected onDidChangeMementoValue(scope: StorageScope, disposables: DisposableStore): Event<IStorageValueChangeEvent> {

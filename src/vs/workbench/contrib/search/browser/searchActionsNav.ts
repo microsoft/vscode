@@ -15,8 +15,9 @@ import * as SearchEditorConstants from '../../searchEditor/browser/constants.js'
 import { SearchEditor } from '../../searchEditor/browser/searchEditor.js';
 import { SearchEditorInput } from '../../searchEditor/browser/searchEditorInput.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
@@ -40,13 +41,14 @@ registerAction2(class ToggleQueryDetailsAction extends Action2 {
 			},
 		});
 	}
-	run(accessor: ServicesAccessor, ...args: any[]) {
+	run(accessor: ServicesAccessor, ...args: unknown[]) {
+		const options = args[0] as { show?: boolean } | undefined;
 		const contextService = accessor.get(IContextKeyService).getContext(getActiveElement());
 		if (contextService.getValue(SearchEditorConstants.InSearchEditor.serialize())) {
-			(accessor.get(IEditorService).activeEditorPane as SearchEditor).toggleQueryDetails(args[0]?.show);
+			(accessor.get(IEditorService).activeEditorPane as SearchEditor).toggleQueryDetails(options?.show);
 		} else if (contextService.getValue(Constants.SearchContext.SearchViewFocusedKey.serialize())) {
 			const searchView = getSearchView(accessor.get(IViewsService));
-			assertIsDefined(searchView).toggleQueryDetails(undefined, args[0]?.show);
+			assertReturnsDefined(searchView).toggleQueryDetails(undefined, options?.show);
 		}
 	}
 });
@@ -402,10 +404,12 @@ registerAction2(class ReplaceInFilesAction extends Action2 {
 			}],
 			category,
 			f1: true,
+			precondition: IsSessionsWindowContext.negate(),
 			menu: [{
 				id: MenuId.MenubarEditMenu,
 				group: '4_find_global',
-				order: 2
+				order: 2,
+				when: IsSessionsWindowContext.negate(),
 			}],
 		});
 	}

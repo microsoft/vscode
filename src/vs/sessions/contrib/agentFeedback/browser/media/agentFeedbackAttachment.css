@@ -1,0 +1,47 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.agent-feedback-context-view {
+	width: 200px;
+}
+
+.agent-feedback-context-view-tree {
+	overflow: hidden;
+}
+
+.agent-feedback-context-view-comment-row {
+	display: flex;
+	align-items: center;
+	width: 100%;
+	cursor: pointer;
+}
+
+.agent-feedback-context-view-comment-text {
+	font-size: var(--vscode-fontSize-label1);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	flex: 1;
+	min-width: 0;
+}
+
+.agent-feedback-context-view-action-bar {
+	display: none;
+	flex-shrink: 0;
+	margin-left: auto;
+	padding-right: var(--vscode-spacing-size40);
+}
+
+.agent-feedback-context-view-tree .monaco-list-row:hover .agent-feedback-context-view-action-bar,
+.agent-feedback-context-view-tree .monaco-list-row.focused .agent-feedback-context-view-action-bar,
+.agent-feedback-context-view-tree .agent-feedback-context-view-action-bar:focus-within {
+	display: flex;
+}
+
+.agent-feedback-attachment .chat-attached-context-pill {
+	display: flex;
+	align-items: center;
+	padding: 0 var(--vscode-spacing-size40);
+}

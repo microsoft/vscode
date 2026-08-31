@@ -1,0 +1,33 @@
+{
+  parts: [
+    {
+      range: {
+        start: 0,
+        endExclusive: 11
+      },
+      editorRange: {
+        startLineNumber: 1,
+        startColumn: 1,
+        endLineNumber: 1,
+        endColumn: 12
+      },
+      name: "001-sample",
+      kind: "prompt"
+    },
+    {
+      range: {
+        start: 11,
+        endExclusive: 26
+      },
+      editorRange: {
+        startLineNumber: 1,
+        startColumn: 12,
+        endLineNumber: 1,
+        endColumn: 27
+      },
+      text: " this is a test",
+      kind: "text"
+    }
+  ],
+  text: "/001-sample this is a test"
+}

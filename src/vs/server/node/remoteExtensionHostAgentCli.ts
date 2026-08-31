@@ -25,7 +25,7 @@ import { DiskFileSystemProvider } from '../../platform/files/node/diskFileSystem
 import { Schemas } from '../../base/common/network.js';
 import { IFileService } from '../../platform/files/common/files.js';
 import { IProductService } from '../../platform/product/common/productService.js';
-import { IServerEnvironmentService, ServerEnvironmentService, ServerParsedArgs } from './serverEnvironmentService.js';
+import { getRedactedServerParsedArgs, IServerEnvironmentService, ServerEnvironmentService, ServerParsedArgs } from './serverEnvironmentService.js';
 import { ExtensionManagementCLI } from '../../platform/extensionManagement/common/extensionManagementCLI.js';
 import { ILanguagePackService } from '../../platform/languagePacks/common/languagePacks.js';
 import { NativeLanguagePackService } from '../../platform/languagePacks/node/languagePacks.js';
@@ -63,8 +63,7 @@ class CliMain extends Disposable {
 	}
 
 	private registerListeners(): void {
-		// Dispose on exit
-		process.once('exit', () => this.dispose());
+		process.once('exit', () => this.dispose()); // Dispose on exit
 	}
 
 	async run(): Promise<void> {
@@ -72,6 +71,7 @@ class CliMain extends Disposable {
 		await instantiationService.invokeFunction(async accessor => {
 			const configurationService = accessor.get(IConfigurationService);
 			const logService = accessor.get(ILogService);
+			const productService = accessor.get(IProductService);
 
 			// On Windows, configure the UNC allow list based on settings
 			if (isWindows) {
@@ -83,7 +83,7 @@ class CliMain extends Disposable {
 			}
 
 			try {
-				await this.doRun(instantiationService.createInstance(ExtensionManagementCLI, new ConsoleLogger(logService.getLevel(), false)));
+				await this.doRun(instantiationService.createInstance(ExtensionManagementCLI, productService.extensionsForceVersionByQuality ?? [], new ConsoleLogger(logService.getLevel(), false)));
 			} catch (error) {
 				logService.error(error);
 				console.error(getErrorMessage(error));
@@ -107,7 +107,7 @@ class CliMain extends Disposable {
 		const logService = new LogService(this._register(loggerService.createLogger('remoteCLI', { name: localize('remotecli', "Remote CLI") })));
 		services.set(ILogService, logService);
 		logService.trace(`Remote configuration data at ${this.remoteDataFolder}`);
-		logService.trace('process arguments:', this.args);
+		logService.trace('process arguments:', getRedactedServerParsedArgs(this.args));
 
 		// Files
 		const fileService = this._register(new FileService(logService));
@@ -190,12 +190,12 @@ export async function run(args: ServerParsedArgs, REMOTE_DATA_FOLDER: string, op
 		console.log(buildHelpMessage(product.nameLong, executable, product.version, optionDescriptions, { noInputFiles: true, noPipe: true }));
 		return;
 	}
+
 	// Version Info
 	if (args.version) {
 		console.log(buildVersionMessage(product.version, product.commit));
 		return;
 	}
-
 
 	const cliMain = new CliMain(args, REMOTE_DATA_FOLDER);
 	try {

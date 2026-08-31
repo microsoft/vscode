@@ -7,7 +7,7 @@ import { CancelablePromise, createCancelablePromise, TimeoutTimer } from '../../
 import { RGBA } from '../../../../base/common/color.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { noBreakWhitespace } from '../../../../base/common/strings.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
@@ -47,7 +47,10 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 
 	private readonly _ruleFactory: DynamicCssRules;
 
-	private readonly _decoratorLimitReporter = new DecoratorLimitReporter();
+	private readonly _decoratorLimitReporter = this._register(new DecoratorLimitReporter());
+
+	private static readonly colorDecoratorInnerWidthInEm = 0.8;
+	private static readonly colorDecoratorMarginInEm = 0.2;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -57,7 +60,14 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 	) {
 		super();
 		this._colorDecoratorIds = this._editor.createDecorationsCollection();
-		this._ruleFactory = new DynamicCssRules(this._editor);
+		this._ruleFactory = this._register(new DynamicCssRules(this._editor));
+		const editorDomNode = this._editor.getContainerDomNode();
+		editorDomNode.style.setProperty('--vscode-colorPicker-colorDecoratorWidth', `${ColorDetector.colorDecoratorInnerWidthInEm}em`);
+		editorDomNode.style.setProperty('--vscode-colorPicker-colorDecoratorMargin', `${ColorDetector.colorDecoratorMarginInEm}em`);
+		this._register(toDisposable(() => {
+			editorDomNode.style.removeProperty('--vscode-colorPicker-colorDecoratorWidth');
+			editorDomNode.style.removeProperty('--vscode-colorPicker-colorDecoratorMargin');
+		}));
 		this._debounceInformation = languageFeatureDebounceService.for(_languageFeaturesService.colorProvider, 'Document Colors', { min: ColorDetector.RECOMPUTE_TIME });
 		this._register(_editor.onDidChangeModel(() => {
 			this._isColorDecoratorsEnabled = this.isEnabled();
@@ -97,6 +107,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		// handle deprecated settings. [languageId].colorDecorators.enable
 		const deprecatedConfig = this._configurationService.getValue(languageId);
 		if (deprecatedConfig && typeof deprecatedConfig === 'object') {
+			// eslint-disable-next-line local/code-no-any-casts
 			const colorDecorators = (deprecatedConfig as any)['colorDecorators']; // deprecatedConfig.valueOf('.colorDecorators.enable');
 			if (colorDecorators && colorDecorators['enable'] !== undefined && !colorDecorators['enable']) {
 				return colorDecorators['enable'];
@@ -124,6 +135,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		this.stop();
 
 		if (!this._isColorDecoratorsEnabled) {
+			this.removeAllDecorations();
 			return;
 		}
 		const model = this._editor.getModel();
@@ -202,6 +214,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		this._colorDecorationClassRefs.clear();
 
 		const decorations: IModelDeltaDecoration[] = [];
+		const widthInEm = ColorDetector.colorDecoratorInnerWidthInEm + 2 * ColorDetector.colorDecoratorMarginInEm;
 
 		const limit = this._editor.getOption(EditorOption.colorDecoratorsLimit);
 
@@ -229,7 +242,8 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 						content: noBreakWhitespace,
 						inlineClassName: `${ref.className} colorpicker-color-decoration`,
 						inlineClassNameAffectsLetterSpacing: true,
-						attachedData: ColorDecorationInjectedTextMarker
+						attachedData: ColorDecorationInjectedTextMarker,
+						widthInEm,
 					}
 				}
 			});
@@ -269,8 +283,8 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 	}
 }
 
-export class DecoratorLimitReporter {
-	private _onDidChange = new Emitter<void>();
+export class DecoratorLimitReporter extends Disposable {
+	private _onDidChange = this._register(new Emitter<void>());
 	public readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	private _computed: number = 0;

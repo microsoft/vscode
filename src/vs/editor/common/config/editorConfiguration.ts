@@ -6,7 +6,7 @@
 import { Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { ConfigurationChangedEvent, IComputedEditorOptions, IEditorOptions } from './editorOptions.js';
-import { IDimension } from '../core/dimension.js';
+import { IDimension } from '../core/2d/dimension.js';
 import { MenuId } from '../../../platform/actions/common/actions.js';
 
 export interface IEditorConfiguration extends IDisposable {
@@ -25,11 +25,11 @@ export interface IEditorConfiguration extends IDisposable {
 	/**
 	 * The `options` have changed (quick event)
 	 */
-	onDidChangeFast: Event<ConfigurationChangedEvent>;
+	readonly onDidChangeFast: Event<ConfigurationChangedEvent>;
 	/**
 	 * The `options` have changed (slow event)
 	 */
-	onDidChange: Event<ConfigurationChangedEvent>;
+	readonly onDidChange: Event<ConfigurationChangedEvent>;
 	/**
 	 * Get the raw options as they were passed in to the editor
 	 * and merged with all calls to `updateOptions`.

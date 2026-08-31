@@ -1,0 +1,50 @@
+[
+	{
+		"name": "notebook (edit) [inline] [python] - /fix notebook exection ImportError",
+		"requests": [
+			"9371035b737fb507f7ba4e8e3c1139ad6f7cb20d7ff8e054ff677b40c0b6fa8f"
+		]
+	},
+	{
+		"name": "notebook (edit) [inline] [python] - data cleansing",
+		"requests": [
+			"02a24f78861da4fd7a0678df7e962958996e0e3493a86d64837cfa436af6ef52"
+		]
+	},
+	{
+		"name": "notebook (edit) [inline] [python] - dataframe",
+		"requests": [
+			"0fef6c63e18429f41d253221e70201fed97428fc3cfc15a338fa4b27a3c8d8af"
+		]
+	},
+	{
+		"name": "notebook (edit) [inline] [python] - edit notebook code should not duplicate the content",
+		"requests": [
+			"79685e6fc287f0a3bb164ce160daef2b95f79437aeb8723b069d80e9e033ae0c"
+		]
+	},
+	{
+		"name": "notebook (edit) [inline] [python] - group by",
+		"requests": [
+			"534ee192f3ac088c7da6590831039189c66ca6396bd7efa07e5c8337245654b3"
+		]
+	},
+	{
+		"name": "notebook (edit) [inline] [python] - plot",
+		"requests": [
+			"33bfb1a00b1f75c7e5eef31022796a97943d61fdf05ce3392a048fee29d9958b"
+		]
+	},
+	{
+		"name": "notebook (edit) [inline] [python] - set index",
+		"requests": [
+			"bfddeb59b8176bfd3beaf3f9efc8f74c514c614d71b8725a3b75c35a71e40353"
+		]
+	},
+	{
+		"name": "notebook (edit) [inline] [python] - variables",
+		"requests": [
+			"ae37a08fa8e659c5a721cdc20a435c2dd0c24bdc323ff84dc6b557f06ed2c755"
+		]
+	}
+]

@@ -22,6 +22,7 @@ export interface IMouseEvent {
 	readonly altKey: boolean;
 	readonly metaKey: boolean;
 	readonly timestamp: number;
+	readonly defaultPrevented: boolean;
 
 	preventDefault(): void;
 	stopPropagation(): void;
@@ -44,6 +45,7 @@ export class StandardMouseEvent implements IMouseEvent {
 	public readonly altKey: boolean;
 	public readonly metaKey: boolean;
 	public readonly timestamp: number;
+	public readonly defaultPrevented: boolean;
 
 	constructor(targetWindow: Window, e: MouseEvent) {
 		this.timestamp = Date.now();
@@ -52,6 +54,7 @@ export class StandardMouseEvent implements IMouseEvent {
 		this.middleButton = e.button === 1;
 		this.rightButton = e.button === 2;
 		this.buttons = e.buttons;
+		this.defaultPrevented = e.defaultPrevented;
 
 		this.target = <HTMLElement>e.target;
 
@@ -64,14 +67,8 @@ export class StandardMouseEvent implements IMouseEvent {
 		this.altKey = e.altKey;
 		this.metaKey = e.metaKey;
 
-		if (typeof e.pageX === 'number') {
-			this.posx = e.pageX;
-			this.posy = e.pageY;
-		} else {
-			// Probably hit by MSGestureEvent
-			this.posx = e.clientX + this.target.ownerDocument.body.scrollLeft + this.target.ownerDocument.documentElement.scrollLeft;
-			this.posy = e.clientY + this.target.ownerDocument.body.scrollTop + this.target.ownerDocument.documentElement.scrollTop;
-		}
+		this.posx = e.pageX;
+		this.posy = e.pageY;
 
 		// Find the position of the iframe this code is executing in relative to the iframe where the event was captured.
 		const iframeOffsets = IframeUtils.getPositionOfChildWindowRelativeToAncestorWindow(targetWindow, e.view);
@@ -94,6 +91,7 @@ export class DragMouseEvent extends StandardMouseEvent {
 
 	constructor(targetWindow: Window, e: MouseEvent) {
 		super(targetWindow, e);
+		// eslint-disable-next-line local/code-no-any-casts
 		this.dataTransfer = (<any>e).dataTransfer;
 	}
 }
@@ -131,6 +129,7 @@ export class StandardWheelEvent {
 	constructor(e: IMouseWheelEvent | null, deltaX: number = 0, deltaY: number = 0) {
 
 		this.browserEvent = e || null;
+		// eslint-disable-next-line local/code-no-any-casts
 		this.target = e ? (e.target || (<any>e).targetNode || e.srcElement) : null;
 
 		this.deltaY = deltaY;
@@ -147,7 +146,9 @@ export class StandardWheelEvent {
 
 		if (e) {
 			// Old (deprecated) wheel events
+			// eslint-disable-next-line local/code-no-any-casts
 			const e1 = <IWebKitMouseWheelEvent><any>e;
+			// eslint-disable-next-line local/code-no-any-casts
 			const e2 = <IGeckoMouseWheelEvent><any>e;
 			const devicePixelRatio = e.view?.devicePixelRatio || 1;
 

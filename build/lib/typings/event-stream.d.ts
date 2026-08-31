@@ -23,5 +23,5 @@ declare module "event-stream" {
 	function mapSync<I, O>(cb: (data: I) => O): ThroughStream;
 	function map<I, O>(cb: (data: I, cb: (err?: Error, data?: O) => void) => O): ThroughStream;
 
-	function readable(asyncFunction: (this: ThroughStream, ...args: any[]) => any): any;
+	function readable(asyncFunction: (this: ThroughStream, ...args: unknown[]) => any): any;
 }

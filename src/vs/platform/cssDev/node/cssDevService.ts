@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { spawn } from 'child_process';
-import { relative } from 'path';
+import { relative } from '../../../base/common/path.js';
 import { FileAccess } from '../../../base/common/network.js';
+import { rgDiskPath } from '../../../base/node/ripgrep.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
@@ -44,26 +45,28 @@ export class CSSDevelopmentService implements ICSSDevelopmentService {
 			return [];
 		}
 
-		const rg = await import('@vscode/ripgrep');
+		const rgBinPath = await rgDiskPath();
 		return await new Promise<string[]>((resolve) => {
 
 			const sw = StopWatch.create();
 
-			const chunks: string[][] = [];
-			const decoder = new TextDecoder();
+			const chunks: Buffer[] = [];
 			const basePath = FileAccess.asFileUri('').fsPath;
-			const process = spawn(rg.rgPath, ['-g', '**/*.css', '--files', '--no-ignore', basePath], {});
+			const process = spawn(rgBinPath, ['-g', '**/*.css', '--files', '--no-ignore', basePath], {});
 
 			process.stdout.on('data', data => {
-				const chunk = decoder.decode(data, { stream: true });
-				chunks.push(chunk.split('\n').filter(Boolean));
+				chunks.push(data);
 			});
 			process.on('error', err => {
 				this.logService.error('[CSS_DEV] FAILED to compute CSS data', err);
 				resolve([]);
 			});
 			process.on('close', () => {
-				const result = chunks.flat().map(path => relative(basePath, path).replace(/\\/g, '/')).filter(Boolean).sort();
+				const data = Buffer.concat(chunks).toString('utf8');
+				const result = data.split('\n').filter(Boolean).map(path => relative(basePath, path).replace(/\\/g, '/')).filter(Boolean).sort();
+				if (result.some(path => path.indexOf('vs/') !== 0)) {
+					this.logService.error(`[CSS_DEV] Detected invalid paths in css modules, raw output: ${data}`);
+				}
 				resolve(result);
 				this.logService.info(`[CSS_DEV] DONE, ${result.length} css modules (${Math.round(sw.elapsed())}ms)`);
 			});

@@ -5,7 +5,7 @@
 
 import { Explorer } from './explorer';
 import { ActivityBar } from './activityBar';
-import { QuickAccess } from './quickaccess';
+import { IRunCommandOptions, QuickAccess } from './quickaccess';
 import { QuickInput } from './quickinput';
 import { Extensions } from './extensions';
 import { Search } from './search';
@@ -22,9 +22,11 @@ import { Terminal } from './terminal';
 import { Notebook } from './notebook';
 import { Localization } from './localization';
 import { Task } from './task';
+import { Chat } from './chat';
+import { AgentsWindow } from './agentsWindow';
 
 export interface Commands {
-	runCommand(command: string, options?: { exactLabelMatch?: boolean }): Promise<any>;
+	runCommand(command: string, options?: IRunCommandOptions): Promise<any>;
 }
 
 export class Workbench {
@@ -47,6 +49,8 @@ export class Workbench {
 	readonly notebook: Notebook;
 	readonly localization: Localization;
 	readonly task: Task;
+	readonly chat: Chat;
+	readonly agentsWindow: AgentsWindow;
 
 	constructor(code: Code) {
 		this.editors = new Editors(code);
@@ -67,5 +71,7 @@ export class Workbench {
 		this.notebook = new Notebook(this.quickaccess, this.quickinput, code);
 		this.localization = new Localization(code);
 		this.task = new Task(code, this.editor, this.editors, this.quickaccess, this.quickinput, this.terminal);
+		this.chat = new Chat(code);
+		this.agentsWindow = new AgentsWindow(code, this.quickaccess);
 	}
 }

@@ -7,18 +7,19 @@ import type { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import type { WebviewStyles } from './webview.js';
 
 type KeyEvent = {
-	key: string;
-	keyCode: number;
-	code: string;
-	shiftKey: boolean;
-	altKey: boolean;
-	ctrlKey: boolean;
-	metaKey: boolean;
-	repeat: boolean;
+	readonly key: string;
+	readonly keyCode: number;
+	readonly code: string;
+	readonly shiftKey: boolean;
+	readonly altKey: boolean;
+	readonly ctrlKey: boolean;
+	readonly metaKey: boolean;
+	readonly repeat: boolean;
+	readonly isTrusted: boolean;
 }
 
 type WebViewDragEvent = {
-	shiftKey: boolean;
+	readonly shiftKey: boolean;
 }
 
 export type FromWebviewMessage = {
@@ -31,7 +32,7 @@ export type FromWebviewMessage = {
 	'did-find': { didFind: boolean };
 	'do-update-state': string;
 	'do-reload': void;
-	'load-resource': { id: number; path: string; query: string; scheme: string; authority: string; ifNoneMatch?: string };
+	'load-resource': { id: number; path: string; query: string; scheme: string; authority: string; ifNoneMatch?: string; range?: { readonly start: number; readonly end?: number } };
 	'load-localhost': { id: string; origin: string };
 	'did-scroll-wheel': IMouseWheelEvent;
 	'fatal-error': { message: string };
@@ -40,7 +41,8 @@ export type FromWebviewMessage = {
 	'did-keyup': KeyEvent;
 	'did-context-menu': { clientX: number; clientY: number; context: { [key: string]: unknown } };
 	'drag-start': void;
-	'drag': WebViewDragEvent
+	'drag': WebViewDragEvent;
+	'updated-intrinsic-content-size': { width: number; height: number };
 };
 
 interface UpdateContentEvent {
@@ -63,8 +65,11 @@ export type ToWebviewMessage = {
 	'did-load-resource':
 	| { id: number; status: 401 | 404; path: string }
 	| { id: number; status: 304; path: string; mime: string; mtime: number | undefined }
-	| { id: number; status: 200; path: string; mime: string; data: any; etag: string | undefined; mtime: number | undefined }
+	| { id: number; status: 200 | 206; path: string; mime: string; etag: string | undefined; mtime: number | undefined; range?: string; stream?: ReadableStream<Uint8Array> }
 	;
+	// Safari fallback: transferable streams not supported
+	'did-load-resource-chunk': { id: number; data: Uint8Array };
+	'did-load-resource-end': { id: number; error?: boolean };
 	'did-load-localhost': {
 		id: string;
 		origin: string;

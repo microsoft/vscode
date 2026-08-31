@@ -19,6 +19,9 @@ export interface GettingStartedEditorOptions extends IEditorOptions {
 	showTelemetryNotice?: boolean;
 	showWelcome?: boolean;
 	walkthroughPageTitle?: string;
+	showNewExperience?: boolean;
+	/** Command to execute when pressing "Go Back" instead of showing the categories slide */
+	returnToCommand?: string;
 }
 
 export class GettingStartedInput extends EditorInput {
@@ -29,6 +32,8 @@ export class GettingStartedInput extends EditorInput {
 	private _selectedStep: string | undefined;
 	private _showTelemetryNotice: boolean;
 	private _showWelcome: boolean;
+	private _returnToCommand: string | undefined;
+
 	private _walkthroughPageTitle: string | undefined;
 
 	override get typeId(): string {
@@ -58,10 +63,7 @@ export class GettingStartedInput extends EditorInput {
 			return true;
 		}
 
-		if (other instanceof GettingStartedInput) {
-			return other.selectedCategory === this.selectedCategory;
-		}
-		return false;
+		return other instanceof GettingStartedInput;
 	}
 
 	constructor(
@@ -72,6 +74,7 @@ export class GettingStartedInput extends EditorInput {
 		this._showTelemetryNotice = !!options.showTelemetryNotice;
 		this._showWelcome = options.showWelcome ?? true;
 		this._walkthroughPageTitle = options.walkthroughPageTitle;
+		this._returnToCommand = options.returnToCommand;
 	}
 
 	override getName() {
@@ -117,5 +120,13 @@ export class GettingStartedInput extends EditorInput {
 
 	set walkthroughPageTitle(value: string | undefined) {
 		this._walkthroughPageTitle = value;
+	}
+
+	get returnToCommand(): string | undefined {
+		return this._returnToCommand;
+	}
+
+	set returnToCommand(value: string | undefined) {
+		this._returnToCommand = value;
 	}
 }

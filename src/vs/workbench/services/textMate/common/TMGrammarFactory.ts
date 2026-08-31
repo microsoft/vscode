@@ -144,6 +144,7 @@ export class TMGrammarFactory extends Disposable {
 				encodedLanguageId,
 				{
 					embeddedLanguages,
+					// eslint-disable-next-line local/code-no-any-casts
 					tokenTypes: <any>grammarDefinition.tokenTypes,
 					balancedBracketSelectors: grammarDefinition.balancedBracketSelectors,
 					unbalancedBracketSelectors: grammarDefinition.unbalancedBracketSelectors,

@@ -15,17 +15,21 @@ import * as ConfigurationResolverUtils from '../../../services/configurationReso
 import { inputsSchema } from '../../../services/configurationResolver/common/configurationResolverSchema.js';
 import { getAllCodicons } from '../../../../base/common/codicons.js';
 
-function fixReferences(literal: any) {
+function fixReferences(literal: Record<string, unknown> | unknown[]) {
 	if (Array.isArray(literal)) {
-		literal.forEach(fixReferences);
+		literal.forEach(element => {
+			if (typeof element === 'object' && element !== null) {
+				fixReferences(element as Record<string, unknown>);
+			}
+		});
 	} else if (typeof literal === 'object') {
 		if (literal['$ref']) {
 			literal['$ref'] = literal['$ref'] + '2';
 		}
 		Object.getOwnPropertyNames(literal).forEach(property => {
 			const value = literal[property];
-			if (Array.isArray(value) || typeof value === 'object') {
-				fixReferences(value);
+			if (Array.isArray(value) || (typeof value === 'object' && value !== null)) {
+				fixReferences(value as Record<string, unknown>);
 			}
 		});
 	}
@@ -50,6 +54,12 @@ const hide: IJSONSchema = {
 	type: 'boolean',
 	description: nls.localize('JsonSchema.hide', 'Hide this task from the run task quick pick'),
 	default: true
+};
+
+const inAgents: IJSONSchema = {
+	type: 'boolean',
+	description: nls.localize('JsonSchema.inAgents', 'Show this task in the Agents run action dropdown'),
+	default: false
 };
 
 const taskIdentifier: IJSONSchema = {
@@ -197,6 +207,11 @@ const presentation: IJSONSchema = {
 		close: {
 			type: 'boolean',
 			description: nls.localize('JsonSchema.tasks.presentation.close', 'Controls whether the terminal the task runs in is closed when the task exits.')
+		},
+		preserveTerminalName: {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('JsonSchema.tasks.presentation.preserveTerminalName', 'Controls whether to preserve the task name in the terminal after task completion.')
 		}
 	}
 };
@@ -369,8 +384,8 @@ const runOptions: IJSONSchema = {
 		},
 		runOn: {
 			type: 'string',
-			enum: ['default', 'folderOpen'],
-			description: nls.localize('JsonSchema.tasks.runOn', 'Configures when the task should be run. If set to folderOpen, then the task will be run automatically when the folder is opened.'),
+			enum: ['default', 'folderOpen', 'worktreeCreated'],
+			description: nls.localize('JsonSchema.tasks.runOn', 'Configures when the task should be run. If set to folderOpen, then the task will be run automatically when the folder is opened. If set to worktreeCreated, then the task will be run automatically when an Agent Session worktree is created.'),
 			default: 'default'
 		},
 		instanceLimit: {
@@ -378,6 +393,19 @@ const runOptions: IJSONSchema = {
 			description: nls.localize('JsonSchema.tasks.instanceLimit', 'The number of instances of the task that are allowed to run simultaneously.'),
 			default: 1
 		},
+		instancePolicy: {
+			type: 'string',
+			enum: ['terminateNewest', 'terminateOldest', 'prompt', 'warn', 'silent'],
+			enumDescriptions: [
+				nls.localize('JsonSchema.tasks.instancePolicy.terminateNewest', 'Terminates the newest instance.'),
+				nls.localize('JsonSchema.tasks.instancePolicy.terminateOldest', 'Terminates the oldest instance.'),
+				nls.localize('JsonSchema.tasks.instancePolicy.prompt', 'Asks which instance to terminate.'),
+				nls.localize('JsonSchema.tasks.instancePolicy.warn', 'Does nothing but warns that the instance limit has been reached.'),
+				nls.localize('JsonSchema.tasks.instancePolicy.silent', 'Does nothing.'),
+			],
+			description: nls.localize('JsonSchema.tasks.instancePolicy', 'Policy to apply when instance limit is reached.'),
+			default: 'prompt'
+		}
 	},
 	description: nls.localize('JsonSchema.tasks.runOptions', 'The task\'s run related options')
 };
@@ -415,6 +443,7 @@ const taskConfiguration: IJSONSchema = {
 		presentation: Objects.deepClone(presentation),
 		icon: Objects.deepClone(icon),
 		hide: Objects.deepClone(hide),
+		inAgents: Objects.deepClone(inAgents),
 		options: options,
 		problemMatcher: {
 			$ref: '#/definitions/problemMatcherType',
@@ -462,7 +491,7 @@ export function updateTaskDefinitions() {
 				schemaProperties[key] = Objects.deepClone(property);
 			}
 		}
-		fixReferences(schema);
+		fixReferences(schema as unknown as Record<string, unknown>);
 		taskDefinitions.push(schema);
 	}
 }
@@ -488,6 +517,7 @@ taskDescriptionProperties.args = Objects.deepClone(args);
 taskDescriptionProperties.isShellCommand = Objects.deepClone(shellCommand);
 taskDescriptionProperties.dependsOn = dependsOn;
 taskDescriptionProperties.hide = Objects.deepClone(hide);
+taskDescriptionProperties.inAgents = Objects.deepClone(inAgents);
 taskDescriptionProperties.dependsOrder = dependsOrder;
 taskDescriptionProperties.identifier = Objects.deepClone(identifier);
 taskDescriptionProperties.type = Objects.deepClone(taskType);
@@ -629,7 +659,7 @@ Object.getOwnPropertyNames(definitions).forEach(key => {
 	delete definitions[key];
 	deprecatedVariableMessage(definitions, newKey);
 });
-fixReferences(schema);
+fixReferences(schema as unknown as Record<string, unknown>);
 
 export function updateProblemMatchers() {
 	try {

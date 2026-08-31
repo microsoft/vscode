@@ -15,7 +15,8 @@ import {
 	AcceptAllInput1, AcceptAllInput2, AcceptMerge, CompareInput1WithBaseCommand,
 	CompareInput2WithBaseCommand, GoToNextUnhandledConflict, GoToPreviousUnhandledConflict, OpenBaseFile, OpenMergeEditor,
 	OpenResultResource, ResetToBaseAndAutoMergeCommand, SetColumnLayout, SetMixedLayout, ShowHideTopBase, ShowHideCenterBase, ShowHideBase,
-	ShowNonConflictingChanges, ToggleActiveConflictInput1, ToggleActiveConflictInput2, ResetCloseWithConflictsChoice
+	ShowNonConflictingChanges, ToggleActiveConflictInput1, ToggleActiveConflictInput2, ResetCloseWithConflictsChoice,
+	AcceptAllCombination, ToggleBetweenInputs
 } from './commands/commands.js';
 import { MergeEditorCopyContentsToJSON, MergeEditorLoadContentsFromFolder, MergeEditorSaveContentsToFolder } from './commands/devCommands.js';
 import { MergeEditorInput } from './mergeEditorInput.js';
@@ -45,11 +46,13 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 	properties: {
 		'mergeEditor.diffAlgorithm': {
 			type: 'string',
-			enum: ['legacy', 'advanced'],
+			enum: ['legacy', 'advanced', 'advanced-external', 'advanced-wasm'],
 			default: 'advanced',
 			markdownEnumDescriptions: [
 				localize('diffAlgorithm.legacy', "Uses the legacy diffing algorithm."),
 				localize('diffAlgorithm.advanced', "Uses the advanced diffing algorithm."),
+				localize('diffAlgorithm.advancedExternal', "Uses the advanced diffing algorithm from the external `@vscode/diff` package (pure JavaScript)."),
+				localize('diffAlgorithm.advancedWasm', "Uses the advanced diffing algorithm from the external `@vscode/diff` package (WebAssembly)."),
 			]
 		},
 		'mergeEditor.showDeletionMarkers': {
@@ -86,6 +89,9 @@ registerAction2(ResetToBaseAndAutoMergeCommand);
 
 registerAction2(AcceptMerge);
 registerAction2(ResetCloseWithConflictsChoice);
+registerAction2(AcceptAllCombination);
+
+registerAction2(ToggleBetweenInputs);
 
 // Dev Commands
 registerAction2(MergeEditorCopyContentsToJSON);

@@ -5,9 +5,9 @@
 
 import * as eslint from 'eslint';
 import { join } from 'path';
-import { createImportRuleListener } from './utils';
+import { createImportRuleListener } from './utils.ts';
 
-export = new class NoNlsInStandaloneEditorRule implements eslint.Rule.RuleModule {
+export default new class NoNlsInStandaloneEditorRule implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {
@@ -18,7 +18,7 @@ export = new class NoNlsInStandaloneEditorRule implements eslint.Rule.RuleModule
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 
-		const fileName = context.getFilename();
+		const fileName = context.filename;
 		if (
 			/vs(\/|\\)editor(\/|\\)standalone(\/|\\)/.test(fileName)
 			|| /vs(\/|\\)editor(\/|\\)common(\/|\\)standalone(\/|\\)/.test(fileName)
@@ -29,7 +29,7 @@ export = new class NoNlsInStandaloneEditorRule implements eslint.Rule.RuleModule
 			return createImportRuleListener((node, path) => {
 				// resolve relative paths
 				if (path[0] === '.') {
-					path = join(context.getFilename(), path);
+					path = join(context.filename, path);
 				}
 
 				if (

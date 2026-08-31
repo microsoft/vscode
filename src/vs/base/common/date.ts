@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../nls.js';
+import { Lazy } from './lazy.js';
 import { LANGUAGE_DEFAULT } from './platform.js';
 
 const minute = 60;
@@ -23,6 +24,10 @@ const year = day * 365;
  * is less than 30 seconds.
  */
 export function fromNow(date: number | Date, appendAgoLabel?: boolean, useFullTimeWords?: boolean, disallowNow?: boolean): string {
+	if (typeof date === 'undefined') {
+		return localize('date.fromNow.unknown', 'unknown');
+	}
+
 	if (typeof date !== 'number') {
 		date = date.getTime();
 	}
@@ -64,7 +69,7 @@ export function fromNow(date: number | Date, appendAgoLabel?: boolean, useFullTi
 	}
 
 	if (seconds < hour) {
-		value = Math.floor(seconds / minute);
+		value = Math.round(seconds / minute);
 		if (appendAgoLabel) {
 			if (value === 1) {
 				return useFullTimeWords
@@ -89,7 +94,7 @@ export function fromNow(date: number | Date, appendAgoLabel?: boolean, useFullTi
 	}
 
 	if (seconds < day) {
-		value = Math.floor(seconds / hour);
+		value = Math.round(seconds / hour);
 		if (appendAgoLabel) {
 			if (value === 1) {
 				return useFullTimeWords
@@ -114,7 +119,7 @@ export function fromNow(date: number | Date, appendAgoLabel?: boolean, useFullTi
 	}
 
 	if (seconds < week) {
-		value = Math.floor(seconds / day);
+		value = Math.round(seconds / day);
 		if (appendAgoLabel) {
 			return value === 1
 				? localize('date.fromNow.days.singular.ago', '{0} day ago', value)
@@ -127,7 +132,7 @@ export function fromNow(date: number | Date, appendAgoLabel?: boolean, useFullTi
 	}
 
 	if (seconds < month) {
-		value = Math.floor(seconds / week);
+		value = Math.round(seconds / week);
 		if (appendAgoLabel) {
 			if (value === 1) {
 				return useFullTimeWords
@@ -152,7 +157,7 @@ export function fromNow(date: number | Date, appendAgoLabel?: boolean, useFullTi
 	}
 
 	if (seconds < year) {
-		value = Math.floor(seconds / month);
+		value = Math.round(seconds / month);
 		if (appendAgoLabel) {
 			if (value === 1) {
 				return useFullTimeWords
@@ -176,7 +181,7 @@ export function fromNow(date: number | Date, appendAgoLabel?: boolean, useFullTi
 		}
 	}
 
-	value = Math.floor(seconds / year);
+	value = Math.round(seconds / year);
 	if (appendAgoLabel) {
 		if (value === 1) {
 			return useFullTimeWords
@@ -264,32 +269,49 @@ export function toLocalISOString(date: Date): string {
 }
 
 export const safeIntl = {
-	DateTimeFormat(locales?: Intl.LocalesArgument, options?: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
-		try {
-			return new Intl.DateTimeFormat(locales, options);
-		} catch {
-			return new Intl.DateTimeFormat(undefined, options);
-		}
+	DateTimeFormat(locales?: Intl.LocalesArgument, options?: Intl.DateTimeFormatOptions): Lazy<Intl.DateTimeFormat> {
+		return new Lazy(() => {
+			try {
+				return new Intl.DateTimeFormat(locales, options);
+			} catch {
+				return new Intl.DateTimeFormat(undefined, options);
+			}
+		});
 	},
-	Collator(locales?: Intl.LocalesArgument, options?: Intl.CollatorOptions): Intl.Collator {
-		try {
-			return new Intl.Collator(locales, options);
-		} catch {
-			return new Intl.Collator(undefined, options);
-		}
+	Collator(locales?: Intl.LocalesArgument, options?: Intl.CollatorOptions): Lazy<Intl.Collator> {
+		return new Lazy(() => {
+			try {
+				return new Intl.Collator(locales, options);
+			} catch {
+				return new Intl.Collator(undefined, options);
+			}
+		});
 	},
-	Segmenter(locales?: Intl.LocalesArgument, options?: Intl.SegmenterOptions): Intl.Segmenter {
-		try {
-			return new Intl.Segmenter(locales, options);
-		} catch {
-			return new Intl.Segmenter(undefined, options);
-		}
+	Segmenter(locales?: Intl.LocalesArgument, options?: Intl.SegmenterOptions): Lazy<Intl.Segmenter> {
+		return new Lazy(() => {
+			try {
+				return new Intl.Segmenter(locales, options);
+			} catch {
+				return new Intl.Segmenter(undefined, options);
+			}
+		});
 	},
-	Locale(tag: Intl.Locale | string, options?: Intl.LocaleOptions): Intl.Locale {
-		try {
-			return new Intl.Locale(tag, options);
-		} catch {
-			return new Intl.Locale(LANGUAGE_DEFAULT, options);
-		}
+	Locale(tag: Intl.Locale | string, options?: Intl.LocaleOptions): Lazy<Intl.Locale> {
+		return new Lazy(() => {
+			try {
+				return new Intl.Locale(tag, options);
+			} catch {
+				return new Intl.Locale(LANGUAGE_DEFAULT, options);
+			}
+		});
+	},
+	NumberFormat(locales?: Intl.LocalesArgument, options?: Intl.NumberFormatOptions): Lazy<Intl.NumberFormat> {
+		return new Lazy(() => {
+			try {
+				return new Intl.NumberFormat(locales, options);
+			} catch {
+				return new Intl.NumberFormat(undefined, options);
+			}
+		});
 	}
 };

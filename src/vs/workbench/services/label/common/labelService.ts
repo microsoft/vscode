@@ -12,7 +12,7 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWo
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { IWorkspaceContextService, IWorkspace, isWorkspace, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXTENSION, isUntitledWorkspace, isTemporaryWorkspace } from '../../../../platform/workspace/common/workspace.js';
-import { basenameOrAuthority, basename, joinPath, dirname } from '../../../../base/common/resources.js';
+import { basenameOrAuthority, basename, dirname, isEqualOrParent, joinPath, relativePath } from '../../../../base/common/resources.js';
 import { tildify, getPathLabel } from '../../../../base/common/labels.js';
 import { ILabelService, ResourceLabelFormatter, ResourceLabelFormatting, IFormatterChangeEvent, Verbosity } from '../../../../platform/label/common/label.js';
 import { ExtensionsRegistry } from '../../extensions/common/extensionsRegistry.js';
@@ -75,7 +75,8 @@ const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoin
 	}
 });
 
-const sepRegexp = /\//g;
+const posixPathSeparatorRegexp = /\//g; // on Unix, backslash is a valid filename character
+const winPathSeparatorRegexp = /[\\\/]/g; // on Windows, neither slash nor backslash are valid filename characters
 const labelMatchingRegexp = /\$\{(scheme|authoritySuffix|authority|path|(query)\.(.+?))\}/g;
 
 function hasDriveLetterIgnorePlatform(path: string): boolean {
@@ -134,10 +135,10 @@ export class LabelService extends Disposable implements ILabelService {
 
 	private formatters: ResourceLabelFormatter[];
 
-	private readonly _onDidChangeFormatters = this._register(new Emitter<IFormatterChangeEvent>({ leakWarningThreshold: 400 }));
+	private readonly _onDidChangeFormatters = this._register(new Emitter<IFormatterChangeEvent>({ leakWarningThreshold: 400, leakWarningName: 'LabelService._onDidChangeFormatters' }));
 	readonly onDidChangeFormatters = this._onDidChangeFormatters.event;
 
-	private readonly storedFormattersMemento: Memento;
+	private readonly storedFormattersMemento: Memento<IStoredFormatters>;
 	private readonly storedFormatters: IStoredFormatters;
 	private os: OperatingSystem;
 	private userHome: URI | undefined;
@@ -177,38 +178,70 @@ export class LabelService extends Disposable implements ILabelService {
 		this.userHome = await this.pathService.userHome();
 	}
 
-	findFormatting(resource: URI): ResourceLabelFormatting | undefined {
+	getUriHome(resource: URI): URI | undefined {
+		const formatter = this.findHomeFormatter(resource);
+		return formatter?.home ? resource.with({ path: formatter.home, query: null, fragment: null }) : undefined;
+	}
+
+	private findHomeFormatter(resource: URI): ResourceLabelFormatter | undefined {
 		let bestResult: ResourceLabelFormatter | undefined;
-
 		for (const formatter of this.formatters) {
-			if (formatter.scheme === resource.scheme) {
-				if (!formatter.authority && (!bestResult || formatter.priority)) {
-					bestResult = formatter;
-					continue;
-				}
-
-				if (!formatter.authority) {
-					continue;
-				}
-
-				if (
-					match(formatter.authority.toLowerCase(), resource.authority.toLowerCase()) &&
-					(
-						!bestResult ||
-						!bestResult.authority ||
-						formatter.authority.length > bestResult.authority.length ||
-						((formatter.authority.length === bestResult.authority.length) && formatter.priority)
-					)
-				) {
-					bestResult = formatter;
-				}
+			if (!formatter.home || formatter.scheme !== resource.scheme || (formatter.authority && !match(formatter.authority, resource.authority, { ignoreCase: true }))) {
+				continue;
+			}
+			if (!isEqualOrParent(resource, resource.with({ path: formatter.home }))) {
+				continue;
+			}
+			const authorityLength = formatter.authority?.length ?? 0;
+			const bestAuthorityLength = bestResult?.authority?.length ?? 0;
+			const bestHomeLength = bestResult?.home?.length ?? 0;
+			if (!bestResult ||
+				formatter.home.length > bestHomeLength ||
+				(formatter.home.length === bestHomeLength && authorityLength > bestAuthorityLength) ||
+				(formatter.home.length === bestHomeLength && authorityLength === bestAuthorityLength && formatter.priority)
+			) {
+				bestResult = formatter;
 			}
 		}
+		return bestResult;
+	}
 
-		return bestResult ? bestResult.formatting : undefined;
+	findFormatting(resource: URI): ResourceLabelFormatting | undefined {
+		let bestResult: ResourceLabelFormatter | undefined;
+		for (const formatter of this.formatters) {
+			if (formatter.home || formatter.scheme !== resource.scheme) {
+				continue;
+			}
+			if (!formatter.authority && (!bestResult || formatter.priority)) {
+				bestResult = formatter;
+				continue;
+			}
+			if (!formatter.authority) {
+				continue;
+			}
+			if (match(formatter.authority, resource.authority, { ignoreCase: true }) &&
+				(
+					!bestResult?.authority ||
+					formatter.authority.length > bestResult.authority.length ||
+					((formatter.authority.length === bestResult.authority.length) && formatter.priority)
+				)
+			) {
+				bestResult = formatter;
+			}
+		}
+		return bestResult?.formatting;
 	}
 
 	getUriLabel(resource: URI, options: { relative?: boolean; noPrefix?: boolean; separator?: '/' | '\\'; appendWorkspaceSuffix?: boolean } = {}): string {
+		const homeFormatter = options.noPrefix ? undefined : this.findHomeFormatter(resource);
+		if (homeFormatter?.home) {
+			const home = resource.with({ path: homeFormatter.home, query: null, fragment: null });
+			const separator = options.separator ?? homeFormatter.formatting.separator;
+			const path = relativePath(home, resource);
+			const label = this.formatUri(home, homeFormatter.formatting);
+			return path ? `${label}${separator}${this.adjustPathSeparators(path, separator)}` : label;
+		}
+
 		let formatting = this.findFormatting(resource);
 		if (formatting && options.separator) {
 			// mixin separator if defined from the outside
@@ -220,7 +253,7 @@ export class LabelService extends Disposable implements ILabelService {
 		// Without formatting we still need to support the separator
 		// as provided in options (https://github.com/microsoft/vscode/issues/130019)
 		if (!formatting && options.separator) {
-			label = label.replace(sepRegexp, options.separator);
+			label = this.adjustPathSeparators(label, options.separator);
 		}
 
 		if (options.appendWorkspaceSuffix && formatting?.workspaceSuffix) {
@@ -455,10 +488,23 @@ export class LabelService extends Disposable implements ILabelService {
 					const i = resource.authority.indexOf('+');
 					return i === -1 ? resource.authority : resource.authority.slice(i + 1);
 				}
-				case 'path':
+				case 'path': {
+					let pathValue = resource.path;
+					if (formatting.stripPathSegments) {
+						let pos = 0;
+						for (let i = 0; i < formatting.stripPathSegments; i++) {
+							const next = pathValue.indexOf('/', pos + 1);
+							if (next === -1) {
+								break;
+							}
+							pos = next;
+						}
+						pathValue = pathValue.substring(pos);
+					}
 					return formatting.stripPathStartingSeparator
-						? resource.path.slice(resource.path[0] === formatting.separator ? 1 : 0)
-						: resource.path;
+						? pathValue.slice(pathValue[0] === formatting.separator ? 1 : 0)
+						: pathValue;
+				}
 				default: {
 					if (qsToken === 'query') {
 						const { query } = resource;
@@ -489,7 +535,11 @@ export class LabelService extends Disposable implements ILabelService {
 			label = formatting.authorityPrefix + label;
 		}
 
-		return label.replace(sepRegexp, formatting.separator);
+		return this.adjustPathSeparators(label, formatting.separator);
+	}
+
+	private adjustPathSeparators(label: string, separator: '/' | '\\' | ''): string {
+		return label.replace(this.os === OperatingSystem.Windows ? winPathSeparatorRegexp : posixPathSeparatorRegexp, separator);
 	}
 
 	private appendWorkspaceSuffix(label: string, uri: URI): string {

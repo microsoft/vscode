@@ -5,8 +5,8 @@
 
 import * as strings from '../../../base/common/strings.js';
 import { Constants } from '../../../base/common/uint.js';
+import { InlineDecoration, InlineDecorationType } from '../viewModel/inlineDecorations.js';
 import { LinePartMetadata } from './linePart.js';
-import { InlineDecoration, InlineDecorationType } from '../viewModel.js';
 
 export class LineDecoration {
 	_lineDecorationBrand: void = undefined;
@@ -28,7 +28,7 @@ export class LineDecoration {
 		);
 	}
 
-	public static equalsArr(a: LineDecoration[], b: LineDecoration[]): boolean {
+	public static equalsArr(a: readonly LineDecoration[], b: readonly LineDecoration[]): boolean {
 		const aLen = a.length;
 		const bLen = b.length;
 		if (aLen !== bLen) {
@@ -92,7 +92,9 @@ export class LineDecoration {
 	}
 
 	private static _typeCompare(a: InlineDecorationType, b: InlineDecorationType): number {
-		const ORDER = [2, 0, 1, 3];
+		// WidthOnly, Before, After, Regular, RegularAffectingLetterSpacing.
+		// Width only decorations come from injected text, which renders before any other decoration.
+		const ORDER = [3, 1, 2, 4, 0];
 		return ORDER[a] - ORDER[b];
 	}
 

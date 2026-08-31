@@ -3,29 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export namespace strings {
+export const strings = (() => {
 
-    export function format(value: string, ...rest: any[]): string {
-        return value.replace(/({\d+})/g, function (match) {
+    function format(value: string, ...rest: unknown[]): string {
+        return value.replace(/(\{\d+\})/g, function (match) {
             const index = Number(match.substring(1, match.length - 1));
             return String(rest[index]) || match;
         });
     }
-}
 
-export namespace graph {
+    return { format };
+})();
 
-    export class Node<T> {
+export const graph = (() => {
+
+    class Node<T> {
 
         readonly incoming = new Map<T, Node<T>>();
         readonly outgoing = new Map<T, Node<T>>();
+        readonly data: T;
 
-        constructor(readonly data: T) {
-
+        constructor(data: T) {
+            this.data = data;
         }
     }
 
-    export class Graph<T> {
+    class Graph<T> {
 
         private _nodes = new Map<T, Node<T>>();
 
@@ -63,55 +66,45 @@ export namespace graph {
             return this._nodes.get(data) ?? null;
         }
 
-        findCycle(): T[] | undefined {
-
-            let result: T[] | undefined;
-            let foundStartNodes = false;
-            const checked = new Set<Node<T>>();
-
-            for (const [_start, value] of this._nodes) {
-
-                if (Object.values(value.incoming).length > 0) {
+        findCycles(allData: T[]): Map<T, T[] | undefined> {
+            const result = new Map<T, T[] | undefined>();
+            const checked = new Set<T>();
+            for (const data of allData) {
+                const node = this.lookup(data);
+                if (!node) {
                     continue;
                 }
+                const r = this._findCycle(node, checked, new Set());
+                result.set(node.data, r);
+            }
+            return result;
+        }
 
-                foundStartNodes = true;
+        private _findCycle(node: Node<T>, checked: Set<T>, seen: Set<T>): T[] | undefined {
 
-                const dfs = (node: Node<T>, visited: Set<Node<T>>) => {
+            if (checked.has(node.data)) {
+                return undefined;
+            }
 
-                    if (checked.has(node)) {
-                        return;
-                    }
-
-                    if (visited.has(node)) {
-                        result = [...visited, node].map(n => n.data);
-                        const idx = result.indexOf(node.data);
-                        result = result.slice(idx);
-                        return;
-                    }
-                    visited.add(node);
-                    for (const child of Object.values(node.outgoing)) {
-                        dfs(child, visited);
-                        if (result) {
-                            break;
-                        }
-                    }
-                    visited.delete(node);
-                    checked.add(node);
-                };
-                dfs(value, new Set());
+            let result: T[] | undefined;
+            for (const child of node.outgoing.values()) {
+                if (seen.has(child.data)) {
+                    const seenArr = Array.from(seen);
+                    const idx = seenArr.indexOf(child.data);
+                    seenArr.push(child.data);
+                    return idx > 0 ? seenArr.slice(idx) : seenArr;
+                }
+                seen.add(child.data);
+                result = this._findCycle(child, checked, seen);
+                seen.delete(child.data);
                 if (result) {
                     break;
                 }
             }
-
-            if (!foundStartNodes) {
-                // everything is a cycle
-                return Array.from(this._nodes.keys());
-            }
-
+            checked.add(node.data);
             return result;
         }
     }
 
-}
+    return { Node, Graph };
+})();

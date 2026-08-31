@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { Range } from '../../../common/core/range.js';
 import { DecorationSegment, LineDecoration, LineDecorationsNormalizer } from '../../../common/viewLayout/lineDecorations.js';
-import { InlineDecoration, InlineDecorationType } from '../../../common/viewModel.js';
+import { InlineDecoration, InlineDecorationType } from '../../../common/viewModel/inlineDecorations.js';
 
 suite('Editor ViewLayout - ViewLineParts', () => {
 
@@ -60,6 +60,40 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 		assert.deepStrictEqual(result, [
 			new LineDecoration(1, 2, 'before', InlineDecorationType.Before),
 			new LineDecoration(0, 1, 'after', InlineDecorationType.After),
+		]);
+	});
+
+	test('empty width only decorations are kept, empty regular ones are not', () => {
+		const result = LineDecoration.filter([
+			new InlineDecoration(new Range(4, 3, 4, 3), 'spacer', InlineDecorationType.WidthOnly),
+			new InlineDecoration(new Range(4, 3, 4, 3), 'regular', InlineDecorationType.Regular),
+		], 4, 1, 500);
+
+		assert.deepStrictEqual(result, [
+			new LineDecoration(3, 3, 'spacer', InlineDecorationType.WidthOnly),
+		]);
+	});
+
+	test('width only decorations come before other decorations at the same position', () => {
+		const decorations = [
+			new LineDecoration(3, 3, 'regular', InlineDecorationType.Regular),
+			new LineDecoration(3, 3, 'after', InlineDecorationType.After),
+			new LineDecoration(3, 3, 'spacer', InlineDecorationType.WidthOnly),
+			new LineDecoration(3, 3, 'before', InlineDecorationType.Before),
+		];
+		decorations.sort(LineDecoration.compare);
+
+		assert.deepStrictEqual(decorations.map(d => d.className), ['spacer', 'before', 'after', 'regular']);
+	});
+
+	test('width only decorations are not turned into pseudo elements', () => {
+		const result = LineDecorationsNormalizer.normalize('abc', [
+			new LineDecoration(2, 2, 'spacer', InlineDecorationType.WidthOnly),
+		]);
+
+		// Metadata stays `0`: unlike a before or after decoration, this is the injected content itself.
+		assert.deepStrictEqual(result, [
+			new DecorationSegment(1, 0, 'spacer', 0),
 		]);
 	});
 

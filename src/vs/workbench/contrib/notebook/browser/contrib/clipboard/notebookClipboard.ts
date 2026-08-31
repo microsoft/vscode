@@ -28,7 +28,7 @@ import { Categories } from '../../../../../../platform/action/common/actionCommo
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { showWindowLogActionId } from '../../../../../services/log/common/logConstants.js';
-import { getActiveElement, getWindow, isAncestor, isEditableElement, isHTMLElement } from '../../../../../../base/browser/dom.js';
+import { getActiveElement, getWindow, isEditableElement, isHTMLElement } from '../../../../../../base/browser/dom.js';
 
 let _logging: boolean = false;
 function toggleLogging() {
@@ -371,7 +371,7 @@ export class NotebookClipboardContribution extends Disposable {
 			return false;
 		}
 
-		if (!isAncestor(activeElement, editor.getDomNode())) {
+		if (!editor.hasEditorFocus()) {
 			_log(loggerService, '[NotebookEditor] focus is outside of the notebook editor, bypass');
 			return false;
 		}
@@ -391,15 +391,15 @@ export class NotebookClipboardContribution extends Disposable {
 			return false;
 		}
 
+		const { editor, activeCell } = this._getContext();
+		if (!editor || !editor.hasEditorFocus() || this._focusInsideEmebedMonaco(editor)) {
+			return false;
+		}
+
 		const notebookService = accessor.get<INotebookService>(INotebookService);
 		const pasteCells = notebookService.getToCopy();
 
 		if (!pasteCells) {
-			return false;
-		}
-
-		const { editor, activeCell } = this._getContext();
-		if (!editor) {
 			return false;
 		}
 
@@ -413,7 +413,7 @@ export class NotebookClipboardContribution extends Disposable {
 		}
 
 		const { editor } = this._getContext();
-		if (!editor) {
+		if (!editor || !editor.hasEditorFocus() || this._focusInsideEmebedMonaco(editor)) {
 			return false;
 		}
 

@@ -4,20 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { URI } from '../../../../base/common/uri.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
 import { localize2 } from '../../../../nls.js';
 import { Action2, MenuId } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ITextEditorOptions, TextEditorSelectionRevealType } from '../../../../platform/editor/common/editor.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IListService } from '../../../../platform/list/browser/listService.js';
 import { resolveCommandsContext } from '../../../browser/parts/editor/editorCommandsContext.js';
 import { MultiDiffEditor } from './multiDiffEditor.js';
 import { MultiDiffEditorInput } from './multiDiffEditorInput.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { ActiveEditorContext } from '../../../common/contextkeys.js';
+import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
+import { ActiveEditorContext, IsSessionsWindowContext } from '../../../common/contextkeys.js';
+import { createMultiDiffEditorLayoutDebugModel, isMultiDiffEditorLayoutDebugStateProvider } from './multiDiffEditorLayoutDebug.js';
 
 export class GoToFileAction extends Action2 {
 	constructor() {
@@ -35,7 +42,7 @@ export class GoToFileAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const uri = args[0] as URI;
 		const editorService = accessor.get(IEditorService);
 		const activeEditorPane = editorService.activeEditorPane;
@@ -56,12 +63,119 @@ export class GoToFileAction extends Action2 {
 		}
 
 		await editorService.openEditor({
+			label: item?.goToFileEditorTitle,
 			resource: targetUri,
 			options: {
 				selection: selections?.[0],
 				selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport,
 			} satisfies ITextEditorOptions,
 		});
+	}
+}
+
+export class OpenMultiDiffEditorLayoutDebugAction extends Action2 {
+	constructor() {
+		super({
+			id: 'multiDiffEditor.openLayoutDebug',
+			title: localize2('openMultiDiffEditorLayoutDebug', 'Open Multi Diff Editor Layout Debug State'),
+			category: Categories.Developer,
+			precondition: ContextKeyExpr.or(ActiveEditorContext.isEqualTo(MultiDiffEditor.ID), EditorContextKeys.inMultiDiffEditor),
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const activeEditorPane = editorService.activeEditorPane;
+		if (!isMultiDiffEditorLayoutDebugStateProvider(activeEditorPane)) {
+			return;
+		}
+
+		const model = createMultiDiffEditorLayoutDebugModel(
+			activeEditorPane.getLayoutDebugState(),
+			accessor.get(IModelService),
+			accessor.get(ILanguageService),
+		);
+		try {
+			const editor = await editorService.openEditor(
+				{ resource: model.uri, options: { pinned: true } },
+				SIDE_GROUP,
+			);
+			if (!editor) {
+				model.dispose();
+			}
+		} catch (error) {
+			model.dispose();
+			throw error;
+		}
+	}
+}
+
+export class GoToNextChangeAction extends Action2 {
+	constructor() {
+		super({
+			id: 'multiDiffEditor.goToNextChange',
+			title: localize2('goToNextChange', 'Go to Next Change'),
+			icon: Codicon.arrowDown,
+			precondition: ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID),
+			menu: [MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
+				id,
+				when: ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID),
+				group: 'navigation',
+				order: 2
+			})),
+			keybinding: {
+				primary: KeyMod.Alt | KeyCode.F5,
+				weight: KeybindingWeight.EditorContrib,
+				when: ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID),
+			},
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const activeEditorPane = editorService.activeEditorPane;
+
+		if (!(activeEditorPane instanceof MultiDiffEditor)) {
+			return;
+		}
+
+		activeEditorPane.goToNextChange();
+	}
+}
+
+export class GoToPreviousChangeAction extends Action2 {
+	constructor() {
+		super({
+			id: 'multiDiffEditor.goToPreviousChange',
+			title: localize2('goToPreviousChange', 'Go to Previous Change'),
+			icon: Codicon.arrowUp,
+			precondition: ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID),
+			menu: [MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
+				id,
+				when: ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID),
+				group: 'navigation',
+				order: 1
+			})),
+			keybinding: {
+				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F5,
+				weight: KeybindingWeight.EditorContrib,
+				when: ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID),
+			},
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const activeEditorPane = editorService.activeEditorPane;
+
+		if (!(activeEditorPane instanceof MultiDiffEditor)) {
+			return;
+		}
+
+		activeEditorPane.goToPreviousChange();
 	}
 }
 
@@ -72,12 +186,28 @@ export class CollapseAllAction extends Action2 {
 			title: localize2('collapseAllDiffs', 'Collapse All Diffs'),
 			icon: Codicon.collapseAll,
 			precondition: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.not('multiDiffEditorAllCollapsed')),
-			menu: {
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.not('multiDiffEditorAllCollapsed')),
-				id: MenuId.EditorTitle,
-				group: 'navigation',
-				order: 100
-			},
+			menu: [
+				// In the agents window this action lives in the editor title overflow (...) menu instead of as a primary toolbar icon.
+				{
+					id: MenuId.EditorTitle,
+					when: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.not('multiDiffEditorAllCollapsed'), IsSessionsWindowContext.toNegated()),
+					group: 'navigation',
+					order: 100
+				},
+				// The compact window editor title has no overflow menu, so keep the primary toolbar icon there.
+				{
+					id: MenuId.CompactWindowEditorTitle,
+					when: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.not('multiDiffEditorAllCollapsed')),
+					group: 'navigation',
+					order: 100
+				},
+				{
+					id: MenuId.EditorTitle,
+					when: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.not('multiDiffEditorAllCollapsed'), IsSessionsWindowContext),
+					group: '4_collapse',
+					order: 10
+				}
+			],
 			f1: true,
 		});
 	}
@@ -105,12 +235,28 @@ export class ExpandAllAction extends Action2 {
 			title: localize2('ExpandAllDiffs', 'Expand All Diffs'),
 			icon: Codicon.expandAll,
 			precondition: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.has('multiDiffEditorAllCollapsed')),
-			menu: {
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.has('multiDiffEditorAllCollapsed')),
-				id: MenuId.EditorTitle,
-				group: 'navigation',
-				order: 100
-			},
+			menu: [
+				// In the agents window this action lives in the editor title overflow (...) menu instead of as a primary toolbar icon.
+				{
+					id: MenuId.EditorTitle,
+					when: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.has('multiDiffEditorAllCollapsed'), IsSessionsWindowContext.toNegated()),
+					group: 'navigation',
+					order: 100
+				},
+				// The compact window editor title has no overflow menu, so keep the primary toolbar icon there.
+				{
+					id: MenuId.CompactWindowEditorTitle,
+					when: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.has('multiDiffEditorAllCollapsed')),
+					group: 'navigation',
+					order: 100
+				},
+				{
+					id: MenuId.EditorTitle,
+					when: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.has('multiDiffEditorAllCollapsed'), IsSessionsWindowContext),
+					group: '4_collapse',
+					order: 10
+				}
+			],
 			f1: true,
 		});
 	}

@@ -11,6 +11,7 @@ import { SyncDescriptor } from '../../common/descriptors.js';
 import { createDecorator, IInstantiationService, ServicesAccessor } from '../../common/instantiation.js';
 import { InstantiationService } from '../../common/instantiationService.js';
 import { ServiceCollection } from '../../common/serviceCollection.js';
+import { StrictServiceCollection } from '../../common/strictServiceCollection.js';
 
 const IService1 = createDecorator<IService1>('service1');
 
@@ -86,6 +87,22 @@ class TargetWithStaticParam {
 		assert.ok(service1);
 		assert.strictEqual(service1.c, 1);
 	}
+}
+
+const IStrictStaticArgumentService = createDecorator<IStrictStaticArgumentService>('strictStaticArgumentService');
+
+interface IStrictStaticArgumentService {
+	readonly _serviceBrand: undefined;
+	readonly value: boolean;
+}
+
+class StrictStaticArgumentService implements IStrictStaticArgumentService {
+	declare readonly _serviceBrand: undefined;
+
+	constructor(
+		readonly value: boolean,
+		@IService1 _service: IService1,
+	) { }
 }
 
 
@@ -180,6 +197,24 @@ suite('Instantiation Service', () => {
 			assert.ok(a.get(IService1));
 			assert.ok(a.get(IService2));
 		});
+	});
+
+	test('strict service collection validates descriptor static arguments', function () {
+		assert.throws(
+			() => new StrictServiceCollection([IStrictStaticArgumentService, new SyncDescriptor(StrictStaticArgumentService)]),
+			/StrictStaticArgumentService must pass exactly 1 leading static arguments \(got 0\)/,
+		);
+
+		const collection = new StrictServiceCollection(
+			[IService1, new Service1()],
+		);
+		assert.throws(
+			() => collection.set(IStrictStaticArgumentService, new SyncDescriptor(StrictStaticArgumentService, [true, false])),
+			/StrictStaticArgumentService must pass exactly 1 leading static arguments \(got 2\)/,
+		);
+		collection.set(IStrictStaticArgumentService, new SyncDescriptor(StrictStaticArgumentService, [true]));
+		const service = new InstantiationService(collection).invokeFunction(accessor => accessor.get(IStrictStaticArgumentService));
+		assert.strictEqual(service.value, true);
 	});
 
 	// we made this a warning
@@ -288,7 +323,7 @@ suite('Instantiation Service', () => {
 
 	test('Invoke - get service, optional', function () {
 		const collection = new ServiceCollection([IService1, new Service1()]);
-		const service = new InstantiationService(collection);
+		const service = new InstantiationService(collection, true);
 
 		function test(accessor: ServicesAccessor) {
 			assert.ok(accessor.get(IService1) instanceof Service1);
@@ -467,7 +502,7 @@ suite('Instantiation Service', () => {
 		const A = createDecorator<A>('A');
 		interface A {
 			_serviceBrand: undefined;
-			onDidDoIt: Event<any>;
+			readonly onDidDoIt: Event<any>;
 			doIt(): void;
 		}
 
@@ -477,7 +512,7 @@ suite('Instantiation Service', () => {
 			_doIt = 0;
 
 			_onDidDoIt = new Emitter<this>();
-			onDidDoIt: Event<this> = this._onDidDoIt.event;
+			readonly onDidDoIt: Event<this> = this._onDidDoIt.event;
 
 			constructor() {
 				created = true;
@@ -531,7 +566,7 @@ suite('Instantiation Service', () => {
 		const A = createDecorator<A>('A');
 		interface A {
 			_serviceBrand: undefined;
-			onDidDoIt: Event<any>;
+			readonly onDidDoIt: Event<any>;
 			doIt(): void;
 			noop(): void;
 		}
@@ -542,7 +577,7 @@ suite('Instantiation Service', () => {
 			_doIt = 0;
 
 			_onDidDoIt = new Emitter<this>();
-			onDidDoIt: Event<this> = this._onDidDoIt.event;
+			readonly onDidDoIt: Event<this> = this._onDidDoIt.event;
 
 			constructor() {
 				created = true;
@@ -599,7 +634,7 @@ suite('Instantiation Service', () => {
 		const A = createDecorator<A>('A');
 		interface A {
 			_serviceBrand: undefined;
-			onDidDoIt: Event<any>;
+			readonly onDidDoIt: Event<any>;
 			doIt(): void;
 		}
 		let created = false;
@@ -608,7 +643,7 @@ suite('Instantiation Service', () => {
 			_doIt = 0;
 
 			_onDidDoIt = new Emitter<this>();
-			onDidDoIt: Event<this> = this._onDidDoIt.event;
+			readonly onDidDoIt: Event<this> = this._onDidDoIt.event;
 
 			constructor() {
 				created = true;

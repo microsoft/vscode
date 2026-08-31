@@ -8,14 +8,14 @@ import { createFastDomNode } from '../../../../../base/browser/fastDomNode.js';
 import { IMouseWheelEvent } from '../../../../../base/browser/mouseEvent.js';
 import { ScrollbarState } from '../../../../../base/browser/ui/scrollbar/scrollbarState.js';
 import { Color } from '../../../../../base/common/color.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, autorun, autorunWithStore, derived, observableFromEvent, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { CodeEditorWidget } from '../../codeEditor/codeEditorWidget.js';
 import { DiffEditorEditors } from '../components/diffEditorEditors.js';
 import { DiffEditorViewModel } from '../diffEditorViewModel.js';
 import { appendRemoveOnDispose } from '../utils.js';
 import { EditorLayoutInfo, EditorOption } from '../../../../common/config/editorOptions.js';
-import { LineRange } from '../../../../common/core/lineRange.js';
+import { LineRange } from '../../../../common/core/ranges/lineRange.js';
 import { Position } from '../../../../common/core/position.js';
 import { OverviewRulerZone } from '../../../../common/viewModel/overviewZoneManager.js';
 import { defaultInsertColor, defaultRemoveColor, diffInserted, diffOverviewRulerInserted, diffOverviewRulerRemoved, diffRemoved } from '../../../../../platform/theme/common/colorRegistry.js';
@@ -36,6 +36,9 @@ export class OverviewRulerFeature extends Disposable {
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
+
+		this._rootElement.classList.add('has-diff-overview');
+		this._register(toDisposable(() => this._rootElement.classList.remove('has-diff-overview')));
 
 		const currentColorTheme = observableFromEvent(this._themeService.onDidColorThemeChange, () => this._themeService.getColorTheme());
 

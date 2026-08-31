@@ -178,7 +178,7 @@ class CellSequence implements ISequence {
 }
 
 export class NotebookWorker implements IWebWorkerServerRequestHandler, IDisposable {
-	_requestHandlerBrand: any;
+	_requestHandlerBrand: void = undefined;
 
 	private _models: { [uri: string]: MirrorNotebookDocument };
 
@@ -249,7 +249,7 @@ export class NotebookWorker implements IWebWorkerServerRequestHandler, IDisposab
 		const cellMapping = computeDiff(originalModel, modifiedModel, { cellsDiff: { changes: originalDiff.changes, quitEarly: false }, metadataChanged: false, }).cellDiffInfo;
 
 		// If we have no insertions/deletions, then this is a good diffing.
-		if (cellMapping.every(c => c.type === 'modified')) {
+		if (cellMapping.every(c => c.type === 'modified' || c.type === 'unchanged')) {
 			return {
 				metadataChanged,
 				cellsDiff: originalDiff
