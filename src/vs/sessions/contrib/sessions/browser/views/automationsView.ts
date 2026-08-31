@@ -6,6 +6,7 @@
 import '../media/automationsCards.css';
 import './automationsAccessibility.js';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Button, ButtonBar, IButton } from '../../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
@@ -31,7 +32,8 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Gesture, GestureEvent, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -56,6 +58,8 @@ import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_
 const $ = DOM.$;
 const STOP_AUTOMATION_RUN_SESSION_COMMAND_ID = 'sessions.automations.stopRunSession';
 const DELETE_AUTOMATION_RUN_SESSION_COMMAND_ID = 'sessions.automations.deleteRunSession';
+const AutomationCardCanDeleteContext = new RawContextKey<boolean>('sessionsAutomationCardCanDelete', false);
+const AutomationCardCanDisableContext = new RawContextKey<boolean>('sessionsAutomationCardCanDisable', false);
 
 interface IAutomationCardEntry {
 	readonly element: HTMLElement;
@@ -64,6 +68,8 @@ interface IAutomationCardEntry {
 	readonly actions: HTMLElement;
 	readonly runButton: IButton;
 	readonly deleteButton: IButton;
+	readonly canDeleteContext: IContextKey<boolean>;
+	readonly canDisableContext: IContextKey<boolean>;
 	readonly nameText: HTMLElement;
 	readonly scheduleEl: HTMLElement;
 	readonly folderEl: HTMLElement;
@@ -195,6 +201,8 @@ class AutomationCardsSection extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
 		super();
 		this.container = DOM.append(parent, $('.automations-cards-grid'));
@@ -260,7 +268,24 @@ class AutomationCardsSection extends Disposable {
 		const wrapper = $('.automations-card-wrapper');
 		const card = DOM.append(wrapper, $('.automations-card'));
 		card.setAttribute('role', 'group');
+		const cardContextKeyService = disposables.add(this.contextKeyService.createScoped(card));
+		const canDeleteContext = AutomationCardCanDeleteContext.bindTo(cardContextKeyService);
+		const canDisableContext = AutomationCardCanDisableContext.bindTo(cardContextKeyService);
 		disposables.add(Gesture.addTarget(card));
+		disposables.add(DOM.addDisposableListener(card, DOM.EventType.CONTEXT_MENU, (event: MouseEvent) => {
+			const currentAutomation = this.latestAutomations.get(automation.id);
+			if (!currentAutomation) {
+				return;
+			}
+			event.preventDefault();
+			event.stopPropagation();
+			this.contextMenuService.showContextMenu({
+				menuId: Menus.AutomationCardContext,
+				menuActionOptions: { shouldForwardArgs: true, arg: currentAutomation },
+				getAnchor: () => DOM.isMouseEvent(event) ? new StandardMouseEvent(DOM.getWindow(card), event) : card,
+				contextKeyService: cardContextKeyService,
+			});
+		}));
 
 		const main = DOM.append(card, $<HTMLButtonElement>('button.automations-card-main', {
 			type: 'button',
@@ -332,6 +357,8 @@ class AutomationCardsSection extends Disposable {
 			actions,
 			runButton: runBtn,
 			deleteButton: deleteBtn,
+			canDeleteContext,
+			canDisableContext,
 			nameText: nameTextEl,
 			scheduleEl,
 			folderEl,
@@ -348,6 +375,8 @@ class AutomationCardsSection extends Disposable {
 		card.main.disabled = this.automationService.canUpdateAutomation?.(automation.id) === false;
 		card.runButton.enabled = this.automationService.canRunAutomation?.(automation.id) !== false;
 		card.deleteButton.enabled = this.automationService.canDeleteAutomation?.(automation.id) !== false;
+		card.canDeleteContext.set(this.automationService.canDeleteAutomation?.(automation.id) !== false);
+		card.canDisableContext.set(automation.enabled && this.automationService.canUpdateAutomation?.(automation.id) !== false);
 		const schedule = formatSchedule(automation);
 		const scheduleChanged = !previous || formatSchedule(previous) !== schedule;
 		const nameChanged = !previous || previous.name !== automation.name;
@@ -487,30 +516,7 @@ class AutomationCardsSection extends Disposable {
 	}
 
 	private async confirmDelete(automation: IAutomationDescriptor): Promise<void> {
-		if (!await this.ensureEnabled()) {
-			return;
-		}
-		const confirmed = await this.dialogService.confirm({
-			message: localize('confirmDeleteAutomation', "Delete automation \"{0}\"?", automation.name),
-			detail: localize('confirmDeleteDetail', "This will permanently delete the automation and its run history."),
-			primaryButton: localize('delete', "Delete"),
-		});
-		if (!confirmed.confirmed) {
-			return;
-		}
-		if (!await this.ensureEnabled()) {
-			return;
-		}
-		try {
-			await this.automationService.deleteAutomation(automation.id, () => this.throwIfDisabled());
-			status(localize('automationDeletedStatus', "Deleted automation {0}", automation.name));
-		} catch (err) {
-			this.logService.error('[AutomationsCards] Failed to delete automation', err);
-			await this.dialogService.error(
-				localize('automationDeleteFailed', "Failed to delete automation."),
-				getErrorMessage(err),
-			);
-		}
+		await confirmAndDeleteAutomation(automation, this.automationService, this.configurationService, this.dialogService, this.logService);
 	}
 
 	private isEnabled(): boolean {
@@ -1089,6 +1095,49 @@ async function showAutomationsDisabled(dialogService: IDialogService): Promise<v
 	);
 }
 
+async function confirmAndDeleteAutomation(
+	automation: IAutomationDescriptor,
+	automationService: IAutomationService,
+	configurationService: IConfigurationService,
+	dialogService: IDialogService,
+	logService: ILogService,
+): Promise<void> {
+	if (automationService.canDeleteAutomation?.(automation.id) === false) {
+		return;
+	}
+	const isEnabled = () => configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true;
+	if (!isEnabled()) {
+		await showAutomationsDisabled(dialogService);
+		return;
+	}
+	const confirmed = await dialogService.confirm({
+		message: localize('confirmDeleteAutomation', "Delete automation \"{0}\"?", automation.name),
+		detail: localize('confirmDeleteDetail', "This will permanently delete the automation and its run history."),
+		primaryButton: localize('delete', "Delete"),
+	});
+	if (!confirmed.confirmed) {
+		return;
+	}
+	if (!isEnabled()) {
+		await showAutomationsDisabled(dialogService);
+		return;
+	}
+	try {
+		await automationService.deleteAutomation(automation.id, () => {
+			if (!isEnabled()) {
+				throw new Error(localize('automationsDisabledBeforeDelete', "Automations were disabled before the automation could be deleted."));
+			}
+		});
+		status(localize('automationDeletedStatus', "Deleted automation {0}", automation.name));
+	} catch (error) {
+		logService.error('[AutomationsCards] Failed to delete automation', error);
+		await dialogService.error(
+			localize('automationDeleteFailed', "Failed to delete automation."),
+			getErrorMessage(error),
+		);
+	}
+}
+
 //#endregion
 
 //#region AutomationsView (Custom View)
@@ -1361,5 +1410,144 @@ registerAction2(class NewAutomationAction extends Action2 {
 		}
 	}
 });
+
+registerAction2(class DuplicateAutomationAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.automations.duplicate',
+			title: localize2('duplicateAutomation', "Duplicate"),
+			precondition: ChatAutomationsEnabledContext,
+			menu: [{ id: Menus.AutomationCardContext, group: 'navigation', order: 1, when: ChatAutomationsEnabledContext }],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, automation: IAutomationDescriptor): Promise<void> {
+		const automationDialogService = accessor.get(IAutomationDialogService);
+		const automationService = accessor.get(IAutomationService);
+		const configurationService = accessor.get(IConfigurationService);
+		const dialogService = accessor.get(IDialogService);
+		const logService = accessor.get(ILogService);
+		const isEnabled = () => configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true;
+		if (!isEnabled()) {
+			await showAutomationsDisabled(dialogService);
+			return;
+		}
+
+		try {
+			const name = getDuplicateAutomationName(automation.name, automationService.automations.get());
+			const result = await automationDialogService.showAutomationDialog({
+				initialValues: {
+					name,
+					prompt: automation.prompt,
+					schedule: automation.schedule,
+					target: automation.target,
+					modelId: automation.modelId,
+					mode: automation.mode,
+					permissionLevel: automation.permissionLevel,
+					enabled: automation.enabled,
+				},
+			});
+			if (!result || result.kind !== 'create') {
+				return;
+			}
+			if (!isEnabled()) {
+				await showAutomationsDisabled(dialogService);
+				return;
+			}
+			const duplicate = await automationService.createAutomation(result.value, () => {
+				if (!isEnabled()) {
+					throw new Error(localize('automationsDisabledBeforeDuplicate', "Automations were disabled before the duplicate could be saved."));
+				}
+			});
+			status(localize('automationDuplicatedStatus', "Created duplicate automation {0}", duplicate.name));
+		} catch (error) {
+			logService.error('[Automations] Failed to duplicate automation', error);
+			await dialogService.error(
+				localize('automationDuplicateFailed', "Failed to duplicate automation."),
+				getErrorMessage(error),
+			);
+		}
+	}
+});
+
+registerAction2(class DeleteAutomationAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.automations.delete',
+			title: localize2('deleteAutomationContextMenu', "Delete"),
+			precondition: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardCanDeleteContext),
+			menu: [{ id: Menus.AutomationCardContext, group: 'navigation', order: 3, when: ChatAutomationsEnabledContext }],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, automation: IAutomationDescriptor): Promise<void> {
+		await confirmAndDeleteAutomation(
+			automation,
+			accessor.get(IAutomationService),
+			accessor.get(IConfigurationService),
+			accessor.get(IDialogService),
+			accessor.get(ILogService),
+		);
+	}
+});
+
+registerAction2(class DisableAutomationAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.automations.disable',
+			title: localize2('disableAutomationContextMenu', "Disable"),
+			precondition: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardCanDisableContext),
+			menu: [{ id: Menus.AutomationCardContext, group: 'navigation', order: 2, when: ChatAutomationsEnabledContext }],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, automation: IAutomationDescriptor): Promise<void> {
+		const automationService = accessor.get(IAutomationService);
+		if (!automation.enabled || automationService.canUpdateAutomation?.(automation.id) === false) {
+			return;
+		}
+		const configurationService = accessor.get(IConfigurationService);
+		const dialogService = accessor.get(IDialogService);
+		const logService = accessor.get(ILogService);
+		const isEnabled = () => configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true;
+		if (!isEnabled()) {
+			await showAutomationsDisabled(dialogService);
+			return;
+		}
+		try {
+			const result = await automationService.updateAutomationIfUnchanged(automation.id, { enabled: false }, automation, () => {
+				if (!isEnabled()) {
+					throw new Error(localize('automationsDisabledBeforeDisable', "Automations were disabled before the automation could be updated."));
+				}
+			});
+			if (result.kind === 'conflict') {
+				throw new Error(result.current
+					? localize('automationChangedDuringDisable', "This automation changed before it could be disabled. Try again.")
+					: localize('automationDeletedDuringDisable', "This automation was deleted before it could be disabled."));
+			}
+			status(localize('automationDisabledStatus', "Disabled automation {0}", automation.name));
+		} catch (error) {
+			logService.error('[Automations] Failed to disable automation', error);
+			await dialogService.error(
+				localize('automationDisableFailed', "Failed to disable automation."),
+				getErrorMessage(error),
+			);
+		}
+	}
+});
+
+function getDuplicateAutomationName(name: string, automations: readonly IAutomationDescriptor[]): string {
+	const existingNames = new Set(automations.map(automation => automation.name));
+	const copyName = localize('automationCopyName', "{0} Copy", name);
+	if (!existingNames.has(copyName)) {
+		return copyName;
+	}
+	for (let index = 2; ; index++) {
+		const indexedCopyName = localize('automationIndexedCopyName', "{0} Copy {1}", name, index);
+		if (!existingNames.has(indexedCopyName)) {
+			return indexedCopyName;
+		}
+	}
+}
 
 //#endregion

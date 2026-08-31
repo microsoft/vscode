@@ -54,7 +54,7 @@ function computeTurnStats(chat: IChat, reader: IReader): IDiffStats {
 function buildDebugArtifactSections(debugData: ISessionChatPillsDebugData): readonly IChatPillSection[] {
 	const entries = debugData.markdownFiles.map(name => {
 		const resource = URI.from({ scheme: 'session-chat-pills-debug', path: `/${name}` });
-		return { id: name, label: name, resource, ...sessionArtifactLocation(resource, name), open: () => { } };
+		return { id: name, label: name, resource, ...sessionArtifactLocation(resource.path, name), open: () => { } };
 	});
 	return entries.length ? [{ title: localize('sessionArtifacts.files', "Files"), entries }] : [];
 }

@@ -31,7 +31,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { IGitHubInfo, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../services/sessions/common/session.js';
+import { IGitHubInfo, isActiveSessionStatus, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsRecentWorkspacesService, isWorktreeWorkspaceUri } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
@@ -73,6 +73,7 @@ const RESTORE_CONNECT_GRACE_MS = 5000;
  */
 export interface IWorkspacePickerItem {
 	readonly folderUri?: URI;
+	readonly ariaLabel?: string;
 	/** The resolved workspace (used for unavailable-provider checks). */
 	readonly providerId?: string;
 	readonly browseActionIndex?: number;
@@ -138,7 +139,25 @@ interface IWorkspacePickerTriggerElements {
 	badge?: CountBadge;
 }
 
-type IWorkspacePickerAction = IAction & { icon?: ThemeIcon; hoverContent?: string; onRemove?: () => void };
+type IWorkspacePickerAction = IAction & { ariaLabel?: string; icon?: ThemeIcon; hoverContent?: string; onRemove?: () => void };
+
+function getWorkspacePickerItemAriaLabel(item: IActionListItem<IWorkspacePickerItem>): string {
+	return item.item?.ariaLabel ?? item.label ?? '';
+}
+
+function getRemoteHostStatusDescription(provider: IAgentHostSessionsProvider, status: RemoteAgentHostConnectionStatus): string {
+	const statusLabel = getStatusLabel(status);
+	const activeSessionCount = provider.getSessions()
+		.filter(session => !session.isArchived.get() && isActiveSessionStatus(session.status.get()))
+		.length;
+	if (activeSessionCount === 0) {
+		return statusLabel;
+	}
+
+	return activeSessionCount === 1
+		? localize('workspacePicker.statusWithActiveSession', "{0} · {1} active session", statusLabel, activeSessionCount)
+		: localize('workspacePicker.statusWithActiveSessions', "{0} · {1} active sessions", statusLabel, activeSessionCount);
+}
 
 /**
  * A unified workspace picker that shows workspaces from all registered session
@@ -684,7 +703,7 @@ export class WorkspacePicker extends Disposable {
 			undefined,
 			[],
 			{
-				getAriaLabel: (item) => item.label ?? '',
+				getAriaLabel: getWorkspacePickerItemAriaLabel,
 				getWidgetAriaLabel: () => localize('workspacePicker.ariaLabel', "Workspace Picker"),
 			},
 			this._buildListOptions(items, undefined),
@@ -705,7 +724,7 @@ export class WorkspacePicker extends Disposable {
 
 		const delegate = this._buildDelegate(triggerElement, () => this._hidePicker());
 		const accessibilityProvider = {
-			getAriaLabel: (item: IActionListItem<IWorkspacePickerItem>) => item.label ?? '',
+			getAriaLabel: getWorkspacePickerItemAriaLabel,
 			getWidgetAriaLabel: () => localize('workspacePicker.ariaLabel', "Workspace Picker"),
 		};
 
@@ -1326,11 +1345,12 @@ export class WorkspacePicker extends Disposable {
 		if (includeRemoteProviders) {
 			for (const provider of remoteProviders) {
 				const status = provider.connectionStatus!.get();
-				const isTunnel = provider.remoteAddress?.startsWith(TUNNEL_ADDRESS_PREFIX);
+				const isTunnel = provider.remoteAddress?.startsWith(TUNNEL_ADDRESS_PREFIX) === true;
+				const statusDescription = getRemoteHostStatusDescription(provider, status);
 				const action = toAction({
 					id: `workspacePicker.remote.${provider.id}`,
 					label: provider.label,
-					tooltip: getStatusLabel(status),
+					tooltip: statusDescription,
 					enabled: true,
 					run: () => {
 						this._hidePicker();
@@ -1338,13 +1358,14 @@ export class WorkspacePicker extends Disposable {
 					},
 				});
 				const extended = action as IWorkspacePickerAction;
+				extended.ariaLabel = localize('workspacePicker.remoteAriaLabel', "{0}, {1}", provider.label, statusDescription);
 				extended.icon = RemoteAgentHostConnectionStatus.isIncompatible(status)
 					? Codicon.warning
 					: (isTunnel ? Codicon.cloud : Codicon.remote);
 				extended.hoverContent = getStatusHover(status, provider.remoteAddress);
 				if (provider.remoteAddress) {
 					extended.onRemove = async () => {
-						await removeRemoteHost(provider, this.remoteAgentHostService);
+						await removeRemoteHost(provider, this.remoteAgentHostService, this.configurationService);
 					};
 				}
 				manageActions.push(action);
@@ -1372,7 +1393,7 @@ export class WorkspacePicker extends Disposable {
 					label: action.label,
 					description: extended.onRemove ? action.tooltip || undefined : undefined,
 					group: { title: '', icon: extended.icon ?? Codicon.settingsGear },
-					item: { run: () => action.run(), commandId: action.id },
+					item: { run: () => action.run(), commandId: action.id, ariaLabel: extended.ariaLabel },
 					onRemove: extended.onRemove,
 				});
 			}
@@ -1744,9 +1765,11 @@ export class WorkspacePicker extends Disposable {
 		let isFirstRun = true;
 		store.add(autorun(reader => {
 			const status = connStatus.read(reader);
+			const isBusy = RemoteAgentHostConnectionStatus.isConnecting(status)
+				|| RemoteAgentHostConnectionStatus.isReconnecting(status);
 			if (RemoteAgentHostConnectionStatus.isConnected(status)) {
 				this._connectionStatusWatch.clear();
-			} else if ((RemoteAgentHostConnectionStatus.isDisconnected(status) || RemoteAgentHostConnectionStatus.isIncompatible(status)) && !isFirstRun) {
+			} else if (!isBusy && !isFirstRun) {
 				fallback();
 			}
 			isFirstRun = false;

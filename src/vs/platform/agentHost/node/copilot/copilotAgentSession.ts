@@ -1594,7 +1594,7 @@ export class CopilotAgentSession extends Disposable {
 			type: ActionType.ChatError,
 			turnId: turn.id,
 			duration: turn.duration,
-			part: createErrorResponsePart(error),
+			part: createErrorResponsePart(error, true),
 		});
 		this._clearActiveTurn();
 		return turn.id;
@@ -2644,7 +2644,7 @@ export class CopilotAgentSession extends Disposable {
 			part: createErrorResponsePart({
 				errorType: 'developmentRecoverableError',
 				message: localize('copilotAgent.developmentRecoverableError', "Injected recoverable development error ({0}/{1}).", attempt, totalFailures),
-			}),
+			}, true),
 		});
 		this._clearActiveTurn();
 	}
@@ -3516,7 +3516,7 @@ export class CopilotAgentSession extends Disposable {
 			}
 
 			const isNewFile = edits?.items.some(edit => !edit.before && !!edit.after);
-			const { confirmationTitle, invocationMessage, toolInput, permissionKind, permissionPath } = getPermissionDisplay(request, this._workingDirectory, isNewFile);
+			const { confirmationTitle, invocationMessage, toolInput, permissionKind, permissionPath } = getPermissionDisplay(request, this._workingDirectory, isNewFile, this._appliedAdditionalDirectories);
 
 			// Fire a pending_confirmation signal to transition the tool to PendingConfirmation
 			const toolName = request.kind === 'mcp' || request.kind === 'custom-tool' || request.kind === 'hook'
@@ -5003,7 +5003,7 @@ export class CopilotAgentSession extends Disposable {
 				type: ActionType.ChatError,
 				turnId: this._turnId,
 				duration: turn?.duration ?? 0,
-				part: createErrorResponsePart(buildChatErrorInfoFromCopilotSdkFields(e.data)),
+				part: createErrorResponsePart(buildChatErrorInfoFromCopilotSdkFields(e.data), !e.agentId && turn !== undefined),
 			}, parentToolCallId);
 			if (!parentToolCallId) {
 				this._clearActiveTurn();

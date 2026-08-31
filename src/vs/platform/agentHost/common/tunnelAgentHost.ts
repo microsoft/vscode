@@ -302,6 +302,25 @@ export function isTunnelGatewaySelectionRejectedError(error: unknown): boolean {
 }
 
 /**
+ * Error name for a connect attempt whose requested tunnel no longer exists.
+ * Matching on the name survives the shared-process IPC boundary.
+ */
+export const TUNNEL_NOT_FOUND_ERROR_NAME = 'TunnelNotFoundError';
+
+/** Raised when the requested tunnel cannot be resolved. */
+export class TunnelNotFoundError extends Error {
+	constructor(tunnelId: string) {
+		super(`[TunnelAgentHost] Tunnel ${tunnelId} not found`);
+		this.name = TUNNEL_NOT_FOUND_ERROR_NAME;
+	}
+}
+
+/** Whether `error` is a {@link TunnelNotFoundError}, including across IPC. */
+export function isTunnelNotFoundError(error: unknown): boolean {
+	return error instanceof Error && error.name === TUNNEL_NOT_FOUND_ERROR_NAME;
+}
+
+/**
  * Serializable result from a successful tunnel connect operation.
  * Returned over IPC from the shared process.
  */

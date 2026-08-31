@@ -151,7 +151,7 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 		// Mission Control mints the client id and binds the relay lane to it, so the AHP identity
 		// must match or the host rejects requests on that lane.
 		const protocolClient = this._instantiationService.createInstance(
-			AgentHostProtocolClient, address, transportFactory, undefined, clientToken.client_id, editorWindowAgentHostClientInfo,
+			AgentHostProtocolClient, address, transportFactory, { clientId: clientToken.client_id, clientInfo: editorWindowAgentHostClientInfo },
 		);
 
 		let status: RemoteAgentHostConnectionStatus = RemoteAgentHostConnectionStatus.connected;

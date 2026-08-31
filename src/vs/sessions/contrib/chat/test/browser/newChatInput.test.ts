@@ -63,6 +63,9 @@ interface IAttachmentRenderingHarness {
 			setFile(resource: URI, options: object): void;
 		};
 	};
+	readonly openerService: {
+		open(resource: URI): Promise<boolean>;
+	};
 	removeAttachment(id: string): void;
 }
 
@@ -202,12 +205,13 @@ suite('NewChatInputWidget', () => {
 		});
 	});
 
-	test('renders a keyboard-reachable remove button for string context pills', () => {
+	test('renders GitHub context pills as openable with a keyboard-reachable remove button', async () => {
 		const container = document.createElement('div');
 		const entry = toPasteVariableEntry('microsoft/vscode#332825', 'GitHub context: https://github.com/microsoft/vscode/pull/332825', {
 			id: 'github-context:https://github.com/microsoft/vscode/pull/332825',
 		});
 		let removed: string | undefined;
+		let opened: string | undefined;
 		const renderDisposables = disposables.add(new DisposableStore());
 		updateAttachmentRendering.call({
 			_container: container,
@@ -221,26 +225,45 @@ suite('NewChatInputWidget', () => {
 					setFile: () => { },
 				}),
 			},
+			openerService: {
+				open: async resource => {
+					opened = resource.toString();
+					return true;
+				},
+			},
 			removeAttachment: id => removed = id,
 		});
 		const removeButton = container.querySelector<HTMLButtonElement>('.sessions-chat-attachment-remove');
 		const pill = container.querySelector<HTMLElement>('.sessions-chat-attachment-pill');
+		const openButton = container.querySelector<HTMLButtonElement>('.sessions-chat-attachment-open');
 		let bubbledKeyDown = false;
 		pill?.addEventListener('keydown', () => bubbledKeyDown = true);
 		removeButton?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+		openButton?.click();
+		await Promise.resolve();
 		removeButton?.click();
 
 		assert.deepStrictEqual({
+			pillRole: pill?.getAttribute('role'),
+			pillTabIndex: pill?.tabIndex,
+			openTagName: openButton?.tagName,
+			openAriaLabel: openButton?.getAttribute('aria-label'),
 			tagName: removeButton?.tagName,
 			tabIndex: removeButton?.tabIndex,
 			ariaLabel: removeButton?.getAttribute('aria-label'),
 			bubbledKeyDown,
+			opened,
 			removed,
 		}, {
+			pillRole: null,
+			pillTabIndex: -1,
+			openTagName: 'BUTTON',
+			openAriaLabel: 'Open microsoft/vscode#332825',
 			tagName: 'BUTTON',
 			tabIndex: 0,
 			ariaLabel: 'Remove microsoft/vscode#332825',
 			bubbledKeyDown: false,
+			opened: 'https://github.com/microsoft/vscode/pull/332825',
 			removed: entry.id,
 		});
 	});
@@ -276,6 +299,7 @@ suite('NewChatInputWidget', () => {
 					setFile: (_resource, _options) => pill.textContent = 'docs',
 				}),
 			},
+			openerService: { open: async () => true },
 			removeAttachment: () => { },
 		});
 

@@ -57,6 +57,12 @@ const agentMergeMenuPrecondition = ContextKeyExpr.and(agentMergeCommandPrecondit
  * Agent Merge owns the primary button only when neither marking the pull
  * request ready nor merging it applies — the states the user is otherwise left
  * waiting in, including a blocked pull request that offers no operation at all.
+ *
+ * The auto-merge states are included because Agent Merge replaces them on the
+ * button: it subsumes "let this merge on its own once it is ready", and the
+ * changes button bar drops those two operations entirely. Where Agent Merge is
+ * unavailable — the feature is off, or the session is archived — that state
+ * offers no button at all.
  */
 const agentMergeOwnsPrimaryButton = ContextKeyExpr.or(
 	ContextKeyExpr.equals(SessionPrimaryPullRequestOperationContext.key, AgentHostPullRequestOperationId.EnableAutoMerge),
@@ -204,12 +210,19 @@ abstract class AgentMergeActionBase extends Action2 {
 // The primary button only names the Agent Merge actions, so it is contributed
 // as a submenu: the changes button bar opens exactly these entries as a context
 // menu rather than its own dropdown, which also carries pull request operations.
+//
+// Deliberately not gated on Agent Merge being enabled for the session: the
+// button stands in for the auto-merge operations either way, and enabling it is
+// one of the entries the submenu offers.
 MenuRegistry.appendMenuItem(Menus.ChangesOperationsDropdown, {
 	submenu: Menus.ChangesAgentMerge,
 	title: localize2('agentMerge.primary', "Agent Merge"),
+	// The same icon Agent Merge wears elsewhere, and the one the auto-merge
+	// operations it stands in for carried on this button.
+	icon: Codicon.gitMerge,
 	group: CHANGES_OPERATIONS_DROPDOWN_PRIMARY_GROUP,
 	order: 1,
-	when: ContextKeyExpr.and(agentMergeMenuPrecondition, agentMergeOwnsPrimaryButton, SessionAgentMergeEnabledContext),
+	when: ContextKeyExpr.and(agentMergeMenuPrecondition, agentMergeOwnsPrimaryButton),
 });
 
 /** Menus the Agent Merge entries appear on: the operations dropdown, and their own context menu. */

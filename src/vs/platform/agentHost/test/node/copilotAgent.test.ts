@@ -34,7 +34,7 @@ import type { IByokLmBridgeConnection, IByokLmModelInfo } from '../../common/age
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
-import { AgentHostSessionOpenTelemetry, IAgentHostSessionOpenTelemetry } from '../../node/agentHostSessionOpenTelemetry.js';
+import { IAgentHostSessionOpenTelemetry } from '../../node/agentHostSessionOpenTelemetry.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
@@ -917,7 +917,17 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	const copilotApiService = options?.copilotApiService ?? new TestCopilotApiService();
 	services.set(ICopilotApiService, copilotApiService);
 	services.set(ITelemetryService, telemetryService);
-	services.set(IAgentHostSessionOpenTelemetry, disposables.add(new AgentHostSessionOpenTelemetry(telemetryService)));
+	services.set(IAgentHostSessionOpenTelemetry, {
+		_serviceBrand: undefined,
+		withSubscription: async (_resource, operation) => operation({
+			servedFromMemory: undefined,
+			setServedFromMemory: () => { },
+			restoreStarted: () => { },
+			restoreCompleted: () => { },
+		}),
+		withSdkResume: async (_session, operation) => operation(),
+		sdkResumeFallbackCreated: () => { },
+	});
 	if (options?.environmentServiceRegistration !== 'none') {
 		const environmentService = {
 			_serviceBrand: undefined,
@@ -5496,43 +5506,6 @@ suite('CopilotAgent', () => {
 			});
 			assert.deepStrictEqual(client.getSessionMetadataCalls, ['target']);
 			assert.strictEqual(client.listSessionCallCount, 0);
-		} finally {
-			await disposeAgent(agent);
-		}
-	});
-
-	test('getChatMetadata restores registered sessions from host metadata without an SDK lookup', async () => {
-		const sessionDataService = disposables.add(new TestSessionDataService());
-		const session = AgentSession.uri('copilotcli', 'target');
-		const workingDirectory = URI.file('/workspace');
-		const db = sessionDataService.openDatabase(session);
-		await db.object.setMetadata('copilot.workingDirectory', workingDirectory.toString());
-		db.dispose();
-
-		const client = new TestCopilotClient([sdkSession('target')]);
-		const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
-		try {
-			const chat = defaultChatUri(session);
-			const metadata = await agent.getChatMetadata(chat, exactChatContext(session, chat, session), undefined, {
-				activation: 'restore',
-				registryFallback: { startTime: 10, modifiedTime: 20 },
-			});
-
-			assert.deepStrictEqual({
-				metadata: metadata && {
-					...withoutUndefinedProperties(metadata),
-					workingDirectories: metadata.workingDirectories?.map(directory => directory.toString()),
-				},
-				getSessionMetadataCalls: client.getSessionMetadataCalls,
-			}, {
-				metadata: {
-					chat,
-					startTime: 10,
-					modifiedTime: 20,
-					workingDirectories: [workingDirectory.toString()],
-				},
-				getSessionMetadataCalls: [],
-			});
 		} finally {
 			await disposeAgent(agent);
 		}
@@ -11223,7 +11196,7 @@ suite('CopilotAgent', () => {
 			const session = AgentSession.uri('copilotcli', 's1');
 			const dbRef = sessionDataService.openDatabase(session);
 			try {
-				await dbRef.object.setMetadata('copilot.workingDirectories', JSON.stringify([URI.file(workingDirectory).toString()]));
+				await dbRef.object.setMetadata('copilot.workingDirectory', URI.file(workingDirectory).toString());
 				await dbRef.object.setMetadata('copilot.agent', JSON.stringify({ uri: 'file:///old-client/data.md' }));
 			} finally {
 				dbRef.dispose();
@@ -11240,13 +11213,7 @@ suite('CopilotAgent', () => {
 			try {
 				await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
 				await internals._resumeSession('s1');
-				assert.deepStrictEqual({
-					resumeAgents,
-					getSessionMetadataCalls: client.getSessionMetadataCalls,
-				}, {
-					resumeAgents: [undefined],
-					getSessionMetadataCalls: [],
-				});
+				assert.deepStrictEqual(resumeAgents, [undefined]);
 			} finally {
 				await fs.rm(workingDirectory, { recursive: true, force: true });
 				await disposeAgent(agent);
