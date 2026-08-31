@@ -1882,6 +1882,8 @@ suite('CopilotAgent', () => {
 					https_proxy: process.env['https_proxy'],
 					ALL_PROXY: process.env['ALL_PROXY'],
 					all_proxy: process.env['all_proxy'],
+					NO_PROXY: process.env['NO_PROXY'],
+					no_proxy: process.env['no_proxy'],
 				};
 				return { resolved: { source: 'none' as const, serverManaged: false, deviceManaged: false, clientManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [] } };
 			},
@@ -1894,9 +1896,11 @@ suite('CopilotAgent', () => {
 			https_proxy: process.env['https_proxy'],
 			ALL_PROXY: process.env['ALL_PROXY'],
 			all_proxy: process.env['all_proxy'],
+			NO_PROXY: process.env['NO_PROXY'],
+			no_proxy: process.env['no_proxy'],
 		};
 
-		await getCopilotManagedSettingsDiagnostics(runtimeSdk, 'token', 'https://github.example.com', signal, 3500, 'http://proxy.example.com:8080');
+		await getCopilotManagedSettingsDiagnostics(runtimeSdk, 'token', 'https://github.example.com', signal, 3500, 'http://proxy.example.com:8080', '127.0.0.1,localhost');
 
 		assert.deepStrictEqual({
 			authInfo: receivedInput?.authInfo,
@@ -1910,6 +1914,8 @@ suite('CopilotAgent', () => {
 				https_proxy: process.env['https_proxy'],
 				ALL_PROXY: process.env['ALL_PROXY'],
 				all_proxy: process.env['all_proxy'],
+				NO_PROXY: process.env['NO_PROXY'],
+				no_proxy: process.env['no_proxy'],
 			},
 		}, {
 			authInfo: { type: 'token', host: 'https://github.example.com', token: 'token' },
@@ -1922,6 +1928,8 @@ suite('CopilotAgent', () => {
 				https_proxy: undefined,
 				ALL_PROXY: undefined,
 				all_proxy: undefined,
+				NO_PROXY: '127.0.0.1,localhost',
+				no_proxy: undefined,
 			},
 			environmentRestored: before,
 		});

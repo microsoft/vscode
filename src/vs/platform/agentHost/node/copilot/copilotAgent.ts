@@ -137,8 +137,9 @@ export async function getCopilotManagedSettingsDiagnostics(
 	signal: AbortSignal,
 	timeoutMs = COPILOT_MANAGED_SETTINGS_QUERY_TIMEOUT_MS,
 	proxy: string | undefined = undefined,
+	noProxy: string | undefined = undefined,
 ): Promise<{ account?: string; resolved: ManagedSettingsResolvedData }> {
-	const request = invokeWithProxyEnvironment(proxy, () => runtimeSdk.getManagedSettings({
+	const request = invokeWithProxyEnvironment(proxy, noProxy, () => runtimeSdk.getManagedSettings({
 		...(token ? { authInfo: { type: 'token', host, token } as const, token } : {}),
 		signal,
 	}));
@@ -149,23 +150,32 @@ export async function getCopilotManagedSettingsDiagnostics(
 	return result;
 }
 
-function invokeWithProxyEnvironment<T>(proxy: string | undefined, invoke: () => Promise<T>): Promise<T> {
-	if (!proxy) {
+function invokeWithProxyEnvironment<T>(proxy: string | undefined, noProxy: string | undefined, invoke: () => Promise<T>): Promise<T> {
+	if (!proxy && !noProxy) {
 		return invoke();
 	}
-	const previousValues = COPILOT_PROXY_ENV_KEYS.map(key => process.env[key]);
-	for (const key of COPILOT_PROXY_ENV_KEYS) {
+	const keys = [
+		...(proxy ? COPILOT_PROXY_ENV_KEYS : []),
+		...(noProxy ? COPILOT_NO_PROXY_ENV_KEYS : []),
+	];
+	const previousValues = keys.map(key => process.env[key]);
+	for (const key of keys) {
 		delete process.env[key];
 	}
-	for (const key of COPILOT_PROXY_SET_ENV_KEYS) {
-		process.env[key] = proxy;
+	if (proxy) {
+		for (const key of COPILOT_PROXY_SET_ENV_KEYS) {
+			process.env[key] = proxy;
+		}
+	}
+	if (noProxy) {
+		process.env['NO_PROXY'] = noProxy;
 	}
 	try {
 		// The SDK snapshots process.env while constructing the native request.
 		return invoke();
 	} finally {
-		for (let index = 0; index < COPILOT_PROXY_ENV_KEYS.length; index++) {
-			const key = COPILOT_PROXY_ENV_KEYS[index];
+		for (let index = 0; index < keys.length; index++) {
+			const key = keys[index];
 			const value = previousValues[index];
 			if (value === undefined) {
 				delete process.env[key];
@@ -192,6 +202,7 @@ function isCopilotConnectionClosedError(error: unknown): boolean {
  * Proxy env vars recognized by the Copilot runtime.
  */
 const COPILOT_PROXY_ENV_KEYS = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy', 'ALL_PROXY', 'all_proxy'] as const;
+const COPILOT_NO_PROXY_ENV_KEYS = ['NO_PROXY', 'no_proxy'] as const;
 /**
  * Proxy env vars we set when injecting the resolved CAPI proxy.
  */
@@ -1359,6 +1370,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				AbortSignal.timeout(COPILOT_MANAGED_SETTINGS_DIAGNOSTICS_TIMEOUT_MS),
 				COPILOT_MANAGED_SETTINGS_QUERY_TIMEOUT_MS,
 				proxy,
+				this._readNoProxy(process.env),
 			);
 		})();
 		const result = await raceTimeout(diagnostics, COPILOT_MANAGED_SETTINGS_DIAGNOSTICS_TIMEOUT_MS);
@@ -4877,8 +4889,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const noProxy = this._readNoProxy(env);
 		this._appliedNoProxy = noProxy;
 		if (noProxy) {
+			for (const key of COPILOT_NO_PROXY_ENV_KEYS) {
+				delete env[key];
+			}
 			env['NO_PROXY'] = noProxy;
-			delete env['no_proxy'];
 		}
 		const kerberosSpn = this._readKerberosSpn(env);
 		this._appliedProxyKerberosSpn = kerberosSpn;
