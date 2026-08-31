@@ -578,10 +578,10 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 
 			this._tryUpdateWidgetWidth();
 			this._updateButtons();
+			this._domNode.setAttribute('aria-hidden', 'false');
 
 			this._revealTimeouts.push(setTimeout(() => {
 				this._domNode.classList.add('visible');
-				this._domNode.setAttribute('aria-hidden', 'false');
 				this._updateFindInputAriaLabel();
 			}, 0));
 
