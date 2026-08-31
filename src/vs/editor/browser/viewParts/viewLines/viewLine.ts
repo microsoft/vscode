@@ -169,7 +169,9 @@ export class ViewLine implements IVisibleLine {
 			options.fontLigatures !== EditorFontLigatures.OFF,
 			selectionsOnLine,
 			lineData.textDirection,
-			options.verticalScrollbarSize
+			options.verticalScrollbarSize,
+			false,
+			options.forceFullwidthCharacterWidth
 		);
 
 		if (this._renderedViewLine && this._renderedViewLine.input.equals(renderLineInput)) {
@@ -641,8 +643,16 @@ class RenderedViewLine implements IRenderedViewLine {
 		}
 
 		const domPosition = this._characterMapping.getDomPosition(column);
+		const readingTarget = this._getReadingTarget(domNode);
+		const part = <HTMLElement>readingTarget.children[domPosition.partIndex];
+		if (part.dataset.fullwidth) {
+			const clientRect = part.getBoundingClientRect();
+			context.markDidDomLayout();
+			const left = Math.max(0, (clientRect.left - context.clientRectDeltaLeft) / context.clientRectScale);
+			return domPosition.charIndex === 0 ? left : left + clientRect.width / context.clientRectScale;
+		}
 
-		const r = RangeUtil.readHorizontalRanges(this._getReadingTarget(domNode), domPosition.partIndex, domPosition.charIndex, domPosition.partIndex, domPosition.charIndex, context);
+		const r = RangeUtil.readHorizontalRanges(readingTarget, domPosition.partIndex, domPosition.charIndex, domPosition.partIndex, domPosition.charIndex, context);
 		if (!r || r.length === 0) {
 			return -1;
 		}

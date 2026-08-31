@@ -45,7 +45,7 @@ function toAnnotatedText(text: string, lineBreakData: ModelLineProjectionData | 
 	return actualAnnotatedText;
 }
 
-function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, breakAfter: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean, text: string, previousLineBreakData: ModelLineProjectionData | null, injectedText: LineInjectedText[] | null = null): ModelLineProjectionData | null {
+function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, breakAfter: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean, text: string, previousLineBreakData: ModelLineProjectionData | null, injectedText: LineInjectedText[] | null = null, forceFullwidthCharacterWidth: boolean = false): ModelLineProjectionData | null {
 	const fontInfo = new FontInfo({
 		pixelRatio: 1,
 		fontFamily: 'testFontFamily',
@@ -72,7 +72,7 @@ function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, 
 			return injectedText;
 		}
 	};
-	const lineBreaksComputer = factory.createLineBreaksComputer(context, fontInfo, tabSize, breakAfter, wrappingIndent, wordBreak, wrapOnEscapedLineFeeds);
+	const lineBreaksComputer = factory.createLineBreaksComputer(context, fontInfo, tabSize, breakAfter, wrappingIndent, wordBreak, wrapOnEscapedLineFeeds, forceFullwidthCharacterWidth);
 	const previousLineBreakDataClone = previousLineBreakData ? new ModelLineProjectionData(null, null, previousLineBreakData.breakOffsets.slice(0), previousLineBreakData.breakOffsetsVisibleColumn.slice(0), previousLineBreakData.wrappedTextIndentLength) : null;
 	lineBreaksComputer.addRequest(1, previousLineBreakDataClone);
 	return lineBreaksComputer.finalize()[0];
@@ -148,6 +148,14 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 			breakOffsets: [4, 7],
 			breakOffsetsVisibleColumn: [4, 7]
 		});
+	});
+
+	test('forces full-width characters to two columns when wrapping', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('', '');
+		const text = '擦擦a';
+		const lineBreakData = getLineBreakData(factory, 4, 4, 1.5, WrappingIndent.None, 'normal', false, text, null, null, true);
+
+		assert.strictEqual(toAnnotatedText(text, lineBreakData), '擦擦|a');
 	});
 
 	test('treats multi-character fixed-width injected text as an atomic span', () => {

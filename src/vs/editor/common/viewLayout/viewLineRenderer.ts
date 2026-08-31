@@ -45,6 +45,7 @@ export interface IRenderLineInputOptions {
 	textDirection: TextDirection | null;
 	verticalScrollbarSize: number;
 	renderNewLineWhenEmpty: boolean;
+	forceFullwidthCharacterWidth: boolean;
 }
 
 export class RenderLineInput {
@@ -69,6 +70,7 @@ export class RenderLineInput {
 	public readonly fontLigatures: boolean;
 	public readonly textDirection: TextDirection | null;
 	public readonly verticalScrollbarSize: number;
+	public readonly forceFullwidthCharacterWidth: boolean;
 
 	/**
 	 * Defined only when renderWhitespace is 'selection'. Selections are non-overlapping,
@@ -107,6 +109,7 @@ export class RenderLineInput {
 		textDirection: TextDirection | null,
 		verticalScrollbarSize: number,
 		renderNewLineWhenEmpty: boolean = false,
+		forceFullwidthCharacterWidth: boolean = false,
 	) {
 		this.useMonospaceOptimizations = useMonospaceOptimizations;
 		this.canUseHalfwidthRightwardsArrow = canUseHalfwidthRightwardsArrow;
@@ -138,6 +141,7 @@ export class RenderLineInput {
 		this.renderNewLineWhenEmpty = renderNewLineWhenEmpty;
 		this.textDirection = textDirection;
 		this.verticalScrollbarSize = verticalScrollbarSize;
+		this.forceFullwidthCharacterWidth = forceFullwidthCharacterWidth;
 
 		const wsmiddotDiff = Math.abs(wsmiddotWidth - spaceWidth);
 		const middotDiff = Math.abs(middotWidth - spaceWidth);
@@ -196,6 +200,7 @@ export class RenderLineInput {
 			&& this.textDirection === other.textDirection
 			&& this.verticalScrollbarSize === other.verticalScrollbarSize
 			&& this.renderNewLineWhenEmpty === other.renderNewLineWhenEmpty
+			&& this.forceFullwidthCharacterWidth === other.forceFullwidthCharacterWidth
 		);
 	}
 }
@@ -457,6 +462,7 @@ class ResolvedRenderLineInput {
 		public readonly renderSpaceCharCode: number,
 		public readonly renderWhitespace: RenderWhitespace,
 		public readonly renderControlCharacters: boolean,
+		public readonly fullwidthCharacterWidth: number,
 	) {
 		//
 	}
@@ -485,6 +491,7 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		// for inline decorations. `extractControlCharacters` removes empty line parts.
 		tokens = extractControlCharacters(lineContent, tokens);
 	}
+	const fullwidthCharacterWidth = input.spaceWidth * 2;
 	if (input.renderWhitespace === RenderWhitespace.All ||
 		input.renderWhitespace === RenderWhitespace.Boundary ||
 		(input.renderWhitespace === RenderWhitespace.Selection && !!input.selectionsOnLine) ||
@@ -510,6 +517,9 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		}
 		tokens = _applyInlineDecorations(lineContent, len, tokens, input.lineDecorations);
 	}
+	if (input.forceFullwidthCharacterWidth && !input.isBasicASCII && !input.containsRTL) {
+		tokens = splitFullWidthCharacters(lineContent, tokens);
+	}
 	if (!input.containsRTL) {
 		// We can never split RTL text, as it ruins the rendering
 		tokens = splitLargeTokens(lineContent, tokens, !input.isBasicASCII || input.fontLigatures);
@@ -533,7 +543,8 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		input.spaceWidth,
 		input.renderSpaceCharCode,
 		input.renderWhitespace,
-		input.renderControlCharacters
+		input.renderControlCharacters,
+		fullwidthCharacterWidth
 	);
 }
 
@@ -744,6 +755,33 @@ function extractControlCharacters(lineContent: string, tokens: LinePart[]): Line
 			lastLinePart = new LinePart(tokenEndIndex, token.type, token.metadata, token.containsRTL);
 			result.push(lastLinePart);
 		}
+	}
+	return result;
+}
+
+function splitFullWidthCharacters(lineContent: string, tokens: LinePart[]): LinePart[] {
+	const result: LinePart[] = [];
+	let tokenStartIndex = 0;
+	for (const token of tokens) {
+		if (tokenStartIndex === token.endIndex) {
+			result.push(token);
+			tokenStartIndex = token.endIndex;
+			continue;
+		}
+		let partStartIndex = tokenStartIndex;
+		for (let charIndex = tokenStartIndex; charIndex < token.endIndex; charIndex++) {
+			if (strings.isFullWidthCharacter(lineContent.charCodeAt(charIndex))) {
+				if (partStartIndex < charIndex) {
+					result.push(new LinePart(charIndex, token.type, token.metadata, token.containsRTL));
+				}
+				result.push(new LinePart(charIndex + 1, token.type, token.metadata | LinePartMetadata.IS_FULL_WIDTH, token.containsRTL));
+				partStartIndex = charIndex + 1;
+			}
+		}
+		if (partStartIndex < token.endIndex) {
+			result.push(new LinePart(token.endIndex, token.type, token.metadata, token.containsRTL));
+		}
+		tokenStartIndex = token.endIndex;
 	}
 	return result;
 }
@@ -996,6 +1034,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 	const renderSpaceCharCode = input.renderSpaceCharCode;
 	const renderWhitespace = input.renderWhitespace;
 	const renderControlCharacters = input.renderControlCharacters;
+	const fullwidthCharacterWidth = input.fullwidthCharacterWidth;
 
 	const characterMapping = new CharacterMapping(len + 1, parts.length);
 	let lastCharacterMappingDefined = false;
@@ -1018,11 +1057,16 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 		const partRendersWhitespace = (renderWhitespace !== RenderWhitespace.None && part.isWhitespace());
 		const partRendersWhitespaceWithWidth = partRendersWhitespace && !fontIsMonospace && (partType === 'mtkw'/*only whitespace*/ || !containsForeignElements);
 		const partIsEmptyAndHasPseudoAfter = (charIndex === partEndIndex && part.isPseudoAfter());
+		const partIsFullWidth = part.isFullWidth();
 		charOffsetInPart = 0;
 
 		sb.appendString('<span ');
 		if (partContainsRTL) {
 			sb.appendString('style="unicode-bidi:isolate" ');
+		} else if (partIsFullWidth) {
+			sb.appendString('style="display:inline-block;box-sizing:border-box;width:');
+			sb.appendString(String(fullwidthCharacterWidth));
+			sb.appendString('px;text-align:center" data-fullwidth="true" ');
 		}
 		sb.appendString('class="');
 		sb.appendString(partRendersWhitespaceWithWidth ? 'mtkz' : partType);

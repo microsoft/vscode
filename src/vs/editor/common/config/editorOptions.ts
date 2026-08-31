@@ -289,6 +289,11 @@ export interface IEditorOptions {
 	 */
 	fontVariations?: boolean | string;
 	/**
+	 * Center full-width characters in exactly two monospace character cells.
+	 * Defaults to false.
+	 */
+	forceFullwidthCharacterWidth?: boolean;
+	/**
 	 * Controls whether to use default color decorations or not using the default document color provider
 	 */
 	defaultColorDecorators?: 'auto' | 'always' | 'never';
@@ -5865,6 +5870,7 @@ export const enum EditorOption {
 	fontSize,
 	fontWeight,
 	fontVariations,
+	forceFullwidthCharacterWidth,
 	formatOnPaste,
 	formatOnType,
 	glyphMargin,
@@ -6372,6 +6378,10 @@ export const EditorOptions = {
 	fontSize: register(new EditorFontSize()),
 	fontWeight: register(new EditorFontWeight()),
 	fontVariations: register(new EditorFontVariations()),
+	forceFullwidthCharacterWidth: register(new EditorBooleanOption(
+		EditorOption.forceFullwidthCharacterWidth, 'forceFullwidthCharacterWidth', false,
+		{ description: nls.localize('forceFullwidthCharacterWidth', "Controls whether full-width characters are centered in exactly two monospace character cells.") }
+	)),
 	formatOnPaste: register(new EditorBooleanOption(
 		EditorOption.formatOnPaste, 'formatOnPaste', false,
 		{ description: nls.localize('formatOnPaste', "Controls whether the editor should automatically format the pasted content. A formatter must be available and the formatter should be able to format a range in a document.") }
