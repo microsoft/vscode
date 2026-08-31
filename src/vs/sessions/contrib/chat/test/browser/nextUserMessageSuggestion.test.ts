@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { cleanNextUserMessageSuggestion, createNextUserMessagePrompt, truncateSuggestionContext } from '../../common/nextUserMessageSuggestion.js';
+import { cleanNextUserMessageSuggestion, createNextUserMessageContext, createNextUserMessagePrompt, truncateSuggestionContext } from '../../common/nextUserMessageSuggestion.js';
 
 suite('Sessions - Next User Message Suggestion', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -21,17 +21,24 @@ suite('Sessions - Next User Message Suggestion', () => {
 	});
 
 	test('builds a prompt from bounded untrusted fields', () => {
-		const prompt = createNextUserMessagePrompt('request', 'response');
+		const prompt = createNextUserMessagePrompt();
+		const context = createNextUserMessageContext(`request-start-${'r'.repeat(2000)}-request-end`, `response-start-${'s'.repeat(10000)}-response-end`);
 		assert.deepStrictEqual({
 			hasPredictionContract: prompt.includes('Predict what they would actually type'),
-			hasUntrustedWarning: prompt.includes('untrusted conversation data'),
-			hasRequest: prompt.includes('<latest_user_request>\nrequest\n</latest_user_request>'),
-			hasResponse: prompt.includes('<final_assistant_response>\nresponse\n</final_assistant_response>'),
+			requestLength: context.latestRequest.length,
+			requestStart: context.latestRequest.startsWith('request-start-'),
+			requestEnd: context.latestRequest.endsWith('-request-end'),
+			responseLength: context.finalResponse.length,
+			responseStart: context.finalResponse.startsWith('response-start-'),
+			responseEnd: context.finalResponse.endsWith('-response-end'),
 		}, {
 			hasPredictionContract: true,
-			hasUntrustedWarning: true,
-			hasRequest: true,
-			hasResponse: true,
+			requestLength: 2000,
+			requestStart: true,
+			requestEnd: true,
+			responseLength: 10000,
+			responseStart: true,
+			responseEnd: true,
 		});
 	});
 
@@ -39,9 +46,11 @@ suite('Sessions - Next User Message Suggestion', () => {
 		assert.deepStrictEqual([
 			cleanNextUserMessageSuggestion('Run the focused tests'),
 			cleanNextUserMessageSuggestion('"Can you show the diff?"'),
+			cleanNextUserMessageSuggestion('“Can you show the diff?”'),
 			cleanNextUserMessageSuggestion('继续运行测试'),
 		], [
 			'Run the focused tests',
+			'Can you show the diff?',
 			'Can you show the diff?',
 			'继续运行测试',
 		]);

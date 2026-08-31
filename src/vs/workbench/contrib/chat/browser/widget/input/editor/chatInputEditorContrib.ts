@@ -227,7 +227,7 @@ class InputEditorDecorations extends Disposable {
 			// "Listening…"), PlaceholderTextContribution renders it already; skip
 			// the decoration placeholder so the two don't render on top of each
 			// other.
-			if (this.widget.inputEditor.getOption(EditorOption.placeholder)) {
+			if (this.widget.inputEditor.getOption(EditorOption.placeholder) !== undefined) {
 				this.updateAriaPlaceholder(this.widget.inputEditor.getOption(EditorOption.placeholder));
 				this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, []);
 				return;
