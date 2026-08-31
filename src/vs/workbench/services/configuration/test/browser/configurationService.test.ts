@@ -56,6 +56,8 @@ import { PolicyCategory } from '../../../../../base/common/policy.js';
 
 suite('ConfigurationDefaultOverridesContribution', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 	const firstSetting = 'test.firstAutoExperimentalSetting';
 	const secondSetting = 'test.secondAutoExperimentalSetting';
