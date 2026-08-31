@@ -6,7 +6,7 @@ import type tt from 'typescript/lib/tsserverlibrary';
 import { computeContext, nesRename, prepareNesRename } from '../common/api';
 import { CharacterBudget, ComputeContextSession, ContextResult, NullLogger, RequestContext, TokenBudgetExhaustedError, type Logger } from '../common/contextProvider';
 import { ErrorCode, RenameKind, type CachedContextRunnableResult, type ComputeContextRequest, type ComputeContextResponse, type ContextRunnableResultId, type CustomResponse, type NesRenameRequest, type NesRenameResponse, type PingResponse, type PrepareNesRenameRequest, type PrepareNesRenameResponse, type Range, type RegionContextRequest, type RegionContextResponse, type RenameGroup } from '../common/protocol';
-import { getRegionContext } from '../common/regionContextProvider';
+import { RegionContextProvider } from '../common/regionContextProvider';
 import { CancellationTokenWithTimer, Sessions } from '../common/typescripts';
 const ts = TS();
 
@@ -215,7 +215,7 @@ const regionContextHandler = (request: RegionContextRequest): RegionContextHandl
 
 	try {
 		const sourceFile = input.program.getSourceFile(input.file);
-		const regions = sourceFile === undefined ? [] : getRegionContext(sourceFile, request.arguments!.ranges, request.arguments!.requested) ?? [];
+		const regions = sourceFile === undefined ? [] : new RegionContextProvider().getRegions(sourceFile, request.arguments!.ranges, request.arguments!.requested) ?? [];
 		return { response: { regions }, responseRequired: true };
 	} catch (error) {
 		if (error instanceof Error) {

@@ -14,7 +14,7 @@ import { TypeScript7Api } from './ts7Api';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import tss from './typescripts';
 
-type StructuralEntity = { kind: string; name?: string; rangeNode: ts.Node; includeJsDoc?: boolean; continueWith?: ts.Node };
+type StructuralEntity = { kind: string; name?: string; rangeNode: ts.Node | [ts.Node, ts.Node]; includeJsDoc?: boolean; continueWith?: ts.Node };
 
 export class TS7RegionContextProvider implements Omit<IRegionContextProviderService, '_serviceBrand'>, vscode.Disposable {
 
@@ -108,41 +108,38 @@ export class TS7RegionContextProvider implements Omit<IRegionContextProviderServ
 		}
 	}
 
-	private async findEnclosingScopes(sourceFile: ts.SourceFile, line: number, column: number): Promise<Region[] | undefined> {
-
+	private async findEnclosingScopes(sourceFile: ts.SourceFile, line: number, column: number, requested?: LineRange | undefined): Promise<Region[] | undefined> {
 		const position = sourceFile.getPositionOfLineAndCharacter(line, column);
-
 		const tokenInfo = tss.getRelevantTokens(sourceFile, position);
-
 		const node = tokenInfo.touching ?? tokenInfo.token;
-		if (!node) {
-			return;
+		if (node === undefined) {
+			return undefined;
 		}
 
 		const result: Region[] = [];
 		for (let current: ts.Node | undefined = node; current; current = current.parent) {
 			if (ts.isSourceFile(current)) {
 				const endLine = sourceFile.getLineAndCharacterOfPosition(sourceFile.getEnd()).line;
-				const lineRange = this.toLineRange(0, endLine);
 				result.push({
 					kind: 'sourceFile',
-					name: path.basename(sourceFile.fileName),
-					range: lineRange
+					name: this.getBaseFileName(sourceFile.fileName),
+					range: { start: 0, end: endLine }
 				});
 				break;
 			}
 
-			const namedStructuralEntity = this.getStructuralEntity(current);
-			if (namedStructuralEntity !== undefined) {
-				const { kind, name, rangeNode, includeJsDoc, continueWith } = namedStructuralEntity;
-				const lineRange = this.toLineRange(
-					sourceFile.getLineAndCharacterOfPosition(rangeNode.getStart(sourceFile, includeJsDoc)).line,
-					sourceFile.getLineAndCharacterOfPosition(rangeNode.getEnd()).line
-				);
+			const structuralEntity = this.getStructuralEntity(sourceFile, current, requested);
+			if (structuralEntity !== undefined) {
+				const { kind, name, rangeNode, includeJsDoc, continueWith } = structuralEntity;
+				const rangeStartNode = Array.isArray(rangeNode) ? rangeNode[0] : rangeNode;
+				const rangeEndNode = Array.isArray(rangeNode) ? rangeNode[1] : rangeNode;
 				result.push({
 					kind,
 					name,
-					range: lineRange
+					range: {
+						start: sourceFile.getLineAndCharacterOfPosition(rangeStartNode.getStart(sourceFile, includeJsDoc)).line,
+						end: sourceFile.getLineAndCharacterOfPosition(rangeEndNode.getEnd()).line
+					}
 				});
 				current = continueWith ?? current;
 			}
@@ -150,18 +147,18 @@ export class TS7RegionContextProvider implements Omit<IRegionContextProviderServ
 		return result.length > 0 ? result : undefined;
 	}
 
-	private getStructuralEntity(node: ts.Node): StructuralEntity | undefined {
-		const parent: ts.Node | undefined = node.parent;
+	private getStructuralEntity(sourceFile: ts.SourceFile, node: ts.Node, requested?: LineRange | undefined): StructuralEntity | undefined {
+		const parent = node.parent;
 		let name: string | undefined;
-		let isParent: StructuralEntity | undefined;
 		switch (node.kind) {
-			case ts.SyntaxKind.JSDoc:
-				isParent = this.getStructuralEntity(parent);
-				if (isParent !== undefined) {
-					isParent.includeJsDoc = true;
-					isParent.continueWith = parent;
+			case ts.SyntaxKind.JSDoc: {
+				const parentEntity = this.getStructuralEntity(sourceFile, parent, requested);
+				if (parentEntity !== undefined) {
+					parentEntity.includeJsDoc = true;
+					parentEntity.continueWith ??= parent;
 				}
-				return isParent;
+				return parentEntity;
+			}
 			case ts.SyntaxKind.ImportDeclaration:
 				name = (node as ts.ImportDeclaration).moduleSpecifier.getText();
 				return { kind: 'import', name, rangeNode: node };
@@ -189,8 +186,6 @@ export class TS7RegionContextProvider implements Omit<IRegionContextProviderServ
 			case ts.SyntaxKind.ArrowFunction:
 				if (ts.isPropertyAssignment(parent) && ts.isIdentifier(parent.name)) {
 					name = parent.name.text;
-					// We use kind 'function' for arrow functions that are properties because from a usage perspective
-					// they are more similar to named functions or methods than to anonymous functions.
 					return { kind: 'function', name, rangeNode: parent };
 				} else if (ts.isVariableDeclaration(parent) && ts.isIdentifier(parent.name)) {
 					name = parent.name.text;
@@ -200,10 +195,11 @@ export class TS7RegionContextProvider implements Omit<IRegionContextProviderServ
 				}
 				return { kind: 'arrow-function', rangeNode: node };
 			case ts.SyntaxKind.PropertyDeclaration:
-				return this.handlePropertyDeclaration(node as ts.PropertyDeclaration);
-			// case ts.SyntaxKind.PropertySignature:
-			// 	name = (node as ts.PropertySignatureDeclaration).name.getText();
-			// 	return { kind: 'property', name, rangeNode: node };
+				return this.handleProperty(sourceFile, node as ts.PropertyDeclaration, requested);
+			case ts.SyntaxKind.PropertyAssignment:
+				return this.handleProperty(sourceFile, node as ts.PropertyAssignment, requested);
+			case ts.SyntaxKind.PropertySignature:
+				return this.handleProperty(sourceFile, node as ts.PropertySignatureDeclaration, requested);
 			case ts.SyntaxKind.GetAccessor:
 				name = (node as ts.GetAccessorDeclaration).name.getText();
 				return { kind: 'getter', name, rangeNode: node };
@@ -227,26 +223,98 @@ export class TS7RegionContextProvider implements Omit<IRegionContextProviderServ
 		}
 	}
 
-	private handlePropertyDeclaration(node: ts.PropertyDeclaration) {
+	private handleProperty(sourceFile: ts.SourceFile, node: ts.PropertyDeclaration | ts.PropertyAssignment | ts.PropertySignatureDeclaration, requested?: LineRange | undefined): StructuralEntity | undefined {
 		const name = node.name.getText();
-		const kind = node.type?.kind;
-		if (kind === ts.SyntaxKind.FunctionType || kind === ts.SyntaxKind.FunctionDeclaration || kind === ts.SyntaxKind.FunctionExpression || kind === ts.SyntaxKind.ArrowFunction) {
-			return { kind: 'function', name, rangeNode: node };
+		if (ts.isPropertyDeclaration(node) || ts.isPropertyAssignment(node)) {
+			const initializeKind = node.initializer?.kind;
+			if (initializeKind === ts.SyntaxKind.FunctionType || initializeKind === ts.SyntaxKind.FunctionDeclaration || initializeKind === ts.SyntaxKind.FunctionExpression || initializeKind === ts.SyntaxKind.ArrowFunction) {
+				return { kind: 'function', name, rangeNode: node };
+			}
+		}
+		const parent = node.parent;
+		if (requested !== undefined) {
+			const info = this.getMemberInfo(parent);
+			if (info === undefined) {
+				return undefined;
+			}
+			const { items, kind, memberKind, name } = info;
+			const range = this.calculateRange(sourceFile, parent, node, items, requested);
+			if (range === undefined) {
+				return undefined;
+			}
+			if (Array.isArray(range)) {
+				const [startIndex, endIndex] = range;
+				return {
+					kind: memberKind,
+					name,
+					rangeNode: [items[startIndex], items[endIndex]],
+					continueWith: parent
+				};
+			} else {
+				return {
+					kind,
+					name,
+					rangeNode: parent,
+					continueWith: parent.parent
+				};
+			}
 		}
 		return undefined;
 	}
 
-	private handlePropertyAssignment(node: ts.PropertyAssignment) {
-		const name = node.name.getText();
-		const kind = node.type?.kind;
-		if (kind === ts.SyntaxKind.FunctionType || kind === ts.SyntaxKind.FunctionDeclaration || kind === ts.SyntaxKind.FunctionExpression || kind === ts.SyntaxKind.ArrowFunction) {
-			return { kind: 'function', name, rangeNode: node };
+	private getMemberInfo(parent: ts.Node): { items: ts.NodeArray<ts.Node>; kind: string; memberKind: string; name?: string | undefined } | undefined {
+		if (ts.isClassDeclaration(parent)) {
+			return { items: parent.members, kind: 'class', memberKind: 'class-members', name: parent.name?.text };
+		} else if (ts.isInterfaceDeclaration(parent)) {
+			return { items: parent.members, kind: 'interface', memberKind: 'interface-members', name: parent.name?.text };
+		} else if (ts.isObjectLiteralExpression(parent)) {
+			return { items: parent.properties, kind: 'object-literal', memberKind: 'object-literal-members' };
+		} else if (ts.isTypeLiteralNode(parent)) {
+			return { items: parent.members, kind: 'type-literal', memberKind: 'type-literal-members' };
 		}
 		return undefined;
 	}
 
-	private toLineRange(startLine: number, endLine: number): LineRange {
-		return { start: startLine, end: endLine };
+	private calculateRange(sourceFile: ts.SourceFile, parent: ts.Node, node: ts.Node, items: ts.NodeArray<ts.Node>, requested: LineRange): [number, number] | ts.Node | undefined {
+		const startLine = sourceFile.getLineAndCharacterOfPosition(parent.getStart(sourceFile)).line;
+		const endLine = sourceFile.getLineAndCharacterOfPosition(parent.getEnd()).line;
+		if (requested.start <= startLine && requested.end >= endLine) {
+			return parent;
+		}
+
+		const index = items.indexOf(node);
+		if (index === -1) {
+			return undefined;
+		}
+
+		let startIndex = Math.max(0, index - 1);
+		while (index - startIndex < 3 && startIndex > 0) {
+			const member = items[startIndex - 1];
+			if (!this.isInsideRequestedRange(sourceFile, member, requested)) {
+				break;
+			}
+			startIndex--;
+		}
+
+		let endIndex = Math.min(items.length - 1, index + 1);
+		while (endIndex - index < 3 && endIndex < items.length - 1) {
+			const member = items[endIndex + 1];
+			if (!this.isInsideRequestedRange(sourceFile, member, requested)) {
+				break;
+			}
+			endIndex++;
+		}
+		return [startIndex, endIndex];
+	}
+
+	private isInsideRequestedRange(sourceFile: ts.SourceFile, member: ts.Node, requested: LineRange): boolean {
+		const memberStartLine = sourceFile.getLineAndCharacterOfPosition(member.getStart(sourceFile)).line;
+		const memberEndLine = sourceFile.getLineAndCharacterOfPosition(member.getEnd()).line;
+		return requested.start <= memberStartLine && requested.end >= memberEndLine;
+	}
+
+	private getBaseFileName(fileName: string): string {
+		return path.basename(fileName);
 	}
 
 	dispose(): void {
