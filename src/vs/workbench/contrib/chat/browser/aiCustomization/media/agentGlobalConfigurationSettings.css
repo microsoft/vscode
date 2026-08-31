@@ -75,7 +75,7 @@
 .agent-global-configuration-settings-row + .agent-global-configuration-settings-text-row,
 .agent-global-configuration-settings-text-row + .agent-global-configuration-settings-row,
 .agent-global-configuration-settings-text-row + .agent-global-configuration-settings-text-row {
-	border-top: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-agentsPanel-border));
 }
 
 .agent-global-configuration-settings-labels {
