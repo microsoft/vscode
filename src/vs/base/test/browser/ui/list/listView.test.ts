@@ -228,8 +228,7 @@ suite('ListView', function () {
 				Object.defineProperty(container, 'offsetHeight', {
 					configurable: true,
 					get: () => {
-						// While measurements are in flight, no row in the live container may
-						// resolve to an index that is out of range for the current list length.
+						// No live-container row may resolve to an index that is out of range for the current list length.
 						for (const row of element.querySelectorAll<HTMLElement>('.monaco-list-row')) {
 							const rawIndex = row.getAttribute('data-index');
 							if (rawIndex !== null) {
@@ -255,10 +254,12 @@ suite('ListView', function () {
 			listView.layout(100, 200);
 			// Render and measure a longer list so real rows receive high data-index values.
 			listView.splice(0, 0, range(10).map(() => ({ height: 5 })));
-			// Release those rows back into the cache, then reuse them for a shorter list so
-			// the measurement rows are cache-reused nodes still carrying the old high indices.
+			// Release those rows to the cache, then reuse them for a shorter list so measurement rows carry old high indices.
 			listView.splice(0, 10);
 			listView.splice(0, 0, range(3).map(() => ({ height: 5 })));
+
+			// Exercise the direct probe path (updateElementHeight -> probeDynamicHeightForItem) for an offscreen item, forcing a cache-reused measurement row.
+			listView.updateElementHeight(2, undefined, null);
 
 			assert.deepStrictEqual(staleIndicesSeen, []);
 		} finally {

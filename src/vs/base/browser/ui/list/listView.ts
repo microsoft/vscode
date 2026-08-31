@@ -1741,6 +1741,8 @@ export class ListView<T> implements IListView<T> {
 
 		const { row } = this.cache.alloc(item.templateId);
 		row.domNode.style.height = '';
+		// Clear the cache-reused node's stale `data-index` so this transient measurement row is never resolved as a real list row.
+		row.domNode.removeAttribute('data-index');
 		this.rowsContainer.appendChild(row.domNode);
 
 		const renderer = this.renderers.get(item.templateId);
