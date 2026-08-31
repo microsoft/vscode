@@ -34,7 +34,7 @@ import { SessionHasPullRequestContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
-import { IGitHubPullRequestRef, ISession } from '../../../services/sessions/common/session.js';
+import { getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, IGitHubPullRequestRef, ISession } from '../../../services/sessions/common/session.js';
 import { computePullRequestIcon, GitHubPullRequestState, IGitHubPullRequest, IPullRequestIconStatus, OPEN_PULL_REQUEST_ACTION_ID } from '../common/types.js';
 import { IGitHubService } from './githubService.js';
 import { GitHubReferenceList, IGitHubReferenceListEntry } from './githubReferenceList.js';
@@ -45,7 +45,7 @@ import { computePullRequestIconStatus } from './pullRequestIconStatus.js';
 interface IResolvedSessionPullRequest {
 	readonly ref: IGitHubPullRequestRef;
 	readonly pullRequest: IGitHubPullRequest | undefined;
-	readonly icon: ThemeIcon;
+	readonly icon: ThemeIcon | undefined;
 	readonly status: IPullRequestIconStatus;
 }
 
@@ -143,21 +143,7 @@ registerAction2(OpenPullRequestAction);
 
 function getSessionPullRequest(session: ISession | undefined): IGitHubPullRequestRef | undefined {
 	const gitHubInfo = session?.workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get();
-	const pullRequestRef = gitHubInfo?.pullRequests?.[0];
-	if (pullRequestRef) {
-		return pullRequestRef;
-	}
-	if (!gitHubInfo?.pullRequest) {
-		return undefined;
-	}
-
-	return {
-		owner: gitHubInfo.owner,
-		repo: gitHubInfo.repo,
-		number: gitHubInfo.pullRequest.number,
-		uri: gitHubInfo.pullRequest.uri,
-		icon: gitHubInfo.pullRequest.icon,
-	};
+	return getGitHubPullRequestRefs(gitHubInfo)[0];
 }
 
 class CopyPullRequestUrlAction extends Action2 {
@@ -228,19 +214,7 @@ export class OpenPullRequestActionViewItem extends ChatPillActionViewItem {
 			const session = sessionContext.session.read(reader);
 			const workspace = session?.workspace.read(reader);
 			const gitHubInfo = workspace?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
-			if (!gitHubInfo) {
-				return [];
-			}
-			if (gitHubInfo.pullRequests?.length) {
-				return gitHubInfo.pullRequests;
-			}
-			return gitHubInfo.pullRequest ? [{
-				owner: gitHubInfo.owner,
-				repo: gitHubInfo.repo,
-				number: gitHubInfo.pullRequest.number,
-				uri: gitHubInfo.pullRequest.uri,
-				icon: gitHubInfo.pullRequest.icon,
-			}] : [];
+			return getGitHubPullRequestRefs(gitHubInfo);
 		});
 
 		this._pullRequestIdentitiesObs = derivedOpts<readonly IPullRequestIdentity[]>({
@@ -248,14 +222,14 @@ export class OpenPullRequestActionViewItem extends ChatPillActionViewItem {
 			equalsFn: (a, b) => arrayEquals(a, b, (x, y) => x.owner === y.owner && x.repo === y.repo && x.number === y.number)
 		}, reader => this._pullRequestRefsObs.read(reader).map(({ owner, repo, number }) => ({ owner, repo, number })));
 
-		this._pullRequestsObs = derived(reader => this._pullRequestRefsObs.read(reader).map(ref => {
+		this._pullRequestsObs = derived(reader => this._pullRequestRefsObs.read(reader).map((ref, index) => {
 			const reference = reader.store.add(this._gitHubService.createPullRequestModelReference(ref.owner, ref.repo, ref.number));
 			const pullRequest = reference.object.pullRequest.read(reader);
 			const status = pullRequest ? computePullRequestIconStatus(reader, this._gitHubService, ref.owner, ref.repo, pullRequest) : {};
 			const icon = pullRequest
 				? computePullRequestIcon(pullRequest.isDraft ? 'draft' : pullRequest.state, status)
-				: this._pullRequestIconCache.get(ref.uri.toString()) ?? ref.icon ?? computePullRequestIcon(GitHubPullRequestState.Open);
-			if (pullRequest) {
+				: this._pullRequestIconCache.get(ref.uri.toString()) ?? ref.icon ?? (index === 0 ? computePullRequestIcon(GitHubPullRequestState.Open) : undefined);
+			if (pullRequest && icon) {
 				this._pullRequestIconCache.set(ref.uri.toString(), icon);
 			}
 			return {
@@ -327,7 +301,7 @@ export class OpenPullRequestActionViewItem extends ChatPillActionViewItem {
 	}
 
 	protected override getIconElement(): HTMLElement | undefined {
-		const icon = this._pullRequestsObs.get()[0]?.icon ?? Codicon.gitPullRequest;
+		const icon = getHighestPriorityPullRequestIcon(this._pullRequestsObs.get().map(pullRequest => pullRequest.icon)) ?? Codicon.gitPullRequest;
 		const iconElement = $(`span.chat-pill-icon${ThemeIcon.asCSSSelector(icon)}`, { 'aria-hidden': 'true' });
 		if (icon.color) {
 			// Inline `!important` wins over `button.css`'s `.monaco-text-button .codicon
@@ -444,7 +418,7 @@ export class OpenPullRequestActionViewItem extends ChatPillActionViewItem {
 			repo: ref.repo,
 			number: ref.number,
 			title: pullRequest?.title,
-			icon,
+			icon: icon ?? Codicon.gitPullRequest,
 			uri: ref.uri,
 			ariaLabel: getPullRequestAriaLabel(ref, pullRequest, status),
 			toolbarActions: [toAction({

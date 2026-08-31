@@ -19,6 +19,7 @@ import { LanguageContextEntry, LanguageContextResponse } from '../../../platform
 import { LanguageId } from '../../../platform/inlineEdits/common/dataTypes/languageId';
 import { NextCursorLinePrediction } from '../../../platform/inlineEdits/common/dataTypes/nextCursorLinePrediction';
 import * as xtabPromptOptions from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { resolveModelConfigValue } from '../../../platform/inlineEdits/common/modelConfigurationResolution';
 import { AggressivenessSetting, EarlyDivergenceCancellationMode, isEagernessPrompt, LanguageContextLanguages, LanguageContextOptions } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { InlineEditRequestLogContext } from '../../../platform/inlineEdits/common/inlineEditLogContext';
 import { IInlineEditsModelService } from '../../../platform/inlineEdits/common/inlineEditsModelService';
@@ -611,7 +612,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				delaySession.setExtraDebounce(inlineSuggestionDebounce);
 			} else if (isCursorAtEndOfLine) {
 				tracer.trace('Debouncing for cursor at end of line');
-				delaySession.setExtraDebounce(modelServiceConfig.extraDebounceEndOfLine ?? this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsExtraDebounceEndOfLine, this.expService));
+				delaySession.setExtraDebounce(resolveModelConfigValue(this.configService, this.expService, ConfigKey.TeamInternal.InlineEditsExtraDebounceEndOfLine, modelServiceConfig.extraDebounceEndOfLine));
 			} else {
 				tracer.trace('No extra debounce applied');
 			}
@@ -1058,9 +1059,9 @@ export class XtabProvider implements IStatelessNextEditProvider {
 					const lastLineLength = lastLine.length;
 					const pseudoEditWindow = currentDocument.transformer.getOffsetRange(new Range(clippedTaggedCurrentDoc.keptRange.start + 1, 1, keptRangeEndExclusive, lastLineLength + 1));
 					const duplicateAdditionsMode = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabDuplicateAdditionsMode, this.expService);
-					const fastYieldLineWithCursor = editStreamCtx.modelServiceConfig.patchFastYieldLineWithCursor ?? this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderPatchFastYieldLineWithCursor, this.expService);
+					const fastYieldLineWithCursor = resolveModelConfigValue(this.configService, this.expService, ConfigKey.TeamInternal.InlineEditsXtabProviderPatchFastYieldLineWithCursor, editStreamCtx.modelServiceConfig.patchFastYieldLineWithCursor);
 					const fastYieldLineWithCursorMultiLine = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderPatchFastYieldLineWithCursorMultiLine, this.expService);
-					const splitPatchOnDiff = editStreamCtx.modelServiceConfig.splitPatchOnDiff ?? this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabSplitPatchOnDiff, this.expService);
+					const splitPatchOnDiff = resolveModelConfigValue(this.configService, this.expService, ConfigKey.TeamInternal.InlineEditsXtabSplitPatchOnDiff, editStreamCtx.modelServiceConfig.splitPatchOnDiff);
 					parseResult = new ResponseParseResult.DirectEdits(
 						XtabPatchResponseHandler.handleResponse(
 							linesStream,
@@ -1644,7 +1645,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		}
 		// Only the CustomDiffPatch shape consults `patchModelPredictionKind`; skip the experiment lookup otherwise.
 		const patchModelPredictionKind = responseFormat === xtabPromptOptions.ResponseFormat.CustomDiffPatch
-			? modelServiceConfig.patchModelPredictionKind ?? this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderPatchModelPredictionKind, this.expService)
+			? resolveModelConfigValue(this.configService, this.expService, ConfigKey.TeamInternal.InlineEditsXtabProviderPatchModelPredictionKind, modelServiceConfig.patchModelPredictionKind)
 			: xtabPromptOptions.PatchModelPrediction.FilePath;
 		return {
 			type: 'content',
@@ -1820,7 +1821,7 @@ export function pickSystemPrompt(promptingStrategy: xtabPromptOptions.PromptingS
 		case xtabPromptOptions.PromptingStrategy.PatchBased01:
 		case xtabPromptOptions.PromptingStrategy.PatchBased02:
 		case xtabPromptOptions.PromptingStrategy.PatchBased02WithRecentLineNumbers:
-		case xtabPromptOptions.PromptingStrategy.PatchBased02Optimized:
+		case xtabPromptOptions.PromptingStrategy.PatchBased02Unified:
 		case xtabPromptOptions.PromptingStrategy.PatchBased02WithoutRecentLineNumbers:
 		case xtabPromptOptions.PromptingStrategy.Xtab275:
 		case xtabPromptOptions.PromptingStrategy.XtabAggressiveness:

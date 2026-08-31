@@ -185,6 +185,106 @@ suite('ModelSemanticColoring', () => {
 		});
 	});
 
+	test('issue #322571: semantic token edits cannot delete more data than the previous result contains', async () => {
+		await runWithFakedTimers({}, async () => {
+
+			disposables.add(languageService.registerLanguage({ id: 'testMode' }));
+
+			const lastResultIds: (string | null)[] = [];
+			const releasedResultIds: (string | undefined)[] = [];
+			const recoveredResultProvided = new Barrier();
+
+			disposables.add(languageFeaturesService.documentSemanticTokensProvider.register('testMode', new class implements DocumentSemanticTokensProvider {
+				getLegend(): SemanticTokensLegend {
+					return { tokenTypes: ['class'], tokenModifiers: [] };
+				}
+				async provideDocumentSemanticTokens(model: ITextModel, lastResultId: string | null, token: CancellationToken): Promise<SemanticTokens | SemanticTokensEdits | null> {
+					lastResultIds.push(lastResultId);
+					if (lastResultIds.length === 1) {
+						return {
+							resultId: 'full',
+							data: new Uint32Array([0, 0, 1, 0, 0])
+						};
+					}
+					if (lastResultIds.length === 2) {
+						return {
+							resultId: 'invalid-edit',
+							edits: [{ start: 0, deleteCount: 6 }]
+						};
+					}
+					if (lastResultIds.length === 3) {
+						recoveredResultProvided.open();
+						return {
+							resultId: 'recovered-full',
+							data: new Uint32Array([0, 0, 1, 0, 0])
+						};
+					}
+					assert.fail('Unexpected call');
+				}
+				releaseDocumentSemanticTokens(resultId: string | undefined): void {
+					releasedResultIds.push(resultId);
+				}
+			}));
+
+			const textModel = disposables.add(modelService.createModel('a', languageService.createById('testMode')));
+			textModel.onBeforeAttached();
+
+			await Event.toPromise(textModel.onDidChangeTokens);
+			textModel.applyEdits([{ range: new Range(1, 1, 1, 1), text: 'b' }]);
+			await recoveredResultProvided.wait();
+
+			assert.deepStrictEqual({
+				lastResultIds,
+				releasedResultIds
+			}, {
+				lastResultIds: [null, 'full', null],
+				releasedResultIds: ['full', 'invalid-edit']
+			});
+		});
+	});
+
+	test('invalid semantic token edits without a previous result are not retried', async () => {
+		await runWithFakedTimers({}, async () => {
+
+			disposables.add(languageService.registerLanguage({ id: 'testMode' }));
+
+			let requestCount = 0;
+			const releasedResultIds: (string | undefined)[] = [];
+			const resultProvided = new Barrier();
+
+			disposables.add(languageFeaturesService.documentSemanticTokensProvider.register('testMode', new class implements DocumentSemanticTokensProvider {
+				getLegend(): SemanticTokensLegend {
+					return { tokenTypes: ['class'], tokenModifiers: [] };
+				}
+				async provideDocumentSemanticTokens(model: ITextModel, lastResultId: string | null, token: CancellationToken): Promise<SemanticTokensEdits> {
+					requestCount++;
+					resultProvided.open();
+					return {
+						resultId: 'invalid-edit',
+						edits: [{ start: 0, deleteCount: 1 }]
+					};
+				}
+				releaseDocumentSemanticTokens(resultId: string | undefined): void {
+					releasedResultIds.push(resultId);
+				}
+			}));
+
+			const textModel = disposables.add(modelService.createModel('a', languageService.createById('testMode')));
+			textModel.onBeforeAttached();
+
+			await resultProvided.wait();
+			await timeout(1000);
+
+			assert.deepStrictEqual({
+				requestCount,
+				releasedResultIds
+			}, {
+				requestCount: 1,
+				releasedResultIds: ['invalid-edit']
+			});
+		});
+	});
+
 	test('issue #161573: onDidChangeSemanticTokens doesn\'t consistently trigger provideDocumentSemanticTokens', async () => {
 		await runWithFakedTimers({}, async () => {
 

@@ -185,6 +185,7 @@ class StubTunnelHostService extends Disposable implements ITunnelHostService {
 
 	async startSharing(): Promise<void> { throw new Error('Not implemented'); }
 	async stopSharing(): Promise<void> { this.setSharingInfo(undefined); }
+	async restartSharing(): Promise<void> { throw new Error('Not implemented'); }
 }
 
 class StubSessionsProvidersService extends Disposable {

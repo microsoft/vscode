@@ -886,9 +886,17 @@ export class ChatService extends Disposable implements IChatService {
 
 		let lastRequest: ChatRequestModel | undefined;
 		let lastResponseCompletedAt: number | undefined;
-		const completeLastResponse = () => {
+		/**
+		 * @param finishedNow Whether the response is finishing as it is watched rather
+		 * than being finalized from replayed history. Replayed history carries the time
+		 * each response originally finished, or none when that time was never recorded,
+		 * while a response finishing now completes at a time that is known.
+		 */
+		const completeLastResponse = (finishedNow = false) => {
 			if (Number.isFinite(lastResponseCompletedAt)) {
 				lastRequest?.response?.complete(lastResponseCompletedAt);
+			} else if (finishedNow) {
+				lastRequest?.response?.complete();
 			} else {
 				lastRequest?.response?.completeWithoutTimestamp();
 			}
@@ -961,6 +969,11 @@ export class ChatService extends Disposable implements IChatService {
 		const hasProgressStreaming = providedSession.progressObs && providedSession.interruptActiveResponseCallback;
 		if (hasProgressStreaming) {
 			let lastProgressLength = 0;
+			// Completion state as of the previous observation, or undefined before the
+			// first one. A session that is already complete when first observed is
+			// finalizing replayed history, while a session seen running and completing
+			// afterwards holds a turn that finished while it was watched.
+			let wasComplete: boolean | undefined;
 
 			const cancellationListener = disposables.add(new MutableDisposable());
 			const createCancellationListener = (token: CancellationToken) => {
@@ -1007,7 +1020,7 @@ export class ChatService extends Disposable implements IChatService {
 					}
 					// Complete any in-flight request
 					if (lastRequest?.response && !lastRequest.response.isComplete) {
-						completeLastResponse();
+						completeLastResponse(true);
 					}
 
 					// Create a new request in the model
@@ -1086,6 +1099,8 @@ export class ChatService extends Disposable implements IChatService {
 			disposables.add(autorun(reader => {
 				const progressArray = providedSession.progressObs?.read(reader) ?? [];
 				const isComplete = providedSession.isCompleteObs?.read(reader) ?? false;
+				const justCompleted = wasComplete === false && isComplete;
+				wasComplete = isComplete;
 
 				// Backstop: keep the streamed turn tracked as in-progress across immediate-steer dispatches.
 				if (!isComplete) {
@@ -1105,7 +1120,7 @@ export class ChatService extends Disposable implements IChatService {
 				if (isComplete && lastRequest) {
 					this._pendingRequests.deleteAndDispose(model.sessionResource);
 					cancellationListener.clear();
-					completeLastResponse();
+					completeLastResponse(justCompleted);
 					// Flush any message queued/steered during the streamed turn (no-op if none, or server-managed).
 					this.processPendingRequests(model.sessionResource);
 				}

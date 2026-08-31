@@ -202,6 +202,74 @@ suite('CodexAgent model refresh', () => {
 		});
 	});
 
+	test('restored model waits for an authentication refresh queued behind activation', async () => {
+		const copilotModels = [{ id: 'copilot-model', name: 'Copilot Model', supported_endpoints: ['/responses'] }] as CCAModel[];
+		const firstRefreshStarted = new DeferredPromise<void>();
+		const releaseFirstRefresh = new DeferredPromise<void>();
+		const authenticatedRefreshStarted = new DeferredPromise<void>();
+		const releaseAuthenticatedRefresh = new DeferredPromise<void>();
+		let copilotRefreshes = 0;
+		const agent = createAgent(disposables, async () => {
+			copilotRefreshes++;
+			await authenticatedRefreshStarted.complete();
+			await releaseAuthenticatedRefresh.p;
+			return copilotModels;
+		});
+		agent['_refreshProviderConfiguration'] = async () => { };
+		agent['_resolveGitHubMcpServerConfiguration'] = async () => undefined;
+		let codexRefreshes = 0;
+		agent['_refreshCodexModels'] = async () => {
+			codexRefreshes++;
+			if (codexRefreshes === 1) {
+				await firstRefreshStarted.complete();
+				await releaseFirstRefresh.p;
+			}
+			return false;
+		};
+
+		agent['_activate']();
+		await firstRefreshStarted.p;
+		const selectedModel = { id: toCodexModelSelectionId('vscode-proxy', 'copilot-model') };
+		const session = { model: selectedModel };
+		const resolution = agent['_resolveModel'](session as never).then(
+			model => ({ model, error: undefined }),
+			error => ({ model: undefined, error: error instanceof Error ? error.message : String(error) }),
+		);
+
+		await agent.authenticate(agent.getProtectedResources()[0].resource, 'token');
+		await releaseFirstRefresh.complete();
+		await authenticatedRefreshStarted.p;
+		await releaseAuthenticatedRefresh.complete();
+
+		assert.deepStrictEqual({
+			resolution: await resolution,
+			sessionModel: session.model,
+			copilotRefreshes,
+			codexRefreshes,
+		}, {
+			resolution: { model: selectedModel, error: undefined },
+			sessionModel: selectedModel,
+			copilotRefreshes: 1,
+			codexRefreshes: 2,
+		});
+	});
+
+	test('model resolution starts discovery when the catalog is empty', async () => {
+		const copilotModels = [{ id: 'copilot-model', name: 'Copilot Model', supported_endpoints: ['/responses'] }] as CCAModel[];
+		const agent = createAgent(disposables, async () => copilotModels);
+		agent['_githubToken'] = 'token';
+		agent['_isSdkResolvableWithoutDownload'] = async () => false;
+		const selectedModel = { id: toCodexModelSelectionId('vscode-proxy', 'copilot-model') };
+		const session = { model: selectedModel };
+
+		const resolved = await agent['_resolveModel'](session as never);
+
+		assert.deepStrictEqual({ resolved, sessionModel: session.model }, {
+			resolved: selectedModel,
+			sessionModel: selectedModel,
+		});
+	});
+
 	test('queues a fresh model refresh when Codex activates during an ambient refresh', async () => {
 		const copilotModels = [{ id: 'copilot-model', name: 'Copilot Model', supported_endpoints: ['/responses'] }] as CCAModel[];
 		const ambientRefreshStarted = new DeferredPromise<void>();

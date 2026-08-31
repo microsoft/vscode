@@ -17,6 +17,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentHostClientState, AgentHostProtocolClient } from '../../browser/agentHostProtocolClient.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../common/agentHostExtensionProtocol.js';
+import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { ConfigurationTarget, type IConfigurationValue } from '../../../configuration/common/configuration.js';
@@ -33,7 +34,7 @@ import { NonReconnectableTransportError, type IClientTransport, type IProtocolTr
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
+import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
 import { AgentHostMapLegacySettingsToManagedSettingsSettingId } from '../../common/agentHostManagedSettings.js';
 import { AgentHostConfigurationSyncScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
@@ -234,6 +235,7 @@ class TerminalAutoApproveConfigurationService extends TestConfigurationService {
 
 class ManagedPermissionsConfigurationService extends TestConfigurationService {
 	private globalAutoApprovePolicyValue: boolean | undefined = false;
+	private eligibleForAutoApprovalPolicyValue: Record<string, boolean> | undefined;
 
 	override inspect<T>(key: string): IConfigurationValue<T> {
 		if (key === GLOBAL_AUTO_APPROVE_SETTING_ID) {
@@ -242,11 +244,21 @@ class ManagedPermissionsConfigurationService extends TestConfigurationService {
 				policyValue: this.globalAutoApprovePolicyValue as T | undefined,
 			};
 		}
+		if (key === ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID) {
+			return {
+				...super.inspect<T>(key),
+				policyValue: this.eligibleForAutoApprovalPolicyValue as T | undefined,
+			};
+		}
 		return super.inspect<T>(key);
 	}
 
 	clearGlobalAutoApprovePolicy(): void {
 		this.globalAutoApprovePolicyValue = undefined;
+	}
+
+	setEligibleForAutoApprovalPolicy(value: Record<string, boolean> | undefined): void {
+		this.eligibleForAutoApprovalPolicyValue = value;
 	}
 }
 
@@ -447,7 +459,7 @@ suite('AgentHostProtocolClient', () => {
 		assert.deepStrictEqual([...client['_authentication'].values()], []);
 	});
 
-	test('listSessions carries the workspace-less marker back on _meta', async () => {
+	test('listSessions carries the workspace-less marker and compatible working directories', async () => {
 		// Regression: the sessions provider resolves a session's kind (quick
 		// chat vs. workspace) from `_meta.workspaceless`, and after a window
 		// reload a listing is what materializes it.
@@ -475,7 +487,49 @@ suite('AgentHostProtocolClient', () => {
 		});
 
 		const sessions = await resultPromise;
-		assert.deepStrictEqual(sessions.map(s => readSessionWorkspaceless(s._meta)), [true]);
+		assert.deepStrictEqual(sessions.map(s => ({
+			workspaceless: readSessionWorkspaceless(s._meta),
+			workingDirectory: s.workingDirectory,
+			workingDirectories: s.workingDirectories,
+		})), [{
+			workspaceless: true,
+			workingDirectory: toAgentHostUri(URI.file('/home/user/.copilot/chats/quick-1'), agentHostAuthority('test.example:1234')),
+			workingDirectories: [toAgentHostUri(URI.file('/home/user/.copilot/chats/quick-1'), agentHostAuthority('test.example:1234'))],
+		}]);
+	});
+
+	test('listSessions derives the compatibility directory from the primary root', async () => {
+		const { client, transport } = createClient();
+		const directories = [URI.file('/workspace/primary'), URI.file('/workspace/secondary')];
+		const directorySets = [undefined, [], directories];
+		const resultPromise = client.listSessions();
+		const sent = transport.sentMessages[0] as JsonRpcRequest;
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: sent.id,
+			result: {
+				items: directorySets.map((workingDirectories, index) => ({
+					resource: `agent-session://copilotcli/session-${index}`,
+					provider: 'copilotcli',
+					title: 'Session',
+					status: SessionStatus.Idle,
+					createdAt: new Date(1000).toISOString(),
+					modifiedAt: new Date(2000).toISOString(),
+					workingDirectories: workingDirectories?.map(directory => directory.toString()),
+				})),
+			},
+		});
+
+		const sessions = await resultPromise;
+		const wrappedDirectories = directories.map(directory => toAgentHostUri(directory, agentHostAuthority('test.example:1234')));
+		assert.deepStrictEqual(sessions.map(s => ({
+			workingDirectory: s.workingDirectory,
+			workingDirectories: s.workingDirectories,
+		})), [
+			{ workingDirectory: undefined, workingDirectories: undefined },
+			{ workingDirectory: undefined, workingDirectories: [] },
+			{ workingDirectory: wrappedDirectories[0], workingDirectories: wrappedDirectories },
+		]);
 	});
 
 	test('listSessions carries external provenance back on _meta', async () => {
@@ -1244,6 +1298,41 @@ suite('AgentHostProtocolClient', () => {
 		fireConfigurationChange(configurationService, GLOBAL_AUTO_APPROVE_SETTING_ID);
 		await configurationService.setUserConfiguration(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, true);
 		fireConfigurationChange(configurationService, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID);
+
+		assert.deepStrictEqual(findLastManagedSettingsNotification(transport.sentMessages), {
+			jsonrpc: '2.0',
+			method: 'setClientManagedSettingsPermissions',
+			params: { permissions: {} },
+		});
+	});
+
+	test('forwards and clears the mapped per-tool auto-approval policy for the local host', async () => {
+		const configurationService = new ManagedPermissionsConfigurationService({
+			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: true,
+		});
+		// Isolate this setting's notification path from the global auto-approve mapping.
+		configurationService.clearGlobalAutoApprovePolicy();
+		configurationService.setEligibleForAutoApprovalPolicy({ runTask: false });
+		const { client, transport } = createClientForIdentity(
+			LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
+			disposables.add(new TestProtocolTransport()),
+			createPermissionService(),
+			undefined,
+			new NullLogService(),
+			configurationService,
+		);
+
+		await connectClient(client, transport);
+
+		assert.deepStrictEqual(findLastManagedSettingsNotification(transport.sentMessages), {
+			jsonrpc: '2.0',
+			method: 'setClientManagedSettingsPermissions',
+			params: { permissions: { disableBypassPermissionsMode: 'disable' } },
+		});
+
+		transport.sentMessages.length = 0;
+		configurationService.setEligibleForAutoApprovalPolicy(undefined);
+		fireConfigurationChange(configurationService, ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID);
 
 		assert.deepStrictEqual(findLastManagedSettingsNotification(transport.sentMessages), {
 			jsonrpc: '2.0',

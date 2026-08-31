@@ -17,7 +17,7 @@ import { IPolicyConfiguration, NullPolicyConfiguration, PolicyConfiguration } fr
 import { Configuration } from '../common/configurationModels.js';
 import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, RestrictedSettings, PROFILE_SCOPES, LOCAL_MACHINE_PROFILE_SCOPES, profileSettingsSchemaId, APPLY_ALL_PROFILES_SETTING, APPLICATION_SCOPES } from '../common/configuration.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings, machineSettings, machineOverridableSettings, ConfigurationScope, IConfigurationPropertySchema, keyFromOverrideIdentifiers, OVERRIDE_PROPERTY_PATTERN, resourceLanguageSettingsSchemaId, configurationDefaultsSchemaId, applicationMachineSettings, isConfigurationDefaultSourceEquals, ConfigurationDefaultSource } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings, machineSettings, machineOverridableSettings, ConfigurationScope, IConfigurationPropertySchema, keyFromOverrideIdentifiers, OVERRIDE_PROPERTY_PATTERN, resourceLanguageSettingsSchemaId, configurationDefaultsSchemaId, applicationMachineSettings, isConfigurationDefaultSourceEquals, ConfigurationDefaultSource, IConfigurationDefaults } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, getStoredWorkspaceFolder, toWorkspaceFolders } from '../../../../platform/workspaces/common/workspaces.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ConfigurationEditing, EditableConfigurationTarget } from '../common/configurationEditing.js';
@@ -1346,12 +1346,13 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 	}
 }
 
-class ConfigurationDefaultOverridesContribution extends Disposable implements IWorkbenchContribution {
+export class ConfigurationDefaultOverridesContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.configurationDefaultOverridesContribution';
 
 	private readonly processedExperimentalSettings = new Set<string>();
 	private readonly autoExperimentalSettings = new Set<string>();
+	private readonly registeredExperimentalDefaults = new Map<string, IConfigurationDefaults>();
 	private readonly configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	private readonly throttler = this._register(new Throttler());
 
@@ -1387,16 +1388,30 @@ class ConfigurationDefaultOverridesContribution extends Disposable implements IW
 	}
 
 	private async processExperimentalSettings(properties: Iterable<string>, autoRefetch: boolean): Promise<void> {
-		const overrides: IStringDictionary<unknown> = {};
+		const removedDefaults: IConfigurationDefaults[] = [];
+		const addedDefaults: IConfigurationDefaults[] = [];
 		const allProperties = this.configurationRegistry.getConfigurationProperties();
 		const defaultConfigurationsPreventingExperimentOverrides = this.configurationRegistry.getRegisteredDefaultConfigurations().filter(configuration => configuration.preventExperimentOverride);
 		for (const property of properties) {
 			const schema = allProperties[property];
 			if (!schema?.experiment) {
+				const registeredDefault = this.registeredExperimentalDefaults.get(property);
+				if (registeredDefault) {
+					this.registeredExperimentalDefaults.delete(property);
+					removedDefaults.push(registeredDefault);
+				}
+				this.processedExperimentalSettings.delete(property);
+				this.autoExperimentalSettings.delete(property);
 				continue;
 			}
 			const defaultValueSource: ConfigurationDefaultSource | undefined = schema.defaultValueSource && !(schema.defaultValueSource instanceof Map) ? schema.defaultValueSource : undefined;
 			if (defaultValueSource && defaultConfigurationsPreventingExperimentOverrides.some(configuration => isConfigurationDefaultSourceEquals(configuration.source, defaultValueSource) && configuration.overrides?.[property] !== undefined)) {
+				const registeredDefault = this.registeredExperimentalDefaults.get(property);
+				if (registeredDefault) {
+					this.registeredExperimentalDefaults.delete(property);
+					removedDefaults.push(registeredDefault);
+				}
+				this.processedExperimentalSettings.delete(property);
 				continue;
 			}
 			if (!autoRefetch && this.processedExperimentalSettings.has(property)) {
@@ -1408,13 +1423,27 @@ class ConfigurationDefaultOverridesContribution extends Disposable implements IW
 			}
 			try {
 				const value = await this.workbenchAssignmentService.getTreatment(schema.experiment.name ?? `config.${property}`);
+				const registeredDefault = this.registeredExperimentalDefaults.get(property);
 				if (this.shouldOverride(value, schema)) {
-					overrides[property] = value;
+					if (!equals(registeredDefault?.overrides[property], value)) {
+						if (registeredDefault) {
+							removedDefaults.push(registeredDefault);
+						}
+						const nextDefault = { overrides: { [property]: value }, source: 'experiments' } satisfies IConfigurationDefaults;
+						this.registeredExperimentalDefaults.set(property, nextDefault);
+						addedDefaults.push(nextDefault);
+					}
+				} else if (registeredDefault) {
+					this.registeredExperimentalDefaults.delete(property);
+					removedDefaults.push(registeredDefault);
 				}
 			} catch (error) {/*ignore */ }
 		}
-		if (Object.keys(overrides).length) {
-			this.configurationRegistry.registerDefaultConfigurations([{ overrides, source: 'experiments' }]);
+		if (removedDefaults.length || addedDefaults.length) {
+			this.configurationRegistry.deltaConfiguration({
+				removedDefaults: removedDefaults.length ? removedDefaults : undefined,
+				addedDefaults: addedDefaults.length ? addedDefaults : undefined,
+			});
 		}
 	}
 
