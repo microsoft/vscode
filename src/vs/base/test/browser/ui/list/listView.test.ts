@@ -266,11 +266,11 @@ suite('ListView', function () {
 			listView.layout(250, 200);
 			listView.splice(0, 0, range(10).map(() => ({ height: 25 })));
 
-			// Shrink the list; the removed rows are released to the cache while still carrying their old (now out-of-range) data-index.
-			listView.splice(3, 7);
-
-			// Shrink the viewport so only the first items render; the trailing item is offscreen and has no live row.
+			// Shrink the viewport first so the high-index rows (1..9) are released to the cache, leaving index 9 on top of the LIFO.
 			listView.layout(25, 200);
+
+			// Now shrink the list; the cached high-index rows stay on top of the cache and their data-index (3..9) becomes out of range.
+			listView.splice(3, 7);
 			assert.strictEqual(listView.domElement(2), null, 'item 2 must be offscreen so probing allocates a cache-reused measurement row');
 
 			// Direct probe path (updateElementHeight -> probeDynamicHeightForItem) for the offscreen item.
