@@ -8,13 +8,14 @@ import { CancellationTokenSource } from '../../../../base/common/cancellation.js
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../base/common/resources.js';
-import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { InlineCompletionsProvider } from '../../../../editor/common/languages.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 import { InlineCompletionsController } from '../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
+import { hideInlineCompletionId } from '../../../../editor/contrib/inlineCompletions/browser/controller/commandIds.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchAssignmentService } from '../../../../workbench/services/assignment/common/assignmentService.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
@@ -27,6 +28,11 @@ import { cleanNextUserMessageSuggestion, createNextUserMessageContext, createNex
 const MODEL_TIMEOUT_MS = 5000;
 const FOLLOWUP_SETTLE_MS = 400;
 const TREATMENT_NAME = 'chat.nextUserMessageSuggestion';
+
+export function shouldDismissNextUserMessageSuggestion(commandId: string, inputHasTextFocus: boolean): boolean {
+	return commandId === hideInlineCompletionId && inputHasTextFocus;
+}
+
 export class NextUserMessageSuggestionController extends Disposable {
 
 	private readonly _responseDisposables = this._register(new MutableDisposable<DisposableStore>());
@@ -56,6 +62,7 @@ export class NextUserMessageSuggestionController extends Disposable {
 	constructor(
 		private readonly _widget: ChatWidget,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+		@ICommandService commandService: ICommandService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IWorkbenchAssignmentService private readonly _assignmentService: IWorkbenchAssignmentService,
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
@@ -96,8 +103,8 @@ export class NextUserMessageSuggestionController extends Disposable {
 				this._clearSuggestion();
 			}
 		}));
-		this._register(inputEditor.onKeyDown(event => {
-			if (event.keyCode === KeyCode.Escape) {
+		this._register(commandService.onWillExecuteCommand(event => {
+			if (shouldDismissNextUserMessageSuggestion(event.commandId, inputEditor.hasTextFocus())) {
 				this._clearSuggestion();
 			}
 		}));

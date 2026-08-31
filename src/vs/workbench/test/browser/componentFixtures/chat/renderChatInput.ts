@@ -31,8 +31,7 @@ import { configureChatPetFixtureFileRoot, FixtureChatPetService, assertChatPetIn
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { InlineCompletionsController } from '../../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
-import '../../../../../editor/contrib/inlineCompletions/browser/inlineCompletions.contribution.js';
-import '../../../../../editor/contrib/placeholderText/browser/placeholderText.contribution.js';
+import { PlaceholderTextContribution } from '../../../../../editor/contrib/placeholderText/browser/placeholderTextContribution.js';
 
 /** Room above the input for the pet, which stands outside it. */
 const PET_HEADROOM = 64;
@@ -278,12 +277,14 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 
 	if (nextStepSuggestion) {
 		if (!focusInput && !showAcceptedNextStepSuggestion) {
+			disposableStore.add(new PlaceholderTextContribution(inputPart.inputEditor));
 			inputPart.inputEditor.updateOptions({ placeholder: nextStepSuggestion });
 		} else {
 			inputPart.inputEditor.updateOptions({ placeholder: '', inlineSuggest: { showToolbar: 'never' } });
 			inputPart.inputEditor.focus();
-			const inlineCompletionsController = InlineCompletionsController.get(inputPart.inputEditor);
-			const inlineCompletionsModel = inlineCompletionsController?.model.get();
+			const inlineCompletionsController = InlineCompletionsController.get(inputPart.inputEditor)
+				?? disposableStore.add(instantiationService.createInstance(InlineCompletionsController, inputPart.inputEditor));
+			const inlineCompletionsModel = inlineCompletionsController.model.get();
 			if (!inlineCompletionsModel) {
 				throw new Error('Inline completions model was not initialized');
 			}
