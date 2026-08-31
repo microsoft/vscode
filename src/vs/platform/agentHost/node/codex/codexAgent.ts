@@ -121,6 +121,7 @@ import type { ModelListResponse } from './protocol/generated/v2/ModelListRespons
 import type { Thread } from './protocol/generated/v2/Thread.js';
 import type { ThreadListResponse } from './protocol/generated/v2/ThreadListResponse.js';
 import type { ThreadReadResponse } from './protocol/generated/v2/ThreadReadResponse.js';
+import type { ThreadTurnsListResponse } from './protocol/generated/v2/ThreadTurnsListResponse.js';
 import type { ThreadForkResponse } from './protocol/generated/v2/ThreadForkResponse.js';
 import type { ThreadStartResponse } from './protocol/generated/v2/ThreadStartResponse.js';
 import type { ThreadResumeResponse } from './protocol/generated/v2/ThreadResumeResponse.js';
@@ -158,6 +159,7 @@ const CLIENT_INFO = {
 const CODEX_DESKTOP_ROLLOUT_PREFIX_LENGTH = 16 * 1024;
 const CODEX_DESKTOP_ROLLOUT_PREFIX_CONCURRENCY = 8;
 const CODEX_COLD_SESSION_READ_CONCURRENCY = 8;
+const CODEX_THREAD_TURNS_PAGE_SIZE = 100;
 const CODEX_STARTUP_ACCOUNT_PROBE_TIMEOUT_MS = 30_000;
 const CODEX_DESKTOP_WORKSPACE_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const CODEX_DESKTOP_SESSION_META_PATTERN = /"type"\s*:\s*"session_meta".*"payload"\s*:\s*\{[^}]*"originator"\s*:\s*"Codex Desktop"/s;
@@ -6439,12 +6441,44 @@ export class CodexAgent extends Disposable implements IAgent {
 		const readThread = async (candidateThreadId: string): Promise<ICodexSessionRead> => {
 			const response = await conn.client.request<'thread/read', ThreadReadResponse>('thread/read', {
 				threadId: candidateThreadId,
-				includeTurns,
+				includeTurns: false,
 			});
 			this._assertCurrentConnection(conn);
-			const rolloutMetadata = await this._readCodexRolloutMetadata(response.thread);
+			let thread = response.thread;
+			if (includeTurns && thread.historyMode === 'paginated') {
+				const turns: Thread['turns'] = [];
+				const seenCursors = new Set<string>();
+				let cursor: string | null = null;
+				do {
+					const page: ThreadTurnsListResponse = await conn.client.request<'thread/turns/list', ThreadTurnsListResponse>('thread/turns/list', {
+						threadId: candidateThreadId,
+						cursor,
+						limit: CODEX_THREAD_TURNS_PAGE_SIZE,
+						sortDirection: 'asc',
+						itemsView: 'full',
+					});
+					this._assertCurrentConnection(conn);
+					turns.push(...page.data);
+					if (page.nextCursor !== null && seenCursors.has(page.nextCursor)) {
+						throw new Error(`thread/turns/list returned a repeated cursor for thread ${candidateThreadId}`);
+					}
+					if (page.nextCursor !== null) {
+						seenCursors.add(page.nextCursor);
+					}
+					cursor = page.nextCursor;
+				} while (cursor !== null);
+				thread = { ...thread, turns };
+			} else if (includeTurns) {
+				const historyResponse = await conn.client.request<'thread/read', ThreadReadResponse>('thread/read', {
+					threadId: candidateThreadId,
+					includeTurns: true,
+				});
+				this._assertCurrentConnection(conn);
+				thread = historyResponse.thread;
+			}
+			const rolloutMetadata = await this._readCodexRolloutMetadata(thread);
 			this._assertCurrentConnection(conn);
-			return { ...response, persistedWorkingDirectories, persistedModelId, rolloutMetadata };
+			return { ...response, thread, persistedWorkingDirectories, persistedModelId, rolloutMetadata };
 		};
 		try {
 			if (!existing && threadId !== sessionId) {
