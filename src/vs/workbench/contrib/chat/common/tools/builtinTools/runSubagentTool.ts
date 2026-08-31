@@ -21,7 +21,7 @@ import { ChatRequestVariableSet } from '../../attachments/chatVariableEntries.js
 import { isByokModel } from '../../chatSelectedModel.js';
 import { IChatProgress, IChatService } from '../../chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../constants.js';
-import { COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
+import { AUTO_RAW_MODEL_ID, COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
 import type { ChatModel, IChatRequestModeInstructions } from '../../model/chatModel.js';
 import { getChatSessionType } from '../../model/chatUri.js';
 import { IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../participants/chatAgents.js';
@@ -182,7 +182,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 						resolvedModelName = cached.resolvedModelName;
 					} else {
 						// Fallback: resolve the model here if prepare didn't cache it
-						const resolved = this.resolveSubagentModel(subagent, invocation.modelId, args.model);
+						const resolved = await this.resolveSubagentModel(subagent, invocation.modelId, args.model);
 						modeModelId = resolved.modeModelId;
 						resolvedModelName = resolved.resolvedModelName;
 					}
@@ -224,7 +224,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 					modeModelId = cached.modeModelId;
 					resolvedModelName = cached.resolvedModelName;
 				} else {
-					const resolved = this.resolveSubagentModel(undefined, invocation.modelId, args.model);
+					const resolved = await this.resolveSubagentModel(undefined, invocation.modelId, args.model);
 					modeModelId = resolved.modeModelId;
 					resolvedModelName = resolved.resolvedModelName;
 				}
@@ -498,9 +498,11 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 	 *        If provided and not found or not allowed, throws an error with available models.
 	 * @throws Error if the requested model is not found or exceeds the main model's cost tier.
 	 */
-	private resolveSubagentModel(subagent: ICustomAgent | undefined, mainModelId: string | undefined, explicitModelQualifiedName?: string): { modeModelId: string | undefined; resolvedModelName: string | undefined } {
+	private async resolveSubagentModel(subagent: ICustomAgent | undefined, mainModelId: string | undefined, explicitModelQualifiedName?: string): Promise<{ modeModelId: string | undefined; resolvedModelName: string | undefined }> {
 		let modeModelId = mainModelId;
 		let explicitModelResolved = false;
+		let usesAutoDefault = false;
+		const mainModelMetadata = mainModelId ? this.languageModelsService.lookupLanguageModel(mainModelId) : undefined;
 
 		// Explicit model parameter takes highest priority
 		if (explicitModelQualifiedName) {
@@ -520,7 +522,6 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				// When the main model is BYOK (flagged via `metadata.isBYOK`), skip Copilot/CAPI fallback models
 				// for built-in agents (e.g. Explore), whose model list is a curated convenience fallback. A
 				// user-authored agent's model list is a deliberate choice and is always honored as-is.
-				const mainModelMetadata = mainModelId ? this.languageModelsService.lookupLanguageModel(mainModelId) : undefined;
 				const mainModelIsByok = !!mainModelMetadata && isByokModel(mainModelMetadata);
 				const skipCopilotFallbacks = mainModelIsByok && isBuiltinAgent(subagent.source, subagent.uri, this.productService);
 				// Find the actual model identifier from the qualified name(s)
@@ -537,8 +538,21 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			}
 		}
 
+		if (
+			!explicitModelResolved
+			&& !subagent?.model?.length
+			&& (!mainModelMetadata || !isByokModel(mainModelMetadata))
+			&& this.configurationService.getValue<boolean>(ChatConfiguration.SubagentsDefaultToAuto) === true
+		) {
+			const autoModelId = await this.resolveAutoModelId();
+			if (autoModelId) {
+				modeModelId = autoModelId;
+				usesAutoDefault = true;
+			}
+		}
+
 		// Check multiplier constraint - throw error if requested model exceeds main model's cost tier
-		if (modeModelId) {
+		if (modeModelId && !usesAutoDefault) {
 			const check = this.checkMultiplierConstraint(modeModelId, mainModelId);
 			if (check.exceeds) {
 				const modelMetadata = this.languageModelsService.lookupLanguageModel(modeModelId);
@@ -548,6 +562,29 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 
 		const resolvedModelMetadata = modeModelId ? this.languageModelsService.lookupLanguageModel(modeModelId) : undefined;
 		return { modeModelId, resolvedModelName: resolvedModelMetadata?.name };
+	}
+
+	private findEligibleAutoModelId(): string | undefined {
+		return this.languageModelsService.getLanguageModelIds().find(modelId => {
+			const metadata = this.languageModelsService.lookupLanguageModel(modelId);
+			return metadata?.vendor === COPILOT_VENDOR_ID
+				&& metadata.id === AUTO_RAW_MODEL_ID
+				&& ILanguageModelChatMetadata.suitableForAgentMode(metadata)
+				&& metadata.isUserSelectable !== false
+				&& !metadata.targetChatSessionType;
+		});
+	}
+
+	private async resolveAutoModelId(): Promise<string | undefined> {
+		const cachedModelId = this.findEligibleAutoModelId();
+		if (cachedModelId || this.languageModelsService.hasResolvedVendor(COPILOT_VENDOR_ID)) {
+			return cachedModelId;
+		}
+		await this.languageModelsService.selectLanguageModels({
+			vendor: COPILOT_VENDOR_ID,
+			id: AUTO_RAW_MODEL_ID,
+		});
+		return this.findEligibleAutoModelId();
 	}
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
@@ -561,7 +598,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		const subagent = requestedAgentName ? await this.getSubAgentByName(requestedAgentName) : undefined;
 
 		// Resolve the model early and cache it for invoke()
-		const resolved = this.resolveSubagentModel(subagent, context.modelId, args.model);
+		const resolved = await this.resolveSubagentModel(subagent, context.modelId, args.model);
 		this._resolvedModels.set(context.toolCallId, resolved);
 
 		return {

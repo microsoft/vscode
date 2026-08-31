@@ -13,7 +13,7 @@ import { RUN_SUBAGENT_MAX_NESTING_DEPTH, RunSubagentTool } from '../../../../com
 import { MockLanguageModelToolsService } from '../mockLanguageModelToolsService.js';
 import { IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService, UserSelectedTools } from '../../../../common/participants/chatAgents.js';
 import { IChatProgress, IChatService } from '../../../../common/chatService/chatService.js';
-import { COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../common/languageModels.js';
+import { AUTO_RAW_MODEL_ID, COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../common/languageModels.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IProductService } from '../../../../../../../platform/product/common/productService.js';
 import { ICustomAgent, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
@@ -26,6 +26,23 @@ import { ChatConfiguration } from '../../../../common/constants.js';
 
 suite('RunSubagentTool', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createMetadata(name: string, multiplierNumeric?: number, vendor: string = 'TestVendor'): ILanguageModelChatMetadata {
+		return {
+			extension: new ExtensionIdentifier('test.extension'),
+			name,
+			id: name.toLowerCase().replace(/\s+/g, '-'),
+			vendor,
+			version: '1.0',
+			family: 'test',
+			maxInputTokens: 128000,
+			maxOutputTokens: 8192,
+			isDefaultForLocation: {},
+			multiplierNumeric,
+			capabilities: { toolCalling: true },
+			isBYOK: vendor !== COPILOT_VENDOR_ID,
+		};
+	}
 
 	suite('resultText trimming', () => {
 		test('trims leading empty codeblocks (```\\n```) from result', () => {
@@ -242,27 +259,14 @@ suite('RunSubagentTool', () => {
 		const BUILTIN_CHAT_EXTENSION_ID = 'github.copilot-chat';
 		const builtinProductService = { defaultChatAgent: { chatExtensionId: BUILTIN_CHAT_EXTENSION_ID } } as IProductService;
 
-		function createMetadata(name: string, multiplierNumeric?: number, vendor: string = 'TestVendor'): ILanguageModelChatMetadata {
-			return {
-				extension: new ExtensionIdentifier('test.extension'),
-				name,
-				id: name.toLowerCase().replace(/\s+/g, '-'),
-				vendor,
-				version: '1.0',
-				family: 'test',
-				maxInputTokens: 128000,
-				maxOutputTokens: 8192,
-				isDefaultForLocation: {},
-				multiplierNumeric,
-				capabilities: { toolCalling: true },
-				isBYOK: vendor !== COPILOT_VENDOR_ID,
-			};
-		}
-
 		function createTool(opts: {
 			models: Map<string, ILanguageModelChatMetadata>;
+			selectedModels?: Map<string, ILanguageModelChatMetadata>;
 			qualifiedNameMap?: Map<string, ILanguageModelChatMetadataAndIdentifier>;
 			customAgents?: ICustomAgent[];
+			defaultToAuto?: boolean;
+			copilotVendorResolved?: boolean;
+			onSelectLanguageModels?: () => void;
 		}) {
 			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
 			const promptsService = new MockPromptsService();
@@ -280,6 +284,20 @@ suite('RunSubagentTool', () => {
 				lookupLanguageModelByQualifiedName(qualifiedName: string) {
 					return opts.qualifiedNameMap?.get(qualifiedName);
 				},
+				hasResolvedVendor(vendor: string) {
+					assert.strictEqual(vendor, COPILOT_VENDOR_ID);
+					return opts.copilotVendorResolved ?? false;
+				},
+				async selectLanguageModels(selector) {
+					opts.onSelectLanguageModels?.();
+					assert.deepStrictEqual(selector, { vendor: COPILOT_VENDOR_ID, id: AUTO_RAW_MODEL_ID });
+					for (const [modelId, metadata] of opts.selectedModels ?? []) {
+						opts.models.set(modelId, metadata);
+					}
+					return Array.from(opts.models)
+						.filter(([, metadata]) => metadata.vendor === selector.vendor && metadata.id === selector.id)
+						.map(([modelId]) => modelId);
+				},
 			};
 
 			const tool = testDisposables.add(new RunSubagentTool(
@@ -288,7 +306,9 @@ suite('RunSubagentTool', () => {
 				mockToolsService,
 				mockLanguageModelsService as ILanguageModelsService,
 				new NullLogService(),
-				new TestConfigurationService(),
+				new TestConfigurationService({
+					[ChatConfiguration.SubagentsDefaultToAuto]: opts.defaultToAuto ?? false,
+				}),
 				promptsService,
 				{} as IInstantiationService,
 				builtinProductService,
@@ -319,6 +339,14 @@ suite('RunSubagentTool', () => {
 			return {
 				...createAgent(name, modelQualifiedNames),
 				source: { storage: PromptsStorage.extension, extensionId: new ExtensionIdentifier(BUILTIN_CHAT_EXTENSION_ID) },
+			};
+		}
+
+		function createAutoMetadata(multiplierNumeric?: number, overrides: Partial<ILanguageModelChatMetadata> = {}): ILanguageModelChatMetadata {
+			return {
+				...createMetadata('Auto', multiplierNumeric, COPILOT_VENDOR_ID),
+				id: AUTO_RAW_MODEL_ID,
+				...overrides,
 			};
 		}
 
@@ -354,18 +382,20 @@ suite('RunSubagentTool', () => {
 		});
 
 		test('uses subagent model when it has equal multiplier', async () => {
-			const mainMeta = createMetadata('GPT-4o', 1);
+			const mainMeta = createMetadata('GPT-4o', 1, COPILOT_VENDOR_ID);
 			const sameCostMeta = createMetadata('Claude Sonnet', 1);
+			const autoMeta = createAutoMetadata();
 			const models = new Map([
 				['main-model-id', mainMeta],
 				['same-cost-model-id', sameCostMeta],
+				['copilot-auto-model-id', autoMeta],
 			]);
 			const qualifiedNameMap = new Map([
 				['Claude Sonnet (TestVendor)', { metadata: sameCostMeta, identifier: 'same-cost-model-id' }],
 			]);
 
 			const agent = createAgent('SameCostAgent', ['Claude Sonnet (TestVendor)']);
-			const tool = createTool({ models, qualifiedNameMap, customAgents: [agent] });
+			const tool = createTool({ models, qualifiedNameMap, customAgents: [agent], defaultToAuto: true });
 
 			const result = await tool.prepareToolInvocation({
 				parameters: { prompt: 'test', description: 'test task', agentName: 'SameCostAgent' },
@@ -524,6 +554,206 @@ suite('RunSubagentTool', () => {
 				prompt: 'test',
 				modelName: 'GPT-4o',
 			});
+		});
+
+		test('resolves and uses Auto from a cold provider when enabled and no subagent is specified', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1, COPILOT_VENDOR_ID);
+			const autoMeta = createAutoMetadata();
+			let selectCalls = 0;
+			const tool = createTool({
+				models: new Map([['main-model-id', mainMeta]]),
+				selectedModels: new Map([['copilot-auto-model-id', autoMeta]]),
+				defaultToAuto: true,
+				onSelectLanguageModels: () => selectCalls++,
+			});
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test task' },
+				toolCallId: 'auto-call-1',
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			assert.deepStrictEqual({
+				modelName: result.toolSpecificData?.kind === 'subagent' ? result.toolSpecificData.modelName : undefined,
+				selectCalls,
+			}, {
+				modelName: 'Auto',
+				selectCalls: 1,
+			});
+		});
+
+		test('uses Auto when enabled and subagent has no model configured', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1, COPILOT_VENDOR_ID);
+			const autoMeta = createAutoMetadata();
+			const agent = createAgent('NoModelAgent', undefined);
+			const tool = createTool({
+				models: new Map([
+					['main-model-id', mainMeta],
+					['copilot-auto-model-id', autoMeta],
+				]),
+				customAgents: [agent],
+				defaultToAuto: true,
+			});
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test task', agentName: 'NoModelAgent' },
+				toolCallId: 'auto-call-2',
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			assert.strictEqual(result.toolSpecificData?.kind === 'subagent' ? result.toolSpecificData.modelName : undefined, 'Auto');
+		});
+
+		test('falls back to main model when Auto is unavailable after provider resolution', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1, COPILOT_VENDOR_ID);
+			let selectCalls = 0;
+			const tool = createTool({
+				models: new Map([['main-model-id', mainMeta]]),
+				defaultToAuto: true,
+				copilotVendorResolved: true,
+				onSelectLanguageModels: () => selectCalls++,
+			});
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test task' },
+				toolCallId: 'auto-call-3',
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			assert.deepStrictEqual({
+				modelName: result.toolSpecificData?.kind === 'subagent' ? result.toolSpecificData.modelName : undefined,
+				selectCalls,
+			}, {
+				modelName: 'GPT-4o',
+				selectCalls: 0,
+			});
+		});
+
+		test('falls back to main model when cached Auto is ineligible', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1, COPILOT_VENDOR_ID);
+			const ineligibleAutoModels = [
+				createAutoMetadata(undefined, { capabilities: { toolCalling: false } }),
+				createAutoMetadata(undefined, { isUserSelectable: false }),
+				createAutoMetadata(undefined, { targetChatSessionType: 'other-session' }),
+			];
+
+			for (const [index, autoMeta] of ineligibleAutoModels.entries()) {
+				let selectCalls = 0;
+				const tool = createTool({
+					models: new Map([
+						['main-model-id', mainMeta],
+						[`copilot-auto-model-id-${index}`, autoMeta],
+					]),
+					defaultToAuto: true,
+					copilotVendorResolved: true,
+					onSelectLanguageModels: () => selectCalls++,
+				});
+
+				const result = await tool.prepareToolInvocation({
+					parameters: { prompt: 'test', description: 'test task' },
+					toolCallId: `ineligible-auto-call-${index}`,
+					modelId: 'main-model-id',
+					chatSessionResource: URI.parse('test://session'),
+				}, CancellationToken.None);
+
+				assert.ok(result);
+				assert.deepStrictEqual({
+					modelName: result.toolSpecificData?.kind === 'subagent' ? result.toolSpecificData.modelName : undefined,
+					selectCalls,
+				}, {
+					modelName: 'GPT-4o',
+					selectCalls: 0,
+				});
+			}
+		});
+
+		test('keeps BYOK main model without resolving Copilot Auto', async () => {
+			const byokMain = createMetadata('Claude Sonnet BYOK', undefined, 'anthropic');
+			const autoMeta = createAutoMetadata();
+
+			for (const agent of [undefined, createAgent('NoModelAgent', undefined)]) {
+				let selectCalls = 0;
+				const tool = createTool({
+					models: new Map([['main-byok-id', byokMain]]),
+					selectedModels: new Map([['copilot-auto-model-id', autoMeta]]),
+					customAgents: agent ? [agent] : undefined,
+					defaultToAuto: true,
+					onSelectLanguageModels: () => selectCalls++,
+				});
+
+				const result = await tool.prepareToolInvocation({
+					parameters: { prompt: 'test', description: 'test task', agentName: agent?.name },
+					toolCallId: `byok-auto-call-${agent?.name ?? 'unnamed'}`,
+					modelId: 'main-byok-id',
+					chatSessionResource: URI.parse('test://session'),
+				}, CancellationToken.None);
+
+				assert.ok(result);
+				assert.deepStrictEqual({
+					modelName: result.toolSpecificData?.kind === 'subagent' ? result.toolSpecificData.modelName : undefined,
+					selectCalls,
+				}, {
+					modelName: 'Claude Sonnet BYOK',
+					selectCalls: 0,
+				});
+			}
+		});
+
+		test('reuses warm Auto without provider refresh and exempts it from fixed multiplier constraint', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1, COPILOT_VENDOR_ID);
+			const autoMeta = createAutoMetadata(50);
+			let selectCalls = 0;
+			const tool = createTool({
+				models: new Map([
+					['main-model-id', mainMeta],
+					['copilot-auto-model-id', autoMeta],
+				]),
+				defaultToAuto: true,
+				copilotVendorResolved: true,
+				onSelectLanguageModels: () => selectCalls++,
+			});
+
+			for (const toolCallId of ['warm-auto-1', 'warm-auto-2']) {
+				const result = await tool.prepareToolInvocation({
+					parameters: { prompt: 'test', description: 'test task' },
+					toolCallId,
+					modelId: 'main-model-id',
+					chatSessionResource: URI.parse('test://session'),
+				}, CancellationToken.None);
+				assert.ok(result);
+				assert.strictEqual(result.toolSpecificData?.kind === 'subagent' ? result.toolSpecificData.modelName : undefined, 'Auto');
+			}
+			assert.strictEqual(selectCalls, 0);
+		});
+
+		test('keeps main model when configured subagent model is unavailable', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1, COPILOT_VENDOR_ID);
+			const autoMeta = createAutoMetadata();
+			const unavailableAgent = createAgent('UnavailableAgent', ['Missing Model (TestVendor)']);
+			const tool = createTool({
+				models: new Map([
+					['main-model-id', mainMeta],
+					['copilot-auto-model-id', autoMeta],
+				]),
+				customAgents: [unavailableAgent],
+				defaultToAuto: true,
+			});
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test task', agentName: 'UnavailableAgent' },
+				toolCallId: 'unavailable-agent-model',
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			assert.strictEqual(result.toolSpecificData?.kind === 'subagent' ? result.toolSpecificData.modelName : undefined, 'GPT-4o');
 		});
 
 		test('skips Copilot fallback models when main model is BYOK and inherits the main model', async () => {
@@ -687,12 +917,12 @@ suite('RunSubagentTool', () => {
 	});
 
 	suite('explicit model parameter', () => {
-		function createMetadata(name: string, multiplierNumeric?: number): ILanguageModelChatMetadata {
+		function createMetadata(name: string, multiplierNumeric?: number, vendor: string = 'TestVendor'): ILanguageModelChatMetadata {
 			return {
 				extension: new ExtensionIdentifier('test.extension'),
 				name,
 				id: name.toLowerCase().replace(/\s+/g, '-'),
-				vendor: 'TestVendor',
+				vendor,
 				version: '1.0',
 				family: 'test',
 				maxInputTokens: 128000,
@@ -707,6 +937,7 @@ suite('RunSubagentTool', () => {
 			models: Map<string, ILanguageModelChatMetadata>;
 			qualifiedNameMap?: Map<string, ILanguageModelChatMetadataAndIdentifier>;
 			customAgents?: ICustomAgent[];
+			defaultToAuto?: boolean;
 		}) {
 			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
 			const promptsService = new MockPromptsService();
@@ -732,7 +963,9 @@ suite('RunSubagentTool', () => {
 				mockToolsService,
 				mockLanguageModelsService as ILanguageModelsService,
 				new NullLogService(),
-				new TestConfigurationService(),
+				new TestConfigurationService({
+					[ChatConfiguration.SubagentsDefaultToAuto]: opts.defaultToAuto ?? false,
+				}),
 				promptsService,
 				{} as IInstantiationService,
 				{} as IProductService,
@@ -774,7 +1007,7 @@ suite('RunSubagentTool', () => {
 		});
 
 		test('resolves explicit model parameter without agentName', async () => {
-			const mainMeta = createMetadata('GPT-4o', 1);
+			const mainMeta = createMetadata('GPT-4o', 1, COPILOT_VENDOR_ID);
 			const explicitMeta = createMetadata('Claude Sonnet', 1);
 			const models = new Map([
 				['main-model-id', mainMeta],
@@ -784,7 +1017,7 @@ suite('RunSubagentTool', () => {
 				['Claude Sonnet (TestVendor)', { metadata: explicitMeta, identifier: 'explicit-model-id' }],
 			]);
 
-			const tool = createTool({ models, qualifiedNameMap });
+			const tool = createTool({ models, qualifiedNameMap, defaultToAuto: true });
 
 			const result = await tool.prepareToolInvocation({
 				parameters: { prompt: 'test', description: 'test task', model: 'Claude Sonnet (TestVendor)' },
@@ -1073,12 +1306,19 @@ suite('RunSubagentTool', () => {
 			allowInvocationsFromSubagents: boolean;
 			capturedRequests: IChatAgentRequest[];
 			currentModeInstructions?: IChatRequestModeInstructions;
+			defaultToAuto?: boolean;
+			models?: Map<string, ILanguageModelChatMetadata>;
+			selectedModels?: Map<string, ILanguageModelChatMetadata>;
+			copilotVendorResolved?: boolean;
+			onSelectLanguageModels?: () => void;
 		}) {
 			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
 			const configService = new TestConfigurationService({
 				[ChatConfiguration.SubagentsAllowInvocationsFromSubagents]: opts.allowInvocationsFromSubagents,
+				[ChatConfiguration.SubagentsDefaultToAuto]: opts.defaultToAuto ?? false,
 			});
 			const promptsService = new MockPromptsService();
+			const models = opts.models ?? new Map<string, ILanguageModelChatMetadata>();
 
 			const mockChatAgentService: Pick<IChatAgentService, 'getDefaultAgent' | 'invokeAgent'> = {
 				getDefaultAgent() {
@@ -1113,12 +1353,32 @@ suite('RunSubagentTool', () => {
 					return { collect: async () => { } };
 				},
 			};
+			const languageModelsService: Partial<ILanguageModelsService> = {
+				getLanguageModelIds: () => Array.from(models.keys()),
+				lookupLanguageModel: modelId => models.get(modelId),
+				lookupLanguageModelByQualifiedName: () => undefined,
+				hasResolvedVendor: vendor => {
+					assert.strictEqual(vendor, COPILOT_VENDOR_ID);
+					return opts.copilotVendorResolved ?? false;
+				},
+				selectLanguageModels: async selector => {
+					opts.onSelectLanguageModels?.();
+					assert.deepStrictEqual(selector, { vendor: COPILOT_VENDOR_ID, id: AUTO_RAW_MODEL_ID });
+					for (const [modelId, metadata] of opts.selectedModels ?? []) {
+						models.set(modelId, metadata);
+					}
+					return Array.from(models)
+						.filter(([, metadata]) => metadata.vendor === selector.vendor && metadata.id === selector.id)
+						.map(([modelId]) => modelId);
+				},
+				getModelConfiguration: () => undefined,
+			};
 
 			const tool = testDisposables.add(new RunSubagentTool(
 				mockChatAgentService as IChatAgentService,
 				mockChatService as IChatService,
 				mockToolsService,
-				{} as ILanguageModelsService,
+				languageModelsService as ILanguageModelsService,
 				new NullLogService(),
 				configService,
 				promptsService,
@@ -1129,12 +1389,13 @@ suite('RunSubagentTool', () => {
 			return { tool, mockChatAgentService };
 		}
 
-		function createInvocation(sessionUri: URI, userSelectedTools?: UserSelectedTools): IToolInvocation {
+		function createInvocation(sessionUri: URI, userSelectedTools?: UserSelectedTools, modelId?: string): IToolInvocation {
 			return {
 				callId: `call-${++callIdCounter}`,
 				toolId: 'runSubagent',
 				parameters: { prompt: 'do something', description: 'test' },
 				context: { sessionResource: sessionUri },
+				modelId,
 				userSelectedTools: userSelectedTools ?? { runSubagent: true },
 			} as IToolInvocation;
 		}
@@ -1222,6 +1483,69 @@ suite('RunSubagentTool', () => {
 			assert.strictEqual(capturedRequests.length, 1);
 			assert.strictEqual(capturedRequests[0].subAgentName, 'CurrentAgent');
 			assert.deepStrictEqual(capturedRequests[0].modeInstructions, currentModeInstructions);
+		});
+
+		test('passes prepared Auto model to participant without resolving it again', async () => {
+			const capturedRequests: IChatAgentRequest[] = [];
+			const mainMeta = createMetadata('GPT-4o', 1, COPILOT_VENDOR_ID);
+			const autoMeta = { ...createMetadata('Auto', undefined, COPILOT_VENDOR_ID), id: AUTO_RAW_MODEL_ID };
+			let selectCalls = 0;
+			const { tool } = createInvokableTool({
+				allowInvocationsFromSubagents: false,
+				capturedRequests,
+				defaultToAuto: true,
+				models: new Map([['main-model-id', mainMeta]]),
+				selectedModels: new Map([['copilot-auto-model-id', autoMeta]]),
+				onSelectLanguageModels: () => selectCalls++,
+			});
+			const sessionUri = URI.parse('test://session/prepared-auto');
+			const invocation = createInvocation(sessionUri, undefined, 'main-model-id');
+
+			await tool.prepareToolInvocation({
+				parameters: invocation.parameters,
+				toolCallId: invocation.callId,
+				modelId: invocation.modelId,
+				chatSessionResource: sessionUri,
+			}, CancellationToken.None);
+			await tool.invoke(invocation, countTokens, noProgress, CancellationToken.None);
+
+			assert.deepStrictEqual({
+				userSelectedModelId: capturedRequests[0].userSelectedModelId,
+				selectCalls,
+			}, {
+				userSelectedModelId: 'copilot-auto-model-id',
+				selectCalls: 1,
+			});
+		});
+
+		test('resolves and passes Auto to participant when preparation was skipped', async () => {
+			const capturedRequests: IChatAgentRequest[] = [];
+			const mainMeta = createMetadata('GPT-4o', 1, COPILOT_VENDOR_ID);
+			const autoMeta = { ...createMetadata('Auto', undefined, COPILOT_VENDOR_ID), id: AUTO_RAW_MODEL_ID };
+			let selectCalls = 0;
+			const { tool } = createInvokableTool({
+				allowInvocationsFromSubagents: false,
+				capturedRequests,
+				defaultToAuto: true,
+				models: new Map([['main-model-id', mainMeta]]),
+				selectedModels: new Map([['copilot-auto-model-id', autoMeta]]),
+				onSelectLanguageModels: () => selectCalls++,
+			});
+
+			await tool.invoke(
+				createInvocation(URI.parse('test://session/direct-auto'), undefined, 'main-model-id'),
+				countTokens,
+				noProgress,
+				CancellationToken.None,
+			);
+
+			assert.deepStrictEqual({
+				userSelectedModelId: capturedRequests[0].userSelectedModelId,
+				selectCalls,
+			}, {
+				userSelectedModelId: 'copilot-auto-model-id',
+				selectCalls: 1,
+			});
 		});
 	});
 
