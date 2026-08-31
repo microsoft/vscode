@@ -2997,15 +2997,12 @@ suite('LayoutController (desktop)', () => {
 			return undefined;
 		};
 
-		// A created session with changes wants both a Changes and a Files tab; its reconcile
-		// stalls awaiting the gated Changes open.
+		// The created session's reconcile stalls awaiting the gated Changes open before the Files tab.
 		harness.activeSessionObs.set(makeSession(URI.parse('session:1'), { isCreated: true, changes: [makeChange('/file.ts')] }), undefined);
 		await settle();
 		assert.strictEqual(hasFilesTab(), false, 'reconcile should be stalled before opening the Files tab');
 
-		// Dispose the controller (session-switch teardown / window close) while the reconcile is
-		// stalled, then let it resume. Bumping the generation on dispose makes it bail, so it must
-		// never reach a later editor open — which would instantiate a pane on the disposed DI.
+		// Dispose while stalled: the generation bump on dispose must make the resumed reconcile bail before any later editor open.
 		controller.dispose();
 		releaseChangesOpen();
 		await settle();
