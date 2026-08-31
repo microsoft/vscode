@@ -28,7 +28,8 @@ export function isAutoModeTier(value: unknown): value is AutoModeTier {
  * never surfaces raw. Wording matches `getAutoModeTierLabel` in
  * `extensions/copilot/src/extension/conversation/common/languageModelAccess.ts`, which cannot be
  * imported here because the extension compiles separately and localizes through `vscode.l10n`.
- */export function getAutoModeTierLabel(tier: string): string {
+ */
+export function getAutoModeTierLabel(tier: string): string {
 	switch (tier) {
 		case 'efficiency': return localize('autoModeTier.efficiency', "Efficiency");
 		case 'balance': return localize('autoModeTier.balance', "Balance");

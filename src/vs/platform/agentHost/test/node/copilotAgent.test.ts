@@ -5095,7 +5095,8 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	suite('contextSize to contextTier mapping', () => {		const longContextModel: ITestCopilotModelInfo = {
+	suite('contextSize to contextTier mapping', () => {
+		const longContextModel: ITestCopilotModelInfo = {
 			id: 'claude-sonnet',
 			name: 'Claude Sonnet',
 			capabilities: { limits: { max_context_window_tokens: 200_000 } },
@@ -9810,6 +9811,39 @@ suite('CopilotAgent', () => {
 
 				const stored = await sessionDataService.openDatabase(session).object.getMetadata('copilot.model');
 				assert.deepStrictEqual(JSON.parse(stored ?? 'null'), { id: 'model-b' });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('changeModel keeps the Auto routing profile the session launched with', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
+			client.createSession = async () => new MockCopilotSession() as unknown as CopilotSession;
+			const { agent } = createTestAgentContext(disposables, {
+				sessionDataService,
+				copilotClient: client,
+				rootConfig: { [CopilotCliConfigKey.AutoModeTiers]: true },
+			});
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await waitForState(agent.models, m => m.length > 0);
+				const session = AgentSession.uri('copilotcli', 'auto-tier-session');
+				const chat = defaultChatUri(session);
+				const result = await provisionSession(agent, {
+					session,
+					workingDirectories: [URI.file('/workspace')],
+					model: { id: 'auto', config: { tier: 'intelligence' } },
+				});
+				await agent.chats.sendMessage(chat, 'hello', undefined, undefined, undefined, undefined, exactChatContext(result.session, chat, result.session));
+
+				// The runtime fixed the profile at creation, so this change cannot take effect. Recording
+				// it would leave a resumed session routing with 'intelligence' while its metadata claims
+				// 'efficiency'.
+				await agent.chats.changeModel(chat, { id: 'auto', config: { tier: 'efficiency' } }, exactChatContext(result.session, chat, result.session));
+
+				const stored = await sessionDataService.openDatabase(session).object.getMetadata('copilot.model');
+				assert.deepStrictEqual(JSON.parse(stored ?? 'null'), { id: 'auto', config: { tier: 'intelligence' } });
 			} finally {
 				await disposeAgent(agent);
 			}

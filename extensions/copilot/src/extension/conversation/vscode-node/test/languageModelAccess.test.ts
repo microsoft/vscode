@@ -663,7 +663,7 @@ suite('reasoning effort schema', () => {
 	});
 
 	test('Kimi K3 prefers high when available', () => {
-		assert.strictEqual(pickDefaultReasoningEffort(['low', 'high', 'intelligence'], 'kimi-k3'), 'high');
+		assert.strictEqual(pickDefaultReasoningEffort(['low', 'high', 'max'], 'kimi-k3'), 'high');
 	});
 
 	test('non-claude family prefers medium when available', () => {
