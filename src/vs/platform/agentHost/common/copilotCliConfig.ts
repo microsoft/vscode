@@ -34,8 +34,7 @@ export const enum CopilotCliConfigKey {
 	MultiTurnContextRouting = 'multiTurnContextRouting',
 	/**
 	 * Offer the Auto model's routing-profile ("Optimize for") picker. Off by default. Separate from
-	 * the extension's `chat.autoMode.tiers.enabled` because that one tracks CAPI readiness while this
-	 * tracks the bundled runtime's support for `capi.autoTier`.
+	 * the extension's gate, which tracks CAPI readiness rather than the bundled runtime's support.
 	 */
 	AutoModeTiers = 'autoModeTiers',
 	/** Tell the model to keep subagents on their default model unless the user asks otherwise. Off by default. */

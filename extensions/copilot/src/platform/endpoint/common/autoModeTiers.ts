@@ -30,8 +30,7 @@ export const AUTO_MODE_TIER_PROPERTY = 'tier';
 
 /**
  * Tier names retired in favour of the current ones. `POST /auto` still accepts
- * them, but the agent runtime rejects them at its session boundary, so one
- * vocabulary is used everywhere and these are mapped forward on read.
+ * them, but the agent runtime rejects them, so they are mapped forward on read.
  */
 const retiredAutoModeTiers: Readonly<Record<string, AutoModeTier>> = {
 	eco: 'efficiency',
@@ -41,8 +40,7 @@ const retiredAutoModeTiers: Readonly<Record<string, AutoModeTier>> = {
 
 /**
  * Maps a retired tier name to its current one, leaving anything else untouched.
- * Only raw inputs that bypass the picker schema need this, notably the override
- * setting; a persisted picker value is already filtered against the live schema.
+ * Only raw inputs that bypass the picker schema need this, notably the override setting.
  */
 export function normalizeAutoModeTier(value: string): string {
 	return retiredAutoModeTiers[value] ?? value;

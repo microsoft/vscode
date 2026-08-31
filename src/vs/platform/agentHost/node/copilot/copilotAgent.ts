@@ -2243,8 +2243,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/**
 	 * Synthesizes the Auto model's routing-profile picker, surfaced as the "Optimize for" button.
-	 * Gated on `autoModeTiers` because the runtime rejects unknown `capi` fields, so offering the
-	 * picker against an older runtime would turn a selection into a failed session.
+	 * Gated because the runtime rejects unknown `capi` fields, failing the session outright.
 	 */
 	private _createAutoTierConfigSchemaProperty(modelId: string): ConfigPropertySchema | undefined {
 		if (!isAutoModel(modelId) || !this._areAutoModeTiersEnabled()) {
@@ -4586,8 +4585,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// A `family` alias routes the host's prompt and tool profile only. The
 			// selected model's reasoning-effort override is resolved separately.
 			const provisional = this._provisionalSessions.get(current.configurationId);
-			// The selection to record. A materialized session's Auto routing profile is fixed by the
-			// runtime, so what is stored and echoed back can differ from what was requested.
+			// The selection to record, which can differ from the request: the runtime fixes a
+			// materialized session's routing profile.
 			let recorded = model;
 			if (provisional) {
 				provisional.model = model;
@@ -4613,10 +4612,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Rewrites a model selection so its Auto routing profile is the one `session` actually launched
-	 * with. The runtime fixes the profile for a session's lifetime, so recording a requested change
-	 * would leave the picker and the resumed session's metadata claiming a profile that is not in
-	 * effect. Returns the selection unchanged when it already agrees.
+	 * Rewrites a model selection so its Auto routing profile is the one `session` launched with.
+	 * The runtime fixes the profile for a session's lifetime, so a requested change cannot be recorded.
 	 */
 	private _pinLaunchAutoTier(model: ModelSelection, session: CopilotAgentSession, sessionId: string): ModelSelection {
 		// Only the Auto model routes per turn, so any other selection carries no profile to correct.

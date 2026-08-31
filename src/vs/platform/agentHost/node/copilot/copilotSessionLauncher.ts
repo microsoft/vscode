@@ -470,9 +470,8 @@ export function getCopilotAutoTier(model: ModelSelection | undefined): AutoModeT
 }
 
 /**
- * {@link getCopilotAutoTier} behind the `autoModeTiers` gate. The gate is re-read here rather than
- * trusted from the picker schema because the runtime rejects unknown `capi` fields, so a profile
- * persisted while the gate was on would fail an older runtime's session outright.
+ * {@link getCopilotAutoTier} behind the `autoModeTiers` gate. Re-read here rather than trusted from
+ * the picker schema, since the runtime rejects unknown `capi` fields and would fail the session.
  */
 export function resolveCopilotAutoTier(model: ModelSelection | undefined, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string): AutoModeTier | undefined {
 	const tier = getCopilotAutoTier(model);

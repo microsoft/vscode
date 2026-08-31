@@ -397,9 +397,9 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	 *
 	 * Only a non-default selection counts as explicit: the workbench materializes
 	 * the schema default into `modelConfiguration` and strips a pick of the
-	 * default back out when storing it, so a `balance` entry cannot be told apart
-	 * from "never picked" — reading it as a selection would make the inline pin
-	 * below unreachable.
+	 * default back out when storing it, so a `balance` entry cannot be told
+	 * apart from "never picked" — reading it as a selection would make the inline
+	 * pin below unreachable.
 	 */
 	private _resolveTier(chatRequest: IAutoModeRoutingRequest | undefined): AutoModeTier | undefined {
 		const override = this._configurationService.getConfig(ConfigKey.Advanced.AutoModeTierOverride);

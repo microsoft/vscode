@@ -7,9 +7,7 @@ import { localize } from '../../../nls.js';
 
 /**
  * The routing profiles the Copilot runtime accepts for an Auto session, cheapest first. These are
- * the wire values of its `capi.autoTier` option, matching what the Copilot Chat extension sends to
- * `POST /auto` in `extensions/copilot/src/platform/endpoint/common/autoModeTiers.ts`. The runtime
- * rejects the retired `eco`/`balanced`/`max` names.
+ * the wire values of its `capi.autoTier` option; the retired `eco`/`balanced`/`max` names are rejected.
  */
 export const autoModeTiers = ['efficiency', 'balance', 'intelligence'] as const;
 
@@ -25,9 +23,7 @@ export function isAutoModeTier(value: unknown): value is AutoModeTier {
 
 /**
  * Localized picker label for a routing profile, capitalizing an unrecognized value so a new profile
- * never surfaces raw. Wording matches `getAutoModeTierLabel` in
- * `extensions/copilot/src/extension/conversation/common/languageModelAccess.ts`, which cannot be
- * imported here because the extension compiles separately and localizes through `vscode.l10n`.
+ * never surfaces raw. Wording matches the extension's `getAutoModeTierLabel`, which cannot be imported here.
  */
 export function getAutoModeTierLabel(tier: string): string {
 	switch (tier) {

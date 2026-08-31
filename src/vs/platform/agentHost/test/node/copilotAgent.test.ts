@@ -9837,9 +9837,8 @@ suite('CopilotAgent', () => {
 				});
 				await agent.chats.sendMessage(chat, 'hello', undefined, undefined, undefined, undefined, exactChatContext(result.session, chat, result.session));
 
-				// The runtime fixed the profile at creation, so this change cannot take effect. Recording
-				// it would leave a resumed session routing with 'intelligence' while its metadata claims
-				// 'efficiency'.
+				// The runtime fixed the profile at creation, so recording this change would leave a
+				// resumed session routing with 'intelligence' while its metadata claims 'efficiency'.
 				await agent.chats.changeModel(chat, { id: 'auto', config: { tier: 'efficiency' } }, exactChatContext(result.session, chat, result.session));
 
 				const stored = await sessionDataService.openDatabase(session).object.getMetadata('copilot.model');
