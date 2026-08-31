@@ -205,25 +205,6 @@ suite('agentHostMcpServerSupport', () => {
 		});
 	});
 
-	test('does not expose explicit cwd as a workspace-file migration configuration', async () => {
-		const root = URI.file('/workspace');
-		const result = await assess([
-			makeMcpServer({
-				id: 'mcp.config.ws0.cwd',
-				collectionId: 'mcp.config.ws0',
-				provenance: McpCollectionProvenance.WorkspaceFolderConfiguration,
-				configTarget: ConfigurationTarget.WORKSPACE_FOLDER,
-				collectionOrigin: URI.joinPath(root, '.vscode', 'mcp.json'),
-				launch: {
-					...stdioLaunch(),
-					cwd: '/explicit',
-				},
-			}),
-		], [root]);
-
-		assert.strictEqual(result.servers[0].migrationConfiguration, undefined);
-	});
-
 	test('reports configuration features dropped by the Copilot delivery chain', async () => {
 		const server = makeMcpServer({
 			id: 'mcp.config.usrlocal.partial',

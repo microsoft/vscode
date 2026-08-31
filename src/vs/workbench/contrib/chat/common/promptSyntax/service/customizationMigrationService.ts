@@ -81,6 +81,34 @@ export interface McpServerCustomizationMigration {
 	readonly coverage: IAgentHostMcpServerSupportCoverage;
 }
 
+export const enum McpServerMigrationFailureReason {
+	NoLongerEligible = 'noLongerEligible',
+	SourceUnavailable = 'sourceUnavailable',
+	InvalidSource = 'invalidSource',
+	UnrepresentableConfiguration = 'unrepresentableConfiguration',
+	SourceChanged = 'sourceChanged',
+	InvalidTarget = 'invalidTarget',
+	TargetConflict = 'targetConflict',
+	TargetChanged = 'targetChanged',
+	WriteFailed = 'writeFailed',
+	RollbackFailed = 'rollbackFailed',
+	InconsistentTarget = 'inconsistentTarget',
+}
+
+export interface IMcpServerMigrationFailure {
+	readonly id: string;
+	readonly name: string;
+	readonly sourceUri: URI;
+	readonly targetUri: URI;
+	readonly reason: McpServerMigrationFailureReason;
+	readonly error?: Error;
+}
+
+export interface IMcpServerMigrationResult {
+	readonly migratedCount: number;
+	readonly failures: readonly IMcpServerMigrationFailure[];
+}
+
 export type CustomizationMigrationCandidate = MigratableConfiguration | IMcpServerCustomizationMigrationCandidate;
 
 export function isMcpServerCustomizationMigrationCandidate(candidate: CustomizationMigrationCandidate): candidate is IMcpServerCustomizationMigrationCandidate {
@@ -94,6 +122,7 @@ export interface ICustomizationMigrationService {
 
 	computeMigration(sessionResource: URI, type: FileCustomizationMigrationType): Promise<FileCustomizationMigration>;
 	computeMigration(sessionResource: URI, type: CustomizationMigrationType.McpServers): Promise<McpServerCustomizationMigration>;
+	migrateMcpServers(sessionResource: URI, candidates: readonly IMcpServerCustomizationMigrationCandidate[]): Promise<IMcpServerMigrationResult>;
 	computeMigrations(sessionResource: URI): Promise<CustomizationMigration[]>;
 	computeMigrationHint(sessionResource: URI): Promise<string | undefined>;
 }

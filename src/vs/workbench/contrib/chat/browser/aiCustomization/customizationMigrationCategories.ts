@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../nls.js';
+import { basename } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { CustomizationMigrationCandidate, CustomizationMigrationType, isMcpServerCustomizationMigrationCandidate, isPromptFileMigrationCandidate, isUserDataMigrationCandidate, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationCandidate, CustomizationMigrationType, IMcpServerMigrationFailure, isMcpServerCustomizationMigrationCandidate, isPromptFileMigrationCandidate, isUserDataMigrationCandidate, McpServerMigrationFailureReason, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 
 export const enum CustomizationMigrationCategoryId {
@@ -19,6 +21,13 @@ export interface ICustomizationMigrationGroup {
 	readonly key: string;
 	readonly label: string;
 	readonly customizations: readonly CustomizationMigrationCandidate[];
+}
+
+export interface ICustomizationMigrationCandidatePresentation {
+	readonly name: string;
+	readonly selectionAriaLabel: string;
+	readonly pathLabel: string;
+	readonly file?: MigratableConfiguration;
 }
 
 export interface ICustomizationMigrationConfirmation {
@@ -44,7 +53,7 @@ export interface ICustomizationMigrationCategory {
 	readonly id: CustomizationMigrationCategoryId;
 	readonly migrationType: CustomizationMigrationType;
 	/** Prompt types scanned when collecting candidates for this category. */
-	readonly sourceTypes: readonly PromptsType[];
+	readonly sourceTypes?: readonly PromptsType[];
 	/** Optional experimental setting gating this migration. */
 	readonly enablementSetting?: ChatConfiguration;
 	readonly shortcutLabel: string;
@@ -59,8 +68,9 @@ export interface ICustomizationMigrationCategory {
 	readonly migrateButtonTooltip: string;
 	readonly backLabel: string;
 	readonly nothingMigratedMessage: string;
-	isCandidate(customization: MigratableConfiguration): boolean;
+	isCandidate?(customization: MigratableConfiguration): boolean;
 	group(customizations: readonly CustomizationMigrationCandidate[]): readonly ICustomizationMigrationGroup[];
+	getCandidatePresentation(customization: CustomizationMigrationCandidate, getUriLabel: (uri: URI) => string): ICustomizationMigrationCandidatePresentation;
 	getShortcutAriaLabel(count: number): string;
 	getCardDescription(customizations: readonly CustomizationMigrationCandidate[], harnessLabel: string): string;
 	getPageDescription(customizations: readonly CustomizationMigrationCandidate[], harnessLabel: string): string;
@@ -70,6 +80,7 @@ export interface ICustomizationMigrationCategory {
 	getMigratedMessage(migratedCount: number): string;
 	getMigratedWithReviewMessage?(migratedCount: number, unsupportedHeaderKeys: string): string;
 	getFailedMessage(failedFileNames: readonly string[], hiddenFileCount: number): string;
+	getMcpServerFailureMessage?(failures: readonly IMcpServerMigrationFailure[]): string;
 }
 
 const SKILLS_DOCUMENTATION_URL = 'https://code.visualstudio.com/docs/agent-customization/agent-skills?referrer=in-product';
@@ -99,6 +110,7 @@ const promptFilesMigrationCategory: ICustomizationMigrationCategory = {
 	nothingMigratedMessage: localize('promptMigrationNoFilesConverted', "No prompt files were converted."),
 
 	isCandidate: isPromptFileMigrationCandidate,
+	getCandidatePresentation: getFileCandidatePresentation,
 
 	group(customizations) {
 		return [
@@ -237,6 +249,7 @@ const userDataMigrationCategory: ICustomizationMigrationCategory = {
 	nothingMigratedMessage: localize('userDataMigrationNoFilesMigrated', "No user data customizations were migrated."),
 
 	isCandidate: isUserDataMigrationCandidate,
+	getCandidatePresentation: getFileCandidatePresentation,
 
 	group(customizations) {
 		return [
@@ -396,7 +409,6 @@ const userDataMigrationCategory: ICustomizationMigrationCategory = {
 const mcpServersMigrationCategory: ICustomizationMigrationCategory = {
 	id: CustomizationMigrationCategoryId.McpServers,
 	migrationType: CustomizationMigrationType.McpServers,
-	sourceTypes: [],
 	shortcutLabel: localize('mcpMigrationShortcutLabel', "Migrate MCP Servers"),
 	shortcutTooltip: localize('mcpMigrationShortcutTooltip', "Move supported workspace MCP servers to root .mcp.json files"),
 	cardLabel: localize('mcpMigrationCardLabel', "Migrate MCP Servers"),
@@ -410,8 +422,16 @@ const mcpServersMigrationCategory: ICustomizationMigrationCategory = {
 	backLabel: localize('backToMcpMigration', "Back to Migrate MCP Servers"),
 	nothingMigratedMessage: localize('mcpMigrationNoneMigrated', "No MCP servers were migrated."),
 
-	isCandidate() {
-		return false;
+	getCandidatePresentation(customization, getUriLabel) {
+		if (!isMcpServerCustomizationMigrationCandidate(customization)) {
+			throw new Error('Expected an MCP server migration candidate.');
+		}
+		const sourceLabel = getUriLabel(customization.sourceUri);
+		return {
+			name: customization.name,
+			selectionAriaLabel: localize('mcpMigrationSelectAriaLabel', "Select {0} from {1}", customization.name, sourceLabel),
+			pathLabel: localize('mcpMigrationItemPath', "{0} to {1}", sourceLabel, getUriLabel(customization.targetUri)),
+		};
 	},
 
 	group(customizations) {
@@ -472,6 +492,25 @@ const mcpServersMigrationCategory: ICustomizationMigrationCategory = {
 			? localize('mcpMigrationFailedWithRemainder', "Failed to migrate {0} MCP servers: {1}, and {2} more.", failedCount, failedServerNames.join(', '), hiddenServerCount)
 			: localize('mcpMigrationFailedMultiple', "Failed to migrate {0} MCP servers: {1}.", failedCount, failedServerNames.join(', '));
 	},
+
+	getMcpServerFailureMessage(failures) {
+		if (failures.length !== 1) {
+			return this.getFailedMessage(failures.slice(0, 3).map(failure => failure.name), Math.max(0, failures.length - 3));
+		}
+		const [failure] = failures;
+		switch (failure.reason) {
+			case McpServerMigrationFailureReason.NoLongerEligible:
+				return localize('mcpMigrationNoLongerEligible', "Could not migrate '{0}' because it is no longer eligible.", failure.name);
+			case McpServerMigrationFailureReason.SourceChanged:
+				return localize('mcpMigrationSourceChanged', "Could not migrate '{0}' because its source configuration changed.", failure.name);
+			case McpServerMigrationFailureReason.TargetConflict:
+				return localize('mcpMigrationTargetConflict', "Could not migrate '{0}' because .mcp.json already contains a different server with that name.", failure.name);
+			case McpServerMigrationFailureReason.InvalidTarget:
+				return localize('mcpMigrationInvalidTarget', "Could not migrate '{0}' because the destination .mcp.json is invalid.", failure.name);
+			default:
+				return this.getFailedMessage([failure.name], 0);
+		}
+	},
 };
 
 export const CUSTOMIZATION_MIGRATION_CATEGORIES: readonly ICustomizationMigrationCategory[] = [
@@ -492,7 +531,24 @@ export function getCustomizationMigrationCategory(id: CustomizationMigrationCate
  * All prompt types the given categories can discover, so candidates can be collected with one pass per type.
  */
 export function getCustomizationMigrationSourceTypes(categories: readonly ICustomizationMigrationCategory[]): readonly PromptsType[] {
-	return Array.from(new Set(categories.flatMap(category => category.sourceTypes)));
+	return Array.from(new Set(categories.flatMap(category => category.sourceTypes ?? [])));
+}
+
+function getFileCandidatePresentation(
+	customization: CustomizationMigrationCandidate,
+	getUriLabel: (uri: URI) => string,
+): ICustomizationMigrationCandidatePresentation {
+	if (isMcpServerCustomizationMigrationCandidate(customization)) {
+		throw new Error('Expected a file migration candidate.');
+	}
+	const name = customization.name ?? basename(customization.uri);
+	const pathLabel = getUriLabel(customization.uri);
+	return {
+		name,
+		selectionAriaLabel: localize('customizationMigrationSelectAriaLabel', "Select {0}", name),
+		pathLabel,
+		file: customization,
+	};
 }
 
 function countPromptStorages(customizations: readonly CustomizationMigrationCandidate[]): { workspaceCount: number; userCount: number; totalCount: number } {

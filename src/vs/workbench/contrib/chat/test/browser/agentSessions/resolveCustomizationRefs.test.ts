@@ -542,7 +542,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 
 		assert.strictEqual(bundler.received.length, 1);
 		assert.deepStrictEqual(bundler.receivedMcp[0], [
-			{ name: 'my-server', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'], env: undefined, envFile: undefined, cwd: undefined }, enablement: globalEnablement(true) },
+			{ name: 'my-server', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'], env: undefined }, enablement: globalEnablement(true) },
 		]);
 		assert.strictEqual(refs.length, 1);
 		assert.strictEqual(refs[0].name, 'Open Plugin');
@@ -575,8 +575,8 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		);
 
 		assert.deepStrictEqual(bundler.receivedMcp, [[
-			{ name: 'GitHub', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'], env: undefined, envFile: undefined, cwd: undefined }, enablement: globalEnablement(true) },
-			{ name: 'extension-server', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'], env: undefined, envFile: undefined, cwd: undefined }, enablement: globalEnablement(true) },
+			{ name: 'GitHub', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'], env: undefined }, enablement: globalEnablement(true) },
+			{ name: 'extension-server', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'], env: undefined }, enablement: globalEnablement(true) },
 		]]);
 	});
 
@@ -596,7 +596,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		);
 
 		assert.deepStrictEqual(bundler.receivedMcp, [[
-			{ name: 'GitHub', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'], env: undefined, envFile: undefined, cwd: undefined }, enablement: globalEnablement(true) },
+			{ name: 'GitHub', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'], env: undefined }, enablement: globalEnablement(true) },
 		]]);
 	});
 
@@ -667,7 +667,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		);
 
 		assert.deepStrictEqual(bundler.receivedMcp[0], [
-			{ name: 'off', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'], env: undefined, envFile: undefined, cwd: undefined }, enablement: globalEnablement(false) },
+			{ name: 'off', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'], env: undefined }, enablement: globalEnablement(false) },
 		]);
 	});
 
@@ -757,7 +757,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 
 		assert.strictEqual(bundler.received.length, 1);
 		assert.deepStrictEqual(bundler.receivedMcp[0], [
-			{ name: 'my-server', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'], env: undefined, envFile: undefined, cwd: undefined }, defaultCwd, enablement: globalEnablement(true) },
+			{ name: 'my-server', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'], env: undefined }, defaultCwd, enablement: globalEnablement(true) },
 		]);
 		assert.strictEqual(refs.length, 1);
 		assert.strictEqual(refs[0].name, 'Open Plugin');
@@ -848,7 +848,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 
 		assert.strictEqual(bundler.received.length, 1);
 		assert.deepStrictEqual(bundler.receivedMcp[0], [
-			{ name: 'folder-server', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--root', '/ws'], env: undefined, envFile: undefined, cwd: undefined }, defaultCwd, enablement: globalEnablement(true) },
+			{ name: 'folder-server', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--root', '/ws'], env: undefined }, defaultCwd, enablement: globalEnablement(true) },
 		]);
 		assert.strictEqual(refs.length, 1);
 	});
@@ -902,7 +902,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		assert.strictEqual(bundler.received.length, 1);
 		assert.deepStrictEqual(bundler.receivedMcp[0], [{
 			name: 'srv',
-			configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'], env: undefined, envFile: undefined, cwd: undefined },
+			configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'], env: undefined },
 			defaultCwd: extensionDefaultCwd,
 			enablement: globalEnablement(true),
 		}]);

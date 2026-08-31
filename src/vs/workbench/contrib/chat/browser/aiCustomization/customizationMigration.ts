@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { splitLinesIncludeSeparators } from '../../../../../base/common/strings.js';
+import { Iterable } from '../../../../../base/common/iterator.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { basename, dirname, getComparisonKey, isEqual } from '../../../../../base/common/resources.js';
@@ -11,7 +12,7 @@ import { ResourceMap } from '../../../../../base/common/map.js';
 import { FileOperationError, FileOperationResult, IFileService, IFileStatWithMetadata, toFileOperationResult } from '../../../../../platform/files/common/files.js';
 import { getCleanPromptName, getPromptFileExtension, SKILL_FILENAME, VALID_SKILL_NAME_REGEX } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { IHeaderAttribute, ParsedPromptFile, PromptFileParser, PromptHeaderAttributes } from '../../common/promptSyntax/promptFileParser.js';
-import { getCustomizationMigrationTargetType, IMcpServerCustomizationMigrationCandidate, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationType, getCustomizationMigrationTargetType, IMcpServerCustomizationMigrationCandidate, IMcpServerMigrationFailure, IMcpServerMigrationResult, McpServerMigrationFailureReason, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
@@ -21,6 +22,8 @@ import { FormattingOptions } from '../../../../../base/common/jsonFormatter.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { normalizeMcpServerConfiguration } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { ConfigurationResolverExpression } from '../../../../services/configurationResolver/common/configurationResolverExpression.js';
+import { AgentHostMcpServerApplicability, AgentHostMcpServerSourceKind, IAgentHostMcpServerSupportSnapshot } from '../agentSessions/agentHost/agentHostMcpServerSupport.js';
 
 export interface IMigratedPromptFile {
 	readonly skillName: string;
@@ -282,9 +285,9 @@ async function getAvailableMigratedSkillName(
 	return candidate;
 }
 
-export interface IMcpServerMigrationResult {
-	readonly migratedCount: number;
-	readonly failedServerNames: readonly string[];
+export interface IMcpServerMigrationPlan {
+	readonly candidates: readonly IMcpServerCustomizationMigrationCandidate[];
+	readonly exclusions: readonly IMcpServerMigrationFailure[];
 }
 
 interface IMcpServerMigrationGroup {
@@ -302,15 +305,106 @@ interface IJsonDocument {
 }
 
 /**
- * Moves only the selected MCP server entries, updating each source file once and leaving unrelated entries untouched.
+ * Owns MCP migration eligibility and guarded source-to-target execution.
  */
-export async function migrateMcpServers(
+export class McpServerMigration {
+	constructor(private readonly fileService: IFileService) { }
+
+	async createPlan(snapshot: IAgentHostMcpServerSupportSnapshot): Promise<IMcpServerMigrationPlan> {
+		const candidates: IMcpServerCustomizationMigrationCandidate[] = [];
+		const exclusions: IMcpServerMigrationFailure[] = [];
+		const sourceServers = new ResourceMap<Promise<Record<string, unknown> | undefined>>();
+
+		for (const server of snapshot.servers) {
+			const sourceUri = server.source.collectionUri;
+			if (server.source.kind !== AgentHostMcpServerSourceKind.VscodeWorkspaceFolder || !sourceUri) {
+				continue;
+			}
+			const targetUri = URI.joinPath(dirname(dirname(sourceUri)), '.mcp.json');
+			const excluded = (reason: McpServerMigrationFailureReason, error?: Error): void => {
+				exclusions.push({
+					id: server.id,
+					name: server.name,
+					sourceUri,
+					targetUri,
+					reason,
+					error,
+				});
+			};
+			if (!server.enablement.enabled
+				|| server.applicability !== AgentHostMcpServerApplicability.Applicable
+				|| server.compatibility.kind !== 'supported') {
+				excluded(McpServerMigrationFailureReason.NoLongerEligible);
+				continue;
+			}
+
+			let sourceServersPromise = sourceServers.get(sourceUri);
+			if (!sourceServersPromise) {
+				sourceServersPromise = this.readMcpServers(sourceUri);
+				sourceServers.set(sourceUri, sourceServersPromise);
+			}
+			let rawConfiguration: unknown;
+			try {
+				rawConfiguration = (await sourceServersPromise)?.[server.name];
+			} catch (error) {
+				excluded(McpServerMigrationFailureReason.SourceUnavailable, toError(error));
+				continue;
+			}
+			const configuration = normalizeMcpServerConfiguration(rawConfiguration);
+			const sourceConfiguration = canonicalizeMcpServerMigrationSourceConfiguration(rawConfiguration);
+			if (!configuration || !sourceConfiguration) {
+				excluded(McpServerMigrationFailureReason.InvalidSource);
+				continue;
+			}
+			if (!isMcpServerMigrationConfigurationRepresentable(configuration)
+				|| !Iterable.isEmpty(ConfigurationResolverExpression.parse(configuration).unresolved())
+				|| !equals(sourceConfiguration, canonicalizeMcpServerMigrationConfiguration(configuration))) {
+				excluded(McpServerMigrationFailureReason.UnrepresentableConfiguration);
+				continue;
+			}
+			candidates.push({
+				type: CustomizationMigrationType.McpServers,
+				id: server.id,
+				name: server.name,
+				sourceUri,
+				targetUri,
+				configuration,
+			});
+		}
+
+		return { candidates, exclusions };
+	}
+
+	migrate(candidates: readonly IMcpServerCustomizationMigrationCandidate[]): Promise<IMcpServerMigrationResult> {
+		return executeMcpServerMigration(candidates, this.fileService);
+	}
+
+	private async readMcpServers(resource: URI): Promise<Record<string, unknown> | undefined> {
+		let content: string;
+		try {
+			content = (await this.fileService.readFile(resource)).value.toString();
+		} catch (error) {
+			if (toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
+				return undefined;
+			}
+			throw error;
+		}
+		const errors: ParseError[] = [];
+		const value = parse(content, errors, { allowTrailingComma: true, allowEmptyContent: false });
+		if (errors.length > 0 || !isJsonObject(value)) {
+			return undefined;
+		}
+		return getObjectProperty(value, 'servers');
+	}
+}
+
+async function executeMcpServerMigration(
 	candidates: readonly IMcpServerCustomizationMigrationCandidate[],
 	fileService: IFileService,
-	onMigrationError?: (error: Error) => void,
 ): Promise<IMcpServerMigrationResult> {
 	// Batch by source so multiple selected servers share one guarded source/target transaction.
 	const groups = new ResourceMap<IMcpServerMigrationGroup>();
+	const failures: IMcpServerMigrationFailure[] = [];
 	for (const candidate of candidates) {
 		const group = groups.get(candidate.sourceUri) ?? {
 			sourceUri: candidate.sourceUri,
@@ -318,74 +412,80 @@ export async function migrateMcpServers(
 			candidates: [],
 		};
 		if (!isEqual(group.targetUri, candidate.targetUri)) {
-			throw new Error(`MCP servers from ${candidate.sourceUri.toString()} have inconsistent migration targets.`);
+			failures.push(createMcpServerMigrationFailure(candidate, McpServerMigrationFailureReason.InconsistentTarget));
+			continue;
 		}
 		group.candidates.push(candidate);
 		groups.set(candidate.sourceUri, group);
 	}
 
 	let migratedCount = 0;
-	const failedServerNames: string[] = [];
 	for (const group of groups.values()) {
 		try {
-			const result = await migrateMcpServerGroup(group, fileService, onMigrationError);
+			const result = await migrateMcpServerGroup(group, fileService);
 			migratedCount += result.migratedCount;
-			failedServerNames.push(...result.failedServerNames);
+			failures.push(...result.failures);
 		} catch (error) {
-			const migrationError = toError(error);
-			failedServerNames.push(...group.candidates.map(candidate => candidate.name));
-			onMigrationError?.(migrationError);
+			const migrationError = toMcpServerMigrationError(error);
+			failures.push(...group.candidates.map(candidate => createMcpServerMigrationFailure(candidate, migrationError.reason, migrationError)));
 		}
 	}
 
-	return { migratedCount, failedServerNames };
+	return { migratedCount, failures };
 }
 
 async function migrateMcpServerGroup(
 	group: IMcpServerMigrationGroup,
 	fileService: IFileService,
-	onMigrationError?: (error: Error) => void,
 ): Promise<IMcpServerMigrationResult> {
-	const source = await readSourceJsonDocument(group.sourceUri, fileService);
+	let source: IJsonDocument;
+	try {
+		source = await readSourceJsonDocument(group.sourceUri, fileService);
+	} catch (error) {
+		throw new McpServerMigrationError(McpServerMigrationFailureReason.SourceUnavailable, toError(error));
+	}
 	const sourceServers = getObjectProperty(source.value, 'servers');
 	if (!sourceServers) {
-		throw new Error(`MCP configuration ${group.sourceUri.toString()} does not contain a servers object.`);
+		throw new McpServerMigrationError(
+			McpServerMigrationFailureReason.InvalidSource,
+			new Error(`MCP configuration ${group.sourceUri.toString()} does not contain a servers object.`),
+		);
 	}
 
-	const target = await readTargetJsonDocument(group.targetUri, fileService);
+	let target: IJsonDocument;
+	try {
+		target = await readTargetJsonDocument(group.targetUri, fileService);
+	} catch (error) {
+		throw new McpServerMigrationError(McpServerMigrationFailureReason.InvalidTarget, toError(error));
+	}
 	const targetServers = getObjectProperty(target.value, 'mcpServers')!;
 	const candidatesToMigrate: IMcpServerCustomizationMigrationCandidate[] = [];
-	const failedServerNames: string[] = [];
+	const failures: IMcpServerMigrationFailure[] = [];
 
 	for (const candidate of group.candidates) {
 		if (!isMcpServerMigrationConfigurationRepresentable(candidate.configuration)) {
-			failedServerNames.push(candidate.name);
-			onMigrationError?.(new Error(`MCP server '${candidate.name}' uses configuration that cannot be preserved in ${group.targetUri.toString()}.`));
+			failures.push(createMcpServerMigrationFailure(candidate, McpServerMigrationFailureReason.UnrepresentableConfiguration));
 			continue;
 		}
 		if (!Object.hasOwn(sourceServers, candidate.name)) {
-			failedServerNames.push(candidate.name);
-			onMigrationError?.(new Error(`MCP server '${candidate.name}' no longer exists in ${group.sourceUri.toString()}.`));
+			failures.push(createMcpServerMigrationFailure(candidate, McpServerMigrationFailureReason.NoLongerEligible));
 			continue;
 		}
 
 		const sourceConfiguration = canonicalizeMcpServerMigrationSourceConfiguration(sourceServers[candidate.name]);
 		if (!sourceConfiguration) {
-			failedServerNames.push(candidate.name);
-			onMigrationError?.(new Error(`MCP server '${candidate.name}' has an invalid configuration in ${group.sourceUri.toString()}.`));
+			failures.push(createMcpServerMigrationFailure(candidate, McpServerMigrationFailureReason.InvalidSource));
 			continue;
 		}
 		const migrationConfiguration = canonicalizeMcpServerMigrationConfiguration(candidate.configuration);
 		if (!equals(sourceConfiguration, migrationConfiguration)) {
-			failedServerNames.push(candidate.name);
-			onMigrationError?.(new Error(`MCP server '${candidate.name}' changed after migration candidates were loaded.`));
+			failures.push(createMcpServerMigrationFailure(candidate, McpServerMigrationFailureReason.SourceChanged));
 			continue;
 		}
 
 		const targetConfiguration = canonicalizeMcpServerMigrationSourceConfiguration(targetServers[candidate.name]);
 		if (Object.hasOwn(targetServers, candidate.name) && (!targetConfiguration || !equals(targetConfiguration, migrationConfiguration))) {
-			failedServerNames.push(candidate.name);
-			onMigrationError?.(new Error(`MCP server '${candidate.name}' already exists with a different configuration in ${group.targetUri.toString()}.`));
+			failures.push(createMcpServerMigrationFailure(candidate, McpServerMigrationFailureReason.TargetConflict));
 			continue;
 		}
 
@@ -393,7 +493,7 @@ async function migrateMcpServerGroup(
 	}
 
 	if (candidatesToMigrate.length === 0) {
-		return { migratedCount: 0, failedServerNames };
+		return { migratedCount: 0, failures };
 	}
 
 	let targetContent = target.content;
@@ -412,9 +512,14 @@ async function migrateMcpServerGroup(
 	}
 
 	// The destination must exist before source entries are removed, so a failed target write cannot lose a server.
-	const writtenTarget = targetChanged
-		? await writeJsonDocument(group.targetUri, targetContent, target, fileService)
-		: undefined;
+	let writtenTarget: IFileStatWithMetadata | undefined;
+	if (targetChanged) {
+		try {
+			writtenTarget = await writeJsonDocument(group.targetUri, targetContent, target, fileService);
+		} catch (error) {
+			throw new McpServerMigrationError(McpServerMigrationFailureReason.WriteFailed, toError(error));
+		}
+	}
 
 	let writtenSource: IFileStatWithMetadata;
 	try {
@@ -432,10 +537,13 @@ async function migrateMcpServerGroup(
 					throw new Error(`Cannot safely remove newly created ${group.targetUri.toString()} after the source update failed.`);
 				}
 			} catch (rollbackError) {
-				throw new AggregateError([toError(error), toError(rollbackError)], `Failed to migrate and roll back MCP servers from ${group.sourceUri.toString()}.`);
+				throw new McpServerMigrationError(
+					McpServerMigrationFailureReason.RollbackFailed,
+					new AggregateError([toError(error), toError(rollbackError)], `Failed to migrate and roll back MCP servers from ${group.sourceUri.toString()}.`),
+				);
 			}
 		}
-		throw error;
+		throw new McpServerMigrationError(McpServerMigrationFailureReason.WriteFailed, toError(error));
 	}
 
 	try {
@@ -449,12 +557,15 @@ async function migrateMcpServerGroup(
 				mtime: writtenSource.mtime,
 			});
 		} catch (sourceRollbackError) {
-			throw new AggregateError([toError(verificationError), toError(sourceRollbackError)], `Failed to verify and restore MCP servers from ${group.sourceUri.toString()}.`);
+			throw new McpServerMigrationError(
+				McpServerMigrationFailureReason.RollbackFailed,
+				new AggregateError([toError(verificationError), toError(sourceRollbackError)], `Failed to verify and restore MCP servers from ${group.sourceUri.toString()}.`),
+			);
 		}
-		throw verificationError;
+		throw new McpServerMigrationError(McpServerMigrationFailureReason.TargetChanged, toError(verificationError));
 	}
 
-	return { migratedCount: candidatesToMigrate.length, failedServerNames };
+	return { migratedCount: candidatesToMigrate.length, failures };
 }
 
 async function verifyMigratedMcpServers(
@@ -626,4 +737,34 @@ function getFormattingOptions(content: string): FormattingOptions {
 
 function toError(error: unknown): Error {
 	return error instanceof Error ? error : new Error(String(error));
+}
+
+class McpServerMigrationError extends Error {
+	constructor(
+		readonly reason: McpServerMigrationFailureReason,
+		readonly underlyingError: Error,
+	) {
+		super(underlyingError.message);
+	}
+}
+
+function toMcpServerMigrationError(error: unknown): McpServerMigrationError {
+	return error instanceof McpServerMigrationError
+		? error
+		: new McpServerMigrationError(McpServerMigrationFailureReason.WriteFailed, toError(error));
+}
+
+function createMcpServerMigrationFailure(
+	candidate: IMcpServerCustomizationMigrationCandidate,
+	reason: McpServerMigrationFailureReason,
+	error?: Error,
+): IMcpServerMigrationFailure {
+	return {
+		id: candidate.id,
+		name: candidate.name,
+		sourceUri: candidate.sourceUri,
+		targetUri: candidate.targetUri,
+		reason,
+		error,
+	};
 }

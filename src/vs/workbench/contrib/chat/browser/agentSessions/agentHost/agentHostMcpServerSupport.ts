@@ -116,8 +116,6 @@ export interface IAgentHostMcpServerSupport {
 	readonly delivery: AgentHostMcpServerDelivery;
 	/** Whether that delivery preserves the configuration's behavior. */
 	readonly compatibility: AgentHostMcpServerCompatibility;
-	/** Configuration that can be safely persisted to a declarative MCP destination. */
-	readonly migrationConfiguration?: IMcpServerConfiguration;
 }
 
 export interface IAgentHostMcpServerSupportAssessment {
@@ -139,7 +137,6 @@ export interface IAgentHostMcpServerDeliveryResolution {
 	readonly compatibility: AgentHostMcpServerCompatibility;
 	readonly source: IAgentHostMcpServerSource;
 	readonly projectedConfiguration: IMcpServerConfiguration | undefined;
-	readonly migrationConfiguration?: IMcpServerConfiguration;
 }
 
 export interface IAgentHostInstalledMcpServer {
@@ -169,7 +166,7 @@ export async function assessMcpServersForCopilotAgentHost(
 
 	const resolved = await resolveMcpServersForAgentHostDelivery(servers, configurationResolverService, sessionType, workingDirectories);
 	return {
-		servers: resolved.map(({ server, source, applicability, delivery, compatibility, migrationConfiguration }) => ({
+		servers: resolved.map(({ server, source, applicability, delivery, compatibility }) => ({
 			id: server.definition.id,
 			name: server.definition.label,
 			collectionId: server.collection.id,
@@ -178,7 +175,6 @@ export async function assessMcpServersForCopilotAgentHost(
 			applicability,
 			delivery,
 			compatibility,
-			...(source.kind === AgentHostMcpServerSourceKind.VscodeWorkspaceFolder && migrationConfiguration ? { migrationConfiguration } : {}),
 		})),
 		discoveryComplete: lazyCollectionState === LazyCollectionState.AllKnown,
 	};
@@ -279,10 +275,6 @@ async function resolveMcpServerForAgentHostDelivery(
 			unsupported([AgentHostMcpSupportReason.LaunchNotRepresentable]),
 		);
 	}
-	const migrationConfiguration = Iterable.isEmpty(ConfigurationResolverExpression.parse(projectedConfiguration).unresolved())
-		&& !(projectedConfiguration.type === McpServerType.LOCAL && projectedConfiguration.cwd !== undefined)
-		? projectedConfiguration
-		: undefined;
 
 	const unsupportedReasons: AgentHostMcpSupportReason[] = [];
 	if (collection && McpCollectionDefinition.isVscodeMcpJson(collection)) {
@@ -315,7 +307,6 @@ async function resolveMcpServerForAgentHostDelivery(
 			: delivery,
 		compatibility: getCompatibility(unsupportedReasons, partialReasons, unknownReasons),
 		projectedConfiguration,
-		migrationConfiguration,
 	};
 }
 

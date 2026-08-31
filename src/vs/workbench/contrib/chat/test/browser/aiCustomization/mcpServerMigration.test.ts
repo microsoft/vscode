@@ -15,8 +15,8 @@ import { InMemoryFileSystemProvider } from '../../../../../../platform/files/com
 import { IFileWriteOptions } from '../../../../../../platform/files/common/files.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
-import { migrateMcpServers } from '../../../browser/aiCustomization/customizationMigration.js';
-import { CustomizationMigrationType, IMcpServerCustomizationMigrationCandidate } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import { McpServerMigration } from '../../../browser/aiCustomization/customizationMigration.js';
+import { CustomizationMigrationType, IMcpServerCustomizationMigrationCandidate, McpServerMigrationFailureReason } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 
 class SourceWriteFailingFileSystemProvider extends InMemoryFileSystemProvider {
 	failSourceWrite = false;
@@ -76,6 +76,18 @@ suite('mcpServerMigration', () => {
 		};
 	}
 
+	async function migrateMcpServers(candidates: readonly IMcpServerCustomizationMigrationCandidate[], fileService: FileService) {
+		const result = await new McpServerMigration(fileService).migrate(candidates);
+		return {
+			migratedCount: result.migratedCount,
+			failures: result.failures.map(failure => ({
+				name: failure.name,
+				reason: failure.reason,
+				message: failure.error?.message,
+			})),
+		};
+	}
+
 	test('moves only selected servers while preserving other eligible and unsupported source entries', async () => {
 		const fileService = store.add(new FileService(new NullLogService()));
 		const provider = store.add(new InMemoryFileSystemProvider());
@@ -111,7 +123,7 @@ suite('mcpServerMigration', () => {
 			target: parse(targetContent),
 			sourceCommentPreserved: sourceContent.includes('// Keep this source comment.'),
 		}, {
-			result: { migratedCount: 2, failedServerNames: [] },
+			result: { migratedCount: 2, failures: [] },
 			source: {
 				servers: {
 					unselected: { type: 'stdio', command: 'node', args: ['other.js'] },
@@ -146,7 +158,7 @@ suite('mcpServerMigration', () => {
 			source: parse((await fileService.readFile(sourceUri)).value.toString()),
 			target: parse((await fileService.readFile(targetUri)).value.toString()),
 		}, {
-			result: { migratedCount: 0, failedServerNames: ['server'] },
+			result: { migratedCount: 0, failures: [{ name: 'server', reason: McpServerMigrationFailureReason.TargetConflict, message: undefined }] },
 			source: { servers: { server: { type: 'stdio', command: 'source' } } },
 			target: { mcpServers: { server: { type: 'stdio', command: 'target' } } },
 		});
@@ -168,7 +180,7 @@ suite('mcpServerMigration', () => {
 			source: parse((await fileService.readFile(sourceUri)).value.toString()),
 			targetExists: await fileService.exists(targetUri),
 		}, {
-			result: { migratedCount: 0, failedServerNames: ['server'] },
+			result: { migratedCount: 0, failures: [{ name: 'server', reason: McpServerMigrationFailureReason.SourceChanged, message: undefined }] },
 			source: { servers: { server: { type: 'stdio', command: 'updated' } } },
 			targetExists: false,
 		});
@@ -194,7 +206,14 @@ suite('mcpServerMigration', () => {
 			source: parse((await fileService.readFile(sourceUri)).value.toString()),
 			targetExists: await fileService.exists(targetUri),
 		}, {
-			result: { migratedCount: 0, failedServerNames: ['cwd', 'metadata', 'oauth'] },
+			result: {
+				migratedCount: 0,
+				failures: [
+					{ name: 'cwd', reason: McpServerMigrationFailureReason.UnrepresentableConfiguration, message: undefined },
+					{ name: 'metadata', reason: McpServerMigrationFailureReason.SourceChanged, message: undefined },
+					{ name: 'oauth', reason: McpServerMigrationFailureReason.SourceChanged, message: undefined },
+				],
+			},
 			source: {
 				servers: {
 					cwd: { type: 'stdio', command: 'source', cwd: '/explicit' },
@@ -225,7 +244,7 @@ suite('mcpServerMigration', () => {
 			source: parse((await fileService.readFile(sourceUri)).value.toString()),
 			target: parse((await fileService.readFile(targetUri)).value.toString()),
 		}, {
-			result: { migratedCount: 1, failedServerNames: [] },
+			result: { migratedCount: 1, failures: [] },
 			source: { servers: {} },
 			target: { mcpServers: { server: { type: 'stdio', command: 'source', args: [] } } },
 		});
@@ -249,7 +268,7 @@ suite('mcpServerMigration', () => {
 			source: parse((await fileService.readFile(sourceUri)).value.toString()),
 			targetExists: await fileService.exists(targetUri),
 		}, {
-			result: { migratedCount: 0, failedServerNames: ['server'] },
+			result: { migratedCount: 0, failures: [{ name: 'server', reason: McpServerMigrationFailureReason.WriteFailed, message: 'File was deleted during MCP migration: file:///workspace-deleted-target/.mcp.json' }] },
 			source: { servers: { server: { type: 'stdio', command: 'source' } } },
 			targetExists: false,
 		});
@@ -272,7 +291,7 @@ suite('mcpServerMigration', () => {
 			sourceExists: await fileService.exists(sourceUri),
 			target: parse((await fileService.readFile(targetUri)).value.toString()),
 		}, {
-			result: { migratedCount: 0, failedServerNames: ['server'] },
+			result: { migratedCount: 0, failures: [{ name: 'server', reason: McpServerMigrationFailureReason.RollbackFailed, message: 'Failed to migrate and roll back MCP servers from file:///workspace-deleted-source/.vscode/mcp.json.' }] },
 			sourceExists: false,
 			target: { mcpServers: { server: { type: 'stdio', command: 'source' } } },
 		});
@@ -298,7 +317,7 @@ suite('mcpServerMigration', () => {
 			source: parse((await fileService.readFile(sourceUri)).value.toString()),
 			target: parse((await fileService.readFile(targetUri)).value.toString()),
 		}, {
-			result: { migratedCount: 0, failedServerNames: ['server'] },
+			result: { migratedCount: 0, failures: [{ name: 'server', reason: McpServerMigrationFailureReason.TargetChanged, message: `MCP server 'server' changed in file:///workspace-concurrent-target/.mcp.json during migration.` }] },
 			source: { servers: { server: { type: 'stdio', command: 'source' } } },
 			target: { mcpServers: {} },
 		});
@@ -323,7 +342,7 @@ suite('mcpServerMigration', () => {
 			source: parse(sourceContent),
 			commentPreserved: targetContent.includes('// Workspace MCP servers'),
 		}, {
-			result: { migratedCount: 0, failedServerNames: ['server'] },
+			result: { migratedCount: 0, failures: [{ name: 'server', reason: McpServerMigrationFailureReason.InvalidTarget, message: 'MCP configuration file:///workspace-empty-target/.mcp.json must contain strict JSON.' }] },
 			source: { servers: { server: { type: 'stdio', command: 'source' } } },
 			commentPreserved: true,
 		});
@@ -339,20 +358,23 @@ suite('mcpServerMigration', () => {
 		await fileService.writeFile(sourceUri, VSBuffer.fromString('{"servers":{"server":{"type":"stdio","command":"source"}}}'));
 		provider.sourceUri = sourceUri;
 		provider.failSourceWrite = true;
-		const errors: Error[] = [];
-
-		const result = await migrateMcpServers([candidate(root, 'server-id', 'server')], fileService, error => errors.push(error));
+		const result = await migrateMcpServers([candidate(root, 'server-id', 'server')], fileService);
 
 		assert.deepStrictEqual({
 			result,
 			source: parse((await fileService.readFile(sourceUri)).value.toString()),
 			target: parse((await fileService.readFile(targetUri)).value.toString()),
-			errors: errors.map(error => error.message),
 		}, {
-			result: { migratedCount: 0, failedServerNames: ['server'] },
+			result: {
+				migratedCount: 0,
+				failures: [{
+					name: 'server',
+					reason: McpServerMigrationFailureReason.RollbackFailed,
+					message: 'Failed to migrate and roll back MCP servers from file:///workspace-rollback/.vscode/mcp.json.',
+				}],
+			},
 			source: { servers: { server: { type: 'stdio', command: 'source' } } },
 			target: { mcpServers: { server: { type: 'stdio', command: 'source' } } },
-			errors: ['Failed to migrate and roll back MCP servers from file:///workspace-rollback/.vscode/mcp.json.'],
 		});
 	});
 });
