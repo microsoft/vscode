@@ -21,6 +21,40 @@ suite('AgentHostLanguageModelProvider', () => {
 		return store.add(new AgentHostLanguageModelProvider('agent-host-copilotcli', 'copilotcli'));
 	}
 
+	test('groups the Auto routing-profile picker where thinking level renders for other models', async () => {
+		const provider = createProvider();
+		provider.updateModels([
+			{
+				...makeModel('auto'),
+				configSchema: {
+					type: 'object',
+					properties: { tier: { type: 'string', title: 'Optimize for', enum: ['efficiency', 'balance', 'intelligence'], default: 'balance' } },
+				},
+			},
+			{
+				...makeModel('gpt-5'),
+				configSchema: {
+					type: 'object',
+					properties: {
+						thinkingLevel: { type: 'string', title: 'Thinking Level', enum: ['low', 'high'] },
+						contextSize: { type: 'number', title: 'Context Size', enum: [200_000, 1_000_000] },
+						somethingElse: { type: 'string', title: 'Something Else' },
+					},
+				},
+			},
+		]);
+
+		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		assert.deepStrictEqual(
+			infos.map(info => Object.fromEntries(Object.entries(info.metadata.configurationSchema?.properties ?? {}).map(([key, property]) => [key, property.group]))),
+			[
+				// The Auto model has no thinking level, so its profile takes that slot.
+				{ tier: 'navigation' },
+				{ thinkingLevel: 'navigation', contextSize: 'tokens', somethingElse: undefined },
+			]
+		);
+	});
+
 	test('renders the auto-mode discount as the Auto model detail (and a tooltip)', async () => {
 		const provider = createProvider();
 		provider.updateModels([makeModel('auto', { discountPercent: 10 }), makeModel('gpt-5')]);

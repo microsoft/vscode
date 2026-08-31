@@ -44,6 +44,8 @@ import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPlu
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
 import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot } from '../../common/agent.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
+import { autoModeTiers, defaultAutoModeTier, getAutoModeTierDescription, getAutoModeTierLabel } from '../../common/autoModeTiers.js';
+import { isAutoModel } from './modelIdentifiers.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -80,7 +82,7 @@ import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitP
 import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
 import { CopilotGitHubTelemetryForwarder } from './copilotGitHubTelemetryForwarder.js';
 import { CopilotSecondaryAssignmentContext } from './copilotSecondaryAssignmentContext.js';
-import { CopilotSessionLauncher, ContextSizeConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, isCopilotReasoningEffort, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
+import { CopilotSessionLauncher, AutoTierConfigKey, ContextSizeConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, isCopilotReasoningEffort, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
 import { CopilotAgentStartupConfig } from './copilotAgentStartupConfig.js';
 import { ShellManager } from './copilotShellTools.js';
 import { isAgentHostTelemetryService } from '../agentHostTelemetryService.js';
@@ -744,6 +746,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	/** Model IDs whose long-context tier costs the same as the default tier (free long context). */
 	private readonly _freeLongContextModels = new Set<string>();
 
+	/** The `autoModeTiers` gate as of the last CAPI listing, which the Auto picker is built from. */
+	private _autoModeTiersListed = false;
+
 	/**
 	 * Bounded exponential-backoff retry for {@link _refreshModels}. The SDK's
 	 * `models.list` RPC can fail transiently (e.g. a `429 "too many requests"`
@@ -969,6 +974,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// The migrate-legacy gate is snapshotted at startup (a change requires a
 			// window reload), so nothing reacts to it here; only BYOK models refresh.
 			this._refreshByokModels();
+			this._refreshModelsIfAutoModeTiersChanged();
 		}));
 
 		// Surface renderer BYOK models in the picker: republish them whenever the
@@ -1020,6 +1026,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private _isMultiTurnContextRoutingEnabled(): boolean {
 		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.MultiTurnContextRouting) === true;
+	}
+
+	private _areAutoModeTiersEnabled(): boolean {
+		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.AutoModeTiers) === true;
 	}
 
 	private _getCopilotSdkLogLevelSetting(): CopilotSdkLogLevelSetting {
@@ -1809,6 +1819,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
+	 * Re-enumerates models when the `autoModeTiers` gate flips, so the Auto model gains or loses its
+	 * routing-profile picker. The property is built from the CAPI listing, which is not retained.
+	 */
+	private _refreshModelsIfAutoModeTiersChanged(): void {
+		if (this._areAutoModeTiersEnabled() === this._autoModeTiersListed) {
+			return;
+		}
+		this._logService.info('[Copilot] Auto routing profiles toggled; refreshing models');
+		void this._scheduleModelRefresh();
+	}
+
+	/**
 	 * (Re)publish the renderer BYOK models from the bridge registry's serving
 	 * window. Triggered when any renderer bridge connects, disconnects, or
 	 * reports a model change — the registry owns enumeration (with its own
@@ -2220,6 +2242,25 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
+	 * Synthesizes the Auto model's routing-profile picker, surfaced as the "Optimize for" button.
+	 * Gated because the runtime rejects unknown `capi` fields, failing the session outright.
+	 */
+	private _createAutoTierConfigSchemaProperty(modelId: string): ConfigPropertySchema | undefined {
+		if (!isAutoModel(modelId) || !this._areAutoModeTiersEnabled()) {
+			return undefined;
+		}
+		return {
+			type: 'string',
+			title: localize('copilot.modelAutoTier.title', "Optimize for"),
+			description: localize('copilot.modelAutoTier.description', "Biases which models Auto routes this session to."),
+			default: defaultAutoModeTier,
+			enum: [...autoModeTiers],
+			enumLabels: autoModeTiers.map(getAutoModeTierLabel),
+			enumDescriptions: autoModeTiers.map(tier => getAutoModeTierDescription(tier) ?? ''),
+		};
+	}
+
+	/**
 	 * Builds the open `_meta` model picker bag from the SDK's billing and picker metadata.
 	 */
 	private _createModelPickerMeta(modelInfo: CopilotModelInfo, billing: ICAPIModelBilling | undefined): Record<string, unknown> | undefined {
@@ -2235,6 +2276,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const contextSize = this._createContextSizeConfigSchemaProperty(billing);
 		if (contextSize) {
 			properties[ContextSizeConfigKey] = contextSize;
+		}
+		const autoTier = this._createAutoTierConfigSchemaProperty(m.id);
+		if (autoTier) {
+			properties[AutoTierConfigKey] = autoTier;
 		}
 		if (Object.keys(properties).length === 0) {
 			return undefined;
@@ -2661,6 +2706,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const client = await this._ensureClient();
 		const { models } = await client.rpc.models.list({ gitHubToken });
 		this._freeLongContextModels.clear();
+		// Sampled after the fetch so a failed enumeration cannot claim a gate it never applied.
+		this._autoModeTiersListed = this._areAutoModeTiersEnabled();
 		const result = models.map((m): IAgentModelInfo => {
 			const billing = normalizeCAPIBilling(m.billing);
 			const configSchema = this._createModelConfigSchema(m, billing);
@@ -4538,24 +4585,54 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// A `family` alias routes the host's prompt and tool profile only. The
 			// selected model's reasoning-effort override is resolved separately.
 			const provisional = this._provisionalSessions.get(current.configurationId);
+			// The selection to record, which can differ from the request: the runtime fixes a
+			// materialized session's routing profile.
+			let recorded = model;
 			if (provisional) {
 				provisional.model = model;
 			} else {
 				const entry = current.target ?? await this._ensureResolvedChatSession(current);
 				await entry?.setModel(model.id, resolveCopilotReasoningEffort(model, this._configurationService, this._logService, current.configurationId), getCopilotContextTier(model, longContextWindow, freeLongContext));
+				if (entry) {
+					recorded = this._pinLaunchAutoTier(model, entry, current.configurationId);
+				}
 				// Keep the session-scope metadata in step for resumes that fall back
 				// to it; chat leaves persist through their backing instead.
 				if (current.resource.toString() === current.configurationResource.toString()) {
-					await this._storeSessionMetadata(current.resource, model, undefined, undefined, undefined, undefined);
+					await this._storeSessionMetadata(current.resource, recorded, undefined, undefined, undefined, undefined);
 				}
 			}
 			const backing = this._chatBackings.get(current.chatKey);
 			if (backing) {
-				const updated: IPersistedChat = { ...backing, model };
+				const updated: IPersistedChat = { ...backing, model: recorded };
 				this._chatBackings.set(current.chatKey, updated);
 				this._onDidChangeChatData.fire({ chat, providerData: encodeProviderData(updated) });
 			}
 		});
+	}
+
+	/**
+	 * Rewrites a model selection so its Auto routing profile is the one `session` launched with.
+	 * The runtime fixes the profile for a session's lifetime, so a requested change cannot be recorded.
+	 */
+	private _pinLaunchAutoTier(model: ModelSelection, session: CopilotAgentSession, sessionId: string): ModelSelection {
+		// Only the Auto model routes per turn, so any other selection carries no profile to correct.
+		if (!isAutoModel(model.id)) {
+			return model;
+		}
+		const requested = model.config?.[AutoTierConfigKey];
+		const launched = session.launchAutoTier;
+		if (requested === launched) {
+			return model;
+		}
+		this._logService.info(`[Copilot:${sessionId}] Auto routing profile is fixed for this session; keeping '${launched ?? 'the service default'}' instead of '${requested}'`);
+		const config = { ...model.config };
+		if (launched === undefined) {
+			delete config[AutoTierConfigKey];
+		} else {
+			config[AutoTierConfigKey] = launched;
+		}
+		return Object.keys(config).length > 0 ? { ...model, config } : { id: model.id };
 	}
 
 	private async _changeAgent(chat: URI, agent: AgentSelection | undefined, operationContext: URI | IAgentChatContext): Promise<void> {
