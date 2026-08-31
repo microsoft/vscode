@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isGpt56Model } from './modelIdentifiers.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 
 export { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
@@ -18,20 +19,16 @@ export const NON_DEFERRED_CLIENT_TOOL_NAMES: ReadonlySet<string> = new Set<strin
 	SEMANTIC_SEARCH_TOOL_NAME,
 ]);
 
-/**
- * Follows the Copilot extension's string-form `modelSupportsToolSearch`, minus
- * the GPT families — see the deliberate divergence below before re-syncing this
- * with the extension.
- */
+/** Mirrors the Copilot extension's string-form `modelSupportsToolSearch`. */
 export function agentHostModelSupportsToolSearch(modelId: string | undefined): boolean {
 	if (!modelId) {
 		return false;
 	}
 	const id = modelId.toLowerCase();
 	const normalizedId = id.replace(/\./g, '-');
-	// GPT-5.4 / 5.5 / 5.6 supported tool search and were turned off pending
-	// microsoft/vscode-copilot-evaluation#6323; re-enabling them requires restoring
-	// the GPT-5.4/5.5 exact checks and the `isGpt56Model` import/check.
+	if (normalizedId === 'gpt-5-4' || normalizedId === 'gpt-5-5' || isGpt56Model(id)) {
+		return true;
+	}
 	if (!normalizedId.startsWith('claude')) {
 		return false;
 	}
