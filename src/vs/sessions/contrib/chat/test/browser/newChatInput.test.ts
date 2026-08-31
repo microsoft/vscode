@@ -250,6 +250,34 @@ suite('NewChatInputWidget', () => {
 		});
 	});
 
+	test('persists draft text when state is saved', () => {
+		let stored: string | undefined;
+		const storageService: IDraftStateHarness['storageService'] = {
+			get: () => stored,
+			store: (_key, value) => stored = value,
+		};
+		const harness: IUpdateAndSaveDraftStateHarness = {
+			storageService,
+			_sending: false,
+			_editor: { getModel: () => ({ getValue: () => 'Fix this after reload' }) },
+			_contextAttachments: { attachments: [] },
+			_updateDraftState() {
+				updateDraftState.call(this);
+			},
+			saveState() {
+				saveState.call(this);
+			},
+		};
+
+		updateDraftState.call(harness);
+		saveState.call(harness);
+
+		assert.deepStrictEqual(getDraftState.call({ storageService }), {
+			inputText: 'Fix this after reload',
+			attachments: [],
+		});
+	});
+
 	test('does not re-persist a sent prompt when attachments clear during send', () => {
 		let stored: string | undefined;
 		let editorValue = 'Fix this';

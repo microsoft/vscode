@@ -1896,9 +1896,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(provider.getModelsSnapshot(session.sessionId).models, []);
 
 		hiddenLanguageModelIds.delete('matching');
+		const modelsChanged = Event.toPromise(provider.onDidChangeModels);
 		visibilityChanges.fire();
 		const visibleModels = provider.getModelsSnapshot(session.sessionId).models.map(model => model.identifier);
-		await timeout(0);
+		await modelsChanged;
 		assert.deepStrictEqual({ changes, visibleModels }, { changes: 1, visibleModels: ['matching'] });
 	});
 
@@ -1914,9 +1915,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 		disposables.add(provider.onDidChangeModels(() => {
 			modelIdsAtNotification = [...languageModelIds];
 		}));
+		const modelsChanged = Event.toPromise(provider.onDidChangeModels);
 		languageModelChanges.fire('agent-host-copilotcli');
 		languageModelIds.push('matching');
-		await timeout(0);
+		await modelsChanged;
 
 		assert.deepStrictEqual(modelIdsAtNotification, ['matching']);
 	});
