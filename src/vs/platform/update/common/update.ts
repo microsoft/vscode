@@ -66,6 +66,7 @@ export const enum DisablementReason {
 	MissingConfiguration,
 	InvalidConfiguration,
 	RunningAsAdmin,
+	RunningX64OnArm64,
 }
 
 export type Uninitialized = { type: StateType.Uninitialized };
