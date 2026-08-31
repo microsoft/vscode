@@ -199,7 +199,7 @@ function isSelectedValue(currentValue: unknown | undefined, itemValue: string): 
 	return itemValue === currentValue;
 }
 
-function renderPickerTrigger(slot: HTMLElement, disabled: boolean, disposables: DisposableStore, onOpen: (restoreFocus: boolean) => void): HTMLElement {
+function renderPickerTrigger(slot: HTMLElement, disabled: boolean, disposables: DisposableStore, onOpen: () => void): HTMLElement {
 	const trigger = dom.append(slot, disabled ? dom.$('span.action-label') : dom.$('a.action-label'));
 	if (disabled) {
 		trigger.setAttribute('aria-readonly', 'true');
@@ -211,13 +211,13 @@ function renderPickerTrigger(slot: HTMLElement, disabled: boolean, disposables: 
 		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
 			disposables.add(dom.addDisposableListener(trigger, eventType, e => {
 				dom.EventHelper.stop(e, true);
-				onOpen(false);
+				onOpen();
 			}));
 		}
 		disposables.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, e => {
 			if (e.key === 'Enter' || e.key === ' ') {
 				dom.EventHelper.stop(e, true);
-				onOpen(true);
+				onOpen();
 			}
 		}));
 	}
@@ -532,7 +532,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			// state is transient and uses `aria-disabled` while preserving
 			// the trigger's appearance. The click handler bails when resolving
 			// in `_showPicker`.
-			const trigger = renderPickerTrigger(slot, isReadOnly, this._renderDisposables, restoreFocus => this._showPicker(provider, session.sessionId, property, schema, trigger, restoreFocus));
+			const trigger = renderPickerTrigger(slot, isReadOnly, this._renderDisposables, () => this._showPicker(provider, session.sessionId, property, schema, trigger));
 
 			// The Branch chip owns its own hover in `_renderTrigger`, because
 			// the content depends on the repository's uncommitted-changes
@@ -778,7 +778,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		provider.setSessionConfigValue(sessionId, SessionConfigKey.Isolation, nextValue).catch(() => { /* best-effort */ });
 	}
 
-	protected async _showPicker(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: SessionConfigPropertySchema, trigger: HTMLElement, restoreFocus: boolean): Promise<void> {
+	protected async _showPicker(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: SessionConfigPropertySchema, trigger: HTMLElement): Promise<void> {
 		if (schema.readOnly || this._actionWidgetService.isVisible) {
 			return;
 		}
@@ -838,9 +838,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				})
 				: undefined,
 			onHide: () => {
-				if (restoreFocus) {
-					trigger.focus();
-				}
+				trigger.focus();
 			},
 		};
 
@@ -1054,9 +1052,9 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 		return super._isReadOnlyChip(property, schema, isNewSession) || (!isNewSession && !schema.sessionMutable);
 	}
 
-	protected override async _showPicker(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: SessionConfigPropertySchema, trigger: HTMLElement, restoreFocus: boolean): Promise<void> {
+	protected override async _showPicker(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: SessionConfigPropertySchema, trigger: HTMLElement): Promise<void> {
 		if (!isPhoneLayout(this._layoutService)) {
-			return super._showPicker(provider, sessionId, property, schema, trigger, restoreFocus);
+			return super._showPicker(provider, sessionId, property, schema, trigger);
 		}
 
 		// Mirror the base `_showPicker` guard (the repo-sheet path below bypasses
@@ -1066,14 +1064,14 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 		}
 
 		if (property === SessionConfigKey.Isolation || property === SessionConfigKey.Branch) {
-			await this._showUnifiedRepoSheet(provider, sessionId, trigger, restoreFocus);
+			await this._showUnifiedRepoSheet(provider, sessionId, trigger);
 			return;
 		}
 
-		return super._showPicker(provider, sessionId, property, schema, trigger, restoreFocus);
+		return super._showPicker(provider, sessionId, property, schema, trigger);
 	}
 
-	private async _showUnifiedRepoSheet(provider: IAgentHostSessionsProvider, sessionId: string, trigger: HTMLElement, restoreFocus: boolean): Promise<void> {
+	private async _showUnifiedRepoSheet(provider: IAgentHostSessionsProvider, sessionId: string, trigger: HTMLElement): Promise<void> {
 		const config = provider.getSessionConfig(sessionId);
 		if (!config) {
 			return;
@@ -1197,9 +1195,7 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 			},
 		);
 		trigger.setAttribute('aria-expanded', 'false');
-		if (restoreFocus) {
-			trigger.focus();
-		}
+		trigger.focus();
 	}
 }
 

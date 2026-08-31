@@ -20,7 +20,7 @@ import { DEFAULT_PERMISSION_LEVELS, getPermissionLevelMeta, IPermissionPickerDel
 suite('Copilot PermissionPicker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('restores trigger focus only after keyboard activation', () => {
+	test('restores trigger focus after pointer and keyboard activation', () => {
 		let onHide: (() => void) | undefined;
 		const actionWidgetService = new class extends mock<IActionWidgetService>() {
 			override readonly isVisible = false;
@@ -65,8 +65,8 @@ suite('Copilot PermissionPicker', () => {
 			pointerFocusCalls,
 			keyboardFocusCalls: focusCalls,
 		}, {
-			pointerFocusCalls: 0,
-			keyboardFocusCalls: 1,
+			pointerFocusCalls: 1,
+			keyboardFocusCalls: 2,
 		});
 	});
 

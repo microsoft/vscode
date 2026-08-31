@@ -17,6 +17,7 @@ import { localize } from '../../../../../../../nls.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
+import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../../common/languageModelSourcePresentation.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
 import { IChatInputPickerOptions } from '../chatInputPickerActionItem.js';
 import { ModelPickerWidget } from './modelPickerWidget.js';
@@ -211,9 +212,10 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 		if (this._pickerWidget.isSetupRequired()) {
 			return localize('chat.modelPicker.setupRequiredHover', "{0} • Sign in to GitHub Copilot to choose a model.", label);
 		}
-		const { name, statusIcon, tooltip } = this._pickerWidget.selectedModel?.metadata || {};
-		if (name) {
-			label = localize('chat.modelPicker.selectedModelHover', "{0} • {1}", label, name);
+		const selectedModel = this._pickerWidget.selectedModel;
+		const { statusIcon, tooltip } = selectedModel?.metadata || {};
+		if (selectedModel) {
+			label = localize('chat.modelPicker.selectedModelHover', "{0} • {1}", label, getLanguageModelDisplayNameWithSubscriptionSource(selectedModel));
 		}
 		return statusIcon && tooltip
 			? localize('chat.modelPicker.selectedModelStatusHover', "{0} • {1}", label, tooltip)

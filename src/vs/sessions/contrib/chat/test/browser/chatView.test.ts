@@ -156,6 +156,28 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
+	test('focuses the embedded composer frame only for editor focus', () => {
+		const workbench = dom.append(document.body, dom.$('.monaco-workbench'));
+		disposables.add(toDisposable(() => workbench.remove()));
+		workbench.style.setProperty('--vscode-agentsChatInput-border', 'rgb(255, 0, 0)');
+		workbench.style.setProperty('--vscode-agentsChatInput-focusBorder', 'rgb(0, 255, 0)');
+		const widget = dom.append(workbench, dom.$('.new-chat-in-session'));
+		const inputArea = dom.append(widget, dom.$('.new-chat-input-area'));
+		const picker = dom.append(inputArea, dom.$<HTMLButtonElement>('button'));
+
+		picker.focus();
+		const pickerFocusedBorder = dom.getWindow(inputArea).getComputedStyle(inputArea).borderColor;
+		inputArea.classList.add('focused');
+
+		assert.deepStrictEqual({
+			pickerFocusedBorder,
+			editorFocusedBorder: dom.getWindow(inputArea).getComputedStyle(inputArea).borderColor,
+		}, {
+			pickerFocusedBorder: 'rgb(255, 0, 0)',
+			editorFocusedBorder: 'rgb(0, 255, 0)',
+		});
+	});
+
 	test('does not forward aquarium visibility to the peer chat composer', () => {
 		const isVisible = observableValue(disposables, true);
 		const view: NewChatView = Object.assign(Object.create(NewChatView.prototype), {

@@ -148,7 +148,7 @@ suite('AgentHostClaudePermissionModePicker', () => {
 		assert.strictEqual(new Set(iconIds).size, modeItems.length);
 	});
 
-	test('restores trigger focus only after keyboard activation', () => {
+	test('restores trigger focus after pointer and keyboard activation', () => {
 		const { onHide, trigger } = setupPicker(store);
 		let focusCalls = 0;
 		assert.ok(trigger);
@@ -165,8 +165,8 @@ suite('AgentHostClaudePermissionModePicker', () => {
 			pointerFocusCalls,
 			keyboardFocusCalls: focusCalls,
 		}, {
-			pointerFocusCalls: 0,
-			keyboardFocusCalls: 1,
+			pointerFocusCalls: 1,
+			keyboardFocusCalls: 2,
 		});
 	});
 

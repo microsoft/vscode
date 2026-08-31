@@ -208,21 +208,21 @@ export class ModePicker extends Disposable {
 		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
 			this._renderDisposables.add(dom.addDisposableListener(trigger, eventType, (e) => {
 				dom.EventHelper.stop(e, true);
-				this._showPicker(false);
+				this._showPicker();
 			}));
 		}
 
 		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, (e) => {
 			if (e.key === 'Enter' || e.key === ' ') {
 				dom.EventHelper.stop(e, true);
-				this._showPicker(true);
+				this._showPicker();
 			}
 		}));
 
 		return slot;
 	}
 
-	private _showPicker(restoreFocus: boolean): void {
+	private _showPicker(): void {
 		if (!this._triggerElement || this.actionWidgetService.isVisible) {
 			return;
 		}
@@ -255,9 +255,7 @@ export class ModePicker extends Disposable {
 				}
 			},
 			onHide: () => {
-				if (restoreFocus) {
-					triggerElement.focus();
-				}
+				triggerElement.focus();
 			},
 		};
 

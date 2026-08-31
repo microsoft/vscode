@@ -300,8 +300,8 @@ suite('Agent Host Session Config Picker', () => {
 			pointerFocusCalls,
 			keyboardFocusCalls: focusCalls,
 		}, {
-			pointerFocusCalls: 0,
-			keyboardFocusCalls: 1,
+			pointerFocusCalls: 1,
+			keyboardFocusCalls: 2,
 		});
 	});
 

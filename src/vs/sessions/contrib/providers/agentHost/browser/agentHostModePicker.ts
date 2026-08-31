@@ -92,14 +92,14 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
 			this._renderDisposables.add(dom.addDisposableListener(trigger, eventType, e => {
 				dom.EventHelper.stop(e, true);
-				this._showPicker(undefined, undefined, false);
+				this._showPicker();
 			}));
 		}
 
 		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, e => {
 			if (e.key === 'Enter' || e.key === ' ') {
 				dom.EventHelper.stop(e, true);
-				this._showPicker(undefined, undefined, true);
+				this._showPicker();
 			}
 		}));
 
@@ -150,7 +150,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 	}
 
 	showPicker(anchor: HTMLElement, onHide?: () => void): boolean {
-		return this._showPicker(anchor, onHide, true);
+		return this._showPicker(anchor, onHide);
 	}
 
 	private _getActiveContext(): { provider: IAgentHostSessionsProvider; sessionId: string; currentValue: string; items: readonly IAgentHostSessionEnumPickerItem[]; tooltip: string } | undefined {
@@ -221,7 +221,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		this._triggerElement.setAttribute('aria-disabled', isResolving ? 'true' : 'false');
 	}
 
-	protected _showPicker(anchor = this._triggerElement, onHide?: () => void, restoreFocus = true): boolean {
+	protected _showPicker(anchor = this._triggerElement, onHide?: () => void): boolean {
 		if (!anchor || this._actionWidgetService.isVisible) {
 			return false;
 		}
@@ -266,9 +266,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 					.catch(() => { /* best-effort */ });
 			},
 			onHide: () => {
-				if (restoreFocus) {
-					anchor.focus();
-				}
+				anchor.focus();
 				onHide?.();
 			},
 		};
