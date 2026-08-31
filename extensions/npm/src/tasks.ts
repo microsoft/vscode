@@ -12,7 +12,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import minimatch from 'minimatch';
 import { Utils } from 'vscode-uri';
-import { findPreferredPM } from './preferred-pm';
+import { findPreferredPM, invalidatePreferredPMCache } from './preferred-pm';
 import { readScripts } from './readScripts';
 
 const excludeRegex = new RegExp('^(node_modules|.vscode-test)$', 'i');
@@ -88,6 +88,7 @@ export class NpmTaskProvider implements TaskProvider {
 
 export function invalidateTasksCache() {
 	cachedTasks = undefined;
+	invalidatePreferredPMCache();
 }
 
 const buildNames: string[] = ['build', 'compile', 'watch'];
