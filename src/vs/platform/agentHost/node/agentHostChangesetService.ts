@@ -48,6 +48,9 @@ import { resolveSessionRepositories } from './agentHostSessionRepositories.js';
 import { dedupeSessionFileDiffs, evaluateMultiRootDiffSources } from './agentHostMultiRootDiff.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { reportAgentHostStaticChangesetComputed, reportAgentHostTurnChangesetComputed, type IMultiRootTurnDiffMetrics, type StaticChangesetOutcome, type TurnChangesetOutcome } from './agentHostChangesetTelemetry.js';
+import type { IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
+import { AgentSession } from '../common/agent.js';
+import { IAgentHostWorktreeIsolation, type IAgentHostWorktreePendingState } from './shared/worktreeIsolation.js';
 
 /**
  * Maximum number of per-repository git diffs a multi-folder fan-out runs at
@@ -171,18 +174,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	private readonly _activeStaticComputes = new Set<ProtocolURI>();
 	private static readonly _DIFF_DEBOUNCE_MS = 5000;
 
-	/**
-	 * Sessions whose static changeset refresh was requested before the
-	 * working directory was known (provisional / not-yet-materialized
-	 * sessions). Drained from {@link onWorkingDirectoryAvailable} once the
-	 * working directory is set, which recomputes every changeset still
-	 * subscribed for the session.
-	 *
-	 * Firing a refresh before the working directory is known would compute
-	 * against a missing directory and the git path would bail, so we defer
-	 * instead and re-run once materialization / restore populates it.
-	 */
-	private readonly _pendingMaterialization = new Set<ProtocolURI>();
+	private readonly _worktree: IAgentHostWorktreePendingState;
 
 	constructor(
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
@@ -195,8 +187,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		@IAgentHostChangesetSubscriptionService private readonly _changesetSubscriptions: IAgentHostChangesetSubscriptionService,
 		@IAgentHostReviewService private readonly _reviewService: IAgentHostReviewService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IAgentHostWorktreeIsolation worktree: IAgentHostWorktreeIsolation,
 	) {
 		super();
+		this._worktree = worktree;
 		this._diffComputeService = this._createDiffComputeService();
 	}
 
@@ -214,7 +208,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	private _hasWorkingDirectory(session: ProtocolURI): boolean {
-		return !!this._configurationService.getEffectiveWorkingDirectory(session);
+		return !this._worktree.isWorkingDirectoryPending(AgentSession.id(session))
+			&& !!this._configurationService.getEffectiveWorkingDirectories(session)?.[0];
 	}
 
 	registerStaticChangesets(session: ProtocolURI): void {
@@ -377,7 +372,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	refreshChangesetCatalog(session: ProtocolURI): void {
 		const state = this._stateManager.getSessionState(session);
-		if (!state || state?.lifecycle === SessionLifecycle.CreationFailed) {
+		if (!state || state?.lifecycle === SessionLifecycle.Failed) {
 			return;
 		}
 
@@ -387,7 +382,6 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	refreshBranchChangeset(session: ProtocolURI): void {
 		if (!this._hasWorkingDirectory(session)) {
-			this._pendingMaterialization.add(session);
 			return;
 		}
 		this._scheduleStaticRecompute(session, 'branch', undefined, this._markStaticChangesetComputing(session, 'branch'));
@@ -395,29 +389,23 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	refreshSessionChangeset(session: ProtocolURI): void {
 		if (!this._hasWorkingDirectory(session)) {
-			this._pendingMaterialization.add(session);
 			return;
 		}
 		this._scheduleStaticRecompute(session, 'session', undefined, this._markStaticChangesetComputing(session, 'session'));
 	}
 
 	/**
-	 * Drains static changeset refreshes that were deferred because the
-	 * session's working directory was not yet known. Called by the
-	 * coordinator once a session is materialized or restored. Recomputes
-	 * every changeset still subscribed for the session; subscriptions that
-	 * dropped while the working directory was unknown are naturally skipped.
+	 * Recomputes every changeset currently subscribed when a session is
+	 * materialized or restored.
 	 */
 	onWorkingDirectoryAvailable(session: ProtocolURI): void {
-		if (this._pendingMaterialization.delete(session)) {
-			this.recomputeSubscribedChangesets(session);
-		}
+		this.recomputeSubscribedChangesets(session);
 	}
 
 	/**
 	 * Recomputes every changeset currently subscribed for `session`. Each
 	 * subscribed changeset is dispatched to its kind-specific recompute; the
-	 * recomputes self-defer when the working directory is still unknown.
+	 * recomputes skip while the working directory is still unknown.
 	 */
 	recomputeSubscribedChangesets(session: ProtocolURI): void {
 		const subscriptions = this._changesetSubscriptions.getSessionSubscriptions(session);
@@ -454,21 +442,19 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}
 	}
 
-	/**
-	 * Forgets any deferred static changeset refreshes queued for a session
-	 * that is being disposed.
-	 */
-	onSessionDisposed(session: ProtocolURI): void {
-		this._pendingMaterialization.delete(session);
-	}
-
 	computeTurnChangeset(session: ProtocolURI, turnId: string): Promise<ProtocolURI> {
 		// Turn telemetry is emitted at the turn boundary (onTurnComplete); this subscribe-triggered recompute does not report.
 		return this._computeTurnChangeset(session, turnId, false);
 	}
 
-	private async _computeTurnChangeset(session: ProtocolURI, turnId: string, reportTelemetry: boolean): Promise<ProtocolURI> {
+	private async _computeTurnChangeset(session: ProtocolURI, turnId: string, reportTelemetry: boolean, clientContext?: IAgentHostClientTelemetryContext): Promise<ProtocolURI> {
 		const turnUri = this._stateManager.registerChangeset(buildTurnChangesetUri(session, turnId));
+		if (this._stateManager.getChangesetState(turnUri)?.status !== ChangesetStatus.Computing) {
+			this._stateManager.dispatchServerAction(turnUri, {
+				type: ActionType.ChangesetStatusChanged,
+				status: ChangesetStatus.Computing,
+			});
+		}
 		const stopWatch = StopWatch.create();
 		let outcome: TurnChangesetOutcome = 'error';
 		let result: ITurnDiffResult | undefined;
@@ -519,7 +505,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 					folderCount: workingDirectories?.length ?? 0,
 					...(outcome === 'computed' && fileCount !== undefined ? { fileCount } : {}),
 					multiRoot: result?.multiRoot,
-				});
+				}, clientContext);
 			}
 		}
 	}
@@ -610,21 +596,17 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	computeUncommittedChangeset(session: ProtocolURI): Promise<ProtocolURI> {
-		return this._computeUncommittedChangeset(session, undefined, false);
+		return this._queueUncommittedChangeset(session, undefined, false);
 	}
 
-	private async _computeUncommittedChangeset(session: ProtocolURI, turnId: string | undefined, reportTelemetry: boolean): Promise<ProtocolURI> {
+	private async _computeUncommittedChangeset(session: ProtocolURI, turnId: string | undefined, reportTelemetry: boolean, clientContext?: IAgentHostClientTelemetryContext): Promise<ProtocolURI> {
 		const uncommittedUri = this._stateManager.registerChangeset(buildUncommittedChangesetUri(session));
 		if (!this._hasSubscription(session, uncommittedUri)) {
 			return uncommittedUri;
 		}
 
-		// Defer until the working directory is known. Computing now would bail
-		// in the git path (there is no SDK edit-tracker fallback for the
-		// uncommitted slot); `onWorkingDirectoryAvailable` re-runs the refresh
-		// once materialization / restore populates the directory.
-		if (!this._hasWorkingDirectory(session)) {
-			this._pendingMaterialization.add(session);
+		const workingDirectory = this._stateManager.getSessionState(session)?.workingDirectories?.[0];
+		if (!workingDirectory) {
 			return uncommittedUri;
 		}
 
@@ -676,7 +658,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 					isMultiRoot: isMultiRootSession(workingDirectories),
 					folderCount: workingDirectories?.length ?? 0,
 					...(outcome === 'computed' && fileCount !== undefined ? { fileCount } : {}),
-				});
+				}, clientContext);
 			}
 		}
 
@@ -702,21 +684,29 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	private async _computeTurnDiffsPreferCheckpoint(session: ProtocolURI, db: ISessionDatabase, turnId: string): Promise<ITurnDiffResult> {
+		const trackedSource = this._openTrackedTurnSource(session, db, turnId);
 		// Multi-folder sessions aggregate every folder's changes; single- and
 		// zero-folder sessions keep the existing single-repo behavior exactly.
-		const workingDirectories = this._configurationService.getEffectiveWorkingDirectories(session);
-		if (isMultiRootSession(workingDirectories)) {
-			return this._computeMultiFolderTurnDiffs(session, db, turnId, workingDirectories!);
+		try {
+			if (!trackedSource.sessionUri) {
+				return { diffs: [], outcome: 'computed' };
+			}
+			const workingDirectories = this._configurationService.getEffectiveWorkingDirectories(session);
+			if (isMultiRootSession(workingDirectories)) {
+				return await this._computeMultiFolderTurnDiffs(session, trackedSource.sessionUri, trackedSource.db, turnId, workingDirectories!);
+			}
+			const diffs = await this._computeSingleFolderTurnDiffs(session, trackedSource.sessionUri, trackedSource.db, turnId);
+			return { diffs, outcome: 'computed' };
+		} finally {
+			trackedSource.dispose();
 		}
-		const diffs = await this._computeSingleFolderTurnDiffs(session, db, turnId);
-		return { diffs, outcome: 'computed' };
 	}
 
 	/**
 	 * The single-folder per-turn diff: prefer the checkpoint-ref git diff of the
 	 * primary working directory, else fall back to the SDK-tracked aggregator.
 	 */
-	private async _computeSingleFolderTurnDiffs(session: ProtocolURI, db: ISessionDatabase, turnId: string): Promise<readonly ISessionFileDiff[]> {
+	private async _computeSingleFolderTurnDiffs(session: ProtocolURI, trackedSession: ProtocolURI, db: ISessionDatabase, turnId: string): Promise<readonly ISessionFileDiff[]> {
 		const pair = await this._checkpointService.getTurnCheckpointPair(URI.parse(session), turnId);
 		if (pair && pair.parent !== pair.current) {
 			const workingDir = await this._resolveWorkingDirectory(session);
@@ -737,7 +727,40 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			return [];
 		}
 		// Fallback: SDK-tracked file_edits aggregator.
-		return computeTurnDiffs(session, db, this._diffComputeService, turnId);
+		return computeTurnDiffs(trackedSession, db, this._diffComputeService, turnId);
+	}
+
+	private _openTrackedTurnSource(session: ProtocolURI, defaultDatabase: ISessionDatabase, turnId: string): { readonly sessionUri: ProtocolURI | undefined; readonly db: ISessionDatabase; dispose(): void } {
+		const sessionState = this._stateManager.getSessionState(session);
+		if (!sessionState) {
+			return { sessionUri: session, db: defaultDatabase, dispose: () => { } };
+		}
+
+		const owningResources: ProtocolURI[] = [];
+		if (sessionState.activeTurn?.id === turnId || (sessionState.turns ?? []).some(turn => turn.id === turnId)) {
+			owningResources.push(session);
+		}
+		for (const chat of sessionState.chats ?? []) {
+			if (isDefaultChatUri(chat.resource)) {
+				continue;
+			}
+			const chatState = this._stateManager.getChatState(chat.resource);
+			if (chatState?.activeTurn?.id === turnId || chatState?.turns.some(turn => turn.id === turnId)) {
+				owningResources.push(chat.resource);
+			}
+		}
+
+		if (owningResources.length > 1) {
+			this._logService.warn(`[AgentHostChangesetService] Turn id ${turnId} is shared by multiple chats in ${session}; skipping ambiguous tracked-file fallback`);
+			return { sessionUri: undefined, db: defaultDatabase, dispose: () => { } };
+		}
+		if (owningResources.length === 0 || owningResources[0] === session) {
+			return { sessionUri: session, db: defaultDatabase, dispose: () => { } };
+		}
+
+		const chat = owningResources[0];
+		const chatDatabase = this._sessionDataService.openDatabase(URI.parse(chat));
+		return { sessionUri: chat, db: chatDatabase.object, dispose: () => chatDatabase.dispose() };
 	}
 
 	/**
@@ -746,7 +769,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * the non-git folders. Per-folder failures are logged and skipped so one
 	 * folder never fails the whole turn changeset.
 	 */
-	private async _computeMultiFolderTurnDiffs(session: ProtocolURI, db: ISessionDatabase, turnId: string, workingDirectories: readonly string[]): Promise<ITurnDiffResult> {
+	private async _computeMultiFolderTurnDiffs(session: ProtocolURI, trackedSession: ProtocolURI, db: ISessionDatabase, turnId: string, workingDirectories: readonly string[]): Promise<ITurnDiffResult> {
 		const sessionUri = URI.parse(session);
 		const workingDirectoryUris = this._parseWorkingDirectoryUris(session, workingDirectories);
 
@@ -770,8 +793,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		// number of git processes (see MAX_TURN_DIFF_REPOSITORY_CONCURRENCY).
 		const limiter = new Limiter<{ readonly diffs: readonly ISessionFileDiff[]; readonly usedFallback: boolean }>(MAX_TURN_DIFF_REPOSITORY_CONCURRENCY);
 		const [perRepoDiffs, nonGitDiffs] = await Promise.all([
-			Promise.all(gitRepositories.map(repoRoot => limiter.queue(() => this._computeRepoTurnDiffs(session, sessionUri, db, turnId, repoRoot)))),
-			this._computeNonGitTurnDiffsFromTrackedEdits(session, db, turnId, nonGitDirectories),
+			Promise.all(gitRepositories.map(repoRoot => limiter.queue(() => this._computeRepoTurnDiffs(session, trackedSession, sessionUri, db, turnId, repoRoot)))),
+			this._computeNonGitTurnDiffsFromTrackedEdits(session, trackedSession, db, turnId, nonGitDirectories),
 		]).finally(() => limiter.dispose());
 
 		// Merge every source, keeping the first occurrence of each file. The git
@@ -796,14 +819,15 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * diff, or an error), that repository falls back to its tracked edits so
 	 * one repo's git failure never drops the folder — mirroring the
 	 * single-folder path's edit-tracker fallback. `usedFallback` reports whether
-	 * that fallback was taken. Every git failure is logged as an error.
+	 * that fallback was taken. Missing checkpoints are expected for older turns;
+	 * actual git failures are logged as errors.
 	 */
-	private async _computeRepoTurnDiffs(session: ProtocolURI, sessionUri: URI, db: ISessionDatabase, turnId: string, repoRoot: URI): Promise<{ readonly diffs: readonly ISessionFileDiff[]; readonly usedFallback: boolean }> {
+	private async _computeRepoTurnDiffs(session: ProtocolURI, trackedSession: ProtocolURI, sessionUri: URI, db: ISessionDatabase, turnId: string, repoRoot: URI): Promise<{ readonly diffs: readonly ISessionFileDiff[]; readonly usedFallback: boolean }> {
 		try {
 			const pair = await this._checkpointService.getTurnCheckpointPair(sessionUri, turnId, repoRoot);
 			if (!pair) {
-				this._logService.error(`[AgentHostChangesetService] No checkpoint pair for multi-folder turn ${session}/${turnId} in repository ${repoRoot.toString()}; falling back to tracked edits for that repository.`);
-				return { diffs: await this._computeRepoTurnDiffsFromTrackedEdits(session, db, turnId, repoRoot), usedFallback: true };
+				this._logService.trace(`[AgentHostChangesetService] No checkpoint pair for multi-folder turn ${session}/${turnId} in repository ${repoRoot.toString()}; falling back to tracked edits for that repository.`);
+				return { diffs: await this._computeRepoTurnDiffsFromTrackedEdits(session, trackedSession, db, turnId, repoRoot), usedFallback: true };
 			}
 			if (pair.parent === pair.current) {
 				// A no-op turn checkpoint reuses the parent ref — the diff is
@@ -818,12 +842,12 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			});
 			if (!diffs) {
 				this._logService.error(`[AgentHostChangesetService] Git turn diff unavailable for multi-folder turn ${session}/${turnId} in repository ${repoRoot.toString()}; falling back to tracked edits for that repository.`);
-				return { diffs: await this._computeRepoTurnDiffsFromTrackedEdits(session, db, turnId, repoRoot), usedFallback: true };
+				return { diffs: await this._computeRepoTurnDiffsFromTrackedEdits(session, trackedSession, db, turnId, repoRoot), usedFallback: true };
 			}
 			return { diffs, usedFallback: false };
 		} catch (err) {
 			this._logService.error(`[AgentHostChangesetService] Failed to compute git turn diff for multi-folder turn ${session}/${turnId} in repository ${repoRoot.toString()}; falling back to tracked edits for that repository.`, err);
-			return { diffs: await this._computeRepoTurnDiffsFromTrackedEdits(session, db, turnId, repoRoot), usedFallback: true };
+			return { diffs: await this._computeRepoTurnDiffsFromTrackedEdits(session, trackedSession, db, turnId, repoRoot), usedFallback: true };
 		}
 	}
 
@@ -839,9 +863,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * Logs and returns an empty list if the fallback itself fails, so the folder
 	 * contributes nothing rather than failing the whole turn.
 	 */
-	private async _computeRepoTurnDiffsFromTrackedEdits(session: ProtocolURI, db: ISessionDatabase, turnId: string, repoRoot: URI): Promise<readonly ISessionFileDiff[]> {
+	private async _computeRepoTurnDiffsFromTrackedEdits(session: ProtocolURI, trackedSession: ProtocolURI, db: ISessionDatabase, turnId: string, repoRoot: URI): Promise<readonly ISessionFileDiff[]> {
 		try {
-			return await computeTurnDiffs(session, db, this._diffComputeService, turnId, [repoRoot]);
+			return await computeTurnDiffs(trackedSession, db, this._diffComputeService, turnId, [repoRoot]);
 		} catch (err) {
 			this._logService.error(`[AgentHostChangesetService] Tracked-edit fallback turn diff failed for multi-folder turn ${session}/${turnId} in repository ${repoRoot.toString()}`, err);
 			return [];
@@ -860,12 +884,12 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * and logs and returns an empty list on failure, so this never fails the
 	 * whole turn.
 	 */
-	private async _computeNonGitTurnDiffsFromTrackedEdits(session: ProtocolURI, db: ISessionDatabase, turnId: string, nonGitDirectories: readonly URI[]): Promise<readonly ISessionFileDiff[]> {
+	private async _computeNonGitTurnDiffsFromTrackedEdits(session: ProtocolURI, trackedSession: ProtocolURI, db: ISessionDatabase, turnId: string, nonGitDirectories: readonly URI[]): Promise<readonly ISessionFileDiff[]> {
 		if (nonGitDirectories.length === 0) {
 			return [];
 		}
 		try {
-			return await computeTurnDiffs(session, db, this._diffComputeService, turnId, nonGitDirectories);
+			return await computeTurnDiffs(trackedSession, db, this._diffComputeService, turnId, nonGitDirectories);
 		} catch (err) {
 			this._logService.error(`[AgentHostChangesetService] Failed to compute non-git tracked-edit turn diff for multi-folder turn ${session}/${turnId}`, err);
 			return [];
@@ -1044,18 +1068,18 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	// ---- Lifecycle hooks invoked by AgentSideEffects -----------------------
 
-	onToolCallEditsApplied(session: ProtocolURI, turnId: string): void {
-		this._scheduleDebouncedDiffComputation(session, turnId);
+	onToolCallEditsApplied(session: ProtocolURI, turnId: string, clientContext?: IAgentHostClientTelemetryContext): void {
+		this._scheduleDebouncedDiffComputation(session, turnId, clientContext);
 		// Per-turn URIs have no catalogue chip aggregates, so skip the
 		// recompute entirely when no client is observing this turn. The
 		// next subscriber will get a fresh snapshot from
 		// `tryHandleSubscribe → computeTurnChangeset`.
 		if (this._hasSubscription(session, buildTurnChangesetUri(session, turnId))) {
-			this._scheduleDebouncedTurnDiffComputation(session, turnId);
+			this._scheduleDebouncedTurnDiffComputation(session, turnId, clientContext);
 		}
 	}
 
-	onTurnComplete(session: ProtocolURI, turnId: string | undefined): void {
+	onTurnComplete(session: ProtocolURI, turnId: string | undefined, clientContext?: IAgentHostClientTelemetryContext): void {
 		// Ordering matters for cancellation: cancel any pending mid-turn
 		// debounces first so the final turn-complete computes supersede
 		// them. After that, schedule the final recomputes for the turn
@@ -1065,16 +1089,16 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		if (turnId !== undefined) {
 			this._cancelDebouncedTurnDiffComputation(session, turnId);
 			if (this._hasSubscription(session, buildTurnChangesetUri(session, turnId))) {
-				this._scheduleTurnRecompute(session, turnId, true);
+				this._scheduleTurnRecompute(session, turnId, true, clientContext);
 			}
 		}
 
 		if (this._hasSubscription(session, buildUncommittedChangesetUri(session))) {
-			this._scheduleUncommittedRecompute(session, turnId, true);
+			this._scheduleUncommittedRecompute(session, turnId, true, clientContext);
 		}
 
-		this._scheduleStaticRecompute(session, 'branch', turnId, undefined, true);
-		this._scheduleStaticRecompute(session, 'session', turnId, undefined, true);
+		this._scheduleStaticRecompute(session, 'branch', turnId, undefined, true, clientContext);
+		this._scheduleStaticRecompute(session, 'session', turnId, undefined, true, clientContext);
 	}
 
 	onSessionTruncated(session: ProtocolURI): void {
@@ -1091,11 +1115,11 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * makes sense for the SDK-tracked session-wide diff (which sees fresh
 	 * `tool_complete` events between turn boundaries).
 	 */
-	private _scheduleDebouncedDiffComputation(session: ProtocolURI, turnId: string): void {
+	private _scheduleDebouncedDiffComputation(session: ProtocolURI, turnId: string, clientContext?: IAgentHostClientTelemetryContext): void {
 		this._debouncedDiffTimers.set(session, disposableTimeout(() => {
 			this._debouncedDiffTimers.deleteAndDispose(session);
-			this._scheduleStaticRecompute(session, 'branch', turnId);
-			this._scheduleStaticRecompute(session, 'session', turnId);
+			this._scheduleStaticRecompute(session, 'branch', turnId, undefined, false, clientContext);
+			this._scheduleStaticRecompute(session, 'session', turnId, undefined, false, clientContext);
 		}, AgentHostChangesetService._DIFF_DEBOUNCE_MS));
 	}
 
@@ -1113,11 +1137,11 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * `(session, turnId)` map key so a long-running per-turn compute
 	 * doesn't block the static session recompute path (and vice versa).
 	 */
-	private _scheduleDebouncedTurnDiffComputation(session: ProtocolURI, turnId: string): void {
+	private _scheduleDebouncedTurnDiffComputation(session: ProtocolURI, turnId: string, clientContext?: IAgentHostClientTelemetryContext): void {
 		const key = `${session}\u0000${turnId}`;
 		this._perTurnDebouncedDiffTimers.set(key, disposableTimeout(() => {
 			this._perTurnDebouncedDiffTimers.deleteAndDispose(key);
-			this._scheduleTurnRecompute(session, turnId);
+			this._scheduleTurnRecompute(session, turnId, false, clientContext);
 		}, AgentHostChangesetService._DIFF_DEBOUNCE_MS));
 	}
 
@@ -1137,12 +1161,16 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * `uncommitted` slots) run independently. Fire-and-forget — failures
 	 * are logged inside `computeTurnChangeset` and do not fail the turn.
 	 */
-	private _scheduleTurnRecompute(session: ProtocolURI, turnId: string, reportTelemetry: boolean = false): void {
-		this._diffComputationSequencer.queue(`${session}\u0000turn\u0000${turnId}`, () => this._computeTurnChangeset(session, turnId, reportTelemetry).then(() => undefined));
+	private _scheduleTurnRecompute(session: ProtocolURI, turnId: string, reportTelemetry: boolean = false, clientContext?: IAgentHostClientTelemetryContext): void {
+		this._diffComputationSequencer.queue(`${session}\u0000turn\u0000${turnId}`, () => this._computeTurnChangeset(session, turnId, reportTelemetry, clientContext).then(() => undefined));
 	}
 
-	private _scheduleUncommittedRecompute(session: ProtocolURI, turnId: string | undefined, reportTelemetry: boolean = false): void {
-		this._diffComputationSequencer.queue(`${session}\u0000uncommitted`, () => this._computeUncommittedChangeset(session, turnId, reportTelemetry).then(() => undefined));
+	private _scheduleUncommittedRecompute(session: ProtocolURI, turnId: string | undefined, reportTelemetry: boolean = false, clientContext?: IAgentHostClientTelemetryContext): void {
+		void this._queueUncommittedChangeset(session, turnId, reportTelemetry, clientContext);
+	}
+
+	private _queueUncommittedChangeset(session: ProtocolURI, turnId: string | undefined, reportTelemetry: boolean, clientContext?: IAgentHostClientTelemetryContext): Promise<ProtocolURI> {
+		return this._diffComputationSequencer.queue(`${session}\u0000uncommitted`, () => this._computeUncommittedChangeset(session, turnId, reportTelemetry, clientContext));
 	}
 
 	/**
@@ -1151,8 +1179,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * stale `previousDiffs` reads. Fire-and-forget — failures are logged
 	 * but do not fail the turn.
 	 */
-	private _scheduleStaticRecompute(session: ProtocolURI, kind: StaticChangesetKind, changedTurnId?: string, statusBeforeRefresh?: ChangesetStatus, reportTelemetry: boolean = false): void {
-		this._diffComputationSequencer.queue(`${session}\u0000${kind}`, () => this._doComputeStaticChangeset(session, kind, changedTurnId, statusBeforeRefresh, reportTelemetry));
+	private _scheduleStaticRecompute(session: ProtocolURI, kind: StaticChangesetKind, changedTurnId?: string, statusBeforeRefresh?: ChangesetStatus, reportTelemetry: boolean = false, clientContext?: IAgentHostClientTelemetryContext): void {
+		this._diffComputationSequencer.queue(`${session}\u0000${kind}`, () => this._doComputeStaticChangeset(session, kind, changedTurnId, statusBeforeRefresh, reportTelemetry, clientContext));
 	}
 
 	private _markStaticChangesetComputing(session: ProtocolURI, kind: StaticChangesetKind): ChangesetStatus | undefined {
@@ -1168,7 +1196,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		return status;
 	}
 
-	private async _doComputeStaticChangeset(session: ProtocolURI, kind: StaticChangesetKind, changedTurnId?: string, statusBeforeRefresh?: ChangesetStatus, reportTelemetry: boolean = false): Promise<void> {
+	private async _doComputeStaticChangeset(session: ProtocolURI, kind: StaticChangesetKind, changedTurnId?: string, statusBeforeRefresh?: ChangesetStatus, reportTelemetry: boolean = false, clientContext?: IAgentHostClientTelemetryContext): Promise<void> {
 		const changesetUri = staticChangesetUri(session, kind);
 		const stopWatch = StopWatch.create();
 		const workingDirectories = this._configurationService.getEffectiveWorkingDirectories(session);
@@ -1188,7 +1216,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 					folderCount: workingDirectories?.length ?? 0,
 					...(outcome === 'computed' ? { fileCount } : {}),
 					...(kind === 'session' ? { incrementalUsed, usedEditTrackerFallback } : {}),
-				});
+				}, clientContext);
 			}
 		};
 		this._activeStaticComputes.add(changesetUri);

@@ -114,7 +114,7 @@ if defined SUITE_FILTER (
 	if not defined _any_match (
 		echo Error: no suites match filter '%SUITE_FILTER%'
 		echo Available suites: api-folder api-workspace colorize terminal-suggest typescript markdown emmet git git-base ipynb notebook-renderers configuration-editing github-authentication copilot css html
-		exit /b 1
+		goto :failed
 	)
 )
 
@@ -133,7 +133,7 @@ if defined RUN_GLOB (
 		echo Skipping Agent Host E2E tests because no relevant files changed.
 	) else (
 		call node .\scripts\test-agent-host-e2e.ts %*
-		if errorlevel 1 exit /b 1
+		if errorlevel 1 goto :failed
 	)
 	set VSCODE_SKIP_PRELAUNCH=1
 	call .\scripts\test.bat --runGlob **\*.integrationTest.js --excludeRunGlob "**/agentHost/test/node/e2e/{providers/*AgentHostE2E,conformance/*}.integrationTest.js" %*
@@ -329,6 +329,12 @@ set "_filter=%SUITE_FILTER:,= %"
 for %%p in (%_filter%) do (
 	if /i "%%p"=="%_suite_name%" exit /b 0
 )
+exit /b 1
+
+:failed
+if defined VSCODEUSERDATADIR rmdir /s /q "%VSCODEUSERDATADIR%" 2>nul
+popd
+endlocal
 exit /b 1
 
 :end

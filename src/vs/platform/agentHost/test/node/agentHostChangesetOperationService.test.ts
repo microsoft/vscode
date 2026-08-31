@@ -63,12 +63,33 @@ class TestContribution implements IChangesetOperationContribution {
 	dispose(): void { }
 }
 
+class FailingRegistrationContribution implements IChangesetOperationContribution {
+	disposed = false;
+
+	constructor(private readonly handler: IChangesetOperationHandler) { }
+
+	registerHandlers(registry: IChangesetOperationRegistry): IDisposable {
+		registry.registerChangesetOperationHandler(testOperationId, this.handler);
+		throw new Error('Registration failed');
+	}
+
+	getOperations(): undefined {
+		return undefined;
+	}
+
+	dispose(): void {
+		this.disposed = true;
+	}
+}
+
 class TestGitStateService implements IAgentHostGitStateService {
 	declare readonly _serviceBrand: undefined;
 
 	readonly onDidRefreshSessionGitState = Event.None;
+	readonly onDidChangeSessionGitHubState = Event.None;
 
 	async refreshSessionGitState(_sessionKey: string, _workingDirectory?: URI): Promise<void> { }
+	async resolveSessionBaseBranchName(): Promise<string | undefined> { return undefined; }
 
 	async getSessionGitHubState(_sessionKey: string): Promise<ISessionGitHubState | undefined> {
 		return undefined;
@@ -76,8 +97,9 @@ class TestGitStateService implements IAgentHostGitStateService {
 
 	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }
 
+	async recordSessionMerge(_sessionKey: string, _commit?: string): Promise<void> { }
+
 	async attachSessionGitHubPullRequest(_sessionKey: string): Promise<void> { }
-	async attachSessionGitHubReferences(_sessionKey: string, _text: string): Promise<void> { }
 }
 
 /**
@@ -90,6 +112,7 @@ class TestConfigurationService implements IAgentConfigurationService {
 
 	readonly onDidRootConfigChange = Event.None;
 	readonly onDidSessionConfigChange = Event.None;
+	readonly onDidChangeWorkingDirectoryPending = Event.None;
 
 	constructor(private _workingDirectories: string[] | undefined) { }
 
@@ -161,10 +184,22 @@ suite('AgentHostChangesetOperationService', () => {
 		return disposables.add(new AgentHostChangesetOperationService(
 			stateManager,
 			new TestGitStateService(),
-			new AgentHostChangesetSubscriptionService(),
+			disposables.add(new AgentHostChangesetSubscriptionService()),
 			configurationService,
 		));
 	}
+
+	test('disposes partial handler registrations when contribution registration fails', () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const service = createService(stateManager);
+		const handler = new TestHandler();
+		const failingContribution = new FailingRegistrationContribution(handler);
+
+		assert.throws(() => service.registerContribution(failingContribution), /Registration failed/);
+		assert.strictEqual(failingContribution.disposed, true);
+
+		disposables.add(service.registerContribution(new TestContribution(handler)));
+	});
 
 	test('multi-folder session advertises no operations for a turn changeset', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
@@ -175,6 +210,23 @@ suite('AgentHostChangesetOperationService', () => {
 		const operations = service.getOperations(sessionKey, buildTurnChangesetUri(sessionKey, 'turn-1'), sampleGitState);
 
 		assert.deepStrictEqual(operations, []);
+	});
+
+	test('preserves contribution order when pull-request and merge operations coexist', () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionKey = 'agent:/session';
+		const service = createService(stateManager);
+		disposables.add(service.registerContribution(new OperationsContribution([
+			{ id: 'create-pr', label: 'Create PR', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle },
+			{ id: 'create-draft-pr', label: 'Create Draft PR', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle },
+		])));
+		disposables.add(service.registerContribution(new OperationsContribution([
+			{ id: 'merge', label: 'Merge Changes', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle },
+		])));
+
+		const operations = service.getOperations(sessionKey, buildBranchChangesetUri(sessionKey), sampleGitState);
+
+		assert.deepStrictEqual(operations.map(operation => operation.id), ['create-pr', 'create-draft-pr', 'merge']);
 	});
 
 	test('multi-folder session advertises no operations for a compare-turns changeset', () => {

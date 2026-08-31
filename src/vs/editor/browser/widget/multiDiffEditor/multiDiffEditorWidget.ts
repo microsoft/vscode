@@ -7,7 +7,7 @@ import { Dimension } from '../../../../base/browser/dom.js';
 import { Event } from '../../../../base/common/event.js';
 import { readHotReloadableExport } from '../../../../base/common/hotReloadHelpers.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { derived, observableValue, recomputeInitiallyAndOnChange, transaction } from '../../../../base/common/observable.js';
+import { derived, IObservable, observableValue, recomputeInitiallyAndOnChange, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -20,13 +20,13 @@ import './colors.js';
 import { DiffEditorItemTemplate } from './diffEditorItemTemplate.js';
 import { IDocumentDiffItem, IMultiDiffEditorModel } from './model.js';
 import { MultiDiffEditorViewModel } from './multiDiffEditorViewModel.js';
-import { IMultiDiffEditorViewState, IMultiDiffResourceId, MultiDiffEditorWidgetImpl } from './multiDiffEditorWidgetImpl.js';
+import { IMultiDiffEditorLayoutDebugState, IMultiDiffEditorViewState, IMultiDiffResourceId, MultiDiffEditorWidgetImpl } from './multiDiffEditorWidgetImpl.js';
 import { IWorkbenchUIElementFactory } from './workbenchUIElementFactory.js';
 
 export class MultiDiffEditorWidget extends Disposable {
 	private readonly _dimension = observableValue<Dimension | undefined>(this, undefined);
 	private readonly _viewModel = observableValue<MultiDiffEditorViewModel | undefined>(this, undefined);
-	private readonly _renderSideBySide = observableValue<boolean | undefined>(this, undefined);
+	private readonly _diffLayoutOptions = observableValue<IDiffEditorOptions | undefined>(this, undefined);
 
 	private readonly _widgetImpl = derived(this, (reader) => {
 		readHotReloadableExport(DiffEditorItemTemplate, reader);
@@ -36,7 +36,7 @@ export class MultiDiffEditorWidget extends Disposable {
 			this._dimension,
 			this._viewModel,
 			this._workbenchUIElementFactory,
-			this._renderSideBySide,
+			this._diffLayoutOptions,
 			this._diffEditorOptions,
 		));
 	});
@@ -98,14 +98,18 @@ export class MultiDiffEditorWidget extends Disposable {
 	/**
 	 * Overrides whether the embedded diffs render side by side (`true`) or inline
 	 * (`false`) as editor-local state, independent of the
-	 * `diffEditor.renderSideBySide` setting. When left unset the setting applies.
+	 * `diffEditor.renderSideBySide` setting. Responsive inline fallback is disabled
+	 * unless explicitly enabled.
 	 */
-	public setRenderSideBySide(renderSideBySide: boolean): void {
-		this._renderSideBySide.set(renderSideBySide, undefined);
+	public setRenderSideBySide(renderSideBySide: boolean, options?: { readonly useInlineViewWhenSpaceIsLimited?: boolean }): void {
+		this._diffLayoutOptions.set({
+			renderSideBySide,
+			useInlineViewWhenSpaceIsLimited: options?.useInlineViewWhenSpaceIsLimited ?? false,
+		}, undefined);
 	}
 
 	public toggleRenderSideBySide(): void {
-		this._renderSideBySide.set(!(this._renderSideBySide.get() ?? true), undefined);
+		this.setRenderSideBySide(!(this._diffLayoutOptions.get()?.renderSideBySide ?? true));
 	}
 
 	private readonly _activeControl = derived(this, (reader) => this._widgetImpl.read(reader).activeControl.read(reader));
@@ -118,6 +122,10 @@ export class MultiDiffEditorWidget extends Disposable {
 
 	public getViewState(): IMultiDiffEditorViewState {
 		return this._widgetImpl.get().getViewState();
+	}
+
+	public getLayoutDebugState(): IObservable<IMultiDiffEditorLayoutDebugState> {
+		return this._widgetImpl.get().layoutDebugState;
 	}
 
 	public setViewState(viewState: IMultiDiffEditorViewState): void {

@@ -252,9 +252,9 @@ suite('AutomationService', () => {
 		const run = await claimRun(service, a.id, 'schedule', 42);
 		assert.strictEqual(run.status, 'pending');
 		assert.strictEqual(run.leaderWindowId, 42);
-		const updated = await service.updateRun(run.id, { status: 'completed', sessionResource: 'vscode-chat-session://copilot/sess-1', completedAt: new Date().toISOString() });
+		const updated = await service.updateRun(run.id, { status: 'completed', sessionResource: URI.parse('vscode-chat-session://copilot/sess-1'), completedAt: new Date().toISOString() });
 		assert.strictEqual(updated?.status, 'completed');
-		assert.strictEqual(updated?.sessionResource, 'vscode-chat-session://copilot/sess-1');
+		assert.strictEqual(updated?.sessionResource?.toString(), 'vscode-chat-session://copilot/sess-1');
 	});
 
 	test('deleteRun removes only the matching history entry', async () => {
@@ -440,12 +440,16 @@ suite('AutomationService', () => {
 		const restored = secondService.getAutomation(created.id);
 		const updated = await secondService.updateAutomation(created.id, { target: workspaceTarget(FOLDER, { kind: 'folder' }) });
 
+		const comparableTarget = (target: AutomationTarget | undefined) =>
+			target && target.kind === 'workspace'
+				? { ...target, folderUri: target.folderUri.toString() }
+				: target;
 		assert.deepStrictEqual({
-			restoredTarget: restored?.target,
-			updatedTarget: updated.target,
+			restoredTarget: comparableTarget(restored?.target),
+			updatedTarget: comparableTarget(updated.target),
 		}, {
-			restoredTarget: workspaceTarget(FOLDER, { kind: 'worktree', branch: 'feature/saved' }),
-			updatedTarget: workspaceTarget(FOLDER, { kind: 'folder' }),
+			restoredTarget: comparableTarget(workspaceTarget(FOLDER, { kind: 'worktree', branch: 'feature/saved' })),
+			updatedTarget: comparableTarget(workspaceTarget(FOLDER, { kind: 'folder' })),
 		});
 	});
 
@@ -684,11 +688,23 @@ suite('AutomationService', () => {
 		});
 	});
 
-	test('reading a corrupt ledger leaves observables empty without throwing', () => {
+	test('reading a corrupt ledger leaves observables empty and blocks destructive writes', async () => {
 		const storage = teardown.add(new InMemoryStorageService());
 		storage.store('chat.automations.ledger', 'not json', -1, 1);
 		const service = teardown.add(createAutomationService(storage, new NullLogService(), NullTelemetryService));
-		assert.deepStrictEqual(service.automations.get(), []);
+		await assert.rejects(
+			service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() }),
+			/cannot safely interpret/,
+		);
+		assert.deepStrictEqual({
+			automations: service.automations.get(),
+			canCompleteMigration: service.canCompleteMigration(),
+			persisted: storage.get('chat.automations.ledger', -1),
+		}, {
+			automations: [],
+			canCompleteMigration: false,
+			persisted: 'not json',
+		});
 	});
 
 	test('drops a malformed schema v3 row without discarding valid rows', () => {
@@ -717,13 +733,15 @@ suite('AutomationService', () => {
 		assert.deepStrictEqual({
 			automationIds: service.automations.get().map(automation => automation.id),
 			runIds: service.runs.get().map(run => run.id),
+			canCompleteMigration: service.canCompleteMigration(),
 		}, {
 			automationIds: ['keep'],
 			runIds: ['r-keep'],
+			canCompleteMigration: true,
 		});
 	});
 
-	test('migrates valid schema v1 records to v3 while dropping malformed targets', async () => {
+	test('reads valid schema v1 rows and drops malformed rows on rewrite', async () => {
 		const storage = teardown.add(new InMemoryStorageService());
 		const ledger = {
 			schemaVersion: 1,
@@ -754,15 +772,19 @@ suite('AutomationService', () => {
 		});
 
 		await service.updateAutomation('keep', { name: 'Updated' });
-		const migrated = JSON.parse(storage.get('chat.automations.ledger', -1)!);
+		const persisted = JSON.parse(storage.get('chat.automations.ledger', -1)!);
 		assert.deepStrictEqual({
-			schemaVersion: migrated.schemaVersion,
-			automationIds: migrated.automations.map((automation: { id: string }) => automation.id),
-			runIds: migrated.runs.map((run: { id: string }) => run.id),
+			schemaVersion: persisted.schemaVersion,
+			automationIds: persisted.automations.map((automation: { id: string }) => automation.id),
+			keepName: persisted.automations.find((automation: { id: string }) => automation.id === 'keep')?.name,
+			runIds: persisted.runs.map((run: { id: string }) => run.id),
+			canCompleteMigration: service.canCompleteMigration(),
 		}, {
 			schemaVersion: 3,
 			automationIds: ['keep', 'quick'],
+			keepName: 'Updated',
 			runIds: ['r-keep', 'r-quick'],
+			canCompleteMigration: true,
 		});
 	});
 
@@ -806,6 +828,42 @@ suite('AutomationService', () => {
 		const secondService = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
 		const reloaded = secondService.automations.get()[0];
 		assert.deepStrictEqual(reloaded.target, workspaceTarget(uri));
+	});
+
+	test('reads a string sessionResource as a URI and writes it back as a string', async () => {
+		const storage = teardown.add(new InMemoryStorageService());
+		const sessionResource = 'vscode-chat-session://copilot/sess-42';
+		storage.store('chat.automations.ledger', JSON.stringify({
+			schemaVersion: 3,
+			revision: 1,
+			automations: [serializeLedgerAutomation('a1', 'A')],
+			runs: [{
+				id: 'run-1',
+				automationId: 'a1',
+				status: 'running',
+				trigger: 'schedule',
+				sessionResource,
+				startedAt: '2026-01-01T00:00:00.000Z',
+				leaderWindowId: 1,
+			}],
+		}), -1, 1);
+		const service = teardown.add(createAutomationService(storage, new NullLogService(), NullTelemetryService));
+
+		const loadedRun = service.runs.get()[0];
+		await service.updateRun('run-1', { status: 'completed', completedAt: '2026-01-01T00:01:00.000Z' });
+		const persisted = JSON.parse(storage.get('chat.automations.ledger', -1)!);
+
+		assert.deepStrictEqual({
+			loadedIsUri: URI.isUri(loadedRun.sessionResource),
+			loadedString: loadedRun.sessionResource?.toString(),
+			persistedType: typeof persisted.runs[0].sessionResource,
+			persistedString: persisted.runs[0].sessionResource,
+		}, {
+			loadedIsUri: true,
+			loadedString: sessionResource,
+			persistedType: 'string',
+			persistedString: sessionResource,
+		});
 	});
 
 	test('disposal does not interfere with later in-store reads', () => {

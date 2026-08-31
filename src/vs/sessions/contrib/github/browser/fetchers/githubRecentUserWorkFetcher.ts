@@ -18,6 +18,7 @@ export interface IGitHubRecentPullRequest {
 	readonly title: string;
 	readonly url: string;
 	readonly updatedAt: string;
+	readonly hasMergeConflicts: boolean;
 	readonly statusCheckRollupState: string | undefined;
 	readonly latestCommitAt: string | undefined;
 	readonly reviewThreads?: readonly IGitHubRecentPullRequestReviewThread[];
@@ -59,6 +60,7 @@ interface IGitHubRecentPullRequestsResponse {
 			readonly title: string;
 			readonly url: string;
 			readonly updatedAt: string;
+			readonly mergeable: 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN';
 			readonly commits: {
 				readonly nodes: readonly ({
 					readonly commit: {
@@ -114,6 +116,7 @@ const RECENT_PULL_REQUESTS_QUERY = `
 					title
 					url
 					updatedAt
+					mergeable
 					commits(last: 1) {
 						nodes {
 							commit {
@@ -182,6 +185,7 @@ export class GitHubRecentUserWorkFetcher {
 					title: pullRequest.title,
 					url: pullRequest.url,
 					updatedAt: pullRequest.updatedAt,
+					hasMergeConflicts: pullRequest.mergeable === 'CONFLICTING',
 					statusCheckRollupState: latestCommit?.statusCheckRollup?.state,
 					latestCommitAt: latestCommit?.committedDate,
 				};

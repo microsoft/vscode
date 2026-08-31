@@ -27,6 +27,7 @@ import { isString, Mutable } from '../../base/common/types.js';
 import { CharCode } from '../../base/common/charCode.js';
 import { IExtensionManifest } from '../../platform/extensions/common/extensions.js';
 import { ICSSDevelopmentService } from '../../platform/cssDev/node/cssDevService.js';
+import { htmlAttributeEncodeValue } from '../../base/common/strings.js';
 
 const textMimeType: { [ext: string]: string | undefined } = {
 	'.html': 'text/html',
@@ -58,12 +59,11 @@ export async function serveFile(filePath: string, cacheControl: CacheControl, lo
 
 			// Check if file modified since
 			const etag = `W/"${[stat.ino, stat.size, stat.mtime.getTime()].join('-')}"`; // weak validator (https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/ETag)
+			responseHeaders['Etag'] = etag;
 			if (req.headers['if-none-match'] === etag) {
-				res.writeHead(304);
+				res.writeHead(304, responseHeaders);
 				return void res.end();
 			}
-
-			responseHeaders['Etag'] = etag;
 		} else if (cacheControl === CacheControl.NO_EXPIRY) {
 			responseHeaders['Cache-Control'] = 'public, max-age=31536000';
 		} else if (cacheControl === CacheControl.NO_CACHING) {
@@ -113,6 +113,49 @@ const APP_ROOT = dirname(FileAccess.asFileUri('').fsPath);
 const STATIC_PATH = `/static`;
 const CALLBACK_PATH = `/callback`;
 const WEB_EXTENSION_PATH = `/web-extension-resource`;
+const webWorkerExtensionHostIframeScriptSHA = 'sha256-daEgfo2VIXpx2Np71KqCCbkeQwv+68vPrx54XRcbdcs=';
+
+/**
+ * Substitutes the `{{...}}` placeholders of a workbench template. Placeholders must only ever
+ * appear as quoted HTML attribute values, which is what makes attribute encoding sufficient.
+ */
+export function renderWorkbenchTemplate(template: string, values: Record<string, string>): string {
+	return template.replace(/\{\{([^}]+)\}\}/g, (_, key) => htmlAttributeEncodeValue(values[key] ?? 'undefined'));
+}
+
+/**
+ * Returns whether a reverse proxy supplied prefix is a plain absolute path. Values that could
+ * change the origin of a redirect or smuggle a query, fragment or control character are rejected.
+ */
+export function isSafeBasePath(basePath: string): boolean {
+	return basePath.startsWith('/')
+		&& !basePath.startsWith('//')
+		&& !/[?#\\]|[\u0000-\u001F\u007F]/.test(basePath);
+}
+
+export function createScriptNonce(): string {
+	return crypto.randomBytes(16).toString('base64url');
+}
+
+export function createNlsUrl(nlsBaseUrl: string, commit: string | undefined, version: string | undefined, locale: string): string {
+	return `${nlsBaseUrl}${commit}/${version}/${encodeURIComponent(locale)}/nls.messages.js`;
+}
+
+export function createWorkbenchContentSecurityPolicy(scriptNonce: string, nlsBaseUrl: string | undefined, remoteAuthority: string, useTestResolver: boolean): string {
+	return [
+		'default-src \'self\';',
+		'img-src \'self\' https: data: blob:;',
+		'media-src \'self\';',
+		`script-src 'self' 'unsafe-eval' ${nlsBaseUrl ?? ''} blob: 'nonce-${scriptNonce}' '${webWorkerExtensionHostIframeScriptSHA}' 'sha256-/r7rqQ+yrxt57sxLuQ6AMYcy/lUpvAIzHjIJt/OeLWU=' ${useTestResolver ? '' : `http://${remoteAuthority}`};`,  // the sha is the same as in src/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html
+		'child-src \'self\';',
+		`frame-src 'self' https://*.vscode-cdn.net data:;`,
+		'worker-src \'self\' data: blob:;',
+		'style-src \'self\' \'unsafe-inline\';',
+		'connect-src \'self\' ws: wss: https:;',
+		'font-src \'self\' blob:;',
+		'manifest-src \'self\';'
+	].join(' ');
+}
 
 export class WebClientServer {
 
@@ -264,7 +307,8 @@ export class WebClientServer {
 		};
 
 		// Prefix routes with basePath for clients
-		const basePath = getFirstHeader('x-forwarded-prefix') || this._basePath;
+		const forwardedPrefix = getFirstHeader('x-forwarded-prefix');
+		const basePath = forwardedPrefix && isSafeBasePath(forwardedPrefix) ? forwardedPrefix : this._basePath;
 
 		const queryConnectionTokens = parsedUrl.searchParams.getAll(connectionTokenQueryName);
 		if (queryConnectionTokens.length === 1) {
@@ -300,7 +344,7 @@ export class WebClientServer {
 			return host;
 		};
 
-		const useTestResolver = (!this._environmentService.isBuilt && this._environmentService.args['use-test-resolver']);
+		const useTestResolver = (!this._environmentService.isBuilt && !!this._environmentService.args['use-test-resolver']);
 		let remoteAuthority = (
 			useTestResolver
 				? 'test+test'
@@ -315,7 +359,7 @@ export class WebClientServer {
 		}
 
 		function asJSON(value: unknown): string {
-			return JSON.stringify(value).replace(/"/g, '&quot;');
+			return JSON.stringify(value);
 		}
 
 		let _wrapWebWorkerExtHostInIframe: undefined | false = undefined;
@@ -389,17 +433,19 @@ export class WebClientServer {
 		let WORKBENCH_NLS_URL: string;
 		if (!locale.startsWith('en') && this._productService.nlsCoreBaseUrl) {
 			WORKBENCH_NLS_BASE_URL = this._productService.nlsCoreBaseUrl;
-			WORKBENCH_NLS_URL = `${WORKBENCH_NLS_BASE_URL}${this._productService.commit}/${this._productService.version}/${locale}/nls.messages.js`;
+			WORKBENCH_NLS_URL = createNlsUrl(WORKBENCH_NLS_BASE_URL, this._productService.commit, this._productService.version, locale);
 		} else {
 			WORKBENCH_NLS_URL = ''; // fallback will apply
 		}
 
+		const scriptNonce = createScriptNonce();
 		const values: { [key: string]: string } = {
 			WORKBENCH_WEB_CONFIGURATION: asJSON(workbenchWebConfiguration),
 			WORKBENCH_AUTH_SESSION: authSessionInfo ? asJSON(authSessionInfo) : '',
 			WORKBENCH_WEB_BASE_URL: staticRoute,
 			WORKBENCH_NLS_URL,
-			WORKBENCH_NLS_FALLBACK_URL: `${staticRoute}/out/nls.messages.js`
+			WORKBENCH_NLS_FALLBACK_URL: `${staticRoute}/out/nls.messages.js`,
+			WORKBENCH_SCRIPT_NONCE: scriptNonce
 		};
 
 		// DEV ---------------------------------------------------------------------------------------
@@ -424,27 +470,13 @@ export class WebClientServer {
 		let data;
 		try {
 			const workbenchTemplate = (await promises.readFile(filePath)).toString();
-			data = workbenchTemplate.replace(/\{\{([^}]+)\}\}/g, (_, key) => values[key] ?? 'undefined');
+			data = renderWorkbenchTemplate(workbenchTemplate, values);
 		} catch (e) {
 			res.writeHead(404, { 'Content-Type': 'text/plain' });
 			return void res.end('Not found');
 		}
 
-		const webWorkerExtensionHostIframeScriptSHA = 'sha256-daEgfo2VIXpx2Np71KqCCbkeQwv+68vPrx54XRcbdcs=';
-
-		const cspDirectives = [
-			'default-src \'self\';',
-			'img-src \'self\' https: data: blob:;',
-			'media-src \'self\';',
-			`script-src 'self' 'unsafe-eval' ${WORKBENCH_NLS_BASE_URL ?? ''} blob: 'nonce-1nline-m4p' ${this._getScriptCspHashes(data).join(' ')} '${webWorkerExtensionHostIframeScriptSHA}' 'sha256-/r7rqQ+yrxt57sxLuQ6AMYcy/lUpvAIzHjIJt/OeLWU=' ${useTestResolver ? '' : `http://${remoteAuthority}`};`,  // the sha is the same as in src/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html
-			'child-src \'self\';',
-			`frame-src 'self' https://*.vscode-cdn.net data:;`,
-			'worker-src \'self\' data: blob:;',
-			'style-src \'self\' \'unsafe-inline\';',
-			'connect-src \'self\' ws: wss: https:;',
-			'font-src \'self\' blob:;',
-			'manifest-src \'self\';'
-		].join(' ');
+		const cspDirectives = createWorkbenchContentSecurityPolicy(scriptNonce, WORKBENCH_NLS_BASE_URL, remoteAuthority, useTestResolver);
 
 		const headers: http.OutgoingHttpHeaders = {
 			'Content-Type': 'text/html',

@@ -19,7 +19,7 @@ import { DEFAULT_MCP_APP } from '../../../agentHost/common/state/protocol/mcpApp
 import { customizationId } from '../../../agentHost/common/state/sessionState.js';
 
 function stubMcpCustomization(): McpServerCustomization {
-	return { type: CustomizationType.McpServer, id: 'stub', uri: 'file:///plugin', name: 'test', enabled: true, state: { kind: McpServerStatus.Starting } };
+	return { type: CustomizationType.McpServer, id: 'stub', uri: 'file:///plugin', name: 'test', state: { kind: McpServerStatus.Starting } };
 }
 import {
 	IParsedHookCommand,
@@ -183,8 +183,27 @@ suite('pluginParsers', () => {
 				url: 'https://example.com',
 				headers: { 'X-Key': 'val' },
 			});
-			assert.ok(result);
-			assert.strictEqual(result!.type, McpServerType.REMOTE);
+			assert.deepStrictEqual(result, {
+				type: McpServerType.REMOTE,
+				transport: 'sse',
+				url: 'https://example.com',
+				headers: { 'X-Key': 'val' },
+				dev: undefined,
+			});
+		});
+
+		test('preserves canonical SSE transport', () => {
+			assert.deepStrictEqual(normalizeMcpServerConfiguration({
+				type: 'http',
+				transport: 'sse',
+				url: 'https://example.com/sse',
+			}), {
+				type: McpServerType.REMOTE,
+				transport: 'sse',
+				url: 'https://example.com/sse',
+				headers: undefined,
+				dev: undefined,
+			});
 		});
 
 		test('infers remote type from url without explicit type', () => {
@@ -255,9 +274,11 @@ suite('pluginParsers', () => {
 	suite('interpolateMcpPluginRoot', () => {
 
 		test('replaces tokens and sets env vars without pairing array entries', () => {
+			const defaultCwd = URI.file('/plugin');
 			const result = interpolateMcpPluginRoot({
 				name: 'test',
 				uri: URI.file('/plugin/.mcp.json'),
+				defaultCwd,
 				configuration: {
 					type: McpServerType.LOCAL,
 					command: '${PLUGIN_ROOT}/bin/server',
@@ -272,6 +293,7 @@ suite('pluginParsers', () => {
 				args: ['--data', '/plugin/data'],
 				env: { PLUGIN_ROOT: '/plugin' },
 			});
+			assert.strictEqual(result.defaultCwd, defaultCwd);
 		});
 	});
 
@@ -416,7 +438,6 @@ suite('pluginParsers', () => {
 				id: `${customizationId(uri.toString())}#mcp=${encodeURIComponent('fs server')}`,
 				uri: uri.toString(),
 				name: 'fs server',
-				enabled: true,
 				state: { kind: McpServerStatus.Stopped },
 				mcpApp: DEFAULT_MCP_APP,
 			});
@@ -604,16 +625,18 @@ suite('pluginParsers', () => {
 							env: { ROOT: '${PLUGIN_ROOT}' },
 							cwd: './work',
 						},
+						implicit: { type: 'stdio', command: 'implicit-server' },
 						http: { type: 'streamable-http', url: 'https://example.com/mcp' },
 						sse: { type: 'sse', url: 'http://127.0.0.2:3000/sse' },
 					},
 				}));
 
-				const servers = new Map((await parse()).mcpServers.map(server => [server.name, server.configuration]));
-				assert.deepStrictEqual([...servers.keys()], ['http', 'sse', 'stdio']);
-				assert.strictEqual(servers.get('http')?.type, McpServerType.REMOTE);
-				assert.strictEqual(servers.get('sse')?.type, McpServerType.REMOTE);
-				const stdio = servers.get('stdio');
+				const parsed = await parse();
+				const servers = new Map(parsed.mcpServers.map(server => [server.name, server]));
+				assert.deepStrictEqual([...servers.keys()], ['http', 'implicit', 'sse', 'stdio']);
+				assert.strictEqual(servers.get('http')?.configuration.type, McpServerType.REMOTE);
+				assert.strictEqual(servers.get('sse')?.configuration.type, McpServerType.REMOTE);
+				const stdio = servers.get('stdio')?.configuration;
 				assert.ok(stdio?.type === McpServerType.LOCAL);
 				assert.deepStrictEqual({
 					command: stdio.command,
@@ -626,6 +649,11 @@ suite('pluginParsers', () => {
 					env: { ROOT: '${PLUGIN_ROOT}' },
 					cwd: './work',
 				});
+				const implicit = servers.get('implicit');
+				assert.ok(implicit);
+				assert.strictEqual(implicit?.configuration.type, McpServerType.LOCAL);
+				assert.strictEqual(implicit.configuration.type === McpServerType.LOCAL ? implicit.configuration.cwd : undefined, undefined);
+				assert.strictEqual(implicit.defaultCwd, undefined);
 			});
 
 			test('rejects filesystem-resolved component escapes', async () => {

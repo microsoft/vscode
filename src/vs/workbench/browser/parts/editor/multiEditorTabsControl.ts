@@ -32,10 +32,10 @@ import { ResourcesDropHandler, DraggedEditorIdentifier, DraggedEditorGroupIdenti
 import { Color } from '../../../../base/common/color.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { MergeGroupMode, IMergeGroupOptions } from '../../../services/editor/common/editorGroupsService.js';
-import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver, isMouseEvent, getWindow, $ } from '../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver, isMouseEvent, getWindow, ModifierKeyEmitter, $ } from '../../../../base/browser/dom.js';
 import { localize } from '../../../../nls.js';
 import { IEditorGroupMenuIds, IEditorGroupsView, EditorServiceImpl, IEditorGroupView, IInternalEditorOpenOptions, IEditorPartsView, prepareMoveCopyEditors } from './editor.js';
-import { CloseEditorTabAction, UnpinEditorAction } from './editorActions.js';
+import { CloseEditorTabAction, CloseOtherEditorTabsInGroupAction, UnpinEditorAction } from './editorActions.js';
 import { assertReturnsAllDefined, assertReturnsDefined } from '../../../../base/common/types.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { basenameOrAuthority } from '../../../../base/common/resources.js';
@@ -58,6 +58,8 @@ import { IReadonlyEditorGroupModel } from '../../../common/editor/editorGroupMod
 import { IHostService } from '../../../services/host/browser/host.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { applyDragImage } from '../../../../base/browser/ui/dnd/dnd.js';
+
+const modifierKeyEmitter = ModifierKeyEmitter.getInstance();
 
 interface IEditorInputLabel {
 	readonly editor: EditorInput;
@@ -116,6 +118,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 	private readonly closeEditorAction = this._register(this.instantiationService.createInstance(CloseEditorTabAction, CloseEditorTabAction.ID, CloseEditorTabAction.LABEL));
 	private readonly unpinEditorAction = this._register(this.instantiationService.createInstance(UnpinEditorAction, UnpinEditorAction.ID, UnpinEditorAction.LABEL));
+	private readonly closeOtherEditorTabsInGroupAction = this._register(this.instantiationService.createInstance(CloseOtherEditorTabsInGroupAction, CloseOtherEditorTabsInGroupAction.ID, CloseOtherEditorTabsInGroupAction.LABEL));
+
+	// Alt-hold alternative to a tab's close action (JetBrains-style), applied only
+	// to the currently hovered tab; see updateTabActionForHoveredTab().
+	private hoveredTabIndex: number | undefined;
 
 	private readonly tabResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
 	private tabLabels: IEditorInputLabel[] = [];
@@ -168,6 +175,48 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// React to decorations changing for our resource labels
 		this._register(this.tabResourceLabels.onDidChangeDecorations(() => this.doHandleDecorationsChange()));
+
+		// React to Alt being held/released to swap in the "Close Others" tab action
+		// for the currently hovered tab only (if any).
+		this._register(modifierKeyEmitter.event(() => this.updateTabActionForHoveredTab()));
+	}
+
+	private updateTabActionForHoveredTab(): void {
+		if (typeof this.hoveredTabIndex !== 'number') {
+			return; // no tab hovered, nothing to update
+		}
+
+		this.redrawTabActionAtIndex(this.hoveredTabIndex);
+	}
+
+	private redrawTabActionAtIndex(tabIndex: number): void {
+		const editor = this.tabsModel.getEditorByIndex(tabIndex);
+		if (editor) {
+			this.doWithTab(tabIndex, editor, (editor, tabIndex, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => this.redrawTabAction(editor, tabIndex, tabContainer, tabActionBar));
+		}
+	}
+
+	// Tracks which tab (if any) the mouse is currently over so the Alt-hold "Close
+	// Others" swap (see redrawTabAction()) applies only to that single tab.
+	private setHoveredTab(tabIndex: number | undefined): void {
+		if (this.hoveredTabIndex === tabIndex) {
+			return;
+		}
+
+		const previousHoveredTabIndex = this.hoveredTabIndex;
+		this.hoveredTabIndex = tabIndex;
+
+		if (!modifierKeyEmitter.keyStatus.altKey) {
+			return; // Alt is not held, no action swap in effect to redraw
+		}
+
+		if (typeof previousHoveredTabIndex === 'number') {
+			this.redrawTabActionAtIndex(previousHoveredTabIndex);
+		}
+
+		if (typeof tabIndex === 'number') {
+			this.redrawTabActionAtIndex(tabIndex);
+		}
 	}
 
 	protected override create(parent: HTMLElement): HTMLElement {
@@ -370,6 +419,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			if (e.button === 1) {
 				e.preventDefault();
 			}
+		}));
+
+		// Clear the hovered tab once the mouse leaves the tabs container entirely
+		this._register(addDisposableListener(tabsContainer, EventType.MOUSE_LEAVE, () => {
+			this.setHoveredTab(undefined);
 		}));
 
 		// Prevent auto-pasting (https://github.com/microsoft/vscode/issues/201696)
@@ -641,6 +695,12 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 	private handleClosedEditors(): void {
 
+		// A stale hovered tab index could otherwise leave a tab
+		// showing "Close Others" after the tabs it pointed past got removed
+		if (typeof this.hoveredTabIndex === 'number' && this.hoveredTabIndex >= this.tabsModel.count) {
+			this.setHoveredTab(undefined);
+		}
+
 		// There are tabs to show
 		if (this.tabsModel.count) {
 
@@ -899,7 +959,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		const tabActionBar = new ActionBar(tabActionsContainer, { ariaLabel: localize('ariaLabelTabActions', "Tab actions"), actionRunner: tabActionRunner });
 		const tabActionListener = tabActionBar.onWillRun(e => {
-			if (e.action.id === this.closeEditorAction.id) {
+			if (e.action.id === this.closeEditorAction.id || e.action.id === this.closeOtherEditorTabsInGroupAction.id) {
 				this.blockRevealActiveTabOnce();
 			}
 		});
@@ -997,6 +1057,17 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Open on Click / Touch
 		disposables.add(addDisposableListener(tab, EventType.MOUSE_DOWN, e => handleClickOrTouch(e, false)));
 		disposables.add(addDisposableListener(tab, TouchEventType.Tap, (e: GestureEvent) => handleClickOrTouch(e, true))); // Preserve focus on touch #125470
+
+		// Track hover so the Alt-hold "Close Others" action swap (see redrawTabAction())
+		// only applies to the tab the mouse is currently over.
+		disposables.add(addDisposableListener(tab, EventType.MOUSE_ENTER, () => {
+			this.setHoveredTab(tabIndex);
+		}));
+		disposables.add(addDisposableListener(tab, EventType.MOUSE_LEAVE, () => {
+			if (this.hoveredTabIndex === tabIndex) {
+				this.setHoveredTab(undefined);
+			}
+		}));
 
 		// Touch Scroll Support
 		disposables.add(addDisposableListener(tab, TouchEventType.Change, (e: GestureEvent) => {
@@ -1587,22 +1658,24 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.layout(this.dimensions, options);
 	}
 
-	private redrawTab(editor: EditorInput, tabIndex: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel, tabActionBar: ActionBar): void {
+	// Split out from redrawTab() so updateTabActionsForAltState() can refresh just the action items, not a full tab bar redraw.
+	private redrawTabAction(editor: EditorInput, tabIndex: number, tabContainer: HTMLElement, tabActionBar: ActionBar): void {
 		const isTabSticky = this.tabsModel.isSticky(tabIndex);
 		const isCloseable = !editor.hasCapability(EditorInputCapabilities.CannotClose);
 		const options = this.groupsView.partOptions;
 
-		// Label
-		this.redrawTabLabel(editor, tabIndex, tabContainer, tabLabelWidget, tabLabel);
-
-		// Action
 		const hasUnpinAction = isTabSticky && options.tabActionUnpinVisibility;
 		const hasCloseAction = isCloseable && !hasUnpinAction && options.tabActionCloseVisibility;
 		const hasAction = hasUnpinAction || hasCloseAction;
 
+		// Alt swaps a visible Close action to Close Others, but only for the
+		// currently hovered tab; Unpin is unaffected.
+		const wantsCloseOthersAction = hasCloseAction && modifierKeyEmitter.keyStatus.altKey && tabIndex === this.hoveredTabIndex;
+		this.closeOtherEditorTabsInGroupAction.enabled = this.groupView.count > 1;
+
 		let tabAction;
 		if (hasAction) {
-			tabAction = hasUnpinAction ? this.unpinEditorAction : this.closeEditorAction;
+			tabAction = hasUnpinAction ? this.unpinEditorAction : wantsCloseOthersAction ? this.closeOtherEditorTabsInGroupAction : this.closeEditorAction;
 		} else {
 			// Even if the action is not visible, add it as it contains the dirty indicator
 			tabAction = isTabSticky ? this.unpinEditorAction : this.closeEditorAction;
@@ -1613,7 +1686,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				tabActionBar.clear();
 			}
 
-			tabActionBar.push(tabAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(tabAction) });
+			// Close Others has no real keybinding to look up; hint at the gesture that triggers it instead.
+			const keybinding = tabAction === this.closeOtherEditorTabsInGroupAction ? (isMacintosh ? localize('altClickMac', "⌥+Click") : localize('altClick', "Alt+Click")) : this.getKeybindingLabel(tabAction);
+			tabActionBar.push(tabAction, { icon: true, label: false, keybinding });
 		}
 
 		tabContainer.classList.toggle(`pinned-action-off`, isTabSticky && !hasUnpinAction);
@@ -1623,6 +1698,17 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		for (const option of ['left', 'right']) {
 			tabContainer.classList.toggle(`tab-actions-${option}`, hasAction && options.tabActionLocation === option);
 		}
+	}
+
+	private redrawTab(editor: EditorInput, tabIndex: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel, tabActionBar: ActionBar): void {
+		const isTabSticky = this.tabsModel.isSticky(tabIndex);
+		const options = this.groupsView.partOptions;
+
+		// Label
+		this.redrawTabLabel(editor, tabIndex, tabContainer, tabLabelWidget, tabLabel);
+
+		// Action
+		this.redrawTabAction(editor, tabIndex, tabContainer, tabActionBar);
 
 		const tabSizing = isTabSticky && options.pinnedTabSizing === 'shrink' ? 'shrink' /* treat sticky shrink tabs as tabSizing: 'shrink' */ : options.tabSizing;
 		for (const option of ['fit', 'shrink', 'fixed']) {

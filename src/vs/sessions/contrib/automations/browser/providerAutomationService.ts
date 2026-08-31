@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Sequencer } from '../../../../base/common/async.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { disposableTimeout, Sequencer } from '../../../../base/common/async.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IAutomation, IAutomationRun, AutomationRunTrigger } from '../../../../workbench/contrib/chat/common/automations/automation.js';
+import { IAutomationDescriptor, IAutomationRun, AutomationRunTrigger } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationMutationGuard, IAutomationRunClaim, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions, IUpdateAutomationRunOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { IAutomationSnapshot, ISessionsProviderAutomations } from '../../../services/sessions/common/sessionsProvider.js';
+import { IAutomation, ISessionsProviderAutomations } from '../../../services/sessions/common/sessionsProvider.js';
 import { AutomationService } from './automationService.js';
 
 interface IAutomationStoreEntry {
@@ -20,6 +21,7 @@ interface IAutomationStoreEntry {
 }
 
 const MAX_AUTOMATION_TRANSFER_ATTEMPTS = 3;
+const AUTOMATION_MIGRATION_RETRY_DELAY_MS = 30_000;
 
 export class ProviderAutomationService extends Disposable implements IAutomationService {
 
@@ -28,13 +30,14 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 	private readonly legacyStore: AutomationService;
 	private readonly providersChanged;
 	private readonly migrationSequencer = new Sequencer();
+	private readonly migrationRetry = this._register(new MutableDisposable());
 	private migrationPromise: Promise<void> = Promise.resolve();
 	private readonly runsForCache = new Map<string, IObservable<readonly IAutomationRun[]>>();
 	private staleRunRecoveryGeneration = 0;
 	private staleRunRecoveryReason: string | undefined;
 	private readonly recoveredStores = new Set<ISessionsProviderAutomations>();
 
-	readonly automations: IObservable<readonly IAutomation[]>;
+	readonly automations: IObservable<readonly IAutomationDescriptor[]>;
 	readonly runs: IObservable<readonly IAutomationRun[]>;
 
 	constructor(
@@ -70,7 +73,7 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		this.queueMigration();
 	}
 
-	getAutomation(id: string): IAutomation | undefined {
+	getAutomation(id: string): IAutomationDescriptor | undefined {
 		return this.findAutomationStore(id)?.store.getAutomation(id);
 	}
 
@@ -83,18 +86,18 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		return result;
 	}
 
-	createAutomation(options: ICreateAutomationOptions, mutationGuard?: AutomationMutationGuard): Promise<IAutomation> {
+	createAutomation(options: ICreateAutomationOptions, mutationGuard?: AutomationMutationGuard): Promise<IAutomationDescriptor> {
 		return this.getCreationStore(options).createAutomation(options, mutationGuard);
 	}
 
-	async updateAutomation(id: string, patch: IUpdateAutomationOptions): Promise<IAutomation> {
+	async updateAutomation(id: string, patch: IUpdateAutomationOptions): Promise<IAutomationDescriptor> {
 		const source = this.requireAutomationStore(id);
 		const updated = await source.updateAutomation(id, patch);
 		await this.retargetAutomationStorageIfNeeded(source, updated);
 		return updated;
 	}
 
-	async updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomation, mutationGuard?: AutomationMutationGuard): Promise<IGuardedAutomationUpdateResult> {
+	async updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomationDescriptor, mutationGuard?: AutomationMutationGuard): Promise<IGuardedAutomationUpdateResult> {
 		const source = this.requireAutomationStore(id);
 		const result = await source.updateAutomationIfUnchanged(id, patch, expected, mutationGuard);
 		if (result.kind === 'updated') {
@@ -124,6 +127,25 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 
 	getActiveRunFor(automationId: string): IAutomationRun | undefined {
 		return this.findAutomationStore(automationId)?.store.getActiveRunFor(automationId);
+	}
+
+	isSchedulingOwnedByHost(automationId: string): boolean {
+		return this.findAutomationStore(automationId)?.store.isSchedulingOwnedByHost?.(automationId) === true;
+	}
+
+	canRunAutomation(automationId: string): boolean {
+		const entry = this.findAutomationStore(automationId);
+		return entry?.store.canRunAutomation?.(automationId) ?? entry !== undefined;
+	}
+
+	canUpdateAutomation(automationId: string): boolean {
+		const entry = this.findAutomationStore(automationId);
+		return entry?.store.canUpdateAutomation?.(automationId) ?? entry !== undefined;
+	}
+
+	canDeleteAutomation(automationId: string): boolean {
+		const entry = this.findAutomationStore(automationId);
+		return entry?.store.canDeleteAutomation?.(automationId) ?? entry !== undefined;
 	}
 
 	async markStaleRunsFailed(reason: string): Promise<void> {
@@ -182,8 +204,8 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		return this.legacyStore;
 	}
 
-	private async retargetAutomationStorageIfNeeded(sourceStore: ISessionsProviderAutomations, initialAutomation: IAutomation): Promise<void> {
-		let snapshot: IAutomationSnapshot = {
+	private async retargetAutomationStorageIfNeeded(sourceStore: ISessionsProviderAutomations, initialAutomation: IAutomationDescriptor): Promise<void> {
+		let snapshot: IAutomation = {
 			automation: initialAutomation,
 			runs: sourceStore.runsFor(initialAutomation.id).get(),
 		};
@@ -194,9 +216,13 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 			}
 
 			await destinationStore.upsertAutomationSnapshot(snapshot);
+			if (destinationStore.preservesImportedRunHistory === false) {
+				return;
+			}
 			const sourceRemoval = await sourceStore.removeAutomationSnapshotIfUnchanged(snapshot);
 			switch (sourceRemoval.kind) {
 				case 'removed':
+					await destinationStore.acknowledgeAutomationSnapshotImported?.(snapshot);
 					return;
 				case 'missing':
 					await this.rollbackAutomationSnapshotIfUnchanged(destinationStore, snapshot);
@@ -229,15 +255,26 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 	}
 
 	private queueMigration(): void {
-		this.migrationPromise = this.migrationSequencer.queue(async () => {
+		this.migrationRetry.clear();
+		const migration = this.migrationSequencer.queue(async () => {
 			await this.migrateLegacyAutomations();
+			await this.completeProviderMigrations();
 			const reason = this.staleRunRecoveryReason;
 			if (reason) {
 				await this.recoverStores(this.getStores(), reason, this.staleRunRecoveryGeneration);
 			}
-		}).catch(error => {
-			this.logService.error('[ProviderAutomationService] Failed to migrate legacy Automations.', error);
 		});
+		this.migrationPromise = migration;
+		void migration.then(
+			() => this.migrationRetry.clear(),
+			error => {
+				if (this._store.isDisposed || isCancellationError(error)) {
+					return;
+				}
+				this.logService.error(`[ProviderAutomationService] Failed to migrate legacy Automations; retrying in ${AUTOMATION_MIGRATION_RETRY_DELAY_MS}ms.`, error);
+				this.migrationRetry.value = disposableTimeout(() => this.queueMigration(), AUTOMATION_MIGRATION_RETRY_DELAY_MS);
+			},
+		);
 	}
 
 	private async recoverStores(entries: readonly IAutomationStoreEntry[], reason: string, generation: number): Promise<void> {
@@ -261,17 +298,28 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 	}
 
 	private async migrateLegacyAutomations(): Promise<void> {
+		if (this.legacyStore.canCompleteMigration() === false) {
+			throw new Error('Legacy Automation storage cannot be migrated safely by this version.');
+		}
+		const failures: Error[] = [];
 		for (const automation of [...this.legacyStore.automations.get()]) {
 			try {
 				await this.migrateLegacyAutomation(automation);
 			} catch (error) {
+				if (isCancellationError(error) || this._store.isDisposed) {
+					throw new CancellationError();
+				}
 				this.logService.error(`[ProviderAutomationService] Failed to migrate Automation '${automation.id}'.`, error);
+				failures.push(error instanceof Error ? error : new Error(String(error)));
 			}
+		}
+		if (failures.length > 0) {
+			throw new AggregateError(failures, `Failed to migrate ${failures.length} Automation snapshot(s).`);
 		}
 	}
 
-	private async migrateLegacyAutomation(initialAutomation: IAutomation): Promise<void> {
-		let snapshot: IAutomationSnapshot = {
+	private async migrateLegacyAutomation(initialAutomation: IAutomationDescriptor): Promise<void> {
+		let snapshot: IAutomation = {
 			automation: initialAutomation,
 			runs: this.legacyStore.runsFor(initialAutomation.id).get(),
 		};
@@ -291,9 +339,13 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 				return;
 			}
 			this.recoveredStores.delete(providerStore);
+			if (providerStore.preservesImportedRunHistory === false) {
+				return;
+			}
 			const sourceRemoval = await this.legacyStore.removeAutomationSnapshotIfUnchanged(snapshot);
 			switch (sourceRemoval.kind) {
 				case 'removed':
+					await providerStore.acknowledgeAutomationSnapshotImported?.(snapshot);
 					return;
 				case 'missing':
 					if (importResult.kind === 'inserted') {
@@ -311,7 +363,14 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		this.logService.warn(`[ProviderAutomationService] Automation '${snapshot.automation.id}' kept changing during legacy migration; leaving it in legacy storage.`);
 	}
 
-	private async rollbackAutomationSnapshotIfUnchanged(store: ISessionsProviderAutomations, snapshot: IAutomationSnapshot): Promise<boolean> {
+	private async completeProviderMigrations(): Promise<void> {
+		const stores = [...new Set(this.getStores().map(entry => entry.store))];
+		for (const store of stores) {
+			await store.completeMigration?.();
+		}
+	}
+
+	private async rollbackAutomationSnapshotIfUnchanged(store: ISessionsProviderAutomations, snapshot: IAutomation): Promise<boolean> {
 		const result = await store.removeAutomationSnapshotIfUnchanged(snapshot);
 		switch (result.kind) {
 			case 'removed':

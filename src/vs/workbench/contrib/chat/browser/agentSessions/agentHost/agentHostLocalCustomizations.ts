@@ -4,37 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { Iterable } from '../../../../../../base/common/iterator.js';
+import { ResourceSet } from '../../../../../../base/common/map.js';
 import { basename, isEqualOrParent } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { parseRemoteAgentHostHarness } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
-import { type AgentCustomization, CustomizationType, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationEnablementKind, type AgentCustomization, CustomizationType, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { customizationId, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
-import { IMcpServerConfiguration, McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { AICustomizationSource, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { IPromptsService, isUserToggleableCustomization, matchesSessionType, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { type ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
-import { isContributionEnabled } from '../../../common/enablement.js';
-import { MCP_PLUGIN_COLLECTION_ID_PREFIX } from '../../../../mcp/common/discovery/pluginMcpDiscovery.js';
-import { extensionPrefixedIdentifier, IMcpService, McpCollectionDefinition, McpServerLaunch, McpServerTransportType } from '../../../../mcp/common/mcpTypes.js';
+import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
-import { ConfigurationResolverExpression } from '../../../../../services/configurationResolver/common/configurationResolverExpression.js';
-import { IWorkspaceFolderData } from '../../../../../../platform/workspace/common/workspace.js';
 import type { ISyncableFile, ISyncableMcpServer, SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
-import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE } from './agentHostToolSetEnablementService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { isDefined } from '../../../../../../base/common/types.js';
 import { PromptFileParser } from '../../../common/promptSyntax/promptFileParser.js';
-
-const COPILOT_CHAT_EXTENSION_ID = 'github.copilot-chat';
-const COPILOT_CHAT_GITHUB_MCP_COLLECTION_ID = extensionPrefixedIdentifier(new ExtensionIdentifier(COPILOT_CHAT_EXTENSION_ID), 'github');
-
-function hasBuiltInGitHubMcpServer(sessionType: string): boolean {
-	return sessionType === AGENT_HOST_COPILOT_CLI_SESSION_TYPE || parseRemoteAgentHostHarness(sessionType) === 'copilotcli';
-}
+import { AgentHostMcpServerDelivery, resolveMcpServersForAgentHostDelivery } from './agentHostMcpServerSupport.js';
 
 /**
  * Prompt types that participate in auto-sync to an agent host harness.
@@ -58,7 +45,6 @@ export const SYNCABLE_PROMPT_TYPES: readonly PromptsType[] = [
  * and in the regular VS Code workbench window it returns nothing at all.
  */
 export const SYNCABLE_STORAGE_SOURCES: readonly PromptsStorage[] = [
-	PromptsStorage.local,
 	PromptsStorage.plugin,
 	PromptsStorage.extension,
 	PromptsStorage.builtIn,
@@ -103,9 +89,10 @@ export async function enumerateLocalCustomizationsForHarness(
 	syncProvider: ICustomizationSyncProvider,
 	sessionType: string,
 	token: CancellationToken,
-	options?: ILocalCustomizationSyncOptions,
+	options: ILocalCustomizationSyncOptions | undefined,
 ): Promise<readonly ILocalCustomizationFile[]> {
 	const result: ILocalCustomizationFile[] = [];
+	const seenUris = new ResourceSet();
 	const storageSources = options?.includeUserStorage
 		? [PromptsStorage.user, ...SYNCABLE_STORAGE_SOURCES]
 		: SYNCABLE_STORAGE_SOURCES;
@@ -118,7 +105,8 @@ export async function enumerateLocalCustomizationsForHarness(
 			const source = storageSources[i];
 			const honourUserDisabled = isUserToggleableCustomization(type, source);
 			for (const file of lists[i]) {
-				if (matchesSessionType(file.sessionTypes, sessionType)) {
+				if (matchesSessionType(file.sessionTypes, sessionType) && !seenUris.has(file.uri)) {
+					seenUris.add(file.uri);
 					result.push({
 						uri: file.uri,
 						type,
@@ -152,7 +140,7 @@ export async function resolveLocalCustomAgents(
 	syncProvider: ICustomizationSyncProvider,
 	agentPluginService: IAgentPluginService,
 	sessionType: string,
-	options?: ILocalCustomizationSyncOptions,
+	options: ILocalCustomizationSyncOptions | undefined,
 ): Promise<readonly AgentCustomization[]> {
 	const plugins = agentPluginService.plugins.get();
 	const result: AgentCustomization[] = [];
@@ -167,8 +155,7 @@ export async function resolveLocalCustomAgents(
 		const plugin = agent.source === AICustomizationSources.plugin
 			? plugins.find(candidate => isEqualOrParent(agent.uri, candidate.uri))
 			: undefined;
-		if (agent.source === AICustomizationSources.plugin
-			&& (!plugin || syncProvider.isDisabled(plugin.uri) || !isContributionEnabled(plugin.enablement.get()))) {
+		if (agent.source === AICustomizationSources.plugin && !plugin) {
 			continue;
 		}
 		const pluginAgent = plugin?.agents.get().find(candidate => candidate.uri.toString() === agent.uri.toString());
@@ -202,172 +189,36 @@ export async function resolveLocalCustomAgents(
 }
 
 /**
- * Converts an {@link McpServerLaunch} back into the declarative
- * {@link IMcpServerConfiguration} shape understood by the agent host's
- * Open Plugin `.mcp.json` reader. Returns `undefined` for launches that
- * cannot be expressed declaratively (e.g. extension-resolved servers with
- * no command or URL).
- */
-function launchToMcpServerConfiguration(launch: McpServerLaunch): IMcpServerConfiguration | undefined {
-	switch (launch.type) {
-		case McpServerTransportType.Stdio:
-			if (!launch.command) {
-				return undefined;
-			}
-			return {
-				type: McpServerType.LOCAL,
-				command: launch.command,
-				args: launch.args.length > 0 ? [...launch.args] : undefined,
-				env: Object.keys(launch.env).length > 0 ? { ...launch.env } : undefined,
-				envFile: launch.envFile,
-				cwd: launch.cwd,
-			};
-		case McpServerTransportType.HTTP:
-			return {
-				type: McpServerType.REMOTE,
-				url: launch.uri.toString(),
-				headers: launch.headers.length > 0 ? Object.fromEntries(launch.headers) : undefined,
-			};
-	}
-}
-
-/**
- * Attempts to resolve every configuration variable (`${workspaceFolder}`,
- * `${env:…}`, …) in an MCP server config without any user interaction, using
- * {@link IConfigurationResolverService.resolveAsync}. Returns the resolved
- * config, or `undefined` when it cannot be fully resolved without prompting the
- * user.
- *
- * The synced `.mcp.json` is launched by the agent host verbatim, so any
- * variable the agent host can't itself expand must be resolved here up front.
- * Variables requiring interaction (`${input:…}`, `${command:…}`) or context we
- * don't have (e.g. `${workspaceFolder}` outside a folder) cause the server to
- * be skipped.
- */
-async function resolveConfigurationForSync(
-	configurationResolverService: IConfigurationResolverService,
-	folder: IWorkspaceFolderData | undefined,
-	configuration: IMcpServerConfiguration,
-): Promise<IMcpServerConfiguration | undefined> {
-	const expr = ConfigurationResolverExpression.parse(configuration);
-
-	// Interactive variables (`${input:…}`, `${command:…}`) can only be resolved
-	// by prompting the user, so a server referencing them is skipped. This is
-	// checked up front because `resolveAsync` "resolves" them to their own
-	// literal text when no value mapping is supplied, which would otherwise
-	// leave them out of `unresolved()` below.
-	for (const replacement of expr.unresolved()) {
-		if (replacement.name === 'input' || replacement.name === 'command') {
-			return undefined;
-		}
-	}
-
-	try {
-		// Resolves everything that can be resolved without interaction; throws
-		// when a variable requires context we don't have (e.g. no folder).
-		await configurationResolverService.resolveAsync(folder, expr);
-	} catch {
-		return undefined;
-	}
-
-	// Any replacement left unresolved would require user interaction.
-	if (!Iterable.isEmpty(expr.unresolved())) {
-		return undefined;
-	}
-
-	return expr.toObject();
-}
-
-/**
- * Whether folder-root `.mcp.json` servers from *every* workspace folder should
- * be seeded into a session's synced customizations, rather than only the
- * primary (working-directory) folder's — which the SDK already auto-discovers.
- *
- * True only for the local Copilot Agent Host harness, in a multi-root workspace,
- * with the multi-root setting enabled. Kept as a pure function so the gate can
- * be unit-tested independently of {@link AgentHostActiveClientService}'s wiring
- * (a regression here would otherwise leave the feature tests — which call the
- * collector with the flag hardcoded — green).
- */
-export function shouldSyncWorkspaceDotMcp(sessionType: string, workspaceFolderCount: number, multiRootSettingEnabled: boolean): boolean {
-	return sessionType === AGENT_HOST_COPILOT_CLI_SESSION_TYPE
-		&& workspaceFolderCount > 1
-		&& multiRootSettingEnabled;
-}
-
-/**
  * Enumerates MCP servers configured directly in VS Code — i.e. those that
  * are not contributed by an agent plugin — so they can be bundled into the
  * synthetic synced plugin. Plugin-sourced servers are excluded because they
- * are already synced via their owning plugin's customization ref. Disabled
- * servers and servers whose launch cannot be expressed declaratively are
- * skipped.
+ * are already synced via their owning plugin's customization ref. Servers whose
+ * launch cannot be expressed declaratively are skipped.
  *
  * Workspace-discovered servers are also excluded by default: the agent host
  * discovers workspace `.mcp.json` itself, so syncing them would duplicate. The
  * exception is `.vscode/mcp.json`, which the agent host does not discover
  * (despite what the SDK's `enableConfigDiscovery` docs imply) — those are
  * synced, but only when their config can be resolved without requiring user
- * interaction. For Copilot CLI agent-host sessions, the Copilot Chat
- * extension's GitHub MCP provider is excluded because the SDK supplies its own
- * built-in GitHub server.
- *
- * When {@link includeWorkspaceDotMcp} is `true` (multi-root Copilot Agent Host
- * gate), folder-root `.mcp.json` servers are additionally synced so servers
- * from non-primary workspace folders reach the session — the agent host only
- * auto-discovers the primary (working-directory) folder's `.mcp.json`, and
- * relies on the SDK to de-duplicate the primary against the synced set. These
- * are passed as-is: `.mcp.json` supports no `${...}` variables and already
- * carries an explicit absolute `cwd`.
+ * interaction. For agent-host providers with their own GitHub MCP server, the
+ * Copilot Chat extension's duplicate provider is excluded.
  */
-export async function collectNonPluginMcpServers(mcpService: IMcpService, configurationResolverService: IConfigurationResolverService, sessionType: string, includeWorkspaceDotMcp: boolean): Promise<ISyncableMcpServer[]> {
-	const result: ISyncableMcpServer[] = [];
-	for (const server of mcpService.servers.get()) {
-		if (server.collection.id.startsWith(MCP_PLUGIN_COLLECTION_ID_PREFIX)) {
-			continue;
+export async function collectNonPluginMcpServers(mcpService: IMcpService, configurationResolverService: IConfigurationResolverService, sessionType: string, workingDirectories: readonly URI[]): Promise<ISyncableMcpServer[]> {
+	const resolved = await resolveMcpServersForAgentHostDelivery(mcpService.servers.get(), configurationResolverService, sessionType, workingDirectories);
+	return resolved.flatMap(({ server, definition, delivery, projectedConfiguration }) => {
+		if (delivery !== AgentHostMcpServerDelivery.ClientForwarded || !definition || !projectedConfiguration) {
+			return [];
 		}
-		if (!isContributionEnabled(server.enablement.get())) {
-			continue;
-		}
-		const definitions = server.readDefinitions().get();
-		const definition = definitions.server;
-		const launch = definition?.launch;
-		if (!launch) {
-			continue;
-		}
-		const collection = definitions.collection;
-		if (hasBuiltInGitHubMcpServer(sessionType)
-			&& collection?.id === COPILOT_CHAT_GITHUB_MCP_COLLECTION_ID
-			&& collection.source instanceof ExtensionIdentifier
-			&& ExtensionIdentifier.equals(collection.source, COPILOT_CHAT_EXTENSION_ID)) {
-			continue;
-		}
-		let configuration = launchToMcpServerConfiguration(launch);
-		if (!configuration) {
-			continue;
-		}
-		if (collection && McpCollectionDefinition.isWorkspaceDiscovered(collection)) {
-			if (McpCollectionDefinition.isVscodeMcpJson(collection)) {
-				const resolved = await resolveConfigurationForSync(configurationResolverService, definition.variableReplacement?.folder, configuration);
-				if (!resolved) {
-					continue;
-				}
-				configuration = resolved;
-			} else if (includeWorkspaceDotMcp && McpCollectionDefinition.isWorkspaceDotMcpJson(collection)) {
-				// Folder-root `.mcp.json`: pass as-is (no variables to resolve; cwd is absolute).
-				// Intentional tradeoff: servers are keyed by name in the flat synced bundle
-				// (`SyncedCustomizationBundler`), so two folders defining the same server name
-				// collide and the last one wins. Accepted — matches the existing behavior for
-				// same-named `.vscode/mcp.json` servers across folders.
-			} else {
-				// `.cursor/mcp.json`, the `.code-workspace` workspace-level config,
-				// or the gate is off — leave discovery to the agent host.
-				continue;
-			}
-		}
-		result.push({ name: server.definition.label, configuration });
-	}
-	return result;
+		return [{
+			name: server.definition.label,
+			configuration: projectedConfiguration,
+			...(definition.defaultCwd && { defaultCwd: definition.defaultCwd }),
+			enablement: withCustomizationEnablement(undefined, CustomizationEnablementKind.Global, {
+				kind: CustomizationEnablementKind.Global,
+				enabled: mcpService.enablementModel.readProfileEnabled(server.definition.id),
+			}),
+		} satisfies ISyncableMcpServer];
+	});
 }
 
 /**
@@ -388,8 +239,8 @@ export async function resolveCustomizationRefs(
 	configurationResolverService: IConfigurationResolverService,
 	bundler: SyncedCustomizationBundler,
 	sessionType: string,
-	includeWorkspaceDotMcp: boolean = false,
-	options?: ILocalCustomizationSyncOptions,
+	options: ILocalCustomizationSyncOptions | undefined,
+	workingDirectories: readonly URI[] = [],
 ): Promise<ClientPluginCustomization[]> {
 	const enumerated = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None, options);
 	const enabled = enumerated.filter(e => !e.disabled);
@@ -409,14 +260,20 @@ export async function resolveCustomizationRefs(
 					// ignored, sync will probably fail later though...
 				}
 
-				return {
+				const ref: ClientPluginCustomization = {
 					type: CustomizationType.Plugin,
 					id: customizationId(key),
 					uri: key as ProtocolURI,
 					name: plugin.label,
-					nonce: nonce?.toString(16),
-					enabled: true,
+					enablement: withCustomizationEnablement(undefined, CustomizationEnablementKind.Global, {
+						kind: CustomizationEnablementKind.Global,
+						enabled: agentPluginService.enablementModel.readProfileEnabled(key),
+					}),
 				};
+				if (nonce !== undefined) {
+					ref.nonce = nonce.toString(16);
+				}
+				return ref;
 			})();
 			pluginRefs.set(key, promise);
 		}
@@ -426,12 +283,6 @@ export async function resolveCustomizationRefs(
 		if (entry.source === AICustomizationSources.plugin) {
 			const plugin = plugins.find(p => isEqualOrParent(entry.uri, p.uri));
 			if (!plugin) {
-				continue;
-			}
-			if (syncProvider.isDisabled(plugin.uri)) {
-				continue;
-			}
-			if (!isContributionEnabled(plugin.enablement.get())) {
 				continue;
 			}
 			addPluginRef(plugin);
@@ -448,12 +299,6 @@ export async function resolveCustomizationRefs(
 		if (pluginRefs.has(plugin.uri.toString())) {
 			continue;
 		}
-		if (syncProvider.isDisabled(plugin.uri)) {
-			continue;
-		}
-		if (!isContributionEnabled(plugin.enablement.get())) {
-			continue;
-		}
 		if (plugin.hooks.get().length === 0
 			&& plugin.commands.get().length === 0
 			&& plugin.skills.get().length === 0
@@ -466,7 +311,7 @@ export async function resolveCustomizationRefs(
 	}
 
 	const refs: Promise<ClientPluginCustomization | undefined>[] = [...pluginRefs.values()];
-	const mcpServers = await collectNonPluginMcpServers(mcpService, configurationResolverService, sessionType, includeWorkspaceDotMcp);
+	const mcpServers = await collectNonPluginMcpServers(mcpService, configurationResolverService, sessionType, workingDirectories);
 	if (looseFiles.length > 0 || mcpServers.length > 0) {
 		refs.push(bundler.bundle(looseFiles, mcpServers).then(r => r?.ref));
 	}

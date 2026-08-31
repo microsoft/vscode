@@ -14,6 +14,7 @@ import { IOffsetRange } from '../../../../../editor/common/core/ranges/offsetRan
 import { isLocation, Location, SymbolKind } from '../../../../../editor/common/languages.js';
 import { localize } from '../../../../../nls.js';
 import { MarkerSeverity, IMarker } from '../../../../../platform/markers/common/markers.js';
+import type { IFeedbackPullRequest } from '../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { ISCMHistoryItem } from '../../../scm/common/history.js';
 import { IChatContentReference } from '../chatService/chatService.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
@@ -100,6 +101,7 @@ export const ChatPasteAttachmentMetadata = {
 	Language: 'vscode.chat.attachment.language',
 	FileName: 'vscode.chat.attachment.fileName',
 	PastedLines: 'vscode.chat.attachment.pastedLines',
+	TextArtifact: 'vscode.chat.attachment.textArtifact',
 } as const;
 
 const ChatTranscriptContextMetadataKey = 'vscode.chat.transcriptContext';
@@ -548,6 +550,8 @@ export interface IAgentFeedbackVariableEntry extends IBaseChatRequestVariableEnt
 		readonly diffHunks?: string;
 		/** When this item was converted from a PR review comment, the original thread ID. */
 		readonly sourcePRReviewCommentId?: string;
+		/** Pull request that originated this PR review comment. */
+		readonly sourcePullRequest?: IFeedbackPullRequest;
 		/** Additional replies that belong to the same comment thread as {@link text}. */
 		readonly replies?: readonly string[];
 	}>;
@@ -855,6 +859,10 @@ export function isAgentFeedbackVariableEntry(obj: IChatRequestVariableEntry): ob
 
 export function isPasteVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestPasteVariableEntry {
 	return obj.kind === 'paste';
+}
+
+export function isPastedTextArtifact(obj: IChatRequestVariableEntry): obj is IChatRequestPasteVariableEntry {
+	return isPasteVariableEntry(obj) && obj._meta?.[ChatPasteAttachmentMetadata.TextArtifact] === true;
 }
 
 export function isWorkspaceVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestWorkspaceVariableEntry {

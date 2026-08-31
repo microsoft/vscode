@@ -227,7 +227,6 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 	private _buildModelInfos(models: CopilotCLIModelInfo[]): vscode.LanguageModelChatInformation[] {
 		const isReasoningEffortEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIThinkingEffortEnabled);
 		const isAutoModelEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIAutoModelEnabled);
-		const preferLongContext = this.configurationService.getConfig(ConfigKey.PreferLongContext);
 		const modelsInfo: vscode.LanguageModelChatInformation[] = models.map((model, index) => {
 			const multiplier = model.multiplier === undefined ? undefined : `${model.multiplier}x`;
 			const modelInfo: vscode.LanguageModelChatInformation = {
@@ -249,7 +248,7 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 				longContextCacheWriteCost: model.longContextCacheWriteCost,
 				multiplierNumeric: model.multiplier,
 				isUserSelectable: true,
-				...buildConfigurationSchema(model, isReasoningEffortEnabled, preferLongContext),
+				...buildConfigurationSchema(model, isReasoningEffortEnabled),
 				capabilities: {
 					imageInput: model.supportsVision,
 					toolCalling: true
@@ -292,7 +291,7 @@ function buildAutoModel(defaultModel?: CopilotCLIModelInfo): vscode.LanguageMode
 
 export const COPILOT_CLI_CONTEXT_SIZE_PROPERTY = 'contextSize';
 
-function buildConfigurationSchema(modelInfo: CopilotCLIModelInfo, isReasoningEffortEnabled: boolean, preferLongContext: boolean): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
+function buildConfigurationSchema(modelInfo: CopilotCLIModelInfo, isReasoningEffortEnabled: boolean): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
 	const properties: Record<string, NonNullable<vscode.LanguageModelConfigurationSchema['properties']>[string]> = {};
 
 	// Reasoning effort config
@@ -319,35 +318,21 @@ function buildConfigurationSchema(modelInfo: CopilotCLIModelInfo, isReasoningEff
 	const defaultContextMax = modelInfo.defaultContextMax;
 	const fullMax = modelInfo.maxInputTokens ?? modelInfo.maxContextWindowTokens;
 	if (defaultContextMax && defaultContextMax < fullMax) {
+		// Offer both sizes; default to the full window when long context is free, else the smaller tier.
 		const hasLongContextSurcharge = modelInfo.longContextInputCost !== undefined
 			|| modelInfo.longContextOutputCost !== undefined;
-		if (hasLongContextSurcharge || !preferLongContext) {
-			properties[COPILOT_CLI_CONTEXT_SIZE_PROPERTY] = {
-				type: 'number',
-				title: l10n.t('Context Size'),
-				enum: [defaultContextMax, fullMax],
-				enumItemLabels: [formatTokenCount(defaultContextMax), formatTokenCount(fullMax)],
-				enumDescriptions: [
-					l10n.t('Default'),
-					l10n.t('Longer sessions'),
-				],
-				default: defaultContextMax,
-				group: 'tokens',
-			};
-		} else {
-			// No surcharge and the user prefers long context — show only the long context option as a non-switchable indicator. See microsoft/vscode#322950, microsoft/vscode#323116.
-			properties[COPILOT_CLI_CONTEXT_SIZE_PROPERTY] = {
-				type: 'number',
-				title: l10n.t('Context Size'),
-				enum: [fullMax],
-				enumItemLabels: [formatTokenCount(fullMax)],
-				enumDescriptions: [
-					l10n.t('Longer sessions'),
-				],
-				default: fullMax,
-				group: 'tokens',
-			};
-		}
+		properties[COPILOT_CLI_CONTEXT_SIZE_PROPERTY] = {
+			type: 'number',
+			title: l10n.t('Context Size'),
+			enum: [defaultContextMax, fullMax],
+			enumItemLabels: [formatTokenCount(defaultContextMax), formatTokenCount(fullMax)],
+			enumDescriptions: [
+				l10n.t('Default'),
+				l10n.t('Longer sessions'),
+			],
+			default: hasLongContextSurcharge ? defaultContextMax : fullMax,
+			group: 'tokens',
+		};
 	}
 
 	if (Object.keys(properties).length === 0) {
@@ -721,13 +706,19 @@ export function isEnabledForCopilotCLI(customization: { sessionTypes?: readonly 
 
 /**
  * Maps a user-selected numeric context size to the SDK's context tier.
- * Returns `'long_context'` when the selected size exceeds the default context
- * max, `'default'` when it is within the default tier, or `undefined` when
- * no context size was provided or the model has no tiered pricing.
+ * With an explicit selection, `'long_context'` when it exceeds the default max, else `'default'`.
+ * With no selection, `'long_context'` for free long-context models (larger window, no surcharge), else `undefined`.
  */
 export function resolveContextTier(contextSize: unknown, modelInfo: CopilotCLIModelInfo | undefined): 'default' | 'long_context' | undefined {
-	if (typeof contextSize !== 'number' || !modelInfo?.defaultContextMax) {
+	if (!modelInfo?.defaultContextMax) {
 		return undefined;
+	}
+	if (typeof contextSize !== 'number') {
+		// No selection: free long context uses the full window; surcharged models stay on the SDK default tier.
+		const fullMax = modelInfo.maxInputTokens ?? modelInfo.maxContextWindowTokens;
+		const hasLongContextSurcharge = modelInfo.longContextInputCost !== undefined
+			|| modelInfo.longContextOutputCost !== undefined;
+		return modelInfo.defaultContextMax < fullMax && !hasLongContextSurcharge ? 'long_context' : undefined;
 	}
 	return contextSize > modelInfo.defaultContextMax ? 'long_context' : 'default';
 }

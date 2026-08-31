@@ -5,7 +5,7 @@
 
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
-import { IAgentSessionMetadata } from '../common/agentService.js';
+import { IAgentSessionMetadata } from '../common/agent.js';
 import { buildBranchChangesetUri, ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
 import { ChangesetFileMonitorCoordinator } from './agentHostChangesetFileMonitorCoordinator.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
@@ -33,7 +33,7 @@ export type IChangesetSessionMetadata = Record<string, string | undefined>;
  *
  * Owns only URI routing and forwards lifecycle signals. Subscription state is
  * recorded in the shared changeset subscription service. All computation,
- * working-directory gating, and the deferred-refresh state machine live in
+ * working-directory gating, and materialization refreshes live in
  * {@link IAgentHostChangesetService}.
  *
  * No per-session controllers — the cross-cutting concerns (listSessions
@@ -55,6 +55,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 
 		this._changesetFileMonitor = this._register(instantiationService.createInstance(ChangesetFileMonitorCoordinator));
 		this._register(gitStateService.onDidRefreshSessionGitState(sessionStr => this.onDidRunSessionGitStateRefresh(sessionStr)));
+		this._register(gitStateService.onDidChangeSessionGitHubState(sessionStr => this._changesetOperationService.updateOperations(sessionStr)));
 		this._register(this._stateManager.onDidChangeSessionWorkingDirectories(({ session }) => this.onDidChangeSessionWorkingDirectories(session)));
 	}
 
@@ -84,17 +85,15 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			sessionRaw: metadata[META_CHANGESET_SESSION],
 			legacyRaw: metadata[META_LEGACY_DIFFS],
 		});
-		// `addSubscriber`'s 0→1 trigger may have fired before the session
-		// state existed; now that `summary.workingDirectory` is populated,
-		// drain the deferred refresh.
+		// Recompute the current subscriptions now that the restored working
+		// directory is available.
 		this._changesets.onWorkingDirectoryAvailable(sessionStr);
 		this._changesetFileMonitor.onSessionRestored(sessionStr);
 	}
 
 	/**
 	 * Called when a provisional session is materialized (working directory
-	 * becomes known). Drains any static changeset refresh that was deferred
-	 * because the working directory was not yet known.
+	 * becomes known). Recomputes every current changeset subscription.
 	 */
 	onSessionMaterialized(sessionStr: string): void {
 		this._changesets.refreshChangesetCatalog(sessionStr);
@@ -103,12 +102,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		this._changesetFileMonitor.onSessionMaterialized(sessionStr);
 	}
 
-	/**
-	 * Called when a session is disposed. Forgets any pending refresh
-	 * queued for that session.
-	 */
 	onSessionDisposed(sessionStr: string): void {
-		this._changesets.onSessionDisposed(sessionStr);
 		this._changesetFileMonitor.onSessionDisposed(sessionStr);
 
 		this._changesetSubscriptions.clearSessionSubscriptions(sessionStr);
@@ -128,7 +122,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	/**
 	 * Called on every `addSubscriber` 0→1 transition. When `resource` is a
 	 * static changeset URI, triggers the first git-diff refresh (the
-	 * changeset service self-defers it when the working directory is not yet
+	 * changeset service skips it when the working directory is not yet
 	 * known).
 	 *
 	 * Both {@link AgentService.subscribe} and the handshake fast-path
@@ -347,12 +341,19 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	 * already uses the inherited set). `updateOperations` only dispatches for
 	 * subscribed changesets, so refreshing subagents without subscriptions is a
 	 * no-op.
+	 *
+	 * The changed set also determines which repository roots are watched for
+	 * external edits, so re-attach the file monitor for the session (and its
+	 * inheriting subagents) — otherwise a folder added or removed mid-session
+	 * would not start/stop being watched until an unrelated lifecycle event.
 	 */
 	private onDidChangeSessionWorkingDirectories(sessionStr: string): void {
 		this._changesetOperationService.updateOperations(sessionStr);
+		this._changesetFileMonitor.onSessionWorkingDirectoriesChanged(sessionStr);
 		for (const candidate of this._stateManager.getSessionUris()) {
 			if (parseSubagentSessionUri(candidate)?.parentSession.toString() === sessionStr) {
 				this._changesetOperationService.updateOperations(candidate);
+				this._changesetFileMonitor.onSessionWorkingDirectoriesChanged(candidate);
 			}
 		}
 	}

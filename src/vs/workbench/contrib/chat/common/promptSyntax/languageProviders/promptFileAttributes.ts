@@ -120,6 +120,17 @@ export const customAgentAttributes: Record<string, IAttributeDefinition> = {
 		type: 'scalar | sequence',
 		description: localize('promptHeader.agent.model', 'Specify the model that runs this custom agent. Can also be a list of models. The first available model will be used.'),
 	},
+	[PromptHeaderAttributes.reasoningEffort]: {
+		type: 'scalar',
+		description: localize('promptHeader.agent.reasoningEffort', 'Specify the reasoning effort used by this custom agent.'),
+		enums: [
+			{ name: 'low' },
+			{ name: 'medium' },
+			{ name: 'high' },
+			{ name: 'xhigh' },
+			{ name: 'max' },
+		],
+	},
 	[PromptHeaderAttributes.tools]: {
 		type: 'scalar | sequence',
 		description: localize('promptHeader.agent.tools', 'The set of tools that the custom agent has access to.'),

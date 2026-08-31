@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { mark } from '../../../../../../base/common/performance.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
@@ -27,13 +28,15 @@ import { IAgentHostFileSystemService } from '../../../../../services/agentHost/c
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionsService, isLocalAgentHostTarget } from '../../../common/chatSessionsService.js';
+import { ChatAgentLocation } from '../../../common/constants.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { languageModelSourcePresentationRegistry } from '../../../common/languageModelSourcePresentation.js';
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { AgentCustomizationItemProvider } from './agentCustomizationItemProvider.js';
+import { agentHostProviderHasBuiltInGitHubMcpServer, COPILOT_CHAT_GITHUB_MCP_COLLECTION_ID } from './agentHostMcpServerSupport.js';
 import { AgentHostDownloadProgress } from './agentHostDownloadProgress.js';
-import { authenticateProtectedResources, AgentHostAuthTokenCache, resolveAuthenticationInteractively } from './agentHostAuth.js';
+import { authenticateProtectedResources, AgentHostAuthenticationRecovery, AgentHostAuthTokenCache, resolveAuthenticationInteractively } from './agentHostAuth.js';
 import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from './agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from './agentHostSessionHandler.js';
 import { AgentHostPromptCacheNotification } from './agentHostPromptCacheNotification.js';
@@ -115,10 +118,13 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 
 	/** Dedupes redundant `authenticate` RPCs when the resolved token hasn't changed. */
 	private readonly _authTokenCache = new AgentHostAuthTokenCache();
+	private readonly _authRecovery = new AgentHostAuthenticationRecovery();
 
 	private readonly _isSessionsWindow: boolean;
 	private readonly _enableSmokeTestDriver: boolean;
 	private _initialized = false;
+	private readonly _enablementStore = this._register(new MutableDisposable<DisposableStore>());
+	private _authenticationGeneration = 0;
 	private _didStartInitialAuthentication = false;
 	private _promptCacheNotification: AgentHostPromptCacheNotification | undefined;
 
@@ -136,16 +142,30 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
 		@IAgentHostProtectedResourcesService private readonly _protectedResourcesService: IAgentHostProtectedResourcesService,
-		@IAgentHostEnablementService agentHostEnablementService: IAgentHostEnablementService,
+		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
 	) {
 		super();
 		this._isSessionsWindow = environmentService.isSessionsWindow;
 		this._enableSmokeTestDriver = !!environmentService.enableSmokeTestDriver;
 
 		this._register(autorun(reader => {
-			const enabled = agentHostEnablementService.enabled.read(reader);
+			const enabled = this._agentHostEnablementService.enabled.read(reader);
 			if (enabled) {
+				const wasInitialized = this._initialized;
 				this._initialize();
+				this._enable();
+				const current = this._agentHostService.rootState.value;
+				if (wasInitialized && current && !(current instanceof Error)) {
+					this._handleRootStateChange(current);
+				}
+			} else {
+				this._authenticationGeneration++;
+				this._authTokenCache.clear();
+				this._authRecovery.clear();
+				this._enablementStore.clear();
+				this._agentHostService.setAuthenticationPending(false);
+				this._agentRegistrations.clearAndDisposeAll();
+				this._modelProviders.clear();
 			}
 		}));
 	}
@@ -162,30 +182,6 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		this._register(this._agentHostService.rootState.onDidChange(rootState => {
 			this._handleRootStateChange(rootState);
 		}));
-
-		this._register(this._agentHostService.onDidNotification(notification => {
-			if (notification.type !== NotificationType.AuthRequired) {
-				return;
-			}
-			this._authTokenCache.clear(notification.resource);
-			this._authenticateWithServer(this._getRootAgents())
-				.catch(() => { /* best-effort */ });
-		}));
-
-		// Surface the agent host's lazy, first-use SDK download as a progress
-		// notification. The Agents window renders this via its own sessions
-		// provider (`BaseAgentHostSessionsProvider`), so only wire it up here
-		// for regular editor windows to avoid duplicate notifications (this
-		// contribution runs in both windows). The matching `createSession`
-		// opt-in (`progressToken`) lives in the editor-window session handlers.
-		if (!this._isSessionsWindow) {
-			const downloadProgress = this._register(this._instantiationService.createInstance(AgentHostDownloadProgress));
-			this._register(this._agentHostService.onDidNotification(n => {
-				if (n.type === NotificationType.Progress) {
-					downloadProgress.handleProgress(n);
-				}
-			}));
-		}
 
 		// Process initial root state if already available
 		const initialRootState = this._agentHostService.rootState.value;
@@ -204,11 +200,43 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		}));
 	}
 
+	private _enable(): void {
+		if (this._enablementStore.value) {
+			return;
+		}
+		const store = new DisposableStore();
+		store.add(this._agentHostService.onDidNotification(notification => {
+			if (notification.type !== NotificationType.AuthRequired) {
+				return;
+			}
+			this._authenticateNotificationResource(notification.resource);
+		}));
+
+		// Surface the agent host's lazy, first-use SDK download as a progress
+		// notification. The Agents window renders this via its own sessions
+		// provider (`BaseAgentHostSessionsProvider`), so only wire it up here
+		// for regular editor windows to avoid duplicate notifications (this
+		// contribution runs in both windows). The matching `createSession`
+		// opt-in (`progressToken`) lives in the editor-window session handlers.
+		if (!this._isSessionsWindow) {
+			const downloadProgress = store.add(this._instantiationService.createInstance(AgentHostDownloadProgress));
+			store.add(this._agentHostService.onDidNotification(n => {
+				if (n.type === NotificationType.Progress) {
+					downloadProgress.handleProgress(n);
+				}
+			}));
+		}
+		this._enablementStore.value = store;
+	}
+
 	private _shouldRegisterAgent(provider: AgentProvider): boolean {
 		return shouldSurfaceLocalAgentHostProvider(provider, this._configurationService, this._isSessionsWindow);
 	}
 
 	private _handleRootStateChange(rootState: RootState): void {
+		if (!this._agentHostEnablementService.enabled.get()) {
+			return;
+		}
 		const allowed = rootState.agents.filter(a => this._shouldRegisterAgent(a.provider));
 		const incoming = new Set(allowed.map(a => a.provider));
 
@@ -256,6 +284,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			name: agentId,
 			displayName: agent.displayName,
 			description: agent.description,
+			locations: agent.provider === 'copilotcli' ? [ChatAgentLocation.Chat, ChatAgentLocation.Terminal, ChatAgentLocation.EditorInline] : undefined,
 			customAgentTarget: this._isSessionsWindow ? undefined : Target.GitHubCopilot,
 			canDelegate: true,
 			requiresCustomModels: true,
@@ -283,23 +312,24 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			},
 		}));
 
-		const agentRegistration = store.add(this._activeClientService.registerForAgent(sessionType));
-		const syncProvider = agentRegistration.syncProvider;
+		const syncProvider = this._activeClientService.getSyncProvider(sessionType);
+		// The management UI remains ambient while individual sessions use their working-directory scopes.
+		const ambientScope = store.add(this._activeClientService.acquireScope(sessionType, []));
 
 		const itemProvider = store.add(this._instantiationService.createInstance(AgentCustomizationItemProvider, 'local', undefined,
-			syncedUri => agentRegistration.bundler.getOrigin(syncedUri)));
-		itemProvider.setDraftCustomAgents(this._activeClientService.getCustomAgents(sessionType));
-		itemProvider.setDraftCustomizations(this._activeClientService.getCustomizations(sessionType));
-		// `[Agent Host]` suffix disambiguates from the extension-host Copilot CLI harness, which uses the same displayName.
+			syncedUri => this._activeClientService.getOrigin(syncedUri)));
+		itemProvider.setDraftCustomAgents(ambientScope.customAgents);
+		itemProvider.setDraftCustomizations(ambientScope.customizations);
 		store.add(this._customizationHarnessService.registerExternalHarness({
 			id: sessionType,
-			label: localize('agentHostHarnessLabel.local', "{0} [Agent Host]", agent.displayName),
+			label: agent.displayName,
 			icon: ThemeIcon.fromId(Codicon.server.id),
 			// The Tools section is surfaced for the Copilot CLI agent host only.
 			hiddenSections: agent.provider === 'copilotcli' ? [AICustomizationManagementSection.Prompts] : [AICustomizationManagementSection.Tools, AICustomizationManagementSection.Prompts],
 			hideGenerateButton: true,
 			syncProvider,
 			itemProvider,
+			hiddenMcpServerCollectionIds: agentHostProviderHasBuiltInGitHubMcpServer(agent.provider) ? [COPILOT_CHAT_GITHUB_MCP_COLLECTION_ID] : undefined,
 		}));
 
 		// Session handler
@@ -311,6 +341,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			description: agent.description,
 			connection: this._agentHostService,
 			connectionAuthority: LOCAL_AGENT_HOST_AUTHORITY,
+			onSessionMaterialized: resource => this._chatSessionsService.notifySessionMaterialized?.(resource),
 			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(resources),
 			promptCacheNotification: this._promptCacheNotification,
 		}));
@@ -354,6 +385,10 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	 * Resolves tokens via the standard VS Code authentication service.
 	 */
 	private async _authenticateWithServer(agents: readonly AgentInfo[]): Promise<void> {
+		const generation = this._authenticationGeneration;
+		if (!this._isAuthenticationCurrent(generation)) {
+			return;
+		}
 		const isInitialAuthentication = agents.length > 0 && !this._didStartInitialAuthentication;
 		if (isInitialAuthentication) {
 			this._didStartInitialAuthentication = true;
@@ -363,22 +398,51 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		try {
 			const testToken = this._getScenarioAutomationToken();
 			if (testToken !== undefined) {
-				await this._seedTestToken(agents, testToken);
+				await this._seedTestToken(agents, testToken, generation);
 				return;
 			}
 			await this._instantiationService.invokeFunction(authenticateProtectedResources, agents, {
 				authTokenCache: this._authTokenCache,
 				logPrefix: '[AgentHost]',
-				authenticate: request => this._agentHostService.authenticate(request),
+				isCurrent: () => this._isAuthenticationCurrent(generation),
+				authenticate: request => this._authenticateIfCurrent(request, generation),
 			});
 		} catch (err) {
-			this._logService.error('[AgentHost] Failed to authenticate with server', err);
+			if (!isCancellationError(err)) {
+				this._logService.error('[AgentHost] Failed to authenticate with server', err);
+			}
 		} finally {
-			this._agentHostService.setAuthenticationPending(false);
+			if (this._isAuthenticationCurrent(generation)) {
+				this._agentHostService.setAuthenticationPending(false);
+			}
 			if (isInitialAuthentication) {
 				mark('code/agentHost/didAuthenticate');
 			}
 		}
+	}
+
+	private _authenticateNotificationResource(protectedResource: ProtectedResourceMetadata): void {
+		const generation = this._authenticationGeneration;
+		if (!this._isAuthenticationCurrent(generation)) {
+			return;
+		}
+		this._agentHostService.setAuthenticationPending(true);
+		this._instantiationService.invokeFunction(accessor => this._authRecovery.recover(accessor, protectedResource, {
+			authTokenCache: this._authTokenCache,
+			logPrefix: '[AgentHost]',
+			isCurrent: () => this._isAuthenticationCurrent(generation),
+			authenticate: request => this._authenticateIfCurrent(request, generation),
+		}))
+			.catch(err => {
+				if (!isCancellationError(err)) {
+					this._logService.error(`[AgentHost] Failed to authenticate notified resource ${protectedResource.resource}`, err);
+				}
+			})
+			.finally(() => {
+				if (this._isAuthenticationCurrent(generation)) {
+					this._agentHostService.setAuthenticationPending(false);
+				}
+			});
 	}
 
 	/**
@@ -388,6 +452,10 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	 * to the server. Returns true if authentication succeeded.
 	 */
 	private async _resolveAuthenticationInteractively(protectedResources: ProtectedResourceMetadata[]): Promise<boolean> {
+		const generation = this._authenticationGeneration;
+		if (!this._isAuthenticationCurrent(generation)) {
+			return false;
+		}
 		const testToken = this._getScenarioAutomationToken();
 		if (testToken !== undefined) {
 			for (const resource of protectedResources) {
@@ -395,7 +463,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 					resource.resource,
 					resource.scopes_supported,
 					testToken,
-					() => this._agentHostService.authenticate({ resource: resource.resource, token: testToken }),
+					() => this._authenticateIfCurrent({ resource: resource.resource, token: testToken }, generation),
 				);
 			}
 			return protectedResources.length > 0;
@@ -403,18 +471,19 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		return this._instantiationService.invokeFunction(resolveAuthenticationInteractively, protectedResources, {
 			authTokenCache: this._authTokenCache,
 			logPrefix: '[AgentHost]',
-			authenticate: request => this._agentHostService.authenticate(request),
+			isCurrent: () => this._isAuthenticationCurrent(generation),
+			authenticate: request => this._authenticateIfCurrent(request, generation),
 		});
 	}
 
-	private async _seedTestToken(agents: readonly AgentInfo[], token: string): Promise<void> {
+	private async _seedTestToken(agents: readonly AgentInfo[], token: string, generation: number): Promise<void> {
 		for (const agent of agents) {
 			for (const resource of agent.protectedResources ?? []) {
 				await this._authTokenCache.authenticate(
 					resource.resource,
 					resource.scopes_supported,
 					token,
-					() => this._agentHostService.authenticate({ resource: resource.resource, token }),
+					() => this._authenticateIfCurrent({ resource: resource.resource, token }, generation),
 				);
 			}
 		}
@@ -427,5 +496,16 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		}
 		const token = this._configurationService.getValue('chat.agentHost.unsafeTestToken');
 		return typeof token === 'string' && token.length > 0 ? token : undefined;
+	}
+
+	private _isAuthenticationCurrent(generation: number): boolean {
+		return generation === this._authenticationGeneration && this._agentHostEnablementService.enabled.get();
+	}
+
+	private _authenticateIfCurrent(request: { resource: string; scopes?: readonly string[]; token: string }, generation: number): Promise<unknown> {
+		if (!this._isAuthenticationCurrent(generation)) {
+			return Promise.reject(new CancellationError());
+		}
+		return this._agentHostService.authenticate(request);
 	}
 }

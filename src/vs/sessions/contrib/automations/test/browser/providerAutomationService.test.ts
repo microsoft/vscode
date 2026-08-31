@@ -15,7 +15,7 @@ import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } 
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { IAutomationSnapshot, IAutomationSnapshotImportResult, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IAutomation, IAutomationSnapshotImportResult, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { AutomationStore } from '../../browser/automationService.js';
 import { ProviderAutomationService } from '../../browser/providerAutomationService.js';
 import { AUTOMATION_STORAGE_KEY, IAutomationStorageService, providerAutomationStorageKey } from '../../common/automationStorageService.js';
@@ -32,7 +32,7 @@ class FailingStaleRunRecoveryAutomationStore extends AutomationStore {
 }
 
 class PartiallyFailingMigrationAutomationStore extends AutomationStore {
-	override async importAutomationSnapshot(snapshot: IAutomationSnapshot): Promise<IAutomationSnapshotImportResult> {
+	override async importAutomationSnapshot(snapshot: IAutomation): Promise<IAutomationSnapshotImportResult> {
 		if (snapshot.automation.id === 'automation-1') {
 			throw new Error('Import failed.');
 		}
@@ -46,13 +46,21 @@ class FailingTransferAutomationStore extends AutomationStore {
 	}
 }
 
+class AcknowledgingMigrationAutomationStore extends AutomationStore {
+	readonly acknowledgedAutomationIds: string[] = [];
+
+	async acknowledgeAutomationSnapshotImported(snapshot: IAutomation): Promise<void> {
+		this.acknowledgedAutomationIds.push(snapshot.automation.id);
+	}
+}
+
 class ConcurrentlyMutatingMigrationAutomationStore extends AutomationStore {
 	legacyWriter!: AutomationStore;
 	mutation!: 'update' | 'delete' | 'run' | 'continuousUpdate';
 	private didMutate = false;
 	private updateCount = 0;
 
-	override async importAutomationSnapshot(snapshot: IAutomationSnapshot): Promise<IAutomationSnapshotImportResult> {
+	override async importAutomationSnapshot(snapshot: IAutomation): Promise<IAutomationSnapshotImportResult> {
 		const result = await super.importAutomationSnapshot(snapshot);
 		if (this.mutation === 'continuousUpdate') {
 			await this.legacyWriter.updateAutomation(snapshot.automation.id, { name: `Concurrent update ${++this.updateCount}` });
@@ -74,7 +82,7 @@ class ConcurrentlyMutatingTransferAutomationStore extends AutomationStore {
 	legacyWriter!: AutomationStore;
 	private didMutate = false;
 
-	override async upsertAutomationSnapshot(snapshot: IAutomationSnapshot): Promise<void> {
+	override async upsertAutomationSnapshot(snapshot: IAutomation): Promise<void> {
 		await super.upsertAutomationSnapshot(snapshot);
 		if (!this.didMutate) {
 			this.didMutate = true;
@@ -87,7 +95,7 @@ class DestinationDeletingTransferAutomationStore extends AutomationStore {
 	destinationStore!: AutomationStore;
 	private didMutate = false;
 
-	override async removeAutomationSnapshotIfUnchanged(expected: IAutomationSnapshot) {
+	override async removeAutomationSnapshotIfUnchanged(expected: IAutomation) {
 		if (!this.didMutate) {
 			this.didMutate = true;
 			await this.updateAutomation(expected.automation.id, { name: 'Concurrent source update' });
@@ -100,7 +108,7 @@ class DestinationDeletingTransferAutomationStore extends AutomationStore {
 suite('ProviderAutomationService', () => {
 	const teardown = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(legacyRaw?: string, providerRaw?: string, providerFailure?: 'staleRunRecovery' | 'migration' | 'transfer' | 'concurrentMigrationUpdate' | 'concurrentMigrationDelete' | 'concurrentMigrationRun' | 'continuousMigrationUpdate' | 'concurrentTransferRun' | 'destinationDeleteDuringRollback'): {
+	function createService(legacyRaw?: string, providerRaw?: string, providerFailure?: 'staleRunRecovery' | 'migration' | 'transfer' | 'acknowledgement' | 'concurrentMigrationUpdate' | 'concurrentMigrationDelete' | 'concurrentMigrationRun' | 'continuousMigrationUpdate' | 'concurrentTransferRun' | 'destinationDeleteDuringRollback'): {
 		readonly service: ProviderAutomationService;
 		readonly providerStore: AutomationStore;
 		readonly storage: InMemoryStorageService;
@@ -126,6 +134,9 @@ suite('ProviderAutomationService', () => {
 				break;
 			case 'transfer':
 				providerStore = new FailingTransferAutomationStore(storageKey, storage, new NullLogService(), NullTelemetryService, automationStorage);
+				break;
+			case 'acknowledgement':
+				providerStore = new AcknowledgingMigrationAutomationStore(storageKey, storage, new NullLogService(), NullTelemetryService, automationStorage);
 				break;
 			case 'concurrentMigrationUpdate':
 			case 'concurrentMigrationDelete':
@@ -238,13 +249,17 @@ suite('ProviderAutomationService', () => {
 
 		await service.updateAutomation(created.id, { target: legacyTarget });
 		const legacyLedger = JSON.parse(storage.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION)!);
+		const finalLegacyTarget = legacyLedger.automations.find((automation: { id: string }) => automation.id === created.id)?.target;
 
 		assert.deepStrictEqual({
 			claimRunId: claim.run.id,
 			afterProviderTransfer,
 			finalProviderAutomation: providerStore.getAutomation(created.id),
 			finalProviderRunIds: providerStore.runs.get().map(run => run.id),
-			finalLegacyTarget: legacyLedger.automations.find((automation: { id: string }) => automation.id === created.id)?.target,
+			finalLegacyTarget: finalLegacyTarget ? {
+				...finalLegacyTarget,
+				folderUri: URI.revive(finalLegacyTarget.folderUri).toString(),
+			} : undefined,
 			finalLegacyRunIds: legacyLedger.runs.map((run: { id: string }) => run.id),
 		}, {
 			claimRunId: claim.run.id,
@@ -258,7 +273,7 @@ suite('ProviderAutomationService', () => {
 			finalProviderRunIds: [],
 			finalLegacyTarget: {
 				kind: 'workspace',
-				folderUri: FOLDER.toJSON(),
+				folderUri: FOLDER.toString(),
 				providerId: 'provider-without-storage',
 				sessionTypeId: 'other',
 				isolation: { kind: 'default' },
@@ -415,12 +430,13 @@ suite('ProviderAutomationService', () => {
 				leaderWindowId: 1,
 			}],
 		});
-		const { service, providerStore, storage } = createService(legacy);
+		const { service, providerStore, storage } = createService(legacy, undefined, 'acknowledgement');
 
 		await service.waitForMigrationForTesting();
 
 		assert.deepStrictEqual({
 			automation: providerStore.getAutomation('automation-1'),
+			acknowledgedAutomationIds: (providerStore as AcknowledgingMigrationAutomationStore).acknowledgedAutomationIds,
 			runIds: providerStore.runs.get().map(run => run.id),
 			legacy: JSON.parse(storage.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION)!),
 		}, {
@@ -439,6 +455,7 @@ suite('ProviderAutomationService', () => {
 				lastRunAt: undefined,
 				nextRunAt: undefined,
 			},
+			acknowledgedAutomationIds: ['automation-1'],
 			runIds: ['run-1'],
 			legacy: { schemaVersion: 3, revision: 2, automations: [], runs: [] },
 		});
@@ -883,7 +900,7 @@ suite('ProviderAutomationService', () => {
 		}]);
 	});
 
-	test('continues migrating after an Automation import fails', async () => {
+	test('continues migrating after an Automation import fails and surfaces the failure', async () => {
 		const createAutomation = (id: string) => ({
 			id,
 			name: id,
@@ -902,7 +919,7 @@ suite('ProviderAutomationService', () => {
 		});
 		const { service, providerStore, storage } = createService(legacy, undefined, 'migration');
 
-		await service.waitForMigrationForTesting();
+		await assert.rejects(service.waitForMigrationForTesting(), /Failed to migrate 1 Automation snapshot/);
 
 		assert.deepStrictEqual({
 			providerAutomationIds: providerStore.automations.get().map(automation => automation.id),
@@ -910,6 +927,26 @@ suite('ProviderAutomationService', () => {
 		}, {
 			providerAutomationIds: ['automation-2'],
 			legacyAutomationIds: ['automation-1'],
+		});
+	});
+
+	test('does not complete migration from a newer legacy ledger schema', async () => {
+		const futureLedger = JSON.stringify({
+			schemaVersion: 999,
+			revision: 7,
+			automations: [{ id: 'future-content' }],
+			runs: [],
+		});
+		const { service, providerStore, storage } = createService(futureLedger);
+
+		await assert.rejects(service.waitForMigrationForTesting(), /cannot be migrated safely/);
+
+		assert.deepStrictEqual({
+			providerAutomations: providerStore.automations.get(),
+			persisted: storage.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION),
+		}, {
+			providerAutomations: [],
+			persisted: futureLedger,
 		});
 	});
 });

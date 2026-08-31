@@ -22,7 +22,7 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { basename, dirname } from '../../../../../base/common/path.js';
-import { joinPath } from '../../../../../base/common/resources.js';
+import { isEqual, joinPath } from '../../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -73,10 +73,11 @@ import { IChatContentReference } from '../../common/chatService/chatService.js';
 import { buildOpenSessionLinkForChatResource } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { coerceImageBuffer } from '../../common/chatImageExtraction.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { getImageAttachmentLimit, IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IBrowserViewVariableEntry, IChatRequestChatReferenceVariableEntry, IChatRequestTranscriptContextVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry, isStringVariableEntry, resolveChatContextIcon, ChatContextIconPath } from '../../common/attachments/chatVariableEntries.js';
+import { getImageAttachmentLimit, isPastedTextArtifact, IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IBrowserViewVariableEntry, IChatRequestChatReferenceVariableEntry, IChatRequestTranscriptContextVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry, isStringVariableEntry, resolveChatContextIcon, ChatContextIconPath } from '../../common/attachments/chatVariableEntries.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isAutoLanguageModel } from '../../common/languageModels.js';
 import { ILanguageModelToolsService, isToolSet } from '../../common/tools/languageModelToolsService.js';
 import { getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
+import { IChatResponseResourceFileSystemProvider } from '../../common/widget/chatResponseResourceFileSystemProvider.js';
 import { IChatContextService } from '../contextContrib/chatContextService.js';
 import { IChatImageCarouselService } from '../chatImageCarouselService.js';
 import { CHAT_IMAGE_HOVER_THUMBNAIL_MAX_SIZE, getOrCreateImageThumbnail } from '../chatImageUtils.js';
@@ -161,7 +162,9 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 
 	protected attachClearButton() {
 
-		if (this.attachment.range || !this.options.supportsDeletion) {
+		// Pasted text artifacts keep their clear button: the pill is the primary
+		// handle on content that only exists in the attachment.
+		if ((this.attachment.range && !isPastedTextArtifact(this.attachment)) || !this.options.supportsDeletion) {
 			// no clear button for attachments with ranges because range means
 			// referenced from prompt
 			return;
@@ -340,7 +343,7 @@ export class FileAttachmentWidget extends AbstractChatAttachmentWidget {
 	}
 
 	private renderOmittedWarning(friendlyName: string, ariaLabel: string) {
-		const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$('span.codicon.codicon-warning'));
+		const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$('span.codicon.codicon-warning-compact'));
 		const textLabel = dom.$('span.chat-attached-context-custom-text', {}, friendlyName);
 		this.element.appendChild(pillIcon);
 		this.element.appendChild(textLabel);
@@ -490,7 +493,7 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		resource: URI | undefined,
 		attachment: IChatRequestVariableEntry,
 		currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
-		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean; isCurrentInput?: boolean },
+		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean; isCurrentInput?: boolean; showImageInHover?: boolean },
 		container: HTMLElement,
 		contextResourceLabels: ResourceLabels,
 		@ICommandService commandService: ICommandService,
@@ -544,7 +547,7 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 
 		const imageElements = this._register(new MutableDisposable<IDisposable>());
 		const renderImageElements = (buffer: Uint8Array) => {
-			imageElements.value = createImageElements(resource, attachment.name, fullName, this.element, buffer, attachment.id, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, omittedState);
+			imageElements.value = createImageElements(resource, attachment.name, fullName, this.element, buffer, attachment.id, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, omittedState, options.isCurrentInput === true, options.showImageInHover ?? true);
 			// createImageElements resets the label; restore the deletion hint after each render.
 			this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
 		};
@@ -633,22 +636,25 @@ export function createImageHoverContent(resource: URI | undefined, fullName: str
 	onContentsChanged?: () => void,
 	clickHandler?: () => void,
 	onImageUrl?: (url: string, isThumbnail: boolean, image: HTMLImageElement) => void,
-	imageAlt = ''): { readonly element: HTMLElement; readonly disposable: IDisposable } {
+	imageAlt = '',
+	showImageInHover = true): { readonly element: HTMLElement; readonly disposable: IDisposable } {
 
 	const disposable = new DisposableStore();
 	const hoverElement = dom.$('div.chat-attached-context-hover');
 	const hoverImage = dom.$<HTMLImageElement>('img.chat-attached-context-image', { alt: imageAlt });
-	const imageContainer = dom.$('div.chat-attached-context-image-container', {}, hoverImage);
-	hoverElement.appendChild(imageContainer);
+	if (showImageInHover) {
+		const imageContainer = dom.$('div.chat-attached-context-image-container', {}, hoverImage);
+		hoverElement.appendChild(imageContainer);
 
-	if (clickHandler) {
-		imageContainer.classList.add('clickable');
-		imageContainer.tabIndex = 0;
-		imageContainer.role = 'button';
-		imageContainer.ariaLabel = localize('chat.openImagePreview', "Open in Images Preview");
-		disposable.add(registerOpenEditorListeners(imageContainer, async () => {
-			await clickHandler();
-		}));
+		if (clickHandler) {
+			imageContainer.classList.add('clickable');
+			imageContainer.tabIndex = 0;
+			imageContainer.role = 'button';
+			imageContainer.ariaLabel = localize('chat.openImagePreview', "Open in Images Preview");
+			disposable.add(registerOpenEditorListeners(imageContainer, async () => {
+				await clickHandler();
+			}));
+		}
 	}
 
 	if (resource) {
@@ -689,7 +695,9 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 	currentLanguageModelName: string | undefined,
 	clickHandler: () => void,
 	currentLanguageModel?: ILanguageModelChatMetadataAndIdentifier,
-	omittedState?: OmittedState): IDisposable {
+	omittedState?: OmittedState,
+	useCompactWarningIcon = false,
+	showImageInHover = true): IDisposable {
 
 	const disposable = new DisposableStore();
 	if (omittedState === OmittedState.Partial) {
@@ -702,8 +710,14 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 	if (resource) {
 		element.style.cursor = 'pointer';
 	}
+	const createPillIcon = (icon: ThemeIcon) => {
+		const iconElement = dom.$('span');
+		iconElement.classList.add(...ThemeIcon.asClassNameArray(icon));
+		return dom.$('div.chat-attached-context-pill', {}, iconElement);
+	};
 	const supportsVision = modelSupportsVision(currentLanguageModel);
-	const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$(supportsVision ? 'span.codicon.codicon-file-media' : 'span.codicon.codicon-warning'));
+	const warningIcon = useCompactWarningIcon ? Codicon.warningCompact : Codicon.warning;
+	const pillIcon = createPillIcon(supportsVision ? Codicon.fileMediaCompact : warningIcon);
 	const textLabel = dom.$('span.chat-attached-context-custom-text', {}, name);
 	element.appendChild(pillIcon);
 	element.appendChild(textLabel);
@@ -738,7 +752,7 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 	} else {
 		const onImageFailed = () => {
 			// reset to original icon on error or invalid image
-			const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$('span.codicon.codicon-file-media'));
+			const pillIcon = createPillIcon(Codicon.fileMediaCompact);
 			replacePill(pillIcon);
 		};
 		const hoverFullName = omittedState === OmittedState.Partial ? localize('chat.imageAttachmentWarning', "This GIF was partially omitted - current frame will be sent.") : fullName;
@@ -749,7 +763,7 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 				replacePill(pill);
 			}
 			hoverImage.onerror = onImageFailed;
-		});
+		}, '', showImageInHover);
 		disposable.add(hoverContent.disposable);
 		const hoverElement = hoverContent.element;
 		hoverElement.setAttribute('aria-label', ariaLabel);
@@ -770,6 +784,36 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 	}));
 
 	return disposable;
+}
+
+/**
+ * Opens a pasted-text attachment so its full contents can be reviewed; the
+ * attachment pill is otherwise the only handle on that text. The contents are
+ * derived from the attachment on demand — so nothing is held for an artifact
+ * that is never opened — and backed by a read-only resource keyed on the
+ * attachment, which keeps one editor per artifact and prevents edits that would
+ * not reach the attachment. The association is dropped once the editor closes.
+ */
+export async function openPastedTextArtifact(accessor: ServicesAccessor, attachment: IChatRequestPasteVariableEntry): Promise<void> {
+	const editorService = accessor.get(IEditorService);
+	const owned = accessor.get(IChatResponseResourceFileSystemProvider)
+		.associate(VSBuffer.fromString(attachment.code).buffer, { id: attachment.id, name: attachment.name });
+
+	try {
+		await editorService.openEditor({ resource: owned.resource, options: { pinned: true } });
+	} catch (error) {
+		owned.dispose();
+		throw error;
+	}
+
+	// Watched only once the editor is open, so an editor this open replaces cannot
+	// be mistaken for the artifact's own editor closing.
+	const listener = editorService.onDidCloseEditor(() => {
+		if (!editorService.editors.some(editor => isEqual(editor.resource, owned.resource))) {
+			owned.dispose();
+			listener.dispose();
+		}
+	});
 }
 
 export class PasteAttachmentWidget extends AbstractChatAttachmentWidget {
@@ -818,6 +862,11 @@ export class PasteAttachmentWidget extends AbstractChatAttachmentWidget {
 		if (copiedFromResource) {
 			this._register(this.instantiationService.invokeFunction(hookUpResourceAttachmentDragAndContextMenu, this.element, copiedFromResource));
 			this.addResourceOpenHandlers(copiedFromResource, range);
+		} else if (isPastedTextArtifact(attachment)) {
+			this.element.style.cursor = 'pointer';
+			this._register(registerOpenEditorListeners(this.element, async () => {
+				await this.instantiationService.invokeFunction(openPastedTextArtifact, attachment);
+			}));
 		}
 	}
 }
@@ -1203,7 +1252,7 @@ export class NotebookCellOutputChatAttachmentWidget extends AbstractChatAttachme
 		resource: URI,
 		attachment: INotebookOutputVariableEntry,
 		currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
-		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
+		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean; isCurrentInput?: boolean },
 		container: HTMLElement,
 		contextResourceLabels: ResourceLabels,
 		@ICommandService commandService: ICommandService,
@@ -1224,7 +1273,7 @@ export class NotebookCellOutputChatAttachmentWidget extends AbstractChatAttachme
 			case 'image/png':
 			case 'image/jpeg':
 			case 'image/svg': {
-				this.renderImageOutput(resource, attachment);
+				this.renderImageOutput(resource, attachment, options.isCurrentInput === true);
 				break;
 			}
 			default: {
@@ -1260,7 +1309,7 @@ export class NotebookCellOutputChatAttachmentWidget extends AbstractChatAttachme
 		this.element.ariaLabel = this.appendDeletionHint(this.getAriaLabel(attachment));
 		this.label.setFile(resource, { hidePath: true, icon: ThemeIcon.fromId('output') });
 	}
-	private renderImageOutput(resource: URI, attachment: INotebookOutputVariableEntry) {
+	private renderImageOutput(resource: URI, attachment: INotebookOutputVariableEntry, useCompactWarningIcon: boolean) {
 		let ariaLabel: string;
 		if (attachment.omittedState === OmittedState.Full) {
 			ariaLabel = localize('chat.omittedNotebookImageAttachment', "Omitted this Notebook ouput: {0}", attachment.name);
@@ -1273,7 +1322,7 @@ export class NotebookCellOutputChatAttachmentWidget extends AbstractChatAttachme
 		const clickHandler = async () => await this.openResource(resource, { editorOptions: { preserveFocus: true } }, false, undefined);
 		const currentLanguageModelName = this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name ?? this.currentLanguageModel.identifier : undefined;
 		const buffer = this.getOutputItem(resource, attachment)?.data.buffer ?? new Uint8Array();
-		this._register(createImageElements(resource, attachment.name, attachment.name, this.element, buffer, attachment.id, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, attachment.omittedState));
+		this._register(createImageElements(resource, attachment.name, attachment.name, this.element, buffer, attachment.id, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, attachment.omittedState, useCompactWarningIcon));
 		this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
 	}
 
@@ -1981,7 +2030,7 @@ export function hookUpSymbolAttachmentDragAndContextMenu(accessor: ServicesAcces
 		if (!scopedContextKeyService) {
 			scopedContextKeyService = store.add(parentContextKeyService.createScoped(widget));
 			chatAttachmentResourceContextKey.bindTo(scopedContextKeyService).set(attachment.value.uri.toString());
-			setResourceContext(accessor, scopedContextKeyService, attachment.value.uri);
+			instantiationService.invokeFunction(accessor => setResourceContext(accessor, scopedContextKeyService!, attachment.value.uri));
 		}
 		return scopedContextKeyService;
 	};

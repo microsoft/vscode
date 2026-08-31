@@ -5,8 +5,9 @@
 
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { URI } from '../../../../base/common/uri.js';
-import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from './agentFeedbackModel.js';
+import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackReply } from './agentFeedbackModel.js';
 import { ICodeReviewSuggestion, IPRReviewComment, IPRReviewState, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
+import { IFeedbackPullRequest } from '../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 
 export const enum SessionEditorCommentSource {
 	AgentFeedback = 'agentFeedback',
@@ -24,13 +25,14 @@ export interface ISessionEditorComment {
 	readonly range: IRange;
 	readonly text: string;
 	readonly suggestion?: ICodeReviewSuggestion;
+	readonly sourcePullRequest?: IFeedbackPullRequest;
 	readonly canConvertToAgentFeedback: boolean;
 	/**
 	 * Replies that belong to the same comment thread as this comment. They
 	 * talk about the same code region as {@link text}. Only set for agent
 	 * feedback comments today.
 	 */
-	readonly replies?: readonly string[];
+	readonly replies?: readonly IAgentFeedbackReply[];
 	/**
 	 * Lifecycle state of this comment. Only set for agent feedback comments.
 	 */
@@ -45,6 +47,7 @@ export function getSessionEditorComments(
 	sessionResource: URI,
 	agentFeedbackItems: readonly IAgentFeedback[],
 	prReviewState?: IPRReviewState,
+	visibleResolvedFeedbackIds?: ReadonlySet<string>,
 ): readonly ISessionEditorComment[] {
 	const comments: ISessionEditorComment[] = [];
 
@@ -63,7 +66,7 @@ export function getSessionEditorComments(
 
 	for (const item of agentFeedbackItems) {
 		// Resolved feedback is hidden from the editor UI.
-		if (item.state === AgentFeedbackState.Resolved) {
+		if (item.state === AgentFeedbackState.Resolved && !visibleResolvedFeedbackIds?.has(item.id)) {
 			continue;
 		}
 		// Hide the still-unaccepted PR review mirror; the raw PR comment is
@@ -81,6 +84,7 @@ export function getSessionEditorComments(
 			range: item.range,
 			text: item.text,
 			suggestion: item.suggestion,
+			sourcePullRequest: item.sourcePullRequest,
 			canConvertToAgentFeedback: false,
 			replies: item.replies,
 			state: item.state,
@@ -102,6 +106,11 @@ export function getSessionEditorComments(
 			resourceUri: item.uri,
 			range: item.range,
 			text: item.body,
+			sourcePullRequest: {
+				owner: item.pullRequest.owner,
+				repo: item.pullRequest.repo,
+				number: item.pullRequest.number,
+			},
 			canConvertToAgentFeedback: true,
 		});
 	}
@@ -138,7 +147,7 @@ function estimateExpandedCommentLines(comment: ISessionEditorComment): number {
 	let replyLines = 0;
 	if (comment.replies?.length) {
 		for (const reply of comment.replies) {
-			replyLines += Math.ceil(Math.max(1, reply.length) / charsPerLine);
+			replyLines += Math.ceil(Math.max(1, reply.text.length) / charsPerLine);
 		}
 	}
 	return textLines + 1 + suggestionLines + replyLines;

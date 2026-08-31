@@ -5,7 +5,6 @@
 
 import { Event } from '../../../base/common/event.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import type { IAgentHostSocketInfo } from './agentService.js';
 
 export const ITunnelAgentHostService = createDecorator<ITunnelAgentHostService>('tunnelAgentHostService');
 
@@ -101,6 +100,9 @@ export interface ITunnelInfo {
 	readonly hostConnectionCount: number;
 }
 
+/** How startup auto-connect should establish a tunnel connection. */
+export type TunnelAutoConnectMode = 'background' | 'prompt';
+
 /** Kind of process that owns a gateway-reported endpoint. Mirrors `AgentHostServerType` in the CLI's agent-host registry (`cli/src/tunnels/agent_host_registry.rs`). */
 export type TunnelGatewayServerType = 'editor' | 'standalone';
 
@@ -130,6 +132,8 @@ export interface ITunnelGatewayEndpoint {
 export interface ITunnelGatewayInventory {
 	readonly userDataPath: string;
 	readonly endpoints: readonly ITunnelGatewayEndpoint[];
+	/** Set when the tunnel is bound to one specific agent host instance: the inventory lists only that endpoint and no dedicated host can be spawned. */
+	readonly delegatedInstanceId?: string;
 }
 
 /**
@@ -219,14 +223,21 @@ export function parseTunnelGatewayInventory(json: string): ITunnelGatewayInvento
 	if (!isPlainObject(parsed)) {
 		throw new TunnelGatewayProtocolError('Gateway inventory message is not an object');
 	}
-	const { userDataPath, endpoints } = parsed;
+	const { userDataPath, endpoints, delegatedInstanceId } = parsed;
 	if (typeof userDataPath !== 'string' || !userDataPath) {
 		throw new TunnelGatewayProtocolError('Gateway inventory message has an invalid "userDataPath"');
 	}
 	if (!Array.isArray(endpoints)) {
 		throw new TunnelGatewayProtocolError('Gateway inventory message has an invalid "endpoints"');
 	}
-	return { userDataPath, endpoints: endpoints.map((e, i) => parseTunnelGatewayEndpoint(e, i)) };
+	if (delegatedInstanceId !== undefined && (typeof delegatedInstanceId !== 'string' || !delegatedInstanceId)) {
+		throw new TunnelGatewayProtocolError('Gateway inventory message has an invalid "delegatedInstanceId"');
+	}
+	const parsedEndpoints = endpoints.map((e, i) => parseTunnelGatewayEndpoint(e, i));
+	if (delegatedInstanceId === undefined) {
+		return { userDataPath, endpoints: parsedEndpoints };
+	}
+	return { userDataPath, endpoints: parsedEndpoints, delegatedInstanceId };
 }
 
 /**
@@ -288,6 +299,25 @@ export function createTunnelGatewaySelectionRejectedError(message: string): Erro
 /** Whether `error` is a gateway rejection, including one received over IPC. See {@link TUNNEL_GATEWAY_SELECTION_REJECTED_ERROR_NAME}. */
 export function isTunnelGatewaySelectionRejectedError(error: unknown): boolean {
 	return error instanceof Error && error.name === TUNNEL_GATEWAY_SELECTION_REJECTED_ERROR_NAME;
+}
+
+/**
+ * Error name for a connect attempt whose requested tunnel no longer exists.
+ * Matching on the name survives the shared-process IPC boundary.
+ */
+export const TUNNEL_NOT_FOUND_ERROR_NAME = 'TunnelNotFoundError';
+
+/** Raised when the requested tunnel cannot be resolved. */
+export class TunnelNotFoundError extends Error {
+	constructor(tunnelId: string) {
+		super(`[TunnelAgentHost] Tunnel ${tunnelId} not found`);
+		this.name = TUNNEL_NOT_FOUND_ERROR_NAME;
+	}
+}
+
+/** Whether `error` is a {@link TunnelNotFoundError}, including across IPC. */
+export function isTunnelNotFoundError(error: unknown): boolean {
+	return error instanceof Error && error.name === TUNNEL_NOT_FOUND_ERROR_NAME;
 }
 
 /**
@@ -437,6 +467,12 @@ export interface ITunnelAgentHostService {
 	listTunnels(options?: { silent?: boolean }): Promise<ITunnelInfo[]>;
 
 	/**
+	 * Determine whether startup auto-connect can run silently or must first ask
+	 * the user to choose an agent-host location.
+	 */
+	getAutoConnectMode(tunnel: ITunnelInfo): TunnelAutoConnectMode;
+
+	/**
 	 * Connect to a tunnel's agent host and register the connection
 	 * with {@link IRemoteAgentHostService}.
 	 *
@@ -444,9 +480,9 @@ export interface ITunnelAgentHostService {
 	 * @param authProvider Optional auth provider to use. If omitted, uses cached/last known.
 	 * @param options.userInitiated Whether this connection was explicitly
 	 * requested by the user (default `true`). When `false` (background/auto
-	 * connect), a protocol-v6 gateway selection must never prompt via
-	 * {@link IQuickInputService} and must never choose an `editor` endpoint —
-	 * it deterministically reuses a standalone or spawns `newDedicated`.
+	 * connect), a protocol-v6 gateway selection must never prompt. Background
+	 * connections may prompt only when {@link getAutoConnectMode} returns
+	 * `'prompt'`; otherwise they reuse the saved preference silently.
 	 */
 	connect(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft', options?: { readonly userInitiated?: boolean }): Promise<void>;
 
@@ -498,9 +534,20 @@ export const TUNNEL_HOST_LOG_ID = 'tunnelHostService';
 /** Information about an actively hosted tunnel. */
 export interface ITunnelHostInfo {
 	readonly tunnelName: string;
-	readonly tunnelId: string;
-	readonly clusterId: string;
-	readonly domain: string;
+	/** Stable dev tunnel identity, which can be absent when an older CLI reports the hosted tunnel. */
+	readonly tunnelId?: string;
+	/** Set when remote session access is being provided by full Remote Tunnel Access rather than a dedicated agent host tunnel. */
+	readonly viaRemoteTunnelAccess?: boolean;
+}
+
+/** Whether a discovered tunnel is the hosted tunnel, preferring its stable identity over its display name. */
+export function isTunnelHosted(sharingInfo: ITunnelHostInfo | undefined, tunnel: Pick<ITunnelInfo, 'tunnelId' | 'name'>): boolean {
+	if (!sharingInfo) {
+		return false;
+	}
+	return sharingInfo.tunnelId !== undefined
+		? sharingInfo.tunnelId === tunnel.tunnelId
+		: sharingInfo.tunnelName === tunnel.name;
 }
 
 /** Status of the tunnel host. */
@@ -509,8 +556,7 @@ export type TunnelHostStatus =
 	| { readonly active: true; readonly info: ITunnelHostInfo };
 
 /**
- * Shared-process service that hosts a dev tunnel using `TunnelRelayTunnelHost`
- * and pipes incoming connections to the local agent host.
+ * Shared-process service that hosts a dev tunnel using the code CLI.
  */
 export const ITunnelAgentHostHostingService = createDecorator<ITunnelAgentHostHostingService>('tunnelAgentHostHostingService');
 
@@ -521,15 +567,12 @@ export interface ITunnelAgentHostHostingService {
 	readonly onDidChangeStatus: Event<TunnelHostStatus>;
 
 	/**
-	 * Start hosting a dev tunnel that forwards connections to the local
-	 * agent host. Creates a tunnel with the appropriate labels and port
-	 * configuration, then connects a `TunnelRelayTunnelHost`.
+	 * Start hosting a dev tunnel that exposes the local agent host.
 	 *
 	 * @param token The user's access token.
 	 * @param authProvider The auth provider that issued the token.
-	 * @param socketInfo Socket path for the local agent host.
 	 */
-	startHosting(token: string, authProvider: 'github' | 'microsoft', socketInfo: IAgentHostSocketInfo): Promise<ITunnelHostInfo>;
+	startHosting(token: string, authProvider: 'github' | 'microsoft'): Promise<ITunnelHostInfo>;
 
 	/** Stop hosting and clean up the tunnel. */
 	stopHosting(): Promise<void>;

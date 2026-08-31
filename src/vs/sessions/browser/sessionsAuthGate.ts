@@ -5,8 +5,10 @@
 
 import { Event } from '../../base/common/event.js';
 import { IObservable, observableFromEvent } from '../../base/common/observable.js';
+import { isWeb } from '../../base/common/platform.js';
 import { AgentHostAllowSignedOutWhenUsableSettingId } from '../../platform/agentHost/common/agentService.js';
 import type { IConfigurationService } from '../../platform/configuration/common/configuration.js';
+import { SessionTypeAuthRequirement } from '../services/sessions/common/session.js';
 
 /**
  * Predicates behind the Agents window's conditional authentication — when the
@@ -16,8 +18,9 @@ import type { IConfigurationService } from '../../platform/configuration/common/
  *
  * - The **window gate** is the last-resort, window-level block that forces
  *   sign-in before *any* of the sessions UI is shown (backed by
- *   `SessionsWelcomeVisibleContext`). Historically unconditional; it now lifts on
- *   the opt-in alone. Note the *editor* window is untouched by all of this — its
+ *   `SessionsWelcomeVisibleContext`). Historically unconditional; it now lifts
+ *   when the opt-in is enabled and at least one registered session type does not
+ *   require GitHub. Note the *editor* window is untouched by all of this — its
  *   chat-setup modal already offers a "Don't sign in" escape hatch, and it is
  *   that missing escape hatch in the Agents window (a non-dismissible modal) that
  *   this machinery restores conditionally.
@@ -26,30 +29,48 @@ import type { IConfigurationService } from '../../platform/configuration/common/
  *   (`getSessionTypeAvailability()` → `SignInRequired`) and carries the actual
  *   work: once the window is open, each type answers for itself.
  *
- * The window gate deliberately does *not* consult per-type readiness. "Requires
- * GitHub auth" is a property of a session type *at a moment in time* — Claude and
- * Codex both move as their own credentials come and go, and providers resolve it
- * asynchronously — so a gate that waited on it would race the modal it is meant
- * to suppress. The per-type gate observes those changes and is the right altitude
- * for them.
+ * Session types update as native credentials come and go. The window gate must
+ * therefore use the live requirements rather than treating the experimentation
+ * opt-in itself as proof that a provider can run signed out.
  */
 
 /**
  * Whether the `chat.agentHost.allowSignedOutWhenUsable` experimentation opt-in
- * is enabled. When off (the default), the conditional-auth feature is dark and
- * every caller behaves as it did before.
+ * is enabled in a desktop window. Web always requires sign-in.
  */
 export function isAllowSignedOutWhenUsableEnabled(configurationService: IConfigurationService): boolean {
-	return configurationService.getValue<boolean>(AgentHostAllowSignedOutWhenUsableSettingId) === true;
+	return !isWeb && configurationService.getValue<boolean>(AgentHostAllowSignedOutWhenUsableSettingId) === true;
 }
 
 /**
  * The **window gate**: whether the Agents window must force GitHub sign-in before
- * showing any of the sessions UI. Callers are always on a signed-out path, so this
- * is simply the inverse of the opt-in.
+ * showing any of the sessions UI. It remains unresolved until providers publish
+ * at least one session type.
  */
-export function shouldForceGitHubSignIn(allowSignedOutWhenUsable: boolean): boolean {
-	return !allowSignedOutWhenUsable;
+export const enum SignedOutWindowGate {
+	/** Providers have not advertised any session types yet. */
+	Unresolved,
+	/** At least one type can operate without GitHub sign-in. */
+	Proceed,
+	/** Every advertised type requires GitHub sign-in. */
+	ForceGitHubSignIn,
+}
+
+export function resolveSignedOutWindowGate(allowSignedOutWhenUsable: boolean, authRequirements: readonly SessionTypeAuthRequirement[]): SignedOutWindowGate {
+	if (!allowSignedOutWhenUsable) {
+		return SignedOutWindowGate.ForceGitHubSignIn;
+	}
+	if (authRequirements.length === 0) {
+		return SignedOutWindowGate.Unresolved;
+	}
+	return authRequirements.some(requirement => requirement !== SessionTypeAuthRequirement.GitHub)
+		? SignedOutWindowGate.Proceed
+		: SignedOutWindowGate.ForceGitHubSignIn;
+}
+
+/** Whether the GitHub workspace group should offer sign-in. */
+export function shouldShowGitHubWorkspaceGroupSignIn(signedIn: boolean, allowSignedOutWhenUsable: boolean): boolean {
+	return !signedIn && allowSignedOutWhenUsable;
 }
 
 /**
@@ -86,45 +107,10 @@ export function conditionalAuthState(accountResolved: boolean, signedIn: boolean
 
 /**
  * Observe the setting that permits the Agents window to proceed without forcing
- * GitHub sign-in. Provider readiness is deliberately not part of this gate.
+ * GitHub sign-in when a session type can operate that way.
  */
 export function observeAllowSignedOutWhenUsable(configurationService: IConfigurationService): IObservable<boolean> {
 	return observableFromEvent(
 		Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(AgentHostAllowSignedOutWhenUsableSettingId)),
 		() => isAllowSignedOutWhenUsableEnabled(configurationService));
-}
-
-/**
- * Inputs to the "discovered your existing <agent> configuration" nudge for a
- * single agent-host session type.
- */
-export interface IDiscoveredConfigNudgeContext {
-	/** Whether a GitHub account is currently signed in. */
-	readonly signedIn: boolean;
-	/** The `chat.agentHost.allowSignedOutWhenUsable` experimentation opt-in. */
-	readonly allowSignedOutWhenUsable: boolean;
-	/**
-	 * Whether the agent's session type is usable without GitHub right now — i.e.
-	 * its agent discovered an existing native configuration and is running in
-	 * native mode rather than the Copilot proxy.
-	 */
-	readonly usableWithoutGitHub: boolean;
-	/**
-	 * Whether the user has permanently silenced this nudge via its "Don't Show
-	 * Again" affordance. Once muted, the nudge never shows again regardless of
-	 * the other inputs.
-	 */
-	readonly muted: boolean;
-}
-
-/**
- * Decides whether to surface the discovered-config nudge for one agent-host
- * session type: shown only to a signed-out user who has opted in, when that
- * type is usable without GitHub right now — the agent found an existing native
- * config, so we let them in and explain how to switch to a Copilot subscription
- * instead. Signed-in users never see it; with the opt-in off, or once the user
- * has muted it, it is always false.
- */
-export function shouldShowDiscoveredConfigNudge(context: IDiscoveredConfigNudgeContext): boolean {
-	return !context.signedIn && context.allowSignedOutWhenUsable && context.usableWithoutGitHub && !context.muted;
 }
