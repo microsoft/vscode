@@ -83,13 +83,18 @@ export class ChatToolCalls extends PromptElement<ChatToolCallsProps, void> {
 		// Shared budget to limit total image data across all tool results in this turn.
 		// Prevents 413 errors when many image-returning tools run in parallel.
 		const sharedImageBudget: SharedImageBudget = { remaining: CAPI_IMAGE_BUDGET_BYTES };
+		const eagerToolCalls: Promise<ToolCallResult>[] = [];
 
 		const toolCallRounds = this.props.toolCallRounds.flatMap((round, i) => {
-			return this.renderOneToolCallRound(round, i, this.props.toolCallRounds!.length, hydratedInstantiationService, sharedImageBudget, token);
+			return this.renderOneToolCallRound(round, i, this.props.toolCallRounds!.length, hydratedInstantiationService, sharedImageBudget, eagerToolCalls, token);
 		});
 		if (!toolCallRounds.length) {
 			return;
 		}
+
+		// Eager calls are started before their prompt elements render so they can run in parallel.
+		// Own them here so prompt flexing cannot drop the only awaiter of an in-flight tool.
+		await Promise.all(eagerToolCalls);
 
 		const KeepWith = useKeepWith();
 		return <>
@@ -102,7 +107,7 @@ export class ChatToolCalls extends PromptElement<ChatToolCallsProps, void> {
 	/**
 	 * Render one round of tool calling: the assistant message text, its tool calls, and the results of those tool calls.
 	 */
-	private renderOneToolCallRound(round: IToolCallRound, index: number, total: number, hydratedInstantiationService: IInstantiationService, sharedImageBudget: SharedImageBudget, token?: CancellationToken): PromptElement[] {
+	private renderOneToolCallRound(round: IToolCallRound, index: number, total: number, hydratedInstantiationService: IInstantiationService, sharedImageBudget: SharedImageBudget, eagerToolCalls: Promise<ToolCallResult>[], token?: CancellationToken): PromptElement[] {
 		let fixedNameToolCalls = round.toolCalls.map(tc => ({ ...tc, name: this.toolsService.validateToolName(tc.name) ?? tc.name }));
 		// A Responses marker retains every function call server-side. Close calls whose local
 		// results were lost so the next request can safely reuse previous_response_id.
@@ -179,6 +184,7 @@ export class ChatToolCalls extends PromptElement<ChatToolCallsProps, void> {
 						stripImages: !!this.props.isHistorical,
 						sharedImageBudget,
 						token: token ?? CancellationToken.None,
+						onDidStartEagerToolCall: promise => eagerToolCalls.push(promise),
 					})}
 				</KeepWith>,
 			);
@@ -223,9 +229,16 @@ interface ToolResultOpts {
 	readonly stripImages?: boolean;
 	readonly sharedImageBudget?: SharedImageBudget;
 	readonly token: CancellationToken;
+	readonly onDidStartEagerToolCall: (promise: Promise<ToolCallResult>) => void;
 }
 
 const toolErrorSuffix = '\nPlease check your input and try again.';
+
+interface ToolCallResult {
+	readonly toolResult: LanguageModelToolResult2;
+	readonly isCancelled: boolean;
+	readonly extraMetadata: PromptMetadata[];
+}
 
 /**
  * Creates a <ToolResult /> element. Eagerly starts the tool call if we know
@@ -369,6 +382,7 @@ function buildToolResultElement(accessor: ServicesAccessor, props: ToolResultOpt
 	let call: IToolResultElementActualProps['call'];
 	if (tool?.source instanceof LanguageModelToolMCPSource || tool?.name && toolsCalledInParallel.has(tool.name as ToolName)) {
 		const promise = getToolResult({ tokenBudget: 1, countTokens: () => 1, endpoint: { modelMaxPromptTokens: 1 } });
+		props.onDidStartEagerToolCall(promise);
 		call = () => promise;
 	} else {
 		call = getToolResult;
@@ -429,11 +443,7 @@ async function sendToolCallTelemetry(props: ToolResultOpts, promptContext: IBuil
 }
 
 interface IToolResultElementActualProps {
-	call(sizing: PromptSizing): Promise<{
-		toolResult: LanguageModelToolResult2;
-		isCancelled: boolean;
-		extraMetadata: PromptMetadata[];
-	}>;
+	call(sizing: PromptSizing): Promise<ToolCallResult>;
 	enableCacheBreakpoints: boolean;
 	truncateAt: number | undefined;
 	toolCall: IToolCall;

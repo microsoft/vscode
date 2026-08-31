@@ -13,6 +13,7 @@ import { safeIntl } from '../../../../../base/common/date.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { language } from '../../../../../base/common/platform.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -92,6 +93,42 @@ export const GENERATE_AGENT_COMMAND_ID = 'workbench.action.chat.generateAgent';
 export const GENERATE_HOOK_COMMAND_ID = 'workbench.action.chat.generateHook';
 export const INSERT_FORK_CONVERSATION_COMMAND_ID = 'workbench.action.chat.insertForkConversationCommand';
 export const INSERT_TROUBLESHOOT_COMMAND_ID = 'workbench.action.chat.insertTroubleshootCommand';
+
+export function waitForChatResponse(response: Pick<IChatResponseModel, 'isComplete' | 'isPendingConfirmation' | 'response' | 'onDidChange'>, autoReplyEnabled: boolean): Promise<void> {
+	return new Promise<void>(resolve => {
+		let settled = false;
+		const complete = () => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			listener.dispose();
+			resolve();
+		};
+		const checkState = () => {
+			if (response.isComplete) {
+				complete();
+				return;
+			}
+
+			const pendingConfirmation = response.isPendingConfirmation.get();
+			if (pendingConfirmation) {
+				// Check if the pending confirmation is a question carousel that will be auto-replied.
+				// Only question carousels are auto-replied; other confirmation types (tool approvals,
+				// elicitations, etc.) should cause us to resolve immediately.
+				const hasPendingQuestionCarousel = response.response.value.some(
+					part => part.kind === 'questionCarousel' && !part.isUsed
+				);
+				if (!autoReplyEnabled || !hasPendingQuestionCarousel) {
+					complete();
+				}
+			}
+		};
+
+		const listener: IDisposable = response.onDidChange(checkState);
+		checkState();
+	});
+}
 
 const defaultChat = {
 	provider: product.defaultChatAgent?.provider ?? { enterprise: { id: '' } },
@@ -421,31 +458,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 			const response = await resp;
 			if (response) {
 				const autoReplyEnabled = configurationService.getValue<boolean>(ChatConfiguration.AutoReply);
-				await new Promise<void>(resolve => {
-					const d = response.onDidChange(async () => {
-						if (response.isComplete) {
-							d.dispose();
-							resolve();
-							return;
-						}
-
-						const pendingConfirmation = response.isPendingConfirmation.get();
-						if (pendingConfirmation) {
-							// Check if the pending confirmation is a question carousel that will be auto-replied.
-							// Only question carousels are auto-replied; other confirmation types (tool approvals,
-							// elicitations, etc.) should cause us to resolve immediately.
-							const hasPendingQuestionCarousel = response.response.value.some(
-								part => part.kind === 'questionCarousel' && !part.isUsed
-							);
-							if (autoReplyEnabled && hasPendingQuestionCarousel) {
-								// Auto-reply will handle this question carousel, keep waiting
-								return;
-							}
-							d.dispose();
-							resolve();
-						}
-					});
-				});
+				await waitForChatResponse(response, autoReplyEnabled);
 
 				const confirmationInfo = getPendingConfirmationInfo(response);
 				if (confirmationInfo) {
