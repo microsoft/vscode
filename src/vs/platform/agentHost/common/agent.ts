@@ -1144,6 +1144,9 @@ export interface IAgent {
 	/** Return bounded diagnostics for an in-flight turn when supported. */
 	getTurnDiagnosticSnapshot?(chat: URI, turnId: string): IAgentTurnDiagnosticSnapshot | undefined;
 
+	/** Record the host-remapped turn for a completed provider model call. */
+	recordModelCallTurnCorrelation?(chat: URI, modelCallId: string, turnId: string): void;
+
 	// ---- Active clients and interaction ------------------------------------
 
 	/** Get or create one client's contribution handle for an exact chat. */

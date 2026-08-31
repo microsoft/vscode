@@ -708,6 +708,9 @@ class CopilotTurn extends Disposable {
 	}
 }
 
+// GitHub response telemetry can arrive just before its matching assistant.message event.
+const MODEL_CALL_TURN_CORRELATION_TIMEOUT_MS = 100;
+
 /**
  * Encapsulates a single Copilot SDK session and all its associated bookkeeping.
  *
@@ -746,6 +749,8 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private readonly _parentToolCallIdsByAgentId = new Map<string, string>();
 	private readonly _rootTurnIdBySubagentToolCallId = new Map<string, string>();
+	private readonly _agentHostTurnIdsByModelCallId = new Map<string, string>();
+	private readonly _pendingAgentHostTurnIdsByModelCallId = new Map<string, DeferredPromise<string>>();
 	private readonly _subagentDirectUsageByToolCallId = new Map<string, DirectUsageAccumulator>();
 	private readonly _lastSubagentUsageByToolCallId = new Map<string, UsageInfo>();
 	/**
@@ -849,6 +854,39 @@ export class CopilotAgentSession extends Disposable {
 	get hasActiveTurn(): boolean { return this._currentTurn.value !== undefined; }
 	get chatUri(): URI { return this._chatChannelUri; }
 	get currentTurnId(): string | undefined { return this._currentTurn.value?.id; }
+
+	recordModelCallTurnCorrelation(modelCallId: string, turnId: string): void {
+		const pending = this._pendingAgentHostTurnIdsByModelCallId.get(modelCallId);
+		if (pending) {
+			this._pendingAgentHostTurnIdsByModelCallId.delete(modelCallId);
+			pending.complete(turnId);
+			return;
+		}
+		this._agentHostTurnIdsByModelCallId.set(modelCallId, turnId);
+	}
+
+	takeModelCallTurnCorrelation(modelCallId: string): string | undefined {
+		const turnId = this._agentHostTurnIdsByModelCallId.get(modelCallId);
+		this._agentHostTurnIdsByModelCallId.delete(modelCallId);
+		return turnId;
+	}
+
+	async waitForModelCallTurnCorrelation(modelCallId: string): Promise<string | undefined> {
+		const existing = this.takeModelCallTurnCorrelation(modelCallId);
+		if (existing) {
+			return existing;
+		}
+		const pending = new DeferredPromise<string>();
+		this._pendingAgentHostTurnIdsByModelCallId.set(modelCallId, pending);
+		const turnId = await Promise.race([
+			pending.p,
+			timeout(MODEL_CALL_TURN_CORRELATION_TIMEOUT_MS).then(() => undefined),
+		]);
+		if (this._pendingAgentHostTurnIdsByModelCallId.get(modelCallId) === pending) {
+			this._pendingAgentHostTurnIdsByModelCallId.delete(modelCallId);
+		}
+		return turnId;
+	}
 
 	getTurnDiagnosticSnapshot(turnId: string): IAgentTurnDiagnosticSnapshot | undefined {
 		const currentTurn = this._currentTurn.value;

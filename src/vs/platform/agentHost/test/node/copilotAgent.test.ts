@@ -1214,8 +1214,13 @@ suite('CopilotAgent', () => {
 			const forward = getCreatedClientOptions(agent).at(-1)?.onGitHubTelemetry;
 			assert.ok(forward);
 
+			const subagentCorrelation = new DeferredPromise<string>();
 			chatEntriesBySdkId(agent).set('active-session', {
-				chatSession: { currentTurnId: 'turn-1' } as CopilotAgentSession,
+				chatSession: {
+					currentTurnId: 'turn-1',
+					takeModelCallTurnCorrelation: () => undefined,
+					waitForModelCallTurnCorrelation: () => subagentCorrelation.p,
+				} as CopilotAgentSession,
 				dispose() { },
 			});
 			chatEntriesBySdkId(agent).set('second-active-session', {
@@ -1226,17 +1231,20 @@ suite('CopilotAgent', () => {
 				chatSession: { currentTurnId: undefined } as CopilotAgentSession,
 				dispose() { },
 			});
-			const notification = (sessionId: string, turnId: string): GitHubTelemetryNotification => ({
+			const notification = (sessionId: string, turnId: string, modelCallId?: string, initiatorType?: string): GitHubTelemetryNotification => ({
 				sessionId,
 				restricted: false,
 				event: {
 					kind: 'response.success',
-					properties: { turnId },
+					properties: { turnId, ...(modelCallId ? { modelCallId } : {}), ...(initiatorType ? { initiatorType } : {}) },
 					metrics: {},
 				},
 			});
 
 			await forward(notification('active-session', 'runtime-active'));
+			await forward(notification('active-session', 'runtime-subagent', 'subagent-model-call', 'agent'));
+			subagentCorrelation.complete('subagent-turn');
+			await timeout(0);
 			await forward(notification('second-active-session', 'runtime-second-active'));
 			await forward(notification('active-session', 'runtime-active-again'));
 			await forward(notification('idle-session', 'runtime-idle'));
@@ -1250,6 +1258,7 @@ suite('CopilotAgent', () => {
 			}), [
 				{ eventName: 'agentHost.copilotClientStartup', outcome: 'success', durationMs: 'number', attemptNumber: 1 },
 				{ eventName: 'copilotSdk/response.success', sessionId: 'active-session', turnId: 'turn-1' },
+				{ eventName: 'copilotSdk/response.success', sessionId: 'active-session', turnId: 'subagent-turn' },
 				{ eventName: 'copilotSdk/response.success', sessionId: 'second-active-session', turnId: 'turn-2' },
 				{ eventName: 'copilotSdk/response.success', sessionId: 'active-session', turnId: 'turn-1' },
 				{ eventName: 'copilotSdk/response.success', sessionId: 'idle-session', turnId: undefined },

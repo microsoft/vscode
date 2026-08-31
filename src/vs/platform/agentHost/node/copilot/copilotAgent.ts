@@ -1642,7 +1642,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const additionalProperties = { initiatorClientType: this._clientTypeForTelemetry(notification.sessionId) };
 		const router = this._githubTelemetryRouter;
 		if (!router?.isTarget(notification)) {
-			this._gitHubTelemetryForwarder.forward(notification, this._turnIdForTelemetry(notification.sessionId));
+			await this._forwardGitHubTelemetry(notification);
 			return;
 		}
 		if (!notification.restricted) {
@@ -1681,8 +1681,30 @@ export class CopilotAgent extends Disposable implements IAgent {
 			: AgentHostClientType.Unknown;
 	}
 
-	private _turnIdForTelemetry(sdkSessionId: string | undefined): string | undefined {
-		return sdkSessionId ? this._findSessionBySdkId(sdkSessionId)?.currentTurnId : undefined;
+	private async _forwardGitHubTelemetry(notification: GitHubTelemetryNotification): Promise<void> {
+		const session = notification.sessionId ? this._findSessionBySdkId(notification.sessionId) : undefined;
+		if (!session) {
+			this._gitHubTelemetryForwarder.forward(notification);
+			return;
+		}
+		const fallbackTurnId = session.currentTurnId;
+		const event = notification.event;
+		if (event.kind === 'response.success' || event.kind === 'response.error') {
+			const modelCallId = event.properties.modelCallId ?? event.model_call_id;
+			if (typeof modelCallId === 'string') {
+				const correlatedTurnId = session.takeModelCallTurnCorrelation(modelCallId);
+				if (correlatedTurnId) {
+					this._gitHubTelemetryForwarder.forward(notification, correlatedTurnId);
+					return;
+				}
+				if (event.properties.initiatorType === 'agent') {
+					const delayedTurnId = await session.waitForModelCallTurnCorrelation(modelCallId);
+					this._gitHubTelemetryForwarder.forward(notification, delayedTurnId ?? fallbackTurnId);
+					return;
+				}
+			}
+		}
+		this._gitHubTelemetryForwarder.forward(notification, fallbackTurnId);
 	}
 
 	/**
@@ -2934,6 +2956,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return { state: 'missingChat' };
 		}
 		return session.getTurnDiagnosticSnapshot(turnId) ?? { state: 'missingTurn' };
+	}
+
+	recordModelCallTurnCorrelation(chat: URI, modelCallId: string, turnId: string): void {
+		this._findChatByUri(chat)?.recordModelCallTurnCorrelation(modelCallId, turnId);
 	}
 
 	/** Creates one exact chat backing: fresh, deferred, imported, or forked. */
