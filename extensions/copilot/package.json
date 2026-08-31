@@ -1873,7 +1873,7 @@
               "type": "string",
               "pattern": "^https?://.+",
               "patternErrorMessage": "URL must start with http:// or https://",
-              "markdownDescription": "Default full URL used **verbatim** for inline code completions (FIM) requests for models in this group, e.g. `https://api.deepseek.com/beta/completions` or `https://api.siliconflow.cn/v1/completions`. Individual models can override this with their own `completionsUrl` property. When neither is set, the group's models are only available for chat."
+              "markdownDescription": "Default full URL used **verbatim** for inline code completions (FIM) requests for models in this group, e.g. DeepSeek: `https://api.deepseek.com/beta/completions`, or SiliconFlow: `https://api.siliconflow.cn/v1/completions` / `https://api.siliconflow.com/v1/completions`. Individual models can override this with their own `completionsUrl` property. When neither is set, the group's models are only available for chat."
             },
             "models": {
               "type": "array",
@@ -1914,7 +1914,7 @@
                     "type": "string",
                     "pattern": "^https?://.+",
                     "patternErrorMessage": "URL must start with http:// or https://",
-                    "markdownDescription": "Full URL used **verbatim** for inline code completions (FIM) requests, e.g. `https://api.deepseek.com/beta/completions` or `https://api.siliconflow.cn/v1/completions`. When omitted, the group-level `completionsUrl` is used; if neither is set, this model is only available for chat, not for inline code completions."
+                    "markdownDescription": "Full URL used **verbatim** for inline code completions (FIM) requests, e.g. DeepSeek: `https://api.deepseek.com/beta/completions`, or SiliconFlow: `https://api.siliconflow.cn/v1/completions` / `https://api.siliconflow.com/v1/completions`. When omitted, the group-level `completionsUrl` is used; if neither is set, this model is only available for chat, not for inline code completions."
                   },
                   "toolCalling": {
                     "type": "boolean",
@@ -2051,7 +2051,7 @@
               "type": "string",
               "pattern": "^https?://.+",
               "patternErrorMessage": "URL must start with http:// or https://",
-              "markdownDescription": "Default full URL used **verbatim** for inline code completions (FIM) requests for models in this group, e.g. `https://api.deepseek.com/beta/completions` or `https://api.siliconflow.cn/v1/completions`. Individual models can override this with their own `completionsUrl` property. When neither is set, the group's models are only available for chat."
+              "markdownDescription": "Default full URL used **verbatim** for inline code completions (FIM) requests for models in this group, e.g. DeepSeek: `https://api.deepseek.com/beta/completions`, or SiliconFlow: `https://api.siliconflow.cn/v1/completions` / `https://api.siliconflow.com/v1/completions`. Individual models can override this with their own `completionsUrl` property. When neither is set, the group's models are only available for chat."
             },
             "models": {
               "type": "array",
@@ -2093,7 +2093,7 @@
                     "type": "string",
                     "pattern": "^https?://.+",
                     "patternErrorMessage": "URL must start with http:// or https://",
-                    "markdownDescription": "Full URL used **verbatim** for inline code completions (FIM) requests, e.g. `https://api.deepseek.com/beta/completions` or `https://api.siliconflow.cn/v1/completions`. When omitted, the group-level `completionsUrl` is used; if neither is set, this model is only available for chat, not for inline code completions."
+                    "markdownDescription": "Full URL used **verbatim** for inline code completions (FIM) requests, e.g. DeepSeek: `https://api.deepseek.com/beta/completions`, or SiliconFlow: `https://api.siliconflow.cn/v1/completions` / `https://api.siliconflow.com/v1/completions`. When omitted, the group-level `completionsUrl` is used; if neither is set, this model is only available for chat, not for inline code completions."
                   },
                   "apiType": {
                     "type": "string",
