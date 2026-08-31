@@ -94,6 +94,7 @@ import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, META_CHANGES_SU
 import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostChatContributions } from '../common/agentHostChatContributionsService.js';
+import { IAgentHostStorageService } from './agentHostStorageService.js';
 
 /**
  * Grace period before an empty, unsubscribed session is garbage-collected
@@ -105,13 +106,16 @@ const SESSION_GC_GRACE_MS = 30_000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const EXTERNAL_SESSION_MAX_AGE_MS = 30 * DAY_MS;
 const RECENT_EXTERNAL_SESSION_LIMIT = 2;
-/**
- * How many locally created sessions must postdate an external session's last
- * update before {@link AgentHostExternalSessionsMode.Recent} stops surfacing it.
- */
-const RECENT_EXTERNAL_SUPERSEDING_LOCAL_LIMIT = 2;
+const RECENT_LOCAL_SESSION_UPDATE_LIMIT = 2;
+const RECENT_LOCAL_SESSION_UPDATES_STORAGE_KEY = 'recentLocalSessionUpdates';
 /** A catalog pass slower than this is logged at info, since it delays every session-list refresh. */
 const SLOW_LIST_SESSIONS_THRESHOLD_MS = 1_000;
+
+/** A recent update to one local Agent Host session. */
+interface IRecentLocalSessionUpdate {
+	readonly session: string;
+	readonly modifiedTime: number;
+}
 
 type AgentHostLegacyMigrationEvent = {
 	provider: string;
@@ -202,6 +206,12 @@ const ANNOTATIONS_METADATA_KEY = 'annotations';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null;
+}
+
+function isRecentLocalSessionUpdate(value: unknown): value is IRecentLocalSessionUpdate {
+	return isRecord(value)
+		&& typeof value.session === 'string'
+		&& Number.isFinite(value.modifiedTime);
 }
 
 function isPersistedAnnotationEntry(value: unknown): value is AnnotationEntry {
@@ -444,6 +454,8 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _orchestratorDatabase: IAgentHostDatabase;
 	/** Serializes durable last-modified advances emitted by live session state. */
 	private _sessionModifiedTimeWrites: Promise<void> = Promise.resolve();
+	private readonly _recentLocalSessionUpdateSnapshot: readonly IRecentLocalSessionUpdate[];
+	private _recentLocalSessionUpdates: readonly IRecentLocalSessionUpdate[];
 
 	private readonly _providerMigrations = new Map<AgentProvider, IProviderDiscoveryState>();
 	private readonly _initialProviderMigrations = new Map<AgentProvider, Promise<void>>();
@@ -593,6 +605,7 @@ export class AgentService extends Disposable implements IAgentService {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAgentHostWorktreeIsolation private readonly _worktree: IAgentHostWorktreeIsolation,
 		@IAgentHostProviderService private readonly _providerService: IAgentHostProviderService,
+		@IAgentHostStorageService private readonly _storageService: IAgentHostStorageService,
 	) {
 		super();
 		this._authService = core.authenticationService;
@@ -601,6 +614,8 @@ export class AgentService extends Disposable implements IAgentService {
 		this._sessionRegistry = core.sessionRegistry;
 		this._stateManager = core.stateManager;
 		this._configurationService = core.configurationService;
+		this._recentLocalSessionUpdateSnapshot = this._readRecentLocalSessionUpdates();
+		this._recentLocalSessionUpdates = this._recentLocalSessionUpdateSnapshot;
 		this.onMcpNotification = this._providerService.onMcpNotification;
 		this._gitHubEndpointService = collaborators.gitHubEndpointService;
 		this._gitStateService = collaborators.gitStateService;
@@ -694,7 +709,14 @@ export class AgentService extends Disposable implements IAgentService {
 		this._register(this._stateManager.onDidChangeSessionSummary(({ session, changes }) => {
 			const meta = this._stateManager.getSessionSummary(session)?._meta;
 			if (changes.modifiedAt !== undefined) {
-				this._writeSessionModifiedTime(URI.parse(session), Date.parse(changes.modifiedAt));
+				const modifiedTime = Date.parse(changes.modifiedAt);
+				if (!readSessionExternal(meta)
+					&& !isSubagentSession(session)
+					&& !this._stateManager.isEphemeralSession(session)
+					&& !this._stateManager.isIdleProvisionalSession(session)) {
+					this._recordRecentLocalSessionUpdate(URI.parse(session), modifiedTime);
+				}
+				this._writeSessionModifiedTime(URI.parse(session), modifiedTime);
 			}
 			if (changes.modifiedAt !== undefined
 				&& this._getExternalSessionsMode() === AgentHostExternalSessionsMode.Recent
@@ -712,10 +734,12 @@ export class AgentService extends Disposable implements IAgentService {
 			if (nextMode !== externalSessionsMode) {
 				const previousMode = externalSessionsMode;
 				externalSessionsMode = nextMode;
-				// The only point past startup where `Recent` re-measures the
-				// superseding local sessions.
-				this._invalidateRecentSupersedingCutoff();
 				this._logService.info(`[AgentService] ${AgentHostShowExternalSessionsConfigKey} changed '${previousMode}' -> '${nextMode}'; queueing session list reconciliation`);
+				if (this._startupSettled.isOpen() && this._hidesAllExternalSessions(previousMode) && !this._hidesAllExternalSessions(nextMode)) {
+					for (const provider of this._providerService.getProviders()) {
+						this._startChatDiscovery(provider, 'external sessions were enabled');
+					}
+				}
 				this._queueSessionListReconciliation(previousMode);
 			}
 			const nextAgentMergeEnabled = this._isAgentMergeEnabled();
@@ -758,6 +782,9 @@ export class AgentService extends Disposable implements IAgentService {
 	 * ambient timer of its own.
 	 */
 	markStartupComplete(): void {
+		if (this._hostStartupComplete) {
+			return;
+		}
 		this._hostStartupComplete = true;
 		this._openStartupSettled();
 	}
@@ -774,7 +801,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * compete with startup — pruning stale external sessions, titling external
 	 * sessions a provider surfaced without a title, and similar.
 	 */
-	private _runWhenStartupSettled(name: string, work: () => Promise<void>): void {
+	private _runWhenStartupSettled(name: string, work: () => void | Promise<void>): void {
 		this._deferredWork = this._deferredWork
 			.then(() => this._startupSettled.wait())
 			.then(() => this._store.isDisposed ? undefined : work())
@@ -1040,6 +1067,7 @@ export class AgentService extends Disposable implements IAgentService {
 				void this._migrateAndRegisterDiscoveredChats(provider, chats).catch(err =>
 					this._logService.warn(`[AgentService] registering discovered chats for provider ${provider.id} failed`, err));
 			}));
+			this._setupChatDiscoveryForProvider(provider);
 			subscriptions.add(provider.onDidChangeChatData(e => this._onChatDataChanged(e)));
 			subscriptions.add(provider.onDidSpawnChat(e => this._onChatSpawned(e)));
 			this._providerSubscriptions.set(provider.id, subscriptions);
@@ -1051,6 +1079,18 @@ export class AgentService extends Disposable implements IAgentService {
 		} catch (error) {
 			subscriptions.dispose();
 			throw error;
+		}
+	}
+
+	private _setupChatDiscoveryForProvider(provider: IAgent): void {
+		if (this._migrateLegacyEnabledSnapshot === true && provider.ensureChatAdopted) {
+			this._startChatDiscovery(provider, 'legacy chat migration is enabled');
+		} else {
+			this._runWhenStartupSettled(`external session discovery for ${provider.id}`, () => {
+				if (!this._hidesAllExternalSessions(this._getExternalSessionsMode())) {
+					this._startChatDiscovery(provider, 'Agent Host startup settled with external sessions enabled');
+				}
+			});
 		}
 	}
 
@@ -1869,6 +1909,7 @@ export class AgentService extends Disposable implements IAgentService {
 		await this._sessionRegistry.markProviderBackfilled(provider.id);
 		this._deferredProviderMigrations.delete(provider.id);
 		this._readableProviderCatalogs.add(provider.id);
+		this._startChatDiscovery(provider, 'legacy migration enumerated the provider catalog');
 		if (registeredExternal) {
 			this._queueSessionListReconciliation();
 		}
@@ -2024,7 +2065,7 @@ export class AgentService extends Disposable implements IAgentService {
 			// Callers own their array; the shared result must not be mutable by one of them.
 			return [...await inFlight.promise];
 		}
-		const promise = this._computeSessions(mode, epoch);
+		const promise = this._computeSessions(mode);
 		const entry = { epoch, promise };
 		this._inFlightListSessions.set(mode, entry);
 		const clear = () => {
@@ -2045,7 +2086,7 @@ export class AgentService extends Disposable implements IAgentService {
 		return [...await promise];
 	}
 
-	private async _computeSessions(mode: AgentHostExternalSessionsMode, epoch = this._registryEpoch): Promise<readonly IAgentSessionMetadata[]> {
+	private async _computeSessions(mode: AgentHostExternalSessionsMode): Promise<readonly IAgentSessionMetadata[]> {
 		this._logService.trace('[AgentService] listSessions computation started');
 		const startedAt = Date.now();
 		// The first list waits for registration-time legacy migration if it is still in flight.
@@ -2270,7 +2311,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const combined = additions.length > 0 ? [...withStatus, ...additions] : withStatus;
 		const now = Date.now();
 		const recentSessionKeys = mode === AgentHostExternalSessionsMode.Recent
-			? this._getRecentSessionKeys(combined, now, this._resolveRecentSupersedingCutoff(allRegistered, epoch))
+			? this._getRecentSessionKeys(combined, now)
 			: undefined;
 		const visible: IAgentSessionMetadata[] = [];
 		// Adoptable-legacy rows are withheld by migrate-legacy, not by the external mode.
@@ -2326,16 +2367,22 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostShowExternalSessionsConfigKey) ?? AgentHostExternalSessionsMode.None;
 	}
 
+	private _startChatDiscovery(provider: IAgent, reason: string): void {
+		void provider.startChatDiscovery?.().catch(error =>
+			this._logService.warn(`[AgentService] Chat discovery for provider ${provider.id} failed after ${reason}`, error));
+	}
+
 	private _isExternalSessionOlderThanMaxAge(modifiedTime: number, now: number): boolean {
 		return modifiedTime < now - EXTERNAL_SESSION_MAX_AGE_MS;
 	}
 
-	private _getRecentSessionKeys(sessions: readonly IAgentSessionMetadata[], now: number, supersededBefore: number | undefined): ReadonlySet<string> {
+	private _getRecentSessionKeys(sessions: readonly IAgentSessionMetadata[], now: number): ReadonlySet<string> {
+		const supersededBefore = this._getRecentLocalSessionUpdateCutoff(now);
 		const recentExternalSessions = sessions
 			.filter(session => readSessionExternal(session._meta)
 				&& !readSessionEhcliAdoptable(session._meta)
 				&& session.modifiedTime >= now - 7 * DAY_MS
-				&& (supersededBefore === undefined || session.modifiedTime >= supersededBefore))
+				&& session.modifiedTime >= supersededBefore)
 			.sort((a, b) => {
 				const timeDifference = b.modifiedTime - a.modifiedTime;
 				if (timeDifference !== 0) {
@@ -2349,47 +2396,60 @@ export class AgentService extends Disposable implements IAgentService {
 		return new Set(recentExternalSessions.map(session => session.session.toString()));
 	}
 
-	/**
-	 * Start time of the {@link RECENT_EXTERNAL_SUPERSEDING_LOCAL_LIMIT}-th most
-	 * recently created local session, or `undefined` while fewer exist. `Recent`
-	 * drops external sessions last updated before it.
-	 */
-	private _recentSupersedingCutoff: number | undefined;
-	private _hasRecentSupersedingCutoff = false;
-
-	/**
-	 * Snapshots the cutoff from the registry, which — unlike the hydrated
-	 * metadata — never drops a local session because its provider is
-	 * unavailable or its metadata read failed. Sending a first message
-	 * materializes a local session, so a per-listing cutoff would rotate an
-	 * external row out of the list mid-use. Committed only while `epoch` still
-	 * holds, so a discarded pass cannot freeze an undercounted value.
-	 */
-	private _resolveRecentSupersedingCutoff(registered: readonly IRegisteredSession[], epoch: number): number | undefined {
-		if (this._hasRecentSupersedingCutoff) {
-			return this._recentSupersedingCutoff;
-		}
-		// Idle provisional sessions are the composer's eagerly-created
-		// placeholder, not sessions the user started.
-		const localStartTimes = registered
-			.filter(entry => !entry.external
-				&& Number.isFinite(entry.startTime)
-				&& !this._stateManager.isIdleProvisionalSession(entry.session.toString()))
-			.map(entry => entry.startTime)
-			.sort((a, b) => b - a);
-		const cutoff = localStartTimes.length >= RECENT_EXTERNAL_SUPERSEDING_LOCAL_LIMIT
-			? localStartTimes[RECENT_EXTERNAL_SUPERSEDING_LOCAL_LIMIT - 1]
-			: undefined;
-		if (epoch === this._registryEpoch) {
-			this._recentSupersedingCutoff = cutoff;
-			this._hasRecentSupersedingCutoff = true;
-		}
-		return cutoff;
+	private _getRecentLocalSessionUpdateCutoff(now: number): number {
+		return this._recentLocalSessionUpdateSnapshot[RECENT_LOCAL_SESSION_UPDATE_LIMIT - 1]?.modifiedTime ?? now - 7 * DAY_MS;
 	}
 
-	private _invalidateRecentSupersedingCutoff(): void {
-		this._hasRecentSupersedingCutoff = false;
-		this._recentSupersedingCutoff = undefined;
+	private _recordRecentLocalSessionUpdate(session: URI, modifiedTime: number): void {
+		if (!Number.isFinite(modifiedTime)) {
+			return;
+		}
+
+		const sessionKey = session.toString();
+		const existing = this._recentLocalSessionUpdates.find(entry => entry.session === sessionKey);
+		if (existing && existing.modifiedTime >= modifiedTime) {
+			return;
+		}
+
+		const next = [
+			...this._recentLocalSessionUpdates.filter(entry => entry.session !== sessionKey),
+			{ session: sessionKey, modifiedTime },
+		]
+			.sort((a, b) => b.modifiedTime - a.modifiedTime || a.session.localeCompare(b.session))
+			.slice(0, RECENT_LOCAL_SESSION_UPDATE_LIMIT);
+		if (next.length === this._recentLocalSessionUpdates.length
+			&& next.every((entry, index) => entry.session === this._recentLocalSessionUpdates[index].session
+				&& entry.modifiedTime === this._recentLocalSessionUpdates[index].modifiedTime)) {
+			return;
+		}
+
+		this._recentLocalSessionUpdates = next;
+		if (!this._storageService.loadError) {
+			this._storageService.set(RECENT_LOCAL_SESSION_UPDATES_STORAGE_KEY, next);
+		}
+	}
+
+	private _readRecentLocalSessionUpdates(): readonly IRecentLocalSessionUpdate[] {
+		if (this._storageService.loadError) {
+			this._logService.warn('[AgentService] Recent local session updates could not be restored because Agent Host storage failed to load.');
+			return [];
+		}
+		const stored = this._storageService.get<unknown>(RECENT_LOCAL_SESSION_UPDATES_STORAGE_KEY);
+		if (stored === undefined) {
+			return [];
+		}
+		if (!Array.isArray(stored)
+			|| stored.length > RECENT_LOCAL_SESSION_UPDATE_LIMIT
+			|| !stored.every(isRecentLocalSessionUpdate)) {
+			this._logService.warn('[AgentService] Ignoring invalid persisted recent local session updates.');
+			return [];
+		}
+		const updates: readonly IRecentLocalSessionUpdate[] = stored;
+		if (new Set(updates.map(entry => entry.session)).size !== updates.length) {
+			this._logService.warn('[AgentService] Ignoring persisted recent local session updates with duplicate sessions.');
+			return [];
+		}
+		return updates.toSorted((a, b) => b.modifiedTime - a.modifiedTime || a.session.localeCompare(b.session));
 	}
 
 	private _shouldIncludeSession(
@@ -2530,7 +2590,7 @@ export class AgentService extends Disposable implements IAgentService {
 			previouslyExposed.add(session);
 		}
 		const listed = previousMode !== undefined
-			? await this._resolveModeChangeVisibility(await this.listSessions(AgentHostExternalSessionsMode.Last30Days), previousMode, previouslyExposed)
+			? this._resolveModeChangeVisibility(await this.listSessions(AgentHostExternalSessionsMode.Last30Days), previousMode, previouslyExposed)
 			: await this.listSessions();
 		const visible = new Set<string>();
 		let published = 0;
@@ -2584,20 +2644,15 @@ export class AgentService extends Disposable implements IAgentService {
 	 * mode and the mode is just a parameter to {@link _shouldIncludeSession}.
 	 * Adds what `previousMode` had exposed into `previouslyExposed`.
 	 */
-	private async _resolveModeChangeVisibility(
+	private _resolveModeChangeVisibility(
 		superset: readonly IAgentSessionMetadata[],
 		previousMode: AgentHostExternalSessionsMode,
 		previouslyExposed: Set<string>,
-	): Promise<IAgentSessionMetadata[]> {
+	): IAgentSessionMetadata[] {
 		const now = Date.now();
 		const mode = this._getExternalSessionsMode();
-		// The pass above ran as `Last30Days`, so it never snapshotted the cutoff.
-		const epoch = this._registryEpoch;
-		const supersededBefore = previousMode === AgentHostExternalSessionsMode.Recent || mode === AgentHostExternalSessionsMode.Recent
-			? this._resolveRecentSupersedingCutoff(await this._listRegisteredSessions(), epoch)
-			: undefined;
 		const recentKeysFor = (candidate: AgentHostExternalSessionsMode) => candidate === AgentHostExternalSessionsMode.Recent
-			? this._getRecentSessionKeys(superset, now, supersededBefore)
+			? this._getRecentSessionKeys(superset, now)
 			: undefined;
 
 		const previousRecentKeys = recentKeysFor(previousMode);
