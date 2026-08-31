@@ -2083,6 +2083,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
+/* Optical alignment to center the '+' glyph visually within its button */
+.interactive-session .chat-input-toolbar .action-item:has(.codicon-add) .codicon-add::before {
+	display: inline-block;
+	transform: translateX(-0.5px) translateY(0.5px);
+}
+
 .monaco-workbench .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label .codicon-chevron-down,
 .monaco-workbench .interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label .codicon-chevron-down,
 .monaco-workbench .interactive-session .chat-secondary-input-toolbar .chat-sessionPicker-item .action-label .codicon-chevron-down {
