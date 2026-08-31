@@ -1477,7 +1477,10 @@ export class Repository implements Disposable {
 
 	private async commitOperationCleanup(message: string | undefined, indexResources: string[], workingGroupResources: string[]) {
 		if (message) {
-			this.inputBox.value = await this.getInputTemplate();
+			const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+			if (!config.get<boolean>('experimental.retainCommitMessageAfterCommit')) {
+				this.inputBox.value = await this.getInputTemplate();
+			}
 		}
 		this.closeDiffEditors(indexResources, workingGroupResources);
 
