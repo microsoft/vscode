@@ -7,7 +7,7 @@ import { session } from 'electron';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { COI, FileAccess, Schemas, CacheControlheaders, DocumentPolicyheaders } from '../../../base/common/network.js';
 import { basename, extname, normalize } from '../../../base/common/path.js';
-import { isLinux } from '../../../base/common/platform.js';
+import { isLinux, isWindows } from '../../../base/common/platform.js';
 import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -18,6 +18,48 @@ import { IIPCObjectUrl, IProtocolMainService } from './protocol.js';
 import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
 
 type ProtocolCallback = { (result: string | Electron.FilePathWithHeaders | { error: number }): void };
+
+/**
+ * On Windows, the default Win32 file APIs enforce a `MAX_PATH` limit of 259
+ * characters. When a resource path exceeds this limit, Electron's
+ * `registerFileProtocol` handler fails to load the file (see
+ * https://github.com/microsoft/vscode/issues/261880 and
+ * https://github.com/electron/electron/issues/49101).
+ *
+ * Prefixing an absolute path with `\\?\` (or `\\?\UNC\` for UNC paths)
+ * opts the Win32 APIs into extended-length path mode which bypasses
+ * `MAX_PATH`.
+ */
+const WINDOWS_LONG_PATH_THRESHOLD = 248; // conservative: Win32 directory limit is 248 while file limit is 259
+const WINDOWS_EXTENDED_PATH_PREFIX = '\\\\?\\';
+const WINDOWS_EXTENDED_UNC_PREFIX = '\\\\?\\UNC\\';
+
+function toWindowsLongPathIfNeeded(path: string): string {
+	if (!isWindows) {
+		return path;
+	}
+
+	if (path.length < WINDOWS_LONG_PATH_THRESHOLD) {
+		return path;
+	}
+
+	// Already using the extended-length prefix
+	if (path.startsWith(WINDOWS_EXTENDED_PATH_PREFIX)) {
+		return path;
+	}
+
+	// UNC path: \\server\share\... -> \\?\UNC\server\share\...
+	if (path.length >= 2 && path.charCodeAt(0) === 92 /* \ */ && path.charCodeAt(1) === 92 /* \ */) {
+		return WINDOWS_EXTENDED_UNC_PREFIX + path.substring(2);
+	}
+
+	// Drive-letter absolute path: C:\... -> \\?\C:\...
+	if (path.length >= 3 && path.charCodeAt(1) === 58 /* : */) {
+		return WINDOWS_EXTENDED_PATH_PREFIX + path;
+	}
+
+	return path;
+}
 
 export class ProtocolMainService extends Disposable implements IProtocolMainService {
 
@@ -123,14 +165,20 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 			};
 		}
 
+		// On Windows, paths longer than MAX_PATH (259) cause Electron's file
+		// protocol handler to fail. Apply the `\\?\` extended-length prefix so
+		// Win32 APIs bypass the limit (e.g. markdown image hover previews for
+		// deeply nested files). See https://github.com/microsoft/vscode/issues/261880.
+		const resolvedPath = toWindowsLongPathIfNeeded(path);
+
 		// first check by validRoots
 		if (this.validRoots.findSubstr(path)) {
-			return callback({ path, headers });
+			return callback({ path: resolvedPath, headers });
 		}
 
 		// then check by validExtensions
 		if (this.validExtensions.has(extname(path).toLowerCase())) {
-			return callback({ path, headers });
+			return callback({ path: resolvedPath, headers });
 		}
 
 		// finally block to load the resource
