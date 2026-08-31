@@ -149,29 +149,32 @@ suite('disconnectSSHEntry', () => {
 		};
 	}
 
-	test('removes the entry before tearing down the SSH tunnel', async () => {
+	test('drops the persisted entry before tearing down the SSH tunnel', async () => {
 		const calls: string[] = [];
 		const connection = makeSSHConfigConnection();
-		const removed = new DeferredPromise<void>();
+		const disconnected = new DeferredPromise<void>();
 		const remoteAgentHostService = {
 			removeRemoteAgentHost: async (address: string) => {
 				calls.push(`remove:${address}`);
-				await removed.p;
 			},
 		};
 		const sshService = {
 			disconnect: async (key: string) => {
 				calls.push(`ssh:${key}`);
+				await disconnected.p;
 			},
 		};
 
+		// `sshService.disconnect` is what removes the persisted entry. It has to
+		// land first, or the teardown's own reconcile still sees the host as
+		// desired and re-dials it.
 		const pending = disconnectSSHEntry(connection, remoteAgentHostService, sshService);
 		await timeout(0);
-		assert.deepStrictEqual(calls, ['remove:localhost:4321']);
+		assert.deepStrictEqual(calls, ['ssh:ssh:myserver']);
 
-		removed.complete();
+		disconnected.complete();
 		await pending;
-		assert.deepStrictEqual(calls, ['remove:localhost:4321', 'ssh:ssh:myserver']);
+		assert.deepStrictEqual(calls, ['ssh:ssh:myserver', 'remove:localhost:4321']);
 	});
 
 	test('uses the SSH config host or host connection key on disconnect', async () => {

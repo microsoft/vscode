@@ -33,14 +33,24 @@ export function sshConnectionKey(connection: IRemoteAgentHostSSHConnection): str
 		: `${connection.user ?? connection.hostName}@${connection.hostName}:${connection.port ?? 22}`;
 }
 
-/** Removes a configured SSH entry before disconnecting its SSH transport. */
+/**
+ * Disconnect an SSH-backed remote agent host at the user's request.
+ *
+ * Order matters. `sshService.disconnect` is what drops the persisted SSH
+ * entry, and that entry is what makes the address "desired" during
+ * reconciliation. Tearing the connection down first fires
+ * `onDidChangeConnections` while the entry is still stored, so reconciliation
+ * sees a desired-but-disconnected host and immediately re-dials it — the host
+ * reappears moments after the user removed it. Dropping the entry first makes
+ * the address undesired, so the teardown's own reconcile is a no-op.
+ */
 export async function disconnectSSHEntry(
 	connection: IRemoteAgentHostSSHConnection,
 	remoteAgentHostService: Pick<IRemoteAgentHostService, 'removeRemoteAgentHost'>,
 	sshService: Pick<ISSHRemoteAgentHostService, 'disconnect'>,
 ): Promise<void> {
-	await remoteAgentHostService.removeRemoteAgentHost(connection.address);
 	await sshService.disconnect(sshConnectionKey(connection));
+	await remoteAgentHostService.removeRemoteAgentHost(connection.address);
 }
 
 export class SSHAgentHostContribution extends ManagedReconnectAgentHostContribution implements IWorkbenchContribution {

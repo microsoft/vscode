@@ -110,8 +110,11 @@ export class WSLAgentHostContribution extends ManagedReconnectAgentHostContribut
 
 	private async _disconnectWSLOnDemand(distro: string, address: string): Promise<void> {
 		this._reconnectStates.deleteAndDispose(distro);
-		await this._remoteAgentHostService.removeRemoteAgentHost(address);
+		// Drop the cached distro before tearing the connection down: the cached
+		// entry is what makes this address desired, so removing the connection
+		// first would let reconciliation re-dial it right back.
 		await this._wslService.disconnect(distro);
+		await this._remoteAgentHostService.removeRemoteAgentHost(address);
 		this._reconcile();
 	}
 }
