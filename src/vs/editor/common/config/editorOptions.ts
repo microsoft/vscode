@@ -252,7 +252,7 @@ export interface IEditorOptions {
 	 */
 	mouseStyle?: 'text' | 'default' | 'copy';
 	/**
-	 * Controls whether the mouse cursor is hidden while typing.
+	 * Controls whether the mouse pointer is hidden after keyboard text input.
 	 * Defaults to false.
 	 */
 	hideMouseCursorOnTyping?: boolean;
@@ -6438,7 +6438,7 @@ export const EditorOptions = {
 	)),
 	hideMouseCursorOnTyping: register(new EditorBooleanOption(
 		EditorOption.hideMouseCursorOnTyping, 'hideMouseCursorOnTyping', false,
-		{ description: nls.localize('hideMouseCursorOnTyping', "Controls whether the mouse cursor is hidden while typing. The mouse cursor is revealed when it is moved.") }
+		{ description: nls.localize('hideMouseCursorOnTyping', "Controls whether the mouse pointer is hidden after keyboard text input in text editors. The pointer reappears during IME composition, on pointer input, or when the editor loses focus. This setting does not affect the integrated terminal or other workbench UI.") }
 	)),
 	mouseWheelScrollSensitivity: register(new EditorFloatOption(
 		EditorOption.mouseWheelScrollSensitivity, 'mouseWheelScrollSensitivity',

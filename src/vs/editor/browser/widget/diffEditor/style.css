@@ -50,6 +50,16 @@
 	cursor: ns-resize !important;
 }
 
+/*
+ * The unchanged region controls above declare `cursor` with `!important` even while idle, which
+ * outranks the generic rule in `editor.css` that hides the mouse pointer while typing. These
+ * selectors match that specificity and come later in the same file, so they win the cascade.
+ */
+.monaco-editor-hide-mouse-cursor .monaco-editor .diff-hidden-lines :is(.top, .bottom):is(.canMoveTop, .canMoveBottom),
+.monaco-editor-hide-mouse-cursor .monaco-editor.draggingUnchangedRegion:is(.canMoveTop, .canMoveBottom) * {
+	cursor: none !important;
+}
+
 .monaco-editor .diff-hidden-lines .top {
 	transform: translate(0px, 4px);
 }

@@ -3407,7 +3407,7 @@ declare namespace monaco.editor {
 		 */
 		mouseStyle?: 'text' | 'default' | 'copy';
 		/**
-		 * Controls whether the mouse cursor is hidden while typing.
+		 * Controls whether the mouse pointer is hidden after keyboard text input.
 		 * Defaults to false.
 		 */
 		hideMouseCursorOnTyping?: boolean;
