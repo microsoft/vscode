@@ -16,7 +16,7 @@ import { IRange, Range } from '../../../../../../../editor/common/core/range.js'
 import { IDecorationOptions } from '../../../../../../../editor/common/editorCommon.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
-import { getInputPlaceholderColor, getRangeForPlaceholder } from './chatInputPlaceholderDecoration.js';
+import { getInputPlaceholderColor, getRangeForPlaceholder, resolveInputPlaceholder } from './chatInputPlaceholderDecoration.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../../../common/participants/chatAgents.js';
 import { INLINE_ATTACHMENT_ANCHOR } from '../../../../common/attachments/chatInlineAttachments.js';
 import { localize } from '../../../../../../../nls.js';
@@ -235,7 +235,7 @@ class InputEditorDecorations extends Disposable {
 
 			const mode = this.widget.input.currentModeObs.get();
 			const placeholder = mode.argumentHint?.get() ?? mode.description.get() ?? '';
-			const displayPlaceholder = getSandboxPlaceholder(viewModel.inputPlaceholder || placeholder, this.widget.input.sandboxToggleChecked.get());
+			const displayPlaceholder = getSandboxPlaceholder(resolveInputPlaceholder(viewModel.inputPlaceholder, placeholder), this.widget.input.sandboxToggleChecked.get());
 
 			const decoration: IDecorationOptions[] = [
 				{

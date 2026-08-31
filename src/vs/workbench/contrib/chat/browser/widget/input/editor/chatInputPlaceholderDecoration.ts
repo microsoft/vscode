@@ -8,6 +8,13 @@ import { inputPlaceholderForeground } from '../../../../../../../platform/theme/
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
 
 /**
+ * Preserves an explicitly empty placeholder while falling back only when no override exists.
+ */
+export function resolveInputPlaceholder(placeholder: string | undefined, fallback: string): string {
+	return placeholder ?? fallback;
+}
+
+/**
  * Computes the editor range used to render inline placeholder (ghost text)
  * after a parsed part, spanning from just after the part to the end of the line.
  */

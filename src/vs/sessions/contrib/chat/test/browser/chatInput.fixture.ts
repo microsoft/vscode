@@ -27,6 +27,9 @@ import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbenc
 import '../../../../../workbench/contrib/sessions/browser/chat/media/chatView.css';
 import '../../../../../workbench/contrib/sessions/browser/chat/media/chatInput.css';
 
+const nextStepSuggestion = 'Run the targeted chat input tests';
+const longNextStepSuggestion = 'Review the implementation for accessibility, run the targeted tests, and summarize any remaining risks before opening a pull request';
+
 /**
  * Wraps the fixture context in `.agent-sessions-workbench > .part.sessionspart > .sessions-chat`, the root a session chat styles
  * itself from, returning that root as the input container by default.
@@ -274,6 +277,54 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/input/' }, {
 			voiceControl: 'voiceListening',
 			width: 600,
 			resizeWidths: [...responsiveResizeCycles, 260],
+		})
+	}),
+	NextStepSuggestionAtRest: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The empty Agents chat input quietly shows “Run the targeted chat input tests” as inline ghost text. The input does not have its focused border treatment.'],
+		render: context => renderChatInput(sessionsWindowContext(context), {
+			isSessionsWindow: true,
+			nextStepSuggestion,
+		})
+	}),
+	NextStepSuggestionFocused: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['The focused Agents chat input shows only “Run the targeted chat input tests” as inline ghost text with a visible caret and focused border. Neither the default placeholder nor the inline suggestion toolbar obscures the text.'],
+		render: context => renderChatInput(sessionsWindowContext(context), {
+			isSessionsWindow: true,
+			nextStepSuggestion,
+			focusInput: true,
+		})
+	}),
+	NextStepSuggestionHiddenAfterTyping: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The focused Agents chat input contains the user-authored text “Could you”. No next-step ghost text competes with the user’s typing.'],
+		render: context => renderChatInput(sessionsWindowContext(context), {
+			isSessionsWindow: true,
+			nextStepSuggestion,
+			focusInput: true,
+			value: 'Could you',
+		})
+	}),
+	NextStepSuggestionLong: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['A long next-step suggestion wraps inside the narrow Agents chat input without clipping, overlapping the toolbars, or escaping the input surface.'],
+		render: context => renderChatInput(sessionsWindowContext(context), {
+			isSessionsWindow: true,
+			nextStepSuggestion: longNextStepSuggestion,
+			focusInput: true,
+			width: 420,
+		})
+	}),
+	NextStepSuggestionAccepted: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The next-step suggestion is now ordinary editable input text in the focused composer.'],
+		render: context => renderChatInput(sessionsWindowContext(context), {
+			isSessionsWindow: true,
+			nextStepSuggestion,
+			showAcceptedNextStepSuggestion: true,
 		})
 	}),
 });
