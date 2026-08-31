@@ -668,6 +668,35 @@ suite('TerminalCompletionService', () => {
 			], { replacementRange: [3, 3] });
 		});
 
+		test('cd folder1/ should suggest absolute paths under matching $CDPATH entry (#241858)', async () => {
+			// Simulates zsh tab-completing a CDPATH entry name: the user typed `cd vsce`,
+			// pressed Tab, and zsh replaced it with `vscode-vsce/`. The folder doesn't exist
+			// in cwd but does exist under $CDPATH, so suggestions should use absolute paths.
+			configurationService.setUserConfiguration('terminal.integrated.suggest.cdPath', 'absolute');
+			validResources = [
+				URI.parse('file:///test'),
+				URI.parse('file:///cdpath_value'),
+				URI.parse('file:///cdpath_value/folder1')
+			];
+			childResources = [
+				{ resource: URI.parse('file:///cdpath_value/folder1/'), isDirectory: true },
+				{ resource: URI.parse('file:///cdpath_value/folder1/inner1/'), isDirectory: true },
+				{ resource: URI.parse('file:///cdpath_value/folder1/inner2/'), isDirectory: true },
+			];
+			const resourceOptions: TerminalCompletionResourceOptions = {
+				cwd: URI.parse('file:///test'),
+				showDirectories: true,
+				showFiles: true,
+				pathSeparator
+			};
+			const result = await terminalCompletionService.resolveResources(resourceOptions, 'cd folder1/', 11, provider, capabilities);
+
+			assertPartialCompletionsExist(result, [
+				{ label: '/cdpath_value/folder1/inner1/', detail: '/cdpath_value/folder1/inner1/' },
+				{ label: '/cdpath_value/folder1/inner2/', detail: '/cdpath_value/folder1/inner2/' },
+			], { replacementRange: [3, 11] });
+		});
+
 		test('cd | should support pulling from multiple paths in $CDPATH', async () => {
 			configurationService.setUserConfiguration('terminal.integrated.suggest.cdPath', 'relative');
 			const pathPrefix = isWindows ? 'c:\\' : '/';
