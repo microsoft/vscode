@@ -83,6 +83,32 @@ function elidePaths(text: string): string {
 }
 
 /**
+ * A `<tools_changed_notice>...</tools_changed_notice>` block, together with the
+ * blank-line separator that trails it before the user's actual message.
+ *
+ * The Copilot runtime (`@github/copilot`) prepends this block to the final user
+ * message whenever the available tools or the model changed since the previous
+ * turn — for example after a plan is approved and `exit_plan_mode` is retired,
+ * or after an inter-turn model switch. Its presence, wording, and the model
+ * names it embeds are all runtime-authored and catalog-dependent, not host
+ * structure, and whether it appears at all depends on runtime turn state the
+ * host does not compose. Eliding it symmetrically keeps captures matching
+ * whether or not the runtime chose to emit the notice on a given turn.
+ */
+const TOOLS_CHANGED_NOTICE_RE = /<tools_changed_notice>[\s\S]*?<\/tools_changed_notice>\n*/g;
+
+/**
+ * Removes the runtime-authored tools-changed notice from a message.
+ *
+ * Runs before {@link elidePaths}: path elision rewrites the leading `/` of the
+ * closing `</tools_changed_notice>` tag into the path placeholder, which would
+ * otherwise leave the tag unmatchable here.
+ */
+function elideToolsChangedNotice(text: string): string {
+	return text.replace(TOOLS_CHANGED_NOTICE_RE, '');
+}
+
+/**
  * Reasoning blocks cannot survive the capture round-trip: aggregating a
  * recorded reply drops them, so the assistant turn replayed back to the agent
  * never carries one even though the live recording did. They are also model
@@ -105,7 +131,7 @@ export interface IProjectedModelRequest {
 }
 
 function elideRuntimeIds(text: string): string {
-	return elidePaths(text.replace(RAW_UUID_RE, RUNTIME_ID_PLACEHOLDER).replace(ORDINAL_UUID_RE, RUNTIME_ID_PLACEHOLDER));
+	return elidePaths(elideToolsChangedNotice(text.replace(RAW_UUID_RE, RUNTIME_ID_PLACEHOLDER).replace(ORDINAL_UUID_RE, RUNTIME_ID_PLACEHOLDER)));
 }
 
 function projectValue(value: unknown): unknown {

@@ -2579,9 +2579,20 @@ export class CopilotAgentSession extends Disposable {
 		try {
 			await this._prepareSdkTurn(mode);
 			const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.resourceUri.toString());
-			await this._otelService.withTraceContext(traceContext, () => this._wrapper.session.rpc.sendMessages({ messages: [] }));
+			// Resume by enqueueing a dedicated resume-pending wake item rather than an
+			// empty `sendMessages` batch. The runtime's batch-send path early-returns on
+			// `!reserved_processing` and strands the continuation when the session holds
+			// only a processing reservation after a failed turn, so the resumed turn never
+			// starts and the awaited `ChatTurnComplete` never arrives. `enqueueResumePending`
+			// queues a `ResumePending` item that always drives one continuation turn over
+			// the existing history.
+			// NOTE: `enqueueResumePending` ships in the SDK's runtime (`rpc.js`) and has a
+			// generated result type, but the preview SDK's generated `rpc` `.d.ts` omits it
+			// from the `queue` surface, so we reach it through a narrowly-typed accessor.
+			const queueRpc = this._wrapper.session.rpc.queue as typeof this._wrapper.session.rpc.queue & { enqueueResumePending(): Promise<{ queued: boolean }> };
+			await this._otelService.withTraceContext(traceContext, () => queueRpc.enqueueResumePending());
 			turn?.markProviderCallResolved();
-			this._logService.info(`[Copilot:${this.sessionId}] zero-message continuation returned`);
+			this._logService.info(`[Copilot:${this.sessionId}] resume-pending continuation enqueued`);
 		} catch (error) {
 			if (this._resumingTurnAwaitingProviderStart === turn) {
 				this._resumingTurnAwaitingProviderStart = undefined;
