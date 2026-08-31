@@ -1765,7 +1765,13 @@ export class ListView<T> implements IListView<T> {
 		const diffs = new Array<number>(range.end - range.start).fill(0);
 		const measurements: IDynamicHeightMeasurement<T>[] = [];
 
-		for (let index = range.start; index < range.end; index++) {
+		// The model may have shrunk (e.g. a reentrant splice during a synchronous
+		// rerender) so that `range.end` now exceeds the current item count. Clamp
+		// the probe to the items that still exist; the caller's `modelDidChange`
+		// check (`this.items.length < range.end`) then detects the shrink and
+		// restarts the measurement against the updated range.
+		const end = Math.min(range.end, this.items.length);
+		for (let index = range.start; index < end; index++) {
 			const item = this.items[index];
 			const delegateHeightDiff = this.probeDynamicHeightFromDelegate(item);
 			if (delegateHeightDiff !== undefined) {
