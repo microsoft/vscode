@@ -83,6 +83,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	private readonly _archiveKey: string;
 	private readonly _archivedRuns;
 	private _migrationPromise: Promise<void> | undefined;
+	private _lastPreflightDeferralKey: string | undefined;
 
 	readonly automations: IObservable<readonly IAutomationDescriptor[]>;
 	readonly runs: IObservable<readonly IAutomationRun[]>;
@@ -424,9 +425,21 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			? discovered.flatMap(automation => source.runsFor(automation.id).get().filter(isNonTerminalRun))
 			: [];
 		if (activeRuns.length > 0) {
+			const deferralKey = activeRuns.map(run => run.id).sort().join(',');
+			if (this._lastPreflightDeferralKey !== deferralKey) {
+				this._lastPreflightDeferralKey = deferralKey;
+				publishAutomationMigration(this._telemetryService, {
+					outcome: 'deferred',
+					discoveredCount: discovered.length,
+					migratedCount: 0,
+					failedCount: 0,
+					durationMs: Date.now() - startedAt,
+				});
+			}
 			this._logService.info(`[AgentHostAutomationStore] Automation migration deferred: activeRuns=${activeRuns.length}.`);
 			throw new AutomationActiveRunError(activeRuns[0].automationId, activeRuns[0].id);
 		}
+		this._lastPreflightDeferralKey = undefined;
 		this._logService.info(`[AgentHostAutomationStore] Automation migration started: discovered=${discovered.length}.`);
 		publishAutomationMigration(this._telemetryService, {
 			outcome: 'started',

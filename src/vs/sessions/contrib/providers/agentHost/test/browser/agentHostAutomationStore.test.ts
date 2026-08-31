@@ -816,15 +816,21 @@ suite('AgentHostAutomationStore', () => {
 			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
 		});
 		const activeRun = await legacy.recordRunStart(automation.id, 'manual', 0);
-		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, legacy, undefined, new NullLogService(), storage, NullTelemetryService, automationStorage));
+		const telemetryService = new RecordingTelemetryService();
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, legacy, undefined, new NullLogService(), storage, telemetryService, automationStorage));
 
+		await assert.rejects(store.completeMigration(), /has active run/);
 		await assert.rejects(store.completeMigration(), /has active run/);
 		assert.deepStrictEqual({
 			activeRunId: legacy.getActiveRunFor(automation.id)?.id,
 			hostCreateRequests: connection.dispatched.filter(entry => entry.action.type === ActionType.AutomationCreateRequested).length,
+			migrationOutcomes: telemetryService.events
+				.filter(event => event.name === 'automation.migration')
+				.map(event => event.data['outcome']),
 		}, {
 			activeRunId: activeRun.run.id,
 			hostCreateRequests: 0,
+			migrationOutcomes: ['deferred'],
 		});
 
 		await legacy.updateRun(activeRun.run.id, {
@@ -840,6 +846,9 @@ suite('AgentHostAutomationStore', () => {
 				status: run.status,
 				errorMessage: run.errorMessage,
 			})),
+			migrationOutcomes: telemetryService.events
+				.filter(event => event.name === 'automation.migration')
+				.map(event => event.data['outcome']),
 		}, {
 			legacyAutomations: [],
 			runs: [{
@@ -847,6 +856,7 @@ suite('AgentHostAutomationStore', () => {
 				status: 'completed',
 				errorMessage: undefined,
 			}],
+			migrationOutcomes: ['deferred', 'started', 'completed'],
 		});
 	});
 
