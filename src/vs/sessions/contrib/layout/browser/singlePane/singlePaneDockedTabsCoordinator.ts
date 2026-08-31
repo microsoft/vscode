@@ -310,8 +310,18 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 
 	// --- Reconcile --------------------------------------------------------
 
+	override dispose(): void {
+		// Cancel any pending/in-flight reconciles queued on the sequencer: bumping the
+		// generation makes queued reconciles bail at their entry (and in-flight ones at their
+		// next generation checkpoint) so none open editors — which would instantiate an editor
+		// pane through the now-disposed instantiation service after teardown.
+		this._generation++;
+		this._pending = undefined;
+		super.dispose();
+	}
+
 	private async _reconcile(generation: number): Promise<void> {
-		if (generation !== this._generation || !this._pending) {
+		if (this._store.isDisposed || generation !== this._generation || !this._pending) {
 			return;
 		}
 
@@ -343,6 +353,9 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 		// group is never mistaken for the user closing all tabs (which would close the side pane).
 		const suppression = this._layoutService.suppressEditorPartAutoVisibility();
 		try {
+			if (this._store.isDisposed) {
+				return;
+			}
 			// [1] Replace an outgoing session's Changes tab in place when the incoming
 			// session also wants Changes; close only additional stale tabs.
 			await this._reconcileForeignChangesEditors(group, changesResource);
