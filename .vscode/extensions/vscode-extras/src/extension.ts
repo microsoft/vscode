@@ -5,10 +5,12 @@
 
 import * as vscode from 'vscode';
 import { NpmUpToDateFeature } from './npmUpToDateFeature';
+import { TodoFeature } from './todoFeature'; // Yeni eklenen import
 
 export class Extension extends vscode.Disposable {
 	private readonly _output: vscode.LogOutputChannel;
 	private _npmFeature: NpmUpToDateFeature | undefined;
+	private _todoFeature: TodoFeature | undefined; // Yeni özellik alanı
 
 	constructor(_context: vscode.ExtensionContext) {
 		const disposables: vscode.Disposable[] = [];
@@ -17,24 +19,34 @@ export class Extension extends vscode.Disposable {
 		this._output = vscode.window.createOutputChannel('VS Code Extras', { log: true });
 		disposables.push(this._output);
 
-		this._updateNpmFeature();
+		this._updateFeatures();  
 
 		disposables.push(
 			vscode.workspace.onDidChangeConfiguration(e => {
-				if (e.affectsConfiguration('vscode-extras.npmUpToDateFeature.enabled')) {
-					this._updateNpmFeature();
+				if (e.affectsConfiguration('vscode-extras')) {
+					this._updateFeatures();
 				}
 			})
 		);
 	}
 
-	private _updateNpmFeature(): void {
-		const enabled = vscode.workspace.getConfiguration('vscode-extras').get<boolean>('npmUpToDateFeature.enabled', true);
-		if (enabled && !this._npmFeature) {
+	private _updateFeatures(): void {
+ 
+		const npmEnabled = vscode.workspace.getConfiguration('vscode-extras').get<boolean>('npmUpToDateFeature.enabled', true);
+		if (npmEnabled && !this._npmFeature) {
 			this._npmFeature = new NpmUpToDateFeature(this._output);
-		} else if (!enabled && this._npmFeature) {
+		} else if (!npmEnabled && this._npmFeature) {
 			this._npmFeature.dispose();
 			this._npmFeature = undefined;
+		}
+
+ 
+		const todoEnabled = vscode.workspace.getConfiguration('vscode-extras').get<boolean>('todoFeature.enabled', true);
+		if (todoEnabled && !this._todoFeature) {
+			this._todoFeature = new TodoFeature(this._output);
+		} else if (!todoEnabled && this._todoFeature) {
+			this._todoFeature.dispose();
+			this._todoFeature = undefined;
 		}
 	}
 }
