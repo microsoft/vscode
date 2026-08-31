@@ -1236,6 +1236,73 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 		assert.strictEqual(installed[0].plugin.marketplaceReference.canonicalId, awesomeCopilot.canonicalId);
 	});
 
+	test('hydrates a single-plugin GitHub repo installed from source after restart', async () => {
+		// Simulates: user runs "Install from Source" on a repository that
+		// contains a single plugin manifest and no marketplace.json (e.g.
+		// microsoft/vscode-corpus). There is no marketplace to look the
+		// plugin up in, so the descriptor must be recovered from the manifest
+		// in the recorded install directory.
+		const storageService = store.add(new InMemoryStorageService());
+		const fileService = new TestFileService();
+
+		const corpus = parseMarketplaceReference('microsoft/vscode-corpus')!;
+		const pluginUri = URI.joinPath(CACHE_ROOT, 'github.com', 'microsoft', 'vscode-corpus');
+		fileService.setFile(URI.joinPath(pluginUri, '.plugin', 'plugin.json'), JSON.stringify({
+			$schema: AGENT_PLUGIN_SCHEMA,
+			name: 'vscode-corpus',
+			version: '1.0.0',
+		}));
+
+		const installedJson = URI.joinPath(CACHE_ROOT, 'installed.json');
+		fileService.setFile(installedJson, JSON.stringify({
+			version: 1,
+			installed: [{
+				pluginUri: pluginUri.toString(),
+				marketplace: corpus.rawValue,
+				name: 'vscode-corpus',
+			}],
+		}));
+
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+			[ChatConfiguration.PluginsEnabled]: true,
+		}));
+		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as Partial<IEnvironmentService> as IEnvironmentService);
+		instantiationService.stub(IFileService, fileService as unknown as IFileService);
+		instantiationService.stub(IAgentPluginRepositoryService, {
+			...createPluginRepositoryStub(),
+			ensureRepository: async () => pluginUri,
+		} as unknown as IAgentPluginRepositoryService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IRequestService, {
+			request: async () => ({ res: { headers: {}, statusCode: 404 }, stream: bufferToStream(VSBuffer.fromString('')) }),
+		} as Partial<IRequestService> as IRequestService);
+		instantiationService.stub(IStorageService, storageService);
+		instantiationService.stub(IWorkspacePluginSettingsService, {
+			extraMarketplaces: observableValue('test.extraMarketplaces', []),
+			enabledPlugins: observableValue('test.enabledPlugins', new Map()),
+		} as Partial<IWorkspacePluginSettingsService> as IWorkspacePluginSettingsService);
+		instantiationService.stub(IWorkspaceTrustManagementService, {
+			isWorkspaceTrusted: () => true,
+			onDidChangeTrust: Event.None,
+		} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService);
+		instantiationService.stub(IExtensionsWorkbenchService, {
+			getAutoUpdateValue: () => 'on',
+		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
+		stubMeteredConnectionService(instantiationService);
+
+		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
+		for (let i = 0; i < 50; i++) {
+			if (service.installedPlugins.get().length === 1) {
+				break;
+			}
+			await timeout(10);
+		}
+
+		assert.strictEqual(service.installedPlugins.get().length, 1, 'single-plugin repo should survive a restart');
+		assert.strictEqual(service.installedPlugins.get()[0].plugin.name, 'vscode-corpus');
+	});
+
 	test('persists plugin name when a plugin is added so it survives a restart', async () => {
 		// First service writes installed.json, second service (sharing the
 		// same file system + storage) reads it back and must reconstruct

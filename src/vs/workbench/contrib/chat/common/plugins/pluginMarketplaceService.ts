@@ -720,7 +720,10 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	 * Hydrates installed entries from marketplace metadata. Entries written
 	 * by current builds include the marketplace plugin name, which is enough
 	 * to re-read the full plugin descriptor from the marketplace source. Old
-	 * entries without a name fall back to matching by install URI.
+	 * entries without a name fall back to matching by install URI. Entries
+	 * that came from a single-plugin repository have no marketplace to look
+	 * up at all and are recovered from the manifest in their install
+	 * directory.
 	 *
 	 * After hydration completes the installed-plugins store is "touched" so
 	 * that the derived {@link installedPlugins} observable re-evaluates with
@@ -743,7 +746,12 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 
 			try {
 				const plugins = await this._readPluginsForInstalledEntry(reference, CancellationToken.None);
-				const match = plugins.find(p => entry.name ? p.name === entry.name : isEqual(this._pluginRepositoryService.getPluginInstallUri(p), entry.pluginUri));
+				const match = plugins.find(p => entry.name ? p.name === entry.name : isEqual(this._pluginRepositoryService.getPluginInstallUri(p), entry.pluginUri))
+					// The entry may have come from a single-plugin repo installed via
+					// `installPluginFromSource`. Such repos have no marketplace.json to
+					// resolve the plugin from, so read the manifest that lives in the
+					// recorded install directory instead.
+					?? await this.readSinglePluginManifest(entry.pluginUri, reference);
 				if (match) {
 					this._pluginMetadata.set(key, match);
 					hydrated++;
@@ -766,18 +774,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			return this._fetchFromGitHubRepo(reference, reference.githubRepo, token);
 		}
 
-		const repoDir = this._pluginRepositoryService.getRepositoryUri(reference);
-		let plugins = await this._readPluginsFromDirectory(repoDir, reference, token);
-		if (plugins.length === 0) {
-			// The entry may have come from a single-plugin repo installed
-			// via `installPluginFromSource` (no marketplace.json). Try the
-			// plugin manifest at the repo root.
-			const single = await this.readSinglePluginManifest(repoDir, reference);
-			if (single) {
-				plugins = [single];
-			}
-		}
-		return plugins;
+		return this._readPluginsFromDirectory(this._pluginRepositoryService.getRepositoryUri(reference), reference, token);
 	}
 
 	/**
