@@ -350,14 +350,11 @@ registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 
 		let provider;
 		if (args?.formatter !== undefined) {
-			const matchedProviders = providers.filter(provider => provider.extensionId?.value === args.formatter);
-
-			if (matchedProviders.length === 0) {
-				return;
-			} else if (matchedProviders.length > 1) {
+			provider = providers.find(provider => ExtensionIdentifier.equals(provider.extensionId, args.formatter));
+			if (!provider) {
 				return;
 			}
-			provider = matchedProviders[0];
+		}
 		} else {
 			const pick = await instaService.invokeFunction(showFormatterPick, model, providers);
 			if (typeof pick !== 'number') {
