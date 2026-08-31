@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout, timeout } from '../../../../base/common/async.js';
+import { disposableTimeout, raceCancellation, timeout } from '../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -22,7 +22,7 @@ import { ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/ch
 import { ResponseModelState } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
-import { cleanNextUserMessageSuggestion, createNextUserMessagePrompt } from '../common/nextUserMessageSuggestion.js';
+import { cleanNextUserMessageSuggestion, createNextUserMessageContext, createNextUserMessagePrompt } from '../common/nextUserMessageSuggestion.js';
 
 const MODEL_TIMEOUT_MS = 5000;
 const FOLLOWUP_SETTLE_MS = 400;
@@ -50,7 +50,8 @@ export class NextUserMessageSuggestionController extends Disposable {
 	} | undefined;
 	private _active = true;
 	private _visible = true;
-	private readonly _completedResponseIds = new Set<string>();
+	private _completedResponseId: string | undefined;
+	private _inlineSuggestToolbar: 'always' | 'onHover' | 'never' | undefined;
 
 	constructor(
 		private readonly _widget: ChatWidget,
@@ -64,7 +65,6 @@ export class NextUserMessageSuggestionController extends Disposable {
 
 		const inputUri = this._widget.inputPart.inputUri;
 		const inputEditor = this._widget.inputPart.inputEditor;
-		inputEditor.updateOptions({ inlineSuggest: { showToolbar: 'never' } });
 		const provider: InlineCompletionsProvider = {
 			onDidChangeInlineCompletions: this._onDidChangeInlineCompletions.event,
 			provideInlineCompletions: (model, position) => {
@@ -126,7 +126,7 @@ export class NextUserMessageSuggestionController extends Disposable {
 
 	private _bindModel(): void {
 		this._clearSuggestion();
-		this._completedResponseIds.clear();
+		this._completedResponseId = undefined;
 		const store = new DisposableStore();
 		this._responseDisposables.value = store;
 		const model = this._widget.viewModel?.model;
@@ -149,9 +149,9 @@ export class NextUserMessageSuggestionController extends Disposable {
 			}
 			store.add(response.onDidChange(event => {
 				if (event.reason === 'completedRequest') {
-					this._completedResponseIds.add(response.id);
+					this._completedResponseId = response.id;
 					this._scheduleSuggestion(model, request, response);
-				} else if (response.state !== ResponseModelState.Complete || response.followups?.length) {
+				} else {
 					this._clearSuggestion();
 				}
 			}));
@@ -186,15 +186,23 @@ export class NextUserMessageSuggestionController extends Disposable {
 				return;
 			}
 
-			const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-utility-small' });
-			if (!models.length || token.isCancellationRequested) {
+			const models = await raceCancellation(
+				this._languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-utility-small' }),
+				token,
+			);
+			if (!models?.length || token.isCancellationRequested) {
 				return;
 			}
 
+			const context = createNextUserMessageContext(request.message.text, response.response.getFinalResponse());
 			const modelResponse = await this._languageModelsService.sendChatRequest(
 				models[0],
 				undefined,
-				[{ role: ChatMessageRole.User, content: [{ type: 'text', value: createNextUserMessagePrompt(request.message.text, response.response.getFinalResponse()) }] }],
+				[
+					{ role: ChatMessageRole.System, content: [{ type: 'text', value: createNextUserMessagePrompt() }] },
+					{ role: ChatMessageRole.User, content: [{ type: 'text', value: context.latestRequest }] },
+					{ role: ChatMessageRole.Assistant, content: [{ type: 'text', value: context.finalResponse }] },
+				],
 				{},
 				token
 			);
@@ -285,6 +293,7 @@ export class NextUserMessageSuggestionController extends Disposable {
 			return;
 		}
 
+		this._suppressInlineSuggestToolbar();
 		const hasTextFocus = this._widget.inputPart.inputEditor.hasTextFocus();
 		if (!this._setOwnedPlaceholder(hasTextFocus ? '' : suggestion.text)) {
 			this._clearSuggestion();
@@ -364,14 +373,32 @@ export class NextUserMessageSuggestionController extends Disposable {
 		this._suggestion = undefined;
 		this._restorePlaceholder();
 		this._placeholderBaseline = undefined;
+		this._restoreInlineSuggestToolbar();
 		this._onDidChangeInlineCompletions.fire();
+	}
+
+	private _suppressInlineSuggestToolbar(): void {
+		if (this._inlineSuggestToolbar !== undefined) {
+			return;
+		}
+		const inputEditor = this._widget.inputPart.inputEditor;
+		this._inlineSuggestToolbar = inputEditor.getOption(EditorOption.inlineSuggest).showToolbar;
+		inputEditor.updateOptions({ inlineSuggest: { showToolbar: 'never' } });
+	}
+
+	private _restoreInlineSuggestToolbar(): void {
+		const showToolbar = this._inlineSuggestToolbar;
+		this._inlineSuggestToolbar = undefined;
+		if (showToolbar !== undefined && this._widget.inputPart.inputEditor.getOption(EditorOption.inlineSuggest).showToolbar === 'never') {
+			this._widget.inputPart.inputEditor.updateOptions({ inlineSuggest: { showToolbar } });
+		}
 	}
 
 	private _resumeEligibleSuggestion(): void {
 		const model = this._widget.viewModel?.model;
 		const request = model?.lastRequestObs.get();
 		const response = request?.response;
-		if (model && request && response && this._completedResponseIds.has(response.id) && !this._suggestion) {
+		if (model && request && response && this._completedResponseId === response.id && !this._suggestion) {
 			this._scheduleSuggestion(model, request, response);
 		} else {
 			this._updatePresentation();
