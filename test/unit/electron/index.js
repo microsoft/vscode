@@ -62,6 +62,7 @@ const args = minimist(process.argv.slice(2), {
 		'reporter-options': ''
 	}
 });
+const isCI = !!process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || !!process.env.GITHUB_WORKSPACE;
 
 if (args.help) {
 	console.log(`Usage: node ${process.argv[1]} [options] [file...]
@@ -331,10 +332,15 @@ app.on('ready', () => {
 			additionalArguments: [`--vscode-window-config=vscode:test-vscode-window-config`],
 			nodeIntegration: true,
 			contextIsolation: false,
+			backgroundThrottling: false,
 			enableWebSQL: false,
 			spellcheck: false
 		}
 	});
+	if (isCI) {
+		// Hidden windows throttle requestAnimationFrame on Windows even when background throttling is disabled.
+		win.showInactive();
+	}
 
 	win.webContents.on('did-finish-load', () => {
 		if (args.dev) {
