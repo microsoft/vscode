@@ -484,14 +484,17 @@ class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCustomizat
 			return undefined;
 		}
 		const sessionState = this._readSessionState(sessionResource);
+		const workingDirectories = sessionState === undefined
+			? this._provisionalSessionService.getProvisionalWorkingDirectories(sessionResource)?.map(uri => uri.toString())
+			: sessionState.workingDirectories;
 		const rootState = target.connection.rootState.value;
 		const channel = target.backendSession.toString();
 		return {
 			customizations: sessionState?.customizations ?? [],
 			resourceUris: target.connection.resourceUris,
 			folderPickerDecision: readSessionFolderPickerDecision(sessionState?._meta),
-			workingDirectory: sessionState?.workingDirectories?.[0],
-			workingDirectories: sessionState?.workingDirectories,
+			workingDirectory: workingDirectories?.[0],
+			workingDirectories,
 			rootConfig: rootState && !(rootState instanceof Error) ? rootState.config : undefined,
 			isBundledMcpServer: (pluginUri, serverName) => this._activeClientService.isBundledMcpServer(pluginUri, serverName),
 			authenticate: request => target.connection.authenticate(request),
