@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { DiffEditorItemTemplate } from '../../../browser/widget/multiDiffEditor/diffEditorItemTemplate.js';
 import assert from 'assert';
 import sinon from 'sinon';
 import { Dimension } from '../../../../base/browser/dom.js';
@@ -441,6 +445,42 @@ suite('MultiDiffEditorWidget', () => {
 				documentItem.dispose();
 			}
 		}
+	});
+
+	test('issue #203786: Unable to rename a variable in multi diff editor', () => {
+		const services = new ServiceCollection();
+		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
+		services.set(IActionViewItemService, new NullActionViewItemService());
+		services.set(IEditorProgressService, new class extends mock<IEditorProgressService>() { }());
+		services.set(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
+		services.set(IStorageService, disposables.add(new InMemoryStorageService()));
+		services.set(IMenuService, new class extends mock<IMenuService>() {
+			override createMenu(): IMenu {
+				return new class extends mock<IMenu>() {
+					override readonly onDidChange = Event.None;
+					override getActions() { return []; }
+					override dispose(): void { }
+				}();
+			}
+		}());
+		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		services.set(IContextKeyService, contextKeyService);
+		const instantiationService = createCodeEditorServices(disposables, services);
+		const overflowWidgetsDomNode = document.createElement('div');
+
+		const createTemplate = (name: string) => {
+			const template = disposables.add(instantiationService.createInstance(DiffEditorItemTemplate, document.createElement('div'), overflowWidgetsDomNode, {}, getMultiDiffEditorVariantConfiguration(MultiDiffEditorVariant.Standard), undefined));
+			const editor = template.editor.getModifiedEditor();
+			editor.invokeWithinContext(accessor => accessor.get(IContextKeyService)).createKey('overflowWidgetTestKey', name);
+			return () => contextKeyService.getContext(editor.getOverflowWidgetsDomNode() ?? null).getValue('overflowWidgetTestKey');
+		};
+		const readContextFromOverflowNodeOfA = createTemplate('a');
+		const readContextFromOverflowNodeOfB = createTemplate('b');
+
+		assert.deepStrictEqual(
+			{ a: readContextFromOverflowNodeOfA(), b: readContextFromOverflowNodeOfB() },
+			{ a: 'a', b: 'b' },
+		);
 	});
 });
 
