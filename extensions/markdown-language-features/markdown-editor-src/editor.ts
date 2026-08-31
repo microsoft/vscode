@@ -395,11 +395,11 @@ class Editor extends Disposable {
 			selector: definition.selector,
 			resolve: definition.source.kind === 'static'
 				? async () => definition.source.kind === 'static' ? definition.source.descriptor : undefined
-				: language => this.#resolveCodeBlockEditor(definition.id, language),
+				: infoString => this.#resolveCodeBlockEditor(definition.id, infoString),
 		}));
 	}
 
-	#resolveCodeBlockEditor(providerId: string, language: string): Promise<ResolvedIframeEmbeddedEditor | undefined> {
+	#resolveCodeBlockEditor(providerId: string, infoString: string): Promise<ResolvedIframeEmbeddedEditor | undefined> {
 		const requestId = this.#nextCodeBlockEditorRequestId++;
 		return new Promise(resolve => {
 			this.#codeBlockEditorRequests.set(requestId, resolve);
@@ -407,7 +407,7 @@ class Editor extends Disposable {
 				type: 'resolveCodeBlockEditor',
 				requestId,
 				providerId,
-				language,
+				infoString,
 			});
 		});
 	}
@@ -516,7 +516,6 @@ function readResolvedCodeBlockEditor(value: unknown): ResolvedIframeEmbeddedEdit
 	if (
 		typeof descriptor.html !== 'string'
 		|| (descriptor.contentType !== 'text' && descriptor.contentType !== 'json')
-		|| (descriptor.cacheKey !== undefined && typeof descriptor.cacheKey !== 'string')
 		|| (descriptor.initialHeight !== undefined && (typeof descriptor.initialHeight !== 'number' || !Number.isFinite(descriptor.initialHeight) || descriptor.initialHeight <= 0))
 		|| !isResolvedSandbox(descriptor.sandbox)
 	) {
