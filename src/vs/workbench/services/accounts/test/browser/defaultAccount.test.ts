@@ -915,7 +915,7 @@ suite('DefaultAccountProvider', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IWorkbenchEnvironmentService, {
 			remoteAuthority: undefined,
-			isSessionsWindow: false,
+			isSessionsWindow: true,
 		});
 		instantiationService.stub(IProductService, {
 			...TestProductService,
