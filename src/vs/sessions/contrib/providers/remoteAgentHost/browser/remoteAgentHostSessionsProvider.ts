@@ -223,13 +223,9 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this._defaultChangesetKind = config.defaultChangesetKind;
 		this.onDidReportConnectProgress = config.onDidReportConnectProgress;
 		this.canConnectOnDemand = !!config.connectOnDemand;
-		const updateResourceLabelHomes = () => {
-			const homes = this.getResourceLabelHomes();
-			this._resourceLabelHomes.set(homes);
-		};
-		this._register(this._onDidChangeSessionsImmediately(updateResourceLabelHomes));
-		this._register(this._onDidChangeDraftSessions.event(updateResourceLabelHomes));
-		updateResourceLabelHomes();
+		this._register(this._onDidChangeSessionsImmediately(() => this.updateResourceLabelHomes()));
+		this._register(this._onDidChangeDraftSessions.event(() => this.updateResourceLabelHomes()));
+		this.updateResourceLabelHomes();
 		const displayName = config.name || config.address;
 
 		this.id = `agenthost-${this._connectionAuthority}`;
@@ -262,7 +258,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		}];
 
 		this._enableSessionCachePersistence(this._storageKey, `${CACHED_SESSIONS_STORAGE_PREFIX_LEGACY}${this._connectionAuthority}`);
-		updateResourceLabelHomes();
+		this.updateResourceLabelHomes();
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('git.branchProtection')) {
 				this._refreshSessionWorkspaces();
@@ -474,6 +470,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this._automationStore.setConnection(connection);
 		this._defaultDirectory = defaultDirectory;
 		this._unpublished = false;
+		this.updateResourceLabelHomes();
 
 		this._syncRootState(connection.rootState.value);
 		this._connectionListeners.add(connection.rootState.onDidChange(() => {
@@ -507,6 +504,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this._connection = undefined;
 		this._automationStore.clearConnection();
 		this._defaultDirectory = undefined;
+		this.updateResourceLabelHomes();
 		this._disposeAllNewSessions();
 		this._syncRootState(undefined);
 
@@ -523,6 +521,27 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		// persisted entries we keep on disk).
 		this._cacheInitialized = false;
 		this._cancelSessionRefreshRetry();
+	}
+
+	private updateResourceLabelHomes(): void {
+		const homes = this.getResourceLabelHomes();
+		for (const session of this.getKnownSessions()) {
+			if (session.sessionType !== 'copilotcli') {
+				continue;
+			}
+			const label = this.getResourceLabelHomeLabel(session);
+			for (const artifact of session.artifacts?.get() ?? []) {
+				if (!artifact.uri) {
+					continue;
+				}
+				const artifactUri = artifact.uri.scheme === AGENT_HOST_SCHEME ? fromAgentHostUri(artifact.uri) : artifact.uri;
+				const match = /^(?<home>.*\/session-state\/[^/]+)(?:\/|$)/.exec(artifactUri.path);
+				if (match?.groups?.home) {
+					homes.push({ uri: toAgentHostUri(artifactUri.with({ path: match.groups.home, query: null, fragment: null }), this._connectionAuthority), label });
+				}
+			}
+		}
+		this._resourceLabelHomes.set(homes);
 	}
 
 	/**

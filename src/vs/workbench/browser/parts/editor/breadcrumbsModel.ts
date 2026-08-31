@@ -144,7 +144,7 @@ export class BreadcrumbsModel {
 
 		let uriPrefix: URI | null = uri;
 		while (uriPrefix && uriPrefix.path !== '/') {
-			if ((info.folder && isEqual(info.folder.uri, uriPrefix)) || (info.home && isEqual(info.home, uriPrefix))) {
+			if ((info.folder && isEqual(info.folder.uri, uriPrefix)) || (info.home && isEqual(info.home, uriPrefix.with({ query: null, fragment: null })))) {
 				break;
 			}
 			info.path.unshift(new FileElement(uriPrefix, info.path.length === 0 ? FileKind.FILE : FileKind.FOLDER));
