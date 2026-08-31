@@ -98,6 +98,16 @@ describe('applyStrategyConfig', () => {
 		expect(result.currentFile?.includeLineNumbers).toBe(IncludeLineNumbersOption.WithoutSpace);
 	});
 
+	it('sets the eagerness prompt for PatchBased02OptimizedEagerness', () => {
+		const result = applyStrategyConfig(baseConfig({
+			promptingStrategy: PromptingStrategy.PatchBased02OptimizedEagerness,
+		}));
+		expect(result.eagernessPrompt).toBe('aggressionHighLow');
+		expect(applyStrategyConfig(baseConfig({
+			promptingStrategy: PromptingStrategy.PatchBased02Unified,
+		})).eagernessPrompt).toBeUndefined();
+	});
+
 	it('preserves undefined for option bags neither side specifies', () => {
 		const result = applyStrategyConfig(baseConfig({
 			promptingStrategy: PromptingStrategy.CopilotNesXtab,
@@ -167,6 +177,18 @@ describe('isEagernessPrompt', () => {
 
 	it('does not recognize eagerness for an unrelated strategy', () => {
 		expect(isEagernessPrompt({ ...DEFAULT_OPTIONS, promptingStrategy: PromptingStrategy.CopilotNesXtab, eagernessPrompt: 'aggressionHighLow' })).toBe(false);
+	});
+
+	it('recognizes the standalone eagerness strategy after strategy config is applied', () => {
+		const config = applyStrategyConfig(baseConfig({
+			promptingStrategy: PromptingStrategy.PatchBased02OptimizedEagerness,
+		}));
+		const options = {
+			...DEFAULT_OPTIONS,
+			promptingStrategy: config.promptingStrategy,
+			eagernessPrompt: config.eagernessPrompt,
+		};
+		expect(isEagernessPrompt(options)).toBe(true);
 	});
 });
 

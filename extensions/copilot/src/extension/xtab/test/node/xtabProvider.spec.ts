@@ -14,7 +14,7 @@ import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/do
 import { Edits } from '../../../../platform/inlineEdits/common/dataTypes/edit';
 import { ImportChanges } from '../../../../platform/inlineEdits/common/dataTypes/importFilteringOptions';
 import { LanguageId } from '../../../../platform/inlineEdits/common/dataTypes/languageId';
-import { AggressivenessLevel, DEFAULT_OPTIONS, EarlyDivergenceCancellationMode, LanguageContextLanguages, LintOptionShowCode, LintOptionWarning, ModelConfiguration, PatchModelPrediction, PromptingStrategy, ResponseFormat } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { AggressivenessLevel, AggressivenessSetting, DEFAULT_OPTIONS, EarlyDivergenceCancellationMode, LanguageContextLanguages, LintOptionShowCode, LintOptionWarning, ModelConfiguration, PatchModelPrediction, PromptingStrategy, ResponseFormat } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { InlineEditRequestLogContext } from '../../../../platform/inlineEdits/common/inlineEditLogContext';
 import { IInlineEditsModelService } from '../../../../platform/inlineEdits/common/inlineEditsModelService';
 import { NoNextEditReason, StatelessNextEditDocument, StatelessNextEditRequest, StreamedEdit, WithStatelessProviderTelemetry } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
@@ -170,6 +170,7 @@ describe('pickSystemPrompt', () => {
 		PromptingStrategy.PatchBased02,
 		PromptingStrategy.PatchBased02WithRecentLineNumbers,
 		PromptingStrategy.PatchBased02Unified,
+		PromptingStrategy.PatchBased02OptimizedEagerness,
 		PromptingStrategy.PatchBased02WithoutRecentLineNumbers,
 		PromptingStrategy.Xtab275,
 		PromptingStrategy.XtabAggressiveness,
@@ -273,6 +274,18 @@ describe('overrideModelConfig', () => {
 		expect(result.pagedClipping).toEqual(base.pagedClipping);
 		expect(result.recentlyViewedDocuments).toEqual(base.recentlyViewedDocuments);
 		expect(result.diffHistory).toEqual(base.diffHistory);
+	});
+
+	it('propagates the eagerness prompt from model configuration', () => {
+		const result = overrideModelConfig(makeBaseModelConfig(), {
+			modelName: 'four-in-one-model',
+			promptingStrategy: PromptingStrategy.PatchBased02OptimizedEagerness,
+			eagernessPrompt: 'aggressionHighLow',
+			includeTagsInCurrentFile: false,
+			lintOptions: undefined,
+		});
+
+		expect(result.eagernessPrompt).toBe('aggressionHighLow');
 	});
 
 	it('merges lintOptions when overridingConfig has lintOptions', () => {
@@ -1108,6 +1121,35 @@ describe('XtabProvider integration', () => {
 
 			// Should have made two calls - first failed with NotFound, second retried
 			expect(streamingFetcher.callCount).toBe(2);
+		});
+
+		it('applies four-in-one strategy config when retrying with the default model', async () => {
+			const provider = createProvider();
+			await configService.setConfig(ConfigKey.Advanced.InlineEditsAggressiveness, AggressivenessSetting.High);
+			mockModelService.setDefaultConfig({
+				promptingStrategy: PromptingStrategy.PatchBased02OptimizedEagerness,
+			});
+
+			const lines = ['const x = 1;'];
+			const request = createRequestWithEdit(lines, { insertionOffset: 3, insertedText: 'a' });
+			streamingFetcher.enqueueResponse({
+				type: ChatFetchResponseType.NotFound,
+				reason: 'test',
+				requestId: 'req-1',
+				serverRequestId: undefined,
+			});
+			streamingFetcher.setStreamingLines(lines);
+
+			const capturesBefore = streamingFetcher.capturedOptions.length;
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			await AsyncIterUtils.drainUntilReturn(gen);
+
+			const retryPrompts = streamingFetcher.capturedOptions
+				.slice(capturesBefore)
+				.flatMap(options => options.messages)
+				.filter(message => message.role === Raw.ChatRole.User)
+				.map(getMessageText);
+			expect(retryPrompts.some(prompt => prompt.includes('<|aggression|>'))).toBe(true);
 		});
 
 		it('does not loop infinitely on repeated NotFound', async () => {

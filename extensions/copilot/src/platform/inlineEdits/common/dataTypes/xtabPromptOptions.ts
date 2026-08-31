@@ -547,6 +547,8 @@ export enum PromptingStrategy {
 	 * completions itself: it bakes in the client and latency knobs that treatment was tuned for.
 	 */
 	PatchBased02Unified = 'patchBased02Unified',
+	/** Optimized PatchBased02 variant trained for eagerness prompting. */
+	PatchBased02OptimizedEagerness = 'patchBased02OptimizedEagerness',
 	/** PatchBased02 variant: no line numbers on recent docs. */
 	PatchBased02WithoutRecentLineNumbers = 'patchBased02WithoutRecentLineNumbers',
 	/**
@@ -575,6 +577,7 @@ export function isEagernessPrompt(options: PromptOptions): boolean {
 		PromptingStrategy.PatchBased02,
 		PromptingStrategy.PatchBased02WithRecentLineNumbers,
 		PromptingStrategy.PatchBased02Unified,
+		PromptingStrategy.PatchBased02OptimizedEagerness,
 		PromptingStrategy.PatchBased02WithoutRecentLineNumbers,
 	].includes(options.promptingStrategy)) // eagerness prompt option is only supported for patch-based strategies
 		|| [PromptingStrategy.XtabAggressiveness,
@@ -615,6 +618,7 @@ export namespace ResponseFormat {
 			case PromptingStrategy.PatchBased02:
 			case PromptingStrategy.PatchBased02WithRecentLineNumbers:
 			case PromptingStrategy.PatchBased02Unified:
+			case PromptingStrategy.PatchBased02OptimizedEagerness:
 			case PromptingStrategy.PatchBased02WithoutRecentLineNumbers:
 				return ResponseFormat.CustomDiffPatch;
 			case PromptingStrategy.Xtab275EditIntent:
@@ -831,6 +835,9 @@ const STRATEGY_CONFIG: Partial<Record<PromptingStrategy, Partial<ModelConfigurat
 		recentlyViewedDocuments: { includeLineNumbers: IncludeLineNumbersOption.None },
 		supportsNextCursorLinePrediction: false,
 		allowImportChanges: ImportChanges.All,
+	},
+	[PromptingStrategy.PatchBased02OptimizedEagerness]: {
+		eagernessPrompt: 'aggressionHighLow',
 	},
 };
 
