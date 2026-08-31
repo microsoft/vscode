@@ -138,6 +138,7 @@ suite('MultiDiffEditorWidget', () => {
 		const original = disposables.add(instantiateTextModel(instantiationService, originalContent, undefined, undefined, originalUri));
 		const documentItem = RefCounted.createOfNonDisposable<IDocumentDiffItem>({
 			original,
+			modified: undefined,
 			options: { accessibilitySupport: 'off' },
 		}, { dispose() { } });
 		const model: IMultiDiffEditorModel = {
@@ -165,7 +166,7 @@ suite('MultiDiffEditorWidget', () => {
 		});
 		try {
 			widget.setViewModel(viewModel);
-			widget.reveal({ original: originalUri }, { highlight: false });
+			widget.reveal({ original: originalUri, modified: undefined }, { highlight: false });
 			await waitForState(widget.getLayoutDebugState(), state => state.items[0]?.hasTemplate);
 			const item = widget.getLayoutDebugState().get().items[0];
 			const expectedHeight = widget.getActiveControl()!.getOriginalEditor().getContentHeight() + 40;
