@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Schemas } from '../../../../base/common/network.js';
 import assert from 'assert';
 import { timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
@@ -12,7 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { FileChangeType, FilePermission, FileSystemProviderErrorCode, FileType, IFileChange, toFileSystemProviderErrorCode } from '../../../files/common/files.js';
 import { AgentHostFileSystemProvider, agentHostRemotePath, agentHostUri, type IRemoteFilesystemConnection } from '../../common/agentHostFileSystemProvider.js';
 import { remoteAgentHostSessionTypeId } from '../../common/agentHostSessionType.js';
-import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, isAgentHostContentRefUri, toAgentHostContentUri, toAgentHostUri } from '../../common/agentHostUri.js';
+import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, isAgentHostContentRefUri, toAgentHostContentUri, toAgentHostUri, toHostLocalUri } from '../../common/agentHostUri.js';
 import { ContentEncoding, ResourceType, type CreateResourceWatchParams, type ResourceCopyParams, type ResourceListResult, type ResourceMkdirParams, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult } from '../../common/state/protocol/commands.js';
 import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
 import { ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -229,6 +230,38 @@ suite('toAgentHostUri / fromAgentHostUri', () => {
 		// Should not throw - falls back to a file URI using the path verbatim
 		assert.strictEqual(result.scheme, 'file');
 		assert.strictEqual(result.path, '/file');
+	});
+});
+
+suite('toHostLocalUri', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('a window remote URI becomes a path this host can open', () => {
+		const fromWindow = URI.from({ scheme: Schemas.vscodeRemote, authority: 'dev-container+abc', path: '/workspace/app' });
+
+		const local = toHostLocalUri(fromWindow);
+
+		assert.strictEqual(local.scheme, Schemas.file);
+		assert.strictEqual(local.path, '/workspace/app');
+		assert.strictEqual(local.authority, '');
+	});
+
+	test('anything the host can already open is left alone', () => {
+		const file = URI.file('/workspace/app');
+		const wrapped = toAgentHostUri(URI.file('/workspace/app'), 'my-server');
+
+		assert.strictEqual(toHostLocalUri(file).toString(), file.toString());
+		assert.strictEqual(toHostLocalUri(wrapped).toString(), wrapped.toString());
+	});
+
+	test('query and fragment survive, since callers key off them', () => {
+		const fromWindow = URI.from({ scheme: Schemas.vscodeRemote, authority: 'dev-container+abc', path: '/w/a.ts', query: 'q=1', fragment: 'L4' });
+
+		const local = toHostLocalUri(fromWindow);
+
+		assert.strictEqual(local.query, 'q=1');
+		assert.strictEqual(local.fragment, 'L4');
 	});
 });
 

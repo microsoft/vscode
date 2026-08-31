@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { toHostLocalUri } from '../../common/agentHostUri.js';
 import type { McpServerConfig, OnElicitation, Options, PermissionMode, SDKUserMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { Sequencer } from '../../../../base/common/async.js';
@@ -499,15 +500,17 @@ export class ClaudeAgentSession extends Disposable {
 	}
 
 	private _watchCustomizations(directories: readonly URI[] | undefined): void {
+		// Both watchers below read this host's own filesystem.
+		const roots = directories?.map(toHostLocalUri);
 		const store = new DisposableStore();
 		const watcher = store.add(new ClaudeCustomizationWatcher(
-			directories,
+			roots,
 			this._environmentService.userHome,
 			this._fileService,
 			this._logService,
 		));
 		store.add(watcher.onDidChange(() => this._onDidCustomizationsChange.fire()));
-		this._mcpDiscovery = directories?.length ? store.add(new SessionMcpDiscovery(directories, this._fileService)) : undefined;
+		this._mcpDiscovery = roots?.length ? store.add(new SessionMcpDiscovery(roots, this._fileService)) : undefined;
 		if (this._mcpDiscovery) {
 			store.add(this._mcpDiscovery.onDidChange(() => {
 				this.clientCustomizationsDiff.markDirty();
