@@ -93,10 +93,9 @@ const browserToolInstructions: ToolInstructionLine = ({ hasTool }) => {
 const TOOL_INSTRUCTION_LINES: readonly ToolInstructionLine[] = [largeOutputToolInstructions, subagentToolInstructions, browserToolInstructions];
 
 /** Tool-search guidance mirrored from the Copilot extension prompt. */
+export const COPILOT_AGENT_HOST_TOOL_SEARCH_TOOL_INSTRUCTION = 'Most tools are deferred and hidden until you search for them. Before calling a tool that has not already been loaded, ALWAYS use tool search first with a short description of the capability you need, then call the specific tool it returns; tools it returns are immediately available and must not be searched for again.';
 const toolSearchToolInstructions: ToolInstructionLine = ({ hasTool }) =>
-	hasTool(CLIENT_TOOL_SEARCH_REFERENCE_NAME)
-		? `Most tools are deferred and hidden until you search for them. Before calling a tool that has not already been loaded, ALWAYS use tool search first with a short description of the capability you need, then call the specific tool it returns; tools it returns are immediately available and must not be searched for again.`
-		: undefined;
+	hasTool(CLIENT_TOOL_SEARCH_REFERENCE_NAME) ? COPILOT_AGENT_HOST_TOOL_SEARCH_TOOL_INSTRUCTION : undefined;
 
 export function toolSearchInstructionLines(toolSearchActive: boolean): readonly ToolInstructionLine[] {
 	return toolSearchActive ? [...TOOL_INSTRUCTION_LINES, toolSearchToolInstructions] : TOOL_INSTRUCTION_LINES;

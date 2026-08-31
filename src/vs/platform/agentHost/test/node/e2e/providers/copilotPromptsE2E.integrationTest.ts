@@ -18,6 +18,10 @@
  * the CLI. See the README's "Prompt snapshots" section for what is elided and
  * how to add a model.
  *
+ * Sessions run with the harness's canonical client-tool profile, so the
+ * host's client-tool-gated launch behavior (tool search) is active and its
+ * host-authored prompt contribution pinned here.
+ *
  * Run, then accept a new baseline and review the diff:
  *   ./scripts/test-integration.sh --run <this file>
  *   AGENT_HOST_UPDATE_AHP_SNAPSHOTS=1 ./scripts/test-integration.sh --run <this file>
@@ -31,7 +35,10 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
 import { MessageKind, ToolCallConfirmationReason, buildDefaultChatUri } from '../../../../common/state/sessionState.js';
-import { AgentHostE2EServerLease, createRealSession } from '../harness/agentHostE2ETestHarness.js';
+import { AgentHostE2EServerLease, createRealSession, registerCanonicalActiveClient, setRootConfigValues } from '../harness/agentHostE2ETestHarness.js';
+import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
+import { agentHostModelSupportsToolSearch, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../../../node/copilot/toolSearchDeferral.js';
+import { COPILOT_AGENT_HOST_TOOL_SEARCH_TOOL_INSTRUCTION } from '../../../../node/copilot/prompts/toolInstructions.js';
 import {
 	AgentHostUpdateAhpSnapshotsEnvVar, AgentHostUpdateSnapshotsEnvVar, snapshotPathForTest,
 } from '../harness/ahpSnapshot.js';
@@ -143,11 +150,26 @@ suite('Agent Host E2E — Copilot prompts', function () {
 			tempDirs.push(workspaceDir);
 
 			const sessionUri = await createRealSession(client, COPILOT_CONFIG, `prompt-snap-${model}`, createdSessions, URI.file(workspaceDir));
+			await setRootConfigValues(client, { [CopilotCliConfigKey.ToolSearchEnabled]: true }, 1);
+			await registerCanonicalActiveClient(client, sessionUri, `prompt-snap-${model}`);
 			await driveTurnWithModel(client, sessionUri, model);
 
 			// Taking the last keeps this meaningful if the CLI inserts a preflight request.
 			const body = lease!.observedModelRequestBodies.at(-1);
 			assert.ok(body, 'no model request body was captured — the turn never reached the model');
+
+			// A silently short-circuited host gate would otherwise still snapshot
+			// green. The CLI applies a further gate of its own before exposing
+			// `tool_search_tool` (unsatisfied under replay), so only the
+			// host-authored guidance line is pinned in both directions.
+			const supportsToolSearch = agentHostModelSupportsToolSearch(model);
+			assert.deepStrictEqual({
+				toolSearchGuidance: requestCarriesToolSearchGuidance(body),
+				toolSearchToolWithoutHostGate: requestCarriesToolSearch(body) && !supportsToolSearch,
+			}, {
+				toolSearchGuidance: supportsToolSearch,
+				toolSearchToolWithoutHostGate: false,
+			}, `tool-search host gate mismatch for '${model}'`);
 
 			await assertPromptSnapshot(this.test!, formatPromptSnapshot(body));
 		});
@@ -237,6 +259,17 @@ interface IWireRequest {
 	readonly messages?: ReadonlyArray<{ readonly role?: string; readonly content?: unknown }>;
 	readonly input?: unknown;
 	readonly tools?: readonly unknown[];
+}
+
+/** Both dialects carry a tool's name at the top level of its `tools` entry. */
+function requestCarriesToolSearch(rawBody: string): boolean {
+	const request = JSON.parse(rawBody) as IWireRequest;
+	return Array.isArray(request.tools) && request.tools.some(tool => (tool as { name?: string }).name === RUNTIME_TOOL_SEARCH_TOOL_NAME);
+}
+
+function requestCarriesToolSearchGuidance(rawBody: string): boolean {
+	const request = JSON.parse(rawBody) as IWireRequest;
+	return extractText(request.instructions ?? request.system).includes(COPILOT_AGENT_HOST_TOOL_SEARCH_TOOL_INSTRUCTION);
 }
 
 function formatPromptSnapshot(rawBody: string): string {
