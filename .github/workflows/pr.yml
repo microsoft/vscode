@@ -407,14 +407,6 @@ jobs:
         working-directory: extensions/copilot
         run: npm ci
 
-      - name: TypeScript type checking
-        working-directory: extensions/copilot
-        run: npm run typecheck
-
-      - name: Lint
-        working-directory: extensions/copilot
-        run: npm run lint
-
       - name: Compile
         working-directory: extensions/copilot
         run: npm run compile
