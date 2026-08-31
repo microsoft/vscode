@@ -86,6 +86,11 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Benchmark Windows node_modules cache formats
+        if: ${{ inputs.job_name == 'Electron-Smoke' && steps.cache-node-modules.outputs.cache-hit == 'true' }}
+        shell: pwsh
+        run: ./.github/workflows/node_modules_cache/benchmark.ps1
+
       - name: Create .build folder
         shell: pwsh
         run: mkdir .build -ea 0
