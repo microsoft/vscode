@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
+import { getCloneTargetFolderName, GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
 import * as assert from 'assert';
 import { splitInChunks } from '../util';
 
@@ -715,6 +715,50 @@ suite('git', () => {
 				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 9)],
 				[['0', '01', '012', '0', '01'], ['012', '0', '01', '012']]
 			);
+		});
+	});
+
+	suite('getCloneTargetFolderName', () => {
+		test('https URL', () => {
+			assert.strictEqual(getCloneTargetFolderName('https://github.com/microsoft/vscode.git'), 'vscode');
+		});
+
+		test('https URL without .git suffix', () => {
+			assert.strictEqual(getCloneTargetFolderName('https://github.com/microsoft/vscode'), 'vscode');
+		});
+
+		test('https URL with trailing slashes', () => {
+			assert.strictEqual(getCloneTargetFolderName('https://github.com/microsoft/vscode///'), 'vscode');
+		});
+
+		test('ssh:// URL', () => {
+			assert.strictEqual(getCloneTargetFolderName('ssh://git@github.com:22/microsoft/vscode.git'), 'vscode');
+		});
+
+		test('git:// URL', () => {
+			assert.strictEqual(getCloneTargetFolderName('git://github.com/microsoft/vscode.git'), 'vscode');
+		});
+
+		test('SCP-style SSH URL with path containing slash', () => {
+			assert.strictEqual(getCloneTargetFolderName('git@github.com:microsoft/vscode.git'), 'vscode');
+		});
+
+		test('SCP-style SSH URL without slash in path (issue #175062)', () => {
+			assert.strictEqual(getCloneTargetFolderName('git@versions.somedomain.net:climate-project'), 'climate-project');
+		});
+
+		test('SCP-style SSH URL without slash in path and .git suffix', () => {
+			assert.strictEqual(getCloneTargetFolderName('git@host.example:repo.git'), 'repo');
+		});
+
+		test('Windows file path with backslashes', () => {
+			assert.strictEqual(getCloneTargetFolderName('C:\\Users\\me\\repo.git'), 'repo');
+		});
+
+		test('empty / unparseable URL falls back to repository', () => {
+			assert.strictEqual(getCloneTargetFolderName(''), 'repository');
+			assert.strictEqual(getCloneTargetFolderName('/'), 'repository');
+			assert.strictEqual(getCloneTargetFolderName('git@host:'), 'repository');
 		});
 	});
 });
