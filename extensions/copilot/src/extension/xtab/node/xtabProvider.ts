@@ -1521,70 +1521,68 @@ export class XtabProvider implements IStatelessNextEditProvider {
 	}
 
 	private determineModelConfiguration(activeDocument: StatelessNextEditDocument): { promptOptions: ModelConfig; modelServiceConfig: xtabPromptOptions.ModelConfiguration } {
+		let baseOptions: ModelConfig;
+		let rawModelConfig: xtabPromptOptions.ModelConfiguration;
 		if (this.forceUseDefaultModel) {
-			const defaultOptions = {
+			baseOptions = {
 				modelName: undefined,
 				...xtabPromptOptions.DEFAULT_OPTIONS,
 			};
-			const defaultModelConfig = xtabPromptOptions.applyStrategyConfig(this.modelService.defaultModelConfiguration());
-			return {
-				promptOptions: overrideModelConfig(defaultOptions, defaultModelConfig),
-				modelServiceConfig: defaultModelConfig
+			rawModelConfig = this.modelService.defaultModelConfiguration();
+		} else {
+			baseOptions = {
+				modelName: undefined,
+				promptingStrategy: undefined,
+				currentFile: {
+					maxTokens: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabCurrentFileMaxTokens, this.expService),
+					includeTags: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabIncludeTagsInCurrentFile, this.expService),
+					includeLineNumbers: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabIncludeLineNumbersInCurrentFile, this.expService),
+					includeCursorTag: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabIncludeCursorTagInCurrentFile, this.expService),
+					prioritizeAboveCursor: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabPrioritizeAboveCursor, this.expService),
+					useLeftoverBudgetFromAbove: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabCurrentFileUseLeftoverBudgetFromAbove, this.expService)
+				},
+				pagedClipping: {
+					pageSize: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabPageSize, this.expService)
+				},
+				recentlyViewedDocuments: {
+					nDocuments: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabNRecentlyViewedDocuments, this.expService),
+					maxTokens: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabRecentlyViewedDocumentsMaxTokens, this.expService),
+					includeViewedFiles: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabIncludeViewedFiles, this.expService),
+					includeLineNumbers: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabRecentlyViewedIncludeLineNumbers, this.expService),
+					clippingStrategy: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabRecentlyViewedClippingStrategy, this.expService),
+					useLeftoverBudgetFromAbove: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabRecentlyViewedUseLeftoverBudgetFromAbove, this.expService),
+				},
+				languageContext: determineLanguageContextOptions(activeDocument.languageId, {
+					enabled: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabLanguageContextEnabled, this.expService),
+					enabledLanguages: this.configService.getConfig(ConfigKey.TeamInternal.InlineEditsXtabLanguageContextEnabledLanguages),
+					enableAllContextProviders: this.configService.getExperimentBasedConfig<boolean>(ConfigKey.Advanced.DiagnosticsContextProvider, this.expService)
+						|| this.configService.getExperimentBasedConfig<boolean>(ConfigKey.Advanced.ChatSessionContextProvider, this.expService),
+					maxTokens: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabLanguageContextMaxTokens, this.expService),
+					traitPosition: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabLanguageContextTraitsPosition, this.expService),
+				}),
+				neighborFiles: {
+					enabled: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabIncludeNeighborFiles, this.expService),
+					maxTokens: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabNeighborFilesMaxTokens, this.expService),
+					includeRelatedFiles: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabNeighborFilesIncludeRelatedFiles, this.expService),
+				},
+				diffHistory: {
+					nEntries: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabDiffNEntries, this.expService),
+					maxTokens: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabDiffMaxTokens, this.expService),
+					onlyForDocsInPrompt: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabDiffOnlyForDocsInPrompt, this.expService),
+					useRelativePaths: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabDiffUseRelativePaths, this.expService),
+				},
+				memory: undefined,
+				lintOptions: undefined,
+				eagernessPrompt: undefined,
+				includePostScript: true,
+				globalBudget: this.getGlobalBudget(),
 			};
+			rawModelConfig = this.modelService.selectedModelConfiguration();
 		}
 
-		const sourcedModelConfig: ModelConfig = {
-			modelName: undefined,
-			promptingStrategy: undefined,
-			currentFile: {
-				maxTokens: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabCurrentFileMaxTokens, this.expService),
-				includeTags: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabIncludeTagsInCurrentFile, this.expService),
-				includeLineNumbers: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabIncludeLineNumbersInCurrentFile, this.expService),
-				includeCursorTag: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabIncludeCursorTagInCurrentFile, this.expService),
-				prioritizeAboveCursor: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabPrioritizeAboveCursor, this.expService),
-				useLeftoverBudgetFromAbove: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabCurrentFileUseLeftoverBudgetFromAbove, this.expService)
-			},
-			pagedClipping: {
-				pageSize: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabPageSize, this.expService)
-			},
-			recentlyViewedDocuments: {
-				nDocuments: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabNRecentlyViewedDocuments, this.expService),
-				maxTokens: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabRecentlyViewedDocumentsMaxTokens, this.expService),
-				includeViewedFiles: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabIncludeViewedFiles, this.expService),
-				includeLineNumbers: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabRecentlyViewedIncludeLineNumbers, this.expService),
-				clippingStrategy: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabRecentlyViewedClippingStrategy, this.expService),
-				useLeftoverBudgetFromAbove: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabRecentlyViewedUseLeftoverBudgetFromAbove, this.expService),
-			},
-			languageContext: determineLanguageContextOptions(activeDocument.languageId, {
-				enabled: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabLanguageContextEnabled, this.expService),
-				enabledLanguages: this.configService.getConfig(ConfigKey.TeamInternal.InlineEditsXtabLanguageContextEnabledLanguages),
-				enableAllContextProviders: this.configService.getExperimentBasedConfig<boolean>(ConfigKey.Advanced.DiagnosticsContextProvider, this.expService)
-					|| this.configService.getExperimentBasedConfig<boolean>(ConfigKey.Advanced.ChatSessionContextProvider, this.expService),
-				maxTokens: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabLanguageContextMaxTokens, this.expService),
-				traitPosition: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabLanguageContextTraitsPosition, this.expService),
-			}),
-			neighborFiles: {
-				enabled: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabIncludeNeighborFiles, this.expService),
-				maxTokens: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabNeighborFilesMaxTokens, this.expService),
-				includeRelatedFiles: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabNeighborFilesIncludeRelatedFiles, this.expService),
-			},
-			diffHistory: {
-				nEntries: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabDiffNEntries, this.expService),
-				maxTokens: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabDiffMaxTokens, this.expService),
-				onlyForDocsInPrompt: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabDiffOnlyForDocsInPrompt, this.expService),
-				useRelativePaths: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabDiffUseRelativePaths, this.expService),
-			},
-			memory: undefined,
-			lintOptions: undefined,
-			eagernessPrompt: undefined,
-			includePostScript: true,
-			globalBudget: this.getGlobalBudget(),
-		};
-
-		const selectedModelConfig = this.modelService.selectedModelConfiguration();
-		const modelConfig = xtabPromptOptions.applyStrategyConfig(selectedModelConfig);
+		const modelConfig = xtabPromptOptions.applyStrategyConfig(rawModelConfig);
 		return {
-			promptOptions: overrideModelConfig(sourcedModelConfig, modelConfig),
+			promptOptions: overrideModelConfig(baseOptions, modelConfig),
 			modelServiceConfig: modelConfig
 		};
 	}

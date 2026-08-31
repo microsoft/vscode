@@ -1066,6 +1066,29 @@ describe('XtabProvider integration', () => {
 			expect(getMessageText(systemMessage!)).toBe(xtab275SystemPrompt);
 		});
 
+		it('applies strategy config to the selected model', async () => {
+			await configService.setConfig(ConfigKey.Advanced.InlineEditsAggressiveness, AggressivenessSetting.High);
+			mockModelService.setSelectedConfig({
+				promptingStrategy: PromptingStrategy.PatchBased02UnifiedEagerness,
+			});
+
+			const lines = ['const x = 1;'];
+			streamingFetcher.setStreamingLines(lines);
+			const gen = createProvider().provideNextEdit(
+				createRequestWithEdit(lines, { insertionOffset: 3, insertedText: 'a' }),
+				createMockLogger(),
+				createLogContext(),
+				CancellationToken.None
+			);
+			await AsyncIterUtils.drainUntilReturn(gen);
+
+			const userMessages = streamingFetcher.capturedOptions
+				.flatMap(options => options.messages)
+				.filter(message => message.role === Raw.ChatRole.User)
+				.map(getMessageText);
+			expect(userMessages.some(prompt => prompt.includes('<|aggression|>high<|/aggression|>'))).toBe(true);
+		});
+
 		it('applies configured aggressiveness only to aggressiveness strategies', async () => {
 			const lines = ['const x = 1;', 'const y = 2;'];
 			const captureUserPrompt = async (promptingStrategy: PromptingStrategy, aggressivenessLevel: AggressivenessLevel) => {
@@ -1123,7 +1146,7 @@ describe('XtabProvider integration', () => {
 			expect(streamingFetcher.callCount).toBe(2);
 		});
 
-		it('applies four-in-one strategy config when retrying with the default model', async () => {
+		it('applies strategy config when retrying with the default model', async () => {
 			const provider = createProvider();
 			await configService.setConfig(ConfigKey.Advanced.InlineEditsAggressiveness, AggressivenessSetting.High);
 			mockModelService.setDefaultConfig({
