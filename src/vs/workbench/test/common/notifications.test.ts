@@ -161,6 +161,40 @@ suite('Notifications', () => {
 		}
 	});
 
+	test('Items - preserves newlines in messages (#178796)', () => {
+
+		// '\n' is preserved verbatim in the parsed message so the renderer can
+		// translate it to a line break.
+		const item1 = NotificationViewItem.create({ severity: Severity.Info, message: 'Line one\nLine two' }, noFilter)!;
+		assert.strictEqual(item1.message.linkedText.toString(), 'Line one\nLine two');
+		assert.strictEqual(item1.message.raw, 'Line one\nLine two');
+
+		// '\r\n' (Windows) and '\r' (legacy Mac) are normalized to '\n'.
+		const item2 = NotificationViewItem.create({ severity: Severity.Info, message: 'Line one\r\nLine two' }, noFilter)!;
+		assert.strictEqual(item2.message.linkedText.toString(), 'Line one\nLine two');
+
+		const item3 = NotificationViewItem.create({ severity: Severity.Info, message: 'Line one\rLine two' }, noFilter)!;
+		assert.strictEqual(item3.message.linkedText.toString(), 'Line one\nLine two');
+
+		// Leading and trailing whitespace (including newlines) is trimmed so
+		// no empty leading/trailing line is rendered.
+		const item4 = NotificationViewItem.create({ severity: Severity.Info, message: '\n\nLine one\nLine two\n\n' }, noFilter)!;
+		assert.strictEqual(item4.message.linkedText.toString(), 'Line one\nLine two');
+
+		// Newlines do not break link parsing: a link before a newline is still
+		// recognized, and text on the next line remains a plain string node.
+		const item5 = NotificationViewItem.create({ severity: Severity.Info, message: 'Click [here](https://example.com)\nfor details.' }, noFilter)!;
+		const nodes = item5.message.linkedText.nodes;
+		assert.strictEqual(nodes.length, 3);
+		assert.strictEqual(nodes[0], 'Click ');
+		assert.deepStrictEqual(nodes[1], { label: 'here', href: 'https://example.com' });
+		assert.strictEqual(nodes[2], '\nfor details.');
+
+		for (const item of [item1, item2, item3, item4, item5]) {
+			item.close();
+		}
+	});
+
 	test('Items - does not fire changed when message did not change (content, severity)', async () => {
 		const item1 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' }, noFilter)!;
 

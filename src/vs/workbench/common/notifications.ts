@@ -522,8 +522,11 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 			message = `${message.substr(0, NotificationViewItem.MAX_MESSAGE_LENGTH)}...`;
 		}
 
-		// Remove newlines from messages as we do not support that and it makes link parsing hard
-		message = message.replace(/(\r\n|\n|\r)/gm, ' ').trim();
+		// Normalize line breaks to '\n' so the renderer can split on a single
+		// character. Newlines are preserved in the message and rendered as
+		// line breaks; link parsing still works because the link pattern does
+		// not span lines.
+		message = message.replace(/\r\n|\r/g, '\n').trim();
 
 		// Parse Links
 		const linkedText = parseLinkedText(message);
