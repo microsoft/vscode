@@ -384,7 +384,7 @@ export interface ICloneOptions {
 	readonly ref?: string;
 }
 
-export class Git {
+export class Git implements IDisposable {
 
 	readonly path: string;
 	readonly userAgent: string;
@@ -392,6 +392,7 @@ export class Git {
 	readonly env: { [key: string]: string };
 
 	private commandsToLog: string[] = [];
+	private disposables: IDisposable[] = [];
 
 	private _onOutput = new EventEmitter();
 	get onOutput(): EventEmitter { return this._onOutput; }
@@ -411,8 +412,12 @@ export class Git {
 			this.commandsToLog = config.get<string[]>('commandsToLog', []);
 		};
 
-		workspace.onDidChangeConfiguration(onConfigurationChanged, this);
+		workspace.onDidChangeConfiguration(onConfigurationChanged, this, this.disposables);
 		onConfigurationChanged();
+	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
 	}
 
 	compareGitVersionTo(version: string): -1 | 0 | 1 {
@@ -1989,7 +1994,17 @@ export class Repository {
 
 	async stage(path: string, data: Uint8Array): Promise<void> {
 		const relativePath = this.sanitizeRelativePath(path);
-		const child = this.stream(['hash-object', '--stdin', '-w', '--path', relativePath], { stdio: [null, null, null] });
+		const args = ['hash-object', '--stdin', '-w', '--path', relativePath];
+
+		if (this._git.compareGitVersionTo('2.10.0') >= 0) {
+			const { stdout } = await this.exec(['--literal-pathspecs', 'ls-files', '--eol', '--', relativePath]);
+			const indexEol = stdout.split(/\s/, 1)[0];
+			if (indexEol === 'i/crlf' || indexEol === 'i/mixed') {
+				args.unshift('-c', 'core.autocrlf=false');
+			}
+		}
+
+		const child = this.stream(args, { stdio: [null, null, null] });
 
 		if (!child.stdin) {
 			throw new GitError({
