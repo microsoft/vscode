@@ -3282,7 +3282,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.dimension) {
 			this.layout(this.dimension);
 		}
-		this.embeddedMcpDetail.focus();
 	}
 
 	private goBackFromMcpDetail(): void {

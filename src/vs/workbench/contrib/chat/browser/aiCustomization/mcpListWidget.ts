@@ -17,6 +17,7 @@ import { defaultButtonStyles, defaultInputBoxStyles, getButtonStyles } from '../
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
+import { IMcpGalleryManifestService } from '../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpConnectionState, McpServerDefinition, McpServerInstallState, IMcpService, IMcpServer, McpServerTransportType } from '../../../../contrib/mcp/common/mcpTypes.js';
 import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
 import { MCP_PLUGIN_COLLECTION_ID_PREFIX } from '../../../mcp/common/discovery/pluginMcpDiscovery.js';
@@ -1011,6 +1012,7 @@ function createInstalledMcpServerDetailInput(entry: IMcpInstalledEntry): IMcpSer
 		id: getMcpRowKey(entry),
 		name: getMcpEntryLabel(entry),
 		label: getMcpEntryLabel(entry),
+		installState: McpServerInstallState.Installed,
 		config: localDefinition ? getMcpServerConfiguration(localDefinition) : undefined,
 		source: localSource ?? activeSessionSource,
 	};
@@ -1112,6 +1114,7 @@ export class McpListWidget extends Disposable {
 		@IAgentHostCustomizationService private readonly agentHostCustomizationService: IAgentHostCustomizationService,
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IMcpGalleryManifestService mcpGalleryManifestService: IMcpGalleryManifestService,
 	) {
 		super();
 		this.element = $('.mcp-list-widget.plugin-list-widget');
@@ -1123,6 +1126,15 @@ export class McpListWidget extends Disposable {
 		));
 		this._register(resizeObserver.observe(this.element));
 		this.updateAccessState();
+		this._register(mcpGalleryManifestService.onDidChangeMcpGalleryManifest(() => {
+			this.galleryCts?.dispose(true);
+			this.galleryCts = undefined;
+			this.gallerySnapshotServers = [];
+			this.galleryServers = [];
+			this.gallerySnapshotFailed = false;
+			this.gallerySnapshotLoading = false;
+			void this.refresh();
+		}));
 		void this.refresh();
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(mcpAccessConfig)) {

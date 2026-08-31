@@ -1692,9 +1692,9 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-management-editor .embedded-mcp-detail .mcp-detail-definition-empty {
 	margin: var(--vscode-spacing-size80) var(--vscode-spacing-size160) var(--vscode-spacing-size160);
-	padding: var(--vscode-spacing-size160);
-	border: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
-	border-radius: var(--vscode-cornerRadius-medium);
+	margin-inline-start: var(--vscode-spacing-size360);
+	padding-inline: var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 /* The tools detail lists many short tool descriptions, so let it use the full editor width. */
@@ -2107,7 +2107,7 @@ per-word capitalization does not survive translation. */
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-empty {
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-body1);
-	padding: 8px 0;
+	padding-block: var(--vscode-spacing-size80);
 }
 
 /* Included tools list (tool extension detail) */

@@ -2280,6 +2280,12 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		})),
 	}),
 
+	// Standalone embedded MCP detail widget before marketplace installation.
+	EmbeddedMcpDetailUninstalled: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		render: ctx => renderEmbeddedMcpDetail(ctx, galleryServers[0]),
+	}),
+
 	// Standalone embedded MCP detail widget — empty / no input state.
 	EmbeddedMcpDetailEmpty: defineComponentFixture({
 		labels: { kind: 'screenshot' },
