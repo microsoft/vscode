@@ -1646,9 +1646,15 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	private async _resolveModel(session: ICodexSession): Promise<ModelSelection> {
 		// Ensure the catalog is populated before validating the selection so a
-		// model picked before models finished loading isn't dropped.
-		if (this._models.get().length === 0 && this._modelsRefreshPromise) {
-			await this._modelsRefreshPromise;
+		// model picked before models finished loading isn't dropped. Authentication
+		// can queue a newer refresh while the current one is finishing, so follow
+		// the latest queued refresh until the sequencer is idle.
+		if (this._models.get().length === 0) {
+			let refresh: Promise<void> | undefined = this.refreshModels();
+			while (refresh) {
+				await refresh;
+				refresh = this._modelsRefreshPromise;
+			}
 		}
 		const selected = this._supportedModelOrUndefined(session.model);
 		if (selected) {
