@@ -206,6 +206,67 @@ suite('ListView', function () {
 		}
 	});
 
+	test('does not expose stale data-index on dynamic height measurement rows', function () {
+		const element = document.createElement('div');
+		element.style.height = '100px';
+		element.style.width = '200px';
+		document.body.appendChild(element);
+
+		type TestElement = { height: number };
+		const delegate: IListVirtualDelegate<TestElement> = {
+			getHeight() { return 25; },
+			getTemplateId() { return 'template'; },
+			hasDynamicHeight() { return true; }
+		};
+
+		let listView: ListView<TestElement>;
+		const staleIndicesSeen: number[] = [];
+		const renderer: IListRenderer<TestElement, HTMLElement> = {
+			templateId: 'template',
+			renderTemplate(container) {
+				container.style.height = '999px';
+				Object.defineProperty(container, 'offsetHeight', {
+					configurable: true,
+					get: () => {
+						// While measurements are in flight, no row in the live container may
+						// resolve to an index that is out of range for the current list length.
+						for (const row of element.querySelectorAll<HTMLElement>('.monaco-list-row')) {
+							const rawIndex = row.getAttribute('data-index');
+							if (rawIndex !== null) {
+								const index = Number(rawIndex);
+								if (!isNaN(index) && index >= listView.length) {
+									staleIndicesSeen.push(index);
+								}
+							}
+						}
+						return Number(container.dataset.testHeight);
+					}
+				});
+				return container;
+			},
+			renderElement(element, _index, templateData) {
+				templateData.dataset.testHeight = String(element.height);
+			},
+			disposeTemplate() { }
+		};
+
+		listView = new ListView<TestElement>(element, delegate, [renderer], { supportDynamicHeights: true });
+		try {
+			listView.layout(100, 200);
+			// Render and measure a longer list so real rows receive high data-index values.
+			listView.splice(0, 0, range(10).map(() => ({ height: 5 })));
+			// Release those rows back into the cache, then reuse them for a shorter list so
+			// the measurement rows are cache-reused nodes still carrying the old high indices.
+			listView.splice(0, 10);
+			listView.splice(0, 0, range(3).map(() => ({ height: 5 })));
+
+			assert.deepStrictEqual(staleIndicesSeen, []);
+		} finally {
+			listView.dispose();
+			element.remove();
+		}
+	});
+
 	test('cleans up retained dynamic height rows after a render error', function () {
 		const element = document.createElement('div');
 		element.style.height = '100px';
