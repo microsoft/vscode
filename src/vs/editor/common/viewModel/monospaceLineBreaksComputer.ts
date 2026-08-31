@@ -7,7 +7,7 @@ import { CharCode } from '../../../base/common/charCode.js';
 import * as strings from '../../../base/common/strings.js';
 import { WrappingIndent, IComputedEditorOptions, EditorOption } from '../config/editorOptions.js';
 import { CharacterClassifier } from '../core/characterClassifier.js';
-import { FontInfo } from '../config/fontInfo.js';
+import { FontInfo, getFullwidthCharacterWidth } from '../config/fontInfo.js';
 import { FixedWidthInjectedTextRange, LineInjectedText } from '../textModelEvents.js';
 import { InjectedTextOptions } from '../model.js';
 import { ILineBreaksComputerFactory, ILineBreaksComputer, ModelLineProjectionData, ILineBreaksComputerContext } from '../modelLineProjectionData.js';
@@ -35,8 +35,10 @@ export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFa
 				previousBreakingData.push(previousLineBreakData);
 			},
 			finalize: () => {
-				const columnsForFullWidthChar = forceFullwidthCharacterWidth ? 2 : fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth;
-				const fullwidthCharacterPixelWidth = forceFullwidthCharacterWidth ? fontInfo.spaceWidth * 2 : fontInfo.typicalFullwidthCharacterWidth;
+				// Both quantities are derived from the same target width so that the column budget and
+				// the pixel budget can never disagree about how wide a full-width character is.
+				const fullwidthCharacterPixelWidth = getFullwidthCharacterWidth(fontInfo, forceFullwidthCharacterWidth);
+				const columnsForFullWidthChar = fullwidthCharacterPixelWidth / fontInfo.typicalHalfwidthCharacterWidth;
 				const result: (ModelLineProjectionData | null)[] = [];
 				for (let i = 0, len = lineNumbers.length; i < len; i++) {
 					const lineNumber = lineNumbers[i];
@@ -550,7 +552,7 @@ function computeCharPixelWidth(charCode: number, visibleColumn: number, tabSize:
 	}
 	if (charCode < 32) {
 		// when using `editor.renderControlCharacters`, the substitutions are often wide
-		return fontInfo.typicalFullwidthCharacterWidth;
+		return fullwidthCharacterPixelWidth;
 	}
 	return fontInfo.typicalHalfwidthCharacterWidth;
 }

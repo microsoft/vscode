@@ -45,8 +45,7 @@ export interface IRenderLineInputOptions {
 	textDirection: TextDirection | null;
 	verticalScrollbarSize: number;
 	renderNewLineWhenEmpty: boolean;
-	forceFullwidthCharacterWidth: boolean;
-	typicalFullwidthCharacterWidth: number;
+	fullwidthLetterSpacing: number | null;
 }
 
 export class RenderLineInput {
@@ -71,8 +70,12 @@ export class RenderLineInput {
 	public readonly fontLigatures: boolean;
 	public readonly textDirection: TextDirection | null;
 	public readonly verticalScrollbarSize: number;
-	public readonly forceFullwidthCharacterWidth: boolean;
-	public readonly typicalFullwidthCharacterWidth: number;
+	/**
+	 * The `letter-spacing` to render full-width characters with so that they occupy exactly two
+	 * half-width cells, or `null` to render them at their natural width. See
+	 * `getFullwidthLetterSpacing`.
+	 */
+	public readonly fullwidthLetterSpacing: number | null;
 
 	/**
 	 * Defined only when renderWhitespace is 'selection'. Selections are non-overlapping,
@@ -111,8 +114,7 @@ export class RenderLineInput {
 		textDirection: TextDirection | null,
 		verticalScrollbarSize: number,
 		renderNewLineWhenEmpty: boolean = false,
-		forceFullwidthCharacterWidth: boolean = false,
-		typicalFullwidthCharacterWidth: number = spaceWidth * 2,
+		fullwidthLetterSpacing: number | null = null,
 	) {
 		this.useMonospaceOptimizations = useMonospaceOptimizations;
 		this.canUseHalfwidthRightwardsArrow = canUseHalfwidthRightwardsArrow;
@@ -144,8 +146,7 @@ export class RenderLineInput {
 		this.renderNewLineWhenEmpty = renderNewLineWhenEmpty;
 		this.textDirection = textDirection;
 		this.verticalScrollbarSize = verticalScrollbarSize;
-		this.forceFullwidthCharacterWidth = forceFullwidthCharacterWidth;
-		this.typicalFullwidthCharacterWidth = typicalFullwidthCharacterWidth;
+		this.fullwidthLetterSpacing = fullwidthLetterSpacing;
 
 		const wsmiddotDiff = Math.abs(wsmiddotWidth - spaceWidth);
 		const middotDiff = Math.abs(middotWidth - spaceWidth);
@@ -204,8 +205,7 @@ export class RenderLineInput {
 			&& this.textDirection === other.textDirection
 			&& this.verticalScrollbarSize === other.verticalScrollbarSize
 			&& this.renderNewLineWhenEmpty === other.renderNewLineWhenEmpty
-			&& this.forceFullwidthCharacterWidth === other.forceFullwidthCharacterWidth
-			&& this.typicalFullwidthCharacterWidth === other.typicalFullwidthCharacterWidth
+			&& this.fullwidthLetterSpacing === other.fullwidthLetterSpacing
 		);
 	}
 }
@@ -467,7 +467,7 @@ class ResolvedRenderLineInput {
 		public readonly renderSpaceCharCode: number,
 		public readonly renderWhitespace: RenderWhitespace,
 		public readonly renderControlCharacters: boolean,
-		public readonly fullwidthLetterSpacing: number,
+		public readonly fullwidthLetterSpacing: number | null,
 	) {
 		//
 	}
@@ -496,7 +496,6 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		// for inline decorations. `extractControlCharacters` removes empty line parts.
 		tokens = extractControlCharacters(lineContent, tokens);
 	}
-	const fullwidthLetterSpacing = input.spaceWidth * 2 - input.typicalFullwidthCharacterWidth;
 	if (input.renderWhitespace === RenderWhitespace.All ||
 		input.renderWhitespace === RenderWhitespace.Boundary ||
 		(input.renderWhitespace === RenderWhitespace.Selection && !!input.selectionsOnLine) ||
@@ -522,7 +521,14 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		}
 		tokens = _applyInlineDecorations(lineContent, len, tokens, input.lineDecorations);
 	}
-	if (input.forceFullwidthCharacterWidth && fullwidthLetterSpacing !== 0 && !input.isBasicASCII && !input.containsRTL) {
+	// RTL runs already carry a `style` of their own and are reordered by the browser, so leave them
+	// at their natural width rather than trying to lay them out on the grid.
+	const fullwidthLetterSpacing = (
+		!input.isBasicASCII && !input.containsRTL
+			? input.fullwidthLetterSpacing
+			: null
+	);
+	if (fullwidthLetterSpacing !== null) {
 		tokens = splitFullWidthCharacters(lineContent, tokens);
 	}
 	if (!input.containsRTL) {
@@ -764,6 +770,10 @@ function extractControlCharacters(lineContent: string, tokens: LinePart[]): Line
 	return result;
 }
 
+/**
+ * Splits every token into runs of full-width and runs of half-width characters, so that the
+ * rendering phase can give the full-width ones a `letter-spacing` of their own.
+ */
 function splitFullWidthCharacters(lineContent: string, tokens: LinePart[]): LinePart[] {
 	const result: LinePart[] = [];
 	let tokenStartIndex = 0;
@@ -773,9 +783,9 @@ function splitFullWidthCharacters(lineContent: string, tokens: LinePart[]): Line
 			continue;
 		}
 		let partStartIndex = tokenStartIndex;
-		let partIsFullWidth = strings.isFullWidthCharacter(lineContent.charCodeAt(partStartIndex));
+		let partIsFullWidth = strings.isFullWidthCharacterAt(lineContent, partStartIndex);
 		for (let charIndex = tokenStartIndex + 1; charIndex < token.endIndex; charIndex++) {
-			const isFullWidth = strings.isFullWidthCharacter(lineContent.charCodeAt(charIndex));
+			const isFullWidth = strings.isFullWidthCharacterAt(lineContent, charIndex);
 			if (isFullWidth !== partIsFullWidth) {
 				result.push(new LinePart(
 					charIndex,
@@ -1075,12 +1085,17 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 		charOffsetInPart = 0;
 
 		sb.appendString('<span ');
-		if (partContainsRTL) {
-			sb.appendString('style="unicode-bidi:isolate" ');
-		} else if (partIsFullWidth) {
-			sb.appendString('style="letter-spacing:');
-			sb.appendString(String(fullwidthLetterSpacing));
-			sb.appendString('px" ');
+		if (partContainsRTL || partIsFullWidth) {
+			sb.appendString('style="');
+			if (partContainsRTL) {
+				sb.appendString('unicode-bidi:isolate;');
+			}
+			if (partIsFullWidth) {
+				sb.appendString('letter-spacing:');
+				sb.appendString(String(fullwidthLetterSpacing));
+				sb.appendString('px;');
+			}
+			sb.appendString('" ');
 		}
 		sb.appendString('class="');
 		sb.appendString(partRendersWhitespaceWithWidth ? 'mtkz' : partType);

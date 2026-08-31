@@ -750,6 +750,41 @@ export function isFullWidthCharacter(charCode: number): boolean {
 }
 
 /**
+ * Like {@link isFullWidthCharacter}, but takes a code point instead of a UTF-16 code unit, so that
+ * ideographs outside the basic multilingual plane are recognized as well.
+ *
+ * The supplementary and tertiary ideographic planes hold nothing but CJK ideographs, which are full
+ * width exactly like their counterparts below U+FFFF:
+ *   20000 - 2A6DF   CJK Unified Ideographs Extension B
+ *   2A700 - 2EBEF   CJK Unified Ideographs Extensions C, D, E, F and I
+ *   2F800 - 2FA1F   CJK Compatibility Ideographs Supplement
+ *   30000 - 323AF   CJK Unified Ideographs Extensions G and H
+ */
+export function isFullWidthCodePoint(codePoint: number): boolean {
+	if (codePoint <= 0xFFFF) {
+		return isFullWidthCharacter(codePoint);
+	}
+	return (codePoint >= 0x20000 && codePoint <= 0x3FFFD);
+}
+
+/**
+ * Whether the character at `index` is rendered at full width, surrogate pairs included.
+ *
+ * Both halves of a pair give the same answer, so a string can be split into runs on this predicate
+ * without ever cutting a pair in two.
+ */
+export function isFullWidthCharacterAt(str: string, index: number): boolean {
+	const charCode = str.charCodeAt(index);
+	if (isHighSurrogate(charCode) && index + 1 < str.length) {
+		return isFullWidthCodePoint(computeCodePoint(charCode, str.charCodeAt(index + 1)));
+	}
+	if (isLowSurrogate(charCode) && index > 0 && isHighSurrogate(str.charCodeAt(index - 1))) {
+		return isFullWidthCodePoint(computeCodePoint(str.charCodeAt(index - 1), charCode));
+	}
+	return isFullWidthCharacter(charCode);
+}
+
+/**
  * A fast function (therefore imprecise) to check if code points are emojis.
  * Generated using https://github.com/alexdima/unicode-utils/blob/main/emoji-test.js
  */

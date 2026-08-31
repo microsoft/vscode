@@ -7,7 +7,7 @@ import { createTrustedTypesPolicy } from '../../../../../../base/browser/trusted
 import { applyFontInfo } from '../../../../config/domFontInfo.js';
 import { ICodeEditor } from '../../../../editorBrowser.js';
 import { EditorFontLigatures, EditorOption, FindComputedEditorOptionValueById } from '../../../../../common/config/editorOptions.js';
-import { FontInfo } from '../../../../../common/config/fontInfo.js';
+import { FontInfo, getFullwidthLetterSpacing } from '../../../../../common/config/fontInfo.js';
 import { Position } from '../../../../../common/core/position.js';
 import { StringBuilder } from '../../../../../common/core/stringBuilder.js';
 import { ModelLineProjectionData } from '../../../../../common/modelLineProjectionData.js';
@@ -122,6 +122,8 @@ export class RenderOptions {
 			modifiedEditorOptions.get(EditorOption.renderControlCharacters),
 			modifiedEditorOptions.get(EditorOption.fontLigatures),
 			modifiedEditorOptions.get(EditorOption.scrollbar).verticalScrollbarSize,
+			true,
+			getFullwidthLetterSpacing(fontInfo, modifiedEditorOptions.get(EditorOption.forceFullwidthCharacterWidth)),
 		);
 	}
 
@@ -139,6 +141,7 @@ export class RenderOptions {
 		public readonly fontLigatures: FindComputedEditorOptionValueById<EditorOption.fontLigatures>,
 		public readonly verticalScrollbarSize: number,
 		public readonly setWidth = true,
+		public readonly fullwidthLetterSpacing: number | null = null,
 	) { }
 
 	public withSetWidth(setWidth: boolean): RenderOptions {
@@ -156,6 +159,7 @@ export class RenderOptions {
 			this.fontLigatures,
 			this.verticalScrollbarSize,
 			setWidth,
+			this.fullwidthLetterSpacing,
 		);
 	}
 
@@ -174,6 +178,7 @@ export class RenderOptions {
 			this.fontLigatures,
 			this.verticalScrollbarSize,
 			this.setWidth,
+			this.fullwidthLetterSpacing,
 		);
 	}
 }
@@ -306,7 +311,9 @@ function renderOriginalLine(
 		options.fontLigatures !== EditorFontLigatures.OFF,
 		null, // Send no selections, original line cannot be selected
 		null,
-		options.verticalScrollbarSize
+		options.verticalScrollbarSize,
+		false,
+		options.fullwidthLetterSpacing
 	), sb);
 
 	sb.appendString('</div>');

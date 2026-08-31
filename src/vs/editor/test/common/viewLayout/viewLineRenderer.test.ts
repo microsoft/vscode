@@ -78,8 +78,7 @@ const defaultRenderLineInputOptions: IRenderLineInputOptions = {
 	textDirection: null,
 	verticalScrollbarSize: 14,
 	renderNewLineWhenEmpty: false,
-	forceFullwidthCharacterWidth: false,
-	typicalFullwidthCharacterWidth: 20
+	fullwidthLetterSpacing: null
 };
 
 function createRenderLineInputOptions(opts: IRelaxedRenderLineInputOptions): IRenderLineInputOptions {
@@ -114,8 +113,7 @@ function createRenderLineInput(opts: IRelaxedRenderLineInputOptions): RenderLine
 		options.textDirection,
 		options.verticalScrollbarSize,
 		options.renderNewLineWhenEmpty,
-		options.forceFullwidthCharacterWidth,
-		options.typicalFullwidthCharacterWidth
+		options.fullwidthLetterSpacing
 	);
 }
 
@@ -200,9 +198,7 @@ suite('renderViewLine', () => {
 			lineContent: 'a擦字b',
 			isBasicASCII: false,
 			lineTokens: createViewLineTokens([createPart(4, 1)]),
-			spaceWidth: 10,
-			typicalFullwidthCharacterWidth: 18,
-			forceFullwidthCharacterWidth: true
+			fullwidthLetterSpacing: 2
 		}));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -221,14 +217,29 @@ suite('renderViewLine', () => {
 		});
 	});
 
+	test('forces full-width characters to two cells beyond the basic multilingual plane', () => {
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent: 'a𠀋🙂b',
+			isBasicASCII: false,
+			lineTokens: createViewLineTokens([createPart(6, 1)]),
+			fullwidthLetterSpacing: 2
+		}));
+
+		// 𠀋 U+2000B is a CJK ideograph and gets the correction, 🙂 U+1F642 is an emoji and does not.
+		// Both are surrogate pairs, so neither may be cut in half by the run boundary.
+		assert.strictEqual(
+			actual.html,
+			'<span><span class="mtk1">a</span><span style="letter-spacing:2px" class="mtk1">𠀋</span><span class="mtk1">🙂b</span></span>'
+		);
+	});
+
 	test('forces full-width characters to two cells when rendering whitespace', () => {
 		const actual = renderViewLine(createRenderLineInput({
 			lineContent: '擦 字',
 			isBasicASCII: false,
 			lineTokens: createViewLineTokens([createPart(3, 1)]),
 			spaceWidth: 10,
-			typicalFullwidthCharacterWidth: 18,
-			forceFullwidthCharacterWidth: true,
+			fullwidthLetterSpacing: 2,
 			renderWhitespace: 'all'
 		}));
 

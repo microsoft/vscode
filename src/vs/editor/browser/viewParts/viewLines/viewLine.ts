@@ -171,8 +171,7 @@ export class ViewLine implements IVisibleLine {
 			lineData.textDirection,
 			options.verticalScrollbarSize,
 			false,
-			options.forceFullwidthCharacterWidth,
-			options.typicalFullwidthCharacterWidth
+			options.fullwidthLetterSpacing
 		);
 
 		if (this._renderedViewLine && this._renderedViewLine.input.equals(renderLineInput)) {

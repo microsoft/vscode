@@ -8,6 +8,7 @@ import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
 import { createTrustedTypesPolicy } from '../../../../../base/browser/trustedTypes.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { EditorFontLigatures, EditorOption, FindComputedEditorOptionValueById, IComputedEditorOptions } from '../../../../common/config/editorOptions.js';
+import { getFullwidthLetterSpacing } from '../../../../common/config/fontInfo.js';
 import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { StringBuilder } from '../../../../common/core/stringBuilder.js';
@@ -207,7 +208,8 @@ export class RichScreenReaderContent extends Disposable implements IScreenReader
 			null,
 			null,
 			0,
-			true
+			true,
+			getFullwidthLetterSpacing(fontInfo, options.get(EditorOption.forceFullwidthCharacterWidth))
 		);
 		const htmlBuilder = new StringBuilder(10000);
 		const renderOutput = renderViewLine(renderLineInput, htmlBuilder);

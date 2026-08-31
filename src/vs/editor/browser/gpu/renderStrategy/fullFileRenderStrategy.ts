@@ -376,8 +376,8 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 					}
 					chars = segment;
 
-					if (viewLineOptions.forceFullwidthCharacterWidth && strings.isFullWidthCharacter(chars.charCodeAt(0))) {
-						charWidth = viewLineOptions.spaceWidth * dpr * 2;
+					if (viewLineOptions.fullwidthLetterSpacing !== null && strings.isFullWidthCharacterAt(chars, 0)) {
+						charWidth = viewLineOptions.fullwidthCharacterWidth * dpr;
 					} else if (!(lineData.isBasicASCII && viewLineOptions.useMonospaceOptimizations)) {
 						charWidth = this.glyphRasterizer.getTextMetrics(chars).width;
 					}

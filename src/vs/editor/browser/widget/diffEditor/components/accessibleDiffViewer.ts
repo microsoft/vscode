@@ -16,6 +16,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { applyFontInfo } from '../../../config/domFontInfo.js';
 import { applyStyle } from '../utils.js';
 import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from '../../../../common/config/editorOptions.js';
+import { getFullwidthLetterSpacing } from '../../../../common/config/fontInfo.js';
 import { LineRange } from '../../../../common/core/ranges/lineRange.js';
 import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { Position } from '../../../../common/core/position.js';
@@ -683,7 +684,9 @@ class View extends Disposable {
 			options.get(EditorOption.fontLigatures) !== EditorFontLigatures.OFF,
 			null,
 			null,
-			verticalScrollbarSize
+			verticalScrollbarSize,
+			false,
+			getFullwidthLetterSpacing(fontInfo, options.get(EditorOption.forceFullwidthCharacterWidth))
 		));
 
 		return r.html;

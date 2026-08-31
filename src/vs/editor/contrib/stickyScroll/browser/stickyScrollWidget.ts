@@ -13,6 +13,7 @@ import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPosit
 import { getColumnOfNodeOffset } from '../../../browser/viewParts/viewLines/viewLine.js';
 import { EmbeddedCodeEditorWidget } from '../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { EditorLayoutInfo, EditorOption, RenderLineNumbersType } from '../../../common/config/editorOptions.js';
+import { getFullwidthLetterSpacing } from '../../../common/config/fontInfo.js';
 import { Position } from '../../../common/core/position.js';
 import { StringBuilder } from '../../../common/core/stringBuilder.js';
 import { LineDecoration } from '../../../common/viewLayout/lineDecorations.js';
@@ -468,7 +469,8 @@ class RenderedStickyLine {
 			lineRenderingData.tokens, actualInlineDecorations,
 			lineRenderingData.tabSize, lineRenderingData.startVisibleColumn,
 			1, 1, 1, 500, 'none', true, true, null,
-			textDirection, verticalScrollbarSize
+			textDirection, verticalScrollbarSize, false,
+			getFullwidthLetterSpacing(editor.getOption(EditorOption.fontInfo), editor.getOption(EditorOption.forceFullwidthCharacterWidth))
 		);
 
 		const sb = new StringBuilder(2000);

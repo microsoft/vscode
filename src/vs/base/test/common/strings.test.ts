@@ -337,6 +337,22 @@ suite('Strings', () => {
 		assert.strictEqual(strings.isFullWidthCharacter('?'.charCodeAt(0)), false, '? regular ASCII');
 	});
 
+	test('isFullWidthCharacterAt', () => {
+		// One entry per UTF-16 code unit, so that both halves of every surrogate pair are covered.
+		const text = 'a擦𠀋🙂Ａ';
+		const actual = Array.from({ length: text.length }, (_unused, index) => strings.isFullWidthCharacterAt(text, index));
+
+		assert.deepStrictEqual(actual, [
+			false,	// a
+			true,	// 擦 U+64E6 CJK unified ideograph
+			true,	// 𠀋 U+2000B CJK extension B, high surrogate
+			true,	//        ... low surrogate
+			false,	// 🙂 U+1F642 emoji, high surrogate
+			false,	//        ... low surrogate
+			true	// Ａ U+FF21 fullwidth A
+		]);
+	});
+
 	test('isBasicASCII', () => {
 		function assertIsBasicASCII(str: string, expected: boolean): void {
 			assert.strictEqual(strings.isBasicASCII(str), expected, str + ` (${str.charCodeAt(0)})`);

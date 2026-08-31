@@ -6380,7 +6380,7 @@ export const EditorOptions = {
 	fontVariations: register(new EditorFontVariations()),
 	forceFullwidthCharacterWidth: register(new EditorBooleanOption(
 		EditorOption.forceFullwidthCharacterWidth, 'forceFullwidthCharacterWidth', false,
-		{ description: nls.localize('forceFullwidthCharacterWidth', "Controls whether full-width characters are forced to occupy exactly two monospace character cells.") }
+		{ description: nls.localize('forceFullwidthCharacterWidth', "Controls whether full-width characters, such as Chinese, Japanese and Korean ones, are stretched to occupy exactly two character cells, so that they line up with the character grid. Fonts whose full-width characters are already wider than two cells are left at their natural width.") }
 	)),
 	formatOnPaste: register(new EditorBooleanOption(
 		EditorOption.formatOnPaste, 'formatOnPaste', false,

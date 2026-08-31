@@ -207,6 +207,44 @@ export class FontInfo extends BareFontInfo {
 		);
 	}
 }
+
+/**
+ * The advance width a full-width character has to occupy for `editor.forceFullwidthCharacterWidth`
+ * to line up with the character grid: exactly two half-width cells, the same unit rulers, the
+ * wrapping column and the mouse-to-column mapping are expressed in.
+ *
+ * A font whose full-width glyphs are already wider than two cells cannot be squeezed into them —
+ * `letter-spacing` shortens the advance but never scales the glyph, so the ink would spill over the
+ * neighbouring character. Such fonts keep their natural width, which leaves the grid unaligned but
+ * legible.
+ */
+export function getFullwidthCharacterWidth(fontInfo: FontInfo, forceFullwidthCharacterWidth: boolean): number {
+	if (!forceFullwidthCharacterWidth) {
+		return fontInfo.typicalFullwidthCharacterWidth;
+	}
+	return Math.max(2 * fontInfo.typicalHalfwidthCharacterWidth, fontInfo.typicalFullwidthCharacterWidth);
+}
+
+/**
+ * The `letter-spacing` a run of full-width characters needs for each of them to advance
+ * {@link getFullwidthCharacterWidth} pixels, or `null` when no correction is called for and the run
+ * can be left alone.
+ *
+ * `letter-spacing` on a descendant replaces the inherited `editor.letterSpacing` instead of adding
+ * to it, so the editor-wide value is folded back in here.
+ */
+export function getFullwidthLetterSpacing(fontInfo: FontInfo, forceFullwidthCharacterWidth: boolean): number | null {
+	if (!forceFullwidthCharacterWidth) {
+		return null;
+	}
+	const targetWidth = getFullwidthCharacterWidth(fontInfo, forceFullwidthCharacterWidth);
+	if (targetWidth === fontInfo.typicalFullwidthCharacterWidth) {
+		// The font already lays full-width characters out on the grid, or is too wide to be corrected.
+		return null;
+	}
+	return targetWidth - fontInfo.typicalFullwidthCharacterWidth + fontInfo.letterSpacing;
+}
+
 /**
  * @internal
  */
