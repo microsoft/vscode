@@ -150,6 +150,9 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 
 	private static _groupForConfigKey(key: string): string | undefined {
 		switch (key) {
+			// The Auto model has no thinking level, so its routing-profile picker takes that slot,
+			// matching how the Copilot Chat extension groups it.
+			case 'tier':
 			case 'thinkingLevel': return 'navigation';
 			case 'contextSize': return 'tokens';
 			default: return undefined;

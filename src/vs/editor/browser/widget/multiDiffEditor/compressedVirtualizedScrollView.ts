@@ -151,6 +151,10 @@ export class CompressedVirtualizedScrollView<TItem extends ICompressedVirtualize
 		});
 	}
 
+	setLogicalScrollPosition(scrollTop: number, smooth = false): void {
+		this.setScrollPosition({ scrollTop: this._leadingScrollSlack + scrollTop }, smooth);
+	}
+
 	getScrollPosition(): IScrollPosition {
 		return this._scrollableElement.getScrollPosition();
 	}
@@ -236,6 +240,7 @@ export class CompressedVirtualizedScrollView<TItem extends ICompressedVirtualize
 			const hasStableItems = this._previousItems !== undefined
 				&& this._previousItems.length === items.length
 				&& this._previousItems.every((item, index) => item === items[index]);
+			const itemsChanged = this._previousItems !== undefined && !hasStableItems;
 			let didApplyAnchor = false;
 
 			const appliesPendingAnchor = !!this._pendingAnchor && hasStableItems;
@@ -291,8 +296,10 @@ export class CompressedVirtualizedScrollView<TItem extends ICompressedVirtualize
 					leadingScrollSlack: this._leadingScrollSlack,
 					trailingScrollSlack: this._trailingScrollSlack,
 				}, tx);
-			} else if (geometryChanged) {
-				this._revision = asLayoutRevision(this._revision + 1);
+			} else if (geometryChanged || itemsChanged) {
+				if (geometryChanged) {
+					this._revision = asLayoutRevision(this._revision + 1);
+				}
 				this._leadingScrollSlack = 0;
 				this._trailingScrollSlack = 0;
 				this._lastGeometryEdit.set(undefined, tx);

@@ -51,9 +51,9 @@
 	box-sizing: border-box;
 	padding: var(--vscode-spacing-size160);
 	margin: var(--vscode-spacing-size200) 0 var(--vscode-spacing-size280);
-	border: var(--vscode-strokeThickness) solid color-mix(in srgb, var(--vscode-editorWidget-border) 85%, transparent);
+	border: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
 	border-radius: var(--vscode-cornerRadius-large);
-	background: var(--vscode-editorWidget-background);
+	background: color-mix(in srgb, var(--vscode-foreground) 8%, var(--vscode-agentsPanel-background));
 }
 
 .ai-customization-management-editor .welcome-prompts-section-label {
@@ -212,9 +212,9 @@
 	flex-direction: column;
 	min-width: 0;
 	padding: var(--vscode-spacing-size120);
-	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	border: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
 	border-radius: var(--vscode-cornerRadius-large);
-	background: var(--vscode-editorWidget-background);
+	background: color-mix(in srgb, var(--vscode-foreground) 8%, var(--vscode-agentsPanel-background));
 	color: var(--vscode-foreground);
 	font: inherit;
 	text-align: left;
@@ -233,8 +233,8 @@
 
 .ai-customization-management-editor .welcome-prompts-migration-card {
 	grid-column: 1 / -1;
-	background: color-mix(in srgb, var(--vscode-inputValidation-warningBackground) 35%, var(--vscode-sideBar-background));
-	border-color: color-mix(in srgb, var(--vscode-inputValidation-warningBorder) 70%, var(--vscode-widget-border));
+	background: color-mix(in srgb, var(--vscode-inputValidation-warningBackground) 35%, var(--vscode-agentsPanel-background));
+	border-color: color-mix(in srgb, var(--vscode-inputValidation-warningBorder) 70%, var(--vscode-agentsPanel-border));
 	cursor: pointer;
 }
 
