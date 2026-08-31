@@ -158,6 +158,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 	private _lastFocusedElement: HTMLElement | null = null;
 	private _viewZone?: FindWidgetViewZone;
 	private _viewZoneId?: string;
+	private _viewZoneScrollAdjustment = 0;
 
 	private _resizeSash!: Sash;
 	private _resized!: boolean;
@@ -288,6 +289,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._register(this._codeEditor.onDidChangeModel(() => {
 			// Model swaps destroy zones; clear the stale id and reattach while Find is open (#316054).
 			this._viewZoneId = undefined;
+			this._viewZoneScrollAdjustment = 0;
 			if (!this._isVisible || !this._codeEditor.hasModel()) {
 				return;
 			}
@@ -652,6 +654,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._codeEditor.changeViewZones((accessor) => {
 			viewZone.heightInPx = this._getViewZoneHeight();
 			this._viewZoneId = accessor.addZone(viewZone);
+			this._viewZoneScrollAdjustment = 0;
 			// Restore explicit scroll only; otherwise leave scroll so the zone stays visible (#316054).
 			if (typeof targetScrollTop === 'number') {
 				this._codeEditor.setScrollTop(targetScrollTop);
@@ -690,6 +693,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 
 				if (adjustScroll) {
 					this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() + scrollAdjustment);
+					this._viewZoneScrollAdjustment += scrollAdjustment;
 				}
 
 				return;
@@ -707,6 +711,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 
 				if (adjustScroll) {
 					this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() + scrollAdjustment);
+					this._viewZoneScrollAdjustment = scrollAdjustment;
+				} else {
+					this._viewZoneScrollAdjustment = 0;
 				}
 			}
 		});
@@ -724,7 +731,11 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 				accessor.removeZone(this._viewZoneId);
 				this._viewZoneId = undefined;
 				if (this._viewZone) {
-					this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() - this._viewZone.heightInPx);
+					// Undo only the scroll shift applied on show, so open/close cycles do not drift (#316054).
+					if (this._viewZoneScrollAdjustment !== 0) {
+						this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() - this._viewZoneScrollAdjustment);
+						this._viewZoneScrollAdjustment = 0;
+					}
 					this._viewZone = undefined;
 				}
 			}
