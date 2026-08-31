@@ -260,15 +260,6 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			toolbarOptions: { primaryGroup: () => true },
 		}));
 
-		// Update toolbar (leftmost in the right-side controls)
-		const updateToolBarElement = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-update-container'));
-		const updateToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, updateToolBarElement, Menus.TitleBarUpdate, {
-			contextMenu: Menus.TitleBarContext,
-			hiddenItemStrategy: HiddenItemStrategy.NoHide,
-			telemetrySource: 'titlePart.update',
-			toolbarOptions: { primaryGroup: () => true },
-		}));
-
 		const screenReaderToolBarElement = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-screen-reader-container'));
 		const screenReaderButtonBar = this._register(this.instantiationService.createInstance(MenuWorkbenchButtonBar, screenReaderToolBarElement, Menus.TitleBarAccessibility, {
 			telemetrySource: 'titlePart.accessibility',
@@ -287,7 +278,6 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		this.registerOverflowManagedToolBar(centerNavContainer, centerNavToolBar);
 		this.registerOverflowManagedToolBar(rightToolbarContainer, rightToolBar);
 		this.registerOverflowManagedToolBar(sessionActionsContainer, sessionActionsToolBar);
-		this.registerOverflowManagedToolBar(updateToolBarElement, updateToolBar);
 
 		// Context menu on the titlebar
 		this._register(addDisposableListener(this.rootContainer, EventType.CONTEXT_MENU, e => {
