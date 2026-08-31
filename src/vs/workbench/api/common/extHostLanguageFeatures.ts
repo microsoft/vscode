@@ -474,13 +474,19 @@ class CodeActionAdapter {
 		const ran = Selection.isISelection(rangeOrSelection)
 			? <vscode.Selection>typeConvert.Selection.to(rangeOrSelection)
 			: <vscode.Range>typeConvert.Range.to(rangeOrSelection);
-		const allDiagnostics: vscode.Diagnostic[] = [];
-
-		for (const diagnostic of this._diagnostics.getDiagnostics(resource)) {
-			if (ran.intersection(diagnostic.range)) {
-				const newLen = allDiagnostics.push(diagnostic);
-				if (newLen > CodeActionAdapter._maxCodeActionsPerFile) {
-					break;
+		let allDiagnostics: vscode.Diagnostic[];
+		if (context.diagnostics) {
+			// When the request originates from a specific diagnostic (e.g. Problems view),
+			// use only those diagnostics instead of gathering all diagnostics at the range.
+			allDiagnostics = context.diagnostics.map(typeConvert.Diagnostic.to);
+		} else {
+			allDiagnostics = [];
+			for (const diagnostic of this._diagnostics.getDiagnostics(resource)) {
+				if (ran.intersection(diagnostic.range)) {
+					const newLen = allDiagnostics.push(diagnostic);
+					if (newLen > CodeActionAdapter._maxCodeActionsPerFile) {
+						break;
+					}
 				}
 			}
 		}
