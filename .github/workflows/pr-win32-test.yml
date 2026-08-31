@@ -115,7 +115,8 @@ jobs:
         shell: pwsh
         run: npm run gulp "transpile-client-esbuild" "transpile-extensions"
 
-      - name: Download Electron and Playwright
+      - name: Download Electron
+        if: ${{ inputs.electron_tests || inputs.remote_tests }}
         shell: pwsh
         run: |
           . build/azure-pipelines/win32/exec.ps1
@@ -123,7 +124,7 @@ jobs:
 
           for ($i = 1; $i -le 3; $i++) {
             try {
-              exec { npm exec -- npm-run-all2 -lp "electron ${{ env.VSCODE_ARCH }}" "playwright-install" }
+              exec { npm run electron -- ${{ env.VSCODE_ARCH }} }
               break
             }
             catch {
@@ -137,6 +138,33 @@ jobs:
           }
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compile browser integration test runner
+        if: ${{ inputs.browser_tests && inputs.unit_and_integration_tests }}
+        working-directory: test/integration/browser
+        run: npm run compile
+
+      - name: Install Playwright Chromium
+        if: ${{ inputs.browser_tests }}
+        shell: pwsh
+        run: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = "Stop"
+
+          for ($i = 1; $i -le 3; $i++) {
+            try {
+              exec { npm exec -- playwright install --only-shell chromium }
+              break
+            }
+            catch {
+              if ($i -eq 3) {
+                Write-Error "Install failed after 3 attempts"
+                throw
+              }
+              Write-Host "Install failed attempt $i, retrying..."
+              Start-Sleep -Seconds 2
+            }
+          }
 
       - name: 🧪 Run unit tests (Electron)
         if: ${{ inputs.electron_tests && inputs.unit_tests }}
