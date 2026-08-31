@@ -405,4 +405,52 @@ suite('FindSectionHeaders', () => {
 		assert.strictEqual(headers[2].range.startLineNumber, 7);
 		assert.strictEqual(headers[2].range.endLineNumber, 9);
 	});
+
+	test('strips trailing HTML comment close from label', () => {
+		const model = new TestSectionHeaderFinderTarget([
+			'<!-- MARK: Label -->',
+		]);
+
+		const options: FindSectionHeaderOptions = {
+			findRegionSectionHeaders: false,
+			findMarkSectionHeaders: true,
+			markSectionHeaderRegex: '\\bMARK:\\s*(?<separator>\\-?)\\s*(?<label>.*)$'
+		};
+
+		const headers = findSectionHeaders(model, options);
+		assert.strictEqual(headers.length, 1);
+		assert.strictEqual(headers[0].text, 'Label');
+	});
+
+	test('strips trailing block comment close from label', () => {
+		const model = new TestSectionHeaderFinderTarget([
+			'/* MARK: this is a test */',
+		]);
+
+		const options: FindSectionHeaderOptions = {
+			findRegionSectionHeaders: false,
+			findMarkSectionHeaders: true,
+			markSectionHeaderRegex: '\\bMARK:\\s*(?<separator>\\-?)\\s*(?<label>.*)$'
+		};
+
+		const headers = findSectionHeaders(model, options);
+		assert.strictEqual(headers.length, 1);
+		assert.strictEqual(headers[0].text, 'this is a test');
+	});
+
+	test('does not strip comment close from middle of label', () => {
+		const model = new TestSectionHeaderFinderTarget([
+			'// MARK: A --> B section',
+		]);
+
+		const options: FindSectionHeaderOptions = {
+			findRegionSectionHeaders: false,
+			findMarkSectionHeaders: true,
+			markSectionHeaderRegex: '\\bMARK:\\s*(?<separator>\\-?)\\s*(?<label>.*)$'
+		};
+
+		const headers = findSectionHeaders(model, options);
+		assert.strictEqual(headers.length, 1);
+		assert.strictEqual(headers[0].text, 'A --> B section');
+	});
 });
