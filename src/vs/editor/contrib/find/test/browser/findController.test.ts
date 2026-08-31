@@ -510,8 +510,27 @@ suite('FindController', () => {
 			editor.setSelection(new Selection(2, 1, 2, 1));
 			await editor.runAction(nextSelectionMatchFindAction);
 
-			// with seedSearchStringFromSelection: 'selection', an empty selection must not
-			// seed the word at the cursor position, so the search string must stay 'foo'
+			assert.strictEqual(findController.getState().searchString, 'foo');
+
+			findController.dispose();
+		});
+	});
+
+	test('issue #300085: Find Next Selection respects seedSearchStringFromSelection: never', async () => {
+		await withAsyncTestCodeEditor([
+			'foo bar',
+			'bar foo'
+		], { serviceCollection: serviceCollection, find: { seedSearchStringFromSelection: 'never' } }, async (editor) => {
+			clipboardState = '';
+			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
+			const nextSelectionMatchFindAction = new NextSelectionMatchFindAction();
+
+			findController.setSearchString('foo');
+
+			// select "bar" on line 1
+			editor.setSelection(new Selection(1, 5, 1, 8));
+			await editor.runAction(nextSelectionMatchFindAction);
+
 			assert.strictEqual(findController.getState().searchString, 'foo');
 
 			findController.dispose();
