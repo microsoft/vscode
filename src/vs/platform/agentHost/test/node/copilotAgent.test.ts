@@ -1034,7 +1034,7 @@ async function collectDiscoveredChats(agent: CopilotAgent): Promise<Array<{ id: 
 	const discovered: IAgentDiscoveredChat[] = [];
 	const listener = agent.onDidDiscoverChats(chats => discovered.push(...chats));
 	try {
-		await (agent as unknown as { _startCopilotChatDiscovery(): Promise<void> })._startCopilotChatDiscovery();
+		await agent.startChatDiscovery();
 		return discovered.map(chat => ({
 			id: sessionIdOfChat(chat.chat),
 			external: chat.external,
@@ -5624,6 +5624,7 @@ suite('CopilotAgent', () => {
 			const discoveredChats: Array<readonly IAgentChatMetadata[]> = [];
 			const listener = agent.onDidDiscoverChats(chats => discoveredChats.push(chats));
 			try {
+				void agent.startChatDiscovery();
 				for (let i = 0; i < 10; i++) {
 					await timeout(0);
 				}
@@ -5658,6 +5659,7 @@ suite('CopilotAgent', () => {
 			const discoveredChats: Array<readonly IAgentChatMetadata[]> = [];
 			const listener = agent.onDidDiscoverChats(chats => discoveredChats.push(chats));
 			try {
+				void agent.startChatDiscovery();
 				for (let i = 0; i < 50 && discoveredChats.length === 0; i++) {
 					await timeout(0);
 				}
@@ -5688,6 +5690,7 @@ suite('CopilotAgent', () => {
 			const discoveredChats: Array<readonly IAgentChatMetadata[]> = [];
 			const listener = agent.onDidDiscoverChats(chats => discoveredChats.push(chats));
 			try {
+				void agent.startChatDiscovery();
 				await listStarted.p;
 				// The gate was snapshotted as enabled at startup, so disabling it mid
 				// discovery is ignored: the adoptable chat still surfaces.
@@ -5722,6 +5725,7 @@ suite('CopilotAgent', () => {
 			const discoveredChats: Array<readonly IAgentChatMetadata[]> = [];
 			const listener = agent.onDidDiscoverChats(chats => discoveredChats.push(chats));
 			try {
+				void agent.startChatDiscovery();
 				for (let i = 0; i < 50 && discoveredChats.length === 0; i++) {
 					await timeout(0);
 				}
@@ -6055,7 +6059,7 @@ suite('CopilotAgent', () => {
 			const discovered: IAgentDiscoveredChat[] = [];
 			const listener = agent.onDidDiscoverChats(chats => discovered.push(...chats));
 			try {
-				await (agent as unknown as { _startCopilotChatDiscovery(): Promise<void> })._startCopilotChatDiscovery();
+				await agent.startChatDiscovery();
 				return discovered.map(chat => ({
 					id: sessionIdOfChat(chat.chat),
 					workingDirectory: chat.workingDirectories?.[0]?.fsPath,

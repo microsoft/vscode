@@ -1118,10 +1118,9 @@ export class CodexAgent extends Disposable implements IAgent {
 	private _transientAccountConnection: IConnectionReady | undefined;
 	/** Owns a one-off connection even while its initialize handshake is pending. */
 	private _transientConnectionCancellation: CancellationTokenSource | undefined;
-	private readonly _onDidDiscoverChats = this._register(new Emitter<readonly IAgentDiscoveredChat[]>({
-		onDidAddFirstListener: () => { void this._startCodexChatDiscovery(); },
-	}));
+	private readonly _onDidDiscoverChats = this._register(new Emitter<readonly IAgentDiscoveredChat[]>());
 	readonly onDidDiscoverChats = this._onDidDiscoverChats.event;
+	private _chatDiscoveryRequested = false;
 	private _codexChatDiscovery: Promise<void> | undefined;
 	private _modelsRefreshPromise: Promise<void> | undefined;
 	private readonly _modelRefreshSequencer = new Sequencer();
@@ -2113,7 +2112,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		// flight may have observed the inactive state and skipped Codex models.
 		void this._queueModelRefresh();
 		void this._refreshProviderConfiguration();
-		if (this._onDidDiscoverChats.hasListeners()) {
+		if (this._chatDiscoveryRequested) {
 			void this._startCodexChatDiscovery();
 		}
 	}
@@ -6610,6 +6609,11 @@ export class CodexAgent extends Disposable implements IAgent {
 			return await this._isKnownCodexChat(chat) ? chat : undefined;
 		})));
 		return known.filter((chat): chat is IAgentChatMetadata => chat !== undefined);
+	}
+
+	startChatDiscovery(): Promise<void> {
+		this._chatDiscoveryRequested = true;
+		return this._startCodexChatDiscovery();
 	}
 
 	private _startCodexChatDiscovery(): Promise<void> {
