@@ -1027,7 +1027,8 @@ async function promptToConnectViaTunnel(
 	try {
 		// `connect` caches the tunnel internally before wiring the live
 		// connection — no separate `cacheTunnel` call needed here.
-		await tunnelService.connect(picked.tunnel, authProvider);
+		tunnelService.clearTunnelDismissal(picked.tunnel.tunnelId);
+		await tunnelService.connect(picked.tunnel, authProvider, { userInitiated: true });
 		handle.close();
 	} catch (err) {
 		handle.close();

@@ -431,6 +431,18 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 		this._storage.removeCachedTunnel(tunnelId);
 	}
 
+	isTunnelDismissed(tunnelId: string): boolean {
+		return this._storage.isTunnelDismissed(tunnelId);
+	}
+
+	dismissTunnel(tunnelId: string): void {
+		this._storage.dismissTunnel(tunnelId);
+	}
+
+	clearTunnelDismissal(tunnelId: string): void {
+		this._storage.clearTunnelDismissal(tunnelId);
+	}
+
 	isAutoConnectSuppressed(tunnelId: string): boolean {
 		return this._storage.isAutoConnectSuppressed(tunnelId);
 	}

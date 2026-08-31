@@ -151,7 +151,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 	}
 
 	private _getProviderTunnels() {
-		return this._tunnelService.getCachedTunnels();
+		return this._tunnelService.getCachedTunnels().filter(tunnel => !this._tunnelService.isTunnelDismissed(tunnel.tunnelId));
 	}
 
 	private _isHostedTunnel(tunnel: Pick<ITunnelInfo, 'tunnelId' | 'name'>): boolean {
@@ -276,6 +276,9 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		}
 
 		const tunnelId = address.slice(TUNNEL_ADDRESS_PREFIX.length);
+		if (options.userInitiated) {
+			this._tunnelService.clearTunnelDismissal(tunnelId);
+		}
 		const cached = this._tunnelService.getCachedTunnels().find(t => t.tunnelId === tunnelId);
 		const attemptStart = Date.now();
 		const promise = (async () => {
@@ -324,12 +327,12 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 	}
 
 	/**
-	 * Tear down the active tunnel relay for {@link address} and cancel any
-	 * pending auto-reconnect. The cached tunnel entry is kept so the user
-	 * can re-connect later; only the live WebSocket is closed.
+	 * Dismiss a tunnel from the remote-host picker and tear down its active relay.
 	 */
 	private async _disconnectTunnel(address: string): Promise<void> {
-		this._tunnelService.suppressAutoConnect(address.slice(TUNNEL_ADDRESS_PREFIX.length));
+		const tunnelId = address.slice(TUNNEL_ADDRESS_PREFIX.length);
+		this._tunnelService.dismissTunnel(tunnelId);
+		this._tunnelService.removeCachedTunnel(tunnelId);
 		await this._tunnelService.disconnect(address);
 	}
 
@@ -428,7 +431,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 			// can match these tunnels for teardown on session removal.
 			const cachedIds = new Set(cached.map(t => t.tunnelId));
 			for (const tunnel of onlineTunnels) {
-				if (!cachedIds.has(tunnel.tunnelId)) {
+				if (!cachedIds.has(tunnel.tunnelId) && !this._tunnelService.isTunnelDismissed(tunnel.tunnelId)) {
 					this._tunnelService.cacheTunnel(tunnel, 'github');
 				}
 			}

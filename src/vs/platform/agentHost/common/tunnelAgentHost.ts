@@ -508,13 +508,22 @@ export interface ITunnelAgentHostService {
 	/** Remove a tunnel from the cache. */
 	removeCachedTunnel(tunnelId: string): void;
 
-	/** Whether startup/background auto-connect should skip this tunnel because the user disconnected it. */
+	/** Whether the user dismissed this tunnel from the remote-host picker. */
+	isTunnelDismissed(tunnelId: string): boolean;
+
+	/** Persist that the user dismissed this tunnel from the remote-host picker. */
+	dismissTunnel(tunnelId: string): void;
+
+	/** Clear a previous picker-dismissal after the user explicitly reconnects this tunnel. */
+	clearTunnelDismissal(tunnelId: string): void;
+
+	/** Whether startup/background auto-connect should skip this tunnel, because this machine hosts it. */
 	isAutoConnectSuppressed(tunnelId: string): boolean;
 
-	/** Remember that the user explicitly disconnected this tunnel, so startup/background auto-connect skips it. */
+	/** Remember that startup/background auto-connect must skip this tunnel, because this machine hosts it. */
 	suppressAutoConnect(tunnelId: string): void;
 
-	/** Clear a previous user-disconnect marker after the user explicitly reconnects this tunnel. */
+	/** Clear a previous auto-connect suppression once this machine no longer hosts the tunnel. */
 	clearAutoConnectSuppression(tunnelId: string): void;
 
 	/**

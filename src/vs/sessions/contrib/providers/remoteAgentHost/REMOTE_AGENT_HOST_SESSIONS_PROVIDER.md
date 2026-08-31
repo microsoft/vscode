@@ -73,6 +73,7 @@ Concurrent prompts use the shared setup operation where credentials are shared. 
 The remote Agent Host services may remember a user's preferred run location. The owning location-preference service defines its persistence key and selection policy. Providers consume the resolved location; they do not duplicate preference state in session metadata.
 
 Transport-specific fallback and retry algorithms belong in the owning SSH, tunnel, or remote-host service and its tests.
+Tunnel discovery persists picker dismissals independently from auto-connect suppression; only an explicit user connection clears a dismissal.
 
 ## Testing
 

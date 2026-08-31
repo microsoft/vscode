@@ -11,6 +11,7 @@ import { observableMemento, ObservableMemento } from '../../../../../platform/ob
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 
 const CACHED_TUNNELS_KEY = 'tunnelAgentHost.recentTunnels';
+const DISMISSED_TUNNELS_KEY = 'tunnelAgentHost.dismissedTunnels';
 const AUTO_CONNECT_SUPPRESSED_TUNNELS_KEY = 'tunnelAgentHost.autoConnectSuppressedTunnels';
 
 const cachedTunnelMemento = observableMemento<readonly ICachedTunnel[]>({
@@ -30,16 +31,29 @@ const autoConnectSuppressedTunnelMemento = observableMemento<readonly string[]>(
 	},
 });
 
-/** Persists the tunnel cache and explicit auto-connect suppressions shared by browser tunnel services. */
+const dismissedTunnelMemento = observableMemento<readonly string[]>({
+	defaultValue: [],
+	key: DISMISSED_TUNNELS_KEY,
+	toStorage: tunnelIds => JSON.stringify(tunnelIds),
+	fromStorage: value => {
+		const parsed: unknown = JSON.parse(value);
+		return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [];
+	},
+});
+
+/** Persists the tunnel cache, picker dismissals, and auto-connect suppressions shared by browser tunnel services. */
 export class TunnelAgentHostStorage extends Disposable {
 	private readonly _onDidChangeTunnels = this._register(new Emitter<void>());
 	readonly onDidChangeTunnels: Event<void> = this._onDidChangeTunnels.event;
 
 	private readonly _cachedTunnels: ObservableMemento<readonly ICachedTunnel[]>;
+	private readonly _dismissedTunnels: ObservableMemento<readonly string[]>;
 	private readonly _autoConnectSuppressedTunnels: ObservableMemento<readonly string[]>;
 
 	/** Cached tunnels, persisted across windows. */
 	readonly cachedTunnels: IObservable<readonly ICachedTunnel[]>;
+	/** Tunnel IDs explicitly dismissed from the remote-host picker. */
+	readonly dismissedTunnels: IObservable<readonly string[]>;
 	/** Tunnel IDs whose automatic reconnect is suppressed. */
 	readonly autoConnectSuppressedTunnels: IObservable<readonly string[]>;
 
@@ -48,11 +62,14 @@ export class TunnelAgentHostStorage extends Disposable {
 	) {
 		super();
 		this._cachedTunnels = this._register(cachedTunnelMemento(StorageScope.APPLICATION, StorageTarget.USER, storageService));
+		this._dismissedTunnels = this._register(dismissedTunnelMemento(StorageScope.APPLICATION, StorageTarget.USER, storageService));
 		this._autoConnectSuppressedTunnels = this._register(autoConnectSuppressedTunnelMemento(StorageScope.APPLICATION, StorageTarget.USER, storageService));
 		this.cachedTunnels = this._cachedTunnels;
+		this.dismissedTunnels = this._dismissedTunnels;
 		this.autoConnectSuppressedTunnels = this._autoConnectSuppressedTunnels;
 		this._register(autorun(reader => {
 			this.cachedTunnels.read(reader);
+			this.dismissedTunnels.read(reader);
 			this.autoConnectSuppressedTunnels.read(reader);
 			this._onDidChangeTunnels.fire();
 		}));
@@ -71,6 +88,26 @@ export class TunnelAgentHostStorage extends Disposable {
 	removeCachedTunnel(tunnelId: string): void {
 		this._cachedTunnels.set(this._cachedTunnels.get().filter(tunnel => tunnel.tunnelId !== tunnelId), undefined);
 		this.clearAutoConnectSuppression(tunnelId);
+	}
+
+	isTunnelDismissed(tunnelId: string): boolean {
+		return this._dismissedTunnels.get().includes(tunnelId);
+	}
+
+	dismissTunnel(tunnelId: string): void {
+		const dismissed = this._dismissedTunnels.get();
+		this._dismissedTunnels.set(
+			dismissed.includes(tunnelId) ? [...dismissed] : [...dismissed, tunnelId],
+			undefined,
+		);
+	}
+
+	clearTunnelDismissal(tunnelId: string): void {
+		const dismissed = this._dismissedTunnels.get();
+		if (!dismissed.includes(tunnelId)) {
+			return;
+		}
+		this._dismissedTunnels.set(dismissed.filter(id => id !== tunnelId), undefined);
 	}
 
 	isAutoConnectSuppressed(tunnelId: string): boolean {
