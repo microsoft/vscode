@@ -506,8 +506,11 @@ suite('ListView', function () {
 		try {
 			listView.layout(100, 200);
 			listView.splice(0, 0, elements);
+			// Shrink the first two rows so the render range includes indices 2, 3, leaving index 2 pending when the shrink fires at index 1.
 			elements[0].height = 20;
+			elements[1].height = 20;
 			listView.domElement(0)!.dataset.testHeight = String(elements[0].height);
+			listView.domElement(1)!.dataset.testHeight = String(elements[1].height);
 			shrinkOnRender = elements[1];
 
 			listView.layout(100, 201);
