@@ -163,8 +163,7 @@ export class RegionContextProvider {
 			case ts.SyntaxKind.PropertyAssignment:
 				return this.handleProperty(sourceFile, node as tt.PropertyAssignment, requested);
 			case ts.SyntaxKind.PropertySignature:
-				name = (node as tt.PropertySignature).name.getText();
-				return { kind: 'property', name, rangeNode: node };
+				return this.handleProperty(sourceFile, node as tt.PropertySignature, requested);
 			case ts.SyntaxKind.GetAccessor:
 				name = (node as tt.GetAccessorDeclaration).name.getText();
 				return { kind: 'getter', name, rangeNode: node };

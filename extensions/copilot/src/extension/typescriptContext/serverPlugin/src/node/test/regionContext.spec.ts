@@ -7,16 +7,20 @@ import { beforeAll, suite, test } from 'vitest';
 
 import ts from 'typescript';
 
-import type { Range, Region } from '../../common/protocol';
+import type { LineRange, Range, Region } from '../../common/protocol';
 import type * as regionContextProvider from '../../common/regionContextProvider';
 
-let getRegionContext: typeof regionContextProvider.getRegionContext;
+let RegionContextProvider: typeof regionContextProvider.RegionContextProvider;
 
 beforeAll(async () => {
 	const TS = await import('../../common/typescript');
 	TS.default.install(ts);
-	getRegionContext = (await import('../../common/regionContextProvider')).getRegionContext;
+	RegionContextProvider = (await import('../../common/regionContextProvider')).RegionContextProvider;
 });
+
+function getRegionContext(sourceFile: ts.SourceFile, ranges: readonly Range[], requested?: LineRange): Region[] | undefined {
+	return new RegionContextProvider().getRegions(sourceFile, ranges, requested);
+}
 
 function range(line: number, character: number = 0): Range {
 	return {
@@ -61,6 +65,20 @@ suite('Region context', () => {
 			{ kind: 'merged', range: { start: 1, end: 6 } },
 			{ kind: 'class', name: 'Container', range: { start: 0, end: 7 } },
 			{ kind: 'sourceFile', name: 'regions.ts', range: { start: 0, end: 7 } },
+		] satisfies Region[]);
+	});
+
+	test('groups property signatures within the requested range', () => {
+		const sourceFile = ts.createSourceFile('regions.ts', [
+			'interface Result {',
+			'\tvalue: number;',
+			'\tmessage: string;',
+			'}',
+		].join('\n'), ts.ScriptTarget.Latest, true);
+
+		assert.deepStrictEqual(getRegionContext(sourceFile, [range(1, 1), range(2, 1)], { start: 1, end: 2 }), [
+			{ kind: 'interface-members', name: 'Result', range: { start: 1, end: 2 } },
+			{ kind: 'sourceFile', name: 'regions.ts', range: { start: 0, end: 3 } },
 		] satisfies Region[]);
 	});
 });

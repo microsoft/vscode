@@ -2,10 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import path from 'node:path';
-
 import * as vscode from 'vscode';
 
+import type { Snapshot } from '@typescript/native/unstable/async';
 import * as ts from '@typescript/native/unstable/ast';
 
 import type { ILogService } from '../../../../platform/log/common/logService';
@@ -16,14 +15,23 @@ import tss from './typescripts';
 
 type StructuralEntity = { kind: string; name?: string; rangeNode: ts.Node | [ts.Node, ts.Node]; includeJsDoc?: boolean; continueWith?: ts.Node };
 
+interface RegionContextApi {
+	clearSourceFileCache(): void;
+	updateSnapshot(): Promise<Snapshot>;
+}
+
+interface RegionContextApiProvider extends vscode.Disposable {
+	getApi(): Promise<RegionContextApi | undefined>;
+}
+
 export class TS7RegionContextProvider implements Omit<IRegionContextProviderService, '_serviceBrand'>, vscode.Disposable {
 
 	private readonly disposables: DisposableStore;
-	private readonly nativeApi: TypeScript7Api;
+	private readonly nativeApi: RegionContextApiProvider;
 
-	constructor(readonly logService: ILogService) {
+	constructor(readonly logService: ILogService, nativeApi: RegionContextApiProvider = new TypeScript7Api(logService)) {
 		this.disposables = new DisposableStore();
-		this.nativeApi = this.disposables.add(new TypeScript7Api(logService));
+		this.nativeApi = this.disposables.add(nativeApi);
 	}
 
 	async getRegions(document: vscode.Uri, languageId: string, ranges: vscode.Range[], requested?: LineRange): Promise<Region[] | undefined> {
@@ -56,7 +64,7 @@ export class TS7RegionContextProvider implements Omit<IRegionContextProviderServ
 			} else {
 				const containersList: Region[][] = [];
 				for (const range of ranges) {
-					const containers = await this.findEnclosingScopes(sourceFile, range.start.line, range.start.character);
+					const containers = await this.findEnclosingScopes(sourceFile, range.start.line, range.start.character, requested);
 					if (containers !== undefined && containers.length > 0) {
 						containersList.push(containers.reverse());
 					}
@@ -96,7 +104,7 @@ export class TS7RegionContextProvider implements Omit<IRegionContextProviderServ
 						}
 					};
 					const lastContainer = commonContainers[commonContainers.length - 1];
-					if (container.range.end - container.range.start < lastContainer.range.end - lastContainer.range.start) {
+					if (lastContainer !== undefined && container.range.end - container.range.start < lastContainer.range.end - lastContainer.range.start) {
 						commonContainers.push(container);
 					}
 				}
@@ -104,7 +112,7 @@ export class TS7RegionContextProvider implements Omit<IRegionContextProviderServ
 				return commonContainers.reverse();
 			}
 		} finally {
-			snapshot.dispose();
+			await snapshot.dispose();
 		}
 	}
 
@@ -314,7 +322,7 @@ export class TS7RegionContextProvider implements Omit<IRegionContextProviderServ
 	}
 
 	private getBaseFileName(fileName: string): string {
-		return path.basename(fileName);
+		return fileName.substring(Math.max(fileName.lastIndexOf('/'), fileName.lastIndexOf('\\')) + 1);
 	}
 
 	dispose(): void {
