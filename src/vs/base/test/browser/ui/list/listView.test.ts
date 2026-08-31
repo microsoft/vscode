@@ -208,7 +208,6 @@ suite('ListView', function () {
 
 	test('does not expose stale data-index on dynamic height measurement rows', function () {
 		const element = document.createElement('div');
-		element.style.height = '100px';
 		element.style.width = '200px';
 		document.body.appendChild(element);
 
@@ -219,12 +218,11 @@ suite('ListView', function () {
 			hasDynamicHeight() { return true; }
 		};
 
-		let listView: ListView<TestElement>;
+		let listView: TestListView;
 		const staleIndicesSeen: number[] = [];
 		const renderer: IListRenderer<TestElement, HTMLElement> = {
 			templateId: 'template',
 			renderTemplate(container) {
-				container.style.height = '999px';
 				Object.defineProperty(container, 'offsetHeight', {
 					configurable: true,
 					get: () => {
@@ -249,17 +247,38 @@ suite('ListView', function () {
 			disposeTemplate() { }
 		};
 
-		listView = new ListView<TestElement>(element, delegate, [renderer], { supportDynamicHeights: true });
-		try {
-			listView.layout(100, 200);
-			// Render and measure a longer list so real rows receive high data-index values.
-			listView.splice(0, 0, range(10).map(() => ({ height: 5 })));
-			// Release those rows to the cache, then reuse them for a shorter list so measurement rows carry old high indices.
-			listView.splice(0, 10);
-			listView.splice(0, 0, range(3).map(() => ({ height: 5 })));
+		// Subclass to force offscreen items into the render range so the batched
+		// probe path (probeDynamicHeights) reuses a cache node instead of a live row.
+		class TestListView extends ListView<TestElement> {
+			expandRenderRange = false;
+			protected override getRenderRange(renderTop: number, renderHeight: number): IRange {
+				const renderRange = super.getRenderRange(renderTop, renderHeight);
+				if (this.expandRenderRange) {
+					renderRange.end = this.length;
+				}
+				return renderRange;
+			}
+		}
 
-			// Exercise the direct probe path (updateElementHeight -> probeDynamicHeightForItem) for an offscreen item, forcing a cache-reused measurement row.
+		listView = new TestListView(element, delegate, [renderer], { supportDynamicHeights: true });
+		try {
+			// Render a long list at a tall viewport so real rows receive high data-index values (0..9).
+			listView.layout(250, 200);
+			listView.splice(0, 0, range(10).map(() => ({ height: 25 })));
+
+			// Shrink the list; the removed rows are released to the cache while still carrying their old (now out-of-range) data-index.
+			listView.splice(3, 7);
+
+			// Shrink the viewport so only the first items render; the trailing item is offscreen and has no live row.
+			listView.layout(25, 200);
+			assert.strictEqual(listView.domElement(2), null, 'item 2 must be offscreen so probing allocates a cache-reused measurement row');
+
+			// Direct probe path (updateElementHeight -> probeDynamicHeightForItem) for the offscreen item.
 			listView.updateElementHeight(2, undefined, null);
+
+			// Batched probe path (rerender -> probeDynamicHeights) for the offscreen item.
+			listView.expandRenderRange = true;
+			listView.rerender();
 
 			assert.deepStrictEqual(staleIndicesSeen, []);
 		} finally {
