@@ -1779,7 +1779,9 @@ export class DisableGloballyAction extends ExtensionAction {
 				return;
 			}
 			this.enabled = this.extension.state === ExtensionState.Installed
-				&& (this.extension.enablementState === EnablementState.EnabledGlobally || this.extension.enablementState === EnablementState.EnabledWorkspace)
+				// EnabledWorkspace can mean the extension is disabled globally but re-enabled
+				// just for this workspace, in which case "Disable" (globally) shouldn't be offered.
+				&& this.extension.enablementState === EnablementState.EnabledGlobally
 				&& this.extensionEnablementService.canChangeEnablement(this.extension.local);
 		}
 	}
