@@ -721,8 +721,8 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	 * by current builds include the marketplace plugin name, which is enough
 	 * to re-read the full plugin descriptor from the marketplace source. Old
 	 * entries without a name fall back to matching by install URI. Entries
-	 * that came from a single-plugin repository have no marketplace to look
-	 * up at all and are recovered from the manifest in their install
+	 * that came from a single-plugin repository have no marketplace index to
+	 * look up at all and are recovered from the manifest in their install
 	 * directory.
 	 *
 	 * After hydration completes the installed-plugins store is "touched" so
@@ -746,12 +746,17 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 
 			try {
 				const plugins = await this._readPluginsForInstalledEntry(reference, CancellationToken.None);
-				const match = plugins.find(p => entry.name ? p.name === entry.name : isEqual(this._pluginRepositoryService.getPluginInstallUri(p), entry.pluginUri))
-					// The entry may have come from a single-plugin repo installed via
-					// `installPluginFromSource`. Such repos have no marketplace.json to
-					// resolve the plugin from, so read the manifest that lives in the
-					// recorded install directory instead.
-					?? await this.readSinglePluginManifest(entry.pluginUri, reference);
+				// A marketplace that resolves but no longer lists the entry (a renamed or
+				// removed plugin) must not fall back: marketplace plugin directories
+				// usually hold a manifest too, and reading it would reclassify the entry
+				// as a direct source rooted at the marketplace repository, sending later
+				// updates to the wrong place. Only an absent marketplace index means the
+				// entry came from a single-plugin repo installed via
+				// `installPluginFromSource`, whose descriptor lives in the recorded
+				// install directory.
+				const match = plugins.length === 0
+					? await this.readSinglePluginManifest(entry.pluginUri, reference)
+					: plugins.find(p => entry.name ? p.name === entry.name : isEqual(this._pluginRepositoryService.getPluginInstallUri(p), entry.pluginUri));
 				if (match) {
 					this._pluginMetadata.set(key, match);
 					hydrated++;
