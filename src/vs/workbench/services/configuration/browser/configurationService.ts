@@ -1352,6 +1352,7 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 
 	private readonly processedExperimentalSettings = new Set<string>();
 	private readonly autoExperimentalSettings = new Set<string>();
+	private readonly pendingStartupExperimentalSettings = new Set<string>();
 	private readonly registeredExperimentalDefaults = new Map<string, IConfigurationDefaults>();
 	private readonly configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	private readonly throttler = this._register(new Throttler());
@@ -1366,7 +1367,9 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 		super();
 
 		this.throttler.queue(() => this.updateDefaults());
-		this._register(workbenchAssignmentService.onDidRefetchAssignments(() => this.throttler.queue(() => this.processExperimentalSettings(this.autoExperimentalSettings, true))));
+		// On refetch, re-resolve `auto` settings (which track changes for the whole session) and
+		// any `startup` settings still awaiting their first resolved value (see below).
+		this._register(workbenchAssignmentService.onDidRefetchAssignments(() => this.throttler.queue(() => this.processExperimentalSettings([...this.autoExperimentalSettings, ...this.pendingStartupExperimentalSettings], true))));
 
 		// When configuration is updated make sure to apply experimental configuration overrides
 		this._register(this.configurationRegistry.onDidUpdateConfiguration(({ properties }) => this.processExperimentalSettings(properties, false)));
@@ -1402,6 +1405,7 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 				}
 				this.processedExperimentalSettings.delete(property);
 				this.autoExperimentalSettings.delete(property);
+				this.pendingStartupExperimentalSettings.delete(property);
 				continue;
 			}
 			const defaultValueSource: ConfigurationDefaultSource | undefined = schema.defaultValueSource && !(schema.defaultValueSource instanceof Map) ? schema.defaultValueSource : undefined;
@@ -1412,17 +1416,33 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 					removedDefaults.push(registeredDefault);
 				}
 				this.processedExperimentalSettings.delete(property);
+				this.pendingStartupExperimentalSettings.delete(property);
 				continue;
 			}
 			if (!autoRefetch && this.processedExperimentalSettings.has(property)) {
 				continue;
 			}
 			this.processedExperimentalSettings.add(property);
-			if (schema.experiment.mode === 'auto') {
+			const isAutoExperiment = schema.experiment.mode === 'auto';
+			if (isAutoExperiment) {
 				this.autoExperimentalSettings.add(property);
 			}
 			try {
 				const value = await this.workbenchAssignmentService.getTreatment(schema.experiment.name ?? `config.${property}`);
+				// A `startup` experiment resolves to a single, stable value for the session. But the
+				// treatment can be unavailable during the initial resolution - notably when it is
+				// served by the sign-in gated assignments endpoint, whose value only arrives after
+				// the account loads. Keep such settings pending and re-resolve them on subsequent
+				// assignment refetches until a value first becomes available, then latch (stop
+				// re-resolving) so the value stays stable for the rest of the session - unlike
+				// `auto`, which keeps tracking changes.
+				if (!isAutoExperiment) {
+					if (isUndefined(value)) {
+						this.pendingStartupExperimentalSettings.add(property);
+					} else {
+						this.pendingStartupExperimentalSettings.delete(property);
+					}
+				}
 				const registeredDefault = this.registeredExperimentalDefaults.get(property);
 				if (this.shouldOverride(value, schema)) {
 					if (!equals(registeredDefault?.overrides[property], value)) {

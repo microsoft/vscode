@@ -92,6 +92,7 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 		type TestContribution = {
 			processedExperimentalSettings: Set<string>;
 			autoExperimentalSettings: Set<string>;
+			pendingStartupExperimentalSettings: Set<string>;
 			registeredExperimentalDefaults: Map<string, IConfigurationDefaults>;
 			configurationRegistry: IConfigurationRegistry;
 			workbenchAssignmentService: {
@@ -103,6 +104,7 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 		const contribution = Object.create(ConfigurationDefaultOverridesContribution.prototype) as TestContribution;
 		contribution.processedExperimentalSettings = new Set();
 		contribution.autoExperimentalSettings = new Set();
+		contribution.pendingStartupExperimentalSettings = new Set();
 		contribution.registeredExperimentalDefaults = new Map();
 		contribution.configurationRegistry = configurationRegistry;
 		contribution.workbenchAssignmentService = {
@@ -154,6 +156,154 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 				configurationRegistry.deregisterDefaultConfigurations([...contribution.registeredExperimentalDefaults.values()]);
 			}
 			configurationRegistry.deregisterConfigurations([configuration]);
+		}
+	});
+
+	test('defers a startup experiment until its value first resolves, then latches it', async () => {
+		const startupSetting = 'test.startupExperimentalSetting';
+		const startupConfiguration: IConfigurationNode = {
+			id: 'test.startupExperimentalSettings',
+			type: 'object',
+			properties: {
+				[startupSetting]: {
+					type: 'string',
+					default: 'control',
+					experiment: {
+						mode: 'startup',
+						name: 'testStartupExperimentalSetting'
+					}
+				}
+			}
+		};
+		// The treatment is unavailable during the initial resolution (as with a sign-in gated
+		// assignments endpoint) and only becomes available on a later refetch.
+		const treatments: Record<string, string | undefined> = {
+			testStartupExperimentalSetting: undefined,
+		};
+		type TestContribution = {
+			processedExperimentalSettings: Set<string>;
+			autoExperimentalSettings: Set<string>;
+			pendingStartupExperimentalSettings: Set<string>;
+			registeredExperimentalDefaults: Map<string, IConfigurationDefaults>;
+			configurationRegistry: IConfigurationRegistry;
+			workbenchAssignmentService: {
+				getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined>;
+			};
+			environmentService: { isSessionsWindow: boolean };
+			processExperimentalSettings(properties: Iterable<string>, autoRefetch: boolean): Promise<void>;
+		};
+		const contribution = Object.create(ConfigurationDefaultOverridesContribution.prototype) as TestContribution;
+		contribution.processedExperimentalSettings = new Set();
+		contribution.autoExperimentalSettings = new Set();
+		contribution.pendingStartupExperimentalSettings = new Set();
+		contribution.registeredExperimentalDefaults = new Map();
+		contribution.configurationRegistry = configurationRegistry;
+		contribution.workbenchAssignmentService = {
+			getTreatment: async <T extends string | number | boolean>(name: string) => treatments[name] as T | undefined,
+		};
+		contribution.environmentService = { isSessionsWindow: false };
+		configurationRegistry.registerConfiguration(startupConfiguration);
+
+		const readDefault = () => configurationRegistry.getConfigurationProperties()[startupSetting].default;
+		// Mirror the refetch handler, which re-resolves only pending startup settings.
+		const refetch = () => contribution.processExperimentalSettings([...contribution.pendingStartupExperimentalSettings], true);
+
+		try {
+			// Initial resolution: no value yet, so the default is untouched and the setting is pending.
+			await contribution.processExperimentalSettings([startupSetting], false);
+			const afterInitial = { default: readDefault(), pending: contribution.pendingStartupExperimentalSettings.has(startupSetting) };
+
+			// The value becomes available; the next refetch resolves and latches it.
+			treatments.testStartupExperimentalSetting = 'treatment';
+			await refetch();
+			const afterResolved = { default: readDefault(), pending: contribution.pendingStartupExperimentalSettings.has(startupSetting) };
+
+			// A later assignment change must not move a latched startup value.
+			treatments.testStartupExperimentalSetting = 'changed';
+			await refetch();
+			const afterLatched = { default: readDefault(), pending: contribution.pendingStartupExperimentalSettings.has(startupSetting) };
+
+			assert.deepStrictEqual({ afterInitial, afterResolved, afterLatched }, {
+				afterInitial: { default: 'control', pending: true },
+				afterResolved: { default: 'treatment', pending: false },
+				afterLatched: { default: 'treatment', pending: false },
+			});
+		} finally {
+			if (contribution.registeredExperimentalDefaults.size) {
+				configurationRegistry.deregisterDefaultConfigurations([...contribution.registeredExperimentalDefaults.values()]);
+			}
+			configurationRegistry.deregisterConfigurations([startupConfiguration]);
+		}
+	});
+
+	test('does not re-resolve a startup experiment that already resolved at startup', async () => {
+		const startupSetting = 'test.resolvedStartupExperimentalSetting';
+		const startupConfiguration: IConfigurationNode = {
+			id: 'test.resolvedStartupExperimentalSettings',
+			type: 'object',
+			properties: {
+				[startupSetting]: {
+					type: 'string',
+					default: 'control',
+					experiment: {
+						mode: 'startup',
+						name: 'testResolvedStartupExperimentalSetting'
+					}
+				}
+			}
+		};
+		// The value is available during the initial resolution (as with the legacy endpoint, which
+		// resolves before sign-in).
+		const treatments: Record<string, string | undefined> = {
+			testResolvedStartupExperimentalSetting: 'treatment',
+		};
+		type TestContribution = {
+			processedExperimentalSettings: Set<string>;
+			autoExperimentalSettings: Set<string>;
+			pendingStartupExperimentalSettings: Set<string>;
+			registeredExperimentalDefaults: Map<string, IConfigurationDefaults>;
+			configurationRegistry: IConfigurationRegistry;
+			workbenchAssignmentService: {
+				getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined>;
+			};
+			environmentService: { isSessionsWindow: boolean };
+			processExperimentalSettings(properties: Iterable<string>, autoRefetch: boolean): Promise<void>;
+		};
+		const contribution = Object.create(ConfigurationDefaultOverridesContribution.prototype) as TestContribution;
+		contribution.processedExperimentalSettings = new Set();
+		contribution.autoExperimentalSettings = new Set();
+		contribution.pendingStartupExperimentalSettings = new Set();
+		contribution.registeredExperimentalDefaults = new Map();
+		contribution.configurationRegistry = configurationRegistry;
+		contribution.workbenchAssignmentService = {
+			getTreatment: async <T extends string | number | boolean>(name: string) => treatments[name] as T | undefined,
+		};
+		contribution.environmentService = { isSessionsWindow: false };
+		configurationRegistry.registerConfiguration(startupConfiguration);
+
+		const readDefault = () => configurationRegistry.getConfigurationProperties()[startupSetting].default;
+		// Mirror the refetch handler, which re-resolves only pending startup settings.
+		const refetch = () => contribution.processExperimentalSettings([...contribution.pendingStartupExperimentalSettings], true);
+
+		try {
+			// Initial resolution captures the value and latches it (it is never pending).
+			await contribution.processExperimentalSettings([startupSetting], false);
+			const afterInitial = { default: readDefault(), pending: contribution.pendingStartupExperimentalSettings.has(startupSetting) };
+
+			// A later assignment change (e.g. after sign-in) must not move an already-resolved value.
+			treatments.testResolvedStartupExperimentalSetting = 'changed';
+			await refetch();
+			const afterRefetch = { default: readDefault(), pending: contribution.pendingStartupExperimentalSettings.has(startupSetting) };
+
+			assert.deepStrictEqual({ afterInitial, afterRefetch }, {
+				afterInitial: { default: 'treatment', pending: false },
+				afterRefetch: { default: 'treatment', pending: false },
+			});
+		} finally {
+			if (contribution.registeredExperimentalDefaults.size) {
+				configurationRegistry.deregisterDefaultConfigurations([...contribution.registeredExperimentalDefaults.values()]);
+			}
+			configurationRegistry.deregisterConfigurations([startupConfiguration]);
 		}
 	});
 });
