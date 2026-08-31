@@ -165,8 +165,7 @@ registerAction2(class RenameTunnelAction extends Action2 {
 		}
 
 		try {
-			await tunnelHostService.stopSharing();
-			await tunnelHostService.startSharing();
+			await tunnelHostService.restartSharing();
 		} catch (err) {
 			notificationService.error(localize('renameTunnel.error', "Failed to rename tunnel: {0}", String(err)));
 		}
