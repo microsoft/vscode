@@ -24,15 +24,22 @@ steps:
 
   - ${{ if eq(parameters.windows, true) }}:
       - powershell: |
-          npm config set registry $env:NPM_REGISTRY
-          Write-Host "##vso[task.setvariable variable=SDK_CANARY_NPMRC_PATH]$(npm config get userconfig)"
+          @(
+            "registry=$env:NPM_REGISTRY"
+            'always-auth=true'
+          ) | Set-Content -Path '$(Agent.TempDirectory)/copilot-override.npmrc' -Encoding ascii
+          Write-Host '##vso[task.setvariable variable=SDK_CANARY_NPMRC_PATH]$(Agent.TempDirectory)/copilot-override.npmrc'
         condition: and(succeeded(), eq(variables['VSCODE_APPLY_COPILOT_OVERRIDE'], 'true'))
         displayName: Copilot override — set registry for auth
   - ${{ else }}:
       - script: |
           set -e
-          npm config set registry "$NPM_REGISTRY"
-          echo "##vso[task.setvariable variable=SDK_CANARY_NPMRC_PATH]$(npm config get userconfig)"
+          umask 077
+          printf '%s\n' \
+            "registry=$NPM_REGISTRY" \
+            'always-auth=true' \
+            > '$(Agent.TempDirectory)/copilot-override.npmrc'
+          echo '##vso[task.setvariable variable=SDK_CANARY_NPMRC_PATH]$(Agent.TempDirectory)/copilot-override.npmrc'
         condition: and(succeeded(), eq(variables['VSCODE_APPLY_COPILOT_OVERRIDE'], 'true'))
         displayName: Copilot override — set registry for auth
 
@@ -46,6 +53,7 @@ steps:
       - powershell: node build/azure-pipelines/common/apply-sdk-canary-override.ts
         condition: and(succeeded(), eq(variables['VSCODE_APPLY_COPILOT_OVERRIDE'], 'true'))
         env:
+          NPM_CONFIG_USERCONFIG: $(SDK_CANARY_NPMRC_PATH)
           VSCODE_SDK_CANARY_VERSION: $(VSCODE_SDK_CANARY_VERSION)
           VSCODE_CLI_CANARY_VERSION: $(VSCODE_CLI_CANARY_VERSION)
         displayName: Apply Copilot package override
@@ -53,6 +61,16 @@ steps:
       - script: node build/azure-pipelines/common/apply-sdk-canary-override.ts
         condition: and(succeeded(), eq(variables['VSCODE_APPLY_COPILOT_OVERRIDE'], 'true'))
         env:
+          NPM_CONFIG_USERCONFIG: $(SDK_CANARY_NPMRC_PATH)
           VSCODE_SDK_CANARY_VERSION: $(VSCODE_SDK_CANARY_VERSION)
           VSCODE_CLI_CANARY_VERSION: $(VSCODE_CLI_CANARY_VERSION)
         displayName: Apply Copilot package override
+
+  - ${{ if eq(parameters.windows, true) }}:
+      - powershell: Remove-Item -Force -ErrorAction SilentlyContinue '$(SDK_CANARY_NPMRC_PATH)'
+        condition: and(always(), eq(variables['VSCODE_APPLY_COPILOT_OVERRIDE'], 'true'))
+        displayName: Copilot override — remove npm credentials
+  - ${{ else }}:
+      - script: rm -f '$(SDK_CANARY_NPMRC_PATH)'
+        condition: and(always(), eq(variables['VSCODE_APPLY_COPILOT_OVERRIDE'], 'true'))
+        displayName: Copilot override — remove npm credentials

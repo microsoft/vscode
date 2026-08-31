@@ -36,6 +36,23 @@ afterEach(() => {
 });
 
 suite('Copilot build overrides', () => {
+	test('keeps npm credentials in an ephemeral agent config', () => {
+		const template = fs.readFileSync(path.join(import.meta.dirname, '../../azure-pipelines/common/apply-sdk-canary.yml'), 'utf8');
+		assert.deepStrictEqual({
+			usesAgentTempConfig: template.includes('$(Agent.TempDirectory)/copilot-override.npmrc'),
+			usesDefaultUserConfig: template.includes('npm config get userconfig'),
+			restrictsUnixPermissions: template.includes('umask 077'),
+			passesConfigToOverride: (template.match(/NPM_CONFIG_USERCONFIG: \$\(SDK_CANARY_NPMRC_PATH\)/g) ?? []).length,
+			removesCredentials: (template.match(/displayName: Copilot override — remove npm credentials/g) ?? []).length,
+		}, {
+			usesAgentTempConfig: true,
+			usesDefaultUserConfig: false,
+			restrictsUnixPermissions: true,
+			passesConfigToOverride: 2,
+			removesCredentials: 2,
+		});
+	});
+
 	test('resolves package-specific source versions and validates provenance', () => {
 		const overrides = readCopilotBuildOverrides(workspace);
 		assert.ok(overrides);
