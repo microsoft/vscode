@@ -311,10 +311,7 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 	// --- Reconcile --------------------------------------------------------
 
 	override dispose(): void {
-		// Cancel any pending/in-flight reconciles queued on the sequencer: bumping the
-		// generation makes queued reconciles bail at their entry (and in-flight ones at their
-		// next generation checkpoint) so none open editors — which would instantiate an editor
-		// pane through the now-disposed instantiation service after teardown.
+		// Bump the generation before super.dispose() so queued/in-flight reconciles bail at their next checkpoint.
 		this._generation++;
 		this._pending = undefined;
 		super.dispose();
@@ -499,6 +496,9 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 			replacement: this._instantiationService.createInstance(SessionChangesEditorInput, activeChangesResource),
 			options: wasActive ? CHANGES_TAB_ACTIVE_OPTIONS : CHANGES_TAB_OPTIONS,
 		}]);
+		if (this._store.isDisposed) {
+			return;
+		}
 		if (editorsToClose.length > 0) {
 			await this._closeManagedEditors(group, editorsToClose);
 		}
