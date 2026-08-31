@@ -8502,13 +8502,6 @@ declare namespace monaco.languages {
 		provideNewSymbolNames(model: editor.ITextModel, range: IRange, triggerKind: NewSymbolNameTriggerKind, token: CancellationToken): ProviderResult<NewSymbolName[]>;
 	}
 
-	export interface Command {
-		id: string;
-		title: string;
-		tooltip?: string;
-		arguments?: unknown[];
-	}
-
 	export interface CommentThreadRevealOptions {
 		preserveFocus: boolean;
 		focusReply: boolean;
@@ -8615,6 +8608,13 @@ declare namespace monaco.languages {
 		readonly onDidChange?: IEvent<void>;
 		getLegend(): SemanticTokensLegend;
 		provideDocumentRangeSemanticTokens(model: editor.ITextModel, range: Range, token: CancellationToken): ProviderResult<SemanticTokens>;
+	}
+
+	export interface Command {
+		id?: string;
+		title: string;
+		tooltip?: string;
+		arguments?: unknown[];
 	}
 
 	export interface ILanguageExtensionPoint {
