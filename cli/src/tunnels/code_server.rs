@@ -341,12 +341,14 @@ async fn do_extension_install_on_running_server(
 
 	let result = capture_command("bash", &["-c", &command]).await?;
 	if !result.status.success() {
-		Err(AnyError::from(ExtensionInstallFailed(
-			String::from_utf8_lossy(&result.stderr).to_string(),
-		)))
-	} else {
-		Ok(())
+		let stderr_msg = String::from_utf8_lossy(&result.stderr).to_string();
+		error!(log, "Failed to install extensions: {}", stderr_msg);
+		return Err(AnyError::from(ExtensionInstallFailed(stderr_msg)));
 	}
+
+	debug!(log, "Extensions installed successfully");
+	Ok(())
+}
 }
 
 pub struct ServerBuilder<'a> {
