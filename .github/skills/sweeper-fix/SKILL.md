@@ -36,8 +36,15 @@ gh api "repos/egamma/vscodesweeper-state/contents/records/microsoft/vscode/items
 
 No record → this skill does not apply: the issue hasn't been reviewed by the sweeper, and
 the skill only implements sweeper fix specs. Say so in one line, then **continue fixing the
-issue by your normal means** (fetch it with `gh issue view`, analyze, implement) — the
-absence of a sweeper record is never a reason to refuse the fix itself.
+issue by your normal means** — fetch it with the repo pinned explicitly (never bare
+`gh issue view`, which a fork remote can redirect to the wrong repo's issue `<n>`), then
+analyze and implement:
+
+```
+gh issue view <issue-number> --repo microsoft/vscode
+```
+
+The absence of a sweeper record is never a reason to refuse the fix itself.
 
 ## 2 · Gate — every check against LIVE GitHub state, not just the record
 
