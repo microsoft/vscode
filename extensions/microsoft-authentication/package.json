@@ -124,6 +124,11 @@
             "tags": [
               "onExP"
             ]
+          },
+          "microsoft-authentication.instanceDiscovery": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "%microsoft-authentication.instanceDiscovery.description%"
           }
         }
       }
