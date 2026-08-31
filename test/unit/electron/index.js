@@ -62,6 +62,7 @@ const args = minimist(process.argv.slice(2), {
 		'reporter-options': ''
 	}
 });
+
 const isCI = !!process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || !!process.env.GITHUB_WORKSPACE;
 
 if (args.help) {
@@ -337,6 +338,7 @@ app.on('ready', () => {
 			spellcheck: false
 		}
 	});
+
 	if (isCI) {
 		// Hidden windows throttle requestAnimationFrame on Windows even when background throttling is disabled.
 		win.showInactive();
