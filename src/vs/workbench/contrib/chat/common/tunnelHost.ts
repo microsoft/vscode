@@ -29,4 +29,7 @@ export interface ITunnelHostService {
 
 	/** Stop sharing and tear down the tunnel. */
 	stopSharing(): Promise<void>;
+
+	/** Restart sharing after a tunnel configuration change. */
+	restartSharing(): Promise<void>;
 }
