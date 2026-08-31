@@ -2054,10 +2054,26 @@ export class SearchView extends ViewPane {
 		this.inputPatternIncludes.setOnlySearchInOpenEditors(false);
 	}
 
+	private renderKeywordSuggestions(messageEl: HTMLElement) {
+		const keywordContainer = dom.append(messageEl, $('span.ai-keyword-suggestions'));
+
+		const prefix = ' - ' + nls.localize('keywordSuggestion.message', "Search instead for: ");
+		dom.append(keywordContainer, prefix);
+
+		this._cachedKeywords.forEach((kw, index) => {
+			if (index > 0) {
+				dom.append(keywordContainer, ', ');
+			}
+			const button = this.messageDisposables.add(new SearchLinkButton(
+				kw,
+				() => this.handleKeywordClick(kw, index),
+				this.hoverService
+			));
+			dom.append(keywordContainer, button.element);
+		});
+	}
+
 	private updateSearchResultCount(disregardExcludesAndIgnores?: boolean, onlyOpenEditors?: boolean, clear: boolean = false): void {
-		if (this._cachedKeywords.length > 0) {
-			return;
-		}
 		const fileCount = this.viewModel.searchResult.fileCount(this.viewModel.searchResult.aiTextSearchResult.hidden);
 		const resultCount = this.viewModel.searchResult.count(this.viewModel.searchResult.aiTextSearchResult.hidden);
 		this.hasSearchResultsKey.set(fileCount > 0);
@@ -2098,6 +2114,11 @@ export class SearchView extends ViewPane {
 				this.appendSearchWithAIButton(messageEl);
 			}
 
+			// Re-render cached keyword suggestions after the result count
+			if (this._cachedKeywords.length > 0) {
+				this.renderKeywordSuggestions(messageEl);
+			}
+
 			this.reLayout();
 		} else if (!msgWasHidden) {
 			dom.hide(this.messagesElement);
@@ -2124,36 +2145,24 @@ export class SearchView extends ViewPane {
 	}
 
 	private updateKeywordSuggestionUI(keyword: AISearchKeyword) {
-		const element = this.messagesElement.firstChild as HTMLDivElement;
-		if (this._cachedKeywords.length > 0) {
-			if (this._cachedKeywords.length >= 3) {
-				// If we already have 3 keywords, just return
-				return;
-			}
-			dom.append(element, ', ');
-			const index = this._cachedKeywords.length;
-			const button = this.messageDisposables.add(new SearchLinkButton(
-				keyword.keyword,
-				() => this.handleKeywordClick(keyword.keyword, index),
-				this.hoverService
-			));
-			dom.append(element, button.element);
-		} else {
-			const messageEl = this.clearMessage();
-			messageEl.classList.add('ai-keywords');
-
-			// Add unclickable message
-			const resultMsg = nls.localize('keywordSuggestion.message', "Search instead for: ");
-			dom.append(messageEl, resultMsg);
-
-			const button = this.messageDisposables.add(new SearchLinkButton(
-				keyword.keyword,
-				() => this.handleKeywordClick(keyword.keyword, 0),
-				this.hoverService
-			));
-			dom.append(messageEl, button.element);
+		if (this._cachedKeywords.length >= 3) {
+			// If we already have 3 keywords, just return
+			return;
 		}
+
 		this._cachedKeywords.push(keyword.keyword);
+
+		const messageEl = this.messagesElement.firstChild as HTMLDivElement;
+		if (!messageEl) {
+			return;
+		}
+
+		// Remove existing keyword suggestions container if present
+		const existingContainer = messageEl.querySelector('.ai-keyword-suggestions');
+		existingContainer?.remove();
+
+		// Re-render all keyword suggestions
+		this.renderKeywordSuggestions(messageEl);
 	}
 
 	private async getKeywordSuggestions() {
