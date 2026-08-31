@@ -663,6 +663,9 @@
 	padding: 0 0 0 2px;
 	line-height: 100% !important;
 	align-self: center;
+	background-size: contain;
+	background-position: center;
+	background-repeat: no-repeat;
 }
 
 .sessions-chat-attachment-pill .monaco-icon-label .monaco-icon-label-container {
