@@ -54,6 +54,7 @@ import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/b
 import { AutomationIsolationModel, normalizeAutomationBranchNames } from '../common/isolationGroupModel.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { showMobileWorkspacePickerSheet, shouldUseMobileWorkspacePickerSheet } from '../../chat/browser/mobile/mobileWorkspacePickerSheet.js';
+import { AutomationInputCompletions } from './automationInputCompletions.js';
 
 const $ = DOM.$;
 
@@ -1115,6 +1116,7 @@ export function renderForm(
 	);
 	chatInput.render(promptHost, initialPrompt, stubWidget as IChatWidget);
 	chatInput.inputEditor.updateOptions({ placeholder: localize('automation.form.prompt.placeholder', "Describe what you want to automate") });
+	disposables.add(scopedInstantiationService.createInstance(AutomationInputCompletions, chatInput.inputEditor));
 
 	if (initialMode) {
 		const getUnfilteredInitialMode = () => {
