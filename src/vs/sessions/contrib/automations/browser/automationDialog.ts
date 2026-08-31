@@ -15,7 +15,7 @@ import { CancellationTokenSource } from '../../../../base/common/cancellation.js
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -68,7 +68,7 @@ const INTERVALS: { readonly value: AutomationInterval; readonly label: string }[
 // Picker popups mount outside the dialog, so allow their focus targets through its focus trap.
 export function isAutomationDialogPopupTarget(relatedTarget: HTMLElement): boolean {
 	return isMobilePickerSheetTarget(relatedTarget) || !!relatedTarget.closest(
-		'.context-view, .quick-input-widget, .monaco-menu-container, .monaco-hover, .monaco-hover-content'
+		'.context-view, .quick-input-widget, .monaco-menu-container, .monaco-hover, .monaco-hover-content, .suggest-widget'
 	);
 }
 
@@ -999,6 +999,8 @@ export function renderForm(
 	const promptRow = DOM.append(form, $('.automation-form-row'));
 	DOM.append(promptRow, $('span.automation-form-label', undefined, localize('automation.form.prompt', "Prompt")));
 	const promptHost = DOM.append(promptRow, $('.automation-form-prompt-host.interactive-session'));
+	const editorOverflowWidgetsDomNode = layoutService.getContainer(DOM.getWindow(promptHost)).appendChild($('.chat-editor-overflow.automation-dialog-editor-overflow.monaco-editor'));
+	disposables.add(toDisposable(() => editorOverflowWidgetsDomNode.remove()));
 
 	const chatInputStyles: IChatInputStyles = {
 		overlayBackground: 'var(--vscode-input-background)',
@@ -1031,6 +1033,7 @@ export function renderForm(
 		// reserve the default 24px margin and lay the editor out too narrow,
 		// leaving its scrollbar floating ~24px in from the right wall.
 		inputPartHorizontalPadding: 0,
+		editorOverflowWidgetsDomNode,
 		sessionTypePickerDelegate: sessionTypeDelegate,
 		secondaryToolbarOverflowActionHandler: (actionId, anchor) => {
 			if (actionId === AUTOMATIONS_HARNESS_CHIP_ACTION_ID) {
