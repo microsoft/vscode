@@ -1214,47 +1214,67 @@ suite('CopilotAgent', () => {
 			const forward = getCreatedClientOptions(agent).at(-1)?.onGitHubTelemetry;
 			assert.ok(forward);
 
-			chatEntriesBySdkId(agent).set('active-session', {
-				chatSession: { currentTurnId: 'turn-1' } as CopilotAgentSession,
-				dispose() { },
+			const subagentCorrelation = new DeferredPromise<string>();
+			const forwardedModelCallIds: string[] = [];
+			const activeSession: Pick<CopilotAgentSession, 'currentTurnId'> & {
+				modelCallTurnCorrelation: Pick<CopilotAgentSession['modelCallTurnCorrelation'], 'take' | 'wait' | 'markResponseForwarded'>;
+			} = {
+				currentTurnId: 'turn-1',
+				modelCallTurnCorrelation: {
+					take: () => undefined,
+					wait: modelCallId => modelCallId === 'unresolved-model-call' ? Promise.resolve(undefined) : subagentCorrelation.p,
+					markResponseForwarded: modelCallId => forwardedModelCallIds.push(modelCallId),
+				},
+			};
+			setLiveChatStub(agent, 'active-session', activeSession);
+			setLiveChatStub(agent, 'second-active-session', {
+				currentTurnId: 'turn-2',
 			});
-			chatEntriesBySdkId(agent).set('second-active-session', {
-				chatSession: { currentTurnId: 'turn-2' } as CopilotAgentSession,
-				dispose() { },
+			setLiveChatStub(agent, 'idle-session', {
+				currentTurnId: undefined,
 			});
-			chatEntriesBySdkId(agent).set('idle-session', {
-				chatSession: { currentTurnId: undefined } as CopilotAgentSession,
-				dispose() { },
-			});
-			const notification = (sessionId: string, turnId: string): GitHubTelemetryNotification => ({
+			const notification = (sessionId: string, turnId: string, modelCallId?: string, initiatorType?: string): GitHubTelemetryNotification => ({
 				sessionId,
 				restricted: false,
 				event: {
 					kind: 'response.success',
-					properties: { turnId },
+					properties: { turnId, ...(modelCallId ? { modelCallId } : {}), ...(initiatorType ? { initiatorType } : {}) },
 					metrics: {},
 				},
 			});
 
-			await forward(notification('active-session', 'runtime-active'));
+			await forward(notification('active-session', 'runtime-active', 'root-model-call', 'user'));
+			await forward(notification('active-session', 'runtime-subagent', 'subagent-model-call', 'agent'));
+			subagentCorrelation.complete('subagent-turn');
+			await timeout(0);
+			await forward(notification('active-session', 'runtime-unresolved', 'unresolved-model-call', 'agent'));
+			await timeout(0);
 			await forward(notification('second-active-session', 'runtime-second-active'));
 			await forward(notification('active-session', 'runtime-active-again'));
 			await forward(notification('idle-session', 'runtime-idle'));
 			await forward(notification('unknown-session', 'runtime-unknown'));
 
-			assert.deepStrictEqual(telemetryService.events.map(event => {
-				const data = event.data as Record<string, unknown>;
-				return event.eventName === 'agentHost.copilotClientStartup'
-					? { eventName: event.eventName, outcome: data.outcome, durationMs: typeof data.durationMs, attemptNumber: data.attemptNumber }
-					: { eventName: event.eventName, sessionId: data.sdk_session_id, turnId: data.turnId };
-			}), [
-				{ eventName: 'agentHost.copilotClientStartup', outcome: 'success', durationMs: 'number', attemptNumber: 1 },
-				{ eventName: 'copilotSdk/response.success', sessionId: 'active-session', turnId: 'turn-1' },
-				{ eventName: 'copilotSdk/response.success', sessionId: 'second-active-session', turnId: 'turn-2' },
-				{ eventName: 'copilotSdk/response.success', sessionId: 'active-session', turnId: 'turn-1' },
-				{ eventName: 'copilotSdk/response.success', sessionId: 'idle-session', turnId: undefined },
-				{ eventName: 'copilotSdk/response.success', sessionId: 'unknown-session', turnId: undefined },
-			]);
+			assert.deepStrictEqual({
+				events: telemetryService.events.map(event => {
+					const data = event.data as Record<string, unknown>;
+					return event.eventName === 'agentHost.copilotClientStartup'
+						? { eventName: event.eventName, outcome: data.outcome, durationMs: typeof data.durationMs, attemptNumber: data.attemptNumber }
+						: { eventName: event.eventName, sessionId: data.sdk_session_id, turnId: data.turnId };
+				}),
+				forwardedModelCallIds,
+			}, {
+				events: [
+					{ eventName: 'agentHost.copilotClientStartup', outcome: 'success', durationMs: 'number', attemptNumber: 1 },
+					{ eventName: 'copilotSdk/response.success', sessionId: 'active-session', turnId: 'turn-1' },
+					{ eventName: 'copilotSdk/response.success', sessionId: 'active-session', turnId: 'subagent-turn' },
+					{ eventName: 'copilotSdk/response.success', sessionId: 'active-session', turnId: undefined },
+					{ eventName: 'copilotSdk/response.success', sessionId: 'second-active-session', turnId: 'turn-2' },
+					{ eventName: 'copilotSdk/response.success', sessionId: 'active-session', turnId: 'turn-1' },
+					{ eventName: 'copilotSdk/response.success', sessionId: 'idle-session', turnId: undefined },
+					{ eventName: 'copilotSdk/response.success', sessionId: 'unknown-session', turnId: undefined },
+				],
+				forwardedModelCallIds: ['root-model-call'],
+			});
 		} finally {
 			await disposeAgent(agent);
 		}
