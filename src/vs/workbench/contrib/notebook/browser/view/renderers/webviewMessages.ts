@@ -365,6 +365,7 @@ export interface IMarkupCellInitialization {
 	offset: number;
 	visible: boolean;
 	metadata: NotebookCellMetadata;
+	forceRefresh?: boolean;
 }
 
 export interface IInitializeMarkupCells {
