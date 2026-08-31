@@ -17,6 +17,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentHostClientState, AgentHostProtocolClient } from '../../browser/agentHostProtocolClient.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../common/agentHostExtensionProtocol.js';
+import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { ConfigurationTarget, type IConfigurationValue } from '../../../configuration/common/configuration.js';
@@ -458,7 +459,7 @@ suite('AgentHostProtocolClient', () => {
 		assert.deepStrictEqual([...client['_authentication'].values()], []);
 	});
 
-	test('listSessions carries the workspace-less marker back on _meta', async () => {
+	test('listSessions carries the workspace-less marker and compatible working directories', async () => {
 		// Regression: the sessions provider resolves a session's kind (quick
 		// chat vs. workspace) from `_meta.workspaceless`, and after a window
 		// reload a listing is what materializes it.
@@ -486,7 +487,49 @@ suite('AgentHostProtocolClient', () => {
 		});
 
 		const sessions = await resultPromise;
-		assert.deepStrictEqual(sessions.map(s => readSessionWorkspaceless(s._meta)), [true]);
+		assert.deepStrictEqual(sessions.map(s => ({
+			workspaceless: readSessionWorkspaceless(s._meta),
+			workingDirectory: s.workingDirectory,
+			workingDirectories: s.workingDirectories,
+		})), [{
+			workspaceless: true,
+			workingDirectory: toAgentHostUri(URI.file('/home/user/.copilot/chats/quick-1'), agentHostAuthority('test.example:1234')),
+			workingDirectories: [toAgentHostUri(URI.file('/home/user/.copilot/chats/quick-1'), agentHostAuthority('test.example:1234'))],
+		}]);
+	});
+
+	test('listSessions derives the compatibility directory from the primary root', async () => {
+		const { client, transport } = createClient();
+		const directories = [URI.file('/workspace/primary'), URI.file('/workspace/secondary')];
+		const directorySets = [undefined, [], directories];
+		const resultPromise = client.listSessions();
+		const sent = transport.sentMessages[0] as JsonRpcRequest;
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: sent.id,
+			result: {
+				items: directorySets.map((workingDirectories, index) => ({
+					resource: `agent-session://copilotcli/session-${index}`,
+					provider: 'copilotcli',
+					title: 'Session',
+					status: SessionStatus.Idle,
+					createdAt: new Date(1000).toISOString(),
+					modifiedAt: new Date(2000).toISOString(),
+					workingDirectories: workingDirectories?.map(directory => directory.toString()),
+				})),
+			},
+		});
+
+		const sessions = await resultPromise;
+		const wrappedDirectories = directories.map(directory => toAgentHostUri(directory, agentHostAuthority('test.example:1234')));
+		assert.deepStrictEqual(sessions.map(s => ({
+			workingDirectory: s.workingDirectory,
+			workingDirectories: s.workingDirectories,
+		})), [
+			{ workingDirectory: undefined, workingDirectories: undefined },
+			{ workingDirectory: undefined, workingDirectories: [] },
+			{ workingDirectory: wrappedDirectories[0], workingDirectories: wrappedDirectories },
+		]);
 	});
 
 	test('listSessions carries external provenance back on _meta', async () => {

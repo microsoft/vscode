@@ -1323,7 +1323,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	/**
 	 * List all sessions from the remote agent host.
 	 */
-	async listSessions(): Promise<IAgentSessionMetadata[]> {
+	async listSessions(): Promise<(IAgentSessionMetadata & { readonly workingDirectory?: URI })[]> {
 		const result = await this._sendRequest('listSessions', { channel: ROOT_STATE_URI });
 		return result.items.map((s: SessionSummary) => ({
 			session: URI.parse(s.resource),
