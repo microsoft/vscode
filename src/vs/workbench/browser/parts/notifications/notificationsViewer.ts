@@ -433,6 +433,7 @@ export class NotificationTemplateRenderer extends Disposable {
 					break;
 				case NotificationViewItemContentChangeKind.PROGRESS:
 					this.renderProgress(notification);
+					this.setInput(notification);
 					break;
 				case NotificationViewItemContentChangeKind.MESSAGE:
 					this.renderMessage(notification, messageCustomHover);
