@@ -562,6 +562,30 @@ export function registerTerminalActions() {
 	});
 
 	registerTerminalAction({
+		id: TerminalCommandId.MoveGroupDown,
+		title: localize2('workbench.action.terminal.moveGroupDown', 'Move Terminal Group Down'),
+		precondition: sharedWhenClause.terminalAvailable,
+		keybinding: {
+			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.PageDown,
+			when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.editorFocus.negate()),
+			weight: KeybindingWeight.WorkbenchContrib
+		},
+		run: (c) => c.groupService.moveActiveGroupDown()
+	});
+
+	registerTerminalAction({
+		id: TerminalCommandId.MoveGroupUp,
+		title: localize2('workbench.action.terminal.moveGroupUp', 'Move Terminal Group Up'),
+		precondition: sharedWhenClause.terminalAvailable,
+		keybinding: {
+			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.PageUp,
+			when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.editorFocus.negate()),
+			weight: KeybindingWeight.WorkbenchContrib
+		},
+		run: (c) => c.groupService.moveActiveGroupUp()
+	});
+
+	registerTerminalAction({
 		id: TerminalCommandId.RunSelectedText,
 		title: localize2('workbench.action.terminal.runSelectedText', 'Run Selected Text In Active Terminal'),
 		run: async (c, accessor) => {
