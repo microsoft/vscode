@@ -111,11 +111,31 @@ function createModel(store: Pick<DisposableStore, 'add'>, id: string, options: {
 suite('ChatWindowNotifier', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	class TestChatWindowNotifier extends ChatWindowNotifier {
+		protected override _getIdleNotificationDelay(): number {
+			return 0;
+		}
+
+		protected override _getBackgroundNotificationDelay(): number {
+			return 0;
+		}
+	}
+
+	/**
+	 * Drains the chained zero-delay timers a notification passes through: the idle
+	 * debounce and the background-window delay.
+	 */
+	async function flushNotifications(): Promise<void> {
+		await timeout(0);
+		await timeout(0);
+		await timeout(0);
+	}
+
 	function createNotifier(model: IChatModel): TestHostService {
 		const chatService = new TestChatService();
 		chatService.chatModels.set([model], undefined);
 		const host = new TestHostService();
-		store.add(new ChatWindowNotifier(
+		store.add(new TestChatWindowNotifier(
 			chatService,
 			new TestChatWidgetService(),
 			host,
@@ -133,7 +153,7 @@ suite('ChatWindowNotifier', () => {
 
 		setPendingRequestCount(1);
 		requestInProgress.set(false, undefined);
-		await timeout(600);
+		await flushNotifications();
 
 		assert.deepStrictEqual(host.toasts, []);
 	});
@@ -142,7 +162,7 @@ suite('ChatWindowNotifier', () => {
 		const { model } = createModel(store, 'never-ran', { requestInProgress: false, hasRequest: false });
 		const host = createNotifier(model);
 
-		await timeout(600);
+		await flushNotifications();
 
 		assert.deepStrictEqual(host.toasts, []);
 	});
@@ -157,7 +177,7 @@ suite('ChatWindowNotifier', () => {
 		failed.endLastResponse({ errorDetails: { message: 'boom' } });
 		cancelled.setPendingRequestCount(1);
 		cancelled.endLastResponse({ isCanceled: true });
-		await timeout(600);
+		await flushNotifications();
 
 		assert.deepStrictEqual([
 			failedHost.toasts.map(toast => toast.dedupeKey),
@@ -173,7 +193,7 @@ suite('ChatWindowNotifier', () => {
 		const host = createNotifier(model);
 
 		endLastResponse();
-		await timeout(550);
+		await flushNotifications();
 
 		assert.deepStrictEqual(host.toasts, [{
 			title: 'Session: Fix idle',
@@ -193,7 +213,7 @@ suite('ChatWindowNotifier', () => {
 		// finished, or with none at all when that time was never recorded.
 		restoredWithTime.endLastResponse({ completionTimestamp: Date.now() - 60_000 });
 		restoredWithoutTime.endLastResponse({ completionTimestamp: null });
-		await timeout(600);
+		await flushNotifications();
 
 		assert.deepStrictEqual([restoredHost.toasts, restoredWithoutTimeHost.toasts], [[], []]);
 	});
@@ -204,7 +224,7 @@ suite('ChatWindowNotifier', () => {
 
 		requestNeedsInput.set({ title: 'Fix needs-input' }, undefined);
 		requestInProgress.set(false, undefined);
-		await timeout(50);
+		await flushNotifications();
 
 		assert.deepStrictEqual(host.toasts.map(toast => toast.dedupeKey), [
 			'chat-session:test:/needs-input:needsInput',

@@ -92,11 +92,29 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 		));
 	}
 
+	/**
+	 * Delay before an idle session is announced, to swallow the brief idle gap
+	 * between a turn ending and the next queued turn starting. A method rather
+	 * than a field so tests can override it before `_trackModel` runs during
+	 * construction.
+	 */
+	protected _getIdleNotificationDelay(): number {
+		return 500;
+	}
+
+	/**
+	 * Delay before a toast from a window that is not showing the session, so that
+	 * a window showing it notifies first.
+	 */
+	protected _getBackgroundNotificationDelay(): number {
+		return 250;
+	}
+
 	private _trackModel(model: IChatModel) {
 		const store = new DisposableStore();
 		const isIdle = observeIsIdle(model);
 		const watchingSince = Date.now();
-		const idleScheduler = store.add(new RunOnceScheduler(() => void this._notifyIdleIfNeeded(model, isIdle, watchingSince), 500));
+		const idleScheduler = store.add(new RunOnceScheduler(() => void this._notifyIdleIfNeeded(model, isIdle, watchingSince), this._getIdleNotificationDelay()));
 		store.add(autorunDelta(model.requestNeedsInput, ({ lastValue, newValue }) => {
 			const currentNeedsInput = !!newValue;
 			const previousNeedsInput = !!lastValue;
@@ -231,7 +249,7 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 		if (isWidgetVisible && await this._hostService.hadLastFocus()) {
 			return;
 		}
-		await timeout(250);
+		await timeout(this._getBackgroundNotificationDelay());
 	}
 
 	private _confirmAllow(sessionResource: URI): boolean {
