@@ -29,6 +29,9 @@ interface PreviewRangesWithContent {
 	baseIndent: string;
 }
 
+const wrapAbbreviationHistory: string[] = [];
+const MAX_HISTORY_LENGTH = 20;
+
 export async function wrapWithAbbreviation(args: any): Promise<boolean> {
 	if (!validate(false)) {
 		return false;
@@ -249,11 +252,42 @@ export async function wrapWithAbbreviation(args: any): Promise<boolean> {
 	}
 
 	const prompt = vscode.l10n.t("Enter Abbreviation");
-	const inputAbbreviation = (args && args['abbreviation'])
-		? (args['abbreviation'] as string)
-		: await vscode.window.showInputBox({ prompt, validateInput: inputChanged });
+	let inputAbbreviation: string | undefined;
+	if (args && args['abbreviation']) {
+		inputAbbreviation = args['abbreviation'] as string;
+	} else {
+		inputAbbreviation = await new Promise<string | undefined>(resolve => {
+			const quickPick = vscode.window.createQuickPick();
+			quickPick.placeholder = prompt;
+			quickPick.items = wrapAbbreviationHistory.map(abbr => ({ label: abbr }));
+			quickPick.onDidChangeValue(value => {
+				inputChanged(value);
+			});
+			quickPick.onDidAccept(() => {
+				const value = quickPick.selectedItems[0]?.label ?? quickPick.value;
+				quickPick.dispose();
+				resolve(value || undefined);
+			});
+			quickPick.onDidHide(() => {
+				quickPick.dispose();
+				resolve(undefined);
+			});
+			quickPick.show();
+		});
+	}
 
 	const changesWereMade = await makeChanges(inputAbbreviation, false);
+	if (changesWereMade && inputAbbreviation) {
+		// Add to history, moving to front if already present
+		const existingIndex = wrapAbbreviationHistory.indexOf(inputAbbreviation);
+		if (existingIndex !== -1) {
+			wrapAbbreviationHistory.splice(existingIndex, 1);
+		}
+		wrapAbbreviationHistory.unshift(inputAbbreviation);
+		if (wrapAbbreviationHistory.length > MAX_HISTORY_LENGTH) {
+			wrapAbbreviationHistory.pop();
+		}
+	}
 	if (!changesWereMade) {
 		editor.selections = oldSelections;
 	}
