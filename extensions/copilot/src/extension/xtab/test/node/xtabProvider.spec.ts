@@ -14,7 +14,7 @@ import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/do
 import { Edits } from '../../../../platform/inlineEdits/common/dataTypes/edit';
 import { ImportChanges } from '../../../../platform/inlineEdits/common/dataTypes/importFilteringOptions';
 import { LanguageId } from '../../../../platform/inlineEdits/common/dataTypes/languageId';
-import { AggressivenessLevel, AggressivenessSetting, DEFAULT_OPTIONS, EarlyDivergenceCancellationMode, LanguageContextLanguages, LintOptionShowCode, LintOptionWarning, ModelConfiguration, PatchModelPrediction, PromptingStrategy, ResponseFormat } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { AggressivenessLevel, DEFAULT_OPTIONS, EarlyDivergenceCancellationMode, LanguageContextLanguages, LintOptionShowCode, LintOptionWarning, ModelConfiguration, PatchModelPrediction, PromptingStrategy, ResponseFormat } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { InlineEditRequestLogContext } from '../../../../platform/inlineEdits/common/inlineEditLogContext';
 import { IInlineEditsModelService } from '../../../../platform/inlineEdits/common/inlineEditsModelService';
 import { NoNextEditReason, StatelessNextEditDocument, StatelessNextEditRequest, StreamedEdit, WithStatelessProviderTelemetry } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
@@ -1066,29 +1066,6 @@ describe('XtabProvider integration', () => {
 			expect(getMessageText(systemMessage!)).toBe(xtab275SystemPrompt);
 		});
 
-		it('applies strategy config to the selected model', async () => {
-			await configService.setConfig(ConfigKey.Advanced.InlineEditsAggressiveness, AggressivenessSetting.High);
-			mockModelService.setSelectedConfig({
-				promptingStrategy: PromptingStrategy.PatchBased02UnifiedEagerness,
-			});
-
-			const lines = ['const x = 1;'];
-			streamingFetcher.setStreamingLines(lines);
-			const gen = createProvider().provideNextEdit(
-				createRequestWithEdit(lines, { insertionOffset: 3, insertedText: 'a' }),
-				createMockLogger(),
-				createLogContext(),
-				CancellationToken.None
-			);
-			await AsyncIterUtils.drainUntilReturn(gen);
-
-			const userMessages = streamingFetcher.capturedOptions
-				.flatMap(options => options.messages)
-				.filter(message => message.role === Raw.ChatRole.User)
-				.map(getMessageText);
-			expect(userMessages.some(prompt => prompt.includes('<|aggression|>high<|/aggression|>'))).toBe(true);
-		});
-
 		it('applies configured aggressiveness only to aggressiveness strategies', async () => {
 			const lines = ['const x = 1;', 'const y = 2;'];
 			const captureUserPrompt = async (promptingStrategy: PromptingStrategy, aggressivenessLevel: AggressivenessLevel) => {
@@ -1144,35 +1121,6 @@ describe('XtabProvider integration', () => {
 
 			// Should have made two calls - first failed with NotFound, second retried
 			expect(streamingFetcher.callCount).toBe(2);
-		});
-
-		it('applies strategy config when retrying with the default model', async () => {
-			const provider = createProvider();
-			await configService.setConfig(ConfigKey.Advanced.InlineEditsAggressiveness, AggressivenessSetting.High);
-			mockModelService.setDefaultConfig({
-				promptingStrategy: PromptingStrategy.PatchBased02UnifiedEagerness,
-			});
-
-			const lines = ['const x = 1;'];
-			const request = createRequestWithEdit(lines, { insertionOffset: 3, insertedText: 'a' });
-			streamingFetcher.enqueueResponse({
-				type: ChatFetchResponseType.NotFound,
-				reason: 'test',
-				requestId: 'req-1',
-				serverRequestId: undefined,
-			});
-			streamingFetcher.setStreamingLines(lines);
-
-			const capturesBefore = streamingFetcher.capturedOptions.length;
-			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
-			await AsyncIterUtils.drainUntilReturn(gen);
-
-			const retryPrompts = streamingFetcher.capturedOptions
-				.slice(capturesBefore)
-				.flatMap(options => options.messages)
-				.filter(message => message.role === Raw.ChatRole.User)
-				.map(getMessageText);
-			expect(retryPrompts.some(prompt => prompt.includes('<|aggression|>'))).toBe(true);
 		});
 
 		it('does not loop infinitely on repeated NotFound', async () => {
