@@ -212,9 +212,11 @@ export class CopilotGitHubTelemetryForwarder {
 		}
 
 		const event = notification.event;
+		const properties = { ...event.properties };
+		delete properties.secondary_assignment_context;
 		const data: ITelemetryData = {
 			...event.client,
-			...event.properties,
+			...properties,
 			...event.metrics,
 			created_at: event.created_at,
 			model_call_id: event.model_call_id,

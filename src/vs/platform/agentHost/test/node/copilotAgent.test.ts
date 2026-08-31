@@ -1167,7 +1167,7 @@ suite('CopilotAgent', () => {
 			});
 
 			assert.deepStrictEqual(telemetryService.experimentProperties, {
-				secondary_assignment_context: 'secondary:1',
+				'secondary.assignmentcontext': 'secondary:1',
 			});
 		} finally {
 			await disposeAgent(agent);
