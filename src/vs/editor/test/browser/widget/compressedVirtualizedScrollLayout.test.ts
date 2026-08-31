@@ -356,6 +356,88 @@ suite('CompressedVirtualizedScrollLayout', () => {
 		});
 	});
 
+	test('resets transient scroll state when equal-height items are replaced', () => {
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+
+		const itemA = new TestCompressedScrollItem(100);
+		const itemB = new TestCompressedScrollItem(500);
+		const items = observableValue<readonly TestCompressedScrollItem[]>('items', [itemA, itemB]);
+		const view = disposables.add(new CompressedVirtualizedScrollView(
+			container,
+			constObservable(new Dimension(800, 400)),
+			constObservable(12),
+			() => items,
+		));
+		container.appendChild(view.domNode);
+		view.runWithScrollAnchor({ revision: view.layout.get().revision, offset: 100 }, tx => itemA.setSize(50, tx));
+		const beforeReplacement = view.layout.get();
+		const beforeReplacementEdit = view.lastGeometryEdit.get();
+
+		transaction(tx => items.set([new TestCompressedScrollItem(50), new TestCompressedScrollItem(500)], tx));
+		const afterReplacement = view.layout.get();
+		const afterReplacementEdit = view.lastGeometryEdit.get();
+
+		assert.deepStrictEqual({
+			beforeReplacement: {
+				revision: beforeReplacement.revision,
+				leadingScrollSlack: beforeReplacement.leadingScrollSlack,
+				geometryEditKind: beforeReplacementEdit?.anchorKind,
+			},
+			afterReplacement: {
+				revision: afterReplacement.revision,
+				leadingScrollSlack: afterReplacement.leadingScrollSlack,
+				trailingScrollSlack: afterReplacement.trailingScrollSlack,
+				contentViewport: afterReplacement.contentViewport.toString(),
+				geometryEdit: afterReplacementEdit,
+			},
+		}, {
+			beforeReplacement: {
+				revision: 1,
+				leadingScrollSlack: 50,
+				geometryEditKind: 'logical',
+			},
+			afterReplacement: {
+				revision: 1,
+				leadingScrollSlack: 0,
+				trailingScrollSlack: 0,
+				contentViewport: '[0, 400)',
+				geometryEdit: undefined,
+			},
+		});
+	});
+
+	test('converts logical reveal positions after leading slack', () => {
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+
+		const itemA = new TestCompressedScrollItem(100);
+		const itemB = new TestCompressedScrollItem(500);
+		const view = disposables.add(new CompressedVirtualizedScrollView(
+			container,
+			constObservable(new Dimension(800, 400)),
+			constObservable(12),
+			() => constObservable([itemA, itemB]),
+		));
+		container.appendChild(view.domNode);
+		view.runWithScrollAnchor({ revision: view.layout.get().revision, offset: 100 }, tx => itemA.setSize(50, tx));
+
+		view.setLogicalScrollPosition(112);
+		const layout = view.layout.get();
+
+		assert.deepStrictEqual({
+			scrollTop: layout.scrollTop,
+			contentViewport: layout.contentViewport.toString(),
+			leadingScrollSlack: layout.leadingScrollSlack,
+		}, {
+			scrollTop: 112,
+			contentViewport: '[112, 512)',
+			leadingScrollSlack: 0,
+		});
+	});
+
 	test('keeps an item-local semantic anchor stable when its offset and item size change', () => {
 		const container = document.createElement('div');
 		document.body.appendChild(container);
