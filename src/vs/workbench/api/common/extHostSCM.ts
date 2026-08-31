@@ -604,6 +604,21 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		this.#proxy.$updateSourceControl(this.handle, { count });
 	}
 
+	private _branchName: string | undefined = undefined;
+
+	get branchName(): string | undefined {
+		return this._branchName;
+	}
+
+	set branchName(branchName: string | undefined) {
+		if (this._branchName === branchName) {
+			return;
+		}
+
+		this._branchName = branchName;
+		this.#proxy.$updateSourceControl(this.handle, { branchName });
+	}
+
 	private _quickDiffProvider: vscode.QuickDiffProvider | undefined = undefined;
 
 	get quickDiffProvider(): vscode.QuickDiffProvider | undefined {
