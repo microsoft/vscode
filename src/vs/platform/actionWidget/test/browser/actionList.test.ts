@@ -335,11 +335,11 @@ suite('ActionListWidget', () => {
 			],
 		});
 		const rows = Array.from(widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row'));
-		const allRowsAutoAtRead: boolean[] = [];
+		const allRowsMaxContentAtRead: boolean[] = [];
 		const measuredWidths = [120, 240, 180];
 		for (let i = 0; i < rows.length; i++) {
 			rows[i].getBoundingClientRect = () => {
-				allRowsAutoAtRead.push(rows.every(row => row.style.width === 'auto'));
+				allRowsMaxContentAtRead.push(rows.every(row => row.style.width === 'max-content'));
 				return new mainWindow.DOMRect(0, 0, measuredWidths[i], 24);
 			};
 		}
@@ -348,11 +348,11 @@ suite('ActionListWidget', () => {
 
 		assert.deepStrictEqual({
 			width,
-			allRowsAutoAtRead,
+			allRowsMaxContentAtRead,
 			restoredWidths: rows.map(row => row.style.width),
 		}, {
 			width: 268,
-			allRowsAutoAtRead: [true, true, true],
+			allRowsMaxContentAtRead: [true, true, true],
 			restoredWidths: ['', '', ''],
 		});
 	});
