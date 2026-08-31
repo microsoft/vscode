@@ -40,7 +40,7 @@ import { ipcBrowserViewChannelName } from '../../platform/browserView/common/bro
 import { ipcBrowserViewGroupChannelName } from '../../platform/browserView/common/browserViewGroup.js';
 import { BrowserViewMainService, IBrowserViewMainService } from '../../platform/browserView/electron-main/browserViewMainService.js';
 import { BrowserViewGroupMainService, IBrowserViewGroupMainService } from '../../platform/browserView/electron-main/browserViewGroupMainService.js';
-import { NativeParsedArgs } from '../../platform/environment/common/argv.js';
+import { NativeParsedArgs, shouldOpenAgentsWindow } from '../../platform/environment/common/argv.js';
 import { IEnvironmentMainService } from '../../platform/environment/electron-main/environmentMainService.js';
 import { isLaunchedFromCli } from '../../platform/environment/node/argvHelper.js';
 import { getResolvedShellEnv } from '../../platform/shell/node/shellEnv.js';
@@ -1487,7 +1487,7 @@ export class CodeApplication extends Disposable {
 		const args = this.environmentMainService.args;
 
 		// Handle agents window first based on context
-		if (args['agents']) {
+		if (shouldOpenAgentsWindow(args)) {
 			return windowsMainService.openAgentsWindow({
 				context,
 				cli: args,

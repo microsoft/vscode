@@ -43,6 +43,7 @@ import { IConfigurationResolverService } from '../../../../../services/configura
 import { AgentHostSessionHandler, toolDataToDefinition, toolResultToProtocol, UNOBSERVED_CLIENT_TOOL_GRACE_MS } from '../../../browser/agentSessions/agentHost/agentHostSessionHandler.js';
 import { AgentHostActiveClientService, IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostCustomizationService, NullAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { EvaluationSessionAttachmentService, IEvaluationSessionAttachmentService } from '../../../browser/agentSessions/agentHost/evaluationSessionAttachmentService.js';
 import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, IAgentHostToolSetEnablementService, IToolEnablementState } from '../../../browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestFileService } from '../../../../../test/common/workbenchTestServices.js';
@@ -72,6 +73,13 @@ import { ChatEntitlement, IChatEntitlementService } from '../../../../../service
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { IMcpService, IMcpWorkbenchService, LazyCollectionState } from '../../../../mcp/common/mcpTypes.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { browserChatToolReferenceNames } from '../../../../../../platform/browserView/common/browserChatToolReferenceNames.js';
+import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ClientToolSetsContribution } from '../../../browser/tools/clientToolSetsContribution.js';
+import { LanguageModelToolsService } from '../../../browser/tools/languageModelToolsService.js';
+import { IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
+import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 
 // =============================================================================
 // Unit tests for toolDataToDefinition and toolResultToProtocol
@@ -198,6 +206,40 @@ suite('AgentHostClientTools', () => {
 			scopeAfterReleaseIsResolved: true,
 		});
 	});
+
+	test('forced client tool-set reconciliation and flush publish the complete browser inventory', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const toolInstantiationService = workbenchInstantiationService({
+			contextKeyService: () => disposables.add(new ContextKeyService(new TestConfigurationService())),
+		}, disposables);
+		const toolsService = disposables.add(toolInstantiationService.createInstance(LanguageModelToolsService));
+		const makeTool = (name: string): IToolData => ({
+			id: `vscode.${name}`,
+			toolReferenceName: name,
+			displayName: name,
+			modelDescription: name,
+			source: ToolDataSource.Internal,
+			inputSchema: { type: 'object', properties: {} },
+		});
+		disposables.add(toolsService.registerToolData(makeTool(browserChatToolReferenceNames[0])));
+		disposables.add(toolsService.registerToolData(makeTool(CLIENT_TOOL_SEARCH_REFERENCE_NAME)));
+		const workspaceService = new class extends mock<IAICustomizationWorkspaceService>() {
+			override readonly isSessionsWindow = true;
+		}();
+		const clientToolSets = disposables.add(new ClientToolSetsContribution(toolsService, workspaceService));
+
+		for (const name of browserChatToolReferenceNames.slice(1)) {
+			disposables.add(toolsService.registerToolData(makeTool(name)));
+		}
+
+		const activeClientService = createActiveClientService(toolsService.observeTools(undefined), toolsService.toolSets).service;
+		const scope = disposables.add(activeClientService.acquireScope(REMOTE_COPILOT_CLI_SESSION_TYPE, []));
+		const getNames = () => scope.activeClient('test-client').get().tools.map(tool => tool.name).sort();
+		assert.deepStrictEqual(getNames(), [browserChatToolReferenceNames[0], CLIENT_TOOL_SEARCH_REFERENCE_NAME].sort());
+
+		clientToolSets.reconcile();
+		toolsService.flushToolUpdates();
+		assert.deepStrictEqual(getNames(), [...browserChatToolReferenceNames, CLIENT_TOOL_SEARCH_REFERENCE_NAME].sort());
+	}));
 
 	test('provides MCP support before a session and keeps unavailable roots distinct from no roots', async () => {
 		const { service } = createActiveClientService();
@@ -899,6 +941,8 @@ suite('AgentHostClientTools', () => {
 			// observes the mocked ILanguageModelToolsService tool sets.
 			const activeClientService = disposables.add(instantiationService.createInstance(AgentHostActiveClientService));
 			instantiationService.stub(IAgentHostActiveClientService, activeClientService);
+			const evaluationSessionAttachmentService = new EvaluationSessionAttachmentService();
+			instantiationService.stub(IEvaluationSessionAttachmentService, evaluationSessionAttachmentService);
 
 			const handler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
 				provider: 'copilot' as const,
@@ -910,7 +954,7 @@ suite('AgentHostClientTools', () => {
 				connectionAuthority: 'local',
 			}));
 
-			return { handler, connection, toolsService, configValues, onDidChangeConfig };
+			return { handler, connection, toolsService, configValues, onDidChangeConfig, evaluationSessionAttachmentService };
 		}
 
 		const testRunTestsTool: IToolData = {
@@ -1121,6 +1165,17 @@ suite('AgentHostClientTools', () => {
 			assert.strictEqual(runTestsDef.title, 'Run Tests');
 			assert.strictEqual(runTestsDef.description, 'Runs unit tests');
 		});
+
+		test('handler attachment does not establish a missing active-client entry before the provider', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { handler, connection } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+			await handler.provideChatSessionContent(URI.parse('agent-host-copilot:/session-1'), CancellationToken.None);
+			await timeout(10);
+
+			assert.deepStrictEqual(
+				connection.dispatchedActions.filter(entry => entry.action.type === ActionType.SessionActiveClientSet),
+				[],
+			);
+		}));
 
 		test('handles tools with when clauses via observeTools filtering', () => {
 			// The observeTools method already filters by `when` clauses.
@@ -1852,7 +1907,93 @@ suite('AgentHostClientTools', () => {
 			return chatURI;
 		}
 
-		test('invokes a ready client tool and reflects its local confirmation', async () => {
+		test('attached evaluation pending confirmation is left entirely to the driver', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { handler, connection, toolsService, evaluationSessionAttachmentService } = createHandlerWithMocks(disposables, [testRunTaskTool], { requireConfirmation: true });
+			disposables.add(evaluationSessionAttachmentService.attach({
+				connectionAuthority: 'local',
+				backendSession: AgentSession.uri('copilot', 'session-1'),
+			}));
+			await provideSessionWithPendingConfirmationClientTool(handler, connection);
+			await timeout(UNOBSERVED_CLIENT_TOOL_GRACE_MS + 1);
+
+			assert.deepStrictEqual({
+				invoked: toolsService.invokedToolCalls.length,
+				executed: toolsService.executedToolCalls.length,
+				resolutions: connection.dispatchedActions.filter(entry => isChatAction(entry.action)
+					&& (entry.action.type === ActionType.ChatToolCallConfirmed || entry.action.type === ActionType.ChatToolCallComplete)
+					&& entry.action.toolCallId === 'tool-call-1').length,
+				turns: connection.dispatchedActions.filter(entry => isChatAction(entry.action) && entry.action.type === ActionType.ChatTurnStarted).length,
+				executionTokens: toolsService.invocationTokens.length,
+			}, { invoked: 0, executed: 0, resolutions: 0, turns: 0, executionTokens: 0 });
+
+			connection.applySessionAction(AgentSession.uri('copilot', 'session-1'), {
+				type: ActionType.SessionInputNeededRemoved,
+				id: 'confirmation-tool-call-1',
+			});
+			await timeout(0);
+			assert.strictEqual(toolsService.invokedToolCalls.length, 0);
+		}));
+
+		test('attached evaluation rendered externally preapproved Running successor executes once without confirming again', async () => {
+			const { handler, connection, toolsService, evaluationSessionAttachmentService } = createHandlerWithMocks(disposables, [testRunTaskTool], { requireConfirmation: true });
+			disposables.add(evaluationSessionAttachmentService.attach({
+				connectionAuthority: 'local',
+				backendSession: AgentSession.uri('copilot', 'session-1'),
+			}));
+			const chatURI = await provideSessionWithPendingConfirmationClientTool(handler, connection);
+			connection.applySessionAction(AgentSession.uri('copilot', 'session-1'), {
+				type: ActionType.SessionInputNeededRemoved,
+				id: 'confirmation-tool-call-1',
+			});
+			applyRunningClientExecution(connection, chatURI.toString(), 'turn-1', {
+				toolCallId: 'tool-call-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				invocationMessage: 'Run Task',
+				toolInput: '{"task":"build"}',
+				confirmed: ToolCallConfirmationReason.UserAction,
+			});
+			await timeout(0);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				invoked: toolsService.invokedToolCalls.length,
+				executed: toolsService.executedToolCalls.length,
+				preApproved: toolsService.invokedToolCalls[0]?.preApproved?.type,
+				confirmations: connection.dispatchedActions.filter(entry => isChatAction(entry.action)
+					&& entry.action.type === ActionType.ChatToolCallConfirmed
+					&& entry.action.toolCallId === 'tool-call-1').length,
+				turns: connection.dispatchedActions.filter(entry => isChatAction(entry.action) && entry.action.type === ActionType.ChatTurnStarted).length,
+				completions: connection.dispatchedActions.filter(entry => isChatAction(entry.action)
+					&& entry.action.type === ActionType.ChatToolCallComplete
+					&& entry.action.toolCallId === 'tool-call-1').length,
+			}, {
+				invoked: 1,
+				executed: 1,
+				preApproved: ToolConfirmKind.UserAction,
+				confirmations: 0,
+				turns: 0,
+				completions: 1,
+			});
+		});
+
+		test('attachment for another backend or authority leaves default confirmation unchanged', async () => {
+			for (const identity of [
+				{ connectionAuthority: 'local', backendSession: AgentSession.uri('copilot', 'another-session') },
+				{ connectionAuthority: 'other', backendSession: AgentSession.uri('copilot', 'session-1') },
+			]) {
+				const { handler, connection, toolsService, evaluationSessionAttachmentService } = createHandlerWithMocks(disposables, [testRunTaskTool], { requireConfirmation: true });
+				disposables.add(evaluationSessionAttachmentService.attach(identity));
+				await provideSessionWithPendingConfirmationClientTool(handler, connection);
+
+				assert.strictEqual(toolsService.invokedToolCalls.length, 1);
+				assert.strictEqual(toolsService.begunToolCalls[0]?.state.get().type, IChatToolInvocation.StateKind.WaitingForConfirmation);
+				IChatToolInvocation.confirmWith(toolsService.begunToolCalls[0], { type: ToolConfirmKind.Denied });
+				await timeout(0);
+			}
+		});
+
+		test('without evaluation attachment invokes a ready client tool and reflects local confirmation', async () => {
 			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool], { requireConfirmation: true });
 			await provideSessionWithPendingConfirmationClientTool(handler, connection);
 

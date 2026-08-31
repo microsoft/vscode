@@ -30,17 +30,19 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
+import { EvaluationSessionActiveClientPublicationState, IEvaluationSessionAttachmentService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/evaluationSessionAttachmentService.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { ILanguageModelToolsService } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { ResourceLabelHomeStore } from '../../../../../workbench/services/label/common/resourceLabelHomeStore.js';
 import { IAgentHostConnectProgress, IAgentHostGroup } from '../../../../common/agentHostSessionsProvider.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
 import { IGitHubInfo, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
-import { BaseAgentHostSessionsProvider } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
+import { AgentHostSessionAdapter, BaseAgentHostSessionsProvider } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { ReconnectableAgentHostAutomationStore } from '../../agentHost/browser/reconnectableAgentHostAutomationStore.js';
 import type { ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
 import { AutomationStore } from '../../../automations/browser/automationService.js';
@@ -210,6 +212,8 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		@IAgentHostActiveClientService activeClientService: IAgentHostActiveClientService,
 		@IDialogService dialogService: IDialogService,
 		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IEvaluationSessionAttachmentService private readonly _evaluationSessionAttachmentService: IEvaluationSessionAttachmentService,
+		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
 	) {
 		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService, dialogService, workspaceTrustManagementService);
 		this._resourceLabelHomes = this._register(instantiationService.createInstance(ResourceLabelHomeStore));
@@ -267,6 +271,22 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	}
 
 	// -- BaseAgentHostSessionsProvider hooks ---------------------------------
+
+	protected override _prepareActiveClientPublication(cached: AgentHostSessionAdapter, token: CancellationToken): Promise<boolean> | undefined {
+		const identity = { connectionAuthority: this._connectionAuthority, backendSession: cached.backendUri };
+		const readiness = this._evaluationSessionAttachmentService.waitForActiveClientPublicationReady(identity, token);
+		if (readiness === undefined) {
+			return undefined;
+		}
+		return readiness.then(ready => {
+			if (!ready || token.isCancellationRequested
+				|| this._evaluationSessionAttachmentService.getActiveClientPublicationState(identity) !== EvaluationSessionActiveClientPublicationState.Ready) {
+				return false;
+			}
+			this._languageModelToolsService.flushToolUpdates();
+			return true;
+		});
+	}
 
 	protected get connection(): IAgentConnection | undefined { return this._connection; }
 

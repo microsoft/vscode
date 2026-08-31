@@ -100,6 +100,7 @@ import { type ContextKeyValue } from '../../../../../../platform/contextkey/comm
 import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostProtectedResourcesService } from '../../../browser/agentSessions/agentHost/agentHostProtectedResourcesService.js';
 import { IAgentHostCustomizationService, NullAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { EvaluationSessionAttachmentService, IEvaluationSessionAttachmentService } from '../../../browser/agentSessions/agentHost/evaluationSessionAttachmentService.js';
 import { IAgentHostMcpServer } from '../../../../../../sessions/common/agentHostSessionsProvider.js';
 import { ILanguageModelToolsService, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
@@ -917,6 +918,8 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		reconcile: async () => { },
 	} as Partial<IAgentHostSessionWorkingDirectorySynchronizer> as IAgentHostSessionWorkingDirectorySynchronizer);
 	instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow } as Partial<IWorkbenchEnvironmentService>);
+	const evaluationSessionAttachmentService = new EvaluationSessionAttachmentService();
+	instantiationService.stub(IEvaluationSessionAttachmentService, evaluationSessionAttachmentService);
 	instantiationService.stub(IWorkbenchAssignmentService, new NullWorkbenchAssignmentService());
 	instantiationService.stub(IChatInputNotificationService, {
 		_serviceBrand: undefined,
@@ -1008,7 +1011,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	instantiationService.stub(IAgentHostProtectedResourcesService, { onDidChange: Event.None, getProtectedResources: () => undefined });
 	instantiationService.stub(IOpenerService, openerService as IOpenerService);
 
-	return { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, activeClientService, seedActiveClient, chatSessionContributions, chatSessionItemControllers, newSessionFolderService, trustController, modelService, workingCopyService, commandService };
+	return { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, activeClientService, seedActiveClient, chatSessionContributions, chatSessionItemControllers, newSessionFolderService, trustController, modelService, workingCopyService, commandService, evaluationSessionAttachmentService };
 }
 
 function createSessionListStore(disposables: DisposableStore, instantiationService: TestInstantiationService, connection: IAgentHostSessionListConnection): AgentHostSessionListStore {
@@ -1021,7 +1024,7 @@ function createSessionListController(disposables: DisposableStore, instantiation
 }
 
 function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService; agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>; languageModelsServiceOverride?: Partial<ILanguageModelsService>; workspaceFolders?: readonly URI[]; hideAutoExplainability?: boolean; pendingTreatment?: Promise<void> }) {
-	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController, modelService, workingCopyService } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride, false, opts?.languageModelToolsServiceOverride, opts?.configOverrides, opts?.chatSessionsServiceOverride, opts?.chatDebugServiceOverride, opts?.remoteAgentHostServiceOverride, opts?.customizationServiceOverride, opts?.agentHostTerminalServiceOverride, opts?.languageModelsServiceOverride, opts?.workspaceFolders);
+	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController, modelService, workingCopyService, evaluationSessionAttachmentService } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride, false, opts?.languageModelToolsServiceOverride, opts?.configOverrides, opts?.chatSessionsServiceOverride, opts?.chatDebugServiceOverride, opts?.remoteAgentHostServiceOverride, opts?.customizationServiceOverride, opts?.agentHostTerminalServiceOverride, opts?.languageModelsServiceOverride, opts?.workspaceFolders);
 
 	if (opts?.hideAutoExplainability || opts?.pendingTreatment) {
 		const pending = opts?.pendingTreatment;
@@ -1049,7 +1052,7 @@ function createContribution(disposables: DisposableStore, opts?: { authServiceOv
 	}));
 	const contribution = disposables.add(instantiationService.createInstance(AgentHostContribution));
 
-	return { contribution, listController, sessionHandler, agentHostService, chatAgentService, chatWidgetService, chatService, instantiationService, openerService, trustController, modelService, workingCopyService };
+	return { contribution, listController, sessionHandler, agentHostService, chatAgentService, chatWidgetService, chatService, instantiationService, openerService, trustController, modelService, workingCopyService, evaluationSessionAttachmentService };
 }
 
 function createByokLanguageModelTestData(groupName?: string): { languageModels: ReadonlyMap<string, ILanguageModelChatMetadata>; languageModelsServiceOverride: Partial<ILanguageModelsService> } {
@@ -2051,6 +2054,74 @@ suite('AgentHostChatContribution', () => {
 				},
 			});
 		});
+
+		test('attached evaluation session never publishes a local draft', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const modelMetadata = upcastPartial<ILanguageModelChatMetadata>({ id: 'opus-4.7', name: 'Opus 4.7' });
+			const languageModels = new Map<string, ILanguageModelChatMetadata>([
+				['agent-host-copilot:opus-4.7', modelMetadata],
+			]);
+			const { sessionHandler, agentHostService, chatService, evaluationSessionAttachmentService } = createContribution(disposables, { languageModels });
+			const backendSession = AgentSession.uri('copilot', 'attached-draft');
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/attached-draft' });
+			disposables.add(evaluationSessionAttachmentService.attach({
+				connectionAuthority: 'local',
+				backendSession,
+			}));
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState({
+					resource: backendSession.toString(),
+					provider: 'copilot',
+					title: 'Attached Draft',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+				}),
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+				chats: [],
+				turns: [{
+					id: 'turn-1',
+					message: {
+						text: 'previous request',
+						origin: { kind: MessageKind.User },
+						model: { id: 'opus-4.7' },
+						agent: { uri: 'agent://reviewer' },
+					},
+					responseParts: [],
+					usage: undefined,
+					state: TurnState.Complete,
+				}],
+			});
+			const inputState = observableValue<IChatModelInputState | undefined>('test.inputState', {
+				attachments: [],
+				mode: { id: 'agent://reviewer', kind: ChatModeKind.Agent },
+				selectedModel: { identifier: 'agent-host-copilot:opus-4.7', metadata: modelMetadata },
+				inputText: 'must stay local',
+				selections: [],
+				contrib: {},
+			});
+			chatService.setSession(sessionResource, upcastPartial<IChatModel>({
+				sessionResource,
+				startEditingSession: () => { },
+				inputModel: upcastPartial<IInputModel>({
+					state: inputState,
+					setState: () => { },
+					clearState: () => { },
+					toJSON: () => undefined,
+				}),
+				onDidChangePendingRequests: Event.None,
+				getPendingRequests: () => [],
+			}));
+
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+			await timeout(500);
+
+			assert.deepStrictEqual(
+				agentHostService.dispatchedActions.filter(action => action.action.type === ActionType.ChatDraftChanged),
+				[],
+			);
+		}));
 
 		test('debounces chat input state into AHP draft', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			const modelMetadata = upcastPartial<ILanguageModelChatMetadata>({ id: 'opus-4.7', name: 'Opus 4.7' });

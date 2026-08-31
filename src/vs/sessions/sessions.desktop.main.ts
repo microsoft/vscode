@@ -231,6 +231,7 @@ import '../platform/agentHost/electron-browser/sshRemoteAgentHostService.js';
 import '../platform/agentHost/electron-browser/wslRemoteAgentHostService.js';
 import './contrib/providers/remoteAgentHost/electron-browser/tunnelAgentHostService.js';
 import './contrib/providers/remoteAgentHost/browser/remoteAgentHost.contribution.js';
+import './contrib/providers/remoteAgentHost/electron-browser/evaluationSessionAttachment.contribution.js';
 import './contrib/providers/remoteAgentHost/browser/remoteAgentHostTerminal.contribution.js';
 import './contrib/providers/remoteAgentHost/browser/tunnelAgentHost.contribution.js';
 import './contrib/providers/remoteAgentHost/browser/wslAgentHost.contribution.js';

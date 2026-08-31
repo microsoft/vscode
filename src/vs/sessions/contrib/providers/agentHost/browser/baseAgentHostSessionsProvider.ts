@@ -3043,6 +3043,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	/** Maps a project URI from the session summary to a local URI. Default identity; remote overrides for `file:` paths. */
 	protected mapProjectUri(uri: URI): URI { return uri; }
 
+	/** Optional barrier before publishing the active-client snapshot for a cached session. */
+	protected _prepareActiveClientPublication(_cached: AgentHostSessionAdapter, _token: CancellationToken): Promise<boolean> | undefined { return undefined; }
+
 	// -- Session listing ------------------------------------------------------
 
 	getSessionTypes(_repositoryUri: URI): ISessionType[] {
@@ -3097,6 +3100,24 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			activeSession.sessionId !== activeSessionId
 		) {
 			return;
+		}
+
+		const preparation = this._prepareActiveClientPublication(cached, token);
+		if (preparation !== undefined) {
+			if (!await preparation) {
+				return;
+			}
+			const activeSession = this._sessionsService.activeSession.get();
+			if (
+				token.isCancellationRequested ||
+				scope !== this._activeSessionScope.value ||
+				this.connection !== connection ||
+				this._sessionCache.get(rawId) !== cached ||
+				activeSession?.providerId !== this.id ||
+				activeSession.sessionId !== activeSessionId
+			) {
+				return;
+			}
 		}
 
 		const activeClient = scope.activeClient(connection.clientId).get();

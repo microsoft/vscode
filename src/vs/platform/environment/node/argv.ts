@@ -180,6 +180,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'export-default-keybindings': { type: 'string', allowEmptyValue: true },
 	'install-source': { type: 'string' },
 	'enable-smoke-test-driver': { type: 'boolean' },
+	'attach-to-evaluation-session': { type: 'string' },
 	'skip-sessions-welcome': { type: 'boolean' },
 	'logExtensionHostCommunication': { type: 'boolean' },
 	'skip-release-notes': { type: 'boolean' },

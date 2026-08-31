@@ -29,6 +29,7 @@ interface IDynamicToolSetSpec {
  */
 export class ClientToolSetsContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.chat.clientToolSets';
+	private readonly _reconcilers = new Set<() => void>();
 
 	constructor(
 		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
@@ -151,8 +152,16 @@ export class ClientToolSetsContribution extends Disposable implements IWorkbench
 			}
 			members.clear();
 		}));
+		this._reconcilers.add(reconcile);
+		store.add(toDisposable(() => this._reconcilers.delete(reconcile)));
 		reconcile();
 
 		return store;
+	}
+
+	reconcile(): void {
+		for (const reconcile of this._reconcilers) {
+			reconcile();
+		}
 	}
 }

@@ -129,6 +129,7 @@ export interface NativeParsedArgs {
 	'file-write'?: boolean;
 	'file-chmod'?: boolean;
 	'enable-smoke-test-driver'?: boolean;
+	'attach-to-evaluation-session'?: string;
 	'skip-sessions-welcome'?: boolean;
 	'remote'?: string;
 	'force'?: boolean;
@@ -179,4 +180,8 @@ export interface NativeParsedArgs {
 	'trace-startup-file'?: string;
 	'trace-startup-duration'?: string;
 	'xdg-portal-required-version'?: string;
+}
+
+export function shouldOpenAgentsWindow(args: NativeParsedArgs): boolean {
+	return !!(args.agents || args['attach-to-evaluation-session']);
 }

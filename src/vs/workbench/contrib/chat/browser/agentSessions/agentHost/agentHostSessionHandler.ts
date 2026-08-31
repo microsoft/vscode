@@ -100,6 +100,7 @@ import { IChatWidgetService } from '../../chat.js';
 import { getAgentSessionProviderIcon } from '../agentSessions.js';
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
+import { IEvaluationSessionAttachmentService } from './evaluationSessionAttachmentService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostSessionWorkingDirectorySynchronizer } from './agentHostSessionWorkingDirectorySynchronizer.js';
 import { IAgentHostNewSessionFolderService, computeWorkingDirectories } from './agentHostNewSessionFolderService.js';
@@ -1146,6 +1147,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IAgentHostCustomizationService private readonly _customizationService: IAgentHostCustomizationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IWorkbenchAssignmentService assignmentService: IWorkbenchAssignmentService,
+		@IEvaluationSessionAttachmentService private readonly _evaluationSessionAttachmentService: IEvaluationSessionAttachmentService,
 	) {
 		super();
 		this._config = config;
@@ -1451,7 +1453,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						chatTitle = getChatTitle(sessionState, chatURI);
 						const draft = sessionState.draft ?? emptyDraftFromLastTurn(sessionState);
 						draftInputState = this._draftToInputState(sessionResource, draft);
-						if (!sessionState.draft && draft) {
+						if (!sessionState.draft && draft && !this._isEvaluationSessionAttached(resolvedSession)) {
 							this._config.connection.dispatch(chatURI, { type: ActionType.ChatDraftChanged, draft });
 						}
 						const fallbackRawModelId = lastTurnModelSelection(sessionState)?.id;
@@ -1672,7 +1674,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// mapping was ever stored for this session resource.
 			if (chatURI !== undefined) {
 				this._ensurePendingMessageSubscription(sessionResource, resolvedSession);
-				this._ensureDraftSyncSubscription(sessionResource, resolvedSession, chatURI);
+				if (!this._isEvaluationSessionAttached(resolvedSession)) {
+					this._ensureDraftSyncSubscription(sessionResource, resolvedSession, chatURI);
+				}
 			}
 
 			// Eagerly create the snapshot controller once the ChatModel for
@@ -2511,7 +2515,25 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				return;
 			}
 
+			if (this._evaluationSessionAttachmentService.shouldDeferConfirmation({
+				connectionAuthority: this._config.connectionAuthority,
+				backendSession,
+				clientId: this._config.connection.clientId,
+			}, initial)) {
+				return;
+			}
+
 			const key = this._toolCallKey(chatURI, initial.turnId, initial.toolCall.toolCallId);
+			if (initial.toolCall.status === ToolCallStatus.Running
+				&& getClientToolPreApproval(initial.toolCall)
+				&& this._evaluationSessionAttachmentService.isAttached({
+					connectionAuthority: this._config.connectionAuthority,
+					backendSession,
+				})) {
+				const confirmationKey = `${key}\0${ActionType.ChatToolCallConfirmed}`;
+				this._resolvedToolCalls.add(confirmationKey);
+				itemStore.add(toDisposable(() => this._resolvedToolCalls.delete(confirmationKey)));
+			}
 			const requestLifecycle = itemStore.add(new MutableDisposable<IDisposable>());
 			itemStore.add(this._retainToolCall(key));
 
@@ -5509,6 +5531,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		} finally {
 			waitStore.dispose();
 		}
+	}
+
+	private _isEvaluationSessionAttached(backendSession: URI): boolean {
+		return this._evaluationSessionAttachmentService.isAttached({
+			connectionAuthority: this._config.connectionAuthority,
+			backendSession,
+		});
 	}
 
 	private _installDraftSync(sessionResource: URI, chatModel: IChatModel, backendSession: URI, chatKey: string, store: DisposableStore): void {

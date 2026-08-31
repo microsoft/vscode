@@ -45,10 +45,12 @@ import { IGitHubService } from '../../../../github/browser/githubService.js';
 import { IPullRequestIconCache, PullRequestIconCache } from '../../../../github/browser/pullRequestIconCache.js';
 import { IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { CopilotCLISessionType } from '../../../agentHost/browser/baseAgentHostSessionsProvider.js';
-import { IObservable, constObservable } from '../../../../../../base/common/observable.js';
+import { IObservable, constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { MockLabelService } from '../../../../../../workbench/services/label/test/common/mockLabelService.js';
+import { EvaluationSessionAttachmentService, IEvaluationSessionAttachmentService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/evaluationSessionAttachmentService.js';
+import { ILanguageModelToolsService } from '../../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 
 // ---- Mock connection --------------------------------------------------------
 
@@ -238,7 +240,7 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 	};
 }
 
-function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { address?: string; preferenceKey?: string; connectionName?: string | undefined; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; storageService?: IStorageService; noConnection?: boolean; isWebPlatform?: boolean; workspaceTrusted?: boolean; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon; defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']; ctor?: typeof RemoteAgentHostSessionsProvider; labelService?: ILabelService; defaultDirectory?: string }): RemoteAgentHostSessionsProvider {
+function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { address?: string; preferenceKey?: string; connectionName?: string | undefined; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; storageService?: IStorageService; noConnection?: boolean; isWebPlatform?: boolean; workspaceTrusted?: boolean; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon; defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']; ctor?: typeof RemoteAgentHostSessionsProvider; labelService?: ILabelService; defaultDirectory?: string; sessionsService?: ISessionsService; activeClientService?: IAgentHostActiveClientService; attachmentService?: IEvaluationSessionAttachmentService; toolsService?: Pick<ILanguageModelToolsService, 'flushToolUpdates'> }): RemoteAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IFileDialogService, {});
@@ -271,11 +273,11 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 		override findPullRequestNumberByHeadBranch = async () => undefined;
 	}());
 	instantiationService.stub(IPullRequestIconCache, instantiationService.createInstance(PullRequestIconCache));
-	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+	instantiationService.stub(ISessionsService, overrides?.sessionsService ?? new class extends mock<ISessionsService>() {
 		override readonly activeSession: IObservable<IActiveSession | undefined> = constObservable<IActiveSession | undefined>(undefined);
 		override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = constObservable<readonly (IActiveSession | undefined)[]>([]);
 	}());
-	instantiationService.stub(IAgentHostActiveClientService, new class extends mock<IAgentHostActiveClientService>() {
+	instantiationService.stub(IAgentHostActiveClientService, overrides?.activeClientService ?? new class extends mock<IAgentHostActiveClientService>() {
 		override acquireScope = (_sessionType: string, _roots: readonly URI[]) => ({
 			customizations: constObservable([]),
 			customAgents: constObservable([]),
@@ -286,6 +288,8 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 			dispose: () => { },
 		});
 	}());
+	instantiationService.stub(IEvaluationSessionAttachmentService, overrides?.attachmentService ?? new EvaluationSessionAttachmentService());
+	instantiationService.stub(ILanguageModelToolsService, (overrides?.toolsService ?? { flushToolUpdates: () => { } }) as ILanguageModelToolsService);
 
 	const config: IRemoteAgentHostSessionsProviderConfig = {
 		address: overrides?.address ?? 'localhost:4321',
@@ -359,6 +363,162 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	setup(() => {
 		connection = new MockAgentConnection();
 		disposables.add(toDisposable(() => connection.dispose()));
+	});
+
+	function createActiveClientPublicationHarness(rawId: string) {
+		const harnessConnection = new MockAgentConnection();
+		disposables.add(toDisposable(() => harnessConnection.dispose()));
+		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		const attachmentService = new EvaluationSessionAttachmentService();
+		let flushes = 0;
+		let scopeRequests = 0;
+		let activeClientReads = 0;
+		const activeClient = {
+			clientId: harnessConnection.clientId,
+			tools: Array.from({ length: 11 }, (_, index) => ({
+				name: `tool-${index}`,
+				title: `Tool ${index}`,
+				description: `Tool ${index}`,
+				inputSchema: { type: 'object' as const },
+			})),
+			customizations: [],
+		};
+		const sessionsService = new class extends mock<ISessionsService>() {
+			override readonly activeSession = activeSession;
+			override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
+		}();
+		const activeClientService = new class extends mock<IAgentHostActiveClientService>() {
+			override acquireScope = () => {
+				scopeRequests++;
+				return {
+					customizations: constObservable([]),
+					customAgents: constObservable([]),
+					tools: constObservable(activeClient.tools),
+					isResolved: constObservable(true),
+					whenResolved: () => Promise.resolve(),
+					activeClient: () => {
+						activeClientReads++;
+						return constObservable(activeClient);
+					},
+					dispose: () => { },
+				};
+			};
+			override areScopeRootsEqual = () => true;
+		}();
+		const provider = createProvider(disposables, harnessConnection, {
+			sessionsService,
+			activeClientService,
+			attachmentService,
+			toolsService: { flushToolUpdates: () => flushes++ },
+		});
+		fireSessionAdded(harnessConnection, rawId);
+		const session = provider.getSessions().find(candidate => AgentSession.id(candidate.resource) === rawId)!;
+		const identity = {
+			connectionAuthority: agentHostAuthority('localhost:4321'),
+			backendSession: AgentSession.uri('copilotcli', rawId),
+		};
+		return {
+			provider,
+			connection: harnessConnection,
+			activeSession,
+			attachmentService,
+			identity,
+			get flushes() { return flushes; },
+			get scopeRequests() { return scopeRequests; },
+			get activeClientReads() { return activeClientReads; },
+			activate: () => {
+				activeSession.set({
+					providerId: provider.id,
+					sessionId: session.sessionId,
+					resource: session.resource,
+				} as IActiveSession, undefined);
+				if (scopeRequests === 0) {
+					fireSessionAdded(harnessConnection, rawId);
+				}
+			},
+			activeClientActions: () => harnessConnection.dispatchedActions.filter(entry => entry.action.type === ActionType.SessionActiveClientSet),
+			resetActions: () => harnessConnection.dispatchedActions.length = 0,
+		};
+	}
+
+	test('active-client publication remains immediate without an exact evaluation attachment', async () => {
+		const unattached = createActiveClientPublicationHarness('publication-unattached');
+		await timeout(0);
+		unattached.resetActions();
+		unattached.activate();
+		await timeout(0);
+		assert.deepStrictEqual({
+			actions: unattached.activeClientActions().length,
+			flushes: unattached.flushes,
+			scopeRequests: unattached.scopeRequests,
+			activeClientReads: unattached.activeClientReads,
+		}, { actions: 1, flushes: 0, scopeRequests: 1, activeClientReads: 1 });
+
+		const mismatched = createActiveClientPublicationHarness('publication-mismatched');
+		await timeout(0);
+		mismatched.resetActions();
+		disposables.add(mismatched.attachmentService.attach({
+			...mismatched.identity,
+			backendSession: AgentSession.uri('copilotcli', 'other'),
+		}));
+		mismatched.activate();
+		await timeout(0);
+		assert.deepStrictEqual({
+			actions: mismatched.activeClientActions().length,
+			flushes: mismatched.flushes,
+		}, { actions: 1, flushes: 0 });
+	});
+
+	test('exact evaluation attachment gates the first active-client publication until ready', async () => {
+		const harness = createActiveClientPublicationHarness('publication-ready');
+		await timeout(0);
+		harness.resetActions();
+		const attachment = disposables.add(harness.attachmentService.attach(harness.identity));
+		harness.activate();
+		await timeout(0);
+		assert.strictEqual(harness.activeClientActions().length, 0);
+
+		attachment.markActiveClientPublicationReady();
+		await timeout(0);
+		const actions = harness.activeClientActions();
+		assert.strictEqual(actions.length, 1);
+		assert.deepStrictEqual((actions[0].action as Extract<SessionAction, { type: ActionType.SessionActiveClientSet }>).activeClient.tools, Array.from({ length: 11 }, (_, index) => ({
+			name: `tool-${index}`,
+			title: `Tool ${index}`,
+			description: `Tool ${index}`,
+			inputSchema: { type: 'object' },
+		})));
+		assert.strictEqual(harness.flushes, 1);
+	});
+
+	test('evaluation publication wait drops stale active session, cache, connection, and detached generations', async () => {
+		const scenarios: Array<{ readonly id: string; readonly expectedFlushes: number; readonly invalidate: (harness: ReturnType<typeof createActiveClientPublicationHarness>, attachment: ReturnType<EvaluationSessionAttachmentService['attach']>) => void }> = [
+			{
+				id: 'active', invalidate: harness => {
+					harness.activeSession.set(undefined, undefined);
+					fireSessionAdded(harness.connection, AgentSession.id(harness.identity.backendSession));
+				}, expectedFlushes: 0
+			},
+			{ id: 'cache', invalidate: harness => fireSessionRemoved(harness.connection, AgentSession.id(harness.identity.backendSession)), expectedFlushes: 0 },
+			{ id: 'connection', invalidate: harness => harness.provider.clearConnection(), expectedFlushes: 1 },
+			{ id: 'detach', invalidate: (_harness, attachment) => attachment.dispose(), expectedFlushes: 0 },
+		];
+		for (const scenario of scenarios) {
+			const harness = createActiveClientPublicationHarness(`publication-stale-${scenario.id}`);
+			await timeout(0);
+			harness.resetActions();
+			const attachment = harness.attachmentService.attach(harness.identity);
+			harness.activate();
+			await timeout(0);
+			scenario.invalidate(harness, attachment);
+			attachment.markActiveClientPublicationReady();
+			await timeout(0);
+			assert.deepStrictEqual({
+				actions: harness.activeClientActions().length,
+				flushes: harness.flushes,
+			}, { actions: 0, flushes: scenario.expectedFlushes }, scenario.id);
+			attachment.dispose();
+		}
 	});
 
 	teardown(() => {
