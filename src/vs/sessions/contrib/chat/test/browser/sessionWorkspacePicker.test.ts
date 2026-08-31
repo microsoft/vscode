@@ -1283,14 +1283,15 @@ suite('WorkspacePicker - Category Triggers', () => {
 				expanded: trigger.getAttribute('aria-expanded'),
 				role: trigger.getAttribute('role'),
 				tabIndex: trigger.tabIndex,
+				icons: Array.from(trigger.querySelectorAll<HTMLElement>('.codicon'), icon => icon.classList.item(1)),
 			})),
 		}, {
 			selectedFolderUri: folderUri.toString(),
 			triggers: [
-				{ label: 'local/project', ariaLabel: 'Folder: local/project', hidden: false, hasPopup: 'listbox', expanded: 'false', role: 'button', tabIndex: 0 },
-				{ label: 'Repo, Issue, or PR', ariaLabel: 'Choose a GitHub target', hidden: false, hasPopup: 'listbox', expanded: 'false', role: 'button', tabIndex: 0 },
-				{ label: 'Remote Setup', ariaLabel: 'Choose a remote setup', hidden: true, hasPopup: 'listbox', expanded: 'false', role: 'button', tabIndex: 0 },
-				{ label: undefined, ariaLabel: 'More workspace options', hidden: false, hasPopup: 'listbox', expanded: 'false', role: 'button', tabIndex: 0 },
+				{ label: 'local/project', ariaLabel: 'Folder: local/project', hidden: false, hasPopup: 'listbox', expanded: 'false', role: 'button', tabIndex: 0, icons: ['codicon-folder', 'codicon-chevron-down-compact'] },
+				{ label: 'Repo, Issue, or PR', ariaLabel: 'Choose a GitHub target', hidden: false, hasPopup: 'listbox', expanded: 'false', role: 'button', tabIndex: 0, icons: ['codicon-github', 'codicon-chevron-down-compact'] },
+				{ label: 'Remote Setup', ariaLabel: 'Choose a remote setup', hidden: true, hasPopup: 'listbox', expanded: 'false', role: 'button', tabIndex: 0, icons: ['codicon-radio-tower', 'codicon-chevron-down-compact'] },
+				{ label: undefined, ariaLabel: 'More workspace options', hidden: false, hasPopup: 'listbox', expanded: 'false', role: 'button', tabIndex: 0, icons: ['codicon-ellipsis', 'codicon-chevron-down-compact'] },
 			],
 		});
 	});
@@ -2175,7 +2176,7 @@ suite('WorkspacePicker - Category Triggers', () => {
 		const contextTrigger = container.querySelector<HTMLElement>('.action-label');
 		const getContextTriggerSnapshot = () => ({
 			label: contextTrigger?.querySelector('.sessions-chat-dropdown-label')?.textContent,
-			icon: contextTrigger?.querySelector('.codicon')?.className,
+			icon: contextTrigger?.querySelector('.codicon:not(.sessions-chat-dropdown-chevron)')?.className,
 			badge: contextTrigger?.querySelector('.monaco-count-badge')?.textContent,
 			ariaLabel: contextTrigger?.getAttribute('aria-label'),
 		});
@@ -2230,7 +2231,7 @@ suite('WorkspacePicker - Category Triggers', () => {
 		}]);
 		const contextTrigger = container.querySelector<HTMLElement>('.action-label');
 		const getContextTriggerSnapshot = () => ({
-			icon: contextTrigger?.querySelector('.codicon')?.className,
+			icon: contextTrigger?.querySelector('.codicon:not(.sessions-chat-dropdown-chevron)')?.className,
 			badge: contextTrigger?.querySelector('.monaco-count-badge')?.textContent,
 			ariaLabel: contextTrigger?.getAttribute('aria-label'),
 		});

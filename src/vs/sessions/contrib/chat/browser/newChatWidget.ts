@@ -210,7 +210,6 @@ export class NewChatWidget extends Disposable {
 			loading,
 			historyKey: constObservable(undefined), // no persisted history for the new-session view
 			placeholder: localize('newSessionPromptPlaceholder', "Pitch your idea"),
-			sessionTypePickerOptions: { showChevron: false },
 			supportsBackground: true,
 			deferredNotificationsEnabled,
 			petHostPreferred: this.options.petHostPreferred,
@@ -707,7 +706,6 @@ export class NewChatWidget extends Disposable {
 			label: localize('newSessionWorkspacePicker.githubContext', "Issue/PR"),
 			ariaLabel: localize('newSessionWorkspacePicker.githubContextAriaLabel', "Attach a GitHub issue or pull request to the new session"),
 			tooltip: localize('newSessionWorkspacePicker.githubContextTooltip', "Attach an issue or pull request as context"),
-			icon: Codicon.add,
 			hideIconWhenAttached: true,
 			group: SESSION_WORKSPACE_GROUP_GITHUB,
 			attachesContext: true,

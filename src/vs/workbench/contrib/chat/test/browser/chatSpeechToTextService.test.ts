@@ -15,9 +15,9 @@ import { ILanguageModelChatRequestOptions, ILanguageModelChatResponse, ILanguage
 type CleanupTestService = {
 	_configurationService: {
 		getValue: () => string;
+		inspect: () => { defaultValue: string | undefined };
 	};
 	_languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>;
-	_llmCleanupModelTreatment: string | undefined;
 	_promptsService: {
 		getDictationInstructions: (token: CancellationToken) => Promise<string | undefined>;
 	};
@@ -182,8 +182,8 @@ suite('ChatSpeechToTextService', () => {
 			const service = Object.create(ChatSpeechToTextService.prototype) as CleanupTestService;
 			service._configurationService = {
 				getValue: () => 'auto',
+				inspect: () => ({ defaultValue: 'auto' }),
 			};
-			service._llmCleanupModelTreatment = undefined;
 			service._languageModelsService = {
 				selectLanguageModels: async () => ['test-model'],
 				sendChatRequest: () => new Promise<ILanguageModelChatResponse>(() => { }),
@@ -227,8 +227,8 @@ suite('ChatSpeechToTextService', () => {
 			const service = Object.create(ChatSpeechToTextService.prototype) as CleanupTestService;
 			service._configurationService = {
 				getValue: () => 'auto',
+				inspect: () => ({ defaultValue: 'auto' }),
 			};
-			service._llmCleanupModelTreatment = undefined;
 			service._languageModelsService = {
 				selectLanguageModels: () => new Promise<string[]>(() => { }),
 				sendChatRequest: async () => { throw new Error('Unexpected request'); },
@@ -266,8 +266,8 @@ suite('ChatSpeechToTextService', () => {
 			const service = Object.create(ChatSpeechToTextService.prototype) as CleanupTestService;
 			service._configurationService = {
 				getValue: () => 'auto',
+				inspect: () => ({ defaultValue: 'auto' }),
 			};
-			service._llmCleanupModelTreatment = undefined;
 			service._languageModelsService = {
 				selectLanguageModels: async () => ['test-model'],
 				sendChatRequest: async () => ({
@@ -309,14 +309,14 @@ suite('ChatSpeechToTextService', () => {
 		}
 	});
 
-	test('selects the configured or treated cleanup model and falls back when a dedicated model is unavailable', async () => {
+	test('selects the configured or experiment-default cleanup model and falls back when a dedicated model is unavailable', async () => {
 		const selectors: ILanguageModelChatSelector[] = [];
-		const createService = (treatment: string | undefined, configuredModel = 'auto'): CleanupTestService => {
+		const createService = (configuredModel = 'auto', experimentDefault = 'auto'): CleanupTestService => {
 			const service = Object.create(ChatSpeechToTextService.prototype) as CleanupTestService;
 			service._configurationService = {
 				getValue: () => configuredModel,
+				inspect: () => ({ defaultValue: experimentDefault }),
 			};
-			service._llmCleanupModelTreatment = treatment;
 			service._languageModelsService = {
 				selectLanguageModels: async selector => {
 					selectors.push(selector);
@@ -335,13 +335,13 @@ suite('ChatSpeechToTextService', () => {
 			return service;
 		};
 
-		await createService(undefined)._cleanupWithLanguageModel('control transcript', CancellationToken.None);
-		await createService('gpt-5.4-nano')._cleanupWithLanguageModel('Nano treatment transcript', CancellationToken.None);
-		await createService('gpt-5.6-luna')._cleanupWithLanguageModel('treatment transcript', CancellationToken.None);
-		await createService('unexpected-model')._cleanupWithLanguageModel('unknown treatment transcript', CancellationToken.None);
-		await createService(undefined, 'gpt-5.4-nano')._cleanupWithLanguageModel('configured Nano transcript', CancellationToken.None);
-		await createService(undefined, 'gpt-5.6-luna')._cleanupWithLanguageModel('configured Luna transcript', CancellationToken.None);
-		await createService('gpt-5.6-luna', 'copilot-utility-small')._cleanupWithLanguageModel('configured utility transcript', CancellationToken.None);
+		await createService()._cleanupWithLanguageModel('control transcript', CancellationToken.None);
+		await createService('auto', 'gpt-5.4-nano')._cleanupWithLanguageModel('Nano experiment transcript', CancellationToken.None);
+		await createService('auto', 'gpt-5.6-luna')._cleanupWithLanguageModel('Luna experiment transcript', CancellationToken.None);
+		await createService('auto', 'unexpected-model')._cleanupWithLanguageModel('unknown experiment transcript', CancellationToken.None);
+		await createService('gpt-5.4-nano')._cleanupWithLanguageModel('configured Nano transcript', CancellationToken.None);
+		await createService('gpt-5.6-luna')._cleanupWithLanguageModel('configured Luna transcript', CancellationToken.None);
+		await createService('copilot-utility-small', 'gpt-5.6-luna')._cleanupWithLanguageModel('configured utility transcript', CancellationToken.None);
 
 		assert.deepStrictEqual(selectors, [
 			{ vendor: 'copilot', id: 'copilot-utility-small' },
@@ -364,8 +364,8 @@ suite('ChatSpeechToTextService', () => {
 			const service = Object.create(ChatSpeechToTextService.prototype) as CleanupTestService;
 			service._configurationService = {
 				getValue: () => configuredModel,
+				inspect: () => ({ defaultValue: 'auto' }),
 			};
-			service._llmCleanupModelTreatment = undefined;
 			service._languageModelsService = {
 				selectLanguageModels: async () => ['test-model'],
 				sendChatRequest: async (_modelId, _from, _messages, options) => {
