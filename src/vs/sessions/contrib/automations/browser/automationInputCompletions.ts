@@ -72,7 +72,7 @@ export class AutomationInputCompletions extends AgentHostInputCompletionsBase<vo
 	}
 
 	protected override _buildItem(position: Position, item: IChatInputCompletionItem): CompletionItem | undefined {
-		if (item.attachment.kind !== 'skill') {
+		if (item.attachment.kind !== 'skill' && !(item.attachment.kind === 'command' && item.attachment.isSkill)) {
 			return undefined;
 		}
 		return {

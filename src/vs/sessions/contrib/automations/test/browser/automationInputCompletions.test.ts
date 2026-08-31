@@ -38,6 +38,10 @@ class TestChatSessionsService extends mock<IChatSessionsService>() {
 					insertText: '/plan ',
 					attachment: { kind: 'command', command: 'plan', description: 'Plan a task' },
 				},
+				{
+					insertText: '/runtime-skill ',
+					attachment: { kind: 'command', command: 'runtime-skill', isSkill: true, description: 'Run a runtime skill' },
+				},
 			],
 		};
 	}
@@ -74,12 +78,21 @@ suite('AutomationInputCompletions', () => {
 			filterText: item.filterText,
 			documentation: item.documentation,
 			kind: item.kind,
-		})), [{
-			label: { label: '/review ', description: 'Review the workspace' },
-			insertText: '/review ',
-			filterText: '/review ',
-			documentation: 'Review the workspace',
-			kind: CompletionItemKind.Text,
-		}]);
+		})), [
+			{
+				label: { label: '/review ', description: 'Review the workspace' },
+				insertText: '/review ',
+				filterText: '/review ',
+				documentation: 'Review the workspace',
+				kind: CompletionItemKind.Text,
+			},
+			{
+				label: { label: '/runtime-skill ', description: 'Run a runtime skill' },
+				insertText: '/runtime-skill ',
+				filterText: '/runtime-skill ',
+				documentation: 'Run a runtime skill',
+				kind: CompletionItemKind.Text,
+			},
+		]);
 	});
 });
