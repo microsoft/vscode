@@ -7,6 +7,7 @@ import { Dimension, getWindow, h, scheduleAtNextAnimationFrame } from '../../../
 import { SmoothScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { compareBy, numberComparator } from '../../../../base/common/arrays.js';
 import { findFirstMax } from '../../../../base/common/arraysFind.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, globalTransaction, IObservable, ITransaction, observableFromEvent, observableSignal, observableValue } from '../../../../base/common/observable.js';
@@ -14,6 +15,8 @@ import { INewScrollPosition, IScrollPosition, Scrollable, ScrollbarVisibility } 
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { ObservableElementSizeObserver } from '../diffEditor/utils.js';
 import { asLayoutRevision, computeCompressedVirtualizedScrollHeight, computeCompressedVirtualizedScrollLayout, computeItemRanges, createAnchoredSizeEditBatch, ICompressedVirtualizedScrollLayout, ILogicalPosition, ISizeEdit, LayoutRevision, mapLogicalPosition } from './compressedVirtualizedScrollLayout.js';
+
+const scrollDirectionRetentionDurationMs = 100;
 
 export interface ICompressedVirtualizedScrollItem {
 	readonly size: IObservable<number>;
@@ -66,6 +69,8 @@ export class CompressedVirtualizedScrollView<TItem extends ICompressedVirtualize
 	private _previousItemHeights: readonly number[] | undefined;
 	private _previousItemGap = 0;
 	private _lastScrollTop = 0;
+	private _lastScrollDirection: 'up' | 'down' | undefined;
+	private readonly _clearScrollDirection = this._register(new RunOnceScheduler(() => this._lastScrollDirection = undefined, scrollDirectionRetentionDurationMs));
 	private _isUpdating = false;
 	private _pendingAnchor: {
 		readonly position: ILogicalPosition;
@@ -230,6 +235,10 @@ export class CompressedVirtualizedScrollView<TItem extends ICompressedVirtualize
 		try {
 			let targetScrollTop = requestedScrollTop;
 			const scrollDelta = requestedScrollTop - this._lastScrollTop;
+			if (scrollDelta !== 0) {
+				this._lastScrollDirection = scrollDelta < 0 ? 'up' : 'down';
+				this._clearScrollDirection.schedule();
+			}
 			const previousItemHeights = this._previousItemHeights;
 			const geometryChanged = previousItemHeights !== undefined
 				&& (itemGap !== this._previousItemGap || !arrayEquals(previousItemHeights, itemHeights));
@@ -243,10 +252,9 @@ export class CompressedVirtualizedScrollView<TItem extends ICompressedVirtualize
 				const oldLogicalScrollHeight = computeCompressedVirtualizedScrollHeight(previousItemHeights, this._previousItemGap);
 				const oldLogicalViewportTop = requestedScrollTop - this._leadingScrollSlack;
 				const pendingAnchor = this._pendingAnchor;
-				const futureScrollTop = this._scrollable.getFutureScrollPosition().scrollTop;
-				const isActivelyScrollingUp = this._scrollable.hasPendingScrollAnimation() && futureScrollTop < requestedScrollTop;
-				const defaultAnchorViewportOffset = isActivelyScrollingUp ? height : 0;
-				const anchorKind = pendingAnchor?.item ? 'item' : pendingAnchor ? 'logical' : isActivelyScrollingUp ? 'viewportBottom' : 'viewportTop';
+				const isScrollingUp = this._lastScrollDirection === 'up';
+				const defaultAnchorViewportOffset = isScrollingUp ? height : 0;
+				const anchorKind = pendingAnchor?.item ? 'item' : pendingAnchor ? 'logical' : isScrollingUp ? 'viewportBottom' : 'viewportTop';
 				const anchorOffset = pendingAnchor?.position.offset ?? Math.max(0, Math.min(oldLogicalViewportTop + defaultAnchorViewportOffset, oldLogicalScrollHeight));
 				const anchorViewportOffset = pendingAnchor?.viewportOffset ?? anchorOffset - oldLogicalViewportTop;
 				const fromRevision = this._revision;
