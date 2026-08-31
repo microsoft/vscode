@@ -2981,7 +2981,7 @@ suite('LayoutController (desktop)', () => {
 		assert.deepStrictEqual(publishedWorkspaces, ['c']);
 	});
 
-	test('[managed tabs / dispose] a reconcile stalled mid-open opens no editors once the controller is disposed', async () => {
+	test('[managed tabs / dispose] a reconcile stalled mid-open opens no further editors once the controller is disposed', async () => {
 		const controller = createSinglePaneController({ activateAux: true });
 		await settle();
 
