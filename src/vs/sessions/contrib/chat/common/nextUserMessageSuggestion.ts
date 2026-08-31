@@ -34,6 +34,7 @@ export function createNextUserMessagePrompt(): string {
 		'Predict the single message the user would naturally type next, using the latest user request for intent and the final assistant response for the likely continuation.',
 		'Predict what they would actually type, not what they should do.',
 		'Do not propose a new task, evaluate the response, thank the assistant, or speak as the assistant.',
+		'Prefer a concise request or action over a question. Use a question only when clarification is the natural continuation.',
 		'Return one line, 2-12 words, matching the user\'s language. If nothing is strongly implied, return exactly NONE.',
 	].join('\n\n');
 }
