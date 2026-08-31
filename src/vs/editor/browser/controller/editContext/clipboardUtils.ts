@@ -45,11 +45,18 @@ function generateDataToCopy(viewModel: IViewModel): { dataToCopy: ClipboardDataT
 
 function getDataToCopy(viewModel: IViewModel, modelSelections: Range[], emptySelectionClipboard: boolean, copyWithSyntaxHighlighting: boolean): ClipboardDataToCopy {
 	const { sourceRanges, sourceText } = viewModel.getPlainTextToCopy(modelSelections, emptySelectionClipboard, isWindows);
-	const newLineCharacter = viewModel.model.getEOL();
+	const newLineCharacter = isWindows ? '\r\n' : viewModel.model.getEOL();
 
 	const isFromEmptySelection = (emptySelectionClipboard && modelSelections.length === 1 && modelSelections[0].isEmpty());
 	const multicursorText = (Array.isArray(sourceText) ? sourceText : null);
-	const text = (Array.isArray(sourceText) ? sourceText.join(newLineCharacter) : sourceText);
+	const text = (Array.isArray(sourceText)
+		? sourceText.reduce((result, chunk, index) => {
+			if (index > 0 && !result.endsWith(newLineCharacter)) {
+				result += newLineCharacter;
+			}
+			return result + chunk;
+		}, '')
+		: sourceText);
 
 	let html: string | null | undefined = undefined;
 	let mode: string | null = null;
