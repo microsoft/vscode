@@ -319,9 +319,11 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 
 	/**
 	 * Queues coordinator-owned async work on the sequencer with a disposal guard so that a task
-	 * still queued (or resumed) after teardown never touches editors through the now-disposed
-	 * instantiation service. Every sequencer task must go through here — the reconcile pipeline
-	 * as well as the collapse/restore/files-tab tasks all open or close editors.
+	 * still queued when teardown happens never starts and touches editors through the now-disposed
+	 * instantiation service. The guard is checked before the task starts; a task already running at
+	 * disposal time relies on its own checkpoints (e.g. `_reconcile`'s generation checks) to bail.
+	 * Every sequencer task must go through here — the reconcile pipeline as well as the
+	 * collapse/restore/files-tab tasks all open or close editors.
 	 */
 	private _queue(task: () => Promise<void>): void {
 		void this._sequencer.queue(() => this._store.isDisposed ? Promise.resolve() : task()).catch(onUnexpectedError);
