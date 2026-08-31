@@ -1542,6 +1542,13 @@ export class AICustomizationListWidget extends Disposable {
 						break;
 					case 'remote-client':
 						label = localize('remoteClientGroupShort', "Local");
+						if (this.currentSection === AICustomizationManagementSection.Skills) {
+							description = localize(
+								'localSkillsGroupDescription',
+								"Skills stored on your local machine and synced to {0}, the active remote agent environment.",
+								this.harnessService.getActiveDescriptor().label,
+							);
+						}
 						break;
 					default:
 						label = formatDisplayName(key);
