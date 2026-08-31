@@ -140,7 +140,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Compile browser integration test runner
-        if: ${{ inputs.browser_tests && inputs.unit_and_integration_tests }}
+        if: ${{ inputs.browser_tests && inputs.integration_tests }}
         working-directory: test/integration/browser
         run: npm run compile
 
