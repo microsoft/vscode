@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle, AnimationFrameScheduler, DisposableResizeObserver, getRecentDisposableResizeObserverContextForLoopError, findParentWithClass, hasParentWithClass } from '../../browser/dom.js';
+import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle, AnimationFrameScheduler, DisposableResizeObserver, getRecentDisposableResizeObserverContextForLoopError, findParentWithClass, hasParentWithClass, sharedMutationObserver } from '../../browser/dom.js';
 import { asCssValueWithDefault } from '../../../base/browser/cssValue.js';
 import { ensureCodeWindow, isAuxiliaryWindow, mainWindow } from '../../browser/window.js';
 import { DeferredPromise, timeout } from '../../common/async.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../common/errors.js';
+import { DisposableStore } from '../../common/lifecycle.js';
 import { runWithFakedTimers } from '../common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 
@@ -735,6 +736,65 @@ suite('dom', () => {
 			);
 			observer.dispose();
 		});
+	});
+
+	test('sharedMutationObserver refcounts co-observers of the same target and options', async () => {
+		const target = document.createElement('div');
+		const options: MutationObserverInit = { childList: true };
+
+		const storeA = new DisposableStore();
+		const storeB = new DisposableStore();
+		const eventA = sharedMutationObserver.observe(target, storeA, options);
+		const eventB = sharedMutationObserver.observe(target, storeB, options);
+		assert.strictEqual(eventA, eventB);
+
+		const receivedByA = new DeferredPromise<MutationRecord[]>();
+		const receivedByB = new DeferredPromise<MutationRecord[]>();
+		const listenerA = eventA(records => receivedByA.complete(records));
+		const listenerB = eventB(records => receivedByB.complete(records));
+		target.appendChild(document.createElement('span'));
+		await Promise.all([receivedByA.p, receivedByB.p]);
+		listenerA.dispose();
+		listenerB.dispose();
+
+		storeA.dispose();
+		assert.strictEqual(sharedMutationObserver.mutationObservers.has(target), true, 'shared observer must survive while another user remains');
+
+		storeB.dispose();
+		assert.strictEqual(sharedMutationObserver.mutationObservers.has(target), false, 'last user must tear down the shared observer');
+
+		const storeC = new DisposableStore();
+		const receivedAfterTeardown = new DeferredPromise<MutationRecord[]>();
+		const listenerC = sharedMutationObserver.observe(target, storeC, options)(records => receivedAfterTeardown.complete(records));
+		target.appendChild(document.createElement('span'));
+		await receivedAfterTeardown.p;
+		listenerC.dispose();
+		storeC.dispose();
+		assert.strictEqual(sharedMutationObserver.mutationObservers.has(target), false);
+	});
+
+	test('sharedMutationObserver tears down regardless of which user disposes first', async () => {
+		const target = document.createElement('div');
+		const options: MutationObserverInit = { childList: true };
+
+		const creatorStore = new DisposableStore();
+		const joinerStore = new DisposableStore();
+		const eventA = sharedMutationObserver.observe(target, creatorStore, options);
+		const eventB = sharedMutationObserver.observe(target, joinerStore, options);
+		assert.strictEqual(eventA, eventB);
+
+		const receivedByA = new DeferredPromise<MutationRecord[]>();
+		const listenerA = eventA(records => receivedByA.complete(records));
+		target.appendChild(document.createElement('span'));
+		await receivedByA.p;
+
+		joinerStore.dispose();
+		assert.strictEqual(sharedMutationObserver.mutationObservers.has(target), true, 'shared observer must survive while another user remains');
+
+		creatorStore.dispose();
+		assert.strictEqual(sharedMutationObserver.mutationObservers.has(target), false, 'last user must tear down the shared observer');
+
+		listenerA.dispose();
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
