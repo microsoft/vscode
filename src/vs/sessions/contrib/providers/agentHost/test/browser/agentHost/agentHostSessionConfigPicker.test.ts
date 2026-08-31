@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
@@ -276,6 +277,33 @@ function renderPicker(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeaked
 suite('Agent Host Session Config Picker', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('restores pointer and keyboard focus without leaving pointer focus visible', async () => {
+		const services = setupServices(store);
+		const { container } = renderPicker(store, services);
+		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		const trigger = branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!;
+		let focusCalls = 0;
+		trigger.focus = () => focusCalls++;
+
+		trigger.click();
+		await new Promise(resolve => setTimeout(resolve));
+		services.actionWidget.delegate!.onHide();
+		const pointerFocusCalls = focusCalls;
+
+		trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+		await new Promise(resolve => setTimeout(resolve));
+		services.actionWidget.delegate!.onHide();
+
+		assert.deepStrictEqual({
+			pointerFocusCalls,
+			keyboardFocusCalls: focusCalls,
+		}, {
+			pointerFocusCalls: 0,
+			keyboardFocusCalls: 1,
+		});
+	});
 
 	test('places mode immediately before approvals in secondary toolbars', () => {
 		const summarize = (menu: MenuId, ids: readonly string[]) => MenuRegistry.getMenuItems(menu)

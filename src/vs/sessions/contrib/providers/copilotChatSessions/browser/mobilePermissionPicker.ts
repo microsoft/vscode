@@ -47,11 +47,15 @@ export class MobilePermissionPicker extends PermissionPicker {
 	}
 
 	override showPicker(): void {
+		this._showPicker(true);
+	}
+
+	protected override _showPicker(restoreFocus: boolean): void {
 		if (!this._triggerElement || this.actionWidgetService.isVisible || this._isResolving()) {
 			return;
 		}
 		if (!isPhoneLayout(this._layoutService)) {
-			super.showPicker();
+			super._showPicker(restoreFocus);
 			return;
 		}
 
@@ -86,7 +90,9 @@ export class MobilePermissionPicker extends PermissionPicker {
 			items,
 		).then(async id => {
 			trigger.setAttribute('aria-expanded', 'false');
-			trigger.focus();
+			if (restoreFocus) {
+				trigger.focus();
+			}
 			if (!id) {
 				return;
 			}

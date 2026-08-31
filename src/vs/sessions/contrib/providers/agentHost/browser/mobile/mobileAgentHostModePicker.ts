@@ -40,7 +40,7 @@ export class MobileAgentHostModePicker extends AgentHostModePicker {
 		super(session, actionWidgetService, sessionsProvidersService, telemetryService, hoverService, _chatPetService);
 	}
 
-	protected override _showPicker(anchor = this._triggerElement, onHide?: () => void): boolean {
+	protected override _showPicker(anchor = this._triggerElement, onHide?: () => void, restoreFocus = true): boolean {
 		if (!anchor) {
 			return false;
 		}
@@ -65,11 +65,13 @@ export class MobileAgentHostModePicker extends AgentHostModePicker {
 				},
 			})
 				.finally(() => {
-					anchor.focus();
+					if (restoreFocus) {
+						anchor.focus();
+					}
 					onHide?.();
 				});
 			return true;
 		}
-		return super._showPicker(anchor, onHide);
+		return super._showPicker(anchor, onHide, restoreFocus);
 	}
 }

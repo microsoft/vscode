@@ -54,6 +54,30 @@ suite('Sessions - Chat View', () => {
 		assert.strictEqual(dom.getWindow(label).getComputedStyle(label).display, 'none');
 	});
 
+	test('keeps the model configuration label beside the compact model icon', () => {
+		const toolbar = dom.append(document.body, dom.$('.sessions-chat-config-toolbar'));
+		disposables.add(toDisposable(() => toolbar.remove()));
+		const actionBar = dom.append(toolbar, dom.$('.monaco-action-bar'));
+		const item = dom.append(actionBar, dom.$('.action-item.chat-input-picker-item.compact-picker.model-picker-item'));
+		const picker = dom.append(item, dom.$('.action-label.model-picker-split.compact'));
+		const name = dom.append(picker, dom.$('.model-picker-section.model-picker-name'));
+		name.style.minWidth = '22px';
+		dom.append(name, dom.$('span.codicon'));
+		const config = dom.append(picker, dom.$('.model-picker-section.model-picker-config'));
+		const configLabel = dom.append(config, dom.$('span.chat-input-picker-label'));
+		configLabel.textContent = 'High';
+
+		assert.deepStrictEqual({
+			configVisible: dom.getWindow(configLabel).getComputedStyle(configLabel).display !== 'none',
+			configWidth: config.getBoundingClientRect().width > 0,
+			nameWidth: name.getBoundingClientRect().width,
+		}, {
+			configVisible: true,
+			configWidth: true,
+			nameWidth: 22,
+		});
+	});
+
 	test('keeps compact empty-state picker icons inside their action item', () => {
 		const toolbar = dom.append(document.body, dom.$('.sessions-chat-config-toolbar'));
 		disposables.add(toDisposable(() => toolbar.remove()));
@@ -108,6 +132,27 @@ suite('Sessions - Chat View', () => {
 			iconWidth: 12,
 			iconOffset: 8,
 			iconEscapes: false,
+		});
+	});
+
+	test('keeps the voice toolbar visible when picker actions run out of space', () => {
+		const session = dom.append(document.body, dom.$('.interactive-session'));
+		disposables.add(toDisposable(() => session.remove()));
+		const toolbars = dom.append(session, dom.$('.chat-input-toolbars'));
+		toolbars.style.width = '180px';
+		const inputToolbar = dom.append(toolbars, dom.$('.monaco-toolbar.responsive.chat-input-toolbar'));
+		inputToolbar.style.width = '240px';
+		const executeToolbar = dom.append(toolbars, dom.$('.chat-execute-toolbar'));
+		executeToolbar.style.width = '70px';
+
+		assert.deepStrictEqual({
+			inputWidth: inputToolbar.getBoundingClientRect().width,
+			executeWidth: executeToolbar.getBoundingClientRect().width,
+			executeEscapes: executeToolbar.getBoundingClientRect().right > toolbars.getBoundingClientRect().right,
+		}, {
+			inputWidth: 108,
+			executeWidth: 70,
+			executeEscapes: false,
 		});
 	});
 

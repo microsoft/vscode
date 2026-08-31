@@ -195,14 +195,14 @@ export class PermissionPicker extends Disposable {
 		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
 			this._renderDisposables.add(dom.addDisposableListener(trigger, eventType, (e) => {
 				dom.EventHelper.stop(e, true);
-				this.showPicker();
+				this._showPicker(false);
 			}));
 		}
 
 		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, (e) => {
 			if (e.key === 'Enter' || e.key === ' ') {
 				dom.EventHelper.stop(e, true);
-				this.showPicker();
+				this._showPicker(true);
 			}
 		}));
 
@@ -258,6 +258,10 @@ export class PermissionPicker extends Disposable {
 	}
 
 	showPicker(): void {
+		this._showPicker(true);
+	}
+
+	protected _showPicker(restoreFocus: boolean): void {
 		if (!this._triggerElement || this.actionWidgetService.isVisible || this._isResolving()) {
 			return;
 		}
@@ -342,7 +346,11 @@ export class PermissionPicker extends Disposable {
 					await this.openerService.open(URI.parse('https://aka.ms/vscode/docs/permissions'));
 				}
 			},
-			onHide: () => { triggerElement.focus(); },
+			onHide: () => {
+				if (restoreFocus) {
+					triggerElement.focus();
+				}
+			},
 		};
 
 		const listOptions: IActionListOptions = { minWidth: 255 };
