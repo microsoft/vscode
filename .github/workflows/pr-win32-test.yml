@@ -13,7 +13,10 @@ on:
       remote_tests:
         type: boolean
         default: false
-      unit_and_integration_tests:
+      unit_tests:
+        type: boolean
+        default: true
+      integration_tests:
         type: boolean
         default: true
       smoke_tests:
@@ -25,7 +28,7 @@ jobs:
     name: ${{ inputs.job_name }}
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=windows-test-${{ inputs.job_name }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     env:
-      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (!inputs.unit_and_integration_tests && inputs.smoke_tests) && '-smoke' || '' }}
+      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}
       NPM_ARCH: x64
       VSCODE_ARCH: x64
     steps:
@@ -35,7 +38,7 @@ jobs:
           lfs: true
 
       - name: Detect Agent Host E2E changes
-        if: ${{ inputs.electron_tests && inputs.unit_and_integration_tests }}
+        if: ${{ inputs.electron_tests && inputs.integration_tests }}
         id: agent-host-e2e-changes
         uses: ./.github/actions/detect-agent-host-e2e-changes
         with:
@@ -136,7 +139,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 🧪 Run unit tests (Electron)
-        if: ${{ inputs.electron_tests && inputs.unit_and_integration_tests }}
+        if: ${{ inputs.electron_tests && inputs.unit_tests }}
         timeout-minutes: 15
         shell: pwsh
         run: .\scripts\test.bat --tfs "Unit Tests"
@@ -144,13 +147,13 @@ jobs:
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run unit tests (node.js)
-        if: ${{ inputs.electron_tests && inputs.unit_and_integration_tests }}
+        if: ${{ inputs.electron_tests && inputs.unit_tests }}
         timeout-minutes: 15
         shell: pwsh
         run: npm run test-node
 
       - name: 🧪 Run unit tests (Browser, Chromium)
-        if: ${{ inputs.browser_tests && inputs.unit_and_integration_tests }}
+        if: ${{ inputs.browser_tests && inputs.unit_tests }}
         timeout-minutes: 20
         shell: pwsh
         run: node test/unit/browser/index.js --browser chromium --tfs "Browser Unit Tests"
@@ -158,6 +161,7 @@ jobs:
           DEBUG: "*browser*"
 
       - name: Compile extensions for integration tests & smoke tests
+        if: ${{ inputs.integration_tests || inputs.smoke_tests }}
         shell: pwsh
         run: |
           . build/azure-pipelines/win32/exec.ps1
@@ -183,13 +187,13 @@ jobs:
           }
 
       - name: Diagnostics before integration test runs
-        if: ${{ inputs.unit_and_integration_tests && always() }}
+        if: ${{ inputs.integration_tests && always() }}
         shell: pwsh
         run: .\build\azure-pipelines\win32\listprocesses.bat
         continue-on-error: true
 
       - name: 🧪 Run integration tests (Electron)
-        if: ${{ inputs.electron_tests && inputs.unit_and_integration_tests }}
+        if: ${{ inputs.electron_tests && inputs.integration_tests }}
         timeout-minutes: 20
         shell: pwsh
         run: .\scripts\test-integration.bat --tfs "Integration Tests"
@@ -198,13 +202,13 @@ jobs:
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run integration tests (Browser, Chromium)
-        if: ${{ inputs.browser_tests && inputs.unit_and_integration_tests }}
+        if: ${{ inputs.browser_tests && inputs.integration_tests }}
         timeout-minutes: 20
         shell: pwsh
         run: .\scripts\test-web-integration.bat --browser chromium
 
       - name: 🧪 Run integration tests (Remote)
-        if: ${{ inputs.remote_tests && inputs.unit_and_integration_tests }}
+        if: ${{ inputs.remote_tests && inputs.integration_tests }}
         timeout-minutes: 20
         shell: pwsh
         run: .\scripts\test-remote-integration.bat
@@ -212,7 +216,7 @@ jobs:
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: Diagnostics after integration test runs
-        if: ${{ inputs.unit_and_integration_tests && always() }}
+        if: ${{ inputs.integration_tests && always() }}
         shell: pwsh
         run: .\build\azure-pipelines\win32\listprocesses.bat
         continue-on-error: true
