@@ -1155,6 +1155,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 
 	if (options.scrollToBottom) {
 		editor.revealLastItem();
+		// Allow the 500ms hide delay and 800ms fade transition to complete.
+		await new Promise(resolve => setTimeout(resolve, 1400));
 	}
 
 	if (options.migrationCategory) {

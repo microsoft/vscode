@@ -1243,6 +1243,9 @@ export class McpListWidget extends Disposable {
 			vertical: ScrollbarVisibility.Auto,
 			useShadows: false,
 		}));
+		this._register(DOM.addDisposableListener(this.cardContainer, DOM.EventType.SCROLL, () => {
+			this.cardScrollable.setScrollPosition({ scrollTop: this.cardContainer.scrollTop });
+		}));
 		this.cardScrollableNode = this.cardScrollable.getDomNode();
 		this.cardScrollableNode.classList.add('plugin-card-scrollable');
 		this.cardScrollableNode.style.display = 'none';
