@@ -969,10 +969,11 @@ export class ChatService extends Disposable implements IChatService {
 		const hasProgressStreaming = providedSession.progressObs && providedSession.interruptActiveResponseCallback;
 		if (hasProgressStreaming) {
 			let lastProgressLength = 0;
-			// A session that is already complete when it loads is finalizing the history
-			// that was replayed into the model. Once the session has been seen working,
-			// the completion that follows is a turn that finished while it was watched.
-			let hasStreamedWork = false;
+			// Completion state as of the previous observation, or undefined before the
+			// first one. A session that is already complete when first observed is
+			// finalizing replayed history, while a session seen running and completing
+			// afterwards holds a turn that finished while it was watched.
+			let wasComplete: boolean | undefined;
 
 			const cancellationListener = disposables.add(new MutableDisposable());
 			const createCancellationListener = (token: CancellationToken) => {
@@ -1098,10 +1099,11 @@ export class ChatService extends Disposable implements IChatService {
 			disposables.add(autorun(reader => {
 				const progressArray = providedSession.progressObs?.read(reader) ?? [];
 				const isComplete = providedSession.isCompleteObs?.read(reader) ?? false;
+				const justCompleted = wasComplete === false && isComplete;
+				wasComplete = isComplete;
 
 				// Backstop: keep the streamed turn tracked as in-progress across immediate-steer dispatches.
 				if (!isComplete) {
-					hasStreamedWork = true;
 					ensureCancellationTracking();
 				}
 
@@ -1118,8 +1120,7 @@ export class ChatService extends Disposable implements IChatService {
 				if (isComplete && lastRequest) {
 					this._pendingRequests.deleteAndDispose(model.sessionResource);
 					cancellationListener.clear();
-					completeLastResponse(hasStreamedWork);
-					hasStreamedWork = false;
+					completeLastResponse(justCompleted);
 					// Flush any message queued/steered during the streamed turn (no-op if none, or server-managed).
 					this.processPendingRequests(model.sessionResource);
 				}
