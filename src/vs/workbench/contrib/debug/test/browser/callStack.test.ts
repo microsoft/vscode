@@ -5,6 +5,10 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
+import * as dom from '../../../../../base/browser/dom.js';
+import { ITreeNode } from '../../../../../base/browser/ui/tree/tree.js';
+import { Event } from '../../../../../base/common/event.js';
+import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Constants } from '../../../../../base/common/uint.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -12,18 +16,22 @@ import { upcastDeepPartial, upcastPartial } from '../../../../../base/test/commo
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { IMenuService } from '../../../../../platform/actions/common/actions.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { createDecorationsForStackFrame } from '../../browser/callStackEditorContribution.js';
-import { getContext, getContextForContributedActions, getSpecificSourceName } from '../../browser/callStackView.js';
+import { getContext, getContextForContributedActions, getSpecificSourceName, SessionsRenderer } from '../../browser/callStackView.js';
 import { debugStackframe, debugStackframeFocused } from '../../browser/debugIcons.js';
 import { getStackFrameThreadAndSessionToFocus } from '../../browser/debugService.js';
 import { DebugSession } from '../../browser/debugSession.js';
-import { IDebugService, IDebugSessionOptions, State } from '../../common/debug.js';
+import { IDebugService, IDebugSession, IDebugSessionOptions, State } from '../../common/debug.js';
 import { DebugModel, StackFrame, Thread } from '../../common/debugModel.js';
 import { Source } from '../../common/debugSource.js';
+import { TestMenuService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { MockRawSession } from '../common/mockDebug.js';
 import { createMockDebugModel, mockUriIdentityService } from './mockDebugModel.js';
 import { RawDebugSession } from '../../browser/rawDebugSession.js';
@@ -109,6 +117,33 @@ suite('Debug - CallStack', () => {
 		model.clearThreads(session.getId(), true);
 		assert.strictEqual(session.getThread(threadId), undefined);
 		assert.strictEqual(model.getSessions(true).length, 1);
+	});
+
+	test('session renderer disposes element resources before rerender', () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(IHoverService, NullHoverService);
+
+		const firstMenuDispose = sinon.spy();
+		const secondMenuDispose = sinon.spy();
+		const menuService = new TestMenuService();
+		sinon.stub(menuService, 'createMenu')
+			.onFirstCall().returns({ onDidChange: Event.None, getActions: () => [], dispose: firstMenuDispose })
+			.onSecondCall().returns({ onDidChange: Event.None, getActions: () => [], dispose: secondMenuDispose });
+		instantiationService.stub(IMenuService, menuService);
+
+		const renderer = instantiationService.createInstance(SessionsRenderer);
+		const templateData = renderer.renderTemplate(dom.$('.'));
+		disposables.add(templateData.templateDisposable);
+		const session = disposables.add(createTestSession(model));
+		const node = upcastPartial<ITreeNode<IDebugSession, FuzzyScore>>({
+			element: session,
+			filterData: undefined
+		});
+
+		renderer.renderElement(node, 0, templateData);
+		renderer.renderElement(node, 0, templateData);
+
+		assert.deepStrictEqual([firstMenuDispose.callCount, secondMenuDispose.callCount], [1, 0]);
 	});
 
 	test('threads multiple with allThreadsStopped', async () => {
