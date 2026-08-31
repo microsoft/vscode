@@ -115,6 +115,7 @@ suite('ContextKeyExpr', () => {
 		testExpression('a && b', true && false);
 		testExpression('a && !b && c == 5', true && !false && '5' === '5');
 		testExpression('d =~ /e.*/', false);
+		testExpression('a =~ /t/d', true);
 
 		// precedence test: false && true || true === true because && is evaluated first
 		testExpression('b && a || a', true);
