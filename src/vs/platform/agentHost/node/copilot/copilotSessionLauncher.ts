@@ -25,6 +25,7 @@ import type { ActiveClientToolSet } from '../activeClientState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostManagedSettingsService } from '../agentHostManagedSettingsService.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
+import { IAgentHostSessionOpenTelemetry } from '../agentHostSessionOpenTelemetry.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyService.js';
 import type { ICopilotMcpServerInfo, ICopilotPluginInfo } from './copilotAgent.js';
@@ -213,6 +214,12 @@ interface ICopilotSessionLaunchBase {
 	readonly sessionId: string;
 	/** Whether this launch is for a transient session that skips durable-only provider work. */
 	readonly isEphemeral?: boolean;
+	/**
+	 * Whether the owning chat surface is scoped to editing a single file, so
+	 * blanket shell auto-approvals must not apply. See
+	 * {@link IAgentCreateChatOptions.hasScopedEditSurface}.
+	 */
+	readonly hasScopedEditSurface?: boolean;
 	readonly workingDirectory: URI | undefined;
 	/**
 	 * The additional working directories beyond the primary process root
@@ -536,6 +543,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		@IByokLmProxyService private readonly _byokLmProxyService: IByokLmProxyService,
 		@IByokLmBridgeRegistry private readonly _byokLmBridgeRegistry: IByokLmBridgeRegistry,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
+		@IAgentHostSessionOpenTelemetry private readonly _sessionOpenTelemetry: IAgentHostSessionOpenTelemetry,
 	) { }
 
 	async launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
@@ -547,10 +555,11 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 
 		let fallbackPlan = plan;
 		let fallbackConfig = config;
+		const session = AgentSession.uri('copilotcli', plan.sessionId);
 		try {
 			const stopWatch = new StopWatch();
 			this._logService.trace(`[Copilot:${plan.sessionId}] Calling SDK resumeSession...`);
-			const raw = await this._withTraceContext(plan.sessionId, () => plan.client.resumeSession(plan.sessionId, config));
+			const raw = await this._resumeSession(session, plan, config);
 			this._logService.trace(`[Copilot:${plan.sessionId}] SDK resumeSession succeeded after ${stopWatch.elapsed()}ms`);
 			return this._finalizeSession(raw, sandboxConfig, plan.sessionId, plan.fallback.model?.id);
 		} catch (err) {
@@ -563,7 +572,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				fallbackConfig = { ...config, agent: undefined };
 				this._logService.warn(`[Copilot:${plan.sessionId}] Stored custom agent '${plan.resolvedAgentName}' was not found; retrying resume without a custom agent`);
 				try {
-					const raw = await this._withTraceContext(fallbackPlan.sessionId, () => fallbackPlan.client.resumeSession(fallbackPlan.sessionId, fallbackConfig));
+					const raw = await this._resumeSession(session, fallbackPlan, fallbackConfig);
 					return this._finalizeSession(raw, sandboxConfig, plan.sessionId, fallbackPlan.fallback.model?.id);
 				} catch (retryErr) {
 					resumeError = retryErr;
@@ -586,9 +595,17 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				longContextWindow: fallbackPlan.fallback.longContextWindow,
 				freeLongContext: fallbackPlan.fallback.freeLongContext,
 			}, fallbackConfig, sandboxConfig);
+			this._sessionOpenTelemetry.sdkResumeFallbackCreated(session);
 			this._logService.info(`[Copilot:${plan.sessionId}] Fallback createSession succeeded`);
 			return wrapper;
 		}
+	}
+
+	private _resumeSession(session: URI, plan: ICopilotResumeSessionLaunchPlan, config: ResumeSessionConfig): Promise<CopilotSessionWrapper['session']> {
+		return this._sessionOpenTelemetry.withSdkResume(
+			session,
+			() => this._withTraceContext(plan.sessionId, () => plan.client.resumeSession(plan.sessionId, config)),
+		);
 	}
 
 	private _withTraceContext<T>(sessionId: string, fn: () => T): T {
@@ -612,12 +629,60 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 
 	private async _finalizeSession(raw: CopilotSessionWrapper['session'], sandboxConfig: SandboxConfig | undefined, sessionId: string, modelId: string | undefined): Promise<CopilotSessionWrapper> {
 		await this._applySandboxConfig(raw, sandboxConfig, sessionId);
+		try {
+			await this._applyScriptSafety(raw, sessionId);
+		} catch (err) {
+			// Nothing owns `raw` until it is wrapped below, so a fail-closed launch has
+			// to disconnect it here or the runtime keeps an orphaned session alive.
+			await raw.disconnect().catch(() => { /* best-effort teardown */ });
+			throw err;
+		}
 		// TODO: Remove these post-launch updates once the SDK exposes verbosity and
 		// reasoningSummary in SessionConfig, alongside launch options such as reasoningEffort.
 		if (isGpt56Model(modelId)) {
 			await this._applyGpt56Customizations(raw, sessionId);
 		}
 		return new CopilotSessionWrapper(raw);
+	}
+
+	/**
+	 * Enables the runtime's shell-script safety classifier, which managed permissions
+	 * depend on to govern shell operations.
+	 *
+	 * Without it the runtime short-circuits the classifier, so a shell command reaches
+	 * the permission layer with an empty `possiblePaths` and `hasWriteFileRedirection:
+	 * false`. Managed `Read(...)`/`Edit(...)` rules then cannot match a redirect target,
+	 * letting `echo ... >> denied/path` bypass a managed deny. The Copilot CLI opts in at
+	 * session creation; the SDK exposes it to hosts only through `options.update`, so it
+	 * is applied here to cover both created and resumed sessions.
+	 *
+	 * This fails the launch closed unconditionally. The host cannot tell whether a
+	 * session is policy-bearing: `IAgentHostManagedSettingsService` only carries the
+	 * legacy VS Code settings bridge, which is itself behind a false-by-default
+	 * compatibility setting, while server and MDM policy is discovered by the runtime
+	 * itself under `enableManagedSettings`. Gating a security control on that signal
+	 * would leave exactly the enterprise sessions it protects unprotected, so the
+	 * option is treated as required for every session.
+	 *
+	 * The client-level `managedSettings.read` is not a usable substitute: it discovers
+	 * only device sources (MDM and managed-file), so a session governed solely by
+	 * GitHub org policy would still read as unmanaged. Approximating the boundary is
+	 * worse than not drawing one.
+	 */
+	private async _applyScriptSafety(session: CopilotSessionWrapper['session'], sessionId: string): Promise<void> {
+		try {
+			const result = await session.rpc.options.update({ enableScriptSafety: true });
+			if (!result.success) {
+				throw new Error('SDK rejected enabling script safety');
+			}
+		} catch (err) {
+			// The runtime reports success for any patch it accepts and signals real
+			// problems by failing the request, so this is the path a genuine failure
+			// takes. Log the reason before it propagates: the launch is aborted below
+			// and the raw RPC error alone would not say which option was refused.
+			this._logService.error(`[Copilot:${sessionId}] Could not enable script safety; managed permissions cannot govern shell paths`, err);
+			throw err;
+		}
 	}
 
 	/** Applies the post-launch session options used by GPT-5.6 models. */

@@ -435,6 +435,9 @@ export const TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID = 'chat.tools.terminal.ena
 /** The VS Code setting ID for global auto approve enablement. */
 export const GLOBAL_AUTO_APPROVE_SETTING_ID = 'chat.tools.global.autoApprove';
 
+/** The VS Code setting ID for per-tool auto-approval eligibility. */
+export const ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID = 'chat.tools.eligibleForAutoApproval';
+
 /**
  * Root config key forwarded from the renderer when VS Code's
  * `chat.tools.global.autoApprove` setting changes. When `true`, the global
@@ -819,6 +822,13 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.showExternalSessions.title', "Show External Agent Sessions"),
 		description: localize('agentHost.config.showExternalSessions.description', "Controls whether sessions created outside the Agent Host are included in the session catalog."),
 		enum: [ChatExternalSessionsMode.None, ChatExternalSessionsMode.Recent, ChatExternalSessionsMode.Last24Hours, ChatExternalSessionsMode.Last7Days, ChatExternalSessionsMode.Last30Days],
+		enumDescriptions: [
+			localize('agentHost.config.showExternalSessions.none', "Do not show external sessions."),
+			localize('agentHost.config.showExternalSessions.recent', "Show up to the 2 most recent external sessions updated in the last 7 days. Once at least 2 local sessions exist, external sessions older than the second-newest local session are hidden."),
+			localize('agentHost.config.showExternalSessions.last24Hours', "Show external sessions updated in the last 24 hours."),
+			localize('agentHost.config.showExternalSessions.last7Days', "Show external sessions updated in the last 7 days."),
+			localize('agentHost.config.showExternalSessions.last30Days', "Show external sessions updated in the last 30 days."),
+		],
 		default: ChatExternalSessionsMode.None,
 	}),
 	[AgentHostCopilotMultiRootEnabledConfigKey]: schemaProperty<boolean>({

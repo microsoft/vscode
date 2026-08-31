@@ -18,15 +18,17 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { SessionsDiffRenderSideBySideContext } from '../../../editor/common/diffEditorOptionsService.js';
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext, TextCompareEditorActiveContext } from '../../../../../workbench/common/contextkeys.js';
+import { ChatPetAchievementId, ChatPetAchievementIds } from '../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
+import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { Menus } from '../../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ChangesContextKeys, ChangesViewMode } from '../../common/changes.js';
-import { IsPhoneLayoutContext, SessionHasChangesContext, SessionHasWorkspaceContext, SessionIsCreatedContext, SinglePaneDiffEditorInputActiveContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
+import { CustomViewVisibleContext, IsPhoneLayoutContext, SessionHasChangesContext, SessionHasWorkspaceContext, SessionIsCreatedContext, SinglePaneDiffEditorInputActiveContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
-import { CHANGES_HEADER_ACTIONS_ID } from '../../browser/changesView.js';
+import { CHANGES_HEADER_ACTIONS_ID, unlockChatPetCreatePullRequestAchievement } from '../../browser/changesView.js';
 import { SessionsChangesAccessibilityHelp } from '../../browser/sessionsChangesAccessibilityHelp.js';
 import '../../browser/changesViewActions.js';
 
@@ -39,7 +41,7 @@ suite('Changes View Actions', () => {
 		({ changesViewWhen } = await import('../../browser/changes.contribution.js'));
 	});
 
-	test('Changes view is hidden until the session is created', () => {
+	test('Changes view is available for new and created workspace sessions', () => {
 		assert.ok(changesViewWhen);
 		const context = new Context(1, null);
 		context.setValue(IsPhoneLayoutContext.key, false);
@@ -52,7 +54,7 @@ suite('Changes View Actions', () => {
 			whileNew,
 			afterCreation: changesViewWhen.evaluate(context),
 		}, {
-			whileNew: false,
+			whileNew: true,
 			afterCreation: true,
 		});
 	});
@@ -77,6 +79,33 @@ suite('Changes View Actions', () => {
 			commandId: 'workbench.agentSessions.action.openPullRequest',
 			args: [activeSession],
 		}]);
+	});
+
+	test('Create PR button actions unlock Ship it without drafts or updates', () => {
+		const attemptedUnlocks: ChatPetAchievementId[] = [];
+		const chatPetService = new class extends mock<IChatPetService>() {
+			override unlockAchievement(id: ChatPetAchievementId): boolean {
+				attemptedUnlocks.push(id);
+				return true;
+			}
+		}();
+
+		const results = [
+			'create-pr',
+			'create-pr-auto-merge',
+			'create-pr-auto-squash',
+			'create-pr-auto-rebase',
+			'github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR',
+			'workbench.action.agentSessions.runSkill.createPR',
+			'create-draft-pr',
+			'workbench.action.agentSessions.runSkill.createDraftPR',
+			'workbench.action.agentSessions.runSkill.updatePR',
+		].map(actionId => unlockChatPetCreatePullRequestAchievement(actionId, chatPetService));
+
+		assert.deepStrictEqual({ results, attemptedUnlocks }, {
+			results: [true, true, true, true, true, true, false, false, false],
+			attemptedUnlocks: Array(6).fill(ChatPetAchievementIds.CreatePullRequest),
+		});
 	});
 
 	test('primary header actions gate themselves to the single-pane Changes editor', () => {
@@ -329,7 +358,7 @@ suite('Changes View Actions', () => {
 		}]);
 	});
 
-	test('Create Pull Request anchor is contributed to the right-side title bar menu for created sessions', () => {
+	test('Create Pull Request anchor is visible for created sessions but hidden for custom views', () => {
 		const item = MenuRegistry.getMenuItems(Menus.TitleBarSessionMenu)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === CHANGES_HEADER_ACTIONS_ID);
@@ -339,6 +368,15 @@ suite('Changes View Actions', () => {
 
 		assert.ok(item, 'expected the changes header actions anchor on the title bar session menu');
 		const when = item.when?.serialize() ?? '';
+		const context = new Context(1, null);
+		context.setValue(IsSessionsWindowContext.key, true);
+		context.setValue(IsAuxiliaryWindowContext.key, false);
+		context.setValue(CustomViewVisibleContext.key, false);
+		context.setValue(SinglePaneLayoutEnabledContext.key, true);
+		context.setValue(SessionIsCreatedContext.key, true);
+		context.setValue(SessionHasChangesContext.key, true);
+		const visibleForSession = item.when?.evaluate(context) ?? false;
+		context.setValue(CustomViewVisibleContext.key, true);
 		assert.deepStrictEqual({
 			editorTitleItem,
 			group: item.group,
@@ -348,6 +386,8 @@ suite('Changes View Actions', () => {
 			hasSinglePaneLayoutGate: when.includes(SinglePaneLayoutEnabledContext.key),
 			hasCreatedSessionGate: when.includes(SessionIsCreatedContext.key),
 			hasChangesGate: when.includes(SessionHasChangesContext.key),
+			visibleForSession,
+			visibleForCustomView: item.when?.evaluate(context) ?? false,
 		}, {
 			editorTitleItem: undefined,
 			group: 'navigation',
@@ -357,6 +397,8 @@ suite('Changes View Actions', () => {
 			hasSinglePaneLayoutGate: true,
 			hasCreatedSessionGate: true,
 			hasChangesGate: true,
+			visibleForSession: true,
+			visibleForCustomView: false,
 		});
 	});
 });

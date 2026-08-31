@@ -73,7 +73,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IDataChannelService, NullDataChannelService } from '../../../../platform/dataChannel/common/dataChannel.js';
-import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDefaultAccountService, MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../../platform/dialogs/test/common/testDialogService.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -94,7 +94,8 @@ import { UndoRedoService } from '../../../../platform/undoRedo/common/undoRedoSe
 import { IUserDataProfile } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IUserInteractionService, MockUserInteractionService } from '../../../../platform/userInteraction/browser/userInteractionService.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
-import { IAnyWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
+import { IAnyWorkspaceIdentifier, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { TestContextService } from '../../common/workbenchTestServices.js';
 import { TestMenuService } from '../workbenchTestServices.js';
 import { IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
@@ -110,6 +111,7 @@ import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../..
 // eslint-disable-next-line local/code-import-patterns
 import { ICodeReviewService, PRReviewStateKind } from '../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
 import { constObservable } from '../../../../base/common/observable.js';
+import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 
 // Editor
 import { ITextModel } from '../../../../editor/common/model.js';
@@ -596,6 +598,8 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		managedSettingsRawResponse: null,
 		managedSettingsCompatibilityError: null,
 		onDidChangeManagedSettingsCompatibilityError: Event.None,
+		managedSettingsFreshness: MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED,
+		onDidChangeManagedSettingsFreshness: Event.None,
 		getDefaultAccount: async () => null,
 		getDefaultAccountAuthenticationProvider: () => ({ id: 'test', name: 'Test', scopes: [], enterprise: false }),
 		resolveGitHubUrl: (path: string) => `https://github.com/${path}`,
@@ -645,6 +649,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		addFeedback: () => undefined!,
 		removeFeedback: () => { },
 		updateFeedback: () => { },
+		updateFeedbackSourcePullRequest: () => { },
 		acceptFeedback: () => { },
 		addReply: () => { },
 		getFeedback: () => [],
@@ -696,6 +701,11 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		getPRReviewState: () => constObservable({ kind: PRReviewStateKind.None }),
 		resolvePRReviewThread: async () => { },
 		markPRReviewCommentConverted: () => { },
+	});
+
+	definePartialInstance(IPreferencesService, {
+		_serviceBrand: undefined,
+		openSettings: async () => undefined,
 	});
 
 	// Allow additional services to override defaults
@@ -767,11 +777,15 @@ export function registerWorkbenchServices(registration: ServiceRegistration): vo
 		getSeparator: () => '/',
 		registerFormatter: () => ({ dispose: () => { } }),
 		onDidChangeFormatters: () => ({ dispose: () => { } }),
+		getUriHome: () => undefined,
 		registerCachedFormatter: () => ({ dispose: () => { } }),
 		_serviceBrand: undefined,
 		getHostTooltip: () => '',
 	});
 
+	// A single-folder workspace, so components that render paths relative to a
+	// workspace folder have one to resolve against.
+	registration.define(IWorkspaceContextService, TestContextService);
 	registration.define(IMenuService, TestMenuService);
 	registration.define(IActionViewItemService, NullActionViewItemService);
 
@@ -885,6 +899,7 @@ export interface ComponentFixtureOptions {
 	labels?: ThemedFixtureGroupLabels;
 	virtualTime?: { enabled?: boolean; durationMs?: number; teardownDrainMs?: number };
 	additionalThemes?: readonly ComponentFixtureAdditionalTheme[];
+	expectedVisualDescriptions?: readonly string[];
 }
 
 type ThemedFixtures = ReturnType<typeof defineFixtureVariants>;
@@ -916,6 +931,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 		isolation: 'none',
 		displayMode: { type: 'component' },
 		background: themeVariant.background,
+		expectedVisualDescriptions: options.expectedVisualDescriptions,
 		inputSchema: fixtureInputSchema,
 		inputControls: {
 			reverseStylesheets: { placement: 'toolbar', label: 'Reverse Stylesheets' },

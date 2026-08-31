@@ -25,6 +25,7 @@ import { FileSystemProviderCapabilities, IFileService } from '../../../../../pla
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../browser/editor.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
@@ -34,8 +35,9 @@ import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../services/agentHost/comm
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IWorkbenchExtensionManagementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationSources, getCustomizationMigrationHintDismissedStorageKey, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
@@ -50,10 +52,12 @@ import {
 	AI_CUSTOMIZATION_ITEM_URI_KEY,
 	AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID,
 	AI_CUSTOMIZATION_MANAGEMENT_EDITOR_INPUT_ID,
+	AICustomizationManagementOpenEditorTarget,
 	AICustomizationManagementCommands,
 	AICustomizationManagementItemMenuId,
 	AICustomizationManagementSection,
 	AICustomizationSource,
+	resolveAICustomizationManagementOpenEditorTarget,
 } from './aiCustomizationManagement.js';
 import { AICustomizationManagementEditor } from './aiCustomizationManagementEditor.js';
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
@@ -314,7 +318,7 @@ registerAction2(class extends Action2 {
 					type: 'question',
 				});
 				if (result.confirmed) {
-					plugin.remove?.();
+					await plugin.remove?.();
 				}
 			}
 			return;
@@ -548,7 +552,7 @@ registerAction2(class extends Action2 {
 			type: 'question',
 		});
 		if (result.confirmed) {
-			plugin.remove?.();
+			await plugin.remove?.();
 		}
 	}
 });
@@ -745,6 +749,30 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 	}
 
 	private registerActions(): void {
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: AICustomizationManagementCommands.DismissMigrationHint,
+					title: localize2('dismissCustomizationMigrationHint', "Don't Show Customization Migration Hints Again"),
+					f1: false,
+				});
+			}
+
+			run(accessor: ServicesAccessor): void {
+				const sessionResource = accessor.get(IChatWidgetService).lastFocusedWidget?.viewModel?.sessionResource;
+				if (!sessionResource) {
+					throw new Error('Expected an active chat session when dismissing customization migration hints');
+				}
+				const sessionType = getChatSessionType(sessionResource);
+				accessor.get(IStorageService).store(
+					getCustomizationMigrationHintDismissedStorageKey(sessionType),
+					true,
+					StorageScope.WORKSPACE,
+					StorageTarget.USER
+				);
+			}
+		}));
+
 		// Open AI Customizations Editor
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
@@ -758,28 +786,23 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				});
 			}
 
-			async run(accessor: ServicesAccessor, target?: AICustomizationManagementSection | { readonly section?: AICustomizationManagementSection; readonly sessionType?: string; readonly revealUri?: URI }): Promise<void> {
+			async run(accessor: ServicesAccessor, target?: AICustomizationManagementOpenEditorTarget): Promise<void> {
 				const editorService = accessor.get(IEditorService);
 				const chatWidgetService = accessor.get(IChatWidgetService);
 				const harnessService = accessor.get(ICustomizationHarnessService);
-				const section = typeof target === 'string' ? target : target?.section;
-				const revealUri = typeof target === 'string' ? undefined : target?.revealUri;
-
-				// Detect the active chat session type and switch the harness
-				// so the customization editor opens in the matching context.
-				const explicitSessionType = typeof target === 'string' ? undefined : target?.sessionType;
-				const widget = explicitSessionType ? undefined : chatWidgetService.lastFocusedWidget;
-				const pendingSessionType = widget?.input.pendingDelegationTarget;
-				const sessionResource = explicitSessionType
-					? harnessService.getSessionResourceForHarness(explicitSessionType)
-					: pendingSessionType
-						? harnessService.getSessionResourceForHarness(pendingSessionType)
-						: widget?.viewModel?.sessionResource;
+				const widget = chatWidgetService.lastFocusedWidget;
+				const { section, revealUri, sessionResource } = resolveAICustomizationManagementOpenEditorTarget(
+					target,
+					widget?.input.pendingDelegationTarget,
+					widget?.viewModel?.sessionResource,
+					sessionType => harnessService.getSessionResourceForHarness(sessionType),
+				);
 				if (sessionResource) {
 					harnessService.setActiveSession(sessionResource);
 				}
 
 				const input = AICustomizationManagementEditorInput.getOrCreate();
+				input.setTargetLabel(harnessService.getActiveDescriptor().label);
 				const pane = await editorService.openEditor(input, { pinned: true });
 				if (section && pane instanceof AICustomizationManagementEditor) {
 					pane.selectSectionById(section);

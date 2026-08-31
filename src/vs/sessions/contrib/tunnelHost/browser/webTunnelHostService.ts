@@ -37,4 +37,8 @@ export class WebTunnelHostService implements ITunnelHostService {
 	async stopSharing(): Promise<void> {
 		// Never sharing on web, so there is nothing to tear down.
 	}
+
+	async restartSharing(): Promise<void> {
+		// Never sharing on web, so there is nothing to restart.
+	}
 }

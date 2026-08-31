@@ -16,6 +16,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { AgentSession } from '../../../../../platform/agentHost/common/agent.js';
 import { getAgentSessionPullRequestUri, IAgentSession } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { getRepositoryName } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsViewer.js';
 import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
@@ -35,6 +36,7 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { getRegisteredLanguageModels, resolveModelIdentifier, resolveModelIdentifierFromLanguageModels } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { IGitService, IGitRepository } from '../../../../../workbench/contrib/git/common/gitService.js';
+import { getGitHubRemoteInfo } from '../../../../../workbench/contrib/git/common/utils.js';
 import { IContextKeyService, ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IChatRequestVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -46,16 +48,19 @@ import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessi
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
-import { computeSessionPullRequestIcon } from '../../../github/browser/pullRequestIconStatus.js';
+import { computePullRequestRefPresentation } from '../../../github/browser/pullRequestIconStatus.js';
 import { IPullRequestIconCache } from '../../../github/browser/pullRequestIconCache.js';
 import { structuralEquals } from '../../../../../base/common/equals.js';
 import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { createChangesets } from './copilotChatSessionsChangesets.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
+import { ResourceLabelHomeStore } from '../../../../../workbench/services/label/common/resourceLabelHomeStore.js';
+import { buildLocalSessionStateUri } from '../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { isCloudSandboxEnabled } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { getWorkbenchContribution } from '../../../../../workbench/common/contributions.js';
-import { CloudSandboxAgentHostContribution } from '../../remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
+import { CloudSandboxAgentHostContribution, type ICloudSandboxProvisionedSession } from '../../remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
 
 /** Copilot Cloud session type - cloud-hosted agent. */
 export const CopilotCloudSessionType: ISessionType = {
@@ -152,6 +157,14 @@ export interface ICopilotChatSession {
 }
 
 const OPEN_REPO_COMMAND = 'github.copilot.chat.cloudSessions.openRepository';
+const OPEN_ISSUE_COMMAND = 'github.copilot.chat.cloudSessions.openIssue';
+const OPEN_PULL_REQUEST_COMMAND = 'github.copilot.chat.cloudSessions.openPullRequest';
+
+interface IGitHubContextSelection {
+	readonly repoId: string;
+	readonly url: string;
+	readonly label: string;
+}
 
 /** Provider ID for the Copilot Chat Sessions provider. */
 export const COPILOT_PROVIDER_ID = 'default-copilot';
@@ -1004,11 +1017,19 @@ class AgentSessionAdapter implements ICopilotChatSession {
 			if (pullRequest.uri.authority.toLowerCase() !== 'github.com') {
 				return info;
 			}
+			const presentation = computePullRequestRefPresentation(reader, this._gitHubService, this._pullRequestIconCache, {
+				owner: info.owner,
+				repo: info.repo,
+				number: pullRequest.number,
+				uri: pullRequest.uri,
+				icon: pullRequest.icon,
+				title: pullRequest.title,
+			}, computePullRequestIcon(GitHubPullRequestState.Open));
 			return {
 				...info,
 				pullRequest: {
 					...pullRequest,
-					icon: computeSessionPullRequestIcon(reader, this._gitHubService, this._pullRequestIconCache, info)
+					...presentation,
 				}
 			};
 		});
@@ -1404,6 +1425,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	/** Cache of adapted sessions, keyed by resource URI string. */
 	private readonly _sessionCache = new Map<string, AgentSessionAdapter | CopilotCLISession | RemoteNewSession>();
+	private readonly _resourceLabelHomes: ResourceLabelHomeStore;
 
 	/**
 	 * Resources of committed sessions that are currently in-flight (i.e.
@@ -1454,6 +1476,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	private readonly _multiChatEnabled: boolean;
+	private readonly _localGitHubInfo = new Map<string, ISettableObservable<IGitHubInfo | undefined>>();
+	private readonly _localGitHubInfoDisposables = this._register(new DisposableMap<string>());
+	private readonly _localGitHubInfoResolutionStarted = new Set<string>();
 
 	private _isCopilotCliAvailable(): boolean {
 		return !this.agentHostEnablementService.enabled.get();
@@ -1479,10 +1504,14 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		@ILabelService private readonly labelService: ILabelService,
 		@IChatModeService private readonly chatModeService: IChatModeService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IPathService private readonly pathService: IPathService,
+		@IGitService private readonly gitService: IGitService,
 	) {
 		super();
+		this._resourceLabelHomes = this._register(this.instantiationService.createInstance(ResourceLabelHomeStore));
 
 		this._multiChatEnabled = this.configurationService.getValue<boolean>(COPILOT_MULTI_CHAT_SETTING) ?? true;
+		this._register(this._onDidChangeSessions.event(() => this._updateResourceLabelHomes()));
 
 		this._register(runOnChange(this.agentHostEnablementService.enabled, () => {
 			this._onDidChangeSessionTypes.fire();
@@ -1491,11 +1520,28 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 		this.browseActions = [
 			{
-				label: localize('repositories', "Repositories"),
+				label: localize('repository', "Repository..."),
 				group: SESSION_WORKSPACE_GROUP_GITHUB,
 				icon: Codicon.library,
 				providerId: this.id,
+				attachesContext: false,
 				run: () => this._browseForRepo(),
+			},
+			{
+				label: localize('issue', "Issue..."),
+				group: SESSION_WORKSPACE_GROUP_GITHUB,
+				icon: Codicon.issues,
+				providerId: this.id,
+				attachesContext: true,
+				run: workspace => this._browseForGitHubContext(OPEN_ISSUE_COMMAND, Codicon.issues, workspace),
+			},
+			{
+				label: localize('pullRequest', "Pull Request..."),
+				group: SESSION_WORKSPACE_GROUP_GITHUB,
+				icon: Codicon.gitPullRequest,
+				providerId: this.id,
+				attachesContext: true,
+				run: workspace => this._browseForGitHubContext(OPEN_PULL_REQUEST_COMMAND, Codicon.gitPullRequest, workspace),
 			},
 		];
 
@@ -2103,11 +2149,11 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		const placeholder = this._chatToSession(session);
 		this._onDidChangeSessions.fire({ added: [placeholder], removed: [], changed: [] });
 
+		let provisioned: ICloudSandboxProvisionedSession | undefined;
 		try {
-			const provisioned = await this._getCloudSandboxContribution().provisionSession({
+			provisioned = await this._getCloudSandboxContribution().provisionSession({
 				repoNwo,
-				// No `baseRef`: cloud sessions have no branch picker, so Mission Control picks the
-				// repository's default branch — the same branch the server-run cloud agent uses.
+				// No `baseRef`: cloud sessions have no branch picker; Mission Control chooses.
 				prompt: options.query,
 			}, CancellationToken.None);
 
@@ -2116,14 +2162,16 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			const chat = provisioned.session.mainChat.get();
 			const committed = await provisioned.provider.sendRequest(provisioned.session.sessionId, chat.resource, options);
 
-			this._sessionCache.delete(session.resource.toString());
-			this._invalidateGroupingCaches();
-			this._sessionGroupCache.delete(session.sessionId);
-			this._clearCurrentNewSessionIfMatch(session);
-			this._onDidReplaceSession.fire({ from: placeholder, to: committed });
+			// Retire only once the turn is dispatched; swapping earlier bounces the view home.
+			this._publishSandboxSession(provisioned, { announce: false });
+			this._retirePlaceholder(session, placeholder, committed);
 			return committed;
 		} catch (error) {
 			this.logService.error(`[CopilotChatSessionsProvider] Failed to start cloud sandbox session for ${repoNwo}:`, error);
+			// The sandbox outlives a failed first turn, so list it rather than leaving it invisible.
+			if (provisioned) {
+				this._publishSandboxSession(provisioned);
+			}
 			this._sessionCache.delete(session.resource.toString());
 			this._invalidateGroupingCaches();
 			this._sessionGroupCache.delete(session.sessionId);
@@ -2132,6 +2180,20 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			session.dispose();
 			throw error;
 		}
+	}
+
+	/** Reveal the sandbox session that {@link CloudSandboxAgentHostContribution.provisionSession} withheld from listings. */
+	private _publishSandboxSession(provisioned: ICloudSandboxProvisionedSession, options?: { announce?: boolean }): void {
+		provisioned.provider.publishWithheldSession(AgentSession.id(provisioned.session.resource), options);
+	}
+
+	/** Retire the optimistic placeholder in favour of the session that now exists. */
+	private _retirePlaceholder(session: RemoteNewSession, placeholder: ISession, committed: ISession): void {
+		this._sessionCache.delete(session.resource.toString());
+		this._invalidateGroupingCaches();
+		this._sessionGroupCache.delete(session.sessionId);
+		this._clearCurrentNewSessionIfMatch(session);
+		this._onDidReplaceSession.fire({ from: placeholder, to: committed });
 	}
 
 	async sendRequest(sessionId: string, chatResource: URI, options: ISendRequestOptions): Promise<ISession> {
@@ -2561,7 +2623,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				gitRepository: undefined,
 			};
 			return {
-				uri,
+				uri: URI.parse(`https://github.com/${repoId}`),
 				label: this._labelFromUri(uri),
 				icon: this._iconFromUri(uri),
 				group: SESSION_WORKSPACE_GROUP_GITHUB,
@@ -2573,6 +2635,35 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return undefined;
 	}
 
+	private async _browseForGitHubContext(commandId: string, icon: ThemeIcon, currentWorkspace: ISessionWorkspace | undefined): Promise<ISessionWorkspace | undefined> {
+		const gitHubInfo = currentWorkspace?.folders
+			.map(folder => folder.gitRepository?.gitHubInfo.get())
+			.find(info => info !== undefined);
+		const repoId = gitHubInfo
+			? `${gitHubInfo.owner}/${gitHubInfo.repo}`
+			: currentWorkspace?.folders.map(folder => githubRemoteRepoLabel(folder.root)).find(id => id !== undefined);
+		const selection = await this.commandService.executeCommand<IGitHubContextSelection>(commandId, repoId);
+		if (!selection) {
+			return undefined;
+		}
+		const root = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${selection.repoId}/HEAD` });
+		return {
+			uri: URI.parse(selection.url),
+			label: selection.label,
+			icon,
+			group: SESSION_WORKSPACE_GROUP_GITHUB,
+			folders: [{
+				root,
+				workingDirectory: root,
+				name: basename(root),
+				description: undefined,
+				gitRepository: undefined,
+			}],
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: true,
+		};
+	}
+
 	resolveWorkspace(uri: URI): ISessionWorkspace | undefined {
 		if (uri.scheme !== Schemas.file && uri.scheme !== GITHUB_REMOTE_FILE_SCHEME) {
 			return undefined;
@@ -2582,7 +2673,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			workingDirectory: uri,
 			name: basename(uri),
 			description: undefined,
-			gitRepository: undefined,
+			gitRepository: uri.scheme === Schemas.file ? this._getLocalGitRepository(uri) : undefined,
 		};
 		return {
 			uri: uri,
@@ -2594,6 +2685,57 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			requiresWorkspaceTrust: uri.scheme !== GITHUB_REMOTE_FILE_SCHEME,
 			isVirtualWorkspace: uri.scheme === GITHUB_REMOTE_FILE_SCHEME,
 		};
+	}
+
+	private _getLocalGitRepository(uri: URI): ISessionGitRepository {
+		const gitHubInfo = this._getLocalGitHubInfo(uri);
+		return {
+			uri,
+			workTreeUri: uri,
+			baseBranchName: undefined,
+			gitHubInfo,
+			resolveGitHubInfo: () => this._resolveLocalGitHubInfo(uri, gitHubInfo),
+		};
+	}
+
+	private _getLocalGitHubInfo(uri: URI): ISettableObservable<IGitHubInfo | undefined> {
+		const key = this.uriIdentityService.extUri.getComparisonKey(uri);
+		let gitHubInfo = this._localGitHubInfo.get(key);
+		if (gitHubInfo) {
+			return gitHubInfo;
+		}
+		if (this._localGitHubInfo.size >= 50) {
+			const oldestKey = this._localGitHubInfo.keys().next().value;
+			if (oldestKey !== undefined) {
+				this._localGitHubInfo.delete(oldestKey);
+				this._localGitHubInfoDisposables.deleteAndDispose(oldestKey);
+				this._localGitHubInfoResolutionStarted.delete(oldestKey);
+			}
+		}
+		gitHubInfo = observableValue<IGitHubInfo | undefined>(this, undefined);
+		this._localGitHubInfo.set(key, gitHubInfo);
+		return gitHubInfo;
+	}
+
+	private _resolveLocalGitHubInfo(uri: URI, gitHubInfo: ISettableObservable<IGitHubInfo | undefined>): void {
+		const key = this.uriIdentityService.extUri.getComparisonKey(uri);
+		if (this._localGitHubInfoResolutionStarted.has(key)) {
+			return;
+		}
+		this._localGitHubInfoResolutionStarted.add(key);
+		void this.gitService.openRepository(uri).then(repository => {
+			if (!repository || this._localGitHubInfo.get(key) !== gitHubInfo) {
+				this._localGitHubInfoResolutionStarted.delete(key);
+				return;
+			}
+			this._localGitHubInfoDisposables.set(key, autorun(reader => {
+				const repositoryInfo = getGitHubRemoteInfo(repository.state.read(reader));
+				gitHubInfo.set(repositoryInfo ? { owner: repositoryInfo.owner, repo: repositoryInfo.repo } : undefined, undefined);
+			}));
+		}, error => {
+			this._localGitHubInfoResolutionStarted.delete(key);
+			this.logService.warn(`Failed to resolve GitHub repository metadata for '${uri.toString()}'.`, error);
+		});
 	}
 
 	private _labelFromUri(uri: URI): string {
@@ -2828,6 +2970,20 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		for (const session of sessionsToMarkUnread) {
 			session.setRead(false);
 		}
+	}
+
+	private _updateResourceLabelHomes(): void {
+		const sessionStateRoot = buildLocalSessionStateUri(this.pathService.userHome({ preferLocal: true }));
+		const homes: { readonly uri: URI; readonly label: string }[] = [];
+		for (const session of this._sessionCache.values()) {
+			if (session.sessionType === SessionType.CopilotCLI) {
+				const rawId = session.resource.path.replace(/^\//, '');
+				if (rawId) {
+					homes.push({ uri: URI.joinPath(sessionStateRoot, rawId), label: `${CopilotCLISessionType.label}/${localize('sessionHome', "Session")}` });
+				}
+			}
+		}
+		this._resourceLabelHomes.set(homes);
 	}
 
 	private _refreshSessionCacheMultiChat(

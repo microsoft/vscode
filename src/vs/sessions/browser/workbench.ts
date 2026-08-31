@@ -431,6 +431,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	private _customViewVisibleKey!: IContextKey<boolean>;
 	/** Guards the grid updates that show/hide the custom view from feeding back into the desired part visibility. */
 	private _applyingCustomViewGridVisibility = false;
+	private _customViewCoveredPartWidths: { editor?: number; auxiliaryBar?: number } | undefined;
 	private _editorLastNonMaximizedVisibility: IPartVisibilityState | undefined;
 	private _editorLastNonMaximizedSize: IViewSize | undefined;
 	private _restoreAttachedEditorMaximizedOnShow = false;
@@ -773,7 +774,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		}
 	}
 
-	private _loadPartVisibility(storageService: IStorageService): { editor?: boolean; auxiliaryBar?: boolean; sidebar?: boolean } {
+	private _loadPartVisibility(storageService: IStorageService): { editor?: boolean; auxiliaryBar?: boolean; sidebar?: boolean; panel?: boolean } {
 		if (this.layoutPolicy.viewportClass.get() === 'phone') {
 			return {};
 		}
@@ -802,6 +803,12 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.partVisibility.editor = savedPartVisibility.editor ?? this.partVisibility.editor;
 		this.partVisibility.auxiliaryBar = savedPartVisibility.auxiliaryBar ?? this.partVisibility.auxiliaryBar;
 		this.partVisibility.sidebar = savedPartVisibility.sidebar ?? this.partVisibility.sidebar;
+		// The single-pane layout governs the bottom panel at the workbench level
+		// (like the side pane), so its visibility is restored here. The classic
+		// layout remembers the panel per session and never persists it here.
+		if (this.isSinglePaneLayoutEnabled) {
+			this.partVisibility.panel = savedPartVisibility.panel ?? this.partVisibility.panel;
+		}
 	}
 
 	protected _savePartVisibility(): void {
@@ -813,6 +820,9 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			editor: this.partVisibility.editor,
 			auxiliaryBar: this.partVisibility.auxiliaryBar,
 			sidebar: this.partVisibility.sidebar,
+			// Only the single-pane layout persists panel visibility at the workbench
+			// level; the classic layout tracks it per session instead.
+			panel: this.isSinglePaneLayoutEnabled ? this.partVisibility.panel : undefined,
 		}), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
@@ -1947,6 +1957,10 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		return false; // the agents window has its own floating card design
 	}
 
+	isModernUICompact(): boolean {
+		return false;
+	}
+
 	getLayoutClasses(): string[] {
 		return coalesce([
 			!this.partVisibility.sidebar ? LayoutClasses.SIDEBAR_HIDDEN : undefined,
@@ -2460,6 +2474,13 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 				this.focusPart(Parts.PANEL_PART);
 			}
 		}
+
+		// The single-pane layout governs the panel at the workbench level, so its
+		// visibility persists across reloads (like the side pane). The classic
+		// layout remembers it per session and never persists it here.
+		if (this.isSinglePaneLayoutEnabled) {
+			this._savePartVisibility();
+		}
 	}
 
 	private setSessionsHidden(hidden: boolean): void {
@@ -2498,6 +2519,13 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			this.setEditorMaximized(false);
 		}
 
+		if (visible && this.workbenchGrid) {
+			this._customViewCoveredPartWidths = {
+				editor: this._editorNodeShouldBeVisible() ? this.workbenchGrid.getViewSize(this.editorPartView).width : undefined,
+				auxiliaryBar: this._effectiveVisible(Parts.AUXILIARYBAR_PART) ? this._auxiliaryBarViewSize().width : undefined,
+			};
+		}
+
 		this.customViewGridPartService.setView(descriptor);
 		this.partVisibility.customViewGrid = visible;
 		this._customViewVisibleKey.set(visible);
@@ -2518,6 +2546,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 				} else {
 					this._applyExclusivePartVisibility();
 					this.workbenchGrid.setViewVisible(this.customViewGridPartView, false);
+					this._restoreCustomViewCoveredPartWidths();
 				}
 			});
 		} finally {
@@ -2548,6 +2577,18 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			this.focusPart(Parts.CUSTOM_VIEW_GRID_PART);
 		} else {
 			this.sessionsPartService.focusSession(this.sessionsService.activeSession.get());
+		}
+	}
+
+	private _restoreCustomViewCoveredPartWidths(): void {
+		const widths = this._customViewCoveredPartWidths;
+		this._customViewCoveredPartWidths = undefined;
+
+		if (widths?.auxiliaryBar && this._effectiveVisible(Parts.AUXILIARYBAR_PART)) {
+			this._setAuxiliaryBarViewSize({ ...this._auxiliaryBarViewSize(), width: widths.auxiliaryBar });
+		}
+		if (widths?.editor && this._editorNodeShouldBeVisible()) {
+			this.workbenchGrid.resizeView(this.editorPartView, { ...this.workbenchGrid.getViewSize(this.editorPartView), width: widths.editor });
 		}
 	}
 

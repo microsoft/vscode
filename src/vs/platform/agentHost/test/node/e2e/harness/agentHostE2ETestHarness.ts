@@ -30,10 +30,11 @@ import {
 	type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallStartAction,
 } from '../../../../common/state/sessionActions.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
-import { AgentHostSessionReleaseGraceMsEnvVar } from '../../../../common/agentService.js';
+import type { SessionMode } from '../../../../common/agentHostSchema.js';
+import { AgentHostSessionResidencyLimitEnvVar } from '../../../../common/agentService.js';
 import { CapiReplayMode, type ICapiReplayResponse } from './capiReplayProxy.js';
 import {
-	fetchSessionWithChat, getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification, IServerHandle, stopServer, TestProtocolClient,
+	fetchSessionWithChat, getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification, IServerHandle, killServer, stopServer, TestProtocolClient,
 } from '../../serverIntegrationTestHelpers.js';
 import { defaultAgentHostTarget, type IAgentHostTarget } from './agentHostTarget.js';
 import { createProviderSession, dispatchTurn, dispatchTurnWithAttachments } from '../../providerIntegrationTestHelpers.js';
@@ -195,6 +196,19 @@ const STALE_RECORDED_REQUEST_EXCEPTIONS = new Set<string>([
 	'claude:side chat receives bounded source context without copied history',
 ]);
 
+const RECOVERABLE_RECORDING_MODEL_RESPONSE: ICapiReplayResponse = {
+	status: 400,
+	headers: {
+		'content-type': 'application/json',
+	},
+	body: '{"error":{"message":"Injected recoverable E2E failure.","type":"invalid_request_error","code":"invalid_request_error"}}',
+};
+
+const RECORDING_MODEL_RESPONSES = new Map<string, ICapiReplayResponse>([
+	['copilotcli:resumes a failed turn in place', RECOVERABLE_RECORDING_MODEL_RESPONSE],
+	['copilotcli:resumes the same turn after repeated failures', RECOVERABLE_RECORDING_MODEL_RESPONSE],
+]);
+
 /** Identifies one provider's capture of a test, matching `fixturePathFor`. */
 function captureKey(provider: string, testTitle: string): string {
 	return `${provider}:${testTitle}`;
@@ -206,14 +220,14 @@ function captureKey(provider: string, testTitle: string): string {
  * `AGENT_HOST_REPLAY_RECORD=1` or `AGENT_HOST_UPDATE_SNAPSHOTS=1`. Tests that
  * declare no model traffic always use the strict shared empty replay fixture.
  */
-export function capiReplayFor(provider: string, testTitle: string, modelTraffic: AgentHostE2EModelTraffic = 'recorded'): { fixturePath: string; real: true; mode: CapiReplayMode; allowPosixCommands: boolean; allowStaleRecordedRequest: boolean } {
+export function capiReplayFor(provider: string, testTitle: string, modelTraffic: AgentHostE2EModelTraffic = 'recorded'): { fixturePath: string; real: true; mode: CapiReplayMode; allowPosixCommands: boolean; allowStaleRecordedRequest: boolean; recordingModelResponse?: ICapiReplayResponse } {
 	const key = captureKey(provider, testTitle);
 	const allowPosixCommands = POSIX_COMMAND_EXCEPTIONS.has(key);
 	const allowStaleRecordedRequest = STALE_RECORDED_REQUEST_EXCEPTIONS.has(key);
 	if (modelTraffic === 'none') {
 		return { fixturePath: EMPTY_CAPTURE_PATH, real: true, mode: 'replay', allowPosixCommands, allowStaleRecordedRequest };
 	}
-	return { fixturePath: fixturePathFor(provider, testTitle), real: true, mode: REPLAY_MODE, allowPosixCommands, allowStaleRecordedRequest };
+	return { fixturePath: fixturePathFor(provider, testTitle), real: true, mode: REPLAY_MODE, allowPosixCommands, allowStaleRecordedRequest, recordingModelResponse: RECORDING_MODEL_RESPONSES.get(key) };
 }
 
 // #endregion
@@ -282,8 +296,16 @@ export interface IAgentHostE2EProviderConfig {
 	readonly streamingFileCreateToolName?: string;
 	/** Alternate model used to verify a client-selected model reaches the provider. */
 	readonly modelSwitchTarget?: string;
+	/** Model id expected on the provider wire for {@link modelSwitchTarget}. Defaults to the selection id. */
+	readonly modelSwitchWireTarget?: string;
 	/** Model used to switch an already-running provider session a second time. */
 	readonly modelSwitchReturnTarget?: string;
+	/** Model id expected on the provider wire for {@link modelSwitchReturnTarget}. Defaults to the selection id. */
+	readonly modelSwitchWireReturnTarget?: string;
+	/** Advertised model selected by the `create_session` child-session scenario. */
+	readonly createSessionModelTarget?: string;
+	/** Model id expected on the child provider wire for {@link createSessionModelTarget}. Defaults to the selection id. */
+	readonly createSessionModelWireTarget?: string;
 	/** Provider-specific prompt that reliably triggers one interactive input request. */
 	readonly interactiveInputPrompt?: string;
 	/** Provider-specific prompt that expects a cancelled interactive input request. */
@@ -292,6 +314,8 @@ export interface IAgentHostE2EProviderConfig {
 	readonly textInputPrompt?: string;
 	/** Provider-specific prompt that triggers a multi-select input request. */
 	readonly multiSelectInputPrompt?: string;
+	/** Session mode required before running provider input-request scenarios. */
+	readonly inputRequestMode?: SessionMode;
 	/** Provider supports a session with no working directory through the full model path. */
 	readonly supportsWorkspacelessE2E?: boolean;
 	/** Provider exposes runtime slash commands through AHP completions after materialization. */
@@ -304,8 +328,14 @@ export interface IAgentHostE2EProviderConfig {
 	readonly supportsWorktreeIncludeFilesE2E?: boolean;
 	/** Provider can deterministically replay cancellation while paused on input or approval. */
 	readonly supportsPausedTurnCancellationE2E?: boolean;
-	/** Provider's denied file-creation flow mutates the workspace during replay on Linux. */
-	readonly fileToolDenialReplayUnstableOnLinux?: boolean;
+	/** Provider supports the shared customization discovery and file-watching scenarios. */
+	readonly supportsCustomizationDiscoveryE2E?: boolean;
+	/** Provider surfaces fixed workspace instruction files in customization discovery. */
+	readonly supportsFixedInstructionDiscoveryE2E?: boolean;
+	/** Provider expands client plugins into their discovered customization children. */
+	readonly supportsPluginCustomizationDiscoveryE2E?: boolean;
+	/** Provider publishes live workspace-agent file changes through customization state. */
+	readonly supportsWorkspaceAgentWatchE2E?: boolean;
 	/**
 	 * Whether the suite should be enabled. Returning false skips the suite
 	 * entirely (mirrors `suite.skip(...)`).
@@ -344,14 +374,14 @@ export interface IAgentHostE2EProviderConfig {
 	readonly supportsSubagents: boolean;
 	/** Whether the provider supports creating side chats from a source turn. */
 	readonly supportsSideChats?: boolean;
+	/** Whether committed replay fixtures cover side-chat behavior for this provider. */
+	readonly supportsSideChatsE2E?: boolean;
 	/**
 	 * When set, shell-dependent replay tests are skipped on Linux because this
 	 * provider completes recorded shell-tool turns without emitting tool-call
 	 * notifications there. Recording and other platforms keep full coverage.
 	 */
 	readonly shellToolReplayUnstableOnLinux?: boolean;
-	/** Provider intermittently completes successful shell calls without exposing result text. */
-	readonly shellToolResultTextUnreliable?: boolean;
 	/**
 	 * When set, the subagent-reopen ("replay path") test is skipped on Windows for
 	 * this provider, which rebuilds the reopened transcript from the bundled SDK's
@@ -361,14 +391,8 @@ export interface IAgentHostE2EProviderConfig {
 	 * are unaffected and stay enabled on Windows.
 	 */
 	readonly subagentReplayUnstableOnWindows?: boolean;
-	/**
-	 * Whether the provider's plan-mode flow matches the shared test's
-	 * expectations (auto-approve session-state writes; reach the
-	 * exit-plan-mode tool as an `inputRequested`). Currently true only for
-	 * Copilot — Claude's plan-mode prompt conventions differ enough that the
-	 * shared test prompt doesn't reliably drive it to `ExitPlanMode`.
-	 */
-	readonly supportsPlanMode: boolean;
+	/** Provider-specific observable used to exercise entering and leaving plan mode. */
+	readonly planModeStyle?: 'session-state' | 'input-request';
 	/** Whether the provider supports additional peer chats and chat forks. */
 	readonly supportsMultipleChats: boolean;
 	/** Whether model-backed multiple-chat parity scenarios have deterministic fixtures. */
@@ -582,7 +606,7 @@ async function driveTurn(c: TestProtocolClient, chat: string, turnId: string, cl
 
 		if (isActionNotification(notification, 'chat/error')) {
 			const action = getActionEnvelope(notification).action as ChatErrorAction;
-			throw new Error(`Session error while driving ${turnId}: ${action.error.errorType}: ${action.error.message}`);
+			throw new Error(`Session error while driving ${turnId}: ${action.part.error.errorType}: ${action.part.error.message}`);
 		}
 
 		if (isActionNotification(notification, 'chat/toolCallReady')) {
@@ -879,7 +903,7 @@ export class AgentHostE2EServerLease {
 			codexHomeDir,
 			homeDir: dataDir,
 			userDataDir: join(dataDir, 'user-data'),
-			env: { [AgentHostSessionReleaseGraceMsEnvVar]: '0' },
+			env: { [AgentHostSessionResidencyLimitEnvVar]: '0' },
 		};
 		// Server reuse is a replay-only optimization: recording writes one fixture
 		// per proxy and so needs a fresh proxy (hence a fresh server) per test.
@@ -931,6 +955,15 @@ export class AgentHostE2EServerLease {
 	 * uninitialized client for the caller to initialize with a new client id.
 	 */
 	async restart(): Promise<TestProtocolClient> {
+		return this._restart(false);
+	}
+
+	/** Crash the target without graceful shutdown, then restart it over the same persisted state and replay proxy. */
+	async crashAndRestart(): Promise<TestProtocolClient> {
+		return this._restart(true);
+	}
+
+	private async _restart(crash: boolean): Promise<TestProtocolClient> {
 		const server = this._server;
 		const proxy = server?.capiReplay;
 		const capiReplay = this._currentCapiReplay;
@@ -938,9 +971,14 @@ export class AgentHostE2EServerLease {
 			throw new Error('[agent-host-e2e] no replay-backed server to restart');
 		}
 
-		this._client?.close();
+		if (crash) {
+			await killServer(server);
+			this._client?.close();
+		} else {
+			this._client?.close();
+			await stopServer(server);
+		}
 		this._client = undefined;
-		await stopServer(server);
 		this._server = undefined;
 
 		try {
@@ -965,12 +1003,12 @@ export class AgentHostE2EServerLease {
 		return client;
 	}
 
-	setRecordingModelResponse(response: ICapiReplayResponse): void {
+	setRecordingModelResponse(response: ICapiReplayResponse, path?: string): void {
 		const proxy = this._server?.capiReplay;
 		if (!proxy) {
 			throw new Error('[agent-host-e2e] no replay-backed server');
 		}
-		proxy.setRecordingModelResponse(response);
+		proxy.setRecordingModelResponse(response, path);
 	}
 
 	/**

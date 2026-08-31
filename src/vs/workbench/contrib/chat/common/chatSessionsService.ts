@@ -345,6 +345,8 @@ export interface IChatSessionServerRequest {
 	readonly isHidden?: boolean;
 	readonly systemInitiatedLabel?: string;
 	readonly isTerminalRequest?: boolean;
+	/** Reopen the existing request with this id instead of adding another request. */
+	readonly resume?: boolean;
 	readonly origin?: IChatRequestOrigin;
 }
 
@@ -652,6 +654,7 @@ export interface IChatNewSessionRequest {
 
 export interface IChatSessionItemsDelta {
 	readonly addedOrUpdated?: readonly IChatSessionItem[];
+	/** Sessions no longer provided by the controller. Retained content is disposed and pending resolutions are cancelled. */
 	readonly removed?: readonly URI[];
 }
 

@@ -30,7 +30,7 @@ import { ResourceSet } from '../../../../../../base/common/map.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { mixin } from '../../../../../../base/common/objects.js';
-import { autorun, constObservable, derived, derivedOpts, IObservable, ISettableObservable, ITransaction, observableFromEvent, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedOpts, IObservable, ISettableObservable, ITransaction, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../../../base/common/platform.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
@@ -57,6 +57,7 @@ import { SuggestController } from '../../../../../../editor/contrib/suggest/brow
 import { localize } from '../../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { MenuWorkbenchButtonBar } from '../../../../../../platform/actions/browser/buttonbar.js';
+import { IActionViewItemService, type IActionViewItemFactory } from '../../../../../../platform/actions/browser/actionViewItemService.js';
 import { MenuEntryActionViewItem } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
@@ -151,16 +152,17 @@ import { ChatArtifactsWidget } from '../chatArtifactsWidget.js';
 import { handleTerminalCommandPaste, isTerminalCommandInput, isTerminalCommandPaste as isTerminalCommandPasteContent } from '../../chatTerminalCommandPaste.js';
 import { ChatDynamicVariableModel } from '../../attachments/chatDynamicVariables.js';
 import { ChatDragAndDrop } from '../chatDragAndDrop.js';
-import { getChatPetPillPlatformTop } from '../chatPetWidget.js';
+import { getChatPetPillPlatformTop, getChatPetStackPlatformTop } from '../chatPetWidget.js';
 import { ChatFollowups } from './chatFollowups.js';
-import { IChatInputNotificationService } from './chatInputNotificationService.js';
+import { IChatInputNotificationContext, IChatInputNotificationService } from './chatInputNotificationService.js';
 import { ChatGoalBannerWidget } from './chatGoalBannerWidget.js';
 import { ChatInputNotificationWidget } from './chatInputNotificationWidget.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from './chatInputNoticeHost.js';
 import { registerChatInputOnboardingHosts } from './chatInputOnboardingHosts.js';
 import { IChatInputNoticeHubService } from './chatInputNoticeHub.js';
 import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
-import { chatInputStackClass, chatInputStackSlotClass, ChatInputStackSlot, setChatInputStackInputFocused, setChatInputStackSlot } from './chatInputStack.js';
+import { ChatInputPickerResponsiveLayout, IChatInputPickerResponsiveLayoutItem, isChatInputPickerResponsiveState } from './chatInputPickerResponsiveLayout.js';
+import { chatInputStackClass, chatInputStackSlotClass, chatInputSurfaceStackClass, chatInputSurfaceStackSlotClass, ChatInputStackSlot, setChatInputStackInputFocused, setChatInputStackSlot } from './chatInputStack.js';
 import { ChatSelectedTools } from './chatSelectedTools.js';
 import { ChatPetAchievementIds, didExplicitlySwitchChatPetModel } from '../../chatPetAchievements.js';
 import { IChatPetService } from '../../chatPetService.js';
@@ -182,8 +184,63 @@ const INPUT_EDITOR_MAX_HEIGHT = 250;
 const INPUT_EDITOR_LINE_HEIGHT = 20;
 const INPUT_EDITOR_PADDING = { compact: { top: 2, bottom: 2 }, default: { top: 12, bottom: 12 } };
 const CachedLanguageModelsKey = 'chat.cachedLanguageModels.v2';
-const CHAT_INPUT_PICKER_COLLAPSE_WIDTH = 280;
 const PERMISSION_LEVEL_OPTION_ID = 'permissionLevel';
+
+function getToolbarPickerResponsiveItems(toolbar: MenuWorkbenchToolBar, compactStates: ReadonlyMap<string, ISettableObservable<boolean>>): IChatInputPickerResponsiveLayoutItem[] {
+	const items: IChatInputPickerResponsiveLayoutItem[] = [];
+	const visibleActionIds = new Set<string>();
+
+	for (let index = 0; index < toolbar.getItemsLength(); index++) {
+		const action = toolbar.getItemAction(index);
+		const state = action && compactStates.get(action.id);
+		const viewItem = toolbar.getItemViewItem(index);
+		const viewItemState = isChatInputPickerResponsiveState(viewItem) ? viewItem : undefined;
+		if (!action || (!state && !viewItemState)) {
+			continue;
+		}
+		visibleActionIds.add(action.id);
+		const element = toolbar.getItemElement(index);
+		items.push({
+			element,
+			isCompact: () => viewItemState?.isCompact() ?? state!.get(),
+			setCompact: compact => {
+				state?.set(compact, undefined);
+				viewItemState?.setCompact(compact);
+				element?.classList.toggle('compact-picker', compact);
+			},
+		});
+	}
+
+	for (const [actionId, state] of compactStates) {
+		if (!visibleActionIds.has(actionId)) {
+			items.push({
+				element: undefined,
+				isCompact: () => state.get(),
+				setCompact: compact => state.set(compact, undefined),
+			});
+		}
+	}
+
+	return items;
+}
+
+type ShowableActionViewItem = IActionViewItem & { show(anchor?: HTMLElement): void };
+
+function isShowableActionViewItem(item: IActionViewItem | undefined): item is ShowableActionViewItem {
+	return !!item && 'show' in item && typeof item.show === 'function';
+}
+
+function createOverflowAction(action: IAction, run: () => void): IAction {
+	return {
+		id: action.id,
+		label: action.label,
+		tooltip: action.tooltip,
+		class: action.class,
+		enabled: action.enabled,
+		checked: action.checked,
+		run,
+	};
+}
 
 export interface IChatInputStyles {
 	overlayBackground: string;
@@ -236,6 +293,11 @@ export interface IChatInputPartOptions {
 	 * chat input part while still using menu-driven rendering.
 	 */
 	secondaryToolbarActionViewItemProvider?: (action: IAction, options?: IActionViewItemOptions) => IActionViewItem | undefined;
+	/**
+	 * Opens a host-owned secondary picker when its toolbar action moves into overflow.
+	 * Returns true when the action was handled.
+	 */
+	secondaryToolbarOverflowActionHandler?: (actionId: string, anchor: HTMLElement) => boolean;
 	/**
 	 * When true, the mode picker hides custom agents and only offers the
 	 * built-in modes (Agent / Ask / Edit / Plan, gated by their normal
@@ -341,7 +403,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private static _counter = 0;
 
 	private _workingSetCollapsed = observableValue('chatInputPart.workingSetCollapsed', true);
-	private _stableInputPartWidth = observableValue('chatInputPart.stableInputPartWidth', 0);
 	private readonly _chatInputTodoListWidget = this._register(new MutableDisposable<ChatTodoListWidget>());
 	private readonly _chatArtifactsWidget = this._register(new MutableDisposable<ChatArtifactsWidget>());
 	private readonly _chatQuestionCarouselWidgets = this._register(new DisposableMap<string, ChatQuestionCarouselPart>());
@@ -360,9 +421,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _onDidLoadInputState: Emitter<void> = this._register(new Emitter());
 	readonly onDidLoadInputState: Event<void> = this._onDidLoadInputState.event;
 	private readonly _toolbarRelayoutScheduler = this._register(new RunOnceScheduler(() => {
-		if (typeof this.cachedWidth === 'number') {
-			this.layout(this.cachedWidth);
-		}
+		this.layoutForToolbarChange();
 	}, 0));
 
 	private _onDidFocus = this._register(new Emitter<void>());
@@ -422,6 +481,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly inputEditorMinHeight: number | undefined;
 	private readonly singleLineInputEditorHeight: number;
 	private inputEditorHeight: number = 0;
+	private ignoreInputEditorContentSizeChanges = false;
 	private _maxHeight: number | undefined;
 	private container!: HTMLElement;
 
@@ -500,7 +560,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	getChatPetPlatformTop(petCenterX?: number): number {
-		const inputTop = this.inputContainer.getBoundingClientRect().top;
 		if (petCenterX !== undefined) {
 			const pillBounds: DOMRect[] = [];
 			for (const provider of this._chatPetHorizontalPlatformProviders) {
@@ -516,35 +575,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				return pillTop;
 			}
 		}
-		let container = this.container;
-		let previousElement: Element | undefined = this.persistentContentContainer;
-		while (true) {
-			const children = Array.from(container.children);
-			const startIndex = previousElement ? children.indexOf(previousElement) + 1 : 0;
-			let nestedContainer: HTMLElement | undefined;
-			for (let index = startIndex; index < children.length; index++) {
-				const child = children[index];
-				if (!dom.isHTMLElement(child)) {
-					continue;
-				}
-				if (child === this.inputContainer) {
-					return inputTop;
-				}
-				if (child.contains(this.inputContainer)) {
-					nestedContainer = child;
-					break;
-				}
-				const bounds = child.getBoundingClientRect();
-				if (bounds.height > 0 && bounds.top <= inputTop) {
-					return bounds.top;
-				}
-			}
-			if (!nestedContainer) {
-				return inputTop;
-			}
-			container = nestedContainer;
-			previousElement = undefined;
-		}
+		// Skips the persistent content, which floats above the input part rather than sitting in the stack.
+		return getChatPetStackPlatformTop(this.container, this.inputContainer, this.persistentContentContainer);
 	}
 
 	readonly height = observableValue<number>(this, 0);
@@ -610,6 +642,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private executeToolbar!: MenuWorkbenchToolBar;
 	private inputActionsToolbar!: MenuWorkbenchToolBar;
+	private _inputPickerResponsiveLayout: ChatInputPickerResponsiveLayout | undefined;
+	private _secondaryPickerResponsiveLayout: ChatInputPickerResponsiveLayout | undefined;
 
 
 
@@ -649,6 +683,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private modeWidget: ModePickerActionItem | undefined;
 	private permissionWidget: PermissionPickerActionItem | undefined;
 	private readonly permissionWidgetDisposeListener = this._register(new MutableDisposable<IDisposable>());
+	private readonly overflowPickerWidget = this._register(new MutableDisposable<IDisposable>());
 	private sessionTargetWidget: SessionTypePickerActionItem | undefined;
 	private delegationWidget: DelegationSessionPickerActionItem | undefined;
 	private readonly chatSessionPickerWidgets = this._register(new DisposableMap<string, ChatSessionPickerActionItem>());
@@ -690,7 +725,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._currentLanguageModel;
 	}
 
-	/** Models the current input can select, for frontend-owned voice actions. */
+	/** Models the current input can select. */
 	get availableLanguageModels(): readonly ILanguageModelChatMetadataAndIdentifier[] {
 		return this.getModels();
 	}
@@ -809,6 +844,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly _currentSessionResourceObservable = observableValue<URI | undefined>(this, undefined);
 	private readonly _currentSessionModelObservable = observableValue<IChatModel | undefined>(this, undefined);
 	private readonly _deferredNotificationsEnabled = observableValue(this, true);
+	private readonly _notificationAvailableLanguageModels = observableValue<readonly ILanguageModelChatMetadataAndIdentifier[]>(this, []);
+	private readonly _notificationModelState = derived(this, reader => {
+		const models = this._notificationAvailableLanguageModels.read(reader);
+		const currentModel = this.selectedLanguageModel.read(reader);
+		return {
+			currentModel: models.find(model => model.identifier === currentModel?.identifier),
+			models,
+		};
+	});
 	private _isFirstWorkbenchSession: boolean | undefined;
 
 	/** Whether the session this input is bound to already has a request. */
@@ -867,6 +911,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IChatService private readonly chatService: IChatService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IChatPetService private readonly chatPetService: IChatPetService,
+		@IActionViewItemService private readonly actionViewItemService: IActionViewItemService,
 	) {
 		super();
 		this._modelSelectionDiagnostics = new ChatModelSelectionDiagnostics(this.logService, this.storageService, () => ({
@@ -927,6 +972,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._currentChatModes.value = localModes;
 		this._currentChatModesObservable = observableValue<IChatModes>('currentChatModes', localModes);
 		this._currentPermissionLevel = observableValue<ChatPermissionLevel>('permissionLevel', this.getDefaultPermissionLevel());
+		const languageModelListChanged = observableSignalFromEvent(this, Event.any(
+			this.languageModelsService.onDidChangeLanguageModels,
+			this.languageModelsService.onDidChangeModelVisibility,
+		));
+		this._register(autorun(reader => {
+			languageModelListChanged.read(reader);
+			const sessionType = this._notificationModelTargetChatSessionType.read(reader);
+			this._currentModeObservable.read(reader);
+			this._notificationAvailableLanguageModels.set(this.getModelsForSessionType(sessionType), undefined);
+		}));
 		this._register(this.editorService.onDidActiveEditorChange(() => {
 			this._indexOfLastOpenedContext = -1;
 			this.refreshChatSessionPickers();
@@ -2301,10 +2356,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Auto-dismiss notifications that requested it. Scope to this input's
 		// session so a message here doesn't hide notifications for other sessions.
-		this.chatInputNotificationService.handleMessageSent({
-			sessionType: this._notificationModelTargetChatSessionType.get(),
-			sessionResource: this._currentSessionResourceObservable.get(),
-		});
+		this.chatInputNotificationService.handleMessageSent(this.getNotificationContext());
 
 		if (this._chatSessionIsEmpty) {
 			this._chatSessionIsEmpty = false;
@@ -2805,7 +2857,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (!this._notificationWidget.value) {
 			// Fall back to `getCurrentSessionType()` so the session-type
 			// picker delegate is consulted before any real session exists
-			// (e.g. empty workspace + Copilot CLI [Agent Host] selected). Without
+			// (e.g. empty workspace + Copilot CLI selected). Without
 			// this fallback, `_currentSessionType` stays undefined until
 			// the user creates a session and `sessionTypes`-gated
 			// notifications never render.
@@ -2813,15 +2865,50 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				modelTargetChatSessionType: this._notificationModelTargetChatSessionType,
 				sessionResource: this._currentSessionResourceObservable,
 				deferredNotificationsEnabled: this._deferredNotificationsEnabled,
-				isTransientChat: this.options.isTransientChat,
+				isTransientChat: constObservable(this.options.isTransientChat ?? false),
 				sessionStarted: this._sessionStarted,
-				openModelPicker: () => this.openModelPicker(),
-				switchToModel: modelIdentifier => this.switchModelByIdentifier(modelIdentifier, /* storeSelection */ true, /* isUserAction */ true),
+				modelSelection: {
+					state: this._notificationModelState,
+					openPicker: () => this.openModelPicker(),
+					selectModel: modelIdentifier => this.selectNotificationModel(modelIdentifier),
+					applyModelConfiguration: (modelIdentifier, values) => this.applyNotificationModelConfiguration(modelIdentifier, values),
+				},
 				onDidChangeVisibility: (visible, focusTarget) => this.noticeHost.setOccupied(ChatInputNoticeLane.Notification, visible, focusTarget),
 				focusInput: () => this.focus(),
 			});
 			this._notificationWidget.value.attachTo(this.chatInputNotificationContainer);
 		}
+	}
+
+	private getNotificationContext(): IChatInputNotificationContext {
+		return {
+			sessionType: this._notificationModelTargetChatSessionType.get(),
+			sessionResource: this._currentSessionResourceObservable.get(),
+			deferredNotificationsEnabled: this._deferredNotificationsEnabled.get(),
+			isTransientChat: this.options.isTransientChat ?? false,
+			sessionStarted: this._sessionStarted.get(),
+			modelState: this._notificationModelState.get(),
+		};
+	}
+
+	private selectNotificationModel(identifier: string): boolean {
+		const model = this._notificationModelState.get().models.find(model => model.identifier === identifier);
+		if (!model) {
+			return false;
+		}
+		this.setCurrentLanguageModel(model, true, !this._pendingDelegationTarget);
+		return true;
+	}
+
+	/**
+	 * The store is scoped to the active session, so while a delegation is pending the write
+	 * would land on the source session rather than the target the models belong to.
+	 */
+	private async applyNotificationModelConfiguration(modelIdentifier: string, values: IStringDictionary<unknown>): Promise<void> {
+		if (this._pendingDelegationTarget) {
+			return;
+		}
+		await this._modelConfigStore.setModelConfiguration(modelIdentifier, values);
 	}
 
 	/**
@@ -3054,12 +3141,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		let elements;
 		if (this.options.renderStyle === 'compact') {
-			elements = dom.h('.interactive-input-part', [
+			elements = dom.h(`.interactive-input-part.${chatInputSurfaceStackClass}`, [
 				dom.h('.chat-input-persistent-content@persistentContentContainer'),
-				dom.h('.interactive-input-and-edit-session', [
-					dom.h('.chat-plan-review-widget-container@chatPlanReviewContainer'),
-					dom.h('.chat-question-carousel-widget-container@chatQuestionCarouselContainer'),
-					dom.h('.chat-tool-confirmation-carousel-container@chatToolConfirmationCarouselContainer'),
+				dom.h(`.interactive-input-and-edit-session.${chatInputSurfaceStackClass}`, [
+					dom.h(`.chat-plan-review-widget-container.${chatInputSurfaceStackSlotClass}@chatPlanReviewContainer`),
+					dom.h(`.chat-question-carousel-widget-container.${chatInputSurfaceStackSlotClass}@chatQuestionCarouselContainer`),
+					dom.h(`.chat-tool-confirmation-carousel-container.${chatInputSurfaceStackSlotClass}@chatToolConfirmationCarouselContainer`),
 					dom.h(`.${chatInputStackClass}`, [
 						dom.h(`.chat-input-notification-container.${chatInputStackSlotClass}@chatInputNotificationContainer`),
 						dom.h(`.voice-mode-onboarding-container.${chatInputStackSlotClass}@voiceModeOnboardingContainer`),
@@ -3077,22 +3164,23 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						]),
 					]),
 					dom.h('.chat-secondary-toolbar@secondaryToolbar', [
+						dom.h('.chat-responsive-picker-container@responsivePickerContainer'),
 						dom.h('.chat-context-usage-container@contextUsageWidgetContainer'),
 						dom.h('.chat-input-status-container@statusToolbarContainer'),
 					]),
-					dom.h('.chat-attachments-container@attachmentsContainer', [
+					dom.h(`.chat-attachments-container.${chatInputSurfaceStackSlotClass}@attachmentsContainer`, [
 						dom.h('.chat-attached-context@attachedContextContainer'),
 					]),
-					dom.h('.interactive-input-followups@followupsContainer'),
+					dom.h(`.interactive-input-followups.${chatInputSurfaceStackSlotClass}@followupsContainer`),
 				])
 			]);
 		} else {
-			elements = dom.h('.interactive-input-part', [
+			elements = dom.h(`.interactive-input-part.${chatInputSurfaceStackClass}`, [
 				dom.h('.chat-input-persistent-content@persistentContentContainer'),
-				dom.h('.chat-plan-review-widget-container@chatPlanReviewContainer'),
-				dom.h('.chat-question-carousel-widget-container@chatQuestionCarouselContainer'),
-				dom.h('.chat-tool-confirmation-carousel-container@chatToolConfirmationCarouselContainer'),
-				dom.h('.interactive-input-followups@followupsContainer'),
+				dom.h(`.chat-plan-review-widget-container.${chatInputSurfaceStackSlotClass}@chatPlanReviewContainer`),
+				dom.h(`.chat-question-carousel-widget-container.${chatInputSurfaceStackSlotClass}@chatQuestionCarouselContainer`),
+				dom.h(`.chat-tool-confirmation-carousel-container.${chatInputSurfaceStackSlotClass}@chatToolConfirmationCarouselContainer`),
+				dom.h(`.interactive-input-followups.${chatInputSurfaceStackSlotClass}@followupsContainer`),
 				dom.h(`.${chatInputStackClass}`, [
 					dom.h(`.chat-input-notification-container.${chatInputStackSlotClass}@chatInputNotificationContainer`),
 					dom.h(`.voice-mode-onboarding-container.${chatInputStackSlotClass}@voiceModeOnboardingContainer`),
@@ -3113,6 +3201,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					]),
 				]),
 				dom.h('.chat-secondary-toolbar@secondaryToolbar', [
+					dom.h('.chat-responsive-picker-container@responsivePickerContainer'),
 					dom.h('.chat-context-usage-container@contextUsageWidgetContainer'),
 					dom.h('.chat-input-status-container@statusToolbarContainer'),
 				]),
@@ -3139,6 +3228,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.attachedContextContainer = elements.attachedContextContainer;
 		const toolbarsContainer = elements.inputToolbars;
 		this.secondaryToolbarContainer = elements.secondaryToolbar;
+		const responsivePickerContainer = elements.responsivePickerContainer;
 		if (this.options.renderStyle === 'compact') {
 			this.secondaryToolbarContainer.style.display = 'none';
 		}
@@ -3313,7 +3403,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._syncTextDebounced.schedule();
 		}));
 		this._register(this._inputEditor.onDidContentSizeChange(e => {
-			if (e.contentHeightChanged) {
+			if (e.contentHeightChanged && !this.ignoreInputEditorContentSizeChanges) {
 				this.inputEditorHeight = !this.inline ? e.contentHeight : this.inputEditorHeight;
 				// Directly update editor layout - ResizeObserver will notify parent about height change
 				if (this.cachedWidth) {
@@ -3354,27 +3444,92 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return !hasDraftTarget && (!target || (!!resource && isEqual(target, resource)));
 		});
 
-		const pickerOptions: IChatInputPickerOptions = {
+		const inputPickerCompactStates = new Map<string, ISettableObservable<boolean>>();
+		const secondaryPickerCompactStates = new Map<string, ISettableObservable<boolean>>();
+		const inputOverflowPickerHandlers = new Map<string, (anchor: HTMLElement) => void>();
+		const secondaryOverflowPickerHandlers = new Map<string, (anchor: HTMLElement) => void>();
+		const getCompactState = (states: Map<string, ISettableObservable<boolean>>, actionId: string): ISettableObservable<boolean> => {
+			let state = states.get(actionId);
+			if (!state) {
+				state = observableValue(this, false);
+				states.set(actionId, state);
+			}
+			return state;
+		};
+		const getInputPickerOptions = (actionId: string): IChatInputPickerOptions => ({
 			getOverflowAnchor: () => this.inputActionsToolbar.getElement(),
 			actionContext: { widget },
-			compact: derived(reader => this._stableInputPartWidth.read(reader) < CHAT_INPUT_PICKER_COLLAPSE_WIDTH),
-		};
-		const primarySessionPickerOptions: IChatInputPickerOptions = {
-			...pickerOptions,
-			compact: constObservable(true),
-		};
-		const secondaryPickerOptions: IChatInputPickerOptions = {
-			...pickerOptions,
+			compact: getCompactState(inputPickerCompactStates, actionId),
+		});
+		const getSecondaryPickerOptions = (actionId: string): IChatInputPickerOptions => ({
 			getOverflowAnchor: () => this.secondaryToolbar.getElement(),
-			compact: constObservable(true),
+			actionContext: { widget },
+			compact: getCompactState(secondaryPickerCompactStates, actionId),
+		});
+		const showOverflowPicker = (factory: () => ShowableActionViewItem | undefined, anchor: HTMLElement): void => {
+			const item = factory();
+			if (!item) {
+				return;
+			}
+			this.overflowPickerWidget.value = item;
+			item.render(dom.$('.chat-overflow-picker-item'));
+			item.show(anchor);
+		};
+		const showRegisteredOverflowPicker = (factory: IActionViewItemFactory, action: IAction, anchor: HTMLElement): boolean => {
+			const item = factory(action, { hoverDelegate }, this.instantiationService, dom.getWindow(anchor).vscodeWindowId);
+			if (!isShowableActionViewItem(item)) {
+				item?.dispose();
+				return false;
+			}
+			this.overflowPickerWidget.value = item;
+			item.render(dom.$('.chat-overflow-picker-item'));
+			item.show(anchor);
+			return true;
+		};
+		const getOverflowAction = (
+			action: IAction,
+			menuId: MenuId,
+			handlers: ReadonlyMap<string, (anchor: HTMLElement) => void>,
+			getAnchor: () => HTMLElement | undefined,
+			fallbackAnchor: HTMLElement,
+			hostHandler?: (actionId: string, anchor: HTMLElement) => boolean,
+		): IAction => {
+			const handler = handlers.get(action.id);
+			const registeredFactory = this.actionViewItemService.lookUp(menuId, action.id);
+			if (!handler && !hostHandler && !registeredFactory) {
+				return action;
+			}
+			return createOverflowAction(action, () => {
+				const overflowAnchor = getAnchor();
+				const anchor = overflowAnchor ?? fallbackAnchor;
+				dom.getWindow(anchor).setTimeout(() => {
+					overflowAnchor?.focus();
+					if (handler) {
+						handler(anchor);
+					} else if (hostHandler?.(action.id, anchor)) {
+						return;
+					} else if (registeredFactory && showRegisteredOverflowPicker(registeredFactory, action, anchor)) {
+						return;
+					} else {
+						void action.run({ widget } satisfies IChatExecuteActionContext);
+					}
+				}, 0);
+			});
 		};
 
-		this._register(dom.addStandardDisposableListener(toolbarsContainer, dom.EventType.CLICK, e => this.inputEditor.focus()));
-		this._register(dom.addStandardDisposableListener(this.attachmentsContainer, dom.EventType.CLICK, e => this.inputEditor.focus()));
 		const shorterChatInputActionIds = new Set<string>([
 			OpenModePickerAction.ID,
 			ConfigureToolsAction.ID,
 		]);
+		const getInputActionMinWidth = (action: IAction): number | undefined => {
+			if (shorterChatInputActionIds.has(action.id)) {
+				return 22;
+			}
+			return inputPickerCompactStates.get(action.id)?.get() ? 22 : undefined;
+		};
+
+		this._register(dom.addStandardDisposableListener(toolbarsContainer, dom.EventType.CLICK, e => this.inputEditor.focus()));
+		this._register(dom.addStandardDisposableListener(this.attachmentsContainer, dom.EventType.CLICK, e => this.inputEditor.focus()));
 		this.inputActionsToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, this.options.renderInputToolbarBelowInput ? this.attachmentsContainer : toolbarsContainer, MenuId.ChatInput, {
 			telemetrySource: this.options.menus.telemetrySource,
 			menuOptions: { shouldForwardArgs: true },
@@ -3385,7 +3540,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				kind: 'last',
 				minItems: 1,
 				actionMinWidth: 48,
-				getActionMinWidth: action => shorterChatInputActionIds.has(action.id) ? 22 : undefined,
+				getActionMinWidth: getInputActionMinWidth,
+				allowOverflow: () => this._inputPickerResponsiveLayout?.areAllItemsCompact() === true,
+				getOverflowAction: (action, getAnchor) => getOverflowAction(action, MenuId.ChatInput, inputOverflowPickerHandlers, getAnchor, toolbarsContainer),
 			},
 			actionViewItemProvider: (action, options) => {
 				// Phone-layout branch: when an agents-window phone presenter
@@ -3415,10 +3572,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					}
 
 					const itemDelegate: IModelPickerDelegate = this._createModelPickerDelegate();
-					return this.modelWidget = this.instantiationService.createInstance(ModelPickerActionItem, action, itemDelegate, pickerOptions);
+					const createPicker = () => this.instantiationService.createInstance(ModelPickerActionItem, action, itemDelegate, getInputPickerOptions(action.id));
+					inputOverflowPickerHandlers.set(action.id, anchor => showOverflowPicker(createPicker, anchor));
+					return this.modelWidget = createPicker();
 				} else if (action.id === OpenModePickerAction.ID && action instanceof MenuItemAction) {
 					const delegate: IModePickerDelegate = this._createModePickerDelegate();
-					return this.modeWidget = this.instantiationService.createInstance(ModePickerActionItem, action, delegate, pickerOptions);
+					const createPicker = () => this.instantiationService.createInstance(ModePickerActionItem, action, delegate, getInputPickerOptions(action.id));
+					inputOverflowPickerHandlers.set(action.id, anchor => showOverflowPicker(createPicker, anchor));
+					return this.modeWidget = createPicker();
 				} else if ((action.id === OpenSessionTargetPickerAction.ID || action.id === OpenDelegationPickerAction.ID) && action instanceof MenuItemAction) {
 					// Use provided delegate if available, otherwise create default delegate
 					const delegate: ISessionTypePickerDelegate = this.options.sessionTypePickerDelegate ?? {
@@ -3435,14 +3596,23 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					};
 					const isWelcomeViewMode = !!this.options.sessionTypePickerDelegate?.setActiveSessionProvider;
 					const Picker = (action.id === OpenSessionTargetPickerAction.ID || isWelcomeViewMode) ? SessionTypePickerActionItem : DelegationSessionPickerActionItem;
-					return this.sessionTargetWidget = this.instantiationService.createInstance(Picker, action, location === ChatWidgetLocation.Editor ? 'editor' : 'sidebar', delegate, pickerOptions);
-				} else if (action.id === ChatSessionPrimaryPickerAction.ID && action instanceof MenuItemAction) {
-					// Cloud sessions render their option-group pickers (e.g. branch) on the primary toolbar
-					const widgets = this.createChatSessionPickerWidgets(action, primarySessionPickerOptions);
-					if (widgets.length === 0) {
-						return new HiddenActionViewItem(action);
+					const createPicker = () => this.instantiationService.createInstance(Picker, action, location === ChatWidgetLocation.Editor ? 'editor' : 'sidebar', delegate, getInputPickerOptions(action.id));
+					inputOverflowPickerHandlers.set(action.id, anchor => showOverflowPicker(createPicker, anchor));
+					const picker = createPicker();
+					if (picker instanceof DelegationSessionPickerActionItem) {
+						this.delegationWidget = picker;
+					} else {
+						this.sessionTargetWidget = picker;
 					}
-					return this.instantiationService.createInstance(ChatSessionPickersContainerActionItem, action, widgets);
+					return picker;
+				} else if (action.id === ChatSessionPrimaryPickerAction.ID && action instanceof MenuItemAction) {
+					const createPicker = () => {
+						// Cloud sessions render their option-group pickers (e.g. branch) on the primary toolbar
+						const widgets = this.createChatSessionPickerWidgets(action, getInputPickerOptions(action.id));
+						return widgets.length === 0 ? undefined : this.instantiationService.createInstance(ChatSessionPickersContainerActionItem, action, widgets);
+					};
+					inputOverflowPickerHandlers.set(action.id, anchor => showOverflowPicker(createPicker, anchor));
+					return createPicker() ?? new HiddenActionViewItem(action);
 				}
 				return undefined;
 			}
@@ -3461,17 +3631,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this._toolbarRelayoutScheduler.schedule();
 			}
 		}));
-		// When compact changes, picker items change their rendered size
-		// but the toolbar's ResizeObserver won't fire (the toolbar element size
-		// didn't change, only its children did). Force a relayout so the
-		// responsive overflow logic re-evaluates with the correct item widths.
-		// The relayout is deferred by a microtask so the picker action view
-		// items' own autoruns have a chance to re-render their labels first.
-		this._register(autorun(reader => {
-			pickerOptions.compact.read(reader);
-			queueMicrotask(() => this.inputActionsToolbar.relayout());
-		}));
-
 		// When the phone-input presenter flips between enabled/disabled (e.g.
 		// device rotation crossing the phone breakpoint), the action view item
 		// provider above will return different items. Force the toolbar to
@@ -3531,7 +3690,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// model — matching the same icon set the CSS keys off — rather than
 		// querying the DOM.
 		const voiceInputActionIconClasses = new Set([
-			Codicon.mic, Codicon.micFilled, Codicon.micDownloadCompact,
+			Codicon.micCompact, Codicon.micFilled, Codicon.micDownloadCompact,
 			Codicon.voiceModeCompact, Codicon.loadingCompact, Codicon.debugDisconnectCompact,
 		].map(icon => ThemeIcon.asClassName(icon)));
 		const updateVoiceInputActionBorder = () => {
@@ -3568,13 +3727,20 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		// Secondary toolbar (permissions) — below the input box.
-		// Per-action minimum widths (in pixels) for pickers that collapse to an
-		// icon-only label via a CSS container query in `AgentHostChatInputPicker`.
-		// Most pickers reserve ~22px for the icon; the tunnel-sharing toggle has
-		// no chevron, so it can collapse further to 16px.
-		const agentHostShortPickerMinWidths = new Map<string, number>([
+		// Compact-capable pickers use their 22px control width as the responsive
+		// floor so icon-only items do not retain empty space from the labeled form.
+		// The tunnel-sharing toggle has no chevron and can collapse further.
+		const secondaryPickerMinWidths = new Map<string, number>([
+			[OpenSessionTargetPickerAction.ID, 22],
+			[OpenDelegationPickerAction.ID, 22],
+			[OpenWorkspacePickerAction.ID, 22],
+			[OpenPermissionPickerAction.ID, 22],
+			[ChatSessionPrimaryPickerAction.ID, 22],
 			[OpenAgentHostModePickerAction.ID, 22],
 			['sessions.agentHost.runningSessionModePicker', 22],
+			['sessions.agentHost.runningSessionConfigPicker', 22],
+			['sessions.agentHost.runningSessionPermissionModePicker', 22],
+			['sessions.agentHost.runningSessionCodexApprovalsPicker', 22],
 			[OpenAgentHostAutoApprovePickerAction.ID, 22],
 			[OpenAgentHostPermissionModePickerAction.ID, 22],
 			[OpenAgentHostCodexApprovalsPickerAction.ID, 22],
@@ -3584,16 +3750,22 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// Direct-rendered chip lane for agent-host config properties that
 		// are advertised by the agent's schema but not handled by a
 		// dedicated `MenuId.ChatInputSecondary` action. Sits as a sibling
-		// of the secondary toolbar so the toolbar can take the available
-		// space (`flex: 1 1 0`) while the chips pin to the right next to
-		// the context-usage widget.
+		// of the content-sized secondary toolbar.
 		const genericChipsContainer = dom.$('.chat-secondary-generic-chips');
 		const genericChipsLane = this._register(this.instantiationService.createInstance(
 			AgentHostGenericConfigChips,
 			widget,
 		));
 		genericChipsLane.render(genericChipsContainer);
-		this.secondaryToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, this.secondaryToolbarContainer, MenuId.ChatInputSecondary, {
+		const getSecondaryToolbarAvailableWidth = (): number => {
+			const laneWidth = responsivePickerContainer.getBoundingClientRect().width;
+			if (genericChipsContainer.parentElement !== responsivePickerContainer || genericChipsContainer.getClientRects().length === 0) {
+				return laneWidth;
+			}
+			const gap = Number.parseFloat(dom.getWindow(responsivePickerContainer).getComputedStyle(responsivePickerContainer).columnGap) || 0;
+			return Math.max(0, laneWidth - genericChipsContainer.getBoundingClientRect().width - gap);
+		};
+		this.secondaryToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, responsivePickerContainer, MenuId.ChatInputSecondary, {
 			telemetrySource: this.options.menus.telemetrySource,
 			menuOptions: { shouldForwardArgs: true },
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
@@ -3603,16 +3775,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				kind: 'all',
 				minItems: 1,
 				actionMinWidth: 48,
-				// Agent-host pickers collapse to an icon-only label via a CSS
-				// container query in `AgentHostChatInputPicker` when narrow.
-				// Report a smaller min-width for them so the responsive layout
-				// keeps them visible instead of overflowing into the menu.
-				getActionMinWidth: action => agentHostShortPickerMinWidths.get(action.id),
+				getActionMinWidth: action => secondaryPickerMinWidths.get(action.id) ?? (secondaryPickerCompactStates.get(action.id)?.get() ? 22 : undefined),
+				observedElement: responsivePickerContainer,
+				getAvailableWidth: getSecondaryToolbarAvailableWidth,
+				allowOverflow: () => this._secondaryPickerResponsiveLayout?.areAllItemsCompact() === true,
+				getOverflowAction: (action, getAnchor) => getOverflowAction(action, MenuId.ChatInputSecondary, secondaryOverflowPickerHandlers, getAnchor, responsivePickerContainer, this.options.secondaryToolbarOverflowActionHandler),
 			},
 			actionViewItemProvider: (action, options) => {
 				const agentHostPickerProperty = getAgentHostPickerProperty(action.id);
 				const customSecondaryItem = this.options.secondaryToolbarActionViewItemProvider?.(action, options);
 				if (customSecondaryItem) {
+					getCompactState(secondaryPickerCompactStates, action.id);
 					return customSecondaryItem;
 				}
 				if ((action.id === OpenSessionTargetPickerAction.ID || action.id === OpenDelegationPickerAction.ID) && action instanceof MenuItemAction) {
@@ -3630,10 +3803,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					};
 					const isWelcomeViewMode = !!this.options.sessionTypePickerDelegate?.setActiveSessionProvider;
 					const Picker = (action.id === OpenSessionTargetPickerAction.ID || isWelcomeViewMode) ? SessionTypePickerActionItem : DelegationSessionPickerActionItem;
-					return this.sessionTargetWidget = this.instantiationService.createInstance(Picker, action, location === ChatWidgetLocation.Editor ? 'editor' : 'sidebar', delegate, secondaryPickerOptions);
+					const createPicker = () => this.instantiationService.createInstance(Picker, action, location === ChatWidgetLocation.Editor ? 'editor' : 'sidebar', delegate, getSecondaryPickerOptions(action.id));
+					secondaryOverflowPickerHandlers.set(action.id, anchor => showOverflowPicker(createPicker, anchor));
+					const picker = createPicker();
+					if (picker instanceof DelegationSessionPickerActionItem) {
+						this.delegationWidget = picker;
+					} else {
+						this.sessionTargetWidget = picker;
+					}
+					return picker;
 				} else if (action.id === OpenWorkspacePickerAction.ID && action instanceof MenuItemAction) {
-					if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY && this.options.workspacePickerDelegate) {
-						return this.instantiationService.createInstance(WorkspacePickerActionItem, action, this.options.workspacePickerDelegate, secondaryPickerOptions);
+					const workspacePickerDelegate = this.options.workspacePickerDelegate;
+					if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY && workspacePickerDelegate) {
+						const createPicker = () => this.instantiationService.createInstance(WorkspacePickerActionItem, action, workspacePickerDelegate, getSecondaryPickerOptions(action.id));
+						secondaryOverflowPickerHandlers.set(action.id, anchor => showOverflowPicker(createPicker, anchor));
+						return createPicker();
 					} else {
 						return new HiddenActionViewItem(action);
 					}
@@ -3673,7 +3857,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						},
 						isSandboxToggleApplicable: () => this.getEffectiveSessionType(this.getCurrentSessionResource()) === SessionType.Local,
 					};
-					const widget = this.instantiationService.createInstance(PermissionPickerActionItem, action, delegate, secondaryPickerOptions);
+					const createPicker = () => this.instantiationService.createInstance(PermissionPickerActionItem, action, delegate, getSecondaryPickerOptions(action.id));
+					secondaryOverflowPickerHandlers.set(action.id, anchor => showOverflowPicker(createPicker, anchor));
+					const widget = createPicker();
 					this.permissionWidget = widget;
 					this.permissionWidgetDisposeListener.value = widget.onDidDispose(() => {
 						if (this.permissionWidget === widget) {
@@ -3686,28 +3872,35 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					if (this.options.isSessionsWindow) {
 						return new HiddenActionViewItem(action);
 					}
-					const picker = this.instantiationService.createInstance(AgentHostChatInputPicker, widget, agentHostPickerProperty);
-					return new AgentHostChatInputPickerActionViewItem(action, picker);
+					getCompactState(secondaryPickerCompactStates, action.id);
+					const createPicker = () => this.instantiationService.createInstance(AgentHostChatInputPicker, widget, agentHostPickerProperty);
+					secondaryOverflowPickerHandlers.set(action.id, anchor => {
+						const picker = createPicker();
+						this.overflowPickerWidget.value = picker;
+						picker.show(anchor);
+					});
+					return new AgentHostChatInputPickerActionViewItem(action, createPicker());
 				} else if (action.id === OpenAgentHostFolderPickerAction.ID && action instanceof MenuItemAction) {
 					if (this.options.isSessionsWindow) {
 						return new HiddenActionViewItem(action);
 					}
-					return this.instantiationService.createInstance(AgentHostFolderPickerActionItem, action, widget, secondaryPickerOptions);
+					const createPicker = () => this.instantiationService.createInstance(AgentHostFolderPickerActionItem, action, widget, getSecondaryPickerOptions(action.id));
+					secondaryOverflowPickerHandlers.set(action.id, anchor => showOverflowPicker(createPicker, anchor));
+					return createPicker();
 				} else if (action.id === ChatSessionPrimaryPickerAction.ID && action instanceof MenuItemAction) {
-					// Create all pickers and return a container action view item
-					const widgets = this.createChatSessionPickerWidgets(action, secondaryPickerOptions);
-					if (widgets.length === 0) {
-						return new HiddenActionViewItem(action);
-					}
-					// Create a container to hold all picker widgets
-					return this.instantiationService.createInstance(ChatSessionPickersContainerActionItem, action, widgets);
+					const createPicker = () => {
+						const widgets = this.createChatSessionPickerWidgets(action, getSecondaryPickerOptions(action.id));
+						return widgets.length === 0 ? undefined : this.instantiationService.createInstance(ChatSessionPickersContainerActionItem, action, widgets);
+					};
+					secondaryOverflowPickerHandlers.set(action.id, anchor => showOverflowPicker(createPicker, anchor));
+					return createPicker() ?? new HiddenActionViewItem(action);
 				}
 				return undefined;
 			}
 		}));
 		this.secondaryToolbar.getElement().classList.add('chat-secondary-input-toolbar');
 		this.secondaryToolbar.context = { widget } satisfies IChatExecuteActionContext;
-		dom.append(this.secondaryToolbarContainer, genericChipsContainer);
+		dom.append(responsivePickerContainer, genericChipsContainer);
 		this._register(this.secondaryToolbar.onDidChangeMenuItems(() => {
 			// Update container reference for the pickers when the secondary toolbar hosts one.
 			// Only assign when found so we don't overwrite a valid primary container reference
@@ -3729,6 +3922,30 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 		this.statusToolbar.getElement().classList.add('chat-input-status-toolbar');
 		this.statusToolbar.context = { widget } satisfies IChatExecuteActionContext;
+
+		const inputToolbarElement = this.inputActionsToolbar.getElement();
+		this._inputPickerResponsiveLayout = this._register(new ChatInputPickerResponsiveLayout('ChatInputPart.primaryPicker', inputToolbarElement, {
+			getItems: () => getToolbarPickerResponsiveItems(this.inputActionsToolbar, inputPickerCompactStates),
+			hasOverflow: () => this.inputActionsToolbar.hasOverflow(),
+			relayout: () => this.inputActionsToolbar.relayout(),
+		}));
+
+		this._secondaryPickerResponsiveLayout = this._register(new ChatInputPickerResponsiveLayout('ChatInputPart.secondaryPicker', responsivePickerContainer, {
+			getItems: () => [
+				...getToolbarPickerResponsiveItems(this.secondaryToolbar, secondaryPickerCompactStates),
+				...genericChipsLane.getCompactableElements()
+					.map(element => ({
+						element,
+						isCompact: () => element.classList.contains('compact-picker'),
+						setCompact: (compact: boolean) => element.classList.toggle('compact-picker', compact),
+					})),
+			],
+			hasOverflow: () => this.secondaryToolbar.hasOverflow(),
+			relayout: () => this.secondaryToolbar.relayout(),
+		}));
+
+		this._inputPickerResponsiveLayout.layout();
+		this._secondaryPickerResponsiveLayout.layout();
 
 		let inputModel = this.modelService.getModel(this.inputUri);
 		let createdInputModel: ITextModel | undefined;
@@ -3821,12 +4038,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		if (this.options.renderStyle === 'compact') {
 			const toolbarsResizeObserver = this._register(new dom.DisposableResizeObserver('ChatInputPart.compactToolbars', () => {
-				// Have to layout the editor when the toolbars change size, when they share width with the editor.
-				// This handles ensuring we layout when quick chat is shown/hidden.
-				// The toolbar may have changed since the last time it was visible.
-				if (this.cachedWidth) {
-					this.layout(this.cachedWidth);
-				}
+				// Recalculate the shared width without changing the editor's height.
+				this.layoutForToolbarChange();
 			}));
 			this._register(toolbarsResizeObserver.observe(toolbarsContainer));
 		}
@@ -4788,10 +5001,18 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 */
 	layout(width: number) {
 		this.cachedWidth = width;
-		this._stableInputPartWidth.set(width, undefined);
 		this._updateWorkingProgressAnimationDuration(width);
 
-		return this._layout(width);
+		const result = this._layout(width);
+		this._inputPickerResponsiveLayout?.layout();
+		this._secondaryPickerResponsiveLayout?.layout();
+		return result;
+	}
+
+	private layoutForToolbarChange(): void {
+		if (typeof this.cachedWidth === 'number') {
+			this._layout(this.cachedWidth, true, true);
+		}
 	}
 
 	/**
@@ -4859,7 +5080,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private previousInputEditorDimension: IDimension | undefined;
-	private _layout(width: number, allowRecurse = true): void {
+	private _layout(width: number, allowRecurse = true, preserveInputEditorHeight = false): void {
 		const data = this.getLayoutData();
 
 		const followupsWidth = width - data.inputPartHorizontalPadding;
@@ -4868,19 +5089,27 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const initialEditorScrollWidth = this._inputEditor.getScrollWidth();
 		const newEditorWidth = width - data.inputPartHorizontalPadding - data.editorBorder - data.inputPartHorizontalPaddingInside - data.toolbarsWidth - data.sideToolbarWidth;
 		const effectiveMaxHeight = this._effectiveInputEditorMaxHeight;
-		const clampedContentHeight = Math.min(this._inputEditor.getContentHeight(), effectiveMaxHeight);
+		const contentHeight = preserveInputEditorHeight && this.previousInputEditorDimension
+			? this.previousInputEditorDimension.height
+			: this._inputEditor.getContentHeight();
+		const clampedContentHeight = Math.min(contentHeight, effectiveMaxHeight);
 		const inputEditorHeight = this.inputEditorMinHeight ? Math.min(Math.max(this.inputEditorMinHeight, clampedContentHeight), effectiveMaxHeight) : clampedContentHeight;
 		const newDimension = { width: newEditorWidth, height: inputEditorHeight };
 		if (!this.previousInputEditorDimension || (this.previousInputEditorDimension.width !== newDimension.width || this.previousInputEditorDimension.height !== newDimension.height)) {
 			// This layout call has side-effects that are hard to understand. eg if we are calling this inside a onDidChangeContent handler, this can trigger the next onDidChangeContent handler
 			// to be invoked, and we have a lot of these on this editor. Only doing a layout this when the editor size has actually changed makes it much easier to follow.
-			this._inputEditor.layout(newDimension);
+			this.ignoreInputEditorContentSizeChanges = preserveInputEditorHeight;
+			try {
+				this._inputEditor.layout(newDimension);
+			} finally {
+				this.ignoreInputEditorContentSizeChanges = false;
+			}
 			this.previousInputEditorDimension = newDimension;
 		}
 
 		if (allowRecurse && initialEditorScrollWidth < 10) {
 			// This is probably the initial layout. Now that the editor is layed out with its correct width, it should report the correct contentHeight
-			return this._layout(width, false);
+			return this._layout(width, false, preserveInputEditorHeight);
 		}
 	}
 
@@ -5027,6 +5256,10 @@ class ChatSessionPickersContainerActionItem extends ActionViewItem {
 			widget.render(itemContainer);
 			container.appendChild(itemContainer);
 		}
+	}
+
+	show(): void {
+		this.widgets[0]?.show();
 	}
 
 	override dispose(): void {

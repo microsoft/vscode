@@ -7,7 +7,7 @@ import assert from 'assert';
 import sinon from 'sinon';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ChatSpeechToTextService, createDictationCleanupSystemPrompt, isDictationEntitled, stripDictationFillers } from '../../browser/speechToText/chatSpeechToTextService.js';
+import { ChatSpeechToTextService, createDictationCleanupSystemPrompt, isDictationEntitled, selectFinalDictationTranscript, stripDictationFillers } from '../../browser/speechToText/chatSpeechToTextService.js';
 import { resolveDictationLanguage } from '../../browser/speechToText/dictationLanguage.js';
 import { ChatEntitlement } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ILanguageModelChatRequestOptions, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
@@ -15,9 +15,9 @@ import { ILanguageModelChatRequestOptions, ILanguageModelChatResponse, ILanguage
 type CleanupTestService = {
 	_configurationService: {
 		getValue: () => string;
+		inspect: () => { defaultValue: string | undefined };
 	};
 	_languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>;
-	_llmCleanupModelTreatment: string | undefined;
 	_promptsService: {
 		getDictationInstructions: (token: CancellationToken) => Promise<string | undefined>;
 	};
@@ -112,6 +112,28 @@ suite('ChatSpeechToTextService', () => {
 		);
 	});
 
+	test('preserves a visible live transcript when the backend final hypothesis is incomplete', () => {
+		assert.deepStrictEqual({
+			shorterFinal: selectFinalDictationTranscript('complete visible transcript', 'complete visible', true),
+			emptyFinal: selectFinalDictationTranscript('complete visible transcript', '', true),
+			extendedFinal: selectFinalDictationTranscript('complete visible transcript', 'complete visible transcript with tail', true),
+			differentFinal: selectFinalDictationTranscript('complete visible transcript', 'rewritten complete visible transcript', true),
+			fillerBeforeExtendedFinal: selectFinalDictationTranscript('um hello', 'hello world', true),
+			fillerOnlyLiveTranscript: selectFinalDictationTranscript('um', 'hello world', true),
+			noLiveTranscript: selectFinalDictationTranscript('', 'backend transcript', true),
+			hiddenLiveTranscript: selectFinalDictationTranscript('interim transcript', 'backend transcript', false),
+		}, {
+			shorterFinal: 'complete visible transcript',
+			emptyFinal: 'complete visible transcript',
+			extendedFinal: 'complete visible transcript with tail',
+			differentFinal: 'complete visible transcript',
+			fillerBeforeExtendedFinal: 'hello world',
+			fillerOnlyLiveTranscript: 'hello world',
+			noLiveTranscript: 'backend transcript',
+			hiddenLiveTranscript: 'backend transcript',
+		});
+	});
+
 	test('cleanup prompt guides list formatting with ordering cues', () => {
 		const prompt = createDictationCleanupSystemPrompt();
 
@@ -160,8 +182,8 @@ suite('ChatSpeechToTextService', () => {
 			const service = Object.create(ChatSpeechToTextService.prototype) as CleanupTestService;
 			service._configurationService = {
 				getValue: () => 'auto',
+				inspect: () => ({ defaultValue: 'auto' }),
 			};
-			service._llmCleanupModelTreatment = undefined;
 			service._languageModelsService = {
 				selectLanguageModels: async () => ['test-model'],
 				sendChatRequest: () => new Promise<ILanguageModelChatResponse>(() => { }),
@@ -205,8 +227,8 @@ suite('ChatSpeechToTextService', () => {
 			const service = Object.create(ChatSpeechToTextService.prototype) as CleanupTestService;
 			service._configurationService = {
 				getValue: () => 'auto',
+				inspect: () => ({ defaultValue: 'auto' }),
 			};
-			service._llmCleanupModelTreatment = undefined;
 			service._languageModelsService = {
 				selectLanguageModels: () => new Promise<string[]>(() => { }),
 				sendChatRequest: async () => { throw new Error('Unexpected request'); },
@@ -244,8 +266,8 @@ suite('ChatSpeechToTextService', () => {
 			const service = Object.create(ChatSpeechToTextService.prototype) as CleanupTestService;
 			service._configurationService = {
 				getValue: () => 'auto',
+				inspect: () => ({ defaultValue: 'auto' }),
 			};
-			service._llmCleanupModelTreatment = undefined;
 			service._languageModelsService = {
 				selectLanguageModels: async () => ['test-model'],
 				sendChatRequest: async () => ({
@@ -287,14 +309,14 @@ suite('ChatSpeechToTextService', () => {
 		}
 	});
 
-	test('selects the configured or treated cleanup model and falls back when Luna is unavailable', async () => {
+	test('selects the configured or experiment-default cleanup model and falls back when a dedicated model is unavailable', async () => {
 		const selectors: ILanguageModelChatSelector[] = [];
-		const createService = (treatment: string | undefined, configuredModel = 'auto'): CleanupTestService => {
+		const createService = (configuredModel = 'auto', experimentDefault = 'auto'): CleanupTestService => {
 			const service = Object.create(ChatSpeechToTextService.prototype) as CleanupTestService;
 			service._configurationService = {
 				getValue: () => configuredModel,
+				inspect: () => ({ defaultValue: experimentDefault }),
 			};
-			service._llmCleanupModelTreatment = treatment;
 			service._languageModelsService = {
 				selectLanguageModels: async selector => {
 					selectors.push(selector);
@@ -313,16 +335,22 @@ suite('ChatSpeechToTextService', () => {
 			return service;
 		};
 
-		await createService(undefined)._cleanupWithLanguageModel('control transcript', CancellationToken.None);
-		await createService('gpt-5.6-luna')._cleanupWithLanguageModel('treatment transcript', CancellationToken.None);
-		await createService('unexpected-model')._cleanupWithLanguageModel('unknown treatment transcript', CancellationToken.None);
-		await createService(undefined, 'gpt-5.6-luna')._cleanupWithLanguageModel('configured Luna transcript', CancellationToken.None);
-		await createService('gpt-5.6-luna', 'copilot-utility-small')._cleanupWithLanguageModel('configured utility transcript', CancellationToken.None);
+		await createService()._cleanupWithLanguageModel('control transcript', CancellationToken.None);
+		await createService('auto', 'gpt-5.4-nano')._cleanupWithLanguageModel('Nano experiment transcript', CancellationToken.None);
+		await createService('auto', 'gpt-5.6-luna')._cleanupWithLanguageModel('Luna experiment transcript', CancellationToken.None);
+		await createService('auto', 'unexpected-model')._cleanupWithLanguageModel('unknown experiment transcript', CancellationToken.None);
+		await createService('gpt-5.4-nano')._cleanupWithLanguageModel('configured Nano transcript', CancellationToken.None);
+		await createService('gpt-5.6-luna')._cleanupWithLanguageModel('configured Luna transcript', CancellationToken.None);
+		await createService('copilot-utility-small', 'gpt-5.6-luna')._cleanupWithLanguageModel('configured utility transcript', CancellationToken.None);
 
 		assert.deepStrictEqual(selectors, [
 			{ vendor: 'copilot', id: 'copilot-utility-small' },
+			{ vendor: 'copilot', id: 'copilot-dictation-cleanup-nano' },
+			{ vendor: 'copilot', id: 'copilot-utility-small' },
 			{ vendor: 'copilot', id: 'copilot-dictation-cleanup-luna' },
 			{ vendor: 'copilot', id: 'copilot-utility-small' },
+			{ vendor: 'copilot', id: 'copilot-utility-small' },
+			{ vendor: 'copilot', id: 'copilot-dictation-cleanup-nano' },
 			{ vendor: 'copilot', id: 'copilot-utility-small' },
 			{ vendor: 'copilot', id: 'copilot-dictation-cleanup-luna' },
 			{ vendor: 'copilot', id: 'copilot-utility-small' },
@@ -330,14 +358,14 @@ suite('ChatSpeechToTextService', () => {
 		]);
 	});
 
-	test('disables reasoning for Luna cleanup only', async () => {
+	test('disables reasoning for dedicated cleanup models only', async () => {
 		const requestConfigurations: Array<ILanguageModelChatRequestOptions['configuration']> = [];
 		const createService = (configuredModel: string): CleanupTestService => {
 			const service = Object.create(ChatSpeechToTextService.prototype) as CleanupTestService;
 			service._configurationService = {
 				getValue: () => configuredModel,
+				inspect: () => ({ defaultValue: 'auto' }),
 			};
-			service._llmCleanupModelTreatment = undefined;
 			service._languageModelsService = {
 				selectLanguageModels: async () => ['test-model'],
 				sendChatRequest: async (_modelId, _from, _messages, options) => {
@@ -361,6 +389,7 @@ suite('ChatSpeechToTextService', () => {
 			return service;
 		};
 
+		await createService('gpt-5.4-nano')._cleanupWithLanguageModel('Nano transcript', CancellationToken.None);
 		await createService('gpt-5.6-luna')._cleanupWithLanguageModel('Luna transcript', CancellationToken.None);
 		const fallbackService = createService('gpt-5.6-luna');
 		let selectionCall = 0;
@@ -368,6 +397,7 @@ suite('ChatSpeechToTextService', () => {
 		await fallbackService._cleanupWithLanguageModel('utility fallback transcript', CancellationToken.None);
 
 		assert.deepStrictEqual(requestConfigurations, [
+			{ reasoningEffort: 'none' },
 			{ reasoningEffort: 'none' },
 			undefined,
 		]);

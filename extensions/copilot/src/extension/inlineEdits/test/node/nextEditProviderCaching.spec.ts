@@ -31,6 +31,7 @@ import { DeferredPromise, timeout } from '../../../../util/vs/base/common/async'
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { Event } from '../../../../util/vs/base/common/event';
+import { constObservable } from '../../../../util/vs/base/common/observable';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { generateUuid } from '../../../../util/vs/base/common/uuid';
 import { LineEdit, LineReplacement } from '../../../../util/vs/editor/common/core/edits/lineEdit';
@@ -55,6 +56,7 @@ function createModelService(rejectedEditMemoryEnabled = false, promptingStrategy
 		_serviceBrand: undefined,
 		modelInfo: undefined,
 		onModelListUpdated: Event.None,
+		supportsUnifiedCompletions: constObservable(undefined),
 		setCurrentModelId: async _modelId => { },
 		selectedModelConfiguration: () => modelConfiguration,
 		defaultModelConfiguration: () => modelConfiguration,

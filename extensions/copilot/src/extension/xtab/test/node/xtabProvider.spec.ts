@@ -29,7 +29,10 @@ import { createTextDocumentData } from '../../../../util/common/test/shims/textD
 import { DeferredPromise } from '../../../../util/vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { Emitter, Event } from '../../../../util/vs/base/common/event';
+import { constObservable } from '../../../../util/vs/base/common/observable';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
+import { Schemas } from '../../../../util/vs/base/common/network';
+import { isWindows } from '../../../../util/vs/base/common/platform';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { LineEdit, LineReplacement } from '../../../../util/vs/editor/common/core/edits/lineEdit';
 import { StringEdit, StringReplacement } from '../../../../util/vs/editor/common/core/edits/stringEdit';
@@ -103,6 +106,7 @@ class MockInlineEditsModelService implements IInlineEditsModelService {
 	declare readonly _serviceBrand: undefined;
 	readonly modelInfo = undefined;
 	readonly onModelListUpdated: Event<void> = new Emitter<void>().event;
+	readonly supportsUnifiedCompletions = constObservable<boolean | undefined>(undefined);
 
 	private _selectedConfig: ModelConfiguration = {
 		modelName: 'test-model',
@@ -167,6 +171,7 @@ describe('pickSystemPrompt', () => {
 		PromptingStrategy.PatchBased01,
 		PromptingStrategy.PatchBased02,
 		PromptingStrategy.PatchBased02WithRecentLineNumbers,
+		PromptingStrategy.PatchBased02Unified,
 		PromptingStrategy.PatchBased02WithoutRecentLineNumbers,
 		PromptingStrategy.Xtab275,
 		PromptingStrategy.XtabAggressiveness,
@@ -520,6 +525,59 @@ describe('getPredictionContents', () => {
 		);
 		const result = call(['line0'], ResponseFormat.CustomDiffPatch, { doc: docWithRoot });
 		expect(result.endsWith(':')).toBe(true);
+	});
+
+	it.skipIf(!isWindows)('preserves spaces in a workspace-relative Windows path', () => {
+		const lines = ['def my_function'];
+		const text = new StringText(lines.join('\n'));
+		const workspaceRoot = URI.file('C:\\workspace');
+		const doc = new StatelessNextEditDocument(
+			DocumentId.create(URI.file('C:\\workspace\\space folder\\test.py').toString()),
+			workspaceRoot,
+			LanguageId.create('python'),
+			lines,
+			LineEdit.empty,
+			text,
+			new Edits(StringEdit, []),
+		);
+
+		expect(call(lines, ResponseFormat.CustomDiffPatch, { doc })).toBe('space folder/test.py:');
+	});
+
+	it.skipIf(!isWindows)('normalizes the drive letter for a file-backed notebook cell', () => {
+		const lines = ['print("hello")'];
+		const text = new StringText(lines.join('\n'));
+		const workspaceRoot = URI.file('C:\\workspace');
+		const cellUri = URI.file('C:\\workspace\\notebook.ipynb').with({ scheme: Schemas.vscodeNotebookCell, fragment: 'ch000001' });
+		const doc = new StatelessNextEditDocument(
+			DocumentId.create(cellUri.toString()),
+			workspaceRoot,
+			LanguageId.create('python'),
+			lines,
+			LineEdit.empty,
+			text,
+			new Edits(StringEdit, []),
+		);
+
+		expect(call(lines, ResponseFormat.CustomDiffPatch, { doc })).toBe('notebook.ipynb#ch000001:');
+	});
+
+	it.skipIf(!isWindows)('preserves path casing for a virtual notebook cell', () => {
+		const lines = ['print("hello")'];
+		const text = new StringText(lines.join('\n'));
+		const workspaceRoot = URI.from({ scheme: 'test-notebook', path: '/repo' });
+		const cellUri = URI.from({ scheme: Schemas.vscodeNotebookCell, path: '/Repo/notebook.ipynb', fragment: 'ch000001' });
+		const doc = new StatelessNextEditDocument(
+			DocumentId.create(cellUri.toString()),
+			workspaceRoot,
+			LanguageId.create('python'),
+			lines,
+			LineEdit.empty,
+			text,
+			new Edits(StringEdit, []),
+		);
+
+		expect(call(lines, ResponseFormat.CustomDiffPatch, { doc })).toBe('/Repo/notebook.ipynb#ch000001:');
 	});
 
 	it('returns correct content for CustomDiffPatch without workspace root', () => {

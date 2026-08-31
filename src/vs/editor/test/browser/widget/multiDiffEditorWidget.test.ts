@@ -7,7 +7,7 @@ import assert from 'assert';
 import sinon from 'sinon';
 import { Dimension } from '../../../../base/browser/dom.js';
 import { Event, ValueWithChangeEvent } from '../../../../base/common/event.js';
-import { waitForState } from '../../../../base/common/observable.js';
+import { autorun, waitForState } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -16,7 +16,7 @@ import { IAccessibilitySignalService } from '../../../../platform/accessibilityS
 import { IActionViewItemService, NullActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { IMenu, IMenuService } from '../../../../platform/actions/common/actions.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { IEditorProgressService } from '../../../../platform/progress/common/progress.js';
+import { emptyProgressRunner, IEditorProgressService } from '../../../../platform/progress/common/progress.js';
 import { InMemoryStorageService, IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IDiffProviderFactoryService } from '../../../browser/widget/diffEditor/diffProviderFactoryService.js';
 import { DiffEditorWidget } from '../../../browser/widget/diffEditor/diffEditorWidget.js';
@@ -25,6 +25,7 @@ import { IDocumentDiffItem, IMultiDiffEditorModel } from '../../../browser/widge
 import { MultiDiffEditorWidget } from '../../../browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
 import { IWorkbenchUIElementFactory } from '../../../browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
+import { IDocumentDiff, IDocumentDiffProvider } from '../../../common/diff/documentDiffProvider.js';
 import { instantiateTextModel } from '../../common/testTextModel.js';
 import { TestDiffProviderFactoryService } from '../diff/testDiffProviderFactoryService.js';
 import { createCodeEditorServices } from '../testCodeEditor.js';
@@ -113,4 +114,108 @@ suite('MultiDiffEditorWidget', () => {
 			documentItem.dispose();
 		}
 	});
+
+	test('preserves expanded height when a collapsed template is recycled', async () => {
+		const services = new ServiceCollection();
+		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
+		services.set(IActionViewItemService, new NullActionViewItemService());
+		services.set(IEditorProgressService, new class extends mock<IEditorProgressService>() {
+			override show() { return emptyProgressRunner; }
+		}());
+		services.set(IDiffProviderFactoryService, new PendingDiffProviderFactoryService());
+		services.set(IStorageService, disposables.add(new InMemoryStorageService()));
+		services.set(IMenuService, new class extends mock<IMenuService>() {
+			override createMenu(): IMenu {
+				return new class extends mock<IMenu>() {
+					override readonly onDidChange = Event.None;
+					override getActions() { return []; }
+					override dispose(): void { }
+				}();
+			}
+		}());
+		const instantiationService = createCodeEditorServices(disposables, services);
+		const documentItems: RefCounted<IDocumentDiffItem>[] = [];
+		const originalUris: URI[] = [];
+		const modifiedUris: URI[] = [];
+		for (let index = 0; index < 3; index++) {
+			const originalUri = URI.parse(`inmemory://original/test-${index}.js`);
+			const modifiedUri = URI.parse(`inmemory://modified/test-${index}.js`);
+			const original = disposables.add(instantiateTextModel(instantiationService, '', undefined, undefined, originalUri));
+			const modified = disposables.add(instantiateTextModel(instantiationService, 'const value = 1;', undefined, undefined, modifiedUri));
+			documentItems.push(RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+				original,
+				modified,
+				options: { accessibilitySupport: 'off' },
+			}, { dispose() { } }));
+			originalUris.push(originalUri);
+			modifiedUris.push(modifiedUri);
+		}
+		const model: IMultiDiffEditorModel = {
+			documents: ValueWithChangeEvent.const(documentItems),
+		};
+		const container = document.createElement('div');
+		const widget = instantiationService.createInstance(
+			MultiDiffEditorWidget,
+			container,
+			{} satisfies IWorkbenchUIElementFactory,
+			undefined,
+		);
+		widget.layout(new Dimension(800, 200));
+		const viewModel = widget.createViewModel(model);
+		await waitForState(viewModel.items, items => items.length === documentItems.length);
+		viewModel.items.get()[0].lastTemplateData.set({ expandedContentHeight: 2000, selections: undefined }, undefined);
+		widget.setViewModel(viewModel);
+		widget.reveal({ original: originalUris[0], modified: modifiedUris[0] }, { highlight: false });
+
+		const observedLastItemHeights: number[] = [];
+		const observer = autorun(reader => {
+			const lastItem = widget.getLayoutDebugState().read(reader).items.at(-1);
+			if (lastItem?.hasTemplate) {
+				observedLastItemHeights.push(lastItem.verticalState.contentHeight);
+			}
+		});
+		try {
+			const firstItem = widget.getLayoutDebugState().get().items[0];
+			viewModel.items.get()[0].collapsed.set(true, undefined);
+			widget.reveal({ original: originalUris.at(-1), modified: modifiedUris.at(-1) }, { highlight: false });
+			const cachedFirstItemHeight = viewModel.items.get()[0].lastTemplateData.get().expandedContentHeight;
+			widget.reveal({ original: originalUris[0], modified: modifiedUris[0] }, { highlight: false });
+			viewModel.items.get()[0].collapsed.set(false, undefined);
+
+			assert.deepStrictEqual({
+				firstItemHasTemplate: firstItem.hasTemplate,
+				firstItemHeight: firstItem.verticalState.contentHeight,
+				cachedFirstItemHeight,
+				firstObservedLastItemHeight: observedLastItemHeights[0],
+				restoredFirstItemHeight: widget.getLayoutDebugState().get().items[0].verticalState.contentHeight,
+			}, {
+				firstItemHasTemplate: true,
+				firstItemHeight: 2000,
+				cachedFirstItemHeight: 2000,
+				firstObservedLastItemHeight: 500,
+				restoredFirstItemHeight: 2000,
+			});
+		} finally {
+			observer.dispose();
+			widget.setViewModel(undefined);
+			viewModel.dispose();
+			widget.dispose();
+			for (const documentItem of documentItems) {
+				documentItem.dispose();
+			}
+		}
+	});
 });
+
+class PendingDiffProviderFactoryService implements IDiffProviderFactoryService {
+	declare readonly _serviceBrand: undefined;
+
+	createDiffProvider(): IDocumentDiffProvider {
+		return new class extends mock<IDocumentDiffProvider>() {
+			override readonly onDidChange = Event.None;
+			override computeDiff(): Promise<IDocumentDiff> {
+				return new Promise(() => { });
+			}
+		}();
+	}
+}

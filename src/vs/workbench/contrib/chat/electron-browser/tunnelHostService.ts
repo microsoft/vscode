@@ -16,6 +16,7 @@ import { IEnvironmentService } from '../../../../platform/environment/common/env
 import { ISharedProcessService } from '../../../../platform/ipc/electron-browser/services.js';
 import { ILogger, ILoggerService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -26,6 +27,7 @@ import { ITunnelHostService } from '../common/tunnelHost.js';
 export const CONFIGURATION_KEY_MICROSOFT_AUTH = 'remote.tunnels.access.enableMicrosoftAuth';
 export const SHOW_TUNNEL_HOST_OUTPUT_ID = 'sessions.tunnelHost.showOutput';
 export const RENAME_TUNNEL_ID = 'sessions.tunnelHost.renameTunnel';
+export const TUNNEL_HOST_SHARING_PREFERENCE_KEY = 'tunnelHost.sharingEnabled';
 
 export class TunnelHostService extends Disposable implements ITunnelHostService {
 	declare readonly _serviceBrand: undefined;
@@ -39,6 +41,7 @@ export class TunnelHostService extends Disposable implements ITunnelHostService 
 	private _isSharing = false;
 	private _isConnecting = false;
 	private _sharingInfo: ITunnelHostInfo | undefined;
+	private readonly _initializationPromise: Promise<void>;
 
 	/** Tracks which auth provider was last used successfully. */
 	private _lastAuthProvider: 'github' | 'microsoft' | undefined;
@@ -50,6 +53,7 @@ export class TunnelHostService extends Disposable implements ITunnelHostService 
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILoggerService loggerService: ILoggerService,
 		@IEnvironmentService environmentService: IEnvironmentService,
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
 
@@ -68,13 +72,24 @@ export class TunnelHostService extends Disposable implements ITunnelHostService 
 			this._onDidChangeStatus.fire();
 		}));
 
-		this._mainService.getStatus().then(status => {
+		this._initializationPromise = this._initialize();
+	}
+
+	private async _initialize(): Promise<void> {
+		try {
+			const status = await this._mainService.getStatus();
 			this._isSharing = status.active;
 			this._sharingInfo = status.active ? status.info : undefined;
 			if (status.active) {
 				this._onDidChangeStatus.fire();
 			}
-		});
+
+			if (!this._isSharing && this._storageService.getBoolean(TUNNEL_HOST_SHARING_PREFERENCE_KEY, StorageScope.APPLICATION, false)) {
+				await this._startSharing(true);
+			}
+		} catch (error) {
+			this._logger.error('Failed to restore remote connections.', error);
+		}
 	}
 
 	get isSharing(): boolean {
@@ -90,11 +105,20 @@ export class TunnelHostService extends Disposable implements ITunnelHostService 
 	}
 
 	async startSharing(): Promise<void> {
+		await this._initializationPromise;
+		await this._startSharing(false);
+	}
+
+	private async _startSharing(silent: boolean): Promise<void> {
+		if (this._isSharing || this._isConnecting) {
+			return;
+		}
+
 		this._isConnecting = true;
 		this._onDidChangeStatus.fire();
 
 		try {
-			const auth = await this._getToken(false);
+			const auth = await this._getToken(silent);
 			if (!auth) {
 				this._logger.warn('No auth token available for tunnel hosting');
 				throw new Error(localize('tunnelHost.noAuth', "No authentication token available. Please sign in and try again."));
@@ -105,13 +129,29 @@ export class TunnelHostService extends Disposable implements ITunnelHostService 
 			const info = await this._mainService.startHosting(auth.token, auth.provider);
 			this._isSharing = true;
 			this._sharingInfo = info;
+			this._storageService.store(TUNNEL_HOST_SHARING_PREFERENCE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		} finally {
 			this._isConnecting = false;
 			this._onDidChangeStatus.fire();
 		}
 	}
 
+	async restartSharing(): Promise<void> {
+		await this._initializationPromise;
+		await this._stopSharing(true);
+		await this._startSharing(false);
+	}
+
 	async stopSharing(): Promise<void> {
+		await this._initializationPromise;
+
+		await this._stopSharing(false);
+	}
+
+	private async _stopSharing(preservePreference: boolean): Promise<void> {
+		if (!preservePreference) {
+			this._storageService.remove(TUNNEL_HOST_SHARING_PREFERENCE_KEY, StorageScope.APPLICATION);
+		}
 		this._logger.info('Stopping tunnel hosting...');
 		await this._mainService.stopHosting();
 		this._isSharing = false;

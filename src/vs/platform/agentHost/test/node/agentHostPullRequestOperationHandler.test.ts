@@ -23,6 +23,7 @@ import type { ICopilotApiService, ICopilotApiServiceRequestOptions, ICopilotUtil
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import type { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
+import type { IAgentBranchNameGenerator, IAgentBranchNameGeneratorRequest } from '../../node/shared/agentBranchNameGenerator.js';
 
 class TestCopilotApiService implements ICopilotApiService {
 	declare readonly _serviceBrand: undefined;
@@ -50,6 +51,18 @@ class TestCopilotApiService implements ICopilotApiService {
 	}
 }
 
+class TestBranchNameGenerator implements IAgentBranchNameGenerator {
+	declare readonly _serviceBrand: undefined;
+	readonly requests: IAgentBranchNameGeneratorRequest[] = [];
+
+	async generateBranchName(request: IAgentBranchNameGeneratorRequest): Promise<string> {
+		this.requests.push(request);
+		const branchName = `${request.branchPrefix ?? ''}agents/add-retry-logic`;
+		await request.branchNameCollides?.(branchName);
+		return branchName;
+	}
+}
+
 class TestGitService implements IAgentHostGitService {
 	declare readonly _serviceBrand: undefined;
 
@@ -59,6 +72,8 @@ class TestGitService implements IAgentHostGitService {
 	uncommitted = false;
 	upstream = false;
 	gitState: ISessionGitState | undefined;
+	gitStateAfterBranchCreation: ISessionGitState | undefined;
+	createdBranch: string | undefined;
 	branchChanges: readonly ISessionFileDiff[] | undefined = [{ after: { uri: 'file:///repo/file.ts', content: { uri: 'file:///repo/file.ts' } } }];
 
 	async getCurrentBranch(): Promise<string | undefined> { return 'feature/test'; }
@@ -72,7 +87,14 @@ class TestGitService implements IAgentHostGitService {
 	async copyWorktreeIncludeFiles(): Promise<void> { }
 	async addExistingWorktree(): Promise<void> { }
 	async removeWorktree(): Promise<void> { }
-	async branchExists(): Promise<boolean> { return false; }
+	async branchExists(_repositoryRoot: URI, branchName: string): Promise<boolean> {
+		this.calls.push(`branchExists:${branchName}`);
+		return false;
+	}
+	async createBranch(_workingDirectory: URI, branchName: string): Promise<void> {
+		this.calls.push(`createBranch:${branchName}`);
+		this.createdBranch = branchName;
+	}
 	async hasUncommittedChanges(): Promise<boolean> {
 		this.calls.push('hasUncommittedChanges');
 		return this.uncommitted;
@@ -94,7 +116,7 @@ class TestGitService implements IAgentHostGitService {
 	}
 	async getSessionGitState(_workingDirectory: URI, baseBranchName?: string): Promise<ISessionGitState | undefined> {
 		this.requestedBaseBranches.push(baseBranchName);
-		return this.gitState;
+		return this.createdBranch ? this.gitStateAfterBranchCreation : this.gitState;
 	}
 	async computeSessionFileDiffs(): Promise<readonly ISessionFileDiff[] | undefined> {
 		this.calls.push('computeSessionFileDiffs');
@@ -184,10 +206,11 @@ function createAuthenticationService(withCopilotToken = false): IAgentHostAuthen
 	};
 }
 
-function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitService, octoKitService: TestOctoKitService, options?: { copilotApiService?: TestCopilotApiService; withCopilotToken?: boolean; turns?: Turn[]; draft?: boolean; autoMergeMethod?: AutoMergeMethod; baseBranch?: string }): { handler: AgentHostPullRequestOperationHandler; session: URI; createdEvents: string[]; copilotApiService: TestCopilotApiService } {
+function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitService, octoKitService: TestOctoKitService, options?: { copilotApiService?: TestCopilotApiService; withCopilotToken?: boolean; turns?: Turn[]; draft?: boolean; autoMergeMethod?: AutoMergeMethod; baseBranch?: string; branchPrefix?: string }): { handler: AgentHostPullRequestOperationHandler; session: URI; createdEvents: string[]; createdBranches: string[]; copilotApiService: TestCopilotApiService; branchNameGenerator: TestBranchNameGenerator } {
 	const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 	const session = URI.parse('agent:/session');
 	const createdEvents: string[] = [];
+	const createdBranches: string[] = [];
 	stateManager.createSession({
 		resource: session.toString(),
 		provider: 'copilot',
@@ -197,12 +220,13 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 		modifiedAt: new Date(1).toISOString(),
 		workingDirectories: [URI.file('/repo').toString()],
 	});
-	if (options?.baseBranch) {
+	if (options?.baseBranch || options?.branchPrefix) {
 		stateManager.setSessionConfig(session.toString(), {
 			schema: { type: 'object', properties: {} },
 			values: {
 				[SessionConfigKey.Isolation]: 'worktree',
-				[SessionConfigKey.Branch]: options.baseBranch,
+				...(options.baseBranch ? { [SessionConfigKey.Branch]: options.baseBranch } : {}),
+				...(options.branchPrefix ? { [SessionConfigKey.WorktreeBranchPrefix]: options.branchPrefix } : {}),
 			},
 		});
 	}
@@ -219,6 +243,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 	});
 	stateManager.setSessionMeta(session.toString(), sessionMeta);
 	const copilotApiService = options?.copilotApiService ?? new TestCopilotApiService();
+	const branchNameGenerator = new TestBranchNameGenerator();
 	return {
 		handler: new AgentHostPullRequestOperationHandler(
 			options?.draft ?? false,
@@ -231,11 +256,16 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 				return state;
 			},
 			async () => options?.baseBranch ?? 'main',
-			event => createdEvents.push(`${event.sessionKey}:${event.pullRequestUrl}`),
-			createAuthenticationService(options?.withCopilotToken), gitService, octoKitService, createTestGitHubEndpointService(), copilotApiService, new NullLogService()),
+			event => {
+				createdEvents.push(`${event.sessionKey}:${event.pullRequestUrl}`);
+				createdBranches.push(event.branchName);
+			},
+			createAuthenticationService(options?.withCopilotToken), gitService, octoKitService, createTestGitHubEndpointService(), copilotApiService, branchNameGenerator, new NullLogService()),
 		session,
 		createdEvents,
+		createdBranches,
 		copilotApiService,
+		branchNameGenerator,
 	};
 }
 
@@ -276,6 +306,67 @@ suite('AgentHostPullRequestOperationHandler', () => {
 				'createPullRequest:false',
 			],
 			createdEvents: ['agent:/session:https://github.com/microsoft/vscode/pull/123'],
+		});
+	});
+
+	test('creates a generated branch before committing when the current branch is the base branch', async () => {
+		const gitService = new TestGitService();
+		gitService.uncommitted = true;
+		gitService.gitState = {
+			branchName: 'main',
+			baseBranchName: 'main',
+			upstreamBranchName: 'origin/main',
+			githubHeadOwner: 'microsoft',
+		};
+		gitService.gitStateAfterBranchCreation = {
+			branchName: 'users/test/agents/add-retry-logic',
+			baseBranchName: 'main',
+		};
+		const octoKitService = new TestOctoKitService();
+		const copilotApiService = new TestCopilotApiService();
+		copilotApiService.response = 'add-retry-logic';
+		const turns: Turn[] = [{
+			id: 'turn-1',
+			message: { text: 'Add retry logic', origin: { kind: MessageKind.User } },
+			responseParts: [],
+			usage: undefined,
+			state: TurnState.Complete,
+		}];
+		const { handler, session, createdBranches, branchNameGenerator } = setup(disposables, gitService, octoKitService, {
+			copilotApiService,
+			withCopilotToken: true,
+			turns,
+			branchPrefix: 'users/test/',
+		});
+
+		await handler.invoke({ channel: buildSessionChangesetUri(session.toString()), operationId: AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			gitCalls: gitService.calls,
+			requestedBaseBranches: gitService.requestedBaseBranches,
+			branchGenerationTokens: branchNameGenerator.requests.map(request => request.githubToken),
+			utilityCallTokens: copilotApiService.calls.map(call => call.token),
+			pushOptions: gitService.pushOptions,
+			createHead: octoKitService.lastHead,
+			createBase: octoKitService.lastBase,
+			createdBranches,
+		}, {
+			gitCalls: [
+				'hasUncommittedChanges',
+				'branchExists:users/test/agents/add-retry-logic',
+				'createBranch:users/test/agents/add-retry-logic',
+				'commitAll:Agent Host changes for users/test/agents/add-retry-logic',
+				'computeSessionFileDiffs',
+				'hasUpstream',
+				'push:users/test/agents/add-retry-logic:true',
+			],
+			requestedBaseBranches: ['main', 'main'],
+			branchGenerationTokens: ['gh-token'],
+			utilityCallTokens: ['copilot-token'],
+			pushOptions: [{ remote: undefined, ref: 'users/test/agents/add-retry-logic', setUpstream: true }],
+			createHead: 'users/test/agents/add-retry-logic',
+			createBase: 'main',
+			createdBranches: ['users/test/agents/add-retry-logic'],
 		});
 	});
 

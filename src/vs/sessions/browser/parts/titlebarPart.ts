@@ -25,6 +25,7 @@ import { Parts, IWorkbenchLayoutService } from '../../../workbench/services/layo
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IHostService } from '../../../workbench/services/host/browser/host.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
+import { MenuWorkbenchButtonBar } from '../../../platform/actions/browser/buttonbar.js';
 import { IEditorGroupsContainer } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { CodeWindow, mainWindow } from '../../../base/browser/window.js';
 import { safeIntl } from '../../../base/common/date.js';
@@ -259,20 +260,24 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			toolbarOptions: { primaryGroup: () => true },
 		}));
 
-		// Update toolbar (leftmost in the right-side controls)
-		const updateToolBarElement = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-update-container'));
-		const updateToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, updateToolBarElement, Menus.TitleBarUpdate, {
-			contextMenu: Menus.TitleBarContext,
-			hiddenItemStrategy: HiddenItemStrategy.NoHide,
-			telemetrySource: 'titlePart.update',
-			toolbarOptions: { primaryGroup: () => true },
+		const screenReaderToolBarElement = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-screen-reader-container'));
+		const screenReaderButtonBar = this._register(this.instantiationService.createInstance(MenuWorkbenchButtonBar, screenReaderToolBarElement, Menus.TitleBarAccessibility, {
+			telemetrySource: 'titlePart.accessibility',
+			renderSecondaryActions: false,
+			buttonConfigProvider: () => ({ showIcon: false, showLabel: true, isSecondary: false }),
 		}));
+		const updateScreenReaderButtonBar = () => {
+			screenReaderToolBarElement.classList.toggle('has-no-actions', screenReaderButtonBar.buttons.length === 0);
+			this.updateTitleBarToolBarOverflow();
+		};
+		this._register(screenReaderButtonBar.onDidChange(updateScreenReaderButtonBar));
+		updateScreenReaderButtonBar();
 
+		this.overflowManagedToolBarElements.push(screenReaderToolBarElement);
 		this.registerOverflowManagedToolBar(centerActionsContainer, centerActionsToolBar);
 		this.registerOverflowManagedToolBar(centerNavContainer, centerNavToolBar);
 		this.registerOverflowManagedToolBar(rightToolbarContainer, rightToolBar);
 		this.registerOverflowManagedToolBar(sessionActionsContainer, sessionActionsToolBar);
-		this.registerOverflowManagedToolBar(updateToolBarElement, updateToolBar);
 
 		// Context menu on the titlebar
 		this._register(addDisposableListener(this.rootContainer, EventType.CONTEXT_MENU, e => {
