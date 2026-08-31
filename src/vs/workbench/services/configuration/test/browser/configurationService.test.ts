@@ -35,7 +35,9 @@ import { IKeybindingEditingService, KeybindingsEditingService } from '../../../k
 import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { IWorkbenchAssignmentService } from '../../../assignment/common/assignmentService.js';
+import { IExtensionService } from '../../../extensions/common/extensions.js';
 import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { BrowserWorkbenchEnvironmentService, IBrowserWorkbenchEnvironmentService } from '../../../environment/browser/environmentService.js';
@@ -302,6 +304,75 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 		} finally {
 			if (contribution.registeredExperimentalDefaults.size) {
 				configurationRegistry.deregisterDefaultConfigurations([...contribution.registeredExperimentalDefaults.values()]);
+			}
+			configurationRegistry.deregisterConfigurations([startupConfiguration]);
+		}
+	});
+
+	test('re-resolves pending startup settings when onDidRefetchAssignments fires', async () => {
+		const startupSetting = 'test.wiredStartupExperimentalSetting';
+		const startupConfiguration: IConfigurationNode = {
+			id: 'test.wiredStartupExperimentalSettings',
+			type: 'object',
+			properties: {
+				[startupSetting]: {
+					type: 'string',
+					default: 'control',
+					experiment: {
+						mode: 'startup',
+						name: 'testWiredStartupExperimentalSetting'
+					}
+				}
+			}
+		};
+		// No value at startup, so the setting stays pending until a value arrives on a refetch.
+		const treatments: Record<string, string | undefined> = {
+			testWiredStartupExperimentalSetting: undefined,
+		};
+		const onDidRefetchAssignments = new Emitter<void>();
+
+		// Construct the real contribution so the constructor's `onDidRefetchAssignments` -> refetch
+		// wiring is exercised end to end (rather than calling processExperimentalSettings directly).
+		const workbenchAssignmentService = {
+			onDidRefetchAssignments: onDidRefetchAssignments.event,
+			getTreatment: async (name: string) => treatments[name],
+		} as unknown as IWorkbenchAssignmentService;
+		const extensionService = { whenInstalledExtensionsRegistered: async () => true } as unknown as IExtensionService;
+		const workspaceService = { reloadConfiguration: async () => { } } as unknown as WorkspaceService;
+		const environmentService = { isSessionsWindow: false } as unknown as IWorkbenchEnvironmentService;
+
+		configurationRegistry.registerConfiguration(startupConfiguration);
+		const contribution = new ConfigurationDefaultOverridesContribution(workbenchAssignmentService, extensionService, workspaceService, environmentService, new NullLogService());
+		const internals = contribution as unknown as {
+			pendingStartupExperimentalSettings: Set<string>;
+			registeredExperimentalDefaults: Map<string, IConfigurationDefaults>;
+		};
+		const readDefault = () => configurationRegistry.getConfigurationProperties()[startupSetting].default;
+		const waitFor = async (predicate: () => boolean) => {
+			for (let i = 0; i < 100 && !predicate(); i++) {
+				await timeout(0);
+			}
+		};
+
+		try {
+			// The constructor's initial resolution finds no value, so the setting becomes pending.
+			await waitFor(() => internals.pendingStartupExperimentalSettings.has(startupSetting));
+			const afterInitial = { default: readDefault(), pending: internals.pendingStartupExperimentalSettings.has(startupSetting) };
+
+			// A value arrives; firing the event must re-resolve the pending setting through the wiring.
+			treatments.testWiredStartupExperimentalSetting = 'treatment';
+			onDidRefetchAssignments.fire();
+			await waitFor(() => readDefault() === 'treatment');
+
+			assert.deepStrictEqual({ afterInitial, afterRefetch: { default: readDefault(), pending: internals.pendingStartupExperimentalSettings.has(startupSetting) } }, {
+				afterInitial: { default: 'control', pending: true },
+				afterRefetch: { default: 'treatment', pending: false },
+			});
+		} finally {
+			contribution.dispose();
+			onDidRefetchAssignments.dispose();
+			if (internals.registeredExperimentalDefaults.size) {
+				configurationRegistry.deregisterDefaultConfigurations([...internals.registeredExperimentalDefaults.values()]);
 			}
 			configurationRegistry.deregisterConfigurations([startupConfiguration]);
 		}

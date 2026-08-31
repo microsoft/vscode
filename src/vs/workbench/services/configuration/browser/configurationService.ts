@@ -1367,8 +1367,7 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 		super();
 
 		this.throttler.queue(() => this.updateDefaults());
-		// On refetch, re-resolve `auto` settings (which track changes for the whole session) and
-		// any `startup` settings still awaiting their first resolved value (see below).
+		// Re-resolve `auto` settings and any still-pending `startup` settings on each refetch.
 		this._register(workbenchAssignmentService.onDidRefetchAssignments(() => this.throttler.queue(() => this.processExperimentalSettings([...this.autoExperimentalSettings, ...this.pendingStartupExperimentalSettings], true))));
 
 		// When configuration is updated make sure to apply experimental configuration overrides
@@ -1429,9 +1428,8 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 			}
 			try {
 				const value = await this.workbenchAssignmentService.getTreatment(schema.experiment.name ?? `config.${property}`);
-				// A `startup` treatment resolves once but may be unavailable initially (e.g. served by
-				// the sign-in gated assignments endpoint). Keep it pending and retry on refetches
-				// until a value first arrives, then latch it so it stays stable for the session.
+				// Latch a `startup` value once it first resolves; keep it pending until then so a
+				// later (sign-in gated) value can still be applied.
 				if (!isAutoExperiment) {
 					if (isUndefined(value)) {
 						this.pendingStartupExperimentalSettings.add(property);
