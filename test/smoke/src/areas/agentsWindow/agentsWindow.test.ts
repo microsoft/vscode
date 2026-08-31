@@ -204,9 +204,7 @@ export function setup(logger: Logger) {
 		// the SDK’s built-in shell tool runs commands. The AgentHost forwards
 		// `chat.agent.sandbox.*` into the SDK via `session.options.update`
 		// (mirroring how the Copilot extension configures the CLI sandbox), so
-		// shell commands still run mxc-wrapped and the SDK’s pre-call shell
-		// permission prompt is auto-approved on the same code path as the
-		// custom-terminal-tool variant above.
+		// shell commands still run mxc-wrapped.
 
 		const agentHost = setupAgentHostSuite(logger, {
 			serverLabel: 'AgentHost SDK sandbox',
@@ -228,9 +226,8 @@ export function setup(logger: Logger) {
 		it('Test Copilot CLI session via AgentHost (SDK sandbox)', async function () {
 			// See the Copilot CLI sandbox test above for the rationale on
 			// platform gating and where to find logs when debugging CI runs.
-			// The AgentHost-side sandbox log we assert on is
-			// `<logsPath>/agenthost.log` (the utility-process log), produced by
-			// CopilotAgentSession when it auto-approves a sandboxed shell call.
+			// The AgentHost-side log we assert on is `<logsPath>/agenthost.log`
+			// (the utility-process log), produced by CopilotAgentSession.
 			if (process.platform === 'win32') {
 				this.skip();
 			}
@@ -261,15 +258,20 @@ export function setup(logger: Logger) {
 				// in `agenthost.log`:
 				//   1. `Applied SDK sandboxConfig via session.options.update` — the
 				//      AgentHost pushed the mxc policy to the SDK.
-				//   2. `Auto-approving sandboxed shell command` — the SDK-side branch
-				//      of `_isShellSandboxedByDefault` confirmed the sandbox config
-				//      resolves to enabled, so the pre-call prompt was skipped.
+				//   2. `Tool started: bash` — the SDK's own shell tool ran the command.
 				//   3. NO `[ShellManager]` line — the AgentHost provided no shell tool
 				//      (customTerminalTool is off), so the SDK, not our engine, ran it.
-				// Poll for the auto-approve entry (the later of 1 & 2).
+				// There is deliberately no `Auto-approving sandboxed shell command`
+				// entry on this path. The session enables the runtime's script-safety
+				// classifier, which reports this `echo` as read-only, and the runtime
+				// resolves a read-only command without ever raising a permission
+				// request. The host's auto-approve branch still governs non-read-only
+				// sandboxed commands and is asserted by the custom-terminal-tool test
+				// above. Poll for the tool run: it lands after 1, and by that point a
+				// competing `[ShellManager]` run would have been logged too.
 				const agentHostLogPath = path.join(agentHost.logsPath, 'agenthost.log');
-				const autoApprove = /\[Copilot:[^\]]+\] Auto-approving sandboxed shell command for tool call /;
-				const agentHostLog = await waitForLogContent(() => readFileIfExists(agentHostLogPath), autoApprove);
+				const sdkShellRun = /\[Copilot:[^\]]+\] Tool started: bash/;
+				const agentHostLog = await waitForLogContent(() => readFileIfExists(agentHostLogPath), sdkShellRun);
 				assert.match(
 					agentHostLog,
 					/\[Copilot:[^\]]+\] Applied SDK sandboxConfig via session\.options\.update/,
@@ -277,8 +279,8 @@ export function setup(logger: Logger) {
 				);
 				assert.match(
 					agentHostLog,
-					autoApprove,
-					`expected an "Auto-approving sandboxed shell command" entry in ${agentHostLogPath}`
+					sdkShellRun,
+					`expected the SDK's own shell tool ("Tool started: bash") to have run the command in ${agentHostLogPath}`
 				);
 				assert.doesNotMatch(
 					agentHostLog,
