@@ -1525,6 +1525,7 @@ suite('PluginMarketplaceService - per-marketplace auto-update enforcement', () =
 
 	interface ICreateResult {
 		readonly service: PluginMarketplaceService;
+		readonly storageService: InMemoryStorageService;
 		readonly runIdle: () => void;
 		readonly fetchedMarketplaces: string[];
 	}
@@ -1560,7 +1561,8 @@ suite('PluginMarketplaceService - per-marketplace auto-update enforcement', () =
 		} as unknown as IAgentPluginRepositoryService);
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IRequestService, {} as unknown as IRequestService);
-		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
+		const storageService = store.add(new InMemoryStorageService());
+		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(IWorkspacePluginSettingsService, {
 			extraMarketplaces: observableValue('test.extraMarketplaces', []),
 			enabledPlugins: observableValue('test.enabledPlugins', new Map()),
@@ -1577,6 +1579,7 @@ suite('PluginMarketplaceService - per-marketplace auto-update enforcement', () =
 		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
 		return {
 			service,
+			storageService,
 			fetchedMarketplaces,
 			runIdle: () => {
 				assert.ok(runner, 'expected a scheduled idle callback');
@@ -1662,11 +1665,23 @@ suite('PluginMarketplaceService - per-marketplace auto-update enforcement', () =
 		assert.deepStrictEqual(fetchedMarketplaces, []);
 	});
 
+	test('a recent successful check is not re-run when metadata is already hydrated at startup', async () => {
+		const { service, storageService, runIdle, fetchedMarketplaces } = createService({ autoUpdate: 'on', extraMarketplaces: managedMarketplaces });
+		storageService.store('chat.plugins.lastUpdateCheck.v1', Date.now(), StorageScope.APPLICATION, StorageTarget.MACHINE);
+
+		// Metadata already hydrated before idle: the interval must still apply.
+		installAll(service);
+		runIdle();
+		await timeout(0);
+		await timeout(0);
+
+		assert.deepStrictEqual(fetchedMarketplaces, []);
+	});
+
 	test('plugins hydrated after startup idle are still checked (microsoft/vscode#330090)', async () => {
 		const { service, runIdle, fetchedMarketplaces } = createService({ autoUpdate: 'on', extraMarketplaces: managedMarketplaces });
 
-		// Startup idle fires before `installed.json` metadata has been
-		// hydrated, so the first check sees nothing installed.
+		// Startup idle fires before metadata hydrates, so this check finds nothing.
 		runIdle();
 		await timeout(0);
 		await timeout(0);

@@ -320,15 +320,8 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	private readonly _updateCheckDelayer = this._register(new ThrottledDelayer<void>(PLUGIN_UPDATE_CHECK_INTERVAL_MS));
 	private _updateChecksInitialized = false;
 	private _updateCheckRunning = false;
-	/**
-	 * Whether the most recent update check bailed out because no installed
-	 * plugin metadata was available yet. Installed entries are hydrated
-	 * asynchronously from `installed.json`, so the check scheduled at startup
-	 * idle usually observes an empty list; without this flag it would back off
-	 * for a full {@link PLUGIN_UPDATE_CHECK_INTERVAL_MS} and plugins would
-	 * never auto-update (microsoft/vscode#330090).
-	 */
-	private _lastCheckFoundNoInstalledPlugins = true;
+	/** Whether the last update check bailed out because no plugin metadata had hydrated yet. */
+	private _lastCheckFoundNoInstalledPlugins = false;
 
 	readonly onDidChangeMarketplaces: Event<void>;
 
@@ -420,10 +413,9 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		this._register(runWhenGlobalIdle(() => {
 			this._updateChecksInitialized = true;
 			this._scheduleUpdateCheck();
-			// Installed plugin metadata is hydrated asynchronously, so the
-			// check above typically runs against an empty list. Re-arm as soon
-			// as installed entries become observable instead of waiting a full
-			// check interval.
+			// Plugin metadata hydrates asynchronously, so the check above often
+			// finds nothing installed. Re-arm when entries appear rather than
+			// backing off a full interval (microsoft/vscode#330090).
 			this._register(autorun(reader => {
 				if (this.installedPlugins.read(reader).length === 0
 					|| !this._lastCheckFoundNoInstalledPlugins
@@ -886,8 +878,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			} finally {
 				this._updateCheckRunning = false;
 				if (!this._updateCheckDelayer.isTriggered()) {
-					// A check that found nothing installed did not really run;
-					// retry immediately if entries have appeared since.
+					// Retry now if entries hydrated during a check that found none.
 					this._scheduleUpdateCheck(
 						this._lastCheckFoundNoInstalledPlugins && this.installedPlugins.get().length > 0
 							? 0
