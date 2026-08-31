@@ -6811,7 +6811,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	resolveChatResponseUri(_sessionResource: URI, href: string, _kind: 'link' | 'image'): string {
-		return rewriteAgentHostLinkTarget(href, this._config.connectionAuthority);
+		return rewriteAgentHostLinkTarget(href, this._config.connectionAuthority, this._config.connection.resourceUris);
 	}
 
 	/**

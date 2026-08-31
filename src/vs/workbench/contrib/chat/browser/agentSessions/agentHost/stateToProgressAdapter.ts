@@ -2126,7 +2126,7 @@ function normalizeFileUriSelection(uri: URI, href: string): URI {
 }
 
 /** Wraps an absolute path or internal URI target for the owning Agent Host connection. */
-export function rewriteAgentHostLinkTarget(href: string, connectionAuthority: string): string {
+export function rewriteAgentHostLinkTarget(href: string, connectionAuthority: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority)): string {
 	let parsed = parseAbsoluteFileLinkTarget(href);
 	if (!parsed) {
 		try {
@@ -2146,7 +2146,10 @@ export function rewriteAgentHostLinkTarget(href: string, connectionAuthority: st
 
 	let agentHostUri: URI;
 	try {
-		agentHostUri = toAgentHostUri(parsed, connectionAuthority);
+		agentHostUri = resourceUris.fromAgentHost(parsed);
+		if (parsed.scheme !== Schemas.file && isEqual(agentHostUri, parsed)) {
+			agentHostUri = toAgentHostUri(parsed, connectionAuthority);
+		}
 	} catch {
 		return href;
 	}
