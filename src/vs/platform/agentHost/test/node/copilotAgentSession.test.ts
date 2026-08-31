@@ -4550,8 +4550,8 @@ suite('CopilotAgentSession', () => {
 			}, {
 				modes: ['allow-all', 'manual'],
 				logs: [
-					'[Copilot:test-session-1] Syncing permission mode: source=turn-start, agentMode=interactive, configuredLevel=autoApprove, sdkMode=on, previousSdkMode=unknown, globalAutoApprove=false',
-					'[Copilot:test-session-1] Syncing permission mode: source=config-change, agentMode=interactive, configuredLevel=default, sdkMode=off, previousSdkMode=on, globalAutoApprove=false',
+					'[Copilot:test-session-1] Syncing permission mode: source=turn-start, agentMode=interactive, configuredLevel=autoApprove, sdkMode=allow-all, previousSdkMode=unknown, globalAutoApprove=false',
+					'[Copilot:test-session-1] Syncing permission mode: source=config-change, agentMode=interactive, configuredLevel=default, sdkMode=manual, previousSdkMode=allow-all, globalAutoApprove=false',
 				],
 			});
 		});
