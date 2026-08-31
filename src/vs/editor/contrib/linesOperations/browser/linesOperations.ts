@@ -921,6 +921,30 @@ export class JoinLinesAction extends EditorAction {
 			return;
 		}
 
+		const model = editor.getModel();
+		if (model === null) {
+			return;
+		}
+
+		// If a selection ends at column 1 of a line, exclude that line from the
+		// operation. This matches the convention used by other line-based actions
+		// (e.g. Delete Line, Move Line, line comment) so that selecting N full
+		// lines via Shift+Down (which leaves the cursor at column 1 of line N+1)
+		// joins only the N selected lines, not N+1.
+		const trimTrailingLine = (s: Selection): Selection => {
+			if (s.startLineNumber < s.endLineNumber && s.endColumn === 1) {
+				return s.setEndPosition(s.endLineNumber - 1, model.getLineMaxColumn(s.endLineNumber - 1));
+			}
+			return s;
+		};
+		for (let i = 0; i < selections.length; i++) {
+			const trimmed = trimTrailingLine(selections[i]);
+			if (trimmed !== selections[i] && primaryCursor.equalsSelection(selections[i])) {
+				primaryCursor = trimmed;
+			}
+			selections[i] = trimmed;
+		}
+
 		selections.sort(Range.compareRangesUsingStarts);
 		const reducedSelections: Selection[] = [];
 
@@ -950,11 +974,6 @@ export class JoinLinesAction extends EditorAction {
 		});
 
 		reducedSelections.push(lastSelection);
-
-		const model = editor.getModel();
-		if (model === null) {
-			return;
-		}
 
 		const edits: ISingleEditOperation[] = [];
 		const endCursorState: Selection[] = [];
