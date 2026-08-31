@@ -5,13 +5,14 @@
 
 import type { CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, JsonValue, McpServersLoadedServer, MessageOptions, PermissionMode, PermissionAssistedApproval, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
 import { cp, rm } from 'fs/promises';
-import { DeferredPromise, raceCancellation, RunOnceScheduler, Sequencer, SequencerByKey, Throttler, timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, raceCancellation, raceTimeout, RunOnceScheduler, Sequencer, SequencerByKey, Throttler, timeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { CancellationError, getErrorMessage } from '../../../../base/common/errors.js';
 import { escapeMarkdownSyntaxTokens } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { LRUCache } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
 import { safeStringify } from '../../../../base/common/objects.js';
@@ -710,6 +711,7 @@ class CopilotTurn extends Disposable {
 
 // GitHub response telemetry can arrive just before its matching assistant.message event.
 const MODEL_CALL_TURN_CORRELATION_TIMEOUT_MS = 100;
+const MODEL_CALL_TURN_CORRELATION_CACHE_LIMIT = 1000;
 
 /**
  * Encapsulates a single Copilot SDK session and all its associated bookkeeping.
@@ -749,8 +751,9 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private readonly _parentToolCallIdsByAgentId = new Map<string, string>();
 	private readonly _rootTurnIdBySubagentToolCallId = new Map<string, string>();
-	private readonly _agentHostTurnIdsByModelCallId = new Map<string, string>();
+	private readonly _agentHostTurnIdsByModelCallId = new LRUCache<string, string>(MODEL_CALL_TURN_CORRELATION_CACHE_LIMIT);
 	private readonly _pendingAgentHostTurnIdsByModelCallId = new Map<string, DeferredPromise<string>>();
+	private readonly _forwardedModelCallIdsAwaitingCorrelation = new LRUCache<string, true>(MODEL_CALL_TURN_CORRELATION_CACHE_LIMIT);
 	private readonly _subagentDirectUsageByToolCallId = new Map<string, DirectUsageAccumulator>();
 	private readonly _lastSubagentUsageByToolCallId = new Map<string, UsageInfo>();
 	/**
@@ -856,6 +859,9 @@ export class CopilotAgentSession extends Disposable {
 	get currentTurnId(): string | undefined { return this._currentTurn.value?.id; }
 
 	recordModelCallTurnCorrelation(modelCallId: string, turnId: string): void {
+		if (this._forwardedModelCallIdsAwaitingCorrelation.delete(modelCallId)) {
+			return;
+		}
 		const pending = this._pendingAgentHostTurnIdsByModelCallId.get(modelCallId);
 		if (pending) {
 			this._pendingAgentHostTurnIdsByModelCallId.delete(modelCallId);
@@ -871,19 +877,27 @@ export class CopilotAgentSession extends Disposable {
 		return turnId;
 	}
 
+	markModelCallResponseForwarded(modelCallId: string): void {
+		this._agentHostTurnIdsByModelCallId.delete(modelCallId);
+		this._forwardedModelCallIdsAwaitingCorrelation.set(modelCallId, true);
+	}
+
 	async waitForModelCallTurnCorrelation(modelCallId: string): Promise<string | undefined> {
 		const existing = this.takeModelCallTurnCorrelation(modelCallId);
 		if (existing) {
 			return existing;
 		}
+		if (this._forwardedModelCallIdsAwaitingCorrelation.has(modelCallId)) {
+			return undefined;
+		}
 		const pending = new DeferredPromise<string>();
 		this._pendingAgentHostTurnIdsByModelCallId.set(modelCallId, pending);
-		const turnId = await Promise.race([
-			pending.p,
-			timeout(MODEL_CALL_TURN_CORRELATION_TIMEOUT_MS).then(() => undefined),
-		]);
+		const turnId = await raceTimeout(pending.p, MODEL_CALL_TURN_CORRELATION_TIMEOUT_MS);
 		if (this._pendingAgentHostTurnIdsByModelCallId.get(modelCallId) === pending) {
 			this._pendingAgentHostTurnIdsByModelCallId.delete(modelCallId);
+		}
+		if (turnId === undefined) {
+			this.markModelCallResponseForwarded(modelCallId);
 		}
 		return turnId;
 	}

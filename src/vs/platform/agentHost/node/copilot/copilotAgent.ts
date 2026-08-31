@@ -1702,6 +1702,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					this._gitHubTelemetryForwarder.forward(notification, delayedTurnId ?? fallbackTurnId);
 					return;
 				}
+				session.markModelCallResponseForwarded(modelCallId);
 			}
 		}
 		this._gitHubTelemetryForwarder.forward(notification, fallbackTurnId);
