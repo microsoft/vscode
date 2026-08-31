@@ -111,7 +111,8 @@ impl DownloadCache {
 
 		let lock_path = self.path.join(LOCKS_DIRECTORY).join(name);
 		if let Some(lock_parent) = lock_path.parent() {
-			create_dir_all(lock_parent).map_err(|e| wrap(e, "error creating server download lock"))?;
+			create_dir_all(lock_parent)
+				.map_err(|e| wrap(e, "error creating server download lock"))?;
 		}
 
 		let mut lock_wait_started = None;
@@ -122,6 +123,10 @@ impl DownloadCache {
 				.read(true)
 				.write(true)
 				.create(true)
+				// The file is a lock holder, not a data file: its contents are
+				// never read or written, so it must not be truncated out from
+				// under another process already holding the lock.
+				.truncate(false)
 				.open(&lock_path)
 				.map_err(|e| wrap(e, "error creating server download lock"))?;
 
@@ -135,7 +140,8 @@ impl DownloadCache {
 				}
 				Lock::AlreadyLocked(_) => {
 					let first_wait = lock_wait_started.is_none();
-					let wait_started = lock_wait_started.get_or_insert_with(std::time::Instant::now);
+					let wait_started =
+						lock_wait_started.get_or_insert_with(std::time::Instant::now);
 					let elapsed = wait_started.elapsed();
 					if first_wait {
 						log::info!(
@@ -160,6 +166,14 @@ impl DownloadCache {
 			let _ = self.touch(name.to_string());
 			return Ok(target_dir);
 		}
+
+		// Holding the lock for `name` means no other process is staging this
+		// entry, so any `{name}.staging-*` left behind belongs to an attempt
+		// that died before its cleanup guard ran. Nothing else reaps these, and
+		// each one is a partial server download, so drop them here rather than
+		// leaking disk on every crash. The `{name}{STAGING_SUFFIX}-` prefix
+		// cannot match another entry's staging directory.
+		self.remove_orphaned_staging_directories(name);
 
 		let temp_dir = self
 			.path
@@ -189,6 +203,20 @@ impl DownloadCache {
 		}
 
 		Ok(target_dir)
+	}
+
+	/// Removes staging directories left by earlier attempts at `name`. Only safe
+	/// while holding that entry's download lock — see the call site.
+	fn remove_orphaned_staging_directories(&self, name: &str) {
+		let prefix = format!("{name}{STAGING_SUFFIX}-");
+		let Ok(entries) = std::fs::read_dir(&self.path) else {
+			return;
+		};
+		for entry in entries.flatten() {
+			if entry.file_name().to_string_lossy().starts_with(&prefix) {
+				let _ = std::fs::remove_dir_all(entry.path());
+			}
+		}
 	}
 
 	fn touch(&self, name: String) -> Result<(), AnyError> {
@@ -264,6 +292,36 @@ mod tests {
 	}
 
 	#[tokio::test]
+	async fn test_reaps_staging_directories_left_by_a_dead_attempt() {
+		let dir = tempfile::tempdir().unwrap();
+		let cache = DownloadCache::new(dir.path().join("cache"));
+		std::fs::create_dir_all(cache.path()).unwrap();
+		// A staging directory whose process died before its cleanup guard ran,
+		// plus a sibling entry's staging directory that must survive.
+		let orphan = cache.path().join(format!("server{STAGING_SUFFIX}-dead"));
+		let other = cache.path().join(format!("server-2{STAGING_SUFFIX}-live"));
+		std::fs::create_dir_all(&orphan).unwrap();
+		std::fs::create_dir_all(&other).unwrap();
+
+		cache
+			.create("server", |path| async move {
+				std::fs::write(path.join("created"), "").unwrap();
+				Ok(())
+			})
+			.await
+			.unwrap();
+
+		assert_eq!(
+			(
+				orphan.exists(),
+				other.exists(),
+				staging_directories(&cache, "server").len()
+			),
+			(false, true, 0)
+		);
+	}
+
+	#[tokio::test]
 	async fn test_failed_create_removes_staging_directory() {
 		let dir = tempfile::tempdir().unwrap();
 		let cache = DownloadCache::new(dir.path().join("cache"));
@@ -271,11 +329,7 @@ mod tests {
 		let result = cache
 			.create("server", |_| async {
 				Err::<(), AnyError>(
-					wrap(
-						std::io::Error::new(std::io::ErrorKind::Other, "expected failure"),
-						"test failure",
-					)
-					.into(),
+					wrap(std::io::Error::other("expected failure"), "test failure").into(),
 				)
 			})
 			.await;
