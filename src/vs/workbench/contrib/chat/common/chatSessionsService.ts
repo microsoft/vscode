@@ -654,6 +654,7 @@ export interface IChatNewSessionRequest {
 
 export interface IChatSessionItemsDelta {
 	readonly addedOrUpdated?: readonly IChatSessionItem[];
+	/** Sessions no longer provided by the controller. Retained content is disposed and pending resolutions are cancelled. */
 	readonly removed?: readonly URI[];
 }
 
