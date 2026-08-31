@@ -92,8 +92,7 @@ export class ChatToolCalls extends PromptElement<ChatToolCallsProps, void> {
 			return;
 		}
 
-		// Eager calls are started before their prompt elements render so they can run in parallel.
-		// Own them here so prompt flexing cannot drop the only awaiter of an in-flight tool.
+		// Own eager calls here so prompt flexing cannot drop their only awaiter.
 		await Promise.all(eagerToolCalls);
 
 		const KeepWith = useKeepWith();

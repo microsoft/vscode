@@ -113,9 +113,7 @@ export function waitForChatResponse(response: Pick<IChatResponseModel, 'isComple
 
 			const pendingConfirmation = response.isPendingConfirmation.get();
 			if (pendingConfirmation) {
-				// Check if the pending confirmation is a question carousel that will be auto-replied.
-				// Only question carousels are auto-replied; other confirmation types (tool approvals,
-				// elicitations, etc.) should cause us to resolve immediately.
+				// Only question carousels are auto-replied; other confirmations resolve immediately.
 				const hasPendingQuestionCarousel = response.response.value.some(
 					part => part.kind === 'questionCarousel' && !part.isUsed
 				);
