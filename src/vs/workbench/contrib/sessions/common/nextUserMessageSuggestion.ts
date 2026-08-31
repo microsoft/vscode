@@ -32,6 +32,7 @@ export function truncateSuggestionContext(value: string, limit: number): string 
 export function createNextUserMessagePrompt(): string {
 	return [
 		'Predict the single message the user would naturally type next, using the latest user request for intent and the final assistant response for the likely continuation.',
+		'Anchor the prediction in the final assistant response. Prefer responding to its explicit question, offer, or concrete next step over restating or correcting the earlier request.',
 		'Predict what they would actually type, not what they should do.',
 		'Do not propose a new task, evaluate the response, thank the assistant, or speak as the assistant.',
 		'Prefer a concise request or action over a question. Use a question only when clarification is the natural continuation.',
