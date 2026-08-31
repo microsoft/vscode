@@ -5037,6 +5037,64 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('configSchema offers the Auto routing profile only to the Auto model, and only while the gate is on', async () => {
+		const models: ITestCopilotModelInfo[] = [
+			{ id: 'auto', name: 'Auto' },
+			{ id: 'claude-sonnet', name: 'Claude Sonnet' },
+		];
+		const configSchemasFor = async (autoModeTiers: boolean) => {
+			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: new TestCopilotClient([], models),
+				rootConfig: { [CopilotCliConfigKey.AutoModeTiers]: autoModeTiers },
+			});
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const published = await waitForState(agent.models, published => published.length === models.length);
+				return published.map(model => model.configSchema?.properties.tier);
+			} finally {
+				await disposeAgent(agent);
+			}
+		};
+
+		const [auto, concrete] = await configSchemasFor(true);
+		assert.deepStrictEqual({
+			auto: { enum: auto?.enum, default: auto?.default, enumLabels: auto?.enumLabels },
+			concrete,
+			gateOff: await configSchemasFor(false),
+		}, {
+			// The enum carries the runtime's wire values, not the retired names.
+			auto: {
+				enum: ['efficiency', 'balance', 'intelligence'],
+				default: 'balance',
+				enumLabels: ['Efficiency', 'Balance', 'Intelligence'],
+			},
+			concrete: undefined,
+			gateOff: [undefined, undefined],
+		});
+	});
+
+	test('re-publishes the Auto routing profile picker when the gate flips', async () => {
+		const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
+		const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			await waitForState(agent.models, models => models.length === 1);
+
+			// The picker is built while the model list is enumerated, so a flip has to re-enumerate.
+			configurationService.updateRootConfig({ [CopilotCliConfigKey.AutoModeTiers]: true });
+			const enabled = await waitForState(agent.models, models => models[0]?.configSchema?.properties.tier !== undefined);
+			configurationService.updateRootConfig({ [CopilotCliConfigKey.AutoModeTiers]: false });
+			const disabled = await waitForState(agent.models, models => models[0]?.configSchema === undefined);
+
+			assert.deepStrictEqual(
+				[enabled[0].configSchema?.properties.tier?.default, disabled[0].configSchema],
+				['balance', undefined]
+			);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	suite('contextSize to contextTier mapping', () => {
 		const longContextModel: ITestCopilotModelInfo = {
 			id: 'claude-sonnet',
@@ -9753,6 +9811,38 @@ suite('CopilotAgent', () => {
 
 				const stored = await sessionDataService.openDatabase(session).object.getMetadata('copilot.model');
 				assert.deepStrictEqual(JSON.parse(stored ?? 'null'), { id: 'model-b' });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('changeModel keeps the Auto routing profile the session launched with', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
+			client.createSession = async () => new MockCopilotSession() as unknown as CopilotSession;
+			const { agent } = createTestAgentContext(disposables, {
+				sessionDataService,
+				copilotClient: client,
+				rootConfig: { [CopilotCliConfigKey.AutoModeTiers]: true },
+			});
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await waitForState(agent.models, m => m.length > 0);
+				const session = AgentSession.uri('copilotcli', 'auto-tier-session');
+				const chat = defaultChatUri(session);
+				const result = await provisionSession(agent, {
+					session,
+					workingDirectories: [URI.file('/workspace')],
+					model: { id: 'auto', config: { tier: 'intelligence' } },
+				});
+				await agent.chats.sendMessage(chat, 'hello', undefined, undefined, undefined, undefined, exactChatContext(result.session, chat, result.session));
+
+				// The runtime fixed the profile at creation, so recording this change would leave a
+				// resumed session routing with 'intelligence' while its metadata claims 'efficiency'.
+				await agent.chats.changeModel(chat, { id: 'auto', config: { tier: 'efficiency' } }, exactChatContext(result.session, chat, result.session));
+
+				const stored = await sessionDataService.openDatabase(session).object.getMetadata('copilot.model');
+				assert.deepStrictEqual(JSON.parse(stored ?? 'null'), { id: 'auto', config: { tier: 'intelligence' } });
 			} finally {
 				await disposeAgent(agent);
 			}
