@@ -1244,7 +1244,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			const fileUri = URI.file(path);
 
 			// since file does not seem to exist anymore, remove from recent
-			this.workspacesHistoryMainService.removeRecentlyOpened([fileUri]);
+			// unless configured to keep entries that are currently unavailable
+			if (this.configurationService.getValue<IWindowSettings | undefined>('window')?.removeRecentEntriesWhenUnavailable !== false) {
+				this.workspacesHistoryMainService.removeRecentlyOpened([fileUri]);
+			}
 
 			// assume this is a file that does not yet exist
 			if (options.ignoreFileNotFound && error.code === 'ENOENT') {
