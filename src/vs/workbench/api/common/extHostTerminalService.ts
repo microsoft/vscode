@@ -13,7 +13,7 @@ import { IDisposable, DisposableStore, Disposable, MutableDisposable } from '../
 import { Disposable as VSCodeDisposable, EnvironmentVariableMutatorType, TerminalExitReason, TerminalCompletionItem } from './extHostTypes.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { localize } from '../../../nls.js';
-import { NotSupportedError } from '../../../base/common/errors.js';
+import { NotSupportedError, onUnexpectedExternalError } from '../../../base/common/errors.js';
 import { serializeEnvironmentDescriptionMap, serializeEnvironmentVariableCollection } from '../../../platform/terminal/common/environmentVariableShared.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -75,10 +75,9 @@ export interface ITerminalInternalOptions {
 	useShellEnvironment?: boolean;
 	resolvedExtHostIdentifier?: ExtHostTerminalIdentifier;
 	/**
-	 * This location is different from the API location because it can include splitActiveTerminal,
-	 * a property we resolve internally
+	 * This location includes internal split targets that are not part of the API location.
 	 */
-	location?: TerminalLocation | { viewColumn: number; preserveState?: boolean } | { splitActiveTerminal: boolean };
+	location?: TerminalLocation | { viewColumn: number; preserveState?: boolean } | { parentTerminal: ExtHostTerminalIdentifier } | { splitActiveTerminal: boolean };
 }
 
 export const IExtHostTerminalService = createDecorator<IExtHostTerminalService>('IExtHostTerminalService');
@@ -506,6 +505,22 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	public abstract createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal;
 	public abstract createTerminalFromOptions(options: vscode.TerminalOptions, internalOptions?: ITerminalInternalOptions): vscode.Terminal;
 
+	protected _createTerminal(terminal: ExtHostTerminal, options: vscode.TerminalOptions, internalOptions?: ITerminalInternalOptions): vscode.Terminal {
+		this._terminals.push(terminal);
+		terminal.create(options, this._serializeParentTerminal(options, internalOptions)).catch(error => this._handleTerminalCreationError(terminal, error));
+		return terminal.value;
+	}
+
+	private _handleTerminalCreationError(terminal: ExtHostTerminal, error: Error): void {
+		const index = this._terminals.indexOf(terminal);
+		if (index !== -1) {
+			this._terminals.splice(index, 1);
+		}
+		terminal.value.dispose();
+		terminal.dispose();
+		onUnexpectedExternalError(error);
+	}
+
 	public getDefaultShell(useAutomationShell: boolean): string {
 		const profile = useAutomationShell ? this._defaultAutomationProfile : this._defaultProfile;
 		return profile?.path || '';
@@ -522,6 +537,8 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		terminal.createExtensionTerminal(options.location, internalOptions, this._serializeParentTerminal(options, internalOptions).resolvedExtHostIdentifier, asTerminalIcon(options.iconPath), asTerminalColor(options.color), options.shellIntegrationNonce, options.titleTemplate).then(id => {
 			const disposable = this._setupExtHostProcessListeners(id, p);
 			this._terminalProcessDisposables[id] = disposable;
+		}, error => {
+			this._handleTerminalCreationError(terminal, error);
 		});
 		this._terminals.push(terminal);
 		return terminal.value;
@@ -1307,9 +1324,7 @@ export class WorkerExtHostTerminalService extends BaseExtHostTerminalService {
 			throw new NotSupportedError();
 		}
 		const terminal = new ExtHostTerminal(this._proxy, generateUuid(), options, options.name);
-		this._terminals.push(terminal);
-		terminal.create(options, this._serializeParentTerminal(options, internalOptions));
-		return terminal.value;
+		return this._createTerminal(terminal, options, internalOptions);
 	}
 }
 

@@ -27,6 +27,7 @@ import { TerminalCapability } from '../../../platform/terminal/common/capabiliti
 import { ITerminalCompletionService } from '../../contrib/terminalContrib/suggest/browser/terminalCompletionService.js';
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
 import { hasKey } from '../../../base/common/types.js';
+import { localize } from '../../../nls.js';
 
 interface TerminalProcessProxyEntry extends IDisposable {
 	readonly proxy: ITerminalProcessExtHostProxy;
@@ -172,7 +173,13 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
 			r(terminal);
 		});
 		this._extHostTerminals.set(extHostTerminalId, terminal);
-		const terminalInstance = await terminal;
+		let terminalInstance: ITerminalInstance;
+		try {
+			terminalInstance = await terminal;
+		} catch (error) {
+			this._extHostTerminals.delete(extHostTerminalId);
+			throw error;
+		}
 		this._register(terminalInstance.onDisposed(() => {
 			this._extHostTerminals.delete(extHostTerminalId);
 		}));
@@ -180,8 +187,11 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
 
 	private async _deserializeParentTerminal(location?: TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ExtHostTerminalIdentifier } | { splitActiveTerminal: boolean; location?: TerminalLocation }): Promise<TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ITerminalInstance } | { splitActiveTerminal: boolean } | undefined> {
 		if (typeof location === 'object' && hasKey(location, { parentTerminal: true })) {
-			const parentTerminal = await this._extHostTerminals.get(location.parentTerminal.toString());
-			return parentTerminal ? { parentTerminal } : undefined;
+			const parentTerminal = await this._getTerminalInstance(location.parentTerminal);
+			if (!parentTerminal) {
+				throw new Error(localize('terminal.missingSplitParent', "Cannot split because parent terminal {0} no longer exists.", location.parentTerminal));
+			}
+			return { parentTerminal };
 		}
 		return location;
 	}

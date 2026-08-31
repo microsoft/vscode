@@ -7,6 +7,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { EditorActivation } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IShellLaunchConfig, TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
@@ -16,7 +17,7 @@ import { IDeserializedTerminalEditorInput, ITerminalEditorService, ITerminalInst
 import { TerminalEditorInput } from './terminalEditorInput.js';
 import { getInstanceFromResource } from './terminalUri.js';
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
-import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IAuxiliaryEditorPart, IEditorGroup, IEditorGroupsService, IEditorPart, preferredSideBySideGroupDirection } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 
@@ -50,7 +51,8 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
 		this._terminalEditorActive = TerminalContextKeys.terminalEditorActive.bindTo(contextKeyService);
@@ -213,26 +215,45 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	}
 
 	async splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig: IShellLaunchConfig = {}): Promise<ITerminalInstance> {
+		let sourcePart: IEditorPart | undefined;
+		let sourceGroup: IEditorGroup | undefined;
 		if (instanceToSplit.target === TerminalLocation.Editor) {
-			// Make sure the instance to split's group is active
-			const group = this._editorInputs.get(instanceToSplit.resource.path)?.group;
-			if (group) {
-				this._editorGroupsService.activateGroup(group);
+			sourceGroup = this._editorInputs.get(instanceToSplit.resource.path)?.group;
+			if (sourceGroup) {
+				sourcePart = this._editorGroupsService.getPart(sourceGroup);
+				sourcePart.activateGroup(sourceGroup);
+				if (this._isAuxiliaryEditorPart(sourcePart)) {
+					sourcePart.setCompactMode(false);
+				}
 			}
 		}
 		const instance = this._terminalInstanceService.createInstance(shellLaunchConfig, TerminalLocation.Editor);
 		const resource = this.resolveResource(instance);
 		if (resource) {
-			await this._editorService.openEditor({
-				resource: URI.revive(resource),
-				description: instance.description,
-				options: {
-					pinned: true,
-					forceReload: true
+			const options = {
+				pinned: true,
+				forceReload: true
+			};
+			if (sourcePart && sourceGroup) {
+				const direction = preferredSideBySideGroupDirection(this._configurationService);
+				let targetGroup = sourcePart.findGroup({ direction }, sourceGroup);
+				if (!targetGroup || targetGroup.isLocked) {
+					targetGroup = sourcePart.addGroup(sourceGroup, direction);
 				}
-			}, SIDE_GROUP);
+				await targetGroup.openEditor(this.getInputFromResource(resource), options);
+			} else {
+				await this._editorService.openEditor({
+					resource: URI.revive(resource),
+					description: instance.description,
+					options
+				}, SIDE_GROUP);
+			}
 		}
 		return instance;
+	}
+
+	private _isAuxiliaryEditorPart(part: IEditorPart): part is IAuxiliaryEditorPart {
+		return part.windowId !== this._editorGroupsService.mainPart.windowId;
 	}
 
 	reviveInput(deserializedInput: IDeserializedTerminalEditorInput): EditorInput {

@@ -3,17 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { fail, strictEqual } from 'assert';
+import { deepStrictEqual, fail, strictEqual } from 'assert';
+import { timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
-import { TerminalLocation, TitleEventSource, type ITerminalBackend, type TerminalIcon } from '../../../../../platform/terminal/common/terminal.js';
-import { ITerminalInstance, ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
+import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, TerminalLocation, TitleEventSource, type ITerminalBackend, type TerminalIcon } from '../../../../../platform/terminal/common/terminal.js';
+import { ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
 import { TerminalService } from '../../browser/terminalService.js';
-import { TERMINAL_CONFIG_SECTION } from '../../common/terminal.js';
+import { ITerminalProfileProvider, ITerminalProfileService, TERMINAL_CONFIG_SECTION } from '../../common/terminal.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import type { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
@@ -48,6 +49,35 @@ suite('Workbench - TerminalService', () => {
 
 		terminalService = store.add(instantiationService.createInstance(TerminalService));
 		instantiationService.stub(ITerminalService, terminalService);
+	});
+
+	test('contributed profile splits preserve the explicit parent terminal', async () => {
+		const parentTerminal = {
+			instanceId: 42,
+			target: TerminalLocation.Editor,
+		} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance;
+		const contributedProfile: IExtensionTerminalProfile = {
+			extensionIdentifier: 'test.extension',
+			id: 'test-profile',
+			title: 'Test Profile'
+		};
+		let providerOptions: ICreateContributedTerminalProfileOptions | undefined;
+		const profileProvider: ITerminalProfileProvider = {
+			createContributedTerminalProfile: async options => {
+				providerOptions = options;
+			}
+		};
+		instantiationService.stub(ITerminalProfileService, 'getContributedProfileProvider', () => profileProvider);
+		instantiationService.stub(ITerminalGroupService, 'setActiveInstanceByIndex', () => { });
+
+		await terminalService.createTerminal({
+			config: contributedProfile,
+			cwd: '/test',
+			location: { parentTerminal }
+		});
+
+		deepStrictEqual(providerOptions?.location, { parentTerminal: parentTerminal.instanceId });
+		await timeout(0);
 	});
 
 	suite('background terminals', () => {

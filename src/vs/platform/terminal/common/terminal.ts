@@ -704,7 +704,7 @@ export type WaitOnExitValue = boolean | string | ((exitCode: number) => string);
 export interface ICreateContributedTerminalProfileOptions {
 	icon?: URI | string | { light: URI; dark: URI };
 	color?: string;
-	location?: TerminalLocation | { viewColumn: number; preserveState?: boolean } | { splitActiveTerminal: boolean };
+	location?: TerminalLocation | { viewColumn: number; preserveState?: boolean } | { parentTerminal: number } | { splitActiveTerminal: boolean };
 	cwd?: string | URI;
 	titleTemplate?: string;
 }

@@ -1018,12 +1018,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		// we cannot launch the contributed profile and doing so would cause an error
 		if (!shellLaunchConfig.customPtyImplementation && contributedProfile) {
 			const resolvedLocation = await this.resolveLocation(options?.location);
-			let location: TerminalLocation | { viewColumn: number; preserveState?: boolean } | { splitActiveTerminal: boolean } | undefined;
-			if (splitActiveTerminal) {
-				location = resolvedLocation === TerminalLocation.Editor ? { viewColumn: SIDE_GROUP } : { splitActiveTerminal: true };
-			} else {
-				location = typeof options?.location === 'object' && hasKey(options.location, { viewColumn: true }) ? options.location : resolvedLocation;
-			}
+			const location = await this._getContributedProfileLocation(options?.location, resolvedLocation, splitActiveTerminal);
 			await this.createContributedTerminalProfile(contributedProfile.extensionIdentifier, contributedProfile.id, {
 				icon: contributedProfile.icon,
 				color: contributedProfile.color,
@@ -1042,12 +1037,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 		if (!shellLaunchConfig.customPtyImplementation && !this.isProcessSupportRegistered) {
 			const resolvedLocation = await this.resolveLocation(options?.location);
-			let location: TerminalLocation | { viewColumn: number; preserveState?: boolean } | { splitActiveTerminal: boolean } | undefined;
-			if (splitActiveTerminal) {
-				location = resolvedLocation === TerminalLocation.Editor ? { viewColumn: SIDE_GROUP } : { splitActiveTerminal: true };
-			} else {
-				location = typeof options?.location === 'object' && hasKey(options.location, { viewColumn: true }) ? options.location : resolvedLocation;
-			}
+			const location = await this._getContributedProfileLocation(options?.location, resolvedLocation, splitActiveTerminal);
 			const instanceHost = resolvedLocation === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
 			for (const fallbackProfile of this._terminalProfileService.contributedProfiles) {
 				const instanceCount = instanceHost.instances.length;
@@ -1094,6 +1084,16 @@ export class TerminalService extends Disposable implements ITerminalService {
 		}
 
 		return instance;
+	}
+
+	private async _getContributedProfileLocation(location: ITerminalLocationOptions | undefined, resolvedLocation: TerminalLocation | undefined, splitActiveTerminal: boolean): Promise<ICreateContributedTerminalProfileOptions['location']> {
+		if (!splitActiveTerminal) {
+			return typeof location === 'object' && hasKey(location, { viewColumn: true }) ? location : resolvedLocation;
+		}
+		if (typeof location === 'object' && hasKey(location, { parentTerminal: true })) {
+			return { parentTerminal: (await location.parentTerminal).instanceId };
+		}
+		return resolvedLocation === TerminalLocation.Editor ? { viewColumn: SIDE_GROUP } : { splitActiveTerminal: true };
 	}
 
 	async createAndFocusTerminal(options?: ICreateTerminalOptions): Promise<ITerminalInstance> {

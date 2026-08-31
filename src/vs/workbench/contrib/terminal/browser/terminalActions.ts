@@ -293,6 +293,46 @@ function getTerminalServices(accessor: ServicesAccessor): ITerminalServicesColle
 	};
 }
 
+export function registerSplitTerminalAction(activeWindowProvider: () => Window = getActiveWindow): IDisposable {
+	return registerTerminalAction({
+		id: TerminalCommandId.Split,
+		title: terminalStrings.split,
+		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.webExtensionContributedProfile),
+		keybinding: {
+			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Digit5,
+			weight: KeybindingWeight.WorkbenchContrib,
+			mac: {
+				primary: KeyMod.CtrlCmd | KeyCode.Backslash,
+				secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Digit5]
+			},
+			when: TerminalContextKeys.focus
+		},
+		icon: Codicon.splitHorizontal,
+		run: async (c, accessor, args) => {
+			const resource = toOptionalUri(args);
+			const optionsOrProfile = !resource && isObject(args) ? args as ICreateTerminalOptions | ITerminalProfile : undefined;
+			const commandService = accessor.get(ICommandService);
+			const editorGroupsService = accessor.get(IEditorGroupsService);
+			const workspaceContextService = accessor.get(IWorkspaceContextService);
+			const options = convertOptionsOrProfileToOptions(optionsOrProfile);
+			const configuredParent = typeof options?.location === 'object' && hasKey(options.location, { parentTerminal: true }) ? await options.location.parentTerminal : undefined;
+			const activeInstance = c.service.getInstanceFromResource(resource)
+				?? configuredParent
+				?? (!options?.location ? getActiveAuxiliaryWindowTerminalInstance(c, editorGroupsService, activeWindowProvider()) : undefined)
+				?? (await c.service.getInstanceHost(options?.location)).activeInstance;
+			if (!activeInstance) {
+				return;
+			}
+			const cwd = await getCwdForSplit(activeInstance, workspaceContextService.getWorkspace().folders, commandService, c.configService);
+			if (cwd === undefined) {
+				return;
+			}
+			const instance = await c.service.createTerminal({ location: { parentTerminal: activeInstance }, config: options?.config, cwd });
+			await focusActiveTerminal(instance, c);
+		}
+	});
+}
+
 export function registerTerminalActions() {
 	registerTerminalAction({
 		id: TerminalCommandId.NewInActiveWorkspace,
@@ -1050,37 +1090,7 @@ export function registerTerminalActions() {
 		run: (activeInstance) => activeInstance.relaunch()
 	});
 
-	registerTerminalAction({
-		id: TerminalCommandId.Split,
-		title: terminalStrings.split,
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.webExtensionContributedProfile),
-		keybinding: {
-			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Digit5,
-			weight: KeybindingWeight.WorkbenchContrib,
-			mac: {
-				primary: KeyMod.CtrlCmd | KeyCode.Backslash,
-				secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Digit5]
-			},
-			when: TerminalContextKeys.focus
-		},
-		icon: Codicon.splitHorizontal,
-		run: async (c, accessor, args) => {
-			const optionsOrProfile = isObject(args) ? args as ICreateTerminalOptions | ITerminalProfile : undefined;
-			const commandService = accessor.get(ICommandService);
-			const workspaceContextService = accessor.get(IWorkspaceContextService);
-			const options = convertOptionsOrProfileToOptions(optionsOrProfile);
-			const activeInstance = (await c.service.getInstanceHost(options?.location)).activeInstance;
-			if (!activeInstance) {
-				return;
-			}
-			const cwd = await getCwdForSplit(activeInstance, workspaceContextService.getWorkspace().folders, commandService, c.configService);
-			if (cwd === undefined) {
-				return;
-			}
-			const instance = await c.service.createTerminal({ location: { parentTerminal: activeInstance }, config: options?.config, cwd });
-			await focusActiveTerminal(instance, c);
-		}
-	});
+	registerSplitTerminalAction();
 
 	registerTerminalAction({
 		id: TerminalCommandId.SplitActiveTab,
@@ -1644,6 +1654,14 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]): ID
 
 function getResourceOrActiveInstance(c: ITerminalServicesCollection, resource: unknown): ITerminalInstance | undefined {
 	return c.service.getInstanceFromResource(toOptionalUri(resource)) || c.service.activeInstance;
+}
+
+function getActiveAuxiliaryWindowTerminalInstance(c: ITerminalServicesCollection, editorGroupsService: IEditorGroupsService, activeWindow: Window): ITerminalInstance | undefined {
+	if (!isAuxiliaryWindow(activeWindow)) {
+		return undefined;
+	}
+	const activeEditor = editorGroupsService.parts.find(part => part.windowId === activeWindow.vscodeWindowId)?.activeGroup.activeEditor;
+	return c.service.getInstanceFromResource(activeEditor?.resource);
 }
 
 async function pickTerminalCwd(accessor: ServicesAccessor, cancel?: CancellationToken): Promise<WorkspaceFolderCwdPair | undefined> {

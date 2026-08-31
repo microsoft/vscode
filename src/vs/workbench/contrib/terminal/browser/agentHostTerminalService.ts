@@ -5,6 +5,7 @@
 
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -266,10 +267,21 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 					return;
 				}
 
+				let location: ITerminalLocationOptions | undefined;
+				if (typeof options.location === 'object' && hasKey(options.location, { parentTerminal: true })) {
+					const parentTerminalId = options.location.parentTerminal;
+					const parentTerminal = this._terminalService.instances.find(instance => instance.instanceId === parentTerminalId);
+					if (!parentTerminal) {
+						throw new Error(localize('agentHostTerminal.missingSplitParent', "Cannot split because parent terminal {0} no longer exists.", parentTerminalId));
+					}
+					location = { parentTerminal };
+				} else {
+					location = options.location;
+				}
 				await this.createTerminal(connection, {
 					name: localize('agentHostTerminal.profileName', "Agent Host ({0})", displayName),
 					cwd: options.cwd ? (typeof options.cwd === 'string' ? URI.file(options.cwd) : options.cwd) : this._defaultCwd,
-					location: options.location,
+					location,
 				});
 			},
 		};

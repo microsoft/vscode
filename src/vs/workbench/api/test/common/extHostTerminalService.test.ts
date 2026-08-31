@@ -5,6 +5,9 @@
 
 import * as assert from 'assert';
 import type * as vscode from 'vscode';
+import { timeout } from '../../../../base/common/async.js';
+import { errorHandler, setUnexpectedErrorHandler } from '../../../../base/common/errors.js';
+import { Event } from '../../../../base/common/event.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IShellLaunchConfigDto } from '../../../../platform/terminal/common/terminal.js';
@@ -78,4 +81,61 @@ suite('ExtHostTerminalService', () => {
 			{ providerTokenCancelled: true, firstLinks: [], linksAfterClose: [], handledAfterClose: false }
 		);
 	});
+
+	test('failed terminal creation removes and disposes shell and extension terminals', async () => {
+		const expectedError = new Error('creation failed');
+		const rpcProtocol = new TestRPCProtocol();
+		rpcProtocol.set(MainContext.MainThreadTerminalService, new class extends mock<MainThreadTerminalServiceShape>() {
+			override async $registerProcessSupport(): Promise<void> { }
+			override async $sendProcessExit(): Promise<void> { }
+			override async $createTerminal(): Promise<void> { throw expectedError; }
+			override $dispose(): void { }
+		});
+		const commands = new class extends mock<ExtHostCommands>() {
+			override registerArgumentProcessor(_processor: ArgumentProcessor): void { }
+		};
+		const initData = new class extends mock<IExtHostInitDataService>() {
+			override readonly remote = { authority: 'test+remote', isRemote: true, connectionData: null };
+		};
+		const service = store.add(new WorkerExtHostTerminalService(commands, rpcProtocol, initData));
+		const originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
+		let reportedError: Error | undefined;
+		setUnexpectedErrorHandler(error => reportedError = error);
+		try {
+			const shellTerminal = service.createTerminalFromOptions({ name: 'failed shell terminal' });
+			await timeout(0);
+			const extensionTerminal = service.createExtensionTerminal({
+				name: 'failed extension terminal',
+				pty: {
+					onDidWrite: Event.None,
+					open: () => { },
+					close: () => { },
+				}
+			});
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				terminalCount: service.terminals.length,
+				reportedError,
+				shellTerminalDisposed: getSendTextError(shellTerminal),
+				extensionTerminalDisposed: getSendTextError(extensionTerminal),
+			}, {
+				terminalCount: 0,
+				reportedError: expectedError,
+				shellTerminalDisposed: 'Terminal has already been disposed',
+				extensionTerminalDisposed: 'Terminal has already been disposed',
+			});
+		} finally {
+			setUnexpectedErrorHandler(originalErrorHandler);
+		}
+	});
 });
+
+function getSendTextError(terminal: vscode.Terminal): string | undefined {
+	try {
+		terminal.sendText('test');
+	} catch (error) {
+		return error instanceof Error ? error.message : String(error);
+	}
+	return undefined;
+}

@@ -29,6 +29,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser
 import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ITerminalProfile, TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
+import { isAuxiliaryWindow } from '../../../../base/browser/window.js';
 
 export class TerminalEditor extends EditorPane {
 
@@ -76,6 +77,7 @@ export class TerminalEditor extends EditorPane {
 	override async setInput(newInput: TerminalEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
 		this._editorInput?.terminalInstance?.detachFromElement();
 		this._editorInput = newInput;
+		this._editorInput.setGroup(this.group);
 		await super.setInput(newInput, options, context, token);
 		this._editorInput.terminalInstance?.attachToElement(this._overflowGuardElement!);
 		if (this._lastDimension) {
@@ -156,7 +158,7 @@ export class TerminalEditor extends EditorPane {
 
 	private _updateTabActionBar(profiles: ITerminalProfile[]): void {
 		this._disposableStore.clear();
-		const actions = getTerminalActionBarArgs(TerminalLocation.Editor, profiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu, this._disposableStore);
+		const actions = getTerminalActionBarArgs(TerminalLocation.Editor, profiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu, this._disposableStore, isAuxiliaryWindow(this.window) ? () => this._editorInput?.terminalInstance : undefined);
 		this._newDropdown.value?.update(actions.dropdownAction, actions.dropdownMenuActions);
 	}
 
@@ -180,7 +182,7 @@ export class TerminalEditor extends EditorPane {
 				if (action instanceof MenuItemAction) {
 					const location = { viewColumn: ACTIVE_GROUP };
 					this._disposableStore.clear();
-					const actions = getTerminalActionBarArgs(location, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu, this._disposableStore);
+					const actions = getTerminalActionBarArgs(location, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu, this._disposableStore, isAuxiliaryWindow(this.window) ? () => this._editorInput?.terminalInstance : undefined);
 					this._newDropdown.value = this._instantiationService.createInstance(DropdownWithPrimaryActionViewItem, action, actions.dropdownAction, actions.dropdownMenuActions, actions.className, { hoverDelegate: options.hoverDelegate });
 					this._newDropdown.value?.update(actions.dropdownAction, actions.dropdownMenuActions);
 					return this._newDropdown.value;
