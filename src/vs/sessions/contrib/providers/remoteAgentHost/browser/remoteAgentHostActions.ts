@@ -841,7 +841,7 @@ interface ITunnelPickItem extends IQuickPickItem {
 	readonly tunnel: ITunnelInfo;
 }
 
-export function sortTunnelsByName(tunnels: readonly ITunnelInfo[]): ITunnelInfo[] {
+function sortTunnelsByName(tunnels: readonly ITunnelInfo[]): ITunnelInfo[] {
 	return [...tunnels].sort((a, b) => a.name.localeCompare(b.name));
 }
 
