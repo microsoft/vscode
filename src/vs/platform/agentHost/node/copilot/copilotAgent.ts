@@ -1692,17 +1692,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (event.kind === 'response.success' || event.kind === 'response.error') {
 			const modelCallId = event.properties.modelCallId ?? event.model_call_id;
 			if (typeof modelCallId === 'string') {
-				const correlatedTurnId = session.takeModelCallTurnCorrelation(modelCallId);
+				const correlatedTurnId = session.modelCallTurnCorrelation.take(modelCallId);
 				if (correlatedTurnId) {
 					this._gitHubTelemetryForwarder.forward(notification, correlatedTurnId);
 					return;
 				}
 				if (event.properties.initiatorType === 'agent') {
-					const delayedTurnId = await session.waitForModelCallTurnCorrelation(modelCallId);
+					const delayedTurnId = await session.modelCallTurnCorrelation.wait(modelCallId);
 					this._gitHubTelemetryForwarder.forward(notification, delayedTurnId ?? fallbackTurnId);
 					return;
 				}
-				session.markModelCallResponseForwarded(modelCallId);
+				session.modelCallTurnCorrelation.markResponseForwarded(modelCallId);
 			}
 		}
 		this._gitHubTelemetryForwarder.forward(notification, fallbackTurnId);
@@ -2960,7 +2960,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	recordModelCallTurnCorrelation(chat: URI, modelCallId: string, turnId: string): void {
-		this._findChatByUri(chat)?.recordModelCallTurnCorrelation(modelCallId, turnId);
+		this._findChatByUri(chat)?.modelCallTurnCorrelation.record(modelCallId, turnId);
 	}
 
 	/** Creates one exact chat backing: fresh, deferred, imported, or forked. */

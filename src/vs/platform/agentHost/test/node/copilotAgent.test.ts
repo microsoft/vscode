@@ -1219,9 +1219,11 @@ suite('CopilotAgent', () => {
 			chatEntriesBySdkId(agent).set('active-session', {
 				chatSession: {
 					currentTurnId: 'turn-1',
-					takeModelCallTurnCorrelation: () => undefined,
-					waitForModelCallTurnCorrelation: () => subagentCorrelation.p,
-					markModelCallResponseForwarded: modelCallId => forwardedModelCallIds.push(modelCallId),
+					modelCallTurnCorrelation: {
+						take: () => undefined,
+						wait: () => subagentCorrelation.p,
+						markResponseForwarded: modelCallId => forwardedModelCallIds.push(modelCallId),
+					},
 				} as CopilotAgentSession,
 				dispose() { },
 			});

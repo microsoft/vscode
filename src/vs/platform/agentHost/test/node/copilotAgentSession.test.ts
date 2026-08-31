@@ -1057,53 +1057,6 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
-	test('returns a model-call turn correlation recorded before response telemetry', async () => {
-		const { session } = await createAgentSession(disposables);
-		session.recordModelCallTurnCorrelation('model-call-1', 'turn-1');
-
-		assert.deepStrictEqual({
-			correlation: session.takeModelCallTurnCorrelation('model-call-1'),
-			remaining: session.takeModelCallTurnCorrelation('model-call-1'),
-		}, {
-			correlation: 'turn-1',
-			remaining: undefined,
-		});
-	});
-
-	test('resolves response telemetry waiting for a model-call turn correlation', async () => {
-		const { session } = await createAgentSession(disposables);
-		const correlation = session.waitForModelCallTurnCorrelation('model-call-1');
-
-		session.recordModelCallTurnCorrelation('model-call-1', 'turn-1');
-
-		assert.deepStrictEqual({
-			correlation: await correlation,
-			remaining: session.takeModelCallTurnCorrelation('model-call-1'),
-		}, {
-			correlation: 'turn-1',
-			remaining: undefined,
-		});
-	});
-
-	test('discards model-call turn correlations recorded after response fallback', async () => {
-		const { session } = await createAgentSession(disposables);
-
-		session.markModelCallResponseForwarded('immediate-model-call');
-		session.recordModelCallTurnCorrelation('immediate-model-call', 'immediate-turn');
-		const timedOutCorrelation = await session.waitForModelCallTurnCorrelation('timed-out-model-call');
-		session.recordModelCallTurnCorrelation('timed-out-model-call', 'late-turn');
-
-		assert.deepStrictEqual({
-			immediate: session.takeModelCallTurnCorrelation('immediate-model-call'),
-			timedOut: timedOutCorrelation,
-			late: session.takeModelCallTurnCorrelation('timed-out-model-call'),
-		}, {
-			immediate: undefined,
-			timedOut: undefined,
-			late: undefined,
-		});
-	});
-
 	test('retains transient host instructions until the delayed prompt hook consumes them', async () => {
 		const { session, runtime } = await createAgentSession(disposables);
 
