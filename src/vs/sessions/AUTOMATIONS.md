@@ -161,11 +161,18 @@ stateDiagram-v2
 	Initializing --> Disabled: feature disabled
 	Initializing --> Unsupported: capability absent
 	Initializing --> Supported: capability available
+	Initializing --> Disconnected: connection cleared
+	Disabled --> Initializing: enabled before capabilities resolve
+	Disabled --> Unsupported: enabled without capability
 	Disabled --> Supported: enabled with capability
-	Unsupported --> Supported: capability becomes available
-	Supported --> Initializing: connection rebound
 	Disabled --> Disconnected: connection cleared
+	Unsupported --> Initializing: capabilities become unresolved
+	Unsupported --> Disabled: feature disabled
+	Unsupported --> Supported: capability becomes available
 	Unsupported --> Disconnected: connection cleared
+	Supported --> Initializing: capabilities become unresolved or connection rebound
+	Supported --> Unsupported: capability removed
+	Supported --> Disabled: feature disabled
 	Supported --> Disconnected: connection cleared
 
 	state Disconnected {
