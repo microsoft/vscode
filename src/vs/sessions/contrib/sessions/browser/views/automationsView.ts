@@ -57,7 +57,6 @@ import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_
 
 const $ = DOM.$;
 const STOP_AUTOMATION_RUN_SESSION_COMMAND_ID = 'sessions.automations.stopRunSession';
-const DELETE_AUTOMATION_RUN_SESSION_COMMAND_ID = 'sessions.automations.deleteRunSession';
 const AutomationCardCanDeleteContext = new RawContextKey<boolean>('sessionsAutomationCardCanDelete', false);
 const AutomationCardCanDisableContext = new RawContextKey<boolean>('sessionsAutomationCardCanDisable', false);
 
@@ -870,9 +869,6 @@ class AutomationHistorySection extends Disposable {
 			case ARCHIVE_SESSION_COMMAND_ID:
 				await this.sessionsManagementService.archiveSession(session);
 				return true;
-			case DELETE_AUTOMATION_RUN_SESSION_COMMAND_ID:
-				await this.confirmDeleteRunSession(run, session, this.getAutomationName(run));
-				return true;
 			default:
 				return false;
 		}
@@ -1250,22 +1246,6 @@ function registerAutomationHistoryItemActions(archiveWording: ChatSessionArchive
 				SessionItemStatusContext.isEqualTo(SessionStatus.NeedsInput),
 			),
 		}),
-		MenuRegistry.appendMenuItem(Menus.AutomationsHistoryItem, {
-			command: {
-				id: DELETE_AUTOMATION_RUN_SESSION_COMMAND_ID,
-				title: localize('deleteAutomationRunSessionAction', "Delete"),
-				icon: Codicon.trash,
-			},
-			group: 'navigation',
-			order: 3,
-			when: ContextKeyExpr.and(
-				SessionSupportsDeleteContext,
-				ContextKeyExpr.or(
-					SessionItemStatusContext.isEqualTo(SessionStatus.Completed),
-					SessionItemStatusContext.isEqualTo(SessionStatus.Error),
-				),
-			),
-		}),
 		MenuRegistry.appendMenuItem(Menus.AutomationsHistoryItemContext, {
 			command: {
 				id: MARK_SESSION_READ_COMMAND_ID,
@@ -1310,21 +1290,6 @@ function registerAutomationHistoryItemActions(archiveWording: ChatSessionArchive
 			group: '1_edit',
 			order: 2,
 			when: SessionIsArchivedContext,
-		}),
-		MenuRegistry.appendMenuItem(Menus.AutomationsHistoryItemContext, {
-			command: {
-				id: DELETE_AUTOMATION_RUN_SESSION_COMMAND_ID,
-				title: localize('deleteAutomationRunSessionContextAction', "Delete"),
-			},
-			group: '2_delete',
-			order: 1,
-			when: ContextKeyExpr.and(
-				SessionSupportsDeleteContext,
-				ContextKeyExpr.or(
-					SessionItemStatusContext.isEqualTo(SessionStatus.Completed),
-					SessionItemStatusContext.isEqualTo(SessionStatus.Error),
-				),
-			),
 		}),
 	);
 }
