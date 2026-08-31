@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { DisposableStore, IDisposable, IReference } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -32,6 +33,8 @@ const holdInputModelReference = Reflect.get(NewChatInputWidget.prototype, '_hold
 const getDraftState = Reflect.get(NewChatInputWidget.prototype, '_getDraftState') as (this: IDraftStateHarness) => { inputText: string; attachments: readonly IChatRequestVariableEntry[] } | undefined;
 const restoreState = Reflect.get(NewChatInputWidget.prototype, '_restoreState') as (this: IRestoreStateHarness) => void;
 const saveState = Reflect.get(NewChatInputWidget.prototype, 'saveState') as (this: IDraftStateHarness) => void;
+const updateDraftState = Reflect.get(NewChatInputWidget.prototype, '_updateDraftState') as (this: IUpdateDraftStateHarness) => void;
+const updateAndSaveDraftState = Reflect.get(NewChatInputWidget.prototype, '_updateAndSaveDraftState') as (this: IUpdateAndSaveDraftStateHarness) => void;
 const updateAttachmentRendering = Reflect.get(NewChatContextAttachments.prototype, '_updateRendering') as (this: IAttachmentRenderingHarness) => void;
 
 interface IDraftStateHarness {
@@ -50,6 +53,20 @@ interface IRestoreStateHarness {
 	readonly _contextAttachments: {
 		setAttachments(entries: readonly IChatRequestVariableEntry[]): void;
 	};
+}
+
+interface IUpdateDraftStateHarness extends IDraftStateHarness {
+	readonly _editor: {
+		getModel(): { getValue(): string } | null;
+	};
+	readonly _contextAttachments: {
+		readonly attachments: readonly IChatRequestVariableEntry[];
+	};
+}
+
+interface IUpdateAndSaveDraftStateHarness extends IUpdateDraftStateHarness {
+	_updateDraftState(): void;
+	saveState(): void;
 }
 
 interface IAttachmentRenderingHarness {
@@ -178,11 +195,18 @@ suite('NewChatInputWidget', () => {
 				value: repositoryRoot,
 			},
 		];
-		const saveHarness: IDraftStateHarness = {
+		const saveHarness: IUpdateAndSaveDraftStateHarness = {
 			storageService,
-			_draftState: { inputText: 'Fix this', attachments },
+			_editor: { getModel: () => ({ getValue: () => '' }) },
+			_contextAttachments: { attachments },
+			_updateDraftState() {
+				updateDraftState.call(this);
+			},
+			saveState() {
+				saveState.call(this);
+			},
 		};
-		saveState.call(saveHarness);
+		updateAndSaveDraftState.call(saveHarness);
 		const restored: { inputText?: string; attachments?: readonly IChatRequestVariableEntry[] } = {};
 		const draft = getDraftState.call({ storageService });
 
@@ -198,7 +222,7 @@ suite('NewChatInputWidget', () => {
 			folderValue: restored.attachments?.[0].value,
 			repositoryValue: restored.attachments?.[1].value,
 		}, {
-			inputText: 'Fix this',
+			inputText: '',
 			attachmentIds: attachments.map(attachment => attachment.id),
 			folderValue: folder,
 			repositoryValue: repositoryRoot,
@@ -266,6 +290,65 @@ suite('NewChatInputWidget', () => {
 			opened: 'https://github.com/microsoft/vscode/pull/332825',
 			removed: entry.id,
 		});
+	});
+
+	test('renders issue and pull request attachment icons without nested focus targets', () => {
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		const entries = [
+			toPasteVariableEntry('microsoft/vscode#9014', 'Issue context', {
+				id: 'github-context:https://github.com/microsoft/vscode/issues/9014',
+				icon: Codicon.issues,
+			}),
+			toPasteVariableEntry('microsoft/vscode#123', 'Pull request context', {
+				id: 'github-context:https://github.com/microsoft/vscode/pull/123',
+				icon: Codicon.gitPullRequest,
+			}),
+		];
+		const renderDisposables = disposables.add(new DisposableStore());
+		try {
+			updateAttachmentRendering.call({
+				_container: container,
+				_attachedContext: entries,
+				_renderDisposables: renderDisposables,
+				_resourceLabels: {
+					clear: () => { },
+					create: () => ({
+						dispose: () => { },
+						setLabel: () => { },
+						setFile: () => { },
+					}),
+				},
+				openerService: { open: async () => true },
+				removeAttachment: () => { },
+			});
+
+			const pills = Array.from(container.querySelectorAll('.sessions-chat-attachment-pill'));
+			const focusTargets = pills.map(pill => pill.querySelector<HTMLButtonElement>('.sessions-chat-attachment-open'));
+			focusTargets[0]?.focus();
+			const issueButtonFocused = document.activeElement === focusTargets[0];
+			focusTargets[1]?.focus();
+			const pullRequestButtonFocused = document.activeElement === focusTargets[1];
+
+			assert.deepStrictEqual({
+				pills: pills.map(pill => ({
+					label: pill.querySelector('.sessions-chat-attachment-name')?.textContent,
+					icon: pill.querySelector('.codicon:not(.codicon-close-compact)')?.className,
+					nestedLinks: pill.querySelectorAll('a').length,
+				})),
+				issueButtonFocused,
+				pullRequestButtonFocused,
+			}, {
+				pills: [
+					{ label: 'microsoft/vscode#9014', icon: 'codicon codicon-issues', nestedLinks: 0 },
+					{ label: 'microsoft/vscode#123', icon: 'codicon codicon-git-pull-request', nestedLinks: 0 },
+				],
+				issueButtonFocused: true,
+				pullRequestButtonFocused: true,
+			});
+		} finally {
+			container.remove();
+		}
 	});
 
 	test('renders additional folder and repository context as attachment pills', () => {

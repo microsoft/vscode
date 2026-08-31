@@ -534,7 +534,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// phone breakpoint after the chat input mounted.
 		this.sessionTypePicker = this._register(this.instantiationService.createInstance(MobileSessionTypePicker, this.options.session, this.options.sessionTypePickerOptions));
 		this._register(this._contextAttachments.onDidChangeContext(() => {
-			this._updateDraftState();
+			this._updateAndSaveDraftState();
 			this._updateSendButtonState();
 			this.focus();
 		}));
@@ -1373,6 +1373,11 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			inputText: this._editor?.getModel()?.getValue() ?? '',
 			attachments: [...this._contextAttachments.attachments],
 		};
+	}
+
+	private _updateAndSaveDraftState(): void {
+		this._updateDraftState();
+		this.saveState();
 	}
 
 	private _toHistoryEntry(draft: IDraftState): IChatModelInputState {

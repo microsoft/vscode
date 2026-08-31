@@ -167,6 +167,10 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 				const icon = dom.append(content, renderIcon(Codicon.repo));
 				icon.setAttribute('aria-hidden', 'true');
 				dom.append(content, dom.$('span.sessions-chat-attachment-name', undefined, entry.name));
+			} else if (entry.icon) {
+				const icon = dom.append(content, renderIcon(entry.icon));
+				icon.setAttribute('aria-hidden', 'true');
+				dom.append(content, dom.$('span.sessions-chat-attachment-name', undefined, entry.name));
 			} else {
 				const label = this._resourceLabels.create(content, { supportIcons: true });
 				this._renderDisposables.add(label);
