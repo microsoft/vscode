@@ -1303,6 +1303,8 @@ export class CommandCenter {
 				uris = [Uri.file(fromGitUri(arg).path)];
 			} else if (arg.scheme === 'file') {
 				uris = [arg];
+			} else if (arg.scheme === 'chat-editing-snapshot-text-model') {
+				uris = [Uri.file(arg.path)];
 			}
 		} else {
 			let resource = arg;
@@ -1317,7 +1319,8 @@ export class CommandCenter {
 					.filter(r => r.type !== Status.DELETED && r.type !== Status.INDEX_DELETED)
 					.map(r => r.resourceUri);
 			} else if (window.activeTextEditor) {
-				uris = [window.activeTextEditor.document.uri];
+				const activeUri = window.activeTextEditor.document.uri;
+				uris = [activeUri.scheme === 'chat-editing-snapshot-text-model' ? Uri.file(activeUri.path) : activeUri];
 			}
 		}
 
