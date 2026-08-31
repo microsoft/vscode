@@ -361,9 +361,14 @@ function addNamedHeaderRendering(md: MarkdownIt): void {
 		let slug = slugify(title);
 
 		if (slugCounter.has(slug)) {
-			const count = slugCounter.get(slug)!;
-			slugCounter.set(slug, count + 1);
-			slug = slugify(slug + '-' + (count + 1));
+			let count = slugCounter.get(slug)!;
+			let candidate = slug;
+			do {
+				candidate = slug + '-' + (++count);
+			} while (slugCounter.has(candidate));
+			slugCounter.set(slug, count);
+			slugCounter.set(candidate, 0);
+			slug = candidate;
 		} else {
 			slugCounter.set(slug, 0);
 		}
