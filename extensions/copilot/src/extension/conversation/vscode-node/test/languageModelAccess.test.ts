@@ -663,7 +663,7 @@ suite('reasoning effort schema', () => {
 	});
 
 	test('Kimi K3 prefers high when available', () => {
-		assert.strictEqual(pickDefaultReasoningEffort(['low', 'high', 'max'], 'kimi-k3'), 'high');
+		assert.strictEqual(pickDefaultReasoningEffort(['low', 'high', 'intelligence'], 'kimi-k3'), 'high');
 	});
 
 	test('non-claude family prefers medium when available', () => {
@@ -698,10 +698,10 @@ suite('auto mode tier schema', () => {
 		assert.deepStrictEqual(buildAutoModeTierSchemaProperty(selectableAutoModeTiers, defaultAutoModeTier), {
 			type: 'string',
 			title: 'Optimize for',
-			enum: ['eco', 'balanced', 'max'],
+			enum: ['efficiency', 'balance', 'intelligence'],
 			enumItemLabels: ['Efficiency', 'Balance', 'Intelligence'],
 			enumDescriptions: ['Cheaper models for everyday tasks', 'Balances capability and cost', 'Most capable models, higher cost'],
-			default: 'balanced',
+			default: 'balance',
 			group: 'navigation',
 		});
 	});

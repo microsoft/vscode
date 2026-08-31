@@ -5037,8 +5037,65 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	suite('contextSize to contextTier mapping', () => {
-		const longContextModel: ITestCopilotModelInfo = {
+	test('configSchema offers the Auto routing profile only to the Auto model, and only while the gate is on', async () => {
+		const models: ITestCopilotModelInfo[] = [
+			{ id: 'auto', name: 'Auto' },
+			{ id: 'claude-sonnet', name: 'Claude Sonnet' },
+		];
+		const configSchemasFor = async (autoModeTiers: boolean) => {
+			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: new TestCopilotClient([], models),
+				rootConfig: { [CopilotCliConfigKey.AutoModeTiers]: autoModeTiers },
+			});
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const published = await waitForState(agent.models, published => published.length === models.length);
+				return published.map(model => model.configSchema?.properties.tier);
+			} finally {
+				await disposeAgent(agent);
+			}
+		};
+
+		const [auto, concrete] = await configSchemasFor(true);
+		assert.deepStrictEqual({
+			auto: { enum: auto?.enum, default: auto?.default, enumLabels: auto?.enumLabels },
+			concrete,
+			gateOff: await configSchemasFor(false),
+		}, {
+			// The enum carries the runtime's wire values, not the retired names.
+			auto: {
+				enum: ['efficiency', 'balance', 'intelligence'],
+				default: 'balance',
+				enumLabels: ['Efficiency', 'Balance', 'Intelligence'],
+			},
+			concrete: undefined,
+			gateOff: [undefined, undefined],
+		});
+	});
+
+	test('re-publishes the Auto routing profile picker when the gate flips', async () => {
+		const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
+		const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			await waitForState(agent.models, models => models.length === 1);
+
+			// The picker is built while the model list is enumerated, so a flip has to re-enumerate.
+			configurationService.updateRootConfig({ [CopilotCliConfigKey.AutoModeTiers]: true });
+			const enabled = await waitForState(agent.models, models => models[0]?.configSchema?.properties.tier !== undefined);
+			configurationService.updateRootConfig({ [CopilotCliConfigKey.AutoModeTiers]: false });
+			const disabled = await waitForState(agent.models, models => models[0]?.configSchema === undefined);
+
+			assert.deepStrictEqual(
+				[enabled[0].configSchema?.properties.tier?.default, disabled[0].configSchema],
+				['balance', undefined]
+			);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	suite('contextSize to contextTier mapping', () => {		const longContextModel: ITestCopilotModelInfo = {
 			id: 'claude-sonnet',
 			name: 'Claude Sonnet',
 			capabilities: { limits: { max_context_window_tokens: 200_000 } },
