@@ -1878,6 +1878,10 @@ suite('CopilotAgent', () => {
 				proxyEnvironment = {
 					HTTP_PROXY: process.env['HTTP_PROXY'],
 					HTTPS_PROXY: process.env['HTTPS_PROXY'],
+					http_proxy: process.env['http_proxy'],
+					https_proxy: process.env['https_proxy'],
+					ALL_PROXY: process.env['ALL_PROXY'],
+					all_proxy: process.env['all_proxy'],
 				};
 				return { resolved: { source: 'none' as const, serverManaged: false, deviceManaged: false, clientManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [] } };
 			},
@@ -1886,6 +1890,10 @@ suite('CopilotAgent', () => {
 		const before = {
 			HTTP_PROXY: process.env['HTTP_PROXY'],
 			HTTPS_PROXY: process.env['HTTPS_PROXY'],
+			http_proxy: process.env['http_proxy'],
+			https_proxy: process.env['https_proxy'],
+			ALL_PROXY: process.env['ALL_PROXY'],
+			all_proxy: process.env['all_proxy'],
 		};
 
 		await getCopilotManagedSettingsDiagnostics(runtimeSdk, 'token', 'https://github.example.com', signal, 3500, 'http://proxy.example.com:8080');
@@ -1898,6 +1906,10 @@ suite('CopilotAgent', () => {
 			environmentRestored: {
 				HTTP_PROXY: process.env['HTTP_PROXY'],
 				HTTPS_PROXY: process.env['HTTPS_PROXY'],
+				http_proxy: process.env['http_proxy'],
+				https_proxy: process.env['https_proxy'],
+				ALL_PROXY: process.env['ALL_PROXY'],
+				all_proxy: process.env['all_proxy'],
 			},
 		}, {
 			authInfo: { type: 'token', host: 'https://github.example.com', token: 'token' },
@@ -1906,6 +1918,10 @@ suite('CopilotAgent', () => {
 			proxyEnvironment: {
 				HTTP_PROXY: 'http://proxy.example.com:8080',
 				HTTPS_PROXY: 'http://proxy.example.com:8080',
+				http_proxy: undefined,
+				https_proxy: undefined,
+				ALL_PROXY: undefined,
+				all_proxy: undefined,
 			},
 			environmentRestored: before,
 		});
@@ -3536,6 +3552,83 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('preserves proxy environment variables without a configured proxy', async () => {
+			const proxyResolver = new TestProxyResolver();
+			const { agent } = createTestAgentContext(disposables, { proxyResolver });
+			const proxyState = agent as unknown as {
+				_resolvedProxy: string | undefined;
+				_resolveProxyForSdk(env: Record<string, string | undefined>): Promise<string | undefined>;
+				_applyProxyEnv(env: Record<string, string | undefined>): void;
+			};
+			const env = {
+				HTTP_PROXY: 'http://uppercase-http.example:8080',
+				HTTPS_PROXY: 'http://uppercase-https.example:8080',
+				http_proxy: 'http://lowercase-http.example:8080',
+				https_proxy: 'http://lowercase-https.example:8080',
+				ALL_PROXY: 'http://uppercase-all.example:8080',
+				all_proxy: 'http://lowercase-all.example:8080',
+			};
+			const expectedEnv = { ...env };
+			try {
+				proxyState._resolvedProxy = await proxyState._resolveProxyForSdk(env);
+				proxyState._applyProxyEnv(env);
+
+				assert.deepStrictEqual({
+					env,
+					resolvedProxy: proxyState._resolvedProxy,
+					resolveProxyCalls: proxyResolver.resolveProxyCalls,
+				}, {
+					env: expectedEnv,
+					resolvedProxy: undefined,
+					resolveProxyCalls: 0,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('prefers the configured proxy over proxy environment variables', async () => {
+			const configuredProxy = 'http://configured-proxy.example:8080';
+			const proxyResolver = new TestProxyResolver();
+			const { agent } = createTestAgentContext(disposables, {
+				proxyResolver,
+				rootConfig: {
+					[AgentHostProxyConfigKey.Proxy]: ` ${configuredProxy} `,
+					[AgentHostSystemProxyEnabledConfigKey]: false,
+				},
+			});
+			const proxyState = agent as unknown as {
+				_resolvedProxy: string | undefined;
+				_resolveProxyForSdk(env: Record<string, string | undefined>): Promise<string | undefined>;
+				_applyProxyEnv(env: Record<string, string | undefined>): void;
+			};
+			const env = {
+				HTTP_PROXY: 'http://uppercase-http.example:8080',
+				HTTPS_PROXY: 'http://uppercase-https.example:8080',
+				http_proxy: 'http://lowercase-http.example:8080',
+				https_proxy: 'http://lowercase-https.example:8080',
+				ALL_PROXY: 'http://uppercase-all.example:8080',
+				all_proxy: 'http://lowercase-all.example:8080',
+			};
+			try {
+				proxyState._resolvedProxy = await proxyState._resolveProxyForSdk(env);
+				proxyState._applyProxyEnv(env);
+
+				assert.deepStrictEqual({
+					env,
+					resolveProxyCalls: proxyResolver.resolveProxyCalls,
+				}, {
+					env: {
+						HTTP_PROXY: configuredProxy,
+						HTTPS_PROXY: configuredProxy,
+					},
+					resolveProxyCalls: 0,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('does not block client startup on system proxy resolution', async () => {
 			const client = new TestCopilotClient([]);
 			const proxyResolver = new TestProxyResolver();
@@ -3653,7 +3746,11 @@ suite('CopilotAgent', () => {
 			const client = new TestCopilotClient([]);
 			const proxyResolver = new TestProxyResolver();
 			proxyResolver.resolvedProxy = 'http://system-proxy.example:8080';
-			const { agent } = createTestAgentContext(disposables, { copilotClient: client, proxyResolver });
+			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				proxyResolver,
+				rootConfig: { [AgentHostProxyConfigKey.NoProxy]: [' 127.0.0.1 ', '', 'localhost'] },
+			});
 			try {
 				disposables.add(proxyResolver.register('test', {
 					resolveProxy: async () => undefined,
@@ -3668,11 +3765,15 @@ suite('CopilotAgent', () => {
 					resolveProxyCalls: proxyResolver.resolveProxyCalls,
 					httpProxy: getCreatedClientOptions(agent).at(-1)?.env?.['HTTP_PROXY'],
 					httpsProxy: getCreatedClientOptions(agent).at(-1)?.env?.['HTTPS_PROXY'],
+					noProxy: getCreatedClientOptions(agent).at(-1)?.env?.['NO_PROXY'],
+					lowercaseNoProxy: getCreatedClientOptions(agent).at(-1)?.env?.['no_proxy'],
 				}, {
 					startCallCount: 1,
 					resolveProxyCalls: 2,
 					httpProxy: proxyResolver.resolvedProxy,
 					httpsProxy: proxyResolver.resolvedProxy,
+					noProxy: '127.0.0.1,localhost',
+					lowercaseNoProxy: undefined,
 				});
 			} finally {
 				await disposeAgent(agent);
@@ -3795,6 +3896,39 @@ suite('CopilotAgent', () => {
 					resolveProxyCalls: 3,
 					httpProxy: proxy,
 					httpsProxy: proxy,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('restarts the Copilot runtime when the no-proxy configuration changes', async () => {
+			const client = new TestCopilotClient([]);
+			const proxyResolver = new TestProxyResolver();
+			const { agent, configurationService } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				proxyResolver,
+				rootConfig: { [AgentHostProxyConfigKey.NoProxy]: ['localhost'] },
+			});
+			try {
+				await agent.listChatsToMigrate();
+				configurationService.updateRootConfig({ [AgentHostProxyConfigKey.NoProxy]: ['127.0.0.1', 'localhost'] });
+				proxyResolver.fireConfigurationChange();
+				for (let i = 0; i < 20 && client.stopCallCount < 1; i++) {
+					await timeout(0);
+				}
+				await agent.listChatsToMigrate();
+
+				assert.deepStrictEqual({
+					startCallCount: client.startCallCount,
+					stopCallCount: client.stopCallCount,
+					noProxy: getCreatedClientOptions(agent).at(-1)?.env?.['NO_PROXY'],
+					lowercaseNoProxy: getCreatedClientOptions(agent).at(-1)?.env?.['no_proxy'],
+				}, {
+					startCallCount: 2,
+					stopCallCount: 1,
+					noProxy: '127.0.0.1,localhost',
+					lowercaseNoProxy: undefined,
 				});
 			} finally {
 				await disposeAgent(agent);
