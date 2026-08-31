@@ -395,7 +395,7 @@ export class McpHTTPHandle extends Disposable {
 				await this._send(message);
 			}
 		} catch (err) {
-			const msg = `Error sending message to ${this._launch.uri}: ${stringifyError(err)}`;
+			const msg = `Error sending message to ${this._requestUrl}: ${stringifyError(err)}`;
 			this._proxy.$onDidChangeState(this._id, { state: McpConnectionState.Kind.Error, message: msg });
 		}
 	}
@@ -487,7 +487,7 @@ export class McpHTTPHandle extends Disposable {
 			// ...except for auth errors
 			&& !isAuthStatusCode(res.status)
 		) {
-			this._log(LogLevel.Info, `${res.status} status sending message to ${this._launch.uri}, will attempt to fall back to legacy SSE`);
+			this._log(LogLevel.Info, `${res.status} status sending message to ${this._requestUrl}, will attempt to fall back to legacy SSE`);
 			this._sseFallbackWithMessage(message);
 			return;
 		}
@@ -500,7 +500,7 @@ export class McpHTTPHandle extends Disposable {
 
 			this._proxy.$onDidChangeState(this._id, {
 				state: McpConnectionState.Kind.Error,
-				message: `${res.status} status sending message to ${this._launch.uri}: ${await this._getErrText(res)}` + (retryWithSessionId ? `; will retry with new session ID` : ''),
+				message: `${res.status} status sending message to ${this._requestUrl}: ${await this._getErrText(res)}` + (retryWithSessionId ? `; will retry with new session ID` : ''),
 				shouldRetry: retryWithSessionId,
 			});
 			return;
@@ -536,7 +536,7 @@ export class McpHTTPHandle extends Disposable {
 					this._proxy.$onDidReceiveMessage(this._id, event.data);
 				} else if (event.type === 'endpoint') {
 					// An SSE server that didn't correctly return a 4xx status when we POSTed
-					this._log(LogLevel.Warning, `Received SSE endpoint from a POST to ${this._launch.uri}, will fall back to legacy SSE`);
+					this._log(LogLevel.Warning, `Received SSE endpoint from a POST to ${this._requestUrl}, will fall back to legacy SSE`);
 					this._sseFallbackWithMessage(message);
 					throw new CancellationError(); // just to end the SSE stream
 				}
@@ -599,12 +599,12 @@ export class McpHTTPHandle extends Disposable {
 					headers
 				);
 			} catch (e) {
-				this._log(LogLevel.Info, `Error connecting to ${this._launch.uri} for async notifications, will retry`);
+				this._log(LogLevel.Info, `Error connecting to ${this._requestUrl} for async notifications, will retry`);
 				continue;
 			}
 
 			if (res.status >= 400) {
-				this._log(LogLevel.Debug, `${res.status} status connecting to ${this._launch.uri} for async notifications; they will be disabled: ${await this._getErrText(res)}`);
+				this._log(LogLevel.Debug, `${res.status} status connecting to ${this._requestUrl} for async notifications; they will be disabled: ${await this._getErrText(res)}`);
 				return;
 			}
 
@@ -657,11 +657,11 @@ export class McpHTTPHandle extends Disposable {
 				headers
 			);
 			if (res.status >= 300) {
-				this._proxy.$onDidChangeState(this._id, { state: McpConnectionState.Kind.Error, message: `${res.status} status connecting to ${this._launch.uri} as SSE: ${await this._getErrText(res)}` });
+				this._proxy.$onDidChangeState(this._id, { state: McpConnectionState.Kind.Error, message: `${res.status} status connecting to ${this._requestUrl} as SSE: ${await this._getErrText(res)}` });
 				return;
 			}
 		} catch (e) {
-			this._proxy.$onDidChangeState(this._id, { state: McpConnectionState.Kind.Error, message: `Error connecting to ${this._launch.uri} as SSE: ${e}` });
+			this._proxy.$onDidChangeState(this._id, { state: McpConnectionState.Kind.Error, message: `Error connecting to ${this._requestUrl} as SSE: ${e}` });
 			return;
 		}
 

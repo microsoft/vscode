@@ -225,6 +225,25 @@ suite('MCP Types', () => {
 		assert.strictEqual(revived.url, url);
 	});
 
+	test('McpServerLaunch.hash ignores url that matches the legacy request URL', async () => {
+		// Carrying a raw url equal to uri.toString(true) must not change the trust nonce, so existing
+		// TrustedOnNonce approvals survive the upgrade (microsoft/vscode#289129).
+		const uri = URI.parse('https://example.com/mcp');
+		const withUrl: McpServerLaunch = { type: McpServerTransportType.HTTP, uri, url: uri.toString(true), headers: [] };
+		const withoutUrl: McpServerLaunch = { type: McpServerTransportType.HTTP, uri, headers: [] };
+		assert.strictEqual(await McpServerLaunch.hash(withUrl), await McpServerLaunch.hash(withoutUrl));
+	});
+
+	test('McpServerLaunch.hash changes when url preserves pre-encoding', async () => {
+		// A url whose pre-encoding differs from uri.toString(true) is a distinct request target and
+		// must produce a new nonce, re-prompting for trust (microsoft/vscode#289129).
+		const rawUrl = 'https://example.com/a%2Fb';
+		const uri = URI.parse(rawUrl);
+		const withUrl: McpServerLaunch = { type: McpServerTransportType.HTTP, uri, url: rawUrl, headers: [] };
+		const withoutUrl: McpServerLaunch = { type: McpServerTransportType.HTTP, uri, headers: [] };
+		assert.notStrictEqual(await McpServerLaunch.hash(withUrl), await McpServerLaunch.hash(withoutUrl));
+	});
+
 	test('maps configuration targets to collection provenance', () => {
 		assert.deepStrictEqual([
 			getMcpCollectionProvenance(ConfigurationTarget.USER),

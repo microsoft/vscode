@@ -721,7 +721,8 @@ export class McpServer extends Disposable implements IMcpServer {
 
 	private _identityFromLaunch(launch: McpServerLaunch | undefined): IMcpServerIdentity {
 		if (launch?.type === McpServerTransportType.HTTP) {
-			return { name: this.definition.label, url: launch.uri.toString(true) };
+			// Match policy against the exact request target (microsoft/vscode#289129).
+			return { name: this.definition.label, url: launch.url ?? launch.uri.toString(true) };
 		}
 		if (launch?.type === McpServerTransportType.Stdio) {
 			// `launch.command`/`launch.args` are typed as non-nullable but can be `undefined` at

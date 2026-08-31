@@ -103,7 +103,7 @@ async function createTestAuthMetadata(options: {
 }
 
 suite('ExtHostMcp', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('IAuthMetadata', () => {
 		suite('properties', () => {
@@ -758,14 +758,13 @@ suite('ExtHostMcp', () => {
 				url: rawUrl,
 				headers: [],
 			};
-			const handle = new CapturingHttpHandle(1, launch, proxy, logService);
+			const handle = store.add(new CapturingHttpHandle(1, launch, proxy, logService));
 			await handle.send('{"jsonrpc":"2.0","id":1,"method":"initialize"}');
 
 			assert.strictEqual(handle.fetched.length, 1);
 			assert.strictEqual(handle.fetched[0].method, 'POST');
 			assert.strictEqual(handle.fetched[0].url, rawUrl);
 			assert.notStrictEqual(handle.fetched[0].url, launch.uri.toString(true));
-			handle.dispose();
 		});
 
 		test('falls back to uri.toString(true) when no raw URL is present', async () => {
@@ -774,12 +773,11 @@ suite('ExtHostMcp', () => {
 				uri: URI.parse('https://example.com/mcp'),
 				headers: [],
 			};
-			const handle = new CapturingHttpHandle(2, launch, proxy, logService);
+			const handle = store.add(new CapturingHttpHandle(2, launch, proxy, logService));
 			await handle.send('{"jsonrpc":"2.0","id":1,"method":"initialize"}');
 
 			assert.strictEqual(handle.fetched.length, 1);
 			assert.strictEqual(handle.fetched[0].url, launch.uri.toString(true));
-			handle.dispose();
 		});
 	});
 });
