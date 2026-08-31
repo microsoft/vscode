@@ -5,8 +5,11 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { LogLevel } from '../../../../platform/log/common/log.js';
-import { createAuthMetadata, CommonResponse, IAuthMetadata } from '../../common/extHostMcp.js';
+import { ILogService, LogLevel } from '../../../../platform/log/common/log.js';
+import { URI } from '../../../../base/common/uri.js';
+import { createAuthMetadata, CommonRequestInit, CommonResponse, IAuthMetadata, McpHTTPHandle } from '../../common/extHostMcp.js';
+import { MainThreadMcpShape } from '../../common/extHost.protocol.js';
+import { McpServerTransportHTTP, McpServerTransportType } from '../../../contrib/mcp/common/mcpTypes.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 // Test constants to avoid magic strings
@@ -730,6 +733,53 @@ suite('ExtHostMcp', () => {
 			// The behavior depends on implementation - either it updates or ignores non-401
 			// This test documents the actual behavior
 			assert.strictEqual(typeof result, 'boolean');
+		});
+	});
+
+	suite('McpHTTPHandle request URL', () => {
+		// Records the URL handed to the network boundary, then short-circuits before the handle
+		// spawns the detached backchannel/SSE work so the test stays deterministic.
+		class CapturingHttpHandle extends McpHTTPHandle {
+			readonly fetched: Array<{ url: string; method?: string }> = [];
+			protected override _fetchInternal(url: string, init?: CommonRequestInit): Promise<CommonResponse> {
+				this.fetched.push({ url, method: init?.method });
+				return Promise.reject(new Error('test-stop'));
+			}
+		}
+
+		const proxy = new Proxy({}, { get: () => (..._args: unknown[]) => Promise.resolve(undefined) }) as unknown as MainThreadMcpShape;
+		const logService = { getLevel: () => LogLevel.Info } as unknown as ILogService;
+
+		test('POSTs to the raw configured URL, preserving pre-encoded characters (microsoft/vscode#289129)', async () => {
+			const rawUrl = 'https://bedrock-agentcore.us-east-1.amazonaws.com/runtimes/arn%3Aaws%3Abedrock-agentcore%3Aus-east-1%3A123456789012%3Aruntime%2Fmy-runtime-id/invocations?qualifier=DEFAULT';
+			const launch: McpServerTransportHTTP = {
+				type: McpServerTransportType.HTTP,
+				uri: URI.parse(rawUrl),
+				url: rawUrl,
+				headers: [],
+			};
+			const handle = new CapturingHttpHandle(1, launch, proxy, logService);
+			await handle.send('{"jsonrpc":"2.0","id":1,"method":"initialize"}');
+
+			assert.strictEqual(handle.fetched.length, 1);
+			assert.strictEqual(handle.fetched[0].method, 'POST');
+			assert.strictEqual(handle.fetched[0].url, rawUrl);
+			assert.notStrictEqual(handle.fetched[0].url, launch.uri.toString(true));
+			handle.dispose();
+		});
+
+		test('falls back to uri.toString(true) when no raw URL is present', async () => {
+			const launch: McpServerTransportHTTP = {
+				type: McpServerTransportType.HTTP,
+				uri: URI.parse('https://example.com/mcp'),
+				headers: [],
+			};
+			const handle = new CapturingHttpHandle(2, launch, proxy, logService);
+			await handle.send('{"jsonrpc":"2.0","id":1,"method":"initialize"}');
+
+			assert.strictEqual(handle.fetched.length, 1);
+			assert.strictEqual(handle.fetched[0].url, launch.uri.toString(true));
+			handle.dispose();
 		});
 	});
 });

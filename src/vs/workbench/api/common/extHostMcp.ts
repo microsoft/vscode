@@ -382,6 +382,11 @@ export class McpHTTPHandle extends Disposable {
 		this._proxy.$onDidChangeState(this._id, { state: McpConnectionState.Kind.Running });
 	}
 
+	/** Returns the configured URL verbatim so pre-encoded reserved characters survive network requests. */
+	private get _requestUrl(): string {
+		return this._launch.url ?? this._launch.uri.toString(true);
+	}
+
 	async send(message: string) {
 		try {
 			if (this._mode.value === HttpMode.Unknown) {
@@ -424,7 +429,7 @@ export class McpHTTPHandle extends Disposable {
 
 		// no fetch with retry here -- don't try to auth if we get an auth failure
 		await this._fetch(
-			this._launch.uri.toString(true),
+			this._requestUrl,
 			{
 				method: 'DELETE',
 				headers,
@@ -459,7 +464,7 @@ export class McpHTTPHandle extends Disposable {
 		await this._addAuthHeader(headers);
 
 		const res = await this._fetchWithAuthRetry(
-			this._launch.uri.toString(true),
+			this._requestUrl,
 			{
 				method: 'POST',
 				headers,
@@ -586,7 +591,7 @@ export class McpHTTPHandle extends Disposable {
 				}
 
 				res = await this._fetchWithAuthRetry(
-					this._launch.uri.toString(true),
+					this._requestUrl,
 					{
 						method: 'GET',
 						headers,
@@ -644,7 +649,7 @@ export class McpHTTPHandle extends Disposable {
 		let res: CommonResponse;
 		try {
 			res = await this._fetchWithAuthRetry(
-				this._launch.uri.toString(true),
+				this._requestUrl,
 				{
 					method: 'GET',
 					headers,
@@ -664,7 +669,7 @@ export class McpHTTPHandle extends Disposable {
 			if (event.type === 'message') {
 				this._proxy.$onDidReceiveMessage(this._id, event.data);
 			} else if (event.type === 'endpoint') {
-				postEndpoint.complete(new URL(event.data, this._launch.uri.toString(true)).toString());
+				postEndpoint.complete(new URL(event.data, this._requestUrl).toString());
 			}
 		});
 

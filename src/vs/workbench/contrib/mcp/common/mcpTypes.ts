@@ -675,6 +675,11 @@ export interface McpServerTransportHTTP {
 	readonly type: McpServerTransportType.HTTP;
 	readonly transport?: 'sse' | 'streamable-http';
 	readonly uri: URI;
+	/**
+	 * Exact configured URL, used verbatim because parsing loses pre-encoded reserved characters.
+	 * Callers fall back to `uri.toString(true)` when absent.
+	 */
+	readonly url?: string;
 	readonly headers: [string, string][];
 	readonly oauth?: McpServerTransportHTTPOAuth;
 	/**
@@ -690,7 +695,7 @@ export type McpServerLaunch =
 
 export namespace McpServerLaunch {
 	export type Serialized =
-		| { type: McpServerTransportType.HTTP; transport?: 'sse' | 'streamable-http'; uri: UriComponents; headers: [string, string][]; oauth?: McpServerTransportHTTPOAuth; authentication?: McpServerTransportHTTPAuthentication }
+		| { type: McpServerTransportType.HTTP; transport?: 'sse' | 'streamable-http'; uri: UriComponents; url?: string; headers: [string, string][]; oauth?: McpServerTransportHTTPOAuth; authentication?: McpServerTransportHTTPAuthentication }
 		| { type: McpServerTransportType.Stdio; cwd: string | undefined; command: string; args: readonly string[]; env: Record<string, string | number | null>; envFile: string | undefined; sandbox: IMcpSandboxConfiguration | undefined };
 
 	export function toSerialized(launch: McpServerLaunch): McpServerLaunch.Serialized {
@@ -700,7 +705,7 @@ export namespace McpServerLaunch {
 	export function fromSerialized(launch: McpServerLaunch.Serialized): McpServerLaunch {
 		switch (launch.type) {
 			case McpServerTransportType.HTTP:
-				return { type: launch.type, transport: launch.transport, uri: URI.revive(launch.uri), headers: launch.headers, oauth: launch.oauth, authentication: launch.authentication };
+				return { type: launch.type, transport: launch.transport, uri: URI.revive(launch.uri), url: launch.url, headers: launch.headers, oauth: launch.oauth, authentication: launch.authentication };
 			case McpServerTransportType.Stdio:
 				return {
 					type: launch.type,
@@ -733,6 +738,7 @@ export namespace McpServerLaunch {
 				type: McpServerTransportType.HTTP,
 				...(configuration.transport === 'sse' ? { transport: 'sse' as const } : {}),
 				uri: URI.parse(configuration.url),
+				url: configuration.url,
 				headers: Object.entries(configuration.headers ?? {}),
 				oauth: configuration.oauth,
 			};
@@ -742,7 +748,15 @@ export namespace McpServerLaunch {
 	}
 
 	export async function hash(launch: McpServerLaunch): Promise<string> {
-		const nonce = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(launch)));
+		// Exclude `url` from the nonce when it matches the legacy request URL (`uri.toString(true)`),
+		// so preserving the raw string doesn't invalidate existing TrustedOnNonce approvals. Only URLs
+		// whose pre-encoding actually changes the request target get a new nonce.
+		let toHash: McpServerLaunch = launch;
+		if (launch.type === McpServerTransportType.HTTP && launch.url !== undefined && launch.url === launch.uri.toString(true)) {
+			const { url, ...rest } = launch;
+			toHash = rest;
+		}
+		const nonce = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(toHash)));
 		return encodeHex(VSBuffer.wrap(new Uint8Array(nonce)));
 	}
 }

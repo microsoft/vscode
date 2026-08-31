@@ -200,10 +200,29 @@ suite('MCP Types', () => {
 				type: McpServerTransportType.HTTP,
 				transport: 'sse',
 				uri: URI.parse('https://example.com/mcp'),
+				url: 'https://example.com/mcp',
 				headers: [['Authorization', 'Bearer token']],
 				oauth: { clientId: 'client' },
 			},
 		});
+	});
+
+	test('McpServerLaunch preserves pre-encoded URL characters for HTTP', () => {
+		// Preserve the exact configured URL through serialization (microsoft/vscode#289129).
+		const url = 'https://bedrock-agentcore.us-east-1.amazonaws.com/runtimes/arn%3Aaws%3Abedrock-agentcore%3Aus-east-1%3A123456789012%3Aruntime%2Fmy-runtime-id/invocations?qualifier=DEFAULT';
+		const launch = McpServerLaunch.fromServerConfiguration({
+			type: McpServerType.REMOTE,
+			url,
+			headers: {},
+		});
+
+		assert.ok(launch && launch.type === McpServerTransportType.HTTP);
+		assert.strictEqual(launch.url, url);
+		assert.strictEqual(launch.uri.toString(true).includes('%2F'), false, 'uri drops pre-encoding');
+
+		const revived = McpServerLaunch.fromSerialized(McpServerLaunch.toSerialized(launch));
+		assert.ok(revived.type === McpServerTransportType.HTTP);
+		assert.strictEqual(revived.url, url);
 	});
 
 	test('maps configuration targets to collection provenance', () => {
