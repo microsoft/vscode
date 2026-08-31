@@ -1690,8 +1690,13 @@ abstract class SettingIncludeExcludeRenderer extends AbstractSettingRenderer imp
 
 			// first delete the existing entry, if present
 			if (e.type !== 'add') {
-				if (e.originalItem.value.data.toString() in template.context.defaultValue) {
-					// delete a default by overriding it
+				if (e.type !== 'remove' && e.originalItem.value.data.toString() in template.context.defaultValue) {
+					// For change/move on a default entry, override the default with `false`
+					// so the user's edit takes precedence over the schema default.
+					// On `remove` we intentionally just delete the key. Settings such as
+					// `search.exclude` inherit from `files.exclude`, so writing `false` here
+					// would also suppress the inherited value, which is not what the user
+					// expressed by clicking "Remove".
 					newValue[e.originalItem.value.data.toString()] = false;
 				} else {
 					delete newValue[e.originalItem.value.data.toString()];
