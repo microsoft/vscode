@@ -100,8 +100,8 @@ export class CopilotMpcDiscoveryAdapter extends ClaudeDesktopMpcDiscoveryAdapter
 		this.id = `copilot.${this.remoteAuthority}`;
 	}
 
-	override getFilePath({ homedir }: INativeMcpDiscoveryData): URI | undefined {
-		return URI.joinPath(homedir, '.copilot', 'mcp-config.json');
+	override getFilePath({ copilotHome, homedir }: INativeMcpDiscoveryData): URI | undefined {
+		return URI.joinPath(copilotHome ?? URI.joinPath(homedir, '.copilot'), 'mcp-config.json');
 	}
 }
 

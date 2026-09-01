@@ -32,7 +32,10 @@ class TestNativeFilesystemMcpDiscovery extends NativeFilesystemMcpDiscovery {
 suite('MCP Discovery - nativeMcpDiscoveryAdapters', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function readNativeDiscoveryPaths(discoverySources: boolean | Partial<Record<ExternalDiscoverySource, boolean>>): string[] {
+	function readNativeDiscoveryPaths(
+		discoverySources: boolean | Partial<Record<ExternalDiscoverySource, boolean>>,
+		details: Partial<INativeMcpDiscoveryData> = {},
+	): string[] {
 		const paths: string[] = [];
 		const fileService = upcastPartial<IFileService>({
 			createWatcher: () => upcastPartial<IFileSystemWatcher>({
@@ -56,6 +59,7 @@ suite('MCP Discovery - nativeMcpDiscoveryAdapters', () => {
 		discovery.setDetailsForTest({
 			platform: Platform.Linux,
 			homedir: URI.file('/home/test'),
+			...details,
 		});
 		return paths;
 	}
@@ -80,6 +84,14 @@ suite('MCP Discovery - nativeMcpDiscoveryAdapters', () => {
 
 	test('does not watch the Copilot user MCP configuration by default', () => {
 		assert.deepStrictEqual(readNativeDiscoveryPaths({}), []);
+	});
+
+	test('watches the configured Copilot home instead of the default', () => {
+		assert.deepStrictEqual(readNativeDiscoveryPaths({
+			[ExternalDiscoverySource.Copilot]: true,
+		}, {
+			copilotHome: URI.file('/custom/copilot'),
+		}), ['/custom/copilot/mcp-config.json']);
 	});
 
 	test('parses the Copilot user MCP configuration schema', async () => {
