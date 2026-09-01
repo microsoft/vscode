@@ -127,6 +127,7 @@ import { animatePromptTyping, IPromptTypingAnimation } from './promptTypingAnima
 import { PromptTemplatePlaceholderController } from './promptTemplatePlaceholder.js';
 import { INewSessionComposer, INewSessionPromptOptionsController, NEW_SESSION_PROMPT_TYPING_DURATION_MS, NewSessionPromptOptionsState, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 import { NewSessionPromptOptionsWidget } from './newSessionPromptOptions.js';
+import { isInputGitHubContext, toInputGitHubContextMetadata } from '../common/newChatContextIds.js';
 
 
 const OPEN_OTEL_SETTINGS_COMMAND = 'github.copilot.chat.otel.openSettings';
@@ -134,7 +135,6 @@ const OTEL_STATUS_COMMAND = 'github.copilot.chat.otel.statusActive';
 const OTEL_STATUS_ENTRY_ID = 'copilot.otelStatus';
 const OTEL_DOCS_URL = 'https://code.visualstudio.com/docs/agents/guides/monitoring-agents';
 const STORAGE_KEY_DRAFT_STATE = 'sessions.draftState';
-const INPUT_GITHUB_CONTEXT_METADATA_KEY = 'sessionsInputGitHubContext';
 const GITHUB_ISSUE_OR_PULL_REQUEST_URL_PATTERN = /\bhttps?:\/\/(?:www\.)?github\.com\/(?<owner>[\w.-]+)\/(?<repo>[\w.-]+)\/(?<kind>issues|pull)\/(?<number>\d+)\b/gi;
 const MIN_EDITOR_HEIGHT = 50;
 const MAX_EDITOR_HEIGHT = 200;
@@ -235,14 +235,10 @@ function getInputGitHubContextAttachments(input: string): readonly IChatRequestV
 		attachments.push(toPasteVariableEntry(`${owner}/${repo}#${number}`, `GitHub context: ${uri}`, {
 			id,
 			icon: kind === 'issues' ? Codicon.issues : Codicon.gitPullRequest,
-			_meta: { [INPUT_GITHUB_CONTEXT_METADATA_KEY]: true },
+			_meta: toInputGitHubContextMetadata(),
 		}));
 	}
 	return attachments;
-}
-
-function isInputGitHubContextAttachment(attachment: IChatRequestVariableEntry): boolean {
-	return attachment._meta?.[INPUT_GITHUB_CONTEXT_METADATA_KEY] === true;
 }
 
 class NewChatInputStatusActionViewItem extends MenuEntryActionViewItem {
@@ -1435,7 +1431,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		const inputAttachments = getInputGitHubContextAttachments(this._editor?.getValue() ?? '');
 		const inputAttachmentIds = new Set(inputAttachments.map(attachment => attachment.id));
 		const attachments = this._contextAttachments.attachments.filter(attachment =>
-			!isInputGitHubContextAttachment(attachment) || inputAttachmentIds.has(attachment.id)
+			!isInputGitHubContext(attachment) || inputAttachmentIds.has(attachment.id)
 		);
 		const attachmentIds = new Set(attachments.map(attachment => attachment.id));
 		for (const attachment of inputAttachments) {
