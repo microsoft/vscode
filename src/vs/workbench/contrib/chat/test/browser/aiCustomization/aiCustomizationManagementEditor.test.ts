@@ -58,6 +58,7 @@ suite('aiCustomizationManagementEditor', () => {
 		customizationsByMigrationCategory: Map<CustomizationMigrationCategoryId, readonly MigratableConfiguration[]>;
 		customizationMigrationTargetFoldersByType: Map<PromptsType, readonly ICustomizationSourceFolder[]>;
 		customizationMigrationInProgress: boolean;
+		customizationMigrationWritesInProgress: boolean;
 		activeMigrationCategoryId: CustomizationMigrationCategoryId | undefined;
 		editorDisplayMode: 'preview' | 'raw';
 		editorPreviewFrontMatterContainer: HTMLElement | undefined;
@@ -96,6 +97,7 @@ suite('aiCustomizationManagementEditor', () => {
 		refreshCustomizationMigrationInfo(): Promise<void>;
 		registerCustomizationMigrationSessionRefresh(): void;
 		renderCustomizationMigrationPage(): void;
+		updateCustomizationMigrationActionState(): void;
 		setCustomizationsToMigrate(candidates: Map<CustomizationMigrationCategoryId, readonly MigratableConfiguration[]>, targetFoldersByType: Map<PromptsType, readonly ICustomizationSourceFolder[]>): void;
 		isCustomizationSelectedForMigration(customization: MigratableConfiguration): boolean;
 		setCustomizationSelectedForMigration(customization: MigratableConfiguration, selected: boolean): void;
@@ -128,6 +130,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.customizationsByMigrationCategory = new Map();
 		editor.customizationMigrationTargetFoldersByType = new Map();
 		editor.customizationMigrationInProgress = false;
+		editor.customizationMigrationWritesInProgress = false;
 		editor.activeMigrationCategoryId = undefined;
 		editor.editorDisplayMode = 'preview';
 		editor.editorPreviewFrontMatterContainer = document.createElement('div');
@@ -401,7 +404,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.editorPreviewDisposables.dispose();
 	});
 
-	test('does not refresh migration state for prompt changes while migration is in progress', () => {
+	test('suppresses prompt change refreshes only while migration writes are in progress', () => {
 		const editor = createTestEditor();
 		let refreshCount = 0;
 		editor.refreshCustomizationMigrationInfo = async () => {
@@ -410,10 +413,31 @@ suite('aiCustomizationManagementEditor', () => {
 
 		editor.customizationMigrationInProgress = true;
 		editor.refreshCustomizationMigrationInfoFromPromptChange();
-		editor.customizationMigrationInProgress = false;
+		editor.customizationMigrationWritesInProgress = true;
+		editor.refreshCustomizationMigrationInfoFromPromptChange();
+		editor.customizationMigrationWritesInProgress = false;
 		editor.refreshCustomizationMigrationInfoFromPromptChange();
 
-		assert.strictEqual(refreshCount, 1);
+		assert.strictEqual(refreshCount, 2);
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('disables migration while another migration is in progress', () => {
+		const editor = createTestEditor();
+		const customization: MigratableConfiguration = {
+			uri: URI.file('/user-data/prompts/reviewer.agent.md'),
+			storage: PromptsStorage.user,
+			type: PromptsType.agent,
+			source: PromptFileSource.UserData,
+		};
+		editor.migrationMigrateButton = { enabled: true, label: '' };
+		editor.setCustomizationsToMigrate(new Map([[CustomizationMigrationCategoryId.UserData, [customization]]]), new Map());
+		editor.activeMigrationCategoryId = CustomizationMigrationCategoryId.UserData;
+
+		editor.customizationMigrationInProgress = true;
+		editor.updateCustomizationMigrationActionState();
+
+		assert.strictEqual(editor.migrationMigrateButton.enabled, false);
 		editor.editorPreviewDisposables.dispose();
 	});
 
@@ -805,12 +829,12 @@ suite('aiCustomizationManagementEditor', () => {
 		] as const satisfies readonly MigratableConfiguration[];
 		const availableSourceFolders = new Map<PromptsType, readonly ICustomizationSourceFolder[]>([
 			[PromptsType.agent, [
-				{ uri: URI.file('/home/test/.copilot/agents'), label: 'Copilot', source: PromptsStorage.user },
-				{ uri: URI.file('/home/test/.claude/agents'), label: 'Claude', source: PromptsStorage.user },
+				{ uri: URI.file('/home/test/.copilot/agents'), label: 'Copilot', source: PromptsStorage.user, destinationGroupId: 'copilot' },
+				{ uri: URI.file('/home/test/.claude/agents'), label: 'Claude', source: PromptsStorage.user, destinationGroupId: 'claude' },
 			]],
 			[PromptsType.instructions, [
-				{ uri: URI.file('/home/test/.copilot/instructions'), label: 'Copilot', source: PromptsStorage.user },
-				{ uri: URI.file('/home/test/.claude/rules'), label: 'Claude', source: PromptsStorage.user },
+				{ uri: URI.file('/home/test/.copilot/instructions'), label: 'Copilot', source: PromptsStorage.user, destinationGroupId: 'copilot' },
+				{ uri: URI.file('/home/test/.claude/rules'), label: 'Claude', source: PromptsStorage.user, destinationGroupId: 'claude' },
 			]],
 		]);
 
@@ -859,11 +883,11 @@ suite('aiCustomizationManagementEditor', () => {
 		] as const satisfies readonly MigratableConfiguration[];
 		const availableSourceFolders = new Map<PromptsType, readonly ICustomizationSourceFolder[]>([
 			[PromptsType.agent, [
-				{ uri: URI.file('/home/test/.copilot/agents'), label: 'Copilot', source: PromptsStorage.user },
+				{ uri: URI.file('/home/test/.copilot/agents'), label: 'Copilot', source: PromptsStorage.user, destinationGroupId: 'copilot' },
 			]],
 			[PromptsType.instructions, [
-				{ uri: URI.file('/home/test/.copilot/instructions'), label: 'Copilot', source: PromptsStorage.user },
-				{ uri: URI.file('/home/test/.claude/rules'), label: 'Claude', source: PromptsStorage.user },
+				{ uri: URI.file('/home/test/.copilot/instructions'), label: 'Copilot', source: PromptsStorage.user, destinationGroupId: 'copilot' },
+				{ uri: URI.file('/home/test/.claude/rules'), label: 'Claude', source: PromptsStorage.user, destinationGroupId: 'claude' },
 			]],
 		]);
 
@@ -879,6 +903,50 @@ suite('aiCustomizationManagementEditor', () => {
 				agentTarget: '/home/test/.copilot/agents',
 				instructionsTarget: '/home/test/.claude/rules',
 			});
+		} finally {
+			editor.editorPreviewDisposables.dispose();
+		}
+	});
+
+	test('does not infer migration destination groups from folder parents', async () => {
+		const editor = createTestEditor();
+		const sessionResource = editor.harnessService.activeSessionResource.get();
+		let pickerInvocationCount = 0;
+		editor.quickInputService = {
+			pick: async items => {
+				pickerInvocationCount++;
+				return items[0];
+			},
+		};
+		const customizations = [
+			{
+				uri: URI.file('/user-data/prompts/reviewer.agent.md'),
+				storage: PromptsStorage.user,
+				type: PromptsType.agent,
+				source: PromptFileSource.UserData,
+			},
+			{
+				uri: URI.file('/user-data/prompts/review.instructions.md'),
+				storage: PromptsStorage.user,
+				type: PromptsType.instructions,
+				source: PromptFileSource.UserData,
+			},
+		] as const satisfies readonly MigratableConfiguration[];
+		const availableSourceFolders = new Map<PromptsType, readonly ICustomizationSourceFolder[]>([
+			[PromptsType.agent, [
+				{ uri: URI.file('/home/test/.copilot/agents'), label: 'Copilot', source: PromptsStorage.user },
+				{ uri: URI.file('/home/test/.claude/agents'), label: 'Claude', source: PromptsStorage.user },
+			]],
+			[PromptsType.instructions, [
+				{ uri: URI.file('/home/test/.copilot/instructions'), label: 'Copilot', source: PromptsStorage.user },
+				{ uri: URI.file('/home/test/.claude/rules'), label: 'Claude', source: PromptsStorage.user },
+			]],
+		]);
+
+		try {
+			await editor.resolveCustomizationMigrationTargetFolders(customizations, availableSourceFolders, sessionResource);
+
+			assert.strictEqual(pickerInvocationCount, 2);
 		} finally {
 			editor.editorPreviewDisposables.dispose();
 		}
