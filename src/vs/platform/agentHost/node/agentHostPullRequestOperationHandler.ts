@@ -329,6 +329,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 				enabled: true,
 				...(current?.overrides ? { overrides: current.overrides } : {}),
 			},
+			[SessionConfigKey.AgentMergeController]: {},
 		});
 	}
 
