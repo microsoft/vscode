@@ -121,21 +121,125 @@ suite('SinglePane layout strategies', () => {
 		});
 	});
 
-	test('New Session entry hides Editor when Empty Files is the only input', () => {
+	test('New Session entry shows Files Details before hiding Editor when Empty Files is the only input', () => {
 		const ctx = setup();
 		const session = makeSession(URI.parse('session:/new'), { status: SessionStatus.Untitled, isCreated: false });
-		harness.activeGroupEditors.push(store.add(harness.instaService.createInstance(EmptyFileEditorInput, session.workspace.get())));
+		const emptyFiles = store.add(harness.instaService.createInstance(EmptyFileEditorInput, session.workspace.get()));
+		harness.activeGroupEditors.push(emptyFiles);
+		harness.activeEditorInput = emptyFiles;
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
 		store.add(harness.instaService.createInstance(SinglePaneNewSessionStrategy, ctx, createDetailPanel()));
 		harness.setPartHiddenCalls.length = 0;
 
 		activate(session);
 
-		assert.deepStrictEqual(harness.setPartHiddenCalls.filter(call => call.part === Parts.EDITOR_PART), [
+		assert.deepStrictEqual(harness.setPartHiddenCalls, [
+			{ hidden: false, part: Parts.AUXILIARYBAR_PART },
 			{ hidden: true, part: Parts.EDITOR_PART },
 		]);
 	});
 
-	test('New Session close fallback replaces the last file and opens Details', async () => {
+	test('New Session allows Details to stay hidden after Empty Files opens it', () => {
+		const ctx = setup();
+		const session = makeSession(URI.parse('session:/new'), { status: SessionStatus.Untitled, isCreated: false });
+		const emptyFiles = store.add(harness.instaService.createInstance(EmptyFileEditorInput, session.workspace.get()));
+		harness.activeGroupEditors.push(emptyFiles);
+		harness.activeEditorInput = emptyFiles;
+		store.add(harness.instaService.createInstance(SinglePaneNewSessionStrategy, ctx, createDetailPanel()));
+		activate(session);
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
+		harness.setPartHiddenCalls.length = 0;
+
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
+
+		assert.deepStrictEqual({
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			visibilityChanges: harness.setPartHiddenCalls,
+		}, {
+			auxiliaryBarVisible: false,
+			visibilityChanges: [],
+		});
+	});
+
+	test('Existing Session restoration shows Details when Empty Files is active', () => {
+		const ctx = setup();
+		const session = makeSession(URI.parse('session:/existing'));
+		const emptyFiles = store.add(harness.instaService.createInstance(EmptyFileEditorInput, session.workspace.get()));
+		const visibilityStore = createVisibilityStore();
+		visibilityStore.set(SessionVisibilityProfile.Existing, { editorVisible: true, auxiliaryBarVisible: false });
+		harness.activeGroupEditors.push(emptyFiles);
+		harness.activeEditorInput = emptyFiles;
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		store.add(harness.instaService.createInstance(
+			SinglePaneExistingSessionStrategy,
+			ctx,
+			visibilityStore,
+			createDetailPanel()
+		));
+		harness.setPartHiddenCalls.length = 0;
+
+		activate(session);
+
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			visibilityChanges: harness.setPartHiddenCalls,
+		}, {
+			editorVisible: true,
+			auxiliaryBarVisible: true,
+			visibilityChanges: [
+				{ hidden: false, part: Parts.AUXILIARYBAR_PART },
+			],
+		});
+	});
+
+	test('Existing Session allows Details to hide until Empty Files is opened again', () => {
+		const ctx = setup();
+		const session = makeSession(URI.parse('session:/existing'));
+		const otherEditor = store.add(new TestStubEditorInput(URI.parse('search-editor://other')));
+		const emptyFiles = store.add(harness.instaService.createInstance(EmptyFileEditorInput, session.workspace.get()));
+		harness.activeGroupEditors.push(otherEditor, emptyFiles);
+		harness.activeEditorInput = emptyFiles;
+		const strategy = store.add(harness.instaService.createInstance(
+			SinglePaneExistingSessionStrategy,
+			ctx,
+			createVisibilityStore(),
+			createDetailPanel()
+		));
+		activate(session);
+		harness.setPartHiddenCalls.length = 0;
+
+		const nowVisible = strategy.toggleDetails();
+
+		assert.deepStrictEqual({
+			nowVisible,
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			visibilityChanges: harness.setPartHiddenCalls,
+		}, {
+			nowVisible: false,
+			auxiliaryBarVisible: false,
+			visibilityChanges: [
+				{ hidden: true, part: Parts.AUXILIARYBAR_PART },
+			],
+		});
+
+		harness.activeEditorInput = otherEditor;
+		harness.onDidActiveEditorChange.fire();
+		harness.activeEditorInput = emptyFiles;
+		harness.onDidActiveEditorChange.fire();
+
+		assert.deepStrictEqual({
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			lastVisibilityChange: harness.setPartHiddenCalls.at(-1),
+		}, {
+			auxiliaryBarVisible: true,
+			lastVisibilityChange: { hidden: false, part: Parts.AUXILIARYBAR_PART },
+		});
+	});
+
+	test('New Session closes the side pane instead of opening Empty Files when its last file closes', () => {
 		const ctx = setup();
 		const session = makeSession(URI.parse('session:/new'), { status: SessionStatus.Untitled, isCreated: false });
 		const editor = store.add(new TestStubEditorInput(URI.file('/repo/file.ts')));
@@ -148,20 +252,16 @@ suite('SinglePane layout strategies', () => {
 		harness.activeGroupEditors.length = 0;
 		harness.editorGroupsHaveContent = false;
 		harness.onDidCloseEditor.fire({ editor, groupId: 1 });
-		const replacementDuringClose = harness.activeGroupEditors.find(input => input instanceof EmptyFileEditorInput);
 		harness.onDidEditorsChange.fire();
-		await Promise.resolve();
 
 		assert.deepStrictEqual({
-			replacementPreservedAfterClose: replacementDuringClose === harness.activeGroupEditors[0],
 			editorsAfterCloseCompleted: harness.activeGroupEditors.map(input => input.typeId),
 			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
 			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
 		}, {
-			replacementPreservedAfterClose: true,
-			editorsAfterCloseCompleted: [EmptyFileEditorInput.ID],
-			editorVisible: true,
-			auxiliaryBarVisible: true,
+			editorsAfterCloseCompleted: [],
+			editorVisible: false,
+			auxiliaryBarVisible: false,
 		});
 	});
 
