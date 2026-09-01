@@ -22,6 +22,7 @@ suite('EvaluationSessionRequest', () => {
 			agent: 'copilotcli',
 			approvals: 'yolo',
 			prompt: 'Fix the issue.',
+			backendScheme: 'ahp-session',
 			folder: 'vscode-agent-host://example/workspace',
 		})), {
 			version: 1,
@@ -29,6 +30,7 @@ suite('EvaluationSessionRequest', () => {
 			agent: 'copilotcli',
 			approvals: 'yolo',
 			prompt: 'Fix the issue.',
+			backendScheme: 'ahp-session',
 			folder: 'vscode-agent-host://example/workspace',
 		});
 
@@ -38,16 +40,18 @@ suite('EvaluationSessionRequest', () => {
 			agent: 'claude',
 			approvals: 'assisted',
 			prompt: 'Review the code.',
+			backendScheme: 'claude',
 		})).surface, 'editor');
 	});
 
 	test('rejects unsupported or incomplete requests', () => {
 		for (const request of [
 			{},
-			{ version: 1, surface: 'headless', agent: 'copilotcli', approvals: 'yolo', prompt: 'x' },
-			{ version: 1, surface: 'editor', agent: 'other', approvals: 'yolo', prompt: 'x' },
-			{ version: 1, surface: 'editor', agent: 'codex', approvals: 'default', prompt: 'x' },
-			{ version: 1, surface: 'agents', agent: 'copilotcli', approvals: 'yolo', prompt: 'x' },
+			{ version: 1, surface: 'headless', agent: 'copilotcli', approvals: 'yolo', prompt: 'x', backendScheme: 'ahp-session' },
+			{ version: 1, surface: 'editor', agent: 'other', approvals: 'yolo', prompt: 'x', backendScheme: 'other' },
+			{ version: 1, surface: 'editor', agent: 'codex', approvals: 'default', prompt: 'x', backendScheme: 'codex' },
+			{ version: 1, surface: 'agents', agent: 'copilotcli', approvals: 'yolo', prompt: 'x', backendScheme: 'ahp-session' },
+			{ version: 1, surface: 'editor', agent: 'codex', approvals: 'yolo', prompt: 'x' },
 		]) {
 			assert.throws(() => parseEvaluationSessionRequest(JSON.stringify(request)));
 		}

@@ -27,6 +27,7 @@ export interface IEvaluationSessionRequest {
 	readonly agent: EvaluationSessionAgent;
 	readonly approvals: EvaluationSessionApprovals;
 	readonly prompt: string;
+	readonly backendScheme: string;
 	readonly modelId?: string;
 	readonly folder?: string;
 }
@@ -58,6 +59,9 @@ export function parseEvaluationSessionRequest(raw: string): IEvaluationSessionRe
 	}
 	if (typeof request.prompt !== 'string' || request.prompt.trim().length === 0) {
 		throw new Error('Evaluation session prompt must be a non-empty string.');
+	}
+	if (typeof request.backendScheme !== 'string' || request.backendScheme.length === 0) {
+		throw new Error('Evaluation session backendScheme must be a non-empty string.');
 	}
 	if (request.modelId !== undefined && typeof request.modelId !== 'string') {
 		throw new Error('Evaluation session modelId must be a string.');
@@ -99,7 +103,7 @@ export async function writeEvaluationSessionIdentity(path: string, fileService: 
 		version: 1,
 		surface: request.surface,
 		sessionResource: sessionResource.toString(),
-		backendSession: AgentSession.uri(request.agent, AgentSession.id(sessionResource)).toString(),
+		backendSession: AgentSession.uri(request.backendScheme, AgentSession.id(sessionResource)).toString(),
 	};
 	await fileService.writeFile(evaluationSessionResultResource(path), VSBuffer.fromString(`${JSON.stringify(result, undefined, 2)}\n`));
 }
