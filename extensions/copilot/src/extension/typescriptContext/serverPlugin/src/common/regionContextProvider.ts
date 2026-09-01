@@ -219,7 +219,7 @@ export class RegionContextProvider {
 					kind,
 					name,
 					rangeNode: parent,
-					continueWith: parent.parent
+					continueWith: parent
 				};
 			}
 		}

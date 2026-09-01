@@ -263,7 +263,7 @@ export class TS7RegionContextProvider implements Omit<IRegionContextProviderServ
 					kind,
 					name,
 					rangeNode: parent,
-					continueWith: parent.parent
+					continueWith: parent
 				};
 			}
 		}
