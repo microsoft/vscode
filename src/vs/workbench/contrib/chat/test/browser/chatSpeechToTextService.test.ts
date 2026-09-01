@@ -50,6 +50,18 @@ type ConnectionTestService = {
 	_awaitVoiceConnected: () => Promise<void>;
 };
 
+type FinalizationTestService = {
+	_activeBackend: 'nemo';
+	_localTranscription: {
+		stop: () => Promise<string>;
+		cancel: () => Promise<void>;
+	};
+	_finalizedText: string;
+	_deltaText: string;
+	_logService: Pick<Console, 'warn'>;
+	_finishBackend: () => Promise<string | undefined>;
+};
+
 suite('ChatSpeechToTextService', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -125,6 +137,38 @@ suite('ChatSpeechToTextService', () => {
 
 		fatalDisconnect.dispose();
 		sessionDisposables.dispose();
+	});
+
+	test('returns the streamed transcript when on-device finalization times out', async () => {
+		const clock = sinon.useFakeTimers();
+		const warnings: string[] = [];
+		let cancellations = 0;
+		const service = Object.create(ChatSpeechToTextService.prototype) as FinalizationTestService;
+		service._activeBackend = 'nemo';
+		service._finalizedText = 'streamed transcript';
+		service._deltaText = '';
+		service._logService = { warn: message => warnings.push(message) };
+		service._localTranscription = {
+			stop: () => new Promise(() => { }),
+			cancel: async () => { cancellations++; },
+		};
+
+		try {
+			const resultPromise = service._finishBackend();
+			await clock.tickAsync(8000);
+
+			assert.deepStrictEqual({
+				result: await resultPromise,
+				cancellations,
+				warnings,
+			}, {
+				result: 'streamed transcript',
+				cancellations: 1,
+				warnings: ['[chat-stt] on-device final transcription timed out after 8000ms; using streamed transcript'],
+			});
+		} finally {
+			clock.restore();
+		}
 	});
 
 	test('resolves the dictation language from Voice Mode configuration, display language, and browser locale', () => {

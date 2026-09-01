@@ -16,7 +16,7 @@ import { IContextKey, IContextKeyService } from '../../../../../platform/context
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IProgress, IProgressService, IProgressStep, Progress, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
-import { DeferredPromise, raceCancellation } from '../../../../../base/common/async.js';
+import { DeferredPromise, raceCancellation, raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -159,6 +159,8 @@ export function isDictationEntitled(entitlement: ChatEntitlement, isInternal: bo
 const MAI_CONNECT_TIMEOUT_MS = 8000;
 /** How long to wait after `ptt_end` for the backend's final transcript before returning what we have. */
 const MAI_FINAL_TIMEOUT_MS = 4000;
+/** How long to wait for the on-device backend to finish before returning its streamed transcript. */
+const NEMO_FINAL_TIMEOUT_MS = 8000;
 /** How long to wait for the backend to acknowledge the opened session before streaming audio anyway. */
 const MAI_SESSION_INIT_TIMEOUT_MS = 4000;
 
@@ -1646,7 +1648,13 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			]);
 			return this._transcript;
 		}
-		return this._localTranscription.stop();
+		const finalText = await raceTimeout(this._localTranscription.stop(), NEMO_FINAL_TIMEOUT_MS);
+		if (finalText !== undefined) {
+			return finalText;
+		}
+		this._logService.warn(`[chat-stt] on-device final transcription timed out after ${NEMO_FINAL_TIMEOUT_MS}ms; using streamed transcript`);
+		void this._localTranscription.cancel().catch(error => this._logService.warn('[chat-stt] failed to cancel on-device transcription after finalization timeout', error));
+		return this._transcript;
 	}
 
 	async cancel(): Promise<void> {
