@@ -160,11 +160,18 @@ suite('AutomationInputCompletions', () => {
 		store.add(new AutomationInputCompletions(editor, languageFeaturesService, new TestChatSessionsService(), sessionsManagementService, codeEditorService, new NullLogService()));
 		await timeout(0);
 		model.setValue('/reviewx then /plan and /runtime-skill plus /unknown');
+		decorationRanges.set('decoration-1', new Range(1, 25, 1, 39));
+		onDidChangeModelContent.fire(upcastPartial<IModelContentChangedEvent>({}));
+		await timeout(250);
+		const afterRightEdgeEdit = decorations;
+		model.setValue('/reviewx then /plan and x/runtime-skill plus /unknown');
+		decorationRanges.set('decoration-0', new Range(1, 26, 1, 40));
 		onDidChangeModelContent.fire(upcastPartial<IModelContentChangedEvent>({}));
 		await timeout(250);
 
-		assert.deepStrictEqual(decorations, [
-			new Range(1, 25, 1, 39),
-		]);
+		assert.deepStrictEqual({ afterRightEdgeEdit, afterLeftEdgeEdit: decorations }, {
+			afterRightEdgeEdit: [new Range(1, 25, 1, 39)],
+			afterLeftEdgeEdit: [],
+		});
 	});
 });
