@@ -22,6 +22,25 @@ export abstract class BasePolicy implements Policy {
 		description: NlsString,
 		moduleName: string,
 	) {
+		if (!type) {
+			throw new Error("BasePolicy: 'type' parametresi zorunludur ve boş bırakılamaz.");
+		}
+		if (!name || typeof name !== 'string' || name.trim() === '') {
+			throw new Error("BasePolicy: Geçerli bir 'name' değeri gereklidir.");
+		}
+		if (!category) {
+			throw new Error("BasePolicy: 'category' parametresi zorunludur.");
+		}
+		if (!minimumVersion || typeof minimumVersion !== 'string' || !/^\d+(\.\d+)*$/.test(minimumVersion)) {
+			throw new Error(`BasePolicy: Geçersiz 'minimumVersion' formatı (${minimumVersion}). Sürüm numarası sayısal değerlerden oluşmalıdır (örn. '1.0.0').`);
+		}
+		if (!description || !description.nlsKey) {
+			throw new Error("BasePolicy: Geçerli bir 'description' ve 'nlsKey' gereklidir.");
+		}
+		if (!moduleName || typeof moduleName !== 'string' || moduleName.trim() === '') {
+			throw new Error("BasePolicy: Geçerli bir 'moduleName' değeri gereklidir.");
+		}
+
 		this.type = type;
 		this.name = name;
 		this.category = category;
