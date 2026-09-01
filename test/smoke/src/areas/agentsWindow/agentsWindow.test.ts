@@ -95,6 +95,7 @@ export function setup(logger: Logger) {
 				await app.workbench.agentsWindow.submitNewSessionPrompt(`replace the new session UI [scenario:${AGENT_HOST_REPLACEMENT_SCENARIO_ID}]`);
 				await app.workbench.agentsWindow.waitForActiveSessionView();
 				await app.workbench.agentsWindow.waitForAssistantText(AGENT_HOST_REPLACEMENT_REPLY);
+				await app.workbench.agentsWindow.startNewSession();
 			} catch (error) {
 				logger.log(`Agents Window (AgentHost replacement) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
 				await dumpFailureDiagnostics(app, logger, 'Agents Window (AgentHost replacement)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
