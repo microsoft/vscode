@@ -242,9 +242,7 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 				this.tryFocus();
 			}
 		} else {
-			if (placeholderActive) {
-				void this._doScreenshot();
-			}
+			void this._doScreenshot();
 			// Defer the hide one frame so the latest screenshot has a chance to paint first.
 			this.editor.window.requestAnimationFrame(() => {
 				// Double check that we should still hide the page.
@@ -270,11 +268,8 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 	}
 
 	private async _doScreenshot(): Promise<void> {
-		if (!this._model) {
-			return;
-		}
 		this._screenshotHandle.clear();
-		if (!this._model.visible) {
+		if (!this._model?.url || this._model.error || !this._model.visible) {
 			return;
 		}
 		try {
