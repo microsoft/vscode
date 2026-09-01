@@ -305,7 +305,8 @@ const permissionsProperty = schemaProperty<IPermissionsValue>({
  * shell tool command (see `common/shellInitScript.ts`). Written by the
  * workbench and consumed by the Copilot provider; `readOnly` because no user
  * edits it directly, `sessionMutable` because the selected Python environment
- * can change while a session is live.
+ * can change while a session is live. The value is transient and omitted from
+ * persisted session config.
  *
  * Deliberately has no `default`: an absent value means "nothing to apply",
  * which must stay distinguishable from an explicit empty array (clear).

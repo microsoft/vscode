@@ -864,6 +864,9 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			return { resource } as Awaited<ReturnType<IFileService['writeFile']>>;
 		},
 		del: async (resource: URI, delOptions?: { recursive?: boolean }) => {
+			if (resource.fsPath.includes('/agentHost/shellInit/')) {
+				mockSession.operationLog.push('file.delete:shellInit');
+			}
 			const matches = [...storedFileContents.keys()].filter(key => key.startsWith(resource.toString()) || key.startsWith(resource.fsPath));
 			// Like the disk provider, a non-recursive delete removes only an
 			// empty directory and fails while descendants remain.
@@ -4527,7 +4530,7 @@ suite('CopilotAgentSession', () => {
 
 			await session.send('hello', undefined, 'turn-1');
 
-			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), buildSandboxConfigForSdk('linux', sandbox, [TEST_SHELL_INIT_DIR]));
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), buildSandboxConfigForSdk('linux', sandbox));
 			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['manual']);
 		});
 
@@ -4540,7 +4543,7 @@ suite('CopilotAgentSession', () => {
 
 			await session.send('hello', undefined, 'turn-1');
 
-			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), buildSandboxConfigForSdk('linux', sandbox, [TEST_SHELL_INIT_DIR]));
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), buildSandboxConfigForSdk('linux', sandbox));
 			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['allow-all']);
 		});
 
@@ -4944,9 +4947,9 @@ suite('CopilotAgentSession', () => {
 			}, {
 				permissionModes: ['manual', 'allow-all', 'manual'],
 				sandboxConfigs: [
-					buildSandboxConfigForSdk('linux', sandbox, [TEST_SHELL_INIT_DIR]),
-					buildSandboxConfigForSdk('linux', sandbox, [TEST_SHELL_INIT_DIR]),
-					buildSandboxConfigForSdk('linux', sandbox, [TEST_SHELL_INIT_DIR]),
+					buildSandboxConfigForSdk('linux', sandbox),
+					buildSandboxConfigForSdk('linux', sandbox),
+					buildSandboxConfigForSdk('linux', sandbox),
 				],
 			});
 		});
@@ -5027,7 +5030,7 @@ suite('CopilotAgentSession', () => {
 				sandbox: mockSession.sandboxConfigUpdates.at(-1),
 			}, {
 				permissionModes: ['manual'],
-				sandbox: buildSandboxConfigForSdk('linux', sandbox, [TEST_SHELL_INIT_DIR]),
+				sandbox: buildSandboxConfigForSdk('linux', sandbox),
 			});
 		});
 
@@ -5042,7 +5045,7 @@ suite('CopilotAgentSession', () => {
 
 			await session.send('hello', undefined, 'turn-1');
 
-			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), buildSandboxConfigForSdk('linux', sandbox, [TEST_SHELL_INIT_DIR]));
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), buildSandboxConfigForSdk('linux', sandbox));
 		});
 
 		test('per-request sandbox: applies the configured policy on Windows', async () => {
@@ -5054,7 +5057,7 @@ suite('CopilotAgentSession', () => {
 
 			await session.send('hello', undefined, 'turn-1');
 
-			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), buildSandboxConfigForSdk('win32', sandbox, [TEST_SHELL_INIT_DIR]));
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), buildSandboxConfigForSdk('win32', sandbox));
 		});
 
 		test('per-request sandbox: explicitly disabled when the sandbox setting is off', async () => {
@@ -5271,7 +5274,7 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(summarize(peerMockSession), summarize(initialMockSession));
 			assert.deepStrictEqual(summarize(peerMockSession), {
 				permissionModes: ['manual'],
-				sandbox: buildSandboxConfigForSdk('linux', sandbox, [TEST_SHELL_INIT_DIR]),
+				sandbox: buildSandboxConfigForSdk('linux', sandbox),
 			});
 		});
 
@@ -12393,9 +12396,20 @@ Use the attached image as context.
 			assert.deepStrictEqual([...storedFileContents.keys()].filter(key => key.includes('/test-session-1/')), [successorScript]);
 		});
 
-		test('grants the shell init directory read access in the sandbox policy', async () => {
+		test('does not grant shell init directory read access when no script is configured', async () => {
 			const { session, mockSession, setRootValue } = await createAgentSession(disposables);
 			setRootValue(AgentHostSandboxConfigKey.Sandbox, { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On });
+
+			await session.send('go', undefined, 'turn-1', 'interactive');
+
+			const sandboxConfig = mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig | undefined;
+			assert.ok(!sandboxConfig?.userPolicy?.filesystem?.readonlyPaths?.includes(TEST_SHELL_INIT_DIR));
+		});
+
+		test('grants the shell init directory read access while a script is configured', async () => {
+			const { session, mockSession, setConfigValue, setRootValue } = await createAgentSession(disposables);
+			setRootValue(AgentHostSandboxConfigKey.Sandbox, { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On });
+			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
 
 			await session.send('go', undefined, 'turn-1', 'interactive');
 
@@ -12406,6 +12420,34 @@ Use the attached image as context.
 				sandboxConfig?.userPolicy?.filesystem?.readonlyPaths?.includes(TEST_SHELL_INIT_DIR),
 				JSON.stringify(sandboxConfig?.userPolicy?.filesystem),
 			);
+		});
+
+		test('unregisters a shell init script before deleting it and removes its sandbox grant', async () => {
+			const { session, mockSession, setConfigValue, setRootValue } = await createAgentSession(disposables);
+			setRootValue(AgentHostSandboxConfigKey.Sandbox, { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On });
+			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
+			await session.send('go', undefined, 'turn-1', 'interactive');
+
+			mockSession.operationLog.length = 0;
+			setConfigValue(SessionConfigKey.ShellInitSnippets, []);
+			await session.send('go', undefined, 'turn-2', 'interactive');
+
+			assert.deepStrictEqual({
+				operations: mockSession.operationLog.filter(operation => operation === 'options.update:shell' || operation === 'file.delete:shellInit'),
+				hasGrant: (mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig | undefined)?.userPolicy?.filesystem?.readonlyPaths?.includes(TEST_SHELL_INIT_DIR) ?? false,
+			}, {
+				operations: ['options.update:shell', 'file.delete:shellInit', 'file.delete:shellInit'],
+				hasGrant: false,
+			});
+		});
+
+		test('does not delete shell init files on dispose when none were materialized', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+
+			session.dispose();
+			await timeout(0);
+
+			assert.ok(!mockSession.operationLog.includes('file.delete:shellInit'));
 		});
 
 		test('a failed registration is logged without aborting the turn', async () => {

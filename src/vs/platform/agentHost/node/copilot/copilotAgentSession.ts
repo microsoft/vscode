@@ -996,6 +996,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _sessionLauncher: ICopilotSessionLauncher;
 	/** Last config materialized and pushed, so unchanged turns do no file I/O or RPC. */
 	private _lastAppliedShellInitScripts: string | undefined;
+	private _shellInitScriptRegistered = false;
+	private _shellInitScriptMaterialized = false;
 	private readonly _shellInitScriptSequencer = new Sequencer();
 	private _shellInitScriptDisposing = false;
 	/**
@@ -3693,16 +3695,15 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Paths the sandboxed shell must be able to read beyond the user's own
-	 * policy. Currently just this session's shell init script directory: the
-	 * SDK requires each init script to be readable and fails silently when it
-	 * is not.
-	 *
-	 * Every producer of this session's `sandboxConfig` must include these, so
-	 * the list lives here rather than at a single call site.
+	 * Includes the generated directory while a script is configured or still
+	 * registered. This keeps a clear readable until the SDK unregisters it,
+	 * without granting a nonexistent directory to every session.
 	 */
 	private _sandboxExtraReadonlyPaths(): readonly string[] {
-		return [this._shellInitScriptDirectory().fsPath];
+		const configured = this._configurationService.getEffectiveValue(this._ownerSessionUri.toString(), platformSessionSchema, SessionConfigKey.ShellInitSnippets);
+		return (isShellInitScriptList(configured) && configured.length > 0) || this._shellInitScriptRegistered
+			? [this._shellInitScriptDirectory().fsPath]
+			: [];
 	}
 
 	/**
@@ -3779,6 +3780,9 @@ export class CopilotAgentSession extends Disposable {
 
 	private _disposeShellInitScript(): Promise<void> {
 		this._shellInitScriptDisposing = true;
+		if (!this._shellInitScriptMaterialized) {
+			return Promise.resolve();
+		}
 		return this._shellInitScriptSequencer.queue(() => this._clearShellInitScript());
 	}
 
@@ -3867,7 +3871,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	/** Applies the effective shell init script, including restoration after a cold resume. */
+	/** Applies the transient shell init script published by the active client. */
 	private async _applyEffectiveShellInitScripts(): Promise<void> {
 		if (this._shellInitScriptDisposing) {
 			return;
@@ -3889,59 +3893,69 @@ export class CopilotAgentSession extends Disposable {
 			}
 			const snippets = configured ?? [];
 			const serialized = JSON.stringify(snippets);
-			if (this._lastAppliedShellInitScripts === serialized) {
+			if (this._lastAppliedShellInitScripts === serialized && !(snippets.length === 0 && this._shellInitScriptMaterialized)) {
 				return;
 			}
-			if (snippets.length) {
-				// The SDK requires init scripts to be readable when registered.
-				await this._applyEffectiveSandboxConfig(true);
+			if (snippets.length === 0) {
+				if (!this._shellInitScriptRegistered && !this._shellInitScriptMaterialized) {
+					this._lastAppliedShellInitScripts = serialized;
+					return;
+				}
+				if (this._shellInitScriptRegistered) {
+					const result = await this._wrapper.session.rpc.options.update({ shell: { initScripts: [] } });
+					if (!result.success) {
+						throw new Error('Copilot SDK rejected shell init script update');
+					}
+					this._shellInitScriptRegistered = false;
+				}
+				await this._clearShellInitScript();
+				this._lastAppliedShellInitScripts = serialized;
+				await this._applyEffectiveSandboxConfig();
+				return;
 			}
-			const refs = await this._materializeShellInitScript(snippets);
-			if (snippets.length && !refs.length) {
+
+			// The SDK requires init scripts to be readable when registered.
+			await this._applyEffectiveSandboxConfig(true);
+			const ref = await this._materializeShellInitScript(snippets[0]);
+			if (!ref) {
 				// The write failed. Leave the cache unchanged so the next turn
 				// retries rather than permanently treating the script as applied.
 				return;
 			}
-			if (!refs.length && this._lastAppliedShellInitScripts === undefined) {
-				// Nothing configured and nothing registered yet: skip the RPC that
-				// would clear an already-empty list. Most sessions never configure
-				// a script, so this keeps the common path free of an extra call.
-				this._lastAppliedShellInitScripts = serialized;
-				return;
-			}
-			const result = await this._wrapper.session.rpc.options.update({ shell: { initScripts: refs } });
+			const result = await this._wrapper.session.rpc.options.update({ shell: { initScripts: [ref] } });
 			if (!result.success) {
 				throw new Error('Copilot SDK rejected shell init script update');
 			}
+			this._shellInitScriptRegistered = true;
 			this._lastAppliedShellInitScripts = serialized;
-			this._logService.trace(`[Copilot:${this.sessionId}] Applied ${refs.length} shell init script(s)`);
+			this._logService.trace(`[Copilot:${this.sessionId}] Applied shell init script`);
 		} catch (err) {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to update shell init scripts`, err);
 		}
 	}
 
-	private async _materializeShellInitScript(scripts: readonly IShellInitScript[]): Promise<Array<{ shell: IShellInitScript['shell']; path: string }>> {
-		if (scripts.length !== 1) {
-			await this._clearShellInitScript();
-			return [];
-		}
-		const script = scripts[0];
+	private async _materializeShellInitScript(script: IShellInitScript): Promise<{ shell: IShellInitScript['shell']; path: string } | undefined> {
 		const resource = URI.joinPath(this._shellInitScriptInstanceDirectory(), script.shell === 'powershell' ? 'init.ps1' : 'init.sh');
 		const atomic = this._fileService.hasCapability(resource, FileSystemProviderCapabilities.FileAtomicWrite)
 			? { postfix: '.vsctmp' }
 			: false;
 		try {
 			await this._fileService.writeFile(resource, VSBuffer.fromString(script.script), { atomic });
-			return [{ shell: script.shell, path: resource.fsPath }];
+			this._shellInitScriptMaterialized = true;
+			return { shell: script.shell, path: resource.fsPath };
 		} catch (error) {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to write shell init script: ${getErrorMessage(error)}`);
-			return [];
+			return undefined;
 		}
 	}
 
 	private async _clearShellInitScript(): Promise<void> {
+		if (!this._shellInitScriptMaterialized) {
+			return;
+		}
 		try {
 			await this._fileService.del(this._shellInitScriptInstanceDirectory(), { recursive: true });
+			this._shellInitScriptMaterialized = false;
 		} catch (error) {
 			if (!(error instanceof Error) || toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
 				this._logService.warn(`[Copilot:${this.sessionId}] Failed to remove shell init script: ${getErrorMessage(error)}`);
