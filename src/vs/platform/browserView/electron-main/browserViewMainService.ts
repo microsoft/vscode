@@ -78,7 +78,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		@IAgentNetworkFilterService private readonly agentNetworkFilterService: IAgentNetworkFilterService,
 	) {
 		super();
-		this._register(this.agentNetworkFilterService.onDidChange(() => this._updateAgentAccess()));
+		this._register(this.agentNetworkFilterService.onDidChange(() => {
+			BrowserSession.updateNetworkFiltering();
+			this._updateAgentAccess();
+		}));
 	}
 
 	async getOrCreateBrowserView(id: string, options: IBrowserViewCreateOptions): Promise<IBrowserViewInfo> {

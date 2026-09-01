@@ -102,7 +102,7 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 					}));
 				}
 				const browserEditor = this.findActiveBrowserEditor();
-				if (browserEditor?.model) {
+				if (browserEditor) {
 					activeEditorDisposables.add(browserEditor.onceModelResolves(model => {
 						activeEditorDisposables.add(model.onDidChangeSharingState(() => this.updateImplicitContext()));
 						this.updateImplicitContext();

@@ -116,6 +116,18 @@ export class BrowserSession {
 		return ids;
 	}
 
+	/** Update network filtering on all live browser sessions. */
+	static updateNetworkFiltering(): void {
+		for (const [id, ref] of BrowserSession._byId) {
+			const browserSession = ref.deref();
+			if (browserSession) {
+				browserSession.updateNetworkFilter();
+			} else {
+				BrowserSession._byId.delete(id);
+			}
+		}
+	}
+
 	/**
 	 * Get or create the singleton global-scope session.
 	 */
@@ -230,6 +242,7 @@ export class BrowserSession {
 	private readonly _history: BrowserSessionHistory;
 	private readonly _remote: BrowserSessionRemote;
 	private readonly _permissions: BrowserSessionPermissions;
+	private _networkFilterEnabled = false;
 
 	/**
 	 * @deprecated Don't use this directly. Create sessions via the static factory methods.
@@ -251,7 +264,7 @@ export class BrowserSession {
 		this._history = new BrowserSessionHistory(this);
 		this._remote = new BrowserSessionRemote(this);
 		this._permissions = new BrowserSessionPermissions(this);
-		this.configureNetworkFilter();
+		this.updateNetworkFilter();
 		this.configure();
 		BrowserSession.knownSessions.add(electronSession);
 		BrowserSession._bySession.set(electronSession, this);
@@ -294,12 +307,17 @@ export class BrowserSession {
 	/**
 	 * Dynamically apply network filtering to Agent sessions.
 	 */
-	private configureNetworkFilter(): void {
+	private updateNetworkFilter(): void {
 		if (this.storageScope !== BrowserViewStorageScope.Agent) {
 			return;
 		}
 
-		const listener: Parameters<Electron.WebRequest['onBeforeRequest']>[0] = (details, callback) => {
+		const enabled = this.agentNetworkFilterService.isEnabled();
+		if (this._networkFilterEnabled === enabled) {
+			return;
+		}
+		this._networkFilterEnabled = enabled;
+		this.electronSession.webRequest.onBeforeRequest(enabled ? (details, callback) => {
 			let uri: URI;
 			try {
 				uri = URI.parse(details.url, true);
@@ -308,18 +326,7 @@ export class BrowserSession {
 				return;
 			}
 			callback({ cancel: !this.agentNetworkFilterService.isUriAllowed(uri) });
-		};
-		let enabled = false;
-		const updateNetworkFilter = () => {
-			const newEnabled = this.agentNetworkFilterService.isEnabled();
-			if (enabled === newEnabled) {
-				return;
-			}
-			enabled = newEnabled;
-			this.electronSession.webRequest.onBeforeRequest(enabled ? listener : null);
-		};
-		updateNetworkFilter();
-		this.agentNetworkFilterService.onDidChange(updateNetworkFilter);
+		} : null);
 	}
 
 	/**
