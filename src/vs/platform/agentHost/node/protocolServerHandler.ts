@@ -20,7 +20,8 @@ import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportK
 import { AgentSession, type IAgentCreateChatRequestOptions, type IMcpNotification } from '../common/agent.js';
 import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { type IAgentService } from '../common/agentService.js';
-import { collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, type IAgentHostExtensionInitializeResult } from '../common/agentHostExtensionProtocol.js';
+import { ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, type IAgentHostExtensionInitializeResult } from '../common/agentHostExtensionProtocol.js';
+import { isAgentDevContainerWorktreeHandle } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
 import { ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
@@ -1798,6 +1799,95 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					}
 				}
 				return this._agentService.getSessionStateFile(session, chat).then(resource => ({ resource: resource?.toString() }));
+			}
+			case CreateAgentHostDetachedWorktreeExtensionMethod: {
+				if (!this._agentService.createDetachedWorktree) {
+					return undefined;
+				}
+				if (!isParamsObject(params)) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'params must be an object'));
+				}
+				const sessionParam = params['session'];
+				const prompt = params['prompt'];
+				if (typeof sessionParam !== 'string') {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be a URI string'));
+				}
+				if (typeof prompt !== 'string') {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'prompt must be a string'));
+				}
+				let session: URI;
+				try {
+					session = URI.parse(sessionParam, true);
+				} catch {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be a valid URI string'));
+				}
+				if (!AgentSession.provider(session)) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be a valid Agent Session URI'));
+				}
+				return this._agentService.createDetachedWorktree(session, prompt).then(result => ({
+					handle: result.handle,
+					resource: result.worktree.toString(),
+				}));
+			}
+			case SetAgentHostDetachedWorktreeArchivedExtensionMethod: {
+				if (!this._agentService.setDetachedWorktreeArchived) {
+					return undefined;
+				}
+				if (!isParamsObject(params)) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'params must be an object'));
+				}
+				const handle = params['handle'];
+				const archived = params['archived'];
+				if (!isAgentDevContainerWorktreeHandle(handle)) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'handle must be a valid worktree handle'));
+				}
+				if (typeof archived !== 'boolean') {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'archived must be a boolean'));
+				}
+				return this._agentService.setDetachedWorktreeArchived(handle, archived);
+			}
+			case ClaimAgentHostDetachedWorktreeExtensionMethod: {
+				if (!this._agentService.claimDetachedWorktree) {
+					return undefined;
+				}
+				if (!isParamsObject(params)) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'params must be an object'));
+				}
+				const handle = params['handle'];
+				if (!isAgentDevContainerWorktreeHandle(handle)) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'handle must be a valid worktree handle'));
+				}
+				return this._agentService.claimDetachedWorktree(handle);
+			}
+			case DeleteAgentHostDetachedWorktreeExtensionMethod: {
+				if (!this._agentService.deleteDetachedWorktree) {
+					return undefined;
+				}
+				if (!isParamsObject(params)) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'params must be an object'));
+				}
+				const handle = params['handle'];
+				if (!isAgentDevContainerWorktreeHandle(handle)) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'handle must be a valid worktree handle'));
+				}
+				return this._agentService.deleteDetachedWorktree(handle);
+			}
+			case ReconcileAgentHostDetachedWorktreesExtensionMethod: {
+				if (!this._agentService.reconcileDetachedWorktrees) {
+					return undefined;
+				}
+				if (!isParamsObject(params)) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'params must be an object'));
+				}
+				const scope = params['scope'];
+				const activeHandles = params['activeHandles'];
+				if (typeof scope !== 'string' || !scope) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'scope must be a non-empty string'));
+				}
+				if (!Array.isArray(activeHandles) || !activeHandles.every(isAgentDevContainerWorktreeHandle)) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'activeHandles must contain valid worktree handles'));
+				}
+				return this._agentService.reconcileDetachedWorktrees(scope, activeHandles);
 			}
 			case CollectAgentHostDebugLogsExtensionMethod: {
 				if (!this._agentService.collectDebugLogs) {

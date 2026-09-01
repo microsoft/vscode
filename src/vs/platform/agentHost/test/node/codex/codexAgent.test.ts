@@ -471,7 +471,7 @@ suite('CodexAgent', () => {
 		const unavailable = await listChatsToMigrate.call({ ...harness, _listCodexChats: async () => undefined });
 
 		assert.deepStrictEqual({ inactive, cold, result, empty, unavailable }, {
-			inactive: [],
+			inactive: AgentChatMigrationDeferred,
 			cold: AgentChatMigrationDeferred,
 			result: chats.slice(0, 2),
 			empty: [],

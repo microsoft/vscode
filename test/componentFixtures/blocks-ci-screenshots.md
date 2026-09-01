@@ -203,3 +203,9 @@
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionWorkspacePicker/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/c51cbace6b7e770064231bb3aac07f91ad41e4fcf4d5bd6aedfbdb00c775fa45)
+
+#### sessions/sessionsList/SessionsList_NestedChatHierarchyGuides/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/ae6689aace7015963b6fc3812c77019921e63523f97f630afde63579729077f2)
+
+#### sessions/sessionsList/SessionsList_NestedChatHierarchyGuides/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/c46f523601ae0d57ae2bb306465cac7f1fb127adf02c3047c362f8432bd2c864)

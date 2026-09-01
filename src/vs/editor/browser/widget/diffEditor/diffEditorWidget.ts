@@ -436,7 +436,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 	}
 
 	public getContentHeight() {
-		return this._editors.modified.getContentHeight();
+		return this._editors.getContentHeight();
 	}
 
 	protected _createInnerEditor(instantiationService: IInstantiationService, container: HTMLElement, options: Readonly<IEditorConstructionOptions>, editorWidgetOptions: ICodeEditorWidgetOptions): CodeEditorWidget {
