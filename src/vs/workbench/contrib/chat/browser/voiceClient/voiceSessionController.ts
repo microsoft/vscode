@@ -851,6 +851,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				}
 			});
 		}));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('agents.voice.enabled') && !this._isVoiceModeEnabled()) {
+				this.disconnect();
+			}
+		}));
 
 		// Track the focused chat session so we can defer voice responses that
 		// arrive for a session the user isn't currently looking at, and flush
@@ -1052,6 +1057,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 	async connect(window: Window & typeof globalThis): Promise<void> {
 		if (this._isConnecting.get() || this._isConnected.get()) { return; }
+		if (!this._isVoiceModeEnabled()) {
+			this.notificationService.warn(localize('voiceMode.disabled', "Voice Mode is disabled."));
+			return;
+		}
 		if (!isVoiceEntitled(this.chatEntitlementService)) {
 			this.notificationService.warn(this.chatEntitlementService.entitlement === ChatEntitlement.Business || this.chatEntitlementService.entitlement === ChatEntitlement.Enterprise
 				? localize('voiceMode.organizationUnavailable', "Voice Mode is not available for GitHub Copilot Business or Enterprise accounts.")
@@ -2159,6 +2168,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// Re-arm so the WebSocket handshake gets a fresh timeout window
 		// independent of how long the awaited auth/transcript work took above.
 		this._armConnectWatchdog();
+	}
+
+	private _isVoiceModeEnabled(): boolean {
+		return this.configurationService.getValue<boolean>('agents.voice.enabled') === true;
 	}
 
 	setActiveWindow(window: Window & typeof globalThis): void {

@@ -17,8 +17,8 @@ import { IAccessibilityService } from '../../../../../../platform/accessibility/
 import { TestAccessibilityService } from '../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService as BaseTestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotification, INotificationHandle, INotificationService, IPromptChoice, NoOpNotification, Severity } from '../../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
@@ -46,6 +46,12 @@ import { ChatQuestionCarouselData } from '../../../common/model/chatProgressType
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
 import { AskQuestionsToolId } from '../../../common/tools/builtinTools/askQuestionsTool.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
+
+class TestConfigurationService extends BaseTestConfigurationService {
+	constructor(configuration: Record<string, unknown> = {}) {
+		super({ 'agents.voice.enabled': true, ...configuration });
+	}
+}
 
 class TestVoiceClientService extends mock<IVoiceClientService>() {
 	private narrationCounter = 0;
@@ -825,6 +831,71 @@ suite('VoiceSessionController', () => {
 		assert.strictEqual(controller.isConnecting.get(), false);
 		assert.strictEqual(controller.isConnected.get(), false);
 		assert.deepStrictEqual(notificationService.notifications.map(notification => notification.message), ['Voice Mode requires a paid GitHub Copilot plan.']);
+	});
+
+	test('does not connect when Voice Mode is disabled', async () => {
+		const notificationService = new VoiceTestNotificationService();
+		const controller = createController(
+			new TestVoiceClientService(),
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			new TestConfigurationService({ 'agents.voice.enabled': false }),
+			undefined,
+			undefined,
+			undefined,
+			notificationService,
+		);
+
+		await controller.connect(mainWindow);
+
+		assert.deepStrictEqual({
+			connecting: controller.isConnecting.get(),
+			connected: controller.isConnected.get(),
+			notifications: notificationService.notifications.map(notification => notification.message),
+		}, {
+			connecting: false,
+			connected: false,
+			notifications: ['Voice Mode is disabled.'],
+		});
+	});
+
+	test('disconnects active and in-flight connections when Voice Mode becomes disabled', async () => {
+		const results = [];
+		for (const state of ['connecting', 'connected'] as const) {
+			const configurationService = new TestConfigurationService({ 'agents.voice.enabled': true });
+			const controller = createController(
+				new TestVoiceClientService(),
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				configurationService,
+			);
+			if (state === 'connecting') {
+				controller['_isConnecting'].set(true, undefined);
+			} else {
+				controller['_isConnected'].set(true, undefined);
+			}
+
+			await configurationService.setUserConfiguration('agents.voice.enabled', false);
+			configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+				override affectsConfiguration(section: string): boolean {
+					return section === 'agents.voice.enabled';
+				}
+			});
+			results.push({
+				state,
+				connecting: controller.isConnecting.get(),
+				connected: controller.isConnected.get(),
+			});
+		}
+
+		assert.deepStrictEqual(results, [
+			{ state: 'connecting', connecting: false, connected: false },
+			{ state: 'connected', connecting: false, connected: false },
+		]);
 	});
 
 	test('disconnects when the Copilot entitlement becomes ineligible', async () => {

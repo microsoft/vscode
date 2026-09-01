@@ -4,31 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { PolicyCategory } from '../../../../../base/common/policy.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import { Registry } from '../../../../../platform/registry/common/platform.js';
-import '../../browser/agentsVoice.contribution.js';
+import { getAgentsVoicePolicyValue } from '../../common/agentsVoice.js';
 
-suite('Voice Mode contribution', () => {
+suite('Voice Mode policy', () => {
 
 	test('disables Voice Mode when preview features are disabled by policy', () => {
-		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-		const policy = configurationRegistry.getConfigurationProperties()['agents.voice.enabled'].policy;
-
-		assert.deepStrictEqual({
-			name: policy?.name,
-			category: policy?.category,
-			minimumVersion: policy?.minimumVersion,
-			disabled: policy?.value?.({ chat_preview_features_enabled: false }),
-			enabled: policy?.value?.({ chat_preview_features_enabled: true }),
-			unset: policy?.value?.({}),
-		}, {
-			name: 'AgentsVoice',
-			category: PolicyCategory.InteractiveSession,
-			minimumVersion: '1.137',
-			disabled: false,
-			enabled: undefined,
-			unset: undefined,
-		});
+		assert.deepStrictEqual([
+			getAgentsVoicePolicyValue({ chat_preview_features_enabled: false }),
+			getAgentsVoicePolicyValue({ chat_preview_features_enabled: true }),
+			getAgentsVoicePolicyValue({}),
+		], [
+			false,
+			undefined,
+			undefined,
+		]);
 	});
 });
