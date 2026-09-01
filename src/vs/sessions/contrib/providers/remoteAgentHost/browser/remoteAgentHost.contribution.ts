@@ -879,7 +879,9 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			extensionDisplayName: 'Remote Agent Host',
 			resolveWorkingDirectory,
 			isNewSession,
-			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(address, connection, resources),
+			resolveAuthentication: shouldPreserveEvaluationRemoteHostAuthentication(address)
+				? async () => true
+				: resources => this._resolveAuthenticationInteractively(address, connection, resources),
 		}));
 		agentStore.add(this._chatSessionsService.registerChatSessionContentProvider(sessionType, sessionHandler));
 
