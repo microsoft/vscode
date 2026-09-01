@@ -54,7 +54,6 @@ async function runEditorEvaluationSession(path: string, accessor: ServicesAccess
 		};
 		const sessionResource = getResourceForNewChatSession(openOptions);
 		await instantiationService.invokeFunction(openAccessor => openChatSession(openAccessor, openOptions));
-		await writeEvaluationSessionIdentity(path, fileService, request, sessionResource);
 
 		const result = await chatService.sendRequest(sessionResource, request.prompt, {
 			agentIdSilent: type,
@@ -64,9 +63,7 @@ async function runEditorEvaluationSession(path: string, accessor: ServicesAccess
 		if (result.kind !== 'sent' && result.kind !== 'rejected') {
 			throw new Error(`Evaluation session request was not sent (${result.kind}).`);
 		}
-		if (result.newSessionResource) {
-			await writeEvaluationSessionIdentity(path, fileService, request, result.newSessionResource);
-		}
+		await writeEvaluationSessionIdentity(path, fileService, request, result.newSessionResource ?? sessionResource);
 	} catch (error) {
 		logService.error('[EvaluationSession] Editor run failed.', error);
 		await writeEvaluationSessionError(path, fileService, error);

@@ -81,7 +81,7 @@ async function runAgentsEvaluationSession(path: string, accessor: ServicesAccess
 			...createOptions,
 			modelId: request.modelId,
 			onSessionCreated: session => {
-				preparation = prepareAgentsSession(path, request, session, fileService, providersService);
+				preparation = prepareAgentsSession(request, session, providersService);
 			},
 		}, CancellationToken.None);
 		if (!session) {
@@ -96,13 +96,10 @@ async function runAgentsEvaluationSession(path: string, accessor: ServicesAccess
 }
 
 async function prepareAgentsSession(
-	path: string,
 	request: Awaited<ReturnType<typeof readEvaluationSessionRequest>>,
 	session: ISession,
-	fileService: IFileService,
 	providersService: ISessionsProvidersService,
 ): Promise<void> {
-	await writeEvaluationSessionIdentity(path, fileService, request, session.resource);
 	const provider = providersService.getProvider<IAgentHostSessionsProvider>(session.providerId);
 	if (!provider || !isAgentHostProvider(provider)) {
 		throw new Error(`Sessions provider '${session.providerId}' is not an Agent Host provider.`);
