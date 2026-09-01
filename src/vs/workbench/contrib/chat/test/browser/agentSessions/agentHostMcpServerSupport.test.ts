@@ -78,7 +78,7 @@ suite('agentHostMcpServerSupport', () => {
 		})), [
 			{ name: 'mcp.config.usrlocal.user', source: AgentHostMcpServerSourceKind.UserProfile, delivery: AgentHostMcpServerDelivery.ClientForwarded, compatibility: 'supported' },
 			{ name: 'workspace-dot-mcp.0.root', source: AgentHostMcpServerSourceKind.WorkspaceDotMcp, delivery: AgentHostMcpServerDelivery.RuntimeDiscovered, compatibility: 'supported' },
-			{ name: 'copilot.null.user', source: AgentHostMcpServerSourceKind.CopilotUser, delivery: AgentHostMcpServerDelivery.RuntimeDiscovered, compatibility: 'supported' },
+			{ name: 'copilot.null.user', source: AgentHostMcpServerSourceKind.CopilotHome, delivery: AgentHostMcpServerDelivery.RuntimeDiscovered, compatibility: 'supported' },
 			{ name: 'plugin.test/server', source: AgentHostMcpServerSourceKind.AgentPlugin, delivery: AgentHostMcpServerDelivery.AgentPlugin, compatibility: 'supported' },
 			{ name: 'extension.server', source: AgentHostMcpServerSourceKind.Extension, delivery: AgentHostMcpServerDelivery.ClientForwarded, compatibility: 'supported' },
 			{ name: 'github', source: AgentHostMcpServerSourceKind.Extension, delivery: AgentHostMcpServerDelivery.ProviderBuiltIn, compatibility: 'supported' },
@@ -192,7 +192,7 @@ suite('agentHostMcpServerSupport', () => {
 			delivery: result.delivery,
 			compatibility: result.compatibility,
 		}, {
-			source: AgentHostMcpServerSourceKind.CopilotUser,
+			source: AgentHostMcpServerSourceKind.CopilotHome,
 			delivery: AgentHostMcpServerDelivery.ClientForwarded,
 			compatibility: { kind: 'supported' },
 		});
