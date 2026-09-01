@@ -465,10 +465,12 @@ export async function setRootConfigValues(c: TestProtocolClient, config: Record<
 }
 
 /**
- * Explicit client-contract data mimicking the tools a default product client
- * publishes (`semanticSearch` is absent: its setting defaults to off). Not
- * derived from host internals; update deliberately when the product's client
- * contract changes.
+ * Stable representative client-contract data from the default product tool
+ * sets (`semanticSearch` is absent: its setting defaults to off). Includes
+ * non-deferred core tools plus a deferred browser pair, so prompt snapshots
+ * exercise both deferral and tool-gated guidance without copying the product's
+ * dynamic, extension-dependent tool inventory. Not derived from host internals;
+ * update deliberately when these product contracts change.
  */
 function canonicalClientTools(): ToolDefinition[] {
 	const plain = (name: string): ToolDefinition =>
@@ -484,6 +486,41 @@ function canonicalClientTools(): ToolDefinition[] {
 		plain('runTests'),
 		plain('rename'),
 		plain('usages'),
+		{
+			name: 'openBrowserPage',
+			description: `Open a new browser page in the integrated browser at the given URL.
+May prompt the user to share a page if there is a similar one already open, unless "forceNew" is true.
+Returns a page ID that must be used with other browser tools to interact with the page, as well as an accessibility snapshot of the page.
+
+Important: Prefer to reuse existing pages whenever possible and only call this tool if you do not already have access to a tab you can reuse.`,
+			inputSchema: {
+				type: 'object',
+				properties: {
+					url: {
+						type: 'string',
+						description: 'The URL to open in the browser. Must be an absolute URI with a scheme such as file:, http:, or https:. For local files, use the canonical absolute form, for example file:///path/to/file.',
+					},
+					forceNew: {
+						type: 'boolean',
+						description: 'Whether to force opening a new page even if a page with the same host already exists. Default is false.',
+					},
+				},
+			},
+		},
+		{
+			name: 'readPage',
+			description: 'Get a snapshot of the current browser page state. This is better than screenshot.',
+			inputSchema: {
+				type: 'object',
+				properties: {
+					pageId: {
+						type: 'string',
+						description: 'The browser page ID to read, acquired from context or the open tool.',
+					},
+				},
+				required: ['pageId'],
+			},
+		},
 	];
 }
 
