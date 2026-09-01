@@ -3693,8 +3693,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		try {
 			const resolvedAgent = provisional.isEphemeral ? undefined : await this._resolveAgentWhenMaterializing(provisional, snapshot, workingDirectory);
 			agent = resolvedAgent?.agent;
-			// Resolve the routing profile once, then freeze it on the plan: the gate can flip while the
-			// session is still provisional, or during the async launch below.
+			// Resolve the profile once and freeze it on the plan. The gate can flip while the session
+			// is provisional, or during the async launch below.
 			const autoTier = resolveCopilotAutoTier(provisional.model, this._configurationService, this._logService, sdkSessionId);
 			const model = provisional.model
 				? this._withEffectiveAutoTier(provisional.model, autoTier, sdkSessionId, 'Auto routing profiles are unavailable')
@@ -4751,8 +4751,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Rewrites a model selection so its Auto routing profile is `effective`, the one the runtime is
-	 * actually using. Recording anything else would leave the picker and resume metadata out of step.
+	 * Rewrites a model selection so its Auto routing profile matches the one the runtime is actually
+	 * using. Recording anything else would leave the picker and resume metadata out of step.
 	 */
 	private _withEffectiveAutoTier(model: ModelSelection, effective: AutoModeTier | undefined, sessionId: string, reason: string): ModelSelection {
 		// Only the Auto model routes per turn, so any other selection carries no profile to correct.

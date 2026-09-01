@@ -273,8 +273,8 @@ export interface ICopilotCreateSessionLaunchPlan extends ICopilotSessionLaunchBa
 	readonly longContextWindow?: number;
 	readonly freeLongContext?: boolean;
 	/**
-	 * The Auto routing profile to send, already resolved against the gate. Frozen on the plan so the
-	 * launch and whatever the caller persists cannot disagree if the gate flips mid-launch.
+	 * The Auto routing profile to send, already resolved against the gate. Frozen here so the profile
+	 * the runtime receives always matches the one the caller persists.
 	 */
 	readonly autoTier?: AutoModeTier;
 }
@@ -681,8 +681,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			model: plan.model?.id,
 			reasoningEffort: resolveCopilotReasoningEffort(plan.model, this._configurationService, this._logService, plan.sessionId),
 			contextTier: getCopilotContextTier(plan.model, plan.longContextWindow, plan.freeLongContext),
-			// Create-time only, and taken from the plan rather than re-resolved: the caller froze it so
-			// what the runtime receives matches what it persists.
+			// Create-time only. Taken from the plan rather than resolved again, so the profile sent
+			// always matches the one the caller persists.
 			...toSdkCapiSessionOptions(plan.autoTier),
 			...(plan.resolvedAgentName ? { agent: plan.resolvedAgentName } : {}),
 			workingDirectory: plan.workingDirectory?.fsPath,

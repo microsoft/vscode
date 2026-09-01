@@ -10074,7 +10074,7 @@ suite('CopilotAgent', () => {
 				});
 
 				// Still provisional, so the launcher has not run. With the gate off it omits
-				// `capi.autoTier`, and persisting the selection would claim a profile never sent.
+				// `capi.autoTier`, so persisting the selection would claim a profile never sent.
 				configurationService.updateRootConfig({ [CopilotCliConfigKey.AutoModeTiers]: false });
 				await agent.chats.sendMessage(chat, 'hello', undefined, undefined, undefined, undefined, exactChatContext(result.session, chat, result.session));
 

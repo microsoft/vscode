@@ -1574,7 +1574,7 @@ suite('CopilotSessionLauncher auto tier', () => {
 	test('sends the plan profile verbatim on create, and never on resume', async () => {
 		assert.deepStrictEqual(
 			[
-				// Sent exactly as frozen: the launcher must not re-resolve it against the live gate.
+				// Sent exactly as frozen. The launcher must not resolve it again against the live gate.
 				await capiOptionsFor('create', 'intelligence'),
 				// No profile: omitted entirely, so a runtime without the contract never sees the field.
 				await capiOptionsFor('create', undefined),

@@ -885,8 +885,8 @@ describe('AutomodeService', () => {
 				sessionId: 'session-persisted-retired',
 				modelConfiguration: { tier: 'max' },
 			} as unknown as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
-			// `balanced` upgrades to the current default, which reads as "never picked" and so lets
-			// the inline pin apply rather than counting as an explicit selection.
+			// `balanced` upgrades to the current default, which reads as "never picked", so the inline
+			// pin applies instead of being treated as an explicit selection.
 			await automodeService.resolveAutoModeEndpoint({
 				location: ChatLocation.Editor,
 				prompt: 'inline turn',
