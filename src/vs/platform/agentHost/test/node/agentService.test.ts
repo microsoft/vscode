@@ -2092,26 +2092,42 @@ suite('AgentService (node dispatcher)', () => {
 			const second = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 2));
 			svc.dispatchAction(session.toString(), {
 				type: ActionType.SessionConfigChanged,
-				config: { [SessionConfigKey.ShellInitSnippets]: [] },
+				config: { [SessionConfigKey.ShellInitSnippets]: [{ shell: 'bash', script: 'export UNTRUSTED=1' }] },
 			}, 'agents-window-client', 2, AgentHostClientType.AgentsWindow);
 			const rejected = await second;
 
 			const third = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 3));
 			svc.dispatchAction(session.toString(), {
 				type: ActionType.SessionConfigChanged,
+				config: { [SessionConfigKey.ShellInitSnippets]: [] },
+			}, 'agents-window-client', 3, AgentHostClientType.AgentsWindow);
+			const cleared = await third;
+
+			const fourth = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 4));
+			svc.dispatchAction(session.toString(), {
+				type: ActionType.SessionConfigChanged,
+				config: { [SessionConfigKey.ShellInitSnippets]: script },
+			}, 'editor-client', 4, AgentHostClientType.EditorWindow);
+			await fourth;
+
+			const fifth = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 5));
+			svc.dispatchAction(session.toString(), {
+				type: ActionType.SessionConfigChanged,
 				config: {},
 				replace: true,
-			}, 'agents-window-client', 3, AgentHostClientType.AgentsWindow);
-			const replacement = await third;
+			}, 'agents-window-client', 5, AgentHostClientType.AgentsWindow);
+			const replacement = await fifth;
 
 			assert.deepStrictEqual({
 				acceptedReason: accepted.rejectionReason,
 				rejectedReason: rejected.rejectionReason,
+				clearedReason: cleared.rejectionReason,
 				replacementReason: replacement.rejectionReason,
 				value: getStateManager(svc).getSessionState(session.toString())?.config?.values[SessionConfigKey.ShellInitSnippets],
 			}, {
 				acceptedReason: undefined,
 				rejectedReason: 'Shell init script config can only be set by an Editor Window client.',
+				clearedReason: undefined,
 				replacementReason: undefined,
 				value: script,
 			});

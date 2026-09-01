@@ -4770,11 +4770,15 @@ export class AgentService extends Disposable implements IAgentService {
 				return;
 			}
 			const editorClient = clientContext.clientType === AgentHostClientType.EditorWindow;
-			if (!editorClient && Object.hasOwn(configAction.config, SessionConfigKey.ShellInitSnippets)) {
+			const writesShellInit = Object.hasOwn(configAction.config, SessionConfigKey.ShellInitSnippets);
+			const clearsShellInit = writesShellInit
+				&& Array.isArray(configAction.config[SessionConfigKey.ShellInitSnippets])
+				&& configAction.config[SessionConfigKey.ShellInitSnippets].length === 0;
+			if (!editorClient && writesShellInit && !clearsShellInit) {
 				this._stateManager.rejectClientAction(channel, action, origin, 'Shell init script config can only be set by an Editor Window client.');
 				return;
 			}
-			if (!editorClient && configAction.replace) {
+			if (!editorClient && configAction.replace && !writesShellInit) {
 				const existingShellInit = this._stateManager.getSessionState(sessionChannel)?.config?.values[SessionConfigKey.ShellInitSnippets];
 				if (existingShellInit !== undefined) {
 					configAction = {
