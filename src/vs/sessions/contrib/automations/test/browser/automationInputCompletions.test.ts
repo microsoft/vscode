@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -56,6 +57,8 @@ class TestChatSessionsService extends mock<IChatSessionsService>() {
 
 suite('AutomationInputCompletions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	teardown(() => sinon.restore());
 
 	test('shows agent host skills for the automation draft session', async () => {
 		const languageFeaturesService = new LanguageFeaturesService();
@@ -133,9 +136,9 @@ suite('AutomationInputCompletions', () => {
 		let decorations: readonly Range[] = [];
 		const decorationRanges = new Map<string, Range>();
 		const onDidChangeModelContent = store.add(new Emitter<IModelContentChangedEvent>());
+		sinon.stub(model, 'getDecorationRange').callsFake(decorationId => decorationRanges.get(decorationId) ?? null);
 		const editor = upcastPartial<ICodeEditor>({
 			getModel: () => model,
-			getDecorationRange: decorationId => decorationRanges.get(decorationId) ?? null,
 			onDidChangeModelContent: onDidChangeModelContent.event,
 			setDecorationsByType: (_description, _key, options) => {
 				decorations = options.map(option => Range.lift(option.range));
