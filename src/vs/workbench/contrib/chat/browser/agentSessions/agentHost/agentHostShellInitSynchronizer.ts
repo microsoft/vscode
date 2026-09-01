@@ -121,7 +121,7 @@ export class AgentHostShellInitSynchronizer extends Disposable implements IAgent
 		if (!folder) {
 			return;
 		}
-		const enabled = this._configurationService.getValue<boolean>(AgentHostShellToolInitScriptEnabledSettingId) !== false;
+		const enabled = this._configurationService.getValue<boolean>(AgentHostShellToolInitScriptEnabledSettingId) === true;
 		const desired = enabled
 			? [createShellInitScript(TOOL_SHELL, this._readPythonActivation(folder))]
 			: [];

@@ -102,7 +102,7 @@ suite('AgentHostShellInitSynchronizer', () => {
 		const configurationService = new class extends mock<IConfigurationService>() {
 			override readonly onDidChangeConfiguration = Event.None;
 			override getValue<T>(section?: string | IConfigurationOverrides): T {
-				return (section === AgentHostShellToolInitScriptEnabledSettingId ? options?.enabled : undefined) as T;
+				return (section === AgentHostShellToolInitScriptEnabledSettingId ? options?.enabled ?? false : undefined) as T;
 			}
 		};
 		const environmentService = new class extends mock<IEnvironmentVariableService>() {
@@ -141,6 +141,7 @@ suite('AgentHostShellInitSynchronizer', () => {
 
 	test('publishes one combined script with the folder-scoped Python activation', async () => {
 		const { synchronizer, dispatched } = create({
+			enabled: true,
 			collection: collection([{ variable: ACTIVATION_VARIABLE, value: 'activate-a', folder: folderA }]),
 		});
 		await register(synchronizer, state());
@@ -150,7 +151,7 @@ suite('AgentHostShellInitSynchronizer', () => {
 	});
 
 	test('reconcile publishes synchronously before the first turn', () => {
-		const { synchronizer, dispatched } = create();
+		const { synchronizer, dispatched } = create({ enabled: true });
 		const subscription = disposables.add(new TestSubscription(state()));
 		disposables.add(synchronizer.register(session, subscription));
 
@@ -161,6 +162,7 @@ suite('AgentHostShellInitSynchronizer', () => {
 
 	test('uses the session folder in a multi-root workspace and project for worktrees', async () => {
 		const { synchronizer, dispatched } = create({
+			enabled: true,
 			folders: [folderA, folderB],
 			collection: collection([
 				{ variable: ACTIVATION_VARIABLE, value: 'activate-a', folder: folderA },
@@ -174,6 +176,7 @@ suite('AgentHostShellInitSynchronizer', () => {
 
 	test('ignores activation published by another extension', async () => {
 		const { synchronizer, dispatched } = create({
+			enabled: true,
 			collection: collection([{ variable: ACTIVATION_VARIABLE, value: 'unsafe', folder: folderA, extension: 'other.extension' }]),
 		});
 		await register(synchronizer, state());
@@ -181,7 +184,7 @@ suite('AgentHostShellInitSynchronizer', () => {
 	});
 
 	test('waits for schema hydration and does not redispatch the echoed value', async () => {
-		const { synchronizer, dispatched } = create();
+		const { synchronizer, dispatched } = create({ enabled: true });
 		const subscription = await register(synchronizer, state({ schema: false }));
 		assert.deepStrictEqual(dispatched, []);
 
@@ -195,7 +198,7 @@ suite('AgentHostShellInitSynchronizer', () => {
 	});
 
 	test('does not publish from a window that does not own the session folder', async () => {
-		const { synchronizer, dispatched } = create({ folders: [folderB] });
+		const { synchronizer, dispatched } = create({ enabled: true, folders: [folderB] });
 		await register(synchronizer, state());
 		assert.deepStrictEqual(dispatched, []);
 	});
@@ -206,6 +209,12 @@ suite('AgentHostShellInitSynchronizer', () => {
 			values: { [SessionConfigKey.ShellInitSnippets]: [{ shell: 'bash', script: 'old' }] },
 		}));
 		assert.deepStrictEqual(dispatched, [{ [SessionConfigKey.ShellInitSnippets]: [] }]);
+	});
+
+	test('the experimental setting is disabled by default', async () => {
+		const { synchronizer, dispatched } = create();
+		await register(synchronizer, state());
+		assert.deepStrictEqual(dispatched, []);
 	});
 
 	test('a non-owning window with the setting disabled does not clear the script', async () => {
@@ -219,19 +228,20 @@ suite('AgentHostShellInitSynchronizer', () => {
 	});
 
 	test('does not publish from the Agents window', async () => {
-		const { synchronizer, dispatched } = create({ sessionsWindow: true });
+		const { synchronizer, dispatched } = create({ enabled: true, sessionsWindow: true });
 		await register(synchronizer, state());
 		assert.deepStrictEqual(dispatched, []);
 	});
 
 	test('does not publish when the Agent Host can run on a remote OS', async () => {
-		const { synchronizer, dispatched } = create({ remoteAuthority: 'ssh-remote+host' });
+		const { synchronizer, dispatched } = create({ enabled: true, remoteAuthority: 'ssh-remote+host' });
 		await register(synchronizer, state());
 		assert.deepStrictEqual(dispatched, []);
 	});
 
 	(isWindows ? test.skip : test)('ignores the zsh activation value under bash', async () => {
 		const { synchronizer, dispatched } = create({
+			enabled: true,
 			collection: collection([{ variable: 'VSCODE_PYTHON_ZSH_ACTIVATE', value: 'activate-zsh', folder: folderA }]),
 		});
 		await register(synchronizer, state());
