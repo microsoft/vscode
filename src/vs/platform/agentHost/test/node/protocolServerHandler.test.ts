@@ -151,6 +151,11 @@ class MockAgentService implements IAgentService {
 	readonly createSessionConfigs: (IAgentCreateSessionConfig | undefined)[] = [];
 	managedSettingsDiagnostics: readonly IAgentHostManagedSettingsDiagnostics[] = [];
 	readonly getSessionStateFileCalls: { session: string; chat: string | undefined }[] = [];
+	readonly createDetachedWorktreeCalls: { session: string; prompt: string }[] = [];
+	readonly setDetachedWorktreeArchivedCalls: { handle: string; archived: boolean }[] = [];
+	readonly deleteDetachedWorktreeCalls: string[] = [];
+	readonly claimDetachedWorktreeCalls: string[] = [];
+	readonly reconcileDetachedWorktreesCalls: { scope: string; activeHandles: readonly string[] }[] = [];
 	readonly collectDebugLogsCalls: { session: string | undefined; chat: string | undefined; kind: 'archive' | 'directory' }[] = [];
 	shutdownCalls = 0;
 	createSessionBarrier: DeferredPromise<void> | undefined;
@@ -253,6 +258,18 @@ class MockAgentService implements IAgentService {
 	async getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined> {
 		this.getSessionStateFileCalls.push({ session: session.toString(), chat: chat?.toString() });
 		return URI.file('/state/sdk-session/events.jsonl');
+	}
+	async createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {
+		this.createDetachedWorktreeCalls.push({ session: session.toString(), prompt });
+		return { handle: '00000000-0000-4000-8000-000000000001', worktree: URI.file('/workspace.worktrees/prepared') };
+	}
+	async setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void> {
+		this.setDetachedWorktreeArchivedCalls.push({ handle, archived });
+	}
+	async deleteDetachedWorktree(handle: string): Promise<void> { this.deleteDetachedWorktreeCalls.push(handle); }
+	async claimDetachedWorktree(handle: string): Promise<void> { this.claimDetachedWorktreeCalls.push(handle); }
+	async reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void> {
+		this.reconcileDetachedWorktreesCalls.push({ scope, activeHandles });
 	}
 	async collectDebugLogs(session: URI | undefined, kind: 'archive' | 'directory', chat?: URI) {
 		this.collectDebugLogsCalls.push({ session: session?.toString(), chat: chat?.toString(), kind });
@@ -427,7 +444,10 @@ suite('ProtocolServerHandler', () => {
 		}, {
 			protocolVersion: PROTOCOL_VERSION,
 			serverSeq: stateManager.serverSeq,
-			meta: { 'vscode.getAgentHostSessionStateFile.chat': true },
+			meta: {
+				'vscode.detachedWorktrees': true,
+				'vscode.getAgentHostSessionStateFile.chat': true,
+			},
 		});
 	});
 
@@ -785,6 +805,103 @@ suite('ProtocolServerHandler', () => {
 				result: { resource: 'file:///state/sdk-session/events.jsonl' },
 			},
 			calls: [{ session: 'copilotcli:/session-1', chat }],
+		});
+	});
+
+	test('creates a detached worktree through the extension request', async () => {
+		const transport = connectClient('client-prepare-worktree');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 20);
+
+		transport.simulateMessage(request(20, 'vscode/createAgentHostDetachedWorktree', {
+			session: 'copilotcli:/session-1',
+			prompt: 'Fix the issue',
+		}));
+
+		assert.deepStrictEqual({
+			response: await responsePromise,
+			calls: agentService.createDetachedWorktreeCalls,
+		}, {
+			response: {
+				jsonrpc: '2.0',
+				id: 20,
+				result: { handle: '00000000-0000-4000-8000-000000000001', resource: 'file:///workspace.worktrees/prepared' },
+			},
+			calls: [{ session: 'copilotcli:/session-1', prompt: 'Fix the issue' }],
+		});
+	});
+
+	test('updates a detached worktree archive state through the extension request', async () => {
+		const transport = connectClient('client-archive-prepared-worktree');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 21);
+
+		transport.simulateMessage(request(21, 'vscode/setAgentHostDetachedWorktreeArchived', {
+			handle: '00000000-0000-4000-8000-000000000001',
+			archived: true,
+		}));
+
+		assert.deepStrictEqual({
+			response: await responsePromise,
+			calls: agentService.setDetachedWorktreeArchivedCalls,
+		}, {
+			response: { jsonrpc: '2.0', id: 21, result: null },
+			calls: [{ handle: '00000000-0000-4000-8000-000000000001', archived: true }],
+		});
+	});
+
+	test('claims a detached worktree through the extension request', async () => {
+		const transport = connectClient('client-claim-detached-worktree');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 24);
+		const handle = '00000000-0000-4000-8000-000000000001';
+
+		transport.simulateMessage(request(24, 'vscode/claimAgentHostDetachedWorktree', { handle }));
+
+		assert.deepStrictEqual({
+			response: await responsePromise,
+			calls: agentService.claimDetachedWorktreeCalls,
+		}, {
+			response: { jsonrpc: '2.0', id: 24, result: null },
+			calls: [handle],
+		});
+	});
+
+	test('deletes a detached worktree through the extension request', async () => {
+		const transport = connectClient('client-delete-detached-worktree');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 22);
+
+		transport.simulateMessage(request(22, 'vscode/deleteAgentHostDetachedWorktree', {
+			handle: '00000000-0000-4000-8000-000000000001',
+		}));
+
+		assert.deepStrictEqual({
+			response: await responsePromise,
+			calls: agentService.deleteDetachedWorktreeCalls,
+		}, {
+			response: { jsonrpc: '2.0', id: 22, result: null },
+			calls: ['00000000-0000-4000-8000-000000000001'],
+		});
+	});
+
+	test('reconciles detached worktrees through the extension request', async () => {
+		const transport = connectClient('client-reconcile-detached-worktrees');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 23);
+		const activeHandles = ['00000000-0000-4000-8000-000000000001'];
+
+		transport.simulateMessage(request(23, 'vscode/reconcileAgentHostDetachedWorktrees', {
+			scope: 'file:///workspace',
+			activeHandles,
+		}));
+
+		assert.deepStrictEqual({
+			response: await responsePromise,
+			calls: agentService.reconcileDetachedWorktreesCalls,
+		}, {
+			response: { jsonrpc: '2.0', id: 23, result: null },
+			calls: [{ scope: 'file:///workspace', activeHandles }],
 		});
 	});
 
