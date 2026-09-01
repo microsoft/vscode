@@ -48,7 +48,7 @@ import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, type IAgentHostSessi
 import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
 import { ResourceLabelHomeStore } from '../../../../../workbench/services/label/common/resourceLabelHomeStore.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
-import { DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
+import { IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
 import { ChatModelSource, IGitHubInfo, ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -366,9 +366,6 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		}
 		await this._waitForSessionConfigResolution(this, sessionId, token);
 		const sourceConfig = this.getSessionConfig(sessionId);
-		if (sourceConfig?.values[SessionConfigKey.Isolation] === 'worktree' && this._configurationService.getValue<boolean>(DevContainerWorktreeEnabledSettingId) !== true) {
-			throw new Error(localize('devContainerAgentHost.worktreeDisabled', "Dev Container execution cannot be combined with New Worktree."));
-		}
 		let devContainerWorkspace = sourceWorkspace;
 		let detachedWorktree: { readonly handle: string; readonly worktree: URI } | undefined;
 		if (sourceConfig?.values[SessionConfigKey.Isolation] === 'worktree') {

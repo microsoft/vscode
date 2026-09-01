@@ -37,7 +37,7 @@ import { ISessionsProvidersService } from '../../../../../../services/sessions/b
 import { IActiveSession } from '../../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionWorkspace } from '../../../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../../../services/sessions/common/sessionsProvider.js';
-import { AgentHostSessionConfigPicker, IConfigPickerItem, MobileAgentHostSessionConfigPicker, PickerActionViewItem } from '../../../browser/agentHostSessionConfigPicker.js';
+import { AgentHostSessionConfigPicker, IConfigPickerItem, PickerActionViewItem } from '../../../browser/agentHostSessionConfigPicker.js';
 
 const SESSION_ID = 'local-agent-host:s1';
 const SESSION_RESOURCE = URI.parse('agent-session:/s1');
@@ -233,7 +233,7 @@ function setupServices(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeake
 	instantiationService.stub(IContextKeyService, new (class extends mock<IContextKeyService>() {
 		override readonly onDidChangeContext = Event.None;
 	})());
-	const layoutService = new (class extends mock<IAgentWorkbenchLayoutService>() {
+	instantiationService.stub(IAgentWorkbenchLayoutService, new (class extends mock<IAgentWorkbenchLayoutService>() {
 		// No `phone-layout` class → `isPhoneLayout` is false → isolation renders as a checkbox.
 		override readonly mainContainer = document.createElement('div');
 		override readonly isSinglePaneLayoutEnabled = true;
@@ -241,8 +241,7 @@ function setupServices(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeake
 			actionWidget.events.push('suppressEditorPartAutoVisibility');
 			return { dispose: () => actionWidget.events.push('releaseEditorPartAutoVisibility') };
 		}
-	})();
-	instantiationService.stub(IAgentWorkbenchLayoutService, layoutService);
+	})());
 	instantiationService.stub(ISessionChangesService, new (class extends mock<ISessionChangesService>() {
 		override async openChangesEditor(sessionResource: URI): Promise<undefined> {
 			actionWidget.events.push(`openChangesEditor:${sessionResource.toString()}`);
@@ -271,7 +270,7 @@ function setupServices(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeake
 		resource: SESSION_RESOURCE,
 		workspace,
 	} as IActiveSession);
-	return { instantiationService, provider, sessionObs, workspaceObs, actionWidget, layoutService };
+	return { instantiationService, provider, sessionObs, workspaceObs, actionWidget };
 }
 
 /** Create and render a fresh picker instance, as the toolbar does on a rebuild. */
@@ -657,43 +656,6 @@ suite('Agent Host Session Config Picker', () => {
 			worktreeAriaDisabled: 'true',
 			setSessionConfigValueCalls: 0,
 		});
-	});
-
-	test('keeps New Worktree disabled after resizing a Dev Container draft to phone layout', async () => {
-		const services = setupServices(store);
-		services.provider.config = makeRepoConfig('main', 'folder');
-		const picker = store.add(services.instantiationService.createInstance(MobileAgentHostSessionConfigPicker, services.sessionObs));
-		const container = document.createElement('div');
-		picker.render(container);
-
-		devContainerSlot(container)!.querySelector<HTMLElement>('.action-label')!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-		services.layoutService.mainContainer.classList.add('phone-layout');
-		services.provider.set(makeRepoConfig('main', 'folder'), false);
-
-		const isolationTrigger = container.querySelector<HTMLElement>('a[aria-label^="Isolation:"]')!;
-		isolationTrigger.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-		await new Promise(resolve => setTimeout(resolve));
-
-		const worktreeRow = Array.from(services.layoutService.mainContainer.querySelectorAll<HTMLButtonElement>('.mobile-picker-sheet-item'))
-			.find(row => row.querySelector('.mobile-picker-sheet-label')?.textContent === 'Worktree')!;
-		worktreeRow.click();
-
-		assert.deepStrictEqual({
-			devContainerVisible: devContainerSlot(container) !== null,
-			worktreeDisabled: worktreeRow.disabled,
-			worktreeAriaDisabled: worktreeRow.getAttribute('aria-disabled'),
-			worktreeDescription: worktreeRow.querySelector('.mobile-picker-sheet-description')?.textContent,
-			setSessionConfigValueCalls: services.provider.setSessionConfigValueCalls,
-		}, {
-			devContainerVisible: false,
-			worktreeDisabled: true,
-			worktreeAriaDisabled: 'true',
-			worktreeDescription: 'New Worktree cannot be combined with Dev Container execution.',
-			setSessionConfigValueCalls: 0,
-		});
-
-		services.layoutService.mainContainer.querySelector<HTMLButtonElement>('.mobile-picker-sheet-done')!.click();
-		await new Promise(resolve => setTimeout(resolve));
 	});
 
 	test('does not render Dev Container when the draft workspace is unavailable', () => {
