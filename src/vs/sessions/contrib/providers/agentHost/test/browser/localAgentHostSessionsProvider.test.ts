@@ -46,7 +46,7 @@ import { ChatInteractivity, ChatModelSource, ChatOriginKind, getChatCapabilities
 import { IActiveSession, WorkspaceNotTrustedError } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
+import { DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { LocalAgentHostSessionsProvider } from '../../browser/localAgentHostSessionsProvider.js';
 import { AgentHostSessionAdapter, type IAgentHostAdapterOptions } from '../../browser/baseAgentHostSessionsProvider.js';
@@ -3351,6 +3351,31 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(connectCalls, 0);
 	});
 
+	test('prepareNewSession rejects a Dev Container worktree when the combination is disabled', async () => {
+		agentHost.resolveSessionConfigResult = {
+			schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation' } } },
+			values: { isolation: 'worktree' },
+		};
+		let connectCalls = 0;
+		const devContainerAgentHostService = new class extends mock<IDevContainerAgentHostService>() {
+			override async isAvailable(): Promise<boolean> { return true; }
+			override async connect(): Promise<never> {
+				connectCalls++;
+				throw new Error('unexpected connect');
+			}
+		}();
+		const provider = createProvider(disposables, agentHost, undefined, { devContainerAgentHostService });
+		const session = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.isolation === 'worktree');
+		provider.setDevContainerEnabled(session.sessionId, true);
+
+		await assert.rejects(
+			provider.prepareNewSession(session.sessionId, CancellationToken.None, 'hello'),
+			/Dev Container execution cannot be combined with New Worktree/,
+		);
+		assert.strictEqual(connectCalls, 0);
+	});
+
 	test('prepareNewSession releases the Dev Container connection when post-connect setup fails', async () => {
 		const remoteWorkspace = URI.parse('agent-host://devcontainer/workspaces/project');
 		const setupError = new Error('failed to trust mapped workspace');
@@ -3367,6 +3392,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}();
 		const provider = createProvider(disposables, agentHost, undefined, {
 			devContainerAgentHostService,
+			configurationService: new TestConfigurationService({ [DevContainerWorktreeEnabledSettingId]: true }),
 			setUrisTrust: async uris => {
 				if (uris.some(uri => uri.toString() === remoteWorkspace.toString())) {
 					throw setupError;
@@ -3501,6 +3527,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, agentHost, undefined, {
 			devContainerAgentHostService,
 			sessionsProvidersService,
+			configurationService: new TestConfigurationService({ [DevContainerWorktreeEnabledSettingId]: true }),
 			languageModelIds: [sourceModelId],
 			lookupLanguageModel: id => id === sourceModelId
 				? { ...createTestLanguageModel('gpt-5'), targetChatSessionType: 'agent-host-copilotcli' }

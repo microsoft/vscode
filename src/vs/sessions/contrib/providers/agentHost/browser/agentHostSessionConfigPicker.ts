@@ -775,7 +775,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		);
 	}
 
-	private _isDevContainerWorktreeEnabled(): boolean {
+	protected _isDevContainerWorktreeEnabled(): boolean {
 		return this._configurationService.getValue<boolean>(DevContainerWorktreeEnabledSettingId) === true;
 	}
 
@@ -1027,7 +1027,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
  * is during module evaluation — a separate file that imported the base
  * would hit "Cannot access before initialization").
  */
-class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
+export class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 
 	/**
 	 * On phone the chip lane has a fixed visual sequence — Default
@@ -1120,6 +1120,7 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 		const branchValue = config.values[SessionConfigKey.Branch];
 		const repositoryState = this._getRepositoryBranchState(sessionId);
 		const sheetItems: IMobilePickerSheetItem[] = [];
+		const devContainerEnabled = provider.isDevContainerEnabled?.(sessionId) === true;
 
 		const idToConfig = new Map<string, { property: string; value: string; label: string; isPII: boolean }>();
 		const registerId = (property: string, value: string, label: string, isPII: boolean): string => {
@@ -1129,12 +1130,19 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 		};
 
 		isolationItems.forEach((item, index) => {
+			const combinationDisabled = item.value === 'worktree'
+				&& !this._isDevContainerWorktreeEnabled()
+				&& devContainerEnabled
+				&& item.value !== isolationValue;
 			sheetItems.push({
 				id: registerId(SessionConfigKey.Isolation, item.value, item.label, !!isolationSchema?.enumDynamic),
 				label: item.label,
-				description: item.description,
+				description: combinationDisabled
+					? localize('mobileAgentHostSessionConfig.repoSheet.devContainerDisabled', "New Worktree cannot be combined with Dev Container execution.")
+					: item.description,
 				icon: getConfigIcon(SessionConfigKey.Isolation, item.value),
 				checked: item.value === isolationValue,
+				disabled: combinationDisabled,
 				sectionTitle: index === 0 ? (isolationSchema?.title ?? localize('mobileAgentHostSessionConfig.repoSheet.isolationSection', "Isolation")) : undefined,
 			});
 		});
