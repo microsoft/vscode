@@ -171,6 +171,91 @@ suite('DefaultAccountProvider', () => {
 		});
 	});
 
+	test('a fresh cache from a different scope is not retained when refetch fails', async () => {
+		const requestService = new TestRequestService(async () => {
+			throw new Error('managed settings unavailable');
+		});
+		const provider = await createProvider(requestService);
+		const cachedPolicy = {
+			...createCachedPolicy(false),
+			managedSettingsScope: {
+				accountId,
+				authenticationProviderId: 'github-enterprise',
+				endpointOrigin: 'https://api.ghe.example.com',
+			},
+		};
+
+		const result = await provider['getManagedSettings'](sessions, cachedPolicy);
+
+		assert.deepStrictEqual({
+			requestCount: requestService.requestCount,
+			data: result.data,
+			fetchedAt: result.fetchedAt,
+			scope: result.scope,
+		}, {
+			requestCount: 1,
+			data: { managedSettings: undefined },
+			fetchedAt: undefined,
+			scope: {
+				accountId,
+				authenticationProviderId: 'github',
+				endpointOrigin: 'https://api.github.com',
+			},
+		});
+	});
+
+	test('a cache from a different scope is not retained by forced refresh failure or retry blocking', async () => {
+		const requestService = new TestRequestService(async () => {
+			throw new Error('managed settings unavailable');
+		});
+		const provider = await createProvider(requestService, { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true });
+		const cachedPolicy = {
+			...createCachedPolicy(false),
+			managedSettingsScope: {
+				accountId,
+				authenticationProviderId: 'github-enterprise',
+				endpointOrigin: 'https://api.ghe.example.com',
+			},
+		};
+
+		const failed = await provider['getManagedSettings'](sessions, cachedPolicy);
+		const blocked = await provider['getManagedSettings'](sessions, cachedPolicy);
+
+		assert.deepStrictEqual({
+			requestCount: requestService.requestCount,
+			failed: {
+				data: failed.data,
+				fetchedAt: failed.fetchedAt,
+				scope: failed.scope,
+			},
+			blocked: {
+				data: blocked.data,
+				fetchedAt: blocked.fetchedAt,
+				scope: blocked.scope,
+			},
+		}, {
+			requestCount: 1,
+			failed: {
+				data: { managedSettings: undefined },
+				fetchedAt: undefined,
+				scope: {
+					accountId,
+					authenticationProviderId: 'github',
+					endpointOrigin: 'https://api.github.com',
+				},
+			},
+			blocked: {
+				data: { managedSettings: undefined },
+				fetchedAt: undefined,
+				scope: {
+					accountId,
+					authenticationProviderId: 'github',
+					endpointOrigin: 'https://api.github.com',
+				},
+			},
+		});
+	});
+
 	test('fresh 404 clears a cached server requirement', async () => {
 		const requestService = new TestRequestService(async () => jsonResponse({}, 404));
 		const provider = await createProvider(requestService);

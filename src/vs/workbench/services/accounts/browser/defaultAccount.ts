@@ -1146,6 +1146,13 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		}
 
 		const scope = this.createManagedSettingsFreshnessScope(accountId, authenticationProvider.id, managedSettingsUrl);
+		const cachedScope = accountPolicyData?.managedSettingsScope;
+		// Only reuse a cache captured for the current provider and endpoint (a legacy cache with no recorded
+		// scope is trusted), so a previous GitHub Enterprise host's policy is not applied after a scope switch.
+		const cacheScopeMatches = !cachedScope || this.getManagedSettingsScopeKey(cachedScope) === this.getManagedSettingsScopeKey(scope);
+		const scopedManagedSettings = cacheScopeMatches ? accountPolicyData?.policyData.managedSettings : undefined;
+		const scopedManagedSettingsFetchedAt = cacheScopeMatches ? accountPolicyData?.managedSettingsFetchedAt : undefined;
+		const scopedCachedManagedSettings = cacheScopeMatches ? cachedManagedSettings : undefined;
 		if (requirement.effective && !this.canRequestManagedSettings(options, scope)) {
 			this.logService.debug('[DefaultAccount] Skipping automatic managed settings retry after a prior failure');
 			const failedFreshness = this.failedManagedSettingsFreshness.get(this.getManagedSettingsScopeKey(scope));
@@ -1153,22 +1160,18 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 				this.setManagedSettingsFreshness({ ...failedFreshness, source: requirement.source });
 			}
 			return {
-				data: { managedSettings: accountPolicyData?.policyData.managedSettings },
-				fetchedAt: accountPolicyData?.managedSettingsFetchedAt,
-				scope: accountPolicyData?.managedSettingsScope ?? scope,
+				data: { managedSettings: scopedManagedSettings },
+				fetchedAt: scopedManagedSettingsFetchedAt,
+				scope,
 				compatibilityError: this._managedSettingsCompatibilityError,
 			};
 		}
-		const cachedScope = accountPolicyData?.managedSettingsScope;
-		// Only reuse a cache captured for the current provider and endpoint (a legacy cache with no recorded
-		// scope is trusted), so a previous GitHub Enterprise host's policy is not applied after a scope switch.
-		const cacheScopeMatches = !cachedScope || this.getManagedSettingsScopeKey(cachedScope) === this.getManagedSettingsScopeKey(scope);
 		const freshnessSatisfied = requirement.effective && isManagedSettingsFreshnessSatisfiedFor(this._managedSettingsFreshness, scope);
 		// When forceRemoteSettingsRefresh is effective, reuse also requires this scope's freshness to be
 		// satisfied; an outstanding compatibility error always forces revalidation.
-		if (!options?.forceRefresh && cachedManagedSettings && cacheScopeMatches && (!requirement.effective || freshnessSatisfied) && !this._managedSettingsCompatibilityError) {
+		if (!options?.forceRefresh && scopedCachedManagedSettings && (!requirement.effective || freshnessSatisfied) && !this._managedSettingsCompatibilityError) {
 			this.logService.debug('[DefaultAccount] Using last fetched managed settings data');
-			return { ...cachedManagedSettings, scope, compatibilityError: this._managedSettingsCompatibilityError };
+			return { ...scopedCachedManagedSettings, scope, compatibilityError: this._managedSettingsCompatibilityError };
 		}
 
 		const lastAttemptAt = Date.now();
@@ -1207,8 +1210,8 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 					});
 				}
 				return {
-					data: requirement.effective ? { managedSettings: accountPolicyData?.policyData.managedSettings } : { managedSettings: undefined },
-					fetchedAt: requirement.effective ? accountPolicyData?.managedSettingsFetchedAt : Date.now(),
+					data: requirement.effective ? { managedSettings: scopedManagedSettings } : { managedSettings: undefined },
+					fetchedAt: requirement.effective ? scopedManagedSettingsFetchedAt : Date.now(),
 					scope,
 					compatibilityError: result.error,
 				};
@@ -1219,14 +1222,14 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 				if (requirement.effective) {
 					this.setManagedSettingsFreshness(this.toBlockedManagedSettingsFreshness(requirement.source, result, lastAttemptAt, scope));
 					return {
-						data: { managedSettings: accountPolicyData?.policyData.managedSettings },
-						fetchedAt: accountPolicyData?.managedSettingsFetchedAt,
+						data: { managedSettings: scopedManagedSettings },
+						fetchedAt: scopedManagedSettingsFetchedAt,
 						scope,
 						compatibilityError: this._managedSettingsCompatibilityError,
 					};
 				}
 				// A failed fetch must not extend the life of the cached response: carry the cache's timestamp for expiry
-				const retained = this._managedSettingsCompatibilityError ? undefined : cachedManagedSettings;
+				const retained = this._managedSettingsCompatibilityError ? undefined : scopedCachedManagedSettings;
 				return {
 					data: { managedSettings: retained?.data.managedSettings },
 					fetchedAt: retained?.fetchedAt,
