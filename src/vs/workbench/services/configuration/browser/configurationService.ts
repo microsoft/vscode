@@ -1352,6 +1352,7 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 
 	private readonly processedExperimentalSettings = new Set<string>();
 	private readonly autoExperimentalSettings = new Set<string>();
+	private readonly pendingStartupExperimentalSettings = new Set<string>();
 	private readonly registeredExperimentalDefaults = new Map<string, IConfigurationDefaults>();
 	private readonly configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	private readonly throttler = this._register(new Throttler());
@@ -1366,7 +1367,8 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 		super();
 
 		this.throttler.queue(() => this.updateDefaults());
-		this._register(workbenchAssignmentService.onDidRefetchAssignments(() => this.throttler.queue(() => this.processExperimentalSettings(this.autoExperimentalSettings, true))));
+		// Re-resolve `auto` settings and any still-pending `startup` settings on each refetch.
+		this._register(workbenchAssignmentService.onDidRefetchAssignments(() => this.throttler.queue(() => this.processExperimentalSettings([...this.autoExperimentalSettings, ...this.pendingStartupExperimentalSettings], true))));
 
 		// When configuration is updated make sure to apply experimental configuration overrides
 		this._register(this.configurationRegistry.onDidUpdateConfiguration(({ properties }) => this.processExperimentalSettings(properties, false)));
@@ -1402,6 +1404,7 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 				}
 				this.processedExperimentalSettings.delete(property);
 				this.autoExperimentalSettings.delete(property);
+				this.pendingStartupExperimentalSettings.delete(property);
 				continue;
 			}
 			const defaultValueSource: ConfigurationDefaultSource | undefined = schema.defaultValueSource && !(schema.defaultValueSource instanceof Map) ? schema.defaultValueSource : undefined;
@@ -1412,17 +1415,28 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 					removedDefaults.push(registeredDefault);
 				}
 				this.processedExperimentalSettings.delete(property);
+				this.pendingStartupExperimentalSettings.delete(property);
 				continue;
 			}
 			if (!autoRefetch && this.processedExperimentalSettings.has(property)) {
 				continue;
 			}
 			this.processedExperimentalSettings.add(property);
-			if (schema.experiment.mode === 'auto') {
+			const isAutoExperiment = schema.experiment.mode === 'auto';
+			if (isAutoExperiment) {
 				this.autoExperimentalSettings.add(property);
 			}
 			try {
 				const value = await this.workbenchAssignmentService.getTreatment(schema.experiment.name ?? `config.${property}`);
+				// Latch a `startup` value once it first resolves; keep it pending until then so a
+				// later (sign-in gated) value can still be applied.
+				if (!isAutoExperiment) {
+					if (isUndefined(value)) {
+						this.pendingStartupExperimentalSettings.add(property);
+					} else {
+						this.pendingStartupExperimentalSettings.delete(property);
+					}
+				}
 				const registeredDefault = this.registeredExperimentalDefaults.get(property);
 				if (this.shouldOverride(value, schema)) {
 					if (!equals(registeredDefault?.overrides[property], value)) {
