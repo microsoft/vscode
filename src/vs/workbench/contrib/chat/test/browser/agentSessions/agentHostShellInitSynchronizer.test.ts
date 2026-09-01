@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../../../base/common/platform.js';
@@ -241,6 +241,19 @@ suite('AgentHostShellInitSynchronizer', () => {
 		subscription.applyConfig(dispatched[1]);
 		await reconcile;
 		assert.strictEqual(resolved, true);
+	});
+
+	test('a cancelled reconcile is not blocked by an earlier unacknowledged publication', async () => {
+		const { synchronizer } = create({ enabled: true });
+		const subscription = disposables.add(new TestSubscription(state()));
+		disposables.add(synchronizer.register(session, subscription));
+		await timeout(0);
+		const cancellation = disposables.add(new CancellationTokenSource());
+
+		const reconcile = synchronizer.reconcile(session, cancellation.token);
+		cancellation.cancel();
+
+		await reconcile;
 	});
 
 	test('uses the session folder in a multi-root workspace and project for worktrees', async () => {

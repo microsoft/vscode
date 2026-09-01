@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise, raceCancellation, RunOnceScheduler, Sequencer } from '../../../../../../base/common/async.js';
+import { DeferredPromise, raceCancellation, raceTimeout, RunOnceScheduler, Sequencer } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { structuralEquals } from '../../../../../../base/common/equals.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -31,6 +31,7 @@ const PYTHON_ACTIVATION_VARIABLES: readonly string[] = isWindows
 	? ['VSCODE_PYTHON_PWSH_ACTIVATE']
 	: ['VSCODE_PYTHON_BASH_ACTIVATE'];
 const TOOL_SHELL: ShellInitScriptShell = isWindows ? 'powershell' : 'bash';
+const SHELL_INIT_PUBLICATION_TIMEOUT_MS = 10_000;
 
 export const IAgentHostShellInitSynchronizer = createDecorator<IAgentHostShellInitSynchronizer>('agentHostShellInitSynchronizer');
 
@@ -142,7 +143,8 @@ export class AgentHostShellInitSynchronizer extends Disposable implements IAgent
 
 	private _enqueuePublish(key: string, token?: CancellationToken): Promise<void> {
 		const registration = this._registrations.get(key);
-		return registration?.sequencer.queue(() => this._publish(key, token)) ?? Promise.resolve();
+		const queued = registration?.sequencer.queue(() => this._publish(key, token)) ?? Promise.resolve();
+		return token ? raceCancellation(queued, token).then(() => { }) : queued;
 	}
 
 	private async _publish(key: string, token?: CancellationToken): Promise<void> {
@@ -194,11 +196,13 @@ export class AgentHostShellInitSynchronizer extends Disposable implements IAgent
 	}
 
 	private async _awaitPublication(registration: IRegistration, publication: NonNullable<IRegistration['pendingPublication']>, token?: CancellationToken): Promise<void> {
-		const envelope = token
-			? await raceCancellation(publication.applied.p, token)
-			: await publication.applied.p;
+		const bounded = raceTimeout(publication.applied.p, SHELL_INIT_PUBLICATION_TIMEOUT_MS);
+		const envelope = token ? await raceCancellation(bounded, token) : await bounded;
 		if (registration.pendingPublication === publication) {
 			registration.pendingPublication = undefined;
+		}
+		if (token && envelope === undefined && !token.isCancellationRequested) {
+			throw new Error('Timed out waiting for Agent Host to apply shell init config.');
 		}
 		if (token && envelope?.rejectionReason) {
 			throw new Error(`Agent Host rejected shell init config: ${envelope.rejectionReason}`);
