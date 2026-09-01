@@ -21,15 +21,21 @@ import type { DiffScrollSyncData, FromWebviewMessage, MarkdownPreviewLineChanges
 export class PreviewDocumentVersion {
 
 	public readonly resource: vscode.Uri;
+	readonly #document: vscode.TextDocument;
 	readonly #version: number;
 
 	public constructor(document: vscode.TextDocument) {
 		this.resource = document.uri;
+		this.#document = document;
 		this.#version = document.version;
 	}
 
 	public equals(other: PreviewDocumentVersion): boolean {
-		return areUrisEqual(this.resource, other.resource)
+		// Compare document identity, not just the uri. Once a document has been closed,
+		// re-opening the file creates a new document whose version numbering restarts, so a
+		// version recorded from a different document object must never be allowed to suppress
+		// an update. Identity implies the uris match, so they are not compared separately.
+		return this.#document === other.#document
 			&& this.#version === other.#version;
 	}
 }
