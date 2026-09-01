@@ -45,6 +45,9 @@ export class SymbolsTree {
 	getInput(): SymbolTreeInput<unknown> | undefined {
 		return this._input;
 	}
+	getSelection(): readonly unknown[] {
+		return this._navigation.getSelection();
+	}
 
 	async setInput(input: SymbolTreeInput<unknown>) {
 
