@@ -19,20 +19,20 @@ suite('Agent Merge Actions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	/** A session where Agent Merge applies: agent host provider, live, with an open pull request. */
-	function createContext(options: { readonly primaryOperation: string; readonly agentMergeEnabled: boolean; readonly featureEnabled?: boolean; readonly archived?: boolean }): Context {
+	function createContext(options: { readonly primaryOperation: string; readonly agentMergeEnabled: boolean; readonly featureEnabled?: boolean; readonly archived?: boolean; readonly hasOpenPullRequest?: boolean }): Context {
 		const context = new Context(1, null);
 		context.setValue(IsSessionsWindowContext.key, true);
 		context.setValue(ChatContextKeys.enabled.key, true);
 		context.setValue(SessionProviderIdContext.key, 'local-agent-host');
 		context.setValue(SessionIsArchivedContext.key, options.archived ?? false);
 		context.setValue(`config.${AgentMergeSettingId.Enabled}`, options.featureEnabled ?? true);
-		context.setValue(SessionHasOpenPullRequestContext.key, true);
+		context.setValue(SessionHasOpenPullRequestContext.key, options.hasOpenPullRequest ?? true);
 		context.setValue(SessionPrimaryPullRequestOperationContext.key, options.primaryOperation);
 		context.setValue(SessionAgentMergeEnabledContext.key, options.agentMergeEnabled);
 		return context;
 	}
 
-	function ownsPrimaryButton(options: { readonly primaryOperation: string; readonly agentMergeEnabled: boolean; readonly featureEnabled?: boolean; readonly archived?: boolean }): boolean {
+	function ownsPrimaryButton(options: { readonly primaryOperation: string; readonly agentMergeEnabled: boolean; readonly featureEnabled?: boolean; readonly archived?: boolean; readonly hasOpenPullRequest?: boolean }): boolean {
 		const item = MenuRegistry.getMenuItems(Menus.ChangesOperationsDropdown)
 			.find(entry => !isIMenuItem(entry) && entry.submenu === Menus.ChangesAgentMerge);
 		assert.ok(item, 'Agent Merge is contributed to the changes operations dropdown');
@@ -76,9 +76,11 @@ suite('Agent Merge Actions', () => {
 		assert.deepStrictEqual({
 			featureOff: ownsPrimaryButton({ primaryOperation: AgentHostPullRequestOperationId.EnableAutoMerge, agentMergeEnabled: false, featureEnabled: false }),
 			archived: ownsPrimaryButton({ primaryOperation: AgentHostPullRequestOperationId.EnableAutoMerge, agentMergeEnabled: true, archived: true }),
+			mergeCompleted: ownsPrimaryButton({ primaryOperation: '', agentMergeEnabled: true, hasOpenPullRequest: false }),
 		}, {
 			featureOff: false,
 			archived: false,
+			mergeCompleted: false,
 		});
 	});
 

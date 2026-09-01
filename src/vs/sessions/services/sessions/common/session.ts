@@ -304,6 +304,10 @@ export interface IGitHubInfo {
 		readonly number: number;
 		/** URI of the pull request. */
 		readonly uri: URI;
+		/** Last host-observed pull request state. */
+		readonly state?: 'open' | 'closed' | 'merged';
+		/** State from the live workbench pull request model, when resolved. */
+		readonly liveState?: 'open' | 'closed' | 'merged';
 		/** Icon reflecting the PR state. */
 		readonly icon?: ThemeIcon;
 		/** Pull request title, when known. */
@@ -332,6 +336,10 @@ export interface IGitHubPullRequestRef {
 	readonly uri: URI;
 	/** Icon reflecting the last known PR state. */
 	readonly icon?: ThemeIcon;
+	/** Last host-observed pull request state. */
+	readonly state?: 'open' | 'closed' | 'merged';
+	/** State from the live workbench pull request model, when resolved. */
+	readonly liveState?: 'open' | 'closed' | 'merged';
 	/**
 	 * Pull request title, when the session recorded one. Absent for pull requests
 	 * discovered from git state, which carry no title until they are fetched live.
@@ -358,6 +366,8 @@ export function getGitHubPullRequestRefs(gitHubInfo: IGitHubInfo | undefined): r
 		number: gitHubInfo.pullRequest.number,
 		uri: gitHubInfo.pullRequest.uri,
 		icon: gitHubInfo.pullRequest.icon,
+		state: gitHubInfo.pullRequest.state,
+		liveState: gitHubInfo.pullRequest.liveState,
 		title: gitHubInfo.pullRequest.title,
 	}];
 }
@@ -1018,11 +1028,15 @@ export function gitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | und
 			x.repo === y.repo &&
 			x.number === y.number &&
 			isEqual(x.uri, y.uri) &&
+			x.state === y.state &&
+			x.liveState === y.liveState &&
 			x.title === y.title &&
 			x.createdByThisSession === y.createdByThisSession &&
 			(x.icon === y.icon || (!!x.icon && !!y.icon && ThemeIcon.isEqual(x.icon, y.icon)))) &&
 		a.pullRequest?.number === b.pullRequest?.number &&
 		isEqual(a.pullRequest?.uri, b.pullRequest?.uri) &&
+		a.pullRequest?.state === b.pullRequest?.state &&
+		a.pullRequest?.liveState === b.pullRequest?.liveState &&
 		(aIcon === bIcon || (!!aIcon && !!bIcon && ThemeIcon.isEqual(aIcon, bIcon))) &&
 		a.pullRequest?.title === b.pullRequest?.title &&
 		a.pullRequest?.baseRefOid === b.pullRequest?.baseRefOid &&
