@@ -21,9 +21,13 @@ suite('shellInitScript', () => {
 		const { script } = createShellInitScript('bash', ' source /repo/.venv/bin/activate');
 		assert.deepStrictEqual({
 			profileBeforeActivation: script.indexOf(`source "$HOME/.bashrc"`) < script.indexOf('source /repo/.venv/bin/activate'),
+			doesNotInferFailureFromRcStatus: script.includes(`source "$HOME/.bashrc" || builtin true`),
+			doesNotPrintAProfileFailure: !script.includes('loading ~/.bashrc failed'),
 			endsSuccessfully: script.trimEnd().endsWith('builtin true'),
 		}, {
 			profileBeforeActivation: true,
+			doesNotInferFailureFromRcStatus: true,
+			doesNotPrintAProfileFailure: true,
 			endsSuccessfully: true,
 		});
 	});
@@ -88,6 +92,28 @@ suite('shellInitScript', () => {
 			assert.deepStrictEqual(
 				await run('export VSCODE_TEST_RC_MARKER=loaded\n', 'builtin echo "activation sees rc=$VSCODE_TEST_RC_MARKER"', 'builtin true'),
 				['activation sees rc=loaded'],
+			);
+		});
+
+		test('does not report a profile failure when the rc ends nonzero', async () => {
+			assert.deepStrictEqual(
+				await run('export VSCODE_TEST_RC_MARKER=loaded\n[ -f /definitely/not/here ] && export NEVER=1\n', 'builtin echo "activation sees rc=$VSCODE_TEST_RC_MARKER"', 'builtin true'),
+				['activation sees rc=loaded'],
+			);
+		});
+
+		test('continues to activation when a non-interactive rc guard returns early', async () => {
+			const guardedRc = [
+				'case $- in',
+				'\t*i*) ;;',
+				'\t*) return;;',
+				'esac',
+				'export VSCODE_TEST_RC_MARKER=loaded',
+				'',
+			].join('\n');
+			assert.deepStrictEqual(
+				await run(guardedRc, 'builtin echo "activation sees rc=${VSCODE_TEST_RC_MARKER:-skipped}"', 'builtin true'),
+				['activation sees rc=skipped'],
 			);
 		});
 
