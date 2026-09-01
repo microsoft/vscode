@@ -12,7 +12,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { StorageScope, WillSaveStateReason } from '../../../../../platform/storage/common/storage.js';
@@ -20,7 +20,6 @@ import { Parts } from '../../../../../workbench/services/layout/browser/layoutSe
 import { ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { ISessionFileChange, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { SinglePaneChangesTabAvailableContext, SinglePaneChangesTabMissingContext, HasDockedDetailsContext, SinglePaneFilesTabAvailableContext, SinglePaneFilesTabMissingContext } from '../../../../common/contextkeys.js';
-import { Menus } from '../../../../browser/menus.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { FileEditorInput } from '../../../../../workbench/contrib/files/browser/editors/fileEditorInput.js';
 import { MultiDiffEditorInput } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
@@ -2480,10 +2479,10 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
-	test('[D7 single-pane] contributes Toggle Details in the trailing editor header group', () => {
+	test('[D7 single-pane] contributes Toggle Details with the editor title layout actions', () => {
 		createSinglePaneController();
 
-		const items = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
+		const items = MenuRegistry.getMenuItems(MenuId.EditorTitleLayout)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id === TOGGLE_DETAILS_COMMAND_ID);
 

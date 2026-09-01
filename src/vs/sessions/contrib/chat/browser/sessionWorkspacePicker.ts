@@ -105,7 +105,7 @@ export interface IWorkspacePickerTrigger {
 	readonly label?: string;
 	readonly ariaLabel: string;
 	readonly tooltip?: string;
-	readonly icon: ThemeIcon;
+	readonly icon?: ThemeIcon;
 	readonly hideIconWhenAttached?: boolean;
 	readonly reflectsWorkspace?: boolean;
 	readonly group?: string;
@@ -137,6 +137,7 @@ interface IWorkspacePickerTriggerElements {
 	icon?: HTMLElement;
 	label?: HTMLElement;
 	badge?: CountBadge;
+	chevron?: HTMLElement;
 }
 
 type IWorkspacePickerAction = IAction & { ariaLabel?: string; icon?: ThemeIcon; hoverContent?: string; onRemove?: () => void };
@@ -1465,7 +1466,7 @@ export class WorkspacePicker extends Disposable {
 			trigger.classList.toggle('selected', (reflectsWorkspace && workspace !== undefined) || isSelectedCategory || badgeCount > 0 || relatedGitHubInfo !== undefined);
 			const icon = (reflectsWorkspace ? workspace?.icon : undefined)
 				?? (relatedGitHubInfo ? Codicon.repo : (isSelectedCategory && workspace ? workspace.icon : options.icon));
-			if (options.hideIconWhenAttached === true && badgeCount > 0) {
+			if (!icon || (options.hideIconWhenAttached === true && badgeCount > 0)) {
 				contents.icon?.remove();
 				contents.icon = undefined;
 			} else {
@@ -1496,6 +1497,12 @@ export class WorkspacePicker extends Disposable {
 				contents.badge?.dispose();
 				contents.badge = undefined;
 			}
+			if (!contents.chevron) {
+				contents.chevron = renderIcon(Codicon.chevronDownCompact);
+				contents.chevron.classList.add('sessions-chat-dropdown-chevron');
+				contents.chevron.setAttribute('aria-hidden', 'true');
+			}
+			trigger.append(contents.chevron);
 			return;
 		}
 

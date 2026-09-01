@@ -1348,6 +1348,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar {
 	order: 2;
+	flex-shrink: 0;
 }
 
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .actions-container {
@@ -1951,7 +1952,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	order: 0;
 	overflow: hidden;
 	min-width: 0px;
-	width: 100%;
+	flex: 1 1 0;
 	color: var(--vscode-icon-foreground);
 
 	.monaco-action-bar .action-item .codicon {
@@ -3216,7 +3217,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-used-context-label {
-	font-size: var(--vscode-fontSize-body1);
+	font-size: var(--vscode-chat-font-size-body-m);
 	font-family: var(--vscode-chat-font-family, inherit);
 	color: var(--vscode-descriptionForeground);
 	user-select: none;
@@ -3339,7 +3340,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	align-items: flex-start;
 	gap: 4px;
 	margin: 0 0 var(--vscode-spacing-size160) 0;
-	font-size: var(--vscode-fontSize-body1);
+	font-size: var(--vscode-chat-font-size-body-m);
 
 	/* Tool calls transition from a progress to a collapsible list part, which needs to have this top padding.
 	The working progress also can be replaced by a tool progress part. So align this padding so the text doesn't appear to shift. */

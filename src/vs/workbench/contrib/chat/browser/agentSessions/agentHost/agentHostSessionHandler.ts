@@ -1326,6 +1326,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					return this._createCompletionItem(raw, text, {
 						kind: 'command',
 						command: completionMeta.command,
+						...(completionMeta.isSkill ? { isSkill: true } : {}),
 						description: completionMeta.description ?? '',
 						...(attachment._meta !== undefined && { _meta: attachment._meta }),
 					}, attachment.label !== raw.insertText ? attachment.label : undefined);
@@ -6811,7 +6812,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	resolveChatResponseUri(_sessionResource: URI, href: string, _kind: 'link' | 'image'): string {
-		return rewriteAgentHostLinkTarget(href, this._config.connectionAuthority);
+		return rewriteAgentHostLinkTarget(href, this._config.connectionAuthority, this._config.connection.resourceUris);
 	}
 
 	/**
