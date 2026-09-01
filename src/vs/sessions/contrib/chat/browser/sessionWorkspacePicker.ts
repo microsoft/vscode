@@ -918,6 +918,16 @@ export class WorkspacePicker extends Disposable {
 
 		const normalizedRepositoryId = repositoryId?.toLowerCase();
 		this._inputGitHubRepositoryId = normalizedRepositoryId;
+		if (!this._canRestoreWorkspace()) {
+			if (!normalizedRepositoryId) {
+				this._clearInputGitHubWorkspaceState();
+			} else if (this._inputGitHubWorkspaceApplied && this._selectedResolved) {
+				this._applySelection(undefined);
+				this._updateTriggerLabel();
+				this._onDidChangeSelection.fire();
+			}
+			return false;
+		}
 		if (!normalizedRepositoryId) {
 			return this._restoreSelectionBeforeInputGitHubWorkspace();
 		}
@@ -959,6 +969,7 @@ export class WorkspacePicker extends Disposable {
 			this._getRepositoryIdForResolvedWorkspace(candidate) === repositoryId;
 		const localWorkspace = this._getRecentWorkspaces().find(candidate =>
 			this._canRestoreProviderWorkspace(candidate.providerId)
+			&& !this._isProviderUnavailable(candidate.providerId)
 			&& candidate.workspace.group === SESSION_WORKSPACE_GROUP_LOCAL
 			&& matchesRepository(candidate)
 		);
@@ -976,7 +987,7 @@ export class WorkspacePicker extends Disposable {
 			path: `/${owner}/${repo}/HEAD`,
 		});
 		for (const provider of this.sessionsProvidersService.getProviders()) {
-			if (!this._canRestoreProviderWorkspace(provider.id)) {
+			if (!this._canRestoreProviderWorkspace(provider.id) || this._isProviderUnavailable(provider.id)) {
 				continue;
 			}
 			const workspace = provider.resolveWorkspace(uri);

@@ -287,7 +287,7 @@ export class NewChatWidget extends Disposable {
 		this._register(this._workspacePicker.onDidRemoveAttachedContext(id => this._newChatInput.removeAttachment(id)));
 		const syncAttachedContext = () => this._workspacePicker.syncAttachedContext(this._newChatInput.attachments);
 		const syncInputGitHubRepository = () => this._workspacePicker.syncInputGitHubRepository(
-			!this._isQuickChatComposer.get() && this.configurationService.getValue<boolean>(INFER_WORKSPACE_FROM_GITHUB_CONTEXT_SETTING)
+			this.configurationService.getValue<boolean>(INFER_WORKSPACE_FROM_GITHUB_CONTEXT_SETTING)
 				? this._newChatInput.inputGitHubRepository
 				: undefined
 		);

@@ -541,6 +541,139 @@ suite('WorkspacePicker - Input GitHub Repository', () => {
 			finalUri: explicit.toString(),
 		});
 	});
+
+	test('suspends inference while workspaces are unavailable and reapplies it afterwards', () => {
+		const provider = createRepositoryProvider();
+		providersService.setProviders([provider]);
+		let canRestoreWorkspace = true;
+		const picker = createTestPicker(
+			disposables,
+			providersService,
+			undefined,
+			undefined,
+			WorkspacePicker,
+			undefined,
+			undefined,
+			undefined,
+			{ canRestoreWorkspace: () => canRestoreWorkspace },
+		);
+
+		picker.syncInputGitHubRepository('microsoft/typescript');
+		canRestoreWorkspace = false;
+		const changedWhileUnavailable = picker.syncInputGitHubRepository('microsoft/typescript');
+		const suspendedUri = picker.selectedFolderUri;
+		canRestoreWorkspace = true;
+		const changedAfterRestore = picker.syncInputGitHubRepository('microsoft/typescript');
+
+		assert.deepStrictEqual({
+			changedWhileUnavailable,
+			suspendedUri,
+			changedAfterRestore,
+			restoredUri: picker.selectedFolderUri?.toString(),
+		}, {
+			changedWhileUnavailable: false,
+			suspendedUri: undefined,
+			changedAfterRestore: true,
+			restoredUri: URI.from({
+				scheme: GITHUB_REMOTE_FILE_SCHEME,
+				authority: 'github',
+				path: '/microsoft/typescript/HEAD',
+			}).toString(),
+		});
+	});
+
+	test('honors the scoped provider filter', () => {
+		const provider = createRepositoryProvider();
+		providersService.setProviders([provider]);
+		const picker = createTestPicker(
+			disposables,
+			providersService,
+			undefined,
+			undefined,
+			WorkspacePicker,
+			undefined,
+			undefined,
+			undefined,
+			{ sessionWorkspaceProviderFilter: () => false },
+		);
+
+		assert.deepStrictEqual({
+			changed: picker.syncInputGitHubRepository('microsoft/typescript'),
+			selectedFolderUri: picker.selectedFolderUri,
+		}, {
+			changed: false,
+			selectedFolderUri: undefined,
+		});
+	});
+
+	test('upgrades a GitHub fallback when a matching local recent arrives', () => {
+		const provider = createRepositoryProvider();
+		providersService.setProviders([provider]);
+		const onDidChangeRecentWorkspaces = disposables.add(new Emitter<void>());
+		let recents: ReturnType<ISessionsRecentWorkspacesService['getRecentWorkspaces']> = [];
+		const recentWorkspacesService = upcastPartial<ISessionsRecentWorkspacesService>({
+			onDidChangeRecentWorkspaces: onDidChangeRecentWorkspaces.event,
+			getRecentWorkspaces: () => recents,
+			addRecentWorkspace: () => { },
+			removeRecentWorkspace: () => { },
+			clearCheckedWorkspace: () => { },
+		});
+		const picker = createTestPicker(
+			disposables,
+			providersService,
+			undefined,
+			undefined,
+			WorkspacePicker,
+			undefined,
+			undefined,
+			recentWorkspacesService,
+		);
+		picker.syncInputGitHubRepository('microsoft/vscode');
+		const fallbackUri = picker.selectedFolderUri?.toString();
+
+		const localUri = URI.file('/local/vscode');
+		recents = [{
+			workspace: provider.resolveWorkspace(localUri)!,
+			providerId: provider.id,
+			checked: false,
+		}];
+		onDidChangeRecentWorkspaces.fire();
+
+		assert.deepStrictEqual({
+			fallbackUri,
+			upgradedUri: picker.selectedFolderUri?.toString(),
+		}, {
+			fallbackUri: URI.from({
+				scheme: GITHUB_REMOTE_FILE_SCHEME,
+				authority: 'github',
+				path: '/microsoft/vscode/HEAD',
+			}).toString(),
+			upgradedUri: localUri.toString(),
+		});
+	});
+
+	test('does not restore a workspace owned by a removed provider', () => {
+		const provider = createRepositoryProvider();
+		providersService.setProviders([provider]);
+		const storage = disposables.add(new TestStorageService());
+		const previous = URI.file('/local/other');
+		seedStorage(storage, [{ uri: previous, providerId: provider.id, checked: true }]);
+		const picker = createTestPicker(disposables, providersService, storage);
+
+		picker.syncInputGitHubRepository('microsoft/typescript');
+		providersService.setProviders([]);
+		const restored = picker.syncInputGitHubRepository(undefined);
+
+		assert.deepStrictEqual({
+			restored,
+			selectedFolderUri: picker.selectedFolderUri,
+			selectedProviderId: picker.selectedResolved?.providerId,
+		}, {
+			restored: true,
+			selectedFolderUri: undefined,
+			selectedProviderId: undefined,
+		});
+	});
 });
 
 suite('WorkspacePicker - Connection Status', () => {
