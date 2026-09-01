@@ -22,7 +22,7 @@ import {
 	getInlineToolInput, MessageKind, ROOT_STATE_URI, type MessageAttachment, type ChatInputAnswer, type ChatInputRequest, type RootState, type TerminalState,
 	type ToolResultContent,
 } from '../../../../common/state/sessionState.js';
-import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
+import type { Implementation, SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { TerminalClaimKind } from '../../../../common/state/protocol/channels-terminal/state.js';
 import {
 	ActionType,
@@ -419,11 +419,13 @@ export async function createRealSession(
 	trackingList: string[],
 	workingDirectory: URI,
 	beforeCreateSession?: () => Promise<void>,
+	clientInfo?: Implementation,
 ): Promise<string> {
 	const sessionUri = await createProviderSession(c, {
 		provider: config.provider,
 		scheme: config.scheme,
 		githubToken: config.githubToken ?? resolveGitHubToken(),
+		clientInfo,
 	}, clientId, trackingList, workingDirectory, beforeCreateSession);
 	c.setAhpSnapshotNormalization({
 		workingDirectory: workingDirectory.fsPath,

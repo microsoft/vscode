@@ -877,7 +877,7 @@ suite('AgentHostClientTools', () => {
 			} as Partial<IAgentHostSessionWorkingDirectorySynchronizer> as IAgentHostSessionWorkingDirectorySynchronizer);
 			instantiationService.stub(IAgentHostShellInitSynchronizer, {
 				register: () => toDisposable(() => { }),
-				reconcile: () => { },
+				reconcile: async () => { },
 			});
 			instantiationService.stub(IWorkbenchAssignmentService, new NullWorkbenchAssignmentService());
 			instantiationService.stub(IAgentHostUntitledProvisionalSessionService, {

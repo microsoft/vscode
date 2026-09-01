@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../../../base/common/platform.js';
@@ -33,12 +34,29 @@ class TestSubscription extends Disposable implements IAgentSubscription<SessionS
 	private readonly _onDidChange = this._register(new Emitter<SessionState>());
 	readonly onDidChange = this._onDidChange.event;
 	readonly onWillApplyAction = Event.None as Event<ActionEnvelope>;
-	readonly onDidApplyAction = Event.None as Event<ActionEnvelope>;
+	private readonly _onDidApplyAction = this._register(new Emitter<ActionEnvelope>());
+	readonly onDidApplyAction = this._onDidApplyAction.event;
 
 	constructor(private _state: SessionState) { super(); }
 	get value(): SessionState { return this._state; }
 	get verifiedValue(): SessionState { return this._state; }
 	set(state: SessionState): void { this._state = state; this._onDidChange.fire(state); }
+	applyConfig(config: Record<string, unknown>): void {
+		this._state = {
+			...this._state,
+			config: {
+				...this._state.config!,
+				values: { ...this._state.config?.values, ...config },
+			},
+		};
+		this._onDidChange.fire(this._state);
+		this._onDidApplyAction.fire({
+			channel: 'copilot:/session',
+			action: { type: ActionType.SessionConfigChanged, config },
+			serverSeq: 1,
+			origin: { clientId: 'test', clientSeq: 1 },
+		});
+	}
 }
 
 suite('AgentHostShellInitSynchronizer', () => {
@@ -152,14 +170,19 @@ suite('AgentHostShellInitSynchronizer', () => {
 		assert.ok(scripts(dispatched)[0].script.indexOf('.bashrc') < scripts(dispatched)[0].script.indexOf('activate-a'));
 	});
 
-	test('reconcile publishes synchronously before the first turn', () => {
+	test('reconcile waits for the config echo before the first turn', async () => {
 		const { synchronizer, dispatched } = create({ enabled: true });
 		const subscription = disposables.add(new TestSubscription(state()));
 		disposables.add(synchronizer.register(session, subscription));
 
-		synchronizer.reconcile(session);
+		let resolved = false;
+		const reconcile = synchronizer.reconcile(session, CancellationToken.None).then(() => resolved = true);
+		await timeout(0);
+		assert.strictEqual(resolved, false);
 
-		assert.strictEqual(dispatched.length, 1);
+		subscription.applyConfig(dispatched[0]);
+		await reconcile;
+		assert.strictEqual(resolved, true);
 	});
 
 	test('uses the session folder in a multi-root workspace and project for worktrees', async () => {

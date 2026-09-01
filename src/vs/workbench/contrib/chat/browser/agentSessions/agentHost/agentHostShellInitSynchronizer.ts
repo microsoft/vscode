@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from '../../../../../../base/common/async.js';
+import { raceCancellation, RunOnceScheduler } from '../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { structuralEquals } from '../../../../../../base/common/equals.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -35,7 +37,7 @@ export const IAgentHostShellInitSynchronizer = createDecorator<IAgentHostShellIn
 export interface IAgentHostShellInitSynchronizer {
 	readonly _serviceBrand: undefined;
 	register(session: URI, subscription: IAgentSubscription<SessionState>): IDisposable;
-	reconcile(session: URI): void;
+	reconcile(session: URI, token: CancellationToken): Promise<void>;
 }
 
 interface IRegistration {
@@ -81,7 +83,7 @@ export class AgentHostShellInitSynchronizer extends Disposable implements IAgent
 		this._registrations.get(key)?.store.dispose();
 
 		const store = new DisposableStore();
-		const scheduler = store.add(new RunOnceScheduler(() => this._publish(key), 0));
+		const scheduler = store.add(new RunOnceScheduler(() => { void this._publish(key); }, 0));
 		const registration: IRegistration = {
 			subscription,
 			store,
@@ -107,11 +109,11 @@ export class AgentHostShellInitSynchronizer extends Disposable implements IAgent
 		return store;
 	}
 
-	reconcile(session: URI): void {
+	reconcile(session: URI, token: CancellationToken): Promise<void> {
 		const key = session.toString();
 		const registration = this._registrations.get(key);
 		registration?.scheduler.cancel();
-		this._publish(key);
+		return this._publish(key, token);
 	}
 
 	private _scheduleAll(): void {
@@ -124,8 +126,9 @@ export class AgentHostShellInitSynchronizer extends Disposable implements IAgent
 		return !!state && !(state instanceof Error) && !!state.config?.schema.properties[SessionConfigKey.ShellInitSnippets];
 	}
 
-	private _publish(key: string): void {
-		const state = this._registrations.get(key)?.subscription.value;
+	private async _publish(key: string, token?: CancellationToken): Promise<void> {
+		const registration = this._registrations.get(key);
+		const state = registration?.subscription.value;
 		if (!state || state instanceof Error || !state.config?.schema.properties[SessionConfigKey.ShellInitSnippets]) {
 			return;
 		}
@@ -144,10 +147,18 @@ export class AgentHostShellInitSynchronizer extends Disposable implements IAgent
 			return;
 		}
 
-		this._agentHostService.dispatch(key, {
+		const action = {
 			type: ActionType.SessionConfigChanged,
 			config: { [SessionConfigKey.ShellInitSnippets]: desired },
-		});
+		} as const;
+		const applied = token ? Event.toPromise(Event.filter(registration.subscription.onDidApplyAction, envelope =>
+			envelope.action.type === ActionType.SessionConfigChanged
+			&& structuralEquals(envelope.action.config[SessionConfigKey.ShellInitSnippets], desired)
+		)) : undefined;
+		this._agentHostService.dispatch(key, action);
+		if (applied && token) {
+			await raceCancellation(applied, token);
+		}
 	}
 
 	private _readPythonActivation(folder: IWorkspaceFolder): string | undefined {

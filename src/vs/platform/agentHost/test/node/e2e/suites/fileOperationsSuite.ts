@@ -9,6 +9,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { editorWindowAgentHostClientInfo } from '../../../../common/agentHostClientInfo.js';
 import { SessionConfigKey } from '../../../../common/sessionConfigKeys.js';
 import { buildDefaultChatUri, getInlineToolInput, ROOT_STATE_URI, ToolCallCancellationReason, ToolResultContentType, type ToolResultFileEditContent } from '../../../../common/state/sessionState.js';
 import type { StringOrMarkdown } from '../../../../common/state/protocol/state.js';
@@ -259,9 +260,12 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 			this.timeout(180_000);
 			const workspace = mkdtempSync(join(tmpdir(), 'ahp-shell-init-'));
 			tempDirs.push(workspace);
-			const sessionUri = await createRealSession(context.client, config, 'shell-init-script', createdSessions, URI.file(workspace));
+			const sessionUri = await createRealSession(context.client, config, 'shell-init-script', createdSessions, URI.file(workspace), undefined, editorWindowAgentHostClientInfo);
 			// Session config carries script text; the host materializes the file
-			// and registers it through the SDK's `shell.initScripts`.
+			// and registers it through the SDK's `shell.initScripts`. Dispatch
+			// the first turn immediately afterward to pin ordered Editor Window
+			// config publication without relying on a server echo.
+			context.client.beginAhpSnapshotRound();
 			context.client.dispatch({
 				channel: sessionUri,
 				clientSeq: 1,
@@ -270,16 +274,11 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 					config: { [SessionConfigKey.ShellInitSnippets]: [{ shell: 'bash', script: 'export AHP_E2E_INIT_MARKER=init_marker_91\nbuiltin true\n' }] },
 				},
 			});
-			await context.client.waitForNotification(n =>
-				isActionNotification(n, 'session/configChanged') && getActionEnvelope(n).channel === sessionUri,
-				30_000,
-			);
 
-			context.client.beginAhpSnapshotRound();
 			// `node -e` keeps the recorded command platform-neutral; the marker can
 			// only be present if the registered init script ran first.
 			const markerCommand = `node -e "console.log('marker=' + process.env.AHP_E2E_INIT_MARKER)"`;
-			const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-shell-init', `Run exactly this shell command, with no modifications: \`${markerCommand}\`. Then reply with its exact output only.`, 1);
+			const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-shell-init', `Run exactly this shell command, with no modifications: \`${markerCommand}\`. Then reply with its exact output only.`, 2);
 			assert.match(result.responseText, /marker=init_marker_91/);
 			assertToolCallCompleteText(context.client, {
 				channel: buildDefaultChatUri(sessionUri),
