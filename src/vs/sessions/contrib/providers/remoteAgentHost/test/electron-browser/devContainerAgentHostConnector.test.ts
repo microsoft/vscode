@@ -14,10 +14,17 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { DevContainerAgentHostEnabledSettingId, DevContainerWorktreeEnabledSettingId } from '../../../../../common/devContainerAgentHostService.js';
-import { ensureDevContainerAgentHostsEnabled, isDevContainerWorkspaceAvailable } from '../../electron-browser/devContainerAgentHostConnector.contribution.js';
+import { ensureDevContainerAgentHostsEnabled, isDevContainerWorkspaceAvailable, registerDevContainerAgentHostConfiguration } from '../../electron-browser/devContainerAgentHostConnector.contribution.js';
 
 suite('Dev Container Agent Host Connector', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	suiteSetup(() => {
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+		if (!configurationRegistry.getConfigurationProperties()[DevContainerAgentHostEnabledSettingId]) {
+			registerDevContainerAgentHostConfiguration();
+		}
+	});
 
 	test('requires Docker and a default Dev Container configuration', async () => {
 		const workspaceUri = URI.file('/workspace');
