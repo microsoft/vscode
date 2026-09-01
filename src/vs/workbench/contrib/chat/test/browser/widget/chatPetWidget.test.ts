@@ -2170,11 +2170,13 @@ suite('ChatPetWidget', () => {
 	test('uses substantive input surfaces as the platform', () => {
 		assert.deepStrictEqual([
 			getChatPetPlatformTop(100, 160),
+			getChatPetPlatformTop(100, 160, 80),
 			getChatPetPlatformTop(100, 160, 120),
 			getChatPetPlatformTop(100, 160, 158),
 			getChatPetPlatformTop(100, 160, 170),
 		], [
 			110,
+			80,
 			120,
 			158,
 			110,

@@ -955,7 +955,7 @@ export function getChatPetVerticalOffset(hostTop: number, inputTop: number): num
 }
 
 export function getChatPetPlatformTop(hostTop: number, inputTop: number, substantiveSurfaceTop?: number): number {
-	if (substantiveSurfaceTop !== undefined && substantiveSurfaceTop >= hostTop && substantiveSurfaceTop <= inputTop) {
+	if (substantiveSurfaceTop !== undefined && substantiveSurfaceTop <= inputTop) {
 		return substantiveSurfaceTop;
 	}
 	return hostTop + getChatPetVerticalOffset(hostTop, inputTop);
