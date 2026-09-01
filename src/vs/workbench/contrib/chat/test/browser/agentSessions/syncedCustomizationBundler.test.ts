@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -48,6 +49,7 @@ suite('SyncedCustomizationBundler', () => {
 	});
 
 	teardown(() => {
+		sinon.restore();
 		disposables.clear();
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -166,6 +168,8 @@ suite('SyncedCustomizationBundler', () => {
 		await seedFile('/skills/my-skill/references/notes.md', 'reference content');
 		await seedFile('/skills/my-skill/scripts/run.sh', 'script content');
 		await seedFile('/skills/my-skill/assets/templates/default.txt', 'template content');
+		await seedFile('/skills/my-skill/.git/config', 'git metadata');
+		await seedFile('/skills/my-skill/node_modules/dependency/index.js', 'dependency content');
 		await seedFile('/skills/outside.md', 'outside content');
 
 		const result = await bundler.bundle([{ uri: skill, type: PromptsType.skill }]);
@@ -179,11 +183,15 @@ suite('SyncedCustomizationBundler', () => {
 			reference: reference.value.toString(),
 			script: script.value.toString(),
 			template: template.value.toString(),
+			gitMetadataExists: await fileService.exists(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/skills/my-skill/.git/config' })),
+			nodeModuleExists: await fileService.exists(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/skills/my-skill/node_modules/dependency/index.js' })),
 			outsideExists: await fileService.exists(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/skills/outside.md' })),
 		}, {
 			reference: 'reference content',
 			script: 'script content',
 			template: 'template content',
+			gitMetadataExists: false,
+			nodeModuleExists: false,
 			outsideExists: false,
 		});
 
@@ -193,7 +201,7 @@ suite('SyncedCustomizationBundler', () => {
 		assert.strictEqual((await fileService.readFile(referenceUri)).value.toString(), 'updated reference');
 	});
 
-	test('bundles binary skill resources without lossy nonce computation', async () => {
+	test('bundles binary skill resources and invalidates the nonce when metadata changes', async () => {
 		const bundler = createBundler();
 		const skill = await seedFile('/skills/binary/SKILL.md', 'skill content');
 		const binary = await seedBinaryFile('/skills/binary/assets/data.bin', [0x80]);
@@ -204,10 +212,10 @@ suite('SyncedCustomizationBundler', () => {
 		const binaryDest = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/skills/binary/assets/data.bin' });
 		assert.deepStrictEqual([...((await fileService.readFile(binaryDest)).value.buffer)], [0x80]);
 
-		await fileService.writeFile(binary, VSBuffer.fromByteArray([0x81]));
+		await fileService.writeFile(binary, VSBuffer.fromByteArray([0x81, 0x82]));
 		const updatedResult = await bundler.bundle([{ uri: skill, type: PromptsType.skill }]);
 		assert.notStrictEqual(updatedResult!.ref.nonce, result.ref.nonce);
-		assert.deepStrictEqual([...((await fileService.readFile(binaryDest)).value.buffer)], [0x81]);
+		assert.deepStrictEqual([...((await fileService.readFile(binaryDest)).value.buffer)], [0x81, 0x82]);
 	});
 
 	test('writes plugin manifest', async () => {
@@ -222,7 +230,7 @@ suite('SyncedCustomizationBundler', () => {
 		assert.strictEqual(parsed.name, 'VS Code Synced Data');
 	});
 
-	test('nonce is stable for same content', async () => {
+	test('nonce is stable when file metadata is unchanged', async () => {
 		const bundler = createBundler();
 		const uri = await seedFile('/test/stable.md', 'same content');
 
@@ -231,12 +239,12 @@ suite('SyncedCustomizationBundler', () => {
 		assert.strictEqual(result1!.ref.nonce, result2!.ref.nonce);
 	});
 
-	test('nonce changes when content changes', async () => {
+	test('nonce changes when file metadata changes', async () => {
 		const bundler = createBundler();
 		const uri = await seedFile('/test/changing.md', 'v1');
 
 		const result1 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
-		await fileService.writeFile(uri, VSBuffer.fromString('v2'));
+		await fileService.writeFile(uri, VSBuffer.fromString('version 2'));
 		const result2 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
 		assert.notStrictEqual(result1!.ref.nonce, result2!.ref.nonce);
 	});
@@ -370,9 +378,10 @@ suite('SyncedCustomizationBundler', () => {
 		assert.strictEqual(newContent.value.toString(), 'second version');
 	});
 
-	test('unchanged rebundle reuses the previous result without touching the tree', async () => {
+	test('unchanged rebundle reuses the previous result without reading files or touching the tree', async () => {
 		const bundler = createBundler();
 		const uri = await seedFile('/test/stable.md', 'unchanged content');
+		const readFile = sinon.spy(fileService, 'readFile');
 
 		const result1 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
 		assert.ok(result1);
@@ -381,12 +390,15 @@ suite('SyncedCustomizationBundler', () => {
 		// a skipped rebundle leaves it untouched.
 		const sentinel = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/sentinel.txt' });
 		await fileService.writeFile(sentinel, VSBuffer.fromString('keep me'));
+		readFile.resetHistory();
 
 		const result2 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		const sourceReads = readFile.callCount;
 
 		// The exact same result object is returned and the sentinel survives,
 		// proving the delete + rewrite was skipped.
 		assert.strictEqual(result2, result1);
+		assert.strictEqual(sourceReads, 0);
 		const survived = await fileService.readFile(sentinel);
 		assert.strictEqual(survived.value.toString(), 'keep me');
 	});
@@ -402,7 +414,7 @@ suite('SyncedCustomizationBundler', () => {
 		const sentinel = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/sentinel.txt' });
 		await fileService.writeFile(sentinel, VSBuffer.fromString('remove me'));
 
-		await fileService.writeFile(uri, VSBuffer.fromString('v2'));
+		await fileService.writeFile(uri, VSBuffer.fromString('version 2'));
 		const result2 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
 
 		// A fresh result is produced and the sentinel is gone.
@@ -445,13 +457,13 @@ suite('SyncedCustomizationBundler', () => {
 
 		// A change after a reused rebundle must still trigger a rebuild — the
 		// reuse path must not poison the cached nonce/result.
-		await fileService.writeFile(uri, VSBuffer.fromString('v2'));
+		await fileService.writeFile(uri, VSBuffer.fromString('version 2'));
 		const result3 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
 
 		assert.notStrictEqual(result3, result1);
 		assert.notStrictEqual(result3!.ref.nonce, result1!.ref.nonce);
 		const written = await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/evolving.md' }));
-		assert.strictEqual(written.value.toString(), 'v2');
+		assert.strictEqual(written.value.toString(), 'version 2');
 	});
 
 	test('lastNonce is unchanged after a reused rebundle', async () => {

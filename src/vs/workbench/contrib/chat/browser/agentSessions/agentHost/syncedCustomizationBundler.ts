@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Limiter } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../../base/common/objects.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { basename, dirname, extUri } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { hash, hashAsync } from '../../../../../../base/common/hash.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { hash } from '../../../../../../base/common/hash.js';
+import { IFileService, IFileStatWithMetadata, IFileStatWithPartialMetadata } from '../../../../../../platform/files/common/files.js';
 import { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { AICustomizationSource } from '../../../common/aiCustomizationWorkspaceService.js';
@@ -19,11 +20,14 @@ import { withCustomizationEnablement } from '../../../../../../platform/agentHos
 import { customizationId, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IAgentHostFileSystemService, SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
+import { IgnoreFile } from '../../../../../../workbench/services/search/common/ignoreFile.js';
 
 // Re-export so existing consumers don't need to change their import source.
 export { SYNCED_CUSTOMIZATION_SCHEME };
 
 const DISPLAY_NAME = 'VS Code Synced Data';
+const FILE_OPERATION_CONCURRENCY = 10;
+const SKILL_DIRECTORY_IGNORE = new IgnoreFile('.git/\nnode_modules/\n', '/', undefined, true);
 
 const MANIFEST_CONTENT = JSON.stringify({
 	name: DISPLAY_NAME,
@@ -48,16 +52,22 @@ function pluginDirForType(type: PromptsType): string | undefined {
 	}
 }
 
-async function collectDirectoryFiles(fileService: IFileService, directory: URI): Promise<URI[]> {
-	const stat = await fileService.resolve(directory);
+type QueueFileOperation = <T>(operation: () => Promise<T>) => Promise<T>;
+
+async function collectDirectoryFiles(fileService: IFileService, root: URI, directory: URI, queueFileOperation: QueueFileOperation): Promise<IFileStatWithMetadata[]> {
+	const stat = await queueFileOperation(() => fileService.resolve(directory, { resolveMetadata: true }));
 	const files = await Promise.all((stat.children ?? []).map(async child => {
-		if (child.isSymbolicLink) {
+		const relativePath = extUri.relativePath(root, child.resource);
+		if (relativePath === undefined) {
+			throw new Error(`Unable to resolve skill resource path: ${child.resource.toString()}`);
+		}
+		if (child.isSymbolicLink || !SKILL_DIRECTORY_IGNORE.isPathIncludedInTraversal(`/${relativePath}`, child.isDirectory)) {
 			return [];
 		}
 		if (child.isDirectory) {
-			return collectDirectoryFiles(fileService, child.resource);
+			return collectDirectoryFiles(fileService, root, child.resource, queueFileOperation);
 		}
-		return child.isFile ? [child.resource] : [];
+		return child.isFile ? [child] : [];
 	}));
 	return files.flat();
 }
@@ -130,11 +140,12 @@ interface IBundleResult {
  * skills/         ← skill directories
  * ```
  *
- * The bundler computes a content-based nonce so the agent host can
+ * The bundler computes a metadata-based nonce so the agent host can
  * skip re-loading when nothing has changed.
  */
 export class SyncedCustomizationBundler extends Disposable {
 
+	private readonly _fileOperationLimiter = this._register(new Limiter<unknown>(FILE_OPERATION_CONCURRENCY));
 	private readonly _authority: string;
 	private _lastNonce: string | undefined;
 	private _lastRef: IBundleResult | undefined;
@@ -160,12 +171,16 @@ export class SyncedCustomizationBundler extends Disposable {
 		return URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: `/${this._authority}` });
 	}
 
+	private _queueFileOperation<T>(operation: () => Promise<T>): Promise<T> {
+		return this._fileOperationLimiter.queue(operation) as Promise<T>;
+	}
+
 	/**
 	 * Bundles the given files and MCP servers into the in-memory plugin
 	 * filesystem.
 	 *
 	 * Overwrites any previous bundle content. Returns a {@link ClientPluginCustomization}
-	 * pointing at the virtual plugin directory with a content-based nonce.
+	 * pointing at the virtual plugin directory with a metadata-based nonce.
 	 *
 	 * @returns The bundle result, or `undefined` if there is nothing to sync.
 	 */
@@ -175,19 +190,13 @@ export class SyncedCustomizationBundler extends Disposable {
 			return undefined;
 		}
 
-		// Read every source file up front so the content nonce can be computed
-		// before touching the in-memory tree. This lets us skip the destructive
-		// delete + rewrite entirely when nothing has changed since the last
-		// bundle (a frequent case when a change event fires but content is
-		// identical).
-		const entries: { destUri: URI; content: VSBuffer; hashPart: string }[] = [];
+		const entries: { sourceUri: URI; destUri: URI; hashPart: string }[] = [];
 		const originByDest = new ResourceMap<ISyncedCustomizationOrigin>();
-		const addEntry = async (file: ISyncableFile, sourceUri: URI, destUri: URI, hashKey: string): Promise<void> => {
-			const content = (await this._fileService.readFile(sourceUri)).value;
-			entries.push({ destUri, content, hashPart: `${hashKey}:${await hashAsync(content)}` });
+		const addEntry = (file: ISyncableFile, source: IFileStatWithPartialMetadata, destUri: URI, hashKey: string): void => {
+			entries.push({ sourceUri: source.resource, destUri, hashPart: `${hashKey}:${source.mtime}:${source.size}` });
 			if (file.source !== undefined) {
 				originByDest.set(destUri, {
-					uri: sourceUri,
+					uri: source.resource,
 					source: file.source,
 					extensionId: file.extensionId,
 					pluginUri: file.pluginUri,
@@ -205,27 +214,23 @@ export class SyncedCustomizationBundler extends Disposable {
 			if (file.type === PromptsType.skill && fileName.toLowerCase() === 'skill.md') {
 				const skillRoot = dirname(file.uri);
 				const skillDirName = basename(skillRoot);
-				await Promise.all((await collectDirectoryFiles(this._fileService, skillRoot)).map(async sourceUri => {
-					const relativePath = extUri.relativePath(skillRoot, sourceUri);
+				for (const source of await collectDirectoryFiles(this._fileService, skillRoot, skillRoot, operation => this._queueFileOperation(operation))) {
+					const relativePath = extUri.relativePath(skillRoot, source.resource);
 					if (relativePath === undefined) {
-						throw new Error(`Unable to resolve skill resource path: ${sourceUri.toString()}`);
+						throw new Error(`Unable to resolve skill resource path: ${source.resource.toString()}`);
 					}
-					await addEntry(
+					addEntry(
 						file,
-						sourceUri,
+						source,
 						URI.joinPath(this._rootUri, dir, skillDirName, relativePath),
 						`${dir}/${skillDirName}/${relativePath}`,
 					);
-				}));
+				}
 			} else {
-				await addEntry(file, file.uri, URI.joinPath(this._rootUri, dir, fileName), `${dir}/${fileName}`);
+				const source = await this._queueFileOperation(() => this._fileService.stat(file.uri));
+				addEntry(file, source, URI.joinPath(this._rootUri, dir, fileName), `${dir}/${fileName}`);
 			}
 		}));
-
-		// Publish the freshly computed provenance map. This is done before the
-		// nonce short-circuit below so the map always reflects the latest set of
-		// bundled files, even when the content nonce is unchanged.
-		this._originByDest = originByDest;
 
 		// Write MCP servers into `.mcp.json`. The agent host's Open Plugin
 		// adapter reads this file relative to the plugin root. Servers are
@@ -260,8 +265,9 @@ export class SyncedCustomizationBundler extends Disposable {
 		const nonce = String(hash(hashParts.join('\n')));
 
 		// Nothing changed since the last successful bundle — reuse it and skip
-		// the delete + rewrite of the in-memory plugin tree.
+		// reading file contents and rewriting the in-memory plugin tree.
 		if (nonce === this._lastNonce && this._lastRef) {
+			this._originByDest = originByDest;
 			if (mcpServers.length > 0 && !equals(childEnablement, this._lastRef.ref.childEnablement)) {
 				return {
 					ref: {
@@ -272,6 +278,12 @@ export class SyncedCustomizationBundler extends Disposable {
 			}
 			return this._lastRef;
 		}
+
+		const fileContents = await Promise.all(entries.map(async entry => ({
+			destUri: entry.destUri,
+			content: (await this._queueFileOperation(() => this._fileService.readFile(entry.sourceUri))).value,
+		})));
+		this._originByDest = originByDest;
 
 		// Delete the previous tree for this authority, preserving other authorities
 		try {
@@ -285,7 +297,7 @@ export class SyncedCustomizationBundler extends Disposable {
 		await this._fileService.writeFile(manifestUri, VSBuffer.fromString(MANIFEST_CONTENT));
 
 		// Write each source file into the correct plugin directory.
-		for (const entry of entries) {
+		for (const entry of fileContents) {
 			await this._fileService.writeFile(entry.destUri, entry.content);
 		}
 
