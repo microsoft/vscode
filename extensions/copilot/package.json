@@ -2708,6 +2708,12 @@
         "category": "Developer"
       },
       {
+        "command": "github.copilot.debug.logTypeScriptContainers",
+        "title": "%github.copilot.command.logTypeScriptContainers%",
+        "enablement": "editorLangId == typescript || editorLangId == javascript",
+        "category": "Developer"
+      },
+      {
         "command": "github.copilot.debug.validateNesRename",
         "title": "%github.copilot.command.validateNesRename%",
         "category": "Developer"
@@ -4945,16 +4951,6 @@
             ],
             "default": 10,
             "markdownDescription": "%github.copilot.config.inlineEdits.triggerOnEditorChangeAfterSeconds%",
-            "tags": [
-              "advanced",
-              "experimental",
-              "onExp"
-            ]
-          },
-          "github.copilot.chat.inlineEdits.nextCursorPrediction.displayLine": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "%github.copilot.config.inlineEdits.nextCursorPrediction.displayLine%",
             "tags": [
               "advanced",
               "experimental",
