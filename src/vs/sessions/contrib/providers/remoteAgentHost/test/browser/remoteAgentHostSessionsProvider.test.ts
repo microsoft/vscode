@@ -19,9 +19,9 @@ import { ChangesetKind } from '../../../../../../platform/agentHost/common/chang
 import { type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { MessageKind, SessionLifecycle, type AgentInfo, type AutomationCatalogState, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { MessageKind, SessionLifecycle, type AgentInfo, type AutomationState, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AUTOMATION_CATALOG_URI, buildDefaultChatUri, SessionStatus as ProtocolSessionStatus, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildDefaultChatUri, isAhpAutomationCatalogChannel, SessionStatus as ProtocolSessionStatus, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -133,9 +133,9 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 
 	// ---- Session-state subscriptions ---------------------------------------
 
-	private readonly _sessionStateEmitters = new Map<string, Emitter<SessionState | AutomationCatalogState>>();
+	private readonly _sessionStateEmitters = new Map<string, Emitter<SessionState | AutomationState>>();
 	private readonly _sessionStateErrorEmitters = new Map<string, Emitter<Error>>();
-	private readonly _sessionStateValues = new Map<string, SessionState | AutomationCatalogState>();
+	private readonly _sessionStateValues = new Map<string, SessionState | AutomationState>();
 	public sessionSubscribeCounts = new Map<string, number>();
 	public sessionUnsubscribeCounts = new Map<string, number>();
 	/**
@@ -146,8 +146,8 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 
 	override getSubscription<T>(_kind: StateComponents, resource: URI): IReference<IAgentSubscription<T>> {
 		const key = resource.toString();
-		if (key === AUTOMATION_CATALOG_URI && !this._sessionStateValues.has(key)) {
-			this._sessionStateValues.set(key, { automations: [] });
+		if (isAhpAutomationCatalogChannel(key) && !this._sessionStateValues.has(key)) {
+			this._sessionStateValues.set(key, { entries: [] });
 		}
 		return this._getSubscription<T>(key);
 	}
@@ -156,7 +156,7 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 		this.sessionSubscribeCounts.set(key, (this.sessionSubscribeCounts.get(key) ?? 0) + 1);
 		let emitter = this._sessionStateEmitters.get(key);
 		if (!emitter) {
-			emitter = new Emitter<SessionState | AutomationCatalogState>();
+			emitter = new Emitter<SessionState | AutomationState>();
 			this._sessionStateEmitters.set(key, emitter);
 		}
 		let errorEmitter = this._sessionStateErrorEmitters.get(key);

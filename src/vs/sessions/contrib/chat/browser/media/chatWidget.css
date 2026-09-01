@@ -286,6 +286,10 @@
 	font-size: var(--vscode-codiconFontSize);
 }
 
+.sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label > .sessions-chat-dropdown-chevron {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
 .sessions-workspace-category-picker .sessions-chat-dropdown-label {
 	margin-left: 0;
 }

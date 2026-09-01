@@ -12,7 +12,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import type { AutomationRunTrigger, IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import type { AutomationMutationGuard, IAutomationRunClaim, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions, IUpdateAutomationRunOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { isAutomationActiveRunError, type AutomationMutationGuard, type IAutomationRunClaim, type ICreateAutomationOptions, type IGuardedAutomationUpdateResult, type IUpdateAutomationOptions, type IUpdateAutomationRunOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import type { IAutomation, IAutomationSnapshotImportResult, IGuardedAutomationSnapshotRemovalResult, ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
 import { AgentHostAutomationStore, type IAgentHostAutomationBoundaryMapper, type IAgentHostAutomationConnection } from './agentHostAutomationStore.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
@@ -241,7 +241,11 @@ export class ReconnectableAgentHostAutomationStore extends Disposable implements
 			if (this._store.isDisposed || isCancellationError(error) || this._currentStore.get() !== store) {
 				return;
 			}
-			this._logService.error(`[ReconnectableAgentHostAutomationStore] Failed to initialize remote Automation authority; retrying in ${MIGRATION_RETRY_DELAY_MS}ms.`, error);
+			if (isAutomationActiveRunError(error)) {
+				this._logService.info(`[ReconnectableAgentHostAutomationStore] Automation migration deferred while a legacy run is active; retrying in ${MIGRATION_RETRY_DELAY_MS}ms.`);
+			} else {
+				this._logService.error(`[ReconnectableAgentHostAutomationStore] Failed to initialize remote Automation authority; retrying in ${MIGRATION_RETRY_DELAY_MS}ms.`, error);
+			}
 			this._migrationRetry.value = disposableTimeout(() => this._completeMigration(store), MIGRATION_RETRY_DELAY_MS);
 		});
 	}

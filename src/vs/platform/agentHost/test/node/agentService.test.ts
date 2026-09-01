@@ -1304,7 +1304,7 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 
-			test('finalizes the same turn with another resumable error when continuation fails immediately', async () => {
+			test('finalizes the same turn with a non-resumable error when continuation fails immediately', async () => {
 				const { chat } = await createErroredTurn();
 				copilotAgent.chats.resumeTurn = async () => {
 					throw new Error('continuation failed');
@@ -1327,7 +1327,7 @@ suite('AgentService (node dispatcher)', () => {
 					state: TurnState.Error,
 					errors: [
 						createErrorResponsePart({ errorType: 'requestFailed', message: 'failed' }, true),
-						createErrorResponsePart({ errorType: 'sendFailed', message: 'Error: continuation failed' }, true),
+						createErrorResponsePart({ errorType: 'sendFailed', message: 'Error: continuation failed' }),
 					],
 					durationAtLeastInitial: true,
 				});

@@ -2975,6 +2975,57 @@ suite('ChatService', () => {
 			});
 		});
 
+		test('stamps the display time when a streamed remote turn finishes while watched', async () => {
+			const before = Date.now();
+			const isCompleteObs = observableValue<boolean>('isComplete', false);
+			const { resource } = setupRemoteProvider({
+				history: [{ type: 'request', prompt: 'hello', participant: remoteScheme }],
+				progressObs: observableValue<IChatProgress[]>('progress', []),
+				isCompleteObs,
+				interruptActiveResponseCallback: async () => true,
+			});
+
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			const whileStreaming = ref.object.getRequests()[0].response?.completionTimestamp;
+			isCompleteObs.set(true, undefined);
+			const afterCompleting = ref.object.getRequests()[0].response?.completionTimestamp;
+
+			assert.deepStrictEqual({
+				whileStreaming,
+				stampedOnCompletion: afterCompleting !== undefined && afterCompleting >= before && afterCompleting <= Date.now(),
+			}, {
+				whileStreaming: undefined,
+				stampedOnCompletion: true,
+			});
+		});
+
+		test('keeps display time unknown when a streamed remote session loads already complete', async () => {
+			const { resource } = setupRemoteProvider({
+				history: [{ type: 'request', prompt: 'hello', participant: remoteScheme }],
+				progressObs: observableValue<IChatProgress[]>('progress', []),
+				isCompleteObs: observableValue<boolean>('isComplete', true),
+				interruptActiveResponseCallback: async () => true,
+			});
+
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			const response = ref.object.getRequests()[0].response;
+			assert.deepStrictEqual({
+				isComplete: response?.isComplete,
+				completionTimestamp: response?.completionTimestamp,
+			}, {
+				isComplete: true,
+				completionTimestamp: undefined,
+			});
+		});
+
 		test('keeps display time unknown when remote session history predates timestamps', async () => {
 			const before = Date.now();
 			const { resource } = setupRemoteProvider({

@@ -37,7 +37,7 @@ import {
 	type PendingMessage,
 	type Turn,
 	type AnnotationsState,
-	type AutomationCatalogState,
+	type AutomationState,
 	type AutomationRunState,
 	type URI as ProtocolURI,
 	type RootState,
@@ -76,7 +76,7 @@ export {
 	type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type ModelSelection, type PendingMessage, type PluginCustomization, type ProjectInfo, type PromptCustomization, type ReasoningResponsePart,
 	type ErrorResponsePart, type ResponsePart,
 	type RootState, type RuleCustomization, type SessionActiveClient,
-	type AutomationCatalogState, type AutomationRunState,
+	type AutomationState, type AutomationRunState,
 	type SessionConfigState,
 	type SessionModelInfo,
 	type SessionState,
@@ -249,18 +249,23 @@ export interface UsageInfoMeta {
 
 /**
  * Singleton channel containing the host-owned automation catalogue.
- *
- * The `catalog` authority is appended so the URI round-trips through
- * `.toString()`. Without an authority, `ahp-automations://` serializes back to
- * `ahp-automations:` and no longer matches. Comparing catalogue channels as
- * URIs everywhere (ResourceMap/isEqual) is the intended followup. See
- * https://github.com/microsoft/vscode/pull/331796#discussion_r3857160917.
  */
-export const AUTOMATION_CATALOG_URI = 'ahp-automations://catalog';
+export const AHP_AUTOMATIONS_SCHEME = 'ahp-automations';
+export const AUTOMATION_CATALOG_URI = `${AHP_AUTOMATIONS_SCHEME}://`;
 
-/** Returns whether `uri` identifies the singleton automation catalogue channel. */
+/**
+ * Returns whether `uri` identifies the singleton automation catalogue channel,
+ * including forms normalized by the workbench {@link ResourceURI} class.
+ */
 export function isAhpAutomationCatalogChannel(uri: string): boolean {
-	return uri === AUTOMATION_CATALOG_URI;
+	if (uri === AUTOMATION_CATALOG_URI) {
+		return true;
+	}
+	try {
+		return ResourceURI.parse(uri).scheme === AHP_AUTOMATIONS_SCHEME;
+	} catch {
+		return false;
+	}
 }
 
 /** Returns whether `uri` identifies one automation-run channel. */
@@ -1068,7 +1073,7 @@ export type ComponentToState = {
 	[StateComponents.Terminal]: TerminalState;
 	[StateComponents.Changeset]: ChangesetState;
 	[StateComponents.Annotations]: AnnotationsState;
-	[StateComponents.AutomationCatalog]: AutomationCatalogState;
+	[StateComponents.AutomationCatalog]: AutomationState;
 	[StateComponents.AutomationRun]: AutomationRunState;
 };
 
@@ -2040,6 +2045,33 @@ export function withSessionEhcliAdopted(meta: SessionSummaryMeta | undefined, ad
 		delete next[SESSION_META_EHCLI_ADOPTED_KEY];
 	}
 	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/**
+ * Session-DB key recording the id of the final turn that existed when a legacy
+ * Copilot CLI session was adopted. It marks the boundary between the migrated
+ * (checkpoint-less) history and any turns added after adoption, so a consumer
+ * that substitutes the session-wide changeset for a migrated turn's absent
+ * per-turn changeset (see the chat editor fallback) can target exactly that
+ * turn and never a post-adoption one.
+ */
+export const AH_META_EHCLI_LAST_TURN_DB_KEY = 'agentHost.ehcliLastMigratedTurn';
+
+/** `_meta` key mirroring {@link AH_META_EHCLI_LAST_TURN_DB_KEY} on a summary. */
+export const SESSION_META_EHCLI_LAST_TURN_KEY = 'ehcliLastMigratedTurn';
+
+/** The id of the last turn migrated when the legacy Copilot CLI session was adopted, if recorded. */
+export function readSessionEhcliLastMigratedTurn(meta: SessionSummaryMeta | undefined): string | undefined {
+	const value = meta?.[SESSION_META_EHCLI_LAST_TURN_KEY];
+	return typeof value === 'string' && value ? value : undefined;
+}
+
+/** Returns a copy of `meta` with the last-migrated-turn marker set, or unchanged when `turnId` is empty. */
+export function withSessionEhcliLastMigratedTurn(meta: SessionSummaryMeta | undefined, turnId: string | undefined): SessionSummaryMeta | undefined {
+	if (!turnId) {
+		return meta;
+	}
+	return { ...meta, [SESSION_META_EHCLI_LAST_TURN_KEY]: turnId };
 }
 
 /**
