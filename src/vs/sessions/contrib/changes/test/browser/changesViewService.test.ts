@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -23,8 +24,8 @@ suite('ChangesViewService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createSession(id: string, options?: { readonly changesets?: readonly ISessionChangeset[]; readonly baseBranchProtected?: boolean }): IActiveSession {
-		const workspace = options?.baseBranchProtected === undefined
+	function createSession(id: string, options?: { readonly changesets?: readonly ISessionChangeset[]; readonly baseBranchProtected?: boolean; readonly pullRequestState?: 'open' | 'closed' | 'merged' }): IActiveSession {
+		const workspace = options?.baseBranchProtected === undefined && options?.pullRequestState === undefined
 			? undefined
 			: upcastPartial<ISessionWorkspace>({
 				folders: [upcastPartial<ISessionFolder>({
@@ -35,7 +36,16 @@ suite('ChangesViewService', () => {
 						workTreeUri: URI.file('/repo.worktrees/session'),
 						baseBranchName: 'main',
 						baseBranchProtected: options.baseBranchProtected,
-						gitHubInfo: constObservable(undefined),
+						gitHubInfo: constObservable(options.pullRequestState ? {
+							owner: 'microsoft',
+							repo: 'vscode',
+							pullRequest: {
+								number: 1,
+								uri: URI.parse('https://github.com/microsoft/vscode/pull/1'),
+								icon: Codicon.gitPullRequest,
+								state: options.pullRequestState,
+							},
+						} : undefined),
 					}),
 				})],
 			});
@@ -44,6 +54,7 @@ suite('ChangesViewService', () => {
 			providerId: 'local-agent-host',
 			sessionType: 'test',
 			loading: constObservable(false),
+			changes: constObservable([]),
 			changesets: constObservable(options?.changesets ?? []),
 			workspace: constObservable(workspace),
 		});
@@ -336,5 +347,17 @@ suite('ChangesViewService', () => {
 			['create-pr'],
 			['merge', 'create-pr'],
 		]);
+	});
+
+	test('uses host pull request state while the live icon is stale', () => {
+		const openSession = createSession('open', { pullRequestState: 'open' });
+		const mergedSession = createSession('merged', { pullRequestState: 'merged' });
+		const { activeSession, service } = createHarness(openSession);
+
+		const hasOpenPullRequest = [service.activeSessionStateObs.get()?.hasOpenPullRequest];
+		activeSession.set(mergedSession, undefined);
+		hasOpenPullRequest.push(service.activeSessionStateObs.get()?.hasOpenPullRequest);
+
+		assert.deepStrictEqual(hasOpenPullRequest, [true, false]);
 	});
 });
