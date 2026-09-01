@@ -18,9 +18,10 @@
  * the CLI. See the README's "Prompt snapshots" section for what is elided and
  * how to add a model.
  *
- * Sessions run with the harness's canonical client-tool profile, so the
- * host's client-tool-gated launch behavior (tool search) is active and its
- * host-authored prompt contribution pinned here.
+ * Sessions run with the harness's canonical client-tool profile, including the
+ * Copilot extension's `toolSearch` AHP reference. The host consumes that
+ * reference, so these model-wire snapshots pin its prompt contribution rather
+ * than the extension's internal tool definition.
  *
  * Run, then accept a new baseline and review the diff:
  *   ./scripts/test-integration.sh --run <this file>
@@ -37,7 +38,6 @@ import { ActionType } from '../../../../common/state/sessionActions.js';
 import { MessageKind, ToolCallConfirmationReason, buildDefaultChatUri } from '../../../../common/state/sessionState.js';
 import { AgentHostE2EServerLease, createRealSession, registerCanonicalActiveClient, setRootConfigValues } from '../harness/agentHostE2ETestHarness.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
-import { RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../../../common/toolSearchConstants.js';
 import {
 	AgentHostUpdateAhpSnapshotsEnvVar, AgentHostUpdateSnapshotsEnvVar, snapshotPathForTest,
 } from '../harness/ahpSnapshot.js';
@@ -84,9 +84,6 @@ const SNAPSHOT_MODELS = [
 	'claude-opus-5',
 	'gemini-2.0-flash',
 ] as const;
-
-/** Stable fragment of the host's tool-search guidance line, matched as observable prompt content. */
-const TOOL_SEARCH_GUIDANCE_FRAGMENT = 'ALWAYS use tool search first';
 
 suite('Agent Host E2E — Copilot prompts', function () {
 
@@ -159,11 +156,6 @@ suite('Agent Host E2E — Copilot prompts', function () {
 			// Taking the last keeps this meaningful if the CLI inserts a preflight request.
 			const body = lease!.observedModelRequestBodies.at(-1);
 			assert.ok(body, 'no model request body was captured — the turn never reached the model');
-
-			// Per-model tool-search state is pinned by the baselines; here only
-			// cross-field consistency is asserted, needing no model knowledge.
-			assert.ok(!requestCarriesToolSearch(body) || requestCarriesToolSearchGuidance(body),
-				`request for '${model}' carries tool_search_tool without the host's guidance line`);
 
 			await assertPromptSnapshot(this.test!, formatPromptSnapshot(body));
 		});
@@ -253,17 +245,6 @@ interface IWireRequest {
 	readonly messages?: ReadonlyArray<{ readonly role?: string; readonly content?: unknown }>;
 	readonly input?: unknown;
 	readonly tools?: readonly unknown[];
-}
-
-/** Both dialects carry a tool's name at the top level of its `tools` entry. */
-function requestCarriesToolSearch(rawBody: string): boolean {
-	const request = JSON.parse(rawBody) as IWireRequest;
-	return Array.isArray(request.tools) && request.tools.some(tool => (tool as { name?: string }).name === RUNTIME_TOOL_SEARCH_TOOL_NAME);
-}
-
-function requestCarriesToolSearchGuidance(rawBody: string): boolean {
-	const request = JSON.parse(rawBody) as IWireRequest;
-	return extractText(request.instructions ?? request.system).includes(TOOL_SEARCH_GUIDANCE_FRAGMENT);
 }
 
 function formatPromptSnapshot(rawBody: string): string {

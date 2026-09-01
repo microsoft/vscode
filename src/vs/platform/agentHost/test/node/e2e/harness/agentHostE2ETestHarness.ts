@@ -470,6 +470,8 @@ export function canonicalClientTools(): ToolDefinition[] {
 		({ name, description: `Client-provided ${name} tool.`, inputSchema: { type: 'object', properties: {} } });
 	return [
 		{
+			// The Copilot extension publishes ToolSearchTool over AHP by its
+			// toolReferenceName; its internal `tool_search` name does not cross this boundary.
 			name: CLIENT_TOOL_SEARCH_REFERENCE_NAME,
 			description: 'Searches deferred tools by a short description of the needed capability.',
 			inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
